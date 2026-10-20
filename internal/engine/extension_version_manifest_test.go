@@ -5,6 +5,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"testing"
@@ -71,7 +72,7 @@ func TestExtensionVersionManifest(t *testing.T) {
 	members := extensionVersionUnitMembers(t, view, old)
 	originalMembers := slices.Clone(old.Members)
 	for _, member := range members {
-		if member.procedure.Name() == "daitch_mokotoff" || member.procedure.Implementation != StockFuzzystrmatch {
+		if member.procedure.Name() == "daitch_mokotoff" || member.procedure.Implementation != extension.StockFuzzystrmatch {
 			t.Fatal("base contains update member or foreign provider")
 		}
 	}
@@ -91,20 +92,20 @@ func TestExtensionVersionManifest(t *testing.T) {
 	}
 	extensionVersionUnitUnchanged(t, e.CatalogRead(), members)
 	staged := e.stageRead(stage)
-	if err := StockFuzzystrmatch.ValidateExtension(staged, candidate); err != nil {
+	if err := extension.StockFuzzystrmatch.ValidateExtension(staged, candidate); err != nil {
 		t.Fatal(err)
 	}
 	for _, version := range []string{"1.0", "missing", "1.1"} {
 		bad := *candidate
 		bad.Version = version
-		if err := (CatalogProvider{ids.ExtensionClassID}).Validate(staged, &bad); err == nil {
+		if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(staged, &bad); err == nil {
 			t.Fatal("wrong-version manifest admitted", version)
 		}
 	}
 	for _, addresses := range [][]ids.ObjectAddress{nil, candidate.Members[:9], append(slices.Clone(candidate.Members), candidate.Members[0]), append([]ids.ObjectAddress{candidate.Members[0]}, candidate.Members[:9]...)} {
 		bad := *candidate
 		bad.Members = addresses
-		if err := StockFuzzystrmatch.ValidateExtension(staged, &bad); err == nil {
+		if err := extension.StockFuzzystrmatch.ValidateExtension(staged, &bad); err == nil {
 			t.Fatal("missing/extra/duplicate manifest admitted")
 		}
 	}
@@ -112,11 +113,11 @@ func TestExtensionVersionManifest(t *testing.T) {
 	// alone cannot substitute for the exact released selected manifest.
 	badBase := *candidate
 	badBase.Version, badBase.Members = "1.1", candidate.Members[:9]
-	if err := StockFuzzystrmatch.ValidateExtension(staged, &badBase); err == nil {
+	if err := extension.StockFuzzystrmatch.ValidateExtension(staged, &badBase); err == nil {
 		t.Fatal("DM in base manifest admitted")
 	}
 	for _, mutate := range []func(*catalog.Procedure){
-		func(p *catalog.Procedure) { p.Implementation = StockUnaccent },
+		func(p *catalog.Procedure) { p.Implementation = extension.StockUnaccent },
 		func(p *catalog.Procedure) { p.Owner = New().roles.domain.Principal(10) },
 		func(p *catalog.Procedure) { p.Owner = authorization.PrincipalRef{} },
 		func(p *catalog.Procedure) { p.Signature = "23" },
@@ -125,7 +126,7 @@ func TestExtensionVersionManifest(t *testing.T) {
 		proc := *staged.MustProcedure(candidate.Members[0])
 		mutate(&proc)
 		state.SetDescriptor(proc.Address(), &proc)
-		if err := StockFuzzystrmatch.ValidateExtension(e.catalog.read(state), candidate); err == nil {
+		if err := extension.StockFuzzystrmatch.ValidateExtension(e.catalog.read(state), candidate); err == nil {
 			t.Fatal("foreign member manifest admitted")
 		}
 	}
@@ -151,13 +152,13 @@ func TestExtensionVersionManifest(t *testing.T) {
 				state.RemoveDescriptor(address)
 			}
 			for address, destination := range mapping {
-				d := RemapDescriptor(before.Get(address), mapping)
+				d := extension.RemapDescriptor(before.Get(address), mapping)
 				state.SetDescriptor(destination, d)
 				state.BindName(catalog.DescriptorNameKey(d), destination)
 			}
 			remapped := state.MustExtension(mapping[ext.Address()])
 			view := source.catalog.read(state)
-			if remapped.Version != version || remapped.Owner != ext.Owner || remapped.TargetNamespace != ext.TargetNamespace || StockFuzzystrmatch.ValidateExtension(view, remapped) != nil {
+			if remapped.Version != version || remapped.Owner != ext.Owner || remapped.TargetNamespace != ext.TargetNamespace || extension.StockFuzzystrmatch.ValidateExtension(view, remapped) != nil {
 				t.Fatal("version remap changed logical manifest")
 			}
 			for _, a := range ext.Members {

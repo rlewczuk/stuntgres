@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"sort"
+	"stuntgres/internal/engine/extension"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -734,7 +735,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 						return nil, fmt.Errorf("stuntgres: missing remapped intagg aggregate")
 					}
 					copy.Calls[i].Procedure = proc
-					if failure := ValidateIntaggIdentity(m.catalog, proc, copy.Calls[i].Ref, "int_array_aggregate"); failure != nil {
+					if failure := extension.ValidateIntaggIdentity(m.catalog, proc, copy.Calls[i].Ref, "int_array_aggregate"); failure != nil {
 						return nil, failure
 					}
 				}

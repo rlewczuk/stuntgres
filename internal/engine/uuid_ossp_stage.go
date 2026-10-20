@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/extension"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -12,7 +13,7 @@ import (
 
 // uuidOsspInstaller stages the uuid-ossp provider for the engine. Installed
 // members hold the bare provider, never the installer.
-type uuidOsspInstaller struct{ *UUIDOsspProvider }
+type uuidOsspInstaller struct{ *extension.UUIDOsspProvider }
 
 func (p uuidOsspInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	ext.Members = make([]ids.ObjectAddress, 0, len(functions.UUIDOsspMembers))

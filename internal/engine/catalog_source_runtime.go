@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/routine"
@@ -282,7 +283,7 @@ func (r engineCatalogRuntime) OperatorDependencies(view catalog.Read, d *catalog
 	return routine.OperatorDependencyAddresses(view, d)
 }
 func (r engineCatalogRuntime) TypeProviderProcedure(d *catalog.Procedure) bool {
-	return IntarrayProviderOf(d) != nil || CubeProviderOf(d) != nil
+	return extension.IntarrayProviderOf(d) != nil || extension.CubeProviderOf(d) != nil
 }
 func catalogSourceTemporaryOwner(auth AuthorizationView) ids.SessionToken {
 	if auth.session != nil {

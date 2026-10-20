@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/extension"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -37,10 +38,10 @@ func (n installedSoundexFunctionExpression) validate(v catalog.Read) error {
 		result = 23
 	}
 	proc, ok := v.Procedure(n.ref.Address)
-	if !ok || proc != n.procedure || FuzzystrmatchProviderOf(proc) != StockFuzzystrmatch || proc.Name() != n.Function || proc.Signature != catalog.ProcedureSignature(functions.SoundexSignature(n.Function, len(n.Args))) || proc.Result != result {
+	if !ok || proc != n.procedure || extension.FuzzystrmatchProviderOf(proc) != extension.StockFuzzystrmatch || proc.Name() != n.Function || proc.Signature != catalog.ProcedureSignature(functions.SoundexSignature(n.Function, len(n.Args))) || proc.Result != result {
 		return fmt.Errorf("stuntgres: invalid stored Soundex identity")
 	}
-	if err := StockFuzzystrmatch.ValidateProcedure(v, proc); err != nil {
+	if err := extension.StockFuzzystrmatch.ValidateProcedure(v, proc); err != nil {
 		return err
 	}
 	return n.Validate()

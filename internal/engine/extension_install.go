@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -86,7 +87,7 @@ func (e *Engine) publishExtensionStage(scope *StatementScope, stage *CatalogStag
 	for key, original := range stage.Touched() {
 		changes.names[key] = original
 	}
-	changes.extensionAuthority = append(changes.extensionAuthority, AuthorityObservation{Roles: stage.roleRevision, Namespace: stage.Base.Get(stage.extensionNamespace), Database: stage.databasePredecessor})
+	changes.extensionAuthority = append(changes.extensionAuthority, extension.AuthorityObservation{Roles: stage.roleRevision, Namespace: stage.Base.Get(stage.extensionNamespace), Database: stage.databasePredecessor})
 	scope.catalog = changes
 	scope.catalogAuthority = &catalogAuthority{session: scope.op.session, authorization: stage.authRevision, roles: stage.roleRevision, ref: ids.ObjectRef{Address: catalog.CurrentDatabaseAddress}, descriptor: stage.databasePredecessor, databaseAuthority: stage.databaseAuthority, databasePredecessor: stage.databasePredecessor}
 	e.mu.Unlock()
@@ -131,7 +132,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 			return nil, fmt.Errorf("stuntgres: invalid extension option")
 		}
 	}
-	if err := VersionError(version); err != nil {
+	if err := extension.VersionError(version); err != nil {
 		return nil, err
 	}
 	path := implementation.Versions().InstallPath(version)

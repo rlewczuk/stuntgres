@@ -5,13 +5,14 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
 
 // unaccentInstaller stages the unaccent provider for the engine. Installed
 // members hold the bare provider, never the installer.
-type unaccentInstaller struct{ *UnaccentProvider }
+type unaccentInstaller struct{ *extension.UnaccentProvider }
 
 func (p unaccentInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	ext.Members = make([]ids.ObjectAddress, 6)
@@ -49,7 +50,7 @@ func (p unaccentInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 			proc.Dictionary = ext.Members[5]
 		}
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
-			return MemberConflict(proc, ext.TargetNamespace)
+			return extension.MemberConflict(proc, ext.TargetNamespace)
 		}
 		if err := stage.Create(proc); err != nil {
 			return err
@@ -76,7 +77,7 @@ func (p unaccentInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 	}{{"unaccent_init", catalog.UnaccentInitSignature, "internal"}, {"unaccent_lexize", catalog.UnaccentLexizeSignature, "internal, internal, internal, internal"}} {
 		procedure := procedureInNamespaces(auth.Catalog, namespaceSelection{path: path}, helper.name, helper.signature)
 		if procedure == nil {
-			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: fmt.Sprintf("function %s(%s) does not exist", helper.name, helper.arguments), Context: UnaccentTemplateContext}
+			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: fmt.Sprintf("function %s(%s) does not exist", helper.name, helper.arguments), Context: extension.UnaccentTemplateContext}
 		}
 		helpers[i] = procedure.Address()
 	}
@@ -86,7 +87,7 @@ func (p unaccentInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 	}
 	tmpl := &catalog.TSTemplate{ObjectAddress: ext.Members[4], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: "unaccent", Init: helpers[0], Lexize: helpers[1], Implementation: p.UnaccentProvider}
 	if stage.LookupName(catalog.DescriptorNameKey(tmpl)) != (ids.ObjectAddress{}) {
-		return MemberConflict(tmpl, ext.TargetNamespace)
+		return extension.MemberConflict(tmpl, ext.TargetNamespace)
 	}
 	if err := stage.Create(tmpl); err != nil {
 		return err
@@ -97,7 +98,7 @@ func (p unaccentInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 	}
 	dict := &catalog.TSDictionary{ObjectAddress: ext.Members[5], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: rev, ObjectName: "unaccent", Template: tmpl.Address(), Owner: owner, Implementation: p.UnaccentProvider}
 	if stage.LookupName(catalog.DescriptorNameKey(dict)) != (ids.ObjectAddress{}) {
-		return MemberConflict(dict, ext.TargetNamespace)
+		return extension.MemberConflict(dict, ext.TargetNamespace)
 	}
 	return stage.Create(dict)
 }

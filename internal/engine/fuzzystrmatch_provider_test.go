@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/parser"
@@ -42,7 +43,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		t.Fatal("member count", ext.Members)
 	}
 	proc := view.MustProcedure(ext.Members[0])
-	if proc.Namespace() != ext.TargetNamespace || proc.Extension != ext.Address() || proc.Owner != ext.Owner || proc.Result != 1009 || proc.Signature != "25" || proc.Volatility != expr.Immutable || !proc.Strict || FuzzystrmatchProviderOf(proc) != StockFuzzystrmatch {
+	if proc.Namespace() != ext.TargetNamespace || proc.Extension != ext.Address() || proc.Owner != ext.Owner || proc.Result != 1009 || proc.Signature != "25" || proc.Volatility != expr.Immutable || !proc.Strict || extension.FuzzystrmatchProviderOf(proc) != extension.StockFuzzystrmatch {
 		t.Fatal("installed identity", proc)
 	}
 	expected := map[string]ids.OID{"daitch_mokotoff:25": 1009, "levenshtein:25,25": 23, "levenshtein:25,25,23,23,23": 23, "levenshtein_less_equal:25,25,23": 23, "levenshtein_less_equal:25,25,23,23,23,23": 23, "metaphone:25,23": 25, "dmetaphone:25": 25, "dmetaphone_alt:25": 25, "soundex:25": 25, "difference:25,25": 23}
@@ -50,12 +51,12 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 	for _, address := range ext.Members {
 		member := view.MustProcedure(address)
 		key := member.Name() + ":" + string(member.Signature)
-		if expected[key] == 0 || member.Result != expected[key] || addresses[address] || member.Owner != proc.Owner || member.Namespace() != ext.TargetNamespace || member.Extension != ext.Address() || member.Volatility != expr.Immutable || !member.Strict || FuzzystrmatchProviderOf(member) != StockFuzzystrmatch {
+		if expected[key] == 0 || member.Result != expected[key] || addresses[address] || member.Owner != proc.Owner || member.Namespace() != ext.TargetNamespace || member.Extension != ext.Address() || member.Volatility != expr.Immutable || !member.Strict || extension.FuzzystrmatchProviderOf(member) != extension.StockFuzzystrmatch {
 			t.Fatal("selected member identity", member)
 		}
 		delete(expected, key)
 		addresses[address] = true
-		if err := (CatalogProvider{ids.ProcedureClassID}).Validate(view, member); err != nil {
+		if err := (extension.CatalogProvider{ids.ProcedureClassID}).Validate(view, member); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -63,7 +64,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		t.Fatal("missing selected members", expected)
 	}
 	for _, d := range []catalog.Descriptor{ext, proc} {
-		if err := (CatalogProvider{d.Address().ClassID}).Validate(view, d); err != nil {
+		if err := (extension.CatalogProvider{d.Address().ClassID}).Validate(view, d); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -86,9 +87,9 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 	for _, mutate := range []func(*catalog.Procedure){
 		func(p *catalog.Procedure) { p.ObjectName = "text_soundex" }, func(p *catalog.Procedure) { p.Signature = "23" },
 		func(p *catalog.Procedure) { p.Result = 25 }, func(p *catalog.Procedure) { p.Volatility = expr.Stable },
-		func(p *catalog.Procedure) { p.Strict = false }, func(p *catalog.Procedure) { p.Implementation = StockUnaccent },
-		func(p *catalog.Procedure) { p.Implementation = StockIntarray }, func(p *catalog.Procedure) {
-			p.Implementation = new(*StockFuzzystrmatch)
+		func(p *catalog.Procedure) { p.Strict = false }, func(p *catalog.Procedure) { p.Implementation = extension.StockUnaccent },
+		func(p *catalog.Procedure) { p.Implementation = extension.StockIntarray }, func(p *catalog.Procedure) {
+			p.Implementation = new(*extension.StockFuzzystrmatch)
 		},
 		func(p *catalog.Procedure) { p.ObjectNamespace = ids.ObjectAddress{} }, func(p *catalog.Procedure) { p.Extension = ids.ObjectAddress{} },
 		func(p *catalog.Procedure) { p.Dictionary = ext.Address() }, func(p *catalog.Procedure) { p.ObjectRevision = 0 },
@@ -97,30 +98,30 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		bad := *proc
 		mutate(&bad)
 		state.SetDescriptor(proc.Address(), &bad)
-		if err := StockFuzzystrmatch.ValidateExtension(e.catalog.read(state), ext); err == nil {
+		if err := extension.StockFuzzystrmatch.ValidateExtension(e.catalog.read(state), ext); err == nil {
 			t.Fatal("invalid procedure admitted", bad)
 		}
 	}
 	for _, members := range [][]ids.ObjectAddress{nil, {proc.Address(), proc.Address()}, {{ClassID: ids.TypeClassID, ObjectID: proc.Address().ObjectID}}} {
 		bad := *ext
 		bad.Members = members
-		if err := StockFuzzystrmatch.ValidateExtension(view, &bad); err == nil {
+		if err := extension.StockFuzzystrmatch.ValidateExtension(view, &bad); err == nil {
 			t.Fatal("invalid membership admitted", members)
 		}
 	}
 	duplicate := *ext
 	duplicate.Members = append([]ids.ObjectAddress(nil), ext.Members...)
 	duplicate.Members[4] = duplicate.Members[1]
-	if err := StockFuzzystrmatch.ValidateExtension(view, &duplicate); err == nil {
+	if err := extension.StockFuzzystrmatch.ValidateExtension(view, &duplicate); err == nil {
 		t.Fatal("full-size duplicate inventory admitted")
 	}
-	metadata, err := OwnerMetadata(view, e.roles.read(e.catalog.owner(), view, e.roles.published), ext)
+	metadata, err := extension.OwnerMetadata(view, e.roles.read(e.catalog.owner(), view, e.roles.published), ext)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var records []OwnerRecord
+	var records []extension.OwnerRecord
 	_, err = parser.ParseWithOptions("CREATE EXTENSION fuzzystrmatch;\n"+metadata, parser.Options{Context: context.Background(), StandardConformingStrings: true, LineComment: func(comment string, _ parser.Position) error {
-		record, found, err := DecodeOwners(comment)
+		record, found, err := extension.DecodeOwners(comment)
 		if found && err == nil {
 			records = append(records, record)
 		}
@@ -145,7 +146,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		`{"name":"fuzzystrmatch","schema":"public","version":"1.2","owner":"postgres","members":[{"kind":"procedure","name":"text_soundex","signature":"25","owner":"postgres"}]}`,
 		`{"name":"fuzzystrmatch","schema":"public","version":"1.2","owner":"postgres","members":[]}`,
 	} {
-		if _, _, err := DecodeOwners(" " + OwnersMarker + " " + base64.StdEncoding.EncodeToString([]byte(payload))); err == nil {
+		if _, _, err := extension.DecodeOwners(" " + extension.OwnersMarker + " " + base64.StdEncoding.EncodeToString([]byte(payload))); err == nil {
 			t.Fatal("foreign owner manifest accepted", payload)
 		}
 	}
@@ -171,7 +172,7 @@ func TestDaitchMokotoffProviderIdentity(t *testing.T) {
 		ns := intarrayUnitTemporaryNamespace(t, e, op)
 		extensionUnitPublish(t, e, op, intarrayUnitStage(t, e, op, "fuzzystrmatch", ns.Name()))
 		ext := e.catalog.state.MustExtension(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
-		if err := StockFuzzystrmatch.ValidateExtension(e.CatalogRead(), ext); err != nil {
+		if err := extension.StockFuzzystrmatch.ValidateExtension(e.CatalogRead(), ext); err != nil {
 			t.Fatal("own TEMP provider", err)
 		}
 		member := ext.Members[0]

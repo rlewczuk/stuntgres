@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -110,7 +111,7 @@ func (e *Engine) stageExtensionUpdateLocked(scope *StatementScope, s *parser.Alt
 		}
 		version = option.Value.Text
 	}
-	if err := VersionError(version); err != nil {
+	if err := extension.VersionError(version); err != nil {
 		return nil, err
 	}
 	if old.Version == version {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"stuntgres/internal/engine/extension"
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
@@ -28,7 +29,7 @@ type catalogChanges struct {
 	uniqueRoots         map[ids.ObjectAddress]*storage.IndexRoot
 	indexCandidates     map[ids.ObjectAddress]indexRootCandidate // Private produced DDL roots and their exact baseline pins.
 	dependencies        []catalogDependencyObservation
-	extensionAuthority  []AuthorityObservation
+	extensionAuthority  []extension.AuthorityObservation
 	cachedBase          *catalog.State
 	cached              catalog.Read
 	enum                *typedef.EnumJournal
@@ -248,7 +249,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 	if len(c.extensionAuthority) != 0 {
 		for key, original := range c.names {
 			if key.ClassID == ids.ExtensionClassID && original == (ids.ObjectAddress{}) && e.catalog.state.NameAddress(key) != original {
-				return NameConflict(key.Name)
+				return extension.NameConflict(key.Name)
 			}
 		}
 	}

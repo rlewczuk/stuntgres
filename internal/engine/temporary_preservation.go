@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/extension"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -474,7 +475,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 				}
 				d = &n
 			}
-			d = RemapDescriptor(d, mapping)
+			d = extension.RemapDescriptor(d, mapping)
 			next.SetDescriptor(target, d)
 			next.BindName(catalog.DescriptorNameKey(d), target)
 		}

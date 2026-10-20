@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -45,10 +46,10 @@ func (n installedCryptoFunctionExpression) validate(v catalog.Read) error {
 		}
 	}
 	proc, ok := v.Procedure(n.ref.Address)
-	if !ok || proc != n.procedure || PgcryptoProviderOf(proc) != StockPgcrypto || proc.Name() != n.Plan.Name() || proc.Signature != cryptoExpressionSignature(n) {
+	if !ok || proc != n.procedure || extension.PgcryptoProviderOf(proc) != extension.StockPgcrypto || proc.Name() != n.Plan.Name() || proc.Signature != cryptoExpressionSignature(n) {
 		return fmt.Errorf("stuntgres: invalid stored crypto identity")
 	}
-	if err := StockPgcrypto.ValidateProcedure(v, proc); err != nil {
+	if err := extension.StockPgcrypto.ValidateProcedure(v, proc); err != nil {
 		return err
 	}
 	return n.Validate()
@@ -101,7 +102,7 @@ func closedPgcryptoDefault(node expr.Expr) bool {
 	}
 	switch n := node.(type) {
 	case installedCryptoFunctionExpression:
-		if n.procedure == nil || PgcryptoProviderOf(n.procedure) != StockPgcrypto || n.ref.Address != n.procedure.Address() || n.ref.Epoch == 0 || n.Plan.Name() != n.procedure.Name() || n.Validate() != nil {
+		if n.procedure == nil || extension.PgcryptoProviderOf(n.procedure) != extension.StockPgcrypto || n.ref.Address != n.procedure.Address() || n.ref.Epoch == 0 || n.Plan.Name() != n.procedure.Name() || n.Validate() != nil {
 			return false
 		}
 		member, ok := functions.PgcryptoLookup(n.procedure.Name(), string(cryptoExpressionSignature(n)))

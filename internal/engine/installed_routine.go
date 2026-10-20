@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/extension"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -13,7 +14,7 @@ import (
 // InstalledRoutine resolves the namespace path first, so its lookup errors
 // precede every signature diagnostic; the procedure lookup itself is pure.
 // A procedure installed by another provider is not the extension's routine.
-func (b *expressionBinder) InstalledRoutine(name parser.ObjectName, extension functions.Extension, signature string) (functions.InstalledRoutine, error) {
+func (b *expressionBinder) InstalledRoutine(name parser.ObjectName, family functions.Extension, signature string) (functions.InstalledRoutine, error) {
 	auth, err := b.bindingAuthorization()
 	if err != nil {
 		return nil, err
@@ -24,7 +25,7 @@ func (b *expressionBinder) InstalledRoutine(name parser.ObjectName, extension fu
 	}
 	text := name.Parts[len(name.Parts)-1].Text
 	var proc *catalog.Procedure
-	if extension == functions.PgcryptoExtension {
+	if family == functions.PgcryptoExtension {
 		for i := range path.count() {
 			namespace := path.at(i)
 			// The implicit catalog precedes ordinary paths; explicit ordering
@@ -44,19 +45,19 @@ func (b *expressionBinder) InstalledRoutine(name parser.ObjectName, extension fu
 		return nil, nil
 	}
 	var installed bool
-	switch extension {
+	switch family {
 	case functions.UUIDOsspExtension:
-		installed = UUIDOsspProviderOf(proc) == StockUUIDOssp
+		installed = extension.UUIDOsspProviderOf(proc) == extension.StockUUIDOssp
 	case functions.PgcryptoExtension:
-		installed = PgcryptoProviderOf(proc) == StockPgcrypto
+		installed = extension.PgcryptoProviderOf(proc) == extension.StockPgcrypto
 	case functions.FuzzystrmatchExtension:
-		installed = FuzzystrmatchProviderOf(proc) == StockFuzzystrmatch
+		installed = extension.FuzzystrmatchProviderOf(proc) == extension.StockFuzzystrmatch
 	case functions.UnaccentExtension:
-		installed = UnaccentProviderOf(proc) == StockUnaccent
+		installed = extension.UnaccentProviderOf(proc) == extension.StockUnaccent
 	case functions.IntaggExtension:
-		installed = IntaggProviderOf(proc) == StockIntagg
+		installed = extension.IntaggProviderOf(proc) == extension.StockIntagg
 	default:
-		return nil, fmt.Errorf("stuntgres: unknown installed extension %d", extension)
+		return nil, fmt.Errorf("stuntgres: unknown installed extension %d", family)
 	}
 	if !installed {
 		return nil, nil
@@ -75,20 +76,20 @@ type installedExtensionRoutine struct {
 func (r installedExtensionRoutine) Validate() error {
 	p := r.procedure
 	switch {
-	case UUIDOsspProviderOf(p) != nil:
-		return StockUUIDOssp.ValidateProcedure(r.catalog, p)
-	case PgcryptoProviderOf(p) != nil:
-		return StockPgcrypto.ValidateProcedure(r.catalog, p)
-	case FuzzystrmatchProviderOf(p) != nil:
-		return StockFuzzystrmatch.ValidateProcedure(r.catalog, p)
-	case IntaggProviderOf(p) != nil:
-		return StockIntagg.ValidateProcedure(r.catalog, p)
-	case UnaccentProviderOf(p) == StockUnaccent:
+	case extension.UUIDOsspProviderOf(p) != nil:
+		return extension.StockUUIDOssp.ValidateProcedure(r.catalog, p)
+	case extension.PgcryptoProviderOf(p) != nil:
+		return extension.StockPgcrypto.ValidateProcedure(r.catalog, p)
+	case extension.FuzzystrmatchProviderOf(p) != nil:
+		return extension.StockFuzzystrmatch.ValidateProcedure(r.catalog, p)
+	case extension.IntaggProviderOf(p) != nil:
+		return extension.StockIntagg.ValidateProcedure(r.catalog, p)
+	case extension.UnaccentProviderOf(p) == extension.StockUnaccent:
 		ext, ok := r.catalog.Extension(p.Extension)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing unaccent installation")
 		}
-		return StockUnaccent.ValidateExtension(r.catalog, ext)
+		return extension.StockUnaccent.ValidateExtension(r.catalog, ext)
 	}
 	return fmt.Errorf("stuntgres: invalid installed routine")
 }
@@ -102,35 +103,35 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 	appended := catalog.ExpressionDependency{Ref: ref, Revision: p.Revision()}
 	switch c := call.(type) {
 	case functions.UUIDGeneration:
-		if UUIDOsspProviderOf(p) != StockUUIDOssp {
+		if extension.UUIDOsspProviderOf(p) != extension.StockUUIDOssp {
 			break
 		}
 		c.RoutineReference = p
 		b.dependency(ref, p.Revision())
 		return installedUUIDOsspFunctionExpression{UUIDGeneration: c, procedure: p, ref: ref}, nil
 	case functions.Pgcrypto:
-		if PgcryptoProviderOf(p) != StockPgcrypto {
+		if extension.PgcryptoProviderOf(p) != extension.StockPgcrypto {
 			break
 		}
 		c.RoutineReference = p
 		b.dependency(ref, p.Revision())
 		return installedCryptoFunctionExpression{Pgcrypto: c, procedure: p, ref: ref}, nil
 	case functions.Levenshtein:
-		if FuzzystrmatchProviderOf(p) != StockFuzzystrmatch {
+		if extension.FuzzystrmatchProviderOf(p) != extension.StockFuzzystrmatch {
 			break
 		}
 		c.RoutineReference = p
 		b.dependencies = append(b.dependencies, appended)
 		return installedLevenshteinFunctionExpression{Levenshtein: c, procedure: p, ref: ref}, nil
 	case functions.Metaphone:
-		if FuzzystrmatchProviderOf(p) != StockFuzzystrmatch {
+		if extension.FuzzystrmatchProviderOf(p) != extension.StockFuzzystrmatch {
 			break
 		}
 		c.RoutineReference = p
 		b.dependencies = append(b.dependencies, appended)
 		return installedMetaphoneFunctionExpression{Metaphone: c, procedure: p, ref: ref}, nil
 	case functions.Soundex:
-		if FuzzystrmatchProviderOf(p) != StockFuzzystrmatch {
+		if extension.FuzzystrmatchProviderOf(p) != extension.StockFuzzystrmatch {
 			break
 		}
 		c.RoutineReference = p
@@ -139,7 +140,7 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 	case functions.InstalledText:
 		return r.attachText(c, ref)
 	case functions.IntaggEnumeration:
-		if IntaggProviderOf(p) != StockIntagg {
+		if extension.IntaggProviderOf(p) != extension.StockIntagg {
 			break
 		}
 		return r.attachIntaggEnumeration(c)
@@ -153,7 +154,7 @@ func (r installedExtensionRoutine) attachText(call functions.InstalledText, ref 
 	p := r.procedure
 	var dict *catalog.TSDictionary
 	var tmpl *catalog.TSTemplate
-	if UnaccentProviderOf(p) != nil {
+	if extension.UnaccentProviderOf(p) != nil {
 		var ok bool
 		dict, ok = r.catalog.TSDictionary(p.Dictionary)
 		if !ok {
@@ -163,7 +164,7 @@ func (r installedExtensionRoutine) attachText(call functions.InstalledText, ref 
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing installed unaccent template")
 		}
-		call.Matcher = UnaccentDictionaryProviderOf(dict).Matcher
+		call.Matcher = extension.UnaccentDictionaryProviderOf(dict).Matcher
 	}
 	r.binder.dependency(ref, p.Revision())
 	call.RoutineReference = p

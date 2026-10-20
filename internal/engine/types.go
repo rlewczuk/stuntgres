@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/extension"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -36,9 +37,9 @@ func (typeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) e
 		var err error
 		switch {
 		case parent.Name() == "intarray" && t.SQLType.IsQueryInt():
-			err = StockIntarray.ValidateExtension(view, parent)
+			err = extension.StockIntarray.ValidateExtension(view, parent)
 		case parent.Name() == "cube" && t.SQLType.IsCube():
-			err = StockCube.ValidateExtension(view, parent)
+			err = extension.StockCube.ValidateExtension(view, parent)
 		default:
 			return fmt.Errorf("stuntgres: invalid installed type membership")
 		}

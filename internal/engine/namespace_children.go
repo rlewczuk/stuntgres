@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"sort"
+	"stuntgres/internal/engine/extension"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -16,11 +17,11 @@ func namespaceChildren(base catalog.Read, namespaces map[ids.ObjectAddress]bool)
 		if namespaces[descriptor.Namespace()] {
 			selected[address] = true
 		}
-		if extension, ok := descriptor.(*catalog.Extension); ok && namespaces[extension.TargetNamespace] {
+		if ext, ok := descriptor.(*catalog.Extension); ok && namespaces[ext.TargetNamespace] {
 			selected[address] = true
-			for _, member := range extension.Members {
+			for _, member := range ext.Members {
 				d := base.Get(member)
-				if d == nil || d.Namespace() != extension.TargetNamespace || Membership(d) != address {
+				if d == nil || d.Namespace() != ext.TargetNamespace || extension.Membership(d) != address {
 					return nil, fmt.Errorf("stuntgres: invalid namespace extension membership")
 				}
 				selected[member] = true

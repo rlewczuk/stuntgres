@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"testing"
@@ -29,18 +30,18 @@ func TestIntaggProviderManifest(t *testing.T) {
 	if len(ext.Members) != 2 {
 		t.Fatal("documented manifest", ext.Members)
 	}
-	if err := StockIntagg.ValidateExtension(view, ext); err != nil {
+	if err := extension.StockIntagg.ValidateExtension(view, ext); err != nil {
 		t.Fatal(err)
 	}
 	addresses := map[ids.ObjectAddress]bool{}
 	for i, address := range ext.Members {
 		proc := view.MustProcedure(address)
-		member := IntaggMembers[i]
+		member := extension.IntaggMembers[i]
 		if addresses[address] || proc.Name() != member.Name || proc.Signature != member.Signature || proc.Result != member.Result || proc.Strict != member.Strict || proc.Owner != ext.Owner {
 			t.Fatal("member identity", proc)
 		}
 		addresses[address] = true
-		if err := (CatalogProvider{ids.ProcedureClassID}).Validate(view, proc); err != nil {
+		if err := (extension.CatalogProvider{ids.ProcedureClassID}).Validate(view, proc); err != nil {
 			t.Fatal(err)
 		}
 		for _, mutate := range []func(*catalog.Procedure){
@@ -50,17 +51,17 @@ func TestIntaggProviderManifest(t *testing.T) {
 			func(p *catalog.Procedure) { p.RoutineKind = catalog.ProcedureRoutine },
 			func(p *catalog.Procedure) { p.Owner = authorization.PrincipalRef{} },
 			func(p *catalog.Procedure) { p.ObjectNamespace = ids.ObjectAddress{} }, func(p *catalog.Procedure) { p.Extension = ids.ObjectAddress{} },
-			func(p *catalog.Procedure) { p.Implementation = StockFuzzystrmatch }, func(p *catalog.Procedure) { p.Implementation = StockPgcrypto },
-			func(p *catalog.Procedure) { p.Implementation = StockUnaccent }, func(p *catalog.Procedure) { p.Implementation = StockIntarray },
+			func(p *catalog.Procedure) { p.Implementation = extension.StockFuzzystrmatch }, func(p *catalog.Procedure) { p.Implementation = extension.StockPgcrypto },
+			func(p *catalog.Procedure) { p.Implementation = extension.StockUnaccent }, func(p *catalog.Procedure) { p.Implementation = extension.StockIntarray },
 			func(p *catalog.Procedure) {
-				p.Implementation = new(*StockIntagg)
+				p.Implementation = new(*extension.StockIntagg)
 			},
 		} {
 			state := catalog.CloneState(e.catalog.state)
 			bad := *proc
 			mutate(&bad)
 			state.SetDescriptor(address, &bad)
-			if err := StockIntagg.ValidateExtension(e.catalog.read(state), ext); err == nil {
+			if err := extension.StockIntagg.ValidateExtension(e.catalog.read(state), ext); err == nil {
 				t.Fatal("corrupt member accepted", bad)
 			}
 		}
@@ -68,7 +69,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 	for _, members := range [][]ids.ObjectAddress{nil, {ext.Members[0]}, {ext.Members[0], ext.Members[0]}, {ext.Members[1], ext.Members[1]}} {
 		bad := *ext
 		bad.Members = members
-		if err := StockIntagg.ValidateExtension(view, &bad); err == nil {
+		if err := extension.StockIntagg.ValidateExtension(view, &bad); err == nil {
 			t.Fatal("corrupt member inventory", members)
 		}
 	}
@@ -88,7 +89,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 	if count != 2 {
 		t.Fatal("membership edges", count)
 	}
-	metadata, err := OwnerMetadata(view, e.roles.read(e.catalog.owner(), view, e.roles.published), ext)
+	metadata, err := extension.OwnerMetadata(view, e.roles.read(e.catalog.owner(), view, e.roles.published), ext)
 	if err != nil || metadata == "" {
 		t.Fatal("owner manifest", metadata, err)
 	}
@@ -111,7 +112,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			}
 			state := catalog.CloneState(other.catalog.state)
 			bad := *member
-			bad.Implementation = StockIntagg
+			bad.Implementation = extension.StockIntagg
 			state.SetDescriptor(member.Address(), &bad)
 			if err := other.catalog.Extensions[name].ValidateExtension(other.catalog.read(state), installed); err == nil {
 				t.Fatal("foreign intagg provenance admitted by", name)

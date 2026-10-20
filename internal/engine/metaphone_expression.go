@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 )
@@ -32,10 +33,10 @@ func (n installedMetaphoneFunctionExpression) validate(v catalog.Read) error {
 		}
 	}
 	proc, ok := v.Procedure(n.ref.Address)
-	if !ok || proc != n.procedure || FuzzystrmatchProviderOf(proc) != StockFuzzystrmatch || proc.Name() != n.Function || proc.Signature != catalog.ProcedureSignature(functions.MetaphoneSignature(n.Function, len(n.Args))) || proc.Result != 25 {
+	if !ok || proc != n.procedure || extension.FuzzystrmatchProviderOf(proc) != extension.StockFuzzystrmatch || proc.Name() != n.Function || proc.Signature != catalog.ProcedureSignature(functions.MetaphoneSignature(n.Function, len(n.Args))) || proc.Result != 25 {
 		return fmt.Errorf("stuntgres: invalid stored Metaphone identity")
 	}
-	if err := StockFuzzystrmatch.ValidateProcedure(v, proc); err != nil {
+	if err := extension.StockFuzzystrmatch.ValidateProcedure(v, proc); err != nil {
 		return err
 	}
 	return n.Validate()

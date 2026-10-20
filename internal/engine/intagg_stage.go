@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/extension"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -12,11 +13,11 @@ import (
 
 // intaggInstaller stages the intagg provider for the engine. Installed
 // members hold the bare provider, never the installer.
-type intaggInstaller struct{ *IntaggProvider }
+type intaggInstaller struct{ *extension.IntaggProvider }
 
 func (p intaggInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
-	ext.Members = make([]ids.ObjectAddress, len(IntaggMembers))
-	for i, member := range IntaggMembers {
+	ext.Members = make([]ids.ObjectAddress, len(extension.IntaggMembers))
+	for i, member := range extension.IntaggMembers {
 		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return err
@@ -38,7 +39,7 @@ func (p intaggInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Exte
 				return err
 			}
 			proc.Aggregate = &catalog.OwnedAggregate{
-				Definition: IntaggDefinition(oid, state, final),
+				Definition: extension.IntaggDefinition(oid, state, final),
 				Helpers: [2]catalog.RoutineIdentity{
 					{state, ext.TargetNamespace.ObjectID, "int_agg_state", "2281,23"},
 					{final, ext.TargetNamespace.ObjectID, "int_agg_final_array", "2281"},

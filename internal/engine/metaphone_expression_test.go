@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -66,7 +67,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	nonmember.ObjectAddress = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 999999}
 	foreignState := catalog.CloneState(e.catalog.state)
 	foreignState.SetDescriptor(nonmember.Address(), &nonmember)
-	if err := StockFuzzystrmatch.ValidateProcedure(e.catalog.read(foreignState), &nonmember); err == nil {
+	if err := extension.StockFuzzystrmatch.ValidateProcedure(e.catalog.read(foreignState), &nonmember); err == nil {
 		t.Fatal("nonmember procedure authority admitted")
 	}
 	refs, err := pgDependExpressionRefs(ctx.Context, e.CatalogRead(), n)
@@ -96,9 +97,9 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 		func(p *catalog.Procedure) { p.Signature = "25,25" },
 		func(p *catalog.Procedure) { p.ObjectName = "dmetaphone" },
 		func(p *catalog.Procedure) {
-			p.Implementation = new(*StockFuzzystrmatch)
+			p.Implementation = new(*extension.StockFuzzystrmatch)
 		},
-		func(p *catalog.Procedure) { p.Implementation = StockPgcrypto },
+		func(p *catalog.Procedure) { p.Implementation = extension.StockPgcrypto },
 	} {
 		state := catalog.CloneState(e.catalog.state)
 		bad := *n.procedure
@@ -137,23 +138,23 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	}
 	// The symbolic codec rejects incomplete old one-member records, as well as
 	// duplicate/foreign members in a complete ten-member manifest.
-	metadata, err := OwnerMetadata(e.CatalogRead(), e.roles.read(e.catalog.owner(), e.CatalogRead(), e.roles.published), ext)
+	metadata, err := extension.OwnerMetadata(e.CatalogRead(), e.roles.read(e.catalog.owner(), e.CatalogRead(), e.roles.published), ext)
 	if err != nil {
 		t.Fatal(err)
 	}
-	prefix := "-- " + OwnersMarker + " "
+	prefix := "-- " + extension.OwnersMarker + " "
 	payload := strings.TrimSpace(strings.TrimPrefix(metadata, prefix))
 	data, err := base64.StdEncoding.DecodeString(payload)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var record OwnerRecord
+	var record extension.OwnerRecord
 	if err := json.Unmarshal(data, &record); err != nil {
 		t.Fatal(err)
 	}
 	for _, kind := range []string{"old", "duplicate", "foreign_signature", "foreign_name"} {
 		bad := record
-		bad.Members = append([]MemberOwner(nil), record.Members...)
+		bad.Members = append([]extension.MemberOwner(nil), record.Members...)
 		switch kind {
 		case "old":
 			bad.Members = bad.Members[:1]
@@ -168,7 +169,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err := DecodeOwners(" " + OwnersMarker + " " + base64.StdEncoding.EncodeToString(encoded)); err == nil {
+		if _, _, err := extension.DecodeOwners(" " + extension.OwnersMarker + " " + base64.StdEncoding.EncodeToString(encoded)); err == nil {
 			t.Fatal("invalid symbolic inventory admitted", kind)
 		}
 	}
@@ -188,7 +189,7 @@ func TestMetaphoneRemap(t *testing.T) {
 		next.RemoveDescriptor(address)
 	}
 	for address, destination := range mapping {
-		descriptor := RemapDescriptor(before.Get(address), mapping)
+		descriptor := extension.RemapDescriptor(before.Get(address), mapping)
 		next.SetDescriptor(destination, descriptor)
 		next.BindName(catalog.DescriptorNameKey(descriptor), destination)
 	}

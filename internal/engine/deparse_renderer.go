@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -659,7 +660,7 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		}
 		name := pgIdentifier("unnest")
 		if n.Procedure != nil {
-			if err := ValidateIntaggIdentity(r.view, n.Procedure, n.Ref, "int_array_enum"); err != nil {
+			if err := extension.ValidateIntaggIdentity(r.view, n.Procedure, n.Ref, "int_array_enum"); err != nil {
 				return "", err
 			}
 			namespace, ok := r.view.Namespace(n.Procedure.Namespace())

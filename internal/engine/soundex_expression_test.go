@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/extension"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -81,9 +82,9 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 				func(p *catalog.Procedure) { p.Signature = "23" },
 				func(p *catalog.Procedure) { p.ObjectName = "text_soundex" },
 				func(p *catalog.Procedure) {
-					p.Implementation = new(*StockFuzzystrmatch)
+					p.Implementation = new(*extension.StockFuzzystrmatch)
 				},
-				func(p *catalog.Procedure) { p.Implementation = StockPgcrypto },
+				func(p *catalog.Procedure) { p.Implementation = extension.StockPgcrypto },
 			} {
 				state := catalog.CloneState(e.catalog.state)
 				bad := *n.procedure
@@ -140,7 +141,7 @@ func TestSoundexExpressionRemap(t *testing.T) {
 				next.RemoveDescriptor(address)
 			}
 			for address, destination := range mapping {
-				descriptor := RemapDescriptor(before.Get(address), mapping)
+				descriptor := extension.RemapDescriptor(before.Get(address), mapping)
 				next.SetDescriptor(destination, descriptor)
 				next.BindName(catalog.DescriptorNameKey(descriptor), destination)
 			}

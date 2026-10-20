@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/extension"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -29,7 +30,7 @@ func intaggUnitRecipes(t *testing.T) {
 				t.Fatal(err)
 			}
 			path := viewLiteralPath{query: b.frameID(), clause: viewTargetLiteral}
-			name := IntaggRecipeFunction(raw)
+			name := extension.IntaggRecipeFunction(raw)
 			ref, ok := b.capture.routineRefs[path]
 			if !ok || ref.Address == (ids.ObjectAddress{}) || len(b.capture.routineRefs) != 1 {
 				t.Fatal("missing bound occurrence", b.capture.routineRefs)
@@ -77,7 +78,7 @@ func intaggUnitRecipes(t *testing.T) {
 				state.RemoveDescriptor(address)
 			}
 			for address, destination := range mapping {
-				d := RemapDescriptor(e.catalog.state.Get(address), mapping)
+				d := extension.RemapDescriptor(e.catalog.state.Get(address), mapping)
 				state.SetDescriptor(destination, d)
 				state.BindName(catalog.DescriptorNameKey(d), destination)
 			}

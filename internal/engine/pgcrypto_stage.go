@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -11,7 +12,7 @@ import (
 
 // pgcryptoInstaller stages the pgcrypto provider for the engine. Installed
 // members hold the bare provider, never the installer.
-type pgcryptoInstaller struct{ *PgcryptoProvider }
+type pgcryptoInstaller struct{ *extension.PgcryptoProvider }
 
 func (p pgcryptoInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	ext.Members = make([]ids.ObjectAddress, len(functions.PgcryptoMembers))

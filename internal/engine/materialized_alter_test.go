@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/parser"
@@ -393,7 +394,7 @@ func TestMaterializedAlterControlRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	d = e.catalog.state.MustRelation(d.Address())
-	if RemapDescriptor(d, nil) != d {
+	if extension.RemapDescriptor(d, nil) != d {
 		t.Fatal("unnecessary remap allocation")
 	}
 	target := New()
@@ -420,7 +421,7 @@ func TestMaterializedAlterControlRemap(t *testing.T) {
 	if target.catalog.state.Get(temporary.Address()) != temporary || target.storage.Relations[retained] != retainedStore || e.catalog.state.Get(d.Address()) != d || e.storage.Relations[d.Address()] != sourceStore || d.AutoExtensions[0] != ext.Address() {
 		t.Fatal("import mutated retained TEMP or source authority")
 	}
-	remapped := RemapDescriptor(d, map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): importedExt.Address()}).(*catalog.Relation)
+	remapped := extension.RemapDescriptor(d, map[ids.ObjectAddress]ids.ObjectAddress{ext.Address(): importedExt.Address()}).(*catalog.Relation)
 	if remapped == d || remapped.AutoExtensions[0] != importedExt.Address() || d.AutoExtensions[0] != ext.Address() || remapped.View != d.View {
 		t.Fatal("remap lost immutable genuine x authority")
 	}

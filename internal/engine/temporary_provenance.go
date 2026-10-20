@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
@@ -125,7 +126,7 @@ func storedViewReferenceValid(view catalog.Read, consumer *catalog.Relation, ref
 		// An old-epoch intagg occurrence bridges replacement only through the
 		// exact descriptor captured by this retained TEMP consumer. Ordinary
 		// current-epoch COW declarations take the path above, not this bridge.
-		if ok && (IntaggProviderOf(old) != nil || IntaggProviderOf(actual) != nil) && actual != old {
+		if ok && (extension.IntaggProviderOf(old) != nil || extension.IntaggProviderOf(actual) != nil) && actual != old {
 			return false
 		}
 		return ok && old.Address() == address && old.Revision() != 0 &&

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/extension"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -109,7 +110,7 @@ func intaggUnitTemporaryDependencies(t *testing.T) {
 			if err := e.ValidateObjectRef(view, ref); err == nil {
 				t.Fatal("ordinary stale ObjectRef was relaxed")
 			}
-			if err := ValidateIntaggIdentity(view, proc, ref, proc.Name()); err == nil {
+			if err := extension.ValidateIntaggIdentity(view, proc, ref, proc.Name()); err == nil {
 				t.Fatal("fresh intagg identity validator was relaxed")
 			}
 			if storedViewReferenceValid(New().CatalogRead(), consumer, ref) {

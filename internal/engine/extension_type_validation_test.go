@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"maps"
+	"stuntgres/internal/engine/extension"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -23,8 +24,8 @@ func TestInstalledCodecArrayUsesRegisteredTypeProvider(t *testing.T) {
 		install  func(*testing.T) (*Engine, *catalog.Extension, *catalog.Type)
 		provider catalog.ExtensionImplementation
 	}{
-		{"intarray", intarrayUnitInstalled, StockIntarray},
-		{"cube", cubeUnitInstalled, StockCube},
+		{"intarray", intarrayUnitInstalled, extension.StockIntarray},
+		{"cube", cubeUnitInstalled, extension.StockCube},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e, ext, _ := tc.install(t)

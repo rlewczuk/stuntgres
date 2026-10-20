@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/extension"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -60,7 +61,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 		}
 		foreign := n
 		proc := *n.procedure
-		proc.Implementation = new(*StockPgcrypto)
+		proc.Implementation = new(*extension.StockPgcrypto)
 		foreign.procedure = &proc
 		if closedPgcryptoDefault(foreign) {
 			t.Fatal("foreign crypto DEFAULT provider admitted")

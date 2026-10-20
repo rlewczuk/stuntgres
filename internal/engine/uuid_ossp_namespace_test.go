@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/extension"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -106,7 +107,7 @@ func TestUUIDOsspNamespaceManifest(t *testing.T) {
 			bad := *p
 			mutate(&bad)
 			view.State().SetDescriptor(address, &bad)
-			err := StockUUIDOssp.ValidateExtension(view, ext)
+			err := extension.StockUUIDOssp.ValidateExtension(view, ext)
 			view.State().SetDescriptor(address, p)
 			if err == nil {
 				t.Fatal("invalid selected member admitted", bad)
@@ -116,7 +117,7 @@ func TestUUIDOsspNamespaceManifest(t *testing.T) {
 	for _, members := range [][]ids.ObjectAddress{ext.Members[:5], append(slices.Clone(ext.Members), ext.Members[0]), append(slices.Clone(ext.Members[:5]), ext.Members[0])} {
 		bad := *ext
 		bad.Members = members
-		if err := StockUUIDOssp.ValidateExtension(view, &bad); err == nil {
+		if err := extension.StockUUIDOssp.ValidateExtension(view, &bad); err == nil {
 			t.Fatal("missing/extra/duplicate manifest accepted")
 		}
 	}
@@ -136,7 +137,7 @@ func TestUUIDOsspNamespaceCollision(t *testing.T) {
 			stage := e.BeginCatalogStage(e.CatalogRead())
 			parent := *ext
 			e.mu.Lock()
-			err := uuidOsspInstaller{StockUUIDOssp}.stage(e, stage, &parent, ext.Owner, AuthorizationView{})
+			err := uuidOsspInstaller{extension.StockUUIDOssp}.stage(e, stage, &parent, ext.Owner, AuthorizationView{})
 			e.mu.Unlock()
 			state, ok := err.(interface{ SQLState() string })
 			if !ok || state.SQLState() != "42723" || e.catalog.state != before || before.DescriptorCount() != descriptors || before.NameCount() != names || before.Get(address) != proc || before.NameAddress(key) != address {

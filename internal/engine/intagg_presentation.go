@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/extension"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -11,7 +12,7 @@ import (
 // column presentation. The captured reference comes from binding, never a later
 // lookup by the written name or the renderer's current search_path.
 func (b *expressionBinder) captureIntaggReference(path viewLiteralPath, proc *catalog.Procedure, ref ids.ObjectRef, name string) error {
-	if err := ValidateIntaggIdentity(b.bindingCatalog(), proc, ref, name); err != nil {
+	if err := extension.ValidateIntaggIdentity(b.bindingCatalog(), proc, ref, name); err != nil {
 		return err
 	}
 	return b.capture.captureRoutineReference(path, ref)
@@ -24,10 +25,10 @@ func (v *viewDefinition) intaggRecipeProcedure(catalog catalog.Read, path viewLi
 		return nil, fmt.Errorf("stuntgres: missing or stale frozen intagg reference")
 	}
 	proc, ok := catalog.Procedure(ref.Address)
-	if !ok || proc.Name() != name || IntaggProviderOf(proc) != StockIntagg {
+	if !ok || proc.Name() != name || extension.IntaggProviderOf(proc) != extension.StockIntagg {
 		return nil, fmt.Errorf("stuntgres: mismatched frozen intagg procedure")
 	}
-	if err := StockIntagg.ValidateProcedure(catalog, proc); err != nil {
+	if err := extension.StockIntagg.ValidateProcedure(catalog, proc); err != nil {
 		return nil, err
 	}
 	return proc, nil

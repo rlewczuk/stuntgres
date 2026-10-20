@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/extension"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
@@ -609,7 +610,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 	}
 	path.node = *ordinal
 	(*ordinal)++
-	if _, captured := v.routineRefs[path]; captured && IntaggRecipeFunction(raw) == "" {
+	if _, captured := v.routineRefs[path]; captured && extension.IntaggRecipeFunction(raw) == "" {
 		if call, ok := raw.(parser.FunctionExpr); !ok || !call.StoredSQLRoutine {
 			return "", fmt.Errorf("stuntgres: mismatched frozen routine occurrence")
 		}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -40,7 +41,7 @@ func (e *Engine) executeDropExtension(scope *StatementScope, s *parser.DropExten
 		selected = append(selected, address)
 		seen[address] = true
 	}
-	roots := RemovalRoots(auth.Catalog, selected)
+	roots := extension.RemovalRoots(auth.Catalog, selected)
 	stage := e.ownershipStage(auth, scope.op)
 	stage.dependencyPath, _ = e.referencePath(auth)
 	e.mu.Unlock()

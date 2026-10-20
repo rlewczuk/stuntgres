@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/parser"
@@ -82,11 +83,11 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 	}
 	for _, mutate := range []func(*catalog.Procedure){
 		func(p *catalog.Procedure) {
-			p.Implementation = new(*StockPgcrypto)
+			p.Implementation = new(*extension.StockPgcrypto)
 		},
-		func(p *catalog.Procedure) { p.Implementation = StockUnaccent },
-		func(p *catalog.Procedure) { p.Implementation = StockIntarray },
-		func(p *catalog.Procedure) { p.Implementation = StockFuzzystrmatch },
+		func(p *catalog.Procedure) { p.Implementation = extension.StockUnaccent },
+		func(p *catalog.Procedure) { p.Implementation = extension.StockIntarray },
+		func(p *catalog.Procedure) { p.Implementation = extension.StockFuzzystrmatch },
 		func(p *catalog.Procedure) { p.ObjectName = "crypt" },
 		func(p *catalog.Procedure) { p.Signature = "25" },
 		func(p *catalog.Procedure) { p.Result = 25 },
@@ -101,7 +102,7 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 		mutate(&bad)
 		view.State().SetDescriptor(ext.Members[0], &bad)
 		failure := e.catalog.Providers[ids.ProcedureClassID].Validate(view, &bad)
-		manifestFailure := StockPgcrypto.ValidateExtension(view, ext)
+		manifestFailure := extension.StockPgcrypto.ValidateExtension(view, ext)
 		view.State().SetDescriptor(ext.Members[0], original)
 		if failure == nil {
 			t.Fatal("invalid provider accepted", bad)
@@ -117,13 +118,13 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 			func(p *catalog.Procedure) { p.Result = 25 },
 			func(p *catalog.Procedure) { p.Signature = "25" },
 			func(p *catalog.Procedure) {
-				p.Implementation = new(*StockPgcrypto)
+				p.Implementation = new(*extension.StockPgcrypto)
 			},
 		} {
 			bad := *original
 			mutate(&bad)
 			view.State().SetDescriptor(address, &bad)
-			failure := StockPgcrypto.ValidateExtension(view, ext)
+			failure := extension.StockPgcrypto.ValidateExtension(view, ext)
 			view.State().SetDescriptor(address, original)
 			if failure == nil {
 				t.Fatal("invalid random/FIPS member admitted", bad)
@@ -133,11 +134,11 @@ func TestPgcryptoProviderIdentity(t *testing.T) {
 	bad := *ext
 	bad.Members = slices.Clone(ext.Members)
 	bad.Members[1] = bad.Members[0]
-	if err := StockPgcrypto.ValidateExtension(view, &bad); err == nil {
+	if err := extension.StockPgcrypto.ValidateExtension(view, &bad); err == nil {
 		t.Fatal("duplicate member accepted")
 	}
 	bad.Members = bad.Members[:3]
-	if err := StockPgcrypto.ValidateExtension(view, &bad); err == nil {
+	if err := extension.StockPgcrypto.ValidateExtension(view, &bad); err == nil {
 		t.Fatal("incomplete parent accepted")
 	}
 }
@@ -208,8 +209,8 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	if err := retagged.(installedCryptoFunctionExpression).validate(e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	mapped := RemapDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.Address(): {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*catalog.Procedure)
-	if PgcryptoProviderOf(mapped) != StockPgcrypto || mapped.Signature != n.procedure.Signature || mapped.Result != 17 || mapped.Address() == n.procedure.Address() {
+	mapped := extension.RemapDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.Address(): {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*catalog.Procedure)
+	if extension.PgcryptoProviderOf(mapped) != extension.StockPgcrypto || mapped.Signature != n.procedure.Signature || mapped.Result != 17 || mapped.Address() == n.procedure.Address() {
 		t.Fatal(mapped)
 	}
 	// A four-child call must retain IV/type children and its genuine installed
@@ -239,8 +240,8 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	if err != nil || !slices.Contains(aesRefs, aesCall.ref.Address) {
 		t.Fatal(aesRefs, err)
 	}
-	mappedAES := RemapDescriptor(aesCall.procedure, map[ids.ObjectAddress]ids.ObjectAddress{aesCall.ref.Address: {ClassID: ids.ProcedureClassID, ObjectID: 999998}}).(*catalog.Procedure)
-	if PgcryptoProviderOf(mappedAES) != StockPgcrypto || mappedAES.Signature != "17,17,17,25" || mappedAES.Address() == aesCall.ref.Address {
+	mappedAES := extension.RemapDescriptor(aesCall.procedure, map[ids.ObjectAddress]ids.ObjectAddress{aesCall.ref.Address: {ClassID: ids.ProcedureClassID, ObjectID: 999998}}).(*catalog.Procedure)
+	if extension.PgcryptoProviderOf(mappedAES) != extension.StockPgcrypto || mappedAES.Signature != "17,17,17,25" || mappedAES.Address() == aesCall.ref.Address {
 		t.Fatal(mappedAES)
 	}
 	for _, v := range []struct {

@@ -3,6 +3,7 @@ package engine
 import (
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/extension"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -22,10 +23,10 @@ func (procedureProvider) ClassID() ids.OID { return ids.ProcedureClassID }
 func (procedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) error {
 	d, ok := descriptor.(*catalog.Procedure)
 	if ok && d.Implementation != nil {
-		return CatalogProvider{ids.ProcedureClassID}.Validate(v, d)
+		return extension.CatalogProvider{ids.ProcedureClassID}.Validate(v, d)
 	}
-	invalid := InvalidProviderDescriptor
-	if err := ValidateProviderHeader(v, descriptor, ids.ProcedureClassID); err != nil {
+	invalid := extension.InvalidProviderDescriptor
+	if err := extension.ValidateProviderHeader(v, descriptor, ids.ProcedureClassID); err != nil {
 		return err
 	}
 	if !ok {
@@ -68,7 +69,7 @@ func (procedureProvider) Validate(v catalog.Read, descriptor catalog.Descriptor)
 }
 
 func validateSQLProcedure(v catalog.Read, d *catalog.Procedure) error {
-	invalid := InvalidProviderDescriptor
+	invalid := extension.InvalidProviderDescriptor
 	if !d.SQL.Result.Valid() || d.SQL.Query == nil {
 		return invalid()
 	}

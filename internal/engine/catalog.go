@@ -6,6 +6,7 @@ import (
 	"math"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/extension"
 	"unicode/utf8"
 
 	"stuntgres/internal/engine/access"
@@ -63,11 +64,11 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 		if address.ClassID != ids.ExtensionClassID || address.ObjectID == 0 || address.SubID != 0 || i > 0 && r.AutoExtensions[i-1].ObjectID >= address.ObjectID {
 			return fmt.Errorf("stuntgres: invalid materialized extension dependency")
 		}
-		extension, ok := v.Extension(address)
+		ext, ok := v.Extension(address)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing materialized extension provider")
 		}
-		if err := (CatalogProvider{Class: ids.ExtensionClassID}).Validate(v, extension); err != nil {
+		if err := (extension.CatalogProvider{Class: ids.ExtensionClassID}).Validate(v, ext); err != nil {
 			return err
 		}
 	}

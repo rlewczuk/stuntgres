@@ -3,6 +3,7 @@ package engine
 import (
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/extension"
 	"testing"
 )
 
@@ -26,7 +27,7 @@ func (p *extensionVersionRegistration) Control() catalog.ExtensionControl {
 func (p *extensionVersionRegistration) updates() []extensionUpdateAction { return p.actions }
 
 func TestExtensionVersionGraph(t *testing.T) {
-	v := StockFuzzystrmatch.Versions()
+	v := extension.StockFuzzystrmatch.Versions()
 	if err := v.Validate("1.2"); err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +52,7 @@ func TestExtensionVersionGraph(t *testing.T) {
 	if !reflect.DeepEqual(cycle.Path("a", "d"), []string{"a", "c", "d"}) || cycle.Path("a", "missing") != nil {
 		t.Fatal("shortest cyclic directed path")
 	}
-	for _, provider := range []extensionInstaller{cubeInstaller{StockCube}, unaccentInstaller{StockUnaccent}, intarrayInstaller{StockIntarray}, intaggInstaller{StockIntagg}, pgcryptoInstaller{StockPgcrypto}, uuidOsspInstaller{StockUUIDOssp}} {
+	for _, provider := range []extensionInstaller{cubeInstaller{extension.StockCube}, unaccentInstaller{extension.StockUnaccent}, intarrayInstaller{extension.StockIntarray}, intaggInstaller{extension.StockIntagg}, pgcryptoInstaller{extension.StockPgcrypto}, uuidOsspInstaller{extension.StockUUIDOssp}} {
 		versions := provider.Versions()
 		if len(versions.Bases) != 1 || versions.Bases[0] != provider.Control().Version || len(versions.Edges) != 0 || validateExtensionActions(provider) != nil {
 			t.Fatal("current-only inventory", versions)
@@ -62,7 +63,7 @@ func TestExtensionVersionGraph(t *testing.T) {
 		}
 	}
 	v.Bases[0], v.Edges[0].From = "mutated", "mutated"
-	if StockFuzzystrmatch.Versions().Bases[0] != "1.1" || StockFuzzystrmatch.Versions().Edges[0].From != "1.0" {
+	if extension.StockFuzzystrmatch.Versions().Bases[0] != "1.1" || extension.StockFuzzystrmatch.Versions().Edges[0].From != "1.0" {
 		t.Fatal("shared fuzzy graph storage")
 	}
 	for _, invalid := range []catalog.ExtensionVersions{
@@ -87,18 +88,18 @@ func TestExtensionVersionGraph(t *testing.T) {
 			t.Fatal(tc.value, got)
 		}
 	}
-	good := (fuzzystrmatchInstaller{StockFuzzystrmatch}).updates()[0]
+	good := (fuzzystrmatchInstaller{extension.StockFuzzystrmatch}).updates()[0]
 	for _, actions := range [][]extensionUpdateAction{nil, {good, good}, {{edge: good.edge}}, {{edge: catalog.ExtensionVersionEdge{From: "1.2", To: "1.1"}, stage: good.stage}}} {
-		p := &extensionVersionRegistration{fuzzystrmatchInstaller{StockFuzzystrmatch}, StockFuzzystrmatch.Versions(), "1.2", actions}
+		p := &extensionVersionRegistration{fuzzystrmatchInstaller{extension.StockFuzzystrmatch}, extension.StockFuzzystrmatch.Versions(), "1.2", actions}
 		if (&Engine{}).registerExtension("fuzzystrmatch", p) == nil {
 			t.Fatal("invalid executable coverage admitted", actions)
 		}
 	}
-	p := &extensionVersionRegistration{fuzzystrmatchInstaller{StockFuzzystrmatch}, StockFuzzystrmatch.Versions(), "1.0", []extensionUpdateAction{good}}
+	p := &extensionVersionRegistration{fuzzystrmatchInstaller{extension.StockFuzzystrmatch}, extension.StockFuzzystrmatch.Versions(), "1.0", []extensionUpdateAction{good}}
 	if (&Engine{}).registerExtension("fuzzystrmatch", p) == nil {
 		t.Fatal("graph-only default admitted")
 	}
-	if err := (&Engine{}).registerExtension("fuzzystrmatch", fuzzystrmatchInstaller{StockFuzzystrmatch}); err != nil {
+	if err := (&Engine{}).registerExtension("fuzzystrmatch", fuzzystrmatchInstaller{extension.StockFuzzystrmatch}); err != nil {
 		t.Fatal("unreachable metadata edge incorrectly requires action", err)
 	}
 }

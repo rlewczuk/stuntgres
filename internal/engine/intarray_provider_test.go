@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/extension"
 	"testing"
 
 	"stuntgres/internal/engine/access"
@@ -46,7 +47,7 @@ func intarrayUnitInstalled(t *testing.T) (*Engine, *catalog.Extension, *catalog.
 func TestIntarrayProviderIdentity(t *testing.T) {
 	e, ext, base := intarrayUnitInstalled(t)
 	view := e.CatalogRead()
-	if err := (CatalogProvider{ids.ExtensionClassID}).Validate(view, ext); err != nil {
+	if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(view, ext); err != nil {
 		t.Fatal(err)
 	}
 	if ext.Version != "1.5" || len(ext.Members) != 3 || base.Extension != ext.Address() || !base.SQLType.IsQueryInt() || base.Owner != ext.Owner {
@@ -65,7 +66,7 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 	}
 	for i, address := range ext.Members {
 		member := view.Get(address)
-		if member == nil || member.Namespace() != ext.TargetNamespace || Membership(member) != ext.Address() {
+		if member == nil || member.Namespace() != ext.TargetNamespace || extension.Membership(member) != ext.Address() {
 			t.Fatal("membership", address)
 		}
 		owner, _, _ := access.DescriptorACL(member)
@@ -76,7 +77,7 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 			if err := (typeProvider{}).Validate(view, member); err != nil {
 				t.Fatal(err)
 			}
-		} else if err := (CatalogProvider{ids.ProcedureClassID}).Validate(view, member); err != nil {
+		} else if err := (extension.CatalogProvider{ids.ProcedureClassID}).Validate(view, member); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -102,17 +103,17 @@ func TestIntarrayProviderIdentity(t *testing.T) {
 			t.Fatal("missing extension edge", address)
 		}
 	}
-	metadata, err := OwnerMetadata(view, e.roles.read(e.catalog.owner(), view, e.roles.published), ext)
+	metadata, err := extension.OwnerMetadata(view, e.roles.read(e.catalog.owner(), view, e.roles.published), ext)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Metadata is a complete SQL comment line; the decoder consumes the
 	// lexer-provided comment body, exactly as the Restore pipeline does.
-	var records []OwnerRecord
+	var records []extension.OwnerRecord
 	_, err = parser.ParseWithOptions("CREATE EXTENSION intarray;\n"+metadata, parser.Options{
 		Context: context.Background(), StandardConformingStrings: true,
 		LineComment: func(comment string, _ parser.Position) error {
-			record, found, err := DecodeOwners(comment)
+			record, found, err := extension.DecodeOwners(comment)
 			if err == nil && found {
 				records = append(records, record)
 			}
@@ -185,7 +186,7 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 		_, err = e.stageExtensionLocked(&StatementScope{op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "intarray"}})
 		e.mu.Unlock()
 		var diagnostic *sqlstate.Error
-		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "query_int" already exists`, Context: IntarrayTypeContext}
+		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "query_int" already exists`, Context: extension.IntarrayTypeContext}
 		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.catalog.state != before {
 			t.Fatal("type conflict was not atomic/exact", diagnostic, err)
 		}
@@ -220,18 +221,18 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 			bad.Members = slices.Clone(ext.Members)
 			candidate.SetDescriptor(bad.Address(), &bad)
 			corrupt(candidate, &bad)
-			if err := (CatalogProvider{ids.ExtensionClassID}).Validate(e.catalog.read(candidate), &bad); err == nil {
+			if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(e.catalog.read(candidate), &bad); err == nil {
 				t.Fatal("invalid manifest accepted")
 			}
 			if !slices.Equal(original, ext.Members) {
 				t.Fatal("negative validation mutated original manifest")
 			}
 		}
-		mapped := RemapDescriptor(ext, map[ids.ObjectAddress]ids.ObjectAddress{ext.Members[1]: {ClassID: ids.ProcedureClassID, ObjectID: 65000}}).(*catalog.Extension)
+		mapped := extension.RemapDescriptor(ext, map[ids.ObjectAddress]ids.ObjectAddress{ext.Members[1]: {ClassID: ids.ProcedureClassID, ObjectID: 65000}}).(*catalog.Extension)
 		if mapped.Members[1] == ext.Members[1] || !slices.Equal(original, ext.Members) {
 			t.Fatal("remapping aliased source membership")
 		}
-		if err := (CatalogProvider{ids.ExtensionClassID}).Validate(e.CatalogRead(), ext); err != nil {
+		if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(e.CatalogRead(), ext); err != nil {
 			t.Fatal("original manifest damaged", err)
 		}
 	})
@@ -276,7 +277,7 @@ func TestIntarrayProviderControls(t *testing.T) {
 		ext := e.catalog.state.MustExtension(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intarray"}))
 		base := e.catalog.state.MustType(ext.Members[0])
 		array := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)}
-		if err := (CatalogProvider{ids.ExtensionClassID}).Validate(e.CatalogRead(), ext); err != nil {
+		if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(e.CatalogRead(), ext); err != nil {
 			t.Fatal(err)
 		}
 		addresses := append([]ids.ObjectAddress{ext.Address(), array}, ext.Members...)
@@ -314,7 +315,7 @@ func TestIntarrayProviderControls(t *testing.T) {
 		if imported.SQLType == base.SQLType || imported.SQLType.ID() == base.SQLType.ID() {
 			t.Fatal("setup failed to exercise a genuine retained-TEMP OID collision")
 		}
-		if err := (CatalogProvider{ids.ExtensionClassID}).Validate(target.CatalogRead(), ext); err != nil {
+		if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(target.CatalogRead(), ext); err != nil {
 			t.Fatal(err)
 		}
 		if target.catalog.state.Get(namespace.Address()) != namespace || target.catalog.state.Get(unaccent.Address()) != unaccent {
@@ -341,7 +342,7 @@ func TestIntarrayProviderControls(t *testing.T) {
 		if target.catalog.state.Get(namespace.Address()) != namespace || target.catalog.state.Get(unaccent.Address()) != nil {
 			t.Fatal("original TEMP provider failed retirement after import")
 		}
-		if err := (CatalogProvider{ids.ExtensionClassID}).Validate(target.CatalogRead(), ext); err != nil {
+		if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(target.CatalogRead(), ext); err != nil {
 			t.Fatal("persistent imported provider damaged by TEMP retirement", err)
 		}
 	})

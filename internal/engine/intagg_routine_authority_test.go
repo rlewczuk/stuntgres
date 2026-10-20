@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/extension"
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
@@ -108,7 +109,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				expectedName = "int_array_aggregate"
 			}
 			ext := evaluation.catalog.MustExtension(captured.Extension)
-			if captured.Name() != expectedName || captured.Signature != catalog.ProcedureSignature(tc.signature) || captured.RoutineKind != tc.kind || captured.Result != tc.result || captured.Strict != tc.strict || captured.Volatility != expr.Immutable || IntaggProviderOf(captured) != StockIntagg || captured.Builtin != nil || captured.Revision() == 0 || len(captured.Body) != 0 || ext.Name() != "intagg" || ext.Version != "1.1" || len(ext.Members) != 2 || captured.Namespace() != ext.TargetNamespace || evaluation.catalog.Get(ref.Address) != captured || ref.Domain() != e.catalog.Domain || ref.Epoch != evaluation.catalog.Epoch() {
+			if captured.Name() != expectedName || captured.Signature != catalog.ProcedureSignature(tc.signature) || captured.RoutineKind != tc.kind || captured.Result != tc.result || captured.Strict != tc.strict || captured.Volatility != expr.Immutable || extension.IntaggProviderOf(captured) != extension.StockIntagg || captured.Builtin != nil || captured.Revision() == 0 || len(captured.Body) != 0 || ext.Name() != "intagg" || ext.Version != "1.1" || len(ext.Members) != 2 || captured.Namespace() != ext.TargetNamespace || evaluation.catalog.Get(ref.Address) != captured || ref.Domain() != e.catalog.Domain || ref.Epoch != evaluation.catalog.Epoch() {
 				t.Fatal("released full identity/original installation", captured, ref)
 			}
 			original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
@@ -187,7 +188,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 			for _, mutate := range []func(*catalog.Procedure){
 				func(d *catalog.Procedure) { d.Implementation = nil },
 				func(d *catalog.Procedure) {
-					d.Implementation = new(*StockIntagg)
+					d.Implementation = new(*extension.StockIntagg)
 				},
 				func(d *catalog.Procedure) { d.RoutineKind = catalog.ProcedureRoutine },
 			} {
@@ -274,7 +275,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 						state.RemoveDescriptor(a)
 					}
 					for a, dest := range mapping {
-						d := RemapDescriptor(evaluation.catalog.Get(a), mapping)
+						d := extension.RemapDescriptor(evaluation.catalog.Get(a), mapping)
 						state.SetDescriptor(dest, d)
 						state.BindName(catalog.DescriptorNameKey(d), dest)
 					}
@@ -370,14 +371,14 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 	if transferred.Owner != source.Ref || transferred == member || e.catalog.state.Get(ext.Address()) != ext || e.catalog.state.Get(ext.Members[1]) != sibling {
 		t.Fatal("single-member ownership was not independent COW")
 	}
-	if err := StockIntagg.ValidateExtension(e.CatalogRead(), ext); err != nil {
+	if err := extension.StockIntagg.ValidateExtension(e.CatalogRead(), ext); err != nil {
 		t.Fatal("valid divergent owners rejected", err)
 	}
-	metadata, err := OwnerMetadata(e.CatalogRead(), e.Roles(), ext)
+	metadata, err := extension.OwnerMetadata(e.CatalogRead(), e.Roles(), ext)
 	if err != nil {
 		t.Fatal(err)
 	}
-	record, found, err := DecodeOwners(strings.TrimPrefix(strings.TrimSpace(metadata), "-- "))
+	record, found, err := extension.DecodeOwners(strings.TrimPrefix(strings.TrimSpace(metadata), "-- "))
 	if err != nil || !found || record.Owner != "postgres" || len(record.Members) != 2 {
 		t.Fatal("named independent owner manifest", record, err)
 	}
@@ -397,14 +398,14 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 	if err := extensionUnitExecute(t, imported, importOp, &parser.CreateExtension{Name: parser.Identifier{Text: "intagg"}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := imported.importExtensionOwners(context.Background(), importOp, []OwnerRecord{record}); err != nil {
+	if err := imported.importExtensionOwners(context.Background(), importOp, []extension.OwnerRecord{record}); err != nil {
 		t.Fatal("independent owner import", err)
 	}
 	installed := imported.catalog.state.MustExtension(imported.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "intagg"}))
-	if err := StockIntagg.ValidateExtension(imported.CatalogRead(), installed); err != nil {
+	if err := extension.StockIntagg.ValidateExtension(imported.CatalogRead(), installed); err != nil {
 		t.Fatal(err)
 	}
-	roundtrip, err := OwnerMetadata(imported.CatalogRead(), imported.Roles(), installed)
+	roundtrip, err := extension.OwnerMetadata(imported.CatalogRead(), imported.Roles(), installed)
 	if err != nil || roundtrip != metadata {
 		t.Fatal("named owner roundtrip", roundtrip, err)
 	}
@@ -417,11 +418,11 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 			bad.Owner = owner
 			state.SetDescriptor(a, &bad)
 		}
-		if err := StockIntagg.ValidateExtension(e.catalog.read(state), ext); err == nil {
+		if err := extension.StockIntagg.ValidateExtension(e.catalog.read(state), ext); err == nil {
 			t.Fatal("uniform zero/foreign owners accepted")
 		}
 	}
-	if err := StockIntagg.ValidateExtension(catalog.NewRead(nil, e.catalog.state), ext); err == nil {
+	if err := extension.StockIntagg.ValidateExtension(catalog.NewRead(nil, e.catalog.state), ext); err == nil {
 		t.Fatal("missing owning engine accepted")
 	}
 	if result, err := e.Execute(op, &parser.ReassignOwned{Sources: []parser.RoleSpec{{Name: "intagg_owner_source"}}, Target: parser.RoleSpec{Name: "intagg_owner_target"}}, 0, nil); err != nil || result.Count != 0 || result.Rows != nil {
@@ -431,7 +432,7 @@ func TestIntaggRoutineIndependentOwners(t *testing.T) {
 	if reassigned.Owner != target.Ref || transferred.Owner != source.Ref || member.Owner != ext.Owner || e.catalog.state.Get(ext.Members[1]) != sibling || original.Get(member.Address()) != member {
 		t.Fatal("ownership generations mutated")
 	}
-	if err := StockIntagg.ValidateExtension(e.CatalogRead(), ext); err != nil {
+	if err := extension.StockIntagg.ValidateExtension(e.CatalogRead(), ext); err != nil {
 		t.Fatal(err)
 	}
 }

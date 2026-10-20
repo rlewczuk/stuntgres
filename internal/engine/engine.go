@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/extension"
 	"sync"
 
 	"stuntgres/internal/engine/access"
@@ -162,7 +163,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 			return nil, err
 		}
 	}
-	for _, p := range []catalog.Provider{CatalogProvider{ids.ExtensionClassID}, procedureProvider{}, CatalogProvider{ids.TSTemplateClassID}, CatalogProvider{ids.TSDictionaryClassID}} {
+	for _, p := range []catalog.Provider{extension.CatalogProvider{ids.ExtensionClassID}, procedureProvider{}, extension.CatalogProvider{ids.TSTemplateClassID}, extension.CatalogProvider{ids.TSDictionaryClassID}} {
 		if err := e.RegisterCatalogProvider(p); err != nil {
 			return nil, err
 		}
@@ -179,11 +180,11 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.RegisterCatalogProvider(catalog.TablespaceProvider{}); err != nil {
 		return nil, err
 	}
-	for _, extension := range []struct {
+	for _, registration := range []struct {
 		name           string
 		implementation extensionInstaller
-	}{{"cube", cubeInstaller{StockCube}}, {"unaccent", unaccentInstaller{StockUnaccent}}, {"intarray", intarrayInstaller{StockIntarray}}, {"fuzzystrmatch", fuzzystrmatchInstaller{StockFuzzystrmatch}}, {"intagg", intaggInstaller{StockIntagg}}, {"pgcrypto", pgcryptoInstaller{StockPgcrypto}}, {"uuid-ossp", uuidOsspInstaller{StockUUIDOssp}}} {
-		if err := e.registerExtension(extension.name, extension.implementation); err != nil {
+	}{{"cube", cubeInstaller{extension.StockCube}}, {"unaccent", unaccentInstaller{extension.StockUnaccent}}, {"intarray", intarrayInstaller{extension.StockIntarray}}, {"fuzzystrmatch", fuzzystrmatchInstaller{extension.StockFuzzystrmatch}}, {"intagg", intaggInstaller{extension.StockIntagg}}, {"pgcrypto", pgcryptoInstaller{extension.StockPgcrypto}}, {"uuid-ossp", uuidOsspInstaller{extension.StockUUIDOssp}}} {
+		if err := e.registerExtension(registration.name, registration.implementation); err != nil {
 			return nil, err
 		}
 	}

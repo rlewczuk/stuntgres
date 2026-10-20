@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/extension"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -60,7 +61,7 @@ func (b *expressionBinder) bindIntaggAggregate(raw parser.AggregateExpr, name pa
 // the engine binder always appended it, and returns its reference.
 func (r installedExtensionRoutine) intaggIdentity() (*catalog.Procedure, ids.ObjectRef, error) {
 	p := r.procedure
-	if IntaggProviderOf(p) != StockIntagg {
+	if extension.IntaggProviderOf(p) != extension.StockIntagg {
 		return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid installed intagg routine")
 	}
 	ref := r.binder.engine.catalog.Domain.Ref(r.catalog.Epoch(), p.Address())

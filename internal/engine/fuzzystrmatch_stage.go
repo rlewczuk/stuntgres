@@ -5,20 +5,23 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 )
 
 // fuzzystrmatchInstaller stages the fuzzystrmatch provider for the engine.
 // Installed members hold the bare provider, never the installer.
-type fuzzystrmatchInstaller struct{ *FuzzystrmatchProvider }
+type fuzzystrmatchInstaller struct {
+	*extension.FuzzystrmatchProvider
+}
 
 func (p fuzzystrmatchInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	if ext.Version != "1.1" {
 		return fmt.Errorf("stuntgres: invalid fuzzystrmatch base")
 	}
-	ext.Members = make([]ids.ObjectAddress, 0, len(FuzzystrmatchMembers))
-	return p.stageMembers(e, stage, ext, owner, 1, len(FuzzystrmatchMembers))
+	ext.Members = make([]ids.ObjectAddress, 0, len(extension.FuzzystrmatchMembers))
+	return p.stageMembers(e, stage, ext, owner, 1, len(extension.FuzzystrmatchMembers))
 }
 
 func (p fuzzystrmatchInstaller) updates() []extensionUpdateAction {
@@ -42,7 +45,7 @@ func (p fuzzystrmatchInstaller) stageUpdate(e *Engine, stage *CatalogStage, ext 
 }
 
 func (p fuzzystrmatchInstaller) stageMembers(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, start, end int) error {
-	for _, member := range FuzzystrmatchMembers[start:end] {
+	for _, member := range extension.FuzzystrmatchMembers[start:end] {
 		oid, err := e.catalog.allocateOIDLocked()
 		if err != nil {
 			return err

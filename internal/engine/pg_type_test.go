@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/sqltype"
@@ -294,7 +295,7 @@ func TestPGTypeInstalledDomainAuthority(t *testing.T) {
 		if !ok || len(ext.Members) != 3 {
 			t.Fatal("missing actual intarray installation")
 		}
-		if err := StockIntarray.ValidateExtension(view, ext); err != nil {
+		if err := extension.StockIntarray.ValidateExtension(view, ext); err != nil {
 			t.Fatal(err)
 		}
 		output := uint32(ext.Members[2].ObjectID)

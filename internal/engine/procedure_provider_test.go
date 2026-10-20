@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/extension"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -20,7 +21,7 @@ func TestExtensionProviderValidatesOnlyInstalledProcedures(t *testing.T) {
 	if _, ok := view.Owner().Provider(ids.ProcedureClassID).(procedureProvider); !ok {
 		t.Fatalf("registered procedure provider: %T", view.Owner().Provider(ids.ProcedureClassID))
 	}
-	members := CatalogProvider{ids.ProcedureClassID}
+	members := extension.CatalogProvider{ids.ProcedureClassID}
 	counts := map[string]int{}
 	var member, builtin *catalog.Procedure
 	for _, d := range view.Descriptors() {
@@ -61,7 +62,7 @@ func TestExtensionProviderValidatesOnlyInstalledProcedures(t *testing.T) {
 		t.Fatal("member without its implementation accepted")
 	}
 	claimed := *builtin
-	claimed.Implementation = StockPgcrypto
+	claimed.Implementation = extension.StockPgcrypto
 	if (procedureProvider{}).Validate(view, &claimed) == nil {
 		t.Fatal("builtin with an extension implementation accepted")
 	}

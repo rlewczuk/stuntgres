@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/extension"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -14,7 +15,7 @@ import (
 
 // intarrayInstaller stages the intarray provider for the engine. Installed
 // members hold the bare provider, never the installer.
-type intarrayInstaller struct{ *IntarrayProvider }
+type intarrayInstaller struct{ *extension.IntarrayProvider }
 
 func (p intarrayInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Extension, owner authorization.PrincipalRef, auth AuthorizationView) error {
 	available, err := e.displaceAssociatedArrayLocked(stage, ext.TargetNamespace, "query_int")
@@ -22,7 +23,7 @@ func (p intarrayInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 		return err
 	}
 	if !available || typedef.RelationTypeNameOccupied(auth.Catalog, ext.TargetNamespace, "query_int") {
-		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "query_int" already exists`, Context: IntarrayTypeContext}
+		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "query_int" already exists`, Context: extension.IntarrayTypeContext}
 	}
 	ext.Members = make([]ids.ObjectAddress, 3)
 	for i, class := range [3]ids.OID{ids.TypeClassID, ids.ProcedureClassID, ids.ProcedureClassID} {
@@ -60,13 +61,13 @@ func (p intarrayInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 		}
 		name, signature, result := "bqarr_in", catalog.ProcedureSignature("2275"), ids.OID(typ.ID())
 		if i == 1 {
-			name, signature, result = "bqarr_out", QueryIntSignature(typ.ID()), 2275
+			name, signature, result = "bqarr_out", extension.QueryIntSignature(typ.ID()), 2275
 		}
 		proc := &catalog.Procedure{ObjectAddress: ext.Members[i+1], ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: name, Signature: signature, RoutineKind: catalog.FunctionRoutine, Owner: owner, Result: result, Volatility: expr.Immutable, Strict: true, Implementation: p.IntarrayProvider}
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			err := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf(`function "%s" already exists with same argument types`, name)}
 			if i == 0 {
-				err.Context = IntarrayInputContext
+				err.Context = extension.IntarrayInputContext
 			} else {
 				err.Context = "SQL statement \"CREATE FUNCTION bqarr_out(query_int)\nRETURNS cstring\nAS '$libdir/_int'\nLANGUAGE C STRICT IMMUTABLE PARALLEL SAFE\"\nextension script file \"intarray--1.2.sql\", near line 16"
 			}

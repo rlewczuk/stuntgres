@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/parser"
@@ -141,7 +142,7 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 		before := e.catalog.state
 		err := extensionUnitExecute(t, e, owner, statement(t, "CREATE EXTENSION unaccent SCHEMA "+namespace))
 		var diagnostic *sqlstate.Error
-		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "function unaccent_init(internal) does not exist", Context: UnaccentTemplateContext}
+		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: "function unaccent_init(internal) does not exist", Context: extension.UnaccentTemplateContext}
 		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.catalog.state != before {
 			t.Fatal("own staged helper failure did not preserve full authority", err)
 		}

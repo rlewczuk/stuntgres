@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"stuntgres/internal/engine/extension"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -337,19 +338,19 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: dump cannot serialize explicit routine ACL")
 				}
-				if Membership(t) == (ids.ObjectAddress{}) {
+				if extension.Membership(t) == (ids.ObjectAddress{}) {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: dump cannot serialize loose extension member")
 				}
 				continue
 			case *catalog.TSTemplate, *catalog.TSDictionary:
-				if Membership(t) == (ids.ObjectAddress{}) {
+				if extension.Membership(t) == (ids.ObjectAddress{}) {
 					e.mu.Unlock()
 					return fmt.Errorf("stuntgres: dump cannot serialize loose extension member")
 				}
 				continue
 			case *catalog.Extension:
-				if err := (CatalogProvider{ids.ExtensionClassID}).Validate(catalogView, t); err != nil {
+				if err := (extension.CatalogProvider{ids.ExtensionClassID}).Validate(catalogView, t); err != nil {
 					e.mu.Unlock()
 					return err
 				}
@@ -363,7 +364,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					e.mu.Unlock()
 					return err
 				}
-				metadata, err := OwnerMetadata(catalogView, domainRoles, t)
+				metadata, err := extension.OwnerMetadata(catalogView, domainRoles, t)
 				if err != nil {
 					e.mu.Unlock()
 					return err
@@ -1693,7 +1694,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		return err
 	}
 	var snapshots []materializedSnapshot
-	var extensionOwners []OwnerRecord
+	var extensionOwners []extension.OwnerRecord
 	var domainReplays []typedef.PositionedDomainReplay
 	statements, err := parser.ParseWithOptions(string(data), parser.Options{Context: ctx, StandardConformingStrings: true, LineComment: func(comment string, position parser.Position) error {
 		domainRecord, domainRecognized, domainErr := typedef.DecodeDomainReplay(comment)
@@ -1704,7 +1705,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			domainReplays = append(domainReplays, typedef.PositionedDomainReplay{Record: domainRecord, End: position.Offset + len(comment)})
 			return nil
 		}
-		ownerRecord, ownerRecognized, ownerErr := DecodeOwners(comment)
+		ownerRecord, ownerRecognized, ownerErr := extension.DecodeOwners(comment)
 		if ownerErr != nil {
 			return ownerErr
 		}

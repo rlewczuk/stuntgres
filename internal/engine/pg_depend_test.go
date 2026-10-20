@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -206,7 +207,7 @@ func TestPGDependDomainCheckDependencies(t *testing.T) {
 	check := domain.DomainChecks[0]
 	owner := ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}
 	provider := before.Get(procedure)
-	if provider == nil || Membership(provider) != ext.Address() {
+	if provider == nil || extension.Membership(provider) != ext.Address() {
 		t.Fatal("missing genuine installed CHECK provider")
 	}
 	references := 0

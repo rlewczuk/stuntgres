@@ -1,4 +1,4 @@
-package engine
+package extension
 
 import (
 	"stuntgres/internal/engine/catalog"

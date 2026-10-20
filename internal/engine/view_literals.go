@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -849,7 +850,7 @@ func (v *viewDefinition) validateLiteralTree(catalog catalog.Read, raw parser.Ex
 			return err
 		}
 		(*routineCount)++
-	} else if name := IntaggRecipeFunction(raw); name != "" {
+	} else if name := extension.IntaggRecipeFunction(raw); name != "" {
 		if _, err := v.intaggRecipeProcedure(catalog, path, name); err != nil {
 			return err
 		}
