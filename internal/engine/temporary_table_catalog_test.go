@@ -210,7 +210,8 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 	options.Persistence = "temporary"
-	sequence := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}, ObjectNamespace: table.Namespace(), ObjectName: "retained_sequence", ObjectRevision: 1, SequencePlanStamp: 1, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, ColumnMeta: catalog.ColumnMetadata{HighWater: 3}, RelationKind: catalog.SequenceRelation, Sequence: &options}
+	columns := sequence.Columns(e.catalog.read(e.catalog.state))
+	sequence := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}, ObjectNamespace: table.Namespace(), ObjectName: "retained_sequence", ObjectRevision: 1, SequencePlanStamp: 1, Owner: table.Owner, Columns: columns, Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, ColumnMeta: catalog.ColumnMetadata{HighWater: 3}, RelationKind: catalog.SequenceRelation, Sequence: &options}
 	e.mu.Lock()
 	e.catalogChangeLocked(c, sequence.Address(), sequence)
 	view := e.privateCatalogLocked(c)

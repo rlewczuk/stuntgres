@@ -128,13 +128,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 	} else if err := stage.Replace(&changed); err != nil {
 		return err
 	}
-	replacement := *generator
-	replacement.Generation = revision
-	if restart != nil {
-		replacement.Last = *restart
-		replacement.Called = false
-	}
-	stage.sequenceState().setGenerator(address, &replacement)
+	stage.sequenceState().setGenerator(address, sequence.ReplacementGenerator(*generator, revision, restart))
 	return nil
 }
 

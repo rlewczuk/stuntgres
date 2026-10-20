@@ -97,7 +97,8 @@ func TestObjectACLAddressLookup(t *testing.T) {
 			t.Fatal(err)
 		}
 		engine.mu.Lock()
-		sequence, err := engine.newTableDescriptorLocked(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "acl_unit_sequence", principal, engine.sequenceColumnsLocked(), nil)
+		columns := sequence.Columns(engine.catalog.read(engine.catalog.state))
+		sequence, err := engine.newTableDescriptorLocked(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "acl_unit_sequence", principal, columns, nil)
 		engine.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

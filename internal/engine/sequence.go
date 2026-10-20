@@ -13,7 +13,6 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
-	"stuntgres/internal/sqltype"
 )
 
 func (v AuthorizationView) checkSequenceAny(ref ids.ObjectRef, mask authorization.Privileges) error {
@@ -55,12 +54,6 @@ func (s *StatementScope) acquireSequence(ref ids.ObjectRef, mode lock.Mode, rese
 	}
 	e.markTemporaryAccessLocked(s, ref)
 	return nil
-}
-func (e *Engine) sequenceColumnsLocked() []catalog.Column {
-	view := e.catalog.read(e.catalog.state)
-	i, _ := view.LookupType(sqltype.Int8)
-	b, _ := view.LookupType(sqltype.Bool)
-	return []catalog.Column{{Name: "last_value", Usage: i.Usage(), NullabilityKnown: true}, {Name: "log_cnt", Usage: i.Usage(), NullabilityKnown: true}, {Name: "is_called", Usage: b.Usage(), NullabilityKnown: true}}
 }
 
 // Caller holds Engine.mu. Drop it for manager admission and restore it on every
@@ -188,16 +181,14 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		columns := e.sequenceColumnsLocked()
-		d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: rev, SequencePlanStamp: rev, Owner: auth.State.CurrentUser, Columns: columns, Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, RelationKind: catalog.SequenceRelation, Sequence: &options}
+		d := sequence.NewRelation(sequence.RelationSpec{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, Namespace: ns.Address, Name: name, Revision: rev, Owner: auth.State.CurrentUser, Columns: sequence.Columns(e.catalog.read(e.catalog.state)), Options: options})
 		d.Security.ACL = e.creationACLChangesLocked(changes, auth.Catalog, d.Owner, d.Namespace(), authorization.DefaultSequences)
-		d.ColumnMeta.HighWater = 3
 		// OWNED BY may refresh auth after waiting for its table. Retain the
 		// authority that actually passed the earlier namespace CREATE check.
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 		for _, option := range s.Options {
 			if option.Name == "owned" {
-				options.Owned, err = e.ownedSequenceLocked(scope, &auth, changes, d, option.Owned)
+				d.Sequence.Owned, err = e.ownedSequenceLocked(scope, &auth, changes, d, option.Owned)
 				if err != nil {
 					e.mu.Unlock()
 					return Result{}, err
@@ -205,11 +196,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			}
 		}
 		e.catalogChangeLocked(changes, d.Address(), d)
-		initial := options.Start
-		if restart != nil {
-			initial = *restart
-		}
-		changes.Generators[d.Address()] = &storage.SequenceGenerator{Last: initial, Generation: rev}
+		changes.Generators[d.Address()] = sequence.InitialGenerator(*d.Sequence, restart, rev)
 		scope.catalog = changes
 		e.mu.Unlock()
 		return Result{}, nil
@@ -385,12 +372,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		}
 		e.catalogChangeLocked(changes, d.Address(), &d)
 		if rewrite || persistenceChanged {
-			replacement := *state
-			replacement.Generation = rev
-			if restart != nil {
-				replacement.Last, replacement.Called = *restart, false
-			}
-			changes.Generators[d.Address()] = &replacement
+			changes.Generators[d.Address()] = sequence.ReplacementGenerator(*state, rev, restart)
 		}
 		if s.Action == "" || persistenceChanged {
 			if m := payloadOf(op.Session).sequences.Memory(d.Address()); m != nil {

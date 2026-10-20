@@ -153,7 +153,7 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *catalog.Relat
 	options.Owned = table.Address()
 	options.Owned.SubID = table.Attributes[slot]
 	options.Identity = true
-	d := &catalog.Relation{ObjectAddress: address, ObjectNamespace: table.Namespace(), ObjectName: name, ObjectRevision: rev, SequencePlanStamp: rev, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, ColumnMeta: catalog.ColumnMetadata{HighWater: 3}, RelationKind: catalog.SequenceRelation, Sequence: &options}
+	d := sequence.NewRelation(sequence.RelationSpec{Address: address, Namespace: table.Namespace(), Name: name, Revision: rev, Owner: table.Owner, Columns: sequence.Columns(e.catalog.read(e.catalog.state)), Options: options})
 	d.Security.ACL = stage.creationACL(table.Owner, table.Namespace(), authorization.DefaultSequences)
 	if err := stage.Create(d); err != nil {
 		return err
@@ -162,11 +162,7 @@ func (e *Engine) stageIdentitySequence(stage *CatalogStage, table *catalog.Relat
 		table.ColumnMeta.Identities = make(map[int32]catalog.ColumnIdentity)
 	}
 	table.ColumnMeta.Identities[table.Attributes[slot]] = catalog.ColumnIdentity{Mode: mode, Sequence: address}
-	initial := options.Start
-	if restart != nil {
-		initial = *restart
-	}
-	stage.sequenceState().setGenerator(address, &storage.SequenceGenerator{Last: initial, Generation: rev})
+	stage.sequenceState().setGenerator(address, sequence.InitialGenerator(options, restart, rev))
 	return nil
 }
 

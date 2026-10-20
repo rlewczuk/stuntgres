@@ -40,13 +40,12 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *catalog.Relation
 		address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}
 		options.Owned = table.Address()
 		options.Owned.SubID = table.Attributes[slot]
-		sequence := &catalog.Relation{ObjectAddress: address, ObjectNamespace: table.Namespace(), ObjectName: name, ObjectRevision: revision, SequencePlanStamp: revision, Owner: table.Owner, Columns: e.sequenceColumnsLocked(), Index: map[string]int{"last_value": 0, "log_cnt": 1, "is_called": 2}, Attributes: []int32{1, 2, 3}, RelationKind: catalog.SequenceRelation, Sequence: &options}
-		sequence.Security.ACL = stage.creationACL(table.Owner, table.Namespace(), authorization.DefaultSequences)
-		sequence.ColumnMeta.HighWater = 3
-		if err := stage.Create(sequence); err != nil {
+		d := sequence.NewRelation(sequence.RelationSpec{Address: address, Namespace: table.Namespace(), Name: name, Revision: revision, Owner: table.Owner, Columns: sequence.Columns(e.catalog.read(e.catalog.state)), Options: options})
+		d.Security.ACL = stage.creationACL(table.Owner, table.Namespace(), authorization.DefaultSequences)
+		if err := stage.Create(d); err != nil {
 			return err
 		}
-		stage.sequenceState().setGenerator(address, &storage.SequenceGenerator{Last: options.Start, Generation: revision})
+		stage.sequenceState().setGenerator(address, sequence.InitialGenerator(options, nil, revision))
 		// Route synthetic syntax through the same closed default binder as Restore.
 		namespace, _ := read.Descriptor(table.Namespace())
 		declarations[slot].DefaultExpr = parser.CallExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_catalog"}, {Text: "nextval"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(name)}}}}

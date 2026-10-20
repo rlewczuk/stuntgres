@@ -3,7 +3,6 @@ package engine
 import (
 	"fmt"
 
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -79,66 +78,20 @@ func (h *statementHost) Sequence(request functions.SequenceRequest) (int64, erro
 	if ns, ok := auth.Catalog.Namespace(d.Namespace()); ok && ns.Temporary == scope.op.Session.SessionToken {
 		scope.owner.AccessedTemporary = true
 	}
-	mask := authorization.UsagePrivilege | authorization.SelectPrivilege
-	if request.Name == "nextval" {
-		mask = authorization.UsagePrivilege | authorization.UpdatePrivilege
-	}
-	if request.Name == "setval" {
-		mask = authorization.UpdatePrivilege
-	}
 	if !request.Identity {
-		if err = auth.checkSequenceAny(ref, mask); err != nil {
+		if err = auth.checkSequenceAny(ref, sequence.CallPrivileges(request.Name)); err != nil {
 			return 0, err
 		}
 	}
-	if scope.owner.ReadOnly && (request.Name == "nextval" || request.Name == "setval") {
+	if readOnly := sequence.ReadOnlyCallError(request.Name); scope.owner.ReadOnly && readOnly != nil {
 		ns, _ := auth.Catalog.Namespace(d.Namespace())
 		if ns == nil || ns.Temporary != scope.op.Session.SessionToken {
-			return 0, sqlError("25006", "cannot execute "+request.Name+"() in a read-only transaction")
+			return 0, readOnly
 		}
 	}
-	session := scope.op.Session
 	g := e.sequenceGeneratorLocked(scope, ref.Address)
 	if g == nil {
 		return 0, fmt.Errorf("stuntgres: sequence state missing")
 	}
-	m := payloadOf(session).sequences.DemandLocked(ref.Address)
-	m.ObserveLocked(g.Generation)
-	var result int64
-	switch request.Name {
-	case "currval", "lastval":
-		value, valid := m.Current()
-		if !valid {
-			msg := fmt.Sprintf(`currval of sequence "%s" is not yet defined in this session`, d.Name())
-			if request.Name == "lastval" {
-				msg = "lastval is not yet defined in this session"
-			}
-			return 0, sqlError("55000", msg)
-		}
-		result = value
-	case "nextval":
-		result, err = m.NextLocked(*d.Sequence, g, d.Name())
-		if err != nil {
-			return 0, err
-		}
-		payloadOf(session).sequences.RecordLastLocked(d.Address())
-	case "setval":
-		result, err = request.Value.Integer()
-		if err != nil {
-			return 0, err
-		}
-		if result < d.Sequence.Min || result > d.Sequence.Max {
-			return 0, sqlError("22003", fmt.Sprintf(`setval: value %d is out of bounds for sequence "%s" (%d..%d)`, result, d.Name(), d.Sequence.Min, d.Sequence.Max))
-		}
-		called := true
-		if request.HasCalled {
-			called, err = request.Called.Boolean()
-			if err != nil {
-				return 0, err
-			}
-		}
-		g.Last, g.Called = result, called
-		m.SetLocked(result, called)
-	}
-	return result, nil
+	return sequence.CallLocked(request, d, g, &payloadOf(scope.op.Session).sequences)
 }
