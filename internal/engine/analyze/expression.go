@@ -44,10 +44,10 @@ type ExpressionPolicy struct {
 	operand bool
 }
 
-// expressionBinder binds the expressions of one statement. engine, ctx, op,
-// expected and input are the host and statement inputs (12c replaces engine
-// and op with a host seam); dependencies is the statement's dependency
-// manifest. Everything else lives in the value groups of binder_groups.go.
+// Binder binds the expressions of one statement. Host is the engine seam
+// (12c); Ctx, Expected and Input are the statement inputs; Dependencies is
+// the statement's dependency manifest. Everything else lives in the value
+// groups of binder_groups.go.
 type Binder struct {
 	Host         Host
 	Ctx          context.Context

@@ -16,7 +16,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// analyzeHost is what statement binding may ask of the engine: the binder
+// Host is what statement binding may ask of the engine: the binder
 // reaches engine, session and operation state only through it. Each method
 // is a reviewed capability (ENGINE-SPLIT-md, 12c). Binding runs with
 // Engine.mu held; every method is called with Engine.mu held and never takes

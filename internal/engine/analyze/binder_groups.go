@@ -11,12 +11,12 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// The expressionBinder groups below are held by value, not embedded, so each
+// The Binder groups below are held by value, not embedded, so each
 // use names the group it touches. Copying a binder copies them exactly as it
 // copied the flat fields they replace, and a zero group is the state of every
 // binder that does not set it. The binder also holds the binding groups
-// viewCapture and preparedCaptures (analyze/binding_groups.go) under the same
-// names as binding, so describe copies them whole.
+// ViewCapture and PreparedCaptures (binding_groups.go) under the same
+// names as Binding, so Describe copies them whole.
 
 // targetContext describes the relation a statement writes and the names its
 // expressions may use for it. DML, rule and generated-column binding set it;
@@ -51,7 +51,7 @@ type parameterState struct {
 	NoParameters          bool
 }
 
-// consumerContext names the definition an expression is bound for (default,
+// ConsumerContext names the definition an expression is bound for (default,
 // check, policy, index, partition, materialized view) and records the
 // snapshot demands found while binding it.
 type ConsumerContext struct {
@@ -73,7 +73,7 @@ type ConsumerContext struct {
 	materializedDefinition bool
 }
 
-// storedSyntaxState keeps stored SQL stable across reparsing: the literal
+// StoredSyntaxState keeps stored SQL stable across reparsing: the literal
 // nodes of an internal TYPE CHECK reparse, the frozen syntax of analyzed
 // lowerings, and the occurrence counters of VALUES lists, joins and ROWS FROM
 // function lists that key their view literal paths.
@@ -89,7 +89,7 @@ type StoredSyntaxState struct {
 	functionCount int
 }
 
-// clauseState is the state of the clause being bound: its name for
+// ClauseState is the state of the clause being bound: its name for
 // diagnostics, the string and regexp set-returning guards, and the
 // selected-call context of an operator or SQL routine occurrence. Clause
 // binders save it, set it and restore it around their children.
@@ -113,7 +113,7 @@ type ClauseState struct {
 	selectedWindowCallee   parser.ObjectName // Diagnostic spelling, never lookup authority.
 }
 
-// groupingState collects the aggregates, grouping sets and window calls of
+// GroupingState collects the aggregates, grouping sets and window calls of
 // the query level being bound, with the window definitions they resolve
 // against.
 type GroupingState struct {
@@ -127,7 +127,7 @@ type GroupingState struct {
 	ArgumentOwner     ArgumentWindowOwner
 }
 
-// queryScopeState is the query level being bound: its authorization view,
+// QueryScopeState is the query level being bound: its authorization view,
 // sources and lock admission, the visible namespace and hidden qualifiers,
 // frame numbering, and the scope stack of enclosing levels. Subquery and
 // FROM binders save it and restore it around nested levels.

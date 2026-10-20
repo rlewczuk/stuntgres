@@ -428,7 +428,7 @@ func (e *Engine) lowerViewWrite(b *analyze.Binding, auth AuthorizationView, stmt
 				b.SubqueryDemand = true
 			case plan.ExtensionPathsExpr:
 				// This binding flag owns nonquery catalog/role capture in
-				// executeBoundCommandLocked; expressionBinder.catalogSnapshot is
+				// executeBoundCommandLocked; Binder.Consumer.CatalogSnapshot is
 				// analysis-only and is not a field of binding.
 				b.Prepared.RegclassConcat = true
 			case functions.Binary:

@@ -18,7 +18,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// bindingHost is the root adapter behind analyzeHost. Binders also run
+// bindingHost is the root adapter behind analyze.Host. Binders also run
 // without a StatementScope (DDL, defaults, checks, index expressions,
 // generated columns, Restore), so it holds the engine and the operation
 // rather than a scope. A nil op means no definition reader, no notices, no
