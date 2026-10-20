@@ -38,6 +38,12 @@ type exclusionModes struct {
 	events              []exclusionEvent
 }
 
+// zero reports whether m is exactly the zero value: no flags, and a nil map
+// and event list (an empty non-nil one is not zero).
+func (m exclusionModes) zero() bool {
+	return !m.allSet && !m.allDeferred && m.byConstraint == nil && m.events == nil
+}
+
 func (m exclusionModes) deferred(c *catalog.ExclusionConstraint) bool {
 	if !c.Deferrable {
 		return false

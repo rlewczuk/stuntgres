@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -28,8 +29,7 @@ type savepointMark struct {
 	deferrable          bool
 	locks               lock.Checkpoint
 	cursors             uint64
-	exclusionModes      exclusionModes
-	exclusionProjection *exclusionProjection
+	exclusion           session.ExclusionMarkSlot // nil when zero; see exclusionMarkSlotOf
 	identity            authorization.RoleState
 	notificationActions []notificationAction
 	notificationEvents  []Notification
@@ -93,7 +93,7 @@ func captureSavepoint(t *transactionOwner, name string) savepointMark {
 	t.session.mu.Lock()
 	identity := t.session.authorization.state
 	t.session.mu.Unlock()
-	return savepointMark{name: name, serial: t.savepointSerial, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, deferrable: t.deferrable, locks: e.locks.Checkpoint(t.ticket), cursors: payloadOf(t.session).cursors.ordinal, exclusionModes: ownerExtensionOrZero(t).exclusionModes, exclusionProjection: projection, identity: identity, notificationActions: t.notificationActions[:len(t.notificationActions):len(t.notificationActions)], notificationEvents: t.notificationEvents[:len(t.notificationEvents):len(t.notificationEvents)]}
+	return savepointMark{name: name, serial: t.savepointSerial, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, deferrable: t.deferrable, locks: e.locks.Checkpoint(t.ticket), cursors: payloadOf(t.session).cursors.ordinal, exclusion: exclusionMarkSlotOf(ownerExtensionOrZero(t).exclusionModes, projection), identity: identity, notificationActions: t.notificationActions[:len(t.notificationActions):len(t.notificationActions)], notificationEvents: t.notificationEvents[:len(t.notificationEvents):len(t.notificationEvents)]}
 }
 
 func restoreSavepoint(t *transactionOwner, mark savepointMark, settings settingsMark) {
@@ -107,14 +107,15 @@ func restoreSavepoint(t *transactionOwner, mark savepointMark, settings settings
 	syncCharacteristics(t)
 	e := engineOf(t.session)
 	e.mu.Lock()
-	ownerExtensionOf(t).exclusionModes = mark.exclusionModes
-	if mark.exclusionProjection == nil {
+	exclusion := exclusionMarkOrZero(mark.exclusion)
+	ownerExtensionOf(t).exclusionModes = exclusion.modes
+	if exclusion.projection == nil {
 		delete(e.exclusionPending, t.ticket)
 	} else {
 		if e.exclusionPending == nil {
 			e.exclusionPending = make(map[*lock.Ticket]*exclusionProjection)
 		}
-		e.exclusionPending[t.ticket] = mark.exclusionProjection
+		e.exclusionPending[t.ticket] = exclusion.projection
 	}
 	e.exclusionGeneration++
 	e.reconcileSerializableWritesLocked(t)
@@ -253,11 +254,12 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 			t.session.settings.currentIsolation = isolationText(t.isolation)
 			t.session.settings.currentReadOnly = t.readOnly
 			t.session.settings.currentDeferrable = t.deferrable
-			ownerExtensionOf(t).exclusionModes = mark.exclusionModes
-			if mark.exclusionProjection == nil {
+			exclusion := exclusionMarkOrZero(mark.exclusion)
+			ownerExtensionOf(t).exclusionModes = exclusion.modes
+			if exclusion.projection == nil {
 				delete(e.exclusionPending, t.ticket)
 			} else {
-				e.exclusionPending[t.ticket] = mark.exclusionProjection
+				e.exclusionPending[t.ticket] = exclusion.projection
 			}
 			e.exclusionGeneration++
 			e.reconcileSerializableWritesLocked(t)
@@ -281,4 +283,31 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		e.locks.Restore(t.ticket, mark.locks)
 	}
 	return Result{}, nil
+}
+
+// exclusionMark is the exclusion constraint state a savepoint captured: the
+// owner's exclusion modes and the engine's pending exclusion projection.
+type exclusionMark struct {
+	modes      exclusionModes
+	projection *exclusionProjection
+}
+
+func (*exclusionMark) ExclusionMarkSlot() {}
+
+// exclusionMarkSlotOf stores modes and projection. Exactly zero state (see
+// exclusionModes.zero, nil projection) stays a nil slot, so restoring it
+// reproduces the captured value.
+func exclusionMarkSlotOf(modes exclusionModes, projection *exclusionProjection) session.ExclusionMarkSlot {
+	if projection == nil && modes.zero() {
+		return nil
+	}
+	return &exclusionMark{modes: modes, projection: projection}
+}
+
+// exclusionMarkOrZero returns the captured exclusion state; a nil slot is zero.
+func exclusionMarkOrZero(s session.ExclusionMarkSlot) exclusionMark {
+	if m, _ := s.(*exclusionMark); m != nil {
+		return *m
+	}
+	return exclusionMark{}
 }

@@ -20,3 +20,10 @@ type PayloadSlot interface {
 type OwnerSlot interface {
 	OwnerSlot()
 }
+
+// ExclusionMarkSlot holds the exclusion constraint state a savepoint captured:
+// the owner's exclusion modes and the engine's pending exclusion projection.
+// It is nil when both are zero, so most savepoints allocate nothing for it.
+type ExclusionMarkSlot interface {
+	ExclusionMarkSlot()
+}
