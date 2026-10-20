@@ -265,7 +265,7 @@ func protocolAbortedError() error {
 
 // Savepoint publication only removes visibility; callbacks and producer
 // disposal belong to the existing unlocked terminal cleanup path.
-func (t *transactionOwner) retireProtocolPortalsAfter(frontier uint64) {
+func retireProtocolPortalsAfter(t *transactionOwner, frontier uint64) {
 	if t.session.preparedSQL == nil {
 		return
 	}

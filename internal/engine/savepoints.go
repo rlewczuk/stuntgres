@@ -78,7 +78,7 @@ func (s *sessionSettings) restoreSavepoint(candidate settingsMark, identity auth
 	}
 }
 
-func (t *transactionOwner) captureSavepoint(name string) savepointMark {
+func captureSavepoint(t *transactionOwner, name string) savepointMark {
 	writes := maps.Clone(t.writes)
 	t.foreign.markNext++
 	for a, rows := range t.writes {
@@ -96,15 +96,15 @@ func (t *transactionOwner) captureSavepoint(name string) savepointMark {
 	return savepointMark{name: name, foreignID: t.foreign.markNext, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, deferrable: t.deferrable, locks: e.locks.Checkpoint(t.ticket), cursors: t.session.cursors.ordinal, exclusionModes: t.exclusionModes, exclusionProjection: projection, identity: identity, notificationActions: t.notificationActions[:len(t.notificationActions):len(t.notificationActions)], notificationEvents: t.notificationEvents[:len(t.notificationEvents):len(t.notificationEvents)]}
 }
 
-func (t *transactionOwner) restoreSavepoint(mark savepointMark, settings settingsMark) {
+func restoreSavepoint(t *transactionOwner, mark savepointMark, settings settingsMark) {
 	t.cursorCleanup = append(t.cursorCleanup, t.session.cursors.rollback(mark.cursors)...)
-	t.retireProtocolPortalsAfter(mark.cursors)
+	retireProtocolPortalsAfter(t, mark.cursors)
 	t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
 	t.notificationActions, t.notificationEvents = mark.notificationActions, mark.notificationEvents
 	t.session.settings.restoreSavepoint(settings, mark.identity)
 	t.isolation, t.readOnly = mark.isolation, mark.readOnly
 	t.deferrable = mark.deferrable
-	t.syncCharacteristics()
+	syncCharacteristics(t)
 	e := engineOf(t.session)
 	e.mu.Lock()
 	t.exclusionModes = mark.exclusionModes
@@ -175,7 +175,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		if t.foreign.markNext == ^uint64(0) {
 			return Result{}, fmt.Errorf("stuntgres: foreign savepoint identity exhausted")
 		}
-		mark = t.captureSavepoint(control.Name.Text)
+		mark = captureSavepoint(t, control.Name.Text)
 		// Reserve the stack before the final callback-free preflight.
 		stack = slices.Grow(t.savepoints, 1)
 	} else {
@@ -204,7 +204,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 	}
 	s.foreignUnlocked()
 	t.mu.Unlock()
-	hookErr := t.foreignSavepoint(s.op.Context(), kind, mark.foreignID)
+	hookErr := foreignSavepoint(t, s.op.Context(), kind, mark.foreignID)
 	t.mu.Lock()
 	if hookErr != nil {
 		return Result{}, hookErr
@@ -239,7 +239,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 			t.savepoints = append(stack, mark)
 		case parser.RollbackSavepoint:
 			t.cursorCleanup = append(t.cursorCleanup, t.session.cursors.rollback(mark.cursors)...)
-			t.retireProtocolPortalsAfter(mark.cursors)
+			retireProtocolPortalsAfter(t, mark.cursors)
 			t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
 			t.notificationActions, t.notificationEvents = mark.notificationActions, mark.notificationEvents
 			targetIdentity := mark.identity

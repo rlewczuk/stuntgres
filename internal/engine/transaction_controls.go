@@ -71,7 +71,7 @@ func (e *Engine) beginAdmitted(op *Operation, t *transactionOwner, start time.Ti
 	ticket, err := e.registerTransactionLocks(ref)
 	t.mu.Lock()
 	if err != nil {
-		t.clear()
+		clearTransaction(t)
 		t.session.retireTransactionTimeout()
 		return ids.TxRef{}, err
 	}
@@ -110,7 +110,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 		if !installedNext {
 			e.endSerializable(next, false)
 		}
-		t.finishNotificationBoundary()
+		finishNotificationBoundary(t)
 		t.mu.Unlock()
 		e.endLockOwner(candidate)
 		e.endLockOwner(old)
@@ -131,7 +131,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 				t.ticket = nil
 				t.session.settings.finishTransaction(false)
 				e.endSerializable(t.ref, false)
-				t.clear()
+				clearTransaction(t)
 				t.session.retireTransactionTimeout()
 			}
 			return EndResult{}, err
@@ -283,7 +283,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 	t.ticket = nil
 	t.session.settings.finishTransaction(committed)
 	e.endSerializable(t.ref, committed)
-	t.clear()
+	clearTransaction(t)
 	t.session.retireTransactionTimeout()
 	if err != nil {
 		return EndResult{Committed: committed}, err
@@ -299,7 +299,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 		// baseline, unlike BEGIN's overrides of session defaults.
 		t.entryIsolation, t.entryReadOnly = isolation, readOnly
 		t.entryDeferrable = deferrable
-		t.syncCharacteristics()
+		syncCharacteristics(t)
 		t.start = nextStart
 		t.ticket = candidate
 		candidate = nil

@@ -45,11 +45,11 @@ func (s *StatementScope) Finish(err error) error {
 			s.engine().replacementMu.RUnlock()
 			s.replacementRead = false
 		}
-		if cleanupErr := s.owner.drainCursorCleanup(s.op.Context(), s); err == nil {
+		if cleanupErr := drainCursorCleanup(s.owner, s.op.Context(), s); err == nil {
 			err = cleanupErr
 		}
 		s.owner.mu.Lock()
-		s.owner.finishNotificationBoundary()
+		finishNotificationBoundary(s.owner)
 		s.owner.mu.Unlock()
 		// the new incarnation installed by CHAIN after its linearization.
 		s.finished = true
@@ -219,7 +219,7 @@ func (s *StatementScope) Finish(err error) error {
 		e.endSerializable(t.ref, err == nil)
 		endedTicket = t.ticket
 		t.ticket = nil
-		t.clear()
+		clearTransaction(t)
 		t.session.retireTransactionTimeout()
 	} else if err != nil && admittedFailure && (t.state == TxActive || t.state == TxAborted) {
 		if errors.Is(err, ids.ErrCatalogReplaced) {
@@ -230,13 +230,13 @@ func (s *StatementScope) Finish(err error) error {
 			if t.state == TxActive {
 				mark := t.savepoints[len(t.savepoints)-1]
 				t.mu.Unlock()
-				remoteErr := t.foreignSavepoint(context.WithoutCancel(s.op.Context()), 1, mark.foreignID)
+				remoteErr := foreignSavepoint(t, context.WithoutCancel(s.op.Context()), 1, mark.foreignID)
 				t.mu.Lock()
 				if remoteErr != nil {
 					t.foreign.cleanup = append(t.foreign.cleanup, t.foreign.participants...)
 					t.foreign.participants = nil
 				}
-				t.restoreSavepoint(mark, mark.settings.clone())
+				restoreSavepoint(t, mark, mark.settings.clone())
 				e.locks.Restore(t.ticket, mark.locks)
 			}
 			t.state = TxAborted
@@ -248,7 +248,7 @@ func (s *StatementScope) Finish(err error) error {
 			t.isolation, t.readOnly = t.entryIsolation, t.entryReadOnly
 			t.deferrable = t.entryDeferrable
 			t.state = TxAborted
-			t.syncCharacteristics()
+			syncCharacteristics(t)
 			t.writes = nil
 			t.deletes = nil
 			t.roots = nil
@@ -289,13 +289,13 @@ func (s *StatementScope) Finish(err error) error {
 	s.finished = true
 	s.op.session.finishScopeTimeout(&s.lease, s.op, s.message, s.txRef, err != nil)
 	s.result = err
-	t.finishNotificationBoundary()
+	finishNotificationBoundary(t)
 	t.mu.Unlock()
 	if s.replacementRead {
 		e.replacementMu.RUnlock()
 		s.replacementRead = false
 	}
-	if cleanupErr := t.drainCursorCleanup(s.op.Context(), s); err == nil {
+	if cleanupErr := drainCursorCleanup(t, s.op.Context(), s); err == nil {
 		err = cleanupErr
 	}
 	s.result = err

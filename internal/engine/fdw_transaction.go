@@ -197,7 +197,7 @@ func rollbackForeign(ctx context.Context, participants []*foreignParticipant) er
 	}
 	return first
 }
-func (t *transactionOwner) commitForeign(ctx context.Context, ref ids.TxRef) error {
+func commitForeign(t *transactionOwner, ctx context.Context, ref ids.TxRef) error {
 	t.mu.Lock()
 	err := t.validate(ref)
 	participants := t.foreign.participants // Admission excludes enrollment/disposal.
@@ -218,7 +218,7 @@ func (t *transactionOwner) commitForeign(ctx context.Context, ref ids.TxRef) err
 	}
 	return nil
 }
-func (t *transactionOwner) foreignPending() bool {
+func foreignPending(t *transactionOwner) bool {
 	for _, p := range t.foreign.participants {
 		if !p.closed {
 			return true
@@ -228,7 +228,7 @@ func (t *transactionOwner) foreignPending() bool {
 }
 func foreignMarkName(id uint64) string { return fmt.Sprintf("stuntgres_sql_%d", id) }
 
-func (t *transactionOwner) foreignSavepoint(ctx context.Context, kind int, id uint64) error {
+func foreignSavepoint(t *transactionOwner, ctx context.Context, kind int, id uint64) error {
 	for _, p := range t.foreign.participants {
 		if p.closed {
 			return errors.New("stuntgres: foreign transaction is already disposed")

@@ -45,12 +45,12 @@ func TestProtocolPortalProducer(t *testing.T) {
 	foreign.tx = withTxID(foreign.tx, foreign.tx.ID()+1)
 	session.preparedSQL.portals = map[string]*protocolPortal{"old": p, "new": newPortal, "foreign": foreign}
 	owner.mu.Lock()
-	owner.retireProtocolPortalsAfter(1)
+	retireProtocolPortalsAfter(owner, 1)
 	owner.mu.Unlock()
 	if p.retired || !newPortal.retired || foreign.retired || cursor.ordinalPosition != 4 {
 		t.Fatal("savepoint frontier changed older position or foreign ownership")
 	}
-	if err := owner.drainCursorCleanup(context.Background(), nil); err != nil {
+	if err := drainCursorCleanup(owner, context.Background(), nil); err != nil {
 		t.Fatal(err)
 	}
 	if !newRows.Closed || foreignRows.Closed || p.producer == nil || stage.Closed || calls != 4 {

@@ -16,7 +16,7 @@ func (t *transactionOwner) acquireAdmission(ctx context.Context, op *Operation) 
 		t.admission.Lock()
 		if t.copyLease == nil {
 			if waited && op != nil {
-				if err := engineOf(t.session).validateOperation(op); err != nil {
+				if err := validateSessionOperation(t.session.token.Domain(), op); err != nil {
 					t.admission.Unlock()
 					return err
 				}

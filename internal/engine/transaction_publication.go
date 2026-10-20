@@ -120,7 +120,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				}
 				continue
 			}
-			if phase == nil && !remoteSettled && txOwnerOf(ref).foreignPending() {
+			if phase == nil && !remoteSettled && foreignPending(txOwnerOf(ref)) {
 				op.session.mu.Unlock()
 				e.mu.Unlock()
 				if scope != nil {
@@ -128,7 +128,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 						return err
 					}
 				}
-				if err := txOwnerOf(ref).commitForeign(op.Context(), ref); err != nil {
+				if err := commitForeign(txOwnerOf(ref), op.Context(), ref); err != nil {
 					return err
 				}
 				remoteSettled = true
@@ -427,7 +427,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			e.mu.Unlock()
 			return nil
 		}
-		if phase == nil && !remoteSettled && txOwnerOf(ref).foreignPending() {
+		if phase == nil && !remoteSettled && foreignPending(txOwnerOf(ref)) {
 			session.mu.Unlock()
 			e.mu.Unlock()
 			if scope != nil {
@@ -435,7 +435,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 					return err
 				}
 			}
-			if err := txOwnerOf(ref).commitForeign(op.Context(), ref); err != nil {
+			if err := commitForeign(txOwnerOf(ref), op.Context(), ref); err != nil {
 				return err
 			}
 			remoteSettled = true

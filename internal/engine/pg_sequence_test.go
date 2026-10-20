@@ -267,9 +267,9 @@ func TestPGSequenceSnapshotOwnerLifecycle(t *testing.T) {
 			if stableIsolation(isolation) && owner.sequenceCatalog != base || !stableIsolation(isolation) && owner.sequenceCatalog != nil {
 				t.Fatal("snapshot pointer policy")
 			}
-			mark := owner.captureSavepoint("s")
+			mark := captureSavepoint(owner, "s")
 			owner.catalog = session.NewJournal()
-			owner.restoreSavepoint(mark, mark.settings.clone())
+			restoreSavepoint(owner, mark, mark.settings.clone())
 			if stableIsolation(isolation) && owner.sequenceCatalog != base {
 				t.Fatal("savepoint discarded transaction snapshot")
 			}

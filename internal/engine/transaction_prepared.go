@@ -76,7 +76,7 @@ func (e *Engine) installPreparedLocked(p *preparedPublication) {
 	e.visibility.DropSnapshotLocked(p.entry.ref)
 	e.prepared[p.entry.gid] = p.entry
 	p.origin.ticket = nil
-	p.origin.clear()
+	clearTransaction(p.origin)
 	p.origin.session.retireTransactionTimeoutLocked()
 }
 
@@ -157,7 +157,7 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 		ticket := t.ticket
 		t.ticket = nil
 		e.endSerializable(ref, false)
-		t.clear()
+		clearTransaction(t)
 		t.session.retireTransactionTimeout()
 		t.session.settings.finishTransaction(false)
 		t.mu.Unlock()

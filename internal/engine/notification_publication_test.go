@@ -222,14 +222,14 @@ func TestNotificationSavepointRoots(t *testing.T) {
 	owner.notificationActions[0] = notificationAction{channel: "unit", listen: true}
 	owner.notificationEvents = make([]Notification, 1, 8)
 	owner.notificationEvents[0] = parent
-	mark := owner.captureSavepoint("root")
+	mark := captureSavepoint(owner, "root")
 	if cap(mark.notificationActions) != len(mark.notificationActions) || cap(mark.notificationEvents) != len(mark.notificationEvents) {
 		t.Fatal("savepoint retained mutable append capacity")
 	}
 	child := Notification{PID: parent.PID, Channel: "unit", Payload: "child"}
 	owner.notificationEvents = appendNotificationEvents(owner.notificationEvents, []Notification{parent, child})
 	owner.notificationActions = append(owner.notificationActions, notificationAction{all: true})
-	owner.restoreSavepoint(mark, mark.settings.clone())
+	restoreSavepoint(owner, mark, mark.settings.clone())
 	owner.notificationEvents = appendNotificationEvents(owner.notificationEvents, []Notification{parent, child})
 	if !reflect.DeepEqual(owner.notificationEvents, []Notification{parent, child}) || len(owner.notificationActions) != 1 {
 		t.Fatal("rollback roots/dedup ancestry corrupted")

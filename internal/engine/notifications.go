@@ -241,7 +241,7 @@ func (s *StatementScope) executeNotification(stmt parser.Statement, count int) (
 // Called owner-first only at the outer idle/message boundary. Abort drops local
 // effects but must still release committed peer events. CHAIN and intermediate
 // COMMIT segments deliberately leave busy true and do not scan.
-func (t *transactionOwner) finishNotificationBoundary() {
+func finishNotificationBoundary(t *transactionOwner) {
 	if t.state != TxIdle || t.retainsTransaction() {
 		return
 	}

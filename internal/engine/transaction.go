@@ -88,7 +88,7 @@ type transactionOwner struct {
 	foreign             foreignTransaction
 }
 
-func (t *transactionOwner) clear() {
+func clearTransaction(t *transactionOwner) {
 	t.foreign.cleanup = append(t.foreign.cleanup, t.foreign.participants...)
 	t.foreign.participants = nil
 	if t.session.cursors != nil {
@@ -135,13 +135,13 @@ func (t *transactionOwner) EndSession(token ids.SessionToken, _ EndReason) error
 	}
 	engineOf(t.session).endSerializable(t.ref, false)
 	t.session.settings.finishTransaction(false)
-	t.clear()
+	clearTransaction(t)
 	t.session.retireTransactionTimeout()
 	ticket := t.ticket
 	t.ticket = nil
 	t.mu.Unlock()
 	engineOf(t.session).endLockOwner(ticket)
-	cleanupErr := t.drainCursorCleanup(context.Background(), nil)
+	cleanupErr := drainCursorCleanup(t, context.Background(), nil)
 	// Collation-bearing namespaces are retained for lawful runner teardown after
 	// this callback releases admission. Other TEMP cleanup retains its owner path.
 	if err := engineOf(t.session).endTemporarySession(t.session); cleanupErr == nil {
@@ -220,14 +220,14 @@ func (e *Engine) Begin(op *Operation, options TxOptions) (ids.TxRef, error) {
 		if options.DeferrableSet {
 			t.deferrable = options.Deferrable
 		}
-		t.syncCharacteristics()
+		syncCharacteristics(t)
 		t.mu.Unlock()
 	}
 	return ref, err
 }
 
 func (t *transactionOwner) validate(ref ids.TxRef) error {
-	if ref.Domain() != domainOf(engineOf(t.session)) || ref.Session() != t.session.token || ref.ID() == 0 || txOwnerOf(ref) != t {
+	if ref.Domain() != t.session.token.Domain() || ref.Session() != t.session.token || ref.ID() == 0 || txOwnerOf(ref) != t {
 		return errors.New("stuntgres: foreign or missing transaction reference")
 	}
 	if t.state == TxIdle || ref != t.ref {
@@ -246,7 +246,7 @@ func (e *Engine) Rollback(op *Operation, ref ids.TxRef) (EndResult, error) {
 	}
 	defer t.admission.Unlock()
 	result, err := e.endAdmitted(op, t, ref, false, false, false, time.Time{}, nil)
-	if cleanupErr := t.drainCursorCleanup(op.Context(), nil); err == nil {
+	if cleanupErr := drainCursorCleanup(t, op.Context(), nil); err == nil {
 		err = cleanupErr
 	}
 	return result, err
@@ -263,7 +263,7 @@ func (e *Engine) Commit(op *Operation, ref ids.TxRef) (EndResult, error) {
 	}
 	defer t.admission.Unlock()
 	result, err := e.endAdmitted(op, t, ref, true, false, false, time.Time{}, nil)
-	if cleanupErr := t.drainCursorCleanup(op.Context(), nil); err == nil {
+	if cleanupErr := drainCursorCleanup(t, op.Context(), nil); err == nil {
 		err = cleanupErr
 	}
 	return result, err
@@ -979,7 +979,7 @@ func prepareOwnWrites(previous, staged map[ids.ObjectAddress][]storage.RowVersio
 	return next
 }
 
-func (t *transactionOwner) drainCursorCleanup(ctx context.Context, scope *StatementScope) error {
+func drainCursorCleanup(t *transactionOwner, ctx context.Context, scope *StatementScope) error {
 	t.mu.Lock()
 	cursors := t.cursorCleanup
 	t.cursorCleanup = nil

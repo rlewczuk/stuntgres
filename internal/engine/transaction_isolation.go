@@ -36,7 +36,7 @@ func isolationText(level Isolation) string {
 		return "read committed"
 	}
 }
-func (t *transactionOwner) syncCharacteristics() {
+func syncCharacteristics(t *transactionOwner) {
 	settings := t.session.settings
 	settings.mu.Lock()
 	settings.currentIsolation = isolationText(t.isolation)
@@ -84,7 +84,7 @@ func (t *transactionOwner) assignModes(modes []parser.TransactionMode) error {
 	}
 	t.isolation, t.readOnly = isolation, readOnly
 	t.deferrable = deferrable
-	t.syncCharacteristics()
+	syncCharacteristics(t)
 	return nil
 }
 func (e *Engine) applyCurrentCharacteristic(op *Operation, d settings.Definition, input *string) (string, error) {

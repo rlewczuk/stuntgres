@@ -371,7 +371,14 @@ func (op *Operation) Done() {
 	s.cond.Broadcast()
 }
 func (e *Engine) validateOperation(op *Operation) error {
-	if op == nil || op.self != op || op.session == nil || op.session.token.Domain() != domainOf(e) {
+	return validateSessionOperation(domainOf(e), op)
+}
+
+// validateSessionOperation reports whether op is a live operation of a session
+// in domain. A session's token carries its engine's domain, so session code
+// passes its own token's domain.
+func validateSessionOperation(domain *ids.Domain, op *Operation) error {
+	if op == nil || op.self != op || op.session == nil || op.session.token.Domain() != domain {
 		return errors.New("stuntgres: foreign or missing operation")
 	}
 	s := op.session

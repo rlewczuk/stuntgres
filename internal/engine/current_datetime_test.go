@@ -147,8 +147,8 @@ func TestCurrentDateTimeTransactionBirthQuantization(t *testing.T) {
 		t.Fatal("driver birth did not refresh", first, outer)
 	}
 	owner.mu.Lock()
-	mark := owner.captureSavepoint("clock")
-	owner.restoreSavepoint(mark, mark.settings.clone())
+	mark := captureSavepoint(owner, "clock")
+	restoreSavepoint(owner, mark, mark.settings.clone())
 	restored := owner.start
 	owner.mu.Unlock()
 	if !restored.Equal(outer) {

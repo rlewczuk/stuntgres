@@ -106,16 +106,16 @@ func TestFDWTransactionParticipants(t *testing.T) {
 	if err := s.finishForeignStatements(nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.owner.foreignSavepoint(op.Context(), 0, 7); err != nil {
+	if err := foreignSavepoint(s.owner, op.Context(), 0, 7); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.owner.foreignSavepoint(op.Context(), 1, 7); err != nil {
+	if err := foreignSavepoint(s.owner, op.Context(), 1, 7); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.owner.foreignSavepoint(op.Context(), 2, 7); err != nil {
+	if err := foreignSavepoint(s.owner, op.Context(), 2, 7); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.owner.commitForeign(op.Context(), ref); err != nil {
+	if err := commitForeign(s.owner, op.Context(), ref); err != nil {
 		t.Fatal(err)
 	}
 	if err := rollbackForeign(op.Context(), s.owner.foreign.participants); err != nil {
@@ -130,7 +130,7 @@ func TestFDWTransactionParticipants(t *testing.T) {
 	b := &fdwUnitTransaction{name: "b", order: &order, commitError: failure}
 	c := &fdwUnitTransaction{name: "c", order: &order}
 	s.owner.foreign.participants = []*foreignParticipant{{tx: a}, {tx: b}, {tx: c}}
-	if err := s.owner.commitForeign(op.Context(), ref); !errors.Is(err, failure) {
+	if err := commitForeign(s.owner, op.Context(), ref); !errors.Is(err, failure) {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(order, []string{"a", "b"}) || !reflect.DeepEqual(a.calls, []string{"commit"}) || !reflect.DeepEqual(b.calls, []string{"commit"}) || !reflect.DeepEqual(c.calls, []string{"rollback"}) {
