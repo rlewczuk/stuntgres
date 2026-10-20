@@ -19,18 +19,28 @@ import (
 var _ functions.ACLRuntime = (*EvalContext)(nil)
 
 func (c *EvalContext) ACLAuthority() *sqltype.ACLAuthority {
-	scope := c.liveScope()
-	if scope == nil {
+	host := c.liveHost()
+	if host == nil {
 		return nil
 	}
+	return host.ACLAuthority()
+}
+
+func (h *statementHost) ACLAuthority() *sqltype.ACLAuthority {
+	scope := h.scope()
 	return &scope.op.session.Engine().roles.aclAuthority
 }
 
 func (c *EvalContext) ObjectACL(address ids.ObjectAddress, result *sqltype.Descriptor) (sqltype.Value, error) {
-	scope := c.liveScope()
-	if scope == nil {
+	host := c.liveHost()
+	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: object ACL inquiry lacks statement authority")
 	}
+	return host.ObjectACL(c, address, result)
+}
+
+func (h *statementHost) ObjectACL(c *EvalContext, address ids.ObjectAddress, result *sqltype.Descriptor) (sqltype.Value, error) {
+	scope := h.scope()
 	e := scope.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -46,10 +56,15 @@ func (c *EvalContext) ObjectACL(address ids.ObjectAddress, result *sqltype.Descr
 }
 
 func (c *EvalContext) RoleMembership(actor *functions.AccessRole, target functions.AccessRole, privilege string) (bool, error) {
-	scope := c.liveScope()
-	if scope == nil {
+	host := c.liveHost()
+	if host == nil {
 		return false, fmt.Errorf("stuntgres: access inquiry lacks statement authority")
 	}
+	return host.RoleMembership(c, actor, target, privilege)
+}
+
+func (h *statementHost) RoleMembership(c *EvalContext, actor *functions.AccessRole, target functions.AccessRole, privilege string) (bool, error) {
+	scope := h.scope()
 	e := scope.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -75,10 +90,15 @@ func (c *EvalContext) RoleMembership(actor *functions.AccessRole, target functio
 }
 
 func (c *EvalContext) RowSecurityActive(relation functions.AccessRelation) (bool, error) {
-	scope := c.liveScope()
-	if scope == nil {
+	host := c.liveHost()
+	if host == nil {
 		return false, fmt.Errorf("stuntgres: access inquiry lacks statement authority")
 	}
+	return host.RowSecurityActive(c, relation)
+}
+
+func (h *statementHost) RowSecurityActive(c *EvalContext, relation functions.AccessRelation) (bool, error) {
+	scope := h.scope()
 	e := scope.op.session.Engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()

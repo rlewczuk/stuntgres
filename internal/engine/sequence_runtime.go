@@ -19,7 +19,7 @@ func (c *EvalContext) SequenceAuthority() error {
 	if err := evaluationContext(c); err != nil {
 		return err
 	}
-	if c.liveScope() == nil {
+	if c.liveHost() == nil {
 		return fmt.Errorf("stuntgres: sequence call lacks statement authority")
 	}
 	return nil
@@ -30,10 +30,15 @@ func (c *EvalContext) SequenceAuthority() error {
 // RowExclusive lock; ACL, read-only admission, the generator and the
 // physical-session memory are read under Engine.mu after the lock is held.
 func (c *EvalContext) Sequence(request functions.SequenceRequest) (int64, error) {
-	scope := c.liveScope()
-	if scope == nil {
+	host := c.liveHost()
+	if host == nil {
 		return 0, fmt.Errorf("stuntgres: sequence call lacks statement authority")
 	}
+	return host.Sequence(request)
+}
+
+func (h *statementHost) Sequence(request functions.SequenceRequest) (int64, error) {
+	scope := h.scope()
 	e := scope.op.session.Engine()
 	ref := request.Ref
 	if request.Name != "lastval" && ref.Domain() == nil {

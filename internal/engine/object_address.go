@@ -20,19 +20,51 @@ func objectAddressTextArray(d *sqltype.Descriptor, names []string) (sqltype.Valu
 }
 
 func (c *EvalContext) LookupObjectAddress(values [3]sqltype.Value) (ids.ObjectAddress, error) {
-	scope := c.liveScope()
-	if scope == nil || scope.inquiry.commentCatalog.State() == nil {
+	host := c.liveHost()
+	if host == nil {
+		return ids.ObjectAddress{}, fmt.Errorf("stuntgres: missing object address snapshot")
+	}
+	return host.LookupObjectAddress(c, values)
+}
+
+func (h *statementHost) LookupObjectAddress(c *EvalContext, values [3]sqltype.Value) (ids.ObjectAddress, error) {
+	scope := h.scope()
+	if scope.inquiry.commentCatalog.State() == nil {
 		return ids.ObjectAddress{}, fmt.Errorf("stuntgres: missing object address snapshot")
 	}
 	return lookupObjectAddress(c.Context, scope, values)
 }
 func (c *EvalContext) IdentifyObject(values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+	host := c.liveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: missing object address snapshot")
+	}
+	return host.IdentifyObject(c, values, result)
+}
+
+func (h *statementHost) IdentifyObject(c *EvalContext, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	return c.identifyObjectValues(values, result, functions.IdentifyObject)
 }
 func (c *EvalContext) IdentifyObjectAddress(values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+	host := c.liveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: missing object address snapshot")
+	}
+	return host.IdentifyObjectAddress(c, values, result)
+}
+
+func (h *statementHost) IdentifyObjectAddress(c *EvalContext, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	return c.identifyObjectValues(values, result, functions.IdentifyObjectAddress)
 }
 func (c *EvalContext) DescribeObject(values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+	host := c.liveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: missing object address snapshot")
+	}
+	return host.DescribeObject(c, values, result)
+}
+
+func (h *statementHost) DescribeObject(c *EvalContext, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
 	return c.identifyObjectValues(values, result, functions.DescribeObject)
 }
 func (c *EvalContext) identifyObjectValues(values [3]sqltype.Value, result *sqltype.Descriptor, operation functions.ObjectAddressOperation) (sqltype.Value, error) {

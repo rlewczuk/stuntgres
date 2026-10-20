@@ -7,10 +7,19 @@ import (
 )
 
 func (c *EvalContext) FunctionRandomOwner() (expr.RandomOwner, error) {
-	if c.liveScope() == nil || c.liveScope().op == nil || c.liveScope().op.session == nil {
+	host := c.liveHost()
+	if host == nil {
 		return nil, fmt.Errorf("stuntgres: missing random session scope")
 	}
-	return &c.liveScope().op.session.random, nil
+	return host.FunctionRandomOwner()
+}
+
+func (h *statementHost) FunctionRandomOwner() (expr.RandomOwner, error) {
+	scope := h.scope()
+	if scope.op == nil || scope.op.session == nil {
+		return nil, fmt.Errorf("stuntgres: missing random session scope")
+	}
+	return &scope.op.session.random, nil
 }
 
 func randomLiteralNull(arg expr.Expr) bool {

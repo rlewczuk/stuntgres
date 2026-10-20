@@ -12,8 +12,16 @@ import (
 var _ functions.CatalogInquiryRuntime = (*EvalContext)(nil)
 
 func (c *EvalContext) CatalogUserName(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
-	scope := c.liveScope()
-	if scope == nil || scope.inquiry.commentCatalog.State() == nil {
+	host := c.liveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: missing catalog role-name snapshot")
+	}
+	return host.CatalogUserName(oid, result)
+}
+
+func (h *statementHost) CatalogUserName(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
+	scope := h.scope()
+	if scope.inquiry.commentCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing catalog role-name snapshot")
 	}
 	engine := scope.op.session.Engine()

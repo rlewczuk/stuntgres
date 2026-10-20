@@ -125,10 +125,19 @@ func (c *EvalContext) FunctionContext() context.Context {
 	return c.Context
 }
 func (c *EvalContext) FunctionArrayRandomOwner() (expr.RandomOwner, error) {
-	if c.liveScope() == nil || c.liveScope().op == nil || c.liveScope().op.session == nil {
+	host := c.liveHost()
+	if host == nil {
 		return nil, fmt.Errorf("stuntgres: missing array random session scope")
 	}
-	return &c.liveScope().op.session.arrayRandom, nil
+	return host.FunctionArrayRandomOwner()
+}
+
+func (h *statementHost) FunctionArrayRandomOwner() (expr.RandomOwner, error) {
+	scope := h.scope()
+	if scope.op == nil || scope.op.session == nil {
+		return nil, fmt.Errorf("stuntgres: missing array random session scope")
+	}
+	return &scope.op.session.arrayRandom, nil
 }
 
 func (c *EvalContext) FunctionInput() sqltype.InputEnvironment   { return c.Input }
@@ -152,7 +161,15 @@ func (c *EvalContext) FunctionJSONOutput() sqltype.OutputEnvironment   { return 
 func (c *EvalContext) FunctionStringOutput() sqltype.OutputEnvironment { return c.presentedOutput() }
 func (c *EvalContext) FunctionFormatOutput() sqltype.OutputEnvironment { return c.presentedOutput() }
 func (c *EvalContext) FunctionBinaryConversion(source, destination int) (*sqltype.EncodingConversionHandler, error) {
-	procedure, err := c.liveScope().conversionProcedure(source, destination)
+	host := c.liveHost()
+	if host == nil {
+		return nil, fmt.Errorf("stuntgres: missing conversion execution snapshot")
+	}
+	return host.FunctionBinaryConversion(source, destination)
+}
+
+func (h *statementHost) FunctionBinaryConversion(source, destination int) (*sqltype.EncodingConversionHandler, error) {
+	procedure, err := h.scope().conversionProcedure(source, destination)
 	if err != nil || procedure == nil {
 		return nil, err
 	}

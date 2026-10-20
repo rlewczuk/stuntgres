@@ -10,13 +10,22 @@ import (
 )
 
 func (c *EvalContext) DeparseInquiry(signature functions.DeparseSignature, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
-	if c.liveScope() == nil || c.liveScope().inquiry.commentCatalog.State() == nil {
+	host := c.liveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: missing deparse catalog snapshot")
+	}
+	return host.DeparseInquiry(c, signature, values, result)
+}
+
+func (h *statementHost) DeparseInquiry(c *EvalContext, signature functions.DeparseSignature, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+	scope := h.scope()
+	if scope.inquiry.commentCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing deparse catalog snapshot")
 	}
 	if signature == functions.DeparseSerialSequence {
 		return c.evalSerialSequence(values, result)
 	}
-	view := c.liveScope().inquiry.commentCatalog
+	view := scope.inquiry.commentCatalog
 	pretty := false
 	if prettyIndex := signature.PrettyIndex(); prettyIndex >= 0 {
 		var err error
@@ -25,8 +34,8 @@ func (c *EvalContext) DeparseInquiry(signature functions.DeparseSignature, value
 			return sqltype.Value{}, err
 		}
 	}
-	renderer := pgRenderer{view: view, pretty: pretty, path: c.liveScope().inquiry.deparsePath,
-		output: c.liveScope().output, nonstandardStrings: c.liveScope().op.nonstandardStrings}
+	renderer := pgRenderer{view: view, pretty: pretty, path: scope.inquiry.deparsePath,
+		output: scope.output, nonstandardStrings: scope.op.nonstandardStrings}
 	index := 1
 	if signature != functions.DeparseExpr && signature != functions.DeparseExprPretty {
 		index = 0
@@ -127,7 +136,7 @@ func (c *EvalContext) DeparseInquiry(signature functions.DeparseSignature, value
 				if !ok {
 					return sqltype.Value{}, fmt.Errorf("stuntgres: missing exclusion backing index")
 				}
-				text, err = indexDefinitionSQL(c.Context, view, index, indexPresentation{exclusion: true, pretty: pretty, path: c.liveScope().inquiry.deparsePath, output: c.liveScope().output})
+				text, err = indexDefinitionSQL(c.Context, view, index, indexPresentation{exclusion: true, pretty: pretty, path: scope.inquiry.deparsePath, output: scope.output})
 				if err != nil {
 					return sqltype.Value{}, err
 				}

@@ -10,10 +10,15 @@ import (
 var _ functions.SessionInquiryRuntime = (*EvalContext)(nil)
 
 func (c *EvalContext) CurrentSchemas(implicit bool, result *sqltype.Descriptor) (sqltype.Value, error) {
-	scope := c.liveScope()
-	if scope == nil {
+	host := c.liveHost()
+	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: current_schemas lacks statement authority")
 	}
+	return host.CurrentSchemas(implicit, result)
+}
+
+func (h *statementHost) CurrentSchemas(implicit bool, result *sqltype.Descriptor) (sqltype.Value, error) {
+	scope := h.scope()
 	results := scope.inquiry.searchPathResults
 	if scope.inquiry.searchPathResults[0].Type() == nil || scope.foreignActionAuth != nil || scope.ruleActionAuth != nil {
 		engine := scope.op.session.Engine()
@@ -45,10 +50,15 @@ func (c *EvalContext) CurrentSchemas(implicit bool, result *sqltype.Descriptor) 
 }
 
 func (c *EvalContext) MyTempNamespace() (uint32, error) {
-	scope := c.liveScope()
-	if scope == nil {
+	host := c.liveHost()
+	if host == nil {
 		return 0, fmt.Errorf("stuntgres: namespace inquiry lacks statement authority")
 	}
+	return host.MyTempNamespace()
+}
+
+func (h *statementHost) MyTempNamespace() (uint32, error) {
+	scope := h.scope()
 	engine := scope.op.session.Engine()
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
@@ -59,10 +69,15 @@ func (c *EvalContext) MyTempNamespace() (uint32, error) {
 	return uint32(temporaryNamespace(auth).ObjectID), nil
 }
 func (c *EvalContext) OtherTempNamespace(oid uint32) (bool, error) {
-	scope := c.liveScope()
-	if scope == nil {
+	host := c.liveHost()
+	if host == nil {
 		return false, fmt.Errorf("stuntgres: namespace inquiry lacks statement authority")
 	}
+	return host.OtherTempNamespace(oid)
+}
+
+func (h *statementHost) OtherTempNamespace(oid uint32) (bool, error) {
+	scope := h.scope()
 	engine := scope.op.session.Engine()
 	engine.mu.Lock()
 	defer engine.mu.Unlock()

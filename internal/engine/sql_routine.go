@@ -29,14 +29,15 @@ func (c *EvalContext) EvalSQLRoutine(n plan.SQLRoutineExpr) (value sqltype.Value
 			return value, err
 		}
 	}
-	scope := c.statementScope
-	if scope == nil && c.query != nil && c.query.source != nil {
-		scope = c.query.source.liveScope()
+	// The statement's own host wins over a query source's host here.
+	host := hostOf(c.statementScope)
+	if host == nil && c.query != nil && c.query.source != nil {
+		host = c.query.source.liveHost()
 	}
-	if scope == nil {
+	if host == nil {
 		return value, fmt.Errorf("SQL routine invocation has no statement owner")
 	}
-	value, err = scope.invokeSQLRoutine(n.Procedure, frame, n.Usage)
+	value, err = host.InvokeSQLRoutine(n.Procedure, frame, n.Usage)
 	if err != nil {
 		return value, sqlRoutineContext(err, n.Procedure.Name(), true)
 	}
@@ -46,6 +47,11 @@ func (c *EvalContext) EvalSQLRoutine(n plan.SQLRoutineExpr) (value sqltype.Value
 type sqlRoutineAnalysis struct {
 	definition  *proc.Definition
 	description StatementDescription
+}
+
+// InvokeSQLRoutine runs a SQL-language routine body inside the statement.
+func (h *statementHost) InvokeSQLRoutine(d *catalog.Procedure, frame *proc.Frame, resultUsage sqltype.Usage) (sqltype.Value, error) {
+	return h.scope().invokeSQLRoutine(d, frame, resultUsage)
 }
 
 // invokeSQLRoutine borrows the admitted operation/transaction. It never acquires

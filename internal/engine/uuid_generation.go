@@ -27,12 +27,22 @@ func (s *uuidClock) now() int64 {
 }
 
 func (c *EvalContext) FunctionUUIDReady() error {
-	if c.liveScope() == nil || c.liveScope().op == nil || c.liveScope().op.session == nil {
+	host := c.liveHost()
+	if host == nil {
+		return fmt.Errorf("stuntgres: missing UUID session scope")
+	}
+	return host.FunctionUUIDReady()
+}
+
+func (h *statementHost) FunctionUUIDReady() error {
+	scope := h.scope()
+	if scope.op == nil || scope.op.session == nil {
 		return fmt.Errorf("stuntgres: missing UUID session scope")
 	}
 	return nil
 }
-func (c *EvalContext) FunctionUUIDTime() int64                { return c.liveScope().op.session.uuid.now() }
+func (c *EvalContext) FunctionUUIDTime() int64                { return c.liveHost().FunctionUUIDTime() }
+func (h *statementHost) FunctionUUIDTime() int64              { return h.op.session.uuid.now() }
 func (c *EvalContext) FunctionUUIDEntropy(bytes []byte) error { _, err := rand.Read(bytes); return err }
 
 // Only selected UUID leaves may introduce volatility into a closed DEFAULT.

@@ -24,10 +24,15 @@ func namedObjectVisibleAt(view catalog.Read, reader definitionReader, path []ids
 	return false
 }
 func (c *EvalContext) VisibilityInquiry(kind functions.VisibilityInquiryKind, value sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
-	scope := c.liveScope()
-	if scope == nil {
+	host := c.liveHost()
+	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing statement authority")
 	}
+	return host.VisibilityInquiry(kind, value, result)
+}
+
+func (h *statementHost) VisibilityInquiry(kind functions.VisibilityInquiryKind, value sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
+	scope := h.scope()
 	var oid uint32
 	var err error
 	if kind == functions.ImportSystemCollationsInquiry {

@@ -14,10 +14,15 @@ type identitySnapshot struct {
 }
 
 func (c *EvalContext) IdentityValue(kind functions.IdentityKind, result *sqltype.Descriptor) (sqltype.Value, error) {
-	if c.liveScope() == nil {
+	host := c.liveHost()
+	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: identity lacks statement authority")
 	}
-	s := c.liveScope()
+	return host.IdentityValue(c, kind, result)
+}
+
+func (h *statementHost) IdentityValue(c *EvalContext, kind functions.IdentityKind, result *sqltype.Descriptor) (sqltype.Value, error) {
+	s := h.scope()
 	identity := s.identity
 	if c.query != nil && c.query.source.authority != nil && c.query.source.authority.expression != nil {
 		identity = c.query.source.authority.expression.identity

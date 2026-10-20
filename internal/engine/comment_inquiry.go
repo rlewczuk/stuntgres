@@ -10,17 +10,25 @@ import (
 )
 
 func (c *EvalContext) CommentInquiry(kind functions.CommentInquiryKind, values [2]sqltype.Value, provenance expr.Info, result *sqltype.Descriptor) (sqltype.Value, error) {
+	host := c.liveHost()
+	if host == nil {
+		return sqltype.Value{}, fmt.Errorf("stuntgres: missing comment snapshot")
+	}
+	return host.CommentInquiry(c, kind, values, provenance, result)
+}
+
+func (h *statementHost) CommentInquiry(c *EvalContext, kind functions.CommentInquiryKind, values [2]sqltype.Value, provenance expr.Info, result *sqltype.Descriptor) (sqltype.Value, error) {
+	scope := h.scope()
 	if err := admitInquiryBody(c, provenance); err != nil {
 		return sqltype.Value{}, err
 	}
-	if c.liveScope() == nil || c.liveScope().inquiry.commentCatalog.State() == nil {
+	if scope.inquiry.commentCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing comment snapshot")
 	}
 	oid, err := values[0].OID()
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	scope := c.liveScope()
 	var text string
 	switch kind {
 	case functions.LegacyDescription:

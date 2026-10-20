@@ -11,10 +11,15 @@ import (
 var _ functions.BlockingRuntime = (*EvalContext)(nil)
 
 func (c *EvalContext) BlockingInquiry(kind functions.BlockingKind, pid int64, result *sqltype.Descriptor) (sqltype.Value, error) {
-	scope := c.liveScope()
-	if scope == nil {
+	host := c.liveHost()
+	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: blocking inquiry lacks statement authority")
 	}
+	return host.BlockingInquiry(kind, pid, result)
+}
+
+func (h *statementHost) BlockingInquiry(kind functions.BlockingKind, pid int64, result *sqltype.Descriptor) (sqltype.Value, error) {
+	scope := h.scope()
 	e := scope.op.session.Engine()
 	// Validate under engine authority, then release it before manager reads.
 	// Safe-snapshot acquisition is SSI metadata and stays under Engine.mu.

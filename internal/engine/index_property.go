@@ -9,10 +9,19 @@ import (
 )
 
 func (c *EvalContext) IndexProperty(kind functions.IndexPropertyKind, oid uint32, ordinalValue sqltype.Value, property string) (value, known bool, err error) {
-	if c.liveScope() == nil || c.liveScope().inquiry.commentCatalog.State() == nil {
+	host := c.liveHost()
+	if host == nil {
 		return false, false, fmt.Errorf("stuntgres: missing index property catalog snapshot")
 	}
-	relation, ok := c.liveScope().inquiry.commentCatalog.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)})
+	return host.IndexProperty(kind, oid, ordinalValue, property)
+}
+
+func (h *statementHost) IndexProperty(kind functions.IndexPropertyKind, oid uint32, ordinalValue sqltype.Value, property string) (value, known bool, err error) {
+	scope := h.scope()
+	if scope.inquiry.commentCatalog.State() == nil {
+		return false, false, fmt.Errorf("stuntgres: missing index property catalog snapshot")
+	}
+	relation, ok := scope.inquiry.commentCatalog.Relation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)})
 	if !ok || relation.SQLIndex == nil {
 		return false, false, nil
 	}

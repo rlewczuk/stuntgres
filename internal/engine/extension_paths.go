@@ -54,8 +54,16 @@ func (c *EvalContext) OpenExtensionPaths(n plan.ExtensionPathsExpr) ([]sqltype.V
 	if detail := catalog.ExtensionNameDetail(name, false); detail != "" {
 		return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid extension name: "%s"`, name), Detail: detail}
 	}
-	scope := c.liveScope()
-	if scope == nil || scope.inquiry.commentCatalog.State() == nil {
+	host := c.liveHost()
+	if host == nil {
+		return nil, fmt.Errorf("stuntgres: missing extension paths snapshot")
+	}
+	return host.OpenExtensionPaths(c, n, name)
+}
+
+func (h *statementHost) OpenExtensionPaths(c *EvalContext, n plan.ExtensionPathsExpr, name string) ([]sqltype.Value, error) {
+	scope := h.scope()
+	if scope.inquiry.commentCatalog.State() == nil {
 		return nil, fmt.Errorf("stuntgres: missing extension paths snapshot")
 	}
 	implementation := scope.op.session.Engine().catalog.Extensions[name]

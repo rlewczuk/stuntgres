@@ -13,8 +13,16 @@ var _ functions.AdvisoryRuntime = (*EvalContext)(nil)
 
 // Advisory resolves the current statement owner, never a prepared owner.
 func (c *EvalContext) Advisory(action functions.AdvisoryAction, mode functions.AdvisoryMode, lifetime functions.AdvisoryLifetime, first, second int64, pair bool, result *sqltype.Descriptor) (sqltype.Value, error) {
-	s := c.liveScope()
-	if s == nil || s.op == nil || s.op.session == nil || s.op.session.advisory.ticket == nil {
+	host := c.liveHost()
+	if host == nil {
+		return sqltype.Value{}, errors.New("stuntgres: missing advisory session scope")
+	}
+	return host.Advisory(c, action, mode, lifetime, first, second, pair, result)
+}
+
+func (h *statementHost) Advisory(c *EvalContext, action functions.AdvisoryAction, mode functions.AdvisoryMode, lifetime functions.AdvisoryLifetime, first, second int64, pair bool, result *sqltype.Descriptor) (sqltype.Value, error) {
+	s := h.scope()
+	if s.op == nil || s.op.session == nil || s.op.session.advisory.ticket == nil {
 		return sqltype.Value{}, errors.New("stuntgres: missing advisory session scope")
 	}
 	ticket := s.op.session.advisory.ticket
