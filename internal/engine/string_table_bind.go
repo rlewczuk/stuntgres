@@ -147,7 +147,7 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (plan.Node
 // Only local expressions are rewritten; expression-owned queries retain their
 // own stage/frame ownership through the existing mapper.
 func (b *expressionBinder) MapQuerySetStage(bound expr.Expr, leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, error) {
-	mapped, _, err := mapBoundExpressionReader(b.bindingCatalog(), nil, bound, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, func(n plan.Node) (plan.Node, error) { return n, nil }, nil, true, func(e expr.Expr) (expr.Expr, bool, error) {
+	return b.host.MapBoundExpression(b.bindingCatalog(), nil, bound, true, func(e expr.Expr) (expr.Expr, bool, error) {
 		// Window slots are assigned through shared binder-owned pointers. A
 		// local SRF rewrite must not clone them before their final slot shift.
 		if _, ok := e.(*plan.WindowExpr); ok {
@@ -155,7 +155,6 @@ func (b *expressionBinder) MapQuerySetStage(bound expr.Expr, leaf func(expr.Expr
 		}
 		return leaf(e)
 	})
-	return mapped, err
 }
 
 func functionFrameReference(bound expr.Expr, frame uint32) bool {
