@@ -607,6 +607,56 @@ store) into moving and root files; export the moving members the root reads
 (about 2.1k references: `Operation` about 1k, `Session` about 440, owner
 about 380, settings); key positional test literals (`keylit`).
 
+**13d.5 result** (measured at `2b4b8d191` with `frontier -decls` over the
+decision 1 types; tools and outputs in
+`.cswd/tmp/PG18-ENGINE-SPLIT-SESSION-FILE-SPLITS/`). Three edges were cut
+first: `assignModes(t, modes)` is a root function (it syncs characteristics
+through the engine); the owner's `validate` compares `ref.Attachment()` with
+the owner instead of calling `txOwnerOf`; the settings store builds its
+default-provider error itself (same text as `RegistrationError`, which only
+wraps `errors.New`).
+
+Declarations then moved between files without code changes (`movedecl`), so
+these 15 files hold only moving declarations: `session.go`,
+`transaction_owner.go` (new: `Tx*`, `Isolation`, `TxOptions`, the owner,
+`validate`, `acquireAdmission`, `inBlock`, `Session.TransactionState`),
+`savepoint_marks.go` (new), `notification_records.go` (new),
+`protocol_cycle.go`, `session_settings.go`, `setting_admission.go` (gains
+`refreshStatementBudget`), `statement_lease.go`, `session_advisory.go`
+(new), `session_authorization.go` (new: the delegate and
+`Operation.RoleState`), `uuid_clock.go` (new), `session_timeout.go`,
+`notices.go`, `protocol_input_context.go`, `random.go`. Root leftovers went
+to `session_start.go` (`StartSession`, `startSession`,
+`validateOperation`), `protocol_command.go`, `setting_apply.go`
+(`sessionSetting`, `applySetting`, `executeSetting`) and `transaction.go`
+(`scopeOfLease`), or stayed in their files (`savepoints.go`,
+`notifications.go`, `advisory_lock.go`, `authorization.go`,
+`copy_admission.go`, `transaction_message.go`, `uuid_generation.go`).
+`frontier -files` over the 15 files reports only `newSessionOperation`,
+`sqlError` and the `catalogChanges` alias as outbound edges.
+
+Exports (`expspec` then `movex member`, tests rewritten in place): 192
+members that root code reads, about 7.8k references in all: `Operation` 32,
+`Session` with `sessionTimeouts`/`sessionTimeout` 49, and 111 others
+(owner 40, settings store 24, savepoint mark 15, settings mark 6, and the
+advisory and authorization delegates, `ProtocolCycle`, copy-input context,
+notification action, resource entry, setting override and role action,
+random and UUID state). Names are capitalized except `Session.token` →
+`SessionToken` (`Token()` exists), `Operation.done` → `Released` (`Done()`
+exists) and the initialisms `SQLFinished`, `SQLLeases`, `UUID`. The mutexes
+are now `Session.Mu`, `transactionOwner.Mu` and `Admission`,
+`sessionSettings.Mu`; lock order unchanged (`lock` README). Members used
+only by moving code stay unexported. `poslit` found no positional literal of
+a moving type outside the moving files, so `keylit` had nothing to key.
+
+Deviations: none in scope. Type names and package-level names stay
+unexported for 13d.6 (see the notes below).
+
+Tests: none moved or deleted; the rename tool adapted engine unit tests in
+place (for example `session_timeout_test.go`, `savepoints_test.go`,
+`copy_admission_test.go`, `notification_lifecycle_test.go`,
+`settings_local_lifecycle_test.go`).
+
 #### 13d.6 — Move (broad)
 
 One scripted session (it may merge with 13d.5, as 12d.6 did): move the
@@ -720,7 +770,10 @@ facade, the statement scope, dispatch and the root payloads of 13c decision
     savepoints, 2PC, FDW transactions, deferred exclusion, DISCARD, Restore
     atomicity) and quickcheck passed; bench unchanged, 5014 allocs;
     racecheck/finalcheck skipped at user request)*
-  - [ ] 13d.5 — File splits and exports
+  - [x] 13d.5 — File splits and exports (`c56fbf397`, `18c5f63d2`,
+    `6aea40304`, `e07c17cae`, `eb5e6fe83`, then the docs commit)
+    *(selected unit/`RACE=1` and dual-mode proof and quickcheck passed;
+    bench unchanged; racecheck/finalcheck skipped at user request)*
   - [ ] 13d.6 — Move
 - [ ] 13e — Aliases removed
 
@@ -755,6 +808,22 @@ Notes for later steps:
   `uuidClock` (value types with their own mutexes; they move with
   `Session`). The root slot types stay in the root; `session` keeps
   importing no feature package.
+- 13d.5, for 13d.6: move the 15 files listed in the 13d.5 result (their
+  tests move with them). Remaining edges: `newSessionOperation` becomes
+  `Host.NewOperation(*Session) *Operation`; `sqlError` becomes a
+  `session/errors.go` copy, as in every other subpackage; the
+  `catalogChanges` alias disappears. Package-level names the root still
+  reads need a session name and an alias or qualified rewrite: types
+  `transactionOwner` (28 production uses), `sessionSettings`,
+  `savepointMark`, `settingsMark`, `notificationAction`,
+  `sessionAuthorization`, `settingOverride`, `randomState`, `noticeLevel`;
+  constants `live`, `initializing`, `ending`, `ended`, `levelNotice` (45),
+  `levelWarning` (28), `levelError`, `resourceKinds`; functions and vars
+  `roleRevisionHeadroom`, `pendingProtocolUserCancel`,
+  `validateSessionOperation`, `messageLevel`, `timeoutFatal`,
+  `statementTimeoutCause` (the last three test-only). The root keeps
+  `transactionSessionEnd` (a defined type over the owner: after the move it
+  converts `*session` owner pointers and reads only exported fields).
 
 - Part B of the feature steps (14c–17d) and the postponed packages need 13d.
   After the 13c refine their handlers do not name `StatementScope` (it

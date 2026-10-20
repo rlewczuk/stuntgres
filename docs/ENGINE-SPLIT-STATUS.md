@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `ae961f3ac`. The later-wave plans
+Last verified against `master` at `2b4b8d191`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,13 +15,13 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 13 `session`** — 13d.5, file splits and exports (item 44e; broad,
-  may merge with 44f, the move).
+- **Step 13 `session`** — 13d.6, the move (item 44f; broad).
 
 Steps 1, 2 and 4–12 and `access` (A1–B5) are done. Step 13's in-place
 untangling (13a, 13b) and its refine (13c) are done; 13d runs in six sessions
 (44a–44f), of which 44a (`session` created, journal moved), 44b
-(statement lease), 44c (engine edges) and 44d (root payloads) are done. Step 16 Part A (16a, 16b) is done; 16c (item 50)
+(statement lease), 44c (engine edges), 44d (root payloads) and 44e (file
+splits and exports) are done. Step 16 Part A (16a, 16b) is done; 16c (item 50)
 waits for 13d (item 44). Step 17 Part A (17a, 17b) is done; 17c (item 52)
 waits for 13d (item 44).
 
@@ -326,7 +326,7 @@ waits for 13d (item 44).
     - [x] 13d.2 — Statement lease and small cuts (in place)
     - [x] 13d.3 — Engine edges *(broad)*
     - [x] 13d.4 — Root payloads (in place)
-    - [ ] 13d.5 — File splits and exports *(broad)*
+    - [x] 13d.5 — File splits and exports *(broad)*
     - [ ] 13d.6 — Move *(broad)*
   - [ ] 13e — Aliases removed *(broad)*
 - [ ] **Step 14 — `routine`** ([prompt](ENGINE-SPLIT-routine.md); Part A
@@ -609,8 +609,12 @@ in the prompt file's Status section.
       replay/analysis slots; notification polling on `Engine` · selected
       unit/`RACE=1` and dual-mode proof and quickcheck passed; bench
       unchanged; racecheck/finalcheck skipped at user request
-    - 44e. [ ] 13d.5 file splits and exports · needs 44d · **broad**
-    - 44f. [ ] 13d.6 move · needs 44e · **broad** (may merge with 44e)
+    - 44e. [x] 13d.5 file splits and exports · needs 44d · **broad**
+      (`c56fbf397`, `18c5f63d2`, `6aea40304`, `e07c17cae`, `eb5e6fe83`,
+      then the docs commit) · 15 moving-only files, 192 members exported ·
+      selected unit/`RACE=1` and dual-mode proof and quickcheck passed;
+      bench unchanged; racecheck/finalcheck skipped at user request
+    - 44f. [ ] 13d.6 move · needs 44e · **broad**
 45. [ ] Session 13e — [session](ENGINE-SPLIT-session.md) 13e · needs 44 ·
     **broad**
 

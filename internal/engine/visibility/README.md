@@ -85,7 +85,7 @@ standard library. It never imports the root engine. Layering is in
   (`acquireSerializableSnapshot`) calls `SafeSnapshotWait` and
   `SafeSnapshotOutcome` and waits with `Engine.mu` released. That loop also
   drops and retakes `replacementMu` while its caller holds
-  `transactionOwner.mu`; this package takes no part in that ordering.
+  `transactionOwner.Mu`; this package takes no part in that ordering.
 
 ## What stays in the engine
 

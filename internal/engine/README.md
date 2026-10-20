@@ -965,7 +965,7 @@ shutdown/disconnect and observes this wake for later FATAL delivery, so an earli
 user-cancel cause cannot hide physical or session termination.
 
 Session checks and operation admission observe due transaction/idle budgets
-under `Session.mu` before publishing a lease or invalidating the idle slot.
+under `Session.Mu` before publishing a lease or invalidating the idle slot.
 One timestamp feeds the existing callback expiry decision for both slots, so
 delayed callback delivery cannot admit work on an expired physical owner.
 Generation, transaction authority, retired budgets and pending statement/lock

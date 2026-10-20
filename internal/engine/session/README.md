@@ -45,8 +45,8 @@ slot interfaces, so either import would form a cycle.
 - **The engine host** (`host.go`): `Host`, what session code needs from the
   engine that owns a session: `EndMaintenance` (TEMP collation teardown,
   called after the Transaction resource callback returns, without
-  `Session.mu` and never from inside a `SessionResource` callback) and
-  `Unregister` (called under `Session.mu`; takes only `Engine.sessionMu`).
+  `Session.Mu` and never from inside a `SessionResource` callback) and
+  `Unregister` (called under `Session.Mu`; takes only `Engine.sessionMu`).
   Both take the session as an `ids.SessionOwner`. The root implements it with
   `sessionHost`, a pointer conversion of `*Engine`, and recovers the engine
   with `engineOf(session)`.
