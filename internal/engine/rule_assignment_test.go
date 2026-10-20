@@ -18,12 +18,12 @@ func TestRuleAssignmentMapping(t *testing.T) {
 		t.Fatal(err)
 	}
 	index := literalExpression{Info: binder.info(integer.Usage(), parser.Position{}, expr.Properties{}), Value: value}
-	plan, err := sqltype.PlanCoercion(array.Usage(), array.Usage(), sqltype.Assignment)
+	coercionPlan, err := sqltype.PlanCoercion(array.Usage(), array.Usage(), sqltype.Assignment)
 	if err != nil {
 		t.Fatal(err)
 	}
-	tail := &arrayAssignmentTarget{Container: array.Usage(), Destination: integer.Usage(), Reapply: plan, Node: subscriptExpression{Subscripts: []boundArraySubscript{{Upper: index}}}}
-	head := &arrayAssignmentTarget{Container: array.Usage(), Destination: array.Usage(), Reapply: plan, Next: tail}
+	tail := &arrayAssignmentTarget{Container: array.Usage(), Destination: integer.Usage(), Reapply: coercionPlan, Node: subscriptExpression{Subscripts: []boundArraySubscript{{Upper: index}}}}
+	head := &arrayAssignmentTarget{Container: array.Usage(), Destination: array.Usage(), Reapply: coercionPlan, Next: tail}
 	targets := []*arrayAssignmentTarget{head, nil}
 	identity := func(expr expr.Expr) (expr.Expr, bool, error) { return expr, false, nil }
 	usage := func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil }

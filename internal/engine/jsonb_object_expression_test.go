@@ -96,11 +96,11 @@ func TestJSONBObjectExpressionGroupTraversal(t *testing.T) {
 	types := jsonObjectUnitTypes()
 	usage := types[1009].Usage()
 	column := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}}
-	plan, err := sqltype.BindBinary("jsonb_object", types[sqltype.JSONB].Usage(), usage, usage)
+	binaryPlan, err := sqltype.BindBinary("jsonb_object", types[sqltype.JSONB].Usage(), usage, usage)
 	if err != nil {
 		t.Fatal(err)
 	}
-	bound := functions.Binary{Info: expr.Info{Usage: types[sqltype.JSONB].Usage()}, Plan: plan, Args: []expr.Expr{column, column}}
+	bound := functions.Binary{Info: expr.Info{Usage: types[sqltype.JSONB].Usage()}, Plan: binaryPlan, Args: []expr.Expr{column, column}}
 	binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	rewritten, err := binder.rewriteGroup(bound, []expr.Expr{column})
 	if err != nil {

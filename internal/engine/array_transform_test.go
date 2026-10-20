@@ -194,13 +194,13 @@ func TestArrayTransformCollationRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := sqltype.BindArraySort(array, from, false)
+	arraySortPlan, err := sqltype.BindArraySort(array, from, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	old := functions.ArrayTransform{
 		Info: b.info(usage, parser.Position{}, expr.Properties{}),
-		Kind: functions.ArraySort, Slots: [3]uint8{0, 1, 2}, Sort: plan,
+		Kind: functions.ArraySort, Slots: [3]uint8{0, 1, 2}, Sort: arraySortPlan,
 		Args: []expr.Expr{literalExpression{Info: b.info(usage, parser.Position{}, expr.Properties{}), Value: value}},
 	}
 	originalSQL, err := defaultSQL(ctx, source.CatalogRead(), old)

@@ -312,11 +312,11 @@ func TestPartialIndexImplication(t *testing.T) {
 	if partialPredicateImpliedBy(other, active) {
 		t.Fatal("indeterminate collation proved")
 	}
-	plan, err := sqltype.PlanCoercion(boolean, boolean, sqltype.Explicit)
+	coercionPlan, err := sqltype.PlanCoercion(boolean, boolean, sqltype.Explicit)
 	if err != nil {
 		t.Fatal(err)
 	}
-	coercion := coercionExpression{Info: f.predicate.Info, Child: active, Plan: plan, Mode: sqltype.Explicit}
+	coercion := coercionExpression{Info: f.predicate.Info, Child: active, Plan: coercionPlan, Mode: sqltype.Explicit}
 	sameCoercion := coercion
 	sameCoercion.Pos = parser.Position{Character: 2}
 	if !partialPredicateImpliedBy(sameCoercion, coercion) {

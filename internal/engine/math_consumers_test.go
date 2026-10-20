@@ -36,7 +36,7 @@ func TestMathTraversal(t *testing.T) {
 			int4 = d
 		}
 	}
-	plan, err := sqltype.BindMath("round", numeric.Usage(), numeric.Usage(), int4.Usage())
+	mathPlan, err := sqltype.BindMath("round", numeric.Usage(), numeric.Usage(), int4.Usage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestMathTraversal(t *testing.T) {
 		literalExpression{expr.Info{Usage: int4.Usage()}, one},
 		literalExpression{expr.Info{Usage: int4.Usage()}, zero},
 	}}
-	expr := functions.Math{Info: expr.Info{Usage: numeric.Usage()}, Plan: plan, Args: []expr.Expr{literalExpression{expr.Info{Usage: numeric.Usage()}, sqltype.Null(numeric)}, mod}}
+	expr := functions.Math{Info: expr.Info{Usage: numeric.Usage()}, Plan: mathPlan, Args: []expr.Expr{literalExpression{expr.Info{Usage: numeric.Usage()}, sqltype.Null(numeric)}, mod}}
 	_, _, err = simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, expr, false)
 	var diagnostic interface{ SQLState() string }
 	if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "22012" {

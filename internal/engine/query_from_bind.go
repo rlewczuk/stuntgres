@@ -665,12 +665,12 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 						if err != nil {
 							return nil, queryNamespace{}, err
 						}
-						plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Implicit)
+						coercionPlan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Implicit)
 						if err != nil {
 							return nil, queryNamespace{}, err
 						}
-						info.Property = coercionProperties(input, plan)
-						value = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Implicit, false})
+						info.Property = coercionProperties(input, coercionPlan)
+						value = restoreDomainCastCollations(annotations, coercionExpression{info, input, coercionPlan, sqltype.Implicit, false})
 					}
 					column = queryColumn{descriptor: catalog.Column{Name: key.Text, Usage: usage}, slot: len(ns.frame), leaf: -1, physical: -1, hideStar: column.hideStar}
 					join.Merges = append(join.Merges, value)

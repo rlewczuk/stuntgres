@@ -173,11 +173,11 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (ex
 				return nil, err
 			}
 		} else if arg.ResultUsage() != u {
-			plan, err := sqltype.PlanCoercion(arg.ResultUsage(), u, sqltype.Implicit)
+			coercionPlan, err := sqltype.PlanCoercion(arg.ResultUsage(), u, sqltype.Implicit)
 			if err != nil {
 				return nil, err
 			}
-			args[i] = coercionExpression{b.info(u, raw.Args[i].SourcePosition(), arg.Properties()), arg, plan, sqltype.Implicit, false}
+			args[i] = coercionExpression{b.info(u, raw.Args[i].SourcePosition(), arg.Properties()), arg, coercionPlan, sqltype.Implicit, false}
 		}
 		p := args[i].Properties()
 		properties.Volatility = max(properties.Volatility, p.Volatility)

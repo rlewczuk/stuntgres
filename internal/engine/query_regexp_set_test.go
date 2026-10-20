@@ -147,11 +147,11 @@ func TestRegexpSetProjection(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				setColumn := column
 				setColumn.Slot = tc.slot
-				plan, err := sqltype.BindString("length", integer.Usage(), text.Usage(), []sqltype.Usage{text.Usage()}, [4]bool{true}, false)
+				stringPlan, err := sqltype.BindString("length", integer.Usage(), text.Usage(), []sqltype.Usage{text.Usage()}, [4]bool{true}, false)
 				if err != nil {
 					t.Fatal(err)
 				}
-				length := functions.String{Info: expr.Info{Usage: integer.Usage()}, Plan: plan, Args: []expr.Expr{setColumn}, Textual: [4]bool{true}}
+				length := functions.String{Info: expr.Info{Usage: integer.Usage()}, Plan: stringPlan, Args: []expr.Expr{setColumn}, Textual: [4]bool{true}}
 				project := &projectNode{QuerySchema: querySchema{{Usage: integer.Usage()}}, Child: tc.root, Expressions: []expr.Expr{length}, Frame: 1}
 				stage, err := openQueryProjectStage(context.Background(), state, project)
 				if err != nil {
@@ -237,11 +237,11 @@ func TestRegexpSetProjection(t *testing.T) {
 			for i := range usages {
 				usages[i] = text.Usage()
 			}
-			plan, err := sqltype.BindRegexpFunction(name, usages, typ.Usage(), text.Usage().Collation, false)
+			regexpPlan, err := sqltype.BindRegexpFunction(name, usages, typ.Usage(), text.Usage().Collation, false)
 			if err != nil {
 				t.Fatal(err)
 			}
-			call := functions.RegexpCall{Info: expr.Info{Usage: typ.Usage()}, Args: args, Plan: plan, WrittenSlots: [7]uint8{0, 1, 2}}
+			call := functions.RegexpCall{Info: expr.Info{Usage: typ.Usage()}, Args: args, Plan: regexpPlan, WrittenSlots: [7]uint8{0, 1, 2}}
 			from := &functionFromNode{QuerySchema: querySchema{{Usage: typ.Usage()}}, Calls: regexpSetUnitSources(call), Frame: 1}
 			stage, err := openFunctionFromNode(context.Background(), state, from)
 			if err != nil {
@@ -286,11 +286,11 @@ func TestRegexpSetNested(t *testing.T) {
 		t.Fatal(got)
 	}
 	t.Run("scalar-wrapper", func(t *testing.T) {
-		plan, err := sqltype.BindString("upper", text.Usage(), text.Usage(), []sqltype.Usage{text.Usage()}, [4]bool{true}, false)
+		stringPlan, err := sqltype.BindString("upper", text.Usage(), text.Usage(), []sqltype.Usage{text.Usage()}, [4]bool{true}, false)
 		if err != nil {
 			t.Fatal(err)
 		}
-		wrapper := functions.String{Info: expr.Info{Usage: text.Usage()}, Plan: plan, Args: []expr.Expr{outer}, Textual: [4]bool{true}}
+		wrapper := functions.String{Info: expr.Info{Usage: text.Usage()}, Plan: stringPlan, Args: []expr.Expr{outer}, Textual: [4]bool{true}}
 		root, outputs, err := regexpSetUnitLower(engine, &singletonNode{}, []expr.Expr{wrapper}, 1)
 		if err != nil {
 			t.Fatal(err)
@@ -537,11 +537,11 @@ func TestFunctionSourceMixedRows(t *testing.T) {
 			stringCall := stringSplitMarker(t, b, 40, regexpSetUnitLiteral(text, tc.input), regexpSetUnitLiteral(text, ","))
 			regexpCall := functions.RegexpSet{RegexpCall: regexpSetUnitCall(t, text, regexpSetUnitLiteral(text, "x_y_z"), "_")}
 			null := literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.Null(text)}
-			plan, err := sqltype.BindRegexpFunction("regexp_count", []sqltype.Usage{text.Usage(), text.Usage()}, integer.Usage(), text.Usage().Collation, false)
+			regexpPlan, err := sqltype.BindRegexpFunction("regexp_count", []sqltype.Usage{text.Usage(), text.Usage()}, integer.Usage(), text.Usage().Collation, false)
 			if err != nil {
 				t.Fatal(err)
 			}
-			scalar := functions.Regexp{RegexpCall: regexpCallForNull(plan, integer, null, regexpSetUnitLiteral(text, "["))}
+			scalar := functions.Regexp{RegexpCall: regexpCallForNull(regexpPlan, integer, null, regexpSetUnitLiteral(text, "["))}
 			node := &functionFromNode{Calls: []expr.Expr{stringCall, regexpCall, scalar}, Frame: 1, Ordinality: true,
 				QuerySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: integer.Usage()}, {Usage: bigint.Usage()}}}
 			stage, err := openFunctionFromNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, node)

@@ -159,15 +159,15 @@ func (b *expressionBinder) likeOperand(o comparisonOperand, target *sqltype.Desc
 	if u.Collation.ID != 0 && node.ResultUsage().Collation.ID != 0 {
 		u.Collation = node.ResultUsage().Collation
 	}
-	plan, err := sqltype.PlanCoercion(node.ResultUsage(), u, sqltype.Implicit)
+	coercionPlan, err := sqltype.PlanCoercion(node.ResultUsage(), u, sqltype.Implicit)
 	if err != nil {
 		return nil, err
 	}
-	info, err := b.coercionInfo(b.Info(u, node.SourcePosition(), coercionProperties(node, plan)), node)
+	info, err := b.coercionInfo(b.Info(u, node.SourcePosition(), coercionProperties(node, coercionPlan)), node)
 	if err != nil {
 		return nil, err
 	}
-	return coercionExpression{info, node, plan, sqltype.Implicit, false}, nil
+	return coercionExpression{info, node, coercionPlan, sqltype.Implicit, false}, nil
 }
 
 func bindLike(b functions.Binder, raw parser.OperatorExpr) (expr.Expr, error) {

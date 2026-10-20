@@ -45,11 +45,11 @@ func (b *expressionBinder) bindWindowBound(raw parser.FrameBound, order []sortKe
 		return bound, err
 	}
 	if node.ResultUsage() != usage {
-		plan, err := sqltype.PlanCoercion(node.ResultUsage(), usage, sqltype.Implicit)
+		coercionPlan, err := sqltype.PlanCoercion(node.ResultUsage(), usage, sqltype.Implicit)
 		if err != nil {
 			return bound, err
 		}
-		node = coercionExpression{b.info(usage, node.SourcePosition(), coercionProperties(node, plan)), node, plan, sqltype.Implicit, false}
+		node = coercionExpression{b.info(usage, node.SourcePosition(), coercionProperties(node, coercionPlan)), node, coercionPlan, sqltype.Implicit, false}
 	}
 	if expressionUsesFrame(node, b.frameID()) {
 		return bound, expr.ErrorAt("42P10", "argument of RANGE must not contain variables", firstQueryBoundFrameVariable(node, b.frameID()))

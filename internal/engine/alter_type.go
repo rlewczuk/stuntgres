@@ -176,7 +176,7 @@ func (e *Engine) completeAlterTypeLocked(scope *StatementScope, auth Authorizati
 	if err != nil {
 		return fail(err)
 	}
-	plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
+	coercionPlan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
 	if err != nil {
 		if d, ok := err.(*sqlstate.Error); ok && d.Code == "42804" {
 			d = sqlError("42804", fmt.Sprintf(`column "%s" cannot be cast automatically to type %s`, a.Column.Text, usage.Type.DiagnosticName())).(*sqlstate.Error)
@@ -197,13 +197,13 @@ func (e *Engine) completeAlterTypeLocked(scope *StatementScope, auth Authorizati
 		}
 		return fail(err)
 	}
-	if plan.RequiresCatalogOutput() {
+	if coercionPlan.RequiresCatalogOutput() {
 		if err := e.captureCommentSnapshotLocked(scope); err != nil {
 			return fail(err)
 		}
 	}
-	info.Property = coercionProperties(input, plan)
-	node = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})
+	info.Property = coercionProperties(input, coercionPlan)
+	node = restoreDomainCastCollations(annotations, coercionExpression{info, input, coercionPlan, sqltype.Assignment, false})
 	node, err = storageDestination(node, usage, info.Pos)
 	if err != nil {
 		return fail(err)

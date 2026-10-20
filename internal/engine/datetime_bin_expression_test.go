@@ -177,11 +177,11 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 	// Preflight must traverse a child codec conversion rather than attempting
 	// date_bin on a mismatched descriptor or bypassing coercion failures.
 	text := literalExpression{Info: b.info(b.typ(sqltype.Text).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.String(b.typ(sqltype.Text), "not-a-timestamp")}
-	plan, err := sqltype.PlanCoercion(text.ResultUsage(), b.typ(sqltype.Timestamp).Usage(), sqltype.Explicit)
+	coercionPlan, err := sqltype.PlanCoercion(text.ResultUsage(), b.typ(sqltype.Timestamp).Usage(), sqltype.Explicit)
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.Args[1] = coercionExpression{b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), text, plan, sqltype.Explicit, false}
+	e.Args[1] = coercionExpression{b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), text, coercionPlan, sqltype.Explicit, false}
 	_, _, err = preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, e)
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "22007" {

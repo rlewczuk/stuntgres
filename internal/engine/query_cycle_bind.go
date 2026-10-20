@@ -45,14 +45,14 @@ func (b *expressionBinder) bindCycleMarks(raw *parser.CycleClause) (*cycleRecipe
 	nodes := []expr.Expr{mark, otherwise}
 	for i, node := range nodes {
 		if node.ResultUsage() != info.Usage {
-			plan, err := sqltype.PlanCoercion(node.ResultUsage(), info.Usage, sqltype.Implicit)
+			coercionPlan, err := sqltype.PlanCoercion(node.ResultUsage(), info.Usage, sqltype.Implicit)
 			if err != nil {
 				return nil, err
 			}
 			coercionInfo := info
 			coercionInfo.Pos = node.SourcePosition()
-			coercionInfo.Property = coercionProperties(node, plan)
-			nodes[i] = coercionExpression{coercionInfo, node, plan, sqltype.Implicit, false}
+			coercionInfo.Property = coercionProperties(node, coercionPlan)
+			nodes[i] = coercionExpression{coercionInfo, node, coercionPlan, sqltype.Implicit, false}
 		}
 	}
 	mark, otherwise = nodes[0], nodes[1]

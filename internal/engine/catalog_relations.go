@@ -56,14 +56,14 @@ func (b *expressionBinder) bindExtensionUpdatePaths(raw parser.FunctionExpr) (ex
 		return nil, err
 	}
 	if arg.ResultUsage() != target {
-		plan, failure := sqltype.PlanCoercion(arg.ResultUsage(), target, sqltype.Implicit)
+		coercionPlan, failure := sqltype.PlanCoercion(arg.ResultUsage(), target, sqltype.Implicit)
 		if failure != nil {
 			if diagnostic, ok := failure.(*sqlstate.Error); ok && (diagnostic.Code == "42804" || diagnostic.Code == "42846") {
 				return nil, b.functionSignatureErrorForTypes(raw.Name, raw.Pos, names)
 			}
 			return nil, failure
 		}
-		arg = coercionExpression{b.info(target, raw.Args[0].SourcePosition(), coercionProperties(arg, plan)), arg, plan, sqltype.Implicit, false}
+		arg = coercionExpression{b.info(target, raw.Args[0].SourcePosition(), coercionProperties(arg, coercionPlan)), arg, coercionPlan, sqltype.Implicit, false}
 	}
 	if raw.Star {
 		return nil, expr.ErrorAt("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)

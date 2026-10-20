@@ -82,11 +82,11 @@ func TestRegclassScalarDependencyAndReplaySeparation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := sqltype.PlanCoercion(intTyp.Usage(), typ.Usage(), sqltype.Explicit)
+	coercionPlan, err := sqltype.PlanCoercion(intTyp.Usage(), typ.Usage(), sqltype.Explicit)
 	if err != nil {
 		t.Fatal(err)
 	}
-	numeric := coercionExpression{Info: expr.Info{Usage: typ.Usage()}, Child: literalExpression{Info: expr.Info{Usage: intTyp.Usage()}, Value: integer}, Plan: plan, Mode: sqltype.Explicit}
+	numeric := coercionExpression{Info: expr.Info{Usage: typ.Usage()}, Child: literalExpression{Info: expr.Info{Usage: intTyp.Usage()}, Value: integer}, Plan: coercionPlan, Mode: sqltype.Explicit}
 	replay = nil
 	if err = regclassReplayReferences(view, numeric, func(a ids.ObjectAddress) error { replay = append(replay, a); return nil }); err != nil || len(replay) != 0 {
 		t.Fatal(replay, err)

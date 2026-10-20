@@ -38,12 +38,12 @@ func TestArrayGeneratedPhysicalIOImmutability(t *testing.T) {
 				if input {
 					from, to = to, from
 				}
-				plan, err := sqltype.PlanCoercion(from, to, sqltype.Explicit)
+				coercionPlan, err := sqltype.PlanCoercion(from, to, sqltype.Explicit)
 				if err != nil {
 					t.Fatal(err)
 				}
 				child := columnExpression{Info: expr.Info{Usage: from, Property: expr.Properties{RowDependent: true}}}
-				cast := coercionExpression{Info: expr.Info{Usage: to}, Child: child, Plan: plan, Mode: sqltype.Explicit}
+				cast := coercionExpression{Info: expr.Info{Usage: to}, Child: child, Plan: coercionPlan, Mode: sqltype.Explicit}
 				if generationImmutable(cast) {
 					t.Fatal("surviving array IO accepted as immutable", descriptor.Name(), input)
 				}

@@ -51,13 +51,13 @@ func TestNumericFormattingDemandAndRetag(t *testing.T) {
 	b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 	numeric, text := b.typ(sqltype.Numeric), b.typ(sqltype.Text)
 	mask := "9.9.9"
-	plan, err := sqltype.BindNumericFormat(ctx, "to_char", text.Usage(), numeric.Usage(), &mask)
+	numericFormatPlan, err := sqltype.BindNumericFormat(ctx, "to_char", text.Usage(), numeric.Usage(), &mask)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Pure NULL/sibling-error runtime demand is exercised locally. Retain
 	// genuine STABLE/group/retag owner invariants with executable literals.
-	n := functions.NumericFormatting{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Plan: plan, Args: [2]expr.Expr{
+	n := functions.NumericFormatting{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Plan: numericFormatPlan, Args: [2]expr.Expr{
 		literalExpression{Info: expr.Info{Usage: numeric.Usage()}, Value: sqltype.Null(numeric)},
 		literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, mask)},
 	}}

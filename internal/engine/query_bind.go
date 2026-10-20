@@ -669,17 +669,17 @@ func (b *expressionBinder) assignOutput(bound expr.Expr, target catalog.Column) 
 	if err != nil {
 		return nil, err
 	}
-	plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
+	coercionPlan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
 	if err != nil {
 		d := expr.ErrorAt("42804", fmt.Sprintf(`column "%s" is of type %s but expression is of type %s`, target.Name, b.diagnosticTypeName(target.Usage.Type), b.diagnosticTypeName(bound.ResultUsage().Type)), bound.SourcePosition())
 		d.(*sqlstate.Error).Hint = "You will need to rewrite or cast the expression."
 		return nil, d
 	}
-	if plan.RequiresCatalogOutput() {
+	if coercionPlan.RequiresCatalogOutput() {
 		b.prepared.regclassConcat = true
 	}
-	info.Property = coercionProperties(input, plan)
-	bound = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})
+	info.Property = coercionProperties(input, coercionPlan)
+	bound = restoreDomainCastCollations(annotations, coercionExpression{info, input, coercionPlan, sqltype.Assignment, false})
 	return storageDestination(bound, target.Usage, info.Pos)
 }
 

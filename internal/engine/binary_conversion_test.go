@@ -52,11 +52,11 @@ func TestBinaryConversionCarrier(t *testing.T) {
 				args[i] = mathObservedArgument{Info: expr.Info{Usage: d.Usage()}, value: v, order: &order, index: i}
 			}
 			usage := types[tc.result].Usage()
-			plan, err := sqltype.BindBinary(tc.name, usage, usages...)
+			binaryPlan, err := sqltype.BindBinary(tc.name, usage, usages...)
 			if err != nil {
 				t.Fatal(err)
 			}
-			bound := functions.Binary{Info: expr.Info{Usage: usage}, Plan: plan, Args: args}
+			bound := functions.Binary{Info: expr.Info{Usage: usage}, Plan: binaryPlan, Args: args}
 			e := New()
 			op, done := roleOperation(t, e, "postgres")
 			defer done()

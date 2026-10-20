@@ -40,20 +40,20 @@ func TestSQLJSONRendererBoundaries(t *testing.T) {
 	}
 	convert := func(child expr.Expr, target sqltype.Usage, mode sqltype.CoercionContext, provenance string) expr.Expr {
 		t.Helper()
-		var plan sqltype.CoercionPlan
+		var coercionPlan sqltype.CoercionPlan
 		var err error
 		switch provenance {
 		case "input":
-			plan, err = sqltype.PlanJSONFormattedInput(child.ResultUsage(), target, "UTF8")
+			coercionPlan, err = sqltype.PlanJSONFormattedInput(child.ResultUsage(), target, "UTF8")
 		case "returning":
-			plan, err = sqltype.PlanJSONReturning(child.ResultUsage(), target)
+			coercionPlan, err = sqltype.PlanJSONReturning(child.ResultUsage(), target)
 		default:
-			plan, err = sqltype.PlanCoercion(child.ResultUsage(), target, mode)
+			coercionPlan, err = sqltype.PlanCoercion(child.ResultUsage(), target, mode)
 		}
 		if err != nil {
 			t.Fatal(err)
 		}
-		return coercionExpression{Info: expr.Info{Usage: target}, Child: child, Mode: mode, Plan: plan}
+		return coercionExpression{Info: expr.Info{Usage: target}, Child: child, Mode: mode, Plan: coercionPlan}
 	}
 	// Publish a genuine catalog domain; both interpreters must retain its identity
 	// and use their catalog-owned type spelling, not the raw RETURNING name.

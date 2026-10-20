@@ -32,12 +32,12 @@ func (b *expressionBinder) aggregateReturning(raw parser.AggregateExpr, node exp
 	if err != nil {
 		return nil, err
 	}
-	plan, err := functions.JSONReturningCoercion(node.ResultUsage(), info.Usage, raw.JSON.Output)
+	coercionPlan, err := functions.JSONReturningCoercion(node.ResultUsage(), info.Usage, raw.JSON.Output)
 	if err != nil {
 		return nil, err
 	}
-	info.Property = coercionProperties(node, plan)
-	return coercionExpression{info, node, plan, sqltype.Assignment, false}, nil
+	info.Property = coercionProperties(node, coercionPlan)
+	return coercionExpression{info, node, coercionPlan, sqltype.Assignment, false}, nil
 }
 
 // valuesAggregateNamespace gives a call bound in INSERT ... VALUES, which has

@@ -26,7 +26,7 @@ func TestRoutineRetainedWriteInputAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := sqltype.PlanCoercion(text.Usage(), pair.Usage(), sqltype.Explicit)
+	coercionPlan, err := sqltype.PlanCoercion(text.Usage(), pair.Usage(), sqltype.Explicit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func TestRoutineRetainedWriteInputAuthority(t *testing.T) {
 	node := coercionExpression{
 		Info:  expr.Info{Usage: pair.Usage()},
 		Child: literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: value},
-		Plan:  plan,
+		Plan:  coercionPlan,
 		Mode:  sqltype.Explicit,
 	}
 	for _, route := range []string{"default", "generation", "check"} {

@@ -139,11 +139,11 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 			}
 			return sqltype.String(text, "abs(integer)"), nil
 		})
-		plan, err := sqltype.PlanCoercion(text.Usage(), routine.Usage(), sqltype.Explicit)
+		coercionPlan, err := sqltype.PlanCoercion(text.Usage(), routine.Usage(), sqltype.Explicit)
 		if err != nil {
 			t.Fatal(err)
 		}
-		converted := coercionExpression{Info: expr.Info{Usage: routine.Usage()}, Child: probe, Plan: plan, Mode: sqltype.Explicit}
+		converted := coercionExpression{Info: expr.Info{Usage: routine.Usage()}, Child: probe, Plan: coercionPlan, Mode: sqltype.Explicit}
 		definition := *viewOf(d)
 		definition.query = &BoundQuery{Root: &projectNode{QuerySchema: d.Columns, Child: &singletonNode{}, Expressions: []expr.Expr{converted}}}
 		d.View = &definition

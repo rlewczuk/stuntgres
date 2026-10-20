@@ -150,12 +150,12 @@ func TestSeriesExpressionHooks(t *testing.T) {
 	d, _ := view.LookupType(sqltype.Int4)
 	original := seriesUnit(t, d, 1, 3, 1)
 	t.Run("strict-arithmetic-constant-null", func(t *testing.T) {
-		plan, err := sqltype.BindArithmetic(sqltype.ArithmeticAdd, d, d, d)
+		arithmetic, err := sqltype.BindArithmetic(sqltype.ArithmeticAdd, d, d, d)
 		if err != nil {
 			t.Fatal(err)
 		}
 		null := literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: sqltype.Null(d)}
-		wrapper := arithmeticExpression{Info: original.Info, Left: original, Right: null, Provider: plan, Operator: sqltype.ArithmeticAdd}
+		wrapper := arithmeticExpression{Info: original.Info, Left: original, Right: null, Provider: arithmetic, Operator: sqltype.ArithmeticAdd}
 		ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: view}}
 		for _, fold := range []func() (expr.Expr, bool, error){
 			func() (expr.Expr, bool, error) { return preflightCoercions(ctx, wrapper) },

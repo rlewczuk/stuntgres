@@ -35,11 +35,11 @@ func TestArraySearchViewCoercions(t *testing.T) {
 		return literalExpression{Info: b.info(value.Type().Usage(), parser.Position{}, expr.Properties{}), Value: value}
 	}
 	coerce := func(child expr.Expr, target *sqltype.Descriptor, mode sqltype.CoercionContext) expr.Expr {
-		plan, err := sqltype.PlanCoercion(child.ResultUsage(), target.Usage(), mode)
+		coercionPlan, err := sqltype.PlanCoercion(child.ResultUsage(), target.Usage(), mode)
 		if err != nil {
 			t.Fatal(err)
 		}
-		return coercionExpression{Info: b.info(target.Usage(), parser.Position{}, coercionProperties(child, plan)), Child: child, Plan: plan, Mode: mode}
+		return coercionExpression{Info: b.info(target.Usage(), parser.Position{}, coercionProperties(child, coercionPlan)), Child: child, Plan: coercionPlan, Mode: mode}
 	}
 	one, err := sqltype.Integer(integer, 1)
 	if err != nil {

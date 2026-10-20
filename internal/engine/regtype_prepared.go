@@ -192,7 +192,7 @@ func (b *expressionBinder) regtypeArrayConstant(text string, u sqltype.Usage, po
 	return value, nil
 }
 
-func (b *expressionBinder) foldRegtypeConstant(child expr.Expr, plan sqltype.CoercionPlan, info expr.Info) (expr.Expr, bool, error) {
+func (b *expressionBinder) foldRegtypeConstant(child expr.Expr, coercionPlan sqltype.CoercionPlan, info expr.Info) (expr.Expr, bool, error) {
 	if (info.Usage.Type.BaseType().ID() != sqltype.Regtype && !sqltype.IsOperatorAlias(info.Usage.Type.BaseType().ID()) && !sqltype.IsRoutineAlias(info.Usage.Type.BaseType().ID()) && !sqltype.IsRegObjectAlias(info.Usage.Type.BaseType().ID()) && !sqltype.IsRegTS(info.Usage.Type.BaseType().ID())) || !(b.consumer.defaultConsumer || b.consumer.checkConsumer || b.consumer.indexConsumer || b.target.generatedOwner != nil || b.params.noParameters || b.consumer.materializedDefinition) {
 		return nil, false, nil
 	}
@@ -205,7 +205,7 @@ func (b *expressionBinder) foldRegtypeConstant(child expr.Expr, plan sqltype.Coe
 	if err != nil {
 		return nil, true, err
 	}
-	value, err = plan.Apply(b.ctx, value, b.input, sqltype.OutputEnvironment{})
+	value, err = coercionPlan.Apply(b.ctx, value, b.input, sqltype.OutputEnvironment{})
 	if err != nil {
 		return nil, true, err
 	}

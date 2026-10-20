@@ -22,7 +22,7 @@ func TestConditionalAggregateGroupingIdentityAndRewrite(t *testing.T) {
 	key.Property.RowDependent = true
 	count := aggregateExpression{Info: info, Slot: 0}
 	count.Property.StageDependent = true
-	plan, err := sqltype.PlanCoercion(integer.Usage(), integer.Usage(), sqltype.Implicit)
+	coercionPlan, err := sqltype.PlanCoercion(integer.Usage(), integer.Usage(), sqltype.Implicit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func TestConditionalAggregateGroupingIdentityAndRewrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	arm := caseBranch{Condition: key, Result: key, TestPlan: plan, Equality: equality, TestUsage: integer.Usage()}
+	arm := caseBranch{Condition: key, Result: key, TestPlan: coercionPlan, Equality: equality, TestUsage: integer.Usage()}
 	groupCase := caseExpression{Info: info, Test: key, Arms: []caseBranch{arm}, Otherwise: key}
 	groupList := conditionalExpression{Info: info, Kind: parser.Coalesce, Args: []expr.Expr{groupCase, key}}
 	// Aggregates cannot occur in grouping keys. Use scalar-only keys for

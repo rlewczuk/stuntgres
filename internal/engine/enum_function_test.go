@@ -31,14 +31,14 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	}
 	sourceView := fixtureView(source, mood, array)
 	targetView := fixtureView(New(), targetMood, targetArray)
-	plan, err := sqltype.BindEnumSupport("enum_range", array.Usage(), mood.Usage(), mood.Usage())
+	enumSupportPlan, err := sqltype.BindEnumSupport("enum_range", array.Usage(), mood.Usage(), mood.Usage())
 	if err != nil {
 		t.Fatal(err)
 	}
 	literal := func(value sqltype.Value) expr.Expr {
 		return literalExpression{Info: expr.Info{Usage: value.Type().Usage()}, Value: value}
 	}
-	bound := functions.Enum{Info: expr.Info{Usage: array.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Plan: plan, Args: []expr.Expr{literal(sqltype.Null(mood)), literal(sqltype.Null(mood))}, EnumName: "mood"}
+	bound := functions.Enum{Info: expr.Info{Usage: array.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Plan: enumSupportPlan, Args: []expr.Expr{literal(sqltype.Null(mood)), literal(sqltype.Null(mood))}, EnumName: "mood"}
 	old, err := bound.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
@@ -78,7 +78,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 		t.Fatal(text, deps, err)
 	}
 	forged := next
-	forged.Plan = plan
+	forged.Plan = enumSupportPlan
 	if _, err := (scalarRenderer{}).scalarFunctionSQL(ctx, targetView, forged); err == nil {
 		t.Fatal("foreign stored provider accepted")
 	}

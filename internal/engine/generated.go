@@ -117,14 +117,14 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 		if failure != nil {
 			return catalog.ColumnGeneration{}, failure
 		}
-		plan, failure := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
+		coercionPlan, failure := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
 		if failure != nil {
 			diagnostic := sqlError("42804", fmt.Sprintf(`column "%s" is of type %s but default expression is of type %s`, column.Name, column.Usage.Type.DiagnosticName(), node.ResultUsage().Type.DiagnosticName())).(*sqlstate.Error)
 			diagnostic.Hint = "You will need to rewrite or cast the expression."
 			return catalog.ColumnGeneration{}, diagnostic
 		}
-		info.Property = coercionProperties(input, plan)
-		node = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})
+		info.Property = coercionProperties(input, coercionPlan)
+		node = restoreDomainCastCollations(annotations, coercionExpression{info, input, coercionPlan, sqltype.Assignment, false})
 		analyzedInput, analyzedAnnotations := domainCoercionInput(analyzed, column.Usage)
 		analyzedInfo, failure := storageCoercionInfo(b.bindingCatalog(), b.info(column.Usage, parser.Position{}, analyzedInput.Properties()), analyzedInput)
 		if failure != nil {

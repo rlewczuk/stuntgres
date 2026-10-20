@@ -27,13 +27,13 @@ func TestStringCaseRetainedPlan(t *testing.T) {
 	for _, conflict := range []bool{false, true} {
 		usage := text.Usage()
 		usage.Collation.ID = 6411
-		plan, err := sqltype.BindString("upper", usage, text.Usage(), []sqltype.Usage{usage}, [4]bool{true}, conflict)
+		stringPlan, err := sqltype.BindString("upper", usage, text.Usage(), []sqltype.Usage{usage}, [4]bool{true}, conflict)
 		if err != nil {
 			t.Fatal(err)
 		}
 		node := functions.String{
 			Info: expr.Info{Usage: usage, CollationConflict: conflict},
-			Plan: plan, Textual: [4]bool{true}, Syntax: parser.OrdinaryStringSyntax,
+			Plan: stringPlan, Textual: [4]bool{true}, Syntax: parser.OrdinaryStringSyntax,
 			Args: []expr.Expr{literalExpression{expr.Info{Usage: usage}, sqltype.String(text, "ß")}},
 		}
 		rebound, changed, err := retagBoundTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
@@ -76,7 +76,7 @@ func TestStringCaseOnceOnlyChildAndMetadata(t *testing.T) {
 	}
 	usage := text.Usage()
 	usage.Collation.ID = 811
-	plan, err := sqltype.BindString("lower", usage, text.Usage(), []sqltype.Usage{usage}, [4]bool{true}, false)
+	stringPlan, err := sqltype.BindString("lower", usage, text.Usage(), []sqltype.Usage{usage}, [4]bool{true}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestStringCaseOnceOnlyChildAndMetadata(t *testing.T) {
 	// this fixture retains the generic owner's nested collation authority.
 	node := functions.String{
 		Info: expr.Info{Usage: usage, Property: expr.Properties{Volatility: expr.Immutable, RowDependent: true}},
-		Plan: plan, Textual: [4]bool{true}, Syntax: parser.OrdinaryStringSyntax,
+		Plan: stringPlan, Textual: [4]bool{true}, Syntax: parser.OrdinaryStringSyntax,
 		Args: []expr.Expr{literalExpression{expr.Info{Usage: usage}, sqltype.String(text, "İ")}},
 	}
 	info, err := collatedInfo(New().CatalogRead(), expr.Info{Usage: usage}, node)

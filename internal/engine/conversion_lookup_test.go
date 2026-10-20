@@ -61,11 +61,11 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	text, _ := view.LookupType(sqltype.Text)
 	name, _ := view.LookupType(sqltype.Name)
 	bytea, _ := view.LookupType(sqltype.Bytea)
-	plan, err := sqltype.BindBinary("convert_to", bytea.Usage(), text.Usage(), name.Usage())
+	binaryPlan, err := sqltype.BindBinary("convert_to", bytea.Usage(), text.Usage(), name.Usage())
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := functions.Binary{Info: expr.Info{Usage: bytea.Usage()}, Plan: plan, Args: []expr.Expr{
+	node := functions.Binary{Info: expr.Info{Usage: bytea.Usage()}, Plan: binaryPlan, Args: []expr.Expr{
 		literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "é")},
 		literalExpression{Info: expr.Info{Usage: name.Usage()}, Value: sqltype.String(name, "LATIN1")},
 	}}

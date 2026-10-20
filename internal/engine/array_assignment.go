@@ -45,11 +45,11 @@ func (b *expressionBinder) bindArrayTarget(column catalog.Column, raw []parser.A
 	// The executor supplies the old container for partial UPDATE assignments.
 	// Like PostgreSQL's implicit assignment Var, it is not a SELECT reference;
 	// only explicit RHS and subscript expressions contribute read authority.
-	plan, err := sqltype.PlanCoercion(usage, column.Usage, sqltype.Assignment)
+	coercionPlan, err := sqltype.PlanCoercion(usage, column.Usage, sqltype.Assignment)
 	if err != nil {
 		return nil, err
 	}
-	return &arrayAssignmentTarget{Node: subscriptExpression{Subscripts: subs, Slice: slice}, Container: column.Usage, Destination: arrayTargetUsage(column.Usage, raw), Reapply: plan, Name: column.Name, Pos: pos}, nil
+	return &arrayAssignmentTarget{Node: subscriptExpression{Subscripts: subs, Slice: slice}, Container: column.Usage, Destination: arrayTargetUsage(column.Usage, raw), Reapply: coercionPlan, Name: column.Name, Pos: pos}, nil
 }
 
 func (b *expressionBinder) arrayAssignmentDiagnostic(t *arrayAssignmentTarget, err error, source *sqltype.Descriptor) error {

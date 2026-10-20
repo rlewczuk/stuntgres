@@ -48,12 +48,12 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 	}
 	// Coercion display form is immaterial to CHECK cooked-tree identity but is
 	// still significant for ordinary grouping's existing expression policy.
-	plan, err := sqltype.PlanCoercion(original.ResultUsage(), original.ResultUsage(), sqltype.Implicit)
+	coercionPlan, err := sqltype.PlanCoercion(original.ResultUsage(), original.ResultUsage(), sqltype.Implicit)
 	if err != nil {
 		t.Fatal(err)
 	}
 	binder := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
-	implicit := coercionExpression{binder.info(original.ResultUsage(), original.SourcePosition(), original.Properties()), original, plan, sqltype.Implicit, false}
+	implicit := coercionExpression{binder.info(original.ResultUsage(), original.SourcePosition(), original.Properties()), original, coercionPlan, sqltype.Implicit, false}
 	explicit := implicit
 	explicit.Mode = sqltype.Explicit
 	grouping := expressionBinder{}

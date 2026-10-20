@@ -52,11 +52,11 @@ func (b *expressionBinder) bindQueryBound(raw parser.Expr, clause string, litera
 	}
 	usage := b.typ(sqltype.Int8).Usage()
 	if bound.ResultUsage() != usage {
-		plan, err := sqltype.PlanCoercion(bound.ResultUsage(), usage, sqltype.Assignment)
+		coercionPlan, err := sqltype.PlanCoercion(bound.ResultUsage(), usage, sqltype.Assignment)
 		if err != nil {
 			return nil, expr.ErrorAt("42804", fmt.Sprintf("argument of %s must be type bigint, not type %s", clause, bound.ResultUsage().Type.DiagnosticName()), bound.SourcePosition())
 		}
-		bound = coercionExpression{b.info(usage, bound.SourcePosition(), coercionProperties(bound, plan)), bound, plan, sqltype.Assignment, false}
+		bound = coercionExpression{b.info(usage, bound.SourcePosition(), coercionProperties(bound, coercionPlan)), bound, coercionPlan, sqltype.Assignment, false}
 	}
 	if expressionUsesFrame(bound, b.frameID()) {
 		pos := firstQueryBoundFrameVariable(bound, b.frameID())

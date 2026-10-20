@@ -77,15 +77,15 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectR
 	if node.ResultUsage() == typ.Usage() {
 		return node, ids.ObjectRef{}, nil
 	}
-	plan, err := sqltype.PlanCoercion(node.ResultUsage(), typ.Usage(), sqltype.Implicit)
+	coercionPlan, err := sqltype.PlanCoercion(node.ResultUsage(), typ.Usage(), sqltype.Implicit)
 	if err != nil {
 		return nil, ids.ObjectRef{}, err
 	}
-	info, err := b.collatedInfo(b.info(typ.Usage(), raw.SourcePosition(), coercionProperties(node, plan)), node)
+	info, err := b.collatedInfo(b.info(typ.Usage(), raw.SourcePosition(), coercionProperties(node, coercionPlan)), node)
 	if err != nil {
 		return nil, ids.ObjectRef{}, err
 	}
-	return coercionExpression{info, node, plan, sqltype.Implicit, false}, ids.ObjectRef{}, nil
+	return coercionExpression{info, node, coercionPlan, sqltype.Implicit, false}, ids.ObjectRef{}, nil
 }
 
 // Explicit casts share name input with sequence consumers but use the ordinary
@@ -107,14 +107,14 @@ func (b *expressionBinder) bindRegclassCast(raw parser.Expr, pos parser.Position
 	if err != nil {
 		return nil, err
 	}
-	plan, err := sqltype.PlanCoercion(child.ResultUsage(), target, sqltype.Explicit)
+	coercionPlan, err := sqltype.PlanCoercion(child.ResultUsage(), target, sqltype.Explicit)
 	if err != nil {
 		return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to regclass", b.diagnosticTypeName(child.ResultUsage().Type)), pos)
 	}
 	if child.ResultUsage() == target {
 		return child, nil
 	}
-	return coercionExpression{b.info(target, raw.SourcePosition(), coercionProperties(child, plan)), child, plan, sqltype.Explicit, false}, nil
+	return coercionExpression{b.info(target, raw.SourcePosition(), coercionProperties(child, coercionPlan)), child, coercionPlan, sqltype.Explicit, false}, nil
 }
 func sequenceInputError(err error, pos parser.Position, context string, parameter int) error {
 	if d, ok := err.(*sqlstate.Error); ok {

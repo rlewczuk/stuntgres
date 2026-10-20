@@ -100,7 +100,7 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 			if err != nil {
 				return err
 			}
-			plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
+			coercionPlan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
 			if err != nil {
 				if target != nil {
 					return binder.arrayAssignmentDiagnostic(target, err, source.ResultUsage().Type)
@@ -115,11 +115,11 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 				}
 				return err
 			}
-			if plan.RequiresCatalogOutput() {
+			if coercionPlan.RequiresCatalogOutput() {
 				binder.prepared.regclassConcat = true
 			}
-			info.Property = coercionProperties(input, plan)
-			source = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})
+			info.Property = coercionProperties(input, coercionPlan)
+			source = restoreDomainCastCollations(annotations, coercionExpression{info, input, coercionPlan, sqltype.Assignment, false})
 			source, err = storageDestination(source, dest.Usage, info.Pos)
 			if err != nil {
 				return err

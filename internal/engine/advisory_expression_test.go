@@ -146,13 +146,13 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		}
 		deferred := bound.(functions.Advisory)
 		textUsage, integerUsage := b.typ(sqltype.Text).Usage(), b.typ(sqltype.Int4).Usage()
-		plan, err := sqltype.PlanCoercion(textUsage, integerUsage, sqltype.Explicit)
+		coercionPlan, err := sqltype.PlanCoercion(textUsage, integerUsage, sqltype.Explicit)
 		if err != nil {
 			t.Fatal(err)
 		}
 		child := literalExpression{Info: b.info(textUsage, parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.String(textUsage.Type, "bad")}
 		deferred.Args = append([]expr.Expr(nil), deferred.Args...)
-		deferred.Args[1] = coercionExpression{b.info(integerUsage, parser.Position{}, expr.Properties{Volatility: expr.Immutable}), child, plan, sqltype.Explicit, false}
+		deferred.Args[1] = coercionExpression{b.info(integerUsage, parser.Position{}, expr.Properties{Volatility: expr.Immutable}), child, coercionPlan, sqltype.Explicit, false}
 		bound = deferred
 		for _, preflight := range []bool{false, true} {
 			if preflight {

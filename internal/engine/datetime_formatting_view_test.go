@@ -21,7 +21,7 @@ func TestDatetimeFormattingViewCastUsage(t *testing.T) {
 	precision := int32(3)
 	target := timestamp.Usage()
 	target.Typmod = precision
-	plan, err := sqltype.PlanCoercion(timestamp.Usage(), target, sqltype.Explicit)
+	coercionPlan, err := sqltype.PlanCoercion(timestamp.Usage(), target, sqltype.Explicit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +29,7 @@ func TestDatetimeFormattingViewCastUsage(t *testing.T) {
 		Child:    parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "timestamp"}, Text: "2000-01-01 00:00:00"},
 		TypeName: parser.TypeName{Name: "timestamp", Modifiers: []parser.TypeModifier{{Integer: &precision}}},
 	}
-	node := coercionExpression{expr.Info{Usage: target}, literalExpression{expr.Info{Usage: timestamp.Usage()}, value}, plan, sqltype.Explicit, false}
+	node := coercionExpression{expr.Info{Usage: target}, literalExpression{expr.Info{Usage: timestamp.Usage()}, value}, coercionPlan, sqltype.Explicit, false}
 	if err := b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}

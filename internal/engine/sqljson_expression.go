@@ -29,13 +29,13 @@ func (b *expressionBinder) bindSQLJSON(raw parser.SQLJSONExpr) (expr.Expr, error
 	if err = b.captureTypeDiagnosticInput(returning.Type); err != nil {
 		return nil, err
 	}
-	plan, err := functions.JSONReturningCoercion(node.ResultUsage(), returning, raw.Output)
+	coercionPlan, err := functions.JSONReturningCoercion(node.ResultUsage(), returning, raw.Output)
 	if err != nil {
 		return nil, err
 	}
-	info, err := b.coercionInfo(b.info(returning, raw.Pos, coercionProperties(node, plan)), node)
+	info, err := b.coercionInfo(b.info(returning, raw.Pos, coercionProperties(node, coercionPlan)), node)
 	if err != nil {
 		return nil, err
 	}
-	return coercionExpression{info, node, plan, sqltype.Assignment, false}, nil
+	return coercionExpression{info, node, coercionPlan, sqltype.Assignment, false}, nil
 }

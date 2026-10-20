@@ -195,11 +195,11 @@ func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right co
 			return nil, err
 		}
 		if n.ResultUsage() != t.Usage() {
-			plan, err := sqltype.PlanCoercion(n.ResultUsage(), t.Usage(), sqltype.Implicit)
+			coercionPlan, err := sqltype.PlanCoercion(n.ResultUsage(), t.Usage(), sqltype.Implicit)
 			if err != nil {
 				return nil, err
 			}
-			n = coercionExpression{b.info(t.Usage(), n.SourcePosition(), n.Properties()), n, plan, sqltype.Implicit, false}
+			n = coercionExpression{b.info(t.Usage(), n.SourcePosition(), n.Properties()), n, coercionPlan, sqltype.Implicit, false}
 		}
 		return n, nil
 	}

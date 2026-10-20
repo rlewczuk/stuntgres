@@ -103,12 +103,12 @@ func (b *expressionBinder) coerceConditional(o comparisonOperand, target sqltype
 	if err != nil {
 		return nil, err
 	}
-	plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Implicit)
+	coercionPlan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Implicit)
 	if err != nil {
 		return nil, expr.ErrorAt("42846", fmt.Sprintf("%s could not convert type %s to %s", label, b.diagnosticTypeName(node.ResultUsage().Type), b.diagnosticTypeName(target.Type)), commonOperandStart(o))
 	}
-	info.Property = coercionProperties(input, plan)
-	return restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Implicit, false}), nil
+	info.Property = coercionProperties(input, coercionPlan)
+	return restoreDomainCastCollations(annotations, coercionExpression{info, input, coercionPlan, sqltype.Implicit, false}), nil
 }
 func (b *expressionBinder) conditionalEquality(left, right comparisonOperand, pos parser.Position) (expr.Expr, expr.Expr, sqltype.Comparison, *catalog.Procedure, error) {
 	raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "="}}}, Pos: pos}

@@ -27,11 +27,11 @@ func TestDatetimeFormattingTypedConsumers(t *testing.T) {
 	} {
 		source, result := b.typ(signature.source), b.typ(signature.result)
 		template := "YYYY"
-		plan, err := sqltype.BindDatetimeFormat(ctx, signature.name, result.Usage(), source.Usage(), &template)
+		datetimeFormatPlan, err := sqltype.BindDatetimeFormat(ctx, signature.name, result.Usage(), source.Usage(), &template)
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := functions.DatetimeFormatting{Info: expr.Info{Usage: result.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Plan: plan, Args: [2]expr.Expr{
+		node := functions.DatetimeFormatting{Info: expr.Info{Usage: result.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Plan: datetimeFormatPlan, Args: [2]expr.Expr{
 			literalExpression{expr.Info{Usage: source.Usage()}, sqltype.Null(source)},
 			literalExpression{expr.Info{Usage: text.Usage()}, sqltype.String(text, template)},
 		}}

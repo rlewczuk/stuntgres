@@ -18,7 +18,7 @@ func TestSQLJSONArrayQueryReachedCancellationCleanup(t *testing.T) {
 	if !ok {
 		t.Fatal("missing JSON descriptor")
 	}
-	plan, err := sqltype.BindJSONArrayAggregate(inputUsage, jsonType.Usage(), true)
+	jsonArrayAggregatePlan, err := sqltype.BindJSONArrayAggregate(inputUsage, jsonType.Usage(), true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func TestSQLJSONArrayQueryReachedCancellationCleanup(t *testing.T) {
 	bound.Root = outer
 	expr := subqueryTestExpression(t, e, &bound, parser.SubqueryScalar)
 	expr.Usage = jsonType.Usage()
-	expr.JSONArray = &sqlJSONArrayQuery{Plan: plan, Input: column}
+	expr.JSONArray = &sqlJSONArrayQuery{Plan: jsonArrayAggregatePlan, Input: column}
 	newCapture := func() *querySource {
 		return &querySource{ref: base.Ref, authority: captured.authority, nestedRoot: inner, nestedInputs: captured, flatWidth: 1, materialized: true}
 	}

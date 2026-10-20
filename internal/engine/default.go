@@ -63,7 +63,7 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column catalog.Column) (
 		if err != nil {
 			return nil, err
 		}
-		plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
+		coercionPlan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
 		if err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42804" {
 				d := sqlError("42804", fmt.Sprintf(`column "%s" is of type %s but default expression is of type %s`, column.Name, column.Usage.Type.DiagnosticName(), node.ResultUsage().Type.DiagnosticName())).(*sqlstate.Error)
@@ -72,8 +72,8 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column catalog.Column) (
 			}
 			return nil, err
 		}
-		info.Property = coercionProperties(input, plan)
-		node = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})
+		info.Property = coercionProperties(input, coercionPlan)
+		node = restoreDomainCastCollations(annotations, coercionExpression{info, input, coercionPlan, sqltype.Assignment, false})
 	}
 	return storageDestination(node, column.Usage, parser.Position{})
 }
@@ -414,11 +414,11 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		default:
 			return "", fmt.Errorf("stuntgres: invalid default coercion mode")
 		}
-		plan, err := n.Plan.Rebind(n.Child.ResultUsage(), u, n.Mode)
-		if err != nil || !plan.Equal(n.Plan) {
+		coercionPlan, err := n.Plan.Rebind(n.Child.ResultUsage(), u, n.Mode)
+		if err != nil || !coercionPlan.Equal(n.Plan) {
 			return "", fmt.Errorf("stuntgres: invalid default coercion")
 		}
-		if r.commentSnapshot != nil && (plan.RequiresCatalogOutput() || (u.Type.ContainsRegrole() || u.Type.ContainsRegObject()) && plan.SessionDependent()) {
+		if r.commentSnapshot != nil && (coercionPlan.RequiresCatalogOutput() || (u.Type.ContainsRegrole() || u.Type.ContainsRegObject()) && coercionPlan.SessionDependent()) {
 			*r.commentSnapshot = true
 		}
 		if n.Plan.IsJSONReturning() {

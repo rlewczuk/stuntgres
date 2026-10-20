@@ -48,11 +48,11 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (expr.E
 		return nil, err
 	}
 	usage := b.typ(id).Usage()
-	plan, err := sqltype.BindJSONArrayAggregate(arg.ResultUsage(), usage, true)
+	jsonArrayAggregatePlan, err := sqltype.BindJSONArrayAggregate(arg.ResultUsage(), usage, true)
 	if err != nil {
 		return nil, err
 	}
-	query.JSONArray = &sqlJSONArrayQuery{Raw: raw, Input: arg, Plan: plan}
+	query.JSONArray = &sqlJSONArrayQuery{Raw: raw, Input: arg, Plan: jsonArrayAggregatePlan}
 	query.Usage = usage
 	if returning.Type == nil {
 		return query, nil

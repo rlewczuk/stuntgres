@@ -336,12 +336,12 @@ func (s *StatementScope) CheckDomain(ctx context.Context, target *sqltype.Descri
 
 func domainNullInputExpression(target sqltype.Usage) expr.Expr {
 	base := target.BaseUsage()
-	plan, err := sqltype.PlanCoercion(base, target, sqltype.Assignment)
+	coercionPlan, err := sqltype.PlanCoercion(base, target, sqltype.Assignment)
 	if err != nil {
 		panic(err)
 	}
 	child := literalExpression{Info: expr.Info{Usage: base}, Value: sqltype.Null(base.Type)}
-	return coercionExpression{Info: expr.Info{Usage: target, Property: coercionProperties(child, plan)}, Child: child, Plan: plan, Mode: sqltype.Assignment}
+	return coercionExpression{Info: expr.Info{Usage: target, Property: coercionProperties(child, coercionPlan)}, Child: child, Plan: coercionPlan, Mode: sqltype.Assignment}
 }
 
 func validateDomainCheckDefinitions(view catalog.Read, domain *catalog.Type) error {

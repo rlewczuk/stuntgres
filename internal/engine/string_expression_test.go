@@ -70,13 +70,13 @@ func TestStringCorePropertiesAndWalkers(t *testing.T) {
 			text = d
 		}
 	}
-	plan, err := sqltype.BindString("||", text.Usage(), text.Usage(), []sqltype.Usage{text.Usage(), text.Usage()}, [4]bool{true, true}, false)
+	stringPlan, err := sqltype.BindString("||", text.Usage(), text.Usage(), []sqltype.Usage{text.Usage(), text.Usage()}, [4]bool{true, true}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Keep genuine owner retag/walker integration here; runtime demand is
 	// exercised locally by functions.TestStringRuntimeDemand.
-	node := functions.String{Info: expr.Info{Usage: text.Usage()}, Plan: plan, Textual: [4]bool{true, true}, Args: []expr.Expr{
+	node := functions.String{Info: expr.Info{Usage: text.Usage()}, Plan: stringPlan, Textual: [4]bool{true, true}, Args: []expr.Expr{
 		literalExpression{expr.Info{Usage: text.Usage()}, sqltype.String(text, "a")},
 		literalExpression{expr.Info{Usage: text.Usage()}, sqltype.String(text, "b")},
 	}}
@@ -174,7 +174,7 @@ func TestStringCoreOrdinaryDeparseDoesNotChangeBoundArguments(t *testing.T) {
 	relation := e.catalog.state.MustRelation(ref.Address)
 	node := relation.Constraints.Check[0].Expression.(comparisonExpression).Left.(functions.String)
 	args := append([]expr.Expr(nil), node.Args...)
-	plan := node.Plan
+	stringPlan := node.Plan
 	for _, pretty := range []bool{false, true} {
 		renderer := pgRenderer{view: e.CatalogRead(), relation: relation, pretty: pretty}
 		got, err := renderer.sql(context.Background(), node, pgRenderParent{})
@@ -187,7 +187,7 @@ func TestStringCoreOrdinaryDeparseDoesNotChangeBoundArguments(t *testing.T) {
 		}
 		// These row-dependent arguments have no evaluation frame. Rendering
 		// must only present the provider's conversion, never evaluate or wrap it.
-		if node.Plan != plan || !reflect.DeepEqual(node.Args, args) {
+		if node.Plan != stringPlan || !reflect.DeepEqual(node.Args, args) {
 			t.Fatal("rendering changed the retained provider or arguments")
 		}
 		for _, arg := range node.Args {

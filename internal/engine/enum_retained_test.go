@@ -47,7 +47,7 @@ func TestEnumRetainedProducerEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := sqltype.BindEnumSupport("enum_last", mood.Usage(), mood.Usage())
+	enumSupportPlan, err := sqltype.BindEnumSupport("enum_last", mood.Usage(), mood.Usage())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestEnumRetainedProducerEnvironment(t *testing.T) {
 	for _, route := range []string{"default", "generation", "check"} {
 		t.Run(route, func(t *testing.T) {
 			calls := 0
-			producer := functions.Enum{Info: expr.Info{Usage: mood.Usage()}, Plan: plan, Args: []expr.Expr{enumCapturedArgument{Info: expr.Info{Usage: mood.Usage()}, value: sqltype.Null(mood), calls: &calls}}}
+			producer := functions.Enum{Info: expr.Info{Usage: mood.Usage()}, Plan: enumSupportPlan, Args: []expr.Expr{enumCapturedArgument{Info: expr.Info{Usage: mood.Usage()}, value: sqltype.Null(mood), calls: &calls}}}
 			nested := conditionalExpression{Info: expr.Info{Usage: mood.Usage()}, Kind: parser.Coalesce, Args: []expr.Expr{literalExpression{Info: expr.Info{Usage: mood.Usage()}, Value: safe}, producer}}
 			e.mu.Lock()
 			unsafeRoot := scope.owner.catalog

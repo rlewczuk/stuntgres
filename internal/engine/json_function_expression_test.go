@@ -25,11 +25,11 @@ func jsonFunctionUnitMarker(t *testing.T, d, result *sqltype.Descriptor, input s
 	if d.ID() == sqltype.JSONB {
 		name = "jsonb_object_keys"
 	}
-	plan, err := sqltype.BindJSONKeys(name, d.Usage(), result.Usage())
+	jsonKeysPlan, err := sqltype.BindJSONKeys(name, d.Usage(), result.Usage())
 	if err != nil {
 		t.Fatal(err)
 	}
-	return functions.JSONKeys{Info: expr.Info{Usage: result.Usage(), Pos: parser.Position{Offset: offset, Character: offset + 1}, Property: expr.Properties{StageDependent: true}}, Plan: plan, Args: []expr.Expr{literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: v}}}
+	return functions.JSONKeys{Info: expr.Info{Usage: result.Usage(), Pos: parser.Position{Offset: offset, Character: offset + 1}, Property: expr.Properties{StageDependent: true}}, Plan: jsonKeysPlan, Args: []expr.Expr{literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: v}}}
 }
 
 func TestJSONFunctionScalarBindingAndEvaluation(t *testing.T) {

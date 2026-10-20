@@ -132,11 +132,11 @@ func (b *expressionBinder) assignCompositeMember(node expr.Expr, target sqltype.
 		}
 		return rowExpression{Info: b.info(target, row.Pos, props), Fields: fields}, nil
 	}
-	plan, err := sqltype.PlanCoercion(node.ResultUsage(), target, mode)
+	coercionPlan, err := sqltype.PlanCoercion(node.ResultUsage(), target, mode)
 	if err != nil {
 		return node, err
 	}
-	return coercionExpression{b.info(target, node.SourcePosition(), coercionProperties(node, plan)), node, plan, mode, true}, nil
+	return coercionExpression{b.info(target, node.SourcePosition(), coercionProperties(node, coercionPlan)), node, coercionPlan, mode, true}, nil
 }
 func (b *expressionBinder) selectCompositeField(base expr.Expr, name string, pos parser.Position) (expr.Expr, error) {
 	typ := base.ResultUsage().Type

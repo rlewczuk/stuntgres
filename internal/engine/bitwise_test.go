@@ -163,7 +163,7 @@ func TestBitwiseConstantNullPlanning(t *testing.T) {
 	view := e.CatalogRead()
 	integer, _ := view.LookupType(sqltype.Int4)
 	text, _ := view.LookupType(sqltype.Text)
-	plan, err := sqltype.PlanCoercion(text.Usage(), integer.Usage(), sqltype.Explicit)
+	coercionPlan, err := sqltype.PlanCoercion(text.Usage(), integer.Usage(), sqltype.Explicit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +173,7 @@ func TestBitwiseConstantNullPlanning(t *testing.T) {
 	}
 	rowInfo := expr.Info{Usage: text.Usage(), Property: expr.Properties{RowDependent: true}}
 	column := columnExpression{Info: rowInfo, Scope: 1, Frame: 1, Slot: 0}
-	conversion := coercionExpression{Info: expr.Info{Usage: integer.Usage(), Property: rowInfo.Property}, Child: column, Plan: plan, Mode: sqltype.Explicit}
+	conversion := coercionExpression{Info: expr.Info{Usage: integer.Usage(), Property: rowInfo.Property}, Child: column, Plan: coercionPlan, Mode: sqltype.Explicit}
 	null := literalExpression{Info: expr.Info{Usage: integer.Usage()}, Value: sqltype.Null(integer)}
 	info := expr.Info{Usage: integer.Usage(), Pos: parser.Position{Offset: 7}, Property: expr.Properties{RowDependent: true, ParameterDependent: true, StageDependent: true}}
 	bad, err := text.Input(context.Background(), "bad", -1)
@@ -233,7 +233,7 @@ func TestBitwiseConstantNullPlanning(t *testing.T) {
 		// Imported NULL parameters may become physical literals during cast
 		// preflight, but their conservative parameter ownership is retained.
 		parameter := parameterExpression{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{ParameterDependent: true}}, Number: 1}
-		parameterCast := coercionExpression{Info: expr.Info{Usage: integer.Usage(), Property: parameter.Property}, Child: parameter, Plan: plan, Mode: sqltype.Explicit}
+		parameterCast := coercionExpression{Info: expr.Info{Usage: integer.Usage(), Property: parameter.Property}, Child: parameter, Plan: coercionPlan, Mode: sqltype.Explicit}
 		root := bitwiseExpression{Info: info, Left: parameterCast, Right: conversion, Provider: provider, Operator: sqltype.BitwiseAnd}
 		valid, err := text.Input(ctx.Context, "3", -1)
 		if err != nil {

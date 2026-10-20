@@ -85,11 +85,11 @@ func defaultDestination(node expr.Expr, target sqltype.Usage) expr.Expr {
 	if node.ResultUsage() == target {
 		return node
 	}
-	plan, err := sqltype.PlanCoercion(node.ResultUsage(), target, sqltype.Assignment)
+	coercionPlan, err := sqltype.PlanCoercion(node.ResultUsage(), target, sqltype.Assignment)
 	if err != nil {
 		panic(err)
 	} // Catalog validation guarantees assignment-compatible recipes.
-	return coercionExpression{Info: expr.Info{Usage: target, Property: coercionProperties(node, plan)}, Child: node, Plan: plan, Mode: sqltype.Assignment}
+	return coercionExpression{Info: expr.Info{Usage: target, Property: coercionProperties(node, coercionPlan)}, Child: node, Plan: coercionPlan, Mode: sqltype.Assignment}
 }
 
 // Default origin is statement-private authority, not a fabricated pg_attrdef for

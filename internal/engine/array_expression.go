@@ -83,11 +83,11 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 				var info expr.Info
 				info, err = b.coercionInfo(b.info(childUsage, node.SourcePosition(), input.Properties()), input)
 				if err == nil {
-					var plan sqltype.CoercionPlan
-					plan, err = sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Explicit)
+					var coercionPlan sqltype.CoercionPlan
+					coercionPlan, err = sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Explicit)
 					if err == nil {
-						info.Property = coercionProperties(input, plan)
-						node = restoreDomainCastCollations(annotations, coercionExpression{Info: info, Child: input, Plan: plan, Mode: sqltype.Explicit, SyntheticConstructorElement: true})
+						info.Property = coercionProperties(input, coercionPlan)
+						node = restoreDomainCastCollations(annotations, coercionExpression{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Explicit, SyntheticConstructorElement: true})
 					}
 				}
 			}
@@ -148,11 +148,11 @@ func (b *expressionBinder) bindArrayBounds(raw []parser.ArraySubscript) ([]bound
 		if node.ResultUsage().Type == b.typ(sqltype.Int4) {
 			return node, nil
 		}
-		plan, err := sqltype.PlanCoercion(node.ResultUsage(), b.typ(sqltype.Int4).Usage(), sqltype.Assignment)
+		coercionPlan, err := sqltype.PlanCoercion(node.ResultUsage(), b.typ(sqltype.Int4).Usage(), sqltype.Assignment)
 		if err != nil {
 			return nil, expr.ErrorAt("42804", "array subscript must have type integer", parser.ExpressionStart(raw))
 		}
-		return coercionExpression{b.info(b.typ(sqltype.Int4).Usage(), node.SourcePosition(), coercionProperties(node, plan)), node, plan, sqltype.Assignment, false}, nil
+		return coercionExpression{b.info(b.typ(sqltype.Int4).Usage(), node.SourcePosition(), coercionProperties(node, coercionPlan)), node, coercionPlan, sqltype.Assignment, false}, nil
 	}
 	for i, s := range raw {
 		lower, err := bind(s.Lower)

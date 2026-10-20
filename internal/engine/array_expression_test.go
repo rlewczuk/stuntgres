@@ -175,11 +175,11 @@ func TestArrayExpressionRuntimeDemandOrder(t *testing.T) {
 	if value, err := node.Eval(ctx); err != nil || !value.IsNull() || !reflect.DeepEqual(order, []string{"base"}) {
 		t.Fatal(value, order, err)
 	}
-	plan, err := sqltype.PlanCoercion(arr.Usage(), arr.Usage(), sqltype.Assignment)
+	coercionPlan, err := sqltype.PlanCoercion(arr.Usage(), arr.Usage(), sqltype.Assignment)
 	if err != nil {
 		t.Fatal(err)
 	}
-	target := arrayAssignmentTarget{Node: node, Reapply: plan}
+	target := arrayAssignmentTarget{Node: node, Reapply: coercionPlan}
 	order = nil
 	if _, err := target.ApplyExpression(ctx, input, child("rhs", input)); err != nil {
 		t.Fatal(err)

@@ -60,15 +60,15 @@ func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expre
 		names := [...]string{"IS TRUE", "IS NOT TRUE", "IS FALSE", "IS NOT FALSE", "IS UNKNOWN", "IS NOT UNKNOWN"}
 		index := int(raw.Kind - parser.IsTrue)
 		if child.ResultUsage().Type != boolUsage.Type {
-			plan, err := sqltype.PlanCoercion(child.ResultUsage(), boolUsage, sqltype.Implicit)
+			coercionPlan, err := sqltype.PlanCoercion(child.ResultUsage(), boolUsage, sqltype.Implicit)
 			if err != nil {
 				return nil, expr.ErrorAt("42804", fmt.Sprintf("argument of %s must be type boolean, not type %s", names[index], b.diagnosticTypeName(child.ResultUsage().Type)), parser.ExpressionStart(raw.Left))
 			}
-			info, err := b.coercionInfo(b.info(boolUsage, child.SourcePosition(), coercionProperties(child, plan)), child)
+			info, err := b.coercionInfo(b.info(boolUsage, child.SourcePosition(), coercionProperties(child, coercionPlan)), child)
 			if err != nil {
 				return nil, err
 			}
-			child = coercionExpression{info, child, plan, sqltype.Implicit, false}
+			child = coercionExpression{info, child, coercionPlan, sqltype.Implicit, false}
 		}
 		truth := [...]Truth{plan.True, plan.True, plan.False, plan.False, plan.Unknown, plan.Unknown}
 		return truthTestExpression{b.info(boolUsage, raw.Pos, child.Properties()), child, truth[index], index%2 == 1}, nil

@@ -151,12 +151,12 @@ func TestQuerySubqueryPresenceGraphRetention(t *testing.T) {
 				})
 			}
 		}
-		plan, err := presenceQueryPlan(q)
+		queryPlan, err := presenceQueryPlan(q)
 		if err != nil {
 			t.Fatal(err)
 		}
 		seen := false
-		for node := plan.Root; node != nil; node, _ = queryInputs(node) {
+		for node := queryPlan.Root; node != nil; node, _ = queryInputs(node) {
 			switch n := node.(type) {
 			case *aggregateNode:
 				seen = n.PresenceOnly && len(n.Keys) != 0 && !owner.(*aggregateNode).PresenceOnly
@@ -168,7 +168,7 @@ func TestQuerySubqueryPresenceGraphRetention(t *testing.T) {
 			t.Fatal("ignored analyzed graph lost or original mutated", sql)
 		}
 		state := queryState{source: source}
-		stage, err := openQueryProjectStage(context.Background(), &state, plan.Root.(*projectNode))
+		stage, err := openQueryProjectStage(context.Background(), &state, queryPlan.Root.(*projectNode))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -220,15 +220,15 @@ func TestQuerySubqueryPresenceProperties(t *testing.T) {
 			project.Child = &aggregateNode{Child: project.Child, Keys: []expr.Expr{probe}}
 		}
 		project.Expressions[0] = probe
-		plan, err := presenceQueryPlan(q)
+		queryPlan, err := presenceQueryPlan(q)
 		if err != nil {
 			t.Fatal(err)
 		}
-		properties := queryDemandProperties(plan.Root.(*projectNode), true)
+		properties := queryDemandProperties(queryPlan.Root.(*projectNode), true)
 		if properties.Volatility == expr.Volatile || properties.RowDependent {
 			t.Fatal("ignored graph polluted demand properties", properties)
 		}
-		nested := subqueryExpression{Kind: parser.SubqueryExists, QueryPlan: plan, PresenceOnly: true}
+		nested := subqueryExpression{Kind: parser.SubqueryExists, QueryPlan: queryPlan, PresenceOnly: true}
 		outer := &projectNode{Frame: 99, Child: &singletonNode{}, Expressions: []expr.Expr{nested}}
 		if properties := queryDemandProperties(outer, false); properties.Volatility == expr.Volatile || properties.RowDependent {
 			t.Fatal("nested ignored target polluted demand properties", properties)
@@ -239,14 +239,14 @@ func TestQuerySubqueryPresenceProperties(t *testing.T) {
 func TestQuerySubqueryPresenceRemap(t *testing.T) {
 	for _, sql := range []string{"SELECT abs(k) FROM a GROUP BY k", "SELECT DISTINCT k FROM a"} {
 		_, q, _ := queryJoinsFixture(t, sql)
-		plan, err := presenceQueryPlan(q)
+		queryPlan, err := presenceQueryPlan(q)
 		if err != nil {
 			t.Fatal(err)
 		}
 		original := q.Root.(*projectNode).Child
 		typ := q.Root.Schema()[0].Usage.Type
 		replacement := *typ
-		mapped, err := remapViewQuery(New().CatalogRead(), plan.Root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
+		mapped, err := remapViewQuery(New().CatalogRead(), queryPlan.Root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			if old == typ {
 				return &replacement
 			}
