@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
 
@@ -77,7 +78,7 @@ func (op *Operation) RoleState() authorization.RoleState {
 // AuthorizationView is statement-level authority. It embeds the captured
 // access.View and adds the session and statement inputs: the engine (for
 // identity checks and pass-throughs), the session settings and the path
-// inputs. Its Check, CanUse, CheckCreate, Effective and checkColumns are entry
+// inputs. Its Check, CanUse, CheckCreate, Effective and CheckColumns are entry
 // points that pass the view itself as the access.Environment.
 type AuthorizationView struct {
 	access.View
@@ -102,8 +103,25 @@ func (v AuthorizationView) CanUse(ref ids.ObjectRef) error     { return v.View.C
 func (v AuthorizationView) CheckCreate(ref ids.ObjectRef) error {
 	return v.View.CheckCreate(v, ref)
 }
-func (v AuthorizationView) checkColumns(b analyze.Binding, mask authorization.Privileges, indices []int) error {
-	return v.View.CheckColumns(v, b.Ref, b.Relation, mask, indices)
+func (v AuthorizationView) CheckColumns(ref ids.ObjectRef, relation *catalog.Relation, mask authorization.Privileges, indices []int) error {
+	return v.View.CheckColumns(v, ref, relation, mask, indices)
+}
+
+// WithCurrentUser returns the view running as principal, which also moves the
+// $user entry of its reference path. The principal is validated after the
+// switch, as every source and view layer check does.
+func (v AuthorizationView) WithCurrentUser(principal authorization.PrincipalRef) (AuthorizationView, error) {
+	v.State.CurrentUser = principal
+	return v, v.Roles.ValidatePrincipal(principal)
+}
+
+// CheckViewRowMarks checks the stored and inherited row marks of a view
+// source with the current user as invoker. Without either it checks nothing.
+func (v AuthorizationView) CheckViewRowMarks(relation *catalog.Relation, mark plan.RowMark) error {
+	if mark.Mode == 0 && !viewHasStoredRowMarks(relation, v.Catalog) {
+		return nil
+	}
+	return v.checkViewRowMarks(relation, mark, v.State.CurrentUser)
 }
 
 // TemporaryNamespace implements access.Environment: the session's own TEMP
@@ -230,7 +248,7 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 }
 func (v AuthorizationView) checkBinding(b analyze.Binding, stmt parser.Statement) error {
 	if b.ViewWrite != nil {
-		return v.checkViewWrite(b, stmt)
+		return v.CheckViewWrite(b, stmt)
 	}
 	switch stmt.(type) {
 	case *parser.Select, *parser.DeclareCursor, *parser.CreateQueryTable:
@@ -241,26 +259,26 @@ func (v AuthorizationView) checkBinding(b analyze.Binding, stmt parser.Statement
 	}
 	switch stmt.(type) {
 	case *parser.Insert:
-		if err := v.checkColumns(b, authorization.InsertPrivilege, b.Targets); err != nil {
+		if err := v.CheckColumns(b.Ref, b.Relation, authorization.InsertPrivilege, b.Targets); err != nil {
 			return err
 		}
 		if b.Insert.Conflict != nil && len(b.Insert.Conflict.Reads) != 0 {
-			if err := v.checkColumns(b, authorization.SelectPrivilege, b.Insert.Conflict.Reads); err != nil {
+			if err := v.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.Insert.Conflict.Reads); err != nil {
 				return err
 			}
 		}
 		if b.Insert.Conflict != nil && b.Insert.Conflict.Update != nil {
-			if err := v.checkColumns(b, authorization.UpdatePrivilege, b.Insert.Conflict.UpdateTargets); err != nil {
+			if err := v.CheckColumns(b.Ref, b.Relation, authorization.UpdatePrivilege, b.Insert.Conflict.UpdateTargets); err != nil {
 				return err
 			}
 			if len(b.Insert.Conflict.ActionReads) != 0 {
-				if err := v.checkColumns(b, authorization.SelectPrivilege, b.Insert.Conflict.ActionReads); err != nil {
+				if err := v.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.Insert.Conflict.ActionReads); err != nil {
 					return err
 				}
 			}
 		}
 		if b.Returning != nil && (b.Returning.ReadRequired || len(b.Returning.Reads) != 0) {
-			if err := v.checkColumns(b, authorization.SelectPrivilege, b.Returning.Reads); err != nil {
+			if err := v.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.Returning.Reads); err != nil {
 				return err
 			}
 		}
@@ -272,17 +290,17 @@ func (v AuthorizationView) checkBinding(b analyze.Binding, stmt parser.Statement
 			}
 		}
 		if b.Merge.HasInsert {
-			if err := v.checkColumns(b, authorization.InsertPrivilege, b.Merge.InsertTargets); err != nil {
+			if err := v.CheckColumns(b.Ref, b.Relation, authorization.InsertPrivilege, b.Merge.InsertTargets); err != nil {
 				return err
 			}
 		}
 		if len(b.Merge.UpdateTargets) != 0 {
-			if err := v.checkColumns(b, authorization.UpdatePrivilege, b.Merge.UpdateTargets); err != nil {
+			if err := v.CheckColumns(b.Ref, b.Relation, authorization.UpdatePrivilege, b.Merge.UpdateTargets); err != nil {
 				return err
 			}
 		}
 		if b.Merge.HasNothing || len(b.UsedColumns) != 0 || b.Returning != nil && b.Returning.ReadRequired {
-			if err := v.checkColumns(b, authorization.SelectPrivilege, b.UsedColumns); err != nil {
+			if err := v.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.UsedColumns); err != nil {
 				return err
 			}
 		}
@@ -292,23 +310,23 @@ func (v AuthorizationView) checkBinding(b analyze.Binding, stmt parser.Statement
 			return err
 		}
 		if len(b.UsedColumns) != 0 {
-			if err := v.checkColumns(b, authorization.SelectPrivilege, b.UsedColumns); err != nil {
+			if err := v.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.UsedColumns); err != nil {
 				return err
 			}
 		}
 		return v.checkQuerySources(b.QuerySources)
 	case *parser.Update:
-		if err := v.checkColumns(b, authorization.UpdatePrivilege, b.Targets); err != nil {
+		if err := v.CheckColumns(b.Ref, b.Relation, authorization.UpdatePrivilege, b.Targets); err != nil {
 			return err
 		}
 		if len(b.UsedColumns) != 0 {
-			if err := v.checkColumns(b, authorization.SelectPrivilege, b.UsedColumns); err != nil {
+			if err := v.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.UsedColumns); err != nil {
 				return err
 			}
 		}
 		return v.checkQuerySources(b.QuerySources)
 	default:
-		return v.checkColumns(b, authorization.SelectPrivilege, b.UsedColumns)
+		return v.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.UsedColumns)
 	}
 }
 
@@ -319,30 +337,30 @@ func (v AuthorizationView) checkQuerySources(sources []exec.Leaf) error {
 		}
 		sourceAuth := v
 		if source.Principal != (authorization.PrincipalRef{}) {
-			sourceAuth.State.CurrentUser = source.Principal
-			if err := sourceAuth.Roles.ValidatePrincipal(source.Principal); err != nil {
+			var err error
+			if sourceAuth, err = v.WithCurrentUser(source.Principal); err != nil {
 				return err
 			}
 		}
-		if err := sourceAuth.checkColumns(analyze.Binding{Ref: source.Ref, Relation: source.Relation}, authorization.SelectPrivilege, source.Uses); err != nil {
+		if err := sourceAuth.CheckColumns(source.Ref, source.Relation, authorization.SelectPrivilege, source.Uses); err != nil {
 			return err
 		}
 	}
 	for _, source := range sources {
 		sourceAuth := v
 		if source.Principal != (authorization.PrincipalRef{}) {
-			sourceAuth.State.CurrentUser = source.Principal
-			if err := sourceAuth.Roles.ValidatePrincipal(source.Principal); err != nil {
+			var err error
+			if sourceAuth, err = v.WithCurrentUser(source.Principal); err != nil {
 				return err
 			}
 		}
 		if exec.EffectiveQueryRowMark(source.Relation, source.Mark).Mode != 0 {
-			if err := sourceAuth.checkColumns(analyze.Binding{Ref: source.Ref, Relation: source.Relation}, authorization.UpdatePrivilege, nil); err != nil {
+			if err := sourceAuth.CheckColumns(source.Ref, source.Relation, authorization.UpdatePrivilege, nil); err != nil {
 				return err
 			}
 		}
-		if source.Relation.RelationKind == catalog.ViewRelation && (source.Mark.Mode != 0 || viewHasStoredRowMarks(source.Relation, v.Catalog)) {
-			if err := sourceAuth.checkViewRowMarks(source.Relation, source.Mark, sourceAuth.State.CurrentUser); err != nil {
+		if source.Relation.RelationKind == catalog.ViewRelation {
+			if err := sourceAuth.CheckViewRowMarks(source.Relation, source.Mark); err != nil {
 				return err
 			}
 		}

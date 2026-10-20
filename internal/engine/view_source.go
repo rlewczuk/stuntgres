@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -131,7 +130,7 @@ func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, defi
 		if err != nil {
 			return err
 		}
-		if err := auth.checkColumns(analyze.Binding{Ref: use, Relation: source}, authorization.SelectPrivilege, indices); err != nil {
+		if err := auth.CheckColumns(use, source, authorization.SelectPrivilege, indices); err != nil {
 			return err
 		}
 	}

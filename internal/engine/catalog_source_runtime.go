@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -104,7 +103,7 @@ func (r engineCatalogRuntime) Effective(ref ids.ObjectRef, owner bool) (authoriz
 }
 func (r engineCatalogRuntime) CanUse(ref ids.ObjectRef) error { return r.auth.CanUse(ref) }
 func (r engineCatalogRuntime) SelectColumns(ref ids.ObjectRef, relation *catalog.Relation) error {
-	return r.auth.checkColumns(analyze.Binding{Ref: ref, Relation: relation}, authorization.SelectPrivilege, nil)
+	return r.auth.CheckColumns(ref, relation, authorization.SelectPrivilege, nil)
 }
 func (r engineCatalogRuntime) ValidateParameter(view catalog.Read, d *catalog.Parameter) error {
 	return (parameterProvider{&r.engine.settings}).Validate(view, d)

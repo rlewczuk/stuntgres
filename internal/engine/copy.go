@@ -228,7 +228,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		auth, err = e.statementAuthorizationLocked(s.op, syntax)
 	}
 	if err == nil {
-		err = auth.checkColumns(b, authorization.InsertPrivilege, b.Targets)
+		err = auth.CheckColumns(b.Ref, b.Relation, authorization.InsertPrivilege, b.Targets)
 	}
 	if err == nil {
 		err = e.visibilityWriteLocked(s.txRef)
@@ -343,7 +343,7 @@ func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b analy
 	if syntax.From {
 		privilege = authorization.InsertPrivilege
 	}
-	err = auth.checkColumns(b, privilege, b.Targets)
+	err = auth.CheckColumns(b.Ref, b.Relation, privilege, b.Targets)
 	return
 }
 

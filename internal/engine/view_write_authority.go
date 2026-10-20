@@ -13,7 +13,7 @@ import (
 
 // Caller rights are checked on the original logical target. Each nested layer
 // then uses its current owner or the original invoker, never the outer owner.
-func (v AuthorizationView) checkViewWrite(b analyze.Binding, stmt parser.Statement) error {
+func (v AuthorizationView) CheckViewWrite(b analyze.Binding, stmt parser.Statement) error {
 	w := viewWriteOf(b.ViewWrite)
 	logical := w.logical
 	if err := v.checkBinding(logical, stmt); err != nil {
@@ -42,12 +42,11 @@ func (v AuthorizationView) checkViewWrite(b analyze.Binding, stmt parser.Stateme
 		if !ok || !sameRelationRowShape(source, layer.source) {
 			return ids.ErrCatalogReplaced
 		}
-		physical := analyze.Binding{Relation: source, Ref: layer.sourceRef}
 		if mask == authorization.DeletePrivilege {
 			if err := authority.Check(access.Requirement{Object: layer.sourceRef, Privileges: mask}); err != nil {
 				return err
 			}
-		} else if err := authority.checkColumns(physical, mask, layer.targets); err != nil {
+		} else if err := authority.CheckColumns(layer.sourceRef, source, mask, layer.targets); err != nil {
 			return err
 		}
 		for occurrence, leaf := range viewOf(current).sources {
@@ -79,8 +78,7 @@ func (v AuthorizationView) checkViewWrite(b analyze.Binding, stmt parser.Stateme
 					return ids.ErrCatalogReplaced
 				}
 			}
-			sourceBinding := analyze.Binding{Ref: use, Relation: relation}
-			if err := authority.checkColumns(sourceBinding, authorization.SelectPrivilege, indices); err != nil {
+			if err := authority.CheckColumns(use, relation, authorization.SelectPrivilege, indices); err != nil {
 				return err
 			}
 			if occurrence == layer.mainOccurrence {
@@ -88,7 +86,7 @@ func (v AuthorizationView) checkViewWrite(b analyze.Binding, stmt parser.Stateme
 			}
 			mark := viewLeafRowMark(viewOf(current), occurrence, plan.RowMark{})
 			if mark.Mode != 0 {
-				if err := authority.checkColumns(sourceBinding, authorization.UpdatePrivilege, nil); err != nil {
+				if err := authority.CheckColumns(use, relation, authorization.UpdatePrivilege, nil); err != nil {
 					return err
 				}
 			}
