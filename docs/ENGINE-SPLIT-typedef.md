@@ -109,7 +109,8 @@ Step 9b moved `conversion_descriptions.go`, `builtinCollationVersion` and
   ALTER TABLE records `inheritanceChildren`, `inheritanceColumnConflict`,
   `addedColumn`, `columnTransformation` (typed inheritance and typed
   mutation, postponed `table`/`inheritance` packages); `literalExpression`,
-  `coercionExpression` and `EvalContext` (step 10); `definitionReader`,
+  `coercionExpression` and `EvalContext` (step 10); `definitionReader` (now
+  `catalog.DefinitionReader`, 12d.2),
   `definitionDescriptorAt`, `definitionArrayAt` and the reg*/aclitem/regrole
   output and persistence formatters (`catalogLiteralWithACLAt`,
   `catalogTypeDeclarationAt`); `chooseAssociatedArrayName`,

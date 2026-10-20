@@ -190,7 +190,8 @@ for selected native, unchanged dual-mode reference and race commands.
 the docs commit). Differences from the list above, found by re-measuring:
 
 - `pgDependPinned` stays in the engine (`catalog_pinning.go`): it reads
-  unpublished definition state through `definitionReader`. Producers reach it
+  unpublished definition state through `definitionReader` (now
+  `catalog.DefinitionReader`, 12d.2). Producers reach it
   through `Runtime.Pinned`. No `Pinned` export.
 - Ten more `Runtime` methods: `ExpressionTree`, `ForeignKeyComparisons`,
   `ValidateType`, `TypeOutput`, `ObjectACL`, `ValidateACL` (so `access` is not

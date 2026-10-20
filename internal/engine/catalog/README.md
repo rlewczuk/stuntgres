@@ -118,6 +118,12 @@ standard library, and never the engine or its sibling `functions`. The lower
   the parser's smaller grammar); `TypeDiagnosticNameAt` names a type bare
   when the search path finds it first and schema-qualified otherwise. The
   engine and `access` share them.
+- **Definition reader** (`definition_reader.go`). `DefinitionReader` is the
+  sparse read that definition cooking uses to see a statement's unpublished,
+  ordered DROP effects (descriptors, name lookup, procedures by name, SQL
+  procedure names). It is not a catalog generation, an execution route or a
+  permission cache, and a reader is never persisted. The engine implements it
+  over a catalog stage, inheritance preparation and prepared drops.
 
 ## Invariants
 
@@ -149,7 +155,8 @@ DDL commands, `CatalogStage` and its publication coordination (storage row
 shapes, index candidates, domain validation, materialized replacement, role
 candidates), publication itself, the `catalogStore` allocators, seeding, the
 transaction catalog journal, and the validators that need engine services:
-relation, type, extension, procedure, operator and parameter validation
+relation, type, extension, procedure, operator and parameter validation, the
+`DefinitionReader` implementations
 (stored-SQL rendering, expression nodes, the operator inventory, settings
 definitions, extension implementations). Those register through the same
 `Provider` registry. The engine names the moved declarations directly

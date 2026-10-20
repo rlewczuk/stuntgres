@@ -246,7 +246,7 @@ DDL handlers live in `routine`. The checks in §8.3 pass.
     it avoided exporting anonymous-struct fields.
   - Not moved: `operator_dump.go` needs the engine's dump graph
     (`dumpEventKey`, `dumpPhase`, `dumpDomain`), type-declaration rendering
-    (`catalogTypeDeclaration` → `definitionReader`) and
+    (`catalogTypeDeclaration` → `definitionReader`, now `catalog.DefinitionReader` since 12d.2) and
     `routineIdentityByOID`; it waits for a dump seam. `routineAdmission*`
     records cannot move without their execution methods (step 11). The clean
     `sql_routine*.go` declarations are expression nodes or resolution (steps

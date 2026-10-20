@@ -421,7 +421,8 @@ Decisions:
    may run in parallel after 12d.2.
 2. **Authority (built in 12d.2).** `analyze` declares `Authority`, an
    interface with an exported marker method and `Catalog() catalog.Read` (the
-   only part of the authority the binder reads itself). The binder stores
+   only part of the authority the binder reads itself; built as
+   `ReadCatalog()`, see the 12d.2 result). The binder stores
    `*AuthorizationView` behind it (a pointer in an interface does not
    allocate); host methods take `analyze.Authority`, and the engine recovers
    the view with one checked helper. The binder's direct `definition*` and
@@ -551,6 +552,97 @@ and the 10d `keylit`).
   joined the shared subpackage bullet). racecheck/finalcheck skipped at user
   request.
 
+#### 12d.2 result
+
+Built at `fa25fc96c`. Tools and scripts:
+`.cswd/tmp/PG18-ENGINE-SPLIT-ANALYZE-SEAM-CUTS/` (new `ifacern`, which renames
+interface methods together with every implementation; new `bindernames`,
+which lists the names binder functions use; `fixcatalog.py`, which rewrote
+`.Catalog` on an `Authority` from compile-error positions), plus `fieldrn`
+and `unalias` (10d) and the 11a `reach`. `gopls` v0.21 cannot load the engine
+tests (Go 1.26 `new(expr)`), so the renames used the go/types tools.
+
+- **Definition reader** (`e0d90806f`): `definitionReader` became
+  `catalog.DefinitionReader`, not an `analyze` type: it needs only `catalog`
+  and `ids`, and root DDL and the Part B packages read through it.
+  `ifacern` exported its five methods on the interface and its five
+  implementations (stage, inheritance, prepared drop, identity drop, the
+  staged-lookup test reader), 83 sites; `unalias` qualified 39 uses.
+- **Lookup vocabulary** (`3ed685006`): `analyze.LookupKind` with seven
+  exported constants (121 uses in 54 files qualified) and
+  `analyze.NamespaceSelection{Path, Qualified}` with `Count` and `At`
+  (`fieldrn`, tests included). Aliases `lookupKind` and `namespaceSelection`.
+- **Captured inputs** (`f718185df`): `analyze.IdentifierTarget` and the
+  `RegtypeRetarget`, `OperatorRetarget`, `RoutineRetarget` and
+  `RegTSRetarget` interfaces (`captured_inputs.go`); the engine types
+  implement them in `captured_input_target.go`, each setting only the fields
+  its sites set (a nil sink keeps the captured one; text search has no
+  position). The routine and text-search inputs joined the planned regtype
+  and operator ones: the same files and pattern. The host's
+  `CaptureRegtypeInput` and `CaptureOperatorInput` became
+  `ResolveRegtypeText` and `ResolveOperatorText`, which resolve under a fresh
+  capture and return the sinks by value (capture errors raw, resolution
+  errors positioned as before), so nothing is boxed.
+- **Held inputs** (`48ea9b211`): `analyze.Expected` (`expected.go`), held by
+  value in the binder; `expectedOf` converts once in the root wrappers
+  (`newExpressionBinder`, `describeWithRule`, `describeScoped`,
+  `bindSQLRoutineLocked`). `describeWithFormals` and `newHostedBinder` take
+  it.
+- **Authority** (`9115279bd`): `analyze.Authority` is a marker and
+  `ReadCatalog()`: `AuthorizationView` embeds `access.View`, whose `Catalog`
+  field a `Catalog()` method would hide (about 1,400 root selectors).
+  `analysis_authority.go` holds the pointer-receiver markers, the root type
+  `bindingAuthorityView` (a binding authority: the stored view read through
+  the operation's definition reader), `authorityOf`, the strict
+  `authorizationOf` and the host's private `view`. `BindingAuthority`
+  replaces `Authorization` and converts the stored pointer instead of copying
+  the view; without a stored authority it boxes a fresh one (setting calls:
+  one allocation per statement in the probe). `BindingDefinition` replaces
+  `Definition`. New host methods: `DefinitionOf`, `CheckPrivilege`,
+  `CanUse`, `StagedTemporary`, `Roles`, `DefinitionStamp` (43 in all). The
+  statement-kind binders and `describeWithFormals` take an `Authority`;
+  `bindInsertDefaults` takes `catalog.Read` and `sqlCallableShape` the
+  catalog and reader. The binder's definition reads go through
+  `authorityDescriptor`, `authorityRelation`, `authorityNamespace` and
+  `authorityType` over the new root helpers `definitionRelationAt`,
+  `definitionNamespaceAt` and `definitionProceduresNamedAt`.
+- **Signature check** (`b7e9c8bd7`, found by `reach`): `checkExpectedLifetime`
+  built two `StatementDescription`s; the comparison now runs on a
+  `statementSignature` value and `checkStatementSignature` wraps it.
+- **Frontier.** `reach` (no god-type cut except `expressionBinder`): all 341
+  binder methods are clean (all 337 were dirty at `062d21ac7`). Of the binder
+  free functions only the root wrappers `describe` and `describeWithRule`
+  reach `AuthorizationView`.
+- **Tests.** New: `TestCapturedInputsRetargetOnlyTheirSinks`,
+  `TestExpectedOfCopiesHeldInputs`,
+  `TestBindingAuthorityOverlaysOperationDefinition`. Adapted mechanically:
+  four tests that assign `b.expected` use `expectedOf`
+  (`between_temporal_capture_test.go`, `jsonb_record_expression_test.go`,
+  `conversion_lookup_test.go`); `TestJSONBRecordArgumentIdentity` bumps the
+  binder's held epoch instead of the description's (it relied on the shared
+  pointer); two `sqlCallableShape` calls pass the catalog and reader;
+  `TestAnalysisHostWithoutOperation` reads `BindingDefinition(nil)`. No test
+  moved or deleted.
+- **Verification.** `make build` and `go vet` (identical to the base) after
+  every commit; targeted engine selections, `RACE=1` for the prepared tests;
+  `make quickcheck` passed (48 GB memory cap). `REFERENCE=1` for the step 12
+  selection plus regtype, regoperator, regproc, regclass, sequence, setting,
+  NOT NULL, SQL function, search path, composite and enum tests: only the
+  known `/postgres` drift failed (`TestReferenceDeleteReturningBoundaries`,
+  the four MERGE repeatable-read tests,
+  `TestReferenceCompositeExpr(Correlated)Returning`) plus
+  `TestReferenceNotNullFormsAndAlter` and
+  `TestReferenceNotNullCurrentCommandNamesAndCompatibleReuse` (PostgreSQL
+  55000), which fail the same way on master. Allocation probe through the
+  driver (direct and prepared SELECT with operators and functions, regtype,
+  regoperator and regprocedure literals, regclass and sequence, enum
+  comparison, CREATE TABLE … INHERITS): identical or one fewer allocation per
+  execution; `set_config` and `current_setting` one more (accepted at
+  planning). `make bench`, branch and master interleaved: 821–1,278 µs/op
+  against 847–1,251 µs/op, 5,014 allocs/op and about 1.64 MB/op on both.
+  `make deps`: module paths only. `AGENTS.md`: 100 lines before and after.
+  racecheck/finalcheck skipped at user request.
+
 ### 12e — Remove the aliases (broad)
 
 Use the alias tool; audit locals named `analyze`.
@@ -645,28 +737,42 @@ in §8.3 pass.
     `5ed818cdf`, then the docs commit; see the 12d.1 result). Selected
     dual-mode proof and quickcheck passed; racecheck and finalcheck skipped
     at user request.
-  - [ ] 12d.2 — binder seam cuts
+  - [x] 12d.2 — binder seam cuts (`e0d90806f`, `3ed685006`, `f718185df`,
+    `48ea9b211`, `9115279bd`, `b7e9c8bd7`, then the docs commit; see the
+    12d.2 result). Selected dual-mode proof and quickcheck passed;
+    racecheck and finalcheck skipped at user request.
   - [ ] 12d.3 — expression core preparation
   - [ ] 12d.4 — query, FROM and CTE preparation
   - [ ] 12d.5 — aggregates, windows and DML targets preparation
   - [ ] 12d.6 — binder moved
 - [ ] 12e — Aliases removed
 
-Outstanding aliases: the 32 binding type aliases in
-`internal/engine/analyze_aliases.go` (12d.1), including `ParameterInfo`,
-which the driver names as `engine.ParameterInfo`.
+Outstanding aliases: the 34 aliases in `internal/engine/analyze_aliases.go`:
+the 32 binding types (12d.1), including `ParameterInfo`, which the driver
+names as `engine.ParameterInfo`, and `lookupKind` and `namespaceSelection`
+(12d.2).
 
 Notes for later steps:
 
 - 12c: the host seam replaces only `engine` and `op`; `ctx`, `expected`,
   `input` and `dependencies` stay as statement inputs and output. The
   groups need no host: no group type holds `*Engine` or `*Operation`.
-- 12d.2: host signatures still name engine types that `analyze` cannot
-  import as they are: `AuthorizationView` (nearly every method),
-  `definitionReader`, `namespaceSelection`, `lookupKind`,
-  `capturedOperatorInput`, `capturedRegtypeInput`. The authority
-  representation is settled (refine decision 2); the captured inputs can be
-  returned as their `sqltype` interfaces where the binder only stores them.
+- 12d.3–12d.6, after 12d.2: binder methods reach no god type, but binder
+  files still name root types and helpers that `reach` counts as clean.
+  Re-run `frontier` for each area. Known: `scalarRenderer` and
+  `capturedACLItemOutput` (`bindCreateDefaults`, `default.go`),
+  `queryLockAdmission` and `ruleNamespace` (binder fields and the
+  `describeWithFormals` parameters), and pure root helpers
+  (`definition*At`, `statementCatalogType`, `refreshableTemporalCapture`,
+  `checkExpectedLifetime`/`checkSignature`, `regtypeInputError`).
+- 12d.6: `bindingAuthorityView`, `authorityOf`, `authorizationOf`,
+  `expectedOf` and `checkExpectedLifetime` stay in the root. Only the host
+  (`bindingHost.view`) interprets a binding authority; `describe`,
+  `describeWithRule`, `describeScoped` and `newExpressionBinder` are the root
+  wrappers that convert `AuthorizationView` and `*StatementDescription`.
+- Binders without a stored authority (setting calls, collation errors) box
+  a fresh view per `bindingAuthorization`; a binder-local cache would remove
+  it, but not provably without behavior change (12d.2 planning).
 - 12d.5 (DML targets): split `boundInsertConflict` into the bound clause,
   which moves to `analyze`, and its per-execution state (arbiters, catalog
   checkpoints, `insertWriteOverlay`), which stays in the engine; then
