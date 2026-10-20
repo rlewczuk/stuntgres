@@ -66,7 +66,7 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (expr.E
 	if err != nil {
 		return nil, err
 	}
-	return plan.CoercionExpr{info, query, coercion, sqltype.Assignment, false}, nil
+	return plan.CoercionExpr{Info: info, Child: query, Plan: coercion, Mode: sqltype.Assignment}, nil
 }
 func (c *EvalContext) subqueryJSONArray(e plan.SubqueryExpr, state *queryState, stage *indexedStage) (sqltype.Value, error) {
 	p := e.JSONArray

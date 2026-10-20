@@ -33,8 +33,8 @@ func TestDatetimeFormattingTypedConsumers(t *testing.T) {
 			t.Fatal(err)
 		}
 		node := functions.DatetimeFormatting{Info: expr.Info{Usage: result.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Plan: datetimeFormatPlan, Args: [2]expr.Expr{
-			plan.LiteralExpr{expr.Info{Usage: source.Usage()}, sqltype.Null(source)},
-			plan.LiteralExpr{expr.Info{Usage: text.Usage()}, sqltype.String(text, template)},
+			plan.LiteralExpr{Info: expr.Info{Usage: source.Usage()}, Value: sqltype.Null(source)},
+			plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, template)},
 		}}
 		if plannedVolatility(node) != expr.Stable || generationImmutable(node) {
 			t.Fatal("lost intrinsic STABLE classification", signature)
@@ -43,7 +43,7 @@ func TestDatetimeFormattingTypedConsumers(t *testing.T) {
 			t.Fatal("semantic identity lost", signature)
 		}
 		other := node
-		other.Args[1] = plan.LiteralExpr{expr.Info{Usage: text.Usage()}, sqltype.String(text, "MM")}
+		other.Args[1] = plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "MM")}
 		if b.sameGroupExpression(node, other) {
 			t.Fatal("template omitted from semantic identity", signature)
 		}

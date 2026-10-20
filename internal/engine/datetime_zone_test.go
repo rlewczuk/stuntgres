@@ -127,7 +127,7 @@ func TestDatetimeZoneStrictConstantNullAndPrecancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	expression := node.(functions.DatetimeZoneCalendar)
-	expression.Args[0] = plan.LiteralExpr{expr.InfoOf(expression.Args[0]), sqltype.Null(expression.Args[0].ResultUsage().Type)}
+	expression.Args[0] = plan.LiteralExpr{Info: expr.InfoOf(expression.Args[0]), Value: sqltype.Null(expression.Args[0].ResultUsage().Type)}
 	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	simplified, changed, err := preflightCoercions(ctx, expression)
 	if err != nil || !changed {

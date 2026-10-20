@@ -35,7 +35,7 @@ func TestStringCaseRetainedPlan(t *testing.T) {
 		node := functions.String{
 			Info: expr.Info{Usage: usage, CollationConflict: conflict},
 			Plan: stringPlan, Textual: [4]bool{true}, Syntax: parser.OrdinaryStringSyntax,
-			Args: []expr.Expr{plan.LiteralExpr{expr.Info{Usage: usage}, sqltype.String(text, "ß")}},
+			Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: sqltype.String(text, "ß")}},
 		}
 		rebound, changed, err := retagBoundTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			if d == text {
@@ -86,7 +86,7 @@ func TestStringCaseOnceOnlyChildAndMetadata(t *testing.T) {
 	node := functions.String{
 		Info: expr.Info{Usage: usage, Property: expr.Properties{Volatility: expr.Immutable, RowDependent: true}},
 		Plan: stringPlan, Textual: [4]bool{true}, Syntax: parser.OrdinaryStringSyntax,
-		Args: []expr.Expr{plan.LiteralExpr{expr.Info{Usage: usage}, sqltype.String(text, "İ")}},
+		Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: sqltype.String(text, "İ")}},
 	}
 	info, err := collatedInfo(New().CatalogRead(), expr.Info{Usage: usage}, node)
 	if err != nil || info.Usage.Collation.ID != 811 || info.CollationConflict {

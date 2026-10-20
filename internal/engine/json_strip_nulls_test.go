@@ -100,7 +100,7 @@ func TestJSONStripNullsBindingRetagRemap(t *testing.T) {
 		t.Fatal(mapped, err)
 	}
 	different := e
-	different.Args[1] = plan.LiteralExpr{b.info(b.typ(sqltype.Bool).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), sqltype.Boolean(b.typ(sqltype.Bool), false)}
+	different.Args[1] = plan.LiteralExpr{Info: b.info(b.typ(sqltype.Bool).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.Boolean(b.typ(sqltype.Bool), false)}
 	if sameGroupExpression(e, different) {
 		t.Fatal("group identity ignored Boolean formal")
 	}

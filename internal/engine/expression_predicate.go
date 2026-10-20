@@ -38,7 +38,7 @@ func (b *expressionBinder) nullTest(raw parser.Expr, pos parser.Position, not, w
 	if p, ok := child.(plan.ParameterExpr); ok && p.Usage.Type == nil {
 		b.params.anyParameters = append(b.params.anyParameters, p)
 	}
-	return plan.NullTestExpr{b.info(b.typ(sqltype.Bool).Usage(), pos, child.Properties()), child, not, whole}, nil
+	return plan.NullTestExpr{Info: b.info(b.typ(sqltype.Bool).Usage(), pos, child.Properties()), Child: child, Not: not, Whole: whole}, nil
 }
 
 func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expressionContext) (expr.Expr, error) {
@@ -68,10 +68,10 @@ func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expre
 			if err != nil {
 				return nil, err
 			}
-			child = plan.CoercionExpr{info, child, coercionPlan, sqltype.Implicit, false}
+			child = plan.CoercionExpr{Info: info, Child: child, Plan: coercionPlan, Mode: sqltype.Implicit}
 		}
 		truth := [...]plan.Truth{plan.True, plan.True, plan.False, plan.False, plan.Unknown, plan.Unknown}
-		return plan.TruthTestExpr{b.info(boolUsage, raw.Pos, child.Properties()), child, truth[index], index%2 == 1}, nil
+		return plan.TruthTestExpr{Info: b.info(boolUsage, raw.Pos, child.Properties()), Child: child, Truth: truth[index], Not: index%2 == 1}, nil
 	case parser.IsDistinct, parser.IsNotDistinct:
 		if left, ok := raw.Left.(parser.RowExpr); ok {
 			if right, ok := raw.Right.(parser.RowExpr); ok {
@@ -105,7 +105,7 @@ func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expre
 			return nil, err
 		}
 		equality := bound.(plan.ComparisonExpr)
-		return plan.DistinctExpr{equality.Info, equality.Left, equality.Right, equality.Predicate, raw.Kind == parser.IsNotDistinct}, nil
+		return plan.DistinctExpr{Info: equality.Info, Left: equality.Left, Right: equality.Right, Equality: equality.Predicate, Not: raw.Kind == parser.IsNotDistinct}, nil
 	default:
 		return nil, fmt.Errorf("stuntgres: invalid predicate kind")
 	}

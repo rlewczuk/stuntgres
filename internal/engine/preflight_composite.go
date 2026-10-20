@@ -18,7 +18,7 @@ func preflightComposite(c *EvalContext, node expr.Composite, decisiveDefaults bo
 		return node, false, nil
 	case expr.PreflightNullFirst:
 		if literalNullChild(node) {
-			return plan.LiteralExpr{foldedExpressionInfo(node), sqltype.Null(node.ResultUsage().Type)}, true, nil
+			return plan.LiteralExpr{Info: foldedExpressionInfo(node), Value: sqltype.Null(node.ResultUsage().Type)}, true, nil
 		}
 	}
 	mapped, changed, err := expr.MapSubstituted(node, func(child expr.Expr) (expr.Expr, bool, error) {

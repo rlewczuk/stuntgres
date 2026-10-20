@@ -153,7 +153,7 @@ func (b *expressionBinder) bindArrayBounds(raw []parser.ArraySubscript) ([]plan.
 		if err != nil {
 			return nil, expr.ErrorAt("42804", "array subscript must have type integer", parser.ExpressionStart(raw))
 		}
-		return plan.CoercionExpr{b.info(b.typ(sqltype.Int4).Usage(), node.SourcePosition(), coercionProperties(node, coercionPlan)), node, coercionPlan, sqltype.Assignment, false}, nil
+		return plan.CoercionExpr{Info: b.info(b.typ(sqltype.Int4).Usage(), node.SourcePosition(), coercionProperties(node, coercionPlan)), Child: node, Plan: coercionPlan, Mode: sqltype.Assignment}, nil
 	}
 	for i, s := range raw {
 		lower, err := bind(s.Lower)
@@ -165,7 +165,7 @@ func (b *expressionBinder) bindArrayBounds(raw []parser.ArraySubscript) ([]plan.
 			return nil, false, err
 		}
 		if subs != nil {
-			subs[i] = plan.BoundArraySubscript{lower, upper, s.Slice}
+			subs[i] = plan.BoundArraySubscript{Lower: lower, Upper: upper, Slice: s.Slice}
 		}
 		slice = slice || s.Slice
 	}
@@ -203,7 +203,7 @@ func (b *expressionBinder) bindSubscript(raw parser.SubscriptExpr) (expr.Expr, e
 	if err != nil {
 		return nil, err
 	}
-	return plan.SubscriptExpr{info, base, subs, slice}, nil
+	return plan.SubscriptExpr{Info: info, Base: base, Subscripts: subs, Slice: slice}, nil
 }
 
 func (r scalarRenderer) subscriptSQL(ctx context.Context, view catalog.Read, n plan.SubscriptExpr) (string, error) {

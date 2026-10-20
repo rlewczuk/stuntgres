@@ -25,9 +25,9 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 	boolInfo := b.info(boolType.Usage(), parser.Position{Character: 8}, expr.Properties{})
 	integer, _ := sqltype.Integer(intType, 1)
 	for _, v := range []sqltype.Value{sqltype.Null(intType), integer, sqltype.Null(boolType), sqltype.Boolean(boolType, true)} {
-		child := plan.LiteralExpr{b.info(v.Type().Usage(), parser.Position{}, expr.Properties{}), v}
+		child := plan.LiteralExpr{Info: b.info(v.Type().Usage(), parser.Position{}, expr.Properties{}), Value: v}
 		for _, not := range []bool{false, true} {
-			node := plan.NullTestExpr{boolInfo, child, not, false}
+			node := plan.NullTestExpr{Info: boolInfo, Child: child, Not: not}
 			got, err := node.Eval(evalContext)
 			want := v.IsNull() != not
 			truth, truthErr := plan.TruthOf(got)
@@ -38,9 +38,9 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 	}
 	matrix := [][]bool{{true, false, false, true, false, true}, {false, true, true, false, false, true}, {false, true, false, true, true, false}}
 	for i, v := range []sqltype.Value{sqltype.Boolean(boolType, true), sqltype.Boolean(boolType, false), sqltype.Null(boolType)} {
-		child := plan.LiteralExpr{boolInfo, v}
+		child := plan.LiteralExpr{Info: boolInfo, Value: v}
 		for j, truth := range []plan.Truth{plan.True, plan.True, plan.False, plan.False, plan.Unknown, plan.Unknown} {
-			node := plan.TruthTestExpr{boolInfo, child, truth, j%2 == 1}
+			node := plan.TruthTestExpr{Info: boolInfo, Child: child, Truth: truth, Not: j%2 == 1}
 			got, err := node.Eval(evalContext)
 			actual, truthErr := plan.TruthOf(got)
 			if err != nil || truthErr != nil || got.IsNull() || (actual == plan.True) != matrix[i][j] {
@@ -56,10 +56,10 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 	}
 	for i, a := range values {
 		for j, c := range values {
-			left := plan.LiteralExpr{b.info(intType.Usage(), parser.Position{}, expr.Properties{}), a}
-			right := plan.LiteralExpr{b.info(intType.Usage(), parser.Position{}, expr.Properties{}), c}
+			left := plan.LiteralExpr{Info: b.info(intType.Usage(), parser.Position{}, expr.Properties{}), Value: a}
+			right := plan.LiteralExpr{Info: b.info(intType.Usage(), parser.Position{}, expr.Properties{}), Value: c}
 			for _, not := range []bool{false, true} {
-				node := plan.DistinctExpr{boolInfo, left, right, equality, not}
+				node := plan.DistinctExpr{Info: boolInfo, Left: left, Right: right, Equality: equality, Not: not}
 				got, err := node.Eval(evalContext)
 				truth, truthErr := plan.TruthOf(got)
 				if err != nil || truthErr != nil || got.IsNull() || (truth == plan.True) != ((i != j) != not) {
@@ -73,8 +73,8 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 		t.Fatal("ordinary equality lost UNKNOWN", strict, err)
 	}
 	column := plan.ColumnExpr{Info: b.info(intType.Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Scope: 1, Frame: 1, Slot: 0}
-	parameter := plan.ParameterExpr{b.info(intType.Usage(), parser.Position{}, expr.Properties{ParameterDependent: true}), 1}
-	nodes := []expr.Expr{plan.NullTestExpr{boolInfo, column, false, false}, plan.TruthTestExpr{boolInfo, column, plan.True, false}, plan.DistinctExpr{boolInfo, column, parameter, equality, false}}
+	parameter := plan.ParameterExpr{Info: b.info(intType.Usage(), parser.Position{}, expr.Properties{ParameterDependent: true}), Number: 1}
+	nodes := []expr.Expr{plan.NullTestExpr{Info: boolInfo, Child: column}, plan.TruthTestExpr{Info: boolInfo, Child: column, Truth: plan.True}, plan.DistinctExpr{Info: boolInfo, Left: column, Right: parameter, Equality: equality}}
 	invalid := []*EvalContext{nil, {evalStatement: evalStatement{Context: evalContext.Context}, evalFrame: evalFrame{Scope: 2, Frame: 1, Row: []sqltype.Value{sqltype.Null(intType)}}}, {evalStatement: evalStatement{Context: evalContext.Context, Parameters: []sqltype.Value{integer}}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{{}}}}, {evalStatement: evalStatement{Context: evalContext.Context, Parameters: []sqltype.Value{integer}}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(boolType)}}}}
 	for _, node := range nodes {
 		for _, frame := range invalid {

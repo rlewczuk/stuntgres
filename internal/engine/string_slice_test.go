@@ -121,9 +121,9 @@ func TestStringSliceReconstructionAndIdentity(t *testing.T) {
 	one, _ := sqltype.Integer(integer, 1)
 	two, _ := sqltype.Integer(integer, 2)
 	args := []expr.Expr{
-		plan.LiteralExpr{expr.Info{Usage: text.Usage()}, sqltype.String(text, "Aé🙂Z")},
-		plan.LiteralExpr{expr.Info{Usage: integer.Usage()}, two},
-		plan.LiteralExpr{expr.Info{Usage: integer.Usage()}, one},
+		plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "Aé🙂Z")},
+		plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}, Value: two},
+		plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}, Value: one},
 	}
 	ordinary, err := b.stringNode("substring", text.Usage(), parser.Position{}, args, [4]bool{true}, parser.OrdinaryStringSyntax)
 	if err != nil {

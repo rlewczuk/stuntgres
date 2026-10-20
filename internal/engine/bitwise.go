@@ -200,7 +200,7 @@ func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right co
 			if err != nil {
 				return nil, err
 			}
-			n = plan.CoercionExpr{b.info(t.Usage(), n.SourcePosition(), n.Properties()), n, coercionPlan, sqltype.Implicit, false}
+			n = plan.CoercionExpr{Info: b.info(t.Usage(), n.SourcePosition(), n.Properties()), Child: n, Plan: coercionPlan, Mode: sqltype.Implicit}
 		}
 		return n, nil
 	}

@@ -64,7 +64,7 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectR
 		if _, ok := auth.definitionRelation(ref.Address); ok {
 			info.RegclassRef = ref
 		}
-		return plan.LiteralExpr{info, sqltype.String(typ, text)}, ref, nil
+		return plan.LiteralExpr{Info: info, Value: sqltype.String(typ, text)}, ref, nil
 	}
 	// This legacy provider also owns explicit REGCLASS annotations and sequence
 	// inputs. New contextual inquiry coercions must not widen its public boundary.
@@ -86,7 +86,7 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectR
 	if err != nil {
 		return nil, ids.ObjectRef{}, err
 	}
-	return plan.CoercionExpr{info, node, coercionPlan, sqltype.Implicit, false}, ids.ObjectRef{}, nil
+	return plan.CoercionExpr{Info: info, Child: node, Plan: coercionPlan, Mode: sqltype.Implicit}, ids.ObjectRef{}, nil
 }
 
 // Explicit casts share name input with sequence consumers but use the ordinary
@@ -115,7 +115,7 @@ func (b *expressionBinder) bindRegclassCast(raw parser.Expr, pos parser.Position
 	if child.ResultUsage() == target {
 		return child, nil
 	}
-	return plan.CoercionExpr{b.info(target, raw.SourcePosition(), coercionProperties(child, coercionPlan)), child, coercionPlan, sqltype.Explicit, false}, nil
+	return plan.CoercionExpr{Info: b.info(target, raw.SourcePosition(), coercionProperties(child, coercionPlan)), Child: child, Plan: coercionPlan, Mode: sqltype.Explicit}, nil
 }
 func sequenceInputError(err error, pos parser.Position, context string, parameter int) error {
 	if d, ok := err.(*sqlstate.Error); ok {

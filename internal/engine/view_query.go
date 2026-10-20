@@ -205,7 +205,7 @@ func storedProjectionDemand(project *plan.ProjectNode, uses []int) (*plan.Projec
 		if expressions == nil {
 			expressions = append([]expr.Expr(nil), project.Expressions...)
 		}
-		expressions[slot] = plan.LiteralExpr{expr.InfoOf(expression), sqltype.Null(expression.ResultUsage().Type)}
+		expressions[slot] = plan.LiteralExpr{Info: expr.InfoOf(expression), Value: sqltype.Null(expression.ResultUsage().Type)}
 	}
 	if expressions == nil {
 		return project, nil
@@ -378,7 +378,7 @@ func storedScheduledPayloadDemand(root plan.Node, retained func(func(expr.Expr))
 			if replacement == nil {
 				replacement = append([]expr.Expr(nil), expressions...)
 			}
-			replacement[i] = plan.LiteralExpr{expr.InfoOf(expression), sqltype.Null(expression.ResultUsage().Type)}
+			replacement[i] = plan.LiteralExpr{Info: expr.InfoOf(expression), Value: sqltype.Null(expression.ResultUsage().Type)}
 		}
 		if replacement == nil {
 			return node, nil

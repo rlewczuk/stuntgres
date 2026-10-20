@@ -159,8 +159,8 @@ func TestExprCollationRetagAuthority(t *testing.T) {
 	mappedRow.Comparisons = append([]plan.ComparisonExpr(nil), mappedRow.Comparisons...)
 	for i, pair := range mappedRow.Comparisons {
 		if i == 1 {
-			pair.Left = plan.LiteralExpr{expr.InfoOf(pair.Left), sqltype.String(pair.Left.ResultUsage().Type, "A")}
-			pair.Right = plan.LiteralExpr{expr.InfoOf(pair.Right), sqltype.String(pair.Right.ResultUsage().Type, "A")}
+			pair.Left = plan.LiteralExpr{Info: expr.InfoOf(pair.Left), Value: sqltype.String(pair.Left.ResultUsage().Type, "A")}
+			pair.Right = plan.LiteralExpr{Info: expr.InfoOf(pair.Right), Value: sqltype.String(pair.Right.ResultUsage().Type, "A")}
 		}
 		mappedRow.Comparisons[i] = pair
 	}

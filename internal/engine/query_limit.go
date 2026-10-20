@@ -57,7 +57,7 @@ func (b *expressionBinder) bindQueryBound(raw parser.Expr, clause string, litera
 		if err != nil {
 			return nil, expr.ErrorAt("42804", fmt.Sprintf("argument of %s must be type bigint, not type %s", clause, bound.ResultUsage().Type.DiagnosticName()), bound.SourcePosition())
 		}
-		bound = plan.CoercionExpr{b.info(usage, bound.SourcePosition(), coercionProperties(bound, coercionPlan)), bound, coercionPlan, sqltype.Assignment, false}
+		bound = plan.CoercionExpr{Info: b.info(usage, bound.SourcePosition(), coercionProperties(bound, coercionPlan)), Child: bound, Plan: coercionPlan, Mode: sqltype.Assignment}
 	}
 	if expressionUsesFrame(bound, b.frameID()) {
 		pos := firstQueryBoundFrameVariable(bound, b.frameID())

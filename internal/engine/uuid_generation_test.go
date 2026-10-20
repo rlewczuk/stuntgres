@@ -30,7 +30,7 @@ func TestUUIDGenerationBinderNullAndDemand(t *testing.T) {
 	}
 	uuid := b.typ(sqltype.UUID)
 	iv := b.typ(sqltype.Interval)
-	argument := plan.LiteralExpr{expr.Info{Usage: iv.Usage()}, sqltype.Null(iv)}
+	argument := plan.LiteralExpr{Info: expr.Info{Usage: iv.Usage()}, Value: sqltype.Null(iv)}
 	bound := functions.UUIDGeneration{Info: expr.Info{Usage: uuid.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "uuidv7", Args: []expr.Expr{argument}}
 	// Tree inspection, descriptor remapping and rendering do not evaluate a child.
 	stored, err := b.bind(nullCountRaw("uuidv7", parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "0"}}), expressionPolicy{context: projectionContext})

@@ -73,7 +73,7 @@ func (b *expressionBinder) bindDefault(raw parser.Expr, column catalog.Column) (
 			return nil, err
 		}
 		info.Property = coercionProperties(input, coercionPlan)
-		node = restoreDomainCastCollations(annotations, plan.CoercionExpr{info, input, coercionPlan, sqltype.Assignment, false})
+		node = restoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})
 	}
 	return storageDestination(node, column.Usage, parser.Position{})
 }

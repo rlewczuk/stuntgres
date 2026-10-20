@@ -137,7 +137,7 @@ func (b *expressionBinder) assignCompositeMember(node expr.Expr, target sqltype.
 	if err != nil {
 		return node, err
 	}
-	return plan.CoercionExpr{b.info(target, node.SourcePosition(), coercionProperties(node, coercionPlan)), node, coercionPlan, mode, true}, nil
+	return plan.CoercionExpr{Info: b.info(target, node.SourcePosition(), coercionProperties(node, coercionPlan)), Child: node, Plan: coercionPlan, Mode: mode, SyntheticConstructorElement: true}, nil
 }
 func (b *expressionBinder) selectCompositeField(base expr.Expr, name string, pos parser.Position) (expr.Expr, error) {
 	typ := base.ResultUsage().Type
@@ -191,12 +191,12 @@ func (b *expressionBinder) compositeFieldAt(base expr.Expr, index int, pos parse
 			}
 			column = value.ColumnExpr
 		default:
-			return plan.FieldExpr{b.info(member.Usage, pos, base.Properties()), base, member.Attribute, index}
+			return plan.FieldExpr{Info: b.info(member.Usage, pos, base.Properties()), Base: base, Attribute: member.Attribute, Index: index}
 		}
 		column.Pos = pos
 		return column
 	}
-	return plan.FieldExpr{b.info(member.Usage, pos, base.Properties()), base, member.Attribute, index}
+	return plan.FieldExpr{Info: b.info(member.Usage, pos, base.Properties()), Base: base, Attribute: member.Attribute, Index: index}
 }
 func (b *expressionBinder) retainedCompositeField(base expr.Expr, key preparedCompositeKey, captured compositeOccurrence, pos parser.Position) expr.Expr {
 	index, exists := base.ResultUsage().Type.BaseType().CompositeAttributeIndex(captured.attributes[0])
@@ -204,7 +204,7 @@ func (b *expressionBinder) retainedCompositeField(base expr.Expr, key preparedCo
 	if !exists {
 		oldIndex, _ := captured.base.Type.BaseType().CompositeAttributeIndex(captured.attributes[0])
 		usage := captured.base.Type.BaseType().CompositeMember(oldIndex).Usage
-		return plan.LiteralExpr{b.info(usage, pos, expr.Properties{}), sqltype.Null(usage.Type)}
+		return plan.LiteralExpr{Info: b.info(usage, pos, expr.Properties{}), Value: sqltype.Null(usage.Type)}
 	}
 	return b.compositeFieldAt(base, index, pos)
 }
@@ -278,7 +278,7 @@ func (b *expressionBinder) expandComposite(raw parser.FieldExpr) (plan.Composite
 			member := captured.base.Type.BaseType().CompositeMember(oldIndex)
 			result.Names[i] = member.Name
 			if !exists {
-				result.Fields[i] = plan.LiteralExpr{b.info(member.Usage, raw.Pos, expr.Properties{}), sqltype.Null(member.Usage.Type)}
+				result.Fields[i] = plan.LiteralExpr{Info: b.info(member.Usage, raw.Pos, expr.Properties{}), Value: sqltype.Null(member.Usage.Type)}
 				continue
 			}
 		} else {

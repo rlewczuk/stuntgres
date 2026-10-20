@@ -78,7 +78,7 @@ func (b *expressionBinder) ComparisonInfo(left, right expr.Expr) (expr.Info, err
 }
 
 func (b *expressionBinder) Literal(value sqltype.Value, pos parser.Position) expr.Expr {
-	return plan.LiteralExpr{b.info(value.Type().Usage(), pos, expr.Properties{Volatility: expr.Immutable}), value}
+	return plan.LiteralExpr{Info: b.info(value.Type().Usage(), pos, expr.Properties{Volatility: expr.Immutable}), Value: value}
 }
 
 func (b *expressionBinder) Context() context.Context { return b.ctx }

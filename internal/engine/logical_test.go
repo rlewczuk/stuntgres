@@ -139,7 +139,7 @@ func TestLogicalBindingDiagnosticsAndInvariants(t *testing.T) {
 	}
 	// Stage dependence is preserved from each child without any row-time allocation.
 	typ := b.typ(sqltype.Bool)
-	child := plan.LiteralExpr{expr.Info{Usage: typ.Usage(), Property: expr.Properties{StageDependent: true}}, sqltype.Boolean(typ, true)}
+	child := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{StageDependent: true}}, Value: sqltype.Boolean(typ, true)}
 	invalid := plan.LogicalExpr{Info: expr.Info{Usage: typ.Usage()}, Op: parser.LogicalOperator(99), Left: child, Right: child}
 	if _, err := invalid.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}); err == nil {
 		t.Fatal("invalid bound operator")

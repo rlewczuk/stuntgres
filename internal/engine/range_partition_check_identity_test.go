@@ -54,7 +54,7 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	binder := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
-	implicit := plan.CoercionExpr{binder.info(original.ResultUsage(), original.SourcePosition(), original.Properties()), original, coercionPlan, sqltype.Implicit, false}
+	implicit := plan.CoercionExpr{Info: binder.info(original.ResultUsage(), original.SourcePosition(), original.Properties()), Child: original, Plan: coercionPlan, Mode: sqltype.Implicit}
 	explicit := implicit
 	explicit.Mode = sqltype.Explicit
 	grouping := expressionBinder{}

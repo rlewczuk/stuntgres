@@ -109,7 +109,7 @@ func (b *expressionBinder) coerceConditional(o comparisonOperand, target sqltype
 		return nil, expr.ErrorAt("42846", fmt.Sprintf("%s could not convert type %s to %s", label, b.diagnosticTypeName(node.ResultUsage().Type), b.diagnosticTypeName(target.Type)), commonOperandStart(o))
 	}
 	info.Property = coercionProperties(input, coercionPlan)
-	return restoreDomainCastCollations(annotations, plan.CoercionExpr{info, input, coercionPlan, sqltype.Implicit, false}), nil
+	return restoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Implicit}), nil
 }
 func (b *expressionBinder) conditionalEquality(left, right comparisonOperand, pos parser.Position) (expr.Expr, expr.Expr, sqltype.Comparison, *catalog.Procedure, error) {
 	raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "="}}}, Pos: pos}
@@ -223,7 +223,7 @@ func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (expr.Exp
 			return nil, err
 		}
 	}
-	return plan.ConditionalExpr{info, raw.Kind, missingOrdering, args, comparison}, nil
+	return plan.ConditionalExpr{Info: info, Kind: raw.Kind, MissingOrdering: missingOrdering, Args: args, Comparison: comparison}, nil
 }
 
 // CASE compares the once-saved test datum through an implicit CaseTestExpr.
@@ -321,7 +321,7 @@ func (b *expressionBinder) bindCase(raw parser.CaseExpr) (expr.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	return plan.CaseExpr{info, test, arms, otherwiseNode}, nil
+	return plan.CaseExpr{Info: info, Test: test, Arms: arms, Otherwise: otherwiseNode}, nil
 }
 func conditionalName(raw parser.ConditionalExpr) string { return strings.ToLower(raw.Kind.String()) }
 

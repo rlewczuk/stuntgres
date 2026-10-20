@@ -125,7 +125,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 			return catalog.ColumnGeneration{}, diagnostic
 		}
 		info.Property = coercionProperties(input, coercionPlan)
-		node = restoreDomainCastCollations(annotations, plan.CoercionExpr{info, input, coercionPlan, sqltype.Assignment, false})
+		node = restoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})
 		analyzedInput, analyzedAnnotations := domainCoercionInput(analyzed, column.Usage)
 		analyzedInfo, failure := storageCoercionInfo(b.bindingCatalog(), b.info(column.Usage, parser.Position{}, analyzedInput.Properties()), analyzedInput)
 		if failure != nil {
@@ -136,7 +136,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 			return catalog.ColumnGeneration{}, failure
 		}
 		analyzedInfo.Property = coercionProperties(analyzedInput, analyzedPlan)
-		analyzed = restoreDomainCastCollations(analyzedAnnotations, plan.CoercionExpr{analyzedInfo, analyzedInput, analyzedPlan, sqltype.Assignment, false})
+		analyzed = restoreDomainCastCollations(analyzedAnnotations, plan.CoercionExpr{Info: analyzedInfo, Child: analyzedInput, Plan: analyzedPlan, Mode: sqltype.Assignment})
 	}
 	node, err = storageDestination(node, column.Usage, parser.Position{})
 	if err != nil {

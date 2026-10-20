@@ -182,7 +182,7 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.Args[1] = plan.CoercionExpr{b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), text, coercionPlan, sqltype.Explicit, false}
+	e.Args[1] = plan.CoercionExpr{Info: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Child: text, Plan: coercionPlan, Mode: sqltype.Explicit}
 	_, _, err = preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, e)
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "22007" {

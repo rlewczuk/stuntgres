@@ -204,7 +204,7 @@ func (e *Engine) completeAlterTypeLocked(scope *StatementScope, auth Authorizati
 		}
 	}
 	info.Property = coercionProperties(input, coercionPlan)
-	node = restoreDomainCastCollations(annotations, plan.CoercionExpr{info, input, coercionPlan, sqltype.Assignment, false})
+	node = restoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})
 	node, err = storageDestination(node, usage, info.Pos)
 	if err != nil {
 		return fail(err)
@@ -333,7 +333,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 			return fail(sqlError("42804", fmt.Sprintf(`default for column "%s" cannot be cast automatically to type %s`, a.Column.Text, usage.Type.DiagnosticName())))
 		}
 		info.Property = coercionProperties(input, defaultPlan)
-		expression = restoreDomainCastCollations(annotations, plan.CoercionExpr{info, input, defaultPlan, sqltype.Assignment, false})
+		expression = restoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: defaultPlan, Mode: sqltype.Assignment})
 		expression, err = storageDestination(expression, usage, info.Pos)
 		if err != nil {
 			return fail(err)

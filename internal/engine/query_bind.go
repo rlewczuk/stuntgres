@@ -680,7 +680,7 @@ func (b *expressionBinder) assignOutput(bound expr.Expr, target catalog.Column) 
 		b.prepared.regclassConcat = true
 	}
 	info.Property = coercionProperties(input, coercionPlan)
-	bound = restoreDomainCastCollations(annotations, plan.CoercionExpr{info, input, coercionPlan, sqltype.Assignment, false})
+	bound = restoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})
 	return storageDestination(bound, target.Usage, info.Pos)
 }
 

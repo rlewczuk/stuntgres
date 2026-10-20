@@ -63,7 +63,7 @@ func strictNullLiteral(node expr.Expr, strict expr.Strict) expr.Expr {
 	if strict == expr.StrictAfterBare {
 		return plan.LiteralExpr{Info: expr.Info{Usage: usage, Pos: node.SourcePosition()}, Value: sqltype.Null(usage.Type)}
 	}
-	return plan.LiteralExpr{foldedExpressionInfo(node), sqltype.Null(usage.Type)}
+	return plan.LiteralExpr{Info: foldedExpressionInfo(node), Value: sqltype.Null(usage.Type)}
 }
 
 // compositeConstantInputs reports whether a protocol node that planning may

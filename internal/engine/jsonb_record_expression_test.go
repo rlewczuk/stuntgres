@@ -245,8 +245,8 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 			Name: "jsonb_populate_record",
 		}
 		args := []expr.Expr{
-			plan.LiteralExpr{expr.Info{Usage: typ.Usage()}, sqltype.Null(typ)},
-			plan.LiteralExpr{expr.Info{Usage: jsonb.Usage()}, document},
+			plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: sqltype.Null(typ)},
+			plan.LiteralExpr{Info: expr.Info{Usage: jsonb.Usage()}, Value: document},
 		}
 		next, err := call.Reconstruct(call.Info, args)
 		if err != nil {

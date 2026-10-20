@@ -77,7 +77,7 @@ func TestDatetimeJustifyParameterAndStrictNull(t *testing.T) {
 			t.Fatal(err)
 		}
 		e := null.(functions.DatetimeJustify)
-		e.Arg = plan.LiteralExpr{expr.InfoOf(e), sqltype.Null(e.ResultUsage().Type)}
+		e.Arg = plan.LiteralExpr{Info: expr.InfoOf(e), Value: sqltype.Null(e.ResultUsage().Type)}
 		v, err := e.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		if err != nil || !v.IsNull() || v.Type() != e.ResultUsage().Type {
 			t.Fatal(v, err)

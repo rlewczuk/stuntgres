@@ -78,8 +78,8 @@ func TestStringCorePropertiesAndWalkers(t *testing.T) {
 	// Keep genuine owner retag/walker integration here; runtime demand is
 	// exercised locally by functions.TestStringRuntimeDemand.
 	node := functions.String{Info: expr.Info{Usage: text.Usage()}, Plan: stringPlan, Textual: [4]bool{true, true}, Args: []expr.Expr{
-		plan.LiteralExpr{expr.Info{Usage: text.Usage()}, sqltype.String(text, "a")},
-		plan.LiteralExpr{expr.Info{Usage: text.Usage()}, sqltype.String(text, "b")},
+		plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "a")},
+		plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "b")},
 	}}
 	var replacement *sqltype.Descriptor
 	for _, d := range sqltype.Builtins() {

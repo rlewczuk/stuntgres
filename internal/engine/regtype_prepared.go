@@ -213,7 +213,7 @@ func (b *expressionBinder) foldRegtypeConstant(child expr.Expr, coercionPlan sql
 	if !value.IsNull() {
 		if value.Type().ContainsRegproc() {
 			b.prepared.regtypeConstants = append(b.prepared.regtypeConstants, regtypeConstant{offset: info.Pos.Offset, typeID: value.Type().ID(), value: value})
-			return plan.LiteralExpr{info, value}, true, nil
+			return plan.LiteralExpr{Info: info, Value: value}, true, nil
 		}
 		if value.Type().ContainsRegObject() {
 			if err := b.recordRegObjectConstant(value, info.Pos); err != nil {
@@ -239,7 +239,7 @@ func (b *expressionBinder) foldRegtypeConstant(child expr.Expr, coercionPlan sql
 			b.prepared.regtypeConstants = append(b.prepared.regtypeConstants, constant)
 		}
 	}
-	return plan.LiteralExpr{info, value}, true, nil
+	return plan.LiteralExpr{Info: info, Value: value}, true, nil
 }
 
 func (b *expressionBinder) recordRegObjectConstant(value sqltype.Value, pos parser.Position) error {

@@ -53,7 +53,7 @@ func (b *expressionBinder) bindCycleMarks(raw *parser.CycleClause) (*plan.CycleR
 			coercionInfo := info
 			coercionInfo.Pos = node.SourcePosition()
 			coercionInfo.Property = coercionProperties(node, coercionPlan)
-			nodes[i] = plan.CoercionExpr{coercionInfo, node, coercionPlan, sqltype.Implicit, false}
+			nodes[i] = plan.CoercionExpr{Info: coercionInfo, Child: node, Plan: coercionPlan, Mode: sqltype.Implicit}
 		}
 	}
 	mark, otherwise = nodes[0], nodes[1]

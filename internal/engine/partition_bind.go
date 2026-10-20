@@ -197,7 +197,7 @@ func (p *pendingPartitionDefinition) bindPartitionDatum(scope *StatementScope, d
 			return nil, expr.ErrorAt("42804", fmt.Sprintf(`specified value cannot be cast to type %s for column "%s"`, key.Usage.Type.DiagnosticName(), key.Label), datum.Pos)
 		}
 		info.Property = coercionProperties(input, coercionPlan)
-		node = restoreDomainCastCollations(annotations, plan.CoercionExpr{info, input, coercionPlan, sqltype.Assignment, false})
+		node = restoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})
 	}
 	return storageDestination(node, key.Usage, node.SourcePosition())
 }

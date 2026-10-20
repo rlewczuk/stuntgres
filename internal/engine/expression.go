@@ -1080,7 +1080,7 @@ func (b *expressionBinder) finalizeProjection(node expr.Expr) (expr.Expr, error)
 }
 func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 	if b.clause.domainValueUsage != nil && len(raw.Name.Parts) == 1 && raw.Name.Parts[0].Text == "value" {
-		return plan.DomainValueExpr{b.info(*b.clause.domainValueUsage, raw.Pos, expr.Properties{DomainDependent: true})}, nil
+		return plan.DomainValueExpr{Info: b.info(*b.clause.domainValueUsage, raw.Pos, expr.Properties{DomainDependent: true})}, nil
 	}
 	if b.target.generatedOwner != nil {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
@@ -1089,7 +1089,7 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 		if qualified {
 			if name == "tableoid" {
 				ref := b.query.sources[0].ref
-				return plan.TableOIDExpr{b.info(b.typ(sqltype.Oid).Usage(), raw.Pos, expr.Properties{RowDependent: true}), ref}, nil
+				return plan.TableOIDExpr{Info: b.info(b.typ(sqltype.Oid).Usage(), raw.Pos, expr.Properties{RowDependent: true}), Owner: ref}, nil
 			}
 			if isSystemColumn(name) {
 				return nil, expr.ErrorAt("42P10", fmt.Sprintf(`cannot use system column "%s" in column generation expression`, name), raw.Pos)
@@ -1569,12 +1569,12 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 			if u.Type == nil {
 				b.params.parameters[r.Number] = sqltype.Usage{}
-				node = plan.ParameterExpr{expr.Info{Pos: r.Pos, Property: expr.Properties{ParameterDependent: true}}, r.Number}
+				node = plan.ParameterExpr{Info: expr.Info{Pos: r.Pos, Property: expr.Properties{ParameterDependent: true}}, Number: r.Number}
 			} else {
 				if err := b.constrain(r.Number, u, r.Pos); err != nil {
 					return nil, err
 				}
-				node = plan.ParameterExpr{b.info(u.Type.Usage(), r.Pos, expr.Properties{ParameterDependent: true}), r.Number}
+				node = plan.ParameterExpr{Info: b.info(u.Type.Usage(), r.Pos, expr.Properties{ParameterDependent: true}), Number: r.Number}
 			}
 		case parser.LiteralExpr:
 			v := r.Value
@@ -1630,7 +1630,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				literalUsage = u.BaseUsage()
 			}
 			info := b.info(literalUsage, v.Pos, expr.Properties{})
-			node = plan.LiteralExpr{info, value}
+			node = plan.LiteralExpr{Info: info, Value: value}
 			if literalUsage.Type.ID() == sqltype.Regclass && !value.IsNull() {
 				text, _ := value.Text()
 				oid, err := strconv.ParseUint(text, 10, 32)
@@ -1685,7 +1685,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				}
 			}
 			literalInfo := b.info(inputUsage, r.Pos, expr.Properties{})
-			node = plan.LiteralExpr{literalInfo, value}
+			node = plan.LiteralExpr{Info: literalInfo, Value: value}
 			if inputUsage != u {
 				coercionPlan, err := sqltype.PlanCoercion(inputUsage, u, sqltype.Explicit)
 				if err != nil {
@@ -1695,7 +1695,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				if err != nil {
 					return nil, err
 				}
-				node = plan.CoercionExpr{info, node, coercionPlan, sqltype.Explicit, false}
+				node = plan.CoercionExpr{Info: info, Child: node, Plan: coercionPlan, Mode: sqltype.Explicit}
 			}
 		case parser.CollateExpr:
 			child, err := b.bind(r.Child, policy)
@@ -1711,7 +1711,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 			info := b.info(usage, r.Pos, child.Properties())
 			info.CollationExplicit = r.Pos
-			node = plan.CollationExpr{info, child}
+			node = plan.CollationExpr{Info: info, Child: child}
 		case parser.CastExpr:
 			var err error
 			node, err = b.cast(r, policy)
@@ -1827,7 +1827,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 			node = restoreDomainCastCollations(annotations, folded)
 		} else {
-			node = restoreDomainCastCollations(annotations, plan.CoercionExpr{info, input, coercionPlan, policy.mode, false})
+			node = restoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: policy.mode})
 		}
 		if policy.context == assignmentContext {
 			var err error
@@ -2046,7 +2046,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	if folded, ok, err := b.foldRegtypeConstant(child, coercionPlan, info); ok || err != nil {
 		return restoreDomainCastCollations(annotations, folded), err
 	}
-	return restoreDomainCastCollations(annotations, plan.CoercionExpr{info, child, coercionPlan, sqltype.Explicit, false}), nil
+	return restoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: child, Plan: coercionPlan, Mode: sqltype.Explicit}), nil
 }
 
 func domainCoercionInput(child expr.Expr, target sqltype.Usage) (expr.Expr, expr.Expr) {
@@ -2091,7 +2091,7 @@ func storageDestination(node expr.Expr, target sqltype.Usage, pos parser.Positio
 		return nil, err
 	}
 	info := expr.Info{Usage: target, Pos: pos, Property: coercionProperties(node, coercionPlan)}
-	return plan.CoercionExpr{info, node, coercionPlan, sqltype.Assignment, false}, nil
+	return plan.CoercionExpr{Info: info, Child: node, Plan: coercionPlan, Mode: sqltype.Assignment}, nil
 }
 
 // Only a new domain conversion adds semantic authority before storage. Other
@@ -2583,7 +2583,7 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 			return nil, err
 		}
 		info.Property = coercionProperties(node, coercionPlan)
-		return plan.CoercionExpr{info, node, coercionPlan, sqltype.Implicit, false}, nil
+		return plan.CoercionExpr{Info: info, Child: node, Plan: coercionPlan, Mode: sqltype.Implicit}, nil
 	case functions.ConditionalArgument:
 		return b.coerceConditional(operand, request.Target, request.Label)
 	case functions.JSONFormattedArgument:
@@ -2592,7 +2592,7 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 		if err != nil {
 			return nil, err
 		}
-		return plan.CoercionExpr{info, node, request.Plan, sqltype.Explicit, false}, nil
+		return plan.CoercionExpr{Info: info, Child: node, Plan: request.Plan, Mode: sqltype.Explicit}, nil
 	case functions.BareFormalArgument:
 		node := argument.Expression
 		if node == nil || !request.Planned {
@@ -2602,7 +2602,7 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 		if request.PreserveProperties {
 			properties = node.Properties()
 		}
-		return plan.CoercionExpr{b.info(request.Target, argument.Raw.SourcePosition(), properties), node, request.Plan, sqltype.Implicit, false}, nil
+		return plan.CoercionExpr{Info: b.info(request.Target, argument.Raw.SourcePosition(), properties), Child: node, Plan: request.Plan, Mode: sqltype.Implicit}, nil
 	case functions.AssignmentFormalArgument:
 		if !b.clause.selectedCallArguments || argument.Expression == nil || argument.Usage.Type == nil {
 			return b.bind(argument.Raw, expressionPolicy{context: assignmentContext, expected: request.Target, mode: sqltype.Implicit})
@@ -2656,7 +2656,7 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 	if err != nil {
 		return nil, err
 	}
-	return plan.CoercionExpr{info, node, coercionPlan, sqltype.Implicit, false}, nil
+	return plan.CoercionExpr{Info: info, Child: node, Plan: coercionPlan, Mode: sqltype.Implicit}, nil
 }
 
 func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expressionPolicy) (comparisonOperand, error) {
@@ -2699,7 +2699,7 @@ func (b *expressionBinder) coerceParameter(p plan.ParameterExpr, u sqltype.Usage
 		return nil, d
 	}
 	b.params.parameters[p.Number] = u.Type.Usage()
-	return plan.ParameterExpr{b.info(u.Type.Usage(), p.Pos, p.Property), p.Number}, nil
+	return plan.ParameterExpr{Info: b.info(u.Type.Usage(), p.Pos, p.Property), Number: p.Number}, nil
 }
 
 func (b *expressionBinder) finalizeOperand(o comparisonOperand, typ *sqltype.Descriptor) (expr.Expr, error) {
@@ -2816,7 +2816,7 @@ func (b *expressionBinder) bindComparisonOperandCandidates(raw parser.OperatorEx
 			return nil, err
 		}
 	}
-	return plan.ComparisonExpr{info, l, r, predicate, name, namespace}, nil
+	return plan.ComparisonExpr{Info: info, Left: l, Right: r, Predicate: predicate, Operator: name, Namespace: namespace}, nil
 }
 
 // Strict arithmetic may erase a target-set subtree when a physical constant
@@ -2942,7 +2942,7 @@ func (b *expressionBinder) finishArithmetic(raw parser.OperatorExpr, left, right
 			if err != nil {
 				return nil, err
 			}
-			n = plan.CoercionExpr{info, n, coercionPlan, sqltype.Implicit, false}
+			n = plan.CoercionExpr{Info: info, Child: n, Plan: coercionPlan, Mode: sqltype.Implicit}
 		}
 		return n, nil
 	}
@@ -2993,5 +2993,5 @@ func (b *expressionBinder) finishArithmetic(raw parser.OperatorExpr, left, right
 	if err != nil {
 		return nil, err
 	}
-	return plan.ArithmeticExpr{info, l, r, provider, operator, namespace}, nil
+	return plan.ArithmeticExpr{Info: info, Left: l, Right: r, Provider: provider, Operator: operator, Namespace: namespace}, nil
 }

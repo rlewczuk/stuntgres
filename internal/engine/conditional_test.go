@@ -60,7 +60,7 @@ func TestConditionalRuntimeDemand(t *testing.T) {
 		t.Fatal(got, calls, err)
 	}
 	calls = [5]int{}
-	simple := plan.CaseExpr{Info: info, Test: spy(0, value), Arms: []plan.CaseBranch{{Condition: spy(1, other), Result: spy(2, other), TestPlan: coercionPlan, TestUsage: integer.Usage(), Equality: comparison}, {Condition: spy(3, value), Result: spy(4, value), TestPlan: coercionPlan, TestUsage: integer.Usage(), Equality: comparison}}, Otherwise: plan.LiteralExpr{info, other}}
+	simple := plan.CaseExpr{Info: info, Test: spy(0, value), Arms: []plan.CaseBranch{{Condition: spy(1, other), Result: spy(2, other), TestPlan: coercionPlan, TestUsage: integer.Usage(), Equality: comparison}, {Condition: spy(3, value), Result: spy(4, value), TestPlan: coercionPlan, TestUsage: integer.Usage(), Equality: comparison}}, Otherwise: plan.LiteralExpr{Info: info, Value: other}}
 	got, err = simple.Eval(ctx)
 	if err != nil || !reflect.DeepEqual(got, value) || calls != [5]int{1, 1, 0, 1, 1} {
 		t.Fatal(got, calls, err)
@@ -286,7 +286,7 @@ func TestConditionalTieRepresentationAndNameExecution(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, kind := range []parser.ConditionalKind{parser.Greatest, parser.Least} {
-		node := plan.ConditionalExpr{Info: info, Kind: kind, Args: []expr.Expr{plan.LiteralExpr{info, negative}, plan.LiteralExpr{info, positive}}, Comparison: comparison}
+		node := plan.ConditionalExpr{Info: info, Kind: kind, Args: []expr.Expr{plan.LiteralExpr{Info: info, Value: negative}, plan.LiteralExpr{Info: info, Value: positive}}, Comparison: comparison}
 		got, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		if err != nil {
 			t.Fatal(err)

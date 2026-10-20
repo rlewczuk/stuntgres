@@ -279,7 +279,7 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 			e.Args = args
 		}
 		if len(e.Args) == 0 {
-			return plan.LiteralExpr{e.Info, sqltype.Null(e.Usage.Type)}, true, nil
+			return plan.LiteralExpr{Info: e.Info, Value: sqltype.Null(e.Usage.Type)}, true, nil
 		}
 		expression = e
 	case plan.CollationExpr:
@@ -495,7 +495,7 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 		if err != nil {
 			return nil, false, err
 		}
-		return plan.LiteralExpr{foldedExpressionInfo(expression), value}, true, nil
+		return plan.LiteralExpr{Info: foldedExpressionInfo(expression), Value: value}, true, nil
 	}
 	return expression, changed, nil
 }

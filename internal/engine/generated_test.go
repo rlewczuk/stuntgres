@@ -102,7 +102,7 @@ func TestGeneratedPhysicalVolatilityAndTableOIDRemap(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	oid, _ := view.LookupType(sqltype.Oid)
 	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
-	leaf := plan.TableOIDExpr{expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, ref}
+	leaf := plan.TableOIDExpr{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: ref}
 	volatile := functions.Random{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "random"}
 	if generationImmutable(volatile) {
 		t.Fatal("volatile accepted")
@@ -131,7 +131,7 @@ func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
 	e, view, parent := generatedUnitDescriptor(t)
 	oid, _ := view.LookupType(sqltype.Oid)
 	owner := e.catalog.Domain.Ref(view.Epoch(), parent.Address())
-	original := plan.TableOIDExpr{expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, owner}
+	original := plan.TableOIDExpr{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: owner}
 	child := *parent
 	child.ObjectAddress.ObjectID++
 	mapper := createLikeInput{source: parent}
@@ -217,7 +217,7 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 	d.ObjectAddress.ObjectID = 26000
 	d.Columns[1].Usage = oid.Usage()
 	ref := e.catalog.Domain.Ref(view.Epoch()+1, d.Address())
-	leaf := plan.TableOIDExpr{expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, ref}
+	leaf := plan.TableOIDExpr{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: ref}
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: leaf, Planned: leaf}}
 	base, _ := sqltype.Integer(d.Columns[0].Usage.Type, 2)
 	oldOID, _ := sqltype.OIDValue(oid, uint32(oldAddress.ObjectID))
@@ -242,7 +242,7 @@ func TestGeneratedReplacementPrivateRowsAndCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	boolean, _ := view.LookupType(sqltype.Bool)
-	d.Constraints.Check = []catalog.CheckConstraint{{Name: "blocked", Expression: plan.LiteralExpr{expr.Info{Usage: boolean.Usage()}, sqltype.Boolean(boolean, false)}}}
+	d.Constraints.Check = []catalog.CheckConstraint{{Name: "blocked", Expression: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}}}
 	if err := recomputeRemappedGenerations(context.Background(), candidate, relations, mapping, EvalContext{evalStatement: evalStatement{Context: context.Background()}}, nil); err == nil {
 		t.Fatal("replacement ignored completed-row CHECK")
 	}

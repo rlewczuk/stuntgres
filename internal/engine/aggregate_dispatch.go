@@ -38,7 +38,7 @@ func (b *expressionBinder) aggregateReturning(raw parser.AggregateExpr, node exp
 		return nil, err
 	}
 	info.Property = coercionProperties(node, coercionPlan)
-	return plan.CoercionExpr{info, node, coercionPlan, sqltype.Assignment, false}, nil
+	return plan.CoercionExpr{Info: info, Child: node, Plan: coercionPlan, Mode: sqltype.Assignment}, nil
 }
 
 // valuesAggregateNamespace gives a call bound in INSERT ... VALUES, which has

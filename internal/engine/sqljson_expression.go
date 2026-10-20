@@ -38,5 +38,5 @@ func (b *expressionBinder) bindSQLJSON(raw parser.SQLJSONExpr) (expr.Expr, error
 	if err != nil {
 		return nil, err
 	}
-	return plan.CoercionExpr{info, node, coercionPlan, sqltype.Assignment, false}, nil
+	return plan.CoercionExpr{Info: info, Child: node, Plan: coercionPlan, Mode: sqltype.Assignment}, nil
 }

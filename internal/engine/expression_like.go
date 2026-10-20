@@ -168,7 +168,7 @@ func (b *expressionBinder) likeOperand(o comparisonOperand, target *sqltype.Desc
 	if err != nil {
 		return nil, err
 	}
-	return plan.CoercionExpr{info, node, coercionPlan, sqltype.Implicit, false}, nil
+	return plan.CoercionExpr{Info: info, Child: node, Plan: coercionPlan, Mode: sqltype.Implicit}, nil
 }
 
 func bindLike(b functions.Binder, raw parser.OperatorExpr) (expr.Expr, error) {
@@ -250,5 +250,5 @@ func bindLike(b functions.Binder, raw parser.OperatorExpr) (expr.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	return plan.LikeExpr{info, l, r, provider, operator, namespace}, nil
+	return plan.LikeExpr{Info: info, Left: l, Right: r, Provider: provider, Operator: operator, Namespace: namespace}, nil
 }

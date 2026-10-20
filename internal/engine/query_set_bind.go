@@ -119,7 +119,7 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 			coercionInfo := info
 			coercionInfo.Pos = node.SourcePosition()
 			coercionInfo.Property = coercionProperties(node, coercionPlan)
-			expression := plan.CoercionExpr{coercionInfo, node, coercionPlan, sqltype.Implicit, false}
+			expression := plan.CoercionExpr{Info: coercionInfo, Child: node, Plan: coercionPlan, Mode: sqltype.Implicit}
 			if side == 0 {
 				n.LeftExpressions[i] = expression
 			} else {
