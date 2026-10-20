@@ -187,7 +187,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	t.Run("pseudo_metadata_namespace", func(t *testing.T) {
 		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		binder.queryAuth = &auth
-		binder.ruleNamespace = &ruleNamespace{relation: src, ref: ruleUnitRef(e, src), event: "INSERT"}
+		binder.target.ruleNamespace = &ruleNamespace{relation: src, ref: ruleUnitRef(e, src), event: "INSERT"}
 		binder.queryFrame, binder.nextQueryFrame = 1, 1
 		statements, err := parser.Parse("SELECT NEW.id,NEW.v")
 		if err != nil {
@@ -232,7 +232,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	})
 	t.Run("generic_function_properties", func(t *testing.T) {
 		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		binder.ruleNamespace = &ruleNamespace{relation: src, ref: ruleUnitRef(e, src), event: "INSERT"}
+		binder.target.ruleNamespace = &ruleNamespace{relation: src, ref: ruleUnitRef(e, src), event: "INSERT"}
 		statements, err := parser.Parse("SELECT abs(NEW.v),random(1,2),format('%s',NEW.v)")
 		if err != nil {
 			t.Fatal(err)

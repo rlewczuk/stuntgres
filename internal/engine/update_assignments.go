@@ -14,11 +14,11 @@ import (
 // The caller owns namespace and clause ordering; UPDATE, MERGE and conflict
 // UPDATE share target, coercion and partial-assignment analysis.
 func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, assignments []parser.UpdateAssignment, u *boundUpdate) error {
-	wasUpdateParameters := binder.updateParameters
-	binder.updateParameters = true
+	wasUpdateParameters := binder.params.updateParameters
+	binder.params.updateParameters = true
 	defer func() {
-		binder.updateParameters = wasUpdateParameters
-		binder.updateInputParameters = nil
+		binder.params.updateParameters = wasUpdateParameters
+		binder.params.updateInputParameters = nil
 	}()
 	var err error
 	assignments, err = e.prepareUpdateAssignments(b, binder, assignments, u)
@@ -34,9 +34,9 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 				return expr.ErrorAt("0A000", fmt.Sprintf(`cannot assign to system column "%s"`, a.Target.Text), a.Target.Pos)
 			}
 			diagnostic := expr.ErrorAt("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Target.Text, b.relation.Name()), a.Target.Pos).(*sqlstate.Error)
-			visible := binder.targetName
-			if binder.targetAlias != "" {
-				visible = binder.targetAlias
+			visible := binder.target.name
+			if binder.target.alias != "" {
+				visible = binder.target.alias
 			}
 			if len(a.Steps) != 0 && a.Steps[0].Field != nil && a.Target.Text == visible {
 				diagnostic.Hint = "SET target columns cannot be qualified with the relation name."

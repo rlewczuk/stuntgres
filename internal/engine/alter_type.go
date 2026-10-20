@@ -85,11 +85,11 @@ func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth Authorizat
 		namespace = alterTypeNamespace(auth, original, ref)
 	}
 	binder := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
-	binder.relation, binder.ref, binder.noParameters, binder.queryAuth = original, ref, true, &auth
+	binder.target.relation, binder.target.ref, binder.params.noParameters, binder.queryAuth = original, ref, true, &auth
 	binder.queryNamespace = namespace
 	binder.querySources = []queryLeaf{{ref: ref, relation: original}}
 	node, err := binder.bind(action.Using, expressionPolicy{context: projectionContext, expected: usage.Type.Usage()})
-	if err == nil && (binder.regclassConcat || binder.catalogSnapshot) {
+	if err == nil && (binder.regclassConcat || binder.consumer.catalogSnapshot) {
 		err = e.captureCommentSnapshotLocked(scope)
 	}
 	return node, binder.dependencies, err

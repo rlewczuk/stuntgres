@@ -98,7 +98,7 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || value.Type() != nil {
 		t.Fatal("pi cancellation publication", value, err)
 	}
-	b.defaultConsumer = true
+	b.consumer.defaultConsumer = true
 	raw := statement(t, "SELECT pi()").(*parser.Select).Targets[0]
 	if _, err := b.bind(raw, expressionPolicy{context: projectionContext}); err == nil {
 		t.Fatal("widened default admission")

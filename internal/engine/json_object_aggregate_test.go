@@ -70,7 +70,7 @@ func TestJSONObjectAggregateSlotsAndDescriptors(t *testing.T) {
 	text, _ := e.CatalogRead().LookupType(sqltype.Text)
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	b.aggregateClause = "SELECT"
-	b.parameters[1], b.parameters[2] = text.Usage(), integer.Usage()
+	b.params.parameters[1], b.params.parameters[2] = text.Usage(), integer.Usage()
 	for _, name := range []string{"json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_object_agg"} {
 		raw := parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}}, Pos: parser.Position{Character: 8}}
 		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
@@ -101,7 +101,7 @@ func TestJSONObjectAggregateSlotsAndDescriptors(t *testing.T) {
 		t.Fatal("array/object slot collision")
 	}
 	schemaBinder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	schemaBinder.parameters[1], schemaBinder.parameters[2] = text.Usage(), integer.Usage()
+	schemaBinder.params.parameters[1], schemaBinder.params.parameters[2] = text.Usage(), integer.Usage()
 	targets := []parser.Expr{}
 	for _, name := range []string{"json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict"} {
 		targets = append(targets, parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}}})

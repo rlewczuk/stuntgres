@@ -30,8 +30,8 @@ func TestMathHyperbolicBinding(t *testing.T) {
 				if properties.Volatility != expr.Immutable || properties.RowDependent || properties.StageDependent || properties.ParameterDependent != (input == "$1") {
 					t.Fatal("immutable argument properties", properties)
 				}
-				if input == "$1" && b.parameters[1] != u {
-					t.Fatal("FLOAT8 parameter inference", b.parameters, u)
+				if input == "$1" && b.params.parameters[1] != u {
+					t.Fatal("FLOAT8 parameter inference", b.params.parameters, u)
 				}
 			})
 		}

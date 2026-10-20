@@ -215,10 +215,10 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (ex
 	if decoration != "" {
 		return nil, expr.ErrorAt("42809", decoration+" specified, but generate_series is "+message, raw.Pos)
 	}
-	if b.executeParameters {
+	if b.params.executeParameters {
 		return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in EXECUTE parameters", raw.Pos)
 	}
-	if b.policyConsumer && b.queryFrame == 0 {
+	if b.consumer.policyConsumer && b.queryFrame == 0 {
 		return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions")
 	}
 	if b.aggregateClause == "INSERT VALUES" {

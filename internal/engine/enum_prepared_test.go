@@ -105,7 +105,7 @@ func TestEnumPreparedParameterPrivateGeneration(t *testing.T) {
 	if err != nil || failure != nil {
 		t.Fatal(err, failure)
 	}
-	if node.ResultUsage().Type != typ || b.parameters[1].Type != typ || description.Parameters.Types[0].Type != old.SQLType || domainUnitType(t, e.CatalogRead(), "mood") != old {
+	if node.ResultUsage().Type != typ || b.params.parameters[1].Type != typ || description.Parameters.Types[0].Type != old.SQLType || domainUnitType(t, e.CatalogRead(), "mood") != old {
 		t.Fatal("private parameter refresh lost codec, immutable contract or published root")
 	}
 	stale := description

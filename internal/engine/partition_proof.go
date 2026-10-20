@@ -149,7 +149,7 @@ type partitionProof struct {
 }
 
 func partitionProofSame(a, b expr.Expr) bool {
-	binder := expressionBinder{checkDefinitionEquality: true}
+	binder := expressionBinder{consumer: consumerContext{checkDefinitionEquality: true}}
 	return binder.sameGroupExpression(a, b)
 }
 

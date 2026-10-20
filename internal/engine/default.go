@@ -41,9 +41,9 @@ func validateCookedDefaultTemporary(node expr.Expr, consumer ids.SessionToken) e
 func (b *expressionBinder) bindDefault(raw parser.Expr, column catalog.Column) (expr.Expr, error) {
 	// Recursive binding carries this consumer policy through Boolean and
 	// comparison children, preserving their ordinary diagnostic order.
-	previous := b.defaultConsumer
-	b.defaultConsumer = true
-	defer func() { b.defaultConsumer = previous }()
+	previous := b.consumer.defaultConsumer
+	b.consumer.defaultConsumer = true
+	defer func() { b.consumer.defaultConsumer = previous }()
 	inputUsage := column.Usage.Type.Usage()
 	if inputUsage.Type.ID() == sqltype.Interval {
 		inputUsage = column.Usage

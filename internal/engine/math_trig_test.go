@@ -46,8 +46,8 @@ func TestMathTrigBinding(t *testing.T) {
 				}
 				if args == "$1" || args == "$1,$2" {
 					for i := 1; i <= arity; i++ {
-						if b.parameters[i] != node.ResultUsage() {
-							t.Fatal("held inference", b.parameters)
+						if b.params.parameters[i] != node.ResultUsage() {
+							t.Fatal("held inference", b.params.parameters)
 						}
 					}
 				}

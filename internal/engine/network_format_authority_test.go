@@ -36,8 +36,8 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			binder := newExpressionBinder(context.Background(), e, input, admin, nil)
-			binder.queryAuth, binder.ref = &auth, ref
-			binder.relation = auth.Catalog.MustRelation(ref.Address)
+			binder.queryAuth, binder.target.ref = &auth, ref
+			binder.target.relation = auth.Catalog.MustRelation(ref.Address)
 			node, err := binder.bind(raw, expressionPolicy{context: projectionContext})
 			e.mu.Unlock()
 			if err != nil {
@@ -109,7 +109,7 @@ func TestNetworkFormatStrictParameterNull(t *testing.T) {
 	for _, expression := range []string{"text($1::inet)", "($1::inet)::text", "CAST($1::inet AS text)", "host($1::inet)", "abbrev($1::cidr)", "family($1::inet)", "masklen($1::inet)", "broadcast($1::inet)", "inet_same_family($1::inet,INET '::1')", "inet_same_family(INET '::1',$1::inet)"} {
 		t.Run(expression, func(t *testing.T) {
 			node, b, evaluation := strictNullUnitBind(t, e, op, scope, expression)
-			evaluation.Parameters = []sqltype.Value{sqltype.Null(b.parameters[1].Type)}
+			evaluation.Parameters = []sqltype.Value{sqltype.Null(b.params.parameters[1].Type)}
 			// No original routine manifest is available for computation. A known-NULL
 			// formal must prune without invoking/admitting the selected routine.
 			evaluation.routineChecks = []catalog.ExpressionDependency{}
@@ -121,7 +121,7 @@ func TestNetworkFormatStrictParameterNull(t *testing.T) {
 			if err != nil || !value.IsNull() || value.Type() != node.ResultUsage().Type || planned.Properties() != node.Properties() {
 				t.Fatal(value, err)
 			}
-			input, err := b.parameters[1].Type.Input(context.Background(), "::1", -1)
+			input, err := b.params.parameters[1].Type.Input(context.Background(), "::1", -1)
 			if err != nil {
 				t.Fatal(err)
 			}

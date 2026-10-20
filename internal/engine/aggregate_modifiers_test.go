@@ -125,8 +125,8 @@ func TestAggregateModifiersParameterTargets(t *testing.T) {
 		call := b.aggregates[expression.(aggregateExpression).slot]
 		if parameters.Count != 1 || parameters.Types[0].Type.ID() != sqltype.Text ||
 			call.argument.ResultUsage().Type.ID() != sqltype.Text ||
-			call.order[0].slot != 0 || call.order[0].cache != 0 || len(b.anyParameters) != 0 {
-			t.Fatal(query, parameters, call, b.anyParameters)
+			call.order[0].slot != 0 || call.order[0].cache != 0 || len(b.params.anyParameters) != 0 {
+			t.Fatal(query, parameters, call, b.params.anyParameters)
 		}
 	}
 }

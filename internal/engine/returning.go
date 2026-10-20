@@ -83,9 +83,9 @@ func (e returningColumnExpression) Eval(ctx expr.Context) (sqltype.Value, error)
 
 func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMode) (*boundReturning, error) {
 	aliases := returningAliases{old: "old", new: "new", mode: mode}
-	visible := b.targetName
-	if b.targetAlias != "" {
-		visible = b.targetAlias
+	visible := b.target.name
+	if b.target.alias != "" {
+		visible = b.target.alias
 	}
 	aliases.target = visible
 	var seenOld, seenNew bool
@@ -136,9 +136,9 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 			}
 		}
 	}
-	previous, clause := b.returningAliases, b.aggregateClause
-	b.returningAliases, b.aggregateClause = &aliases, "RETURNING"
-	defer func() { b.returningAliases, b.aggregateClause = previous, clause }()
+	previous, clause := b.target.returningAliases, b.aggregateClause
+	b.target.returningAliases, b.aggregateClause = &aliases, "RETURNING"
+	defer func() { b.target.returningAliases, b.aggregateClause = previous, clause }()
 	output := &boundReturning{}
 	appendOutput := func(expression expr.Expr, name string) {
 		descriptor := catalog.Column{Name: name, Usage: expression.ResultUsage()}
@@ -147,13 +147,13 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 			if b.queryNamespace != nil {
 				descriptor = b.queryNamespace.frame[column.slot]
 			} else {
-				descriptor = b.relation.Columns[column.slot]
+				descriptor = b.target.relation.Columns[column.slot]
 			}
 			if column.mergeSource {
 				descriptor.Nullable, descriptor.NullabilityKnown = true, true
 			}
 		case returningColumnExpression:
-			descriptor = b.relation.Columns[column.slot]
+			descriptor = b.target.relation.Columns[column.slot]
 			if mode == returningMerge || column.absent || column.old && mode == returningInsert {
 				descriptor.Nullable, descriptor.NullabilityKnown = true, true
 			}
@@ -177,7 +177,7 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 		if star, ok := expression.(parser.StarExpr); ok {
 			if b.queryNamespace != nil {
 				if newValues, pseudo := b.returningPseudo(star.Qualifier); pseudo {
-					for slot, column := range b.relation.Columns {
+					for slot, column := range b.target.relation.Columns {
 						appendOutput(b.returningColumnAt(slot, star.Pos, newValues), column.Name)
 					}
 				} else {
@@ -212,7 +212,7 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 			if err != nil {
 				return nil, err
 			}
-			for slot, column := range b.relation.Columns {
+			for slot, column := range b.target.relation.Columns {
 				appendOutput(b.returningColumnAt(slot, star.Pos, newValues), column.Name)
 			}
 		} else if field, ok := expression.(parser.FieldExpr); ok && field.Expansion {
@@ -253,38 +253,38 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 		output.schema[i].Usage = expr.ResultUsage()
 		output.regclassOutput = output.regclassOutput || expr.ResultUsage().Type.ContainsCatalogIdentifier()
 	}
-	output.visibilitySnapshot = b.visibilitySnapshot
+	output.visibilitySnapshot = b.consumer.visibilitySnapshot
 	return output, nil
 }
 
 func (b *expressionBinder) returningQualifier(name parser.ObjectName, pos parser.Position) (bool, error) {
 	if len(name.Parts) == 0 {
-		return b.returningAliases.mode != returningDelete, nil
+		return b.target.returningAliases.mode != returningDelete, nil
 	}
-	visible := b.targetName
-	if b.targetAlias != "" {
-		visible = b.targetAlias
+	visible := b.target.name
+	if b.target.alias != "" {
+		visible = b.target.alias
 	}
 	label := name.Parts[len(name.Parts)-1].Text
 	if len(name.Parts) == 1 {
 		if label == visible {
-			return b.returningAliases.mode != returningDelete, nil
+			return b.target.returningAliases.mode != returningDelete, nil
 		}
-		if label == b.returningAliases.old {
+		if label == b.target.returningAliases.old {
 			return false, nil
 		}
-		if label == b.returningAliases.new {
+		if label == b.target.returningAliases.new {
 			return true, nil
 		}
-	} else if len(name.Parts) == 2 && b.targetAlias == "" && label == b.targetName {
-		namespace := b.engine.catalog.state.Get(b.relation.Namespace())
+	} else if len(name.Parts) == 2 && b.target.alias == "" && label == b.target.name {
+		namespace := b.engine.catalog.state.Get(b.target.relation.Namespace())
 		if namespace != nil && name.Parts[0].Text == namespace.Name() {
-			return b.returningAliases.mode != returningDelete, nil
+			return b.target.returningAliases.mode != returningDelete, nil
 		}
 	}
-	if label == b.targetName && b.targetAlias != "" {
+	if label == b.target.name && b.target.alias != "" {
 		err := expr.ErrorAt("42P01", fmt.Sprintf(`invalid reference to FROM-clause entry for table "%s"`, label), pos).(*sqlstate.Error)
-		err.Hint = fmt.Sprintf(`Perhaps you meant to reference the table alias "%s".`, b.targetAlias)
+		err.Hint = fmt.Sprintf(`Perhaps you meant to reference the table alias "%s".`, b.target.alias)
 		return false, err
 	}
 	return false, expr.ErrorAt("42P01", fmt.Sprintf(`missing FROM-clause entry for table "%s"`, label), pos)
@@ -292,17 +292,17 @@ func (b *expressionBinder) returningQualifier(name parser.ObjectName, pos parser
 
 func (b *expressionBinder) returningColumnAt(slot int, pos parser.Position, newValues bool) expr.Expr {
 	column := b.columnAt(slot, pos).(columnExpression)
-	if b.returningAliases.mode == returningMerge {
+	if b.target.returningAliases.mode == returningMerge {
 		side := mergeOldSide
 		if newValues {
 			side = mergeNewSide
 		}
 		return returningColumnExpression{columnExpression: column, old: !newValues, merge: true, side: side}
 	}
-	if !newValues && b.returningAliases.mode != returningDelete {
+	if !newValues && b.target.returningAliases.mode != returningDelete {
 		return returningColumnExpression{columnExpression: column, old: true}
 	}
-	if newValues && b.returningAliases.mode == returningDelete {
+	if newValues && b.target.returningAliases.mode == returningDelete {
 		return returningColumnExpression{columnExpression: column, absent: true}
 	}
 	return column
@@ -313,10 +313,10 @@ func (b *expressionBinder) returningPseudo(name parser.ObjectName) (newValues, p
 		return false, false
 	}
 	label := name.Parts[0].Text
-	if b.returningAliases.old != "" && label == b.returningAliases.old {
+	if b.target.returningAliases.old != "" && label == b.target.returningAliases.old {
 		return false, true
 	}
-	if b.returningAliases.new != "" && label == b.returningAliases.new {
+	if b.target.returningAliases.new != "" && label == b.target.returningAliases.new {
 		return true, true
 	}
 	return false, false
@@ -328,21 +328,21 @@ func (b *expressionBinder) returningColumn(raw parser.ColumnExpr) (expr.Expr, er
 		return nil, fmt.Errorf("stuntgres: column outside expression scope")
 	}
 	if len(parts) == 1 {
-		_, column := b.relation.Index[parts[0].Text]
+		_, column := b.target.relation.Index[parts[0].Text]
 		if b.queryNamespace != nil {
 			for _, candidate := range b.queryNamespace.columns {
 				column = column || candidate.descriptor.Name == parts[0].Text
 			}
 		}
 		if !column {
-			if expr, found, err := b.returningWholeRow(parts[0].Text, b.relation, b.frameID(), b.returningAliases, raw.Pos); found {
+			if expr, found, err := b.returningWholeRow(parts[0].Text, b.target.relation, b.frameID(), b.target.returningAliases, raw.Pos); found {
 				return expr, err
 			}
 		}
 		_, pseudo := b.returningPseudo(raw.Name)
-		visible := b.targetName
-		if b.targetAlias != "" {
-			visible = b.targetAlias
+		visible := b.target.name
+		if b.target.alias != "" {
+			visible = b.target.alias
 		}
 		if !column && (pseudo || parts[0].Text == visible) {
 			return b.wholeRow(raw.Name, raw.Pos, true)
@@ -358,7 +358,7 @@ func (b *expressionBinder) returningColumn(raw parser.ColumnExpr) (expr.Expr, er
 		return nil, err
 	}
 	name := parts[len(parts)-1].Text
-	slot, ok := b.relation.Index[name]
+	slot, ok := b.target.relation.Index[name]
 	if !ok {
 		if len(parts) > 1 {
 			return nil, expr.ErrorAt("42703", fmt.Sprintf("column %s.%s does not exist", parts[len(parts)-2].Text, name), raw.Pos)

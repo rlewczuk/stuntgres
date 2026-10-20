@@ -627,7 +627,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 				usage.Collation = sqltype.CollationRef{ID: 950}
 			}
 			b.aggregateClause = "SELECT"
-			b.parameters[1] = usage
+			b.params.parameters[1] = usage
 			position := parser.Position{Character: 8}
 			var key parser.Expr = parser.ParameterExpr{Number: 1, Pos: position}
 			if tc.explicit {

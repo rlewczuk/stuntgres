@@ -26,7 +26,7 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	equality := expressionBinder{checkDefinitionEquality: true}
+	equality := expressionBinder{consumer: consumerContext{checkDefinitionEquality: true}}
 	for _, test := range []struct {
 		expression string
 		equal      bool

@@ -104,7 +104,7 @@ func TestCompareOpsUnknownOccurrenceConflict(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	p := parameterExpression{Info: expr.Info{Pos: parser.Position{Character: 8}, Property: expr.Properties{ParameterDependent: true}}, number: 1}
-	b.parameters[1] = b.typ(sqltype.Int4).Usage()
+	b.params.parameters[1] = b.typ(sqltype.Int4).Usage()
 	_, err := b.coerceParameter(p, b.typ(sqltype.Text).Usage())
 	state(t, err, "42P08")
 	// A concrete occurrence never invokes unknown coercion or assignment policy.
@@ -114,8 +114,8 @@ func TestCompareOpsUnknownOccurrenceConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := node.(comparisonExpression)
-	if c.left.ResultUsage().Type.ID() != sqltype.Int4 || c.right.ResultUsage().Type.ID() != sqltype.Int8 || b.parameters[1].Type.ID() != sqltype.Int4 {
-		t.Fatal(c, b.parameters)
+	if c.left.ResultUsage().Type.ID() != sqltype.Int4 || c.right.ResultUsage().Type.ID() != sqltype.Int8 || b.params.parameters[1].Type.ID() != sqltype.Int4 {
+		t.Fatal(c, b.params.parameters)
 	}
 }
 

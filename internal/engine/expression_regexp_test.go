@@ -208,7 +208,7 @@ func TestRegexpScalarViewPrefix(t *testing.T) {
 		t.Run(sql, func(t *testing.T) {
 			e := New()
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-			b.noParameters = true
+			b.params.noParameters = true
 			raw := statement(t, sql).(*parser.Select)
 			e.mu.Lock()
 			auth, err := e.authorizationLocked(b.op)

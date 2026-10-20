@@ -43,8 +43,8 @@ func TestStringEncodingFormalBinding(t *testing.T) {
 		if n.Plan.ArgumentUsage(slot).Type.ID() != tc.formal || n.ResultUsage().Type.ID() != tc.result || n.Properties().Volatility != expr.Immutable || n.Plan.SessionDependent() {
 			t.Fatal("formal role/properties", tc, n)
 		}
-		if tc.parameter != 0 && (b.parameters[tc.parameter].Type.ID() != tc.formal || !n.Properties().ParameterDependent) {
-			t.Fatal("parameter source contract", tc, b.parameters)
+		if tc.parameter != 0 && (b.params.parameters[tc.parameter].Type.ID() != tc.formal || !n.Properties().ParameterDependent) {
+			t.Fatal("parameter source contract", tc, b.params.parameters)
 		}
 		if slot == 1 && n.Args[slot].ResultUsage().Type.ID() != tc.formal {
 			t.Fatal("formal conversion was not bound", tc, n.Args[slot])

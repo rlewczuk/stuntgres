@@ -178,7 +178,7 @@ func TestSQLRoutineOriginalArgumentRecipes(t *testing.T) {
 	if err != nil || !issue.UnsupportedArithmetic {
 		t.Fatal("private carrier concealed native syntax boundary", issue, err)
 	}
-	if len(b.parameters) != 0 {
+	if len(b.params.parameters) != 0 {
 		t.Fatal("private carrier entered public parameter namespace")
 	}
 }
@@ -236,7 +236,7 @@ func TestSQLRoutineWindowCallShapeTargets(t *testing.T) {
 			if candidate.inputs[0].Type.ID() != 5077 || candidate.inputs[2].Type.ID() != 5077 {
 				t.Fatal("resolved targets replaced declared ranking identities")
 			}
-			if len(b.parameters) != 0 {
+			if len(b.params.parameters) != 0 {
 				t.Fatal("applicability inferred public parameters")
 			}
 		})

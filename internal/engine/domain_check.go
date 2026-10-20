@@ -95,7 +95,7 @@ func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth
 		b := newExpressionBinder(ctx, e, input, op, nil)
 		b.queryAuth = &auth
 		b.queryNamespace = &queryNamespace{}
-		b.checkConsumer, b.noParameters = true, true
+		b.consumer.checkConsumer, b.params.noParameters = true, true
 		base := d.SQLType.DomainBase()
 		b.domainValueUsage = &base
 		node, err := b.bindBoolean(check.Expression, projectionContext, "CHECK")

@@ -32,8 +32,8 @@ func TestMathScalarBinding(t *testing.T) {
 				t.Fatal(node.ResultUsage())
 			}
 			for i, id := range tc.parameters {
-				if b.parameters[i+1].Type == nil || b.parameters[i+1].Type.ID() != id {
-					t.Fatal("parameter contract", b.parameters)
+				if b.params.parameters[i+1].Type == nil || b.params.parameters[i+1].Type.ID() != id {
+					t.Fatal("parameter contract", b.params.parameters)
 				}
 			}
 		})

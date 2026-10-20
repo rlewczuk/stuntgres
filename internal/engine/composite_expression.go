@@ -454,32 +454,32 @@ func (b *expressionBinder) expandComposite(raw parser.FieldExpr) (compositeExpan
 // asValue distinguishes an alias value (bare name or scalar star) from the
 // exposed-column expansion used by a top-level qualified star or ROW(alias.*).
 func (b *expressionBinder) wholeRow(name parser.ObjectName, pos parser.Position, asValue bool) (expr.Expr, error) {
-	if b.ruleNamespace != nil && len(name.Parts) == 1 && (name.Parts[0].Text == "old" || name.Parts[0].Text == "new") {
+	if b.target.ruleNamespace != nil && len(name.Parts) == 1 && (name.Parts[0].Text == "old" || name.Parts[0].Text == "new") {
 		row, _, err := b.ruleColumn(parser.ColumnExpr{Name: name, Pos: pos})
 		return row, err
 	}
-	if b.returningAliases != nil && len(name.Parts) == 1 {
-		if expr, found, err := b.returningWholeRow(name.Parts[0].Text, b.relation, b.frameID(), b.returningAliases, pos); found {
+	if b.target.returningAliases != nil && len(name.Parts) == 1 {
+		if expr, found, err := b.returningWholeRow(name.Parts[0].Text, b.target.relation, b.frameID(), b.target.returningAliases, pos); found {
 			return expr, err
 		}
 		_, pseudo := b.returningPseudo(name)
-		visible := b.targetName
-		if b.targetAlias != "" {
-			visible = b.targetAlias
+		visible := b.target.name
+		if b.target.alias != "" {
+			visible = b.target.alias
 		}
 		if pseudo || name.Parts[0].Text == visible {
 			newValues, err := b.returningQualifier(name, pos)
 			if err != nil {
 				return nil, err
 			}
-			fields := make([]expr.Expr, len(b.relation.Columns))
+			fields := make([]expr.Expr, len(b.target.relation.Columns))
 			props := expr.Properties{}
 			for i := range fields {
 				fields[i] = b.returningColumnAt(i, pos, newValues)
 				props = expr.MergeProperties(props, fields[i].Properties())
 			}
-			typ, _ := b.definitionType(b.relation.RowType)
-			return rowExpression{Info: b.info(typ.Usage(), pos, props), fields: fields, returningWhole: true, returningNull: b.returningAliases.mode == returningDelete && newValues}, nil
+			typ, _ := b.definitionType(b.target.relation.RowType)
+			return rowExpression{Info: b.info(typ.Usage(), pos, props), fields: fields, returningWhole: true, returningNull: b.target.returningAliases.mode == returningDelete && newValues}, nil
 		}
 	}
 	if scope, newValues := b.outerReturningScope(name); scope != nil {

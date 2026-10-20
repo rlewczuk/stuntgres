@@ -233,14 +233,14 @@ func (b *expressionBinder) completeJSONObjectAggregateInput(node expr.Expr) (exp
 	if err != nil {
 		return nil, err
 	}
-	for i, prior := range b.anyParameters {
+	for i, prior := range b.params.anyParameters {
 		if prior.number != p.number || prior.Pos != p.Pos {
 			continue
 		}
-		copy(b.anyParameters[i:], b.anyParameters[i+1:])
-		last := len(b.anyParameters) - 1
-		b.anyParameters[last] = parameterExpression{}
-		b.anyParameters = b.anyParameters[:last]
+		copy(b.params.anyParameters[i:], b.params.anyParameters[i+1:])
+		last := len(b.params.anyParameters) - 1
+		b.params.anyParameters[last] = parameterExpression{}
+		b.params.anyParameters = b.params.anyParameters[:last]
 		break
 	}
 	return resolved, nil

@@ -9,16 +9,16 @@ import (
 // Mutation target columns retain independent physical write/read authority.
 // Exposed source columns follow them; source-internal ON expressions stay local.
 func (b *expressionBinder) mutationTargetNamespace() queryNamespace {
-	columns := make([]queryColumn, len(b.relation.Columns))
-	for i, descriptor := range b.relation.Columns {
+	columns := make([]queryColumn, len(b.target.relation.Columns))
+	for i, descriptor := range b.target.relation.Columns {
 		columns[i] = queryColumn{descriptor: descriptor, slot: i, leaf: queryTargetLeaf, physical: i}
 	}
-	name := b.targetName
-	if b.targetAlias != "" {
-		name = b.targetAlias
+	name := b.target.name
+	if b.target.alias != "" {
+		name = b.target.alias
 	}
-	qualifier := queryQualifier{name: name, original: b.targetName, alias: b.targetAlias, ref: b.ref, columns: columns, schema: b.queryAuth.Catalog.Get(b.relation.Namespace()).Name(), lateralForbidden: true}
-	return queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: b.relation.Columns}
+	qualifier := queryQualifier{name: name, original: b.target.name, alias: b.target.alias, ref: b.target.ref, columns: columns, schema: b.queryAuth.Catalog.Get(b.target.relation.Namespace()).Name(), lateralForbidden: true}
+	return queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: b.target.relation.Columns}
 }
 
 // Namespace lookup and role privileges precede physical storage admission.

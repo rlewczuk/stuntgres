@@ -31,7 +31,7 @@ func (b *expressionBinder) bindExtensionPaths(raw parser.FunctionExpr, arg expr.
 	if err != nil {
 		return nil, err
 	}
-	b.catalogSnapshot, b.regclassConcat = true, true
+	b.consumer.catalogSnapshot, b.regclassConcat = true, true
 	return extensionPathsExpression{info, arg}, nil
 }
 func (n extensionPathsExpression) validate() error {

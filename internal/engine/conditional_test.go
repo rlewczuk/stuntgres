@@ -307,7 +307,7 @@ func TestConditionalTieRepresentationAndNameExecution(t *testing.T) {
 		{"CASE $1 WHEN 'same' THEN $1 ELSE 'other' END", "same", false},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		b.parameters[1] = name.Usage()
+		b.params.parameters[1] = name.Usage()
 		raw := statement(t, "SELECT "+tc.expr+" FROM t").(*parser.Select).Targets[0]
 		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
 		if err != nil {
@@ -355,7 +355,7 @@ func TestConditionalTieRepresentationAndNameExecution(t *testing.T) {
 	} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		for number := 1; number <= 3; number++ {
-			b.parameters[number] = wrapped.Usage()
+			b.params.parameters[number] = wrapped.Usage()
 		}
 		raw := statement(t, "SELECT "+tc.expr+" FROM t").(*parser.Select).Targets[0]
 		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
@@ -387,7 +387,7 @@ func TestConditionalTieRepresentationAndNameExecution(t *testing.T) {
 func TestConditionalStoredDefaultRetagProviders(t *testing.T) {
 	source, target := New(), New()
 	b := newTestExpressionBinder(t, context.Background(), source, sqltype.InputEnvironment{}, nil)
-	b.defaultConsumer = true
+	b.consumer.defaultConsumer = true
 	raw := statement(t, "SELECT CASE 2147483648 WHEN 2147483648 THEN COALESCE(NULL,NULLIF(2147483649,2147483650)) ELSE GREATEST(2147483651,2147483652) END FROM t").(*parser.Select).Targets[0]
 	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
 	if err != nil {
@@ -453,7 +453,7 @@ func TestConditionalEnumStoredExtremaRetagProviders(t *testing.T) {
 	bind := func(e *Engine, expression string) expr.Expr {
 		t.Helper()
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-		b.defaultConsumer = true
+		b.consumer.defaultConsumer = true
 		raw := statement(t, "SELECT "+expression+" FROM t").(*parser.Select).Targets[0]
 		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
 		if err != nil {

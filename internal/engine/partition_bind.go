@@ -11,13 +11,13 @@ import (
 )
 
 func (b *expressionBinder) partitionContextPlural() string {
-	if b.partitionConsumer == "partition key expression" {
+	if b.consumer.partitionConsumer == "partition key expression" {
 		return "partition key expressions"
 	}
-	return b.partitionConsumer
+	return b.consumer.partitionConsumer
 }
 func (b *expressionBinder) partitionExpressionError(code, message string, pos parser.Position) error {
-	if b.partitionConsumer == "partition key expression" {
+	if b.consumer.partitionConsumer == "partition key expression" {
 		return sqlError(code, message)
 	}
 	return expr.ErrorAt(code, message, pos)
@@ -63,7 +63,7 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *cat
 			}
 			namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: d.Name(), original: d.Name(), schema: auth.Catalog.Get(d.Namespace()).Name(), ref: ref, columns: columns}}, frame: d.Columns}
 			binder := newExpressionBinder(op.Context(), e, input, op, nil)
-			binder.partitionConsumer, binder.noParameters, binder.queryAuth = "partition key expression", true, &auth
+			binder.consumer.partitionConsumer, binder.params.noParameters, binder.queryAuth = "partition key expression", true, &auth
 			binder.queryNamespace = &namespace
 			binder.querySources = []queryLeaf{{ref: ref, relation: d}}
 			node, err := binder.bind(r.Expression, expressionPolicy{context: projectionContext})
@@ -179,8 +179,8 @@ func (p *pendingPartitionDefinition) bindPartitionDatum(scope *StatementScope, d
 	}
 	binder := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
 	binder.queryAuth = &p.auth
-	binder.noParameters = true
-	binder.partitionConsumer = "partition bound"
+	binder.params.noParameters = true
+	binder.consumer.partitionConsumer = "partition bound"
 	node, err := binder.bind(datum.Expression, expressionPolicy{context: projectionContext, expected: key.Usage.Type.Usage()})
 	if err != nil {
 		return nil, err

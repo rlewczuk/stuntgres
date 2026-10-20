@@ -45,7 +45,7 @@ func TestArrayCompareDiagnosticPrecedence(t *testing.T) {
 		t.Fatal(err)
 	}
 	node := bound.(scalarArrayComparisonExpression)
-	if node.left.ResultUsage().Type.ID() != 23 || node.items[0].ResultUsage().Type.ID() != 20 || b.parameters[1].Type.ID() != 23 {
-		t.Fatal("batch erased established scalar signature", node.left.ResultUsage(), node.items[0].ResultUsage(), b.parameters)
+	if node.left.ResultUsage().Type.ID() != 23 || node.items[0].ResultUsage().Type.ID() != 20 || b.params.parameters[1].Type.ID() != 23 {
+		t.Fatal("batch erased established scalar signature", node.left.ResultUsage(), node.items[0].ResultUsage(), b.params.parameters)
 	}
 }

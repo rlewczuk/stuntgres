@@ -113,20 +113,20 @@ func (owner argumentWindowOwner) nestingError() error {
 }
 
 func (b *expressionBinder) windowAllowed(pos parser.Position) error {
-	if b.policyConsumer && b.queryFrame == 0 {
+	if b.consumer.policyConsumer && b.queryFrame == 0 {
 		return expr.ErrorAt("42P20", "window functions are not allowed in policy expressions", pos)
 	}
-	if b.partitionConsumer != "" {
+	if b.consumer.partitionConsumer != "" {
 		return b.partitionExpressionError("42P20", "window functions are not allowed in "+b.partitionContextPlural(), pos)
 	}
 	clause := b.aggregateClause
-	if b.checkConsumer {
+	if b.consumer.checkConsumer {
 		clause = "check constraints"
-	} else if b.indexPredicateConsumer {
+	} else if b.consumer.indexPredicateConsumer {
 		clause = "index predicates"
-	} else if b.indexConsumer {
+	} else if b.consumer.indexConsumer {
 		clause = "index expressions"
-	} else if b.defaultConsumer {
+	} else if b.consumer.defaultConsumer {
 		clause = "DEFAULT expressions"
 	}
 	if clause == "window definitions" || clause == "window RANGE" || clause == "window GROUPS" || clause == "window ROWS" {
@@ -415,7 +415,7 @@ func (b *expressionBinder) resolveWindowDefinitions() error {
 			return err
 		}
 		spec.definition = definitionIndex + 1
-		if b.noParameters || b.materializedDefinition {
+		if b.params.noParameters || b.consumer.materializedDefinition {
 			ordinal := 0
 			path := viewLiteralPath{query: b.frameID(), clause: viewWindowLiteral, target: definitionIndex}
 			for i, key := range definition.Spec.Partition {

@@ -154,7 +154,7 @@ func TestAlterTypeCheckResolvedLiteralCapture(t *testing.T) {
 				t.Fatal("missing private literal transport", pending)
 			}
 			binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
-			binder.checkConsumer, binder.noParameters, binder.checkLiterals = true, true, pending.literals
+			binder.consumer.checkConsumer, binder.params.noParameters, binder.checkLiterals = true, true, pending.literals
 			for i, literal := range pending.literals {
 				if literal.ResultUsage().Type.ID() != tc.id || literal.value.IsNull() != (i == 1) {
 					t.Fatal("lost concrete/NULL usage", i, literal)
@@ -164,7 +164,7 @@ func TestAlterTypeCheckResolvedLiteralCapture(t *testing.T) {
 					t.Fatal("re-input/coercion changed captured literal", i, node, literal, err)
 				}
 			}
-			if len(binder.parameters) != 0 || len(binder.uses) != 0 || len(binder.anyParameters) != 0 {
+			if len(binder.params.parameters) != 0 || len(binder.target.uses) != 0 || len(binder.params.anyParameters) != 0 {
 				t.Fatal("transport leaked into parameter inference", binder)
 			}
 			for _, number := range []int{0, -1, 3} {

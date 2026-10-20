@@ -469,9 +469,9 @@ func (e *Engine) describeScoped(scope *StatementScope, stmt parser.Statement, au
 func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription, admission *queryLockAdmission, rule *ruleNamespace, closed bool, initial ...[]sqltype.Usage) (binding, error) {
 	b := binding{}
 	binder := newExpressionBinder(ctx, e, input, op, expected)
-	binder.ruleNamespace = rule
-	binder.noParameters = rule != nil
-	binder.closedRoutineFormals = closed
+	binder.target.ruleNamespace = rule
+	binder.params.noParameters = rule != nil
+	binder.params.closedRoutineFormals = closed
 	if len(initial) != 0 && initial[0] != nil {
 		binder.seedParameters(initial[0])
 	}
@@ -506,12 +506,12 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 		}
 		view = s
 		stmt = s.Query
-		binder.noParameters = true
+		binder.params.noParameters = true
 		b.commandQuery = true
 	}
 	if s, ok := stmt.(*parser.CreateQueryTable); ok {
 		materialized = s.Form == parser.CreateMaterializedView
-		binder.materializedDefinition = materialized
+		binder.consumer.materializedDefinition = materialized
 		stmt = s.Query
 		b.commandQuery = true
 	}
@@ -776,8 +776,8 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 			return b, pgcatalog.VirtualViewWriteError(b.relation, "delete", nil)
 		}
 	}
-	b.usedColumns, b.dependencies = binder.uses, binder.dependencies
-	b.visibilitySnapshot = binder.visibilitySnapshot
+	b.usedColumns, b.dependencies = binder.target.uses, binder.dependencies
+	b.visibilitySnapshot = binder.consumer.visibilitySnapshot
 	b.subqueryDemand = binder.subqueryDemand
 	b.capture = viewCapture{
 		literals:          binder.viewLiterals,

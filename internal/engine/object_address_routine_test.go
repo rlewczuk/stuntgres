@@ -190,7 +190,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 			}
 			evaluation.routineChecks = binder.dependencies
 			if tc.parameter {
-				evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.parameters[1].Type)}
+				evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.params.parameters[1].Type)}
 			}
 			originalCalls := append([]expr.Expr(nil), source.calls...)
 			originalSchema := append(querySchema(nil), source.querySchema...)
@@ -241,7 +241,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 				}
 				cursor.Close()
 				if tc.parameter {
-					value, err := sqltype.OIDValue(binder.parameters[1].Type, 1247)
+					value, err := sqltype.OIDValue(binder.params.parameters[1].Type, 1247)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -296,7 +296,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 	}{{"preflight", preflightCoercionsWithPolicy}, {"conditional", simplifyConditional}} {
 		t.Run("domain_sibling_"+planner.name, func(t *testing.T) {
 			node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "($1::integer)+(NULL::strict_null_checked)::integer")
-			evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.parameters[1].Type)}
+			evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.params.parameters[1].Type)}
 			if !node.Properties().RuntimeDomainConversion {
 				t.Fatal("fixture lost genuine domain-conversion sibling")
 			}
@@ -338,8 +338,8 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 	}
 	for _, text := range []string{"pg_describe_object(NULL,23,0)", "pg_describe_object($1::oid,23,0)", "pg_describe_object($1::oid,23,(NULL::strict_null_checked)::integer)"} {
 		node, binder, evaluation := strictNullUnitBind(t, e, op, scope, text)
-		if len(binder.parameters) != 0 {
-			evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.parameters[1].Type)}
+		if len(binder.params.parameters) != 0 {
+			evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.params.parameters[1].Type)}
 		}
 		before := expr.InfoOf(node)
 		folded, changed, err := preflightCoercions(&evaluation, node)
@@ -393,7 +393,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 	}
 	for _, text := range []string{"pg_describe_object($1::oid,23,1/0)"} {
 		node, binder, evaluation := strictNullUnitBind(t, e, op, scope, text)
-		evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.parameters[1].Type)}
+		evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.params.parameters[1].Type)}
 		_, _, err := preflightCoercions(&evaluation, node)
 		want := sqlstate.Error{Code: "22012", Message: "division by zero"}
 		nullCountUnitDiagnostic(t, err, want)
@@ -416,7 +416,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 	// Validate a real typed DOMAIN parameter at its input boundary, before
 	// outer strict-NULL planning. A literal sibling is not this boundary.
 	node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "pg_describe_object(NULL::oid,23,($1::strict_null_checked)::integer)")
-	domain := binder.parameters[1].Type
+	domain := binder.params.parameters[1].Type
 	if !domain.IsDomain() || !domain.HasDomainChecks() {
 		t.Fatal("parameter lost genuine domain input authority")
 	}

@@ -30,7 +30,7 @@ func TestRangeAggregateProvider(t *testing.T) {
 		d, _ := e.CatalogRead().LookupType(id)
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		b.aggregateClause = "SELECT"
-		b.parameters[1] = d.Usage()
+		b.params.parameters[1] = d.Usage()
 		for _, name := range []string{"range_agg", "range_agg", "range_intersect_agg"} {
 			raw := parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}}, Pos: parser.Position{Character: 8}}
 			result, err := b.bind(raw, expressionPolicy{context: projectionContext})
@@ -45,7 +45,7 @@ func TestRangeAggregateProvider(t *testing.T) {
 			t.Fatal("operation/strict call identity", b.aggregates)
 		}
 		binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-		binder.parameters[1] = d.Usage()
+		binder.params.parameters[1] = d.Usage()
 		query, err := binder.bindSelect(&parser.Select{Targets: []parser.Expr{
 			parser.AggregateExpr{Name: "range_agg", Args: []parser.Expr{parser.ParameterExpr{Number: 1}}},
 			parser.AggregateExpr{Name: "range_intersect_agg", Args: []parser.Expr{parser.ParameterExpr{Number: 1}}},

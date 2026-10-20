@@ -93,10 +93,10 @@ func (r installedExtensionRoutine) intaggIdentity() (*catalog.Procedure, ids.Obj
 // may appear and lifts it as the engine's set-returning unnest node.
 func (r installedExtensionRoutine) attachIntaggEnumeration(call functions.IntaggEnumeration) (expr.Expr, error) {
 	b := r.binder
-	if b.executeParameters {
+	if b.params.executeParameters {
 		return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in EXECUTE parameters", call.Pos)
 	}
-	if b.policyConsumer && b.queryFrame == 0 {
+	if b.consumer.policyConsumer && b.queryFrame == 0 {
 		return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions")
 	}
 	if err := b.AdmitSetReturning(call.Pos); err != nil {

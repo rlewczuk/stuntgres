@@ -416,7 +416,7 @@ func TestViewLiteralProtocolRejectsMismatch(t *testing.T) {
 // path.query/source values. The subquery owns another raw preorder.
 func TestViewLiteralProtocolQueryBoundaries(t *testing.T) {
 	b := protocolBinder(t)
-	b.noParameters = true
+	b.params.noParameters = true
 	raw := statement(t, `SELECT (SELECT num_nulls(33,44)) FROM generate_series(1,num_nulls(11,22))`).(*parser.Select)
 	query, err := b.bindSelect(raw, false)
 	if err != nil {

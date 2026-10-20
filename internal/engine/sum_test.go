@@ -182,7 +182,7 @@ func TestSumAnalysisNamespaceRestoration(t *testing.T) {
 		for _, outcome := range []string{"success", "filter_failure", "missing_target_column"} {
 			t.Run(map[bool]string{false: "nil_namespace", true: "existing_namespace"}[existingNamespace]+"/"+outcome, func(t *testing.T) {
 				b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-				b.aggregateClause, b.insertTarget = "INSERT VALUES", target
+				b.aggregateClause, b.target.insertTarget = "INSERT VALUES", target
 				hidden := []queryQualifier{{name: "earlier_hidden", columns: []queryColumn{{descriptor: catalog.Column{Name: "prior", Usage: integer.Usage()}}}}}
 				beforeHidden := append([]queryQualifier(nil), hidden...)
 				beforeHidden[0].columns = append([]queryColumn(nil), hidden[0].columns...)
@@ -209,8 +209,8 @@ func TestSumAnalysisNamespaceRestoration(t *testing.T) {
 				if namespace != nil && !reflect.DeepEqual(namespace.columns, beforeColumns) {
 					t.Fatal("SUM mutated the incumbent source namespace", namespace.columns)
 				}
-				if b.aggregateClause != "INSERT VALUES" || b.insertTarget != target || len(b.uses) != 0 {
-					t.Fatal("SUM changed clause/target or read diagnostic-only destination", b.aggregateClause, b.insertTarget, b.uses)
+				if b.aggregateClause != "INSERT VALUES" || b.target.insertTarget != target || len(b.target.uses) != 0 {
+					t.Fatal("SUM changed clause/target or read diagnostic-only destination", b.aggregateClause, b.target.insertTarget, b.target.uses)
 				}
 				if outcome == "success" {
 					if err != nil || node == nil || node.ResultUsage().Type.ID() != sqltype.Int8 {

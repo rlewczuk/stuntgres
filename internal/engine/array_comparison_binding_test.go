@@ -104,8 +104,8 @@ func TestArrayCompareCommonType(t *testing.T) {
 	}
 	unknown := comparisonOperand{node: parameterExpression{number: 1}}
 	common, err := commonExpressionUsage([]comparisonOperand{unknown, integer(sqltype.Int4), integer(sqltype.Int8)}, b.typ(sqltype.Text).Usage(), "")
-	if err != nil || common.Type.ID() != 20 || len(b.parameters) != 0 {
-		t.Fatal(common, err, b.parameters)
+	if err != nil || common.Type.ID() != 20 || len(b.params.parameters) != 0 {
+		t.Fatal(common, err, b.params.parameters)
 	}
 	common, err = commonExpressionUsage([]comparisonOperand{integer(sqltype.Int4), integer(sqltype.Bool)}, b.typ(sqltype.Text).Usage(), "")
 	if err != nil || common.Type != nil {

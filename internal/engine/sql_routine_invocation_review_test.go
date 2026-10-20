@@ -24,7 +24,7 @@ func TestSQLRoutineClosedFormalBoundary(t *testing.T) {
 	defer e.mu.Unlock()
 	for _, count := range []int{0, 1, 2} {
 		b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, nil)
-		b.closedRoutineFormals = true
+		b.params.closedRoutineFormals = true
 		inputs := make([]sqltype.Usage, count)
 		for i := range inputs {
 			inputs[i] = integer
@@ -36,7 +36,7 @@ func TestSQLRoutineClosedFormalBoundary(t *testing.T) {
 		if !errors.As(err, &d) || d.Code != "42P02" || d.Position != "9" || d.Message != fmt.Sprintf("there is no parameter $%d", n) {
 			t.Fatalf("count=%d: %v", count, err)
 		}
-		if len(b.parameters) != count {
+		if len(b.params.parameters) != count {
 			t.Fatal("out-of-range slot entered inference")
 		}
 		if err := b.constrain(n, integer, parser.Position{}); err == nil {

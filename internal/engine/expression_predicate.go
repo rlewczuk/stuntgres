@@ -122,7 +122,7 @@ func (b *expressionBinder) nullTest(raw parser.Expr, pos parser.Position, not, w
 		return nil, err
 	}
 	if p, ok := child.(parameterExpression); ok && p.Usage.Type == nil {
-		b.anyParameters = append(b.anyParameters, p)
+		b.params.anyParameters = append(b.params.anyParameters, p)
 	}
 	return nullTestExpression{b.info(b.typ(sqltype.Bool).Usage(), pos, child.Properties()), child, not, whole}, nil
 }

@@ -86,8 +86,8 @@ func (e *Engine) generationNamespace(auth AuthorizationView, d *catalog.Relation
 // CREATE and ALTER share binding, security, coercion and provider capture.
 func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalog.Relation, slot int, expression parser.Expr, input sqltype.InputEnvironment, ns *queryNamespace) (catalog.ColumnGeneration, error) {
 	b := newExpressionBinder(op.Context(), e, input, op, nil)
-	b.generatedOwner = d
-	b.noParameters = true
+	b.target.generatedOwner = d
+	b.params.noParameters = true
 	b.queryAuth = &auth
 	b.queryNamespace = ns
 	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())

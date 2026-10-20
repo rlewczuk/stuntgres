@@ -17,7 +17,7 @@ func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnviron
 	}
 	namespace := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: parent.Name(), original: parent.Name(), schema: auth.Catalog.Get(parent.Namespace()).Name(), ref: ref, columns: columns}}, frame: parent.Columns}
 	binder := newExpressionBinder(op.Context(), e, input, op, nil)
-	binder.indexConsumer, binder.noParameters, binder.queryAuth = true, true, &auth
+	binder.consumer.indexConsumer, binder.params.noParameters, binder.queryAuth = true, true, &auth
 	binder.queryNamespace = &namespace
 	binder.querySources = []queryLeaf{{ref: ref, relation: parent}}
 	return binder

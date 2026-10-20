@@ -135,7 +135,7 @@ func (b *expressionBinder) bindDotBuiltin(raw parser.FieldExpr, key preparedComp
 }
 
 func (b *expressionBinder) frozenWholeRowSource(qualifier queryQualifier, frame uint32) (wholeRowSource, error) {
-	if !b.noParameters && !b.materializedDefinition {
+	if !b.params.noParameters && !b.consumer.materializedDefinition {
 		return wholeRowSource{}, nil
 	}
 	var source wholeRowSource

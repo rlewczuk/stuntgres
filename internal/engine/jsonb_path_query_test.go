@@ -98,7 +98,7 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 				t.Fatal("admitted stale declaration")
 			}
 			if tc.set {
-				b.defaultConsumer = true
+				b.consumer.defaultConsumer = true
 				if _, err := b.bindFunctionProvider(raw); err == nil {
 					t.Fatal("set admitted in scalar default")
 				}

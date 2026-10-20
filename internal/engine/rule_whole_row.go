@@ -7,7 +7,7 @@ import (
 )
 
 func (b *expressionBinder) ruleWholeRow(side parser.Identifier, pos parser.Position) (expr.Expr, error) {
-	d := b.ruleNamespace.relation
+	d := b.target.ruleNamespace.relation
 	fields := make([]expr.Expr, len(d.Columns))
 	typ, _ := b.bindingCatalog().LookupType(d.RowType)
 	var members []sqltype.CompositeMember

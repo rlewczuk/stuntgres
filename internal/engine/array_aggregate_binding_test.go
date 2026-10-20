@@ -106,7 +106,7 @@ func TestArrayAggregateDomainBinding(t *testing.T) {
 	} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		b.aggregateClause = "SELECT"
-		b.parameters[1] = tc.input.Usage()
+		b.params.parameters[1] = tc.input.Usage()
 		raw := parser.AggregateExpr{Name: "array_agg", Args: []parser.Expr{parser.ParameterExpr{Number: 1}}}
 		result, err := b.bind(raw, expressionPolicy{context: projectionContext})
 		if err != nil {

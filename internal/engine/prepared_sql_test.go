@@ -48,7 +48,7 @@ func TestPreparedParameterFormalSeed(t *testing.T) {
 		if !errors.As(err, &d) || d.Code != "42P18" || d.Message != "could not determine data type of parameter $1" || d.Position != "" {
 			t.Fatal(err)
 		}
-		if len(b.parameters) != 1 {
+		if len(b.params.parameters) != 1 {
 			t.Fatal("sparse index allocated intermediate slots")
 		}
 	}

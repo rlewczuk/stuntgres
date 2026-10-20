@@ -13,7 +13,7 @@ import (
 func (b *expressionBinder) bindBoolean(raw parser.Expr, context expressionContext, construct string) (expr.Expr, error) {
 	u := b.typ(sqltype.Bool).Usage()
 	if p, ok := raw.(parser.ParameterExpr); ok {
-		if known := b.parameters[p.Number]; known.Type != nil {
+		if known := b.params.parameters[p.Number]; known.Type != nil {
 			u = known
 		}
 	}

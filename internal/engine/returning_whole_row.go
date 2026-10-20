@@ -59,7 +59,7 @@ func (b *expressionBinder) returningWholeRow(name string, relation *catalog.Rela
 	if !ok || descriptor.OwningRelation != relation.Address() || descriptor.SQLType.CompositeLen() != len(relation.Columns) {
 		return nil, true, fmt.Errorf("stuntgres: RETURNING named row descriptor is missing")
 	}
-	b.returningReadRequired = true
+	b.target.returningReadRequired = true
 	members := make([]expr.Expr, len(relation.Columns))
 	scope := &queryBindingScope{relation: relation, frame: frame, returning: aliases}
 	for i := range members {

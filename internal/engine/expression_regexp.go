@@ -20,19 +20,19 @@ func (b *expressionBinder) regexpPlacement(call functions.RegexpCall) error {
 	}
 	if context == "" {
 		switch {
-		case b.executeParameters:
+		case b.params.executeParameters:
 			context = "EXECUTE parameters"
-		case b.generatedOwner != nil:
+		case b.target.generatedOwner != nil:
 			context = "column generation expressions"
-		case b.indexPredicateConsumer:
+		case b.consumer.indexPredicateConsumer:
 			context = "index predicates"
-		case b.indexConsumer:
+		case b.consumer.indexConsumer:
 			context = "index expressions"
-		case b.checkConsumer:
+		case b.consumer.checkConsumer:
 			context = "check constraints"
 		case b.DefaultConsumer():
 			context = "DEFAULT expressions"
-		case b.policyConsumer && b.queryFrame == 0:
+		case b.consumer.policyConsumer && b.queryFrame == 0:
 			return sqlError("0A000", "set-returning functions are not allowed in policy expressions")
 		default:
 			switch b.aggregateClause {

@@ -41,7 +41,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 		if len(target.Steps) == 0 {
 			continue
 		}
-		if binder.mergeInput {
+		if binder.target.mergeInput {
 			return expr.ErrorAt("0A000", "MERGE partial insertion targets are unsupported", target.Pos)
 		}
 		if b.arrayTargets == nil {
@@ -61,7 +61,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 		return binder.captureRetainedWriteInput(b.insert.defaults, nil, nil)
 	}
 	binder.aggregateClause = "INSERT VALUES"
-	binder.stringSingleInsert = len(s.Rows) == 1 && !binder.mergeInput
+	binder.stringSingleInsert = len(s.Rows) == 1 && !binder.target.mergeInput
 	// Keep aggregate signature/child error precedence independent of the
 	// stricter multi-row VALUES placement rule for set-returning functions.
 	oldRegexpClause := binder.regexpClause
@@ -107,7 +107,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 			return insertError("42601", "INSERT has more target columns than expressions", s.Targets[len(row)].Pos)
 		}
 		b.expressions[rowIndex] = make([]expr.Expr, len(row))
-		stringRow := binder.mergeInput
+		stringRow := binder.target.mergeInput
 		for _, v := range row {
 			stringRow = stringRow || parser.ContainsStringExpression(v)
 		}
@@ -141,7 +141,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 					continue
 				}
 				context := assignmentContext
-				if binder.mergeInput {
+				if binder.target.mergeInput {
 					context = projectionContext
 				}
 				plan, err := binder.bind(v, expressionPolicy{context: context, deferAssignment: true})

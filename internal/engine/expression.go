@@ -1060,56 +1060,25 @@ type expressionPolicy struct {
 }
 
 type expressionBinder struct {
-	engine                 *Engine
-	ctx                    context.Context
-	relation               *catalog.Relation
-	insertTarget           *catalog.Relation // Diagnostic candidate only, never a source.
-	ref                    ids.ObjectRef
-	ruleNamespace          *ruleNamespace
-	parameters             map[int]sqltype.Usage
-	formalParameters       []sqltype.Usage
-	closedRoutineFormals   bool // SQL body slots are declarations, not inferred public parameters.
-	executeParameters      bool
-	updateParameters       bool
-	updateInputParameters  map[int]sqltype.Usage
-	uses                   []int
-	returningReadRequired  bool
-	dependencies           []catalog.ExpressionDependency
-	input                  sqltype.InputEnvironment
-	op                     *Operation
-	expected               *StatementDescription
-	temporals              []temporalConstant
-	composites             map[preparedCompositeKey]compositeOccurrence
-	jsonbRecordBase        bool // Scope named cast identity to selected base trees.
-	domainValueUsage       *sqltype.Usage
-	functionProjection     functionProjectionScope
-	selectedOperatorArgs   []expr.Expr
-	selectedOperatorSyntax []parser.Expr
-	selectedCallArguments  bool              // Known arguments remain reusable throughout provider binding.
-	selectedCallReentry    bool              // Only the immediate selected occurrence skips selection once.
-	selectedWindowCallee   parser.ObjectName // Diagnostic spelling, never lookup authority.
-	anyParameters          []parameterExpression
-	deleteTarget           bool
-	deleteUsingSources     bool
-	mergeWhen              bool
-	mergeInput             bool
-	targetName             string
-	targetAlias            string
-	returningAliases       *returningAliases
-	defaultConsumer        bool
-	defaultTemporary       ids.SessionToken
-	// Selected timezone/calendar operand analysis owns its released rejection
-	// diagnostic without admitting additional explicit cast providers.
-	datetimeZoneOperands       bool
-	checkConsumer              bool
-	policyConsumer             bool
-	indexConsumer              bool
-	indexPredicateConsumer     bool
-	partitionConsumer          string
-	checkDefinitionEquality    bool
-	generatedOwner             *catalog.Relation
-	visibilitySnapshot         bool
-	catalogSnapshot            bool // Demanded inquiry nodes after STRICT folding.
+	target                     targetContext
+	params                     parameterState
+	consumer                   consumerContext
+	engine                     *Engine
+	ctx                        context.Context
+	dependencies               []catalog.ExpressionDependency
+	input                      sqltype.InputEnvironment
+	op                         *Operation
+	expected                   *StatementDescription
+	temporals                  []temporalConstant
+	composites                 map[preparedCompositeKey]compositeOccurrence
+	jsonbRecordBase            bool // Scope named cast identity to selected base trees.
+	domainValueUsage           *sqltype.Usage
+	functionProjection         functionProjectionScope
+	selectedOperatorArgs       []expr.Expr
+	selectedOperatorSyntax     []parser.Expr
+	selectedCallArguments      bool              // Known arguments remain reusable throughout provider binding.
+	selectedCallReentry        bool              // Only the immediate selected occurrence skips selection once.
+	selectedWindowCallee       parser.ObjectName // Diagnostic spelling, never lookup authority.
 	sequenceConstants          []sequenceConstant
 	regtypeConstants           []regtypeConstant
 	regclassConcat             bool
@@ -1150,10 +1119,6 @@ type expressionBinder struct {
 	subqueryDemand             bool
 	groupSubquery              bool
 	viewValuesCount            int
-	noParameters               bool
-	// Materialized definitions need frozen renderer metadata while retaining
-	// their distinct, post-analysis bound-parameter diagnostic.
-	materializedDefinition bool
 	// Only internal TYPE CHECK reparsing supplies these immutable literal nodes.
 	// Generated markers are not prepared parameters and never enter inference.
 	checkLiterals []literalExpression
@@ -1177,7 +1142,7 @@ type expressionBinder struct {
 
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
 	captureEnumOperationSafety(op, &input)
-	b := &expressionBinder{engine: e, ctx: ctx, parameters: make(map[int]sqltype.Usage), input: input, op: op, expected: expected}
+	b := &expressionBinder{engine: e, ctx: ctx, params: parameterState{parameters: make(map[int]sqltype.Usage)}, input: input, op: op, expected: expected}
 	if expected != nil {
 		b.seedParameters(expected.Parameters.Types)
 		if expected.refreshTemporals {
@@ -1192,13 +1157,13 @@ func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvi
 }
 
 func (b *expressionBinder) seedParameters(types []sqltype.Usage) {
-	b.formalParameters = types
+	b.params.formalParameters = types
 	currentType := recordTypeMapper(func(t *sqltype.Descriptor) *sqltype.Descriptor { return b.typ(t.ID()) })
 	for i, usage := range types {
 		if usage.Type != nil {
 			usage.Type = currentType(usage.Type)
 		}
-		b.parameters[i+1] = usage
+		b.params.parameters[i+1] = usage
 	}
 }
 
@@ -1250,11 +1215,11 @@ func (b *expressionBinder) info(u sqltype.Usage, pos parser.Position, p expr.Pro
 	return expr.Info{Usage: u, Pos: pos, Property: p}
 }
 func (b *expressionBinder) constrain(n int, u sqltype.Usage, pos parser.Position) error {
-	if n <= 0 || b.closedRoutineFormals && n > len(b.formalParameters) {
+	if n <= 0 || b.params.closedRoutineFormals && n > len(b.params.formalParameters) {
 		return expr.ErrorAt("42P02", fmt.Sprintf("there is no parameter $%d", n), pos)
 	}
-	if old, ok := b.parameters[n]; ok && old.Type != nil && old.Type != u.Type {
-		if b.updateParameters {
+	if old, ok := b.params.parameters[n]; ok && old.Type != nil && old.Type != u.Type {
+		if b.params.updateParameters {
 			// UPDATE uses occurrence-sensitive inference diagnostics; other
 			// assignment consumers retain their selected 0A000 boundary.
 			_, err := b.coerceParameter(parameterExpression{Info: expr.Info{Pos: pos}, number: n}, u)
@@ -1262,30 +1227,30 @@ func (b *expressionBinder) constrain(n int, u sqltype.Usage, pos parser.Position
 		}
 		return sqlError("0A000", "parameter reused with different destination types")
 	}
-	b.parameters[n] = u.Type.Usage()
+	b.params.parameters[n] = u.Type.Usage()
 	return nil
 }
 func (b *expressionBinder) finish() (ParameterInfo, error) {
 	// Retained unknown ANY and null-test occurrences share binding order.
 	// Diagnose occurrence mismatches before gaps or unresolved shared slots.
-	for _, p := range b.anyParameters {
-		if b.parameters[p.number].Type != nil {
+	for _, p := range b.params.anyParameters {
+		if b.params.parameters[p.number].Type != nil {
 			return ParameterInfo{}, expr.ErrorAt("42P08", fmt.Sprintf("could not determine data type of parameter $%d", p.number), p.Pos)
 		}
 	}
-	keys := make([]int, 0, len(b.parameters))
-	for n := range b.parameters {
+	keys := make([]int, 0, len(b.params.parameters))
+	for n := range b.params.parameters {
 		keys = append(keys, n)
 	}
 	sort.Ints(keys)
 	for i, n := range keys {
-		if n != i+1 || b.parameters[n].Type == nil {
+		if n != i+1 || b.params.parameters[n].Type == nil {
 			return ParameterInfo{}, sqlError("42P18", fmt.Sprintf("could not determine data type of parameter $%d", i+1))
 		}
 	}
 	info := ParameterInfo{Count: len(keys), Types: make([]sqltype.Usage, len(keys))}
 	for i, n := range keys {
-		info.Types[i] = b.parameters[n]
+		info.Types[i] = b.params.parameters[n]
 		if err := b.captureTypeDiagnosticInput(info.Types[i].Type); err != nil {
 			return ParameterInfo{}, err
 		}
@@ -1306,9 +1271,9 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 	if b.domainValueUsage != nil && len(raw.Name.Parts) == 1 && raw.Name.Parts[0].Text == "value" {
 		return domainValueExpression{b.info(*b.domainValueUsage, raw.Pos, expr.Properties{DomainDependent: true})}, nil
 	}
-	if b.generatedOwner != nil {
+	if b.target.generatedOwner != nil {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-		owner := b.generatedOwner
+		owner := b.target.generatedOwner
 		qualified := len(raw.Name.Parts) == 1 || len(raw.Name.Parts) == 2 && raw.Name.Parts[0].Text == owner.Name() || len(raw.Name.Parts) == 3 && raw.Name.Parts[1].Text == owner.Name() && raw.Name.Parts[0].Text == b.queryNamespace.qualifiers[0].schema
 		if qualified {
 			if name == "tableoid" {
@@ -1344,45 +1309,45 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 		}
 		return node, nil
 	}
-	if b.checkConsumer && b.domainValueUsage == nil && len(raw.Name.Parts) > 0 {
+	if b.consumer.checkConsumer && b.domainValueUsage == nil && len(raw.Name.Parts) > 0 {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 		switch name {
 		case "ctid", "xmin", "cmin", "xmax", "cmax":
 			return nil, expr.ErrorAt("42P10", `system column "`+name+`" reference in check constraint is invalid`, raw.Pos)
 		}
 	}
-	if b.returningAliases != nil {
+	if b.target.returningAliases != nil {
 		return b.returningColumn(raw)
 	}
 	if b.queryNamespace != nil {
 		return b.queryColumn(raw)
 	}
-	if len(raw.Name.Parts) == 2 && !b.deleteTarget {
+	if len(raw.Name.Parts) == 2 && !b.target.deleteTarget {
 		return nil, expr.ErrorAt("0A000", "qualified column references are unsupported", raw.Pos)
 	}
 	if len(raw.Name.Parts) == 0 || len(raw.Name.Parts) > 2 {
 		return nil, fmt.Errorf("stuntgres: column outside expression scope")
 	}
 	name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
-	if b.relation == nil {
+	if b.target.relation == nil {
 		return nil, expr.ErrorAt("42703", fmt.Sprintf(`column "%s" does not exist`, name), raw.Pos)
 	}
 	if len(raw.Name.Parts) == 2 {
 		qualifier := raw.Name.Parts[0].Text
-		visible := b.targetName
-		if b.targetAlias != "" {
-			visible = b.targetAlias
+		visible := b.target.name
+		if b.target.alias != "" {
+			visible = b.target.alias
 		}
 		if qualifier != visible {
-			if qualifier == b.targetName && b.targetAlias != "" {
+			if qualifier == b.target.name && b.target.alias != "" {
 				err := expr.ErrorAt("42P01", fmt.Sprintf(`invalid reference to FROM-clause entry for table "%s"`, qualifier), raw.Pos).(*sqlstate.Error)
-				err.Hint = fmt.Sprintf(`Perhaps you meant to reference the table alias "%s".`, b.targetAlias)
+				err.Hint = fmt.Sprintf(`Perhaps you meant to reference the table alias "%s".`, b.target.alias)
 				return nil, err
 			}
 			return nil, expr.ErrorAt("42P01", fmt.Sprintf(`missing FROM-clause entry for table "%s"`, qualifier), raw.Pos)
 		}
 	}
-	i, ok := b.relation.Index[name]
+	i, ok := b.target.relation.Index[name]
 	if !ok {
 		if len(raw.Name.Parts) == 2 {
 			return nil, expr.ErrorAt("42703", fmt.Sprintf("column %s.%s does not exist", raw.Name.Parts[0].Text, name), raw.Pos)
@@ -1392,34 +1357,34 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 	return b.columnAt(i, raw.Pos), nil
 }
 func (b *expressionBinder) useColumn(i int) ids.ObjectRef {
-	return b.useColumnOf(b.relation, i)
+	return b.useColumnOf(b.target.relation, i)
 }
 
 func (b *expressionBinder) useColumnOf(relation *catalog.Relation, i int) ids.ObjectRef {
-	ref := b.ref
+	ref := b.target.ref
 	ref.Address.SubID = relation.Attributes[i]
 	b.dependency(ref, relation.Revision())
 	used := false
-	for _, slot := range b.uses {
+	for _, slot := range b.target.uses {
 		if slot == i {
 			used = true
 			break
 		}
 	}
 	if !used {
-		b.uses = append(b.uses, i)
+		b.target.uses = append(b.target.uses, i)
 	}
 	b.info(relation.Columns[i].Usage, parser.Position{Offset: -1}, expr.Properties{})
 	return ref
 }
 func (b *expressionBinder) columnAt(i int, pos parser.Position) expr.Expr {
-	return b.columnAtOf(b.relation, i, pos)
+	return b.columnAtOf(b.target.relation, i, pos)
 }
 
 func (b *expressionBinder) columnAtOf(relation *catalog.Relation, i int, pos parser.Position) expr.Expr {
 	ref := b.useColumnOf(relation, i)
 	column := columnExpression{Info: expr.Info{Usage: relation.Columns[i].Usage, Pos: pos, Property: expr.Properties{RowDependent: true}}, origin: ref, scope: 1, frame: 1, slot: i}
-	if b.generatedOwner == nil {
+	if b.target.generatedOwner == nil {
 		column = column.withGeneration(relation, i, 0)
 	}
 	return column
@@ -1471,16 +1436,16 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 		}
 		node = selected
 	}
-	if node == nil && b.partitionConsumer != "" {
+	if node == nil && b.consumer.partitionConsumer != "" {
 		switch r := raw.(type) {
 		case parser.ColumnExpr:
-			if b.partitionConsumer == "partition bound" {
+			if b.consumer.partitionConsumer == "partition bound" {
 				return nil, expr.ErrorAt("0A000", "cannot use column reference in partition bound expression", r.Pos)
 			}
 		case parser.IndexSubqueryExpr:
-			return nil, b.partitionExpressionError("0A000", "cannot use subquery in "+b.partitionConsumer, r.Pos)
+			return nil, b.partitionExpressionError("0A000", "cannot use subquery in "+b.consumer.partitionConsumer, r.Pos)
 		case parser.SubqueryExpr:
-			return nil, b.partitionExpressionError("0A000", "cannot use subquery in "+b.partitionConsumer, r.Pos)
+			return nil, b.partitionExpressionError("0A000", "cannot use subquery in "+b.consumer.partitionConsumer, r.Pos)
 		case parser.AggregateExpr:
 			if r.Window == nil && r.Name != "row_number" && r.Name != "ntile" && !functions.WindowValueName(r.Name) && !functions.WindowOffsetName(r.Name) {
 				for _, arg := range r.Args {
@@ -1504,12 +1469,12 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				return nil, err
 			}
 		case parser.IndexSubqueryExpr:
-			if b.indexPredicateConsumer {
+			if b.consumer.indexPredicateConsumer {
 				return nil, expr.ErrorAt("0A000", "cannot use subquery in index predicate", r.Pos)
 			}
 			return nil, expr.ErrorAt("0A000", "cannot use subquery in index expression", r.Pos)
 		case parser.SubqueryExpr:
-			if b.executeParameters {
+			if b.params.executeParameters {
 				return nil, expr.ErrorAt("0A000", "cannot use subquery in EXECUTE parameter", r.Pos)
 			}
 			var err error
@@ -1565,7 +1530,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			if r.Window == nil && b.recursiveFrames[b.frameID()] {
 				return nil, expr.ErrorAt("42P19", "aggregate functions are not allowed in a recursive query's recursive term", r.Pos)
 			}
-			if b.executeParameters {
+			if b.params.executeParameters {
 				if r.Window != nil {
 					return nil, expr.ErrorAt("42P20", "window functions are not allowed in EXECUTE parameters", r.Pos)
 				}
@@ -1617,19 +1582,19 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			parentOwner := b.argumentOwner
 			b.argumentOwner = argumentWindowOwner{active: true}
 			defer func() { b.argumentOwner = parentOwner }()
-			if b.generatedOwner != nil {
+			if b.target.generatedOwner != nil {
 				return nil, expr.ErrorAt("42803", "aggregate functions are not allowed in column generation expressions", r.Pos)
 			}
-			if b.indexPredicateConsumer {
+			if b.consumer.indexPredicateConsumer {
 				return nil, expr.ErrorAt("42803", "aggregate functions are not allowed in index predicates", r.Pos)
 			}
-			if b.indexConsumer {
+			if b.consumer.indexConsumer {
 				return nil, expr.ErrorAt("42803", "aggregate functions are not allowed in index expressions", r.Pos)
 			}
 			if b.aggregateClause == "VALUES" || b.aggregateClause == "INSERT VALUES" && (r.Name == "string_agg" || r.Name == "array_agg") {
 				return nil, expr.ErrorAt("42803", "aggregate functions are not allowed in VALUES", r.Pos)
 			}
-			if b.checkConsumer {
+			if b.consumer.checkConsumer {
 				return nil, expr.ErrorAt("42803", "aggregate functions are not allowed in check constraints", r.Pos)
 			}
 			var err error
@@ -1680,7 +1645,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				return nil, err
 			}
 		case parser.FunctionExpr:
-			if b.executeParameters && r.Window != nil {
+			if b.params.executeParameters && r.Window != nil {
 				return nil, expr.ErrorAt("42P20", "window functions are not allowed in EXECUTE parameters", r.Pos)
 			}
 			var err error
@@ -1690,10 +1655,10 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 			switch inquiry := node.(type) {
 			case extensionPathsExpression:
-				b.catalogSnapshot = true
+				b.consumer.catalogSnapshot = true
 			case expr.SnapshotDemander:
 				demand, _, _ := inquiry.SnapshotDemand(bareInquiryLiteralNull)
-				b.catalogSnapshot = b.catalogSnapshot || demand
+				b.consumer.catalogSnapshot = b.consumer.catalogSnapshot || demand
 			}
 			if r.Window != nil {
 				return nil, expr.ErrorAt("42809", "OVER specified, but "+objectNameText(r.Name)+" is not a window function nor an aggregate function", r.Pos)
@@ -1734,7 +1699,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				node = pseudo
 				break
 			}
-			if b.defaultConsumer {
+			if b.consumer.defaultConsumer {
 				return nil, expr.ErrorAt("0A000", "cannot use column reference in DEFAULT expression", r.Pos)
 			}
 			if policy.context == assignmentContext {
@@ -1753,16 +1718,16 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				node = b.checkLiterals[r.Number-1]
 				break
 			}
-			if b.noParameters || b.defaultConsumer || r.Number <= 0 || b.closedRoutineFormals && r.Number > len(b.formalParameters) {
+			if b.params.noParameters || b.consumer.defaultConsumer || r.Number <= 0 || b.params.closedRoutineFormals && r.Number > len(b.params.formalParameters) {
 				return nil, expr.ErrorAt("42P02", fmt.Sprintf("there is no parameter $%d", r.Number), r.Pos)
 			}
 			u := policy.expected
-			if established := b.updateInputParameters[r.Number]; established.Type != nil {
+			if established := b.params.updateInputParameters[r.Number]; established.Type != nil {
 				u = established
 			}
-			retained := r.Number <= len(b.formalParameters) && b.formalParameters[r.Number-1].Type != nil
+			retained := r.Number <= len(b.params.formalParameters) && b.params.formalParameters[r.Number-1].Type != nil
 			if retained {
-				u = b.formalParameters[r.Number-1]
+				u = b.params.formalParameters[r.Number-1]
 			}
 			// Retained parameter contracts keep their logical input type, but their
 			// codec must come from the admitted catalog, including private generations.
@@ -1780,19 +1745,19 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				if u.Type.IsDeferredRecord() || u.Type.ID() == 2249 && u.Type.IsComposite() {
 					// Anonymous shapes and deferred RECORD are formal occurrence
 					// authorities, never catalog's lookup-only RECORD identity.
-					current = b.parameters[r.Number].Type
+					current = b.params.parameters[r.Number].Type
 				}
 				if current == nil && statementCatalogType(u.Type) {
 					return nil, sqlError("0A000", "cached plan must not change parameter type")
 				}
 				u.Type = current
-				b.parameters[r.Number] = u
+				b.params.parameters[r.Number] = u
 			}
 			if u.Type == nil {
-				u = b.parameters[r.Number]
+				u = b.params.parameters[r.Number]
 			}
 			if u.Type == nil {
-				b.parameters[r.Number] = sqltype.Usage{}
+				b.params.parameters[r.Number] = sqltype.Usage{}
 				node = parameterExpression{expr.Info{Pos: r.Pos, Property: expr.Properties{ParameterDependent: true}}, r.Number}
 			} else {
 				if err := b.constrain(r.Number, u, r.Pos); err != nil {
@@ -2083,7 +2048,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	if raw.Syntax == parser.FunctionCast && legacyFunctionCastPredicate(raw.Child) {
 		return nil, expr.ErrorAt("0A000", "functions are unsupported", raw.Pos)
 	}
-	if !b.defaultConsumer && b.queryNamespace == nil && b.returningAliases == nil && b.ruleNamespace == nil {
+	if !b.consumer.defaultConsumer && b.queryNamespace == nil && b.target.returningAliases == nil && b.target.ruleNamespace == nil {
 		if err := qualifiedCastChild(raw.Child); err != nil {
 			return nil, err
 		}
@@ -2148,7 +2113,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		return b.bindRegclassCast(raw.Child, raw.Pos)
 	}
 	unsupportedTarget := !target.Type.IsUserDefined() && !target.Type.IsDomain() && !target.Type.IsDeferredRecord() && !sqltype.StoredScalarCastType(target.Type.ID()) && !(outerPolicy.stringInput && target.Type.ID() == sqltype.Char) && target.Type.ID() != sqltype.PgNodeTree && !target.Type.IsArray()
-	if unsupportedTarget && !b.datetimeZoneOperands {
+	if unsupportedTarget && !b.consumer.datetimeZoneOperands {
 		return nil, expr.ErrorAt("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 	}
 	if err := b.captureTypeDiagnosticInput(target.Type); err != nil {
@@ -2182,10 +2147,10 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		if b.checkLiterals != nil {
 			break // bind resolves the captured literal without parameter inference.
 		}
-		if b.noParameters || b.defaultConsumer {
+		if b.params.noParameters || b.consumer.defaultConsumer {
 			return nil, expr.ErrorAt("42P02", fmt.Sprintf("there is no parameter $%d", child.Number), child.Pos)
 		}
-		if b.parameters[child.Number].Type == nil {
+		if b.params.parameters[child.Number].Type == nil {
 			if raw.Syntax == parser.FunctionCast && target.Type.ID() != sqltype.Text {
 				if child.Number <= 0 {
 					return nil, expr.ErrorAt("42P02", fmt.Sprintf("there is no parameter $%d", child.Number), child.Pos)
@@ -2247,7 +2212,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		if source.Type.BaseType().IsCube() || target.Type.BaseType().IsCube() {
 			return nil, expr.ErrorAt("42846", fmt.Sprintf("cannot cast type %s to %s", b.diagnosticTypeName(source.Type), b.diagnosticTypeName(target.Type)), raw.Pos)
 		}
-		if !source.Type.BaseType().IsQueryInt() && !target.Type.BaseType().IsQueryInt() && !sqltype.IsTransactionIdentifier(source.Type.BaseType().ID()) && !sqltype.IsTransactionIdentifier(target.Type.BaseType().ID()) && !b.datetimeZoneOperands && !sqltype.IsNetwork(source.Type.BaseType().ID()) && !sqltype.IsNetwork(target.Type.BaseType().ID()) && source.Type.BaseType().ID() != sqltype.Money && target.Type.BaseType().ID() != sqltype.Money && source.Type.BaseType().ID() != sqltype.Regtype && target.Type.BaseType().ID() != sqltype.Regtype && source.Type.BaseType().ID() != sqltype.Regrole && target.Type.BaseType().ID() != sqltype.Regrole && !source.Type.BaseType().IsEnum() && !target.Type.BaseType().IsEnum() && !source.Type.BaseType().IsComposite() && !target.Type.BaseType().IsComposite() && source.Type.BaseType().ID() != sqltype.JSON && target.Type.BaseType().ID() != sqltype.JSON && source.Type.BaseType().ID() != sqltype.JSONB && target.Type.BaseType().ID() != sqltype.JSONB && source.Type.BaseType().ID() != sqltype.JSONPath && target.Type.BaseType().ID() != sqltype.JSONPath && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && !(target.Type.BaseType().IsArray() && sqltype.StoredScalarCastType(source.Type.BaseType().ID())) && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
+		if !source.Type.BaseType().IsQueryInt() && !target.Type.BaseType().IsQueryInt() && !sqltype.IsTransactionIdentifier(source.Type.BaseType().ID()) && !sqltype.IsTransactionIdentifier(target.Type.BaseType().ID()) && !b.consumer.datetimeZoneOperands && !sqltype.IsNetwork(source.Type.BaseType().ID()) && !sqltype.IsNetwork(target.Type.BaseType().ID()) && source.Type.BaseType().ID() != sqltype.Money && target.Type.BaseType().ID() != sqltype.Money && source.Type.BaseType().ID() != sqltype.Regtype && target.Type.BaseType().ID() != sqltype.Regtype && source.Type.BaseType().ID() != sqltype.Regrole && target.Type.BaseType().ID() != sqltype.Regrole && !source.Type.BaseType().IsEnum() && !target.Type.BaseType().IsEnum() && !source.Type.BaseType().IsComposite() && !target.Type.BaseType().IsComposite() && source.Type.BaseType().ID() != sqltype.JSON && target.Type.BaseType().ID() != sqltype.JSON && source.Type.BaseType().ID() != sqltype.JSONB && target.Type.BaseType().ID() != sqltype.JSONB && source.Type.BaseType().ID() != sqltype.JSONPath && target.Type.BaseType().ID() != sqltype.JSONPath && source.Type.ID() != sqltype.PgNodeTree && target.Type.ID() != sqltype.PgNodeTree && !(target.Type.BaseType().IsArray() && sqltype.StoredScalarCastType(source.Type.BaseType().ID())) && (!sqltype.BaselineCastType(source.Type.ID()) || !sqltype.BaselineCastType(target.Type.ID())) && !sqltype.OIDCastPair(source.Type.ID(), target.Type.ID()) && !sqltype.TemporalCastPair(source.Type.ID(), target.Type.ID()) {
 			if !sqltype.IsOperatorAlias(source.Type.BaseType().ID()) && !sqltype.IsOperatorAlias(target.Type.BaseType().ID()) && !sqltype.IsRegTS(source.Type.BaseType().ID()) && !sqltype.IsRegTS(target.Type.BaseType().ID()) {
 				return nil, expr.ErrorAt("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 			}
@@ -2722,10 +2687,10 @@ func (b *expressionBinder) AnalyzeArgument(raw parser.Expr, request functions.An
 	case functions.ZoneArgument:
 		// Only explicit casts read the flag; restoring it keeps nested and
 		// adjacent calls unaffected.
-		previous := b.datetimeZoneOperands
-		b.datetimeZoneOperands = true
+		previous := b.consumer.datetimeZoneOperands
+		b.consumer.datetimeZoneOperands = true
 		operand, err = b.comparisonOperand(raw)
-		b.datetimeZoneOperands = previous
+		b.consumer.datetimeZoneOperands = previous
 	case functions.StringTextArgument, functions.StringOtherArgument:
 		operand, err = b.stringOperand(raw, request.Intent == functions.StringTextArgument)
 	case functions.RecordBaseArgument:
@@ -2780,7 +2745,7 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 	case functions.RecordFormalArgument:
 		var record *sqltype.Descriptor
 		if parameter, ok := argument.Expression.(parameterExpression); ok {
-			record = b.parameters[parameter.number].Type
+			record = b.params.parameters[parameter.number].Type
 		}
 		if record == nil {
 			var err error
@@ -2917,12 +2882,12 @@ func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expre
 }
 
 func (b *expressionBinder) coerceParameter(p parameterExpression, u sqltype.Usage) (expr.Expr, error) {
-	if existing := b.parameters[p.number]; existing.Type != nil && existing.Type != u.Type {
+	if existing := b.params.parameters[p.number]; existing.Type != nil && existing.Type != u.Type {
 		d := expr.ErrorAt("42P08", fmt.Sprintf("inconsistent types deduced for parameter $%d", p.number), p.Pos).(*sqlstate.Error)
 		d.Detail = fmt.Sprintf("%s versus %s", existing.Type.DiagnosticName(), u.Type.DiagnosticName())
 		return nil, d
 	}
-	b.parameters[p.number] = u.Type.Usage()
+	b.params.parameters[p.number] = u.Type.Usage()
 	return parameterExpression{b.info(u.Type.Usage(), p.Pos, p.Property), p.number}, nil
 }
 

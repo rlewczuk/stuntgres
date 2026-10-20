@@ -133,9 +133,9 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 				var err error
 				if executable {
 					b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-					b.relation = &catalog.Relation{Columns: []catalog.Column{{Name: "l"}, {Name: "r", Usage: right.Usage()}}, Attributes: []int32{1, 2}, Index: map[string]int{"l": 0, "r": 1}}
+					b.target.relation = &catalog.Relation{Columns: []catalog.Column{{Name: "l"}, {Name: "r", Usage: right.Usage()}}, Attributes: []int32{1, 2}, Index: map[string]int{"l": 0, "r": 1}}
 					if left != nil {
-						b.relation.Columns[0].Usage = left.Usage()
+						b.target.relation.Columns[0].Usage = left.Usage()
 					}
 					column := func(name string) parser.Expr {
 						return parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}}

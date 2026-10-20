@@ -33,15 +33,15 @@ func TestJSONBExistsBinding(t *testing.T) {
 				t.Fatal(err)
 			}
 			node, ok := bound.(functions.Binary)
-			if !ok || node.Plan.Name() != name || !node.Plan.Immutable() || bound.ResultUsage() != b.typ(sqltype.Bool).Usage() || !bound.Properties().ParameterDependent || bound.Properties().Volatility != expr.Immutable || b.parameters[1].Type.ID() != sqltype.JSONB {
-				t.Fatal(bound, b.parameters)
+			if !ok || node.Plan.Name() != name || !node.Plan.Immutable() || bound.ResultUsage() != b.typ(sqltype.Bool).Usage() || !bound.Properties().ParameterDependent || bound.Properties().Volatility != expr.Immutable || b.params.parameters[1].Type.ID() != sqltype.JSONB {
+				t.Fatal(bound, b.params.parameters)
 			}
 			right := sqltype.Text
 			if name == "?&" {
 				right = 1009
 			}
-			if b.parameters[2].Type.ID() != right {
-				t.Fatal(b.parameters)
+			if b.params.parameters[2].Type.ID() != right {
+				t.Fatal(b.params.parameters)
 			}
 			next, err := node.Reconstruct(node.Info, node.Args)
 			if err != nil || next.Plan != node.Plan || next.Syntax != node.Syntax || next.Property != node.Property {
@@ -116,8 +116,8 @@ func TestJSONBExistsOneSidedInference(t *testing.T) {
 		args[side] = parser.CastExpr{Child: args[side], TypeName: typeName, Syntax: parser.PostfixCast, Pos: pos}
 		raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "?|", Pos: pos}}}, Args: args, Pos: pos}
 		bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
-		if err != nil || bound == nil || b.parameters[1].Type.ID() != sqltype.JSONB || b.parameters[2].Type.ID() != 1009 {
-			t.Fatal(side, bound, err, b.parameters)
+		if err != nil || bound == nil || b.params.parameters[1].Type.ID() != sqltype.JSONB || b.params.parameters[2].Type.ID() != 1009 {
+			t.Fatal(side, bound, err, b.params.parameters)
 		}
 	}
 }

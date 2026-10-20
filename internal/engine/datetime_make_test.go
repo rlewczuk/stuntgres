@@ -51,8 +51,8 @@ func TestDatetimeMakeBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	e := node.(functions.DatetimeMake)
-	if e.WrittenSlots[0] != 6 || e.WrittenSlots[1] != 3 || b.parameters[1].Type.ID() != sqltype.Float8 || b.parameters[2].Type.ID() != sqltype.Int4 {
-		t.Fatal(e, b.parameters)
+	if e.WrittenSlots[0] != 6 || e.WrittenSlots[1] != 3 || b.params.parameters[1].Type.ID() != sqltype.Float8 || b.params.parameters[2].Type.ID() != sqltype.Int4 {
+		t.Fatal(e, b.params.parameters)
 	}
 	for _, tc := range []struct {
 		raw  parser.FunctionExpr

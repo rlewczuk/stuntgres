@@ -36,8 +36,8 @@ func TestNetworkMaskOriginalAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			binder := newExpressionBinder(context.Background(), e, input, admin, nil)
-			binder.queryAuth, binder.ref = &auth, ref
-			binder.relation = auth.Catalog.MustRelation(ref.Address)
+			binder.queryAuth, binder.target.ref = &auth, ref
+			binder.target.relation = auth.Catalog.MustRelation(ref.Address)
 			node, err := binder.bind(raw, expressionPolicy{context: projectionContext})
 			e.mu.Unlock()
 			if err != nil {
@@ -180,7 +180,7 @@ func TestNetworkMaskStrictDemand(t *testing.T) {
 			setParameters := func(inputs []string) {
 				evaluation.Parameters = make([]sqltype.Value, len(inputs))
 				for i, input := range inputs {
-					value, err := b.parameters[i+1].Type.Input(context.Background(), input, -1)
+					value, err := b.params.parameters[i+1].Type.Input(context.Background(), input, -1)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -211,7 +211,7 @@ func TestNetworkMaskStrictDemand(t *testing.T) {
 	}
 	for _, expression := range []string{"set_masklen($1::inet,v)", "set_masklen($1::cidr,v)"} {
 		node, b, evaluation := strictNullUnitBind(t, e, op, scope, expression)
-		input, err := b.parameters[1].Type.Input(context.Background(), "192.168.1.0/24", -1)
+		input, err := b.params.parameters[1].Type.Input(context.Background(), "192.168.1.0/24", -1)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -229,7 +229,7 @@ func TestNetworkMaskStrictDemand(t *testing.T) {
 	} {
 		t.Run("known_null/"+expression, func(t *testing.T) {
 			node, b, evaluation := strictNullUnitBind(t, e, op, scope, expression)
-			evaluation.Parameters = []sqltype.Value{sqltype.Null(b.parameters[1].Type)}
+			evaluation.Parameters = []sqltype.Value{sqltype.Null(b.params.parameters[1].Type)}
 			// A known-NULL strict call must disappear before planning admission.
 			// Deliberately omit its routine manifest: no provider can be invoked.
 			evaluation.routineChecks = []catalog.ExpressionDependency{}
@@ -242,10 +242,10 @@ func TestNetworkMaskStrictDemand(t *testing.T) {
 				t.Fatal("typed strict NULL result", value, err)
 			}
 			input := "::1"
-			if b.parameters[1].Type.ID() == sqltype.Int4 {
+			if b.params.parameters[1].Type.ID() == sqltype.Int4 {
 				input = "16"
 			}
-			nonnull, err := b.parameters[1].Type.Input(context.Background(), input, -1)
+			nonnull, err := b.params.parameters[1].Type.Input(context.Background(), input, -1)
 			if err != nil {
 				t.Fatal(err)
 			}

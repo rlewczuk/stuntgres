@@ -27,7 +27,7 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 	node := jsonStripUnitBind(t, b, "SELECT json_strip_nulls(strip_in_arrays => $2,target => $1)")
 	e := node.(functions.JSONStripNulls)
 	for i, id := range []sqltype.ID{sqltype.JSON, sqltype.Bool} {
-		if b.parameters[i+1].Type.ID() != id || e.Args[i].ResultUsage().Type.ID() != id {
+		if b.params.parameters[i+1].Type.ID() != id || e.Args[i].ResultUsage().Type.ID() != id {
 			t.Fatal("formal inference", i)
 		}
 	}

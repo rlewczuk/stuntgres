@@ -164,7 +164,7 @@ func intaggUnitValuesScope(t *testing.T) {
 			if !ok || state.SQLState() != want {
 				t.Fatal("VALUES precedence", kind, err, want)
 			}
-			if b.queryNamespace != nil || len(b.queryHidden) != 1 || b.queryHidden[0].name != "outside" || len(b.uses) != 0 || len(b.aggregates) != 0 || b.aggregateClause != "INSERT VALUES" {
+			if b.queryNamespace != nil || len(b.queryHidden) != 1 || b.queryHidden[0].name != "outside" || len(b.target.uses) != 0 || len(b.aggregates) != 0 || b.aggregateClause != "INSERT VALUES" {
 				t.Fatal("VALUES diagnostic scope leaked into next expression")
 			}
 		})

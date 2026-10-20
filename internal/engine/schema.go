@@ -118,7 +118,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	input.TypeDiagnosticName = nil
 	binder := newExpressionBinder(op.Context(), e, input, op, nil)
 	binder.queryAuth = &auth
-	binder.defaultTemporary = auth.Catalog.MustNamespace(d.Namespace()).Temporary
+	binder.consumer.defaultTemporary = auth.Catalog.MustNamespace(d.Namespace()).Temporary
 	for slot, declaration := range b.create.declarations {
 		if declaration.defaultExpr != nil {
 			delete(d.ColumnMeta.Defaults, d.Attributes[slot])

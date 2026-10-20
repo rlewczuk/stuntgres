@@ -33,7 +33,7 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 	} {
 		for _, defaults := range []bool{false, true} {
 			b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-			b.defaultConsumer = defaults
+			b.consumer.defaultConsumer = defaults
 			raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name}}}, Args: tc.args}
 			var node expr.Expr
 			var err error
@@ -103,15 +103,15 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "substring"}}}, Args: []parser.Expr{bit("10110"), parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}}}
 	node, err := functions.BindBinary(b, raw, true)
-	if err != nil || !node.Properties().ParameterDependent || b.parameters[1].Type.ID() != sqltype.Int4 || b.parameters[2].Type.ID() != sqltype.Int4 {
-		t.Fatal(node, err, b.parameters)
+	if err != nil || !node.Properties().ParameterDependent || b.params.parameters[1].Type.ID() != sqltype.Int4 || b.params.parameters[2].Type.ID() != sqltype.Int4 {
+		t.Fatal(node, err, b.params.parameters)
 	}
 	raw.Name.Parts[0].Text = "substr"
 	if _, err := functions.BindBinary(b, raw, true); err == nil {
 		t.Fatal("substr bit admitted")
 	}
 	// BYTEA defaults retain their preexisting capability boundary.
-	b.defaultConsumer = true
+	b.consumer.defaultConsumer = true
 	raw.Name.Parts[0].Text = "length"
 	raw.Args = []parser.Expr{parser.CastExpr{Child: parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "\\x01"}}, TypeName: parser.TypeName{Name: "bytea"}}}
 	_, err = functions.BindString(b, raw, true)

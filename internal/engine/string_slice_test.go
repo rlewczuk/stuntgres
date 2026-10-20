@@ -43,8 +43,8 @@ func TestStringSliceFormalInference(t *testing.T) {
 				if i == 0 {
 					id = sqltype.Text
 				}
-				if b.parameters[i+1].Type != b.typ(id) || n.Plan.ArgumentUsage(i).Type != b.typ(id) || n.Textual[i] != (i == 0) {
-					t.Fatal(name, i, b.parameters, n.Plan.ArgumentUsage(i))
+				if b.params.parameters[i+1].Type != b.typ(id) || n.Plan.ArgumentUsage(i).Type != b.typ(id) || n.Textual[i] != (i == 0) {
+					t.Fatal(name, i, b.params.parameters, n.Plan.ArgumentUsage(i))
 				}
 			}
 			if n.ResultUsage() != b.typ(sqltype.Text).Usage() || !n.Properties().ParameterDependent {
@@ -71,8 +71,8 @@ func TestStringSliceFormalInference(t *testing.T) {
 			t.Fatal("unknown3 did not select SIMILAR", node)
 		}
 		for i := range arity {
-			if b.parameters[i+1].Type != b.typ(sqltype.Text) {
-				t.Fatal("regex parameter forced integer", arity, i, b.parameters)
+			if b.params.parameters[i+1].Type != b.typ(sqltype.Text) {
+				t.Fatal("regex parameter forced integer", arity, i, b.params.parameters)
 			}
 		}
 	}

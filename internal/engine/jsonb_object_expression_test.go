@@ -168,7 +168,7 @@ func TestJSONBObjectBinderInferenceAndProperties(t *testing.T) {
 		if call.Plan.Name() != "jsonb_object" || node.ResultUsage().Type.ID() != sqltype.JSONB || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable {
 			t.Fatal(query, node.Properties())
 		}
-		for _, usage := range b.parameters {
+		for _, usage := range b.params.parameters {
 			if usage.Type.ID() != 1009 || usage.Typmod != -1 {
 				t.Fatal("lost TEXT[] inference", usage)
 			}
@@ -176,7 +176,7 @@ func TestJSONBObjectBinderInferenceAndProperties(t *testing.T) {
 	}
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	array := b.typ(1009).Usage()
-	b.relation = &catalog.Relation{
+	b.target.relation = &catalog.Relation{
 		Columns:    []catalog.Column{{Name: "a", Usage: array}, {Name: "v", Usage: array}},
 		Attributes: []int32{1, 2}, Index: map[string]int{"a": 0, "v": 1},
 	}

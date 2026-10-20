@@ -151,7 +151,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 	case parser.ParameterExpr:
 		// MV parameter admission follows complete typed analysis. No such
 		// definition can publish; leave this occurrence to the later 0A000.
-		if parameter, ok := bound.(parameterExpression); b.materializedDefinition && ok && parameter.number == r.Number {
+		if parameter, ok := bound.(parameterExpression); b.consumer.materializedDefinition && ok && parameter.number == r.Number {
 			return nil
 		}
 	case parser.ArrayComparisonExpr:

@@ -119,7 +119,7 @@ func TestNullCountAnyOccurrences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(b.parameters) != 1 || len(b.anyParameters) != 1 {
+	if len(b.params.parameters) != 1 || len(b.params.anyParameters) != 1 {
 		t.Fatal("sparse analysis expanded parameter index")
 	}
 	_, err = b.finish()

@@ -44,7 +44,7 @@ func (b *expressionBinder) bindFunctionSource(raw parser.FunctionExpr) (expr.Exp
 	}
 	if inquiry, ok := node.(expr.SnapshotDemander); ok {
 		demand, _, _ := inquiry.SnapshotDemand(bareInquiryLiteralNull)
-		b.catalogSnapshot = b.catalogSnapshot || demand
+		b.consumer.catalogSnapshot = b.consumer.catalogSnapshot || demand
 	}
 	if !sourceReturnsSet(node) && b.fromSetObservation != before {
 		return nil, nestedFromSetError(b.fromSetObservation.pos)
@@ -54,19 +54,19 @@ func (b *expressionBinder) bindFunctionSource(raw parser.FunctionExpr) (expr.Exp
 
 func (b *expressionBinder) stringSetAllowed(pos parser.Position) error {
 	kind := b.aggregateClause
-	if b.defaultConsumer {
+	if b.consumer.defaultConsumer {
 		kind = "DEFAULT expressions"
 	}
-	if b.checkConsumer {
+	if b.consumer.checkConsumer {
 		kind = "check constraints"
 	}
-	if b.generatedOwner != nil {
+	if b.target.generatedOwner != nil {
 		kind = "column generation expressions"
 	}
-	if b.indexConsumer {
+	if b.consumer.indexConsumer {
 		kind = "index expressions"
 	}
-	if b.indexPredicateConsumer {
+	if b.consumer.indexPredicateConsumer {
 		kind = "index predicates"
 	}
 	hint := ""
@@ -132,7 +132,7 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNo
 		}
 		calls[i] = bound
 		schema[i] = catalog.Column{Name: "string_to_table", Usage: bound.ResultUsage()}
-		if b.noParameters || b.materializedDefinition {
+		if b.params.noParameters || b.consumer.materializedDefinition {
 			if err := b.captureViewLiterals(call, bound, viewFunctionLiteral, ordinal+i); err != nil {
 				return nil, queryNamespace{}, err
 			}

@@ -37,7 +37,7 @@ func (e mergeActionExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 }
 func (b *expressionBinder) bindMergeAction(raw parser.MergeActionExpr) (expr.Expr, error) {
 	frame := uint32(0)
-	if b.returningAliases != nil && b.returningAliases.mode == returningMerge {
+	if b.target.returningAliases != nil && b.target.returningAliases.mode == returningMerge {
 		frame = b.frameID()
 	} else {
 		for i := len(b.queryScopes) - 1; i >= 0; i-- {
@@ -54,7 +54,7 @@ func (b *expressionBinder) bindMergeAction(raw parser.MergeActionExpr) (expr.Exp
 	return mergeActionExpression{Info: b.info(b.typ(sqltype.Text).Usage(), raw.Pos, expr.Properties{RowDependent: true}), scope: 1, frame: frame}, nil
 }
 func (b *expressionBinder) mergeReturningFrame(frame uint32) bool {
-	if frame == b.frameID() && b.returningAliases != nil && b.returningAliases.mode == returningMerge {
+	if frame == b.frameID() && b.target.returningAliases != nil && b.target.returningAliases.mode == returningMerge {
 		return true
 	}
 	for i := len(b.queryScopes) - 1; i >= 0; i-- {

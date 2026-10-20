@@ -75,7 +75,7 @@ func TestDatetimeArithmeticDefaultRegistryRebind(t *testing.T) {
 	ctx := context.Background()
 	source, target := New(), New()
 	b := newTestExpressionBinder(t, ctx, source, sqltype.InputEnvironment{}, nil)
-	b.defaultConsumer = true
+	b.consumer.defaultConsumer = true
 	node, err := b.bind(statement(t, "SELECT TIMESTAMPTZ '2005-04-02 12:00-07'+INTERVAL '1 day' FROM t").(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
 	if err != nil {
 		t.Fatal(err)

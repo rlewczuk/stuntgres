@@ -24,8 +24,8 @@ func TestStringIdentBinding(t *testing.T) {
 		if len(n.Args) != 2 || !n.ResultUsage().Type.IsArray() || n.ResultUsage().Type.Element() != b.typ(sqltype.Text) || !n.Properties().ParameterDependent {
 			t.Fatal(n)
 		}
-		if b.parameters[1].Type != b.typ(sqltype.Text) || b.parameters[2].Type != b.typ(sqltype.Bool) {
-			t.Fatal(b.parameters)
+		if b.params.parameters[1].Type != b.typ(sqltype.Text) || b.params.parameters[2].Type != b.typ(sqltype.Bool) {
+			t.Fatal(b.params.parameters)
 		}
 		// These native effect/error units protect written evaluation order,
 		// not an optimizer-wide PostgreSQL order guarantee.

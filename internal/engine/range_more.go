@@ -78,10 +78,10 @@ func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (expr.Expr, error
 	if err != nil {
 		return nil, err
 	}
-	if b.executeParameters {
+	if b.params.executeParameters {
 		return nil, expr.ErrorAt("0A000", "set-returning functions are not allowed in EXECUTE parameters", raw.Pos)
 	}
-	if b.policyConsumer && b.queryFrame == 0 {
+	if b.consumer.policyConsumer && b.queryFrame == 0 {
 		return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions")
 	}
 	if err := b.stringSetAllowed(raw.Pos); err != nil {

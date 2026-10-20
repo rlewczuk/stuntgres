@@ -54,8 +54,8 @@ func TestMathGcdLcmBinding(t *testing.T) {
 					t.Fatal("merged immutable properties", properties)
 				}
 				for i, id := range tc.parameters {
-					if b.parameters[i+1].Type == nil || b.parameters[i+1].Type.ID() != id {
-						t.Fatal("contextual parameter", b.parameters)
+					if b.params.parameters[i+1].Type == nil || b.params.parameters[i+1].Type.ID() != id {
+						t.Fatal("contextual parameter", b.params.parameters)
 					}
 				}
 			})

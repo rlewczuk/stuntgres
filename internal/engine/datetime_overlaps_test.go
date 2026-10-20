@@ -117,8 +117,8 @@ func TestDatetimeOverlapsUnknownAndParameterOccurrences(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	raw := datetimeMakeRaw("overlaps", parser.ParameterExpr{Number: 1}, ageFiniteTyped("timestamp", "2001-01-03"), parser.ParameterExpr{Number: 2}, ageFiniteTyped("timestamp", "2001-01-04"))
 	node, err := b.bindFunctionProvider(raw)
-	if err != nil || !node.Properties().ParameterDependent || b.parameters[1].Type.ID() != sqltype.Timestamp || b.parameters[2].Type.ID() != sqltype.Timestamp {
-		t.Fatal(node, err, b.parameters)
+	if err != nil || !node.Properties().ParameterDependent || b.params.parameters[1].Type.ID() != sqltype.Timestamp || b.params.parameters[2].Type.ID() != sqltype.Timestamp {
+		t.Fatal(node, err, b.params.parameters)
 	}
 	b = newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	raw = datetimeMakeRaw("overlaps", parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 9}}, parser.CastExpr{Child: parser.ParameterExpr{Number: 1}, TypeName: parser.TypeName{Name: "interval"}}, ageFiniteTyped("timestamp", "2001-01-02"), ageFiniteTyped("interval", "1 day"))

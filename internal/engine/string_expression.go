@@ -42,7 +42,7 @@ func (b *expressionBinder) stringOperand(raw parser.Expr, textual bool) (compari
 			child = collation.Child
 		}
 		if parameter, ok := child.(parser.ParameterExpr); ok {
-			if established := b.parameters[parameter.Number]; established.Type != nil {
+			if established := b.params.parameters[parameter.Number]; established.Type != nil {
 				policy.expected = established
 			}
 		}

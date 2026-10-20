@@ -12,21 +12,21 @@ func (e *Engine) bindInsertConflictUpdate(b *binding, binder *expressionBinder, 
 	}
 	c := b.insert.conflict
 	c.width = len(b.relation.Columns)
-	binder.relation, binder.ref = b.relation, b.ref
-	binder.targetName, binder.targetAlias = b.relation.Name(), s.Alias.Text
-	binder.updateParameters = true
-	defer func() { binder.updateParameters = false; binder.updateInputParameters = nil }()
+	binder.target.relation, binder.target.ref = b.relation, b.ref
+	binder.target.name, binder.target.alias = b.relation.Name(), s.Alias.Text
+	binder.params.updateParameters = true
+	defer func() { binder.params.updateParameters = false; binder.params.updateInputParameters = nil }()
 	// Conflict UPDATE owns a fresh lexical namespace: the rule's formal
 	// OLD/NEW entries remain diagnostic candidates, not executable columns.
-	ruleNamespace, previousNamespace, previousHidden := binder.ruleNamespace, binder.queryNamespace, binder.queryHidden
+	ruleNamespace, previousNamespace, previousHidden := binder.target.ruleNamespace, binder.queryNamespace, binder.queryHidden
 	if ruleNamespace != nil {
-		binder.ruleNamespace = nil
+		binder.target.ruleNamespace = nil
 		binder.queryHidden = append(append([]queryQualifier(nil), previousHidden...),
 			queryQualifier{name: "old", original: "old", lateralForbidden: true},
 			queryQualifier{name: "new", original: "new", lateralForbidden: true})
 	}
 	defer func() {
-		binder.ruleNamespace, binder.queryNamespace, binder.queryHidden = ruleNamespace, previousNamespace, previousHidden
+		binder.target.ruleNamespace, binder.queryNamespace, binder.queryHidden = ruleNamespace, previousNamespace, previousHidden
 	}()
 	target := binder.mutationTargetNamespace()
 	binder.queryHidden = append(binder.queryHidden, target.qualifiers[0])
@@ -54,7 +54,7 @@ func (e *Engine) bindInsertConflictUpdate(b *binding, binder *expressionBinder, 
 	}
 	c.update = action
 	c.updateTargets = actionBinding.targets
-	c.actionReads = append([]int(nil), binder.uses...)
+	c.actionReads = append([]int(nil), binder.target.uses...)
 	c.sources = binder.querySources
 	return nil
 }

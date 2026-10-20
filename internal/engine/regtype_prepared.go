@@ -192,7 +192,7 @@ func (b *expressionBinder) regtypeArrayConstant(text string, u sqltype.Usage, po
 }
 
 func (b *expressionBinder) foldRegtypeConstant(child expr.Expr, plan sqltype.CoercionPlan, info expr.Info) (expr.Expr, bool, error) {
-	if (info.Usage.Type.BaseType().ID() != sqltype.Regtype && !sqltype.IsOperatorAlias(info.Usage.Type.BaseType().ID()) && !sqltype.IsRoutineAlias(info.Usage.Type.BaseType().ID()) && !sqltype.IsRegObjectAlias(info.Usage.Type.BaseType().ID()) && !sqltype.IsRegTS(info.Usage.Type.BaseType().ID())) || !(b.defaultConsumer || b.checkConsumer || b.indexConsumer || b.generatedOwner != nil || b.noParameters || b.materializedDefinition) {
+	if (info.Usage.Type.BaseType().ID() != sqltype.Regtype && !sqltype.IsOperatorAlias(info.Usage.Type.BaseType().ID()) && !sqltype.IsRoutineAlias(info.Usage.Type.BaseType().ID()) && !sqltype.IsRegObjectAlias(info.Usage.Type.BaseType().ID()) && !sqltype.IsRegTS(info.Usage.Type.BaseType().ID())) || !(b.consumer.defaultConsumer || b.consumer.checkConsumer || b.consumer.indexConsumer || b.target.generatedOwner != nil || b.params.noParameters || b.consumer.materializedDefinition) {
 		return nil, false, nil
 	}
 	p := child.Properties()

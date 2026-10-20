@@ -47,9 +47,9 @@ func (b *expressionBinder) enterQuery(disallowParent bool) func() {
 	b.stringSetGuard, b.stringFromForbidden = "", false
 	b.regexpClause = ""
 	oldNamespace := b.queryNamespace
-	parent := queryBindingScope{namespace: b.queryNamespace, hidden: b.queryHidden, frame: b.frameID(), allowed: !disallowParent, clause: b.aggregateClause, aggregates: b.aggregates, returning: b.returningAliases, nonLateral: b.queryNonLateral}
+	parent := queryBindingScope{namespace: b.queryNamespace, hidden: b.queryHidden, frame: b.frameID(), allowed: !disallowParent, clause: b.aggregateClause, aggregates: b.aggregates, returning: b.target.returningAliases, nonLateral: b.queryNonLateral}
 	parent.stringFromForbidden = oldForbidden
-	parent.relation = b.relation
+	parent.relation = b.target.relation
 	parent.groupingActive, parent.groupSets = b.groupingActive, b.groupSets
 	parent.rowDiagnosticMode = b.queryRowDiagnosticMode
 	parent.windowRaw, parent.windowDefinitions, parent.windowCalls = b.windowRaw, b.windowDefinitions, b.windowCalls
@@ -57,7 +57,7 @@ func (b *expressionBinder) enterQuery(disallowParent bool) func() {
 	// Only the initial mutation owner can supply this fallback. Before a
 	// nested SELECT's FROM is bound, its nil namespace must not impersonate
 	// the retained mutation relation in an intermediate query frame.
-	if parent.namespace == nil && b.queryFrame == 0 && b.relation != nil && (b.updateParameters || b.deleteTarget) {
+	if parent.namespace == nil && b.queryFrame == 0 && b.target.relation != nil && (b.params.updateParameters || b.target.deleteTarget) {
 		ns := b.mutationTargetNamespace()
 		parent.namespace = &ns
 	}
@@ -65,7 +65,7 @@ func (b *expressionBinder) enterQuery(disallowParent bool) func() {
 	if b.nextQueryFrame == 0 {
 		b.nextQueryFrame = 1
 	}
-	if oldFrame != 0 || b.relation != nil {
+	if oldFrame != 0 || b.target.relation != nil {
 		b.nextQueryFrame++
 		b.queryFrame = b.nextQueryFrame
 	} else {
@@ -78,7 +78,7 @@ func (b *expressionBinder) enterQuery(disallowParent bool) func() {
 	b.groupingActive, b.groupSets = false, nil
 	b.windowRaw, b.windowDefinitions, b.windowCalls = nil, nil, nil
 	b.argumentOwner = argumentWindowOwner{}
-	b.returningAliases = nil
+	b.target.returningAliases = nil
 	b.queryNonLateral = disallowParent
 	b.queryRowDiagnosticMode = 0
 	return func() {
@@ -93,7 +93,7 @@ func (b *expressionBinder) enterQuery(disallowParent bool) func() {
 		b.groupingActive, b.groupSets = parent.groupingActive, parent.groupSets
 		b.windowRaw, b.windowDefinitions, b.windowCalls = parent.windowRaw, parent.windowDefinitions, parent.windowCalls
 		b.argumentOwner = parent.argumentOwner
-		b.returningAliases, b.queryNonLateral = parent.returning, parent.nonLateral
+		b.target.returningAliases, b.queryNonLateral = parent.returning, parent.nonLateral
 		b.queryRowDiagnosticMode = parent.rowDiagnosticMode
 		b.queryFrame = oldFrame
 	}
@@ -142,8 +142,8 @@ func (b *expressionBinder) queryColumnInFrame(c queryColumn, pos parser.Position
 }
 
 func (b *expressionBinder) queryTargetRelation() *catalog.Relation {
-	if b.relation != nil {
-		return b.relation
+	if b.target.relation != nil {
+		return b.target.relation
 	}
 	for i := len(b.queryScopes) - 1; i >= 0; i-- {
 		if d := b.queryScopes[i].relation; d != nil {

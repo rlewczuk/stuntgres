@@ -361,7 +361,7 @@ func (b *expressionBinder) finishSQLCallable(raw parser.FunctionExpr, selected s
 		result, _ := selected.auth.definitionType(sqltype.ID(d.Result))
 		info := b.info(result.Usage(), raw.Pos, selected.properties)
 		info.RoutineReference = d
-		if b.noParameters || b.materializedDefinition {
+		if b.params.noParameters || b.consumer.materializedDefinition {
 			namespace, ok := selected.auth.definitionNamespace(d.Namespace())
 			if !ok {
 				return nil, fmt.Errorf("missing SQL routine namespace")

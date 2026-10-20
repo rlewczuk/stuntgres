@@ -28,19 +28,19 @@ type subqueryExpression struct {
 }
 
 func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, error) {
-	if b.defaultConsumer {
+	if b.consumer.defaultConsumer {
 		return nil, expr.ErrorAt("0A000", "cannot use subquery in DEFAULT expression", raw.Pos)
 	}
-	if b.checkConsumer {
+	if b.consumer.checkConsumer {
 		return nil, expr.ErrorAt("0A000", "cannot use subquery in check constraint", raw.Pos)
 	}
-	if b.indexPredicateConsumer {
+	if b.consumer.indexPredicateConsumer {
 		return nil, expr.ErrorAt("0A000", "cannot use subquery in index predicate", raw.Pos)
 	}
-	if b.indexConsumer {
+	if b.consumer.indexConsumer {
 		return nil, expr.ErrorAt("0A000", "cannot use subquery in index expression", raw.Pos)
 	}
-	if b.generatedOwner != nil {
+	if b.target.generatedOwner != nil {
 		return nil, expr.ErrorAt("0A000", "cannot use subquery in column generation expression", raw.Pos)
 	}
 	b.subqueryDemand = true
@@ -64,7 +64,7 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, err
 					left[i] = comparisonOperand{node: field}
 				}
 				leftExpansions = constructor.expansions
-				if b.noParameters || b.materializedDefinition {
+				if b.params.noParameters || b.consumer.materializedDefinition {
 					erasedLeftType = constructor.Usage.Type.ID()
 					leftConstructor, err = b.normalizeQuantifiedConstructor(raw.Left, constructor)
 					if err != nil {

@@ -42,7 +42,7 @@ func TestBitwiseAggregateSlotsAndMetadata(t *testing.T) {
 		}
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		b.aggregateClause = "SELECT"
-		b.parameters[1] = usage
+		b.params.parameters[1] = usage
 		for _, name := range []string{"bit_and", "bit_or", "bit_xor", "bit_and"} {
 			raw := parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}}, Pos: parser.Position{Character: 8}}
 			expr, err := b.bind(raw, expressionPolicy{context: projectionContext})
@@ -66,7 +66,7 @@ func TestBitwiseAggregateSlotsAndMetadata(t *testing.T) {
 			}
 		}
 		binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-		binder.parameters[1] = usage
+		binder.params.parameters[1] = usage
 		targets := []parser.Expr{}
 		for _, name := range []string{"bit_and", "bit_or", "bit_xor"} {
 			targets = append(targets, parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}}})

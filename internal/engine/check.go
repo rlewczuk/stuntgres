@@ -75,7 +75,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		}
 		ordinal := start + offset
 		binder := newExpressionBinder(op.Context(), e, input, op, nil)
-		binder.checkConsumer, binder.noParameters = true, true
+		binder.consumer.checkConsumer, binder.params.noParameters = true, true
 		binder.queryAuth = &auth
 		binder.queryNamespace = &ns
 		binder.querySources = []queryLeaf{{ref: ref, relation: d}}
@@ -109,7 +109,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 			return sqlError("42710", `check constraint "`+name+`" already exists`)
 		}
 		if ancestor, ok := inherited[name]; ok {
-			equality := expressionBinder{checkDefinitionEquality: true}
+			equality := expressionBinder{consumer: consumerContext{checkDefinitionEquality: true}}
 			if !equality.sameGroupExpression(node, ancestor.Expression) {
 				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, d.Name()))
 			}

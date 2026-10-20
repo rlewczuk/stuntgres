@@ -41,7 +41,7 @@ func testJSONObjectAggregateModifierProviderCompletion(t *testing.T, names []str
 						args, order = "$1,$2", "$1,$2"
 					}
 					if slot == "typed-first" {
-						b.parameters[1] = integer.Usage()
+						b.params.parameters[1] = integer.Usage()
 					}
 					if modifier != "order" {
 						args = "DISTINCT " + args
@@ -69,8 +69,8 @@ func testJSONObjectAggregateModifierProviderCompletion(t *testing.T, names []str
 					if slot == "typed-first" {
 						wantType = integer
 					}
-					if parameters.Types[0].Type != wantType || len(b.anyParameters) != 0 {
-						t.Fatal("incorrect parameter completion", parameters, b.anyParameters)
+					if parameters.Types[0].Type != wantType || len(b.params.anyParameters) != 0 {
+						t.Fatal("incorrect parameter completion", parameters, b.params.anyParameters)
 					}
 					call := b.aggregates[node.(aggregateExpression).slot]
 					provider := call.provider.(functions.JSONObjectAggregate)
@@ -174,8 +174,8 @@ func testJSONObjectAggregateModifierOccurrenceRetention(t *testing.T, name strin
 			var d *sqlstate.Error
 			// The token is an actual source occurrence, not just the shared number.
 			position := utf8.RuneCountInString(tc.q[:strings.Index(tc.q, tc.token)]) + 1
-			if !errors.As(err, &d) || d.Code != "42P08" || d.Message != "could not determine data type of parameter $1" || d.Position != strconv.Itoa(position) || len(b.anyParameters) != 1 {
-				t.Fatal("unrelated occurrence retired", b.anyParameters, err)
+			if !errors.As(err, &d) || d.Code != "42P08" || d.Message != "could not determine data type of parameter $1" || d.Position != strconv.Itoa(position) || len(b.params.anyParameters) != 1 {
+				t.Fatal("unrelated occurrence retired", b.params.anyParameters, err)
 			}
 		})
 	}
@@ -192,8 +192,8 @@ func TestJSONObjectAggregateModifierRepeatedDistinctCompletion(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err = b.finish(); err != nil || len(b.anyParameters) != 0 {
-			t.Fatal("DISTINCT did not complete both occurrences", b.anyParameters, err)
+		if _, err = b.finish(); err != nil || len(b.params.anyParameters) != 0 {
+			t.Fatal("DISTINCT did not complete both occurrences", b.params.anyParameters, err)
 		}
 		call := b.aggregates[node.(aggregateExpression).slot]
 		p := call.provider.(functions.JSONObjectAggregate)

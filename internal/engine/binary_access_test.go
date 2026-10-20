@@ -41,7 +41,7 @@ func TestBinaryAccessResolution(t *testing.T) {
 			if id != 0 {
 				// Supply typed operands directly: overload resolution does not
 				// require (or admit) general BIT/VARBIT SQL casts.
-				b.parameters[i+1] = b.typ(id).Usage()
+				b.params.parameters[i+1] = b.typ(id).Usage()
 				args[i] = parser.ParameterExpr{Number: i + 1}
 			}
 		}
@@ -139,7 +139,7 @@ func bitAccessBindingProperties(t *testing.T) {
 		for _, unknown := range []bool{false, true} {
 			for _, defaults := range []bool{false, true} {
 				b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-				b.defaultConsumer = defaults
+				b.consumer.defaultConsumer = defaults
 				source := parser.Value{Kind: parser.BitStringValue, Text: "b101"}
 				if unknown {
 					source = parser.Value{Kind: parser.StringValue, Text: "101"}
@@ -161,7 +161,7 @@ func bitAccessBindingProperties(t *testing.T) {
 					t.Fatal(name, node)
 				}
 				// DEFAULT admission must not widen the adjacent BYTEA family.
-				b.defaultConsumer = true
+				b.consumer.defaultConsumer = true
 				raw.Args[0] = parser.CastExpr{Child: parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "\\x80"}}, TypeName: parser.TypeName{Name: "bytea"}}
 				_, err = functions.BindBinary(b, raw, true)
 				var state interface{ SQLState() string }
@@ -180,7 +180,7 @@ func bitAccessBindingProperties(t *testing.T) {
 			raw.Args = append(raw.Args, parser.ParameterExpr{Number: 2})
 		}
 		node, err := functions.BindBinary(b, raw, true)
-		if err != nil || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable || b.parameters[1].Type.ID() != sqltype.Int4 {
+		if err != nil || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable || b.params.parameters[1].Type.ID() != sqltype.Int4 {
 			t.Fatal("parameter propagation", name, node, err)
 		}
 		for _, family := range []sqltype.ID{sqltype.Bit, sqltype.VarBit} {

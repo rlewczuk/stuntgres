@@ -456,9 +456,9 @@ func TestQuerySubqueryDMLFrameRestoration(t *testing.T) {
 			run(t, e, "CREATE TABLE target(k INT)")
 			run(t, e, "INSERT INTO target VALUES(77)")
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-			b.ref = roleTableRef(t, e, "target")
-			b.relation = e.CatalogRead().MustRelation(b.ref.Address)
-			b.targetName = "target"
+			b.target.ref = roleTableRef(t, e, "target")
+			b.target.relation = e.CatalogRead().MustRelation(b.target.ref.Address)
+			b.target.name = "target"
 			e.mu.Lock()
 			auth, authErr := e.authorizationLocked(b.op)
 			e.mu.Unlock()
@@ -466,7 +466,7 @@ func TestQuerySubqueryDMLFrameRestoration(t *testing.T) {
 				t.Fatal(authErr)
 			}
 			b.queryAuth = &auth
-			b.updateParameters = true
+			b.params.updateParameters = true
 			b.aggregateClause = "RETURNING"
 			_, err := b.bindSelect(statement(t, sql).(*parser.Select), false)
 			if (sql == "SELECT missing") != (err != nil) {
@@ -475,7 +475,7 @@ func TestQuerySubqueryDMLFrameRestoration(t *testing.T) {
 			if b.queryNamespace != nil || b.queryFrame != 0 || b.aggregateClause != "RETURNING" || len(b.queryScopes) != 0 {
 				t.Fatal("synthesized ancestor leaked after binding", err)
 			}
-			if b.relation.Name() != "target" {
+			if b.target.relation.Name() != "target" {
 				t.Fatal("target relation changed")
 			}
 		})

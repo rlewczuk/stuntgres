@@ -58,7 +58,7 @@ func TestRLSPolicyAggregateClauseRestoration(t *testing.T) {
 	e, op, done, d := policyUnitFixture(t)
 	defer done()
 	b := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
-	b.relation = d
+	b.target.relation = d
 	b.aggregateClause = "policy expressions"
 	for range 2 {
 		leaveChild := b.enterQuery(false)

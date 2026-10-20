@@ -65,15 +65,15 @@ func TestCharacterCastPreservesKnownParameterUsage(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	source := b.typ(sqltype.BPChar).Usage()
-	b.parameters[1] = source
+	b.params.parameters[1] = source
 	raw := statement(t, "SELECT CAST($1 AS text) FROM seed").(*parser.Select).Targets[0]
 	node, err := b.bind(raw, expressionPolicy{context: projectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
 	cast, ok := node.(coercionExpression)
-	if !ok || cast.child.ResultUsage() != source || cast.ResultUsage().Type.ID() != sqltype.Text || b.parameters[1] != source {
-		t.Fatal("cast retargeted known parameter", node, b.parameters[1])
+	if !ok || cast.child.ResultUsage() != source || cast.ResultUsage().Type.ID() != sqltype.Text || b.params.parameters[1] != source {
+		t.Fatal("cast retargeted known parameter", node, b.params.parameters[1])
 	}
 	if !cast.Properties().ParameterDependent || cast.Properties().RowDependent || cast.Properties().Volatility != expr.Immutable {
 		t.Fatal("cast properties", cast.Properties())

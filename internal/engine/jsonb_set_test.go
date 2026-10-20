@@ -30,8 +30,8 @@ func TestJSONBSetBindingInferenceAndProperties(t *testing.T) {
 	e := node.(functions.JSONBSet)
 	ids := [5]sqltype.ID{sqltype.JSONB, 1009, sqltype.JSONB, sqltype.Bool, sqltype.Text}
 	for i, id := range ids {
-		if b.parameters[i+1].Type.ID() != id || e.Args[i].ResultUsage().Type.ID() != id {
-			t.Fatal("lost formal inference", i, b.parameters)
+		if b.params.parameters[i+1].Type.ID() != id || e.Args[i].ResultUsage().Type.ID() != id {
+			t.Fatal("lost formal inference", i, b.params.parameters)
 		}
 	}
 	if e.Count != 5 || e.WrittenCount != 5 || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable || plannedVolatility(node) != expr.Immutable {
@@ -42,7 +42,7 @@ func TestJSONBSetBindingInferenceAndProperties(t *testing.T) {
 		args := []parser.Expr{datetimeMakeString("{}"), datetimeMakeString("{a}"), datetimeMakeString("2"), datetimeMakeString("true"), datetimeMakeString("use_json_null")}
 		args[slot] = parser.ParameterExpr{Number: 1}
 		n, err := binder.bindFunctionProvider(datetimeMakeRaw("jsonb_set_lax", args...))
-		if err != nil || !n.Properties().ParameterDependent || binder.parameters[1].Type.ID() != id {
+		if err != nil || !n.Properties().ParameterDependent || binder.params.parameters[1].Type.ID() != id {
 			t.Fatal("isolated formal property/inference lost", slot, n, err)
 		}
 	}

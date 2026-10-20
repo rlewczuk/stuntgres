@@ -19,14 +19,14 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 	e := node.(functions.JSONBSet)
 	typeIDs := [4]sqltype.ID{sqltype.JSONB, 1009, sqltype.JSONB, sqltype.Bool}
 	for i, id := range typeIDs {
-		if b.parameters[i+1].Type.ID() != id || e.Args[i].ResultUsage().Type.ID() != id || e.Args[i].ResultUsage().Typmod != -1 {
+		if b.params.parameters[i+1].Type.ID() != id || e.Args[i].ResultUsage().Type.ID() != id || e.Args[i].ResultUsage().Typmod != -1 {
 			t.Fatal("formal inference", i)
 		}
 		binder := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 		args := []parser.Expr{datetimeMakeString("[0]"), datetimeMakeString("{0}"), datetimeMakeString("9"), datetimeMakeString("false")}
 		args[i] = parser.ParameterExpr{Number: 1}
 		n, err := binder.bindFunctionProvider(datetimeMakeRaw("jsonb_insert", args...))
-		if err != nil || !n.Properties().ParameterDependent || binder.parameters[1].Type.ID() != id {
+		if err != nil || !n.Properties().ParameterDependent || binder.params.parameters[1].Type.ID() != id {
 			t.Fatal("isolated formal inference", i, err)
 		}
 	}

@@ -30,8 +30,8 @@ func TestStringReplacementFormalInference(t *testing.T) {
 			if i >= 2 {
 				id = sqltype.Int4
 			}
-			if b.parameters[i+1].Type != b.typ(id) || n.Plan.ArgumentUsage(i).Type != b.typ(id) || n.Textual[i] != (i < 2) {
-				t.Fatal(i, b.parameters, n.Plan.ArgumentUsage(i))
+			if b.params.parameters[i+1].Type != b.typ(id) || n.Plan.ArgumentUsage(i).Type != b.typ(id) || n.Textual[i] != (i < 2) {
+				t.Fatal(i, b.params.parameters, n.Plan.ArgumentUsage(i))
 			}
 		}
 		if !n.Properties().ParameterDependent || n.ResultUsage() != b.typ(sqltype.Text).Usage() {

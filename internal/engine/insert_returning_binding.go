@@ -6,8 +6,8 @@ func (e *Engine) bindInsertReturning(b *binding, binder *expressionBinder, auth 
 	if s.Returning == nil {
 		return nil
 	}
-	binder.relation, binder.ref = b.relation, b.ref
-	binder.targetName, binder.targetAlias = b.relation.Name(), s.Alias.Text
+	binder.target.relation, binder.target.ref = b.relation, b.ref
+	binder.target.name, binder.target.alias = b.relation.Name(), s.Alias.Text
 	binder.queryAuth = &auth
 	target := binder.mutationTargetNamespace()
 	binder.queryNamespace = &target
@@ -18,25 +18,25 @@ func (e *Engine) bindInsertReturning(b *binding, binder *expressionBinder, auth 
 	if s.Conflict != nil && s.Conflict.Update {
 		binder.queryHidden = append(binder.queryHidden, queryQualifier{name: "excluded", original: "excluded", lateralForbidden: true})
 	}
-	previousUses := binder.uses
-	previousReadRequired := binder.returningReadRequired
-	binder.returningReadRequired = false
-	binder.uses = nil
+	previousUses := binder.target.uses
+	previousReadRequired := binder.target.returningReadRequired
+	binder.target.returningReadRequired = false
+	binder.target.uses = nil
 	output, err := binder.bindReturning(s.Returning, returningInsert)
-	reads := binder.uses
-	readRequired := binder.returningReadRequired
-	binder.returningReadRequired = previousReadRequired
-	binder.uses = previousUses
+	reads := binder.target.uses
+	readRequired := binder.target.returningReadRequired
+	binder.target.returningReadRequired = previousReadRequired
+	binder.target.uses = previousUses
 	for _, slot := range reads {
 		found := false
-		for _, prior := range binder.uses {
+		for _, prior := range binder.target.uses {
 			if prior == slot {
 				found = true
 				break
 			}
 		}
 		if !found {
-			binder.uses = append(binder.uses, slot)
+			binder.target.uses = append(binder.target.uses, slot)
 		}
 	}
 	if err != nil {

@@ -87,8 +87,8 @@ func TestDatetimeAgeFiniteBindingPropertiesAndRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b.parameters[1].Type.ID() != sqltype.Timestamp || !node.Properties().ParameterDependent {
-		t.Fatal(b.parameters, node.Properties())
+	if b.params.parameters[1].Type.ID() != sqltype.Timestamp || !node.Properties().ParameterDependent {
+		t.Fatal(b.params.parameters, node.Properties())
 	}
 }
 

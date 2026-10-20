@@ -72,8 +72,8 @@ func TestDatetimeTruncInferenceStrictChildren(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b.parameters[1].Type.ID() != sqltype.Text || b.parameters[2].Type.ID() != sqltype.Timestamptz || b.parameters[3].Type.ID() != sqltype.Text || !node.Properties().ParameterDependent || plannedVolatility(node) != expr.Immutable {
-		t.Fatal(node.Properties(), b.parameters)
+	if b.params.parameters[1].Type.ID() != sqltype.Text || b.params.parameters[2].Type.ID() != sqltype.Timestamptz || b.params.parameters[3].Type.ID() != sqltype.Text || !node.Properties().ParameterDependent || plannedVolatility(node) != expr.Immutable {
+		t.Fatal(node.Properties(), b.params.parameters)
 	}
 	e := node.(functions.DatetimeTrunc)
 	for _, i := range []int{0, 1, 2} {

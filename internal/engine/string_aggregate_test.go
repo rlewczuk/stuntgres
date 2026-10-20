@@ -46,8 +46,8 @@ func TestStringAggregateBindingIdentity(t *testing.T) {
 		if q == "SELECT string_agg($1,$2) FROM t" {
 			want = sqltype.Text
 		}
-		if result.ResultUsage().Type.ID() != want || binder.parameters[1].Type.ID() != want || !result.Properties().ParameterDependent {
-			t.Fatal(q, result.ResultUsage(), binder.parameters, result.Properties())
+		if result.ResultUsage().Type.ID() != want || binder.params.parameters[1].Type.ID() != want || !result.Properties().ParameterDependent {
+			t.Fatal(q, result.ResultUsage(), binder.params.parameters, result.Properties())
 		}
 	}
 }

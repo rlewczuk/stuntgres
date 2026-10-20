@@ -51,7 +51,7 @@ func (b *expressionBinder) bindQueryBound(raw parser.Expr, clause string, litera
 			policy.expected = b.typ(sqltype.Int8).Usage()
 		}
 	case parser.ParameterExpr:
-		if b.parameters[r.Number].Type == nil {
+		if b.params.parameters[r.Number].Type == nil {
 			policy.expected = b.typ(sqltype.Int8).Usage()
 		}
 	}
@@ -71,7 +71,7 @@ func (b *expressionBinder) bindQueryBound(raw parser.Expr, clause string, litera
 		pos := firstQueryBoundFrameVariable(bound, b.frameID())
 		return nil, expr.ErrorAt("42P10", "argument of "+clause+" must not contain variables", pos)
 	}
-	if (b.noParameters || b.materializedDefinition) && captureLiterals {
+	if (b.params.noParameters || b.consumer.materializedDefinition) && captureLiterals {
 		if err := b.captureViewLiterals(raw, bound, literalClause, 0); err != nil {
 			return nil, err
 		}

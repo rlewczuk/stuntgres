@@ -96,8 +96,8 @@ func TestSubscriptsBinding(t *testing.T) {
 	if !ok || e.ResultUsage().Type.ID() != sqltype.Int4 || !e.Properties().StageDependent || !e.Properties().ParameterDependent || !b.queryHasTargetSet || !sourceAdmitted(e) {
 		t.Fatal(x)
 	}
-	if b.parameters[1].Type == nil || !b.parameters[1].Type.IsArray() || b.parameters[2].Type.ID() != sqltype.Bool {
-		t.Fatal("parameter identity", b.parameters)
+	if b.params.parameters[1].Type == nil || !b.params.parameters[1].Type.IsArray() || b.params.parameters[2].Type.ID() != sqltype.Bool {
+		t.Fatal("parameter identity", b.params.parameters)
 	}
 	if _, err := e.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}); err == nil {
 		t.Fatal("unlifted set scalar evaluation")

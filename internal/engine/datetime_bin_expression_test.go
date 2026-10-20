@@ -77,8 +77,8 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b.parameters[1].Type.ID() != sqltype.Interval || b.parameters[2].Type.ID() != sqltype.Timestamptz || b.parameters[3].Type.ID() != sqltype.Timestamptz || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable {
-		t.Fatal(node.Properties(), b.parameters)
+	if b.params.parameters[1].Type.ID() != sqltype.Interval || b.params.parameters[2].Type.ID() != sqltype.Timestamptz || b.params.parameters[3].Type.ID() != sqltype.Timestamptz || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable {
+		t.Fatal(node.Properties(), b.params.parameters)
 	}
 	for _, id := range []string{"timestamp", "timestamptz"} {
 		node, err := b.bindFunctionProvider(datetimeMakeRaw("date_bin", datetimeMakeString("15 minutes"), ageFiniteTyped(id, "2000-01-01 00:02:29.999999"), ageFiniteTyped(id, "2000-01-01 00:02:30")))
@@ -118,7 +118,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 		}
 	}
 	flags := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{Zone: utc}, nil)
-	flags.relation = &catalog.Relation{Columns: []catalog.Column{{Name: "z", Usage: flags.typ(sqltype.Timestamptz).Usage()}}, Attributes: []int32{1}, Index: map[string]int{"z": 0}}
+	flags.target.relation = &catalog.Relation{Columns: []catalog.Column{{Name: "z", Usage: flags.typ(sqltype.Timestamptz).Usage()}}, Attributes: []int32{1}, Index: map[string]int{"z": 0}}
 	column := parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "z"}}}}
 	volatile, err := flags.bindFunctionProvider(datetimeMakeRaw("date_bin", parser.ParameterExpr{Number: 1}, column, datetimeMakeRaw("clock_timestamp")))
 	if err != nil {

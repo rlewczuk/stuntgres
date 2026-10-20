@@ -30,8 +30,8 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 		if b.relation.RelationKind == catalog.IndexRelation {
 			return b, tableKind(b.relation, "insert into")
 		}
-		binder.insertTarget = b.relation
-		if binder.ruleNamespace != nil {
+		binder.target.insertTarget = b.relation
+		if binder.target.ruleNamespace != nil {
 			// Reserve a mutation lexical frame without exposing INSERT's target.
 			binder.queryFrame = 1
 			// SELECT frame allocation stays monotonic across stored modifiers.
@@ -86,19 +86,19 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 				return b, fmt.Errorf("stuntgres: relation storage is missing")
 			}
 		}
-		binder.relation, binder.ref = b.relation, b.ref
+		binder.target.relation, binder.target.ref = b.relation, b.ref
 		if s.CurrentOf != nil {
 			b.currentOf = s.CurrentOf.Text
 		}
-		binder.deleteTarget, binder.targetName, binder.targetAlias = true, b.relation.Name(), s.Alias.Text
+		binder.target.deleteTarget, binder.target.name, binder.target.alias = true, b.relation.Name(), s.Alias.Text
 		binder.queryAuth = &auth
 		if s.Using != nil {
 			target := binder.mutationTargetNamespace()
 			binder.queryHidden = append(binder.queryHidden, target.qualifiers[0])
 			var sources queryNamespace
-			binder.deleteUsingSources = true
+			binder.target.deleteUsingSources = true
 			b.delete.using, sources, err = binder.bindFrom(s.Using)
-			binder.deleteUsingSources = false
+			binder.target.deleteUsingSources = false
 			if err != nil {
 				return b, err
 			}
@@ -153,9 +153,9 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 		}
 		b.querySources = binder.querySources
 	}
-	b.usedColumns = binder.uses
+	b.usedColumns = binder.target.uses
 	b.subqueryDemand = binder.subqueryDemand
-	b.visibilitySnapshot = binder.visibilitySnapshot
+	b.visibilitySnapshot = binder.consumer.visibilitySnapshot
 	if b.relation != nil {
 		switch statement.(type) {
 		case *parser.Insert, *parser.Update, *parser.Merge:
@@ -165,7 +165,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 		}
 	}
 	b.querySources = binder.querySources
-	if binder.ruleNamespace == nil {
+	if binder.target.ruleNamespace == nil {
 		if err := e.bindViewWrite(&b, auth, statement); err != nil {
 			return b, err
 		}
@@ -179,40 +179,40 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 	// Stored-view grafts add real source/visibility demands outside the scalar
 	// binder. Retain them in both this command and the statement accumulators.
 	binder.subqueryDemand = binder.subqueryDemand || b.subqueryDemand
-	binder.visibilitySnapshot = binder.visibilitySnapshot || b.visibilitySnapshot
+	binder.consumer.visibilitySnapshot = binder.consumer.visibilitySnapshot || b.visibilitySnapshot
 	b.subqueryDemand = binder.subqueryDemand
-	b.visibilitySnapshot = binder.visibilitySnapshot
+	b.visibilitySnapshot = binder.consumer.visibilitySnapshot
 	return b, nil
 }
 
 // Only auxiliary commands need save/restore; ordinary DML keeps its existing
 // inline binding path. Lexical CTEs and all statement accumulators are shared.
 func (b *expressionBinder) bindCTEMutation(statement parser.Statement) (binding, error) {
-	relation, ref, insertTarget := b.relation, b.ref, b.insertTarget
-	updateParameters, updateInputs := b.updateParameters, b.updateInputParameters
-	deleteTarget, deleteSources := b.deleteTarget, b.deleteUsingSources
-	mergeWhen, mergeInput := b.mergeWhen, b.mergeInput
-	targetName, targetAlias, uses := b.targetName, b.targetAlias, b.uses
-	returningRead := b.returningReadRequired
-	subqueries, visibility := b.subqueryDemand, b.visibilitySnapshot
+	relation, ref, insertTarget := b.target.relation, b.target.ref, b.target.insertTarget
+	updateParameters, updateInputs := b.params.updateParameters, b.params.updateInputParameters
+	deleteTarget, deleteSources := b.target.deleteTarget, b.target.deleteUsingSources
+	mergeWhen, mergeInput := b.target.mergeWhen, b.target.mergeInput
+	targetName, targetAlias, uses := b.target.name, b.target.alias, b.target.uses
+	returningRead := b.target.returningReadRequired
+	subqueries, visibility := b.subqueryDemand, b.consumer.visibilitySnapshot
 	singleInsert := b.stringSingleInsert
 	restoreQuery := b.enterQuery(true)
 	defer func() {
 		restoreQuery()
-		b.relation, b.ref, b.insertTarget = relation, ref, insertTarget
-		b.updateParameters, b.updateInputParameters = updateParameters, updateInputs
-		b.deleteTarget, b.deleteUsingSources = deleteTarget, deleteSources
-		b.mergeWhen, b.mergeInput = mergeWhen, mergeInput
-		b.targetName, b.targetAlias, b.uses = targetName, targetAlias, uses
-		b.returningReadRequired = returningRead
-		b.subqueryDemand, b.visibilitySnapshot = subqueries, visibility
+		b.target.relation, b.target.ref, b.target.insertTarget = relation, ref, insertTarget
+		b.params.updateParameters, b.params.updateInputParameters = updateParameters, updateInputs
+		b.target.deleteTarget, b.target.deleteUsingSources = deleteTarget, deleteSources
+		b.target.mergeWhen, b.target.mergeInput = mergeWhen, mergeInput
+		b.target.name, b.target.alias, b.target.uses = targetName, targetAlias, uses
+		b.target.returningReadRequired = returningRead
+		b.subqueryDemand, b.consumer.visibilitySnapshot = subqueries, visibility
 		b.stringSingleInsert = singleInsert
 	}()
-	b.relation, b.ref, b.insertTarget = nil, ids.ObjectRef{}, nil
-	b.updateParameters, b.updateInputParameters = false, nil
-	b.deleteTarget, b.deleteUsingSources, b.mergeWhen, b.mergeInput = false, false, false, false
-	b.targetName, b.targetAlias, b.uses = "", "", nil
-	b.returningReadRequired, b.subqueryDemand, b.visibilitySnapshot = false, false, false
+	b.target.relation, b.target.ref, b.target.insertTarget = nil, ids.ObjectRef{}, nil
+	b.params.updateParameters, b.params.updateInputParameters = false, nil
+	b.target.deleteTarget, b.target.deleteUsingSources, b.target.mergeWhen, b.target.mergeInput = false, false, false, false
+	b.target.name, b.target.alias, b.target.uses = "", "", nil
+	b.target.returningReadRequired, b.subqueryDemand, b.consumer.visibilitySnapshot = false, false, false
 	b.stringSingleInsert = false
 	b.queryFrame = 0 // Installed mutation/RETURNING row frames are frame 1.
 	oldCTEs := len(b.cteBindings)

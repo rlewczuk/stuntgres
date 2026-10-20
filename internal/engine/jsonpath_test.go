@@ -37,7 +37,7 @@ func TestJSONPathDestinationParameterInference(t *testing.T) {
 		t.Fatal("retained input contract", n, err)
 	}
 	update := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	update.updateParameters = true
+	update.params.updateParameters = true
 	for _, tc := range []struct {
 		slot   int
 		target *sqltype.Descriptor

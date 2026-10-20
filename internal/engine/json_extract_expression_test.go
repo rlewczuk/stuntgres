@@ -27,8 +27,8 @@ func TestJSONExtractInferenceAndLifecycle(t *testing.T) {
 		b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 		node := jsonbSetUnitBind(t, b, tc.q)
 		for i, id := range tc.ids {
-			if b.parameters[i+1].Type.ID() != id {
-				t.Fatal(tc.q, i, b.parameters)
+			if b.params.parameters[i+1].Type.ID() != id {
+				t.Fatal(tc.q, i, b.params.parameters)
 			}
 		}
 		if node.Properties().Volatility != expr.Immutable || !node.Properties().ParameterDependent || plannedVolatility(node) != expr.Immutable {

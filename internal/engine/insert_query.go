@@ -179,11 +179,11 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 		}
 	}
 	defer func() { b.queryFrame = oldFrame }()
-	oldNamespace, oldRelation, oldClause, oldNonLateral := b.queryNamespace, b.relation, b.aggregateClause, b.queryNonLateral
-	b.queryNamespace, b.relation = &queryNamespace{}, nil
+	oldNamespace, oldRelation, oldClause, oldNonLateral := b.queryNamespace, b.target.relation, b.aggregateClause, b.queryNonLateral
+	b.queryNamespace, b.target.relation = &queryNamespace{}, nil
 	b.aggregateClause, b.queryNonLateral = "VALUES", true
 	defer func() {
-		b.queryNamespace, b.relation, b.aggregateClause, b.queryNonLateral = oldNamespace, oldRelation, oldClause, oldNonLateral
+		b.queryNamespace, b.target.relation, b.aggregateClause, b.queryNonLateral = oldNamespace, oldRelation, oldClause, oldNonLateral
 	}()
 	occurrence := b.viewValuesCount
 	b.viewValuesCount++
@@ -191,7 +191,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 	nodes := make([][]expr.Expr, len(source.Rows))
 	rawRows := make([][]parser.Expr, len(source.Rows))
 	var lists []expandedExpressionList
-	if b.noParameters || b.materializedDefinition {
+	if b.params.noParameters || b.consumer.materializedDefinition {
 		lists = make([]expandedExpressionList, len(source.Rows))
 	}
 	for i, written := range source.Rows {
@@ -292,7 +292,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 	if err != nil {
 		return nil, err
 	}
-	if b.noParameters || b.materializedDefinition {
+	if b.params.noParameters || b.consumer.materializedDefinition {
 		if source.Order != nil {
 			for i, key := range source.Order.Keys {
 				if err := b.captureValuesViewLiteral(key.Expr, order[i].expression, viewValuesOrderLiteral, occurrence, 0, i); err != nil {

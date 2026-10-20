@@ -433,7 +433,7 @@ func restoreDomainReplayNode(c *EvalContext, e *Engine, op *Operation, auth Auth
 	binder := newExpressionBinder(c.Context, e, c.Input, op, nil)
 	binder.queryAuth = &auth
 	binder.queryNamespace = &queryNamespace{}
-	binder.noParameters = true
+	binder.params.noParameters = true
 	node, err := binder.bindDefault(raw, catalog.Column{Name: "native captured cell", Usage: u})
 	if err == nil {
 		err = binder.captureRetainedWriteInput([]expr.Expr{node}, nil, nil)

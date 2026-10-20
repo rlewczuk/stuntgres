@@ -55,7 +55,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	restore := b.enterQuery(disallowParent)
 	defer restore()
 	defer func() {
-		if failure == nil && query != nil && (b.noParameters || b.materializedDefinition) {
+		if failure == nil && query != nil && (b.params.noParameters || b.consumer.materializedDefinition) {
 			b.normalizeStoredQuerySyntax(s)
 		}
 	}()
@@ -133,13 +133,13 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			return nil, err
 		}
 		if star, ok := raw.(parser.StarExpr); ok {
-			if b.ruleNamespace != nil && len(star.Qualifier.Parts) == 1 && (star.Qualifier.Parts[0].Text == "old" || star.Qualifier.Parts[0].Text == "new") {
+			if b.target.ruleNamespace != nil && len(star.Qualifier.Parts) == 1 && (star.Qualifier.Parts[0].Text == "old" || star.Qualifier.Parts[0].Text == "new") {
 				path := viewLiteralPath{query: b.frameID(), clause: viewTargetLiteral, target: target}
 				if b.viewStars == nil {
 					b.viewStars = make(map[viewLiteralPath][]viewColumn)
 				}
 				b.viewStars[path] = nil
-				for _, column := range b.ruleNamespace.relation.Columns {
+				for _, column := range b.target.ruleNamespace.relation.Columns {
 					name := star.Qualifier
 					name.Parts = []parser.Identifier{star.Qualifier.Parts[0], {Text: column.Name}}
 					expression, _, err := b.ruleColumn(parser.ColumnExpr{Name: name, Pos: star.Pos})
@@ -183,7 +183,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				}
 				columns = frozenColumns
 			}
-			if b.noParameters || b.materializedDefinition {
+			if b.params.noParameters || b.consumer.materializedDefinition {
 				if b.viewStars == nil {
 					b.viewStars = make(map[viewLiteralPath][]viewColumn)
 				}
@@ -201,7 +201,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				}
 				projection = append(projection, expr)
 				targetNames = append(targetNames, c.descriptor.Name)
-				if b.noParameters || b.materializedDefinition {
+				if b.params.noParameters || b.consumer.materializedDefinition {
 					b.viewStars[starPath] = append(b.viewStars[starPath], viewColumn{frame: frame, slot: c.slot})
 					literalTargets = append(literalTargets, -1)
 				}
@@ -213,7 +213,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			}
 			projection = append(projection, expansion.fields...)
 			targetNames = append(targetNames, expansion.names...)
-			if b.noParameters || b.materializedDefinition {
+			if b.params.noParameters || b.consumer.materializedDefinition {
 				path := viewLiteralPath{query: b.frameID(), clause: viewTargetLiteral, target: target}
 				ordinal := 0
 				if err := b.captureCompositeExpansion(field, expansion, path, &ordinal); err != nil {
@@ -229,7 +229,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				return nil, err
 			}
 			projection = append(projection, expr)
-			if b.noParameters || b.materializedDefinition {
+			if b.params.noParameters || b.consumer.materializedDefinition {
 				literalTargets = append(literalTargets, target)
 			}
 			name, _ := expressionName(raw, expr.ResultUsage(), expr)
@@ -246,12 +246,12 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		if err != nil {
 			return nil, err
 		}
-		if b.noParameters || b.materializedDefinition {
+		if b.params.noParameters || b.consumer.materializedDefinition {
 			if err := b.captureViewLiterals(s.Where, filter, viewWhereLiteral, 0); err != nil {
 				return nil, err
 			}
 		}
-		if !contextual && !b.noParameters && !b.materializedDefinition && len(s.Locking) == 0 {
+		if !contextual && !b.params.noParameters && !b.consumer.materializedDefinition && len(s.Locking) == 0 {
 			if source, ok := root.(*sourceNode); ok && len(b.querySources) == 1 && b.querySources[0].mark.mode == 0 {
 				b.querySources[0].partialCandidate = b.partialIndexCandidate(source.ref, filter)
 			}
@@ -272,7 +272,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		if err != nil {
 			return nil, err
 		}
-		if b.noParameters || b.materializedDefinition {
+		if b.params.noParameters || b.consumer.materializedDefinition {
 			if err := b.captureViewLiterals(s.Having, having, viewHavingLiteral, 0); err != nil {
 				return nil, err
 			}
@@ -321,7 +321,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	if err := b.resolveWindows(); err != nil {
 		return nil, err
 	}
-	if (b.noParameters || b.materializedDefinition) && s.Order != nil {
+	if (b.params.noParameters || b.consumer.materializedDefinition) && s.Order != nil {
 		frozen := *s.Order
 		frozen.Keys = append([]parser.OrderKey(nil), s.Order.Keys...)
 		for i, key := range frozen.Keys {
@@ -337,7 +337,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 		s.Order = &frozen
 	}
-	if (b.noParameters || b.materializedDefinition) && len(on) != 0 {
+	if (b.params.noParameters || b.consumer.materializedDefinition) && len(on) != 0 {
 		frozen := *s.Distinct
 		frozen.On = append([]parser.Expr(nil), s.Distinct.On...)
 		for i, raw := range frozen.On {
@@ -364,7 +364,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			}
 			projection[i] = expression
 		}
-		if (b.noParameters || b.materializedDefinition) && literalTargets[i] >= 0 && expression.ResultUsage().Type != nil {
+		if (b.params.noParameters || b.consumer.materializedDefinition) && literalTargets[i] >= 0 && expression.ResultUsage().Type != nil {
 			target := literalTargets[i]
 			if err := b.captureViewLiterals(s.Targets[target], expression, viewTargetLiteral, target); err != nil {
 				return nil, err
@@ -435,7 +435,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	}
 	grouped := s.GroupBy != nil || b.groupingActive || len(b.aggregates) > 0 || having != nil
 	var stringAnalysis []expr.Expr
-	if b.noParameters || b.materializedDefinition {
+	if b.params.noParameters || b.consumer.materializedDefinition {
 		stringAnalysis = append(stringAnalysis, projection...)
 		stringAnalysis = append(stringAnalysis, keys...)
 	}
@@ -630,7 +630,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			analysis = append(analysis, call.spec.frame.end.offset)
 		}
 	}
-	if (b.noParameters || b.materializedDefinition) && len(on) != 0 {
+	if (b.params.noParameters || b.consumer.materializedDefinition) && len(on) != 0 {
 		// Raw captured occurrences can own independently analyzed subquery
 		// frames even when SQL99 resolution shares their physical datum.
 		for _, key := range order {
@@ -653,7 +653,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			analysis = append(analysis, spec.frame.end.offset)
 		}
 	}
-	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection, analysisExpressions: analysis, frame: b.frameID(), syntax: s, hasTargetSet: b.queryHasTargetSet}, regclassOutput: regclassOutput, visibilitySnapshot: b.visibilitySnapshot}, nil
+	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection, analysisExpressions: analysis, frame: b.frameID(), syntax: s, hasTargetSet: b.queryHasTargetSet}, regclassOutput: regclassOutput, visibilitySnapshot: b.consumer.visibilitySnapshot}, nil
 }
 
 func (b *expressionBinder) assignOutput(bound expr.Expr, target catalog.Column) (expr.Expr, error) {

@@ -68,8 +68,8 @@ func TestDatetimeJustifyParameterAndStrictNull(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if b.parameters[1].Type.ID() != sqltype.Interval || !node.Properties().ParameterDependent {
-			t.Fatal(node.Properties(), b.parameters)
+		if b.params.parameters[1].Type.ID() != sqltype.Interval || !node.Properties().ParameterDependent {
+			t.Fatal(node.Properties(), b.params.parameters)
 		}
 		null, err := b.bindFunctionProvider(datetimeMakeRaw(name, ageFiniteTyped("interval", "0")))
 		if err != nil {

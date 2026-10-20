@@ -25,7 +25,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 	if a == nil || other == nil {
 		return a == nil && other == nil
 	}
-	checkDefinitionEquality := b != nil && b.checkDefinitionEquality
+	checkDefinitionEquality := b != nil && b.consumer.checkDefinitionEquality
 	leftUsage, rightUsage := a.ResultUsage(), other.ResultUsage()
 	if checkDefinitionEquality {
 		leftUsage.Collation.Derivation = rightUsage.Collation.Derivation

@@ -75,7 +75,7 @@ func TestGeneratedOriginalReferencesAndPrivateReadManifest(t *testing.T) {
 	ns := queryNamespace{columns: columns, qualifiers: []queryQualifier{{name: "g", original: "g", schema: "public", ref: ref, columns: columns}}, frame: d.Columns}
 	auth := AuthorizationView{View: access.View{Catalog: view}}
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
-	b.generatedOwner = d
+	b.target.generatedOwner = d
 	b.queryAuth = &auth
 	b.queryNamespace = &ns
 	b.querySources = []queryLeaf{{ref: ref, relation: d}}
@@ -85,8 +85,8 @@ func TestGeneratedOriginalReferencesAndPrivateReadManifest(t *testing.T) {
 	if _, err := b.column(raw("a")); err != nil {
 		t.Fatal(err)
 	}
-	if len(b.uses) != 0 {
-		t.Fatal("generation added DML explicit read manifest", b.uses)
+	if len(b.target.uses) != 0 {
+		t.Fatal("generation added DML explicit read manifest", b.target.uses)
 	}
 	for _, tc := range []struct{ name, code string }{{"b", "42P17"}, {"g", "42P17"}, {"xmin", "42P10"}, {"missing", "42703"}} {
 		_, err := b.column(raw(tc.name))

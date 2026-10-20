@@ -25,13 +25,13 @@ func TestStringNumericBaseBindingAndRebinding(t *testing.T) {
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42725" || diagnostic.Position != "8" || diagnostic.Detail != "" || diagnostic.Hint != "Could not choose a best candidate function. You might need to add explicit type casts." {
 			t.Fatal(name, err)
 		}
-		if b.parameters[1].Type != nil {
+		if b.params.parameters[1].Type != nil {
 			t.Fatal("ambiguous call fixed parameter")
 		}
 	}
 	for _, id := range []sqltype.ID{sqltype.Int4, sqltype.Int8} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		b.parameters[1] = b.typ(id).Usage()
+		b.params.parameters[1] = b.typ(id).Usage()
 		node, err := b.bind(call("to_hex", parameter), expressionPolicy{context: projectionContext})
 		if err != nil {
 			t.Fatal(err)
@@ -209,7 +209,7 @@ func TestStringNumericBaseMD5InternalCharAdmission(t *testing.T) {
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		char := b.typ(sqltype.Char).Usage()
 		if established {
-			b.parameters[1] = char
+			b.params.parameters[1] = char
 		}
 		cast := parser.CastExpr{Child: parser.ParameterExpr{Number: 1}, TypeName: parser.TypeName{Name: "char", Quoted: true}}
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "md5"}}}, Args: []parser.Expr{cast}}
@@ -217,8 +217,8 @@ func TestStringNumericBaseMD5InternalCharAdmission(t *testing.T) {
 		if err != nil {
 			t.Fatal("CHAR parameter annotation", established, err)
 		}
-		if node.ResultUsage().Type != b.typ(sqltype.Text) || b.parameters[1] != char {
-			t.Fatal("lost annotated CHAR parameter contract", established, node.ResultUsage(), b.parameters[1])
+		if node.ResultUsage().Type != b.typ(sqltype.Text) || b.params.parameters[1] != char {
+			t.Fatal("lost annotated CHAR parameter contract", established, node.ResultUsage(), b.params.parameters[1])
 		}
 		if _, err := sqltype.PlanCoercion(char, char, sqltype.Explicit); err == nil {
 			t.Fatal("textual input admission broadened general CHAR identity casts")

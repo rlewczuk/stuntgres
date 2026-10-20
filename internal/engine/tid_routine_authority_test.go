@@ -46,8 +46,8 @@ func TestTIDRoutineAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			binder := newExpressionBinder(context.Background(), e, input, reader, nil)
-			binder.queryAuth, binder.ref = &auth, ref
-			binder.relation = auth.Catalog.MustRelation(ref.Address)
+			binder.queryAuth, binder.target.ref = &auth, ref
+			binder.target.relation = auth.Catalog.MustRelation(ref.Address)
 			node, err := binder.bind(raw, expressionPolicy{context: projectionContext})
 			e.mu.Unlock()
 			if err != nil {

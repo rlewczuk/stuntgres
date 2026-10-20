@@ -97,18 +97,18 @@ func TestDatetimeZonePreferredUnknownAndFailures(t *testing.T) {
 			t.Fatal(node, err)
 		}
 		if len(args) == 1 {
-			if b.parameters[1].Type.ID() != sqltype.Timestamptz {
-				t.Fatal(b.parameters)
+			if b.params.parameters[1].Type.ID() != sqltype.Timestamptz {
+				t.Fatal(b.params.parameters)
 			}
-		} else if b.parameters[1].Type.ID() != sqltype.Text || b.parameters[2].Type.ID() != sqltype.Timestamptz {
-			t.Fatal(b.parameters)
+		} else if b.params.parameters[1].Type.ID() != sqltype.Text || b.params.parameters[2].Type.ID() != sqltype.Timestamptz {
+			t.Fatal(b.params.parameters)
 		}
 	}
 	for _, name := range []string{"date_add", "date_subtract"} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		_, err := b.bindFunctionProvider(datetimeMakeRaw(name, parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}, parser.ParameterExpr{Number: 3}))
-		if err != nil || b.parameters[1].Type.ID() != sqltype.Timestamptz || b.parameters[2].Type.ID() != sqltype.Interval || b.parameters[3].Type.ID() != sqltype.Text {
-			t.Fatal(b.parameters, err)
+		if err != nil || b.params.parameters[1].Type.ID() != sqltype.Timestamptz || b.params.parameters[2].Type.ID() != sqltype.Interval || b.params.parameters[3].Type.ID() != sqltype.Text {
+			t.Fatal(b.params.parameters, err)
 		}
 	}
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
@@ -146,19 +146,19 @@ func TestDatetimeZoneSelectedCastDiagnosticAndScopeRestoration(t *testing.T) {
 		}
 		_, err := b.bindFunctionProvider(datetimeMakeRaw("date_add", source, span))
 		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "42846" || diagnostic.Message != "cannot cast type timestamp with time zone to interval" || diagnostic.Position != "35" || b.datetimeZoneOperands {
-			t.Fatal(nested, err, b.datetimeZoneOperands)
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "42846" || diagnostic.Message != "cannot cast type timestamp with time zone to interval" || diagnostic.Position != "35" || b.consumer.datetimeZoneOperands {
+			t.Fatal(nested, err, b.consumer.datetimeZoneOperands)
 		}
 		// The same failed pair outside selected analysis retains the existing
 		// adjacent unsupported-cast boundary; no new coercion was admitted.
 		_, err = b.cast(span, expressionPolicy{context: projectionContext})
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || b.datetimeZoneOperands {
-			t.Fatal("scope leaked", err, b.datetimeZoneOperands)
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || b.consumer.datetimeZoneOperands {
+			t.Fatal("scope leaked", err, b.consumer.datetimeZoneOperands)
 		}
 	}
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	_, err := b.bindFunctionProvider(datetimeMakeRaw("date_add", ageFiniteTyped("timestamptz", "2004-01-01+00"), ageFiniteTyped("interval", "0")))
-	if err != nil || b.datetimeZoneOperands {
-		t.Fatal("successful analysis leaked scope", err, b.datetimeZoneOperands)
+	if err != nil || b.consumer.datetimeZoneOperands {
+		t.Fatal("successful analysis leaked scope", err, b.consumer.datetimeZoneOperands)
 	}
 }

@@ -19,7 +19,7 @@ func TestJSONObjectUniqueAggregateSlotsAndRemap(t *testing.T) {
 	input, _ := source.CatalogRead().LookupType(sqltype.Int4)
 	b := newTestExpressionBinder(t, ctx, source, sqltype.InputEnvironment{}, nil)
 	b.aggregateClause = "SELECT"
-	b.parameters[1], b.parameters[2] = key.Usage(), input.Usage()
+	b.params.parameters[1], b.params.parameters[2] = key.Usage(), input.Usage()
 	names := []string{"json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_object_agg_unique", "jsonb_object_agg_unique", "json_object_agg_unique_strict", "jsonb_object_agg_unique_strict"}
 	for _, name := range names {
 		t.Run(name, func(t *testing.T) {

@@ -124,13 +124,13 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 	if s.CurrentOf != nil {
 		b.currentOf = s.CurrentOf.Text
 	}
-	binder.relation, binder.ref = b.relation, b.ref
-	binder.targetName = b.relation.Name()
-	binder.targetAlias = s.Alias.Text
-	binder.updateParameters = true
+	binder.target.relation, binder.target.ref = b.relation, b.ref
+	binder.target.name = b.relation.Name()
+	binder.target.alias = s.Alias.Text
+	binder.params.updateParameters = true
 	defer func() {
-		binder.updateParameters = false
-		binder.updateInputParameters = nil
+		binder.params.updateParameters = false
+		binder.params.updateInputParameters = nil
 	}()
 	u := &boundUpdate{}
 	var err error
@@ -165,12 +165,12 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 	if s.Returning != nil {
 		// Only WHERE and finalized RETURNING types precede SET inference.
 		// SET's own unresolved occurrences retain their contextual diagnostics.
-		for number, usage := range binder.parameters {
+		for number, usage := range binder.params.parameters {
 			if usage.Type != nil {
-				if binder.updateInputParameters == nil {
-					binder.updateInputParameters = make(map[int]sqltype.Usage, len(binder.parameters))
+				if binder.params.updateInputParameters == nil {
+					binder.params.updateInputParameters = make(map[int]sqltype.Usage, len(binder.params.parameters))
 				}
-				binder.updateInputParameters[number] = usage
+				binder.params.updateInputParameters[number] = usage
 			}
 		}
 	}

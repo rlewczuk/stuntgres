@@ -36,7 +36,7 @@ func TestQueryFromValuesCommonSchema(t *testing.T) {
 				t.Fatal(column)
 			}
 			output := query.Root.(*projectNode).expressions[0].(columnExpression)
-			if output.origin != (ids.ObjectRef{}) || len(b.querySources) != 0 || len(b.uses) != 0 {
+			if output.origin != (ids.ObjectRef{}) || len(b.querySources) != 0 || len(b.target.uses) != 0 {
 				t.Fatal("synthetic source acquired physical identity", output, b.querySources)
 			}
 			for _, dependency := range b.dependencies {

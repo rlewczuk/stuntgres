@@ -24,7 +24,7 @@ func TestJSONArrayAggregateSlotsAndDescriptors(t *testing.T) {
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	b.aggregateClause = "SELECT"
-	b.parameters[1] = integer.Usage()
+	b.params.parameters[1] = integer.Usage()
 	for _, name := range []string{"json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_agg"} {
 		raw := parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}}, Pos: parser.Position{Character: 8}}
 		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
@@ -65,7 +65,7 @@ func TestJSONArrayAggregateSlotsAndDescriptors(t *testing.T) {
 		t.Fatal("NULL policy identity", len(b.aggregates))
 	}
 	schemaBinder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	schemaBinder.parameters[1] = integer.Usage()
+	schemaBinder.params.parameters[1] = integer.Usage()
 	targets := []parser.Expr{}
 	for _, name := range []string{"json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_arrayagg"} {
 		call := parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}}}

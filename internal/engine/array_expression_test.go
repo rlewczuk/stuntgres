@@ -207,7 +207,7 @@ func TestArrayExpressionColumnUseAndTargetManifest(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	intArray := b.typ(b.typ(sqltype.Int4).AssociatedArray())
-	b.relation = &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: intArray.Usage()}, {Name: "hidden", Usage: b.typ(sqltype.Int4).Usage()}}, Attributes: []int32{3, 7}, Index: map[string]int{"a": 0, "hidden": 1}}
+	b.target.relation = &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: intArray.Usage()}, {Name: "hidden", Usage: b.typ(sqltype.Int4).Usage()}}, Attributes: []int32{3, 7}, Index: map[string]int{"a": 0, "hidden": 1}}
 	column := func(name string) parser.Expr {
 		return parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}}
 	}
@@ -216,19 +216,19 @@ func TestArrayExpressionColumnUseAndTargetManifest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(b.uses, []int{0, 1}) {
-		t.Fatal("base and bound must contribute actual SELECT uses", b.uses)
+	if !reflect.DeepEqual(b.target.uses, []int{0, 1}) {
+		t.Fatal("base and bound must contribute actual SELECT uses", b.target.uses)
 	}
 	if _, physical := node.(columnExpression); physical {
 		t.Fatal("derived access has physical origin")
 	}
-	b.uses = nil
-	target, err := b.bindArrayTarget(b.relation.Columns[0], raw, parser.Position{})
+	b.target.uses = nil
+	target, err := b.bindArrayTarget(b.target.relation.Columns[0], raw, parser.Position{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(b.uses, []int{1}) {
-		t.Fatal("partial target must read bounds, not the implicit old container", b.uses)
+	if !reflect.DeepEqual(b.target.uses, []int{1}) {
+		t.Fatal("partial target must read bounds, not the implicit old container", b.target.uses)
 	}
 	var slots []int
 	var storage [13]expr.Expr

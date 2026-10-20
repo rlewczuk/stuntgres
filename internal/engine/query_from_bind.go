@@ -96,7 +96,7 @@ func (b *expressionBinder) queryColumnAt(c queryColumn, pos parser.Position) exp
 	}
 	column := columnExpression{Info: b.info(c.descriptor.Usage, pos, expr.Properties{RowDependent: true}), origin: origin, scope: 1, frame: b.frameID(), slot: c.slot}
 	column.mergeSource = c.leaf != queryTargetLeaf && b.mergeReturningFrame(b.frameID())
-	if b.generatedOwner == nil {
+	if b.target.generatedOwner == nil {
 		column = column.withGeneration(relation, c.physical, c.slot-c.physical)
 		if column.virtual != nil && c.leaf >= 0 {
 			column.queryOccurrence = c.leaf + 1
@@ -221,7 +221,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 		}
 		return b.queryColumnInFrame(*match, raw.Pos, frame), nil
 	}
-	if b.mergeWhen && b.frameID() == 1 && name != "tableoid" && isSystemColumn(name) {
+	if b.target.mergeWhen && b.frameID() == 1 && name != "tableoid" && isSystemColumn(name) {
 		for _, q := range b.queryNamespace.qualifiers {
 			if len(parts) > 1 && (q.name != parts[len(parts)-2].Text || len(parts) == 3 && q.schema != parts[0].Text) {
 				continue
@@ -331,7 +331,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		}
 	}()
 	ordinal := -1
-	if (b.noParameters || b.materializedDefinition) && item != nil {
+	if (b.params.noParameters || b.consumer.materializedDefinition) && item != nil {
 		ordinal = len(b.viewNamespaces)
 		b.viewNamespaces = append(b.viewNamespaces, viewNamespace{})
 		defer func() {
@@ -403,7 +403,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			return nil, queryNamespace{}, compositeOpenError(relation, n.Name.Parts[0].Pos)
 		}
 		if relation.RelationKind == catalog.IndexRelation {
-			if b.deleteUsingSources {
+			if b.target.deleteUsingSources {
 				err := expr.ErrorAt("42809", fmt.Sprintf(`cannot open relation "%s"`, relation.Name()), n.Name.Parts[0].Pos).(*sqlstate.Error)
 				err.Detail = "This operation is not supported for indexes."
 				return nil, queryNamespace{}, err
@@ -416,7 +416,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			}
 		}
 		leaf := len(b.querySources)
-		b.querySources = append(b.querySources, queryLeaf{ref: ref, relation: relation, only: n.Only, storage: b.engine.authorizationStorageLocked(*b.queryAuth, ref.Address), mark: b.queryLockAdmission.tableMark(n), table: n, query: b.queryLockAdmission.tableQueries[n].query, deleteReference: b.deleteUsingSources && len(b.queryScopes) == 0})
+		b.querySources = append(b.querySources, queryLeaf{ref: ref, relation: relation, only: n.Only, storage: b.engine.authorizationStorageLocked(*b.queryAuth, ref.Address), mark: b.queryLockAdmission.tableMark(n), table: n, query: b.queryLockAdmission.tableQueries[n].query, deleteReference: b.target.deleteUsingSources && len(b.queryScopes) == 0})
 		columns := make([]queryColumn, len(relation.Columns))
 		for i, c := range relation.Columns {
 			columns[i] = queryColumn{descriptor: c, slot: i, leaf: leaf, physical: i}
@@ -574,7 +574,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			if err != nil {
 				return nil, queryNamespace{}, err
 			}
-			if b.noParameters || b.materializedDefinition {
+			if b.params.noParameters || b.consumer.materializedDefinition {
 				if err := b.captureViewLiterals(n.On, join.predicate, viewJoinLiteral, joinOrdinal); err != nil {
 					return nil, queryNamespace{}, err
 				}

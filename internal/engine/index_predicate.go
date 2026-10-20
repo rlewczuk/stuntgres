@@ -118,7 +118,7 @@ func (e *Engine) bindIndexPredicate(op *Operation, input sqltype.InputEnvironmen
 		return nil, nil
 	}
 	binder := e.indexExpressionBinder(op, input, auth, parent)
-	binder.indexPredicateConsumer = true
+	binder.consumer.indexPredicateConsumer = true
 	definition, err := binder.bindBoolean(raw, filterContext, "WHERE")
 	if err != nil {
 		return nil, err

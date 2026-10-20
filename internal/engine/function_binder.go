@@ -56,7 +56,7 @@ func (b *expressionBinder) AnalyzeFilter(filter parser.Expr) error {
 	return err
 }
 
-func (b *expressionBinder) DefaultConsumer() bool { return b.defaultConsumer }
+func (b *expressionBinder) DefaultConsumer() bool { return b.consumer.defaultConsumer }
 
 func (b *expressionBinder) ArrayType(element *sqltype.Descriptor) (*sqltype.Descriptor, bool) {
 	return b.definitionArray(element)
@@ -102,12 +102,12 @@ func (b *expressionBinder) RetainUntypedParameter(arg expr.Expr) bool {
 	if !ok || parameter.Usage.Type != nil {
 		return false
 	}
-	b.anyParameters = append(b.anyParameters, parameter)
+	b.params.anyParameters = append(b.params.anyParameters, parameter)
 	return true
 }
 
 func (b *expressionBinder) NoteCatalogText()     { b.regclassConcat = true }
-func (b *expressionBinder) NoteCatalogSnapshot() { b.catalogSnapshot = true }
+func (b *expressionBinder) NoteCatalogSnapshot() { b.consumer.catalogSnapshot = true }
 
 func (b *expressionBinder) BuiltinOperatorRoutineInfo(info expr.Info, operator string, left, right sqltype.ID) (expr.Info, error) {
 	return b.builtinOperatorRoutineInfo(info, operator, left, right)
@@ -142,7 +142,7 @@ func (b *expressionBinder) CallSignatureError(raw parser.FunctionExpr) error {
 
 func (b *expressionBinder) LiteralNull(arg expr.Expr) bool { return randomLiteralNull(arg) }
 
-func (b *expressionBinder) NoteVisibilitySnapshot() { b.visibilitySnapshot = true }
+func (b *expressionBinder) NoteVisibilitySnapshot() { b.consumer.visibilitySnapshot = true }
 
 func (b *expressionBinder) Frame() uint32 { return b.frameID() }
 
@@ -223,7 +223,7 @@ func (b *expressionBinder) JSONReturningType(raw parser.TypeName) (sqltype.Usage
 // non-NULL captured literal provider.
 func (b *expressionBinder) SequenceArgument(raw parser.Expr) (expr.Expr, ids.ObjectRef, error) {
 	node, ref, err := b.bindRegclass(raw)
-	if err == nil && b.defaultConsumer {
+	if err == nil && b.consumer.defaultConsumer {
 		literal, ok := node.(literalExpression)
 		if !ok || literal.value.IsNull() || ref == (ids.ObjectRef{}) {
 			return nil, ref, expr.ErrorAt("0A000", "unsupported sequence DEFAULT argument", parser.ExpressionStart(raw))
@@ -239,8 +239,8 @@ func (b *expressionBinder) SequenceTemporary(ref ids.ObjectRef, pos parser.Posit
 			temporary = constant.temporary
 		}
 	}
-	if b.defaultConsumer {
-		if err := validateDefaultTemporaryProvider(temporary, b.defaultTemporary, pos); err != nil {
+	if b.consumer.defaultConsumer {
+		if err := validateDefaultTemporaryProvider(temporary, b.consumer.defaultTemporary, pos); err != nil {
 			return temporary, err
 		}
 		// Stored defaults do not enter call-site prepared literal reanalysis.

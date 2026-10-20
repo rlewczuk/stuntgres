@@ -16,7 +16,7 @@ func TestSQLJSONObjectAggregatePolicySlotsAndReturningOwner(t *testing.T) {
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	b.aggregateClause = "SELECT"
-	b.parameters[1], b.parameters[2] = text.Usage(), integer.Usage()
+	b.params.parameters[1], b.params.parameters[2] = text.Usage(), integer.Usage()
 	for _, absent := range []bool{false, true} {
 		for _, unique := range []bool{false, true} {
 			for range 2 {

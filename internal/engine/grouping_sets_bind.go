@@ -129,7 +129,7 @@ func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection [
 		if err != nil {
 			return out, err
 		}
-		if (b.noParameters || b.materializedDefinition) && !isOrdinal {
+		if (b.params.noParameters || b.consumer.materializedDefinition) && !isOrdinal {
 			if err := b.captureViewLiterals(item.Expr, key, viewGroupLiteral, leaf); err != nil {
 				return out, err
 			}
@@ -361,13 +361,13 @@ func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (expr.Expr, err
 	if err := b.argumentOwner.nestingError(); err != nil {
 		return nil, err
 	}
-	if b.checkConsumer {
+	if b.consumer.checkConsumer {
 		return nil, expr.ErrorAt("42803", "grouping operations are not allowed in check constraints", raw.Pos)
 	}
-	if b.indexPredicateConsumer {
+	if b.consumer.indexPredicateConsumer {
 		return nil, expr.ErrorAt("42803", "grouping operations are not allowed in index predicates", raw.Pos)
 	}
-	if b.indexConsumer {
+	if b.consumer.indexConsumer {
 		return nil, expr.ErrorAt("42803", "grouping operations are not allowed in index expressions", raw.Pos)
 	}
 	owner, index := b.argumentQueryOwner(func(visit func(expr.Expr)) {

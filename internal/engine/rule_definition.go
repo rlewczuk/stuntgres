@@ -77,14 +77,14 @@ func ruleEventCode(event string) string {
 }
 
 func (b *expressionBinder) ruleColumn(raw parser.ColumnExpr) (expr.Expr, bool, error) {
-	if b.ruleNamespace == nil || len(raw.Name.Parts) == 0 {
+	if b.target.ruleNamespace == nil || len(raw.Name.Parts) == 0 {
 		return nil, false, nil
 	}
 	side := raw.Name.Parts[0].Text
 	if side != "new" && side != "old" {
 		return nil, false, nil
 	}
-	ns := b.ruleNamespace
+	ns := b.target.ruleNamespace
 	if side == "old" && ns.event == "INSERT" || side == "new" && ns.event == "DELETE" || ns.event == "SELECT" {
 		return nil, true, sqlError("42P17", fmt.Sprintf("ON %s rule cannot use %s", ns.event, strings.ToUpper(side)))
 	}
@@ -194,8 +194,8 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 	ns := &ruleNamespace{relation: d, ref: ref, event: r.event}
 	if s.Condition != nil {
 		binder := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
-		binder.ruleNamespace = ns
-		binder.noParameters = true
+		binder.target.ruleNamespace = ns
+		binder.params.noParameters = true
 		binder.queryAuth = &auth
 		binder.aggregateClause = "WHERE"
 		binder.queryFrame = 1

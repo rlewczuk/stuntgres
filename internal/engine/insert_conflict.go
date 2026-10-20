@@ -120,9 +120,9 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 		return sqlError("42704", fmt.Sprintf("constraint %q for table %q does not exist", raw.Constraint.Text, b.relation.Name()))
 	}
 	binder := e.indexExpressionBinder(shared.op, shared.input, auth, b.relation)
-	binder.parameters = shared.parameters
+	binder.params.parameters = shared.params.parameters
 	binder.expected = shared.expected
-	binder.noParameters = false
+	binder.params.noParameters = false
 	if raw.Update {
 		binder.queryHidden = append(binder.queryHidden, queryQualifier{name: "excluded", original: "excluded", lateralForbidden: true})
 	}
@@ -177,7 +177,7 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 		// provider or apply its option validation; identity is family plus input.
 	}
 	if raw.Predicate != nil {
-		binder.indexPredicateConsumer = true
+		binder.consumer.indexPredicateConsumer = true
 		predicate, err := binder.bindBoolean(raw.Predicate, filterContext, "WHERE")
 		if err != nil {
 			return err
@@ -185,7 +185,7 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 		c.predicate = predicate
 	}
 	c.reads = binder.querySources[0].uses
-	shared.anyParameters = append(shared.anyParameters, binder.anyParameters...)
+	shared.params.anyParameters = append(shared.params.anyParameters, binder.params.anyParameters...)
 	for _, dep := range binder.dependencies {
 		shared.dependency(dep.Ref, dep.Revision)
 	}

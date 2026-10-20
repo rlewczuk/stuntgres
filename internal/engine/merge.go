@@ -86,9 +86,9 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 	if out.storage == nil && out.relation.RelationKind != catalog.PartitionedRelation && !guardedCatalogRelation(out.relation) {
 		return fmt.Errorf("stuntgres: relation storage is missing")
 	}
-	binder.relation, binder.ref = out.relation, ref
-	binder.targetName, binder.targetAlias = out.relation.Name(), s.Alias.Text
-	binder.insertTarget = out.relation
+	binder.target.relation, binder.target.ref = out.relation, ref
+	binder.target.name, binder.target.alias = out.relation.Name(), s.Alias.Text
+	binder.target.insertTarget = out.relation
 	target := binder.mutationTargetNamespace()
 	binder.queryHidden = append(binder.queryHidden, target.qualifiers[0])
 	sourceHiddenStart := len(binder.queryHidden)
@@ -128,29 +128,29 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 	merge := &boundMerge{source: root, on: on, arms: make([]boundMergeArm, len(s.Arms)), targetWidth: len(target.frame), sourceWidth: len(source.frame)}
 	var outputParameters map[int]sqltype.Usage
 	if s.Returning != nil {
-		wasUpdateParameters := binder.updateParameters
-		binder.updateParameters = true
+		wasUpdateParameters := binder.params.updateParameters
+		binder.params.updateParameters = true
 		out.returning, err = binder.bindReturning(s.Returning, returningMerge)
-		binder.updateParameters = wasUpdateParameters
+		binder.params.updateParameters = wasUpdateParameters
 		if err != nil {
 			return err
 		}
-		out.returning.readRequired = binder.returningReadRequired
-		for number, usage := range binder.parameters {
+		out.returning.readRequired = binder.target.returningReadRequired
+		for number, usage := range binder.params.parameters {
 			if usage.Type != nil {
-				if binder.updateInputParameters == nil {
-					binder.updateInputParameters = make(map[int]sqltype.Usage, len(binder.parameters))
+				if binder.params.updateInputParameters == nil {
+					binder.params.updateInputParameters = make(map[int]sqltype.Usage, len(binder.params.parameters))
 				}
-				binder.updateInputParameters[number] = usage
+				binder.params.updateInputParameters[number] = usage
 			}
 		}
-		outputParameters = binder.updateInputParameters
-		defer func() { binder.updateInputParameters = nil }()
+		outputParameters = binder.params.updateInputParameters
+		defer func() { binder.params.updateInputParameters = nil }()
 	}
 	hidden := binder.queryHidden
 	var sourceHidden []queryQualifier
 	for i, raw := range s.Arms {
-		binder.updateInputParameters = outputParameters
+		binder.params.updateInputParameters = outputParameters
 		binder.queryHidden = hidden
 		binder.queryNamespace = &source
 		switch raw.Match {
@@ -178,10 +178,10 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 		arm := &merge.arms[i]
 		arm.match, arm.action = raw.Match, raw.Action
 		if raw.Condition != nil {
-			binder.mergeWhen = true
+			binder.target.mergeWhen = true
 			binder.aggregateClause = "WHEN"
 			arm.condition, err = binder.bindBoolean(raw.Condition, filterContext, "WHEN")
-			binder.mergeWhen = false
+			binder.target.mergeWhen = false
 			if err != nil {
 				return err
 			}
@@ -203,9 +203,9 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 			merge.hasInsert = true
 			arm.syntax = raw.Values
 			insert := parser.Insert{Name: s.Name, Targets: raw.Targets, Rows: [][]parser.Expr{raw.Values}, DefaultValues: raw.DefaultValues, Override: raw.Override, Pos: raw.ActionPos}
-			binder.mergeInput = true
+			binder.target.mergeInput = true
 			err = e.bindInsertInput(&arm.input, binder, auth, &insert)
-			binder.mergeInput = false
+			binder.target.mergeInput = false
 			if err != nil {
 				return err
 			}

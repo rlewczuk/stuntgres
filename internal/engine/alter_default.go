@@ -149,7 +149,7 @@ func (e *Engine) cookAlterDefaultLocked(scope *StatementScope, op *Operation, au
 	var definition catalog.ColumnDefault
 	binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
 	binder.queryAuth = &auth
-	binder.defaultTemporary = auth.Catalog.MustNamespace(old.Namespace()).Temporary
+	binder.consumer.defaultTemporary = auth.Catalog.MustNamespace(old.Namespace()).Temporary
 	var err error
 	definition.Expression, err = binder.bindDefault(expression, old.Columns[slot])
 	if err == nil {

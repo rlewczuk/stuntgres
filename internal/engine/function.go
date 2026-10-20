@@ -128,7 +128,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 			properties.Volatility = p.Volatility
 		}
 		if parameter, ok := arg.(parameterExpression); ok && parameter.Usage.Type == nil {
-			b.anyParameters = append(b.anyParameters, parameter)
+			b.params.anyParameters = append(b.params.anyParameters, parameter)
 		}
 	}
 	if len(raw.Args) > 100 {

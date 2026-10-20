@@ -144,7 +144,7 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 			return err
 		}
 		binder := newExpressionBinder(ctx, e, input, s.op, nil)
-		binder.queryAuth, binder.noParameters, binder.executeParameters = &auth, true, true
+		binder.queryAuth, binder.params.noParameters, binder.params.executeParameters = &auth, true, true
 		nodes := make([]expr.Expr, formal.Count)
 		for i, argument := range raw.Arguments {
 			node, err := binder.bind(argument, expressionPolicy{context: functionArgumentContext, expected: formal.Types[i], mode: sqltype.Assignment})
@@ -160,12 +160,12 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 			}
 			nodes[i] = node
 		}
-		if binder.catalogSnapshot || binder.regclassConcat {
+		if binder.consumer.catalogSnapshot || binder.regclassConcat {
 			if err := e.captureCommentSnapshotLocked(s); err != nil {
 				return err
 			}
 		}
-		if binder.visibilitySnapshot {
+		if binder.consumer.visibilitySnapshot {
 			s.visibilityDemand = true
 			if err := e.captureVisibilitySnapshotLocked(s); err != nil {
 				return err
