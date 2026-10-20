@@ -14,7 +14,14 @@ type mergeActionExpression struct {
 }
 
 func (e mergeActionExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
+	runtime, err := nodeRuntimeOf(ctx)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	return runtime.EvalMergeAction(e)
+}
+
+func (c *EvalContext) EvalMergeAction(e mergeActionExpression) (sqltype.Value, error) {
 	owner, err := returningRowContext(c, e.scope, e.frame)
 	if err != nil {
 		return sqltype.Value{}, err

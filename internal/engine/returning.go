@@ -58,7 +58,14 @@ func returningRowContext(c *EvalContext, scope, frame uint32) (*EvalContext, err
 }
 
 func (e returningColumnExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
+	runtime, err := nodeRuntimeOf(ctx)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	return runtime.EvalReturningColumn(e)
+}
+
+func (c *EvalContext) EvalReturningColumn(e returningColumnExpression) (sqltype.Value, error) {
 	parent, err := returningRowContext(c, e.scope, e.frame)
 	if err != nil {
 		return sqltype.Value{}, err

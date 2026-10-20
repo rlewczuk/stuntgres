@@ -223,7 +223,14 @@ type cachedOrderExpression struct {
 }
 
 func (e cachedOrderExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
+	runtime, err := nodeRuntimeOf(ctx)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	return runtime.EvalCachedOrder(e)
+}
+
+func (c *EvalContext) EvalCachedOrder(e cachedOrderExpression) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

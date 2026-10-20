@@ -79,7 +79,7 @@ func selectVirtualGenerationRecipe(c *EvalContext, owner *catalog.Relation, defi
 	c.routineConsumer = owner
 }
 
-func (e columnExpression) admitVirtualGeneration(c *EvalContext, view catalog.Read) error {
+func (c *EvalContext) admitColumnVirtualGeneration(e columnExpression, view catalog.Read) error {
 	if e.virtualOwner == nil {
 		return fmt.Errorf("stuntgres: missing virtual generation owner")
 	}
@@ -148,7 +148,7 @@ func logicalColumnValue(d *catalog.Relation, slot int, row []sqltype.Value, c *E
 // Physical child identity belongs to tableoid/provenance, not recipe selection.
 // Rechecks borrow the complete latest logical tuple without rereading a source
 // whose inheritance mapping scratch may still hold that same tuple.
-func (e columnExpression) capturedGeneration(source *querySource, index int, current []sqltype.Value, c *EvalContext) (expr.Expr, []sqltype.Value, error) {
+func (c *EvalContext) columnCapturedGeneration(e columnExpression, source *querySource, index int, current []sqltype.Value) (expr.Expr, []sqltype.Value, error) {
 	data := source.view.Load()
 	if data == nil {
 		return nil, nil, fmt.Errorf("stuntgres: virtual source snapshot is released")

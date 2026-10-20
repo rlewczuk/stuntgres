@@ -26,6 +26,21 @@ type nodeRuntime interface {
 	// RowAbsent reports whether a whole-row reference reads an absent source
 	// row of its frame.
 	RowAbsent(rowExpression) (bool, error)
+
+	// Frame nodes: each reads the row, frame, query or domain state of the
+	// current evaluation frame or one of its outer frames.
+	EvalColumn(columnExpression) (sqltype.Value, error)
+	EvalParameter(parameterExpression) (sqltype.Value, error)
+	EvalGroup(groupExpression) (sqltype.Value, error)
+	EvalGrouping(groupingExpression) (sqltype.Value, error)
+	EvalTableOID(tableOIDExpression) (sqltype.Value, error)
+	EvalReturningColumn(returningColumnExpression) (sqltype.Value, error)
+	EvalReturningWholeRow(returningWholeRowExpression) (sqltype.Value, error)
+	EvalMergeAction(mergeActionExpression) (sqltype.Value, error)
+	EvalCachedOrder(cachedOrderExpression) (sqltype.Value, error)
+	EvalWindow(*windowExpression) (sqltype.Value, error)
+	EvalDomainValue(domainValueExpression) (sqltype.Value, error)
+	EvalUpdateOutput(updateOutputExpression) (sqltype.Value, error)
 }
 
 var _ nodeRuntime = (*EvalContext)(nil)

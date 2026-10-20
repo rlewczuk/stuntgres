@@ -146,7 +146,7 @@ func validateExpressionJoinExecution(c *EvalContext, expression expr.Expr, catal
 	if column, ok := expression.(columnExpression); ok && column.virtual != nil {
 		// A virtual column is a recipe boundary, not a lexical child in the
 		// enclosing query's frame or routine dependency manifest.
-		return column.admitVirtualGeneration(c, catalog)
+		return c.admitColumnVirtualGeneration(column, catalog)
 	}
 	if subquery, ok := expression.(subqueryExpression); ok {
 		project := subquery.queryPlan.Root.(*projectNode)

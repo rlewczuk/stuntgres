@@ -98,7 +98,7 @@ func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
 	}
 	recipeContext := EvalContext{}
 	if allocations := testing.AllocsPerRun(10, func() {
-		recipe, row, err := frozen.capturedGeneration(current, 0, nil, &recipeContext)
+		recipe, row, err := recipeContext.columnCapturedGeneration(frozen, current, 0, nil)
 		if err != nil || recipe == nil || len(row) != 3 {
 			t.Fatal(recipe, row, err)
 		}

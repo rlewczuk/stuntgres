@@ -58,7 +58,14 @@ type groupExpression struct {
 }
 
 func (e groupExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
+	runtime, err := nodeRuntimeOf(ctx)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	return runtime.EvalGroup(e)
+}
+
+func (c *EvalContext) EvalGroup(e groupExpression) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

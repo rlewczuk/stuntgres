@@ -22,7 +22,14 @@ type windowExpression struct {
 }
 
 func (e *windowExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
+	runtime, err := nodeRuntimeOf(ctx)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	return runtime.EvalWindow(e)
+}
+
+func (c *EvalContext) EvalWindow(e *windowExpression) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

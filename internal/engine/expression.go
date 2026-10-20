@@ -225,7 +225,7 @@ type columnExpression struct {
 	mergeSource     bool // Missing MERGE source tuples short-circuit virtual recipes.
 }
 
-func (e columnExpression) rowContext(c *EvalContext) (*EvalContext, error) {
+func (c *EvalContext) columnRowContext(e columnExpression) (*EvalContext, error) {
 	if err := evaluationContext(c); err != nil {
 		return nil, err
 	}
@@ -243,8 +243,15 @@ func (e columnExpression) rowContext(c *EvalContext) (*EvalContext, error) {
 }
 
 func (e columnExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
-	row, err := e.rowContext(c)
+	runtime, err := nodeRuntimeOf(ctx)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	return runtime.EvalColumn(e)
+}
+
+func (c *EvalContext) EvalColumn(e columnExpression) (sqltype.Value, error) {
+	row, err := c.columnRowContext(e)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -290,7 +297,7 @@ func (e columnExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 				}
 				current = row.queryCurrentRows[source.occurrence]
 			}
-			recipe, local.Row, err = e.capturedGeneration(source, index, current, &local)
+			recipe, local.Row, err = local.columnCapturedGeneration(e, source, index, current)
 			if err != nil {
 				return sqltype.Value{}, err
 			}
@@ -305,7 +312,14 @@ type parameterExpression struct {
 }
 
 func (e parameterExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
+	runtime, err := nodeRuntimeOf(ctx)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	return runtime.EvalParameter(e)
+}
+
+func (c *EvalContext) EvalParameter(e parameterExpression) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

@@ -21,7 +21,14 @@ type returningWholeRowExpression struct {
 }
 
 func (e returningWholeRowExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
+	runtime, err := nodeRuntimeOf(ctx)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	return runtime.EvalReturningWholeRow(e)
+}
+
+func (c *EvalContext) EvalReturningWholeRow(e returningWholeRowExpression) (sqltype.Value, error) {
 	parent, err := returningRowContext(c, e.scope, e.frame)
 	if err != nil {
 		return sqltype.Value{}, err

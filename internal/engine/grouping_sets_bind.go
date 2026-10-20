@@ -317,7 +317,14 @@ type groupingExpression struct {
 }
 
 func (e groupingExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
+	runtime, err := nodeRuntimeOf(ctx)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	return runtime.EvalGrouping(e)
+}
+
+func (c *EvalContext) EvalGrouping(e groupingExpression) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

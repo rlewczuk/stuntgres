@@ -19,7 +19,14 @@ type tableOIDExpression struct {
 }
 
 func (n tableOIDExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
+	runtime, err := nodeRuntimeOf(ctx)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	return runtime.EvalTableOID(n)
+}
+
+func (c *EvalContext) EvalTableOID(n tableOIDExpression) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
