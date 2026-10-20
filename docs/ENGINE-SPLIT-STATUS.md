@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `5ecfbe328ecb82579a42c26670bfea6910ab13f8`. The later-wave plans
+Last verified against `master` at `baaa1572e3fe5e7c4debd865b12654203bd19b8b`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -21,7 +21,7 @@ as another broad item (§8).
 - **Step 10 `plan`** — 10b node runtime (item 32).
 - **In-place untangling** — 12b binder field groups (item 21) and 13a
   scope slots (item 22). Both are broad: one at a time.
-- **Step 14 `routine`** — 14b (item 25); 14a and the F3 aliases are done.
+- **Step 15 `typedef`** — 15a (item 26); `routine` 14b is done.
 
 Steps 1, 2 and 4–8 and `access` are done.
 
@@ -272,7 +272,8 @@ Steps 1, 2 and 4–8 and `access` are done.
   needs 13d)
   - [x] 14a — In place (`f4645bc19`, `87bf1455e`, `f33847363`, then the docs
     commit) *(racecheck skipped at user request)*
-  - [ ] 14b — `routine` created and clean set moved
+  - [x] 14b — `routine` created and clean set moved (`aaf6759a4`,
+    `d6becc9d6`, then the docs commit) *(racecheck skipped at user request)*
   - [ ] 14c — Host refined (docs only)
   - [ ] 14d — DDL handlers moved
 - [ ] **Step 15 — `typedef`** ([prompt](ENGINE-SPLIT-typedef.md); Part A
@@ -401,7 +402,8 @@ in the prompt file's Status section.
 
 24. [x] Routine 14a — [routine](ENGINE-SPLIT-routine.md) 14a · needs
     `PG18-ROUTINE-CORE` merged · racecheck skipped at user request
-25. [ ] Routine 14b — [routine](ENGINE-SPLIT-routine.md) 14b · needs 24, 6
+25. [x] Routine 14b — [routine](ENGINE-SPLIT-routine.md) 14b · needs 24, 6 ·
+    racecheck skipped at user request
 26. [ ] Typedef 15a — [typedef](ENGINE-SPLIT-typedef.md) 15a · needs 25
 27. [ ] Typedef 15b — [typedef](ENGINE-SPLIT-typedef.md) 15b · needs 26
 28. [ ] Extension 16a — [extension](ENGINE-SPLIT-extension.md) 16a · needs

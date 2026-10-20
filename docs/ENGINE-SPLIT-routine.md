@@ -215,11 +215,61 @@ DDL handlers live in `routine`. The checks in §8.3 pass.
     host contention; allocations are unchanged.
     Racecheck and finalcheck skipped at user request.
   - No tests moved, adapted or deleted.
-- [ ] 14b — `routine` created and clean set moved
+- [x] 14b — `routine` created and clean set moved (`aaf6759a4`,
+  `d6becc9d6`, then the docs commit) *(racecheck/finalcheck skipped at user
+  request)*
+  - Re-measured at `baaa1572e` with a frontier tool (go/types; outside uses
+    of the set, and engine declarations the set uses).
+  - `aaf6759a4` (export in place): the clean declarations of the mixed files
+    were split into whole files first; the engine keeps
+    `EvalContext.selectExpressionRecipe` (`routine_reference.go`),
+    `dropProvider.clearOperatorLinks` (`operator_dependencies.go`),
+    `procedureReturnsSet` (now `routine_returns_set.go`) and the binder
+    methods of `operator_routine_binding.go`. The 14a `movex` tool exported
+    the names the engine uses (capitalized, otherwise unchanged). The private
+    maps are read through lookups: `BuiltinRoutine` (was
+    `builtinRoutineByOID[id]`), `OperatorRoutine` and the iterator
+    `OperatorRoutines` (was `builtinOperatorRoutineByDeclaration`; both
+    range loops were already map-ordered), `SeededOperatorNames()` and the
+    constant `BuiltinOperatorCount`.
+  - `d6becc9d6` (move): 14 files and the seam test moved into
+    `internal/engine/routine` (`inventory.go`, `procedures.go`, `body.go`,
+    `descriptor.go`, `grant_kind.go`, `address_kind.go`, `operator_*.go`,
+    ~4.2k lines); `movex` qualified the engine references in 60 files.
+    `routine` imports `authorization`, `catalog`, `expr`, `functions`, `ids`,
+    `parser`, `sqltype`, `sqlstate` and the standard library. `sqlError` and
+    `objectNameText` got private copies in `errors.go`, as in `visibility`,
+    `lock` and `access`. Four engine locals named `routine` were renamed.
+  - Moved beyond the 14a table: `builtinOperatorRoutineKey`,
+    `builtinOperatorRoutineByDeclaration` and their index (now
+    `operator_routine_index.go`), a pure join of the two inventories; moving
+    it avoided exporting anonymous-struct fields.
+  - Not moved: `operator_dump.go` needs the engine's dump graph
+    (`dumpEventKey`, `dumpPhase`, `dumpDomain`), type-declaration rendering
+    (`catalogTypeDeclaration` → `definitionReader`) and
+    `routineIdentityByOID`; it waits for a dump seam. `routineAdmission*`
+    records cannot move without their execution methods (step 11). The clean
+    `sql_routine*.go` declarations are expression nodes or resolution (steps
+    10–12) or DDL (14c/14d).
+  - Tests: new seam tests `TestBuiltinRoutineLookup`,
+    `TestOperatorRoutineLookup`, `TestSeededOperatorNamesIsOneIndex` (written
+    first, observed failing). Moved to `routine/operator_estimator_test.go`:
+    `TestUserOperatorCatalogEstimatorVariants` and
+    `TestUserOperatorCatalogEstimatorMetadata` (local `qualifiedName`
+    helper). `TestUserOperatorOptionExtraction` stays: it also checks the
+    engine's `operatorOptionsSyntax`. Engine tests were only qualified
+    mechanically; none deleted.
+  - Verification: build, vet (only the existing `composites`/`copylocks`
+    findings), 90 targeted unit tests, the 126-test 14a reference selection
+    in quick mode and with `REFERENCE=1`, `make quickcheck` and `make deps`
+    passed. Startup bench, interleaved 10 runs each on a loaded host (load
+    10–15): median 979 µs/op before, 982 µs/op after; 5,106–5,109 allocs/op
+    and about 1.64 MB/op on both. Racecheck and finalcheck skipped at user
+    request.
 - [ ] 14c — Host refined (docs only; after 13d)
 - [ ] 14d — DDL handlers moved
 
-Outstanding aliases: none yet.
+Outstanding aliases: none (14b qualified every reference; no type aliases).
 
 Notes for later steps:
 
@@ -236,8 +286,17 @@ Notes for later steps:
   files.
 
 - Step 15 (`typedef`): operators and types reference each other (type
-  providers, range and enum operators). 14b settles which side owns the
-  shared helpers; record the decision here.
+  providers, range and enum operators). Decision (14b): `routine` owns the
+  operator inventory, metadata, `OperatorSeeded`, `OperatorProvider` and
+  option validation; `typedef` imports `routine` for them, never the
+  reverse. Type-declaration rendering (`catalogTypeDeclaration`) is type
+  code; operator dump rendering stays in the engine with it until a dump
+  seam exists.
+- 14c/14d: the exported option helpers (`OperatorOptionName`,
+  `ValidateOperatorOptions`, ...) exist for `operator_ddl.go`; when the
+  staging moves into `routine`, unexport the ones nothing else uses.
+  `operator_dump.go` and `routineIdentityByOID` are candidates for the same
+  move once a dump seam exists.
 - The F3 provider aliases are removed from `routine_declaration.go` in the
   verified functions Item6 cutover. Its alias-removal prerequisite for 14b is
   satisfied: latest-base semantic and public smoke proof passed in tests-12.

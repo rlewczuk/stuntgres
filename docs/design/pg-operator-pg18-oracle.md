@@ -27,7 +27,7 @@ The routines execute through the actual existing evaluator consumers, with
 strict silent suppression; this does not admit text-search or adjacent
 arithmetic/datetime execution.
 
-`supportedOperatorMetadata` initializes each seeded descriptor's result,
+`routine.SupportedOperatorMetadata` initializes each seeded descriptor's result,
 implementation and estimator relationships and determines its pg_operator row
 admission. Routine associations alone do not publish that metadata. Existing
 inventory, relationship and lifecycle scenarios consume the independent TSV
