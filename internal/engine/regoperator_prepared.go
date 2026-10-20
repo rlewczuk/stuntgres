@@ -11,13 +11,11 @@ import (
 func (b *expressionBinder) operatorConstant(text string, typ *sqltype.Descriptor, pos parser.Position) (sqltype.Value, error) {
 	constant := regtypeConstant{Offset: pos.Offset, Operator: typ.ID()}
 	found := false
-	if b.expected != nil && b.expected.regtypes != nil {
-		for _, c := range b.expected.regtypes.constants {
-			if c.Offset == pos.Offset && c.Operator == typ.ID() {
-				constant = c
-				found = true
-				break
-			}
+	for _, c := range b.expected.Regtypes {
+		if c.Offset == pos.Offset && c.Operator == typ.ID() {
+			constant = c
+			found = true
+			break
 		}
 	}
 	if !found {
@@ -38,19 +36,17 @@ func (b *expressionBinder) operatorConstant(text string, typ *sqltype.Descriptor
 }
 
 func (b *expressionBinder) operatorCompoundConstant(text string, usage sqltype.Usage, pos parser.Position) (sqltype.Value, error) {
-	if b.expected != nil && b.expected.regtypes != nil {
-		for _, constant := range b.expected.regtypes.constants {
-			if constant.Offset == pos.Offset && constant.Operator == usage.Type.ID() && constant.Value.Type() != nil {
-				value, err := constant.Value.Retag(usage.Type)
-				if err != nil {
-					return sqltype.Value{}, err
-				}
-				for _, operand := range constant.Operands {
-					b.dependency(operand.Ref, operand.Revision)
-				}
-				b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, constant)
-				return value, nil
+	for _, constant := range b.expected.Regtypes {
+		if constant.Offset == pos.Offset && constant.Operator == usage.Type.ID() && constant.Value.Type() != nil {
+			value, err := constant.Value.Retag(usage.Type)
+			if err != nil {
+				return sqltype.Value{}, err
 			}
+			for _, operand := range constant.Operands {
+				b.dependency(operand.Ref, operand.Revision)
+			}
+			b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, constant)
+			return value, nil
 		}
 	}
 	if err := b.captureElementInput(); err != nil {

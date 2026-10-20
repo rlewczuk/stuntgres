@@ -10,19 +10,17 @@ import (
 // the alias type distinguishes captures at the same source occurrence.
 func (b *expressionBinder) routineConstant(text string, usage sqltype.Usage, pos parser.Position) (sqltype.Value, error) {
 	constant := regtypeConstant{Offset: pos.Offset, TypeID: usage.Type.ID()}
-	if b.expected != nil && b.expected.regtypes != nil {
-		for _, c := range b.expected.regtypes.constants {
-			if c.Offset == pos.Offset && c.TypeID == constant.TypeID && c.Value.Type() != nil {
-				value, err := c.Value.Retag(usage.Type)
-				if err != nil {
-					return sqltype.Value{}, err
-				}
-				for _, operand := range c.Operands {
-					b.dependency(operand.Ref, operand.Revision)
-				}
-				b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, c)
-				return value, nil
+	for _, c := range b.expected.Regtypes {
+		if c.Offset == pos.Offset && c.TypeID == constant.TypeID && c.Value.Type() != nil {
+			value, err := c.Value.Retag(usage.Type)
+			if err != nil {
+				return sqltype.Value{}, err
 			}
+			for _, operand := range c.Operands {
+				b.dependency(operand.Ref, operand.Revision)
+			}
+			b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, c)
+			return value, nil
 		}
 	}
 	if err := b.captureElementInput(); err != nil {

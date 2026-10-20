@@ -685,7 +685,7 @@ type expressionPolicy struct {
 type expressionBinder struct {
 	host         analyzeHost
 	ctx          context.Context
-	expected     *StatementDescription
+	expected     analyze.Expected
 	input        sqltype.InputEnvironment
 	dependencies []catalog.ExpressionDependency
 
@@ -704,16 +704,16 @@ type expressionBinder struct {
 // newExpressionBinder is the root construction point: it binds through the
 // engine's host for op.
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
-	return newHostedBinder(ctx, e.analysisHost(op), input, expected)
+	return newHostedBinder(ctx, e.analysisHost(op), input, expectedOf(expected))
 }
 
-func newHostedBinder(ctx context.Context, host analyzeHost, input sqltype.InputEnvironment, expected *StatementDescription) *expressionBinder {
+func newHostedBinder(ctx context.Context, host analyzeHost, input sqltype.InputEnvironment, expected analyze.Expected) *expressionBinder {
 	b := &expressionBinder{host: host, ctx: ctx, params: parameterState{parameters: make(map[int]sqltype.Usage)}, input: input, expected: expected}
 	host.CaptureEnumOperationSafety(&b.input)
-	if expected != nil {
+	if expected.Held {
 		b.seedParameters(expected.Parameters.Types)
-		if expected.refreshTemporals {
-			for _, capture := range expected.temporals {
+		if expected.RefreshTemporals {
+			for _, capture := range expected.Temporals {
 				if !refreshableTemporalCapture(capture) {
 					b.prepared.Temporals = append(b.prepared.Temporals, capture)
 				}
@@ -1082,7 +1082,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 			// A held description already analyzed this syntax. Execute must
 			// still bind fresh descriptors and evaluate fresh values.
-			if warning != nil && b.expected == nil {
+			if warning != nil && !b.expected.Held {
 				b.host.EmitWarning(*warning)
 			}
 		case parser.ForbiddenGenerationExpr:
@@ -1298,14 +1298,14 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 			// Retained parameter contracts keep their logical input type, but their
 			// codec must come from the admitted catalog, including private generations.
-			if b.expected != nil && r.Number <= len(b.expected.Parameters.Types) {
+			if b.expected.Held && r.Number <= len(b.expected.Parameters.Types) {
 				u = b.expected.Parameters.Types[r.Number-1]
 				retained = u.Type != nil
 			}
 			if retained {
 				catalog := b.bindingCatalog()
-				if b.expected != nil && statementCatalogType(u.Type) && b.expected.catalogOwner != nil &&
-					(b.expected.catalogOwner != catalog.Owner() || b.expected.catalogEpoch != catalog.Epoch()) {
+				if b.expected.Held && statementCatalogType(u.Type) && b.expected.CatalogOwner != nil &&
+					(b.expected.CatalogOwner != catalog.Owner() || b.expected.CatalogEpoch != catalog.Epoch()) {
 					return nil, sqlError("0A000", "cached plan must not change parameter type")
 				}
 				current, _ := catalog.LookupType(u.Type.ID())
@@ -1977,22 +1977,22 @@ func literalInputError(err error, raw parser.LiteralExpr) error {
 // Full analysis invalidation recollects temporal scalar/array captures while the
 // candidate still supplies fixed signatures and immutable native logical values.
 func (b *expressionBinder) collectTemporalConstants() bool {
-	if b.expected == nil || b.expected.refreshTemporals {
+	if !b.expected.Held || b.expected.RefreshTemporals {
 		return true
 	}
 	owner, generation, ok := b.host.PlanOwner()
-	return ok && b.expected.planOwner == owner && b.expected.planGeneration != generation
+	return ok && b.expected.PlanOwner == owner && b.expected.PlanGeneration != generation
 }
 
 // Explicit typed literals use this only to discover their frozen modifier
 // before resolving the raw declaration again. Scalar reconstruction must use
 // captured with the complete contextual usage.
 func (b *expressionBinder) captureAt(offset int) (temporalConstant, bool, error) {
-	if b.expected != nil {
-		captures := b.expected.temporals
+	if b.expected.Held {
+		captures := b.expected.Temporals
 		i := sort.Search(len(captures), func(i int) bool { return captures[i].Offset >= offset })
 		if i < len(captures) && captures[i].Offset == offset {
-			if b.expected.refreshTemporals && refreshableTemporalCapture(captures[i]) {
+			if b.expected.RefreshTemporals && refreshableTemporalCapture(captures[i]) {
 				return temporalConstant{}, false, nil
 			}
 			saved := captures[i]
@@ -2009,11 +2009,11 @@ func (b *expressionBinder) captureAt(offset int) (temporalConstant, bool, error)
 }
 
 func (b *expressionBinder) captured(offset int, usage sqltype.Usage) (temporalConstant, bool, error) {
-	if b.expected != nil {
-		captures := b.expected.temporals
+	if b.expected.Held {
+		captures := b.expected.Temporals
 		i := sort.Search(len(captures), func(i int) bool { return captures[i].Offset >= offset })
 		if i < len(captures) && captures[i].Offset == offset {
-			if b.expected.refreshTemporals && refreshableTemporalCapture(captures[i]) {
+			if b.expected.RefreshTemporals && refreshableTemporalCapture(captures[i]) {
 				return temporalConstant{}, false, nil
 			}
 			for ; i < len(captures) && captures[i].Offset == offset; i++ {
@@ -2066,11 +2066,8 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		}
 		if found {
 			catalog := b.bindingCatalog()
-			if hasEnumInput(u.Type) && (b.expected.catalogOwner != catalog.Owner() || b.expected.catalogEpoch != catalog.Epoch()) {
-				actual := *b.expected
-				actual.catalogOwner = catalog.Owner()
-				actual.catalogEpoch = catalog.Epoch()
-				if err := checkStatementSignature(*b.expected, actual); err != nil {
+			if hasEnumInput(u.Type) && (b.expected.CatalogOwner != catalog.Owner() || b.expected.CatalogEpoch != catalog.Epoch()) {
+				if err := checkExpectedLifetime(b.expected, catalog.Owner(), catalog.Epoch()); err != nil {
 					return sqltype.Value{}, err
 				}
 				return sqltype.Value{}, ids.ErrCatalogReplaced

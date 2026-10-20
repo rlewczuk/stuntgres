@@ -117,12 +117,10 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 func (b *expressionBinder) regtypeConstant(text string, pos parser.Position) (sqltype.Value, error) {
 	constant := regtypeConstant{Offset: pos.Offset}
 	found := false
-	if b.expected != nil && b.expected.regtypes != nil {
-		for _, c := range b.expected.regtypes.constants {
-			if c.Offset == pos.Offset && c.Operator == 0 && c.TypeID == 0 {
-				constant, found = c, true
-				break
-			}
+	for _, c := range b.expected.Regtypes {
+		if c.Offset == pos.Offset && c.Operator == 0 && c.TypeID == 0 {
+			constant, found = c, true
+			break
 		}
 	}
 	if !found {
@@ -140,16 +138,14 @@ func (b *expressionBinder) regtypeConstant(text string, pos parser.Position) (sq
 }
 
 func (b *expressionBinder) regtypeArrayConstant(text string, u sqltype.Usage, pos parser.Position) (sqltype.Value, error) {
-	if b.expected != nil && b.expected.regtypes != nil {
-		for _, constant := range b.expected.regtypes.constants {
-			if constant.Offset == pos.Offset && constant.Operator == 0 && constant.TypeID == 0 && constant.Value.Type() != nil {
-				value, err := constant.Value.Retag(u.Type)
-				if err != nil {
-					return sqltype.Value{}, err
-				}
-				b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, constant)
-				return value, nil
+	for _, constant := range b.expected.Regtypes {
+		if constant.Offset == pos.Offset && constant.Operator == 0 && constant.TypeID == 0 && constant.Value.Type() != nil {
+			value, err := constant.Value.Retag(u.Type)
+			if err != nil {
+				return sqltype.Value{}, err
 			}
+			b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, constant)
+			return value, nil
 		}
 	}
 	if err := b.captureElementInput(); err != nil {
@@ -244,19 +240,17 @@ func (b *expressionBinder) captureRegObjectReferences(constant *regtypeConstant)
 }
 
 func (b *expressionBinder) regObjectConstant(text string, u sqltype.Usage, pos parser.Position) (sqltype.Value, error) {
-	if b.expected != nil && b.expected.regtypes != nil {
-		for _, constant := range b.expected.regtypes.constants {
-			if constant.Offset == pos.Offset && constant.Operator == 0 && constant.Value.Type() != nil && constant.Value.Type().ID() == u.Type.ID() {
-				value, err := constant.Value.Retag(u.Type)
-				if err != nil {
-					return sqltype.Value{}, err
-				}
-				for _, operand := range constant.Operands {
-					b.dependency(operand.Ref, operand.Revision)
-				}
-				b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, constant)
-				return value, nil
+	for _, constant := range b.expected.Regtypes {
+		if constant.Offset == pos.Offset && constant.Operator == 0 && constant.Value.Type() != nil && constant.Value.Type().ID() == u.Type.ID() {
+			value, err := constant.Value.Retag(u.Type)
+			if err != nil {
+				return sqltype.Value{}, err
 			}
+			for _, operand := range constant.Operands {
+				b.dependency(operand.Ref, operand.Revision)
+			}
+			b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, constant)
+			return value, nil
 		}
 	}
 	if err := b.captureElementInput(); err != nil {

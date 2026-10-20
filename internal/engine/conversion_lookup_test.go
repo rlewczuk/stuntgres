@@ -235,7 +235,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
-	binder := &expressionBinder{ctx: context.Background(), expected: heldDescription}
+	binder := &expressionBinder{ctx: context.Background(), expected: expectedOf(heldDescription)}
 	heldValue, err := binder.routineConstant("pg_catalog.unaccent(text)", procedureType.Usage(), parser.Position{Offset: 7, Character: 8})
 	if err != nil {
 		t.Fatal("retained literal after referent removal", err)

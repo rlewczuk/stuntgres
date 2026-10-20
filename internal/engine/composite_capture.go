@@ -12,14 +12,14 @@ import (
 )
 
 func (b *expressionBinder) retainedComposite(key preparedCompositeKey, base sqltype.Usage) (compositeOccurrence, bool, error) {
-	if b.expected == nil {
+	if !b.expected.Held {
 		return compositeOccurrence{}, false, nil
 	}
 	catalog := b.bindingCatalog()
-	if b.expected.catalogOwner != catalog.Owner() || b.expected.catalogEpoch != catalog.Epoch() {
+	if b.expected.CatalogOwner != catalog.Owner() || b.expected.CatalogEpoch != catalog.Epoch() {
 		return compositeOccurrence{}, false, nil
 	}
-	captured, ok := b.expected.composites[key]
+	captured, ok := b.expected.Composites[key]
 	if !ok {
 		return captured, false, nil
 	}

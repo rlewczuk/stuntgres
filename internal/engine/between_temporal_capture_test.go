@@ -94,7 +94,7 @@ func TestBetweenTemporalCaptureContextKey(t *testing.T) {
 		{Offset: 7, TypeID: sqltype.Timestamp, Typmod: 3, Scalar: 86400123000},
 	}
 	desc := StatementDescription{temporals: captures}
-	b.expected = &desc
+	b.expected = expectedOf(&desc)
 	before := append([]temporalConstant(nil), captures...)
 	for _, expected := range captures {
 		usage := b.typ(expected.TypeID).Usage()
@@ -136,7 +136,7 @@ func TestBetweenTemporalCaptureContextKey(t *testing.T) {
 	if !reflect.DeepEqual(before, desc.temporals) || len(b.prepared.Temporals) != 0 {
 		t.Fatal("capture contract mutated", desc.temporals, b.prepared.Temporals)
 	}
-	b.expected = &StatementDescription{temporals: []temporalConstant{captures[2], captures[4]}}
+	b.expected = expectedOf(&StatementDescription{temporals: []temporalConstant{captures[2], captures[4]}})
 	if got, found, err := b.captureAt(7); err != nil || !found || got != captures[2] {
 		t.Fatal("uniform frozen metadata rejected", got, found, err)
 	}

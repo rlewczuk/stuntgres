@@ -135,15 +135,15 @@ func (b *expressionBinder) jsonbRecordCallStar(columns, source []queryColumn, st
 // look up an old OID across a catalog owner/epoch boundary or retry a failed name.
 func (b *expressionBinder) jsonbRecordCastAnnotation(raw parser.CastExpr) (parser.TypeName, error) {
 	annotation := raw.TypeName
-	if !b.clause.jsonbRecordBase || raw.Syntax == parser.FunctionCast || b.expected == nil {
+	if !b.clause.jsonbRecordBase || raw.Syntax == parser.FunctionCast || !b.expected.Held {
 		return annotation, nil
 	}
 	view := b.bindingCatalog()
-	if b.expected.catalogOwner != view.Owner() || b.expected.catalogEpoch != view.Epoch() {
+	if b.expected.CatalogOwner != view.Owner() || b.expected.CatalogEpoch != view.Epoch() {
 		return annotation, nil
 	}
 	key := preparedCompositeKey{Offset: raw.TypeName.Pos.Offset, Kind: analyze.CompositeRecordArgument}
-	captured, found := b.expected.composites[key]
+	captured, found := b.expected.Composites[key]
 	if !found {
 		return annotation, nil
 	}

@@ -279,7 +279,7 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 	if captured.Names[0] != "x" || captured.Attributes[0] != first.Attribute || captured.Attributes[1] != second.Attribute {
 		t.Fatal("capture borrowed mutable labels or lost stable attributes", captured)
 	}
-	b.expected = &StatementDescription{catalogOwner: view.Owner(), catalogEpoch: view.Epoch(), composites: b.prepared.Composites}
+	b.expected = expectedOf(&StatementDescription{catalogOwner: view.Owner(), catalogEpoch: view.Epoch(), composites: b.prepared.Composites})
 	b.prepared.Composites = nil
 	current, err := sqltype.Composite(original.ID(), original.Name(), original.SQLName(), original.AssociatedArray(), []sqltype.CompositeMember{first, second, {Attribute: 99, Name: "extra", Usage: first.Usage}})
 	if err != nil {
@@ -445,7 +445,7 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 				t.Fatal("capture affected unrelated cast scope", annotation, err)
 			}
 			next.clause.jsonbRecordBase = true
-			expected.catalogEpoch++
+			next.expected.CatalogEpoch++
 			annotation, err = next.jsonbRecordCastAnnotation(cast)
 			if err != nil || annotation.Name != "jbr_previous_pair" {
 				t.Fatal("provider OID crossed catalog epoch", annotation, err)

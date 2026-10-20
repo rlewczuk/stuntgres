@@ -30,8 +30,8 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectR
 		if err != nil {
 			return nil, ref, err
 		}
-		if b.expected != nil && b.expected.sequences != nil {
-			for _, constant := range b.expected.sequences.Constants {
+		if b.expected.Sequences != nil {
+			for _, constant := range b.expected.Sequences.Constants {
 				if constant.Offset == literal.Value.Pos.Offset {
 					ref, temporary, found = constant.Ref, constant.Temporary, true
 					break
