@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `e8598c73ef032f2f05aa9f6a8a73db65154ea510`. The later-wave plans
+Last verified against `master` at `d1b32cd075381e2b3517967ea8051f171a12df16`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -19,7 +19,7 @@ as another broad item (§8).
 - **Step 10 `plan`** — 10b node runtime (item 32).
 - **In-place untangling** — 13a scope slots (item 22; broad). 12b is done;
   12c (item 39) still needs 10c (item 33).
-- **Step 15 `typedef`** — 15a (item 26); `routine` 14b is done.
+- **Step 15 `typedef`** — 15b (item 27); 15a is done.
 
 Steps 1, 2 and 4–9 and `access` are done.
 
@@ -281,7 +281,9 @@ Steps 1, 2 and 4–9 and `access` are done.
   - [ ] 14d — DDL handlers moved
 - [ ] **Step 15 — `typedef`** ([prompt](ENGINE-SPLIT-typedef.md); Part A
   needs 14b; Part B needs 13d)
-  - [ ] 15a — In place
+  - [x] 15a — In place (`1045960f6`, `9e4924bbd`, `0add6a48b`, `92fd3299a`,
+    `ed21b3bf3`, then the docs commit) *(racecheck/finalcheck skipped at user
+    request)*
   - [ ] 15b — `typedef` created and clean set moved
   - [ ] 15c — Host refined (docs only)
   - [ ] 15d — DDL handlers moved
@@ -414,7 +416,8 @@ in the prompt file's Status section.
     `PG18-ROUTINE-CORE` merged · racecheck skipped at user request
 25. [x] Routine 14b — [routine](ENGINE-SPLIT-routine.md) 14b · needs 24, 6 ·
     racecheck skipped at user request
-26. [ ] Typedef 15a — [typedef](ENGINE-SPLIT-typedef.md) 15a · needs 25
+26. [x] Typedef 15a — [typedef](ENGINE-SPLIT-typedef.md) 15a · needs 25 ·
+    racecheck/finalcheck skipped at user request
 27. [ ] Typedef 15b — [typedef](ENGINE-SPLIT-typedef.md) 15b · needs 26
 28. [ ] Extension 16a — [extension](ENGINE-SPLIT-extension.md) 16a · needs
     27

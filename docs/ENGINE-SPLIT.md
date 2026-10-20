@@ -1142,7 +1142,7 @@ ALTER DOMAIN validation runs, typed-table mutation, TEMP collation lifetime.
 
 **Stays elsewhere.** Domain check evaluation (`EvalContext` methods) goes to
 `exec`; composite, enum and range binding to `analyze`; `StatementDescription`
-(in `types.go`, part of the public facade) to `analyze`.
+(in `statement_description.go`, part of the public facade) to `analyze`.
 
 **Needs** 14b (operators and types reference each other; 14b settles the
 cut). Prompt file: [ENGINE-SPLIT-typedef.md](ENGINE-SPLIT-typedef.md).
@@ -1267,7 +1267,7 @@ package-specific scope. This section holds the rules every session follows.
 | 12 | [`ENGINE-SPLIT-analyze.md`](ENGINE-SPLIT-analyze.md) | 12a–12b: —; 12c: 10c | 12a–12b done (racecheck/finalcheck skipped at user request); 12c–12e planned |
 | 13 | [`ENGINE-SPLIT-session.md`](ENGINE-SPLIT-session.md) | 13a–13b: —; 13c: 11c, 12d, 8b | planned (13a–13e) |
 | 14 | [`ENGINE-SPLIT-routine.md`](ENGINE-SPLIT-routine.md) | A: `PG18-ROUTINE-CORE` merged, 14b also the F3 aliases item of step 3; B: 13d | 14a done in place, 14b `routine` created and clean set moved (racecheck skipped at user request); 14c–14d planned |
-| 15 | [`ENGINE-SPLIT-typedef.md`](ENGINE-SPLIT-typedef.md) | A: 14b; B: 13d | planned (15a–15d) |
+| 15 | [`ENGINE-SPLIT-typedef.md`](ENGINE-SPLIT-typedef.md) | A: 14b; B: 13d | 15a done in place (racecheck/finalcheck skipped at user request); 15b–15d planned |
 | 16 | [`ENGINE-SPLIT-extension.md`](ENGINE-SPLIT-extension.md) | A: 15b; B: 13d | planned (16a–16d) |
 | 17 | [`ENGINE-SPLIT-sequence.md`](ENGINE-SPLIT-sequence.md) | A: step 3 Tier C sequence calls; B: 13d | 17a done in place (racecheck skipped at user request); 17b–17d planned |
 

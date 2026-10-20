@@ -150,7 +150,10 @@ identity fields into the `sequenceStage` slot.)*
    `likeSources` stay if no single feature owns them. Measure first.
 5. `transactionOwner`'s FDW fields become one slot.
 6. Feature steps 14–17 reuse these slots. If a feature step runs first, it
-   creates its own slot the same way, and 13b skips it.
+   creates its own slot the same way, and 13b skips it. Typedef 15a created
+   the domain ALTER and typed-table stage slots and the domain and enum
+   journal slots; `domainBases`, `domainTargets` and `domainChanged` are
+   shared and stay (see the typedef prompt file's Status).
 
 ### 13c — Refine (docs only)
 

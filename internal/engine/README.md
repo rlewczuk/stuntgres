@@ -1057,12 +1057,16 @@ engine) and shares one procedure-name index, as `routine.SeededOperatorNames` do
 operators. A seed that depends on new engine options must be validated per
 engine too. Startup and every publication scale with the seed size, so keep
 seeding and whole-catalog copies free of per-entry rehashing and allocation;
-check `make bench` allocations when adding built-ins.
+check `make bench` allocations when adding built-ins. Seed values come from
+pure constructors (`routine.BuiltinProcedures`, `builtinConversionProcedures`,
+`builtinDomainCheckSeeds`, ...); the `install*` methods in `builtin_catalog.go`
+write them into the catalog in `newEngine`'s order.
 
 ```sh
 make check RUN='^(TestBuiltinCatalogValidatesForEveryEngineConfiguration|TestBuiltinProcedureNamesMatchSeed|TestOperatorDependsOnMatchesDependencyAddresses)$'
+make check RUN='^(TestBuiltinConversionProcedures|TestBuiltinDomainSeeds)$'
 make check RUN='^TestBuiltinProcedureNamesCopyOnEdit$' RACE=1
-make check RUN='^TestCatalogCopiesStayIndependent$'
+make check RUN='^(TestCatalogCopiesStayIndependent|TestCatalogTypeJournalSlotsCopyOnWrite)$'
 ```
 
 ### SQL routine admission boundaries
