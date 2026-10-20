@@ -327,21 +327,26 @@ type StatementScope struct {
 	projectedRoots        bool
 	foreignActionAuth     *AuthorizationView
 	identity              identitySnapshot
-	inquiry               inquirySnapshot
-	sqlRoutine            sqlRoutineDemand
-	protocolSlot          *protocolScope
-	prepared              preparedRebind
-	presentationSlot      *presentationCaches
-	truncateSlot          *truncateScope
-	dropsSlot             *dropScope
-	foreignActionsSlot    *foreignActionScope
-	viewCreationSlot      *viewCreationScope
-	materializedSlot      *materializedRefreshScope
-	inheritance           inheritanceScope
-	indexesSlot           *indexScope
-	partitionsSlot        *partitionScope
-	foreignTablesSlot     *foreignTableScope
-	domains               domainScope
+	// Feature state lives in slots. Groups that every statement writes are
+	// values. A pointer slot xSlot stays nil until its first write through
+	// x(); reads use xOrZero(), which never allocates, so nil means all zero.
+	// Only the SQL routine scratch swaps slot pointers (protocol,
+	// presentation); nothing else resets a slot to nil.
+	inquiry            inquirySnapshot
+	prepared           preparedRebind
+	sqlRoutine         sqlRoutineDemand
+	inheritance        inheritanceScope
+	domains            domainScope
+	protocolSlot       *protocolScope
+	presentationSlot   *presentationCaches
+	truncateSlot       *truncateScope
+	dropsSlot          *dropScope
+	foreignActionsSlot *foreignActionScope
+	viewCreationSlot   *viewCreationScope
+	materializedSlot   *materializedRefreshScope
+	indexesSlot        *indexScope
+	partitionsSlot     *partitionScope
+	foreignTablesSlot  *foreignTableScope
 }
 
 type WriteStage struct {
