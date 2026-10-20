@@ -29,7 +29,7 @@ func (b *expressionBinder) normalizeQuantifiedConstructor(raw parser.Expr, const
 	if b.stored.syntax == nil {
 		b.stored.syntax = make(map[storedExpressionSyntaxKey]parser.Expr)
 	}
-	b.stored.syntax[storedExpressionSyntaxKey{frame: b.frameID(), position: raw.SourcePosition()}] = *constructor.Raw
+	b.stored.syntax[storedExpressionSyntaxKey{frame: b.FrameID(), position: raw.SourcePosition()}] = *constructor.Raw
 	return constructor, nil
 }
 

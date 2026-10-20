@@ -35,7 +35,7 @@ func TestJSONBRecordBinding(t *testing.T) {
 	}
 	literal := parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: `{"a":7,"b":"x"}`}}
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "jsonb_to_record"}}}, Args: []parser.Expr{literal}, ColumnDefinitions: definition}
-	node, ns, err := b.bindFrom(&parser.FunctionTable{Calls: []parser.FunctionExpr{raw}})
+	node, ns, err := b.BindFrom(&parser.FunctionTable{Calls: []parser.FunctionExpr{raw}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func TestJSONBRecordBinding(t *testing.T) {
 	}
 	raw.Name.Parts[0].Text = "jsonb_to_recordset"
 	raw.Args[0] = parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: `[{"a":1}]`}}
-	node, _, err = b.bindFrom(&parser.FunctionTable{Calls: []parser.FunctionExpr{raw}, Ordinality: true})
+	node, _, err = b.BindFrom(&parser.FunctionTable{Calls: []parser.FunctionExpr{raw}, Ordinality: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestJSONBRecordBinding(t *testing.T) {
 		t.Fatal("recordset rows retained after close")
 	}
 	raw.ColumnDefinitions = nil
-	_, _, err = b.bindFrom(&parser.FunctionTable{Calls: []parser.FunctionExpr{raw}})
+	_, _, err = b.BindFrom(&parser.FunctionTable{Calls: []parser.FunctionExpr{raw}})
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42601" {
 		t.Fatal("missing source definition", err)
@@ -116,7 +116,7 @@ func TestJSONBRecordBinding(t *testing.T) {
 	// Parsing ordinary ROWS FROM names for diagnostic precedence must not
 	// permit a resolved but unselected scalar source to execute.
 	unselected := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "abs"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}}}
-	_, _, err = b.bindMixedFunctionTable([]parser.FunctionExpr{unselected, raw}, false, 0, nil, false)
+	_, _, err = b.BindMixedFunctionTable([]parser.FunctionExpr{unselected, raw}, false, 0, nil, false)
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != "function table source is unsupported" {
 		t.Fatal("ordinary scalar source admission widened", err)
 	}
@@ -368,7 +368,7 @@ func TestJSONBRecordReplay(t *testing.T) {
 				if err := b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 					t.Fatal(round, err)
 				}
-				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.frameID()}
+				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.FrameID()}
 				emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(round, err)
@@ -481,7 +481,7 @@ func TestJSONBRecordLayout(t *testing.T) {
 		{`SELECT * FROM jsonb_populate_record(ROW(9,'keep'::text),'{"f1":1}'::jsonb) AS r(a int,b text)`, false},
 	} {
 		raw := statement(t, tc.query).(*parser.Select)
-		root, namespace, err := b.bindFrom(raw.From)
+		root, namespace, err := b.BindFrom(raw.From)
 		if err != nil {
 			t.Fatal(tc.query, err)
 		}

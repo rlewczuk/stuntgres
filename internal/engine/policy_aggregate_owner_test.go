@@ -61,12 +61,12 @@ func TestRLSPolicyAggregateClauseRestoration(t *testing.T) {
 	b.target.relation = d
 	b.clause.aggregateClause = "policy expressions"
 	for range 2 {
-		leaveChild := b.enterQuery(false)
+		leaveChild := b.EnterQuery(false)
 		if b.clause.aggregateClause != "" || len(b.query.scopes) != 1 || b.query.scopes[0].clause != "policy expressions" {
 			t.Fatal("child did not capture policy owner", b.clause.aggregateClause, b.query.scopes)
 		}
 		b.clause.aggregateClause = "SELECT"
-		leaveGrandchild := b.enterQuery(false)
+		leaveGrandchild := b.EnterQuery(false)
 		if len(b.query.scopes) != 2 || b.query.scopes[0].clause != "policy expressions" || b.query.scopes[1].clause != "SELECT" {
 			t.Fatal("deep query lost lexical owner clauses", b.query.scopes)
 		}

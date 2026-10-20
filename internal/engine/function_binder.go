@@ -148,7 +148,7 @@ func (b *expressionBinder) LiteralNull(arg expr.Expr) bool { return exec.RandomL
 
 func (b *expressionBinder) NoteVisibilitySnapshot() { b.consumer.visibilitySnapshot = true }
 
-func (b *expressionBinder) Frame() uint32 { return b.frameID() }
+func (b *expressionBinder) Frame() uint32 { return b.FrameID() }
 
 func (b *expressionBinder) CapturePolymorphicBody(node expr.Expr) error {
 	return b.capturePolymorphicBody(node)

@@ -40,7 +40,7 @@ func TestQueryLockContextsAndReferenceKinds(t *testing.T) {
 			binder.query.auth = &auth
 			var query *plan.Query
 			if err == nil {
-				query, err = binder.bindSelect(raw, false)
+				query, err = binder.BindSelect(raw, false)
 			}
 			if err == nil {
 				err = e.initializeQueryLocksLocked(scope, query.Root, binder.query.sources)

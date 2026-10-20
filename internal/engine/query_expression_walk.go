@@ -39,7 +39,7 @@ func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 	}
 	for _, direct := range call.Direct {
 		level := func(frame uint32) int {
-			if frame == b.frameID() {
+			if frame == b.FrameID() {
 				return len(b.query.scopes)
 			}
 			for i, scope := range b.query.scopes {
@@ -127,7 +127,7 @@ func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 
 // Pick the nearest visible argument frame, ignoring child-local query frames.
 func (b *expressionBinder) argumentQueryOwner(walk func(func(expr.Expr))) (uint32, int) {
-	owner, index, local := b.frameID(), -1, false
+	owner, index, local := b.FrameID(), -1, false
 	walk(func(node expr.Expr) {
 		var frame uint32
 		switch n := node.(type) {
@@ -147,7 +147,7 @@ func (b *expressionBinder) argumentQueryOwner(walk func(func(expr.Expr))) (uint3
 		if frame == 0 {
 			return
 		}
-		if frame == b.frameID() {
+		if frame == b.FrameID() {
 			local = true
 			return
 		}
@@ -171,7 +171,7 @@ func (b *expressionBinder) argumentQueryOwner(walk func(func(expr.Expr))) (uint3
 }
 
 func (b *expressionBinder) aggregateCallAt(e plan.AggregateExpr) (plan.AggregateCall, bool) {
-	if e.Frame == 0 || e.Frame == b.frameID() {
+	if e.Frame == 0 || e.Frame == b.FrameID() {
 		if e.Slot >= 0 && e.Slot < len(b.grouping.aggregates) {
 			return b.grouping.aggregates[e.Slot], true
 		}

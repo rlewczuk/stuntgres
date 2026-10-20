@@ -28,7 +28,7 @@ func bindInsertSource(out *binding, binder *expressionBinder, auth analyze.Autho
 		}
 		target := queryQualifier{Name: out.Relation.Name(), Original: out.Relation.Name(), Ref: out.Ref, Columns: columns, Schema: auth.ReadCatalog().Get(out.Relation.Namespace()).Name(), LateralForbidden: true}
 		binder.query.hidden = append(binder.query.hidden, target)
-		query, err = binder.bindSelect(sel, true)
+		query, err = binder.BindSelect(sel, true)
 		out.QuerySources = binder.query.sources
 	} else {
 		out.Insert.SubquerySource = s.Source.Values.Order != nil || s.Source.Values.Bounds != nil
@@ -232,14 +232,14 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 		}
 		common = info.Usage
 		schema[j] = catalog.Column{Name: fmt.Sprintf("column%d", j+1), Usage: common}
-		projection[j] = plan.ColumnExpr{Info: info, Scope: 1, Frame: b.frameID(), Slot: j}
+		projection[j] = plan.ColumnExpr{Info: info, Scope: 1, Frame: b.FrameID(), Slot: j}
 	}
 	if lists != nil {
 		for i, written := range source.Rows {
 			slot := 0
 			for target, raw := range written {
 				if expansion, expanded := lists[i].expansions[target]; expanded {
-					path := viewLiteralPath{Query: b.frameID(), Clause: analyze.ViewValuesCellLiteral, Source: occurrence, Row: i, Target: target}
+					path := viewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewValuesCellLiteral, Source: occurrence, Row: i, Target: target}
 					ordinal := 0
 					if err := b.captureCompositeExpansion(raw, expansion, path, &ordinal); err != nil {
 						return nil, err
@@ -266,7 +266,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 		namespace.Columns = append(namespace.Columns, queryColumn{Descriptor: column, Slot: i, Leaf: -1, Physical: -1})
 	}
 	b.query.namespace = &namespace
-	order, err := b.bindOrder(source.Order, projection, names, "ORDER BY")
+	order, err := b.BindOrder(source.Order, projection, names, "ORDER BY")
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +291,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 			}
 		}
 	}
-	root, err = b.finishOrder(root, order, projection)
+	root, err = b.FinishOrder(root, order, projection)
 	if err != nil {
 		return nil, err
 	}
@@ -305,7 +305,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 	// The output schema is owned separately: destination assignment modifies it,
 	// never the common-typed VALUES input or its sort descriptor.
 	results := append([]catalog.Column(nil), schema...)
-	return &plan.Query{Root: &plan.ProjectNode{QuerySchema: results, Child: root, Expressions: projection, FrozenValues: true, Frame: b.frameID()}}, nil
+	return &plan.Query{Root: &plan.ProjectNode{QuerySchema: results, Child: root, Expressions: projection, FrozenValues: true, Frame: b.FrameID()}}, nil
 }
 
 // VALUES exposes generated ASCII column names in one synthetic namespace.

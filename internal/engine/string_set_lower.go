@@ -10,12 +10,12 @@ import (
 
 // Requests identify this clause's required occurrences. Companions share only
 // already resolved occurrences; their unrelated SRFs remain for later stages.
-func (b *expressionBinder) lowerQuerySets(root plan.Node, requests []expr.Expr, companions [][]expr.Expr, attempts bool, templateRoots ...[]expr.Expr) (plan.Node, error) {
+func (b *expressionBinder) LowerQuerySets(root plan.Node, requests []expr.Expr, companions [][]expr.Expr, attempts bool, templateRoots ...[]expr.Expr) (plan.Node, error) {
 	maxDepth, scalarUpper := analyze.QuerySetProjectionDepth(requests)
 	if maxDepth == 0 {
 		return root, nil
 	}
-	frame := b.frameID()
+	frame := b.FrameID()
 	template := &plan.SetTemplate{Group: &frame, Expressions: append([]expr.Expr(nil), requests...), Attempts: attempts}
 	if len(templateRoots) != 0 {
 		template.Expressions = append([]expr.Expr(nil), templateRoots[0]...)
@@ -75,10 +75,10 @@ func (b *expressionBinder) lowerQuerySets(root plan.Node, requests []expr.Expr, 
 	column := func(bound expr.Expr, slot int) expr.Expr {
 		info := expr.InfoOf(bound)
 		info.Property.StageDependent, info.Property.RowDependent = true, true
-		return plan.ColumnExpr{Info: info, Scope: 1, Frame: b.frameID(), Slot: base + slot}
+		return plan.ColumnExpr{Info: info, Scope: 1, Frame: b.FrameID(), Slot: base + slot}
 	}
 	rewrite := func(bound expr.Expr, sql99 bool, beforeDepth int) (expr.Expr, error) {
-		return b.mapQuerySetStage(bound, func(e expr.Expr) (expr.Expr, bool, error) {
+		return b.MapQuerySetStage(bound, func(e expr.Expr) (expr.Expr, bool, error) {
 			for i, original := range template.Origins {
 				if (analyze.SameQuerySetOccurrence(e, original) || sql99 && exec.SourceReturnsSet(e) && b.sameGroupExpression(e, original)) && exec.QuerySetDepth(e) < beforeDepth {
 					return column(original, i), true, nil
@@ -88,7 +88,7 @@ func (b *expressionBinder) lowerQuerySets(root plan.Node, requests []expr.Expr, 
 		})
 	}
 	for level := range maxDepth {
-		node := &plan.SetProjectNode{Child: root, QuerySchema: schema, Frame: b.frameID(), Template: template,
+		node := &plan.SetProjectNode{Child: root, QuerySchema: schema, Frame: b.FrameID(), Template: template,
 			BaseWidth: base, MarkerWidth: len(template.Origins)}
 		for i, original := range template.Origins {
 			if exec.QuerySetDepth(original) != level+1 {

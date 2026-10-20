@@ -31,14 +31,14 @@ type queryBindingScope struct {
 	stringFromForbidden bool
 }
 
-func (b *expressionBinder) frameID() uint32 {
+func (b *expressionBinder) FrameID() uint32 {
 	if b.query.frame == 0 {
 		return 1
 	}
 	return b.query.frame
 }
 
-func (b *expressionBinder) enterQuery(disallowParent bool) func() {
+func (b *expressionBinder) EnterQuery(disallowParent bool) func() {
 	oldSetGuard, oldForbidden := b.clause.stringSetGuard, b.clause.stringFromForbidden
 	oldRegexpClause := b.clause.regexpClause
 	oldTargetSet := b.clause.queryHasTargetSet
@@ -48,7 +48,7 @@ func (b *expressionBinder) enterQuery(disallowParent bool) func() {
 	b.clause.stringSetGuard, b.clause.stringFromForbidden = "", false
 	b.clause.regexpClause = ""
 	oldNamespace := b.query.namespace
-	parent := queryBindingScope{namespace: b.query.namespace, hidden: b.query.hidden, frame: b.frameID(), allowed: !disallowParent, clause: b.clause.aggregateClause, aggregates: b.grouping.aggregates, returning: b.target.returningAliases, nonLateral: b.query.nonLateral}
+	parent := queryBindingScope{namespace: b.query.namespace, hidden: b.query.hidden, frame: b.FrameID(), allowed: !disallowParent, clause: b.clause.aggregateClause, aggregates: b.grouping.aggregates, returning: b.target.returningAliases, nonLateral: b.query.nonLateral}
 	parent.stringFromForbidden = oldForbidden
 	parent.relation = b.target.relation
 	parent.groupingActive, parent.groupSets = b.grouping.active, b.grouping.groupSets
@@ -114,7 +114,7 @@ func (q *queryScopeState) outerQualifiers() []queryQualifier {
 }
 
 func (b *expressionBinder) queryColumnInFrame(c queryColumn, pos parser.Position, frame uint32) expr.Expr {
-	expr := b.queryColumnAt(c, pos).(plan.ColumnExpr)
+	expr := b.QueryColumnAt(c, pos).(plan.ColumnExpr)
 	expr.Frame = frame
 	expr.MergeSource = c.Leaf != analyze.QueryTargetLeaf && b.mergeReturningFrame(frame)
 	return expr

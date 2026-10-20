@@ -55,7 +55,7 @@ func bindMerge(out *binding, binder *expressionBinder, auth analyze.Authority, r
 	target := binder.mutationTargetNamespace()
 	binder.query.hidden = append(binder.query.hidden, target.Qualifiers[0])
 	sourceHiddenStart := len(binder.query.hidden)
-	root, source, err := binder.bindFrom(s.Source)
+	root, source, err := binder.BindFrom(s.Source)
 	if err != nil {
 		return err
 	}

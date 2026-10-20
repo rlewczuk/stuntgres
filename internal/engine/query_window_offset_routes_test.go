@@ -21,11 +21,11 @@ func TestQueryWindowOffsetNestedComparison(t *testing.T) {
 			a, b, equal := project.Expressions[0], project.Expressions[1], project.Expressions[2]
 			// Independently bound child frames may pair, but their window defaults
 			// remain semantic inputs. The child window is the only differing node.
-			if (*expressionBinder)(nil).sameSubqueryTarget(a, b) || (*expressionBinder)(nil).sameQueryTarget(a, b) {
+			if (*expressionBinder)(nil).SameSubqueryTarget(a, b) || (*expressionBinder)(nil).SameQueryTarget(a, b) {
 				source.Close()
 				t.Fatal("nested window defaults treated as equivalent", fn, tail)
 			}
-			if !(*expressionBinder)(nil).sameSubqueryTarget(a, equal) || !(*expressionBinder)(nil).sameQueryTarget(a, equal) {
+			if !(*expressionBinder)(nil).SameSubqueryTarget(a, equal) || !(*expressionBinder)(nil).SameQueryTarget(a, equal) {
 				source.Close()
 				t.Fatal("equal nested window queries lost local equivalence", fn, tail)
 			}

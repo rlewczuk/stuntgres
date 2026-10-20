@@ -29,7 +29,7 @@ func TestQueryFromValuesCommonSchema(t *testing.T) {
 	} {
 		t.Run(tc.query, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-			query, err := b.bindSelect(statement(t, tc.query).(*parser.Select), false)
+			query, err := b.BindSelect(statement(t, tc.query).(*parser.Select), false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -59,7 +59,7 @@ func TestQueryFromValuesCellPrecedenceAndStarts(t *testing.T) {
 		{"VALUES(1),(TRUE)", "42804", "VALUES types integer and boolean cannot be matched", "12"},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		_, err := b.bindSelect(statement(t, tc.query).(*parser.Select), false)
+		_, err := b.BindSelect(statement(t, tc.query).(*parser.Select), false)
 		var diagnostic *sqlstate.Error
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message, Position: tc.position}
 		if !errors.As(err, &diagnostic) || *diagnostic != want {

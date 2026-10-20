@@ -84,7 +84,7 @@ func prepareUpdateAssignments(b *binding, binder *expressionBinder, raw []parser
 				return nil, expr.ErrorAt("0A000", "source for a multiple-column UPDATE item must be a sub-SELECT or ROW() expression", source.Pos)
 			}
 			binder.query.subqueryDemand = true
-			query, err := binder.bindSelect(source.Query, false)
+			query, err := binder.BindSelect(source.Query, false)
 			if err != nil {
 				return nil, err
 			}

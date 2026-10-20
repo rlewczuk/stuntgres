@@ -120,7 +120,7 @@ func TestJSONBExtractStoredVariadicProvenance(t *testing.T) {
 				if err := b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 					t.Fatal(err)
 				}
-				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.frameID()}
+				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.FrameID()}
 				replaySQL, err := renderer.expressionSQL(ctx, view, raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(err)

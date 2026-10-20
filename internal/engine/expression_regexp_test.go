@@ -134,7 +134,7 @@ func TestRegexpScalarOuterFromFrame(t *testing.T) {
 	b.query.auth = &auth
 	var query *plan.Query
 	if err == nil {
-		query, err = b.bindSelect(raw, false)
+		query, err = b.BindSelect(raw, false)
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -217,7 +217,7 @@ func TestRegexpScalarViewPrefix(t *testing.T) {
 			b.query.auth = &auth
 			var query *plan.Query
 			if err == nil {
-				query, err = b.bindSelect(raw, false)
+				query, err = b.BindSelect(raw, false)
 			}
 			e.mu.Unlock()
 			if err != nil {

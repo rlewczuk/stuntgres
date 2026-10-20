@@ -27,12 +27,12 @@ func TestQueryDistinctOnSubquerySemanticIdentity(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT "+tc.left+","+tc.right+" FROM t")
 		project := query.Root.(*plan.ProjectNode)
 		a, b := project.Expressions[0], project.Expressions[1]
-		got := (*expressionBinder)(nil).sameSubqueryTarget(a, b)
+		got := (*expressionBinder)(nil).SameSubqueryTarget(a, b)
 		source.Close()
 		if got != tc.same {
 			t.Fatal(tc.left, tc.right, got, tc.same)
 		}
-		if got := (*expressionBinder)(nil).sameQueryTarget(a, b); got != tc.same {
+		if got := (*expressionBinder)(nil).SameQueryTarget(a, b); got != tc.same {
 			t.Fatal("binding-local target predicate", tc.left, tc.right, got, tc.same)
 		}
 		if SameGroupExpression(a, b) {
@@ -67,8 +67,8 @@ func TestQueryDistinctOnSameSubqueryTargetAndRemap(t *testing.T) {
 
 func TestQueryDistinctOnSubqueryFrameAndSourceGuards(t *testing.T) {
 	var frames [4][2]uint32
-	c := queryTargetComparison{frames: frames[:0]}
-	if !c.pairFrame(2, 3) || !c.sameFrame(2, 3) || c.sameFrame(2, 2) || c.sameFrame(1, 3) || !c.sameFrame(1, 1) || c.pairFrame(2, 4) || c.pairFrame(4, 3) {
+	c := QueryTargetComparison{Frames: frames[:0]}
+	if !c.PairFrame(2, 3) || !c.SameFrame(2, 3) || c.SameFrame(2, 2) || c.SameFrame(1, 3) || !c.SameFrame(1, 1) || c.PairFrame(2, 4) || c.PairFrame(4, 3) {
 		t.Fatal("non-bijective child/outer frame identity", c)
 	}
 	_, query, source := queryCoreFixture(t, "SELECT (SELECT v FROM t) FROM t")
@@ -77,13 +77,13 @@ func TestQueryDistinctOnSubqueryFrameAndSourceGuards(t *testing.T) {
 	leaf := root.Child.(*plan.SourceNode)
 	changed := *leaf
 	changed.Ref = ids.ObjectRef{}
-	var occurrences [4]queryTargetOccurrence
-	c = queryTargetComparison{frames: frames[:0], occurrences: occurrences[:0]}
-	if c.sameQuery(nil, leaf, &changed) {
+	var occurrences [4]QueryTargetOccurrence
+	c = QueryTargetComparison{Frames: frames[:0], Occurrences: occurrences[:0]}
+	if c.SameQuery(nil, leaf, &changed) {
 		t.Fatal("distinct physical source references shared")
 	}
-	c.leftFrame, c.rightFrame = 2, 3
-	if !c.pairOccurrence(1, 4) || !c.pairOccurrence(1, 4) || c.pairOccurrence(1, 5) || c.pairOccurrence(2, 4) {
+	c.LeftFrame, c.RightFrame = 2, 3
+	if !c.PairOccurrence(1, 4) || !c.PairOccurrence(1, 4) || c.PairOccurrence(1, 5) || c.PairOccurrence(2, 4) {
 		t.Fatal("non-bijective physical occurrence identity", c)
 	}
 }

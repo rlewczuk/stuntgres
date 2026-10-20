@@ -52,7 +52,7 @@ func TestFormatBoundMetadataAndRuntimeOwnership(t *testing.T) {
 	if _, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}}); err == nil {
 		t.Fatal("runtime must reject the unsupported integer format verb")
 	}
-	query, err := b.bindSelect(&parser.Select{Targets: []parser.Expr{nullCountRaw("format", formatUnitLiteral("%s"), formatUnitLiteral("x"))}}, false)
+	query, err := b.BindSelect(&parser.Select{Targets: []parser.Expr{nullCountRaw("format", formatUnitLiteral("%s"), formatUnitLiteral("x"))}}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestFormatExactDerivedCollationMetadata(t *testing.T) {
 	}{{"C", 950}, {"pg_unicode_fast", 6411}} {
 		b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 		operand := parser.CollateExpr{Child: formatUnitLiteral("É"), Name: parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name}}}}
-		query, err := b.bindSelect(&parser.Select{Targets: []parser.Expr{nullCountRaw("format", formatUnitLiteral("%s"), operand)}}, false)
+		query, err := b.BindSelect(&parser.Select{Targets: []parser.Expr{nullCountRaw("format", formatUnitLiteral("%s"), operand)}}, false)
 		if err != nil {
 			t.Fatal(tc.name, err)
 		}
@@ -98,7 +98,7 @@ func TestFormatViewVariadicSerializationReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	renderer := newViewRenderer(&viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages})
-	renderer.frame = b.frameID()
+	renderer.frame = b.FrameID()
 	stored, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil {
 		t.Fatal(err)
@@ -244,11 +244,11 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 	if err != nil || text != "b/a" {
 		t.Fatal(text, err)
 	}
-	column := plan.ColumnExpr{Info: expr.Info{Usage: node.ResultUsage(), Pos: parser.Position{Character: 99}, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: b.frameID()}
+	column := plan.ColumnExpr{Info: expr.Info{Usage: node.ResultUsage(), Pos: parser.Position{Character: 99}, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: b.FrameID()}
 	node.Variadic = false
 	node.Args = []expr.Expr{node.Args[0], column}
 	node.Property.RowDependent = true
-	if generationImmutable(node) || analyze.FirstQueryBoundFrameVariable(node, b.frameID()).Character != 99 {
+	if generationImmutable(node) || analyze.FirstQueryBoundFrameVariable(node, b.FrameID()).Character != 99 {
 		t.Fatal("stable/variable descendants must remain visible")
 	}
 	rebound, err := b.rewriteGroup(node, []expr.Expr{column})

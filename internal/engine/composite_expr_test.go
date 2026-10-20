@@ -109,7 +109,7 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 		values := &plan.ValuesNode{}
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		q := queryQualifier{NullExtended: true, SourceRoot: &plan.ProjectNode{Child: values}}
-		slot, err := b.wholeRowPresence(&q, 1)
+		slot, err := b.WholeRowPresence(&q, 1)
 		if err != nil || slot != 1 || values.PresenceSlot != slot {
 			t.Fatal("presence did not belong to emitted VALUES occurrence", slot, err)
 		}

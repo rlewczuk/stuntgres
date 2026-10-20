@@ -116,7 +116,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 		}
 		// Analysis-only occurrence: the completed parent must either reject its
 		// signature or report nesting. It cannot enter an executable window plan.
-		return &plan.WindowExpr{Info: b.info(resultUsage, raw.Pos, expr.Properties{StageDependent: true}), Slot: -1, Call: -1, Frame: b.frameID()}, nil
+		return &plan.WindowExpr{Info: b.info(resultUsage, raw.Pos, expr.Properties{StageDependent: true}), Slot: -1, Call: -1, Frame: b.FrameID()}, nil
 	}
 	if raw.Filter != nil {
 		return nil, expr.ErrorAt("0A000", "window aggregate FILTER is unsupported", raw.FilterPos)
@@ -207,7 +207,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 			return nil, err
 		}
 	}
-	expr := &plan.WindowExpr{Info: info, Slot: -1, Frame: b.frameID(), Call: len(b.grouping.windowCalls)}
+	expr := &plan.WindowExpr{Info: info, Slot: -1, Frame: b.FrameID(), Call: len(b.grouping.windowCalls)}
 	call.Expression = expr
 	expr.Nullable = call.Operation == plan.WindowSum || call.Operation == plan.WindowNtile || functions.WindowValueName(raw.Name) || functions.WindowOffsetName(raw.Name)
 	b.grouping.windowCalls = append(b.grouping.windowCalls, call)
@@ -258,7 +258,7 @@ func (b *expressionBinder) sameWindowCall(a, c plan.WindowCall) bool {
 	}
 	// Arguments can own child queries hidden by the window leaf. This is
 	// semantic target equality, not permission to merge volatile executions.
-	if (a.Operation == plan.WindowSum || a.Operation.EvaluatesArgument()) && (!sqltype.SameRecordUsage(a.Expression.ResultUsage(), c.Expression.ResultUsage()) || !b.sameQueryTarget(a.Argument, c.Argument) || !b.sameQueryTarget(a.Ordinal, c.Ordinal) || !b.sameQueryTarget(a.DefaultValue, c.DefaultValue)) {
+	if (a.Operation == plan.WindowSum || a.Operation.EvaluatesArgument()) && (!sqltype.SameRecordUsage(a.Expression.ResultUsage(), c.Expression.ResultUsage()) || !b.SameQueryTarget(a.Argument, c.Argument) || !b.SameQueryTarget(a.Ordinal, c.Ordinal) || !b.SameQueryTarget(a.DefaultValue, c.DefaultValue)) {
 		return false
 	}
 	if a.Raw != nil || c.Raw != nil {
@@ -335,7 +335,7 @@ func (b *expressionBinder) resolveWindowDefinitions() error {
 		spec.Definition = definitionIndex + 1
 		if b.params.noParameters || b.consumer.materializedDefinition {
 			ordinal := 0
-			path := viewLiteralPath{Query: b.frameID(), Clause: analyze.ViewWindowLiteral, Target: definitionIndex}
+			path := viewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewWindowLiteral, Target: definitionIndex}
 			for i, key := range definition.Spec.Partition {
 				if err := b.captureViewLiteralTree(key, spec.Partition[i], path, &ordinal); err != nil {
 					return err

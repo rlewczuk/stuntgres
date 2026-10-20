@@ -15,7 +15,7 @@ import (
 )
 
 func (b *expressionBinder) captureViewLiterals(raw parser.Expr, bound expr.Expr, clause viewLiteralClause, target int) error {
-	path := viewLiteralPath{Query: b.frameID(), Clause: clause, Target: target}
+	path := viewLiteralPath{Query: b.FrameID(), Clause: clause, Target: target}
 	ordinal := 0
 	return b.captureViewLiteralTree(raw, bound, path, &ordinal)
 }

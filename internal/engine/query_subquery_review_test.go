@@ -98,7 +98,7 @@ func TestQuerySubqueryProjectionScheduling(t *testing.T) {
 			volatile.Property.Volatility = expr.Volatile
 			projection := []expr.Expr{immutable, volatile}
 			b := expressionBinder{}
-			next := b.scheduleQueryProjection(root, projection, bounded)
+			next := b.ScheduleQueryProjection(root, projection, bounded)
 			if sorting {
 				sort := root.(*plan.SortNode)
 				if len(sort.Outputs) != 1 || sort.CacheWidth != 1 {

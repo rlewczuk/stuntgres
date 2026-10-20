@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindSearchShape(d *plan.CTEDefinition) error {
+func (b *expressionBinder) BindSearchShape(d *plan.CTEDefinition) error {
 	s := d.Search
 	s.Slot = d.UserWidth
 	s.Depth = b.typ(sqltype.Int8)
@@ -60,7 +60,7 @@ func (b *expressionBinder) bindSearchShape(d *plan.CTEDefinition) error {
 	return nil
 }
 
-func (b *expressionBinder) bindSearchIdentity(d *plan.CTEDefinition) error {
+func (b *expressionBinder) BindSearchIdentity(d *plan.CTEDefinition) error {
 	s := d.Search
 	s.Grouping = make([]sqltype.Grouping, s.Record.CompositeLen())
 	for i := range s.Grouping {

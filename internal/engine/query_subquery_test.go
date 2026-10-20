@@ -259,12 +259,12 @@ func TestQuerySubqueryFrames(t *testing.T) {
 	}
 	binder := expressionBinder{query: queryScopeState{namespace: &queryNamespace{}, frame: 7}, clause: clauseState{aggregateClause: "RETURNING"}}
 	original := binder.query.namespace
-	restore := binder.enterQuery(false)
-	if binder.query.namespace != nil || binder.frameID() == 7 || len(binder.query.scopes) != 1 {
+	restore := binder.EnterQuery(false)
+	if binder.query.namespace != nil || binder.FrameID() == 7 || len(binder.query.scopes) != 1 {
 		t.Fatal("scope entry")
 	}
 	restore()
-	if binder.query.namespace != original || binder.frameID() != 7 || binder.clause.aggregateClause != "RETURNING" || len(binder.query.scopes) != 0 {
+	if binder.query.namespace != original || binder.FrameID() != 7 || binder.clause.aggregateClause != "RETURNING" || len(binder.query.scopes) != 0 {
 		t.Fatal("scope restoration")
 	}
 }
@@ -370,7 +370,7 @@ func TestQuerySubqueryAggregateOwnership(t *testing.T) {
 		auth, err := e.authorizationLocked(binderOperation(binder))
 		binder.query.auth = &auth
 		if err == nil {
-			_, err = binder.bindSelect(statement(t, sql).(*parser.Select), false)
+			_, err = binder.BindSelect(statement(t, sql).(*parser.Select), false)
 		}
 		e.mu.Unlock()
 		var diagnostic *sqlstate.Error
@@ -471,7 +471,7 @@ func TestQuerySubqueryDMLFrameRestoration(t *testing.T) {
 			b.query.auth = &auth
 			b.params.updateParameters = true
 			b.clause.aggregateClause = "RETURNING"
-			_, err := b.bindSelect(statement(t, sql).(*parser.Select), false)
+			_, err := b.BindSelect(statement(t, sql).(*parser.Select), false)
 			if (sql == "SELECT missing") != (err != nil) {
 				t.Fatal(err)
 			}

@@ -376,7 +376,7 @@ func (b *expressionBinder) finishSQLCallable(raw parser.FunctionExpr, selected s
 			if b.stored.syntax == nil {
 				b.stored.syntax = make(map[storedExpressionSyntaxKey]parser.Expr)
 			}
-			b.stored.syntax[storedExpressionSyntaxKey{frame: b.frameID(), position: raw.SourcePosition()}] = frozen
+			b.stored.syntax[storedExpressionSyntaxKey{frame: b.FrameID(), position: raw.SourcePosition()}] = frozen
 		}
 		return plan.SQLRoutineExpr{Info: info, Procedure: d, Ref: ref, Args: selected.args}, nil
 	}

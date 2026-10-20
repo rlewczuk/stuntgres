@@ -51,7 +51,7 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 	}
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	requests := []expr.Expr{call}
-	root, err := binder.lowerQuerySets(&plan.SingletonNode{}, requests, nil, false)
+	root, err := binder.LowerQuerySets(&plan.SingletonNode{}, requests, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -12,7 +12,7 @@ import (
 // Binding runs under engine.mu. Candidate identity and definition are immutable;
 // source capture revalidates them rather than reopening names or substituting
 // prepared values. All candidates have RelationClassID and SubID zero.
-func (q *queryScopeState) partialIndexCandidate(parent ids.ObjectRef, query expr.Expr) *catalog.Relation {
+func (q *queryScopeState) PartialIndexCandidate(parent ids.ObjectRef, query expr.Expr) *catalog.Relation {
 	if q.auth == nil {
 		return nil
 	}
@@ -22,7 +22,7 @@ func (q *queryScopeState) partialIndexCandidate(parent ids.ObjectRef, query expr
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != parent.Address || index.SQLIndex.Predicate == nil {
 			continue
 		}
-		if !partialPredicateImpliedBy(query, index.SQLIndex.Predicate.Definition) {
+		if !PartialPredicateImpliedBy(query, index.SQLIndex.Predicate.Definition) {
 			continue
 		}
 		if chosen == nil || index.Address().ObjectID < chosen.Address().ObjectID {
@@ -35,7 +35,7 @@ func (q *queryScopeState) partialIndexCandidate(parent ids.ObjectRef, query expr
 // Strong exact implication on unresolved typed trees, not runtime values. Only
 // AND is decomposed; an independent fixed conjunct can survive parameters in
 // other query atoms. Existing structural identity owns provider/origin semantics.
-func partialPredicateImpliedBy(query, predicate expr.Expr) bool {
+func PartialPredicateImpliedBy(query, predicate expr.Expr) bool {
 	if predicate == nil {
 		return true
 	}
@@ -43,7 +43,7 @@ func partialPredicateImpliedBy(query, predicate expr.Expr) bool {
 		return false
 	}
 	if p, ok := predicate.(plan.LogicalExpr); ok && p.Op == parser.LogicalAnd {
-		return partialPredicateImpliedBy(query, p.Left) && partialPredicateImpliedBy(query, p.Right)
+		return PartialPredicateImpliedBy(query, p.Left) && PartialPredicateImpliedBy(query, p.Right)
 	}
 	if predicate.Properties().ParameterDependent || exec.PlannedVolatility(predicate) != expr.Immutable {
 		return false

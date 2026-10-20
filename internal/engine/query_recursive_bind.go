@@ -12,7 +12,7 @@ import (
 )
 
 func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *plan.CTEDefinition) (*plan.Query, error) {
-	leftQuery, err := b.bindSelect(s.Set.Left, false)
+	leftQuery, err := b.BindSelect(s.Set.Left, false)
 	if err != nil {
 		return nil, err
 	}
@@ -32,7 +32,7 @@ func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *plan.CTEDefinit
 	leftQuery.Root = &leftCopy
 	d.UserWidth = len(d.Schema)
 	if d.Search != nil {
-		if err := b.bindSearchShape(d); err != nil {
+		if err := b.BindSearchShape(d); err != nil {
 			return nil, err
 		}
 	}
@@ -44,7 +44,7 @@ func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *plan.CTEDefinit
 	old := len(b.cte.bindings)
 	b.cte.bindings = append(b.cte.bindings, cteBinding{name: d.Name, definition: d, contained: true})
 	defer func() { b.cte.bindings = b.cte.bindings[:old] }()
-	rightQuery, err := b.bindSelect(s.Set.Right, true)
+	rightQuery, err := b.BindSelect(s.Set.Right, true)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +124,7 @@ func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *plan.CTEDefinit
 			return nil, err
 		}
 		if !set.All {
-			if err := b.bindSearchIdentity(d); err != nil {
+			if err := b.BindSearchIdentity(d); err != nil {
 				return nil, err
 			}
 		}

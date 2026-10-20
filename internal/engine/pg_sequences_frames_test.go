@@ -126,7 +126,7 @@ func TestPGSequencesAdmissionDerivedRowLockFrame(t *testing.T) {
 	binder.query.auth = &auth
 	var query *plan.Query
 	if err == nil {
-		query, err = binder.bindSelect(raw, false)
+		query, err = binder.BindSelect(raw, false)
 	}
 	e.mu.Unlock()
 	if err != nil {

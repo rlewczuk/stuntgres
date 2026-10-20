@@ -761,7 +761,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 	b := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 	b.query.auth = &auth
 	if err == nil {
-		_, err = b.bindSelect(raw, false)
+		_, err = b.BindSelect(raw, false)
 	}
 	e.mu.Unlock()
 	var diagnostic *sqlstate.Error

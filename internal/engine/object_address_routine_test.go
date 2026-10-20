@@ -167,7 +167,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 			e.mu.Lock()
 			binder := newExpressionBinder(context.Background(), e, scope.input, op, nil)
 			binder.query.auth = routineAuthorityView(&evaluation)
-			query, err := binder.bindSelect(raw, false)
+			query, err := binder.BindSelect(raw, false)
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal("actual source binding", err)
@@ -365,7 +365,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		e.mu.Lock()
 		sourceBinder := newExpressionBinder(context.Background(), e, scope.input, op, nil)
 		sourceBinder.query.auth = routineAuthorityView(&evaluation)
-		query, bindErr := sourceBinder.bindSelect(raw, false)
+		query, bindErr := sourceBinder.BindSelect(raw, false)
 		e.mu.Unlock()
 		if bindErr != nil {
 			t.Fatal("literal-sibling source binding", bindErr)
@@ -404,7 +404,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 			e.mu.Lock()
 			sourceBinder := newExpressionBinder(context.Background(), e, scope.input, op, nil)
 			sourceBinder.query.auth = routineAuthorityView(&evaluation)
-			query, bindErr := sourceBinder.bindSelect(raw, false)
+			query, bindErr := sourceBinder.BindSelect(raw, false)
 			e.mu.Unlock()
 			if bindErr != nil {
 				t.Fatal("source child-error binding", bindErr)
@@ -495,7 +495,7 @@ func TestObjectAddressSourceFalseDemand(t *testing.T) {
 				e.mu.Lock()
 				binder := newExpressionBinder(context.Background(), e, scope.input, op, nil)
 				binder.query.auth = routineAuthorityView(&evaluation)
-				query, err := binder.bindSelect(raw, false)
+				query, err := binder.BindSelect(raw, false)
 				e.mu.Unlock()
 				if err != nil {
 					t.Fatal("actual source/target binding", err)

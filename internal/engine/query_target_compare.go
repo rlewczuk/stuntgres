@@ -10,23 +10,23 @@ import (
 // This comparison is binding-local: both operands have been fully analyzed in
 // the same enclosing namespace. Child query allocation IDs are paired, while
 // outer correlations retain their exact coordinates. It is not global CSE.
-type queryTargetComparison struct {
-	frames                [][2]uint32
-	occurrences           []queryTargetOccurrence
-	leftFrame, rightFrame uint32
+type QueryTargetComparison struct {
+	Frames                [][2]uint32
+	Occurrences           []QueryTargetOccurrence
+	LeftFrame, RightFrame uint32
 }
-type queryTargetOccurrence struct {
+type QueryTargetOccurrence struct {
 	leftFrame, rightFrame uint32
 	left, right           int
 }
 
 // Query target resolution can normalize independently analyzed child frames;
 // ordinary grouping comparison keeps its conservative identity contract.
-func (b *expressionBinder) sameQueryTarget(a, c expr.Expr) bool {
-	return b.sameGroupExpression(a, c) || b.sameSubqueryTarget(a, c)
+func (b *expressionBinder) SameQueryTarget(a, c expr.Expr) bool {
+	return b.sameGroupExpression(a, c) || b.SameSubqueryTarget(a, c)
 }
 
-func (b *expressionBinder) sameSubqueryTarget(a, c expr.Expr) bool {
+func (b *expressionBinder) SameSubqueryTarget(a, c expr.Expr) bool {
 	found := false
 	plan.WalkExpression(a, func(e expr.Expr) {
 		if _, ok := e.(plan.SubqueryExpr); ok {
@@ -37,13 +37,13 @@ func (b *expressionBinder) sameSubqueryTarget(a, c expr.Expr) bool {
 		return false
 	}
 	var frames [16][2]uint32
-	var occurrences [16]queryTargetOccurrence
-	comparison := queryTargetComparison{frames: frames[:0], occurrences: occurrences[:0]}
+	var occurrences [16]QueryTargetOccurrence
+	comparison := QueryTargetComparison{Frames: frames[:0], Occurrences: occurrences[:0]}
 	return b.sameGroupExpressionIn(a, c, &comparison)
 }
-func (c *queryTargetComparison) sameFrame(a, b uint32) bool {
+func (c *QueryTargetComparison) SameFrame(a, b uint32) bool {
 	if c != nil {
-		for _, p := range c.frames {
+		for _, p := range c.Frames {
 			if p[0] == a || p[1] == b {
 				return p[0] == a && p[1] == b
 			}
@@ -51,25 +51,25 @@ func (c *queryTargetComparison) sameFrame(a, b uint32) bool {
 	}
 	return a == b
 }
-func (c *queryTargetComparison) pairFrame(a, b uint32) bool {
-	for _, p := range c.frames {
+func (c *QueryTargetComparison) PairFrame(a, b uint32) bool {
+	for _, p := range c.Frames {
 		if p[0] == a || p[1] == b {
 			return p[0] == a && p[1] == b
 		}
 	}
-	c.frames = append(c.frames, [2]uint32{a, b})
+	c.Frames = append(c.Frames, [2]uint32{a, b})
 	return true
 }
-func (c *queryTargetComparison) pairOccurrence(a, b int) bool {
-	for _, p := range c.occurrences {
-		if p.leftFrame == c.leftFrame && p.rightFrame == c.rightFrame && (p.left == a || p.right == b) {
+func (c *QueryTargetComparison) PairOccurrence(a, b int) bool {
+	for _, p := range c.Occurrences {
+		if p.leftFrame == c.LeftFrame && p.rightFrame == c.RightFrame && (p.left == a || p.right == b) {
 			return p.left == a && p.right == b
 		}
 	}
-	c.occurrences = append(c.occurrences, queryTargetOccurrence{c.leftFrame, c.rightFrame, a, b})
+	c.Occurrences = append(c.Occurrences, QueryTargetOccurrence{c.LeftFrame, c.RightFrame, a, b})
 	return true
 }
-func (c *queryTargetComparison) expressions(b *expressionBinder, a, d []expr.Expr) bool {
+func (c *QueryTargetComparison) expressions(b *expressionBinder, a, d []expr.Expr) bool {
 	if len(a) != len(d) {
 		return false
 	}
@@ -80,7 +80,7 @@ func (c *queryTargetComparison) expressions(b *expressionBinder, a, d []expr.Exp
 	}
 	return true
 }
-func (c *queryTargetComparison) order(b *expressionBinder, a, d []plan.SortKey) bool {
+func (c *QueryTargetComparison) order(b *expressionBinder, a, d []plan.SortKey) bool {
 	if len(a) != len(d) {
 		return false
 	}
@@ -92,7 +92,7 @@ func (c *queryTargetComparison) order(b *expressionBinder, a, d []plan.SortKey) 
 	}
 	return true
 }
-func (c *queryTargetComparison) window(b *expressionBinder, a, d plan.WindowSpec) bool {
+func (c *QueryTargetComparison) window(b *expressionBinder, a, d plan.WindowSpec) bool {
 	return a.Definition == d.Definition && a.Explicit == d.Explicit && a.Frame.Unit == d.Frame.Unit && a.Frame.Exclusion == d.Frame.Exclusion && a.Frame.Start.Kind == d.Frame.Start.Kind && a.Frame.End.Kind == d.Frame.End.Kind && b.sameGroupExpressionIn(a.Frame.Start.Offset, d.Frame.Start.Offset, c) && b.sameGroupExpressionIn(a.Frame.End.Offset, d.Frame.End.Offset, c) && len(a.Grouping) == len(d.Grouping) && c.expressions(b, a.Partition, d.Partition) && c.order(b, a.Order, d.Order)
 }
 
@@ -100,7 +100,7 @@ func (c *queryTargetComparison) window(b *expressionBinder, a, d plan.WindowSpec
 // source character offsets, or arbitrary frame/source allocation numbers.
 // Grouping/aggregate providers are deterministically bound from the compared
 // typed arguments and operations in this same catalog/type universe.
-func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d plan.Node) bool {
+func (c *QueryTargetComparison) SameQuery(b *expressionBinder, a, d plan.Node) bool {
 	if a == nil || d == nil {
 		return a == nil && d == nil
 	}
@@ -114,7 +114,7 @@ func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d plan.Node) b
 	}
 	if n, ok := a.(*plan.ProjectNode); ok {
 		o, ok := d.(*plan.ProjectNode)
-		if !ok || !c.pairFrame(n.Frame, o.Frame) {
+		if !ok || !c.PairFrame(n.Frame, o.Frame) {
 			return false
 		}
 		if n.Syntax == nil || o.Syntax == nil {
@@ -124,14 +124,14 @@ func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d plan.Node) b
 		} else if !analyze.SameQuerySourceAliases(n.Syntax.From, o.Syntax.From) {
 			return false
 		}
-		left, right := c.leftFrame, c.rightFrame
-		c.leftFrame, c.rightFrame = n.Frame, o.Frame
-		defer func() { c.leftFrame, c.rightFrame = left, right }()
+		left, right := c.LeftFrame, c.RightFrame
+		c.LeftFrame, c.RightFrame = n.Frame, o.Frame
+		defer func() { c.LeftFrame, c.RightFrame = left, right }()
 	}
 	// Inputs register every local arm/derived frame before expression comparison.
 	left, right := plan.QueryInputs(a)
 	otherLeft, otherRight := plan.QueryInputs(d)
-	if !c.sameQuery(b, left, otherLeft) || !c.sameQuery(b, right, otherRight) {
+	if !c.SameQuery(b, left, otherLeft) || !c.SameQuery(b, right, otherRight) {
 		return false
 	}
 	same := func(a, d expr.Expr) bool { return b.sameGroupExpressionIn(a, d, c) }
@@ -174,7 +174,7 @@ func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d plan.Node) b
 		return c.expressions(b, n.Expressions, o.Expressions) && c.expressions(b, n.AnalysisExpressions, o.AnalysisExpressions)
 	case *plan.SourceNode:
 		o, ok := d.(*plan.SourceNode)
-		return ok && n.Ref == o.Ref && c.pairOccurrence(n.Occurrence, o.Occurrence)
+		return ok && n.Ref == o.Ref && c.PairOccurrence(n.Occurrence, o.Occurrence)
 	case *plan.SingletonNode:
 		_, ok := d.(*plan.SingletonNode)
 		return ok

@@ -568,7 +568,7 @@ func TestQueryWindowReview4ArgumentOwnerRestoration(t *testing.T) {
 			retainedAggregateValues := append([]plan.AggregateCall(nil), retainedAggregates...)
 			owner := argumentWindowOwner{active: true, window: true, found: true, first: parser.Position{Character: 23}}
 			b.grouping.argumentOwner = owner
-			leave := b.enterQuery(false)
+			leave := b.EnterQuery(false)
 			if b.grouping.argumentOwner != (argumentWindowOwner{}) {
 				t.Fatal("lexical child inherited owner", b.grouping.argumentOwner)
 			}

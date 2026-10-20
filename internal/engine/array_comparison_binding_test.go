@@ -62,7 +62,7 @@ func TestArrayCompareBinding(t *testing.T) {
 		auth, err := e.authorizationLocked(binderOperation(b))
 		b.query.auth = &auth
 		if err == nil {
-			_, err = b.bindSelect(raw, false)
+			_, err = b.BindSelect(raw, false)
 		}
 		e.mu.Unlock()
 		state(t, err, tc.code)
@@ -84,7 +84,7 @@ func TestArrayCompareBinding(t *testing.T) {
 		auth, err := e.authorizationLocked(binderOperation(b))
 		b.query.auth = &auth
 		if err == nil {
-			_, err = b.bindSelect(raw, false)
+			_, err = b.BindSelect(raw, false)
 		}
 		e.mu.Unlock()
 		if tc.code == "" {
@@ -115,7 +115,7 @@ func TestArrayCompareCommonType(t *testing.T) {
 	_, err = commonExpressionUsage([]comparisonOperand{integer(sqltype.Int4), integer(sqltype.Bool)}, b.typ(sqltype.Text).Usage(), "ARRAY")
 	state(t, err, "42804")
 	// Lexical frame identity, not dependence flags, distinguishes Vars.
-	local := plan.ColumnExpr{Info: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Frame: b.frameID()}
+	local := plan.ColumnExpr{Info: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Frame: b.FrameID()}
 	other := local
 	other.Frame++
 	if !b.inListHasVar(local) || b.inListHasVar(other) || b.inListHasVar(plan.ParameterExpr{Info: expr.Info{Property: expr.Properties{RowDependent: true}}}) {

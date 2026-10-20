@@ -99,7 +99,7 @@ func bindMutationCommand(binder *expressionBinder, auth analyze.Authority, requi
 			binder.query.hidden = append(binder.query.hidden, target.Qualifiers[0])
 			var sources queryNamespace
 			binder.target.deleteUsingSources = true
-			b.Delete.Using, sources, err = binder.bindFrom(s.Using)
+			b.Delete.Using, sources, err = binder.BindFrom(s.Using)
 			binder.target.deleteUsingSources = false
 			if err != nil {
 				return b, err
@@ -198,7 +198,7 @@ func (b *expressionBinder) bindCTEMutation(statement parser.Statement) (binding,
 	returningRead := b.target.returningReadRequired
 	subqueries, visibility := b.query.subqueryDemand, b.consumer.visibilitySnapshot
 	singleInsert := b.clause.stringSingleInsert
-	restoreQuery := b.enterQuery(true)
+	restoreQuery := b.EnterQuery(true)
 	defer func() {
 		restoreQuery()
 		b.target.relation, b.target.ref, b.target.insertTarget = relation, ref, insertTarget

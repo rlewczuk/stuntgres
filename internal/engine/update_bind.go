@@ -24,7 +24,7 @@ func bindUpdate(b *binding, binder *expressionBinder, s *parser.Update) error {
 	binder.query.hidden = append(binder.query.hidden, target.Qualifiers[0])
 	if s.From != nil {
 		var sources queryNamespace
-		u.From, sources, err = binder.bindFrom(s.From)
+		u.From, sources, err = binder.BindFrom(s.From)
 		if err != nil {
 			return err
 		}

@@ -199,7 +199,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			if rule {
 				binder.target.ruleNamespace = &ruleNamespace{relation: src, ref: ruleUnitRef(e, src), event: "INSERT"}
 			}
-			query, err := binder.bindSelect(statement, true)
+			query, err := binder.BindSelect(statement, true)
 			if err != nil {
 				t.Fatal(err)
 			}

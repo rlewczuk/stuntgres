@@ -42,7 +42,7 @@ func TestSourceProtocolSubstitution(t *testing.T) {
 		t.Fatal(err)
 	}
 	call := mapped.(*plan.FunctionFromNode).Calls[0].(functions.JSONRecord)
-	staged, err := b.mapQuerySetStage(original, func(child expr.Expr) (expr.Expr, bool, error) {
+	staged, err := b.MapQuerySetStage(original, func(child expr.Expr) (expr.Expr, bool, error) {
 		if child == original.Args[0] {
 			return replacement, true, nil
 		}
@@ -370,7 +370,7 @@ func sourceProtocolSurvivorSubstitution(t *testing.T) {
 	call := substituted.(functions.JSONRecord)
 	requests := []expr.Expr{call}
 	b.query.frame = 1
-	root, err := b.lowerQuerySets(&plan.SingletonNode{}, requests, nil, true)
+	root, err := b.LowerQuerySets(&plan.SingletonNode{}, requests, nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -104,7 +104,7 @@ func moveCTEPredicates(view catalog.Read, child plan.Node, predicate expr.Expr) 
 		if predicate.Properties().Volatility == expr.Volatile {
 			return predicate, nil
 		}
-		next, moved, err := pushCTEOccurrence(view, child, predicate, 0)
+		next, moved, err := PushCTEOccurrence(view, child, predicate, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -119,7 +119,7 @@ func moveCTEPredicates(view catalog.Read, child plan.Node, predicate expr.Expr) 
 	return child, remaining, moves, err
 }
 
-func pushCTEOccurrence(view catalog.Read, node plan.Node, predicate expr.Expr, offset int) (plan.Node, bool, error) {
+func PushCTEOccurrence(view catalog.Read, node plan.Node, predicate expr.Expr, offset int) (plan.Node, bool, error) {
 	switch n := node.(type) {
 	case *plan.DerivedNode:
 		if n.CTE == nil || !n.CTE.Folded() {
@@ -169,7 +169,7 @@ func pushCTEOccurrence(view catalog.Read, node plan.Node, predicate expr.Expr, o
 		if n.Kind != parser.JoinInner {
 			return node, false, nil
 		}
-		left, moved, err := pushCTEOccurrence(view, n.Left, predicate, offset)
+		left, moved, err := PushCTEOccurrence(view, n.Left, predicate, offset)
 		if err != nil {
 			return nil, false, err
 		}
@@ -178,7 +178,7 @@ func pushCTEOccurrence(view catalog.Read, node plan.Node, predicate expr.Expr, o
 			copy.Left = left
 			return &copy, true, nil
 		}
-		right, moved, err := pushCTEOccurrence(view, n.Right, predicate, offset+n.LeftWidth)
+		right, moved, err := PushCTEOccurrence(view, n.Right, predicate, offset+n.LeftWidth)
 		if err != nil {
 			return nil, false, err
 		}

@@ -61,7 +61,7 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, err
 			return nil, err
 		}
 	}
-	query, err := b.bindSelect(raw.Query, false)
+	query, err := b.BindSelect(raw.Query, false)
 	if err != nil {
 		return nil, err
 	}

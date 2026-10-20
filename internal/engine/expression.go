@@ -327,7 +327,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			// Selection analyzed this operand before the winning argument
 			// owner existed. Preserve its lexical occurrence even if the
 			// signature does not retain an executable argument.
-			if nested := windowOccurrence(node); nested != nil && nested.Frame == b.frameID() {
+			if nested := windowOccurrence(node); nested != nil && nested.Frame == b.FrameID() {
 				b.grouping.argumentOwner.first, b.grouping.argumentOwner.found = nested.Pos, true
 			}
 		}
@@ -449,7 +449,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				return nil, err
 			}
 		case parser.AggregateExpr:
-			if r.Window == nil && b.cte.recursiveFrames[b.frameID()] {
+			if r.Window == nil && b.cte.recursiveFrames[b.FrameID()] {
 				return nil, expr.ErrorAt("42P19", "aggregate functions are not allowed in a recursive query's recursive term", r.Pos)
 			}
 			if b.params.executeParameters {

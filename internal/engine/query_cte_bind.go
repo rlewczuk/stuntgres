@@ -25,7 +25,7 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 	for _, index := range analysis.Order {
 		raw := rawDefinitions[index]
 		start := len(b.query.sources)
-		definition := &plan.CTEDefinition{Owner: b.frameID(), Hint: raw.Materialization, Position: raw.Name.Pos, Name: raw.Name.Text, Columns: raw.Columns, Recursive: analysis.Recursive[index]}
+		definition := &plan.CTEDefinition{Owner: b.FrameID(), Hint: raw.Materialization, Position: raw.Name.Pos, Name: raw.Name.Text, Columns: raw.Columns, Recursive: analysis.Recursive[index]}
 		if raw.Search != nil {
 			definition.Search = &plan.SearchRecipe{Syntax: raw.Search}
 		}
@@ -49,7 +49,7 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 				definition.Syntax = selection
 				b.cte.recursiveDefinition = definition
 			}
-			query, err := b.bindSelect(selection, false)
+			query, err := b.BindSelect(selection, false)
 			b.cte.analysisDepth--
 			b.cte.recursiveDefinition = oldRecursive
 			if err != nil {
@@ -121,12 +121,12 @@ func (b *expressionBinder) bindCTEScan(table *parser.TableReference, binding cte
 		if b.cte.recursiveFrames == nil {
 			b.cte.recursiveFrames = make(map[uint32]bool)
 		}
-		b.cte.recursiveFrames[b.frameID()] = true
+		b.cte.recursiveFrames[b.FrameID()] = true
 	} else {
 		scan = &plan.DerivedNode{}
 		root = scan
 	}
-	*scan = plan.DerivedNode{QuerySchema: schema, Query: d.Query, CTE: d, Table: table, Ordinal: -1 - b.cte.scanOrdinal, ScanFrame: b.frameID(), Demand: make([]bool, len(schema))}
+	*scan = plan.DerivedNode{QuerySchema: schema, Query: d.Query, CTE: d, Table: table, Ordinal: -1 - b.cte.scanOrdinal, ScanFrame: b.FrameID(), Demand: make([]bool, len(schema))}
 	b.cte.scanOrdinal++
 	columns := make([]queryColumn, len(schema))
 	for i, column := range schema {

@@ -64,7 +64,7 @@ func TestArrayAggregateColumnACL(t *testing.T) {
 			auth := catalogAuthorization(e, e.CatalogRead())
 			b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
 			b.query.auth = &auth
-			query, err := b.bindSelect(statement(t, tc.query).(*parser.Select), false)
+			query, err := b.BindSelect(statement(t, tc.query).(*parser.Select), false)
 			if err != nil {
 				t.Fatal(err)
 			}

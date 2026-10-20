@@ -26,7 +26,7 @@ func (b *expressionBinder) sameGroupExpression(a, other expr.Expr) bool {
 	return b.sameGroupExpressionIn(a, other, nil)
 }
 
-func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison *queryTargetComparison) bool {
+func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison *QueryTargetComparison) bool {
 	if a == nil || other == nil {
 		return a == nil && other == nil
 	}
@@ -64,7 +64,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 		return ok && e.Owner == o.Owner
 	case plan.GroupingExpr:
 		o, ok := other.(plan.GroupingExpr)
-		if !ok || !comparison.sameFrame(e.Frame, o.Frame) || len(e.Args) != len(o.Args) {
+		if !ok || !comparison.SameFrame(e.Frame, o.Frame) || len(e.Args) != len(o.Args) {
 			return false
 		}
 		for i, arg := range e.Args {
@@ -107,7 +107,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			if e.QueryPlan.Root.(*plan.ProjectNode).Frame != o.QueryPlan.Root.(*plan.ProjectNode).Frame {
 				return false
 			}
-		} else if !comparison.sameQuery(b, e.QueryPlan.Root, o.QueryPlan.Root) {
+		} else if !comparison.SameQuery(b, e.QueryPlan.Root, o.QueryPlan.Root) {
 			return false
 		}
 		if comparison != nil {
@@ -131,10 +131,10 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 		return true
 	case plan.AggregateExpr:
 		o, ok := other.(plan.AggregateExpr)
-		return ok && e.Slot == o.Slot && comparison.sameFrame(e.Frame, o.Frame)
+		return ok && e.Slot == o.Slot && comparison.SameFrame(e.Frame, o.Frame)
 	case *plan.WindowExpr:
 		o, ok := other.(*plan.WindowExpr)
-		if !ok || !comparison.sameFrame(e.Frame, o.Frame) {
+		if !ok || !comparison.SameFrame(e.Frame, o.Frame) {
 			return false
 		}
 		if e == o {
@@ -154,7 +154,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 		return b.sameWindowCall(a, c)
 	case plan.GroupExpr:
 		o, ok := other.(plan.GroupExpr)
-		return ok && e.Slot == o.Slot && comparison.sameFrame(e.Frame, o.Frame)
+		return ok && e.Slot == o.Slot && comparison.SameFrame(e.Frame, o.Frame)
 	case plan.LiteralExpr:
 		o, ok := other.(plan.LiteralExpr)
 		if !ok {
@@ -166,7 +166,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 		return ok
 	case plan.ColumnExpr:
 		o, ok := other.(plan.ColumnExpr)
-		return ok && e.Origin == o.Origin && e.Scope == o.Scope && comparison.sameFrame(e.Frame, o.Frame) && e.Slot == o.Slot
+		return ok && e.Origin == o.Origin && e.Scope == o.Scope && comparison.SameFrame(e.Frame, o.Frame) && e.Slot == o.Slot
 	case plan.CachedOrderExpr:
 		o, ok := other.(plan.CachedOrderExpr)
 		return comparison != nil && ok && e.Slot == o.Slot
@@ -354,7 +354,7 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 			properties.StageDependent = true
 			info := expr.InfoOf(bound)
 			info.Property = properties
-			return plan.GroupExpr{Info: info, Slot: i, Frame: b.frameID()}, nil
+			return plan.GroupExpr{Info: info, Slot: i, Frame: b.FrameID()}, nil
 		}
 	}
 	var err error
@@ -372,7 +372,7 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		old := b.grouping.groupSubquery
 		b.grouping.groupSubquery = true
 		root, failure := plan.RewriteQueryExpressions(e.QueryPlan.Root, func(child expr.Expr) (expr.Expr, bool, error) {
-			if !analyze.ExpressionUsesFrame(child, b.frameID()) {
+			if !analyze.ExpressionUsesFrame(child, b.FrameID()) {
 				return child, false, nil
 			}
 			next, err := b.rewriteGroup(child, keys)
@@ -396,14 +396,14 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		}
 		bound = e
 	case plan.AggregateExpr:
-		if e.Frame != 0 && e.Frame != b.frameID() {
+		if e.Frame != 0 && e.Frame != b.FrameID() {
 			return e, nil
 		}
-		return plan.GroupExpr{Info: e.Info, Slot: len(keys) + e.Slot, Frame: b.frameID()}, nil
+		return plan.GroupExpr{Info: e.Info, Slot: len(keys) + e.Slot, Frame: b.FrameID()}, nil
 	case *plan.WindowExpr:
 		return e, nil
 	case plan.ColumnExpr:
-		if e.Frame != b.frameID() {
+		if e.Frame != b.FrameID() {
 			return e, nil
 		}
 		name := b.query.namespace.Frame[e.Slot].Name

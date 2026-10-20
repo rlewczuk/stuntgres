@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/engine/plan"
 )
 
-func (b *expressionBinder) scheduleQueryProjection(root plan.Node, projection []expr.Expr, bounded bool) plan.Node {
+func (b *expressionBinder) ScheduleQueryProjection(root plan.Node, projection []expr.Expr, bounded bool) plan.Node {
 	base := 0
 	var lateSlots []int
 	ordered, sorting := root.(*plan.SortNode)

@@ -139,17 +139,17 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 					if mode == returningMerge && len(star.Qualifier.Parts) == 0 {
 						for _, column := range columns {
 							if column.Leaf != analyze.QueryTargetLeaf {
-								appendOutput(b.queryColumnAt(column, star.Pos), column.Descriptor.Name)
+								appendOutput(b.QueryColumnAt(column, star.Pos), column.Descriptor.Name)
 							}
 						}
 						for _, column := range columns {
 							if column.Leaf == analyze.QueryTargetLeaf {
-								appendOutput(b.queryColumnAt(column, star.Pos), column.Descriptor.Name)
+								appendOutput(b.QueryColumnAt(column, star.Pos), column.Descriptor.Name)
 							}
 						}
 					} else {
 						for _, column := range columns {
-							appendOutput(b.queryColumnAt(column, star.Pos), column.Descriptor.Name)
+							appendOutput(b.QueryColumnAt(column, star.Pos), column.Descriptor.Name)
 						}
 					}
 				}
@@ -282,7 +282,7 @@ func (b *expressionBinder) returningColumn(raw parser.ColumnExpr) (expr.Expr, er
 			}
 		}
 		if !column {
-			if expr, found, err := b.returningWholeRow(parts[0].Text, b.target.relation, b.frameID(), b.target.returningAliases, raw.Pos); found {
+			if expr, found, err := b.returningWholeRow(parts[0].Text, b.target.relation, b.FrameID(), b.target.returningAliases, raw.Pos); found {
 				return expr, err
 			}
 		}

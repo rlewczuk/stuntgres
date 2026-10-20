@@ -67,7 +67,7 @@ func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection [
 						if label != name {
 							continue
 						}
-						if output >= 0 && !b.sameQueryTarget(projection[output], projection[i]) {
+						if output >= 0 && !b.SameQueryTarget(projection[output], projection[i]) {
 							return out, expr.ErrorAt("42702", fmt.Sprintf(`GROUP BY "%s" is ambiguous`, name), column.Pos)
 						}
 						output = i
@@ -92,7 +92,7 @@ func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection [
 						if name != column.Name.Parts[0].Text {
 							continue
 						}
-						if output >= 0 && !b.sameQueryTarget(projection[output], projection[i]) {
+						if output >= 0 && !b.SameQueryTarget(projection[output], projection[i]) {
 							return out, expr.ErrorAt("42702", fmt.Sprintf(`GROUP BY "%s" is ambiguous`, name), column.Pos)
 						}
 						output = i
@@ -114,17 +114,17 @@ func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection [
 		}
 		var operation *plan.GroupingExpr
 		plan.WalkExpression(key, func(node expr.Expr) {
-			if n, ok := node.(plan.GroupingExpr); ok && n.Frame == b.frameID() && operation == nil {
+			if n, ok := node.(plan.GroupingExpr); ok && n.Frame == b.FrameID() && operation == nil {
 				operation = &n
 			}
 		})
 		if operation != nil {
 			return out, expr.ErrorAt("42803", "grouping operations are not allowed in GROUP BY", operation.Pos)
 		}
-		if call := aggregateOccurrence(key); call != nil && (call.Frame == 0 || call.Frame == b.frameID()) {
+		if call := aggregateOccurrence(key); call != nil && (call.Frame == 0 || call.Frame == b.FrameID()) {
 			return out, expr.ErrorAt("42803", "aggregate functions are not allowed in GROUP BY", call.Pos)
 		}
-		if call := windowOccurrence(key); call != nil && call.Frame == b.frameID() {
+		if call := windowOccurrence(key); call != nil && call.Frame == b.FrameID() {
 			return out, expr.ErrorAt("42P20", "window functions are not allowed in GROUP BY", call.Pos)
 		}
 		key, err = b.finalizeProjection(key)
@@ -385,7 +385,7 @@ func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (expr.Expr, err
 }
 
 func (b *expressionBinder) rewriteGrouping(e plan.GroupingExpr, keys []expr.Expr) (expr.Expr, error) {
-	if e.Frame != b.frameID() {
+	if e.Frame != b.FrameID() {
 		return e, nil
 	}
 	refs := make([]int, len(e.Args))

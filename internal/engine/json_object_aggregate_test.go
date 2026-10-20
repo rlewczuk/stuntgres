@@ -108,7 +108,7 @@ func TestJSONObjectAggregateSlotsAndDescriptors(t *testing.T) {
 	for _, name := range []string{"json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict"} {
 		targets = append(targets, parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}}})
 	}
-	query, err := schemaBinder.bindSelect(&parser.Select{Targets: targets}, false)
+	query, err := schemaBinder.BindSelect(&parser.Select{Targets: targets}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

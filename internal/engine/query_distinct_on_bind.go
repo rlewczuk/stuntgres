@@ -22,7 +22,7 @@ func (b *expressionBinder) resolveDistinctOn(s *parser.Select, order []plan.Sort
 		raw[i] = parser.OrderKey{Expr: e, Pos: parser.ExpressionStart(e)}
 	}
 	b.clause.aggregateClause = "DISTINCT ON"
-	on, err := b.bindOrder(&parser.Order{Keys: raw}, projection, names, "DISTINCT ON")
+	on, err := b.BindOrder(&parser.Order{Keys: raw}, projection, names, "DISTINCT ON")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -33,7 +33,7 @@ func (b *expressionBinder) resolveDistinctOn(s *parser.Select, order []plan.Sort
 			return
 		}
 		for i, e := range targets {
-			if b.sameQueryTarget(e, key.Expression) {
+			if b.SameQueryTarget(e, key.Expression) {
 				key.TargetIdentity = i + 1
 				if i < len(projection) {
 					key.OutputOrdinal = i + 1
@@ -110,7 +110,7 @@ func bindOnOrdering(key *plan.SortKey) error {
 	return err
 }
 
-func (b *expressionBinder) finishDistinctOn(root plan.Node, order, on []plan.SortKey, families []plan.Grouping, projection []expr.Expr) (plan.Node, error) {
+func (b *expressionBinder) FinishDistinctOn(root plan.Node, order, on []plan.SortKey, families []plan.Grouping, projection []expr.Expr) (plan.Node, error) {
 	// Deduplicate only resolved ORDER targets. Keep raw entries for capture.
 	effective := make([]plan.SortKey, 0, len(order))
 	seen := make(map[int]bool)
@@ -121,7 +121,7 @@ func (b *expressionBinder) finishDistinctOn(root plan.Node, order, on []plan.Sor
 		}
 	}
 	var err error
-	root, err = b.finishOrder(root, effective, nil)
+	root, err = b.FinishOrder(root, effective, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +193,7 @@ func (b *expressionBinder) finishDistinctOn(root plan.Node, order, on []plan.Sor
 	}
 	// Cheap nonvolatile outputs are required below ON, not complete-row keys.
 	if sorted != nil {
-		root = b.scheduleQueryProjection(root, projection, false)
+		root = b.ScheduleQueryProjection(root, projection, false)
 		cacheWidth = sorted.CacheWidth
 	} else {
 		early := make([]expr.Expr, 0)

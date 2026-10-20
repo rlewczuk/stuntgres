@@ -7,7 +7,7 @@ import (
 
 // Slots belong to one bound query frame. Only namespace occurrences which may
 // be null-extended get a slot; ordinary queries and proven-present rows do not.
-func (b *expressionBinder) wholeRowPresence(q *queryQualifier, frame uint32) (int, error) {
+func (b *expressionBinder) WholeRowPresence(q *queryQualifier, frame uint32) (int, error) {
 	if !q.NullExtended {
 		return 0, nil
 	}

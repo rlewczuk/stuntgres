@@ -133,7 +133,7 @@ func TestDomainStoredCastUsesCapturedRenamedNamespace(t *testing.T) {
 	if err = b.captureViewLiterals(ast.Targets[0], node, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
-	renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.frameID()}
+	renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.FrameID()}
 	old := e.CatalogRead()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER SCHEMA public RENAME TO moved"))
 	text, err := renderer.expressionSQL(context.Background(), e.CatalogRead(), ast.Targets[0], viewLiteralPath{Clause: analyze.ViewTargetLiteral})
@@ -284,7 +284,7 @@ func domainUnitBindSelect(t *testing.T, e *Engine, op *Operation, q string) *pla
 	b.query.auth = &auth
 	var query *plan.Query
 	if err == nil {
-		query, err = b.bindSelect(raw, false)
+		query, err = b.BindSelect(raw, false)
 	}
 	e.mu.Unlock()
 	if err != nil {

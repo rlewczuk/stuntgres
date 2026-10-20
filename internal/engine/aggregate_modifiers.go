@@ -193,7 +193,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call plan.A
 	if slot == len(b.grouping.aggregates) {
 		b.grouping.aggregates = append(b.grouping.aggregates, call)
 	}
-	return plan.AggregateExpr{Info: info, Slot: slot, Frame: b.frameID()}, nil
+	return plan.AggregateExpr{Info: info, Slot: slot, Frame: b.FrameID()}, nil
 }
 
 func (b *expressionBinder) sameAggregateCall(a, other plan.AggregateCall) bool {

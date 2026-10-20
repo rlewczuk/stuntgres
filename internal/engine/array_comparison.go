@@ -188,7 +188,7 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 
 func (b *expressionBinder) inListHasVar(node expr.Expr) bool {
 	found := false
-	frame := b.frameID()
+	frame := b.FrameID()
 	var visit func(expr.Expr)
 	visit = func(child expr.Expr) {
 		switch n := child.(type) {
@@ -420,7 +420,7 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) 
 		if b.stored.syntax == nil {
 			b.stored.syntax = make(map[storedExpressionSyntaxKey]parser.Expr)
 		}
-		b.stored.syntax[storedExpressionSyntaxKey{frame: b.frameID(), position: raw.Pos}] = syntax
+		b.stored.syntax[storedExpressionSyntaxKey{frame: b.FrameID(), position: raw.Pos}] = syntax
 	}
 	return result, nil
 }

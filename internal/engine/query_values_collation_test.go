@@ -55,7 +55,7 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 	}
 	assert("retained descriptor", retagged)
 	projection := []expr.Expr{coerced}
-	_, err = b.finishOrder(&plan.ValuesNode{QuerySchema: plan.QuerySchema{{Name: "n", Usage: coerced.ResultUsage()}}}, []plan.SortKey{{Expression: coerced, Cache: -1, Slot: -1}}, projection)
+	_, err = b.FinishOrder(&plan.ValuesNode{QuerySchema: plan.QuerySchema{{Name: "n", Usage: coerced.ResultUsage()}}}, []plan.SortKey{{Expression: coerced, Cache: -1, Slot: -1}}, projection)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 	assert("cache", projection[0])
 	order := statement(t, "VALUES('a') ORDER BY 1 LIMIT 0").(*parser.Select).Values.Order
 	for _, expression := range []expr.Expr{base, coerced, grouped, projection[0], retagged} {
-		_, err := b.bindOrder(order, []expr.Expr{expression}, []string{"n"}, "ORDER BY")
+		_, err := b.BindOrder(order, []expr.Expr{expression}, []string{"n"}, "ORDER BY")
 		var diagnostic *sqlstate.Error
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P21", Message: `collation mismatch between implicit collations "C" and "POSIX"`, Hint: "You can choose the collation by applying the COLLATE clause to one or both expressions.", Position: "64"}
 		if !errors.As(err, &diagnostic) || *diagnostic != want {
@@ -83,7 +83,7 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 		t.Fatal(overridden, err)
 	}
 	b.query.namespace = &queryNamespace{}
-	if _, err := b.bindOrder(order, []expr.Expr{plan.LiteralExpr{Info: overridden, Value: sqltype.Null(text)}}, []string{"n"}, "ORDER BY"); err != nil {
+	if _, err := b.BindOrder(order, []expr.Expr{plan.LiteralExpr{Info: overridden, Value: sqltype.Null(text)}}, []string{"n"}, "ORDER BY"); err != nil {
 		t.Fatal("explicit override did not restore ordinary ordering", err)
 	}
 }

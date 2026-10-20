@@ -187,15 +187,15 @@ func finalizeRuleQuery(view catalog.Read, root plan.Node, alreadyFinalized ...ma
 					var failure error
 					binder := (*expressionBinder)(nil)
 					if distinct != nil {
-						result, failure = binder.finishDistinctOn(base, order, on, distinct.Grouping, projection)
+						result, failure = binder.FinishDistinctOn(base, order, on, distinct.Grouping, projection)
 					} else {
-						result, failure = binder.finishOrder(base, order, projection)
+						result, failure = binder.FinishOrder(base, order, projection)
 					}
 					if failure != nil {
 						return nil, failure
 					}
 					if distinct == nil {
-						result = binder.scheduleQueryProjection(result, projection, bounded)
+						result = binder.ScheduleQueryProjection(result, projection, bounded)
 					}
 					return result, nil
 				}

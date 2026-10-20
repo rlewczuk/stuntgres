@@ -59,11 +59,11 @@ func (b *expressionBinder) bindSet(s *parser.Select) (*plan.Query, error) {
 	if d := b.cte.recursiveDefinition; d != nil && d.Syntax == s {
 		return b.bindRecursiveSet(s, d)
 	}
-	leftQuery, err := b.bindSelect(s.Set.Left, true)
+	leftQuery, err := b.BindSelect(s.Set.Left, true)
 	if err != nil {
 		return nil, err
 	}
-	rightQuery, err := b.bindSelect(s.Set.Right, true)
+	rightQuery, err := b.BindSelect(s.Set.Right, true)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +130,7 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 		n.QuerySchema[i] = catalog.Column{Name: left.Schema()[i].Name, Usage: common}
 		names[i] = n.Schema()[i].Name
 		namespace.Columns[i] = queryColumn{Descriptor: n.Schema()[i], Slot: i, Leaf: -1, Physical: -1}
-		projection[i] = plan.ColumnExpr{Info: info, Scope: 1, Frame: b.frameID(), Slot: i}
+		projection[i] = plan.ColumnExpr{Info: info, Scope: 1, Frame: b.FrameID(), Slot: i}
 		regclass = regclass || common.Type.ContainsCatalogIdentifier()
 		if n.Grouping != nil {
 			n.Grouping[i], err = b.bindDistinctGrouping(projection[i])
@@ -154,7 +154,7 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 		return nil, err
 	}
 	var root plan.Node = n
-	root, err = b.finishOrder(root, order, projection)
+	root, err = b.FinishOrder(root, order, projection)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +165,7 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 		bounds.QuerySchema, bounds.Child = root.Schema(), root
 		root = bounds
 	}
-	return &plan.Query{Root: &plan.ProjectNode{QuerySchema: n.QuerySchema, Child: root, Expressions: projection, Frame: b.frameID(), Syntax: s}, RegclassOutput: regclass, VisibilitySnapshot: leftQuery.VisibilitySnapshot || rightQuery.VisibilitySnapshot}, nil
+	return &plan.Query{Root: &plan.ProjectNode{QuerySchema: n.QuerySchema, Child: root, Expressions: projection, Frame: b.FrameID(), Syntax: s}, RegclassOutput: regclass, VisibilitySnapshot: leftQuery.VisibilitySnapshot || rightQuery.VisibilitySnapshot}, nil
 }
 
 func (b *expressionBinder) bindSetOrder(order *parser.Order, projection []expr.Expr, names []string, right []catalog.Column) ([]plan.SortKey, error) {

@@ -88,7 +88,7 @@ func Describe(ctx context.Context, host analyzeHost, stmt parser.Statement, auth
 	case *parser.DeclareCursor:
 		var err error
 		binder.query.auth = auth
-		b.Query, err = binder.bindSelect(s.Query, false)
+		b.Query, err = binder.BindSelect(s.Query, false)
 		if err != nil {
 			return b, err
 		}
@@ -108,7 +108,7 @@ func Describe(ctx context.Context, host analyzeHost, stmt parser.Statement, auth
 	case *parser.Select:
 		var err error
 		binder.query.auth = auth
-		b.Query, err = binder.bindSelect(s, false)
+		b.Query, err = binder.BindSelect(s, false)
 		if err != nil {
 			return b, err
 		}

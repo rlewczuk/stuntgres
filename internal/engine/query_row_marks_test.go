@@ -109,7 +109,7 @@ func TestQueryLockSelectedACLAndViewPrincipals(t *testing.T) {
 		binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 		binder.query.auth = &auth
 		raw := statement(t, q).(*parser.Select)
-		if _, err = binder.bindSelect(raw, false); err != nil {
+		if _, err = binder.BindSelect(raw, false); err != nil {
 			t.Fatal("executor ACL leaked into binding", q, err)
 		}
 		return auth.checkQuerySources(binder.query.sources)

@@ -303,7 +303,7 @@ func (b *expressionBinder) wholeRow(name parser.ObjectName, pos parser.Position,
 		return row, err
 	}
 	if b.target.returningAliases != nil && len(name.Parts) == 1 {
-		if expr, found, err := b.returningWholeRow(name.Parts[0].Text, b.target.relation, b.frameID(), b.target.returningAliases, pos); found {
+		if expr, found, err := b.returningWholeRow(name.Parts[0].Text, b.target.relation, b.FrameID(), b.target.returningAliases, pos); found {
 			return expr, err
 		}
 		_, pseudo := b.target.returningPseudo(name)
@@ -365,7 +365,7 @@ func (b *expressionBinder) wholeRow(name parser.ObjectName, pos parser.Position,
 	}
 	slot := 0
 	if asValue && !b.query.suppressWholePresence {
-		slot, err = b.wholeRowPresence(q, frame)
+		slot, err = b.WholeRowPresence(q, frame)
 		if err != nil {
 			return nil, err
 		}
@@ -612,7 +612,7 @@ func (b *expressionBinder) demandWholePresence(node expr.Expr) (expr.Expr, error
 			return child, false, nil
 		}
 		var namespace *queryNamespace
-		if row.PresenceFrame == b.frameID() {
+		if row.PresenceFrame == b.FrameID() {
 			namespace = b.query.namespace
 		}
 		if namespace == nil {
@@ -631,7 +631,7 @@ func (b *expressionBinder) demandWholePresence(node expr.Expr) (expr.Expr, error
 			if qualifier.Name != row.WholeName {
 				continue
 			}
-			slot, err := b.wholeRowPresence(qualifier, row.PresenceFrame)
+			slot, err := b.WholeRowPresence(qualifier, row.PresenceFrame)
 			if err != nil {
 				return child, false, err
 			}

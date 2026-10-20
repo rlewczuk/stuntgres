@@ -280,37 +280,37 @@ func TestPartialIndexImplication(t *testing.T) {
 		{other, active, false}, {active, nil, true}, {nil, active, false}, {param, param, false},
 		{or(active, fixed), or(active, fixed), true},
 	} {
-		if got := partialPredicateImpliedBy(tc.q, tc.p); got != tc.want {
+		if got := PartialPredicateImpliedBy(tc.q, tc.p); got != tc.want {
 			t.Fatal(tc, got)
 		}
 	}
 	other = f.predicate
 	other.Pos = parser.Position{Character: 999}
-	if !partialPredicateImpliedBy(other, active) {
+	if !PartialPredicateImpliedBy(other, active) {
 		t.Fatal("position changed identity")
 	}
 	other = f.predicate
 	other.Usage = f.parent.Columns[0].Usage
-	if partialPredicateImpliedBy(other, active) {
+	if PartialPredicateImpliedBy(other, active) {
 		t.Fatal("type mismatch proved")
 	}
 	unknown := partialEvaluationWitness{Info: f.predicate.Info}
-	if partialPredicateImpliedBy(unknown, unknown) {
+	if PartialPredicateImpliedBy(unknown, unknown) {
 		t.Fatal("unknown node proved")
 	}
 	other = f.predicate
 	other.CollationExplicit = parser.Position{Character: 1}
-	if partialPredicateImpliedBy(other, active) {
+	if PartialPredicateImpliedBy(other, active) {
 		t.Fatal("explicit collation provenance mismatch proved")
 	}
 	explicit := other
 	other.CollationExplicit.Character = 2
-	if !partialPredicateImpliedBy(other, explicit) {
+	if !PartialPredicateImpliedBy(other, explicit) {
 		t.Fatal("collation position changed identity")
 	}
 	other = f.predicate
 	other.CollationConflict = true
-	if partialPredicateImpliedBy(other, active) {
+	if PartialPredicateImpliedBy(other, active) {
 		t.Fatal("indeterminate collation proved")
 	}
 	coercionPlan, err := sqltype.PlanCoercion(boolean, boolean, sqltype.Explicit)
@@ -320,11 +320,11 @@ func TestPartialIndexImplication(t *testing.T) {
 	coercion := plan.CoercionExpr{Info: f.predicate.Info, Child: active, Plan: coercionPlan, Mode: sqltype.Explicit}
 	sameCoercion := coercion
 	sameCoercion.Pos = parser.Position{Character: 2}
-	if !partialPredicateImpliedBy(sameCoercion, coercion) {
+	if !PartialPredicateImpliedBy(sameCoercion, coercion) {
 		t.Fatal("exact coercion did not prove")
 	}
 	sameCoercion.Mode = sqltype.Assignment
-	if partialPredicateImpliedBy(sameCoercion, coercion) {
+	if PartialPredicateImpliedBy(sameCoercion, coercion) {
 		t.Fatal("coercion mode mismatch proved")
 	}
 	// Exact comparisons do not derive inequalities or substitute parameters.
@@ -340,7 +340,7 @@ func TestPartialIndexImplication(t *testing.T) {
 		return plan.ComparisonExpr{Info: expr.Info{Usage: boolean}, Predicate: comparison, Operator: "<", Left: n, Right: right}
 	}
 	p := less(plan.LiteralExpr{Info: expr.Info{Usage: integer}, Value: two})
-	if partialPredicateImpliedBy(less(plan.LiteralExpr{Info: expr.Info{Usage: integer}, Value: one}), p) {
+	if PartialPredicateImpliedBy(less(plan.LiteralExpr{Info: expr.Info{Usage: integer}, Value: one}), p) {
 		t.Fatal("inequality proof widened")
 	}
 	unresolved := plan.ParameterExpr{Info: expr.Info{Usage: integer, Property: expr.Properties{ParameterDependent: true}}, Number: 1}
@@ -348,7 +348,7 @@ func TestPartialIndexImplication(t *testing.T) {
 	qInfo := expr.InfoOf(q)
 	qInfo.Property.ParameterDependent = true
 	q = plan.ComparisonExpr{Info: qInfo, Predicate: comparison, Operator: "<", Left: n, Right: unresolved}
-	if partialPredicateImpliedBy(q, p) || !partialPredicateImpliedBy(and(p, param), p) {
+	if PartialPredicateImpliedBy(q, p) || !PartialPredicateImpliedBy(and(p, param), p) {
 		t.Fatal("parameter implication")
 	}
 	greater, err := sqltype.BindComparisonPredicate(sqltype.CompareGreater, integer.Type, integer.Type, boolean.Type, sqltype.CollationRef{}, false)
@@ -357,7 +357,7 @@ func TestPartialIndexImplication(t *testing.T) {
 	}
 	different := p.(plan.ComparisonExpr)
 	different.Predicate = greater
-	if partialPredicateImpliedBy(different, p) {
+	if PartialPredicateImpliedBy(different, p) {
 		t.Fatal("different comparison provider proved")
 	}
 }
@@ -382,7 +382,7 @@ func TestPartialIndexCandidateMask(t *testing.T) {
 	}
 	auth := AuthorizationView{View: access.View{Catalog: f.e.CatalogRead()}}
 	binder := expressionBinder{query: queryScopeState{auth: &auth}}
-	if binder.query.partialIndexCandidate(leaf.Ref, f.predicate) != f.index {
+	if binder.query.PartialIndexCandidate(leaf.Ref, f.predicate) != f.index {
 		t.Fatal("bound caller did not select candidate")
 	}
 	calls := 0
@@ -488,7 +488,7 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 	b := expressionBinder{query: queryScopeState{auth: &auth}}
 	param := plan.ParameterExpr{Info: expr.Info{Usage: f.predicate.Usage, Property: expr.Properties{ParameterDependent: true}}, Number: 1}
 	ref := f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address())
-	if b.query.partialIndexCandidate(ref, param) != nil {
+	if b.query.PartialIndexCandidate(ref, param) != nil {
 		t.Fatal("unresolved parameter selected root")
 	}
 }

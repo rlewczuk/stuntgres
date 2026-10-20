@@ -103,7 +103,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		}
 		output := plan.ArithmeticExpr{Info: ruleColumnInfo(src.Columns[1]), Left: pseudoV, Right: ruleUnitInt(src, 10), Provider: provider}
 		projection := []expr.Expr{pseudo, output}
-		order, err := (*expressionBinder)(nil).finishOrder(&plan.SingletonNode{}, []plan.SortKey{{Expression: output, Slot: -1, Cache: -1, TargetIdentity: 2}}, projection)
+		order, err := (*expressionBinder)(nil).FinishOrder(&plan.SingletonNode{}, []plan.SortKey{{Expression: output, Slot: -1, Cache: -1, TargetIdentity: 2}}, projection)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -195,7 +195,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		query, err := binder.bindSelect(statements[0].(*parser.Select), true)
+		query, err := binder.BindSelect(statements[0].(*parser.Select), true)
 		if err != nil {
 			t.Fatal(err)
 		}

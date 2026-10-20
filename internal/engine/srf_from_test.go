@@ -75,7 +75,7 @@ func TestSRFFromBinding(t *testing.T) {
 	b.query.auth = &auth
 	b.query.frame = 1
 	raw := nullCountRaw("generate_series", lit(2), lit(4))
-	node, ns, err := b.bindFrom(&parser.FunctionTable{Calls: []parser.FunctionExpr{raw}, Ordinality: true})
+	node, ns, err := b.BindFrom(&parser.FunctionTable{Calls: []parser.FunctionExpr{raw}, Ordinality: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,12 +89,12 @@ func TestSRFFromBinding(t *testing.T) {
 	// Binding a scalar wrapper is diagnostic reachability, not source eligibility.
 	nested := raw
 	nested.Pos = parser.Position{Character: 19, Offset: 18}
-	_, _, err = b.bindFrom(&parser.FunctionTable{Calls: []parser.FunctionExpr{nullCountRaw("abs", nested)}})
+	_, _, err = b.BindFrom(&parser.FunctionTable{Calls: []parser.FunctionExpr{nullCountRaw("abs", nested)}})
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != "set-returning functions must appear at top level of FROM" || diagnostic.Position != "19" {
 		t.Fatal(err)
 	}
-	_, _, err = b.bindFrom(&parser.FunctionTable{Calls: []parser.FunctionExpr{nullCountRaw("abs", lit(1))}})
+	_, _, err = b.BindFrom(&parser.FunctionTable{Calls: []parser.FunctionExpr{nullCountRaw("abs", lit(1))}})
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != "function table source is unsupported" {
 		t.Fatal("admitted scalar source", err)
 	}
@@ -122,7 +122,7 @@ func TestSRFFromBinding(t *testing.T) {
 		{at(15, "regexp_split_to_table", regexpFirst, regexpLast), "81"},
 		{at(15, "generate_series", first, parser.SubqueryExpr{Kind: parser.SubqueryScalar, Query: &parser.Select{Targets: []parser.Expr{last}}}), "31"},
 	} {
-		_, _, err := b.bindFrom(&parser.FunctionTable{Calls: []parser.FunctionExpr{tc.call}})
+		_, _, err := b.BindFrom(&parser.FunctionTable{Calls: []parser.FunctionExpr{tc.call}})
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Position != tc.position || diagnostic.Message != "set-returning functions must appear at top level of FROM" {
 			t.Fatal("completion-order placement", tc.position, err)
 		}
@@ -139,7 +139,7 @@ func TestSRFFromBinding(t *testing.T) {
 		{[]parser.FunctionExpr{raw, at(15, "generate_series", parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: false}})}, true, "42883", "function generate_series(boolean, boolean) does not exist", "No function matches the given name and argument types. You might need to add explicit type casts.", "15"},
 	} {
 		alias := &parser.AliasReference{Input: &parser.FunctionTable{Calls: tc.calls, RowsFrom: len(tc.calls) > 1, Ordinality: tc.ordinality}, Name: parser.Identifier{Text: "g"}, ColumnDefinitions: []parser.FunctionColumnDefinition{{Name: parser.Identifier{Text: "v", Pos: parser.Position{Character: 101, Offset: 100}}, Type: parser.TypeName{Name: "integer"}}}}
-		_, _, err := b.bindFrom(alias)
+		_, _, err := b.BindFrom(alias)
 		if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code || diagnostic.Message != tc.message || diagnostic.Hint != tc.hint || diagnostic.Position != tc.position {
 			t.Fatal("deferred column definitions", tc, err)
 		}
@@ -256,7 +256,7 @@ func TestSRFFromOwnership(t *testing.T) {
 		if fails {
 			target = nullCountRaw("generate_series", parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: false}})
 		}
-		_, err := b.bindSelect(&parser.Select{From: &parser.FunctionTable{Calls: []parser.FunctionExpr{childCall}}, Targets: []parser.Expr{target}}, false)
+		_, err := b.BindSelect(&parser.Select{From: &parser.FunctionTable{Calls: []parser.FunctionExpr{childCall}}, Targets: []parser.Expr{target}}, false)
 		if (err != nil) != fails || b.clause.fromSetObservation != parent || b.clause.aggregateClause != "FROM" {
 			t.Fatal("child query observation restoration", fails, b.clause.fromSetObservation, err)
 		}

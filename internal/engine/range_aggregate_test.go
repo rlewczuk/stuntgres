@@ -48,7 +48,7 @@ func TestRangeAggregateProvider(t *testing.T) {
 		}
 		binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		binder.params.parameters[1] = d.Usage()
-		query, err := binder.bindSelect(&parser.Select{Targets: []parser.Expr{
+		query, err := binder.BindSelect(&parser.Select{Targets: []parser.Expr{
 			parser.AggregateExpr{Name: "range_agg", Args: []parser.Expr{parser.ParameterExpr{Number: 1}}},
 			parser.AggregateExpr{Name: "range_intersect_agg", Args: []parser.Expr{parser.ParameterExpr{Number: 1}}},
 		}}, false)

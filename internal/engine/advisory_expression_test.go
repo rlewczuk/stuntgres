@@ -173,12 +173,12 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			t.Fatal(err)
 		}
 		node := bound.(functions.Advisory)
-		column := plan.ColumnExpr{Info: expr.Info{Usage: node.Args[0].ResultUsage(), Pos: parser.Position{Character: 99}, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: b.frameID(), Origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999, SubID: 1}}}
+		column := plan.ColumnExpr{Info: expr.Info{Usage: node.Args[0].ResultUsage(), Pos: parser.Position{Character: 99}, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: b.FrameID(), Origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999, SubID: 1}}}
 		node.Args = []expr.Expr{node.Args[0], column}
 		node.Property.RowDependent = true
 		visits := 0
 		plan.WalkExpression(node, func(expr.Expr) { visits++ })
-		if visits != 3 || analyze.FirstQueryBoundFrameVariable(node, b.frameID()).Character != 99 {
+		if visits != 3 || analyze.FirstQueryBoundFrameVariable(node, b.FrameID()).Character != 99 {
 			t.Fatal("lexical child/frame walk", visits)
 		}
 		grouped, err := b.rewriteGroup(node, []expr.Expr{column})

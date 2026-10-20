@@ -62,7 +62,7 @@ func TestStringSplitExpansion(t *testing.T) {
 							t.Fatal(err)
 						}
 					}
-					root, err := binder.lowerQuerySets(&plan.SingletonNode{}, requests, nil, true)
+					root, err := binder.LowerQuerySets(&plan.SingletonNode{}, requests, nil, true)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -157,7 +157,7 @@ func TestStringSplitExpansion(t *testing.T) {
 						}
 						schema[i] = catalog.Column{Usage: requests[i].ResultUsage()}
 					}
-					root, err := binder.lowerQuerySets(&plan.SingletonNode{}, requests, nil, true)
+					root, err := binder.LowerQuerySets(&plan.SingletonNode{}, requests, nil, true)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -289,7 +289,7 @@ func TestStringSplitExpansion(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		root, err := binder.lowerQuerySets(&plan.SingletonNode{}, requests, nil, true)
+		root, err := binder.LowerQuerySets(&plan.SingletonNode{}, requests, nil, true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -448,7 +448,7 @@ func TestStringSplitFrames(t *testing.T) {
 				}
 				schema[i] = catalog.Column{Usage: requests[i].ResultUsage()}
 			}
-			root, err := binder.lowerQuerySets(&plan.SingletonNode{}, requests, nil, true)
+			root, err := binder.LowerQuerySets(&plan.SingletonNode{}, requests, nil, true)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -501,7 +501,7 @@ func TestStringSplitFrames(t *testing.T) {
 	peer := stringSplitMarker(t, b, 13, stringSplitLiteral(b, "x,y,z"), stringSplitLiteral(b, ","))
 	projection := []expr.Expr{outer, peer}
 	companion := []expr.Expr{peer}
-	root, err := b.lowerQuerySets(&plan.SingletonNode{}, projection, [][]expr.Expr{companion}, true)
+	root, err := b.LowerQuerySets(&plan.SingletonNode{}, projection, [][]expr.Expr{companion}, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -569,7 +569,7 @@ func TestStringSplitBinding(t *testing.T) {
 	}
 	b.clause.stringSetGuard = "CASE"
 	b.clause.queryHasTargetSet = true
-	restore := b.enterQuery(false)
+	restore := b.EnterQuery(false)
 	if b.clause.stringSetGuard != "" || b.clause.queryHasTargetSet {
 		t.Fatal("query guard/flag crossed boundary")
 	}
@@ -578,7 +578,7 @@ func TestStringSplitBinding(t *testing.T) {
 		t.Fatal("query guard/flag not restored")
 	}
 	b.clause.queryHasTargetSet = false
-	child := b.enterQuery(false)
+	child := b.EnterQuery(false)
 	b.clause.queryHasTargetSet = true
 	child()
 	if b.clause.queryHasTargetSet {
@@ -862,7 +862,7 @@ func TestStringSplitPreflight(t *testing.T) {
 					}
 					expressions[i], schema[i] = expression, catalog.Column{Usage: expression.ResultUsage()}
 				}
-				child, err := b.lowerQuerySets(&plan.SingletonNode{}, expressions, nil, true)
+				child, err := b.LowerQuerySets(&plan.SingletonNode{}, expressions, nil, true)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -973,7 +973,7 @@ func TestStringSplitPreflight(t *testing.T) {
 			requests = []expr.Expr{projection[1]}
 		}
 		requests, templates := analyze.QuerySetPeerClosure(requests, [][]expr.Expr{projection})
-		lowered, err := b.lowerQuerySets(&plan.SingletonNode{}, requests, [][]expr.Expr{projection}, false, templates)
+		lowered, err := b.LowerQuerySets(&plan.SingletonNode{}, requests, [][]expr.Expr{projection}, false, templates)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1039,7 +1039,7 @@ func TestStringSplitPreflightSiblingError(t *testing.T) {
 		t.Fatal("immutable sibling error moved into binding", err)
 	}
 	projection := []expr.Expr{bound}
-	root, err := b.lowerQuerySets(&plan.SingletonNode{}, projection, nil, true)
+	root, err := b.LowerQuerySets(&plan.SingletonNode{}, projection, nil, true)
 	if err != nil {
 		t.Fatal("immutable sibling error moved into lowering", err)
 	}

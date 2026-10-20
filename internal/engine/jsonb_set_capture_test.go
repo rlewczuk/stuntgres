@@ -43,7 +43,7 @@ func jsonbSetContextualArrayCapture(t *testing.T, query, wantA, wantB string) {
 	}
 	foundColumn, foundTypmod := false, false
 	for _, captured := range b.capture.Columns {
-		foundColumn = foundColumn || captured.Frame == b.frameID() && captured.Slot == 0
+		foundColumn = foundColumn || captured.Frame == b.FrameID() && captured.Slot == 0
 	}
 	for _, usage := range b.capture.CastUsages {
 		length, known := usage.Length()
@@ -98,7 +98,7 @@ func jsonbSetContextualArrayCapture(t *testing.T, query, wantA, wantB string) {
 	assertRows := func(node expr.Expr, text *sqltype.Descriptor) {
 		for _, tc := range []struct{ input, want string }{{"ab", wantA}, {"bc", wantB}} {
 			input := sqltype.String(text, tc.input)
-			eval := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: b.frameID(), Row: []sqltype.Value{input}}}
+			eval := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: b.FrameID(), Row: []sqltype.Value{input}}}
 			got, err := node.Eval(&eval)
 			if err != nil {
 				t.Fatal(err)

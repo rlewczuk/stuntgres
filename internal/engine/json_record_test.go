@@ -19,7 +19,7 @@ func jsonRecordUnitCall(t *testing.T, b *expressionBinder, name string, defined 
 	b.clause.aggregateClause = "FROM"
 	b.query.namespace = &queryNamespace{}
 	raw := nullCountRaw(name, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: `{"a":2}`}})
-	node, err := b.bindFunctionSource(raw)
+	node, err := b.BindFunctionSource(raw)
 	if err != nil {
 		t.Fatal(err)
 	}

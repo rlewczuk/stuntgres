@@ -99,7 +99,7 @@ func TestCatalogRelationsConsumers(t *testing.T) {
 	// while constructing both the call slots and their execution schedule.
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	requests := []expr.Expr{set}
-	root, err := binder.lowerQuerySets(&plan.SingletonNode{}, requests, nil, false)
+	root, err := binder.LowerQuerySets(&plan.SingletonNode{}, requests, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}

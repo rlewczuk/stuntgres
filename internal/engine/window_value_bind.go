@@ -32,7 +32,7 @@ func (b *expressionBinder) windowValueAliases(calls []plan.WindowCall, projectio
 	owners := make([]*plan.WindowExpr, 0, len(calls))
 	retain := func(expression expr.Expr) {
 		leaf, ok := expression.(*plan.WindowExpr)
-		if !ok || leaf.Frame != b.frameID() || leaf.Call < 0 || leaf.Call >= len(calls) || !calls[leaf.Call].Operation.EvaluatesArgument() {
+		if !ok || leaf.Frame != b.FrameID() || leaf.Call < 0 || leaf.Call >= len(calls) || !calls[leaf.Call].Operation.EvaluatesArgument() {
 			return
 		}
 		for _, owner := range owners {
@@ -59,7 +59,7 @@ func (b *expressionBinder) windowValueAliases(calls []plan.WindowCall, projectio
 		}
 		plan.WalkExpression(expression, func(child expr.Expr) {
 			leaf, ok := child.(*plan.WindowExpr)
-			if !ok || leaf.Frame != b.frameID() || leaf.Call < 0 || leaf.Call >= len(calls) || !calls[leaf.Call].Operation.EvaluatesArgument() {
+			if !ok || leaf.Frame != b.FrameID() || leaf.Call < 0 || leaf.Call >= len(calls) || !calls[leaf.Call].Operation.EvaluatesArgument() {
 				return
 			}
 			for _, owner := range owners {

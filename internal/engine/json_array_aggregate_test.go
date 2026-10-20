@@ -77,7 +77,7 @@ func TestJSONArrayAggregateSlotsAndDescriptors(t *testing.T) {
 		}
 		targets = append(targets, call)
 	}
-	query, err := schemaBinder.bindSelect(&parser.Select{Targets: targets}, false)
+	query, err := schemaBinder.BindSelect(&parser.Select{Targets: targets}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,7 +273,7 @@ func TestJSONArrayAggregateStoredReturningPresentation(t *testing.T) {
 		t.Fatal(err)
 	}
 	renderer := newViewRenderer(&viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages})
-	renderer.frame = b.frameID()
+	renderer.frame = b.FrameID()
 	text, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil {
 		t.Fatal(err)

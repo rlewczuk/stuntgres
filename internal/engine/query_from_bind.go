@@ -44,7 +44,7 @@ func combineQueryNamespace(left, right queryNamespace) (queryNamespace, error) {
 	}, nil
 }
 
-func (b *expressionBinder) queryColumnAt(c queryColumn, pos parser.Position) expr.Expr {
+func (b *expressionBinder) QueryColumnAt(c queryColumn, pos parser.Position) expr.Expr {
 	var origin ids.ObjectRef
 	var relation *catalog.Relation
 	if c.CTEScan != nil {
@@ -70,8 +70,8 @@ func (b *expressionBinder) queryColumnAt(c queryColumn, pos parser.Position) exp
 			leaf.Uses = append(leaf.Uses, c.Physical)
 		}
 	}
-	column := plan.ColumnExpr{Info: b.info(c.Descriptor.Usage, pos, expr.Properties{RowDependent: true}), Origin: origin, Scope: 1, Frame: b.frameID(), Slot: c.Slot}
-	column.MergeSource = c.Leaf != analyze.QueryTargetLeaf && b.mergeReturningFrame(b.frameID())
+	column := plan.ColumnExpr{Info: b.info(c.Descriptor.Usage, pos, expr.Properties{RowDependent: true}), Origin: origin, Scope: 1, Frame: b.FrameID(), Slot: c.Slot}
+	column.MergeSource = c.Leaf != analyze.QueryTargetLeaf && b.mergeReturningFrame(b.FrameID())
 	if b.target.generatedOwner == nil {
 		column = column.WithGeneration(relation, c.Physical, c.Slot-c.Physical)
 		if column.Virtual != nil && c.Leaf >= 0 {
@@ -98,7 +98,7 @@ func (b *expressionBinder) queryQualifier(name parser.ObjectName, pos parser.Pos
 		if b.clause.aggregateClause == "FROM" && b.clause.stringFromForbidden {
 			return nil, stringLateralError(*match, pos, false)
 		}
-		b.query.resolvedQueryFrame = b.frameID()
+		b.query.resolvedQueryFrame = b.FrameID()
 		return match, nil
 	}
 	for i := len(b.query.scopes) - 1; i >= 0; i-- {
@@ -169,7 +169,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 	}
 	name := parts[len(parts)-1].Text
 	columns := b.query.namespace.Columns
-	frame := b.frameID()
+	frame := b.FrameID()
 	if len(parts) > 1 {
 		q, err := b.queryQualifier(parser.ObjectName{Parts: parts[:len(parts)-1]}, raw.Pos)
 		if err != nil {
@@ -197,7 +197,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 		}
 		return b.queryColumnInFrame(*match, raw.Pos, frame), nil
 	}
-	if b.target.mergeWhen && b.frameID() == 1 && name != "tableoid" && catalog.IsSystemColumn(name) {
+	if b.target.mergeWhen && b.FrameID() == 1 && name != "tableoid" && catalog.IsSystemColumn(name) {
 		for _, q := range b.query.namespace.Qualifiers {
 			if len(parts) > 1 && (q.Name != parts[len(parts)-2].Text || len(parts) == 3 && q.Schema != parts[0].Text) {
 				continue
@@ -290,7 +290,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 	return nil, missing
 }
 
-func (b *expressionBinder) bindFrom(item parser.FromItem) (plan.Node, queryNamespace, error) {
+func (b *expressionBinder) BindFrom(item parser.FromItem) (plan.Node, queryNamespace, error) {
 	return b.bindFromWithDefinitions(item, nil)
 }
 
@@ -312,7 +312,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		b.capture.Namespaces = append(b.capture.Namespaces, viewNamespace{})
 		defer func() {
 			if failure == nil {
-				b.capture.Namespaces[ordinal].Frame = b.frameID()
+				b.capture.Namespaces[ordinal].Frame = b.FrameID()
 				b.capture.Namespaces[ordinal].Node, b.capture.Namespaces[ordinal].Ordinal = analyze.FrozenNamespaceNode(root)
 				b.capture.Namespaces[ordinal].Columns = b.query.freezeViewColumns(namespace.Columns)
 				for _, q := range namespace.Qualifiers {
@@ -331,12 +331,12 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		normalized := parser.NormalizedFunctionCalls(n)
 		for _, raw := range normalized {
 			if len(definitions) != 0 || analyze.SelectedFunctionSourceName(raw.Name.Parts[len(raw.Name.Parts)-1].Text) {
-				return b.bindMixedFunctionTable(normalized, n.Ordinality, ordinal, definitions, !n.RowsFrom && len(normalized) > 1)
+				return b.BindMixedFunctionTable(normalized, n.Ordinality, ordinal, definitions, !n.RowsFrom && len(normalized) > 1)
 			}
 		}
 		return b.bindStringTable(n)
 	case *parser.FunctionFrom:
-		return b.bindMixedFunctionTable(n.Calls, n.Ordinality, ordinal, definitions, false)
+		return b.BindMixedFunctionTable(n.Calls, n.Ordinality, ordinal, definitions, false)
 	case *parser.DerivedQuery:
 		query, err := b.bindSelectScoped(n.Query, false, true)
 		if err != nil {
@@ -348,7 +348,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			columns[i] = queryColumn{Descriptor: column, Slot: i, Leaf: -1}
 		}
 		b.query.hidden = append(b.query.hidden, queryQualifier{Name: "unnamed_subquery", Columns: columns})
-		return &plan.DerivedNode{QuerySchema: schema, Query: query, ScanFrame: b.frameID()}, queryNamespace{Columns: columns, Frame: schema}, nil
+		return &plan.DerivedNode{QuerySchema: schema, Query: query, ScanFrame: b.FrameID()}, queryNamespace{Columns: columns, Frame: schema}, nil
 	case *parser.ValuesQuery:
 		query, err := b.bindValues(n, false)
 		if err != nil {
@@ -481,7 +481,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		joinOrdinal := b.stored.joinCount
 		inherited := b.query.namespace
 		b.stored.joinCount++
-		left, lns, err := b.bindFrom(n.Left)
+		left, lns, err := b.BindFrom(n.Left)
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
@@ -498,7 +498,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		}
 		b.clause.stringFromForbidden = oldStringForbidden || n.Kind == parser.JoinRight || n.Kind == parser.JoinFull
 		b.query.namespace = &rightNamespace
-		right, rns, err := b.bindFrom(n.Right)
+		right, rns, err := b.BindFrom(n.Right)
 		b.query.namespace = oldNamespace
 		b.clause.stringFromForbidden = oldStringForbidden
 		if err != nil {
@@ -516,9 +516,9 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		var forbidden plan.FunctionCorrelation
 		captures := append([]plan.FunctionCorrelation(nil), functionFromCaptures(left)...)
 		for _, capture := range functionFromCaptures(right) {
-			if capture.Frame != b.frameID() || capture.Slot < prefix {
+			if capture.Frame != b.FrameID() || capture.Slot < prefix {
 				captures = append(captures, capture)
-				inheritedDemand = inheritedDemand || capture.Frame == b.frameID()
+				inheritedDemand = inheritedDemand || capture.Frame == b.FrameID()
 				continue
 			}
 			if capture.Slot >= prefix+len(lns.Frame) {
@@ -535,13 +535,13 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			return nil, queryNamespace{}, e
 		}
 		if prefix != 0 && !inheritedDemand {
-			right, err = rebaseFunctionCorrelation(b.bindingCatalog(), right, b.frameID(), prefix)
+			right, err = RebaseFunctionCorrelation(b.bindingCatalog(), right, b.FrameID(), prefix)
 			if err != nil {
 				return nil, queryNamespace{}, err
 			}
 			prefix = 0
 		}
-		join := &plan.JoinNode{QuerySchema: ns.Frame, Kind: n.Kind, Left: left, Right: right, LeftWidth: len(lns.Frame), RightWidth: len(rns.Frame), ViewOrdinal: joinOrdinal, CorrelatedRight: dependent, Frame: b.frameID(), CorrelationPrefix: prefix, Captures: captures}
+		join := &plan.JoinNode{QuerySchema: ns.Frame, Kind: n.Kind, Left: left, Right: right, LeftWidth: len(lns.Frame), RightWidth: len(rns.Frame), ViewOrdinal: joinOrdinal, CorrelatedRight: dependent, Frame: b.FrameID(), CorrelationPrefix: prefix, Captures: captures}
 		old := b.query.namespace
 		b.query.namespace = &ns
 		defer func() { b.query.namespace = old }()
@@ -590,7 +590,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 					return nil, queryNamespace{}, err
 				}
 				pos := parser.Position{Offset: -1}
-				le, re := b.queryColumnAt(l, pos), b.queryColumnAt(r, pos)
+				le, re := b.QueryColumnAt(l, pos), b.QueryColumnAt(r, pos)
 				raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "="}}}, Pos: pos}
 				eq, err := b.bindComparisonOperands(raw, sqltype.CompareEqual, comparisonOperand{node: le}, comparisonOperand{node: re})
 				if err != nil {
@@ -798,7 +798,7 @@ func functionFromCaptures(root plan.Node) []plan.FunctionCorrelation {
 // Descendants with no free captures have already satisfied/normalized their
 // own dependencies and must not be rebased again. Ordinary join expressions
 // retain their independent output-row layout.
-func rebaseFunctionCorrelation(view catalog.Read, root plan.Node, frame uint32, prefix int) (plan.Node, error) {
+func RebaseFunctionCorrelation(view catalog.Read, root plan.Node, frame uint32, prefix int) (plan.Node, error) {
 	captures := functionFromCaptures(root)
 	needed := false
 	for _, capture := range captures {
@@ -820,7 +820,7 @@ func rebaseFunctionCorrelation(view catalog.Read, root plan.Node, frame uint32, 
 	}
 	switch n := root.(type) {
 	case *plan.JoinNode:
-		left, err := rebaseFunctionCorrelation(view, n.Left, frame, prefix)
+		left, err := RebaseFunctionCorrelation(view, n.Left, frame, prefix)
 		if err != nil {
 			return nil, err
 		}
@@ -831,7 +831,7 @@ func rebaseFunctionCorrelation(view catalog.Read, root plan.Node, frame uint32, 
 			if correlationPrefix < prefix {
 				return nil, fmt.Errorf("stuntgres: invalid nested function correlation prefix")
 			}
-			right, err = rebaseFunctionCorrelation(view, right, frame, prefix)
+			right, err = RebaseFunctionCorrelation(view, right, frame, prefix)
 			if err != nil {
 				return nil, err
 			}
@@ -907,7 +907,7 @@ func rebaseFunctionCorrelation(view catalog.Read, root plan.Node, frame uint32, 
 	return nil, fmt.Errorf("stuntgres: invalid function correlation owner")
 }
 
-func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr, ordinality bool, ordinal int, definitions []parser.FunctionColumnDefinition, multiUnnest bool) (plan.Node, queryNamespace, error) {
+func (b *expressionBinder) BindMixedFunctionTable(rawCalls []parser.FunctionExpr, ordinality bool, ordinal int, definitions []parser.FunctionColumnDefinition, multiUnnest bool) (plan.Node, queryNamespace, error) {
 	calls := make([]expr.Expr, len(rawCalls))
 	schema := make([]catalog.Column, 0, len(calls))
 	oldClause := b.clause.aggregateClause
@@ -930,7 +930,7 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 		if name == "string_to_table" {
 			b.clause.stringFromForbidden = oldForbidden
 		}
-		expr, err := b.bindFunctionSource(raw)
+		expr, err := b.BindFunctionSource(raw)
 		b.clause.stringFromForbidden = false
 		if err != nil {
 			return nil, queryNamespace{}, err
@@ -990,7 +990,7 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 	if ordinal >= 0 {
 		for i, raw := range rawCalls {
 			bound := calls[i]
-			path := viewLiteralPath{Query: b.frameID(), Clause: analyze.ViewFunctionLiteral, Source: ordinal, Target: i}
+			path := viewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewFunctionLiteral, Source: ordinal, Target: i}
 			at := 0
 			if err := b.captureViewLiteralTree(raw, bound, path, &at); err != nil {
 				return nil, queryNamespace{}, err
@@ -999,7 +999,7 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 	}
 	captures := b.functionCaptures(calls)
 	b.query.hidden = append(b.query.hidden, q)
-	return &plan.FunctionFromNode{QuerySchema: schema, Calls: calls, Ordinality: ordinality, Frame: b.frameID(), Correlated: len(captures) != 0, Captures: captures, RegexpNamespace: true, ViewOrdinal: ordinal}, queryNamespace{Columns: columns, Qualifiers: []queryQualifier{q}, Frame: schema}, nil
+	return &plan.FunctionFromNode{QuerySchema: schema, Calls: calls, Ordinality: ordinality, Frame: b.FrameID(), Correlated: len(captures) != 0, Captures: captures, RegexpNamespace: true, ViewOrdinal: ordinal}, queryNamespace{Columns: columns, Qualifiers: []queryQualifier{q}, Frame: schema}, nil
 }
 
 func (q *queryScopeState) freezeViewColumns(columns []queryColumn) []viewNamespaceColumn {

@@ -23,9 +23,9 @@ func (b *expressionBinder) bindOutput(raw parser.Expr, contextual bool) (expr.Ex
 	return b.bind(raw, expressionPolicy{context: projectionContext})
 }
 
-// bindSelect is shared by public SELECT, set operands and INSERT producers.
+// BindSelect is shared by public SELECT, set operands and INSERT producers.
 // Contextual outputs defer unknown fallback until their consuming boundary.
-func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*plan.Query, error) {
+func (b *expressionBinder) BindSelect(s *parser.Select, contextual bool) (*plan.Query, error) {
 	return b.bindSelectScoped(s, contextual, false)
 }
 func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disallowParent bool) (query *plan.Query, failure error) {
@@ -45,7 +45,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 		b.query.lockAdmission = &admission
 	}
-	restore := b.enterQuery(disallowParent)
+	restore := b.EnterQuery(disallowParent)
 	defer restore()
 	defer func() {
 		if failure == nil && query != nil && (b.params.noParameters || b.consumer.materializedDefinition) {
@@ -108,10 +108,10 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			return nil, sqlError("0A000", s.Locking[0].Mode+" cannot be applied to VALUES")
 		}
 		project := query.Root.(*plan.ProjectNode)
-		project.Frame, project.Syntax = b.frameID(), s
+		project.Frame, project.Syntax = b.FrameID(), s
 		return query, err
 	}
-	root, namespace, err := b.bindFrom(s.From)
+	root, namespace, err := b.BindFrom(s.From)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +127,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 		if star, ok := raw.(parser.StarExpr); ok {
 			if b.target.ruleNamespace != nil && len(star.Qualifier.Parts) == 1 && (star.Qualifier.Parts[0].Text == "old" || star.Qualifier.Parts[0].Text == "new") {
-				path := viewLiteralPath{Query: b.frameID(), Clause: analyze.ViewTargetLiteral, Target: target}
+				path := viewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral, Target: target}
 				if b.capture.Stars == nil {
 					b.capture.Stars = make(map[viewLiteralPath][]viewColumn)
 				}
@@ -148,7 +148,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				continue
 			}
 			columns := namespace.Columns
-			frame := b.frameID()
+			frame := b.FrameID()
 			starPath := viewLiteralPath{Query: frame, Clause: analyze.ViewTargetLiteral, Target: target}
 			var returningScope *queryBindingScope
 			newValues := false
@@ -207,7 +207,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			projection = append(projection, expansion.Fields...)
 			targetNames = append(targetNames, expansion.Names...)
 			if b.params.noParameters || b.consumer.materializedDefinition {
-				path := viewLiteralPath{Query: b.frameID(), Clause: analyze.ViewTargetLiteral, Target: target}
+				path := viewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral, Target: target}
 				ordinal := 0
 				if err := b.captureCompositeExpansion(field, expansion, path, &ordinal); err != nil {
 					return nil, err
@@ -246,7 +246,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 		if !contextual && !b.params.noParameters && !b.consumer.materializedDefinition && len(s.Locking) == 0 {
 			if source, ok := root.(*plan.SourceNode); ok && len(b.query.sources) == 1 && b.query.sources[0].Mark.Mode == 0 {
-				b.query.sources[0].PartialCandidate = b.query.partialIndexCandidate(source.Ref, filter)
+				b.query.sources[0].PartialCandidate = b.query.PartialIndexCandidate(source.Ref, filter)
 			}
 		}
 		root = &plan.FilterNode{QuerySchema: root.Schema(), Child: root, Predicate: filter}
@@ -280,7 +280,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 	}
 	b.clause.aggregateClause = "ORDER BY"
-	order, err := b.bindOrder(s.Order, projection, targetNames, "ORDER BY")
+	order, err := b.BindOrder(s.Order, projection, targetNames, "ORDER BY")
 	if err != nil {
 		return nil, err
 	}
@@ -366,11 +366,11 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		result := catalog.Column{Name: "?column?", Usage: expression.ResultUsage()}
 		regclassOutput = regclassOutput || result.Usage.Type.ContainsCatalogIdentifier()
 		result.Name = targetNames[i]
-		if c, ok := expression.(plan.ColumnExpr); ok && c.Scope == 1 && c.Frame == b.frameID() {
+		if c, ok := expression.(plan.ColumnExpr); ok && c.Scope == 1 && c.Frame == b.FrameID() {
 			result = namespace.Frame[c.Slot]
 			result.Name = targetNames[i]
 		}
-		if operation, ok := expression.(plan.GroupingExpr); ok && operation.Frame == b.frameID() {
+		if operation, ok := expression.(plan.GroupingExpr); ok && operation.Frame == b.FrameID() {
 			result.Nullable, result.NullabilityKnown = false, true
 		}
 		for keyIndex, key := range keys {
@@ -391,7 +391,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				}
 			}
 		}
-		if aggregate, ok := expression.(plan.AggregateExpr); ok && aggregate.Frame == b.frameID() {
+		if aggregate, ok := expression.(plan.AggregateExpr); ok && aggregate.Frame == b.FrameID() {
 			operation := b.grouping.aggregates[aggregate.Slot].Operation
 			switch operation {
 			case functions.AggregateJSON, functions.AggregateJSONStrict, functions.AggregateJSONArray, functions.AggregateJSONArrayAbsent, functions.AggregateJSONObject, functions.AggregateJSONObjectStrict:
@@ -464,7 +464,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	}
 	if grouped {
 		runtimeKeys := append([]expr.Expr(nil), keys...)
-		root, err = b.lowerQuerySets(root, runtimeKeys, nil, false)
+		root, err = b.LowerQuerySets(root, runtimeKeys, nil, false)
 		if err != nil {
 			return nil, err
 		}
@@ -522,14 +522,14 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		return nil, err
 	}
 	if plainDistinct {
-		root, err = b.lowerQuerySets(root, projection, nil, true)
+		root, err = b.LowerQuerySets(root, projection, nil, true)
 		if err != nil {
 			return nil, err
 		}
 		root = &plan.DistinctNode{QuerySchema: results, Child: root, Expressions: projection, Grouping: distinctFamilies}
 		slots := make([]expr.Expr, len(projection))
 		for i, expression := range projection {
-			slots[i] = plan.ColumnExpr{Info: expr.InfoOf(expression), Scope: 1, Frame: b.frameID(), Slot: i}
+			slots[i] = plan.ColumnExpr{Info: expr.InfoOf(expression), Scope: 1, Frame: b.FrameID(), Slot: i}
 		}
 		for i := range order {
 			order[i].Expression = slots[distinctOrder[i]]
@@ -539,16 +539,16 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	earlySets := append(stringSortExpressions(order), stringSortExpressions(on)...)
 	earlyWidth := len(earlySets)
 	earlySets, earlyTemplates := analyze.QuerySetPeerClosure(earlySets, [][]expr.Expr{projection})
-	root, err = b.lowerQuerySets(root, earlySets, [][]expr.Expr{projection}, false, earlyTemplates)
+	root, err = b.LowerQuerySets(root, earlySets, [][]expr.Expr{projection}, false, earlyTemplates)
 	if err != nil {
 		return nil, err
 	}
 	replaceStringSortExpressions(order, earlySets[:len(order)])
 	replaceStringSortExpressions(on, earlySets[len(order):earlyWidth])
 	if len(on) != 0 {
-		root, err = b.finishDistinctOn(root, order, on, onFamilies, projection)
+		root, err = b.FinishDistinctOn(root, order, on, onFamilies, projection)
 	} else {
-		root, err = b.finishOrder(root, order, projection)
+		root, err = b.FinishOrder(root, order, projection)
 	}
 	if err != nil {
 		return nil, err
@@ -556,12 +556,12 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	if bounds != nil {
 		bounds.FinishTies(root)
 	}
-	root, err = b.lowerQuerySets(root, projection, nil, true)
+	root, err = b.LowerQuerySets(root, projection, nil, true)
 	if err != nil {
 		return nil, err
 	}
 	if len(on) == 0 {
-		root = b.scheduleQueryProjection(root, projection, bounds != nil)
+		root = b.ScheduleQueryProjection(root, projection, bounds != nil)
 	}
 	if len(s.Locking) != 0 {
 		admission := b.query.lockAdmission.Queries[s]
@@ -646,7 +646,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			analysis = append(analysis, spec.Frame.End.Offset)
 		}
 	}
-	return &plan.Query{Root: &plan.ProjectNode{QuerySchema: results, Child: root, Expressions: projection, AnalysisExpressions: analysis, Frame: b.frameID(), Syntax: s, HasTargetSet: b.clause.queryHasTargetSet}, RegclassOutput: regclassOutput, VisibilitySnapshot: b.consumer.visibilitySnapshot}, nil
+	return &plan.Query{Root: &plan.ProjectNode{QuerySchema: results, Child: root, Expressions: projection, AnalysisExpressions: analysis, Frame: b.FrameID(), Syntax: s, HasTargetSet: b.clause.queryHasTargetSet}, RegclassOutput: regclassOutput, VisibilitySnapshot: b.consumer.visibilitySnapshot}, nil
 }
 
 func (b *expressionBinder) assignOutput(bound expr.Expr, target catalog.Column) (expr.Expr, error) {

@@ -34,11 +34,11 @@ func (b *expressionBinder) lowerStringInsert(out *binding) error {
 			partials = append(partials, out.ArrayTargets[i])
 		}
 	}
-	root, err := b.lowerQuerySets(&plan.SingletonNode{}, projection, nil, true)
+	root, err := b.LowerQuerySets(&plan.SingletonNode{}, projection, nil, true)
 	if err != nil {
 		return err
 	}
-	out.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: schema, Child: root, Expressions: projection, Frame: b.frameID()}}
+	out.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: schema, Child: root, Expressions: projection, Frame: b.FrameID()}}
 	out.CommandQuery = true
 	out.Targets, out.ArrayTargets = targets, partials
 	out.Expressions = nil

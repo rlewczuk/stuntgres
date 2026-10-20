@@ -60,8 +60,8 @@ func (b *expressionBinder) bindQueryBound(raw parser.Expr, clause string, litera
 		}
 		bound = plan.CoercionExpr{Info: b.info(usage, bound.SourcePosition(), analyze.CoercionProperties(bound, coercionPlan)), Child: bound, Plan: coercionPlan, Mode: sqltype.Assignment}
 	}
-	if analyze.ExpressionUsesFrame(bound, b.frameID()) {
-		pos := analyze.FirstQueryBoundFrameVariable(bound, b.frameID())
+	if analyze.ExpressionUsesFrame(bound, b.FrameID()) {
+		pos := analyze.FirstQueryBoundFrameVariable(bound, b.FrameID())
 		return nil, expr.ErrorAt("42P10", "argument of "+clause+" must not contain variables", pos)
 	}
 	if (b.params.noParameters || b.consumer.materializedDefinition) && captureLiterals {

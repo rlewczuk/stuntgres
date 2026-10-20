@@ -72,7 +72,7 @@ func TestBitwiseAggregateSlotsAndMetadata(t *testing.T) {
 		for _, name := range []string{"bit_and", "bit_or", "bit_xor"} {
 			targets = append(targets, parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}}})
 		}
-		q, err := binder.bindSelect(&parser.Select{Targets: targets}, false)
+		q, err := binder.BindSelect(&parser.Select{Targets: targets}, false)
 		if err != nil {
 			t.Fatal(err)
 		}

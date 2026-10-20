@@ -15,7 +15,7 @@ import (
 )
 
 // FROM placement follows successful call completion, not lexical offsets.
-// enterQuery isolates this observation from expression-owned child queries.
+// EnterQuery isolates this observation from expression-owned child queries.
 type fromSetObservation struct {
 	generation uint64
 	pos        parser.Position
@@ -25,7 +25,7 @@ func nestedFromSetError(pos parser.Position) error {
 	return expr.ErrorAt("0A000", "set-returning functions must appear at top level of FROM", pos)
 }
 
-func (b *expressionBinder) bindFunctionSource(raw parser.FunctionExpr) (expr.Expr, error) {
+func (b *expressionBinder) BindFunctionSource(raw parser.FunctionExpr) (expr.Expr, error) {
 	before := b.clause.fromSetObservation
 	node, err := b.bindFunction(raw)
 	if err != nil {
@@ -108,7 +108,7 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (plan.Node
 	ordinal := b.stored.functionCount
 	b.stored.functionCount += len(raw.Calls)
 	for i, call := range raw.Calls {
-		bound, err := b.bindFunctionSource(call)
+		bound, err := b.BindFunctionSource(call)
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
@@ -140,13 +140,13 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (plan.Node
 	qualifier := queryQualifier{Name: name, Original: name, Columns: columns, ScalarAlias: len(calls) == 1 && !raw.Ordinality}
 	b.query.hidden = append(b.query.hidden, qualifier)
 	captures := b.functionCaptures(calls)
-	node := &plan.FunctionFromNode{QuerySchema: schema, Calls: calls, Ordinality: raw.Ordinality, Correlated: len(captures) != 0, Frame: b.frameID(), ViewOrdinal: ordinal, Captures: captures}
+	node := &plan.FunctionFromNode{QuerySchema: schema, Calls: calls, Ordinality: raw.Ordinality, Correlated: len(captures) != 0, Frame: b.FrameID(), ViewOrdinal: ordinal, Captures: captures}
 	return node, queryNamespace{Columns: columns, Qualifiers: []queryQualifier{qualifier}, Frame: schema}, nil
 }
 
 // Only local expressions are rewritten; expression-owned queries retain their
 // own stage/frame ownership through the existing mapper.
-func (b *expressionBinder) mapQuerySetStage(bound expr.Expr, leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, error) {
+func (b *expressionBinder) MapQuerySetStage(bound expr.Expr, leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, error) {
 	mapped, _, err := mapBoundExpressionReader(b.bindingCatalog(), nil, bound, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, func(n plan.Node) (plan.Node, error) { return n, nil }, nil, true, func(e expr.Expr) (expr.Expr, bool, error) {
 		// Window slots are assigned through shared binder-owned pointers. A
 		// local SRF rewrite must not clone them before their final slot shift.
@@ -196,7 +196,7 @@ func (b *expressionBinder) functionCaptures(calls []expr.Expr) []plan.FunctionCo
 		for _, arg := range call.(expr.Composite).Children() {
 			analyze.WalkQueryArgumentExpression(arg, func(expr expr.Expr) {
 				column, ok := expr.(plan.ColumnExpr)
-				if !ok || column.Frame != b.frameID() {
+				if !ok || column.Frame != b.FrameID() {
 					return
 				}
 				name := ""

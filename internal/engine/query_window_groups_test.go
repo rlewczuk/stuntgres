@@ -407,7 +407,7 @@ func TestQueryWindowGroupsColumnAuthority(t *testing.T) {
 			auth := catalogAuthorization(e, e.CatalogRead())
 			b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
 			b.query.auth = &auth
-			_, err := b.bindSelect(statement(t, tc.query).(*parser.Select), false)
+			_, err := b.BindSelect(statement(t, tc.query).(*parser.Select), false)
 			if err != nil || len(b.query.sources) != 1 {
 				t.Fatal(err, b.query.sources)
 			}

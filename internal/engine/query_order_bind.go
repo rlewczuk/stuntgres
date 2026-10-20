@@ -51,7 +51,7 @@ func (b *expressionBinder) orderOutput(expression expr.Expr) (expr.Expr, error) 
 	return b.finalizeProjection(expression)
 }
 
-func (b *expressionBinder) bindOrder(order *parser.Order, projection []expr.Expr, names []string, clause string) ([]plan.SortKey, error) {
+func (b *expressionBinder) BindOrder(order *parser.Order, projection []expr.Expr, names []string, clause string) ([]plan.SortKey, error) {
 	if order == nil {
 		return nil, nil
 	}
@@ -73,7 +73,7 @@ func (b *expressionBinder) bindOrder(order *parser.Order, projection []expr.Expr
 					if err != nil {
 						return nil, err
 					}
-					if output >= 0 && !b.sameQueryTarget(projection[output], projection[j]) {
+					if output >= 0 && !b.SameQueryTarget(projection[output], projection[j]) {
 						return nil, expr.ErrorAt("42702", fmt.Sprintf(`%s "%s" is ambiguous`, clause, name), raw.Pos)
 					}
 					if output < 0 {
@@ -133,9 +133,9 @@ func (b *expressionBinder) bindOrder(order *parser.Order, projection []expr.Expr
 	return keys, nil
 }
 
-// finishOrder runs after grouped rewriting and output typing. Equivalent ORDER
+// FinishOrder runs after grouped rewriting and output typing. Equivalent ORDER
 // targets share a datum; unrelated visible outputs remain occurrence-sensitive.
-func (b *expressionBinder) finishOrder(root plan.Node, keys []plan.SortKey, projection []expr.Expr) (plan.Node, error) {
+func (b *expressionBinder) FinishOrder(root plan.Node, keys []plan.SortKey, projection []expr.Expr) (plan.Node, error) {
 	if len(keys) == 0 {
 		return root, nil
 	}

@@ -45,14 +45,14 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			}
 			ownedSyntax := *syntax
 			ownedSyntax.Targets = []parser.Expr{frozen}
-			project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: node.ResultUsage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{node}, Frame: b.frameID(), Syntax: &ownedSyntax}
+			project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: node.ResultUsage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{node}, Frame: b.FrameID(), Syntax: &ownedSyntax}
 			definition := &viewDefinition{query: &plan.Query{Root: project}, syntax: &ownedSyntax, dependencies: b.dependencies, routineRefs: b.capture.RoutineRefs, literals: b.capture.Literals, castUsages: b.capture.CastUsages}
 			definition.frames, definition.queries = collectQueryFrames(project)
 			read := e.CatalogRead()
 			if err := definition.validateLiterals(read); err != nil {
 				t.Fatal(err)
 			}
-			path := viewLiteralPath{Query: b.frameID(), Clause: analyze.ViewTargetLiteral}
+			path := viewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral}
 			if definition.routineRefs[path] != n.Ref || len(definition.castUsages) != 1 {
 				t.Fatal("lost selected identity or implicit argument conversion")
 			}
@@ -78,7 +78,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 				t.Fatal("missing SQL capture accepted")
 			}
 			extra := *definition
-			extra.routineRefs = map[viewLiteralPath]ids.ObjectRef{path: n.Ref, {Query: b.frameID(), Target: 99}: n.Ref}
+			extra.routineRefs = map[viewLiteralPath]ids.ObjectRef{path: n.Ref, {Query: b.FrameID(), Target: 99}: n.Ref}
 			if err := extra.validateLiterals(read); err == nil {
 				t.Fatal("extra SQL capture accepted")
 			}
@@ -90,7 +90,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			render := func() string {
 				t.Helper()
 				renderer := newViewRenderer(definition)
-				renderer.frame = b.frameID()
+				renderer.frame = b.FrameID()
 				text, err := renderer.expressionSQL(ctx, e.CatalogRead(), frozen, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(err)
