@@ -317,11 +317,11 @@ func (e *Engine) importMaterializedSnapshotRow(ctx context.Context, op *Operatio
 		if captureErr != nil {
 			return nil, captureErr
 		}
-		if op.replayOrZero().domainReplay != nil {
+		if operationReplayOrZero(op).domainReplay != nil {
 			return nil, fmt.Errorf("stuntgres: nested native replay transport")
 		}
-		op.replay().domainReplay = capture
-		defer func() { op.replay().domainReplay = nil }()
+		operationReplay(op).domainReplay = capture
+		defer func() { operationReplay(op).domainReplay = nil }()
 	}
 	e.mu.Lock()
 	b, err := describe(ctx, e.analysisHost(op), s, auth, e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), input, nil, nil)

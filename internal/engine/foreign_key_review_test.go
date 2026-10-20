@@ -188,7 +188,7 @@ func TestForeignKeyTrustedReplayNamespacePrincipal(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	op.replay().insertAuthority = true
+	operationReplay(op).insertAuthority = true
 	e.mu.Lock()
 	originalTargets := e.importTargets
 	e.importTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef)

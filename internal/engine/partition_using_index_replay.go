@@ -19,7 +19,7 @@ func (e *Engine) beginPartitionUsingIndexReplay(op *Operation, raw *parser.Alter
 	if op == nil {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition index operation")
 	}
-	op.replay().partitionUsingIndex = nil
+	operationReplay(op).partitionUsingIndex = nil
 	if raw == nil || len(raw.Actions) != 1 || raw.Actions[0].Action != parser.AddUsingIndex || raw.Actions[0].UsingIndex == nil {
 		return nil
 	}
@@ -46,16 +46,16 @@ func (e *Engine) beginPartitionUsingIndexReplay(op *Operation, raw *parser.Alter
 	address := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: table.Namespace(), Name: raw.Actions[0].UsingIndex.Index.Text})
 	index, ok := auth.Catalog.Relation(address)
 	if ok && index.SQLIndex != nil && index.SQLIndex.Parent == table.Address() && index.SQLIndex.PartitionParent == (ids.ObjectAddress{}) && index.SQLIndex.Constraint == nil {
-		op.replay().partitionUsingIndex = &partitionUsingIndexReplay{target: table, index: index, syntax: raw}
+		operationReplay(op).partitionUsingIndex = &partitionUsingIndexReplay{target: table, index: index, syntax: raw}
 	}
 	return nil
 }
 
 func partitionUsingIndexReplayAllowed(op *Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) bool {
-	if op == nil || raw == nil || op.replayOrZero().partitionUsingIndex == nil {
+	if op == nil || raw == nil || operationReplayOrZero(op).partitionUsingIndex == nil {
 		return false
 	}
-	origin := op.replayOrZero().partitionUsingIndex
+	origin := operationReplayOrZero(op).partitionUsingIndex
 	if origin.index == nil {
 		return false
 	}

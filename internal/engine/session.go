@@ -129,8 +129,8 @@ type Operation struct {
 	lockWait           lock.TimeoutSlot         // queued lock request's SQL-deadline projection
 	nonstandardStrings bool
 	discardRoleReset   authorization.RoleState // nonzero Authenticated only during DISCARD ALL publication
-	replaySlot         *restoreReplay          // Restore and materialized population only; see replay().
-	analysis           bindingHost             // Immutable after creation; see Engine.analysisHost.
+	replaySlot         session.ReplaySlot      // Restore and materialized population only; see operationReplay.
+	analysis           session.AnalysisSlot    // Immutable after creation; see newSessionOperation.
 }
 
 func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session, error) {
@@ -298,9 +298,8 @@ func (s *Session) operation(ctx context.Context, private bool) *Operation {
 	// Caller cancellation propagates through this child context. RequestEnd
 	// cancels every admitted child under the same admission lock; Done removes it.
 	combined, cancel := context.WithCancelCause(ctx)
-	op := &Operation{session: s, ctx: combined, commandContext: combined, sourceContext: ctx, cancel: cancel, private: private}
-	op.self = op
-	op.analysis = bindingHost{engine: engineOf(s), op: op}
+	op := newSessionOperation(s)
+	op.ctx, op.commandContext, op.sourceContext, op.cancel, op.private = combined, combined, ctx, cancel, private
 	if s.operations == nil {
 		s.operations = make(map[*Operation]struct{})
 	}

@@ -494,7 +494,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	if scope.op.replayOrZero().tableDestination && s.Concurrent.Character != 0 {
+	if operationReplayOrZero(scope.op).tableDestination && s.Concurrent.Character != 0 {
 		return Result{}, fmt.Errorf("stuntgres: restore cannot execute concurrent index phases")
 	}
 	for {
@@ -514,7 +514,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		if !ok {
 			return fail(ids.ErrCatalogReplaced)
 		}
-		if scope.op.replayOrZero().tableDestination {
+		if operationReplayOrZero(scope.op).tableDestination {
 			bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
 			if err != nil || !bootstrap.Superuser || e.importTargets == nil {
 				return fail(fmt.Errorf("stuntgres: invalid trusted restore index authority"))
@@ -532,7 +532,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		ns := e.catalog.Domain.Ref(auth.Catalog.Epoch(), parent.Namespace())
 		if err = auth.CheckCreate(ns); err != nil {
 			denied, ok := err.(*sqlstate.Error)
-			if !scope.op.replayOrZero().tableDestination || !ok || denied.Code != "42501" {
+			if !operationReplayOrZero(scope.op).tableDestination || !ok || denied.Code != "42501" {
 				return fail(err)
 			}
 		}
@@ -597,7 +597,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 			}
 		}
 		definition.Unique, definition.NullsNotDistinct = s.Unique, s.NullsNotDistinct
-		if s.Unique && s.Concurrent.Character == 0 && !scope.op.replayOrZero().tableDestination {
+		if s.Unique && s.Concurrent.Character == 0 && !operationReplayOrZero(scope.op).tableDestination {
 			if err := validateUniqueProviders(parent, definition, s.Keys); err != nil {
 				return fail(err)
 			}

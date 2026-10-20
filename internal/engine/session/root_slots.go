@@ -27,3 +27,15 @@ type OwnerSlot interface {
 type ExclusionMarkSlot interface {
 	ExclusionMarkSlot()
 }
+
+// ReplaySlot holds an operation's native Restore replay and materialized
+// population state. Only those paths write it; other operations keep nil.
+type ReplaySlot interface {
+	ReplaySlot()
+}
+
+// AnalysisSlot holds an operation's binding host. The root allocates it in
+// one allocation with the operation, so binding allocates no host.
+type AnalysisSlot interface {
+	AnalysisSlot()
+}

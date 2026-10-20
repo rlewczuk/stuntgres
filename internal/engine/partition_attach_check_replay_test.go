@@ -28,7 +28,7 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if op.replayOrZero().partitionCheck != child || !partitionCheckReplayAllowed(op, auth, raw, child) {
+	if operationReplayOrZero(op).partitionCheck != child || !partitionCheckReplayAllowed(op, auth, raw, child) {
 		t.Fatal("genuine leased physical replay rejected")
 	}
 	if err := partitionConsumerBoundary(op, auth, raw, child); err != nil {
@@ -58,11 +58,11 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	}
 	virtual := *child
 	virtual.Partition = parent.Partition
-	op.replay().partitionCheck = &virtual
+	operationReplay(op).partitionCheck = &virtual
 	if partitionCheckReplayAllowed(op, auth, raw, &virtual) {
 		t.Fatal("virtual CHECK granted")
 	}
-	op.replay().partitionCheck = nil
+	operationReplay(op).partitionCheck = nil
 	if err := partitionConsumerBoundary(op, auth, raw, child); err == nil {
 		t.Fatal("public hierarchy ADD CHECK admitted")
 	}
@@ -71,7 +71,7 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	if err := source.beginPartitionCheckReplay(publicOp, raw); err == nil {
 		t.Fatal("public bootstrap forged private import")
 	}
-	op.replay().partitionCheck = child
+	operationReplay(op).partitionCheck = child
 	done()
 	if partitionCheckReplayAllowed(op, auth, raw, child) {
 		t.Fatal("ended lease retained capability")

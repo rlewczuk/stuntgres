@@ -20,8 +20,8 @@ func TestRangePartitionPublicationTrustedImporterProvenance(t *testing.T) {
 	op, done := roleOperation(t, stage, "postgres")
 	defer done()
 	roleExecute(t, stage, op, "SET SESSION AUTHORIZATION child_owner")
-	op.replay().tableDestination = true
-	op.replay().defaultReplay = true
+	operationReplay(op).tableDestination = true
+	operationReplay(op).defaultReplay = true
 	create := statement(t, "CREATE TABLE child PARTITION OF parent DEFAULT").(*parser.CreateTable)
 	alter := statement(t, "ALTER TABLE parent ALTER COLUMN k SET DEFAULT 1").(*parser.AlterTableDefault)
 	auth, err := operationAuthorization(op)
@@ -65,12 +65,12 @@ func TestRangePartitionPublicationTrustedImporterProvenance(t *testing.T) {
 			}
 		})
 	}
-	op.replay().tableDestination = false
+	operationReplay(op).tableDestination = false
 	ordinary, err := stage.partitionParentAuthorization(op, auth, create)
 	if err != nil || ordinary.State.CurrentUser != original {
 		t.Fatal("ordinary authority was elevated", err)
 	}
-	op.replay().tableDestination = true
+	operationReplay(op).tableDestination = true
 	dropped := *alter
 	dropped.Action = parser.DropDefault
 	dropped.Expression = nil
@@ -79,8 +79,8 @@ func TestRangePartitionPublicationTrustedImporterProvenance(t *testing.T) {
 	}
 	actorOp, actorDone := roleOperation(t, stage, "child_owner")
 	defer actorDone()
-	actorOp.replay().tableDestination = true
-	actorOp.replay().defaultReplay = true
+	operationReplay(actorOp).tableDestination = true
+	operationReplay(actorOp).defaultReplay = true
 	actorAuth, err := operationAuthorization(actorOp)
 	if err != nil {
 		t.Fatal(err)
@@ -126,13 +126,13 @@ func TestRangePartitionPublicationTrustedImporterProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sourceOp.replay().tableDestination = true
-	sourceOp.replay().defaultReplay = true
+	operationReplay(sourceOp).tableDestination = true
+	operationReplay(sourceOp).defaultReplay = true
 	if _, err := source.partitionParentAuthorization(sourceOp, liveAuth, create); err == nil || partitionDefaultReplayAllowed(source, sourceOp, liveAuth, alter) {
 		t.Fatal("live bootstrap forged importer flag accepted", err)
 	}
-	sourceOp.replay().tableDestination = false
-	sourceOp.replay().defaultReplay = false
+	operationReplay(sourceOp).tableDestination = false
+	operationReplay(sourceOp).defaultReplay = false
 }
 
 func TestRangePartitionPublicationMixedOwnerRestore(t *testing.T) {

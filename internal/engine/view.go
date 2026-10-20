@@ -196,7 +196,7 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 	if table, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == s.op.session.token {
 		auth.stagedTemporary = table.Address()
 	}
-	if err := auth.CheckCreate(ns); err != nil && !s.op.replayOrZero().tableDestination {
+	if err := auth.CheckCreate(ns); err != nil && !operationReplayOrZero(s.op).tableDestination {
 		return err
 	}
 	persistence, err = adjustRelationCreationPersistence(auth, ns, persistence)
@@ -232,7 +232,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	}
 	if err == nil {
 		err = auth.CheckCreate(ns)
-		if op.replayOrZero().tableDestination {
+		if operationReplayOrZero(op).tableDestination {
 			bootstrap, guardErr := auth.Roles.Descriptor(auth.State.Authenticated)
 			if guardErr != nil || !bootstrap.Superuser || e.importTargets == nil {
 				e.mu.Unlock()

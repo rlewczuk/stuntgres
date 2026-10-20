@@ -23,18 +23,22 @@ type restoreReplay struct {
 	domainReplay           *domainReplayCapture       // Exact private native INSERT's immutable captured cells.
 }
 
-// replay returns the replay slot, allocating it on first use.
-func (op *Operation) replay() *restoreReplay {
-	if op.replaySlot == nil {
-		op.replaySlot = new(restoreReplay)
+func (*restoreReplay) ReplaySlot() {}
+
+// operationReplay returns op's replay state, allocating it on first use.
+func operationReplay(op *Operation) *restoreReplay {
+	r, _ := op.replaySlot.(*restoreReplay)
+	if r == nil {
+		r = new(restoreReplay)
+		op.replaySlot = r
 	}
-	return op.replaySlot
+	return r
 }
 
-// replayOrZero reads the replay slot; a nil slot reads as zero.
-func (op *Operation) replayOrZero() restoreReplay {
-	if op.replaySlot == nil {
-		return restoreReplay{}
+// operationReplayOrZero reads op's replay state; a nil slot reads as zero.
+func operationReplayOrZero(op *Operation) restoreReplay {
+	if r, _ := op.replaySlot.(*restoreReplay); r != nil {
+		return *r
 	}
-	return *op.replaySlot
+	return restoreReplay{}
 }

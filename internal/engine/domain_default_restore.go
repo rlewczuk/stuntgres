@@ -362,19 +362,19 @@ func (e *Engine) executeDomainReplayInsert(op *Operation, s *parser.Insert, reco
 	if err != nil {
 		return Result{}, err
 	}
-	if op.replayOrZero().domainReplay != nil {
+	if operationReplayOrZero(op).domainReplay != nil {
 		return Result{}, fmt.Errorf("stuntgres: nested native replay transport")
 	}
-	op.replay().domainReplay = capture
-	defer func() { op.replay().domainReplay = nil }()
+	operationReplay(op).domainReplay = capture
+	defer func() { operationReplay(op).domainReplay = nil }()
 	return scope.Execute(s, 0, nil)
 }
 
 func capturedDomainReplayCell(b *analyze.Binding, op *Operation, s *parser.Insert, row, column int) (expr.Expr, bool, error) {
-	if op == nil || op.replayOrZero().domainReplay == nil || op.replayOrZero().domainReplay.statement != s {
+	if op == nil || operationReplayOrZero(op).domainReplay == nil || operationReplayOrZero(op).domainReplay.statement != s {
 		return nil, false, nil
 	}
-	capture := op.replayOrZero().domainReplay
+	capture := operationReplayOrZero(op).domainReplay
 	literal, ok := capture.cells[column]
 	if !ok {
 		return nil, false, nil

@@ -85,8 +85,8 @@ func TestNominalTypeRestoreDestinationFence(t *testing.T) {
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			before := e.catalog.state
-			op.replay().tableDestination = true
-			defer func() { op.replay().tableDestination = false }()
+			operationReplay(op).tableDestination = true
+			defer func() { operationReplay(op).tableDestination = false }()
 			_, err := e.Execute(op, statement(t, tc.query), 0, nil)
 			if err == nil || !strings.Contains(err.Error(), "invalid trusted restore "+tc.kind+" destination authority") || e.catalog.state != before {
 				t.Fatal("destination flag bypassed isolated importer fence", err)
@@ -101,8 +101,8 @@ func TestNominalTypeRestoreDestinationFence(t *testing.T) {
 			defer done()
 			before := e.catalog.state
 			e.importTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef)
-			op.replay().tableDestination = true
-			defer func() { op.replay().tableDestination = false; e.importTargets = nil }()
+			operationReplay(op).tableDestination = true
+			defer func() { operationReplay(op).tableDestination = false; e.importTargets = nil }()
 			_, err := e.Execute(op, statement(t, tc.query), 0, nil)
 			if err == nil || !strings.Contains(err.Error(), "invalid trusted restore "+tc.kind+" destination authority") || e.catalog.state != before {
 				t.Fatal("ordinary authenticator bypassed importer fence", err)

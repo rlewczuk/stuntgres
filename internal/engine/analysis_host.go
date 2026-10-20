@@ -30,13 +30,17 @@ type bindingHost struct {
 
 var _ analyze.Host = (*bindingHost)(nil)
 
+func (*bindingHost) AnalysisSlot() {}
+
 // analysisHost returns the binding host for op. A session operation carries
-// its own host value and the engine one for binding without an operation
-// (bootstrap), so binding allocates no host; copied operations get a fresh
-// host.
+// its own host, allocated with it (newSessionOperation), and the engine one for
+// binding without an operation (bootstrap), so binding allocates no host;
+// copied operations get a fresh host.
 func (e *Engine) analysisHost(op *Operation) *bindingHost {
-	if op != nil && op.analysis.op == op && op.analysis.engine == e {
-		return &op.analysis
+	if op != nil {
+		if h, _ := op.analysis.(*bindingHost); h != nil && h.op == op && h.engine == e {
+			return h
+		}
 	}
 	if op == nil && e.analysis.engine == e {
 		return &e.analysis
@@ -261,7 +265,7 @@ func (h *bindingHost) EmitNotice(diagnostic sqlstate.Error) {
 }
 
 func (h *bindingHost) ReplayInsertAuthority() bool {
-	return h.op != nil && h.op.replayOrZero().insertAuthority
+	return h.op != nil && operationReplayOrZero(h.op).insertAuthority
 }
 
 func (h *bindingHost) ReplayDomainCell(b *analyze.Binding, s *parser.Insert, row, column int) (expr.Expr, bool, error) {

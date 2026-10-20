@@ -21,7 +21,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	if err != nil {
 		return err
 	}
-	trustedDestination := op != nil && op.replayOrZero().tableDestination
+	trustedDestination := op != nil && operationReplayOrZero(op).tableDestination
 	if trustedDestination {
 		bootstrap, guardErr := auth.Roles.Descriptor(auth.State.Authenticated)
 		if guardErr != nil || !bootstrap.Superuser || e.importTargets == nil {

@@ -206,9 +206,9 @@ func TestCommentRestoreAuthorityIsolation(t *testing.T) {
 			before := tc.engine.CatalogRead()
 			rolesPublication := tc.engine.roles.published
 			identity := op.RoleState()
-			op.replay().commentAuthority = true
+			operationReplay(op).commentAuthority = true
 			_, err := tc.engine.Execute(op, statement(t, tc.query), 0, nil)
-			op.replay().commentAuthority = false
+			operationReplay(op).commentAuthority = false
 			var diagnostic *sqlstate.Error
 			if err == nil || errors.As(err, &diagnostic) {
 				t.Fatal("invalid private marker accepted or fabricated SQL diagnostic", err)

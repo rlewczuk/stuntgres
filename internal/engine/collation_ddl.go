@@ -34,7 +34,7 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 	if err != nil {
 		return err
 	}
-	if op != nil && op.replayOrZero().tableDestination {
+	if op != nil && operationReplayOrZero(op).tableDestination {
 		bootstrap, guardErr := auth.Roles.Descriptor(auth.State.Authenticated)
 		if guardErr != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return fmt.Errorf("stuntgres: invalid trusted restore collation authority")
@@ -42,7 +42,7 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 	}
 	if err = auth.CheckCreate(ns); err != nil {
 		denied, ok := err.(*sqlstate.Error)
-		if op == nil || !op.replayOrZero().tableDestination || !ok || denied.Code != "42501" {
+		if op == nil || !operationReplayOrZero(op).tableDestination || !ok || denied.Code != "42501" {
 			return err
 		}
 	}
