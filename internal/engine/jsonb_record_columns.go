@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -54,7 +55,7 @@ func (b *expressionBinder) jsonbRecordQualifierStar(columns []queryColumn, frame
 func (b *expressionBinder) jsonbRecordCallStar(columns, source []queryColumn, star parser.StarExpr, call functions.JSONBRecord) ([]queryColumn, error) {
 	usage := call.ResultUsage()
 	shape := usage.Type.BaseType()
-	key := preparedCompositeKey{Offset: call.SourcePosition().Offset, Kind: CompositeSourceExpansion, Projection: star.Pos.Offset}
+	key := preparedCompositeKey{Offset: call.SourcePosition().Offset, Kind: analyze.CompositeSourceExpansion, Projection: star.Pos.Offset}
 	captured, retained, err := b.retainedComposite(key, usage)
 	if err != nil {
 		return nil, err
@@ -64,7 +65,7 @@ func (b *expressionBinder) jsonbRecordCallStar(columns, source []queryColumn, st
 		first = source[0].slot
 	}
 	if !retained {
-		captured = compositeOccurrence{Kind: CompositeSourceExpansion, Base: usage, Attributes: make([]int32, 0, len(source)), Names: make([]string, 0, len(source))}
+		captured = compositeOccurrence{Kind: analyze.CompositeSourceExpansion, Base: usage, Attributes: make([]int32, 0, len(source)), Names: make([]string, 0, len(source))}
 		for _, column := range columns {
 			index := column.slot - first
 			if index >= 0 && index < len(source) {
@@ -141,12 +142,12 @@ func (b *expressionBinder) jsonbRecordCastAnnotation(raw parser.CastExpr) (parse
 	if b.expected.catalogOwner != view.Owner() || b.expected.catalogEpoch != view.Epoch() {
 		return annotation, nil
 	}
-	key := preparedCompositeKey{Offset: raw.TypeName.Pos.Offset, Kind: CompositeRecordArgument}
+	key := preparedCompositeKey{Offset: raw.TypeName.Pos.Offset, Kind: analyze.CompositeRecordArgument}
 	captured, found := b.expected.composites[key]
 	if !found {
 		return annotation, nil
 	}
-	if captured.Kind != CompositeRecordArgument || captured.Base.Type == nil || !captured.Base.Type.BaseType().IsComposite() {
+	if captured.Kind != analyze.CompositeRecordArgument || captured.Base.Type == nil || !captured.Base.Type.BaseType().IsComposite() {
 		return annotation, fmt.Errorf("stuntgres: incompatible retained composite argument")
 	}
 	current, _ := view.LookupType(captured.Base.Type.ID())

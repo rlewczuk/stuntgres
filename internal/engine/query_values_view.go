@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -14,7 +15,7 @@ import (
 // table occurrences and source offsets. Row/key indices are local to a source.
 func (b *expressionBinder) captureValuesViewLiteral(raw parser.Expr, bound expr.Expr, clause viewLiteralClause, source, row, column int) error {
 	path := viewLiteralPath{Query: b.frameID(), Clause: clause, Source: source, Row: row, Target: column}
-	if clause == ViewValuesOrderLiteral {
+	if clause == analyze.ViewValuesOrderLiteral {
 		if integer, ok := raw.(parser.LiteralExpr); ok && integer.Value.Kind == parser.IntegerValue {
 			return nil
 		}
@@ -81,7 +82,7 @@ func (v *viewRenderer) valuesSQL(ctx context.Context, catalogView catalog.Read, 
 	for i, row := range source.Rows {
 		cells := make([]string, 0, len(row))
 		for j, raw := range row {
-			text, err := v.expressionSQL(ctx, catalogView, raw, viewLiteralPath{Clause: ViewValuesCellLiteral, Source: occurrence, Row: i, Target: j})
+			text, err := v.expressionSQL(ctx, catalogView, raw, viewLiteralPath{Clause: analyze.ViewValuesCellLiteral, Source: occurrence, Row: i, Target: j})
 			if err != nil {
 				return "", err
 			}
@@ -98,7 +99,7 @@ func (v *viewRenderer) valuesSQL(ctx context.Context, catalogView catalog.Read, 
 	if source.Order != nil {
 		keys := make([]string, len(source.Order.Keys))
 		for i, key := range source.Order.Keys {
-			part, err := v.expressionSQL(ctx, catalogView, key.Expr, viewLiteralPath{Clause: ViewValuesOrderLiteral, Source: occurrence, Target: i})
+			part, err := v.expressionSQL(ctx, catalogView, key.Expr, viewLiteralPath{Clause: analyze.ViewValuesOrderLiteral, Source: occurrence, Target: i})
 			if err != nil {
 				return "", err
 			}
@@ -121,8 +122,8 @@ func (v *viewRenderer) valuesSQL(ctx context.Context, catalogView catalog.Read, 
 			clause viewLiteralClause
 			name   string
 		}{
-			{source.Bounds.Offset, ViewValuesOffsetLiteral, "OFFSET"},
-			{source.Bounds.Count, ViewValuesLimitLiteral, "LIMIT"},
+			{source.Bounds.Offset, analyze.ViewValuesOffsetLiteral, "OFFSET"},
+			{source.Bounds.Count, analyze.ViewValuesLimitLiteral, "LIMIT"},
 		} {
 			if bound.raw == nil {
 				continue
@@ -148,23 +149,23 @@ func (v *viewDefinition) validateValuesLiterals(catalog catalog.Read, source *pa
 	}
 	for i, row := range source.Rows {
 		for j, raw := range row {
-			if err := validate(raw, ViewValuesCellLiteral, i, j); err != nil {
+			if err := validate(raw, analyze.ViewValuesCellLiteral, i, j); err != nil {
 				return err
 			}
 		}
 	}
 	if source.Order != nil {
 		for i, key := range source.Order.Keys {
-			if err := validate(key.Expr, ViewValuesOrderLiteral, 0, i); err != nil {
+			if err := validate(key.Expr, analyze.ViewValuesOrderLiteral, 0, i); err != nil {
 				return err
 			}
 		}
 	}
 	if source.Bounds != nil {
-		if err := validate(source.Bounds.Offset, ViewValuesOffsetLiteral, 0, 0); err != nil {
+		if err := validate(source.Bounds.Offset, analyze.ViewValuesOffsetLiteral, 0, 0); err != nil {
 			return err
 		}
-		if err := validate(source.Bounds.Count, ViewValuesLimitLiteral, 0, 0); err != nil {
+		if err := validate(source.Bounds.Count, analyze.ViewValuesLimitLiteral, 0, 0); err != nil {
 			return err
 		}
 	}

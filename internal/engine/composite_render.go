@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -31,7 +32,7 @@ func (v *viewRenderer) frozenCompositeFields(ctx context.Context, catalogView ca
 		exposed = rendered.names
 		namespace := v.namespaces[captured.Source.Namespace-1]
 		root := v.namespaceRoot(namespace)
-		if function, ok := root.(*plan.FunctionFromNode); ok && len(function.Calls) == 1 && !function.Ordinality && !function.Calls[0].ResultUsage().Type.IsComposite() && captured.Kind == CompositeExpansion {
+		if function, ok := root.(*plan.FunctionFromNode); ok && len(function.Calls) == 1 && !function.Ordinality && !function.Calls[0].ResultUsage().Type.IsComposite() && captured.Kind == analyze.CompositeExpansion {
 			// A namespace list is not a composite field selection on the
 			// function's scalar alias value. Replay its analyzed column slots.
 			scalarRoot = root
@@ -70,7 +71,7 @@ func (v *viewRenderer) compositeExpansionSQL(ctx context.Context, catalog catalo
 	path.Query = v.frame
 	path.Node = 0
 	captured, ok := v.composites[path]
-	if !ok || captured.Kind != CompositeExpansion {
+	if !ok || captured.Kind != analyze.CompositeExpansion {
 		return nil, fmt.Errorf("stuntgres: missing frozen composite expansion")
 	}
 	ordinal := 1

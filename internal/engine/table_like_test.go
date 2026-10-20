@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -43,9 +44,9 @@ func TestTableLikeOptionMask(t *testing.T) {
 		mask    tableLikeMask
 	}{
 		{nil, 0},
-		{[]parser.LikeOption{{Name: "all", Including: true}, {Name: "defaults"}}, LikeAll &^ LikeDefaults},
-		{[]parser.LikeOption{{Name: "identity"}, {Name: "all", Including: true}}, LikeAll},
-		{[]parser.LikeOption{{Name: "all", Including: true}, {Name: "all"}, {Name: "generated", Including: true}}, LikeGenerated},
+		{[]parser.LikeOption{{Name: "all", Including: true}, {Name: "defaults"}}, analyze.LikeAll &^ analyze.LikeDefaults},
+		{[]parser.LikeOption{{Name: "identity"}, {Name: "all", Including: true}}, analyze.LikeAll},
+		{[]parser.LikeOption{{Name: "all", Including: true}, {Name: "all"}, {Name: "generated", Including: true}}, analyze.LikeGenerated},
 	} {
 		if got := tableLikeOptions(tc.options); got != tc.mask {
 			t.Fatal(got, tc.mask)

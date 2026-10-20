@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -17,8 +18,8 @@ import (
 func TestCompositeAlterFunctionalRetainedFields(t *testing.T) {
 	e, source, _ := typedUnitCatalog(t, false)
 	original, _ := e.CatalogRead().LookupType(source.RowType)
-	key := preparedCompositeKey{Kind: CompositeSelection}
-	capture := compositeOccurrence{Kind: CompositeSelection, Base: original.Usage(), Attributes: []int32{source.Attributes[1]}}
+	key := preparedCompositeKey{Kind: analyze.CompositeSelection}
+	capture := compositeOccurrence{Kind: analyze.CompositeSelection, Base: original.Usage(), Attributes: []int32{source.Attributes[1]}}
 	for _, members := range [][]sqltype.CompositeMember{{original.CompositeMember(0)}, {}, {{Attribute: 9, Name: "note", Usage: testUsage(e, sqltype.Text)}}} {
 		current, err := sqltype.Composite(original.ID(), original.Name(), original.SQLName(), original.AssociatedArray(), members)
 		if err != nil {

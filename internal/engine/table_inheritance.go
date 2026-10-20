@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/typedef"
@@ -132,7 +133,7 @@ func describeInheritance(host analyzeHost, auth AuthorizationView, syntax *parse
 			return nil, nil, nil, sqlError("42P07", fmt.Sprintf(`relation "%s" would be inherited from more than once`, source.Name()))
 		}
 		seen[ref.Address] = true
-		b.Create.Inheritance = append(b.Create.Inheritance, createInheritanceInput{ref, source})
+		b.Create.Inheritance = append(b.Create.Inheritance, createInheritanceInput{Ref: ref, Source: source})
 		for sourceSlot, c := range source.Columns {
 			definition, isGenerated := source.ColumnMeta.Generations[source.Attributes[sourceSlot]]
 			if slot, ok := index[c.Name]; ok {
@@ -210,7 +211,7 @@ func describeInheritance(host analyzeHost, auth AuthorizationView, syntax *parse
 		}
 	}
 	for _, in := range b.Create.Likes {
-		if in.Options&LikeGenerated != 0 {
+		if in.Options&analyze.LikeGenerated != 0 {
 			for i, attribute := range in.Source.Attributes {
 				if _, exists := in.Source.ColumnMeta.Generations[attribute]; exists {
 					name := in.Source.Columns[i].Name
@@ -223,7 +224,7 @@ func describeInheritance(host analyzeHost, auth AuthorizationView, syntax *parse
 				}
 			}
 		}
-		if in.Options&LikeDefaults == 0 {
+		if in.Options&analyze.LikeDefaults == 0 {
 			continue
 		}
 		for i, attribute := range in.Source.Attributes {

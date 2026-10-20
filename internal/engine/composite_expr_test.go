@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -259,7 +260,7 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	if b.sameGroupExpression(left, right) {
 		t.Fatal("zero-width source occurrences conflated")
 	}
-	zero := compositeOccurrence{Kind: CompositeExpansion, Base: empty.Usage()}
+	zero := compositeOccurrence{Kind: analyze.CompositeExpansion, Base: empty.Usage()}
 	if err := validateCompositeOccurrence(zero, view); err != nil {
 		t.Fatal("zero-width expansion lost authority", err)
 	}
@@ -267,7 +268,7 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	if err := validateCompositeOccurrence(zero, view); err == nil {
 		t.Fatal("missing capture kind admitted")
 	}
-	whole := compositeOccurrence{Kind: CompositeWholeRow, Base: mappedRow.Usage, Source: plan.WholeRowSource{Namespace: 1, Frame: 1}}
+	whole := compositeOccurrence{Kind: analyze.CompositeWholeRow, Base: mappedRow.Usage, Source: plan.WholeRowSource{Namespace: 1, Frame: 1}}
 	if err := (&viewDefinition{}).validateCompositeSource(whole); err == nil {
 		t.Fatal("missing actual namespace source admitted")
 	}

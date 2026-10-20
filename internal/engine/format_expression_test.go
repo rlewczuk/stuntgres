@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -93,12 +94,12 @@ func TestFormatViewVariadicSerializationReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := b.captureViewLiterals(raw, original, ViewTargetLiteral, 0); err != nil {
+	if err := b.captureViewLiterals(raw, original, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
 	renderer := newViewRenderer(&viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages})
 	renderer.frame = b.frameID()
-	stored, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, viewLiteralPath{Clause: ViewTargetLiteral})
+	stored, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil {
 		t.Fatal(err)
 	}

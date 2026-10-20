@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -103,7 +104,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 		raw  parser.Expr
 		node expr.Expr
 	}{{raw, outer}, {rawText, positions}} {
-		if err := b.captureViewLiterals(capture.raw, capture.node, ViewTargetLiteral, i); err != nil {
+		if err := b.captureViewLiterals(capture.raw, capture.node, analyze.ViewTargetLiteral, i); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -113,7 +114,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	path := []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, {ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}
 	render := func(view catalog.Read, definition *viewDefinition, target int, expression parser.Expr, want string) {
 		r := viewRenderer{viewDefinition: definition, frame: b.frameID(), presentation: viewPresentation{deparse: true, pretty: true, path: path}}
-		got, err := r.expressionSQL(ctx, view, expression, viewLiteralPath{Clause: ViewTargetLiteral, Target: target})
+		got, err := r.expressionSQL(ctx, view, expression, viewLiteralPath{Clause: analyze.ViewTargetLiteral, Target: target})
 		if err != nil || got != want {
 			t.Fatalf("rendered %q want %q: %v", got, want, err)
 		}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -32,7 +33,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			if !ok {
 				t.Fatalf("not a scalar SQL provider: %T", node)
 			}
-			if err := b.captureViewLiterals(raw, node, ViewTargetLiteral, 0); err != nil {
+			if err := b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 				t.Fatal(err)
 			}
 			frozen, ok := b.normalizeStoredExpression(raw).(parser.FunctionExpr)
@@ -51,7 +52,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			if err := definition.validateLiterals(read); err != nil {
 				t.Fatal(err)
 			}
-			path := viewLiteralPath{Query: b.frameID(), Clause: ViewTargetLiteral}
+			path := viewLiteralPath{Query: b.frameID(), Clause: analyze.ViewTargetLiteral}
 			if definition.routineRefs[path] != n.Ref || len(definition.castUsages) != 1 {
 				t.Fatal("lost selected identity or implicit argument conversion")
 			}
@@ -90,7 +91,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 				t.Helper()
 				renderer := newViewRenderer(definition)
 				renderer.frame = b.frameID()
-				text, err := renderer.expressionSQL(ctx, e.CatalogRead(), frozen, viewLiteralPath{Clause: ViewTargetLiteral})
+				text, err := renderer.expressionSQL(ctx, e.CatalogRead(), frozen, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(err)
 				}

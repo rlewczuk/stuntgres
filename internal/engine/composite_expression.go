@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -222,7 +223,7 @@ func (b *expressionBinder) bindField(raw parser.FieldExpr) (expr.Expr, error) {
 	if captured, found, err := b.retainedComposite(key, base.ResultUsage()); err != nil {
 		return nil, err
 	} else if found {
-		if captured.Kind == CompositeDotBuiltin {
+		if captured.Kind == analyze.CompositeDotBuiltin {
 			return b.bindDotBuiltin(raw, key)
 		}
 		return b.retainedCompositeField(base, key, captured, raw.Pos), nil
@@ -613,7 +614,7 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (result expr.Ex
 		return nil, err
 	}
 	base := b.clause.functionProjection.operand
-	key := preparedCompositeKey{Offset: raw.Pos.Offset, Kind: CompositeSelection}
+	key := preparedCompositeKey{Offset: raw.Pos.Offset, Kind: analyze.CompositeSelection}
 	captured, retained, failure := b.retainedComposite(key, base.ResultUsage())
 	if failure != nil {
 		return nil, failure

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -276,7 +277,7 @@ func TestDeparseConstraintsReviewViewLiteralCaptureCutover(t *testing.T) {
 	run(t, e, "INSERT INTO t VALUES(1)")
 	run(t, e, "CREATE VIEW v AS SELECT TIME(3) '04:05:06.1235' AS clock,+2147483648 AS number FROM t")
 	view := viewOf(e.CatalogRead().MustRelation(roleTableRef(t, e, "v").Address))
-	literal, ok := view.literals[viewLiteralPath{Query: view.query.Root.(*plan.ProjectNode).Frame, Clause: ViewTargetLiteral, Target: 0, Node: 0}]
+	literal, ok := view.literals[viewLiteralPath{Query: view.query.Root.(*plan.ProjectNode).Frame, Clause: analyze.ViewTargetLiteral, Target: 0, Node: 0}]
 	if !ok || literal.Usage.Type.ID() != sqltype.Time || literal.Usage.Typmod != 3 {
 		t.Fatal(view.literals)
 	}
@@ -284,7 +285,7 @@ func TestDeparseConstraintsReviewViewLiteralCaptureCutover(t *testing.T) {
 	if err != nil || raw != 14706123500 {
 		t.Fatal(raw, err)
 	}
-	literal, ok = view.literals[viewLiteralPath{Query: view.query.Root.(*plan.ProjectNode).Frame, Clause: ViewTargetLiteral, Target: 1, Node: 1}]
+	literal, ok = view.literals[viewLiteralPath{Query: view.query.Root.(*plan.ProjectNode).Frame, Clause: analyze.ViewTargetLiteral, Target: 1, Node: 1}]
 	if !ok || literal.Usage.Type.ID() != sqltype.Int8 {
 		t.Fatal(view.literals)
 	}

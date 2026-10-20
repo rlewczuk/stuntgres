@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -32,7 +33,7 @@ func policyExpressionSQL(ctx context.Context, view catalog.Read, expression *pol
 		}
 	}
 	r.slots[source] = slots
-	return r.expressionSQL(ctx, view, expression.syntax, viewLiteralPath{Clause: ViewTargetLiteral})
+	return r.expressionSQL(ctx, view, expression.syntax, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 }
 
 func policyDumpGroups(ctx context.Context, view catalog.Read, roles authorization.Read) ([]dumpPolicyGroup, error) {

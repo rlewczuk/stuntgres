@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -146,7 +147,7 @@ func TestRegroleStoredLiteral(t *testing.T) {
 		}
 		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: strconv.FormatUint(uint64(id), 10)}}
-		if err := binder.captureViewLiterals(raw, literal, ViewTargetLiteral, 0); !reflect.DeepEqual(err, want) {
+		if err := binder.captureViewLiterals(raw, literal, analyze.ViewTargetLiteral, 0); !reflect.DeepEqual(err, want) {
 			t.Fatal("view freeze boundary", err)
 		}
 		// Data serialization is legal even when the exact same datum is banned

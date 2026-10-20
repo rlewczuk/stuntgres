@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -35,7 +36,7 @@ func (v *viewRenderer) renderFunctionTableSQL(ctx context.Context, catalog catal
 	texts := make([]string, len(calls))
 	hasDefinitions := false
 	for i, call := range calls {
-		path := viewLiteralPath{Clause: ViewFunctionLiteral, Target: root.ViewOrdinal + i}
+		path := viewLiteralPath{Clause: analyze.ViewFunctionLiteral, Target: root.ViewOrdinal + i}
 		if root.RegexpNamespace {
 			path.Source, path.Target = root.ViewOrdinal, i
 		}

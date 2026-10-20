@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -40,7 +41,7 @@ func (b *expressionBinder) finalizeSetOperand(arm *plan.ProjectNode, slot int, t
 		if b.params.noParameters || b.consumer.materializedDefinition {
 			for i, raw := range arm.Syntax.Targets {
 				if raw == unknown.Raw {
-					if err := b.captureViewLiterals(raw, node, ViewTargetLiteral, i); err != nil {
+					if err := b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, i); err != nil {
 						return nil, err
 					}
 					break
@@ -210,7 +211,7 @@ func (b *expressionBinder) bindSetOrder(order *parser.Order, projection []expr.E
 			}
 		}
 		if (b.params.noParameters || b.consumer.materializedDefinition) && !ordinal {
-			if err := b.captureViewLiterals(raw.Expr, projection[slot], ViewOrderLiteral, i); err != nil {
+			if err := b.captureViewLiterals(raw.Expr, projection[slot], analyze.ViewOrderLiteral, i); err != nil {
 				return nil, err
 			}
 		}

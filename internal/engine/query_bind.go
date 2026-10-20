@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -125,7 +126,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 		if star, ok := raw.(parser.StarExpr); ok {
 			if b.target.ruleNamespace != nil && len(star.Qualifier.Parts) == 1 && (star.Qualifier.Parts[0].Text == "old" || star.Qualifier.Parts[0].Text == "new") {
-				path := viewLiteralPath{Query: b.frameID(), Clause: ViewTargetLiteral, Target: target}
+				path := viewLiteralPath{Query: b.frameID(), Clause: analyze.ViewTargetLiteral, Target: target}
 				if b.capture.Stars == nil {
 					b.capture.Stars = make(map[viewLiteralPath][]viewColumn)
 				}
@@ -147,7 +148,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			}
 			columns := namespace.columns
 			frame := b.frameID()
-			starPath := viewLiteralPath{Query: frame, Clause: ViewTargetLiteral, Target: target}
+			starPath := viewLiteralPath{Query: frame, Clause: analyze.ViewTargetLiteral, Target: target}
 			var returningScope *queryBindingScope
 			newValues := false
 			var recordQualifier *queryQualifier
@@ -205,7 +206,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			projection = append(projection, expansion.Fields...)
 			targetNames = append(targetNames, expansion.Names...)
 			if b.params.noParameters || b.consumer.materializedDefinition {
-				path := viewLiteralPath{Query: b.frameID(), Clause: ViewTargetLiteral, Target: target}
+				path := viewLiteralPath{Query: b.frameID(), Clause: analyze.ViewTargetLiteral, Target: target}
 				ordinal := 0
 				if err := b.captureCompositeExpansion(field, expansion, path, &ordinal); err != nil {
 					return nil, err
@@ -238,7 +239,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			return nil, err
 		}
 		if b.params.noParameters || b.consumer.materializedDefinition {
-			if err := b.captureViewLiterals(s.Where, filter, ViewWhereLiteral, 0); err != nil {
+			if err := b.captureViewLiterals(s.Where, filter, analyze.ViewWhereLiteral, 0); err != nil {
 				return nil, err
 			}
 		}
@@ -264,7 +265,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			return nil, err
 		}
 		if b.params.noParameters || b.consumer.materializedDefinition {
-			if err := b.captureViewLiterals(s.Having, having, ViewHavingLiteral, 0); err != nil {
+			if err := b.captureViewLiterals(s.Having, having, analyze.ViewHavingLiteral, 0); err != nil {
 				return nil, err
 			}
 		}
@@ -322,7 +323,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				frozen.Keys[i].Expr = parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: int64(ordinal), Pos: key.Pos}}
 				continue
 			}
-			if err := b.captureViewLiterals(key.Expr, order[i].Expression, ViewOrderLiteral, i); err != nil {
+			if err := b.captureViewLiterals(key.Expr, order[i].Expression, analyze.ViewOrderLiteral, i); err != nil {
 				return nil, err
 			}
 		}
@@ -334,7 +335,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		for i, raw := range frozen.On {
 			if ordinal := on[i].OutputOrdinal; ordinal != 0 {
 				frozen.On[i] = parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: int64(ordinal), Pos: parser.ExpressionStart(raw)}}
-			} else if err := b.captureViewLiterals(raw, on[i].Expression, ViewDistinctOnLiteral, i); err != nil {
+			} else if err := b.captureViewLiterals(raw, on[i].Expression, analyze.ViewDistinctOnLiteral, i); err != nil {
 				return nil, err
 			}
 		}
@@ -357,7 +358,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 		if (b.params.noParameters || b.consumer.materializedDefinition) && literalTargets[i] >= 0 && expression.ResultUsage().Type != nil {
 			target := literalTargets[i]
-			if err := b.captureViewLiterals(s.Targets[target], expression, ViewTargetLiteral, target); err != nil {
+			if err := b.captureViewLiterals(s.Targets[target], expression, analyze.ViewTargetLiteral, target); err != nil {
 				return nil, err
 			}
 		}

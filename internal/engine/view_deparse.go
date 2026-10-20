@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 
@@ -204,7 +205,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 	var targets []string
 	for i, expr := range s.Targets {
 		if _, star := expr.(parser.StarExpr); star {
-			for _, column := range v.stars[viewLiteralPath{Query: project.Frame, Clause: ViewTargetLiteral, Target: i}] {
+			for _, column := range v.stars[viewLiteralPath{Query: project.Frame, Clause: analyze.ViewTargetLiteral, Target: i}] {
 				owner := v.frames[column.Frame]
 				if owner == nil {
 					return "", fmt.Errorf("stuntgres: missing frozen star frame")
@@ -218,14 +219,14 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 			continue
 		}
 		if expansion, ok := expr.(parser.FieldExpr); ok && expansion.Expansion {
-			fields, err := renderer.compositeExpansionSQL(ctx, catalogView, expansion, viewLiteralPath{Clause: ViewTargetLiteral, Target: i})
+			fields, err := renderer.compositeExpansionSQL(ctx, catalogView, expansion, viewLiteralPath{Clause: analyze.ViewTargetLiteral, Target: i})
 			if err != nil {
 				return "", err
 			}
 			targets = append(targets, fields...)
 			continue
 		}
-		text, err := renderer.expressionSQL(ctx, catalogView, expr, viewLiteralPath{Clause: ViewTargetLiteral, Target: i})
+		text, err := renderer.expressionSQL(ctx, catalogView, expr, viewLiteralPath{Clause: analyze.ViewTargetLiteral, Target: i})
 		if err != nil {
 			return "", err
 		}
@@ -275,7 +276,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 	if s.Distinct != nil && len(s.Distinct.On) != 0 {
 		keys := make([]string, len(s.Distinct.On))
 		for i, raw := range s.Distinct.On {
-			key, err := renderer.expressionSQL(ctx, catalogView, raw, viewLiteralPath{Clause: ViewDistinctOnLiteral, Target: i})
+			key, err := renderer.expressionSQL(ctx, catalogView, raw, viewLiteralPath{Clause: analyze.ViewDistinctOnLiteral, Target: i})
 			if err != nil {
 				return "", err
 			}
@@ -295,7 +296,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 		}
 	}
 	if s.Where != nil {
-		part, err := renderer.expressionSQL(ctx, catalogView, s.Where, viewLiteralPath{Clause: ViewWhereLiteral})
+		part, err := renderer.expressionSQL(ctx, catalogView, s.Where, viewLiteralPath{Clause: analyze.ViewWhereLiteral})
 		if err != nil {
 			return "", err
 		}
@@ -311,7 +312,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 					return "", err
 				}
 				if item.Kind == parser.GroupExpression {
-					text, err := renderer.expressionSQL(ctx, catalogView, item.Expr, viewLiteralPath{Clause: ViewGroupLiteral, Target: leaf})
+					text, err := renderer.expressionSQL(ctx, catalogView, item.Expr, viewLiteralPath{Clause: analyze.ViewGroupLiteral, Target: leaf})
 					if err != nil {
 						return "", err
 					}
@@ -353,7 +354,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 		text += clause + "GROUP BY " + modifier + keys
 	}
 	if s.Having != nil {
-		part, err := renderer.expressionSQL(ctx, catalogView, s.Having, viewLiteralPath{Clause: ViewHavingLiteral})
+		part, err := renderer.expressionSQL(ctx, catalogView, s.Having, viewLiteralPath{Clause: analyze.ViewHavingLiteral})
 		if err != nil {
 			return "", err
 		}
@@ -362,7 +363,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 	if len(s.Windows) > 0 {
 		definitions := make([]string, len(s.Windows))
 		for i, definition := range s.Windows {
-			path := viewLiteralPath{Query: renderer.frame, Clause: ViewWindowLiteral, Target: i}
+			path := viewLiteralPath{Query: renderer.frame, Clause: analyze.ViewWindowLiteral, Target: i}
 			ordinal := 0
 			part, err := windowSpecSQL(definition.Spec, func(expr parser.Expr) (string, error) {
 				return renderer.expressionSQLAt(ctx, catalogView, expr, path, &ordinal, pgRenderParent{})
@@ -390,7 +391,7 @@ func (renderer *viewRenderer) selectQueryTailSQL(ctx context.Context, catalog ca
 	if s.Order != nil {
 		keys := make([]string, len(s.Order.Keys))
 		for i, key := range s.Order.Keys {
-			path := viewLiteralPath{Clause: ViewOrderLiteral, Target: i}
+			path := viewLiteralPath{Clause: analyze.ViewOrderLiteral, Target: i}
 			var name string
 			var err error
 			if ordinal, ok := key.Expr.(parser.LiteralExpr); presentation.deparse && setOperand && s.Set == nil && ok && ordinal.Value.Kind == parser.IntegerValue {
@@ -427,8 +428,8 @@ func (renderer *viewRenderer) selectQueryTailSQL(ctx context.Context, catalog ca
 			clause viewLiteralClause
 			name   string
 		}{
-			{s.Bounds.Offset, ViewOffsetLiteral, "OFFSET"},
-			{s.Bounds.Count, ViewLimitLiteral, "LIMIT"},
+			{s.Bounds.Offset, analyze.ViewOffsetLiteral, "OFFSET"},
+			{s.Bounds.Count, analyze.ViewLimitLiteral, "LIMIT"},
 		} {
 			if bound.expr == nil {
 				continue
@@ -474,7 +475,7 @@ func (renderer *viewRenderer) selectOutputSQL(ctx context.Context, catalog catal
 	}
 	ordinal := slot + 1
 	for target, raw := range project.Syntax.Targets {
-		path := viewLiteralPath{Query: project.Frame, Clause: ViewTargetLiteral, Target: target}
+		path := viewLiteralPath{Query: project.Frame, Clause: analyze.ViewTargetLiteral, Target: target}
 		if _, star := raw.(parser.StarExpr); star {
 			columns := renderer.stars[path]
 			if slot < len(columns) {
@@ -573,10 +574,10 @@ func (v *viewRenderer) columnSQL(ctx context.Context, catalog catalog.Read, path
 		return "", fmt.Errorf("stuntgres: missing view column frame")
 	}
 	root := viewFromRoot(owner)
-	if path.Clause == ViewJoinLiteral && column.Frame == path.Query {
+	if path.Clause == analyze.ViewJoinLiteral && column.Frame == path.Query {
 		root = viewJoinAt(root, path.Target)
 	}
-	if path.Clause == ViewValuesOrderLiteral && column.Frame == path.Query {
+	if path.Clause == analyze.ViewValuesOrderLiteral && column.Frame == path.Query {
 		root = viewValuesAt(v.query.Root, path.Source)
 	}
 	// Current simple-source names require owner qualification for correlated
@@ -587,7 +588,7 @@ func (v *viewRenderer) columnSQL(ctx context.Context, catalog catalog.Read, path
 	if currentNames && column.Frame != path.Query && owner.Syntax != nil {
 		_, ownerSimple = owner.Syntax.From.(*parser.TableReference)
 	}
-	if currentNames && ((column.Frame == path.Query && v.simple && (path.Clause == ViewOrderLiteral || path.Clause == ViewGroupLiteral || path.Clause == ViewDistinctOnLiteral)) || (column.Frame != path.Query && ownerSimple)) {
+	if currentNames && ((column.Frame == path.Query && v.simple && (path.Clause == analyze.ViewOrderLiteral || path.Clause == analyze.ViewGroupLiteral || path.Clause == analyze.ViewDistinctOnLiteral)) || (column.Frame != path.Query && ownerSimple)) {
 		source, ok := root.(*plan.SourceNode)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing simple view source")
@@ -711,10 +712,10 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 		if err != nil {
 			return "", err
 		}
-		if captured.Kind == CompositeWholeRow {
+		if captured.Kind == analyze.CompositeWholeRow {
 			return base, nil
 		}
-		if captured.Kind != CompositeExpansion {
+		if captured.Kind != analyze.CompositeExpansion {
 			return "", fmt.Errorf("stuntgres: invalid frozen scalar star interpretation")
 		}
 		fields, err := v.frozenCompositeFields(ctx, catalogView, captured, base)
@@ -731,7 +732,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 		if err != nil {
 			return "", err
 		}
-		if captured.Kind == CompositeDotBuiltin {
+		if captured.Kind == analyze.CompositeDotBuiltin {
 			return frozenDotBuiltinSQL(captured, text)
 		}
 		fields, err := v.frozenCompositeFields(ctx, catalogView, captured, text)
@@ -837,13 +838,13 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 			name := catalog.QuoteIdentifier(catalogView.Get(d.Namespace()).Name()) + "." + catalog.QuoteIdentifier(d.Name())
 			return "'" + strings.ReplaceAll(name, "'", "''") + "'", nil
 		}
-		if (path.Clause == ViewGroupLiteral || path.Clause == ViewOrderLiteral || path.Clause == ViewDistinctOnLiteral || path.Clause == ViewValuesOrderLiteral) && path.Node == 0 && e.Value.Kind == parser.IntegerValue {
+		if (path.Clause == analyze.ViewGroupLiteral || path.Clause == analyze.ViewOrderLiteral || path.Clause == analyze.ViewDistinctOnLiteral || path.Clause == analyze.ViewValuesOrderLiteral) && path.Node == 0 && e.Value.Kind == parser.IntegerValue {
 			return strconv.FormatInt(e.Value.Integer, 10), nil
 		}
 		return "", fmt.Errorf("stuntgres: missing analyzed view literal")
 	case parser.ColumnExpr:
 		if captured, whole := v.composites[path]; whole {
-			if captured.Kind != CompositeWholeRow {
+			if captured.Kind != analyze.CompositeWholeRow {
 				return "", fmt.Errorf("stuntgres: invalid frozen scalar whole row")
 			}
 			return v.wholeRowSQL(captured)
@@ -1264,7 +1265,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 		return text + ending, nil
 	case parser.FunctionExpr:
 		if captured, projected := v.composites[path]; projected {
-			if captured.Kind != CompositeSelection || len(e.Args) != 1 {
+			if captured.Kind != analyze.CompositeSelection || len(e.Args) != 1 {
 				return "", fmt.Errorf("stuntgres: invalid frozen functional projection")
 			}
 			base, err := child(e.Args[0])

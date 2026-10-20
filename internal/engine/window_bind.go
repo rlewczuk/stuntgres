@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -334,7 +335,7 @@ func (b *expressionBinder) resolveWindowDefinitions() error {
 		spec.Definition = definitionIndex + 1
 		if b.params.noParameters || b.consumer.materializedDefinition {
 			ordinal := 0
-			path := viewLiteralPath{Query: b.frameID(), Clause: ViewWindowLiteral, Target: definitionIndex}
+			path := viewLiteralPath{Query: b.frameID(), Clause: analyze.ViewWindowLiteral, Target: definitionIndex}
 			for i, key := range definition.Spec.Partition {
 				if err := b.captureViewLiteralTree(key, spec.Partition[i], path, &ordinal); err != nil {
 					return err

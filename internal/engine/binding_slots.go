@@ -5,6 +5,12 @@ import "stuntgres/internal/engine/plan"
 // ruleCTECommands maps a rule action's CTE definitions to their commands.
 type ruleCTECommands map[*plan.CTEDefinition]*ruleCTECommand
 
+var (
+	_ insertConflictSlot = (*boundInsertConflict)(nil)
+	_ ruleCTEsSlot       = ruleCTECommands(nil)
+	_ viewWriteSlot      = (*viewWrite)(nil)
+)
+
 func (*boundInsertConflict) InsertConflictSlot() {}
 func (ruleCTECommands) RuleCTEsSlot()            {}
 func (*viewWrite) ViewWriteSlot()                {}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -260,14 +261,14 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 			slot := 0
 			for target, raw := range written {
 				if expansion, expanded := lists[i].expansions[target]; expanded {
-					path := viewLiteralPath{Query: b.frameID(), Clause: ViewValuesCellLiteral, Source: occurrence, Row: i, Target: target}
+					path := viewLiteralPath{Query: b.frameID(), Clause: analyze.ViewValuesCellLiteral, Source: occurrence, Row: i, Target: target}
 					ordinal := 0
 					if err := b.captureCompositeExpansion(raw, expansion, path, &ordinal); err != nil {
 						return nil, err
 					}
 					slot += len(expansion.Fields)
 				} else {
-					if err := b.captureValuesViewLiteral(raw, nodes[i][slot], ViewValuesCellLiteral, occurrence, i, target); err != nil {
+					if err := b.captureValuesViewLiteral(raw, nodes[i][slot], analyze.ViewValuesCellLiteral, occurrence, i, target); err != nil {
 						return nil, err
 					}
 					slot++
@@ -298,16 +299,16 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 	if b.params.noParameters || b.consumer.materializedDefinition {
 		if source.Order != nil {
 			for i, key := range source.Order.Keys {
-				if err := b.captureValuesViewLiteral(key.Expr, order[i].Expression, ViewValuesOrderLiteral, occurrence, 0, i); err != nil {
+				if err := b.captureValuesViewLiteral(key.Expr, order[i].Expression, analyze.ViewValuesOrderLiteral, occurrence, 0, i); err != nil {
 					return nil, err
 				}
 			}
 		}
 		if source.Bounds != nil {
-			if err := b.captureValuesViewLiteral(source.Bounds.Offset, bounds.Offset, ViewValuesOffsetLiteral, occurrence, 0, 0); err != nil {
+			if err := b.captureValuesViewLiteral(source.Bounds.Offset, bounds.Offset, analyze.ViewValuesOffsetLiteral, occurrence, 0, 0); err != nil {
 				return nil, err
 			}
-			if err := b.captureValuesViewLiteral(source.Bounds.Count, bounds.Count, ViewValuesLimitLiteral, occurrence, 0, 0); err != nil {
+			if err := b.captureValuesViewLiteral(source.Bounds.Count, bounds.Count, analyze.ViewValuesLimitLiteral, occurrence, 0, 0); err != nil {
 				return nil, err
 			}
 		}

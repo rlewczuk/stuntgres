@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -54,11 +55,11 @@ func TestJSONBSetViewReplayCastBoundaries(t *testing.T) {
 						t.Fatal("cast replay changed value", round, text, err)
 					}
 				}
-				if err := b.captureViewLiterals(raw, node, ViewTargetLiteral, 0); err != nil {
+				if err := b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 					t.Fatal(round, err)
 				}
 				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.frameID()}
-				emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, viewLiteralPath{Clause: ViewTargetLiteral})
+				emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(round, err)
 				}

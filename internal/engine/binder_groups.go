@@ -15,8 +15,8 @@ import (
 // use names the group it touches. Copying a binder copies them exactly as it
 // copied the flat fields they replace, and a zero group is the state of every
 // binder that does not set it. The binder also holds the binding groups
-// viewCapture and preparedCaptures (binding_groups.go) under the same names
-// as binding, so describe copies them whole.
+// viewCapture and preparedCaptures (analyze/binding_groups.go) under the same
+// names as binding, so describe copies them whole.
 
 // targetContext describes the relation a statement writes and the names its
 // expressions may use for it. DML, rule and generated-column binding set it;

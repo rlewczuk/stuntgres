@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -22,16 +23,16 @@ func (b *expressionBinder) retainedComposite(key preparedCompositeKey, base sqlt
 	if !ok {
 		return captured, false, nil
 	}
-	if (captured.Kind != key.Kind && !(key.Kind == CompositeSelection && captured.Kind == CompositeDotBuiltin)) || captured.Kind == CompositeSelection && len(captured.Attributes) != 1 || captured.Kind == CompositeDotBuiltin && (len(captured.Attributes) != 0 || captured.Function == 0) || base.Type == nil || captured.Base.Type == nil || base.Type.ID() != captured.Base.Type.ID() || captured.Kind != CompositeDotBuiltin && !base.Type.BaseType().IsComposite() {
+	if (captured.Kind != key.Kind && !(key.Kind == analyze.CompositeSelection && captured.Kind == analyze.CompositeDotBuiltin)) || captured.Kind == analyze.CompositeSelection && len(captured.Attributes) != 1 || captured.Kind == analyze.CompositeDotBuiltin && (len(captured.Attributes) != 0 || captured.Function == 0) || base.Type == nil || captured.Base.Type == nil || base.Type.ID() != captured.Base.Type.ID() || captured.Kind != analyze.CompositeDotBuiltin && !base.Type.BaseType().IsComposite() {
 		return compositeOccurrence{}, false, fmt.Errorf("stuntgres: incompatible retained composite occurrence")
 	}
 	return captured, true, nil
 }
 func fieldCompositeKey(raw parser.FieldExpr) preparedCompositeKey {
 	offset := raw.Field.Pos.Offset
-	kind := CompositeSelection
+	kind := analyze.CompositeSelection
 	if raw.Expansion {
-		kind = CompositeExpansion
+		kind = analyze.CompositeExpansion
 		offset = raw.OpenPos.Offset
 		if raw.OpenPos.Character == 0 {
 			offset = raw.Pos.Offset
@@ -41,10 +42,10 @@ func fieldCompositeKey(raw parser.FieldExpr) preparedCompositeKey {
 }
 
 func validateCompositeOccurrence(captured compositeOccurrence, catalog catalog.Read) error {
-	if captured.Kind != CompositeSelection && captured.Kind != CompositeExpansion && captured.Kind != CompositeDotBuiltin && captured.Kind != CompositeWholeRow && captured.Kind != CompositeSourceExpansion && captured.Kind != CompositeRecordArgument || captured.Kind == CompositeSelection && len(captured.Attributes) != 1 || captured.Kind == CompositeRecordArgument && len(captured.Attributes) != 0 || captured.Kind == CompositeWholeRow && (len(captured.Attributes) != 0 || captured.Source.Namespace == 0) || captured.Kind == CompositeDotBuiltin && (len(captured.Attributes) != 0 || captured.Function != functions.CountNulls && captured.Function != functions.CountNonnulls) || captured.Kind != CompositeDotBuiltin && captured.Function != 0 || !validExpressionUsage(catalog, captured.Base) || captured.Kind != CompositeDotBuiltin && !captured.Base.Type.BaseType().IsComposite() {
+	if captured.Kind != analyze.CompositeSelection && captured.Kind != analyze.CompositeExpansion && captured.Kind != analyze.CompositeDotBuiltin && captured.Kind != analyze.CompositeWholeRow && captured.Kind != analyze.CompositeSourceExpansion && captured.Kind != analyze.CompositeRecordArgument || captured.Kind == analyze.CompositeSelection && len(captured.Attributes) != 1 || captured.Kind == analyze.CompositeRecordArgument && len(captured.Attributes) != 0 || captured.Kind == analyze.CompositeWholeRow && (len(captured.Attributes) != 0 || captured.Source.Namespace == 0) || captured.Kind == analyze.CompositeDotBuiltin && (len(captured.Attributes) != 0 || captured.Function != functions.CountNulls && captured.Function != functions.CountNonnulls) || captured.Kind != analyze.CompositeDotBuiltin && captured.Function != 0 || !validExpressionUsage(catalog, captured.Base) || captured.Kind != analyze.CompositeDotBuiltin && !captured.Base.Type.BaseType().IsComposite() {
 		return fmt.Errorf("stuntgres: invalid frozen composite authority")
 	}
-	if captured.Kind == CompositeSourceExpansion && len(captured.Names) != len(captured.Attributes) || captured.Kind != CompositeSourceExpansion && len(captured.Names) != 0 {
+	if captured.Kind == analyze.CompositeSourceExpansion && len(captured.Names) != len(captured.Attributes) || captured.Kind != analyze.CompositeSourceExpansion && len(captured.Names) != 0 {
 		return fmt.Errorf("stuntgres: invalid frozen source labels")
 	}
 	for i, attribute := range captured.Attributes {
@@ -62,7 +63,7 @@ func validateCompositeOccurrence(captured compositeOccurrence, catalog catalog.R
 func (b *expressionBinder) captureCompositeExpansion(raw parser.Expr, expansion plan.CompositeExpansionBinding, path viewLiteralPath, ordinal *int) error {
 	path.Node = *ordinal
 	(*ordinal)++
-	b.capture.CaptureViewComposite(path, CompositeExpansion, expansion.Base, expansion.Attributes)
+	b.capture.CaptureViewComposite(path, analyze.CompositeExpansion, expansion.Base, expansion.Attributes)
 	switch expression := raw.(type) {
 	case parser.FieldExpr:
 		return b.captureViewLiteralTree(expression.Base, expansion.Base, path, ordinal)
@@ -86,7 +87,7 @@ func (b *expressionBinder) bindDotBuiltin(raw parser.FieldExpr, key preparedComp
 	if b.prepared.Composites == nil {
 		b.prepared.Composites = make(map[preparedCompositeKey]compositeOccurrence)
 	}
-	b.prepared.Composites[key] = compositeOccurrence{Kind: CompositeDotBuiltin, Base: call.Args[0].ResultUsage(), Function: call.Kind}
+	b.prepared.Composites[key] = compositeOccurrence{Kind: analyze.CompositeDotBuiltin, Base: call.Args[0].ResultUsage(), Function: call.Kind}
 	return call, nil
 }
 
@@ -129,7 +130,7 @@ func (b *expressionBinder) frozenWholeRowSource(qualifier queryQualifier, frame 
 func (v *viewDefinition) validateCompositeSource(captured compositeOccurrence) error {
 	source := captured.Source
 	if source.Namespace == 0 {
-		if source.Qualifier != 0 || source.Frame != 0 || captured.Kind == CompositeWholeRow {
+		if source.Qualifier != 0 || source.Frame != 0 || captured.Kind == analyze.CompositeWholeRow {
 			return fmt.Errorf("stuntgres: missing frozen whole-row source")
 		}
 		return nil

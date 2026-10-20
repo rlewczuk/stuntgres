@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -17,25 +18,25 @@ func tableLikeOptions(options []parser.LikeOption) tableLikeMask {
 		var bit tableLikeMask
 		switch strings.ToLower(option.Name) {
 		case "comments":
-			bit = LikeComments
+			bit = analyze.LikeComments
 		case "compression":
-			bit = LikeCompression
+			bit = analyze.LikeCompression
 		case "constraints":
-			bit = LikeConstraints
+			bit = analyze.LikeConstraints
 		case "defaults":
-			bit = LikeDefaults
+			bit = analyze.LikeDefaults
 		case "generated":
-			bit = LikeGenerated
+			bit = analyze.LikeGenerated
 		case "identity":
-			bit = LikeIdentity
+			bit = analyze.LikeIdentity
 		case "indexes":
-			bit = LikeIndexes
+			bit = analyze.LikeIndexes
 		case "statistics":
-			bit = LikeStatistics
+			bit = analyze.LikeStatistics
 		case "storage":
-			bit = LikeStorage
+			bit = analyze.LikeStorage
 		case "all":
-			bit = LikeAll
+			bit = analyze.LikeAll
 		}
 		if option.Including {
 			mask |= bit
@@ -94,7 +95,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 		}
 		for slot, attribute := range in.Source.Attributes {
 			target := destination.Attributes[in.TargetSlot(slot)]
-			if in.Options&LikeIdentity != 0 {
+			if in.Options&analyze.LikeIdentity != 0 {
 				if identity, ok := in.Source.ColumnMeta.Identities[attribute]; ok {
 					sequence, ok := auth.Catalog.Relation(identity.Sequence)
 					if !ok || sequence.Sequence == nil {
@@ -112,7 +113,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 					}
 				}
 			}
-			if in.Options&LikeDefaults != 0 {
+			if in.Options&analyze.LikeDefaults != 0 {
 				if old, ok := in.Source.ColumnMeta.Defaults[attribute]; ok {
 					// DEFAULT providers cannot reference the owner row; the cooked immutable
 					// tree, including frozen literals and external identities, is reusable.
@@ -148,7 +149,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 					}
 				}
 			}
-			if in.Options&LikeGenerated != 0 {
+			if in.Options&analyze.LikeGenerated != 0 {
 				if old, ok := in.Source.ColumnMeta.Generations[attribute]; ok {
 					if _, inherited := destination.ColumnMeta.Generations[target]; inherited {
 						diagnostic := sqlError("2BP01", fmt.Sprintf("cannot drop default value for column %s of table %s because column %s of table %s requires it", destination.Columns[in.TargetSlot(slot)].Name, destination.Name(), destination.Columns[in.TargetSlot(slot)].Name, destination.Name())).(*sqlstate.Error)
@@ -173,7 +174,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 					destination.ColumnMeta.Generations[target] = definition
 				}
 			}
-			if in.Options&LikeComments != 0 {
+			if in.Options&analyze.LikeComments != 0 {
 				if comment, ok := in.Source.ColumnMeta.Comments[attribute]; ok {
 					if destination.ColumnMeta.Comments == nil {
 						destination.ColumnMeta.Comments = make(map[int32]string)
@@ -200,7 +201,7 @@ func (e *Engine) stageLikeChecks(op *Operation, auth AuthorizationView, destinat
 	}
 	for i := range inputs {
 		in := &inputs[i]
-		if in.Options&LikeConstraints == 0 {
+		if in.Options&analyze.LikeConstraints == 0 {
 			continue
 		}
 		for _, old := range orderedChecks(in.Source) {

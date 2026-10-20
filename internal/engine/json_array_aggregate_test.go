@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -268,12 +269,12 @@ func TestJSONArrayAggregateStoredReturningPresentation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = b.captureViewLiterals(raw, bound, ViewTargetLiteral, 0); err != nil {
+	if err = b.captureViewLiterals(raw, bound, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
 	renderer := newViewRenderer(&viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages})
 	renderer.frame = b.frameID()
-	text, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, viewLiteralPath{Clause: ViewTargetLiteral})
+	text, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil {
 		t.Fatal(err)
 	}

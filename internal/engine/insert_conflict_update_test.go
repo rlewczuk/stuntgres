@@ -83,7 +83,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(unique.keySlots, []int{0}) {
 		t.Fatal("installed simple/nonpartial FK-key bitmap", unique, err)
 	}
-	analyze := func(q string) (binding, error) {
+	analyzeConflict := func(q string) (binding, error) {
 		statements, err := parser.Parse(q)
 		if err != nil {
 			return binding{}, fmt.Errorf("parse %q: %w", q, err)
@@ -103,7 +103,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 		}
 		return bound, err
 	}
-	parameters, err := analyze("INSERT INTO t VALUES(1,0) ON CONFLICT(k) DO UPDATE SET v=$1 WHERE $2")
+	parameters, err := analyzeConflict("INSERT INTO t VALUES(1,0) ON CONFLICT(k) DO UPDATE SET v=$1 WHERE $2")
 	if err != nil || parameters.Parameters.Count != 2 || parameters.Parameters.Types[0].Type.ID() != sqltype.Int4 || parameters.Parameters.Types[1].Type.ID() != sqltype.Bool {
 		t.Fatal("action-only contextual parameter manifest", parameters.Parameters, err)
 	}
@@ -111,7 +111,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 		{"INSERT INTO t VALUES(1,0) ON CONFLICT(k) DO UPDATE SET v=$1 WHERE $1", "42804", "argument of WHERE must be type boolean, not type integer", "67"},
 		{"INSERT INTO t VALUES(1,0) ON CONFLICT(k) DO UPDATE SET v=nope WHERE 1", "42703", `column "nope" does not exist`, "58"},
 	} {
-		_, err := analyze(tc.q)
+		_, err := analyzeConflict(tc.q)
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != tc.code || d.Message != tc.message || d.Position != tc.position {
 			t.Fatal("SET precedes WHERE, with shared parameter captures", tc, err)
@@ -132,7 +132,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 		{"subquery", "INSERT INTO t VALUES(1,0) ON CONFLICT(k) DO UPDATE SET v=(SELECT 1/0) WHERE FALSE", false, true},
 		{"constant_value", "INSERT INTO t VALUES(1,0) ON CONFLICT(k) DO UPDATE SET v=1+2 WHERE FALSE", false, false},
 	} {
-		action, err := analyze(tc.query)
+		action, err := analyzeConflict(tc.query)
 		if err != nil {
 			t.Fatal(tc.name, err)
 		}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -29,7 +30,7 @@ func (b *expressionBinder) bindWindowBound(raw parser.FrameBound, order []plan.S
 		}
 		b.clause.aggregateClause = "window " + label
 		var err error
-		bound.Offset, err = b.bindQueryBound(raw.Offset, label, ViewWindowLiteral, false)
+		bound.Offset, err = b.bindQueryBound(raw.Offset, label, analyze.ViewWindowLiteral, false)
 		return bound, err
 	}
 	operand, err := b.comparisonOperand(raw.Offset)

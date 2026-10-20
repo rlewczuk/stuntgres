@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -37,7 +38,7 @@ func jsonbSetContextualArrayCapture(t *testing.T, query, wantA, wantB string) {
 	}
 	// The actual selected-function path must capture the written VARCHAR cast
 	// and original column, not mistake the contextual TEXT conversion for it.
-	if err := b.captureViewLiterals(raw, node, ViewTargetLiteral, 0); err != nil {
+	if err := b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
 	foundColumn, foundTypmod := false, false

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -269,7 +270,7 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 	if err != nil || len(out) != 4 {
 		t.Fatal("initial star", out, err)
 	}
-	key := preparedCompositeKey{Offset: 40, Kind: CompositeSourceExpansion, Projection: 7}
+	key := preparedCompositeKey{Offset: 40, Kind: analyze.CompositeSourceExpansion, Projection: 7}
 	captured := b.prepared.Composites[key]
 	if err := validateCompositeOccurrence(captured, view); err != nil {
 		t.Fatal(err)
@@ -364,11 +365,11 @@ func TestJSONBRecordReplay(t *testing.T) {
 				if err != nil || text != tc.want {
 					t.Fatal("replay changed conversion", round, text, err)
 				}
-				if err := b.captureViewLiterals(raw, node, ViewTargetLiteral, 0); err != nil {
+				if err := b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 					t.Fatal(round, err)
 				}
 				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.frameID()}
-				emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, viewLiteralPath{Clause: ViewTargetLiteral})
+				emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(round, err)
 				}
@@ -405,7 +406,7 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 				t.Fatal("base capture escaped or was absent")
 			}
 			for _, captured := range first.prepared.Composites {
-				if captured.Kind != CompositeRecordArgument || captured.Base.Type != original {
+				if captured.Kind != analyze.CompositeRecordArgument || captured.Base.Type != original {
 					t.Fatal("wrong provider capture", captured)
 				}
 				if err := validateCompositeOccurrence(captured, view); err != nil {

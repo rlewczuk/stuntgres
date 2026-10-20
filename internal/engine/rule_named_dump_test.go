@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -88,13 +89,13 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 								column.Origin.Address.ObjectID != inputRef.Address.ObjectID || column.Origin.Address.SubID != int32(i+1) {
 								t.Fatal("modifier projection lost its own input attribute")
 							}
-							path := viewLiteralPath{Query: project.Frame, Clause: ViewTargetLiteral, Target: i}
+							path := viewLiteralPath{Query: project.Frame, Clause: analyze.ViewTargetLiteral, Target: i}
 							captured, ok := presentation.columns[path]
 							if !ok || captured.RuleSide != 0 || captured.Frame != project.Frame {
 								t.Fatal("modifier source presentation lost its own capture")
 							}
 						}
-						path := viewLiteralPath{Query: outer.Frame, Clause: ViewTargetLiteral}
+						path := viewLiteralPath{Query: outer.Frame, Clause: analyze.ViewTargetLiteral}
 						if action.presentation.columns[path].RuleSide != 2 {
 							t.Fatal("consumer lost its separate NEW recipe")
 						}

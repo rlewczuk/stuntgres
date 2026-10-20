@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -549,7 +550,7 @@ func ruleDumpGroups(ctx context.Context, view catalog.Read, roles authorization.
 			if r.condition != nil {
 				renderer := newViewRenderer(r.conditionPresentation)
 				renderer.frame = r.conditionPresentation.query.Root.(*plan.ProjectNode).Frame
-				text, err := renderer.expressionSQL(ctx, view, r.conditionPresentation.syntax.Targets[0], viewLiteralPath{Clause: ViewTargetLiteral})
+				text, err := renderer.expressionSQL(ctx, view, r.conditionPresentation.syntax.Targets[0], viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {
 					return nil, err
 				}

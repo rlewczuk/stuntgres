@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
@@ -772,7 +773,7 @@ func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Stat
 			}
 		}
 	}
-	b.Resolvers = NewResolverInputs(binder.input)
+	b.Resolvers = analyze.NewResolverInputs(binder.input)
 	return b, nil
 }
 

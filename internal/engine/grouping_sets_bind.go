@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -131,7 +132,7 @@ func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection [
 			return out, err
 		}
 		if (b.params.noParameters || b.consumer.materializedDefinition) && !isOrdinal {
-			if err := b.captureViewLiterals(item.Expr, key, ViewGroupLiteral, leaf); err != nil {
+			if err := b.captureViewLiterals(item.Expr, key, analyze.ViewGroupLiteral, leaf); err != nil {
 				return out, err
 			}
 		}

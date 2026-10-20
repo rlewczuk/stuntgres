@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -78,12 +79,12 @@ func TestStringIdentReconstruction(t *testing.T) {
 	}
 	// Frozen views use their retained AST renderer rather than either bound
 	// scalar renderer. Both presentation and replay must retain named actuals.
-	if err := b.captureViewLiterals(raw, n, ViewTargetLiteral, 0); err != nil {
+	if err := b.captureViewLiterals(raw, n, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
 	for _, deparse := range []bool{false, true} {
 		renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.frameID(), presentation: viewPresentation{deparse: deparse, pretty: true}}
-		sql, err := renderer.expressionSQL(context.Background(), b.bindingCatalog(), raw, viewLiteralPath{Clause: ViewTargetLiteral})
+		sql, err := renderer.expressionSQL(context.Background(), b.bindingCatalog(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -1,4 +1,4 @@
-package engine
+package analyze
 
 import (
 	"stuntgres/internal/engine/catalog"
@@ -7,12 +7,12 @@ import (
 	"stuntgres/internal/parser"
 )
 
-type boundUpdate struct {
+type UpdateBinding struct {
 	Assignments    []expr.Expr
-	DefaultOrigins []defaultOrigin
+	DefaultOrigins []DefaultOrigin
 	ArrayTargets   []*plan.ArrayAssignmentTarget
 	// Group query graphs are owned by their first assignment recipe.
-	Groups      []updateAssignmentGroup
+	Groups      []AssignmentGroup
 	Origins     []parser.Position // Flat origins, including DEFAULT after group expansion.
 	OutputWidth int
 	Predicate   expr.Expr
@@ -23,14 +23,14 @@ type boundUpdate struct {
 // The first recipe owns the source query through plan.SubqueryExpr. Remaining
 // outputs are lexical leaves, so all existing query graph transformations visit
 // a group source exactly once, without adding a parallel graph ownership path.
-type updateAssignmentGroup struct {
+type AssignmentGroup struct {
 	Start, Width int
 }
 
-type boundMerge struct {
+type MergeBinding struct {
 	Source        plan.Node
 	On            expr.Expr
-	Arms          []boundMergeArm
+	Arms          []MergeArm
 	HasInsert     bool
 	HasDelete     bool
 	HasNothing    bool
@@ -42,15 +42,15 @@ type boundMerge struct {
 	UpdateTargets []int
 }
 
-type boundMergeArm struct {
+type MergeArm struct {
 	Match     parser.MergeMatch
 	Action    parser.MergeAction
 	Condition expr.Expr
-	Input     binding
+	Input     Binding
 	Syntax    []parser.Expr
 }
 
-type boundReturning struct {
+type Returning struct {
 	Expressions        []expr.Expr
 	Schema             []catalog.Column
 	RegclassOutput     bool

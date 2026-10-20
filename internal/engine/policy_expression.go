@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -36,7 +37,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 		return nil, alterCookingError(err)
 	}
 	raw = b.normalizeStoredExpression(raw)
-	if err = b.captureViewLiterals(raw, node, ViewTargetLiteral, 0); err != nil {
+	if err = b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 		return nil, err
 	}
 	source := &plan.SourceNode{QuerySchema: d.Columns, Ref: ref, Occurrence: 0}

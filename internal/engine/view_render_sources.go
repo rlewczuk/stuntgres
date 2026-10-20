@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -652,7 +653,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 			}
 		}
 		if n.On != nil {
-			on, err := v.expressionSQL(ctx, catalogView, n.On, viewLiteralPath{Clause: ViewJoinLiteral, Target: ordinal})
+			on, err := v.expressionSQL(ctx, catalogView, n.On, viewLiteralPath{Clause: analyze.ViewJoinLiteral, Target: ordinal})
 			if err != nil {
 				return viewRenderFrom{}, err
 			}

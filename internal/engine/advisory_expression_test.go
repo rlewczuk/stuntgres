@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -51,7 +52,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 				if !node.ValidStored() {
 					t.Fatal("bound producer lost stored signature")
 				}
-				if err = b.captureViewLiterals(raw, node, ViewTargetLiteral, 0); err != nil || len(b.capture.Literals) != len(node.Args) {
+				if err = b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil || len(b.capture.Literals) != len(node.Args) {
 					t.Fatal("view literal children", len(b.capture.Literals), err)
 				}
 				text, err := (pgRenderer{view: e.CatalogRead()}).sql(ctx, node, pgRenderParent{})

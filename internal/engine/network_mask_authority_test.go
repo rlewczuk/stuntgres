@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -135,7 +136,7 @@ func TestNetworkMaskStoredLiteralIdentity(t *testing.T) {
 		t.Run(tc.expression, func(t *testing.T) {
 			node, b, _ := strictNullUnitBind(t, e, op, scope, tc.expression)
 			raw := statement(t, "SELECT "+tc.expression).(*parser.Select).Targets[0]
-			if err := b.captureViewLiterals(raw, node, ViewTargetLiteral, 0); err != nil {
+			if err := b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 				t.Fatal("literal pairing", err)
 			}
 			want := make(map[literalIdentity]int)

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -116,11 +117,11 @@ func TestJSONBExtractStoredVariadicProvenance(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if err := b.captureViewLiterals(raw, node, ViewTargetLiteral, 0); err != nil {
+				if err := b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 					t.Fatal(err)
 				}
 				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.frameID()}
-				replaySQL, err := renderer.expressionSQL(ctx, view, raw, viewLiteralPath{Clause: ViewTargetLiteral})
+				replaySQL, err := renderer.expressionSQL(ctx, view, raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(err)
 				}

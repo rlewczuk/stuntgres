@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -207,7 +208,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 			return r, err
 		}
 		normalizedCondition := binder.normalizeStoredExpression(s.Condition)
-		if err := binder.captureViewLiterals(normalizedCondition, r.condition, ViewTargetLiteral, 0); err != nil {
+		if err := binder.captureViewLiterals(normalizedCondition, r.condition, analyze.ViewTargetLiteral, 0); err != nil {
 			return r, err
 		}
 		query := &parser.Select{Targets: []parser.Expr{normalizedCondition}}

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -344,7 +345,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 				b.capture.Namespaces[ordinal].Node, b.capture.Namespaces[ordinal].Ordinal = frozenNamespaceNode(root)
 				b.capture.Namespaces[ordinal].Columns = b.query.freezeViewColumns(namespace.columns)
 				for _, q := range namespace.qualifiers {
-					b.capture.Namespaces[ordinal].Qualifiers = append(b.capture.Namespaces[ordinal].Qualifiers, viewNamespaceQualifier{q.name, b.query.freezeViewColumns(q.columns)})
+					b.capture.Namespaces[ordinal].Qualifiers = append(b.capture.Namespaces[ordinal].Qualifiers, viewNamespaceQualifier{Name: q.name, Columns: b.query.freezeViewColumns(q.columns)})
 				}
 			}
 		}()
@@ -579,7 +580,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 				return nil, queryNamespace{}, err
 			}
 			if b.params.noParameters || b.consumer.materializedDefinition {
-				if err := b.captureViewLiterals(n.On, join.Predicate, ViewJoinLiteral, joinOrdinal); err != nil {
+				if err := b.captureViewLiterals(n.On, join.Predicate, analyze.ViewJoinLiteral, joinOrdinal); err != nil {
 					return nil, queryNamespace{}, err
 				}
 			}
@@ -1031,7 +1032,7 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 	if ordinal >= 0 {
 		for i, raw := range rawCalls {
 			bound := calls[i]
-			path := viewLiteralPath{Query: b.frameID(), Clause: ViewFunctionLiteral, Source: ordinal, Target: i}
+			path := viewLiteralPath{Query: b.frameID(), Clause: analyze.ViewFunctionLiteral, Source: ordinal, Target: i}
 			at := 0
 			if err := b.captureViewLiteralTree(raw, bound, path, &at); err != nil {
 				return nil, queryNamespace{}, err

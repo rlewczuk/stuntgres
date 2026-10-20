@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"slices"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -71,7 +72,7 @@ func TestTableLikeTemporaryDefaultAuthority(t *testing.T) {
 			e.mu.Lock()
 			auth, err := e.authorizationLocked(op)
 			if err == nil {
-				err = e.stageLikeColumns(op, auth, stage, &foreign, []createLikeInput{{Source: source, Options: LikeDefaults}})
+				err = e.stageLikeColumns(op, auth, stage, &foreign, []createLikeInput{{Source: source, Options: analyze.LikeDefaults}})
 			}
 			e.mu.Unlock()
 			sequenceOwnerDiagnostic(t, err, "0A000", "temporary sequence DEFAULT is unsupported", "")

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -339,7 +340,7 @@ func TestQueryWindowExcludeLiteralCapture(t *testing.T) {
 	binder.grouping.windowCalls = append([]plan.WindowCall(nil), window.Calls...)
 	binder.grouping.windowCalls[0].Spec = window.Specs[0]
 	raw := statement(t, sql).(*parser.Select).Targets[0]
-	if err := binder.captureViewLiterals(raw, project.Expressions[0], ViewTargetLiteral, 0); err != nil {
+	if err := binder.captureViewLiterals(raw, project.Expressions[0], analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
 	if len(binder.capture.Literals) != 1 || len(binder.capture.Columns) != 1 {

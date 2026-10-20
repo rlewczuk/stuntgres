@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -1666,7 +1667,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		return nil, err
 	}
 	if b.clause.jsonbRecordBase && raw.Syntax != parser.FunctionCast && target.Type.IsUserDefined() && target.Type.BaseType().IsComposite() {
-		b.prepared.CaptureComposite(preparedCompositeKey{Offset: raw.TypeName.Pos.Offset, Kind: CompositeRecordArgument}, target, nil)
+		b.prepared.CaptureComposite(preparedCompositeKey{Offset: raw.TypeName.Pos.Offset, Kind: analyze.CompositeRecordArgument}, target, nil)
 	}
 	if target.Type.ID() == sqltype.Unknown {
 		// UNKNOWN is syntax provenance only, never an executable datum type.

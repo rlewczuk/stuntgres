@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
@@ -14,7 +15,7 @@ import (
 func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *CatalogStage, destination *catalog.Relation, inputs []createLikeInput) error {
 	for i := range inputs {
 		in := &inputs[i]
-		if in.Options&LikeIndexes == 0 {
+		if in.Options&analyze.LikeIndexes == 0 {
 			continue
 		}
 		var sources []*catalog.Relation
@@ -169,7 +170,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 				lookup[columns[i].Name] = i
 			}
 			index := &catalog.Relation{ObjectAddress: address, ObjectNamespace: destination.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: destination.Owner, Columns: columns, Attributes: slices.Clone(source.Attributes), ColumnMeta: catalog.ColumnMetadata{HighWater: source.ColumnMeta.HighWater}, Index: lookup, RelationKind: catalog.IndexRelation, SQLIndex: &definition}
-			if in.Options&LikeComments != 0 {
+			if in.Options&analyze.LikeComments != 0 {
 				index.Comment = source.Comment
 			}
 			if err := stage.Create(index); err != nil {

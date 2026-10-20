@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 	"testing"
@@ -27,10 +28,10 @@ func intaggUnitRecipes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := b.captureViewLiterals(raw, node, ViewTargetLiteral, 0); err != nil {
+			if err := b.captureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 				t.Fatal(err)
 			}
-			path := viewLiteralPath{Query: b.frameID(), Clause: ViewTargetLiteral}
+			path := viewLiteralPath{Query: b.frameID(), Clause: analyze.ViewTargetLiteral}
 			name := extension.IntaggRecipeFunction(raw)
 			ref, ok := b.capture.RoutineRefs[path]
 			if !ok || ref.Address == (ids.ObjectAddress{}) || len(b.capture.RoutineRefs) != 1 {
@@ -48,7 +49,7 @@ func intaggUnitRecipes(t *testing.T) {
 			}
 			renderer := newViewRenderer(definition)
 			renderer.frame = b.frameID()
-			text, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, viewLiteralPath{Clause: ViewTargetLiteral})
+			text, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
 			if err != nil || !strings.HasPrefix(text, `"public"."`+name+`"(`) {
 				t.Fatal("unqualified bound recipe", text, err)
 			}

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 )
@@ -68,7 +69,7 @@ func bindCreateUniques(s *parser.CreateTable, index map[string]int, likes []crea
 	// redundancy candidate. It is retained first, even before explicit UNIQUE.
 	for i := range likes {
 		in := &likes[i]
-		if in.Options&LikeIndexes == 0 {
+		if in.Options&analyze.LikeIndexes == 0 {
 			continue
 		}
 		for _, old := range in.Source.Constraints.Unique {
@@ -82,7 +83,7 @@ func bindCreateUniques(s *parser.CreateTable, index map[string]int, likes []crea
 			if !ok || source.SQLIndex == nil {
 				return nil, fmt.Errorf("stuntgres: missing LIKE primary backing")
 			}
-			c := createUniqueConstraint{UniqueConstraint: catalog.UniqueConstraint{Primary: true, Attributes: make([]int32, len(old.Attributes))}, Source: source, Like: in, CopyComments: in.Options&LikeComments != 0}
+			c := createUniqueConstraint{UniqueConstraint: catalog.UniqueConstraint{Primary: true, Attributes: make([]int32, len(old.Attributes))}, Source: source, Like: in, CopyComments: in.Options&analyze.LikeComments != 0}
 			for i, attribute := range old.Attributes {
 				slot := slices.Index(in.Source.Attributes, attribute)
 				if slot < 0 {

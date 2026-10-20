@@ -1,4 +1,4 @@
-package engine
+package analyze
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 
 // Column-local structure is validated as CREATE reaches each typed column,
 // before later elements or any default-expression cooking.
-type createColumnDeclaration struct {
+type ColumnDeclaration struct {
 	ColumnNotNull    bool
 	ColumnName       string
 	NotNull          bool
@@ -23,12 +23,12 @@ type createColumnDeclaration struct {
 	Serial           bool
 }
 
-type createInheritanceInput struct {
+type InheritanceInput struct {
 	Ref    ids.ObjectRef
 	Source *catalog.Relation
 }
 
-func (in createLikeInput) Attribute(destination *catalog.Relation, old int32) (int32, error) {
+func (in LikeInput) Attribute(destination *catalog.Relation, old int32) (int32, error) {
 	slot := slices.Index(in.Source.Attributes, old)
 	if slot < 0 {
 		return 0, fmt.Errorf("stuntgres: missing LIKE index attribute")
@@ -38,17 +38,17 @@ func (in createLikeInput) Attribute(destination *catalog.Relation, old int32) (i
 
 // Source provenance is CREATE-local, never part of the persistent constraint.
 // Ordinary LIKE index copies retain their existing independent copy semantics.
-type createUniqueConstraint struct {
+type UniqueConstraint struct {
 	catalog.UniqueConstraint
 	Source       *catalog.Relation
-	Like         *createLikeInput
+	Like         *LikeInput
 	CopyComments bool
 }
 
-type tableLikeMask uint16
+type LikeMask uint16
 
 const (
-	LikeComments tableLikeMask = 1 << iota
+	LikeComments LikeMask = 1 << iota
 	LikeCompression
 	LikeConstraints
 	LikeDefaults
@@ -60,18 +60,18 @@ const (
 	LikeAll = (1 << 9) - 1
 )
 
-type createLikeInput struct {
+type LikeInput struct {
 	Ref         ids.ObjectRef
 	Source      *catalog.Relation
 	SourceType  *catalog.Type
 	Offset      int
 	TargetSlots []int
-	Options     tableLikeMask
+	Options     LikeMask
 	RowRef      func(ids.ObjectRef) ids.ObjectRef
 	Slots       map[int32]int
 }
 
-func (in createLikeInput) TargetSlot(slot int) int {
+func (in LikeInput) TargetSlot(slot int) int {
 	if in.TargetSlots != nil {
 		return in.TargetSlots[slot]
 	}
@@ -80,7 +80,7 @@ func (in createLikeInput) TargetSlot(slot int) int {
 
 // Captures are transient CREATE inputs. Source rows, authority and object-literal
 // references are never imported; row owners and stable attributes are mapped.
-func (in createLikeInput) RowMapper(destination *catalog.Relation, authority catalog.Read) (func(ids.ObjectRef) ids.ObjectRef, map[int32]int) {
+func (in LikeInput) RowMapper(destination *catalog.Relation, authority catalog.Read) (func(ids.ObjectRef) ids.ObjectRef, map[int32]int) {
 	attributes := make(map[int32]int32, len(in.Source.Attributes))
 	slots := make(map[int32]int, len(in.Source.Attributes))
 	for slot, attribute := range in.Source.Attributes {

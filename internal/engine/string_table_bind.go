@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -132,7 +133,7 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (plan.Node
 		calls[i] = bound
 		schema[i] = catalog.Column{Name: "string_to_table", Usage: bound.ResultUsage()}
 		if b.params.noParameters || b.consumer.materializedDefinition {
-			if err := b.captureViewLiterals(call, bound, ViewFunctionLiteral, ordinal+i); err != nil {
+			if err := b.captureViewLiterals(call, bound, analyze.ViewFunctionLiteral, ordinal+i); err != nil {
 				return nil, queryNamespace{}, err
 			}
 		}

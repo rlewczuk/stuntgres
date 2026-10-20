@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -17,12 +18,12 @@ func (b *expressionBinder) bindQueryBounds(raw *parser.QueryBounds, captureLiter
 	old := b.clause.aggregateClause
 	defer func() { b.clause.aggregateClause = old }()
 	b.clause.aggregateClause = "OFFSET"
-	n.Offset, err = b.bindQueryBound(raw.Offset, "OFFSET", ViewOffsetLiteral, captureLiterals)
+	n.Offset, err = b.bindQueryBound(raw.Offset, "OFFSET", analyze.ViewOffsetLiteral, captureLiterals)
 	if err != nil {
 		return nil, err
 	}
 	b.clause.aggregateClause = "LIMIT"
-	n.Count, err = b.bindQueryBound(raw.Count, "LIMIT", ViewLimitLiteral, captureLiterals)
+	n.Count, err = b.bindQueryBound(raw.Count, "LIMIT", analyze.ViewLimitLiteral, captureLiterals)
 	if err == nil && raw.WithTies {
 		if literal, ok := raw.Count.(parser.LiteralExpr); ok && literal.Value.Kind == parser.NullValue {
 			return nil, sqlError("2201W", "row count cannot be null in FETCH FIRST ... WITH TIES clause")

@@ -1,4 +1,4 @@
-package engine
+package analyze
 
 import (
 	"fmt"
@@ -13,9 +13,9 @@ import (
 
 // Both installed and SQL routines use the existing occurrence identity map.
 // Syntax markers demand a capture, but never grant catalog authority themselves.
-func (c *viewCapture) CaptureRoutineReference(path viewLiteralPath, ref ids.ObjectRef) error {
+func (c *ViewCapture) CaptureRoutineReference(path ViewLiteralPath, ref ids.ObjectRef) error {
 	if c.RoutineRefs == nil {
-		c.RoutineRefs = make(map[viewLiteralPath]ids.ObjectRef)
+		c.RoutineRefs = make(map[ViewLiteralPath]ids.ObjectRef)
 	}
 	if old, exists := c.RoutineRefs[path]; exists && old != ref {
 		return fmt.Errorf("stuntgres: conflicting frozen routine occurrence")
@@ -26,14 +26,14 @@ func (c *viewCapture) CaptureRoutineReference(path viewLiteralPath, ref ids.Obje
 
 // Default origin is statement-private authority, not a fabricated pg_attrdef for
 // a domain recipe. Views retain this origin while mapping to physical slots.
-type defaultOrigin struct {
+type DefaultOrigin struct {
 	Definition catalog.ColumnDefault
 	Consumer   *catalog.Relation
 	Quote      exec.QuoteOrigin
 	Requested  bool // UPDATE explicitly selected DEFAULT, including fresh NULL.
 }
 
-type regtypeConstant struct {
+type RegtypeConstant struct {
 	Offset     int
 	Operator   sqltype.ID
 	TypeID     sqltype.ID
@@ -41,17 +41,17 @@ type regtypeConstant struct {
 	Value      sqltype.Value
 	Qualified  []ids.ObjectAddress
 	Operands   []catalog.ExpressionDependency
-	References []regObjectReference
+	References []RegObjectReference
 }
 
-type regObjectReference struct {
+type RegObjectReference struct {
 	Address       ids.ObjectAddress
 	Name          string
 	Namespace     ids.ObjectAddress
 	NamespaceName string
 }
 
-type temporalConstant struct {
+type TemporalConstant struct {
 	Offset       int
 	Scalar       int64
 	Typmod       int32
@@ -63,7 +63,7 @@ type temporalConstant struct {
 	Value        sqltype.Value // immutable analyzed compound or enum literal
 }
 
-type viewColumn struct {
+type ViewColumn struct {
 	Frame    uint32
 	Slot     int
 	RuleRef  ids.ObjectRef
@@ -73,30 +73,30 @@ type viewColumn struct {
 // Namespace labels and frame slots are immutable analysis metadata, not an
 // execution node. Leaf/attribute identities survive current positional changes;
 // computed USING slots have no leaf identity.
-type viewNamespaceColumn struct {
+type ViewNamespaceColumn struct {
 	Name       string
 	Slot, Leaf int
 	Attribute  int32
 }
 
-type viewNamespaceQualifier struct {
+type ViewNamespaceQualifier struct {
 	Name    string
-	Columns []viewNamespaceColumn
+	Columns []ViewNamespaceColumn
 }
 
-type viewNamespace struct {
+type ViewNamespace struct {
 	Frame      uint32
 	Node       uint8
 	Ordinal    int
-	Columns    []viewNamespaceColumn
-	Qualifiers []viewNamespaceQualifier
+	Columns    []ViewNamespaceColumn
+	Qualifiers []ViewNamespaceQualifier
 	Keys       []string
 }
 
-type compositeOccurrenceKind uint8
+type CompositeOccurrenceKind uint8
 
 const (
-	CompositeSelection compositeOccurrenceKind = iota + 1
+	CompositeSelection CompositeOccurrenceKind = iota + 1
 	CompositeExpansion
 	CompositeDotBuiltin
 	CompositeWholeRow
@@ -104,8 +104,8 @@ const (
 	CompositeRecordArgument
 )
 
-type compositeOccurrence struct {
-	Kind       compositeOccurrenceKind
+type CompositeOccurrence struct {
+	Kind       CompositeOccurrenceKind
 	Base       sqltype.Usage
 	Attributes []int32
 	Names      []string // Original exposed labels for a selected source star.
@@ -113,34 +113,34 @@ type compositeOccurrence struct {
 	Source     plan.WholeRowSource
 }
 
-type preparedCompositeKey struct {
+type PreparedCompositeKey struct {
 	Offset     int
-	Kind       compositeOccurrenceKind
+	Kind       CompositeOccurrenceKind
 	Projection int // Star offset; one source can occur in several target stars.
 }
 
-func (p *preparedCaptures) CaptureComposite(key preparedCompositeKey, base sqltype.Usage, attributes []int32) {
+func (p *PreparedCaptures) CaptureComposite(key PreparedCompositeKey, base sqltype.Usage, attributes []int32) {
 	if p.Composites == nil {
-		p.Composites = make(map[preparedCompositeKey]compositeOccurrence)
+		p.Composites = make(map[PreparedCompositeKey]CompositeOccurrence)
 	}
-	p.Composites[key] = compositeOccurrence{Kind: key.Kind, Base: base, Attributes: attributes}
+	p.Composites[key] = CompositeOccurrence{Kind: key.Kind, Base: base, Attributes: attributes}
 }
 
-func (c *viewCapture) CaptureViewComposite(path viewLiteralPath, kind compositeOccurrenceKind, base expr.Expr, attributes []int32) {
+func (c *ViewCapture) CaptureViewComposite(path ViewLiteralPath, kind CompositeOccurrenceKind, base expr.Expr, attributes []int32) {
 	if c.Composites == nil {
-		c.Composites = make(map[viewLiteralPath]compositeOccurrence)
+		c.Composites = make(map[ViewLiteralPath]CompositeOccurrence)
 	}
 	source := plan.WholeRowSource{}
 	if row, ok := base.(plan.RowExpr); ok {
 		source = row.WholeSource
 	}
-	c.Composites[path] = compositeOccurrence{Kind: kind, Base: base.ResultUsage(), Attributes: attributes, Source: source}
+	c.Composites[path] = CompositeOccurrence{Kind: kind, Base: base.ResultUsage(), Attributes: attributes, Source: source}
 }
 
-type viewLiteralClause uint8
+type ViewLiteralClause uint8
 
 const (
-	ViewTargetLiteral viewLiteralClause = iota
+	ViewTargetLiteral ViewLiteralClause = iota
 	ViewWhereLiteral
 	ViewGroupLiteral
 	ViewHavingLiteral
@@ -159,9 +159,9 @@ const (
 
 // Each lowered syntax occurrence has its own structural key. BETWEEN can bind
 // the same source position independently to different types in its two branches.
-type viewLiteralPath struct {
+type ViewLiteralPath struct {
 	Query       uint32
-	Clause      viewLiteralClause
+	Clause      ViewLiteralClause
 	Target      int
 	Node        int
 	Source, Row int
