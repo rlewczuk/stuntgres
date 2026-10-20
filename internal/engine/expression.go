@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -105,7 +106,7 @@ type evalAdmission struct {
 	routineConsumer    *catalog.Relation
 	routineProgram     *routineAdmissionProgram // Borrowed serial preparation footprint, never row-owned.
 	routineBodyContext routineBodyContext
-	domainPhase        DomainCheckIdentity // Existing transaction/command identity, not a permission result.
+	domainPhase        typedef.DomainCheckIdentity // Existing transaction/command identity, not a permission result.
 }
 
 // A folded value retains conservative type/dependence metadata and the original

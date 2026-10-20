@@ -4,14 +4,16 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func collationUnitPublish(t *testing.T, e *Engine, stage *CatalogStage) {
@@ -79,7 +81,7 @@ func TestCollationCatalogAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
-	if CollationSQLName(view, 90000) != `"public"."registered"` || CollationSQLName(e.CatalogRead(), 90000) != `"public"."renamed"` {
+	if typedef.CollationSQLName(view, 90000) != `"public"."registered"` || typedef.CollationSQLName(e.CatalogRead(), 90000) != `"public"."renamed"` {
 		t.Fatal("snapshot names lost identity")
 	}
 	if current, err := next.Usage(); err != nil || current != ref {

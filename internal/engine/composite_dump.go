@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 )
 
 func dumpColumnPredecessors(view catalog.Read, relation *catalog.Relation, predecessors []ids.OID) ([]ids.OID, error) {
@@ -34,7 +36,7 @@ func dumpColumnPredecessors(view catalog.Read, relation *catalog.Relation, prede
 
 func compositeDumpStatement(ctx context.Context, view catalog.Read, roles authorization.Read, relation *catalog.Relation) (dumpDomain, error) {
 	row := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(relation.RowType)})
-	if !DefaultDomainACL(row) {
+	if !typedef.DefaultDomainACL(row) {
 		return dumpDomain{}, fmt.Errorf("stuntgres: dump cannot serialize changed composite ACL")
 	}
 	owner, err := roles.Descriptor(relation.Owner)
@@ -57,7 +59,7 @@ func compositeDumpStatement(ctx context.Context, view catalog.Read, roles author
 		}
 		sql.WriteString(catalog.QuoteIdentifier(c.Name) + " " + declaration)
 		if c.Usage.Collation != c.Usage.Type.Usage().Collation {
-			name := CollationSQLName(view, c.Usage.Collation.ID)
+			name := typedef.CollationSQLName(view, c.Usage.Collation.ID)
 			if name == "" {
 				return dumpDomain{}, fmt.Errorf("stuntgres: unsupported composite member collation")
 			}
@@ -71,7 +73,7 @@ func compositeDumpStatement(ctx context.Context, view catalog.Read, roles author
 // Render from the captured graph only. All row creators reserve their implicit
 // array names here, so domain-on-array replay follows the actual mixed order.
 func mixedDumpStatements(ctx context.Context, view catalog.Read, roles authorization.Read, order []ids.OID, domains map[ids.OID]*catalog.Type, composites map[ids.OID]*catalog.Relation) (map[ids.OID]dumpDomain, error) {
-	replay := NewDomainReplayNames()
+	replay := typedef.NewDomainReplayNames()
 	result := make(map[ids.OID]dumpDomain, len(domains)+len(composites))
 	for _, id := range order {
 		if err := ctx.Err(); err != nil {

@@ -2,9 +2,11 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -400,7 +402,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		}
 		relation, _ := b.query.auth.definitionRelation(ref.Address)
 		if relation.RelationKind == catalog.CompositeRelation {
-			return nil, queryNamespace{}, CompositeOpenError(relation, n.Name.Parts[0].Pos)
+			return nil, queryNamespace{}, typedef.CompositeOpenError(relation, n.Name.Parts[0].Pos)
 		}
 		if relation.RelationKind == catalog.IndexRelation {
 			if b.target.deleteUsingSources {

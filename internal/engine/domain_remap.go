@@ -3,14 +3,16 @@ package engine
 import (
 	"fmt"
 	"strconv"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
 
 func reownCatalogScalarTypes(next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress) error {
-	collation := RemappedCollationCapabilities(next, mapping)
+	collation := typedef.RemappedCollationCapabilities(next, mapping)
 	typ := func(old *sqltype.Descriptor) *sqltype.Descriptor {
 		if d, ok := next.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(old.ID())}); ok {
 			return d.SQLType
@@ -75,7 +77,7 @@ func reownCatalogScalarTypes(next *catalog.State, relations map[ids.ObjectAddres
 				changed := target != value.Type()
 				var err error
 				if changed || next.ACLItemImport() != nil && value.Type().ContainsACLItem() {
-					rebound, err = ReownDomainDatum(value, target, collation, next.ScalarImports(), next.ACLItemImport())
+					rebound, err = typedef.ReownDomainDatum(value, target, collation, next.ScalarImports(), next.ACLItemImport())
 					if err != nil {
 						return err
 					}

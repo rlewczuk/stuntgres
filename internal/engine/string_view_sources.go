@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -61,7 +63,7 @@ func (v *viewRenderer) renderFunctionTableSQL(ctx context.Context, catalog catal
 				}
 				members[j] = v.presentation.identifier(member.Name) + " " + declaration
 				if member.Usage.Collation.ID != 0 {
-					name := CollationSQLName(catalog, member.Usage.Collation.ID)
+					name := typedef.CollationSQLName(catalog, member.Usage.Collation.ID)
 					if name == "" {
 						return viewRenderFrom{}, fmt.Errorf("stuntgres: missing record member collation")
 					}

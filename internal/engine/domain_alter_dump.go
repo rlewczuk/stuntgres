@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
 
@@ -84,19 +85,19 @@ func restoreDomainAlter(raw *parser.AlterDomain) error {
 // Only the constructor's actual fresh ref, immediately after the captured owner
 // and bootstrap directives, can produce this pair. The Restore loop expires it
 // on every subsequent statement; it is not general ALTER OWNER eligibility.
-func (e *Engine) captureRestoredDomainOwner(op *Operation, created ids.ObjectRef, owner authorization.PrincipalRef) (RestoredDomainOwner, error) {
-	reject := func() (RestoredDomainOwner, error) {
-		return RestoredDomainOwner{}, sqlError("0A000", RestoreDomainOwnerBoundary)
+func (e *Engine) captureRestoredDomainOwner(op *Operation, created ids.ObjectRef, owner authorization.PrincipalRef) (typedef.RestoredDomainOwner, error) {
+	reject := func() (typedef.RestoredDomainOwner, error) {
+		return typedef.RestoredDomainOwner{}, sqlError("0A000", typedef.RestoreDomainOwnerBoundary)
 	}
 	if op == nil {
 		return reject()
 	}
 	if err := op.Context().Err(); err != nil {
-		return RestoredDomainOwner{}, err
+		return typedef.RestoredDomainOwner{}, err
 	}
 	auth, err := op.Authorization()
 	if err != nil {
-		return RestoredDomainOwner{}, err
+		return typedef.RestoredDomainOwner{}, err
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -116,19 +117,19 @@ func (e *Engine) captureRestoredDomainOwner(op *Operation, created ids.ObjectRef
 	}
 	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
 	if err != nil {
-		return RestoredDomainOwner{}, err
+		return typedef.RestoredDomainOwner{}, err
 	}
 	if !actor.Superuser || domain.Owner != actor.Ref || owner == actor.Ref {
 		return reject()
 	}
 	if _, err := auth.Roles.Descriptor(owner); err != nil {
-		return RestoredDomainOwner{}, err
+		return typedef.RestoredDomainOwner{}, err
 	}
-	return RestoredDomainOwner{Ref: created, Domain: domain, Namespace: namespace, Owner: owner, Creator: actor.Ref}, nil
+	return typedef.RestoredDomainOwner{Ref: created, Domain: domain, Namespace: namespace, Owner: owner, Creator: actor.Ref}, nil
 }
 
-func (e *Engine) restoreDomainOwner(op *Operation, raw *parser.AlterOwner, pair RestoredDomainOwner) error {
-	reject := func() error { return sqlError("0A000", RestoreDomainOwnerBoundary) }
+func (e *Engine) restoreDomainOwner(op *Operation, raw *parser.AlterOwner, pair typedef.RestoredDomainOwner) error {
+	reject := func() error { return sqlError("0A000", typedef.RestoreDomainOwnerBoundary) }
 	if raw == nil || raw.Kind != "domain" || raw.IfExists || len(raw.Name.Parts) != 2 || raw.Target.Identity != "" || pair.Ref == (ids.ObjectRef{}) {
 		return reject()
 	}

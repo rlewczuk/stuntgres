@@ -3,10 +3,12 @@ package engine
 import (
 	"fmt"
 	"slices"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -162,7 +164,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 			if err != nil {
 				return Result{}, err
 			}
-			order := EnumInsertionOrder(members, at)
+			order := typedef.EnumInsertionOrder(members, at)
 			members = slices.Insert(members, at, sqltype.EnumMember{ID: member, Label: alter.Label.Text, SortOrder: order})
 			if !changes.enum.CreatedTypes()[ref.Address] || len(scope.owner.savepoints) != 0 {
 				journal := changes.enumWritable()

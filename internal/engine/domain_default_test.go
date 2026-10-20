@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -177,7 +178,7 @@ func TestDomainDefaultRemapInternal(t *testing.T) {
 	copy := *next.MustType(address)
 	copy.SQLType = target.CatalogRead().MustType(address).SQLType
 	next.SetDescriptor(address, &copy)
-	if _, err := ReownDomainTypes(next, nil, false); err != nil {
+	if _, err := typedef.ReownDomainTypes(next, nil, false); err != nil {
 		t.Fatal(err)
 	}
 	if err := source.reownCatalogExpressions(next, nil, true); err != nil {

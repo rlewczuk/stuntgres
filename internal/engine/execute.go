@@ -2,9 +2,11 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -481,7 +483,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, err
 		}
 		scope.routineAuth = auth
-		if err := ValidateCapturedInputBinding(captured, auth.Catalog, b.dependencies); err != nil {
+		if err := typedef.ValidateCapturedInputBinding(captured, auth.Catalog, b.dependencies); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}

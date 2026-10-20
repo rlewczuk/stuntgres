@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -46,7 +48,7 @@ func typedClosure(view catalog.Read, source ids.ObjectAddress) map[ids.ObjectAdd
 				continue
 			}
 			for _, rowType := range rowTypes {
-				if ContainsRowType(typ, rowType) {
+				if typedef.ContainsRowType(typ, rowType) {
 					result[table.Address()] = table
 					break
 				}
@@ -129,12 +131,12 @@ func typedPropagationOrder(view catalog.Read, source ids.ObjectAddress) []*catal
 	return ordered
 }
 
-func typedInheritedActions(view catalog.Read, old *catalog.Relation, forced map[ids.ObjectAddress]map[int32]bool) ([]TypedColumnAction, map[int32]string, *catalog.TableInheritance, error) {
+func typedInheritedActions(view catalog.Read, old *catalog.Relation, forced map[ids.ObjectAddress]map[int32]bool) ([]typedef.TypedColumnAction, map[int32]string, *catalog.TableInheritance, error) {
 	graph := *old.Inheritance
 	graph.Columns = maps.Clone(graph.Columns)
 	graph.Checks = maps.Clone(graph.Checks)
 	graph.NotNull = maps.Clone(graph.NotNull)
-	var actions []TypedColumnAction
+	var actions []typedef.TypedColumnAction
 	renames := make(map[int32]string)
 	for i, attribute := range old.Attributes {
 		provenance := graph.Columns[attribute]
@@ -163,7 +165,7 @@ func typedInheritedActions(view catalog.Read, old *catalog.Relation, forced map[
 		graph.Columns[attribute] = provenance
 		if desired == nil {
 			if !provenance.Local {
-				actions = append(actions, TypedColumnAction{Action: parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: old.Columns[i].Name}, Mode: parser.DropCascade}})
+				actions = append(actions, typedef.TypedColumnAction{Action: parser.AlterTableAction{Action: parser.DropColumn, Column: parser.Identifier{Text: old.Columns[i].Name}, Mode: parser.DropCascade}})
 				delete(graph.Columns, attribute)
 			}
 			continue
@@ -177,7 +179,7 @@ func typedInheritedActions(view catalog.Read, old *catalog.Relation, forced map[
 			if forceType {
 				dimensions = requestedDimensions
 			}
-			actions = append(actions, TypedColumnAction{Action: parser.AlterTableAction{Action: parser.AlterColumnType, Column: parser.Identifier{Text: old.Columns[i].Name}}, Usage: &usage, DeclaredDimensions: dimensions})
+			actions = append(actions, typedef.TypedColumnAction{Action: parser.AlterTableAction{Action: parser.AlterColumnType, Column: parser.Identifier{Text: old.Columns[i].Name}}, Usage: &usage, DeclaredDimensions: dimensions})
 		}
 	}
 	// New attributes merge with an existing local/sibling attribute by live name,
@@ -217,7 +219,7 @@ func typedInheritedActions(view catalog.Read, old *catalog.Relation, forced map[
 			} else {
 				usage := member.Usage
 				pending[member.Name] = len(actions)
-				actions = append(actions, TypedColumnAction{Action: parser.AlterTableAction{Action: parser.AddColumn, Definition: &parser.Column{Name: member.Name}}, Usage: &usage, DeclaredDimensions: member.DeclaredDimensions})
+				actions = append(actions, typedef.TypedColumnAction{Action: parser.AlterTableAction{Action: parser.AddColumn, Definition: &parser.Column{Name: member.Name}}, Usage: &usage, DeclaredDimensions: member.DeclaredDimensions})
 			}
 		}
 	}

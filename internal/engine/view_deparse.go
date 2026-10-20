@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -869,7 +871,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing analyzed view collation")
 		}
-		name := CollationSQLName(catalogView, id)
+		name := typedef.CollationSQLName(catalogView, id)
 		if v.presentation.deparse {
 			name = collationDisplayName(catalogView, id, v.presentation.path)
 		}

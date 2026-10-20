@@ -8,11 +8,13 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
@@ -302,7 +304,7 @@ func TestRangePartitionRemapExplicitCollation(t *testing.T) {
 	next.SetDescriptor(provider.Address(), &temporary)
 	next.SetDescriptor(imported.Address(), &imported)
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{provider.Address(): imported.Address()}
-	collation := RemappedCollationCapabilities(next, mapping)
+	collation := typedef.RemappedCollationCapabilities(next, mapping)
 	for _, typesOnly := range []bool{false, true} {
 		mapped, err := remapPartitionDescriptor(e.catalog.read(next), source,
 			func(ref ids.ObjectRef) ids.ObjectRef { return ref },

@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -447,7 +449,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			var path []ids.ObjectAddress
 			path, err = e.referencePath(auth)
 			if err == nil {
-				source, err = StandaloneComposite(auth.Catalog, typ, path)
+				source, err = typedef.StandaloneComposite(auth.Catalog, typ, path)
 			}
 			if err == nil {
 				typedSourceRef = e.catalog.Domain.Ref(auth.Catalog.Epoch(), source.Address())

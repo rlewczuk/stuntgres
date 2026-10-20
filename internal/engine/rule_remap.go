@@ -4,13 +4,15 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
 
-func remapRuleBinding(view catalog.Read, b binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation CollationRemapper) (binding, error) {
+func remapRuleBinding(view catalog.Read, b binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (binding, error) {
 	typ = recordTypeMapper(typ, collation)
 	mapper := &viewQueryRemapper{catalog: view, ref: ref, typ: typ, collation: collation}
 	mapper.mutation = func(definition *cteDefinition) (binding, error) {
@@ -19,7 +21,7 @@ func remapRuleBinding(view catalog.Read, b binding, ref func(ids.ObjectRef) ids.
 	return remapRuleBindingMapped(view, b, ref, typ, collation, mapper)
 }
 
-func remapRuleBindingMapped(view catalog.Read, b binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation CollationRemapper, mapper *viewQueryRemapper) (binding, error) {
+func remapRuleBindingMapped(view catalog.Read, b binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, mapper *viewQueryRemapper) (binding, error) {
 	originalRef := b.ref
 	mapExpr := func(expr expr.Expr) (expr.Expr, error) {
 		if expr == nil {
@@ -261,7 +263,7 @@ func remapRuleBindingMapped(view catalog.Read, b binding, ref func(ids.ObjectRef
 	return b, nil
 }
 
-func remapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation CollationRemapper) (*catalog.Relation, error) {
+func remapRules(view catalog.Read, d *catalog.Relation, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (*catalog.Relation, error) {
 	if ns, ok := view.Namespace(d.Namespace()); ok && ns.Temporary != (ids.SessionToken{}) {
 		mapping = nil
 		ref = func(old ids.ObjectRef) ids.ObjectRef {

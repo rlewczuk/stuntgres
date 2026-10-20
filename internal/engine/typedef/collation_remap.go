@@ -1,0 +1,46 @@
+package typedef
+
+import (
+	"fmt"
+
+	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqltype"
+)
+
+type CollationRemapper func(sqltype.CollationRef) (sqltype.CollationRef, error)
+
+func RemappedCollationCapabilities(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress) CollationRemapper {
+	needed := false
+	for from, to := range mapping {
+		if from.ClassID == ids.CollationClassID && from != to {
+			needed = true
+			break
+		}
+	}
+	if !needed {
+		return nil
+	}
+	return func(old sqltype.CollationRef) (sqltype.CollationRef, error) {
+		from := ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(old.ID)}
+		to, ok := mapping[from]
+		if !ok {
+			return old, nil
+		}
+		d, ok := next.Collation(to)
+		if !ok {
+			d, ok = next.Collation(from)
+		}
+		if !ok || !old.Valid() {
+			return sqltype.CollationRef{}, fmt.Errorf("stuntgres: missing imported collation capability")
+		}
+		mapped, err := sqltype.RegisteredCollation(uint32(to.ObjectID), d.Semantics)
+		if err != nil {
+			return sqltype.CollationRef{}, err
+		}
+		if mapped.CaseMode() != old.CaseMode() {
+			return sqltype.CollationRef{}, fmt.Errorf("stuntgres: incompatible imported collation provider")
+		}
+		return mapped, nil
+	}
+}

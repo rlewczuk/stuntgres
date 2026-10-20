@@ -3,8 +3,10 @@ package engine
 import (
 	"fmt"
 	"slices"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -268,7 +270,7 @@ func prepareInheritanceRowType(reader *inheritanceDefinitionReader, relation *ca
 		descriptor, _ := reader.descriptor(address)
 		return descriptor
 	}, func(namespace ids.ObjectAddress, name string) string {
-		return ChooseAssociatedArrayName(name, func(candidate string) bool {
+		return typedef.ChooseAssociatedArrayName(name, func(candidate string) bool {
 			return reader.lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: candidate}) != (ids.ObjectAddress{})
 		})
 	}, func(descriptor catalog.Descriptor) error {

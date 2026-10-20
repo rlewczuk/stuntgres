@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 )
 
 // Multiple defaults in one namespace are legal after SET SCHEMA, but cannot be
@@ -18,7 +19,7 @@ func conversionDumpStatements(ctx context.Context, view catalog.Read, roles auth
 		return
 	}
 	sort.Slice(definitions, func(i, j int) bool {
-		return ConversionSQLName(view, definitions[i]) < ConversionSQLName(view, definitions[j])
+		return typedef.ConversionSQLName(view, definitions[i]) < typedef.ConversionSQLName(view, definitions[j])
 	})
 	type pair struct {
 		namespace           ids.ObjectAddress
@@ -47,7 +48,7 @@ func conversionDumpStatements(ctx context.Context, view catalog.Read, roles auth
 		if ownerErr != nil {
 			return nil, nil, ownerErr
 		}
-		name := ConversionSQLName(view, d)
+		name := typedef.ConversionSQLName(view, d)
 		key := pair{d.Namespace(), d.Source, d.Destination}
 		helper := ""
 		if d.DefaultConversion && occupiedPairs[key] {
@@ -60,7 +61,7 @@ func conversionDumpStatements(ctx context.Context, view catalog.Read, roles auth
 			schemas = append(schemas, "CREATE SCHEMA "+catalog.QuoteIdentifier(helper)+" AUTHORIZATION "+catalog.QuoteIdentifier(owner.Name)+";\n")
 			name = catalog.QuoteIdentifier(helper) + "." + catalog.QuoteIdentifier(d.Name())
 		}
-		definition, definitionErr := ConversionDefinition(view, d, name)
+		definition, definitionErr := typedef.ConversionDefinition(view, d, name)
 		if definitionErr != nil {
 			return nil, nil, definitionErr
 		}

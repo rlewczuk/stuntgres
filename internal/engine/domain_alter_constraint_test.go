@@ -10,14 +10,15 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 // Private seams only: parser/binder/catalog fixtures do not issue driver SQL.
-func domainAlterUnitFence(t *testing.T, e *Engine, view catalog.Read, target ids.ObjectAddress) *DomainValidationFence {
+func domainAlterUnitFence(t *testing.T, e *Engine, view catalog.Read, target ids.ObjectAddress) *typedef.DomainValidationFence {
 	t.Helper()
-	f, err := DomainUsesAt(view, target, []ids.ObjectAddress{})
+	f, err := typedef.DomainUsesAt(view, target, []ids.ObjectAddress{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +124,7 @@ func TestDomainAlterConstraintDiscovery(t *testing.T) {
 	if f.Current(e.CatalogRead(), e.storage.Relations) {
 		t.Fatal("late stored container escaped observation")
 	}
-	_, err := DomainUsesAt(e.CatalogRead(), d.Address(), []ids.ObjectAddress{})
+	_, err := typedef.DomainUsesAt(e.CatalogRead(), d.Address(), []ids.ObjectAddress{})
 	domainUnitDiagnostic(t, err, "0A000", `cannot alter type "public.d" because column "blocker.v" uses it`)
 }
 

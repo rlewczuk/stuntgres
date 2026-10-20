@@ -3,11 +3,13 @@ package engine
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestCompositeAlterDescriptorCandidate(t *testing.T) {
@@ -33,7 +35,7 @@ func TestCompositeAlterDescriptorCandidate(t *testing.T) {
 	if err != nil || next.Columns[1].Usage.Type.ID() != sqltype.Int4 || transform.expression != nil || source.Columns[1].Usage.Type.ID() != sqltype.Text {
 		t.Fatal("descriptor-only conversion executed assignment or changed capture", err)
 	}
-	actions, _ := TypedShapeActions(source, source, table, map[int32]bool{source.Attributes[0]: true})
+	actions, _ := typedef.TypedShapeActions(source, source, table, map[int32]bool{source.Attributes[0]: true})
 	if len(actions) != 1 || actions[0].Action.Action != parser.AlterColumnType || actions[0].Action.Column.Text != "id" {
 		t.Fatal("identity TYPE propagation lost", actions)
 	}
@@ -117,7 +119,7 @@ func TestCompositeArrayStorageAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, typ := range []*sqltype.Descriptor{row, domain, domainArray, whole, nested} {
-		if !StoredArrayElement(typ) {
+		if !typedef.StoredArrayElement(typ) {
 			t.Fatalf("executable array element %s rejected", typ.Name())
 		}
 	}
@@ -125,12 +127,12 @@ func TestCompositeArrayStorageAdmission(t *testing.T) {
 	lookupArray := sqltype.LookupArray(60006, "_catalog_row", lookup)
 	lookupDomain := sqltype.LookupDomain(60007, "lookup_domain", "public.lookup_domain", row.Usage())
 	for _, typ := range []*sqltype.Descriptor{nil, lookup, lookupArray, lookupDomain, testUsage(e, sqltype.Inet).Type, testUsage(e, sqltype.Xid).Type} {
-		if StoredArrayElement(typ) {
+		if typedef.StoredArrayElement(typ) {
 			t.Fatal("unsupported array element admitted", typ)
 		}
 	}
 	for _, id := range []sqltype.ID{sqltype.Int4, sqltype.Text, sqltype.Regclass} {
-		if !StoredArrayElement(testUsage(e, id).Type) {
+		if !typedef.StoredArrayElement(testUsage(e, id).Type) {
 			t.Fatal("incumbent stored scalar array rejected", id)
 		}
 	}
@@ -187,7 +189,7 @@ func TestCompositeDomainArrayGenerationOwnership(t *testing.T) {
 		} else if current == evolvedArray {
 			t.Fatal("replacement borrowed foreign array codec")
 		}
-		mapped, err := ReownDomainDatum(original, current, nil, nil, nil)
+		mapped, err := typedef.ReownDomainDatum(original, current, nil, nil, nil)
 		if err != nil {
 			t.Fatal("domain-array payload reownership failed", err)
 		}

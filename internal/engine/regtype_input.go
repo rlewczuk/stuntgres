@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -104,7 +105,7 @@ func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw par
 		return 0, err
 	}
 	if !raw.Quoted && raw.Schema == nil {
-		canonical := CanonicalDeclarationTypeName(raw.Name)
+		canonical := typedef.CanonicalDeclarationTypeName(raw.Name)
 		if canonical != raw.Name {
 			raw.Name, raw.System, raw.Parts = canonical, true, nil
 		}

@@ -10,7 +10,7 @@ import (
 
 func (e *Engine) aclItemImporter(sourceEngine *Engine, source, target authorization.Read, expected map[authorization.PrincipalRef]authorization.PrincipalRef) func(sqltype.Value) (sqltype.Value, error) {
 	var principal func(authorization.PrincipalRef) (authorization.PrincipalRef, error)
-	// Structural traversal belongs to reownDomainDatum, combining descriptor and
+	// Structural traversal belongs to typedef.ReownDomainDatum, combining descriptor and
 	// principal changes in one copy-on-change array/composite pass.
 	return func(value sqltype.Value) (sqltype.Value, error) {
 		if value.IsNull() || value.Type().BaseType().ID() != sqltype.ACLItem {

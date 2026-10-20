@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
 
@@ -36,7 +37,7 @@ func validExpressionUsageAt(view catalog.Read, reader definitionReader, usage sq
 
 // One memoized mapping is shared by a complete tree transformation. Equal OIDs
 // never merge distinct record occurrences, including nested anonymous records.
-func recordTypeMapper(leaf func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...CollationRemapper) func(*sqltype.Descriptor) *sqltype.Descriptor {
+func recordTypeMapper(leaf func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...typedef.CollationRemapper) func(*sqltype.Descriptor) *sqltype.Descriptor {
 	var records map[*sqltype.Descriptor]*sqltype.Descriptor
 	var mapType func(*sqltype.Descriptor) *sqltype.Descriptor
 	mapType = func(old *sqltype.Descriptor) *sqltype.Descriptor {

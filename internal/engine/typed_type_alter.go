@@ -2,10 +2,12 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -66,7 +68,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	}
 	// OID order grants deterministic closure authority; planning order below is
 	// independently parent-before-child for multiple-parent inheritance.
-	addresses := TypedSortedAddresses(targets)
+	addresses := typedef.TypedSortedAddresses(targets)
 	for _, address := range addresses {
 		if err := scope.acquireSequence(e.catalog.Domain.Ref(auth.Catalog.Epoch(), address), lock.AccessExclusive, true); err != nil {
 			return Result{}, err
@@ -102,7 +104,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	}
 	for _, action := range s.Actions {
 		if action.Action == parser.AlterColumnType {
-			if err := RowRewriteError(auth.Catalog, source); err != nil {
+			if err := typedef.RowRewriteError(auth.Catalog, source); err != nil {
 				return Result{}, err
 			}
 		}
@@ -119,7 +121,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 		next.ObjectRevision = source.Revision() + 1
 		sourceMutation = typedRelationMutation{old: source, next: next}
 	} else {
-		actions := make([]TypedColumnAction, len(s.Actions))
+		actions := make([]typedef.TypedColumnAction, len(s.Actions))
 		for i, action := range s.Actions {
 			actions[i].Action = action
 		}
@@ -170,13 +172,13 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 		}
 	}
 	for _, table := range targets {
-		var actions []TypedColumnAction
+		var actions []typedef.TypedColumnAction
 		var renames map[int32]string
 		var graph *catalog.TableInheritance
 		view := e.stageRead(stage)
 		table = view.MustRelation(table.Address())
 		if table.OfType == typ.Address() {
-			actions, renames = TypedShapeActions(source, sourceMutation.next, table, forced[source.Address()])
+			actions, renames = typedef.TypedShapeActions(source, sourceMutation.next, table, forced[source.Address()])
 		} else {
 			actions, renames, graph, err = typedInheritedActions(view, table, forced)
 			if err != nil {
@@ -215,7 +217,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 			next.ObjectRevision = table.Revision() + 1
 			mutation.next = &next
 			if graph != nil {
-				FinishTypedInheritance(view, &next, graph)
+				typedef.FinishTypedInheritance(view, &next, graph)
 			}
 		}
 		if err := stage.Replace(mutation.next); err != nil {

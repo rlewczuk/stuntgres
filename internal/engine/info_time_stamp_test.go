@@ -2,11 +2,13 @@ package engine
 
 import (
 	"context"
+	"testing"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func infoTimeStampCatalogType(t *testing.T, view catalog.Read) *catalog.Type {
@@ -80,7 +82,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 	namespace.ObjectName = "renamed_info"
 	next.BindName(ids.NameKey{ClassID: ids.NamespaceClassID, Name: namespace.Name()}, namespace.Address())
 	next.SetDescriptor(namespace.Address(), &namespace)
-	changed, err := ReownDomainTypes(next, nil, false)
+	changed, err := typedef.ReownDomainTypes(next, nil, false)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -119,7 +121,7 @@ func TestInfoTimeStampCatalogRemap(t *testing.T) {
 		t.Fatal("principal remap left invalid builtin authority", err)
 	}
 	invalid := catalog.CloneState(original.State())
-	if _, err := ReownDomainTypes(invalid, map[ids.ObjectAddress]ids.ObjectAddress{d.Address(): {ClassID: ids.TypeClassID, ObjectID: 60000}}, false); err == nil {
+	if _, err := typedef.ReownDomainTypes(invalid, map[ids.ObjectAddress]ids.ObjectAddress{d.Address(): {ClassID: ids.TypeClassID, ObjectID: 60000}}, false); err == nil {
 		t.Fatal("builtin domain reminted")
 	}
 }

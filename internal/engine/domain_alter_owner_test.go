@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 )
 
 func domainAlterReplayOwnership(t *testing.T) {
@@ -45,7 +46,7 @@ func domainAlterReplayOwnership(t *testing.T) {
 				if err == nil || e.catalog.state != before || !maps.Equal(e.storage.Relations, stores) || !maps.Equal(e.storage.IndexRoots, roots) {
 					t.Fatal("ineligible owner replay changed destination", err)
 				}
-				message := RestoreDomainOwnerBoundary
+				message := typedef.RestoreDomainOwnerBoundary
 				if tc.name == "wrong_kind" {
 					message = restoreInheritedOwnerBoundary
 				}
@@ -61,7 +62,7 @@ func domainAlterReplayOwnership(t *testing.T) {
 			domain := view.MustType(view.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: "d"})[0])
 			role, ok := e.Roles().Lookup("captured_owner")
 			bootstrap, rootOK := e.Roles().Lookup("postgres")
-			if !ok || !rootOK || domain.Owner != role.Ref || ns.Owner != bootstrap.Ref || ns.ACL.Explicit || !DefaultDomainACL(domain) {
+			if !ok || !rootOK || domain.Owner != role.Ref || ns.Owner != bootstrap.Ref || ns.ACL.Explicit || !typedef.DefaultDomainACL(domain) {
 				t.Fatal("replay invented namespace ACL or lost real domain ownership/default ACL")
 			}
 			if len(domain.DomainChecks) != 2 || !domain.DomainChecks[0].NotValid || domain.DomainChecks[1].NotValid {

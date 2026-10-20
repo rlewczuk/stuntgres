@@ -8,14 +8,16 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unicode/utf8"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"unicode/utf8"
 )
 
 const materializedSnapshotMarker = "stuntgres-matview-v1"
@@ -213,18 +215,18 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 			return fmt.Errorf("stuntgres: invalid materialized view snapshot target %s.%s", record.Schema, record.Name)
 		}
 		seen[address] = true
-		var domainReplays []PositionedDomainReplay
+		var domainReplays []typedef.PositionedDomainReplay
 		statements, err := parser.ParseWithOptions(record.Rows, parser.Options{Context: ctx, StandardConformingStrings: true, LineComment: func(comment string, position parser.Position) error {
-			record, recognized, err := DecodeDomainReplay(comment)
+			record, recognized, err := typedef.DecodeDomainReplay(comment)
 			if err == nil && recognized {
-				domainReplays = append(domainReplays, PositionedDomainReplay{Record: record, End: position.Offset + len(comment)})
+				domainReplays = append(domainReplays, typedef.PositionedDomainReplay{Record: record, End: position.Offset + len(comment)})
 			}
 			return err
 		}})
 		if err != nil {
 			return err
 		}
-		domainReplayPairs, err := PairDomainReplay(record.Rows, statements, domainReplays)
+		domainReplayPairs, err := typedef.PairDomainReplay(record.Rows, statements, domainReplays)
 		if err != nil {
 			return err
 		}
@@ -251,7 +253,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 					}
 				}
 			}
-			var replay *DomainReplayRecord
+			var replay *typedef.DomainReplayRecord
 			if captured, ok := domainReplayPairs[s]; ok {
 				replay = &captured
 			}
@@ -293,7 +295,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 // Captured cells use the same exact INSERT binder transport as ordinary private
 // table replay. A real statement scope also retains normal CHECK providers for
 // all other non-NULL conversions; no constraint suppression is introduced here.
-func (e *Engine) importMaterializedSnapshotRow(ctx context.Context, op *Operation, auth AuthorizationView, d *catalog.Relation, s *parser.Insert, input sqltype.InputEnvironment, replay *DomainReplayRecord) (rows [][]sqltype.Value, err error) {
+func (e *Engine) importMaterializedSnapshotRow(ctx context.Context, op *Operation, auth AuthorizationView, d *catalog.Relation, s *parser.Insert, input sqltype.InputEnvironment, replay *typedef.DomainReplayRecord) (rows [][]sqltype.Value, err error) {
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		return nil, err

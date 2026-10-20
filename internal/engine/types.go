@@ -2,9 +2,11 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 )
 
 type typeProvider struct{}
@@ -59,7 +61,7 @@ func (typeProvider) Validate(view catalog.Read, descriptor catalog.Descriptor) e
 		}
 	}
 	if t.SQLType.IsUserDefined() || t.SQLType.IsArray() && t.SQLType.Element().IsUserDefined() {
-		if t.ObjectRevision == 0 || t.OwningRelation == (ids.ObjectAddress{}) && RelationTypeNameOccupied(view, t.Namespace(), t.Name()) {
+		if t.ObjectRevision == 0 || t.OwningRelation == (ids.ObjectAddress{}) && typedef.RelationTypeNameOccupied(view, t.Namespace(), t.Name()) {
 			return catalog.Conflict{}
 		}
 	}

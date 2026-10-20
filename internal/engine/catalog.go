@@ -6,6 +6,8 @@ import (
 	"math"
 	"slices"
 	"strings"
+	"unicode/utf8"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -13,10 +15,10 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"unicode/utf8"
 )
 
 // domainOf returns the engine's domain, or nil for a nil engine, so a
@@ -129,7 +131,7 @@ func (relationProvider) Validate(v catalog.Read, d catalog.Descriptor) error {
 	if err := validateRules(v, r); err != nil {
 		return err
 	}
-	if err := ValidateTypedAttachment(v, r); err != nil {
+	if err := typedef.ValidateTypedAttachment(v, r); err != nil {
 		return err
 	}
 	if err := validateInheritance(v, r); err != nil {
@@ -351,7 +353,7 @@ type CatalogStage struct {
 	indexSets           map[ids.ObjectAddress]int
 	indexOutput         sqltype.OutputEnvironment
 	sequence            *sequenceStage
-	typed               *TypedStage
+	typed               *typedef.TypedStage
 	lifecycle           catalogLifecycle
 	invalid             error
 	authSession         *Session
@@ -368,7 +370,7 @@ type CatalogStage struct {
 	dependencyPath     []ids.ObjectAddress
 	domainTargets      []ids.ObjectAddress
 	domainBases        []catalog.Descriptor
-	domainAlter        *DomainAlterStage
+	domainAlter        *typedef.DomainAlterStage
 	// Physical retirement alone may saturate dependent descriptor/store/index
 	// counters; fresh identities and exact predecessor fences remain mandatory.
 	terminalCleanup bool
@@ -1060,7 +1062,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			}
 			if domainChanged || s.Get(descriptor.Address()) != nil {
 				if relation, ok := descriptor.(*catalog.Relation); ok {
-					if err := ValidateTypedAttachment(e.catalog.read(next), relation); err != nil {
+					if err := typedef.ValidateTypedAttachment(e.catalog.read(next), relation); err != nil {
 						return ChangeSet{}, err
 					}
 				}

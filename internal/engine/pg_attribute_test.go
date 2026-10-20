@@ -5,14 +5,16 @@ import (
 	"errors"
 	"maps"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func pgAttributeUnitSource(t *testing.T, e *Engine, catalog catalog.Read) (*catalog.Relation, ids.ObjectRef) {
@@ -216,11 +218,11 @@ func TestPGAttributeDeclaredRank(t *testing.T) {
 	}
 	source := &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: next.Columns[1].Usage, DeclaredDimensions: 2}}, Attributes: []int32{1}, Index: map[string]int{"a": 0}}
 	typed := &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: next.Columns[1].Usage}}, Attributes: []int32{1}}
-	actions, _ := TypedShapeActions(source, source, typed, nil)
+	actions, _ := typedef.TypedShapeActions(source, source, typed, nil)
 	if len(actions) != 0 {
 		t.Fatal("unrequested copied rank propagated", actions)
 	}
-	actions, _ = TypedShapeActions(source, source, typed, map[int32]bool{1: true})
+	actions, _ = typedef.TypedShapeActions(source, source, typed, map[int32]bool{1: true})
 	if len(actions) != 1 || actions[0].DeclaredDimensions != 2 {
 		t.Fatal("explicit typed rank lost", actions)
 	}

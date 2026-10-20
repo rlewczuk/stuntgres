@@ -3,12 +3,14 @@ package engine
 import (
 	"errors"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestTypedInheritanceRetainedConstraintAndDefaultAuthority(t *testing.T) {
@@ -61,7 +63,7 @@ func TestTypedInheritanceRetainedConstraintAndDefaultAuthority(t *testing.T) {
 				t.Fatal(actions, renames, err)
 			}
 			next := *child
-			FinishTypedInheritance(view, &next, graph)
+			typedef.FinishTypedInheritance(view, &next, graph)
 			if err := validateInheritance(view, &next); err != nil {
 				t.Fatal(err)
 			}
@@ -84,7 +86,7 @@ func TestTypedInheritanceRetainedConstraintAndDefaultAuthority(t *testing.T) {
 
 func TestTypedSameUsageTypeActionUsesIndependentAttributes(t *testing.T) {
 	e, source, table := typedUnitCatalog(t, false)
-	actions, _ := TypedShapeActions(source, source, table, map[int32]bool{2: true})
+	actions, _ := typedef.TypedShapeActions(source, source, table, map[int32]bool{2: true})
 	if len(actions) != 1 || actions[0].Action.Action != parser.AlterColumnType || actions[0].Action.Column.Text != "id" || *actions[0].Usage != table.Columns[0].Usage {
 		t.Fatal("same-usage source TYPE disappeared", actions)
 	}

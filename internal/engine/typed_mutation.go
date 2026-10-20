@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 )
@@ -18,7 +20,7 @@ type typedRelationMutation struct {
 	checks     []catalog.CheckConstraint
 }
 
-func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth AuthorizationView, stage *CatalogStage, old *catalog.Relation, actions []TypedColumnAction) (typedRelationMutation, error) {
+func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth AuthorizationView, stage *CatalogStage, old *catalog.Relation, actions []typedef.TypedColumnAction) (typedRelationMutation, error) {
 	mutation := typedRelationMutation{old: old, next: old}
 	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), old.Address())
 	raw := make([]parser.AlterTableAction, len(actions))
@@ -118,7 +120,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 	// candidate preserves every Usage and descriptor pointer. Keep semantic
 	// admission ahead of the no-physical-change fast path.
 	if len(mutation.transforms) != 0 {
-		if err := RowRewriteError(auth.Catalog, old); err != nil {
+		if err := typedef.RowRewriteError(auth.Catalog, old); err != nil {
 			return err
 		}
 	}
@@ -145,7 +147,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		rewrite = rewrite || transform.rewrite
 	}
 	if perRowAdd {
-		if err := RowRewriteError(auth.Catalog, old); err != nil {
+		if err := typedef.RowRewriteError(auth.Catalog, old); err != nil {
 			return err
 		}
 	}

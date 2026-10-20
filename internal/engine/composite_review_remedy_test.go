@@ -3,12 +3,14 @@ package engine
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestCompositeAlterFunctionalRetainedFields(t *testing.T) {
@@ -58,7 +60,7 @@ func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
 		state.CloneDescriptors()
 		state.SetDescriptor(table.Address(), &consumer)
 		view := e.catalog.read(&state)
-		domainUnitDiagnostic(t, RowRewriteError(view, source), "0A000", `cannot alter type "pair" because column "typed.v" uses it`)
+		domainUnitDiagnostic(t, typedef.RowRewriteError(view, source), "0A000", `cannot alter type "pair" because column "typed.v" uses it`)
 		stage := e.BeginCatalogStage(before)
 		stage.typedState().Source = table.OfType
 		stage.typedState().Observed = typedClosure(before, table.OfType)
@@ -67,7 +69,7 @@ func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
 		}
 		e.DiscardCatalogStage(stage)
 		consumer.RelationKind = catalog.ViewRelation
-		if err := RowRewriteError(view, source); err != nil {
+		if err := typedef.RowRewriteError(view, source); err != nil {
 			t.Fatal("nonstored view blocked", err)
 		}
 	}
@@ -164,7 +166,7 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := *mutation.next
-	FinishTypedInheritance(view, &next, graph)
+	typedef.FinishTypedInheritance(view, &next, graph)
 	if len(next.Constraints.Check) != 1 || next.Constraints.Check[0].Name != "keep_check" {
 		t.Fatal("propagation resurrected removed check")
 	}

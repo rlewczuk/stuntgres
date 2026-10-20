@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"maps"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typedef"
 )
 
 // Transactional descriptors, row shapes and generators share one private overlay.
@@ -29,7 +31,7 @@ type catalogChanges struct {
 	extensionAuthority  []extensionAuthorityObservation
 	cachedBase          *catalog.State
 	cached              catalog.Read
-	enum                *EnumJournal
+	enum                *typedef.EnumJournal
 	rolesBase           *access.RoleRecord
 	roles               *access.RoleRecord
 	retiredRoles        map[authorization.PrincipalRef]struct{}
@@ -39,7 +41,7 @@ type catalogChanges struct {
 	readFences          []partitionReadFence
 	truncateFences      []truncateGraphFence
 	materializedSources []materializedSourceFence
-	domain              *DomainJournal
+	domain              *typedef.DomainJournal
 	domainChanged       bool
 }
 
@@ -322,7 +324,7 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 							}
 						}
 					}
-					if owner.SQLType.IsDomain() && UsageDependsOn(owner.SQLType.DomainBase(), target) ||
+					if owner.SQLType.IsDomain() && typedef.UsageDependsOn(owner.SQLType.DomainBase(), target) ||
 						owner.SQLType.IsArray() && target == (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(owner.SQLType.Element().ID())}) {
 						return catalog.Conflict{}
 					}
@@ -338,7 +340,7 @@ func catalogDependencyPreflight(current, candidate *catalog.State, observations 
 					}
 					if candidate.Get(target) == nil {
 						for _, column := range owner.Columns {
-							if UsageDependsOn(column.Usage, target) {
+							if typedef.UsageDependsOn(column.Usage, target) {
 								return catalog.Conflict{}
 							}
 						}

@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
 
@@ -133,7 +135,7 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 		if presented.Collation != 0 {
 			sql.WriteString(" COLLATE ")
 			if presentation.dump {
-				sql.WriteString(CollationSQLName(view, presented.Collation))
+				sql.WriteString(typedef.CollationSQLName(view, presented.Collation))
 			} else {
 				sql.WriteString(collationDisplayName(view, presented.Collation, presentation.path))
 			}

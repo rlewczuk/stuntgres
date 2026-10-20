@@ -6,10 +6,12 @@ import (
 	"slices"
 	"sort"
 	"strings"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -201,7 +203,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 				if compositeAttributeRoot && target == root && defaultDependency {
 					compositeDefaultOrder = true
 				}
-				if d.SQLType.IsDomain() && (UsageDependsOn(d.SQLType.DomainBase(), target) || defaultDependency) {
+				if d.SQLType.IsDomain() && (typedef.UsageDependsOn(d.SQLType.DomainBase(), target) || defaultDependency) {
 					dependencyTarget := target
 					// DFS can reach an inherited recipe through its parent before
 					// visiting its direct provider edge. Retain that genuine root
@@ -310,7 +312,7 @@ func (provider *dropProvider) dependencyClosure(targets []ids.ObjectAddress) ([]
 				for i, c := range d.Columns {
 					column := a
 					column.SubID = d.Attributes[i]
-					if UsageDependsOn(c.Usage, target) {
+					if typedef.UsageDependsOn(c.Usage, target) {
 						direct = append(direct, domainDependency{address: column, target: target, root: root, oid: a.ObjectID, ordinal: column.SubID, label: "column " + catalog.DependencyIdentifier(c.Name) + " of " + relationDiagnosticKind(d) + " " + name, relation: d, column: c.Name})
 					}
 					if droppedColumns[column] {

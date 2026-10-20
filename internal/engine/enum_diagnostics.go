@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
 
@@ -64,7 +65,7 @@ func captureEnumOperationSafety(op *Operation, input *sqltype.InputEnvironment) 
 	if input.EnumMemberSafe != nil || op == nil || op.session == nil || op.session.transactions == nil || op.session.transactions.catalog == nil {
 		return
 	}
-	input.EnumMemberSafe = EnumSafety(op.session.transactions.catalog.enum.UnsafeMembers())
+	input.EnumMemberSafe = typedef.EnumSafety(op.session.transactions.catalog.enum.UnsafeMembers())
 }
 
 // Capture naming only after the caller supplies its coherent catalog authority.

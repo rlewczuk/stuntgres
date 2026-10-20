@@ -2,8 +2,10 @@ package engine
 
 import (
 	"strconv"
+
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -269,7 +271,7 @@ func (e *Engine) bindInsertDefaults(b *binding, auth AuthorizationView, override
 	hasDomains, hasTypeDefaults, hasDomainInput := false, false, false
 	for _, column := range b.relation.Columns {
 		hasDomains = hasDomains || column.Usage.Type.HasDomainConstraints()
-		hasTypeDefaults = hasTypeDefaults || TypeDefault(auth.Catalog, column.Usage.Type) != nil
+		hasTypeDefaults = hasTypeDefaults || typedef.TypeDefault(auth.Catalog, column.Usage.Type) != nil
 		hasDomainInput = hasDomainInput || sqltype.ContainsDomainConstraints(column.Usage.Type)
 	}
 	if len(b.relation.ColumnMeta.Defaults) == 0 && len(b.relation.ColumnMeta.Identities) == 0 && !hasDomains && !hasTypeDefaults {

@@ -2,11 +2,13 @@ package engine
 
 import (
 	"context"
+	"testing"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestNetworkDomainCatalogRemap(t *testing.T) {
@@ -57,7 +59,7 @@ func TestNetworkDomainCatalogRemap(t *testing.T) {
 				direct.Address(): {ClassID: ids.TypeClassID, ObjectID: 60001}, chain.Address(): {ClassID: ids.TypeClassID, ObjectID: 60002},
 				arrays[0].Address(): {ClassID: ids.TypeClassID, ObjectID: 60003}, arrays[1].Address(): {ClassID: ids.TypeClassID, ObjectID: 60004},
 			}
-			changed, err := ReownDomainTypes(next, mapping, false)
+			changed, err := typedef.ReownDomainTypes(next, mapping, false)
 			if err != nil || !changed {
 				t.Fatal(changed, err)
 			}

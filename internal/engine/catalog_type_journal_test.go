@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typedef"
 )
 
 // Journals copied by value share their feature slots; writes go through a
@@ -12,9 +13,9 @@ import (
 func TestCatalogTypeJournalSlotsCopyOnWrite(t *testing.T) {
 	address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 45000}
 	root := new(storage.IndexRoot)
-	fence := new(DomainValidationFence)
+	fence := new(typedef.DomainValidationFence)
 	original := newCatalogChanges()
-	original.domainWritable().Validations = []*DomainValidationFence{fence}
+	original.domainWritable().Validations = []*typedef.DomainValidationFence{fence}
 	original.domainWritable().IndexRoots = map[ids.ObjectAddress]*storage.IndexRoot{address: root}
 	original.enumWritable().Created = map[ids.ObjectAddress]bool{address: true}
 	copied := *original

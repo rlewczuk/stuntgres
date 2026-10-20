@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -72,7 +74,7 @@ func inheritanceColumnConflict(view catalog.Read, old, next catalog.Column, loca
 	}
 	if old.Usage.Collation.ID != next.Usage.Collation.ID {
 		d := sqlError("42P21", fmt.Sprintf(`%s "%s" has a collation conflict`, prefix, old.Name)).(*sqlstate.Error)
-		d.Detail = fmt.Sprintf(`"%s" versus "%s"`, CollationName(view, old.Usage.Collation.ID), CollationName(view, next.Usage.Collation.ID))
+		d.Detail = fmt.Sprintf(`"%s" versus "%s"`, typedef.CollationName(view, old.Usage.Collation.ID), typedef.CollationName(view, next.Usage.Collation.ID))
 		return d
 	}
 	return nil

@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typedef"
 )
 
 // Engine.mu is held. Reuse replacement's copy-on-change type/expression/value
@@ -11,7 +12,7 @@ import (
 func (e *Engine) reownStagedTypeGenerationsLocked(stage *CatalogStage) error {
 	view := e.stageRead(stage)
 	next := view.State()
-	if _, err := ReownDomainTypes(next, nil, false); err != nil {
+	if _, err := typedef.ReownDomainTypes(next, nil, false); err != nil {
 		return err
 	}
 	if err := reownCatalogScalarTypes(next, nil, nil); err != nil {

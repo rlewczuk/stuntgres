@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
 
@@ -105,7 +107,7 @@ func partitionKeySQL(ctx context.Context, catalogView catalog.Read, d *catalog.R
 			text.WriteString(catalog.QuoteIdentifier(d.Columns[slot].Name))
 		}
 		if key.Collation != 0 {
-			name := CollationSQLName(catalogView, key.Collation)
+			name := typedef.CollationSQLName(catalogView, key.Collation)
 			if name == "" {
 				return "", fmt.Errorf("stuntgres: unsupported stored collation")
 			}

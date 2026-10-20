@@ -3,10 +3,12 @@ package engine
 import (
 	"context"
 	"strings"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -69,7 +71,7 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalogView catalog.Read, e
 		}
 		row := version.Values
 		line.Reset()
-		var replayCells []DomainReplayCell
+		var replayCells []typedef.DomainReplayCell
 		if len(t.columns) == 0 {
 			if err := emit("INSERT INTO " + qualified + " DEFAULT VALUES;\n"); err != nil {
 				return err
@@ -105,12 +107,12 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalogView catalog.Read, e
 			var err error
 			destination := t.columns[i].Usage.Type
 			base := destination.BaseType().ID()
-			if ContainsStoredDomainNull(v) {
+			if typedef.ContainsStoredDomainNull(v) {
 				node, captureErr := captureDomainReplayNode(ctx, catalogView, t.columns[i].Usage, v)
 				if captureErr != nil {
 					return captureErr
 				}
-				replayCells = append(replayCells, DomainReplayCell{Column: t.columns[i].Name, Value: &node})
+				replayCells = append(replayCells, typedef.DomainReplayCell{Column: t.columns[i].Name, Value: &node})
 				literal = "NULL"
 			} else if destination.IsDomain() && (base == sqltype.Int4Range || base == sqltype.Int8Range || base == sqltype.NumRange || base == sqltype.DateRange || base == sqltype.TimestampRange || base == sqltype.TimestamptzRange || base == sqltype.Int4Multirange || base == sqltype.Int8Multirange || base == sqltype.NumMultirange) {
 				// The INSERT destination reconstructs the domain via ordinary
@@ -127,8 +129,8 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalogView catalog.Read, e
 		}
 		line.WriteString(");\n")
 		if len(replayCells) != 0 {
-			record := DomainReplayRecord{Schema: catalogView.Get(destination.Namespace()).Name(), Table: destination.Name(), Cells: replayCells}
-			directive, err := EncodeDomainReplay(record)
+			record := typedef.DomainReplayRecord{Schema: catalogView.Get(destination.Namespace()).Name(), Table: destination.Name(), Cells: replayCells}
+			directive, err := typedef.EncodeDomainReplay(record)
 			if err != nil {
 				return err
 			}

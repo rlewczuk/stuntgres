@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typedef"
 )
 
 // Stage observations describe the exact private entry roots. Outer publication
@@ -20,7 +21,7 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 		if !fence.Current(e.catalog.read(current), stores) {
 			return catalog.Conflict{}
 		}
-		committed, err := DomainUsesAt(e.catalog.read(e.catalog.state), fence.Target, fence.Path)
+		committed, err := typedef.DomainUsesAt(e.catalog.read(e.catalog.state), fence.Target, fence.Path)
 		if committed == nil {
 			return err
 		}
@@ -91,7 +92,7 @@ func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes
 			shape.fills = maps.Clone(shape.fills)
 			for attribute, value := range shape.fills {
 				target := next.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(value.Type().ID())})
-				shape.fills[attribute], err = ReownDomainDatum(value, target.SQLType, nil, next.ScalarImports(), next.ACLItemImport())
+				shape.fills[attribute], err = typedef.ReownDomainDatum(value, target.SQLType, nil, next.ScalarImports(), next.ACLItemImport())
 				if err != nil {
 					return err
 				}

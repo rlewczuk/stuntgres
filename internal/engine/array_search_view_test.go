@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -140,7 +141,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	oldNumeric := assertValue(outer, wideArray, "{1,2}")
 	oldPositions := assertValue(positions, array, "{1,2}")
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{sourceCollation.Address(): targetCollation.Address()}
-	collation := RemappedCollationCapabilities(targetView.State(), mapping)
+	collation := typedef.RemappedCollationCapabilities(targetView.State(), mapping)
 	types := func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == nil {
 			return nil

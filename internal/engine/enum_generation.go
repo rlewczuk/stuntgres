@@ -2,9 +2,11 @@ package engine
 
 import (
 	"maps"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typedef"
 )
 
 // Engine.mu and statement admission are held. Reuse the catalog's established
@@ -53,7 +55,7 @@ func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *cata
 			for attribute, value := range shape.fills {
 				target, _ := next.Type(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(value.Type().ID())})
 				if target != nil && target.SQLType != value.Type() {
-					v, err := ReownDomainDatum(value, target.SQLType, nil, nil, nil)
+					v, err := typedef.ReownDomainDatum(value, target.SQLType, nil, nil, nil)
 					if err != nil {
 						return err
 					}

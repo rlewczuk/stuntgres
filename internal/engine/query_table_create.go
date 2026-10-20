@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -181,7 +183,7 @@ func (e *Engine) stageQueryTableRows(ctx context.Context, stage *CatalogStage, d
 	for _, row := range rows {
 		for i, value := range row {
 			if target := d.Columns[i].Usage.Type; target != value.Type() {
-				reowned, err := ReownDomainDatum(value, target, nil, nil, nil)
+				reowned, err := typedef.ReownDomainDatum(value, target, nil, nil, nil)
 				if err != nil {
 					return err
 				}

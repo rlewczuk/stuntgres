@@ -2,13 +2,15 @@ package engine
 
 import (
 	"slices"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func remapPartitionDescriptor(view catalog.Read, d *catalog.Relation, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool, collation CollationRemapper) (*catalog.Relation, error) {
+func remapPartitionDescriptor(view catalog.Read, d *catalog.Relation, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool, collation typedef.CollationRemapper) (*catalog.Relation, error) {
 	next := *d
 	if d.Partition != nil {
 		definition := *d.Partition
@@ -81,7 +83,7 @@ func remapPartitionDescriptor(view catalog.Read, d *catalog.Relation, ref func(i
 				if datum.Kind != 0 {
 					continue
 				}
-				value, err := ReownDomainDatum(datum.Value, typ(datum.Value.Type()), collation, view.State().ScalarImports(), view.State().ACLItemImport())
+				value, err := typedef.ReownDomainDatum(datum.Value, typ(datum.Value.Type()), collation, view.State().ScalarImports(), view.State().ACLItemImport())
 				if err != nil {
 					return nil, err
 				}

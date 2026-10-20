@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -90,7 +91,7 @@ func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationVi
 	if err != nil {
 		return err
 	}
-	if err = ConversionProbeResult(functionName, consumed); err != nil {
+	if err = typedef.ConversionProbeResult(functionName, consumed); err != nil {
 		return err
 	}
 	object := s.Name.Parts[len(s.Name.Parts)-1].Text

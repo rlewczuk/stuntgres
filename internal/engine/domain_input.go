@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
 
@@ -18,7 +19,7 @@ func (s *StatementScope) DecodeLockedDomainInput(ctx context.Context, typ *sqlty
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing captured domain input authority")
 	}
 	e := s.op.session.Engine()
-	providers := CaptureDomainInputProviders(eval.catalog, typ)
+	providers := typedef.CaptureDomainInputProviders(eval.catalog, typ)
 	e.mu.Unlock()
 	value, err := typ.InputWithEnvironment(ctx, text, typmod, input)
 	e.mu.Lock()

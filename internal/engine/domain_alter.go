@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -161,7 +162,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		if err := evaluation.prepareOwnDomainChecks(&chosen); err != nil {
 			return Result{}, err
 		}
-		fence, discoveryErr := DomainUsesAt(auth.Catalog, ref.Address, diagnosticPath)
+		fence, discoveryErr := typedef.DomainUsesAt(auth.Catalog, ref.Address, diagnosticPath)
 		if fence != nil {
 			for _, relation := range fence.Reads {
 				if err := scope.acquireSequence(e.catalog.Domain.Ref(ref.Epoch, relation.Address()), lock.AccessShare, true); err != nil {
@@ -191,8 +192,8 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		}
 		e.mu.Lock()
 		view := e.catalog.read(e.stageCatalogBaseLocked(stage))
-		currentUses, graphErr := DomainUsesAt(view, ref.Address, diagnosticPath)
-		if graphErr == nil && !DomainGraphEqual(fence, currentUses) {
+		currentUses, graphErr := typedef.DomainUsesAt(view, ref.Address, diagnosticPath)
+		if graphErr == nil && !typedef.DomainGraphEqual(fence, currentUses) {
 			graphErr = catalog.Conflict{}
 		}
 		frontier := e.visibility.CommitSeq()
@@ -241,10 +242,10 @@ func (c *EvalContext) evaluateSelectedDomainCheck(view catalog.Read, selected *c
 	return c.evaluateOwnDomainChecks(view, selected, selected, value, violation)
 }
 
-func (c *EvalContext) validateSelectedDomainRows(view catalog.Read, selected *catalog.Type, use DomainValidationUse, frontier ids.CommitSeq, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) error {
+func (c *EvalContext) validateSelectedDomainRows(view catalog.Read, selected *catalog.Type, use typedef.DomainValidationUse, frontier ids.CommitSeq, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) error {
 	violations := make([]error, len(use.Columns))
 	for i, column := range use.Columns {
-		violations[i] = DomainHistoricalViolation(view, use.Relation, column)
+		violations[i] = typedef.DomainHistoricalViolation(view, use.Relation, column)
 	}
 	var replaced map[ids.RowID]bool
 	for _, row := range writes {

@@ -5,9 +5,11 @@ import (
 	"maps"
 	"slices"
 	"strings"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -210,7 +212,7 @@ func (provider *dropProvider) passiveViewTypeDependency(relation *catalog.Relati
 			continue
 		}
 		slot := source.IndexForAttribute(ref.Address.SubID)
-		if slot >= 0 && UsageDependsOn(source.Columns[slot].Usage, target) {
+		if slot >= 0 && typedef.UsageDependsOn(source.Columns[slot].Usage, target) {
 			column = true
 			break
 		}

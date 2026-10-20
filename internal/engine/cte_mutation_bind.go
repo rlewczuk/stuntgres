@@ -2,8 +2,10 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -25,7 +27,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 		}
 		b.relation = auth.Catalog.MustRelation(b.ref.Address)
 		if b.relation.RelationKind == catalog.CompositeRelation {
-			return b, CompositeOpenError(b.relation, s.Name.Parts[0].Pos)
+			return b, typedef.CompositeOpenError(b.relation, s.Name.Parts[0].Pos)
 		}
 		if b.relation.RelationKind == catalog.IndexRelation {
 			return b, tableKind(b.relation, "insert into")
@@ -75,7 +77,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 		}
 		b.relation = auth.Catalog.MustRelation(b.ref.Address)
 		if b.relation.RelationKind == catalog.CompositeRelation {
-			return b, CompositeOpenError(b.relation, s.Name.Parts[0].Pos)
+			return b, typedef.CompositeOpenError(b.relation, s.Name.Parts[0].Pos)
 		}
 		if b.relation.RelationKind == catalog.IndexRelation {
 			return b, tableKind(b.relation, "delete from")
@@ -133,7 +135,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 		}
 		b.relation = auth.Catalog.MustRelation(b.ref.Address)
 		if b.relation.RelationKind == catalog.CompositeRelation {
-			return b, CompositeOpenError(b.relation, s.Name.Parts[0].Pos)
+			return b, typedef.CompositeOpenError(b.relation, s.Name.Parts[0].Pos)
 		}
 		if b.relation.RelationKind == catalog.IndexRelation {
 			return b, tableKind(b.relation, "change")

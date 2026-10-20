@@ -3,11 +3,13 @@ package engine
 import (
 	"errors"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestTypedInheritedParentAttributePublication(t *testing.T) {
@@ -38,7 +40,7 @@ func TestTypedInheritedParentAttributePublication(t *testing.T) {
 	if source.Columns[0].Usage.Type.ID() != sqltype.Int4 || table.Columns[1].Name != "note" {
 		t.Fatal("publication mutated captured providers")
 	}
-	if err := ValidateTypedAttachment(view, root); err != nil {
+	if err := typedef.ValidateTypedAttachment(view, root); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -53,7 +55,7 @@ func TestTypedStoredAssociatedCompositeArrayGuard(t *testing.T) {
 	state := catalog.CloneState(view.State())
 	state.SetDescriptor(holder.Address(), holder)
 	var diagnostic *sqlstate.Error
-	if err := RowRewriteError(e.catalog.read(state), source); !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != `cannot alter type "pair" because column "holder.v" uses it` {
+	if err := typedef.RowRewriteError(e.catalog.read(state), source); !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != `cannot alter type "pair" because column "holder.v" uses it` {
 		t.Fatal("real associated-array provider escaped guard", err)
 	}
 }

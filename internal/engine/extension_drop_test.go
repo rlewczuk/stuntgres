@@ -5,12 +5,14 @@ import (
 	"errors"
 	"maps"
 	"slices"
+	"testing"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func extensionDropUnitStatement(name string) *parser.DropExtension {
@@ -290,7 +292,7 @@ func extensionDropUnitConsumer(t *testing.T, e *Engine, op *Operation, consumer 
 	}
 	r := domainUnitTable(t, e, op, "CREATE TABLE ext_drop_late(v query_int)")
 	provider := e.CatalogRead().MustType(target)
-	if len(r.Columns) != 1 || r.Columns[0].Usage.Type != provider.SQLType || !UsageDependsOn(r.Columns[0].Usage, target) {
+	if len(r.Columns) != 1 || r.Columns[0].Usage.Type != provider.SQLType || !typedef.UsageDependsOn(r.Columns[0].Usage, target) {
 		t.Fatal("column did not bind authentic installed type", target)
 	}
 	return r
@@ -449,7 +451,7 @@ func TestExtensionDropPublicationCandidate(t *testing.T) {
 				if e.CatalogRead().State() != current.State() || current.Get(owner.Address()) != owner {
 					t.Fatal("candidate inspection mutated committed source")
 				}
-				if r, ok := owner.(*catalog.Relation); ok && !UsageDependsOn(r.Columns[0].Usage, target) {
+				if r, ok := owner.(*catalog.Relation); ok && !typedef.UsageDependsOn(r.Columns[0].Usage, target) {
 					t.Fatal("rewire mutated original column")
 				}
 				if d, ok := owner.(*catalog.Type); ok && len(d.DomainChecks) != 1 {
@@ -467,7 +469,7 @@ func TestExtensionDropPublicationCandidate(t *testing.T) {
 		if !ok || array != alias.SQLType || before.Get(base.Address()) != base || before.Get(ext.Address()) != ext {
 			t.Fatal("automatic alias did not retain authentic installation identity")
 		}
-		if !UsageDependsOn(alias.SQLType.Usage(), target) || UsageDependsOn(alias.SQLType.Usage(), base.Address()) || UsageDependsOn(alias.SQLType.Usage(), ext.Address()) {
+		if !typedef.UsageDependsOn(alias.SQLType.Usage(), target) || typedef.UsageDependsOn(alias.SQLType.Usage(), base.Address()) || typedef.UsageDependsOn(alias.SQLType.Usage(), ext.Address()) {
 			t.Fatal("type usage must match exact automatic alias, not its base or unrelated owner")
 		}
 		stage := extensionDropUnitRetirement(t, e, ext)

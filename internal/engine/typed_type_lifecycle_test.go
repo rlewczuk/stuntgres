@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestTypedPublicationLateAttachmentConflict(t *testing.T) {
@@ -83,7 +85,7 @@ func TestTypedRemapOwnsAttachmentAndReciprocalCodecs(t *testing.T) {
 	}
 	view := destination.CatalogRead()
 	imported := view.MustRelation(table.Address())
-	if err := ValidateTypedAttachment(view, imported); err != nil {
+	if err := typedef.ValidateTypedAttachment(view, imported); err != nil {
 		t.Fatal(err)
 	}
 	if imported.OfType.ClassID != ids.TypeClassID || imported.RowType == sqltype.ID(imported.OfType.ObjectID) || !reflect.DeepEqual(imported.Attributes, []int32{1, 7}) {

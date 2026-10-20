@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -179,7 +180,7 @@ func (c *EvalContext) prepareOwnDomainChecks(d *catalog.Type) error {
 	scope := c.liveScope()
 	if scope != nil {
 		c.preparedDomainChecks = scope.domainPreparedChecks
-		c.domainPhase = DomainCheckIdentity{Transaction: scope.txRef, Command: scope.command}
+		c.domainPhase = typedef.DomainCheckIdentity{Transaction: scope.txRef, Command: scope.command}
 	}
 	if len(d.DomainChecks) == 0 {
 		return nil

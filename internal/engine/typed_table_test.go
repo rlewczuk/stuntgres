@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 // Package fixtures construct providers, not SQL sessions or public-driver mocks.
@@ -75,7 +77,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *catalog.Relation, *ca
 func TestTypedProviderShapeAndIndependentAttributes(t *testing.T) {
 	e, source, table := typedUnitCatalog(t, false)
 	view := e.CatalogRead()
-	if err := ValidateTypedAttachment(view, table); err != nil {
+	if err := typedef.ValidateTypedAttachment(view, table); err != nil {
 		t.Fatal(err)
 	}
 	if table.RowType == source.RowType || !reflect.DeepEqual(table.Attributes, []int32{1, 7}) || table.ColumnMeta.HighWater != 7 {
@@ -85,32 +87,32 @@ func TestTypedProviderShapeAndIndependentAttributes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	actions, renames := TypedShapeActions(source, next, table, nil)
+	actions, renames := typedef.TypedShapeActions(source, next, table, nil)
 	if len(actions) != 0 || !reflect.DeepEqual(renames, map[int32]string{7: "label"}) || source.Columns[1].Name != "note" {
 		t.Fatal("unstable rename correspondence", actions, renames)
 	}
 	removed := *source
 	removed.Columns, removed.Attributes, removed.Index = source.Columns[:1], source.Attributes[:1], map[string]int{"id": 0}
-	actions, _ = TypedShapeActions(source, &removed, table, nil)
+	actions, _ = typedef.TypedShapeActions(source, &removed, table, nil)
 	if len(actions) != 1 || actions[0].Action.Column.Text != "note" || actions[0].Action.Action != parser.DropColumn {
 		t.Fatal(actions)
 	}
 	for _, bad := range []ids.ObjectAddress{{ClassID: ids.RelationClassID, ObjectID: source.Address().ObjectID}, {ClassID: ids.TypeClassID, ObjectID: 999999}} {
 		invalid := *table
 		invalid.OfType = bad
-		if err := ValidateTypedAttachment(view, &invalid); err == nil {
+		if err := typedef.ValidateTypedAttachment(view, &invalid); err == nil {
 			t.Fatal("invalid attachment admitted", bad)
 		}
 	}
 	invalid := *table
 	invalid.OfType = ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(table.RowType)}
-	if err := ValidateTypedAttachment(view, &invalid); err == nil {
+	if err := typedef.ValidateTypedAttachment(view, &invalid); err == nil {
 		t.Fatal("physical own-row source admitted")
 	}
 	invalid = *table
 	invalid.Columns = append([]catalog.Column(nil), table.Columns...)
 	invalid.Columns[0].Usage = testUsage(e, sqltype.Int8)
-	if err := ValidateTypedAttachment(view, &invalid); err == nil {
+	if err := typedef.ValidateTypedAttachment(view, &invalid); err == nil {
 		t.Fatal("different member usage admitted")
 	}
 }
@@ -127,14 +129,14 @@ func TestTypedDirectGuardLookupOrdering(t *testing.T) {
 		{parser.AlterTableAction{Action: parser.AlterColumnType, Column: parser.Identifier{Text: "id"}}, "42809", "cannot alter column type of typed table"},
 	} {
 		var diagnostic *sqlstate.Error
-		err := TypedDirectActionsGuard(table, []parser.AlterTableAction{tc.action})
+		err := typedef.TypedDirectActionsGuard(table, []parser.AlterTableAction{tc.action})
 		if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code || diagnostic.Message != tc.message {
 			t.Fatal(err, tc)
 		}
 	}
 	detached := *table
 	detached.OfType = ids.ObjectAddress{}
-	if err := TypedDirectActionsGuard(&detached, []parser.AlterTableAction{{Action: parser.AddColumn}}); err != nil {
+	if err := typedef.TypedDirectActionsGuard(&detached, []parser.AlterTableAction{{Action: parser.AddColumn}}); err != nil {
 		t.Fatal(err)
 	}
 }

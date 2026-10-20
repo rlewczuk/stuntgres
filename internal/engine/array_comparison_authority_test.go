@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -36,7 +37,7 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 	if source == nil || destination == nil {
 		t.Fatal("missing collation fixture")
 	}
-	remap := RemappedCollationCapabilities(view.State(), map[ids.ObjectAddress]ids.ObjectAddress{source.Address(): destination.Address()})
+	remap := typedef.RemappedCollationCapabilities(view.State(), map[ids.ObjectAddress]ids.ObjectAddress{source.Address(): destination.Address()})
 	ref := catalogRef(t, e, view, "ac_authority")
 	table := view.MustRelation(ref.Address)
 	for _, attribute := range table.Attributes {

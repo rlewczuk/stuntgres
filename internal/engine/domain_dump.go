@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
 
@@ -86,11 +88,11 @@ func catalogColumnDeclaration(view catalog.Read, column catalog.Column) (string,
 	return alias, nil
 }
 
-func domainDumpStatement(ctx context.Context, view catalog.Read, roles authorization.Read, d *catalog.Type, replayNames *DomainReplayNames) (dumpDomain, error) {
+func domainDumpStatement(ctx context.Context, view catalog.Read, roles authorization.Read, d *catalog.Type, replayNames *typedef.DomainReplayNames) (dumpDomain, error) {
 	if err := ctx.Err(); err != nil {
 		return dumpDomain{}, err
 	}
-	if !DefaultDomainACL(d) {
+	if !typedef.DefaultDomainACL(d) {
 		return dumpDomain{}, fmt.Errorf("stuntgres: dump cannot serialize changed domain ACL")
 	}
 	qualified, err := catalogTypeDeclaration(view, d.SQLType.Usage())
@@ -130,7 +132,7 @@ func domainDumpStatement(ctx context.Context, view catalog.Read, roles authoriza
 	}
 	collation := ""
 	if base.Collation != base.Type.Usage().Collation {
-		name := CollationSQLName(view, base.Collation.ID)
+		name := typedef.CollationSQLName(view, base.Collation.ID)
 		if name == "" {
 			return dumpDomain{}, fmt.Errorf("stuntgres: unsupported domain collation")
 		}

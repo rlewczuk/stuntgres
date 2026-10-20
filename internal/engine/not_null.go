@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -91,7 +93,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if len(s.Actions) == 0 {
 		return fail(fmt.Errorf("stuntgres: empty ALTER TABLE"))
 	}
-	if err := TypedDirectActionsGuard(old, s.Actions); err != nil {
+	if err := typedef.TypedDirectActionsGuard(old, s.Actions); err != nil {
 		return fail(err)
 	}
 	var preparation alterTablePreparation
@@ -621,7 +623,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		rowRewrite = rowRewrite || !fill.IsNull()
 	}
 	if rowRewrite {
-		if err := RowRewriteError(auth.Catalog, old); err != nil {
+		if err := typedef.RowRewriteError(auth.Catalog, old); err != nil {
 			return Result{}, err
 		}
 	}

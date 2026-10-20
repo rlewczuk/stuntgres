@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"iter"
 	"slices"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -696,7 +698,7 @@ func (p *dropProvider) associatedArrayName(namespace ids.ObjectAddress, name str
 	if p.stage != nil {
 		return associatedArrayName(p.stage, namespace, name)
 	}
-	return ChooseAssociatedArrayName(name, func(candidate string) bool {
+	return typedef.ChooseAssociatedArrayName(name, func(candidate string) bool {
 		return p.prepared.lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: candidate}) != (ids.ObjectAddress{})
 	})
 }

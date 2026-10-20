@@ -6,12 +6,13 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
 
 func (e *Engine) reownCatalogExpressions(next *catalog.State, mapping map[ids.ObjectAddress]ids.ObjectAddress, typesOnly bool) error {
 	view := e.catalog.read(next)
-	collation := RemappedCollationCapabilities(next, mapping)
+	collation := typedef.RemappedCollationCapabilities(next, mapping)
 	ref := func(old ids.ObjectRef) ids.ObjectRef {
 		if old == (ids.ObjectRef{}) || typesOnly {
 			return old

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -20,14 +21,14 @@ type domainReplayCapture struct {
 	cells     map[int]literalExpression // actual explicit VALUES slot, not raw SQL offsets
 }
 
-func captureDomainReplayNode(ctx context.Context, view catalog.Read, u sqltype.Usage, v sqltype.Value) (DomainReplayNode, error) {
+func captureDomainReplayNode(ctx context.Context, view catalog.Read, u sqltype.Usage, v sqltype.Value) (typedef.DomainReplayNode, error) {
 	if !u.Valid() || v.Type() != u.Type {
-		return DomainReplayNode{}, fmt.Errorf("stuntgres: invalid native captured cell type")
+		return typedef.DomainReplayNode{}, fmt.Errorf("stuntgres: invalid native captured cell type")
 	}
-	n := DomainReplayNode{Kind: "null"}
+	n := typedef.DomainReplayNode{Kind: "null"}
 	if v.IsNull() {
 		if u.Type.IsDomain() && u.Type.HasDomainConstraints() {
-			identity, err := DomainReplayIdentity(view, u.Type)
+			identity, err := typedef.DomainReplayIdentity(view, u.Type)
 			if err != nil {
 				return n, err
 			}
@@ -37,7 +38,7 @@ func captureDomainReplayNode(ctx context.Context, view catalog.Read, u sqltype.U
 		return n, nil
 	}
 	if u.Type.IsDomain() {
-		identity, err := DomainReplayIdentity(view, u.Type)
+		identity, err := typedef.DomainReplayIdentity(view, u.Type)
 		if err != nil {
 			return n, err
 		}
@@ -49,15 +50,15 @@ func captureDomainReplayNode(ctx context.Context, view catalog.Read, u sqltype.U
 		if err != nil {
 			return n, err
 		}
-		return DomainReplayNode{Kind: "domain", Type: &identity, Base: &child}, nil
+		return typedef.DomainReplayNode{Kind: "domain", Type: &identity, Base: &child}, nil
 	}
 	if u.Type.IsArray() {
-		dimensions := make([]DomainReplayDimension, v.ArrayRank())
+		dimensions := make([]typedef.DomainReplayDimension, v.ArrayRank())
 		for i := range dimensions {
 			dimension := v.ArrayDimension(i)
-			dimensions[i] = DomainReplayDimension{Lower: dimension.Lower, Length: dimension.Length}
+			dimensions[i] = typedef.DomainReplayDimension{Lower: dimension.Lower, Length: dimension.Length}
 		}
-		elements := make([]DomainReplayNode, v.ArrayLen())
+		elements := make([]typedef.DomainReplayNode, v.ArrayLen())
 		element := u
 		element.Type = u.Type.Element()
 		for i := range elements {
@@ -67,28 +68,28 @@ func captureDomainReplayNode(ctx context.Context, view catalog.Read, u sqltype.U
 				return n, err
 			}
 		}
-		return DomainReplayNode{Kind: "array", Dimensions: &dimensions, Elements: &elements}, nil
+		return typedef.DomainReplayNode{Kind: "array", Dimensions: &dimensions, Elements: &elements}, nil
 	}
 	if u.Type.IsComposite() {
-		members := make([]DomainReplayMember, v.CompositeLen())
+		members := make([]typedef.DomainReplayMember, v.CompositeLen())
 		for i := range members {
 			field := u.Type.CompositeMember(i)
 			child, err := captureDomainReplayNode(ctx, view, field.Usage, v.CompositeField(i))
 			if err != nil {
 				return n, err
 			}
-			members[i] = DomainReplayMember{Name: field.Name, Value: &child}
+			members[i] = typedef.DomainReplayMember{Name: field.Name, Value: &child}
 		}
-		return DomainReplayNode{Kind: "composite", Members: &members}, nil
+		return typedef.DomainReplayNode{Kind: "composite", Members: &members}, nil
 	}
 	literal, err := catalogLiteralSQL(ctx, view, literalExpression{Info: expr.Info{Usage: u}, value: v})
 	if err != nil {
 		return n, err
 	}
-	return DomainReplayNode{Kind: "scalar", Scalar: &literal}, nil
+	return typedef.DomainReplayNode{Kind: "scalar", Scalar: &literal}, nil
 }
 
-func restoreDomainReplayNode(c *EvalContext, e *Engine, op *Operation, auth AuthorizationView, u sqltype.Usage, n *DomainReplayNode) (sqltype.Value, int, error) {
+func restoreDomainReplayNode(c *EvalContext, e *Engine, op *Operation, auth AuthorizationView, u sqltype.Usage, n *typedef.DomainReplayNode) (sqltype.Value, int, error) {
 	bad := func() (sqltype.Value, int, error) {
 		return sqltype.Value{}, 0, fmt.Errorf("stuntgres: invalid native domain replay value")
 	}
@@ -99,7 +100,7 @@ func restoreDomainReplayNode(c *EvalContext, e *Engine, op *Operation, auth Auth
 		return sqltype.Value{}, 0, err
 	}
 	if n.Shape("domain_null") || n.Shape("domain") {
-		identity, err := DomainReplayIdentity(auth.Catalog, u.Type)
+		identity, err := typedef.DomainReplayIdentity(auth.Catalog, u.Type)
 		if err != nil {
 			return bad()
 		}
@@ -237,7 +238,7 @@ func restoreDomainReplayNode(c *EvalContext, e *Engine, op *Operation, auth Auth
 	return value, 0, nil
 }
 
-func (e *Engine) captureDomainReplay(scope *StatementScope, s *parser.Insert, record DomainReplayRecord, auth AuthorizationView, relation *catalog.Relation) (*domainReplayCapture, error) {
+func (e *Engine) captureDomainReplay(scope *StatementScope, s *parser.Insert, record typedef.DomainReplayRecord, auth AuthorizationView, relation *catalog.Relation) (*domainReplayCapture, error) {
 	e.mu.Lock()
 	valid := partitionConstraintReplayImport(e, scope.op, auth)
 	e.mu.Unlock()
@@ -320,7 +321,7 @@ func (e *Engine) captureDomainReplay(scope *StatementScope, s *parser.Insert, re
 	return capture, nil
 }
 
-func (e *Engine) executeDomainReplayInsert(op *Operation, s *parser.Insert, record DomainReplayRecord) (result Result, err error) {
+func (e *Engine) executeDomainReplayInsert(op *Operation, s *parser.Insert, record typedef.DomainReplayRecord) (result Result, err error) {
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		return Result{}, err

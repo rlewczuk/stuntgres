@@ -3,13 +3,15 @@ package engine
 import (
 	"context"
 	"errors"
+	"testing"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestQueryFilterProvenEmptyDemand(t *testing.T) {
@@ -41,7 +43,7 @@ func TestQueryFilterProvenEmptyDemand(t *testing.T) {
 				bridge.locks = &queryLockContext{leaves: []queryLockLeaf{{mark: queryRowMark{mode: lock.ForUpdate}}}}
 			}
 			t.Cleanup(bridge.close)
-			state := &queryState{source: bridge, input: sqltype.InputEnvironment{EnumMemberSafe: EnumSafety(map[int64]bool{102: true})}}
+			state := &queryState{source: bridge, input: sqltype.InputEnvironment{EnumMemberSafe: typedef.EnumSafety(map[int64]bool{102: true})}}
 			value := sqltype.Boolean(boolean, false)
 			live := name == "literalTrue" || name == "parameterTrue"
 			if live {

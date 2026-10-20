@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -17,8 +19,8 @@ func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage,
 	if err != nil {
 		return sqltype.Usage{}, err
 	}
-	if physical := u.Type.BaseType(); physical.IsArray() && !StoredArrayElement(physical.Element()) {
-		return sqltype.Usage{}, TypeDiagnostic(raw, "0A000", "unsupported column type")
+	if physical := u.Type.BaseType(); physical.IsArray() && !typedef.StoredArrayElement(physical.Element()) {
+		return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "0A000", "unsupported column type")
 	}
 	if u.Type.IsArray() && u.Type.Element().IsDomain() {
 		auth, err := e.authorizationLocked(op)
@@ -85,7 +87,7 @@ func (e *Engine) resolveStringAnnotationType(raw parser.TypeName, op *Operation,
 func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, unknownNull, domainBase, stringInput, jsonReturning, thresholdArrayInput bool) (sqltype.Usage, error) {
 	name := raw.Name
 	if !raw.Quoted && raw.Schema == nil {
-		name = CanonicalDeclarationTypeName(name)
+		name = typedef.CanonicalDeclarationTypeName(name)
 	}
 	auth, err := e.authorizationLocked(op)
 	if err != nil {
@@ -108,12 +110,12 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 	}
 	if found == (ids.ObjectAddress{}) {
 		if domainBase && raw.Name == "record" && (raw.Schema == nil || raw.Schema.Text == "pg_catalog") {
-			return sqltype.Usage{}, TypeDiagnostic(raw, "42804", `"record" is not a valid base type for a domain`)
+			return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "42804", `"record" is not a valid base type for a domain`)
 		}
-		if raw.Schema == nil && UnsupportedColumnType(raw) {
-			return sqltype.Usage{}, TypeDiagnostic(raw, "0A000", "unsupported column type")
+		if raw.Schema == nil && typedef.UnsupportedColumnType(raw) {
+			return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "0A000", "unsupported column type")
 		}
-		return sqltype.Usage{}, TypeDiagnostic(raw, "42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(object)))
+		return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "42704", fmt.Sprintf(`type "%s" does not exist`, objectNameText(object)))
 	}
 	d, validType := auth.definitionType(sqltype.ID(found.ObjectID))
 	if !validType {
@@ -123,7 +125,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 		return sqltype.Usage{}, sqlError("0A000", "returning pseudo-types is not supported in SQL/JSON functions")
 	}
 	if domainBase && (!d.Concrete() || d.IsArray() && d.Element().IsEnum() || d.ID() == sqltype.Void) {
-		return sqltype.Usage{}, TypeDiagnostic(raw, "42804", fmt.Sprintf(`"%s" is not a valid base type for a domain`, d.Name()))
+		return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "42804", fmt.Sprintf(`"%s" is not a valid base type for a domain`, d.Name()))
 	}
 	if unknownNull && d.ID() == sqltype.Unknown && len(raw.Modifiers) == 0 {
 		return d.Usage(), nil
@@ -132,7 +134,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 		return sqltype.DeferredRecord().Usage(), nil
 	}
 	if !d.Concrete() || d.IsArray() && d.Element().IsEnum() && !thresholdArrayInput || d.ID() == sqltype.Char && !stringInput || d.ID() == sqltype.Void {
-		return sqltype.Usage{}, TypeDiagnostic(raw, "0A000", "unsupported column type")
+		return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "0A000", "unsupported column type")
 	}
 	u := d.Usage()
 	if !raw.Quoted && (raw.Name == "char" || raw.Name == "character") && len(raw.Modifiers) == 0 {
@@ -143,13 +145,13 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 	}
 	if len(raw.Modifiers) > 0 {
 		if d.IsUserDefined() || d.IsDomain() {
-			return sqltype.Usage{}, TypeDiagnostic(raw, "42601", fmt.Sprintf(`type modifier is not allowed for type "%s"`, objectNameText(object)))
+			return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "42601", fmt.Sprintf(`type modifier is not allowed for type "%s"`, objectNameText(object)))
 		}
 		if err := d.CheckModifierSupport(); err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42601" && raw.Schema != nil {
 				// Explicit qualification owns its diagnostic spelling. Unqualified
 				// aliases and lowered declarations retain the descriptor's name.
-				return sqltype.Usage{}, TypeDiagnostic(raw, diagnostic.Code, fmt.Sprintf(`type modifier is not allowed for type "%s"`, objectNameText(object)))
+				return sqltype.Usage{}, typedef.TypeDiagnostic(raw, diagnostic.Code, fmt.Sprintf(`type modifier is not allowed for type "%s"`, objectNameText(object)))
 			}
 			return sqltype.Usage{}, inputErrorAt(err, raw.Pos)
 		}
@@ -157,7 +159,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 	modifiers := make([]int32, len(raw.Modifiers))
 	for i, modifier := range raw.Modifiers {
 		if modifier.NonSimple || modifier.UnaryPlus {
-			return sqltype.Usage{}, TypeDiagnostic(raw, "42601", "type modifiers must be simple constants or identifiers")
+			return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "42601", "type modifiers must be simple constants or identifiers")
 		}
 		if modifier.Integer != nil {
 			modifiers[i] = *modifier.Integer
@@ -194,11 +196,11 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 	}
 	if len(raw.ArrayBounds) > 0 {
 		if sqltype.IsTransactionIdentifier(d.BaseType().ID()) {
-			return sqltype.Usage{}, TypeDiagnostic(raw, "0A000", "unsupported column type")
+			return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "0A000", "unsupported column type")
 		}
 		array, ok := auth.definitionArray(d)
 		if !ok || d.IsEnum() && !thresholdArrayInput {
-			return sqltype.Usage{}, TypeDiagnostic(raw, "0A000", "unsupported array element type")
+			return sqltype.Usage{}, typedef.TypeDiagnostic(raw, "0A000", "unsupported array element type")
 		}
 		u.Type = array
 	}

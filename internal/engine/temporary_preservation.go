@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"slices"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
 
@@ -299,7 +301,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		return err
 	}
 	defer func() { next.SetScalarImports(nil) }()
-	domainsChanged, err := ReownDomainTypes(next, mapping, true)
+	domainsChanged, err := typedef.ReownDomainTypes(next, mapping, true)
 	if err != nil {
 		return err
 	}
@@ -599,7 +601,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 			}
 		}
 		if relation, ok := descriptor.(*catalog.Relation); ok {
-			if err := ValidateTypedAttachment(e.catalog.read(next), relation); err != nil {
+			if err := typedef.ValidateTypedAttachment(e.catalog.read(next), relation); err != nil {
 				return err
 			}
 		}

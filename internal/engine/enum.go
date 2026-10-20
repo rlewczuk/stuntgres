@@ -2,8 +2,10 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -35,7 +37,7 @@ func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, st
 	if err != nil {
 		return err
 	}
-	if !available || RelationTypeNameOccupied(auth.Catalog, ns.Address, name) {
+	if !available || typedef.RelationTypeNameOccupied(auth.Catalog, ns.Address, name) {
 		return sqlError("42710", fmt.Sprintf(`type "%s" already exists`, name))
 	}
 	oid, err := e.catalog.allocateOIDLocked()

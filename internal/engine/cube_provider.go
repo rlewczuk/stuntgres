@@ -3,10 +3,12 @@ package engine
 import (
 	"fmt"
 	"strconv"
+
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -33,7 +35,7 @@ func (p *cubeProvider) stage(e *Engine, stage *CatalogStage, ext *catalog.Extens
 	if err != nil {
 		return err
 	}
-	if !available || RelationTypeNameOccupied(auth.Catalog, ext.TargetNamespace, "cube") {
+	if !available || typedef.RelationTypeNameOccupied(auth.Catalog, ext.TargetNamespace, "cube") {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: `type "cube" already exists`, Context: cubeTypeContext}
 	}
 	ext.Members = make([]ids.ObjectAddress, 3)

@@ -3,10 +3,12 @@ package engine
 import (
 	"fmt"
 	"sort"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -386,13 +388,13 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 	return next, err
 }
 
-func remapViewQuery(view catalog.Read, node LogicalNode, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...CollationRemapper) (LogicalNode, error) {
+func remapViewQuery(view catalog.Read, node LogicalNode, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...typedef.CollationRemapper) (LogicalNode, error) {
 	typ = recordTypeMapper(typ, collations...)
 	return remapViewQueryMapped(view, node, ref, typ, collations...)
 }
 
-func remapViewQueryMapped(view catalog.Read, node LogicalNode, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...CollationRemapper) (LogicalNode, error) {
-	var collation CollationRemapper
+func remapViewQueryMapped(view catalog.Read, node LogicalNode, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...typedef.CollationRemapper) (LogicalNode, error) {
+	var collation typedef.CollationRemapper
 	if len(collations) != 0 {
 		collation = collations[0]
 	}
@@ -407,7 +409,7 @@ type viewQueryRemapper struct {
 	ref            func(ids.ObjectRef) ids.ObjectRef
 	typ            func(*sqltype.Descriptor) *sqltype.Descriptor
 	queries        map[*projectNode]LogicalNode
-	collation      CollationRemapper
+	collation      typedef.CollationRemapper
 	catalog        catalog.Read
 	referencesOnly bool
 	ctes           map[*cteDefinition]*cteDefinition

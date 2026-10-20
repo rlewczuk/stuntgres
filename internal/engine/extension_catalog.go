@@ -5,10 +5,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
 
@@ -158,7 +160,7 @@ func (p extensionCatalogProvider) Validate(v catalog.Read, d catalog.Descriptor)
 		}
 		if d.Conversion.Name() != "" {
 			registered, ok := sqltype.RegisteredEncodingConversion(d.Name())
-			if !ok || d.Conversion != registered || unaccentProviderOf(d) != nil || d.Signature != catalog.ConversionSignature || d.Result != 23 || d.Volatility != expr.Immutable || !d.Strict || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || ConversionRoutineName(d.Address().ObjectID) != d.Name() {
+			if !ok || d.Conversion != registered || unaccentProviderOf(d) != nil || d.Signature != catalog.ConversionSignature || d.Result != 23 || d.Volatility != expr.Immutable || !d.Strict || d.Extension != (ids.ObjectAddress{}) || d.Dictionary != (ids.ObjectAddress{}) || d.Namespace() != (ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}) || typedef.ConversionRoutineName(d.Address().ObjectID) != d.Name() {
 				return invalid()
 			}
 			break

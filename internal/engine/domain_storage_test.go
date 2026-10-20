@@ -2,12 +2,14 @@ package engine
 
 import (
 	"context"
+	"testing"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func domainUnitTable(t *testing.T, e *Engine, op *Operation, q string) *catalog.Relation {
@@ -133,7 +135,7 @@ func TestDomainExplicitCatalogRemapDetachesPayloadAndBase(t *testing.T) {
 	builtin := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Numeric)}
 	next.SetDescriptor(builtin, &catalog.Type{SQLType: physical})
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{a.Address(): {ClassID: ids.TypeClassID, ObjectID: 60001}, chain.Address(): {ClassID: ids.TypeClassID, ObjectID: 60002}}
-	changed, err := ReownDomainTypes(next, mapping, false)
+	changed, err := typedef.ReownDomainTypes(next, mapping, false)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}

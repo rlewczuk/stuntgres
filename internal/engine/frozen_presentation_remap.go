@@ -3,10 +3,11 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
 
-func remapFrozenPresentation(view catalog.Read, original *viewDefinition, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation CollationRemapper) (*viewDefinition, error) {
+func remapFrozenPresentation(view catalog.Read, original *viewDefinition, mapping map[ids.ObjectAddress]ids.ObjectAddress, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (*viewDefinition, error) {
 	typ = recordTypeMapper(typ, collation)
 	definition := *original
 	if len(original.columns) != 0 {

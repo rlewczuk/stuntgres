@@ -3,12 +3,13 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 )
 
 // Presentation uses the same namespace-first identity lookup as binding.
 func collationDisplayName(view catalog.Read, id uint32, path []ids.ObjectAddress) string {
 	if view.State() == nil {
-		return pgIdentifier(CollationName(view, id))
+		return pgIdentifier(typedef.CollationName(view, id))
 	}
 	d, ok := view.Collation(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)})
 	if !ok {
@@ -33,5 +34,5 @@ func (b *expressionBinder) collationName(id uint32) string {
 	if b.query.auth != nil {
 		view = b.query.auth.Catalog
 	}
-	return CollationName(view, id)
+	return typedef.CollationName(view, id)
 }

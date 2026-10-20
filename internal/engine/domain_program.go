@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/typedef"
 )
 
 // The existing domain map owns both prepared expressions and every actual phase
@@ -14,7 +15,7 @@ type domainCheckProgram struct {
 	phases      []domainCheckPhase
 }
 type domainCheckPhase struct {
-	number    DomainCheckIdentity
+	number    typedef.DomainCheckIdentity
 	actor     authorization.PrincipalRef
 	ri        bool
 	admission routineAdmissionProgram

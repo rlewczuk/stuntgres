@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
 
@@ -30,7 +31,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 		for _, address := range []ids.ObjectAddress{d.Address(), {ClassID: ids.TypeClassID, ObjectID: ids.OID(d.Array)}} {
 			typ := view.MustType(address)
 			acl, err := access.RawObjectACL(view, address)
-			if !typ.ACLSyntheticDefault || !DefaultDomainACL(typ) || err != nil || acl.Explicit {
+			if !typ.ACLSyntheticDefault || !typedef.DefaultDomainACL(typ) || err != nil || acl.Explicit {
 				t.Fatal("constructor lost raw absence", name, address, acl, err)
 			}
 		}
@@ -70,7 +71,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 		catalog := extensionEngine.CatalogRead()
 		for _, address := range []ids.ObjectAddress{base.Address(), {ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Array)}} {
 			d := catalog.MustType(address)
-			if !d.ACLSyntheticDefault || !DefaultDomainACL(d) {
+			if !d.ACLSyntheticDefault || !typedef.DefaultDomainACL(d) {
 				t.Fatal("extension baseline provenance", address)
 			}
 		}
@@ -108,7 +109,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	domainUnitPublish(t, e, ownerStage)
 	view = e.CatalogRead()
 	d = domainUnitType(t, view, "acl_provenance_domain")
-	if d.Owner != target || !d.ACLSyntheticDefault || !DefaultDomainACL(d) {
+	if d.Owner != target || !d.ACLSyntheticDefault || !typedef.DefaultDomainACL(d) {
 		t.Fatal("owner remap lost raw absence", d)
 	}
 	other := New()
@@ -117,7 +118,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 		t.Fatal("principal remap", err)
 	}
 	imported := remapped.MustType(d.Address())
-	if !imported.ACLSyntheticDefault || !DefaultDomainACL(imported) || imported.Owner == d.Owner {
+	if !imported.ACLSyntheticDefault || !typedef.DefaultDomainACL(imported) || imported.Owner == d.Owner {
 		t.Fatal("foreign principal remap lost provenance", imported)
 	}
 	// Equal effective payloads need not have equal raw provenance. Publication
@@ -131,7 +132,7 @@ func TestObjectACLTypeProvenance(t *testing.T) {
 	}
 	domainUnitPublish(t, e, change)
 	acl, err := access.RawObjectACL(e.CatalogRead(), explicit.Address())
-	if err != nil || !reflect.DeepEqual(acl, explicit.ACL) || !acl.Explicit || DefaultDomainACL(&explicit) {
+	if err != nil || !reflect.DeepEqual(acl, explicit.ACL) || !acl.Explicit || typedef.DefaultDomainACL(&explicit) {
 		t.Fatal("explicit baseline collapsed to NULL", acl, err)
 	}
 	var output bytes.Buffer
@@ -170,7 +171,7 @@ func TestObjectACLTypeSetterProvenance(t *testing.T) {
 						Explicit: old.ACL.Explicit,
 						Entries:  append([]authorization.ACLEntry(nil), old.ACL.Entries...),
 					}
-					if !old.ACLSyntheticDefault || !DefaultDomainACL(old) {
+					if !old.ACLSyntheticDefault || !typedef.DefaultDomainACL(old) {
 						t.Fatal("fixture lacks constructor-synthetic baseline", old)
 					}
 					if acl, err := access.RawObjectACL(oldView, old.Address()); err != nil || acl.Explicit || len(acl.Entries) != 0 {
@@ -214,7 +215,7 @@ func TestObjectACLTypeSetterProvenance(t *testing.T) {
 					if err := (typeProvider{}).Validate(currentView, current); err != nil {
 						t.Error("setter published an invalid type descriptor", err)
 					}
-					if DefaultDomainACL(current) {
+					if typedef.DefaultDomainACL(current) {
 						t.Error("genuine explicit ACL is considered regenerable")
 					}
 
@@ -235,7 +236,7 @@ func TestObjectACLTypeSetterProvenance(t *testing.T) {
 					// Retained readers must still see the original constructor
 					// state after both publication and attempted serialization.
 					retained := domainUnitType(t, oldView, "acl_setter_type")
-					if retained != old || !retained.ACLSyntheticDefault || !reflect.DeepEqual(retained.ACL, oldACL) || !DefaultDomainACL(retained) {
+					if retained != old || !retained.ACLSyntheticDefault || !reflect.DeepEqual(retained.ACL, oldACL) || !typedef.DefaultDomainACL(retained) {
 						t.Error("setter or Dump mutated the old catalog descriptor", retained)
 					}
 					if acl, err := access.RawObjectACL(oldView, old.Address()); err != nil || acl.Explicit || len(acl.Entries) != 0 {

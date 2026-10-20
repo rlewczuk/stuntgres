@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -227,7 +229,7 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 		if err != nil {
 			return err
 		}
-		if err := ValidateCapturedInputBinding(auth.Catalog, current.Catalog, binder.dependencies); err != nil {
+		if err := typedef.ValidateCapturedInputBinding(auth.Catalog, current.Catalog, binder.dependencies); err != nil {
 			return err
 		}
 		e.mu.Unlock()

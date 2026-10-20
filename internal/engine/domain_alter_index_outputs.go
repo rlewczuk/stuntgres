@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
+	"stuntgres/internal/engine/typedef"
 )
 
 func reownDomainIndexOutputs(ctx context.Context, base, next *catalog.State, original, store *storage.Relation) (*storage.Relation, error) {
@@ -35,7 +36,7 @@ func reownDomainIndexOutputs(ctx context.Context, base, next *catalog.State, ori
 				if err != nil {
 					return nil, err
 				}
-				mapped.Key, err = ReownDomainDatum(output.Key, usage.Type, nil, next.ScalarImports(), next.ACLItemImport())
+				mapped.Key, err = typedef.ReownDomainDatum(output.Key, usage.Type, nil, next.ScalarImports(), next.ACLItemImport())
 				if err != nil {
 					return nil, err
 				}
@@ -45,7 +46,7 @@ func reownDomainIndexOutputs(ctx context.Context, base, next *catalog.State, ori
 				if err != nil {
 					return nil, err
 				}
-				rebound, err := ReownDomainDatum(value, usage.Type, nil, next.ScalarImports(), next.ACLItemImport())
+				rebound, err := typedef.ReownDomainDatum(value, usage.Type, nil, next.ScalarImports(), next.ACLItemImport())
 				if err != nil {
 					return nil, err
 				}

@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -128,7 +129,7 @@ func TestConversionDescriptorCreateAndMoveUniqueness(t *testing.T) {
 	if e.CatalogRead().State() == before.State() {
 		t.Fatal("duplicate shape not published")
 	}
-	if err = ConversionProbeResult("real_routine", 1); !errors.As(err, &diagnostic) || diagnostic.Code != "42P17" || diagnostic.Message != "encoding conversion function real_routine returned incorrect result for empty input" {
+	if err = typedef.ConversionProbeResult("real_routine", 1); !errors.As(err, &diagnostic) || diagnostic.Code != "42P17" || diagnostic.Message != "encoding conversion function real_routine returned incorrect result for empty input" {
 		t.Fatal("consumed empty-input contract", err)
 	}
 }

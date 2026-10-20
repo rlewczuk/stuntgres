@@ -1,10 +1,9 @@
 package engine
 
 import (
-	"encoding/base64"
-	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -43,7 +42,7 @@ func TestDomainDefaultReplayAdmissionInternal(t *testing.T) {
 		t.Fatal("missing destination")
 	}
 	identity := []string{"public", "replay_required"}
-	valid := DomainReplayRecord{Schema: "public", Table: "replay_domain", Cells: []DomainReplayCell{{Column: "v", Value: &DomainReplayNode{Kind: "domain_null", Type: &identity}}}}
+	valid := typedef.DomainReplayRecord{Schema: "public", Table: "replay_domain", Cells: []typedef.DomainReplayCell{{Column: "v", Value: &typedef.DomainReplayNode{Kind: "domain_null", Type: &identity}}}}
 	capture, err := e.captureDomainReplay(scope, source, valid, auth, relation)
 	if err != nil || capture == nil || len(capture.cells) != 1 || !capture.cells[0].value.IsNull() || capture.cells[0].value.Type() != relation.Columns[0].Usage.Type {
 		t.Fatal("exact domain NULL admission", capture, err)
@@ -59,13 +58,13 @@ func TestDomainDefaultReplayAdmissionInternal(t *testing.T) {
 		}
 	}
 	ordinary := valid
-	ordinary.Cells = []DomainReplayCell{{Column: "v", Value: &DomainReplayNode{Kind: "null"}}}
+	ordinary.Cells = []typedef.DomainReplayCell{{Column: "v", Value: &typedef.DomainReplayNode{Kind: "null"}}}
 	if _, err := e.captureDomainReplay(scope, source, ordinary, auth, relation); err == nil {
 		t.Fatal("fresh NULL acquired same-domain provenance")
 	}
 	foreign := valid
 	wrong := []string{"other", "replay_required"}
-	foreign.Cells = []DomainReplayCell{{Column: "v", Value: &DomainReplayNode{Kind: "domain_null", Type: &wrong}}}
+	foreign.Cells = []typedef.DomainReplayCell{{Column: "v", Value: &typedef.DomainReplayNode{Kind: "domain_null", Type: &wrong}}}
 	if _, err := e.captureDomainReplay(scope, source, foreign, auth, relation); err == nil {
 		t.Fatal("foreign identity admitted")
 	}
@@ -83,60 +82,6 @@ func TestDomainDefaultReplayAdmissionInternal(t *testing.T) {
 	}
 	if _, err := normal.captureDomainReplay(&StatementScope{op: normalOp}, source, valid, normalAuth, nil); err == nil {
 		t.Fatal("ordinary engine acquired native replay authority")
-	}
-}
-
-func TestDomainDefaultReplayPairingInternal(t *testing.T) {
-	record := DomainReplayRecord{Schema: "public", Table: "t", Cells: []DomainReplayCell{{Column: "v", Value: &DomainReplayNode{Kind: "null"}}}}
-	directive, err := EncodeDomainReplay(record)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, tc := range []struct {
-		text  string
-		valid bool
-	}{
-		{"-- é\n" + directive + "INSERT INTO public.t(v) VALUES(NULL);", true},
-		{directive + "INSERT INTO public.other(v) VALUES(NULL);", false},
-		{directive + "SELECT 1; INSERT INTO public.t(v) VALUES(NULL);", false},
-		{directive + "-- intervening\nINSERT INTO public.t(v) VALUES(NULL);", false},
-		{directive + directive + "INSERT INTO public.t(v) VALUES(NULL);", false},
-		{directive + "INSERT INTO public.t(v) VALUES(NULL),(NULL);", false},
-		{directive + "INSERT INTO public.t(v) VALUES(NULL) RETURNING v;", false},
-		{directive, false},
-	} {
-		var records []PositionedDomainReplay
-		statements, err := parser.ParseWithOptions(tc.text, parser.Options{StandardConformingStrings: true, LineComment: func(comment string, pos parser.Position) error {
-			record, found, err := DecodeDomainReplay(comment)
-			if found && err == nil {
-				records = append(records, PositionedDomainReplay{Record: record, End: pos.Offset + len(comment)})
-			}
-			return err
-		}})
-		if err != nil {
-			t.Fatal(tc.text, err)
-		}
-		pairs, err := PairDomainReplay(tc.text, statements, records)
-		if tc.valid && (err != nil || len(pairs) != 1) || !tc.valid && err == nil {
-			t.Fatal(tc.text, pairs, err)
-		}
-	}
-	valid := `{"schema":"public","table":"t","cells":[{"column":"v","value":{"kind":"null"}}]}`
-	if _, found, err := DecodeDomainReplay(DomainReplayMarker + " " + base64.StdEncoding.EncodeToString([]byte(valid))); err != nil || !found {
-		t.Fatal("valid wire record", found, err)
-	}
-	for _, raw := range []string{
-		strings.Replace(valid, `"schema":"public"`, `"schema":"public","schema":"public"`, 1),
-		strings.Replace(valid, `"kind":"null"`, `"kind":"null","kind":"null"`, 1),
-		strings.Replace(valid, `"kind":"null"`, `"kind":"null","unknown":true`, 1),
-		strings.Replace(valid, `"schema"`, `"Schema"`, 1),
-		`{"schema":"public","table":"t","cells":null}`,
-		valid + valid,
-		strings.Replace(valid, `"kind":"null"`, `"kind":"array","dimensions":[{"lower":1}],"elements":[]`, 1),
-	} {
-		if _, _, err := DecodeDomainReplay(DomainReplayMarker + " " + base64.StdEncoding.EncodeToString([]byte(raw))); err == nil {
-			t.Fatal("malformed wire record admitted", raw)
-		}
 	}
 }
 
@@ -166,7 +111,7 @@ func TestDomainDefaultReplayDeferredChecksInternal(t *testing.T) {
 		t.Fatal(err)
 	}
 	identity := []string{"public", "replay_deferred"}
-	record := DomainReplayRecord{Schema: "public", Table: "deferred_rows", Cells: []DomainReplayCell{{Column: "v", Value: &DomainReplayNode{Kind: "domain_null", Type: &identity}}}}
+	record := typedef.DomainReplayRecord{Schema: "public", Table: "deferred_rows", Cells: []typedef.DomainReplayCell{{Column: "v", Value: &typedef.DomainReplayNode{Kind: "domain_null", Type: &identity}}}}
 	capture, err := e.captureDomainReplay(scope, source, record, auth, table)
 	if err != nil {
 		t.Fatal("deferred CHECK declaration lost existing domain NULL provenance", err)
@@ -205,7 +150,7 @@ func TestDomainDefaultReplayRoutineManifestInternal(t *testing.T) {
 	c := EvalContext{evalStatement: evalStatement{Context: op.Context(), statementScope: scope, catalog: auth.Catalog, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}, evalAdmission: evalAdmission{routineAuthority: &auth}}
 	c.Input.ExactSnapshot = true
 	c.Input.DomainChecks = &c
-	value, count, err := restoreDomainReplayNode(&c, e, op, auth, typ.Usage(), &DomainReplayNode{Kind: "scalar", Scalar: &text})
+	value, count, err := restoreDomainReplayNode(&c, e, op, auth, typ.Usage(), &typedef.DomainReplayNode{Kind: "scalar", Scalar: &text})
 	if err != nil || count != 0 {
 		t.Fatal("closed endpoint expression lost its original binding manifest", count, err)
 	}
