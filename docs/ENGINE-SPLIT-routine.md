@@ -30,68 +30,88 @@ it (it is binding, step 12), nor is routine call admission (execution, step
 - `routine` owns the builtin inventories, operator metadata and routine and
   operator DDL. It imports `catalog` and sits at L10.
 
-## Inventory (measured at `75fe0d710`, before `PG18-ROUTINE-CORE`)
+## Inventory (re-measured by 14a at `6eff87c89`, after `PG18-ROUTINE-CORE`; rebased onto `69ed33382`)
 
-Re-measure after the merge.
+Measured with the appendix tool: a declaration is clean when its transitive
+package-level references reach none of `Engine`, `EvalContext`,
+`expressionBinder`, `StatementScope`, `CatalogStage`, `Operation`, `Session`,
+`transactionOwner` or `catalogChanges`. Line counts are after 14a.
 
-**Clean files** (reach no god struct):
+**Clean files** (every declaration is clean):
 
 | File | Lines | Content |
 |---|---:|---|
-| `routine_inventory.go` | 1,268 | `builtinRoutineDeclarations` (`[...]catalog.BuiltinRoutineDeclaration`), `builtinRoutineByOID`, `indexBuiltinRoutineDeclarations` |
+| `routine_inventory.go` | 1,270 | `builtinRoutineDeclarations` (`[...]catalog.BuiltinRoutineDeclaration`, not OID-sorted), `builtinRoutineByOID`, `indexBuiltinRoutineDeclarations` |
 | `operator_inventory.go` | 811 | `builtinOperators` |
 | `operator_metadata.go` | 588 | `operatorMetadata`, `supportedOperatorMetadata`, `releasedOperatorEstimatorResult` |
 | `operator_routines.go` | 562 | `builtinOperatorRoutineAssociations` |
 | `operator_dump.go` | 305 | `operatorDumpDeclaration`, `operatorDumpEvents`, `operatorDumpLinks`, `operatorSQLName`, `operatorSQLSignature`, `operatorShellGenerator`, `orphanOperatorShellDump`, ... |
-| `routine_declaration.go` | — | `grantRoutineKindMatches`, `procedureReturnsSet`; temporary F3 aliases removed and verified in functions Item6, without moving these real helpers |
-| `operator_index.go` | 9 | `seededOperatorNames` |
-| `routine_address_kind.go` | 7 | `objectRoutineKind` |
+| `operator_options.go` | 227 | CREATE/ALTER OPERATOR option parsing and validation (split out of `operator_ddl.go` by 14a) |
+| `routine_body.go` | 146 | `builtinRoutineBodyEdges`, `builtinRoutineBodyLinks`, `attachBuiltinRoutineBodies`, `walkRoutineBody`, `bodyCastMatches`, `embeddedCastOID`, `polymorphicBodyArgument` |
+| `operator_catalog.go` | 122 | `operatorProvider` (`ClassID`, `Validate`), `operatorSeeded`, `builtinOperatorDescriptors` |
+| `routine_catalog.go` | 85 | `builtinRoutineKey`, `builtinRoutineByDeclaration`, `indexBuiltinRoutineFormals`, `lookupBuiltinRoutineDeclaration`, `builtinProcedures` |
+| `routine_declaration.go` | 24 | `grantRoutineKindMatches`, `procedureReturnsSet` |
+| `operator_index.go` | 16 | `seededOperatorNames` |
+| `routine_address_kind.go` | 13 | `objectRoutineKind` |
+
+Engine declarations the clean set still uses (14b exports or moves them):
+`sqlError` and `objectNameText` (`operator_options.go`); the dump records
+`dumpDomain`, `dumpDeclaration`, `dumpEventKey`, `dumpOperatorLinks` and
+`catalogTypeDeclaration` (`operator_dump.go`, from `domain_dump.go` and
+`view_dump.go`); `builtinOperatorRoutineByDeclaration`
+(`operator_routine_binding.go`) and `routineIdentityByOID`
+(`regproc_lookup.go`), both used by `operator_dump.go`; `stockIntagg` and
+`intaggProviderOf` (`routine_declaration.go`). Census output:
+`.cswd/tmp/PG18-ENGINE-SPLIT-ROUTINE-IN-PLACE/census-after.txt`.
 
 **Mixed files** (clean declarations listed; the rest stays or is Part B):
 
-- `operator_catalog.go`: clean `operatorProvider` (`ClassID`, `Validate`),
-  `operatorSeeded`; dirty `Engine.initializeOperators`.
-- `routine_catalog.go`: clean `builtinRoutineKey`,
-  `builtinRoutineByDeclaration`, `indexBuiltinRoutineFormals`,
-  `lookupBuiltinRoutineDeclaration`; dirty `Engine.initializeBuiltinRoutines`
-  and four binder methods (`builtinRoutineInfo`, `builtinRoutineReference`,
-  `selectedBuiltinRoutineInfo`, `captureBuiltinRoutineDeclaration`; step 12).
-- `routine_body.go`: clean `builtinRoutineBodyEdges`, `walkRoutineBody`,
-  `bodyCastMatches`, `embeddedCastOID`, `polymorphicBodyArgument`; dirty
-  `Engine.initializeBuiltinRoutineBodies` and two binder methods.
 - `routine_reference.go`: clean `currentRoutineDeclaration`,
   `expressionRecipeDescriptor`, `expressionRoutineDescriptor`,
   `sameRoutineDeclaration`, `validateRoutineDescriptor`,
   `validateStoredRoutineDescriptor`; dirty
-  `EvalContext.selectExpressionRecipe`.
-- `operator_ddl.go` (876): clean `checkOperatorLinkReplacement`,
-  `operatorAlterOption`, `operatorBoolean`, `operatorEstimatorVariant`,
-  `operatorInputName`, `operatorOptionError`, `operatorOptionName`,
-  `operatorOptionType`, `validOperatorName`,
-  `validateOperatorEstimatorMetadata`, `validateOperatorOptions`; dirty
-  staging on `Engine` (`stageCreateOperatorLocked`,
+  `EvalContext.selectExpressionRecipe` (admission, step 11).
+- `operator_ddl.go` (669): staging on `Engine` (`stageCreateOperatorLocked`,
   `stageAlterOperatorLocked`, `stageDropOperatorLocked`,
   `resolveOperatorLink`, `stageResolvedOperatorLink`,
   `collectOperatorOptions`, `operatorEstimator`, `operatorRoutine`,
   `findUtilityOperator`, `operatorArgument`, `resolveOperatorArgument`,
   `checkOperatorArgumentUsage`), `operatorOptionsSyntax`,
-  `stageOperatorDescriptor`.
-- `operator_dependencies.go`: clean `operatorDependencyAddresses`; dirty
-  `dropProvider.clearOperatorLinks` (drop orchestration).
+  `stageOperatorDescriptor`; all dirty (Part B).
+- `operator_dependencies.go`: clean `operatorDependencyAddresses`,
+  `operatorDependsOn`; dirty `dropProvider.clearOperatorLinks` (drop
+  orchestration).
 - `routine_program.go`: clean records `routineAdmission`,
   `routineAdmissionProgram`; their methods are execution (step 11).
+- `sql_routine*.go` (from `PG18-ROUTINE-CORE`, 1,495 lines in 8 files): 23
+  clean declarations, among them `sqlRoutineExpression` and its node
+  methods, `sqlCallable`, `selectSQLCallables`, `appendSQLCallable`,
+  `validateSQLRoutineResult`, `sqlRoutineDefaultClosure`,
+  `closedSQLRoutineDefault` and the dump directives; the DDL, resolution and
+  scope code reaches `Engine`, `expressionBinder` or `StatementScope`. The
+  call-resolution and invocation parts belong to steps 12 and 11; the DDL
+  and its dump are Part B (14c).
+
+**Binder file:** `function_routine_binding.go` (91, from 14a) holds the six
+`expressionBinder` methods that capture builtin routine declarations and
+their SQL-body closure (`builtinRoutineInfo`, `builtinRoutineReference`,
+`selectedBuiltinRoutineInfo`, `captureBuiltinRoutineDeclaration`,
+`capturePolymorphicBody`, `captureRoutineBody`); call resolution, step 12.
 
 **Not routine code** (stays elsewhere): `routine_admission.go`,
 `routine_body_admission.go`, `routine_program.go` methods and
 `routine_inquiry.go` (call admission under an `EvalContext`: step 11);
-`routine_dependencies.go` (stored-SQL rendering); `function.go`,
+`routine_dependencies.go` (stored-SQL rendering); `routine_presentation.go`
+(binder and view-rendering captures); `function.go`,
 `function_binder.go`, `function_column_definitions.go`,
 `function_from_filter.go`, `operator_binding.go`,
 `operator_routine_binding.go` (call resolution: step 12).
 
 Builtin seeding is on the startup path: `newEngine` calls
-`initializeBuiltinRoutines`, `initializeOperators` and
-`initializeBuiltinRoutineBodies`.
+`installBuiltinProcedures` and `installBuiltinOperators`
+(`builtin_catalog.go`), which install what the pure constructors
+`builtinProcedures` (bodies attached by `attachBuiltinRoutineBodies`) and
+`builtinOperatorDescriptors` return.
 
 ## Part A
 
@@ -167,7 +187,34 @@ DDL handlers live in `routine`. The checks in §8.3 pass.
 
 ## Status
 
-- [ ] 14a — In place (after `PG18-ROUTINE-CORE`)
+- [x] 14a — In place (`f4645bc19`, `87bf1455e`, `f33847363`, then the docs
+  commit) *(racecheck skipped at user request)*
+  - `f4645bc19`: `builtinProcedures` and `builtinOperatorDescriptors` are
+    pure constructors; `attachBuiltinRoutineBodies` resolves body edges
+    through `builtinRoutineBodyLinks`, computed once per process (the
+    declaration table is not OID-sorted). `installBuiltinProcedures` and
+    `installBuiltinOperators` in `builtin_catalog.go` do the catalog writes at
+    the old positions in `newEngine`, so order and OIDs are unchanged.
+  - `87bf1455e`: the clean option helpers moved unchanged from
+    `operator_ddl.go` to `operator_options.go`.
+  - `f33847363`: the four binder methods from `routine_catalog.go` and the
+    two body-capture binder methods from `routine_body.go` moved unchanged
+    to `function_routine_binding.go`.
+  - Slots (item 5): nothing to do. `CatalogStage`, `catalogChanges`,
+    `Operation` and `transactionOwner` hold no operator or routine stage
+    state. The `StatementScope` reg*/operator output caches are the
+    "presentation caches" slot of 13a.
+  - Verification: build, targeted engine units, selected reference tests
+    (all of `reference/operators`, regproc/regoperator in
+    `reference/type_resolution`, `pg_proc` users in `reference/catalogs`,
+    RoutineCore/RoutineReview; 126 tests) in quick mode and with
+    `REFERENCE=1`, `make quickcheck`, `make deps` and `make bench` passed.
+    Startup bench, interleaved 10 runs each on a shared host (load ~18):
+    median 966 µs/op before, 962 µs/op after; 5,100 allocs/op and about
+    1.64 MB/op on both. Some samples on both sides exceed 1 ms because of
+    host contention; allocations are unchanged.
+    Racecheck and finalcheck skipped at user request.
+  - No tests moved, adapted or deleted.
 - [ ] 14b — `routine` created and clean set moved
 - [ ] 14c — Host refined (docs only; after 13d)
 - [ ] 14d — DDL handlers moved
@@ -175,6 +222,18 @@ DDL handlers live in `routine`. The checks in §8.3 pass.
 Outstanding aliases: none yet.
 
 Notes for later steps:
+
+- 14b: the clean set is the "Clean files" table plus the clean declarations
+  of the mixed files. Export the seed constructors (`builtinProcedures`,
+  `builtinOperatorDescriptors`) and keep the `install*` methods in the
+  engine. Settle the engine helpers the clean set uses (listed under the
+  inventory): `sqlError`/`objectNameText` can go to `sqlstate`/`catalog` or
+  get a local copy, and the dump records (`dumpDomain`, `dumpEventKey`, ...)
+  decide whether `operator_dump.go` moves in 14b or waits for a dump seam.
+- `EvalContext.selectExpressionRecipe` (`routine_reference.go`) and
+  `dropProvider.clearOperatorLinks` (`operator_dependencies.go`) stay in the
+  engine; 14a left them in their files because 14b moves declarations, not
+  files.
 
 - Step 15 (`typedef`): operators and types reference each other (type
   providers, range and enum operators). 14b settles which side owns the

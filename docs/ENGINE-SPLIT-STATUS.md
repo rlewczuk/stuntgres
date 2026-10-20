@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `6eff87c89293238f4c5dc7688af5514d4356a699`. The later-wave plans
+Last verified against `master` at `69ed33382ee47447e547dc3492f1eff1fb0c982f`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -21,7 +21,7 @@ as another broad item (§8).
 - **Step 10 `plan`** — 10b node runtime (item 32).
 - **In-place untangling** — 12a `binding` split (item 20) and 13a scope
   slots (item 22). Both are broad: one at a time.
-- **Step 14 `routine`** — 14a (item 24); `PG18-ROUTINE-CORE` has merged.
+- **Step 14 `routine`** — 14b (item 25); 14a and the F3 aliases are done.
 
 Steps 1, 2 and 4–8 and `access` are done.
 
@@ -270,7 +270,8 @@ Steps 1, 2 and 4–8 and `access` are done.
 - [ ] **Step 14 — `routine`** ([prompt](ENGINE-SPLIT-routine.md); Part A
   needs `PG18-ROUTINE-CORE` merged, 14b also the F3 aliases item; Part B
   needs 13d)
-  - [ ] 14a — In place
+  - [x] 14a — In place (`f4645bc19`, `87bf1455e`, `f33847363`, then the docs
+    commit) *(racecheck skipped at user request)*
   - [ ] 14b — `routine` created and clean set moved
   - [ ] 14c — Host refined (docs only)
   - [ ] 14d — DDL handlers moved
@@ -397,8 +398,8 @@ in the prompt file's Status section.
 
 ### Group D — feature packages, Part A
 
-24. [ ] Routine 14a — [routine](ENGINE-SPLIT-routine.md) 14a · needs
-    `PG18-ROUTINE-CORE` merged
+24. [x] Routine 14a — [routine](ENGINE-SPLIT-routine.md) 14a · needs
+    `PG18-ROUTINE-CORE` merged · racecheck skipped at user request
 25. [ ] Routine 14b — [routine](ENGINE-SPLIT-routine.md) 14b · needs 24, 6
 26. [ ] Typedef 15a — [typedef](ENGINE-SPLIT-typedef.md) 15a · needs 25
 27. [ ] Typedef 15b — [typedef](ENGINE-SPLIT-typedef.md) 15b · needs 26
