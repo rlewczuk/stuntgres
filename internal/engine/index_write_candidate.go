@@ -236,7 +236,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row storage
 		return read(output)
 	}
 	identity := indexRowIdentity{row: row.Row, version: row.Version}
-	if output, exists := s.existingIndexOutputs[index.Address()][identity]; exists {
+	if output, exists := s.indexesOrZero().existingOutputs[index.Address()][identity]; exists {
 		return read(output)
 	}
 	if !index.SQLIndex.HasRuntimeDomainConversion() && purpose != indexProbeRevalidation {

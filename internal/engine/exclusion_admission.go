@@ -102,11 +102,11 @@ func cloneExclusionProjection(old *exclusionProjection) *exclusionProjection {
 	return p
 }
 func (s *StatementScope) beginExclusionProjectionLocked(e *Engine) {
-	if s.exclusionStarted {
+	if s.indexesOrZero().exclusionStarted {
 		return
 	}
-	s.exclusionStarted = true
-	s.exclusionModes = s.owner.exclusionModes
+	s.indexes().exclusionStarted = true
+	s.indexes().exclusionModes = s.owner.exclusionModes
 }
 func (s *StatementScope) installExclusionProjectionLocked(e *Engine, p *exclusionProjection) {
 	if e.exclusionPending == nil {
@@ -511,8 +511,8 @@ func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *uniqueWri
 	}
 	if c.Deferrable && potential {
 		event := exclusionEvent{parent: ref, index: ref.Domain().Ref(ref.Epoch, index.Address()), constraint: c.OID, row: candidate.Row, version: candidate.Version}
-		if !slices.Contains(s.exclusionModes.events, event) {
-			s.exclusionModes.events = append(slices.Clone(s.exclusionModes.events), event)
+		if !slices.Contains(s.indexesOrZero().exclusionModes.events, event) {
+			s.indexes().exclusionModes.events = append(slices.Clone(s.indexesOrZero().exclusionModes.events), event)
 			if s.foreignActionsOrZero().settling {
 				s.foreignActions().exclusionAdded = true
 			}

@@ -264,7 +264,7 @@ func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
 			}
 		}
 	}
-	s.indexMaintenance = g
+	s.indexes().maintenance = g
 	e.mu.Unlock()
 	if s.replacementRead {
 		e.replacementMu.RUnlock()

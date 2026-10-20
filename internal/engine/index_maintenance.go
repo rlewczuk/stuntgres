@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -21,7 +22,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	if err != nil {
 		return fail(err)
 	}
-	g := scope.indexMaintenance
+	g := scope.indexesOrZero().maintenance
 	if g == nil {
 		return fail(fmt.Errorf("stuntgres: index utility has no relation admission"))
 	}
@@ -173,4 +174,38 @@ func (s *CatalogStage) validateIndexMaintenance(current *catalog.State) error {
 		}
 	}
 	return nil
+}
+
+// indexScope is the statement's index slot: the index maintenance grant,
+// index outputs retained for probes and the exclusion-constraint projection.
+type indexScope struct {
+	maintenance      *indexMaintenanceGrant
+	existingOutputs  map[ids.ObjectAddress]map[indexRowIdentity]storage.IndexOutput
+	exclusionModes   exclusionModes
+	exclusionStarted bool
+}
+
+// indexes returns the statement's indexes slot, allocating it on first use.
+func (s *StatementScope) indexes() *indexScope {
+	if s.indexesSlot == nil {
+		s.indexesSlot = new(indexScope)
+	}
+	return s.indexesSlot
+}
+
+// indexesOrZero reads the indexes slot; a nil slot reads as zero.
+func (s *StatementScope) indexesOrZero() indexScope {
+	if s.indexesSlot == nil {
+		return indexScope{}
+	}
+	return *s.indexesSlot
+}
+
+// endStatement drops the index outputs retained for probes and the index
+// maintenance grant. Exclusion modes stay as the statement left them.
+func (x *indexScope) endStatement() {
+	if x == nil {
+		return
+	}
+	x.existingOutputs, x.maintenance = nil, nil
 }

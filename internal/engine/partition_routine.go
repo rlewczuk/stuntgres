@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
@@ -37,7 +38,7 @@ func evaluatePartitionRecipe(evaluation *EvalContext, owner *catalog.Relation, k
 	}
 	var expressions []expr.Expr
 	if scope != nil {
-		expressions = scope.partitionPrograms[identity]
+		expressions = scope.partitionsOrZero().programs[identity]
 	}
 	if expressions == nil {
 		var admission routineAdmissionProgram
@@ -53,10 +54,10 @@ func evaluatePartitionRecipe(evaluation *EvalContext, owner *catalog.Relation, k
 			}
 		}
 		if scope != nil {
-			if scope.partitionPrograms == nil {
-				scope.partitionPrograms = make(map[partitionRoutineIdentity][]expr.Expr)
+			if scope.partitionsOrZero().programs == nil {
+				scope.partitions().programs = make(map[partitionRoutineIdentity][]expr.Expr)
 			}
-			scope.partitionPrograms[identity] = expressions
+			scope.partitions().programs[identity] = expressions
 			scope.routinePrograms = append(scope.routinePrograms, commandRoutineProgram{admission: admission})
 		} else if local.routineProgram != nil {
 			local.routineProgram.include(&admission)
@@ -66,4 +67,52 @@ func evaluatePartitionRecipe(evaluation *EvalContext, owner *catalog.Relation, k
 	value, err := expressions[keyIndex].Eval(&local)
 	evaluation.preparedDomainChecks = local.preparedDomainChecks
 	return value, err
+}
+
+// partitionScope is the statement's partition slot: consumed partition routine
+// programs and the latest-DDL validation scan view (never the retained query
+// snapshot).
+type partitionScope struct {
+	programs       map[partitionRoutineIdentity][]expr.Expr
+	validationView *visibility.View // Latest DDL scan, same owner; never the retained query snapshot.
+}
+
+// partitions returns the statement's partitions slot, allocating it on first use.
+func (s *StatementScope) partitions() *partitionScope {
+	if s.partitionsSlot == nil {
+		s.partitionsSlot = new(partitionScope)
+	}
+	return s.partitionsSlot
+}
+
+// partitionsOrZero reads the partitions slot; a nil slot reads as zero.
+func (s *StatementScope) partitionsOrZero() partitionScope {
+	if s.partitionsSlot == nil {
+		return partitionScope{}
+	}
+	return *s.partitionsSlot
+}
+
+// dropPrograms drops the consumed partition routine programs together with
+// the borrowed admission context they belong to.
+func (p *partitionScope) dropPrograms() {
+	if p != nil {
+		p.programs = nil
+	}
+}
+
+// releaseValidationView releases the latest-DDL scan view, if any.
+func (p *partitionScope) releaseValidationView() {
+	if p != nil && p.validationView != nil {
+		p.validationView.Release()
+		p.validationView = nil
+	}
+}
+
+// setPartitionValidationView installs a saved scan view; restoring none
+// never allocates the slot.
+func (s *StatementScope) setPartitionValidationView(view *visibility.View) {
+	if view != nil || s.partitionsSlot != nil {
+		s.partitions().validationView = view
+	}
 }

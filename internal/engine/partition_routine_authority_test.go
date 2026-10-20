@@ -74,7 +74,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 			if _, err := partitionRowKey(plain, row, &local, buffer[:]); err != nil {
 				t.Fatal("plain key demand", err)
 			}
-			if local.statementScope.partitionPrograms != nil || local.statementScope.routinePrograms != nil {
+			if local.statementScope.partitionsOrZero().programs != nil || local.statementScope.routinePrograms != nil {
 				t.Fatal("plain key initialized derived preparation")
 			}
 		}
@@ -87,7 +87,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	if !reflect.DeepEqual(evaluation.Row, sentinel) || evaluation.Scope != 7 || evaluation.Frame != 9 || evaluation.routineConsumer != nil {
 		t.Fatal("partition evaluation changed enclosing row or recipe context")
 	}
-	if len(evaluation.statementScope.partitionPrograms) != 1 || len(evaluation.statementScope.routinePrograms) != 1 {
+	if len(evaluation.statementScope.partitionsOrZero().programs) != 1 || len(evaluation.statementScope.routinePrograms) != 1 {
 		t.Fatal("missing statement-owned successful preparation")
 	}
 	if _, err := evaluatePartitionRecipe(&evaluation, owner, 0, row); err != nil || len(evaluation.statementScope.routinePrograms) != 1 {
@@ -105,7 +105,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 			if _, err := evaluatePartitionRecipe(&local, &copyOwner, 0, row); err == nil {
 				t.Fatal("invalid original lifetime was rescued")
 			}
-			if len(local.statementScope.partitionPrograms) != 0 || len(local.statementScope.routinePrograms) != 0 {
+			if len(local.statementScope.partitionsOrZero().programs) != 0 || len(local.statementScope.routinePrograms) != 0 {
 				t.Fatal("failed initialization published a partial program")
 			}
 			if !reflect.DeepEqual(local.Row, sentinel) || local.Scope != 7 || local.Frame != 9 {
@@ -176,7 +176,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	sibling.Partition = &siblingPartition
 	siblingPartition.Keys[0].Derived = &siblingKey
 	siblingKey.Dependencies = []ids.ObjectRef{}
-	if _, err := evaluatePartitionRecipe(&evaluation, &sibling, 0, row); err == nil || len(evaluation.statementScope.partitionPrograms) != 1 {
+	if _, err := evaluatePartitionRecipe(&evaluation, &sibling, 0, row); err == nil || len(evaluation.statementScope.partitionsOrZero().programs) != 1 {
 		t.Fatal("sibling borrowed an admitted owner's manifest")
 	}
 	multiOwner, multiPartition := *owner, *owner.Partition
@@ -186,7 +186,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	if _, err := evaluatePartitionRecipe(&multiEvaluation, &multiOwner, 0, row); err == nil {
 		t.Fatal("later key's missing original manifest was ignored")
 	}
-	if len(multiEvaluation.statementScope.partitionPrograms) != 0 || len(multiEvaluation.statementScope.routinePrograms) != 0 {
+	if len(multiEvaluation.statementScope.partitionsOrZero().programs) != 0 || len(multiEvaluation.statementScope.routinePrograms) != 0 {
 		t.Fatal("failed multi-key preparation published an earlier partial graph")
 	}
 	roleExecute(t, e, admin, "REVOKE EXECUTE ON FUNCTION pg_catalog.octet_length(text) FROM PUBLIC")
@@ -206,7 +206,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 		t.Fatal("consumed body survived revoked EXECUTE without readmission")
 	}
 	fresh := newEvaluation(denied)
-	if _, err := evaluatePartitionRecipe(&fresh, owner, 0, row); err == nil || len(fresh.statementScope.partitionPrograms) != 0 {
+	if _, err := evaluatePartitionRecipe(&fresh, owner, 0, row); err == nil || len(fresh.statementScope.partitionsOrZero().programs) != 0 {
 		t.Fatal("fresh statement borrowed an earlier actor's admission", err)
 	}
 	// The separately privileged owner cannot license the actual reader phase.
@@ -216,7 +216,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 		t.Fatal("privileged owner phase", err)
 	}
 	phase.routineAuthority = &denied
-	if _, err := evaluatePartitionRecipe(&phase, owner, 0, row); err == nil || len(phase.statementScope.partitionPrograms) != 1 {
+	if _, err := evaluatePartitionRecipe(&phase, owner, 0, row); err == nil || len(phase.statementScope.partitionsOrZero().programs) != 1 {
 		t.Fatal("reader borrowed owner phase or failed phase was published", err)
 	}
 	roleExecute(t, e, admin, "GRANT EXECUTE ON FUNCTION pg_catalog.octet_length(text) TO partition_original_reader")
@@ -226,7 +226,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	}
 	evaluation.statementScope.command++
 	evaluation.routineAuthority = &granted
-	if _, err := evaluatePartitionRecipe(&evaluation, owner, 0, row); err != nil || len(evaluation.statementScope.partitionPrograms) != 2 {
+	if _, err := evaluatePartitionRecipe(&evaluation, owner, 0, row); err != nil || len(evaluation.statementScope.partitionsOrZero().programs) != 2 {
 		t.Fatal("new command phase reused prior preparation", err)
 	}
 	if !reflect.DeepEqual(original.Dependencies, refs) {

@@ -25,7 +25,7 @@ func (s *StatementScope) Finish(err error) error {
 		s.routineDependencies = nil
 		s.routinePrograms = nil
 		s.domainPreparedChecks = nil
-		s.partitionPrograms = nil
+		s.partitionsSlot.dropPrograms()
 		s.domainEvaluation = nil
 		for i := range s.mutations {
 			s.mutations[i].routineDependencies = nil
@@ -175,8 +175,8 @@ func (s *StatementScope) Finish(err error) error {
 					t.catalog = catalog
 					t.notificationActions = notificationActions
 					t.notificationEvents = notificationEvents
-					if s.exclusionStarted {
-						t.exclusionModes = s.exclusionModes
+					if s.indexesOrZero().exclusionStarted {
+						t.exclusionModes = s.indexesOrZero().exclusionModes
 					}
 					e.reconcileSerializableWritesLocked(t)
 				}
@@ -267,10 +267,7 @@ func (s *StatementScope) Finish(err error) error {
 		s.view.Release()
 		s.view = nil
 	}
-	if s.partitionValidationView != nil {
-		s.partitionValidationView.Release()
-		s.partitionValidationView = nil
-	}
+	s.partitionsSlot.releaseValidationView()
 	s.stage.rows = nil
 	s.stage.deletes = nil
 	s.notificationActions = nil
@@ -278,10 +275,9 @@ func (s *StatementScope) Finish(err error) error {
 	s.multiEvents = nil
 	s.ownDeletes = nil
 	s.ownWrites = nil
-	s.existingIndexOutputs = nil
+	s.indexesSlot.endStatement()
 	s.inheritance.endStatement()
 	s.ticket = nil
-	s.indexMaintenance = nil
 	s.viewCreationSlot.endStatement()
 	s.querySources = nil
 	s.queryLockAdmission = queryLockAdmission{}

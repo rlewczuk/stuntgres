@@ -112,13 +112,13 @@ func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.Ro
 // The mixed lane may need ordinary prior-own keys again after catalog drift.
 // Freeze actual probe data by immutable row/version, not CHECK truth or values.
 func (s *StatementScope) retainExistingIndexOutput(index *catalog.Relation, row storage.RowVersion, output storage.IndexOutput) {
-	if s.existingIndexOutputs == nil {
-		s.existingIndexOutputs = make(map[ids.ObjectAddress]map[indexRowIdentity]storage.IndexOutput)
+	if s.indexesOrZero().existingOutputs == nil {
+		s.indexes().existingOutputs = make(map[ids.ObjectAddress]map[indexRowIdentity]storage.IndexOutput)
 	}
-	outputs := s.existingIndexOutputs[index.Address()]
+	outputs := s.indexesOrZero().existingOutputs[index.Address()]
 	if outputs == nil {
 		outputs = make(map[indexRowIdentity]storage.IndexOutput)
-		s.existingIndexOutputs[index.Address()] = outputs
+		s.indexes().existingOutputs[index.Address()] = outputs
 	}
 	outputs[indexRowIdentity{row: row.Row, version: row.Version}] = output
 }

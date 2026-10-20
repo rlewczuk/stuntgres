@@ -107,7 +107,7 @@ func TestInsertConflictExistingOutputPreservesProposalKey(t *testing.T) {
 					t.Fatal(comparison.name+" key was overwritten", cmp, err)
 				}
 			}
-			if purpose == indexProbeRuntime && scope.existingIndexOutputs != nil {
+			if purpose == indexProbeRuntime && scope.indexesOrZero().existingOutputs != nil {
 				t.Fatal("ordinary fast path retained tracked outputs")
 			}
 		})

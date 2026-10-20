@@ -70,7 +70,7 @@ func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 		initialParameters: s.initialParameters, input: s.input, output: s.output,
 		sqlRoutine: s.sqlRoutine, inquiry: s.inquiry,
 		protocol: s.protocolSlot,
-		view:     s.view, partitionView: s.partitionValidationView, ownWrites: s.ownWrites, ownDeletes: s.ownDeletes,
+		view:     s.view, partitionView: s.partitionsOrZero().validationView, ownWrites: s.ownWrites, ownDeletes: s.ownDeletes,
 		domainEvaluation: s.domainEvaluation, domainInputCatalog: s.domainInputCatalog, foreignOwner: s.foreignOwner, foreignCursor: s.foreignCursor,
 		presentation: s.presentationSlot, identity: s.identity,
 	}
@@ -85,7 +85,8 @@ func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
 	s.initialParameters, s.sqlRoutine, s.inquiry = c.initialParameters, c.sqlRoutine, c.inquiry
 	s.protocolSlot = c.protocol
 	s.input, s.output = c.input, c.output
-	s.view, s.partitionValidationView = c.view, c.partitionView
+	s.view = c.view
+	s.setPartitionValidationView(c.partitionView)
 	s.ownWrites, s.ownDeletes = c.ownWrites, c.ownDeletes
 	s.domainEvaluation, s.domainInputCatalog = c.domainEvaluation, c.domainInputCatalog
 	s.foreignOwner, s.foreignCursor = c.foreignOwner, c.foreignCursor
@@ -116,8 +117,8 @@ func (s *StatementScope) activateSQLRoutine(inputs []sqltype.Usage) func(error) 
 		if s.view != nil && s.view != saved.view {
 			s.view.Release()
 		}
-		if s.partitionValidationView != nil && s.partitionValidationView != saved.partitionView {
-			s.partitionValidationView.Release()
+		if s.partitionsOrZero().validationView != nil && s.partitionsOrZero().validationView != saved.partitionView {
+			s.partitionsOrZero().validationView.Release()
 		}
 		if s.authority != nil && s.authority != saved.authority {
 			s.authority.scope = nil

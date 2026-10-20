@@ -12,15 +12,15 @@ import (
 )
 
 func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]bool) error {
-	if !s.exclusionStarted {
-		s.exclusionModes = s.owner.exclusionModes
+	if !s.indexesOrZero().exclusionStarted {
+		s.indexes().exclusionModes = s.owner.exclusionModes
 	}
-	if len(s.exclusionModes.events) == 0 {
+	if len(s.indexesOrZero().exclusionModes.events) == 0 {
 		return nil
 	}
-	remaining := make([]exclusionEvent, 0, len(s.exclusionModes.events))
+	remaining := make([]exclusionEvent, 0, len(s.indexesOrZero().exclusionModes.events))
 	e := s.op.session.Engine()
-	for _, event := range s.exclusionModes.events {
+	for _, event := range s.indexesOrZero().exclusionModes.events {
 		e.mu.Lock()
 		view := e.privateCatalogLocked(s.owner.catalog)
 		parent, live := view.Relation(event.parent.Address)
@@ -36,7 +36,7 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]boo
 		if c == nil {
 			continue
 		}
-		due := all || selected != nil && selected[c.OID] || selected == nil && !s.exclusionModes.deferred(c)
+		due := all || selected != nil && selected[c.OID] || selected == nil && !s.indexesOrZero().exclusionModes.deferred(c)
 		if !due {
 			remaining = append(remaining, event)
 			continue
@@ -63,14 +63,14 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]boo
 			return conflict.diagnostic(s, event.parent)
 		}
 	}
-	s.exclusionModes.events = remaining
+	s.indexes().exclusionModes.events = remaining
 	return nil
 }
 func (e *Engine) checkTransactionExclusions(s *StatementScope) error {
 	if err := s.checkExclusionEvents(true, nil); err != nil {
 		return err
 	}
-	s.owner.exclusionModes = s.exclusionModes
+	s.owner.exclusionModes = s.indexesOrZero().exclusionModes
 	return nil
 }
 func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count int) (Result, error) {
@@ -95,7 +95,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 	auth.Recapture(auth.Catalog)
 	s.beginExclusionProjectionLocked(e)
 	e.mu.Unlock()
-	candidate := s.exclusionModes
+	candidate := s.indexesOrZero().exclusionModes
 	candidate.byConstraint = maps.Clone(candidate.byConstraint)
 	selected := make(map[ids.OID]bool)
 	if raw.All {
@@ -189,10 +189,10 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 		if err := s.checkExclusionEvents(raw.All, selected); err != nil {
 			return Result{}, err
 		}
-		candidate.events = s.exclusionModes.events
+		candidate.events = s.indexesOrZero().exclusionModes.events
 	}
 	if s.owner.inBlock() {
-		s.exclusionModes = candidate
+		s.indexes().exclusionModes = candidate
 	}
 	return Result{}, nil
 }
