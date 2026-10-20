@@ -1,25 +1,64 @@
 package engine
 
 import (
+	"context"
+	"fmt"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/sqlstate"
 )
 
-// extensionHost is the engine side of extension staging: the engine, the
-// statement's captured authorization view and the catalog stage. Every
-// method runs with e.mu held (extension.Stage contract). It wraps the stage
-// rather than being a defined type over CatalogStage, so Create and Replace
-// keep CatalogStage's lifecycle checks.
+// extensionHost is the engine side of the extension handlers and their
+// staging: the engine, the statement's operation and captured authorization
+// view, and the catalog stage once BeginStage has begun it. Every method runs
+// with e.mu held (extension.Host and extension.Stage contracts). It wraps the
+// stage rather than being a defined type over CatalogStage, so Create and
+// Replace keep CatalogStage's lifecycle checks.
 type extensionHost struct {
 	engine *Engine
+	op     *session.Operation
 	auth   AuthorizationView
 	stage  *CatalogStage
 }
 
-var _ extension.Stage = (*extensionHost)(nil)
+var (
+	_ extension.Host      = (*extensionHost)(nil)
+	_ extension.Stage     = (*extensionHost)(nil)
+	_ extension.Authority = AuthorizationView{}
+)
+
+// stageOf returns the root stage behind a Stage that BeginStage returned.
+func stageOf(s extension.Stage) (*CatalogStage, error) {
+	h, ok := s.(*extensionHost)
+	if !ok || h == nil || h.stage == nil {
+		return nil, fmt.Errorf("stuntgres: foreign extension stage")
+	}
+	return h.stage, nil
+}
+
+func (h *extensionHost) Context() context.Context { return h.op.Context() }
+func (h *extensionHost) Notice(n sqlstate.Error)  { h.op.EmitNotice(session.LevelNotice, n) }
+func (h *extensionHost) CreationPath() ([]ids.ObjectAddress, error) {
+	path, _, err := h.engine.explicitPath(h.auth)
+	return path, err
+}
+func (h *extensionHost) ReplayingTableDestination() bool {
+	return operationReplayOrZero(h.op).tableDestination
+}
+func (h *extensionHost) BootstrapSuperuser() authorization.PrincipalRef {
+	return h.engine.roles.domain.Principal(10)
+}
+func (h *extensionHost) BeginStage(namespace ids.ObjectAddress) extension.Stage {
+	stage := h.engine.BeginCatalogStage(h.auth.Catalog)
+	stage.authorizeLocked(h.auth, h.op.Session)
+	stage.extensionNamespace = namespace
+	h.stage = stage
+	return h
+}
 
 func (h *extensionHost) Read() catalog.Read { return h.stage.Base }
 func (h *extensionHost) LookupName(key ids.NameKey) ids.ObjectAddress {
