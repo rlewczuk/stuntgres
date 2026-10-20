@@ -350,7 +350,7 @@ session and operation state only through `analyzeHost`
   using the binder's host; `bindTypedColumns` and `describeInheritance` take
   the host; `bindInsertDefaults` takes the `*catalog.Owner`.
 
-### 12d — Move, area by area (broad; several sessions)
+### 12d — Move, area by area (superseded; see the refine below)
 
 Each session re-measures the clean set for its area, exports in place, moves,
 and leaves aliases:
@@ -377,6 +377,110 @@ and leaves aliases:
    `grouping_sets_bind.go`, `window_bind.go`, `window_frame_bind.go`.
 5. DML targets and describe: `cte_mutation_bind.go`, `insert_binding.go`,
    `returning.go` binders, `describe`.
+
+### 12d — Move (broad; several sessions)
+
+The original plan moved the binder area by area. Go allows no methods on an
+imported type, so `expressionBinder` and all of its methods (94 files, about
+24k lines) must move in one commit. The refine below replaces the area moves
+with in-place preparation and one final move.
+
+**12d refine (approved; measured at `062d21ac7`).** The `reach` and
+`frontier` tools, rooted at `expressionBinder`, `binding` and the group
+types (outputs in `.cswd/tmp/PG18-ENGINE-SPLIT-ANALYZE-BINDING-TYPES/`):
+
+- **Where the binder is still dirty.** With the host cut, every binder method
+  still reaches a god struct through a few types: `AuthorizationView` (holds
+  the engine, the session and the settings), `StatementDescription` (the
+  `expected` field, through `preparedAnalysis`), the captured
+  `capturedRegtypeInput`/`capturedOperatorInput` (they call
+  `Operation.emitNotice` and `scopeOf`), `binding.rule` (through
+  `ruleCTECommand`) and `binding.viewWrite`.
+- **The binding type closure.** Moving only type declarations (methods that
+  evaluate or reach engine state become engine functions) gives 32 types,
+  226 member keys and about 4.5k production and 2.0k test references.
+- **Insert conflict state.** `boundInsertConflict` mixes the bound clause with
+  per-execution state (arbiters, catalog checkpoints, `insertWriteOverlay`,
+  index orderings, routine admission programmes). Moving it would pull index
+  and routine admission runtime into `analyze`.
+- **Feature packages.** `preparedCaptures` names `sequence.Constant`, and the
+  binder calls `routine` (15 symbols), `extension` (17), `typedef` (5) and
+  `sequence` (7). Those packages import only L1–L5 packages today.
+
+Decisions:
+
+1. **Sessions.** 12d.1 binding types; 12d.2 binder seam cuts in place
+   (authority, `StatementDescription` inputs, captured inputs, the host
+   signatures that still name engine types); 12d.3–12d.5 per-area preparation
+   in place (expression core; query, FROM and CTE; aggregates, windows and DML
+   targets): split mixed files so every file is wholly binder or wholly
+   engine, cut the remaining engine edges, export what the engine reads, and
+   move clean non-method helpers; 12d.6 moves the binder, its group types,
+   the host interface and the describe entry points in one scripted session,
+   as 11c did for `exec`. The area sessions touch mostly disjoint files and
+   may run in parallel after 12d.2.
+2. **Authority (built in 12d.2).** `analyze` declares `Authority`, an
+   interface with an exported marker method and `Catalog() catalog.Read` (the
+   only part of the authority the binder reads itself). The binder stores
+   `*AuthorizationView` behind it (a pointer in an interface does not
+   allocate); host methods take `analyze.Authority`, and the engine recovers
+   the view with one checked helper. The binder's direct `definition*` and
+   `session` reads become host methods.
+3. **Opaque slots** (§3 rule 7, as `programPhases` and `viewOf`): the rule CTE
+   commands of `binding.rule`, `binding.viewWrite` and the INSERT conflict
+   clause are held as `analyze` slot interfaces with an exported marker
+   method; the engine recovers each with one checked helper. A nil pointer is
+   never stored, so a nil test keeps its meaning. The DML-targets session
+   splits `boundInsertConflict` into its binding and runtime halves.
+4. **Layering.** `analyze` may import the Part A content of the feature
+   packages (`routine`, `typedef`, `extension`, `sequence`), which imports
+   only L1–L5. Part B handlers never import `analyze`; they reach binding
+   through the root host.
+5. **`ParameterInfo`** moves with `binding` behind a root alias; 12e settles
+   whether the driver imports `analyze` directly (§7 decision 11).
+6. **Stays until 12d.6:** `expressionBinder`, `binder_groups.go` (only the
+   binder uses its types, and `queryScopeState` needs decision 2) and
+   `newExpressionBinder`.
+
+#### 12d.1 — Binding types (broad)
+
+Slots first, then the engine-side methods of the moving types become
+functions, the members the engine uses are exported in place, and the types
+move with aliases. Moving types: `binding` and its payloads (INSERT, DELETE,
+CREATE TABLE, UPDATE, MERGE and its arms, RETURNING), the capture groups,
+`ParameterInfo`, and the records they hold (composite occurrences, defaults,
+regtype and temporal constants, CREATE TABLE declarations, LIKE and
+inheritance inputs, unique constraints, update assignment groups, view
+columns, namespaces and literal paths).
+
+#### 12d.2 — Binder seam cuts (in place)
+
+Decisions 2 and the captured inputs: host methods take `analyze.Authority`;
+`definitionReader`, `namespaceSelection`, `lookupKind` and the captured
+regtype/operator inputs reach the binder as `analyze` or `sqltype` types; the
+binder reads its prepared inputs from an `analyze` value instead of
+`*StatementDescription`.
+
+#### 12d.3–12d.5 — Area preparation (in place)
+
+Areas: (3) expression core: `expression.go` binder methods, `function*.go`,
+`operator_binding.go`, `operator_routine_binding.go`, `array_comparison*.go`,
+`expression_like.go`, `expression_row_comparison.go`,
+`composite_expression.go`, `composite_capture.go`, `enum_function.go`, the
+`range_*` binders, `regtype_prepared.go`; (4) query, FROM and CTE binding:
+the `query_*_bind.go` files, `query_cte_*.go`, `query_rewrite.go`,
+`query_target_compare.go`, `query_name_hint.go`, `query_values_view.go`,
+`query_expression_walk.go`, `string_table_bind.go`, `string_set_lower.go`;
+(5) aggregates, grouping, windows and DML targets: `aggregate_*.go`,
+`grouping_sets_bind.go`, `window_bind.go`, `window_frame_bind.go`,
+`cte_mutation_bind.go`, `insert_binding.go`, the `returning.go` binders, the
+statement-kind binders ported in 12c and `describe`.
+
+#### 12d.6 — Move the binder (broad)
+
+Re-measure the frontier, move every binder file with the group types and
+`analyzeHost` (as `analyze.Host`), leave aliases, and keep `newExpressionBinder`
+and `Engine.analysisHost` in the root.
 
 ### 12e — Remove the aliases (broad)
 
@@ -465,8 +569,15 @@ in §8.3 pass.
   allocs/op after (master 870–1,116 µs/op, 5,014 allocs; timing is noisy on
   both); a throwaway probe of four statements showed identical allocations
   per execution before and after.
-- [ ] 12d — `analyze` created and binding moved (sessions: binding types,
-  expression core, query/FROM/CTE, aggregates/windows, DML targets)
+- [ ] 12d — `analyze` created and binding moved (sessions: 12d.1 binding
+  types, 12d.2 seam cuts, 12d.3–12d.5 area preparation, 12d.6 binder move)
+  - [x] 12d refine (docs only; the commit that records this text)
+  - [ ] 12d.1 — binding types
+  - [ ] 12d.2 — binder seam cuts
+  - [ ] 12d.3 — expression core preparation
+  - [ ] 12d.4 — query, FROM and CTE preparation
+  - [ ] 12d.5 — aggregates, windows and DML targets preparation
+  - [ ] 12d.6 — binder moved
 - [ ] 12e — Aliases removed
 
 Outstanding aliases: none yet.

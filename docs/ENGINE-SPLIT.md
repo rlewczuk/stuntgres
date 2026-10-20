@@ -345,6 +345,10 @@ Its private immutable payloads contain no session/operation/notice authority.
    history, mutexes/tickets and publication retain their canonical owners.
 6. **Feature packages do not import each other** unless §6 says so. Shared
    needs go down into a core package or up into the root dispatch.
+   Their Part A content (records and algorithms that import only L1–L5) sits
+   below `analyze` in practice: the binder calls it, so `analyze` may import
+   it. Part B handlers never import `analyze`; they reach binding through the
+   root host (12d refine).
 7. **Lower layers never name upper-layer types.** When a lower package must
    carry an upper-layer value (a feature's statement state, a journal fence,
    a CTE's mutation binding), it holds a lower-layer interface or an opaque
@@ -1075,6 +1079,12 @@ the type features (composite, enum and range binding).
   functions on it. `analyze` imports `exec` only for scope-free constant
   folding; domain literal input goes through the host and preflight stays in
   the engine.
+- **12d — move** (several sessions). Go allows no methods on an imported
+  type, so the binder moves in one final session (12d.6). Before it: the
+  binding types move (12d.1), the remaining engine edges are cut in place
+  (12d.2) and each area is prepared in place (12d.3–12d.5). The refine and
+  its decisions (authority, opaque slots, feature layering) are in the
+  prompt file.
 
 **Stays in the engine** until their features move: rule rewriting, view and
 policy capture consumers, materialized snapshots, and statement dispatch.
@@ -1082,7 +1092,8 @@ policy capture consumers, materialized snapshots, and statement dispatch.
 **Doable because** 12a and 12b make the binder's state explicit, and after
 step 11 the binder's outputs (plan IR) and its constant evaluation have homes.
 
-**Done when** `analyze` imports nothing above L8, `binding` has no
+**Done when** `analyze` imports nothing above L8 (except the feature Part A
+content, rule 6), `binding` has no
 kind-specific header fields, and the root package calls one describe entry
 point. Prompt file: [ENGINE-SPLIT-analyze.md](ENGINE-SPLIT-analyze.md).
 
