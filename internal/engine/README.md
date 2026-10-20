@@ -163,6 +163,28 @@ and sibling demand in both orders, including persisted-manifest validation.
 Review, integration and post-integration finalcheck are separate lifecycle gates,
 recorded in the catalog part's reports; no neighboring waiver applies.
 
+### F3 provider and diagnostic ownership
+
+Engine callers and declaration inventories use `functions.RoutineProvider` and
+its family constants directly; private authority/call-shape fixtures use the
+same owners. Cast-diagnostic fixtures consume `functions.SignatureHint`.
+These are name/import adaptations, not unit moves or public behavior changes.
+The real analyzer's missing-signature note and composite fallback remain here.
+See [functions Testing](functions/README.md#testing) for selected private units,
+native/real public proof, actual public smoke and detailed startup results.
+Latest-base root tests-12 establishes 1291 exact-owner uses, 26 removed
+declarations, 28 Go files, 1,065,774 conserved non-target bindings and eight
+retained diagnostic-method callers; actual public smoke also passed.
+Tests-10/tests-11 describe the preceding base: 1293 uses/30 Go files, build,
+all selected native/pinned-PostgreSQL proof, quickcheck (147.74s), full racecheck
+(595.62s), dependencies and import graph passed. Latest complete-candidate
+gates refresh before review. Three of five preceding-base startup samples
+exceeded1ms; the advanced integration
+base and shared-host contention prevent a clean causal comparison with the
+historical baseline. No runtime optimization or test weakening was added.
+Only Item6 is marked verified; independent review/integration remain separate.
+Post-integration finalcheck was explicitly waived by the user, not run or passed.
+
 ### Advisory and blocking inquiry authority
 
 `functions.Advisory` and `functions.BlockingInquiry` own SQL binding, immutable

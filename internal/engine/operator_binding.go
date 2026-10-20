@@ -283,7 +283,7 @@ func (b *expressionBinder) bindSelectedOperatorRoutine(d *catalog.Procedure, arg
 	}
 	var node expr.Expr
 	var err error
-	if d.Builtin != nil && d.Builtin.Providers&operatorRoutineProvider != 0 {
+	if d.Builtin != nil && d.Builtin.Providers&functions.OperatorRoutineProvider != 0 {
 		found := false
 		for key, declaration := range builtinOperatorRoutineByDeclaration {
 			if declaration != d.Builtin {

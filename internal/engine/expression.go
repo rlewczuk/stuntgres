@@ -2047,11 +2047,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 	return node, nil
 }
 
-// Temporary alias: the hint moved to functions (F4/F5 math).
-const functionCastHint = functions.SignatureHint
-
 func functionCastError(raw parser.CastExpr, source string, ambiguous bool) error {
-	code, ending, hint := "42883", "does not exist", functionCastHint
+	code, ending, hint := "42883", "does not exist", functions.SignatureHint
 	if ambiguous {
 		code, ending = "42725", "is not unique"
 		hint = "Could not choose a best candidate function. You might need to add explicit type casts."

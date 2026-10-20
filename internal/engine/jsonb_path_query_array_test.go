@@ -37,7 +37,7 @@ func TestJSONBPathQueryArrayDeclaration(t *testing.T) {
 	address := ids.ObjectAddress{ids.ProcedureClassID, 4007, 0}
 	identity := catalog.RoutineIdentity{4007, ids.PGCatalogNamespaceOID, "jsonb_path_query_array", "3802,4072,3802,16"}
 	d := captured.Builtin
-	if d.Identity != identity || d.Kind != catalog.FunctionRoutine || d.Result != 3802 || !d.Strict || d.Volatility != expr.Immutable || d.Parallel != 's' || d.ReturnsSet || d.Defaults != 2 || d.Variadic != 0 || d.Providers != jsonRoutineProvider {
+	if d.Identity != identity || d.Kind != catalog.FunctionRoutine || d.Result != 3802 || !d.Strict || d.Volatility != expr.Immutable || d.Parallel != 's' || d.ReturnsSet || d.Defaults != 2 || d.Variadic != 0 || d.Providers != functions.JSONRoutineProvider {
 		t.Fatal("released full-IN declaration", d)
 	}
 	view := e.CatalogRead()

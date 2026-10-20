@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -140,7 +141,7 @@ func (b *expressionBinder) bindSequenceCall(r parser.CallExpr) (expr.Expr, error
 		b.sequenceConstants = nil
 	}
 	formal := [3]sqltype.ID{sqltype.Regclass, sqltype.Int8, sqltype.Bool}
-	info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.Int8).Usage(), r.SourcePosition(), properties), sequenceRoutineProvider, name, formal[:count]...)
+	info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.Int8).Usage(), r.SourcePosition(), properties), functions.SequenceRoutineProvider, name, formal[:count]...)
 	if err != nil {
 		return nil, err
 	}

@@ -265,7 +265,7 @@ func (b *expressionBinder) bindWindow(raw parser.AggregateExpr, name parser.Obje
 		}
 	}
 	var err error
-	call.routine, err = b.builtinRoutineReference(windowRoutineProvider, raw.Name, formal[:formalCount]...)
+	call.routine, err = b.builtinRoutineReference(functions.WindowRoutineProvider, raw.Name, formal[:formalCount]...)
 	if err != nil {
 		return nil, err
 	}

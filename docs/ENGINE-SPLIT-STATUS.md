@@ -15,8 +15,8 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 3 remainder** — F3 aliases item 6 (broad), and Tier C item 9
-  (advisory locks with blocking inquiry). They touch shared switches; rebase early.
+- **Step 3 remainder** — Tier C item 9 (advisory locks with blocking inquiry).
+  It touches shared switches; rebase early.
 - **Optional cleanups** — storage 6d (item 12).
 - **Step 8 `settings`** — 8a (item 13) implementation/proof complete;
   review/integration pending. 8b (item 14) follows integration.
@@ -89,8 +89,10 @@ Steps 1, 2 and 4–7 and `access` are done.
   - [x] F3 — `Binder`, `Definition`/`Lookup` and engine dispatch; pilot
     family: UUID extraction (`60dc1cedd`, `cd4a88387`, `5d59e5737`, docs
     `9bca9b2b6`)
-  - [ ] F3 aliases removed (`routineProvider` and 23 provider constants in
-    `routine_declaration.go`) *(broad)*
+  - [x] F3 aliases removed (engine provider type/23 constants and deferred math
+    builder/Hint aliases; latest-base semantic and public smoke proof passed;
+    preceding-base build, selected native/real, quickcheck and full race proof
+    passed; complete-candidate gates refresh after rebase; finalcheck waived)
   - [x] F4/F5 Tier A — port in place, then move
     - [x] math (`3078b889f`, `d5dc34c59`, `0f3c7e5a2`, docs `96e11f662`)
       *(racecheck skipped at user request)*
@@ -327,9 +329,15 @@ in the prompt file's Status section.
    [functions](ENGINE-SPLIT-functions.md#conditional-closed-default-adoption)
    F2 · needs — · selected proof/quickcheck passed; racecheck/finalcheck
    explicitly waived by user
-6. [ ] Functions F3 aliases removed —
+6. [x] Functions F3 aliases removed —
    [functions](ENGINE-SPLIT-functions.md) Status, "Later-wave refresh" ·
-   needs — · **broad**
+   needs — · **broad** · tests-12 latest-base semantic/public smoke passed.
+   Tests-10/tests-11 build, selected native/real, quickcheck, full racecheck and
+   dependency/import proof passed on the preceding base; latest complete-candidate
+   gates must refresh before review.
+   Three of five startup samples exceeded1ms; comparison is qualified by
+   the advanced integration base and shared-host contention, not a speedup
+   claim. Post-integration finalcheck explicitly waived, not run or passed.
 7. [x] Tier C: catalog inquiry, with session identity —
    [functions](ENGINE-SPLIT-functions.md) Tier C · needs — (easier after 4)
    Ten-node leaf/runtime and complete visitor cutover. All35 selected batches

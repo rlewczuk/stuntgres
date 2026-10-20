@@ -43,7 +43,7 @@ Re-measure after the merge.
 | `operator_metadata.go` | 588 | `operatorMetadata`, `supportedOperatorMetadata`, `releasedOperatorEstimatorResult` |
 | `operator_routines.go` | 562 | `builtinOperatorRoutineAssociations` |
 | `operator_dump.go` | 305 | `operatorDumpDeclaration`, `operatorDumpEvents`, `operatorDumpLinks`, `operatorSQLName`, `operatorSQLSignature`, `operatorShellGenerator`, `orphanOperatorShellDump`, ... |
-| `routine_declaration.go` | 40 | `grantRoutineKindMatches`, `procedureReturnsSet`, and the temporary F3 aliases `routineProvider = functions.RoutineProvider` plus 23 provider constants, about 1,290 uses (removed by the functions item "F3 aliases removed") |
+| `routine_declaration.go` | — | `grantRoutineKindMatches`, `procedureReturnsSet`; temporary F3 aliases removed and verified in functions Item6, without moving these real helpers |
 | `operator_index.go` | 9 | `seededOperatorNames` |
 | `routine_address_kind.go` | 7 | `objectRoutineKind` |
 
@@ -179,5 +179,12 @@ Notes for later steps:
 - Step 15 (`typedef`): operators and types reference each other (type
   providers, range and enum operators). 14b settles which side owns the
   shared helpers; record the decision here.
-- The F3 provider aliases in `routine_declaration.go` should be gone before
-  14b (functions item "F3 aliases removed"); if not, remove them first.
+- The F3 provider aliases are removed from `routine_declaration.go` in the
+  verified functions Item6 cutover. Its alias-removal prerequisite for 14b is
+  satisfied: latest-base semantic and public smoke proof passed in tests-12.
+  Build, selected native/real, quickcheck, full race and dependency/import passes
+  in tests-10/tests-11 describe the preceding base; complete-candidate gates
+  refresh before review. Startup results retain their recorded qualifications.
+  Post-integration finalcheck alone was
+  waived by the user, not run or passed. This does not extract routine inventories,
+  satisfy 14b's other prerequisites or complete 14a/b.

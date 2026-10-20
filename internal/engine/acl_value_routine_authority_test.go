@@ -23,13 +23,13 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 		kind                        functions.ACLKind
 		volatility                  expr.Volatility
 		set                         bool
-		provider                    routineProvider
+		provider                    functions.RoutineProvider
 		formals                     []sqltype.ID
 	}{
-		{"acldefault", "acldefault('r',$1::oid)", "18,26", 3943, 1034, functions.ACLDefault, expr.Immutable, false, catalogRoutineProvider, []sqltype.ID{18, 26}},
-		{"makeaclitem", "makeaclitem($1::oid,$2::oid,$3::text,$4::boolean)", "26,26,25,16", 1365, 1033, functions.ACLMake, expr.Immutable, false, catalogRoutineProvider, []sqltype.ID{26, 26, 25, 16}},
-		{"aclexplode", "aclexplode(acl => $1::aclitem[])", "1034", 1689, 2249, functions.ACLExplode, expr.Stable, true, catalogRoutineProvider, []sqltype.ID{1034}},
-		{"aclcontains", "$1::aclitem[] @> $2::aclitem", "1034,1033", 1037, 16, functions.ACLContains, expr.Immutable, false, operatorRoutineProvider, []sqltype.ID{1034, 1033}},
+		{"acldefault", "acldefault('r',$1::oid)", "18,26", 3943, 1034, functions.ACLDefault, expr.Immutable, false, functions.CatalogRoutineProvider, []sqltype.ID{18, 26}},
+		{"makeaclitem", "makeaclitem($1::oid,$2::oid,$3::text,$4::boolean)", "26,26,25,16", 1365, 1033, functions.ACLMake, expr.Immutable, false, functions.CatalogRoutineProvider, []sqltype.ID{26, 26, 25, 16}},
+		{"aclexplode", "aclexplode(acl => $1::aclitem[])", "1034", 1689, 2249, functions.ACLExplode, expr.Stable, true, functions.CatalogRoutineProvider, []sqltype.ID{1034}},
+		{"aclcontains", "$1::aclitem[] @> $2::aclitem", "1034,1033", 1037, 16, functions.ACLContains, expr.Immutable, false, functions.OperatorRoutineProvider, []sqltype.ID{1034, 1033}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			node, binder, evaluation := strictNullUnitBind(t, e, op, scope, tc.expression)

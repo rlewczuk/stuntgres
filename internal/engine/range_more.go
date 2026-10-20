@@ -103,9 +103,9 @@ func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (expr.Expr, error
 			return nil, err
 		}
 	}
-	provider, formal := rangeRoutineProvider, sqltype.ID(4537)
+	provider, formal := functions.RangeRoutineProvider, sqltype.ID(4537)
 	if input.IsArray() {
-		provider, formal = arrayRoutineProvider, sqltype.ID(2277)
+		provider, formal = functions.ArrayRoutineProvider, sqltype.ID(2277)
 	}
 	info, err = b.builtinRoutineInfo(info, provider, "unnest", formal)
 	if err != nil {

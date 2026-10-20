@@ -99,7 +99,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != call.Name || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != catalog.FunctionRoutine || captured.Strict != tc.strict || captured.Volatility != expr.Stable || captured.Revision() == 0 || len(captured.Body) != 0 {
 				t.Fatal("released identity", captured)
 			}
-			if d.Kind != catalog.FunctionRoutine || d.Result != tc.result || d.Strict != tc.strict || d.Volatility != expr.Stable || d.Parallel != 's' || d.ReturnsSet != tc.set || d.Variadic != 0 || d.Defaults != 0 || d.Providers&jsonRoutineProvider == 0 {
+			if d.Kind != catalog.FunctionRoutine || d.Result != tc.result || d.Strict != tc.strict || d.Volatility != expr.Stable || d.Parallel != 's' || d.ReturnsSet != tc.set || d.Variadic != 0 || d.Defaults != 0 || d.Providers&functions.JSONRoutineProvider == 0 {
 				t.Fatal("released full declaration", d)
 			}
 			if evaluation.catalog.Get(address) != captured {

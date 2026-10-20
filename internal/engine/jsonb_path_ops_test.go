@@ -44,7 +44,7 @@ func TestJSONBPathOpsBinding(t *testing.T) {
 			}
 			identity := catalog.RoutineIdentity{tc.oid, ids.PGCatalogNamespaceOID, tc.name, "3802,4072"}
 			d := captured.Builtin
-			if d.Identity != identity || d.Kind != catalog.FunctionRoutine || d.Result != 16 || !d.Strict || d.Volatility != expr.Immutable || d.Parallel != 's' || d.ReturnsSet || d.Defaults != 0 || d.Variadic != 0 || d.Providers != operatorRoutineProvider {
+			if d.Identity != identity || d.Kind != catalog.FunctionRoutine || d.Result != 16 || !d.Strict || d.Volatility != expr.Immutable || d.Parallel != 's' || d.ReturnsSet || d.Defaults != 0 || d.Variadic != 0 || d.Providers != functions.OperatorRoutineProvider {
 				t.Fatal("released full declaration", d)
 			}
 			operatorID := ids.OID(4012)

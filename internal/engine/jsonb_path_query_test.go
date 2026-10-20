@@ -47,7 +47,7 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 			}
 			identity := catalog.RoutineIdentity{tc.oid, ids.PGCatalogNamespaceOID, tc.name, "3802,4072,3802,16"}
 			d := captured.Builtin
-			if d.Identity != identity || d.Kind != catalog.FunctionRoutine || uint32(d.Result) != tc.result || !d.Strict || d.Volatility != expr.Immutable || d.Parallel != 's' || d.ReturnsSet != tc.set || d.Defaults != 2 || d.Variadic != 0 || d.Providers != jsonRoutineProvider {
+			if d.Identity != identity || d.Kind != catalog.FunctionRoutine || uint32(d.Result) != tc.result || !d.Strict || d.Volatility != expr.Immutable || d.Parallel != 's' || d.ReturnsSet != tc.set || d.Defaults != 2 || d.Variadic != 0 || d.Providers != functions.JSONRoutineProvider {
 				t.Fatal("released full-IN declaration", d)
 			}
 			address := ids.ObjectAddress{ids.ProcedureClassID, tc.oid, 0}

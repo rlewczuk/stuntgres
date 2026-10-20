@@ -727,9 +727,15 @@ Notes for later steps:
 - About 230 engine locals are still named `catalog` (5f renamed only the
   160 that would capture a `catalog.X` reference). New code that names the
   package inside their scope must rename the local first.
-- The engine keeps one local alias, `routineProvider =
-  functions.RoutineProvider` (`routine_declaration.go`), which predates the
-  split.
+- Engine callers now name `functions.RoutineProvider` and its family constants
+  directly. The intentional `functions.RoutineProvider = expr.RoutineProvider`
+  seam preserves catalog's expr-owned representation without a functions
+  import; see the functions README Binder section. Item6's latest-base semantic
+  and public smoke proofs passed in tests-12. The preceding-base selected
+  native/real, build, quickcheck, full race and dependency/import passes remain
+  recorded in tests-10/tests-11; complete-candidate gates refresh before review.
+  Startup qualifications are recorded there. Post-integration finalcheck alone
+  was waived by the user.
 - Later: the relation, type, extension, operator and parameter validators
   can move once the catalog has a narrow seam for stored-SQL rendering,
   expression-node walks and the operator and settings inventories.

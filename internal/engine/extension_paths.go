@@ -5,6 +5,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -26,7 +27,7 @@ func (b *expressionBinder) bindExtensionPaths(raw parser.FunctionExpr, arg expr.
 	}
 	properties := arg.Properties()
 	properties.Volatility = max(expr.Stable, properties.Volatility)
-	info, err := b.builtinRoutineInfo(b.info(shape.Usage(), raw.Pos, properties), catalogRoutineProvider, "pg_extension_update_paths", sqltype.Name)
+	info, err := b.builtinRoutineInfo(b.info(shape.Usage(), raw.Pos, properties), functions.CatalogRoutineProvider, "pg_extension_update_paths", sqltype.Name)
 	if err != nil {
 		return nil, err
 	}

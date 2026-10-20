@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -69,7 +70,7 @@ func (e *Engine) initializeBuiltinRoutines() {
 // declaration. Physical child usages are not substituted for declared formals.
 // Metadata borrows the already-owned immutable descriptor pointer; the existing
 // value dependency manifest separately owns the scoped lifetime reference.
-func lookupBuiltinRoutineDeclaration(provider routineProvider, name string, inputs []sqltype.ID) (*catalog.BuiltinRoutineDeclaration, error) {
+func lookupBuiltinRoutineDeclaration(provider functions.RoutineProvider, name string, inputs []sqltype.ID) (*catalog.BuiltinRoutineDeclaration, error) {
 	if len(inputs) > 7 {
 		return nil, fmt.Errorf("stuntgres: unsupported builtin routine formal key")
 	}
@@ -84,7 +85,7 @@ func lookupBuiltinRoutineDeclaration(provider routineProvider, name string, inpu
 	return declaration, nil
 }
 
-func (b *expressionBinder) builtinRoutineInfo(info expr.Info, provider routineProvider, name string, inputs ...sqltype.ID) (expr.Info, error) {
+func (b *expressionBinder) builtinRoutineInfo(info expr.Info, provider functions.RoutineProvider, name string, inputs ...sqltype.ID) (expr.Info, error) {
 	declaration, err := lookupBuiltinRoutineDeclaration(provider, name, inputs)
 	if err != nil {
 		return expr.Info{}, err
@@ -92,7 +93,7 @@ func (b *expressionBinder) builtinRoutineInfo(info expr.Info, provider routinePr
 	return b.selectedBuiltinRoutineInfo(info, declaration)
 }
 
-func (b *expressionBinder) builtinRoutineReference(provider routineProvider, name string, inputs ...sqltype.ID) (ids.ObjectRef, error) {
+func (b *expressionBinder) builtinRoutineReference(provider functions.RoutineProvider, name string, inputs ...sqltype.ID) (ids.ObjectRef, error) {
 	declaration, err := lookupBuiltinRoutineDeclaration(provider, name, inputs)
 	if err != nil {
 		return ids.ObjectRef{}, err

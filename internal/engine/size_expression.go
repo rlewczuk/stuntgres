@@ -75,7 +75,7 @@ func (b *expressionBinder) bindSize(raw parser.FunctionExpr, visible bool) (expr
 	if err != nil {
 		return nil, err
 	}
-	info, err = b.builtinRoutineInfo(info, binaryRoutineProvider, name, target.ID())
+	info, err = b.builtinRoutineInfo(info, functions.BinaryRoutineProvider, name, target.ID())
 	if err != nil {
 		return nil, err
 	}

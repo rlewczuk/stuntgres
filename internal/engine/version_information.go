@@ -55,7 +55,7 @@ func (b *expressionBinder) bindVersionInformation(raw parser.FunctionExpr) (expr
 		return nil, expr.ErrorAt("42809", decoration+" specified, but "+name+" is not "+owner, raw.Pos)
 	}
 	info := b.info(b.typ(sqltype.Text).Usage(), raw.Pos, expr.IntrinsicProperties(kind.IntrinsicRule()))
-	info, err = b.builtinRoutineInfo(info, catalogRoutineProvider, name)
+	info, err = b.builtinRoutineInfo(info, functions.CatalogRoutineProvider, name)
 	if err != nil {
 		return nil, err
 	}

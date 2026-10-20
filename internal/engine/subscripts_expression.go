@@ -115,7 +115,7 @@ func (b *expressionBinder) bindSubscripts(raw parser.FunctionExpr, visible bool)
 		b.queryHasTargetSet = true
 	}
 	formal := [3]sqltype.ID{sqltype.ID(2277), sqltype.Int4, sqltype.Bool}
-	info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.Int4).Usage(), raw.Pos, properties), subscriptRoutineProvider, "generate_subscripts", formal[:len(args)]...)
+	info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.Int4).Usage(), raw.Pos, properties), functions.SubscriptRoutineProvider, "generate_subscripts", formal[:len(args)]...)
 	if err != nil {
 		return nil, err
 	}

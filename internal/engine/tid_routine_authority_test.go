@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/functions"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -57,7 +58,7 @@ func TestTIDRoutineAuthority(t *testing.T) {
 			}
 			declaration := outer.Builtin
 			wantIdentity := catalog.RoutineIdentity{test.id, ids.PGCatalogNamespaceOID, test.name, "27,27"}
-			if declaration.Identity != wantIdentity || declaration.Result != 16 || declaration.Kind != catalog.FunctionRoutine || !declaration.Strict || declaration.Volatility != expr.Immutable || declaration.Parallel != 's' || declaration.ReturnsSet || declaration.Variadic != 0 || declaration.Defaults != 0 || declaration.Providers != operatorRoutineProvider || node.ResultUsage().Type.ID() != sqltype.Bool {
+			if declaration.Identity != wantIdentity || declaration.Result != 16 || declaration.Kind != catalog.FunctionRoutine || !declaration.Strict || declaration.Volatility != expr.Immutable || declaration.Parallel != 's' || declaration.ReturnsSet || declaration.Variadic != 0 || declaration.Defaults != 0 || declaration.Providers != functions.OperatorRoutineProvider || node.ResultUsage().Type.ID() != sqltype.Bool {
 				t.Fatal("released canonical declaration", declaration, node.ResultUsage())
 			}
 			address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: test.id}

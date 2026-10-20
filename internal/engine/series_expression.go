@@ -234,7 +234,7 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (ex
 	case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
 		b.queryHasTargetSet = true
 	}
-	info, err := b.builtinRoutineInfo(b.info(b.typ(s.result).Usage(), raw.Pos, properties), seriesRoutineProvider, "generate_series", s.args[:s.arity]...)
+	info, err := b.builtinRoutineInfo(b.info(b.typ(s.result).Usage(), raw.Pos, properties), functions.SeriesRoutineProvider, "generate_series", s.args[:s.arity]...)
 	if err != nil {
 		return nil, err
 	}

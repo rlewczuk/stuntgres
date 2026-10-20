@@ -80,7 +80,7 @@ func (b *expressionBinder) bindNetworkFormat(raw parser.FunctionExpr) (expr.Expr
 		formals[i] = argumentType
 		properties = expr.MergeProperties(properties, args[i].Properties())
 	}
-	info, err := b.builtinRoutineInfo(b.info(b.typ(kind.ResultFor(formal)).Usage(), raw.Pos, properties), networkRoutineProvider, name, formals[:kind.Arity()]...)
+	info, err := b.builtinRoutineInfo(b.info(b.typ(kind.ResultFor(formal)).Usage(), raw.Pos, properties), functions.NetworkRoutineProvider, name, formals[:kind.Arity()]...)
 	if err != nil {
 		return nil, err
 	}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/functions"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -58,7 +59,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 			}
 			declaration := outer.Builtin
 			wantIdentity := catalog.RoutineIdentity{test.id, ids.PGCatalogNamespaceOID, test.name, catalog.ProcedureSignature(test.formals)}
-			if declaration.Identity != wantIdentity || declaration.Result != test.result || declaration.Kind != catalog.FunctionRoutine || !declaration.Strict || declaration.Volatility != expr.Immutable || declaration.Parallel != 's' || declaration.ReturnsSet || declaration.Variadic != 0 || declaration.Defaults != 0 || declaration.Providers != operatorRoutineProvider || ids.OID(node.ResultUsage().Type.ID()) != test.result {
+			if declaration.Identity != wantIdentity || declaration.Result != test.result || declaration.Kind != catalog.FunctionRoutine || !declaration.Strict || declaration.Volatility != expr.Immutable || declaration.Parallel != 's' || declaration.ReturnsSet || declaration.Variadic != 0 || declaration.Defaults != 0 || declaration.Providers != functions.OperatorRoutineProvider || ids.OID(node.ResultUsage().Type.ID()) != test.result {
 				t.Fatal("released canonical declaration", declaration, node.ResultUsage())
 			}
 			want := map[ids.OID]bool{test.id: true}

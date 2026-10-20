@@ -209,10 +209,13 @@ Tier C has a refined plan.
 - [x] F3 — `Binder`, `Definition`/`Lookup` and engine dispatch; pilot family:
   UUID extraction (`60dc1cedd` seam, `cd4a88387` port, `5d59e5737` move,
   docs `9bca9b2b6`)
-- [ ] F3 aliases removed — `routine_declaration.go` still holds the temporary
-  `routineProvider = functions.RoutineProvider` alias and 23 provider
-  constants (about 1,290 uses at `75fe0d710`); broad rewrite (see "Later-wave
-  refresh" below)
+- [x] F3 aliases removed — engine-local provider type/23 constants and both
+  deferred math diagnostic aliases removed. Latest-base semantic/public smoke
+  proof passed in tests-12; tests-10/tests-11 build, selected native/real,
+  quickcheck, full racecheck and dependency/import passes describe the preceding
+  base. Complete-candidate gates refresh before review; startup qualifications
+  are recorded below.
+  Post-integration finalcheck explicitly waived by the user, not run or passed.
 - [x] F4/F5 Tier A: [x] math (`3078b889f` seam, `d5dc34c59` port,
   `0f3c7e5a2` move, docs `96e11f662`) [x] string [x] LIKE/SIMILAR/regex
   [x] datetime (datetime: `5c5928497` seam, `5a293c0b3` port, `4acb5e42b`
@@ -271,16 +274,26 @@ port added none; `RetainUntypedParameter` now reports whether it retained. The p
 port added none, nor did the intagg, random, clock and sleep port. Reasons
 for every method are in the `functions` README.
 
-Outstanding aliases: F3 moved `RoutineProvider` and its 23 constants to
-`functions/routine_provider.go`; the engine keeps `routineProvider` and
-`<family>RoutineProvider` aliases in `routine_declaration.go` (1,373
-references in 91 files, mostly declaration tables). Remove them in a later
-alias-removal pass, which counts as a broad rewrite (§8). The step 2b aliases
-in `functions/expr_aliases.go` are still listed in `ENGINE-SPLIT-expr.md` for
-2d. Math added `functionResolutionErrorForTypes = functions.ResolutionError`
-(41 engine call sites) and `functionCastHint = functions.SignatureHint` (4);
-remove them with the other aliases. The datetime, pattern and string ports
-added no aliases: the callers of the moved `operatorExpressionError` (now
+F3 alias ownership: engine callers now use the existing
+`functions.RoutineProvider`, 23 family constants, `ResolutionError` and
+`SignatureHint` directly. Latest-base root semantic proof (tests-12) establishes
+1291 exact-owner uses: 4 type, 1283 constant, 2 pure-builder and 2 Hint uses;
+26 declarations removed across 28 Go files (17 production, 11 private units).
+The reload conserved 1,065,774 non-target bindings with zero loaded type errors.
+Preceding-base tests-10 proved1293 uses/30Go/1,066,520 other bindings; original
+evidence proved1306/39Go/1,075,900. Those counts remain historical: upstream
+catalog/session, transaction/commit-timestamp and advisory/blocking extraction
+now owns the moved binders in `functions`; engine implementations stay removed.
+The distinct `expressionBinder.functionResolutionErrorForTypes` method retains
+its eight current callers, missing-only signature notes and composite fallback.
+`functions.RoutineProvider = expr.RoutineProvider` remains the intentional
+catalog/expr layering seam, not a temporary engine alias.
+
+Item6's implementation is verified; no compatibility shim,
+new registry, runtime work, inventory extraction or public reference-body change
+was introduced. Unrelated step 2b aliases in `functions/expr_aliases.go` remain
+listed in `ENGINE-SPLIT-expr.md` for 2d. The datetime, pattern and string ports
+added no aliases: callers of the moved `operatorExpressionError` (now
 `functions.OperatorError`) and `datetimeFormattingTypeName` (now
 `functions.DiagnosticNameOrUnknown`) were repointed.
 
@@ -1892,11 +1905,47 @@ moves in this historical inventory.
   `TestReferenceRegexpActualCancellation` provider-observation witness. The user
   explicitly waived that specific failure for integration; no clean final
   quickcheck is claimed and no regexp test or behavior was changed.
-- **F3 aliases.** `routine_declaration.go` keeps `type routineProvider =
-  functions.RoutineProvider` and 23 constant aliases, "temporary aliases for
-  the provider vocabulary that moved to functions in F3". They have about
-  1,290 uses in production code. Remove them with the 5f/6c alias tool
-  before step 14b (`routine`) moves the builtin inventories that use them.
+- **F3 aliases — verified implementation.** Latest-base root tests-12 established
+  1291 exact-owner uses, 26 absent engine-local declarations, 28 qualification-only
+  Go source changes (17 production, 11 private units), 1,065,774 conserved
+  non-target bindings, zero loaded type errors, the retained diagnostic
+  method/eight callers and intentional functions/expr alias.
+  Preceding-base tests-10 proved1293/30Go/1,066,520 other bindings; original-base
+  evidence proved1306/39Go/ten callers. These remain historical, not census
+  constraints after upstream extraction. No permanent tool/count test,
+  compatibility shim or runtime computation was added.
+  Actual public database/sql smoke passed again in tests-12, including reused
+  prepared metadata/results, exact diagnostics, recovery, stored view/default
+  and native Dump/Reset/Restore. Build passed on the preceding base in tests-10.
+  On that preceding base, tests-11 passed all three private batches and all ten
+  selected public provider/authority/metadata/stored groups in native and pinned
+  PostgreSQL18.6 modes, full quickcheck (147.74s), full racecheck (595.62s),
+  dependencies and the downward import graph. Latest complete-candidate gates
+  refresh before review; these earlier passes are not latest-base runtime proof.
+  Public reference bodies and expectations remain unchanged.
+  Latest-base tests-13 subsequently passed build, all U1–U3/P0–P9 native/real
+  commands, public smoke, dependencies/import graph, full quickcheck (90.38s)
+  and full racecheck (410.44s). Review1 nevertheless found acceptance-C proof
+  incomplete: P2's network operators use `OperatorRoutineProvider`, not
+  `NetworkRoutineProvider`. The added P10 selection,
+  `TestReferenceINETFormatMetadataAndBinds|TestReferenceINETFormatDiagnostics`,
+  passed in native and real modes in root tests-14, closing that evidence gap.
+  See functions README Testing for argv and independent expectations.
+  No production defect or changed reference expectation was found; fresh
+  complete-candidate quickcheck/smoke and independent review remain required.
+  Tests-13 startup samples were1.026520/0.870124/0.867502/0.845360/0.903488ms,
+  with5159 then5152allocs/op: first above1ms, remaining four below; this is
+  neither an all-five target pass nor a clean causal comparison.
+  Five preceding-base startup samples were1.227197/1.100162/1.016517/0.868481/0.892106ms:
+  the first three exceeded1ms, the last two did not. Historical baseline samples
+  were0.833–0.867ms on the older base. Upstream extraction and shared-host
+  contention prevent a clean causal comparison; do not claim a speedup or a
+  harmless regression. Exact bytes/allocations and prior failed runs are retained
+  in functions README Testing and the root reports.
+  Item6 alone is ticked; this does not complete Step3, Tier C or routine14a/b.
+  Step14b still needs its other prerequisites. Independent review/integration
+  remain separate gates. User explicitly waived post-integration finalcheck;
+  it was not run or passed.
 - **Effect on later steps.** Step 10 (`plan`) excludes the Tier C nodes from
   its move set; each Tier C part that lands removes their cases from the
   central switches before those switches move.

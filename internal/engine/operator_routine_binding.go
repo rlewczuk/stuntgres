@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -28,7 +29,7 @@ func indexBuiltinOperatorRoutines() map[builtinOperatorRoutineKey]*catalog.Built
 		}
 		operator := builtinOperators[i]
 		declaration := builtinRoutineByOID[association.routine]
-		if declaration == nil || declaration.Providers&operatorRoutineProvider == 0 {
+		if declaration == nil || declaration.Providers&functions.OperatorRoutineProvider == 0 {
 			panic("stuntgres: missing genuine operator routine association")
 		}
 		byDeclaration[builtinOperatorRoutineKey{operator.name, operator.left, operator.right}] = declaration

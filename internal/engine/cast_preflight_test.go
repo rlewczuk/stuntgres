@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/functions"
 	"sync"
 	"testing"
 
@@ -362,7 +363,7 @@ func TestCastExpressionEqualityBoundDiagnosticOwnership(t *testing.T) {
 	for _, tc := range []struct {
 		query, message, hint, position string
 	}{
-		{"SELECT id FROM t WHERE i=int8(TRUE)", "function int8(boolean) does not exist", functionCastHint, "26"},
+		{"SELECT id FROM t WHERE i=int8(TRUE)", "function int8(boolean) does not exist", functions.SignatureHint, "26"},
 		{"SELECT id FROM t WHERE i=TRUE::bool", "operator does not exist: integer = boolean", "No operator matches the given name and argument types. You might need to add explicit type casts.", "25"},
 	} {
 		ast := statement(t, tc.query)

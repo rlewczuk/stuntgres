@@ -66,7 +66,7 @@ func (b *expressionBinder) bindEnumFunction(raw parser.FunctionExpr, visible boo
 		return nil, err
 	}
 	formal := [2]sqltype.ID{sqltype.ID(3500), sqltype.ID(3500)}
-	info, err = b.builtinRoutineInfo(info, enumRoutineProvider, name, formal[:len(args)]...)
+	info, err = b.builtinRoutineInfo(info, functions.EnumRoutineProvider, name, formal[:len(args)]...)
 	if err != nil {
 		return nil, err
 	}

@@ -97,7 +97,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != call.Plan.Name() || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != catalog.FunctionRoutine || captured.Strict != tc.strict || captured.Volatility != expr.Stable || captured.Revision() == 0 || len(captured.Body) != 0 {
 				t.Fatal("independent released identity", captured)
 			}
-			if declaration.Kind != catalog.FunctionRoutine || declaration.Result != tc.result || declaration.Strict != tc.strict || declaration.Volatility != expr.Stable || declaration.Parallel != 's' || declaration.ReturnsSet != tc.set || declaration.Variadic != 0 || int(declaration.Defaults) != tc.defaults || declaration.Providers&jsonRoutineProvider == 0 {
+			if declaration.Kind != catalog.FunctionRoutine || declaration.Result != tc.result || declaration.Strict != tc.strict || declaration.Volatility != expr.Stable || declaration.Parallel != 's' || declaration.ReturnsSet != tc.set || declaration.Variadic != 0 || int(declaration.Defaults) != tc.defaults || declaration.Providers&functions.JSONRoutineProvider == 0 {
 				t.Fatal("independent released full-IN/default/strict/set metadata", declaration)
 			}
 			if evaluation.catalog.Get(address) != captured {

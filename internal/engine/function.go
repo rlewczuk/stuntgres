@@ -158,7 +158,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 		}
 		return nil, expr.ErrorAt("42804", "VARIADIC argument must be an array", raw.Args[len(raw.Args)-1].SourcePosition())
 	}
-	info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.Int4).Usage(), raw.Pos, properties), variadicRoutineProvider, name, sqltype.ID(2276))
+	info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.Int4).Usage(), raw.Pos, properties), functions.VariadicRoutineProvider, name, sqltype.ID(2276))
 	if err != nil {
 		return nil, err
 	}
@@ -261,7 +261,7 @@ func functionArgumentTypeName(raw parser.Expr, arg expr.Expr) string {
 
 // Reuse transformed argument names when a diagnostic producer already bound them.
 func functionSignatureErrorForTypes(name parser.ObjectName, pos parser.Position, names []string) error {
-	return functionResolutionErrorForTypes(name, pos, names, false)
+	return functions.ResolutionError(name, pos, names, false)
 }
 
 func (b *expressionBinder) functionSignatureErrorForTypes(name parser.ObjectName, pos parser.Position, names []string) error {
@@ -269,15 +269,12 @@ func (b *expressionBinder) functionSignatureErrorForTypes(name parser.ObjectName
 }
 
 func (b *expressionBinder) functionResolutionErrorForTypes(name parser.ObjectName, pos parser.Position, names []string, ambiguous bool) error {
-	err := functionResolutionErrorForTypes(name, pos, names, ambiguous)
+	err := functions.ResolutionError(name, pos, names, ambiguous)
 	if !ambiguous {
 		b.noteFunctionSignature(name, pos, err)
 	}
 	return err
 }
-
-// Temporary alias: the pure builder moved to functions (F4/F5 math).
-var functionResolutionErrorForTypes = functions.ResolutionError
 
 // unknownNullSyntax recognizes provenance carriers, not a concrete UNKNOWN type.
 // Callers still resolve any annotation through the ordinary catalog/type path.

@@ -109,9 +109,11 @@ engine's `expressionBinder` implements it with thin adapters
   current `search_path`.
 - `BuiltinRoutineInfo` / `BuiltinRoutineReference`: the selected builtin
   routine identity, keyed by `RoutineProvider`, name and declared formals.
-  `RoutineProvider` (`routine_provider.go`) is the family vocabulary of the
-  engine's routine declarations; the type is an alias of
-  `expr.RoutineProvider`, which catalog routine declarations hold.
+  `routine_provider.go` owns the provider type and 23 family constants;
+  engine declaration tables and callers use these `functions` names directly.
+  The intentional `RoutineProvider = expr.RoutineProvider` alias lets catalog
+  routine declarations hold the expr-owned representation without importing
+  functions. There are no engine-local provider aliases.
 - `DiagnosticTypeName`: PostgreSQL's diagnostic spelling, including qualified
   user-defined types.
 - `SignatureError`: the 42883 missing-function error. The engine also notes it
@@ -526,6 +528,12 @@ results; random and deparse inquiry use it too), `ArrayTypeName` (array
 signature spelling by leaf name), `NotedResolutionError` (42883 through
 `SignatureError`, 42725 unnoted) and `DiagnosticNameOrUnknown` (the
 unqualified argument spelling, `unknown` for deferred literals).
+The engine also calls `ResolutionError` and `SignatureHint` directly, without
+the former package-level math aliases. Its distinct
+`expressionBinder.functionResolutionErrorForTypes` method remains: it notes
+only missing signatures (`!ambiguous`), preserving composite-projection
+fallback. Actual `SignatureError` adapters and deliberately unnoted builder
+paths retain their existing responsibilities.
 `operator_error.go`'s `OperatorError` is the operator form of both
 diagnostics; `ComparisonError` respells its 42883 with qualified diagnostic
 type names, and `ArrayOperatorError` with element names and `[]` for array
@@ -1189,6 +1197,96 @@ READMEs (numeric, binary_json_arrays, strings, patterns_encoding, types,
 catalogs, locking_transactions, object_address and object_grants). Each selected
 batch requires native and pinned PostgreSQL modes; whole-project quickcheck is
 Docker-free, not a substitute for that proof.
+
+**F3 provider and diagnostic owner cutover.**
+
+Private call-shape, authority and cast-diagnostic fixtures remain engine-owned;
+only their removed alias names/imports changed. No public reference definitions
+or expectations changed. Selected private proof:
+
+```sh
+make check RUN='^(TestSQLRoutineProviderCallShapes|TestSQLRoutineCallableShapeMasking|TestSQLRoutineUnknownCategorySelection|TestSQLRoutineOriginalArgumentRecipes|TestSQLRoutineWindowCallShapeTargets)$'
+make check RUN='^(TestACLValueRoutineOriginalAuthority|TestJSONRecordRoutineOriginalAuthority|TestJSONBRecordRoutineOriginalAuthority|TestNetworkOperatorRoutineOriginalAuthority|TestNumericSeriesRoutineOriginalAuthority|TestTIDRoutineAuthority)$'
+make check RUN='^(TestJSONBPathOpsBinding|TestJSONBPathQueryArrayDeclaration|TestJSONBPathQueryBinding|TestVersionInformationBinding|TestVersionInformationRemap|TestCastExpressionEqualityBoundDiagnosticOwnership)$'
+```
+
+Core public provider competition and exact diagnostic proof uses the same
+definitions in both modes:
+
+```sh
+make check RUN='^(TestReferenceRoutineResolutionProviderCoexistence|TestReferenceRoutineResolutionUnknownPositions|TestReferenceRoutineCoreResolution|TestReferenceRoutineCoreDiagnostics)$'
+make check RUN='^(TestReferenceRoutineResolutionProviderCoexistence|TestReferenceRoutineResolutionUnknownPositions|TestReferenceRoutineCoreResolution|TestReferenceRoutineCoreDiagnostics)$' REFERENCE=1
+```
+
+The distinct `NetworkRoutineProvider` family needs its own selected proof
+(P10), not the network-operator authority selection in P2: those operator
+declarations belong to `OperatorRoutineProvider`.
+
+```sh
+make check RUN='^(TestReferenceINETFormatMetadataAndBinds|TestReferenceINETFormatDiagnostics)$' REFERENCE=1
+make check RUN='^(TestReferenceINETFormatMetadataAndBinds|TestReferenceINETFormatDiagnostics)$'
+```
+
+These existing definitions independently assert IPv4/IPv6 format results and
+`TEXT`/`INT4`/`BOOL`/`INET` metadata, direct/prepared/reused-handle routes,
+NULL/empty results, parameter-error recovery, and exact missing-signature
+`42883` primary/Hint/character Position in direct and Prepare paths.
+Review1 found this selected native/real proof missing from P0–P9. Root
+tests-14 subsequently passed both P10 commands, closing that family-coverage gap.
+Do not change the reference bodies or substitute whole-project native passes.
+
+Latest-base root tests-12 establishes 1291 exact-owner migrations
+(4 type, 1283 constant, 2 pure-builder and 2 Hint uses), 26 removed declarations,
+28 Go files (17 production, 11 private units) and conservation of 1,065,774
+non-target bindings with zero loaded type errors. The real diagnostic method
+and its eight callers retain missing-only notes. Transaction/commit-timestamp
+and advisory/blocking binders already live here and use existing provider
+constants and diagnostics. The intentional functions/expr type alias remains.
+No runtime work was added. Preceding-base tests-10 proved1293 migrations,
+30Go files and1,066,520 conserved bindings; those are historical counts.
+
+Actual public database/sql smoke passed again in tests-12: builtin/SQL overloads,
+reused prepared metadata/results, exact direct/Prepare diagnostics, recovery,
+stored view/default and native Dump/Reset/Restore. Build passed on the preceding
+base in tests-10. On that preceding base, tests-11 passed all three private
+batches and all ten selected public provider/authority/metadata/stored groups
+in native and real pinned PostgreSQL18.6 modes. Full quickcheck passed in147.74s,
+full racecheck in595.62s; dependencies and the downward import graph passed.
+Latest complete-candidate gates refresh before review; those earlier passes
+are not latest-base runtime proof. Public reference bodies remain unchanged.
+
+Latest-base tests-13 subsequently passed build, U1–U3 and P0–P9 in both modes,
+public smoke, dependencies/import graph, full quickcheck (90.38s) and full
+racecheck (410.44s). Tests-14 adds the distinct Network-family native/real
+proof required by review1. Fresh complete-candidate quickcheck/smoke and
+independent review remain the integration gates.
+Tests-13 startup samples were1,026,520/870,124/867,502/845,360/903,488ns/op,
+with5159/5152/5152/5152/5152allocs/op: first above1ms, remaining four below.
+This is neither an all-five target pass nor an isolated causal comparison.
+
+Five preceding-base startup samples were1,227,197,1,100,162,1,016,517,868,481 and892,106
+ns/op; B/op were1,660,193,1,655,595,1,655,897,1,658,712 and1,656,965;
+allocs/op were5161,5152,5152,5152 and5152. The first three exceed the<1ms
+target; the final two meet it. The historical old-base baseline was
+833,213–867,442ns/op, with5158/5152/5152/5152/5152allocs/op.
+Because upstream extraction advanced the base and the host was shared, this is
+not a clean causal performance comparison; no speedup or harmless regression
+is claimed. The semantic audit proves qualification-only code changes, not
+performance attribution. No runtime optimization, deadline relaxation or
+test suppression was introduced.
+
+Original-base evidence remains historical:1306 migrations,39Go files,
+1,075,900 conserved other bindings and ten method callers. Earlier failed
+race/quickcheck reports and900-second expiries remain failed observations,
+not waived or recast as passes. Earlier post-cutover startup samples were
+37,786,093/7,203,948/5,973,393/5,993,069/6,142,934ns/op;
+B/op1,680,608/1,667,612/1,646,138/1,648,633/1,650,265 and
+allocs/op5380/5153/5151/5151/5151 under observed heavy contention.
+Passing preceding-base gates superseded the old blocked readiness state,
+not its evidence. Item6 alone is verified; latest complete-candidate gate refresh,
+independent review and safe integration remain root-owned lifecycle gates.
+The user explicitly waived only post-integration finalcheck, not run or passed.
+
 
 
 Run from repository root; use `make check RUN='...'` for individual or small
