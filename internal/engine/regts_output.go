@@ -46,7 +46,10 @@ func regTSSpelling(view catalog.Read, path []ids.ObjectAddress, id uint32, alias
 }
 func (s *StatementScope) formatRegTS(id uint32, alias sqltype.ID) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.State() == nil {
-		return "", fmt.Errorf("stuntgres: missing text search output snapshot")
+		if alias == sqltype.Regdictionary {
+			return detachedPresentation{}.FormatRegdictionary(id)
+		}
+		return detachedPresentation{}.FormatRegconfig(id)
 	}
 	key := regTSOutputKey{id, alias}
 	if text, ok := s.presentationOrZero().regTS[key]; ok {

@@ -59,7 +59,10 @@ func operatorSpelling(view catalog.Read, path []ids.ObjectAddress, groups operat
 }
 func (s *StatementScope) formatOperator(id uint32, alias sqltype.ID) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.State() == nil {
-		return "", fmt.Errorf("stuntgres: missing operator output snapshot")
+		if alias == sqltype.Regoperator {
+			return detachedPresentation{}.FormatRegoperator(id)
+		}
+		return detachedPresentation{}.FormatRegoper(id)
 	}
 	key := operatorOutputKey{id, alias}
 	if text, ok := s.presentationOrZero().operators[key]; ok {

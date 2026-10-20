@@ -43,6 +43,20 @@ func (c *EvalContext) liveScope() *StatementScope {
 	}
 	return c.statementScope
 }
+
+// liveHost is the runtime's only route to statement, session and engine
+// state. It returns an untyped nil when no statement scope is attached.
+func (c *EvalContext) liveHost() execHost { return hostOf(c.liveScope()) }
+func (s *querySource) liveHost() execHost { return hostOf(s.liveScope()) }
+
+// presentation formats reg* and aclitem output from the statement snapshot,
+// or reports the missing snapshot when the record is detached.
+func (c *EvalContext) presentation() presentationFormatters {
+	if host := c.liveHost(); host != nil {
+		return host
+	}
+	return detachedPresentation{}
+}
 func (c *EvalContext) setContext(ctx context.Context) {
 	if c.query != nil && c.query.executionContext != nil {
 		c.Context = c.query.executionContext

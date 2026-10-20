@@ -26,13 +26,13 @@ func regObjectSpelling(view catalog.Read, path []ids.ObjectAddress, class, id id
 
 func (s *StatementScope) FormatRegcollation(id uint32) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.State() == nil {
-		return "", fmt.Errorf("stuntgres: missing regcollation output snapshot")
+		return detachedPresentation{}.FormatRegcollation(id)
 	}
 	return regObjectSpelling(s.inquiry.commentCatalog, s.inquiry.collationPath, ids.CollationClassID, ids.OID(id)), nil
 }
 func (s *StatementScope) FormatRegnamespace(id uint32) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.State() == nil {
-		return "", fmt.Errorf("stuntgres: missing regnamespace output snapshot")
+		return detachedPresentation{}.FormatRegnamespace(id)
 	}
 	return regObjectSpelling(s.inquiry.commentCatalog, nil, ids.NamespaceClassID, ids.OID(id)), nil
 }

@@ -70,7 +70,7 @@ func regprocSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID) st
 
 func (s *StatementScope) FormatRegproc(id uint32) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.State() == nil {
-		return "", fmt.Errorf("stuntgres: missing regproc output snapshot")
+		return detachedPresentation{}.FormatRegproc(id)
 	}
 	if text, ok := s.presentationOrZero().regproc[id]; ok {
 		return text, nil
@@ -84,7 +84,7 @@ func (s *StatementScope) FormatRegproc(id uint32) (string, error) {
 }
 func (s *StatementScope) FormatRegprocedure(id uint32) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.State() == nil {
-		return "", fmt.Errorf("stuntgres: missing regprocedure output snapshot")
+		return detachedPresentation{}.FormatRegprocedure(id)
 	}
 	if text, ok := s.presentationOrZero().regprocedure[id]; ok {
 		return text, nil

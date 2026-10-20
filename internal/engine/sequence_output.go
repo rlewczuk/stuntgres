@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"fmt"
 	"strconv"
 
 	"stuntgres/internal/engine/catalog"
@@ -144,7 +143,7 @@ func captureRegclassOutputValue(rows *finalRows, catalog catalog.Read, path []id
 // without changing the canonical OID datum or consulting a later live catalog.
 func (s *StatementScope) FormatRegclass(id uint32) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.State() == nil {
-		return "", fmt.Errorf("stuntgres: missing regclass output snapshot")
+		return detachedPresentation{}.FormatRegclass(id)
 	}
 	return regclassSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, ids.OID(id)), nil
 }

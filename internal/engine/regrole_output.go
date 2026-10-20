@@ -44,7 +44,7 @@ func regroleContextFormatter(ctx context.Context) sqltype.RegroleFormatter {
 
 func (s *StatementScope) FormatRegrole(id uint32) (string, error) {
 	if s == nil {
-		return "", fmt.Errorf("stuntgres: missing regrole output snapshot")
+		return detachedPresentation{}.FormatRegrole(id)
 	}
 	return (capturedRegroleOutput{owner: s.inquiry.commentCatalog.Owner(), roles: s.inquiry.commentRoles, quoteAll: s.output.QuoteAllIdentifiers}).FormatRegrole(id)
 }

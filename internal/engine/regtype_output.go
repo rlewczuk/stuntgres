@@ -77,7 +77,7 @@ func regtypeSpellingMode(view catalog.Read, path []ids.ObjectAddress, id ids.OID
 
 func (s *StatementScope) FormatRegtype(id uint32) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.State() == nil {
-		return "", fmt.Errorf("stuntgres: missing regtype output snapshot")
+		return detachedPresentation{}.FormatRegtype(id)
 	}
 	return regtypeSpelling(s.inquiry.commentCatalog, s.inquiry.deparsePath, ids.OID(id)), nil
 }

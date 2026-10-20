@@ -65,7 +65,7 @@ func (r aclItemValidationOutput) FormatACLRole(authority *sqltype.ACLAuthority, 
 
 func (s *StatementScope) FormatACLRole(authority *sqltype.ACLAuthority, id uint32) (string, error) {
 	if s == nil || s.inquiry.commentCatalog.Owner() == nil {
-		return "", fmt.Errorf("stuntgres: missing ACL output snapshot")
+		return detachedPresentation{}.FormatACLRole(authority, id)
 	}
 	return (capturedACLItemOutput{owner: s.inquiry.commentCatalog.Owner(), roles: s.inquiry.commentRoles}).FormatACLRole(authority, id)
 }
