@@ -32,14 +32,14 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	if table, ok := changes.descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
 		auth.stagedTemporary = table.Address()
 	}
-	if op.restoreTableDestination {
+	if op.replayOrZero().tableDestination {
 		bootstrap, er := auth.Roles.Descriptor(auth.State.Authenticated)
 		if er != nil || !bootstrap.Superuser || e.importTargets == nil {
 			e.mu.Unlock()
 			return Result{}, fmt.Errorf("stuntgres: invalid trusted restore destination authority")
 		}
 	}
-	if err = auth.CheckCreate(ns); err != nil && !op.restoreTableDestination {
+	if err = auth.CheckCreate(ns); err != nil && !op.replayOrZero().tableDestination {
 		e.mu.Unlock()
 		return Result{}, creationError(err, s.Name)
 	}

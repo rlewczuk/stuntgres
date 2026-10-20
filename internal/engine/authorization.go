@@ -121,7 +121,7 @@ func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Stateme
 	if err != nil {
 		return AuthorizationView{}, err
 	}
-	if _, view := stmt.(*parser.CreateView); view && op.restoreTableDestination {
+	if _, view := stmt.(*parser.CreateView); view && op.replayOrZero().tableDestination {
 		bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
 		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore view authority")
@@ -129,7 +129,7 @@ func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Stateme
 		auth.namespaceUser = auth.State.CurrentUser
 		auth.State.CurrentUser = bootstrap.Ref
 	}
-	if creation, ok := stmt.(*parser.CreateQueryTable); ok && creation.Form == parser.CreateMaterializedView && op.restoreTableDestination {
+	if creation, ok := stmt.(*parser.CreateQueryTable); ok && creation.Form == parser.CreateMaterializedView && op.replayOrZero().tableDestination {
 		bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
 		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore materialized view authority")
@@ -137,7 +137,7 @@ func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Stateme
 		auth.namespaceUser = auth.State.CurrentUser
 		auth.State.CurrentUser = bootstrap.Ref
 	}
-	if _, index := stmt.(*parser.CreateIndex); index && op.restoreTableDestination {
+	if _, index := stmt.(*parser.CreateIndex); index && op.replayOrZero().tableDestination {
 		bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
 		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore index authority")
@@ -145,7 +145,7 @@ func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Stateme
 		auth.namespaceUser = auth.State.CurrentUser
 		auth.State.CurrentUser = bootstrap.Ref
 	}
-	if _, policy := stmt.(*parser.CreatePolicy); policy && op.restoreTableDestination {
+	if _, policy := stmt.(*parser.CreatePolicy); policy && op.replayOrZero().tableDestination {
 		bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
 		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore policy authority")
@@ -153,7 +153,7 @@ func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Stateme
 		auth.namespaceUser = auth.State.CurrentUser
 		auth.State.CurrentUser = bootstrap.Ref
 	}
-	if _, insert := stmt.(*parser.Insert); insert && op.restoreInsertAuthority {
+	if _, insert := stmt.(*parser.Insert); insert && op.replayOrZero().insertAuthority {
 		bootstrap, err := auth.Roles.Descriptor(auth.State.Authenticated)
 		if err != nil || !bootstrap.Superuser || e.importTargets == nil {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore insertion authority")
@@ -161,7 +161,7 @@ func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Stateme
 		auth.namespaceUser = auth.State.CurrentUser
 		auth.State.CurrentUser = bootstrap.Ref
 	}
-	if op.restoreCommentAuthority {
+	if op.replayOrZero().commentAuthority {
 		comment, ok := stmt.(*parser.Comment)
 		if !ok || (comment.Kind != parser.CommentTable && comment.Kind != parser.CommentColumn && comment.Kind != parser.CommentSchema) {
 			return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore comment target")
@@ -214,13 +214,13 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 		}
 	}
 	identity := a.state
-	if op.materializedOwner != (authorization.PrincipalRef{}) {
-		if _, err := r.Descriptor(op.materializedOwner); err != nil {
+	if op.replayOrZero().materializedOwner != (authorization.PrincipalRef{}) {
+		if _, err := r.Descriptor(op.replayOrZero().materializedOwner); err != nil {
 			return AuthorizationView{}, err
 		}
-		identity.CurrentUser = op.materializedOwner
+		identity.CurrentUser = op.replayOrZero().materializedOwner
 	}
-	authorization := AuthorizationView{View: access.View{Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.operationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.catalog.state.Get(catalog.CurrentDatabaseAddress), State: identity, SessionRoleState: a.state, Revision: a.revision}, engine: e, definition: op.definition, settings: s.settings, session: s, materializedPopulation: op.materializedPopulation}
+	authorization := AuthorizationView{View: access.View{Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.operationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.catalog.state.Get(catalog.CurrentDatabaseAddress), State: identity, SessionRoleState: a.state, Revision: a.revision}, engine: e, definition: op.definition, settings: s.settings, session: s, materializedPopulation: op.replayOrZero().materializedPopulation}
 	if _, exists := r.Find(identity.CurrentUser); !exists {
 		authorization.MissingCurrent = identity.CurrentUser
 	}

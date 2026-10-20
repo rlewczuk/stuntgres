@@ -48,7 +48,7 @@ func (e *Engine) resolveTableColumnType(raw parser.TypeName, op *Operation) (sql
 	if privateScalar == 0 {
 		return u, err
 	}
-	if op == nil || !op.restoreTableDestination {
+	if op == nil || !op.replayOrZero().tableDestination {
 		return u, err
 	}
 	diagnostic, ok := err.(*sqlstate.Error)

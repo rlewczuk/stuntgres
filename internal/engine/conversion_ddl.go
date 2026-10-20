@@ -36,7 +36,7 @@ func (e *Engine) conversionCheckCreate(op *Operation, auth AuthorizationView, na
 		return nil
 	}
 	denied, ok := err.(*sqlstate.Error)
-	if op == nil || !op.restoreTableDestination || !ok || denied.Code != "42501" {
+	if op == nil || !op.replayOrZero().tableDestination || !ok || denied.Code != "42501" {
 		return err
 	}
 	actor, actorErr := auth.Roles.Descriptor(auth.State.Authenticated)

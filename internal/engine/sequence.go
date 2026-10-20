@@ -206,7 +206,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if table, ok := changes.descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
 			auth.stagedTemporary = table.Address()
 		}
-		if err = auth.CheckCreate(ns); err != nil && !op.restoreTableDestination {
+		if err = auth.CheckCreate(ns); err != nil && !op.replayOrZero().tableDestination {
 			e.mu.Unlock()
 			return Result{}, err
 		}

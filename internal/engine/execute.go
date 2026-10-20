@@ -173,7 +173,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	// Trusted Restore insertion elevates permissions, not session identity.
 	// Defaults and CHECK providers must observe the actual owner directive.
 	identityAuth := auth
-	if _, inserting := stmt.(*parser.Insert); inserting && op.restoreInsertAuthority {
+	if _, inserting := stmt.(*parser.Insert); inserting && op.replayOrZero().insertAuthority {
 		identityAuth, err = e.authorizationLocked(op)
 		if err != nil {
 			e.mu.Unlock()
@@ -561,8 +561,8 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 			return Result{}, err
 		}
 		if creation.Form == parser.CreateMaterializedView {
-			op.materializedPopulation = true
-			defer func() { op.materializedPopulation = false }()
+			op.replay().materializedPopulation = true
+			defer func() { op.replay().materializedPopulation = false }()
 		}
 	}
 	// Native has no cost-based custom/generic planner. Parameterized consumers

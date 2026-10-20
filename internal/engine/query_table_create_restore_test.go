@@ -24,7 +24,7 @@ func TestQueryTableCreateRestoreColumnAuthority(t *testing.T) {
 		}
 		t.Cleanup(done)
 		if mode != "raw" {
-			op.restoreTableDestination = true
+			op.replay().tableDestination = true
 		}
 		if mode == "isolated" {
 			e.importTargets = make(map[authorization.PrincipalRef]authorization.PrincipalRef)

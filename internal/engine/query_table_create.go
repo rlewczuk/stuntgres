@@ -126,7 +126,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 		}
 	}
 	owner := auth.State.CurrentUser
-	if s.Form == parser.CreateMaterializedView && op.restoreTableDestination {
+	if s.Form == parser.CreateMaterializedView && op.replayOrZero().tableDestination {
 		directive, err := e.authorizationLocked(op)
 		if err != nil {
 			return nil, nil, false, err

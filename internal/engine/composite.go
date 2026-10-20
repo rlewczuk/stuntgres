@@ -17,7 +17,7 @@ func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationVie
 	if err != nil {
 		return err
 	}
-	trustedDestination := op != nil && op.restoreTableDestination
+	trustedDestination := op != nil && op.replayOrZero().tableDestination
 	if trustedDestination {
 		bootstrap, guardErr := auth.Roles.Descriptor(auth.State.Authenticated)
 		if guardErr != nil || !bootstrap.Superuser || e.importTargets == nil {

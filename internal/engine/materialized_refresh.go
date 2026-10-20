@@ -224,13 +224,13 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 // any stage validation/publication. No session settings or session_user change.
 func (e *Engine) materializedRefreshRowsLocked(scope *StatementScope, ref ids.ObjectRef, d *catalog.Relation) ([][]sqltype.Value, error) {
 	op := scope.op
-	population, owner := op.materializedPopulation, op.materializedOwner
+	population, owner := op.replayOrZero().materializedPopulation, op.replayOrZero().materializedOwner
 	identity, schema := scope.identity, scope.inquiry.currentSchemaResult
 	input := scope.input
-	op.materializedPopulation, op.materializedOwner = true, d.Owner
+	op.replay().materializedPopulation, op.replay().materializedOwner = true, d.Owner
 	scope.inquiry.currentSchemaResult = sqltype.Value{}
 	defer func() {
-		op.materializedPopulation, op.materializedOwner = population, owner
+		op.replay().materializedPopulation, op.replay().materializedOwner = population, owner
 		scope.identity, scope.inquiry.currentSchemaResult = identity, schema
 		scope.input = input
 	}()

@@ -37,7 +37,7 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !partitionUsingIndexReplayAllowed(op, auth, raw, child) || op.restorePartitionUsingIndex.index != index {
+	if !partitionUsingIndexReplayAllowed(op, auth, raw, child) || op.replayOrZero().partitionUsingIndex.index != index {
 		t.Fatal("exact private physical/index origin not captured")
 	}
 	if err := partitionConsumerBoundary(op, auth, raw, child); err != nil {
@@ -60,12 +60,12 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	if partitionUsingIndexReplayAllowed(op, auth, &other, child) {
 		t.Fatal("different syntax granted")
 	}
-	origin := op.restorePartitionUsingIndex
-	op.restorePartitionUsingIndex = nil
+	origin := op.replayOrZero().partitionUsingIndex
+	op.replay().partitionUsingIndex = nil
 	if err := partitionConsumerBoundary(op, auth, raw, child); err == nil {
 		t.Fatal("public hierarchy ADD USING INDEX admitted")
 	}
-	op.restorePartitionUsingIndex = origin
+	op.replay().partitionUsingIndex = origin
 	next := catalog.CloneState(e.catalog.state)
 	changed := *index
 	changed.ObjectRevision++

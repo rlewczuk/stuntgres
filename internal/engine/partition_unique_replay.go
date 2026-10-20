@@ -25,7 +25,7 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 	if op == nil {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition unique operation")
 	}
-	op.restorePartitionUnique = nil
+	op.replay().partitionUnique = nil
 	if raw == nil || raw.Only || raw.IfExists || len(raw.Actions) != 1 || raw.Actions[0].Action != parser.AddUnique || raw.Actions[0].Unique == nil {
 		return nil
 	}
@@ -120,15 +120,15 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 			captured.descriptors = append(captured.descriptors, index)
 		}
 	}
-	op.restorePartitionUnique = captured
+	op.replay().partitionUnique = captured
 	return nil
 }
 
 func partitionUniqueReplayAllowed(op *Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) bool {
-	if op == nil || raw == nil || op.restorePartitionUnique == nil || !partitionConstraintReplayImport(auth.engine, op, auth) {
+	if op == nil || raw == nil || op.replayOrZero().partitionUnique == nil || !partitionConstraintReplayImport(auth.engine, op, auth) {
 		return false
 	}
-	origin := op.restorePartitionUnique
+	origin := op.replayOrZero().partitionUnique
 	if origin.target != table || origin.syntax != raw || raw.Only || raw.IfExists || len(raw.Actions) != 1 || raw.Actions[0].Action != parser.AddUnique || raw.Actions[0].Unique != origin.definition {
 		return false
 	}
@@ -149,7 +149,7 @@ func partitionUniqueReplayAllowed(op *Operation, auth AuthorizationView, raw *pa
 // recursive virtual-index producer, validator and Finish overlay own all effects.
 func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) (Result, error) {
 	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), table.Address())
-	origin := op.restorePartitionUnique
+	origin := op.replayOrZero().partitionUnique
 	e.mu.Unlock()
 	if err := scope.acquirePartitionDescendants(ref, lock.AccessExclusive); err != nil {
 		return Result{}, err

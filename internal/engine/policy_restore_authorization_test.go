@@ -49,7 +49,7 @@ func TestRLSPolicyRestoreAuthorization(t *testing.T) {
 		t.Fatal("ordinary capture lost actual session state")
 	}
 	assertTargets(ordinary, ordinary.State.CurrentUser)
-	op.restoreTableDestination = true
+	op.replay().tableDestination = true
 	trusted := capture()
 	if trusted.State.CurrentUser != ordinary.State.Authenticated || trusted.SessionRoleState != ordinary.State || op.RoleState() != ordinary.State {
 		t.Fatal("trusted capture did not separate authority and session semantics")
@@ -57,10 +57,10 @@ func TestRLSPolicyRestoreAuthorization(t *testing.T) {
 	assertTargets(trusted, ordinary.State.CurrentUser)
 	// A fresh execution capture must observe a subsequent real session change;
 	// the immutable earlier preflight snapshot must not change retroactively.
-	op.restoreTableDestination = false
+	op.replay().tableDestination = false
 	roleExecute(t, stage, op, "RESET SESSION AUTHORIZATION")
 	roleExecute(t, stage, op, "SET SESSION AUTHORIZATION next_owner")
-	op.restoreTableDestination = true
+	op.replay().tableDestination = true
 	fresh := capture()
 	if fresh.Revision == trusted.Revision || fresh.SessionRoleState.CurrentUser == trusted.SessionRoleState.CurrentUser || fresh.State.CurrentUser != trusted.State.CurrentUser {
 		t.Fatal("fresh capture reused old semantics or lost trusted authority")
@@ -71,7 +71,7 @@ func TestRLSPolicyRestoreAuthorization(t *testing.T) {
 		t.Fatal("retained semantic snapshot mutated")
 	}
 	// The flag alone still grants no trusted authority on a live engine.
-	sourceOp.restoreTableDestination = true
+	sourceOp.replay().tableDestination = true
 	source.mu.Lock()
 	_, err := source.statementAuthorizationLocked(sourceOp, creation)
 	source.mu.Unlock()

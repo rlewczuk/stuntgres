@@ -92,7 +92,7 @@ func partitionWriteExtensionBoundary(statement parser.Statement, d *catalog.Rela
 }
 
 func partitionDefaultReplayAllowed(e *Engine, op *Operation, auth AuthorizationView, statement *parser.AlterTableDefault) bool {
-	if e == nil || op == nil || op.self != op || !op.restoreDefaultReplay || op.session == nil || op.session.Engine() != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() || statement == nil || statement.Action != parser.SetDefault || statement.Expression == nil {
+	if e == nil || op == nil || op.self != op || !op.replayOrZero().defaultReplay || op.session == nil || op.session.Engine() != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() || statement == nil || statement.Action != parser.SetDefault || statement.Expression == nil {
 		return false
 	}
 	if err := e.validateOperation(op); err != nil {
@@ -106,7 +106,7 @@ func partitionDefaultReplayAllowed(e *Engine, op *Operation, auth AuthorizationV
 // importer can open their parent as its bootstrap principal; the child owner
 // and all type and scalar-expression authority remain the named CurrentUser.
 func (e *Engine) partitionParentAuthorization(op *Operation, auth AuthorizationView, syntax *parser.CreateTable) (AuthorizationView, error) {
-	if syntax == nil || syntax.PartitionOf == nil || op == nil || !op.restoreTableDestination {
+	if syntax == nil || syntax.PartitionOf == nil || op == nil || !op.replayOrZero().tableDestination {
 		return auth, nil
 	}
 	if e == nil || op.self != op || op.session == nil || op.session.Engine() != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() {

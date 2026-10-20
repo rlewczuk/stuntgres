@@ -781,7 +781,7 @@ func (s *StatementScope) checkPartitionCreationNamespaceLocked(auth Authorizatio
 		return nil
 	}
 	ns, deferredTemp, err := s.op.session.Engine().creationNamespaceDestination(auth, creation.Name, false)
-	if err == nil && !deferredTemp && !s.op.restoreTableDestination {
+	if err == nil && !deferredTemp && !s.op.replayOrZero().tableDestination {
 		err = auth.CheckCreate(ns)
 	}
 	if err != nil {

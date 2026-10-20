@@ -169,7 +169,7 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 			scope.input.ExactSnapshot != beforeInput.ExactSnapshot {
 			t.Fatal("population leaked input context")
 		}
-		if op.materializedPopulation || op.materializedOwner != (authorization.PrincipalRef{}) || op.RoleState() != beforeRole || scope.identity != beforeIdentity || !sqltype.SameDatum(scope.inquiry.currentSchemaResult, beforeSchema) {
+		if op.replayOrZero().materializedPopulation || op.replayOrZero().materializedOwner != (authorization.PrincipalRef{}) || op.RoleState() != beforeRole || scope.identity != beforeIdentity || !sqltype.SameDatum(scope.inquiry.currentSchemaResult, beforeSchema) {
 			t.Fatal("population leaked owner context")
 		}
 		if err := scope.Finish(err); !fail && err != nil {

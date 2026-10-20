@@ -14,7 +14,7 @@ func (e *Engine) beginPartitionCheckReplay(op *Operation, raw *parser.AlterTable
 	if op == nil {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition CHECK operation")
 	}
-	op.restorePartitionCheck = nil
+	op.replay().partitionCheck = nil
 	if !partitionCheckReplayActions(raw) {
 		return nil
 	}
@@ -39,7 +39,7 @@ func (e *Engine) beginPartitionCheckReplay(op *Operation, raw *parser.AlterTable
 		return ids.ErrCatalogReplaced
 	}
 	if d.RelationKind == catalog.TableRelation && d.Partition == nil && d.Membership != nil && d.Inheritance == nil {
-		op.restorePartitionCheck = d
+		op.replay().partitionCheck = d
 	}
 	return nil
 }
@@ -69,5 +69,5 @@ func partitionConstraintReplayImport(e *Engine, op *Operation, auth Authorizatio
 }
 
 func partitionCheckReplayAllowed(op *Operation, auth AuthorizationView, raw *parser.AlterTable, d *catalog.Relation) bool {
-	return op != nil && op.restorePartitionCheck == d && d != nil && d.RelationKind == catalog.TableRelation && d.Partition == nil && d.Membership != nil && d.Inheritance == nil && auth.Catalog.Get(d.Address()) == d && partitionCheckReplayActions(raw) && partitionConstraintReplayImport(auth.engine, op, auth)
+	return op != nil && op.replayOrZero().partitionCheck == d && d != nil && d.RelationKind == catalog.TableRelation && d.Partition == nil && d.Membership != nil && d.Inheritance == nil && auth.Catalog.Get(d.Address()) == d && partitionCheckReplayActions(raw) && partitionConstraintReplayImport(auth.engine, op, auth)
 }

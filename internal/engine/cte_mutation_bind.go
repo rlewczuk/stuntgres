@@ -38,7 +38,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 			binder.query.frame = 1
 			// SELECT frame allocation stays monotonic across stored modifiers.
 		}
-		if op != nil && op.restoreInsertAuthority && len(b.relation.ColumnMeta.Identities) != 0 && s.Override != parser.OverrideSystem {
+		if op != nil && op.replayOrZero().insertAuthority && len(b.relation.ColumnMeta.Identities) != 0 && s.Override != parser.OverrideSystem {
 			return b, sqlError("0A000", "restore identity rows require OVERRIDING SYSTEM VALUE")
 		}
 		if !b.relation.VirtualView {

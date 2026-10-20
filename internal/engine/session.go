@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/sequence"
@@ -109,42 +108,31 @@ type Session struct {
 
 // Operation is pointer-owned; copying it is invalid. Done releases its lease once.
 type Operation struct {
-	self                       *Operation
-	session                    *Session
-	ctx                        context.Context
-	copyInput                  protocolCopyInputContext
-	commandContext             context.Context // Session-cancelable parent of per-statement budgets.
-	cancel                     context.CancelCauseFunc
-	done                       bool
-	private                    bool
-	notices                    []sqlstate.Error
-	noticeThreshold            noticeLevel
-	timerCancel                context.CancelFunc
-	lockTimeout                time.Duration
-	parallelWorkers            int // Immutable prior-setting snapshot at command admission.
-	statementDeadline          time.Time
-	commandStart               time.Time
-	sourceContext              context.Context
-	commandAdmission           bool
-	sqlActivity                bool
-	sqlFinished                bool // Session.mu: ERROR/completion fence, not transaction state
-	timeoutScope               *StatementScope
-	definition                 definitionReader // Scoped once-only DDL cooking, restored before evaluation.
-	lockWait                   lock.TimeoutSlot // queued lock request's SQL-deadline projection
-	nonstandardStrings         bool
-	restoreTableDestination    bool
-	restoreInsertAuthority     bool
-	restoreCommentAuthority    bool
-	materializedPopulation     bool                       // Operation-local execution path, never session settings.
-	materializedOwner          authorization.PrincipalRef // Population-only effective principal; session_user is unchanged.
-	restoreDefaultReplay       bool
-	restoreSQLBodies           bool // Isolated Restore validator deferral, never a session setting.
-	restorePartitionAttach     bool
-	restorePartitionCheck      *catalog.Relation          // Exact leased private-import physical CHECK target.
-	restorePartitionUsingIndex *partitionUsingIndexReplay // Exact leased private-import physical target/index.
-	restorePartitionUnique     *partitionUniqueReplay     // Exact private virtual definition/subtree lease.
-	restoreDomainReplay        *domainReplayCapture       // Exact private native INSERT's immutable captured cells.
-	discardRoleReset           authorization.RoleState    // nonzero Authenticated only during DISCARD ALL publication
+	self               *Operation
+	session            *Session
+	ctx                context.Context
+	copyInput          protocolCopyInputContext
+	commandContext     context.Context // Session-cancelable parent of per-statement budgets.
+	cancel             context.CancelCauseFunc
+	done               bool
+	private            bool
+	notices            []sqlstate.Error
+	noticeThreshold    noticeLevel
+	timerCancel        context.CancelFunc
+	lockTimeout        time.Duration
+	parallelWorkers    int // Immutable prior-setting snapshot at command admission.
+	statementDeadline  time.Time
+	commandStart       time.Time
+	sourceContext      context.Context
+	commandAdmission   bool
+	sqlActivity        bool
+	sqlFinished        bool // Session.mu: ERROR/completion fence, not transaction state
+	timeoutScope       *StatementScope
+	definition         definitionReader // Scoped once-only DDL cooking, restored before evaluation.
+	lockWait           lock.TimeoutSlot // queued lock request's SQL-deadline projection
+	nonstandardStrings bool
+	discardRoleReset   authorization.RoleState // nonzero Authenticated only during DISCARD ALL publication
+	replaySlot         *restoreReplay          // Restore and materialized population only; see replay().
 }
 
 func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session, error) {

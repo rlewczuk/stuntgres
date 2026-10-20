@@ -1738,12 +1738,12 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	}
 	defer op.Done()
 	defer func() {
-		op.restoreSQLBodies = false
-		op.restoreDefaultReplay = false
-		op.restorePartitionAttach = false
-		op.restorePartitionCheck = nil
-		op.restorePartitionUsingIndex = nil
-		op.restorePartitionUnique = nil
+		op.replay().sqlBodies = false
+		op.replay().defaultReplay = false
+		op.replay().partitionAttach = false
+		op.replay().partitionCheck = nil
+		op.replay().partitionUsingIndex = nil
+		op.replay().partitionUnique = nil
 	}()
 	var pendingForeignKeys []restoredForeignKeys
 	partitionTeardowns := make(map[ids.ObjectAddress]partitionReplayTeardown)
@@ -1762,7 +1762,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 	historicalAuthority := &restoredHistoryAuthority{facts: make(map[ids.OID]restoredHistoricalFact), archives: make(map[uint64]uint64), sources: make(map[retiredSourceIdentity]retiredSourceDescription), nextArchive: e.retiredArchiveHighWater()}
 	for statementIndex, stmt := range statements {
 		if sqlRoutineReplayDirective(string(data), stmt) {
-			op.restoreSQLBodies = true
+			op.replay().sqlBodies = true
 			continue
 		}
 		if pairedPhysical != nil && !pairedPhysical.admits(stmt) {
@@ -2090,66 +2090,66 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 				return err
 			}
 		}
-		op.restoreTableDestination = false
+		op.replay().tableDestination = false
 		if _, ok := stmt.(*parser.CreateTable); ok {
-			op.restoreTableDestination = true
+			op.replay().tableDestination = true
 		}
 		if _, ok := stmt.(*parser.CreateDomain); ok {
-			op.restoreTableDestination = true
+			op.replay().tableDestination = true
 		}
 		if _, ok := stmt.(*parser.CreateEnum); ok {
-			op.restoreTableDestination = true
+			op.replay().tableDestination = true
 		}
 		if _, ok := stmt.(*parser.CreateComposite); ok {
-			op.restoreTableDestination = true
+			op.replay().tableDestination = true
 		}
 		if _, ok := stmt.(*parser.CreatePolicy); ok {
-			op.restoreTableDestination = true
+			op.replay().tableDestination = true
 		}
 		if _, ok := stmt.(*parser.CreateRule); ok {
-			op.restoreTableDestination = true
+			op.replay().tableDestination = true
 		}
 		if _, ok := stmt.(*parser.CreateSequence); ok {
-			op.restoreTableDestination = true
+			op.replay().tableDestination = true
 		}
 		if _, ok := stmt.(*parser.CreateView); ok {
-			op.restoreTableDestination = true
+			op.replay().tableDestination = true
 		}
 		if _, ok := stmt.(*parser.CreateIndex); ok {
-			op.restoreTableDestination = true
+			op.replay().tableDestination = true
 		}
 		if creation, ok := stmt.(*parser.CreateQueryTable); ok && creation.Form == parser.CreateMaterializedView {
-			op.restoreTableDestination = true
+			op.replay().tableDestination = true
 		}
 		if _, ok := stmt.(*parser.CreateCollation); ok {
-			op.restoreTableDestination = true
+			op.replay().tableDestination = true
 		}
 		if _, ok := stmt.(*parser.CreateConversion); ok {
-			op.restoreTableDestination = true
+			op.replay().tableDestination = true
 		}
 		if _, ok := stmt.(*parser.AlterConversion); ok {
-			op.restoreTableDestination = true
+			op.replay().tableDestination = true
 		}
 		if _, ok := stmt.(*parser.CreateOperator); ok {
-			op.restoreTableDestination = true
+			op.replay().tableDestination = true
 		}
 		if _, ok := stmt.(*parser.AlterOperator); ok {
-			op.restoreTableDestination = true
+			op.replay().tableDestination = true
 		}
 		if _, ok := stmt.(*parser.CreateExtension); ok {
-			op.restoreTableDestination = true
+			op.replay().tableDestination = true
 		}
-		op.restoreInsertAuthority = false
+		op.replay().insertAuthority = false
 		if _, ok := stmt.(*parser.Insert); ok {
-			op.restoreInsertAuthority = true
+			op.replay().insertAuthority = true
 		}
-		op.restoreCommentAuthority = false
+		op.replay().commentAuthority = false
 		if _, ok := stmt.(*parser.Comment); ok {
-			op.restoreCommentAuthority = true
+			op.replay().commentAuthority = true
 		}
 		_, replayDefault := stmt.(*parser.AlterTableDefault)
-		op.restoreDefaultReplay = replayDefault
-		_, op.restorePartitionAttach = stmt.(*parser.AlterTableAttachPartition)
+		op.replay().defaultReplay = replayDefault
+		_, op.replay().partitionAttach = stmt.(*parser.AlterTableAttachPartition)
 		if alteration, ok := stmt.(*parser.AlterTable); ok {
 			if err := stage.beginPartitionCheckReplay(op, alteration); err != nil {
 				return err
@@ -2160,7 +2160,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			if err := stage.beginPartitionUniqueReplay(op, alteration); err != nil {
 				return err
 			}
-			if len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.AddUnique && op.restorePartitionUnique == nil && physicalConstructor == nil {
+			if len(alteration.Actions) == 1 && alteration.Actions[0].Action == parser.AddUnique && op.replayOrZero().partitionUnique == nil && physicalConstructor == nil {
 				return sqlError("0A000", "restore accepts only captured private virtual unique definitions")
 			}
 		}
@@ -2174,18 +2174,18 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		} else {
 			result, err = stage.Execute(op, stmt, 0, nil)
 		}
-		op.restoreDefaultReplay = false
-		op.restorePartitionAttach = false
-		op.restorePartitionCheck = nil
-		op.restorePartitionUsingIndex = nil
-		op.restorePartitionUnique = nil
+		op.replay().defaultReplay = false
+		op.replay().partitionAttach = false
+		op.replay().partitionCheck = nil
+		op.replay().partitionUsingIndex = nil
+		op.replay().partitionUnique = nil
 		if result.Rows != nil {
 			closeErr := result.Rows.Close()
 			if err == nil {
 				err = closeErr
 			}
 		}
-		op.restoreCommentAuthority = false
+		op.replay().commentAuthority = false
 		op.DetachNotices()
 		if err != nil {
 			return err

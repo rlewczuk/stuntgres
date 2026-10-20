@@ -103,7 +103,7 @@ func (e *Engine) stageCreateFunctionLocked(op *Operation, auth AuthorizationView
 	if err = stage.Create(d); err != nil {
 		return err
 	}
-	if op.restoreSQLBodies {
+	if op.replayOrZero().sqlBodies {
 		return nil
 	}
 	previous := op.definition

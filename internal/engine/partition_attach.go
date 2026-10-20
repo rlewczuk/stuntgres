@@ -36,7 +36,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	if parent.Partition == nil {
 		return fail(partitionAttachKindError(parent))
 	}
-	if parent.Partition.Strategy == parser.PartitionHash && !op.restorePartitionAttach {
+	if parent.Partition.Strategy == parser.PartitionHash && !op.replayOrZero().partitionAttach {
 		return fail(sqlError("0A000", "hash partition attachment is unsupported"))
 	}
 	lookupAuth, err := e.partitionAttachAuthorization(op, auth)
@@ -247,7 +247,7 @@ func (e *Engine) partitionAttachRelation(scope *StatementScope, ref ids.ObjectRe
 // Private import executes the same utility against captured definitions. Only
 // its authenticated bootstrap may check the independently owned attachments.
 func (e *Engine) partitionAttachAuthorization(op *Operation, auth AuthorizationView) (AuthorizationView, error) {
-	if !op.restorePartitionAttach {
+	if !op.replayOrZero().partitionAttach {
 		return auth, nil
 	}
 	if op.self != op || op.session == nil || op.session.Engine() != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state {

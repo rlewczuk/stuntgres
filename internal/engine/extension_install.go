@@ -159,7 +159,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	if err != nil {
 		return nil, err
 	}
-	if !actor.Superuser && !op.restoreTableDestination {
+	if !actor.Superuser && !op.replayOrZero().tableDestination {
 		if !registration.Trusted {
 			return nil, sqlError("42501", fmt.Sprintf(`permission denied to create extension "%s"`, s.Name.Text))
 		}
