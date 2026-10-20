@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -24,20 +25,9 @@ func (b *expressionBinder) operatorConstant(text string, typ *sqltype.Descriptor
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		input, err := b.host.CaptureOperatorInput(auth)
+		constant.ID, constant.Qualified, constant.Operands, err = b.host.ResolveOperatorText(b.ctx, auth, pos, typ.ID() == sqltype.Regoper, text)
 		if err != nil {
 			return sqltype.Value{}, err
-		}
-		input.types.position = pos
-		input.qualified = &constant.Qualified
-		input.operands = &constant.Operands
-		if typ.ID() == sqltype.Regoper {
-			constant.ID, err = input.ResolveRegoper(b.ctx, text)
-		} else {
-			constant.ID, err = input.ResolveRegoperator(b.ctx, text)
-		}
-		if err != nil {
-			return sqltype.Value{}, regtypeInputError(err, pos)
 		}
 	}
 	for _, operand := range constant.Operands {
@@ -68,11 +58,8 @@ func (b *expressionBinder) operatorCompoundConstant(text string, usage sqltype.U
 	}
 	input := b.input
 	constant := regtypeConstant{Offset: pos.Offset, Operator: usage.Type.ID()}
-	if resolver, ok := input.Operator.(capturedOperatorInput); ok {
-		resolver.types.position = pos
-		resolver.qualified = &constant.Qualified
-		resolver.operands = &constant.Operands
-		input.Operator = resolver
+	if resolver, ok := input.Operator.(analyze.OperatorRetarget); ok {
+		input.Operator = resolver.RetargetOperator(analyze.IdentifierTarget{Position: pos, Qualified: &constant.Qualified, Operands: &constant.Operands})
 	}
 	value, err := usage.Type.InputWithEnvironment(b.ctx, text, -1, input.LiteralInput(pos.Character))
 	if err != nil {

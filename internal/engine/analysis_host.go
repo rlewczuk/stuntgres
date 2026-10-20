@@ -51,8 +51,8 @@ type analyzeHost interface {
 
 	// Captures.
 	CaptureElementInput(auth AuthorizationView, input *sqltype.InputEnvironment) error
-	CaptureOperatorInput(auth AuthorizationView) (capturedOperatorInput, error)
-	CaptureRegtypeInput(auth AuthorizationView) (capturedRegtypeInput, error)
+	ResolveOperatorText(ctx context.Context, auth AuthorizationView, pos parser.Position, regoper bool, text string) (uint32, []ids.ObjectAddress, []catalog.ExpressionDependency, error)
+	ResolveRegtypeText(ctx context.Context, auth AuthorizationView, pos parser.Position, text string) (uint32, []ids.ObjectAddress, error)
 	CaptureTypeDiagnosticInput(auth AuthorizationView, input *sqltype.InputEnvironment, typ *sqltype.Descriptor) error
 	CaptureTypeDiagnosticName(auth AuthorizationView) (func(sqltype.ID) string, error)
 	CaptureEnumOperationInput(auth AuthorizationView, input *sqltype.InputEnvironment) error
@@ -189,12 +189,48 @@ func (h *bindingHost) CaptureElementInput(auth AuthorizationView, input *sqltype
 	return h.engine.captureElementInput(auth, h.op, input)
 }
 
-func (h *bindingHost) CaptureOperatorInput(auth AuthorizationView) (capturedOperatorInput, error) {
-	return h.engine.captureOperatorInput(auth, h.op)
+// ResolveOperatorText resolves one uncaptured regoper or regoperator literal
+// under a fresh capture and returns the namespaces it qualified and the
+// providers it resolved. Capture errors come back as they are; resolution
+// errors carry the literal's position.
+func (h *bindingHost) ResolveOperatorText(ctx context.Context, auth AuthorizationView, pos parser.Position, regoper bool, text string) (uint32, []ids.ObjectAddress, []catalog.ExpressionDependency, error) {
+	input, err := h.engine.captureOperatorInput(auth, h.op)
+	if err != nil {
+		return 0, nil, nil, err
+	}
+	var qualified []ids.ObjectAddress
+	var operands []catalog.ExpressionDependency
+	input.types.position = pos
+	input.qualified = &qualified
+	input.operands = &operands
+	var id uint32
+	if regoper {
+		id, err = input.ResolveRegoper(ctx, text)
+	} else {
+		id, err = input.ResolveRegoperator(ctx, text)
+	}
+	if err != nil {
+		return 0, nil, nil, regtypeInputError(err, pos)
+	}
+	return id, qualified, operands, nil
 }
 
-func (h *bindingHost) CaptureRegtypeInput(auth AuthorizationView) (capturedRegtypeInput, error) {
-	return h.engine.captureRegtypeInput(auth, h.op)
+// ResolveRegtypeText resolves one uncaptured regtype literal under a fresh
+// capture and returns the namespaces it qualified. Capture errors come back as
+// they are; resolution errors carry the literal's position.
+func (h *bindingHost) ResolveRegtypeText(ctx context.Context, auth AuthorizationView, pos parser.Position, text string) (uint32, []ids.ObjectAddress, error) {
+	input, err := h.engine.captureRegtypeInput(auth, h.op)
+	if err != nil {
+		return 0, nil, err
+	}
+	var qualified []ids.ObjectAddress
+	input.position = pos
+	input.qualified = &qualified
+	id, err := input.ResolveRegtype(ctx, text)
+	if err != nil {
+		return 0, nil, regtypeInputError(err, pos)
+	}
+	return id, qualified, nil
 }
 
 func (h *bindingHost) CaptureTypeDiagnosticInput(auth AuthorizationView, input *sqltype.InputEnvironment, typ *sqltype.Descriptor) error {

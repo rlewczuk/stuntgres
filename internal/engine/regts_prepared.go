@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -27,10 +28,7 @@ func (b *expressionBinder) regTSConstant(text string, usage sqltype.Usage, pos p
 		return sqltype.Value{}, err
 	}
 	input := b.input
-	resolver := input.RegTS.(capturedRegTSInput)
-	resolver.qualified = &constant.Qualified
-	resolver.resolved = &constant.Operands
-	input.RegTS = resolver
+	input.RegTS = input.RegTS.(analyze.RegTSRetarget).RetargetRegTS(analyze.IdentifierTarget{Qualified: &constant.Qualified, Resolved: &constant.Operands})
 	value, err := usage.Type.InputWithEnvironment(b.ctx, text, -1, input.LiteralInput(pos.Character))
 	if err != nil {
 		return sqltype.Value{}, regtypeInputError(err, pos)

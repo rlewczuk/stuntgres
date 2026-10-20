@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -28,21 +29,13 @@ func (b *expressionBinder) routineConstant(text string, usage sqltype.Usage, pos
 		return sqltype.Value{}, err
 	}
 	input := b.input
-	resolver := input.Regproc.(capturedRoutineInput)
-	resolver.types.position = pos
-	resolver.types.qualified = &constant.Qualified
-	resolver.operands = &constant.Operands
-	input.Regproc = resolver
-	if types, ok := input.Regtype.(capturedRegtypeInput); ok {
-		types.position = pos
-		types.qualified = &constant.Qualified
-		input.Regtype = types
+	target := analyze.IdentifierTarget{Position: pos, Qualified: &constant.Qualified, Operands: &constant.Operands}
+	input.Regproc = input.Regproc.(analyze.RoutineRetarget).RetargetRoutine(target)
+	if types, ok := input.Regtype.(analyze.RegtypeRetarget); ok {
+		input.Regtype = types.RetargetRegtype(target)
 	}
-	if operator, ok := input.Operator.(capturedOperatorInput); ok {
-		operator.types.position = pos
-		operator.qualified = &constant.Qualified
-		operator.operands = &constant.Operands
-		input.Operator = operator
+	if operator, ok := input.Operator.(analyze.OperatorRetarget); ok {
+		input.Operator = operator.RetargetOperator(target)
 	}
 	value, err := usage.Type.InputWithEnvironment(b.ctx, text, -1, input.LiteralInput(pos.Character))
 	if err != nil {

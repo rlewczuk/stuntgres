@@ -130,15 +130,9 @@ func (b *expressionBinder) regtypeConstant(text string, pos parser.Position) (sq
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		input, err := b.host.CaptureRegtypeInput(auth)
+		constant.ID, constant.Qualified, err = b.host.ResolveRegtypeText(b.ctx, auth, pos, text)
 		if err != nil {
 			return sqltype.Value{}, err
-		}
-		input.position = pos
-		input.qualified = &constant.Qualified
-		constant.ID, err = input.ResolveRegtype(b.ctx, text)
-		if err != nil {
-			return sqltype.Value{}, regtypeInputError(err, pos)
 		}
 	}
 	b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, constant)
@@ -163,10 +157,8 @@ func (b *expressionBinder) regtypeArrayConstant(text string, u sqltype.Usage, po
 	}
 	input := b.input
 	constant := regtypeConstant{Offset: pos.Offset}
-	if resolver, ok := input.Regtype.(capturedRegtypeInput); ok {
-		resolver.position = pos
-		resolver.qualified = &constant.Qualified
-		input.Regtype = resolver
+	if resolver, ok := input.Regtype.(analyze.RegtypeRetarget); ok {
+		input.Regtype = resolver.RetargetRegtype(analyze.IdentifierTarget{Position: pos, Qualified: &constant.Qualified})
 	}
 	value, err := b.decodeLiteralInput(text, u.Type, -1, input.LiteralInput(pos.Character))
 	if err != nil {
@@ -273,22 +265,18 @@ func (b *expressionBinder) regObjectConstant(text string, u sqltype.Usage, pos p
 	input := b.input
 	constant := regtypeConstant{Offset: pos.Offset}
 	if u.Type.ContainsRegproc() {
-		if resolver, ok := input.Regproc.(capturedRoutineInput); ok {
-			resolver.types.position = pos
-			resolver.types.qualified = &constant.Qualified
-			input.Regproc = resolver
+		// Routine names record no operands here.
+		target := analyze.IdentifierTarget{Position: pos, Qualified: &constant.Qualified}
+		if resolver, ok := input.Regproc.(analyze.RoutineRetarget); ok {
+			input.Regproc = resolver.RetargetRoutine(target)
 		}
-		if resolver, ok := input.Regtype.(capturedRegtypeInput); ok {
-			resolver.position = pos
-			resolver.qualified = &constant.Qualified
-			input.Regtype = resolver
+		if resolver, ok := input.Regtype.(analyze.RegtypeRetarget); ok {
+			input.Regtype = resolver.RetargetRegtype(target)
 		}
 	}
 	if u.Type.ContainsOperatorAlias() {
-		if resolver, ok := input.Operator.(capturedOperatorInput); ok {
-			resolver.types.position = pos
-			resolver.qualified, resolver.operands = &constant.Qualified, &constant.Operands
-			input.Operator = resolver
+		if resolver, ok := input.Operator.(analyze.OperatorRetarget); ok {
+			input.Operator = resolver.RetargetOperator(analyze.IdentifierTarget{Position: pos, Qualified: &constant.Qualified, Operands: &constant.Operands})
 		}
 	}
 	value, err := u.Type.InputWithEnvironment(b.ctx, text, u.Typmod, input.LiteralInput(pos.Character))
