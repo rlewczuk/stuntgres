@@ -135,8 +135,8 @@ func admitRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, depend
 	if err := checkRecipeRoutineDescriptor(c, auth, dependencies, captured); err != nil {
 		return err
 	}
-	if c.routineProgram != nil {
-		return c.routineProgram.record(c, dependencies, captured)
+	if program := c.routineAdmissionProgram(); program != nil {
+		return program.record(c, dependencies, captured)
 	}
 	return nil
 }
@@ -172,8 +172,8 @@ func checkRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, depend
 func (c *EvalContext) routineAdmissionAuthority() (AuthorizationView, []catalog.ExpressionDependency, error) {
 	var auth AuthorizationView
 	var dependencies []catalog.ExpressionDependency
-	if c.routineAuthority != nil {
-		auth = *c.routineAuthority
+	if routineAuth := c.routineAuthorityView(); routineAuth != nil {
+		auth = *routineAuth
 	} else if scope := scopeOf(c.liveHost()); scope != nil {
 		if scope.finished {
 			return auth, nil, fmt.Errorf("stuntgres: ended routine admission authority")

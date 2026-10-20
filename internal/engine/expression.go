@@ -99,13 +99,13 @@ type evalStatement struct {
 // zero. Recipe-owned manifests are borrowed only by a local admission copy and
 // never replace the live scope's authority or another recipe's owner.
 type evalAdmission struct {
-	routineAuthority   *AuthorizationView // Borrowed local serial DDL admission only; never retained.
+	routineAuthority   admissionAuthority // Borrowed local serial DDL admission only; never retained.
 	routineRecipe      bool               // Distinguishes an empty owning manifest from the statement manifest.
 	routineGraft       bool               // Local ancestry phase only; nil user nodes resume the statement manifest.
 	routineChecks      []catalog.ExpressionDependency
 	routineReferences  []ids.ObjectRef
 	routineConsumer    *catalog.Relation
-	routineProgram     *routineAdmissionProgram // Borrowed serial preparation footprint, never row-owned.
+	routineProgram     admissionProgram // Borrowed serial preparation footprint, never row-owned.
 	routineBodyContext routineBodyContext
 	domainPhase        typedef.DomainCheckIdentity // Existing transaction/command identity, not a permission result.
 }

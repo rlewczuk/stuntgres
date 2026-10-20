@@ -190,8 +190,8 @@ func (c *EvalContext) prepareOwnDomainChecks(d *catalog.Type) error {
 		return nil
 	}
 	var auth AuthorizationView
-	if c.routineAuthority != nil {
-		auth = *c.routineAuthority
+	if routineAuth := c.routineAuthorityView(); routineAuth != nil {
+		auth = *routineAuth
 	} else if scope != nil {
 		auth = scope.routineAuth
 	}
@@ -236,8 +236,8 @@ func (c *EvalContext) prepareOwnDomainChecks(d *catalog.Type) error {
 			}
 		}
 	}
-	if c.routineProgram != nil && scope == nil {
-		c.routineProgram.include(&phase.admission)
+	if program := c.routineAdmissionProgram(); program != nil && scope == nil {
+		program.include(&phase.admission)
 	}
 	programme.phases = append(programme.phases, phase)
 	if c.preparedDomainChecks == nil {

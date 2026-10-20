@@ -214,7 +214,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 					t.Fatal("foreign retag manufactured original destination manifest")
 				}
 			}
-			changed := *evaluation.routineAuthority
+			changed := *evaluation.routineAuthorityView()
 			changed.Catalog = changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
 			replacement := *captured
 			replacement.Strict = !captured.Strict

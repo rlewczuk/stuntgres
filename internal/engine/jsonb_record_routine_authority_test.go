@@ -233,7 +233,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 					t.Fatal("retag manufactured destination manifest")
 				}
 			}
-			changed := *evaluation.routineAuthority
+			changed := *evaluation.routineAuthorityView()
 			changed.Catalog = changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
 			replacement := *captured
 			replacement.Strict = !captured.Strict
@@ -352,7 +352,7 @@ func TestJSONBRecordRoutineEndedScope(t *testing.T) {
 		"jsonb_populate_record_valid(NULL::strict_null_rows,NULL::jsonb)",
 	} {
 		node, _, evaluation := strictNullUnitBind(t, e, op, scope, expression)
-		scope.routineAuth = *evaluation.routineAuthority
+		scope.routineAuth = *evaluation.routineAuthorityView()
 		evaluation.routineAuthority = nil
 		if err := admitRoutineCall(&evaluation, node, false, false); err != nil {
 			t.Fatal("live owning scope", err)

@@ -167,7 +167,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 					t.Fatal("retag manufactured original destination authority")
 				}
 			}
-			changed := *evaluation.routineAuthority
+			changed := *evaluation.routineAuthorityView()
 			changed.Catalog = changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
 			replacement := *captured
 			replacement.Strict = false

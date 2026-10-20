@@ -281,7 +281,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		},
 		func(d *catalog.Procedure) { d.RoutineKind = catalog.ProcedureRoutine },
 	} {
-		auth := *evaluation.routineAuthority
+		auth := *evaluation.routineAuthorityView()
 		auth.Catalog = auth.Catalog.WithState(catalog.CloneState(auth.Catalog.State()))
 		bad := *captured
 		mutate(&bad)

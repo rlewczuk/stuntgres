@@ -59,8 +59,8 @@ func evaluatePartitionRecipe(evaluation *EvalContext, owner *catalog.Relation, k
 			}
 			scope.partitions().programs[identity] = expressions
 			scope.routinePrograms = append(scope.routinePrograms, commandRoutineProgram{admission: admission})
-		} else if local.routineProgram != nil {
-			local.routineProgram.include(&admission)
+		} else if program := local.routineAdmissionProgram(); program != nil {
+			program.include(&admission)
 		}
 	}
 	// Keep this key's manifest selected during lazy SQL-body evaluation too.

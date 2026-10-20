@@ -108,7 +108,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 				}
 			}
 			probe := evaluation
-			foreignAuth := *foreign.routineAuthority
+			foreignAuth := *foreign.routineAuthorityView()
 			probe.routineAuthority = &foreignAuth
 			if err := admitRoutineCall(&probe, node, false, false); err == nil {
 				t.Fatal("foreign equal-OID authority admitted")
@@ -129,7 +129,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			if err := admitRoutineCall(&probe, remapped, false, false); err == nil {
 				t.Fatal("foreign retag manufactured original authority")
 			}
-			changed := *evaluation.routineAuthority
+			changed := *evaluation.routineAuthorityView()
 			changed.Catalog = changed.Catalog.WithState(catalog.CloneState(changed.Catalog.State()))
 			replacement := *captured
 			replacement.Strict = false
