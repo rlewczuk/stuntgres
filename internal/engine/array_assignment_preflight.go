@@ -46,7 +46,7 @@ func preflightAssignmentTarget(c *exec.Context, target *plan.ArrayAssignmentTarg
 	if target == nil {
 		return nil, nil
 	}
-	node, changed, err := mapSubscript(target.Node, func(old expr.Expr) (expr.Expr, bool, error) { return preflightUpdateExpression(c, old, planConstants) })
+	node, changed, err := plan.MapSubscript(target.Node, func(old expr.Expr) (expr.Expr, bool, error) { return preflightUpdateExpression(c, old, planConstants) })
 	if err != nil {
 		return nil, err
 	}

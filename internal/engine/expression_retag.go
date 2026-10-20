@@ -385,7 +385,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 		rebound = n
 	case plan.SubscriptExpr:
 		var replaced bool
-		n, replaced, err = mapSubscript(n, mapChild)
+		n, replaced, err = plan.MapSubscript(n, mapChild)
 		if err != nil {
 			return nil, false, err
 		}

@@ -105,7 +105,7 @@ func TestArrayExpressionImmutableRewriteAndGeneration(t *testing.T) {
 	node := original.(plan.SubscriptExpr)
 	saved := node.Subscripts[0].Upper
 	replacement := plan.LiteralExpr{Info: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{}), Value: sqltype.Null(b.typ(sqltype.Int4))}
-	mapped, changed, err := mapSubscript(node, func(child expr.Expr) (expr.Expr, bool, error) {
+	mapped, changed, err := plan.MapSubscript(node, func(child expr.Expr) (expr.Expr, bool, error) {
 		if child == saved {
 			return replacement, true, nil
 		}

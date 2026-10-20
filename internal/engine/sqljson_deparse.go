@@ -32,13 +32,6 @@ func jsonReturningRendering(node expr.Expr) (expr.Rendering, bool, error) {
 	return spec, spec.JSONConstructor && spec.JSONReturning, err
 }
 
-func sqlJSONSource(arg expr.Expr) expr.Expr {
-	if conversion, ok := arg.(plan.CoercionExpr); ok && conversion.Plan.IsJSONFormattedInput() {
-		return conversion.Child
-	}
-	return arg
-}
-
 func jsonPredicateRecipe(child, kind string, unique, not bool) string {
 	return "(" + child + functions.JSONPredicateSuffix(kind, unique, not)
 }

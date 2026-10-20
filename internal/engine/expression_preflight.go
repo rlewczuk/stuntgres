@@ -305,7 +305,7 @@ func preflightCoercionNode(c *exec.Context, expression expr.Expr, decisiveDefaul
 		}
 		return e, elements != nil, nil
 	case plan.SubscriptExpr:
-		next, changed, err := mapSubscript(e, func(old expr.Expr) (expr.Expr, bool, error) {
+		next, changed, err := plan.MapSubscript(e, func(old expr.Expr) (expr.Expr, bool, error) {
 			return preflightCoercionsWithPolicy(c, old, decisiveDefaults)
 		})
 		return next, changed, err

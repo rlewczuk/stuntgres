@@ -183,35 +183,3 @@ func (b *expressionBinder) bindSubscript(raw parser.SubscriptExpr) (expr.Expr, e
 	}
 	return plan.SubscriptExpr{Info: info, Base: base, Subscripts: subs, Slice: slice}, nil
 }
-
-// Only actual changed child lists are copied; shared plans remain immutable.
-func mapSubscript(n plan.SubscriptExpr, rewrite func(expr.Expr) (expr.Expr, bool, error)) (plan.SubscriptExpr, bool, error) {
-	base, changed, err := rewrite(n.Base)
-	if err != nil {
-		return n, false, err
-	}
-	n.Base = base
-	var subs []plan.BoundArraySubscript
-	for i, s := range n.Subscripts {
-		lower, did, err := rewrite(s.Lower)
-		if err != nil {
-			return n, false, err
-		}
-		upper, more, err := rewrite(s.Upper)
-		if err != nil {
-			return n, false, err
-		}
-		if did || more {
-			if subs == nil {
-				subs = append([]plan.BoundArraySubscript(nil), n.Subscripts...)
-			}
-			s.Lower, s.Upper = lower, upper
-			subs[i] = s
-			changed = true
-		}
-	}
-	if subs != nil {
-		n.Subscripts = subs
-	}
-	return n, changed, nil
-}

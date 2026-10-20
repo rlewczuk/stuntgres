@@ -108,7 +108,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 				}
 			}
 			if operands.JSONSources {
-				arg = sqlJSONSource(arg)
+				arg = plan.SQLJSONSource(arg)
 			}
 			if err := child(written, arg); err != nil {
 				return err

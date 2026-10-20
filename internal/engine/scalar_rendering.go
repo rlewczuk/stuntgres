@@ -178,7 +178,7 @@ func templateSQL(pieces []expr.Piece, parts []string, returning string, word fun
 // on replay.
 func (r scalarRenderer) replayArgument(ctx context.Context, view catalog.Read, arg expr.RenderArg) (string, error) {
 	if arg.JSONFormattedSource {
-		arg.Expr = sqlJSONSource(arg.Expr)
+		arg.Expr = plan.SQLJSONSource(arg.Expr)
 	}
 	argRenderer := r
 	if arg.Transport == expr.TransportIntervalNulls {

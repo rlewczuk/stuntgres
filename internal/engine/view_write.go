@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -495,7 +496,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 		if target == nil {
 			return nil, nil
 		}
-		node, changed, err := mapSubscript(target.Node, lowerMapped)
+		node, changed, err := plan.MapSubscript(target.Node, lowerMapped)
 		if err != nil {
 			return nil, err
 		}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"slices"
+
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -13,7 +14,7 @@ func mapRuleAssignmentTargets(targets []*plan.ArrayAssignmentTarget, expression 
 		if old == nil {
 			return nil, nil
 		}
-		node, changed, err := mapSubscript(old.Node, expression)
+		node, changed, err := plan.MapSubscript(old.Node, expression)
 		if err != nil {
 			return nil, err
 		}

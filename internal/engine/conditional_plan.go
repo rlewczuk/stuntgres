@@ -97,7 +97,7 @@ func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefa
 		expression = e
 	case plan.SubscriptExpr:
 		var did bool
-		e, did, err = mapSubscript(e, func(old expr.Expr) (expr.Expr, bool, error) { return simplifyConditional(c, old, decisiveDefaults) })
+		e, did, err = plan.MapSubscript(e, func(old expr.Expr) (expr.Expr, bool, error) { return simplifyConditional(c, old, decisiveDefaults) })
 		if err != nil {
 			return nil, false, err
 		}

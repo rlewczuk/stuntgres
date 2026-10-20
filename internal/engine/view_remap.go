@@ -95,7 +95,7 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 		n.Elements = args(n.Elements)
 		next = n
 	case plan.SubscriptExpr:
-		n, _, err = mapSubscript(n, func(old expr.Expr) (expr.Expr, bool, error) {
+		n, _, err = plan.MapSubscript(n, func(old expr.Expr) (expr.Expr, bool, error) {
 			if old == nil {
 				return nil, false, nil
 			}

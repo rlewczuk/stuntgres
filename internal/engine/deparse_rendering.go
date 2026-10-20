@@ -123,7 +123,7 @@ func (r pgRenderer) renderingInfix(ctx context.Context, spec expr.Rendering, par
 
 func (r pgRenderer) renderingArg(ctx context.Context, spec expr.Rendering, arg expr.RenderArg, parent pgRenderParent) (string, error) {
 	if arg.JSONFormattedSource {
-		arg.Expr = sqlJSONSource(arg.Expr)
+		arg.Expr = plan.SQLJSONSource(arg.Expr)
 	}
 	argRenderer := r
 	argRenderer.showImplicit = !arg.HideImplicit

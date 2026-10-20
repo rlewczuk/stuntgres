@@ -447,7 +447,7 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		bound = e
 	case plan.SubscriptExpr:
 		var failure error
-		e, _, failure = mapSubscript(e, func(child expr.Expr) (expr.Expr, bool, error) {
+		e, _, failure = plan.MapSubscript(e, func(child expr.Expr) (expr.Expr, bool, error) {
 			if child == nil {
 				return nil, false, nil
 			}
