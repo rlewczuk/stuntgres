@@ -112,7 +112,7 @@ func TestRangeMoreExpressionHooks(t *testing.T) {
 
 func TestRangeMoreBinding(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.aggregateClause = "SELECT"
+	b.clause.aggregateClause = "SELECT"
 	for _, tc := range []struct {
 		input, output sqltype.ID
 		text, want    string

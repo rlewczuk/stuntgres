@@ -13,7 +13,7 @@ import (
 
 func jsonEachUnitMarker(t *testing.T, b *expressionBinder, name, input string) functions.JSONEach {
 	t.Helper()
-	b.aggregateClause = "SELECT"
+	b.clause.aggregateClause = "SELECT"
 	b.queryNamespace = &queryNamespace{}
 	node, err := b.bindFunction(nullCountRaw(name, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: input}}))
 	if err != nil {
@@ -43,7 +43,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 		if shape.ID() != 2249 || shape.CompositeLen() != 2 || shape.CompositeMember(0).Name != "key" || shape.CompositeMember(1).Name != "value" || shape.CompositeMember(0).Usage.Type != b.typ(sqltype.Text) || shape.CompositeMember(1).Usage.Type != b.typ(valueID) || !validExpressionUsage(view, original.ResultUsage()) {
 			t.Fatal("analysis shape", shape)
 		}
-		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.queryHasTargetSet || !sourceReturnsSet(original) || querySetDepth(original) != 1 {
+		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.clause.queryHasTargetSet || !sourceReturnsSet(original) || querySetDepth(original) != 1 {
 			t.Fatal("set properties", original)
 		}
 		fresh := jsonObjectUnitTypes()

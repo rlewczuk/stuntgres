@@ -85,7 +85,7 @@ func subscriptsUnitRead(t *testing.T, e subscriptsExpression) []int64 {
 
 func TestSubscriptsBinding(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.aggregateClause = "SELECT"
+	b.clause.aggregateClause = "SELECT"
 	array := parser.CastExpr{Child: parser.ParameterExpr{Number: 1}, TypeName: parser.TypeName{Name: "integer", ArrayBounds: []int32{0}}, Syntax: parser.PostfixCast}
 	integer := parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}
 	x, err := b.bindFunction(nullCountRaw("generate_subscripts", array, integer, parser.ParameterExpr{Number: 2}))
@@ -93,7 +93,7 @@ func TestSubscriptsBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	e, ok := x.(subscriptsExpression)
-	if !ok || e.ResultUsage().Type.ID() != sqltype.Int4 || !e.Properties().StageDependent || !e.Properties().ParameterDependent || !b.queryHasTargetSet || !sourceAdmitted(e) {
+	if !ok || e.ResultUsage().Type.ID() != sqltype.Int4 || !e.Properties().StageDependent || !e.Properties().ParameterDependent || !b.clause.queryHasTargetSet || !sourceAdmitted(e) {
 		t.Fatal(x)
 	}
 	if b.params.parameters[1].Type == nil || !b.params.parameters[1].Type.IsArray() || b.params.parameters[2].Type.ID() != sqltype.Bool {

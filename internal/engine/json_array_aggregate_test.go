@@ -23,7 +23,7 @@ func TestJSONArrayAggregateSlotsAndDescriptors(t *testing.T) {
 	ctx := context.Background()
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	b.aggregateClause = "SELECT"
+	b.clause.aggregateClause = "SELECT"
 	b.params.parameters[1] = integer.Usage()
 	for _, name := range []string{"json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_agg"} {
 		raw := parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}}, Pos: parser.Position{Character: 8}}
@@ -47,10 +47,10 @@ func TestJSONArrayAggregateSlotsAndDescriptors(t *testing.T) {
 			t.Fatal("result descriptor", node.ResultUsage())
 		}
 	}
-	if len(b.aggregates) != 4 {
-		t.Fatal("incompatible operations shared a slot", len(b.aggregates))
+	if len(b.grouping.aggregates) != 4 {
+		t.Fatal("incompatible operations shared a slot", len(b.grouping.aggregates))
 	}
-	for _, call := range b.aggregates {
+	for _, call := range b.grouping.aggregates {
 		if !call.includeNulls {
 			t.Fatal("presence lost before provider")
 		}
@@ -61,8 +61,8 @@ func TestJSONArrayAggregateSlotsAndDescriptors(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if len(b.aggregates) != 6 {
-		t.Fatal("NULL policy identity", len(b.aggregates))
+	if len(b.grouping.aggregates) != 6 {
+		t.Fatal("NULL policy identity", len(b.grouping.aggregates))
 	}
 	schemaBinder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	schemaBinder.params.parameters[1] = integer.Usage()
@@ -261,7 +261,7 @@ func TestJSONArrayAggregateStoredReturningPresentation(t *testing.T) {
 	ctx := context.Background()
 	raw := statement(t, "SELECT json_arrayagg('[1]'::text FORMAT JSON NULL ON NULL RETURNING varchar(10) FORMAT JSON)").(*parser.Select).Targets[0]
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	b.aggregateClause = "SELECT"
+	b.clause.aggregateClause = "SELECT"
 	bound, err := b.bind(raw, expressionPolicy{context: projectionContext})
 	if err != nil {
 		t.Fatal(err)

@@ -197,7 +197,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 		binder.target.ruleNamespace = ns
 		binder.params.noParameters = true
 		binder.queryAuth = &auth
-		binder.aggregateClause = "WHERE"
+		binder.clause.aggregateClause = "WHERE"
 		binder.queryFrame = 1
 		binder.nextQueryFrame = 1
 		var err error

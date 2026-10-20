@@ -38,22 +38,22 @@ func (b *expressionBinder) frameID() uint32 {
 }
 
 func (b *expressionBinder) enterQuery(disallowParent bool) func() {
-	oldSetGuard, oldForbidden := b.stringSetGuard, b.stringFromForbidden
-	oldRegexpClause := b.regexpClause
-	oldTargetSet := b.queryHasTargetSet
-	oldFromSet := b.fromSetObservation
-	b.fromSetObservation = fromSetObservation{}
-	b.queryHasTargetSet = false
-	b.stringSetGuard, b.stringFromForbidden = "", false
-	b.regexpClause = ""
+	oldSetGuard, oldForbidden := b.clause.stringSetGuard, b.clause.stringFromForbidden
+	oldRegexpClause := b.clause.regexpClause
+	oldTargetSet := b.clause.queryHasTargetSet
+	oldFromSet := b.clause.fromSetObservation
+	b.clause.fromSetObservation = fromSetObservation{}
+	b.clause.queryHasTargetSet = false
+	b.clause.stringSetGuard, b.clause.stringFromForbidden = "", false
+	b.clause.regexpClause = ""
 	oldNamespace := b.queryNamespace
-	parent := queryBindingScope{namespace: b.queryNamespace, hidden: b.queryHidden, frame: b.frameID(), allowed: !disallowParent, clause: b.aggregateClause, aggregates: b.aggregates, returning: b.target.returningAliases, nonLateral: b.queryNonLateral}
+	parent := queryBindingScope{namespace: b.queryNamespace, hidden: b.queryHidden, frame: b.frameID(), allowed: !disallowParent, clause: b.clause.aggregateClause, aggregates: b.grouping.aggregates, returning: b.target.returningAliases, nonLateral: b.queryNonLateral}
 	parent.stringFromForbidden = oldForbidden
 	parent.relation = b.target.relation
-	parent.groupingActive, parent.groupSets = b.groupingActive, b.groupSets
+	parent.groupingActive, parent.groupSets = b.grouping.active, b.grouping.groupSets
 	parent.rowDiagnosticMode = b.queryRowDiagnosticMode
-	parent.windowRaw, parent.windowDefinitions, parent.windowCalls = b.windowRaw, b.windowDefinitions, b.windowCalls
-	parent.argumentOwner = b.argumentOwner
+	parent.windowRaw, parent.windowDefinitions, parent.windowCalls = b.grouping.windowRaw, b.grouping.windowDefinitions, b.grouping.windowCalls
+	parent.argumentOwner = b.grouping.argumentOwner
 	// Only the initial mutation owner can supply this fallback. Before a
 	// nested SELECT's FROM is bound, its nil namespace must not impersonate
 	// the retained mutation relation in an intermediate query frame.
@@ -74,25 +74,25 @@ func (b *expressionBinder) enterQuery(disallowParent bool) func() {
 	index := len(b.queryScopes)
 	b.queryScopes = append(b.queryScopes, parent)
 	b.queryNamespace, b.queryHidden = nil, nil
-	b.aggregates, b.aggregateClause = nil, ""
-	b.groupingActive, b.groupSets = false, nil
-	b.windowRaw, b.windowDefinitions, b.windowCalls = nil, nil, nil
-	b.argumentOwner = argumentWindowOwner{}
+	b.grouping.aggregates, b.clause.aggregateClause = nil, ""
+	b.grouping.active, b.grouping.groupSets = false, nil
+	b.grouping.windowRaw, b.grouping.windowDefinitions, b.grouping.windowCalls = nil, nil, nil
+	b.grouping.argumentOwner = argumentWindowOwner{}
 	b.target.returningAliases = nil
 	b.queryNonLateral = disallowParent
 	b.queryRowDiagnosticMode = 0
 	return func() {
-		b.stringSetGuard, b.stringFromForbidden = oldSetGuard, oldForbidden
-		b.regexpClause = oldRegexpClause
-		b.queryHasTargetSet = oldTargetSet
-		b.fromSetObservation = oldFromSet
+		b.clause.stringSetGuard, b.clause.stringFromForbidden = oldSetGuard, oldForbidden
+		b.clause.regexpClause = oldRegexpClause
+		b.clause.queryHasTargetSet = oldTargetSet
+		b.clause.fromSetObservation = oldFromSet
 		parent := b.queryScopes[index]
 		b.queryScopes = b.queryScopes[:index]
 		b.queryNamespace, b.queryHidden = oldNamespace, parent.hidden
-		b.aggregates, b.aggregateClause = parent.aggregates, parent.clause
-		b.groupingActive, b.groupSets = parent.groupingActive, parent.groupSets
-		b.windowRaw, b.windowDefinitions, b.windowCalls = parent.windowRaw, parent.windowDefinitions, parent.windowCalls
-		b.argumentOwner = parent.argumentOwner
+		b.grouping.aggregates, b.clause.aggregateClause = parent.aggregates, parent.clause
+		b.grouping.active, b.grouping.groupSets = parent.groupingActive, parent.groupSets
+		b.grouping.windowRaw, b.grouping.windowDefinitions, b.grouping.windowCalls = parent.windowRaw, parent.windowDefinitions, parent.windowCalls
+		b.grouping.argumentOwner = parent.argumentOwner
 		b.target.returningAliases, b.queryNonLateral = parent.returning, parent.nonLateral
 		b.queryRowDiagnosticMode = parent.rowDiagnosticMode
 		b.queryFrame = oldFrame

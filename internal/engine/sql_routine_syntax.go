@@ -11,8 +11,8 @@ import (
 // This runs before aggregate-only clause/recursive/partition gates, and never
 // changes shared syntax or registers a scalar call in b.aggregates.
 func (b *expressionBinder) bindSQLRoutineSyntax(raw parser.Expr, policy expressionPolicy) (expr.Expr, bool, error) {
-	if b.selectedCallReentry {
-		b.selectedCallReentry = false
+	if b.clause.selectedCallReentry {
+		b.clause.selectedCallReentry = false
 		return nil, false, nil
 	}
 	var call parser.FunctionExpr

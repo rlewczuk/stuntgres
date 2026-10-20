@@ -19,7 +19,7 @@ func (b *expressionBinder) resolveDistinctOn(s *parser.Select, order []sortKey, 
 	for i, e := range s.Distinct.On {
 		raw[i] = parser.OrderKey{Expr: e, Pos: parser.ExpressionStart(e)}
 	}
-	b.aggregateClause = "DISTINCT ON"
+	b.clause.aggregateClause = "DISTINCT ON"
 	on, err := b.bindOrder(&parser.Order{Keys: raw}, projection, names, "DISTINCT ON")
 	if err != nil {
 		return nil, nil, err

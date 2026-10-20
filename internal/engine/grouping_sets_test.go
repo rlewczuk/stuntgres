@@ -71,7 +71,7 @@ func TestGroupingSetsRawLimits(t *testing.T) {
 func TestGroupingSetsMasksFramesAndNoArgumentEvaluation(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	b.queryFrame = 1
-	b.groupSets = [][]int{{0}, {}}
+	b.grouping.groupSets = [][]int{{0}, {}}
 	usage := b.typ(sqltype.Int4).Usage()
 	key := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, scope: 1, frame: 1, slot: 0}
 	operation := groupingExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{StageDependent: true}}, frame: 1, args: []expr.Expr{key, key}}

@@ -189,7 +189,7 @@ func TestJSONBRecordExpansion(t *testing.T) {
 	}
 	b.queryAuth = &auth
 	b.queryFrame = 1
-	b.aggregateClause = "SELECT"
+	b.clause.aggregateClause = "SELECT"
 	for _, name := range []string{"jsonb_to_record", "jsonb_to_recordset"} {
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: `{}`}}}}
 		base, err := b.bindCompositeBase(raw)
@@ -399,7 +399,7 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 			if _, err := first.bind(raw, expressionPolicy{context: projectionContext}); err != nil {
 				t.Fatal(err)
 			}
-			if first.jsonbRecordBase || len(first.prepared.composites) == 0 {
+			if first.clause.jsonbRecordBase || len(first.prepared.composites) == 0 {
 				t.Fatal("base capture escaped or was absent")
 			}
 			for _, captured := range first.prepared.composites {
@@ -425,7 +425,7 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 			expected := &StatementDescription{catalogOwner: view.Owner(), catalogEpoch: view.Epoch(), composites: first.prepared.composites}
 			next := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, expected)
 			node, err := next.bind(raw, expressionPolicy{context: projectionContext})
-			if err != nil || next.jsonbRecordBase {
+			if err != nil || next.clause.jsonbRecordBase {
 				t.Fatal("retained base rebound by stale name or leaked scope", err)
 			}
 			value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, catalog: view}})
@@ -441,7 +441,7 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 			if err != nil || annotation.Name != "jbr_previous_pair" {
 				t.Fatal("capture affected unrelated cast scope", annotation, err)
 			}
-			next.jsonbRecordBase = true
+			next.clause.jsonbRecordBase = true
 			expected.catalogEpoch++
 			annotation, err = next.jsonbRecordCastAnnotation(cast)
 			if err != nil || annotation.Name != "jbr_previous_pair" {
@@ -452,7 +452,7 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 	engine, _, _ := typedUnitCatalog(t, false)
 	b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, `SELECT jsonb_populate_record('(bad,x)'::pair,'{}'::jsonb)`).(*parser.Select).Targets[0]
-	if _, err := b.bind(raw, expressionPolicy{context: projectionContext}); err == nil || b.jsonbRecordBase {
+	if _, err := b.bind(raw, expressionPolicy{context: projectionContext}); err == nil || b.clause.jsonbRecordBase {
 		t.Fatal("failed base analysis leaked its capture scope", err)
 	}
 }
@@ -469,7 +469,7 @@ func TestJSONBRecordLayout(t *testing.T) {
 	}
 	b.queryAuth = &auth
 	b.queryFrame = 1
-	b.aggregateClause = "SELECT"
+	b.clause.aggregateClause = "SELECT"
 	for _, tc := range []struct {
 		query     string
 		nullInner bool

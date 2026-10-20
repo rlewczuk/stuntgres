@@ -19,13 +19,13 @@ func TestArrayAggregateBinding(t *testing.T) {
 	} {
 		e := New()
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		b.aggregateClause = "SELECT"
+		b.clause.aggregateClause = "SELECT"
 		raw := statement(t, q).(*parser.Select).Targets[0]
 		result, err := b.bind(raw, expressionPolicy{context: projectionContext})
 		if err != nil {
 			t.Fatal(q, err)
 		}
-		call := b.aggregates[0]
+		call := b.grouping.aggregates[0]
 		argument := call.argument
 		usage := result.ResultUsage()
 		if usage.Typmod != -1 || usage.Collation != argument.ResultUsage().Collation || !result.Properties().StageDependent || !call.includeNulls {
@@ -105,14 +105,14 @@ func TestArrayAggregateDomainBinding(t *testing.T) {
 		{diArray, diArray, true},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		b.aggregateClause = "SELECT"
+		b.clause.aggregateClause = "SELECT"
 		b.params.parameters[1] = tc.input.Usage()
 		raw := parser.AggregateExpr{Name: "array_agg", Args: []parser.Expr{parser.ParameterExpr{Number: 1}}}
 		result, err := b.bind(raw, expressionPolicy{context: projectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
-		call := b.aggregates[0]
+		call := b.grouping.aggregates[0]
 		provider := call.provider.(*functions.ArrayAggregateProvider)
 		if result.ResultUsage().Type != tc.want || provider.ResultUsage().Type != tc.want || provider.Arrays() != tc.arrays || provider.ArgumentType() != call.argument.ResultUsage().Type {
 			t.Fatal("domain overload lost exact catalog generation", tc, provider)

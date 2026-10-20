@@ -65,7 +65,7 @@ func TestBooleanCallPredicateSetRejection(t *testing.T) {
 		call := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unnest", Pos: pos}}}, Args: []parser.Expr{parser.ArrayExpr{Elements: []parser.Expr{parser.LiteralExpr{Value: value}}, Pos: pos}}, Pos: pos}
 		for _, construct := range []string{"AND", "OR", "NOT"} {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-			b.aggregateClause = "SELECT"
+			b.clause.aggregateClause = "SELECT"
 			node, err := b.bindBoolean(call, projectionContext, construct)
 			message := "argument of " + construct + " must not return a set"
 			if !boolean {
@@ -78,7 +78,7 @@ func TestBooleanCallPredicateSetRejection(t *testing.T) {
 			}
 		}
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		b.aggregateClause = "SELECT"
+		b.clause.aggregateClause = "SELECT"
 		node, err := b.bind(call, expressionPolicy{context: projectionContext})
 		if err != nil || !sourceReturnsSet(node) {
 			t.Fatal("standalone set projection changed", node, err)

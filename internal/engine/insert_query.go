@@ -179,11 +179,11 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 		}
 	}
 	defer func() { b.queryFrame = oldFrame }()
-	oldNamespace, oldRelation, oldClause, oldNonLateral := b.queryNamespace, b.target.relation, b.aggregateClause, b.queryNonLateral
+	oldNamespace, oldRelation, oldClause, oldNonLateral := b.queryNamespace, b.target.relation, b.clause.aggregateClause, b.queryNonLateral
 	b.queryNamespace, b.target.relation = &queryNamespace{}, nil
-	b.aggregateClause, b.queryNonLateral = "VALUES", true
+	b.clause.aggregateClause, b.queryNonLateral = "VALUES", true
 	defer func() {
-		b.queryNamespace, b.target.relation, b.aggregateClause, b.queryNonLateral = oldNamespace, oldRelation, oldClause, oldNonLateral
+		b.queryNamespace, b.target.relation, b.clause.aggregateClause, b.queryNonLateral = oldNamespace, oldRelation, oldClause, oldNonLateral
 	}()
 	occurrence := b.stored.valuesCount
 	b.stored.valuesCount++

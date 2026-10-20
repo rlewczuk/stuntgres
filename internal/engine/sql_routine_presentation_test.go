@@ -20,7 +20,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			ctx := context.Background()
 			b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 			b.params.noParameters = true
-			b.aggregateClause = "SELECT"
+			b.clause.aggregateClause = "SELECT"
 			syntax := statement(t, "SELECT "+call).(*parser.Select)
 			raw := syntax.Targets[0]
 			node, err := b.bind(raw, expressionPolicy{context: projectionContext})

@@ -59,8 +59,8 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			// bindACLValue returns the bare carrier directly, without setting
 			// the binder's target-set observation. Actual set classification
 			// above and source/project admission below own this SRF contract.
-			if binder.queryHasTargetSet {
-				t.Fatalf("bare ACL binder queryHasTargetSet: got %t, want false", binder.queryHasTargetSet)
+			if binder.clause.queryHasTargetSet {
+				t.Fatalf("bare ACL binder queryHasTargetSet: got %t, want false", binder.clause.queryHasTargetSet)
 			}
 			if tc.set {
 				shape := call.ResultUsage().Type

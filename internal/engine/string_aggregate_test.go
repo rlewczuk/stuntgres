@@ -11,7 +11,7 @@ import (
 
 func TestStringAggregateBindingIdentity(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.aggregateClause = "SELECT"
+	b.clause.aggregateClause = "SELECT"
 	for i, tc := range []struct {
 		call string
 		slot int
@@ -27,7 +27,7 @@ func TestStringAggregateBindingIdentity(t *testing.T) {
 			t.Fatal(i, err)
 		}
 		if result.(aggregateExpression).slot != tc.slot {
-			t.Fatal("incomplete aggregate identity", i, result, b.aggregates)
+			t.Fatal("incomplete aggregate identity", i, result, b.grouping.aggregates)
 		}
 		u := result.ResultUsage()
 		if u.Typmod != -1 || !result.Properties().StageDependent {
@@ -36,7 +36,7 @@ func TestStringAggregateBindingIdentity(t *testing.T) {
 	}
 	for _, q := range []string{"SELECT string_agg($1,$2) FROM t", "SELECT string_agg($1,'x'::bytea) FROM t", "SELECT string_agg('x'::bytea,$1) FROM t"} {
 		binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		binder.aggregateClause = "SELECT"
+		binder.clause.aggregateClause = "SELECT"
 		raw := statement(t, q).(*parser.Select).Targets[0]
 		result, err := binder.bind(raw, expressionPolicy{context: projectionContext})
 		if err != nil {

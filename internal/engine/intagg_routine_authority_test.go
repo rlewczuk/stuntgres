@@ -63,10 +63,10 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 			var ref ids.ObjectRef
 			aggregate := tc.kind == catalog.AggregateRoutine
 			if aggregate {
-				if len(binder.aggregates) != 1 {
+				if len(binder.grouping.aggregates) != 1 {
 					t.Fatal("missing actual aggregate")
 				}
-				call := binder.aggregates[0]
+				call := binder.grouping.aggregates[0]
 				captured, ref = call.procedure, call.routine
 				if ref != call.ref || ref == (ids.ObjectRef{}) {
 					t.Fatal("aggregate lost original compact authority")
@@ -76,7 +76,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				}
 			} else {
 				enum, ok := node.(unnestExpression)
-				if !ok || !sourceAdmitted(enum) || !binder.queryHasTargetSet {
+				if !ok || !sourceAdmitted(enum) || !binder.clause.queryHasTargetSet {
 					t.Fatal("lost genuine set carrier")
 				}
 				captured, ref = enum.procedure, enum.ref

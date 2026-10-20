@@ -23,14 +23,14 @@ func (b *expressionBinder) bindQueryBounds(raw *parser.QueryBounds, captureLiter
 	}
 	n := &limitNode{withTies: raw.WithTies}
 	var err error
-	old := b.aggregateClause
-	defer func() { b.aggregateClause = old }()
-	b.aggregateClause = "OFFSET"
+	old := b.clause.aggregateClause
+	defer func() { b.clause.aggregateClause = old }()
+	b.clause.aggregateClause = "OFFSET"
 	n.offset, err = b.bindQueryBound(raw.Offset, "OFFSET", viewOffsetLiteral, captureLiterals)
 	if err != nil {
 		return nil, err
 	}
-	b.aggregateClause = "LIMIT"
+	b.clause.aggregateClause = "LIMIT"
 	n.count, err = b.bindQueryBound(raw.Count, "LIMIT", viewLimitLiteral, captureLiterals)
 	if err == nil && raw.WithTies {
 		if literal, ok := raw.Count.(parser.LiteralExpr); ok && literal.Value.Kind == parser.NullValue {

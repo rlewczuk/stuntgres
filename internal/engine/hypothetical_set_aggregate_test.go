@@ -164,7 +164,7 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-			b.aggregateClause = "SELECT"
+			b.clause.aggregateClause = "SELECT"
 			position := parser.Position{Character: 8}
 			raw := parser.AggregateExpr{Name: tc.name, Within: true, Pos: position}
 			for i := range 49 {
@@ -176,7 +176,7 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			call := b.aggregates[node.(aggregateExpression).slot]
+			call := b.grouping.aggregates[node.(aggregateExpression).slot]
 			if len(call.direct) != 49 || len(call.order) != 49 || call.stageWidth != 51 || call.argument != nil || !call.includeNulls {
 				t.Fatal("full tuple layout", call)
 			}

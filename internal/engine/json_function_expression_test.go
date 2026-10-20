@@ -87,7 +87,7 @@ func TestJSONFunctionScalarBindingAndEvaluation(t *testing.T) {
 func TestJSONFunctionKeysMarkerPropertiesAndPlacement(t *testing.T) {
 	engine := New()
 	b := newTestExpressionBinder(t, context.Background(), engine, sqltype.InputEnvironment{}, nil)
-	b.aggregateClause = "SELECT"
+	b.clause.aggregateClause = "SELECT"
 	b.queryNamespace = &queryNamespace{}
 	for _, family := range []string{"json", "jsonb"} {
 		raw := nullCountRaw(family+"_object_keys", parser.ParameterExpr{Number: 1})
@@ -96,15 +96,15 @@ func TestJSONFunctionKeysMarkerPropertiesAndPlacement(t *testing.T) {
 			t.Fatal(err)
 		}
 		marker, ok := node.(functions.JSONKeys)
-		if !ok || !marker.Properties().StageDependent || !marker.Properties().ParameterDependent || marker.Properties().RowDependent || marker.Properties().Volatility != expr.Immutable || !b.queryHasTargetSet || !sourceReturnsSet(marker) {
+		if !ok || !marker.Properties().StageDependent || !marker.Properties().ParameterDependent || marker.Properties().RowDependent || marker.Properties().Volatility != expr.Immutable || !b.clause.queryHasTargetSet || !sourceReturnsSet(marker) {
 			t.Fatal(node)
 		}
 		// Each family owns its own parameter signature, never infers from a Go value.
 		b = newTestExpressionBinder(t, context.Background(), engine, sqltype.InputEnvironment{}, nil)
-		b.aggregateClause = "SELECT"
+		b.clause.aggregateClause = "SELECT"
 		b.queryNamespace = &queryNamespace{}
 	}
-	b.aggregateClause = "WHERE"
+	b.clause.aggregateClause = "WHERE"
 	_, err := b.bindFunction(nullCountRaw("json_object_keys", parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: `{}`}}))
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "0A000" || d.Message != "set-returning functions are not allowed in WHERE" || d.Position != "8" {

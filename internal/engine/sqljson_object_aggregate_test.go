@@ -15,7 +15,7 @@ func TestSQLJSONObjectAggregatePolicySlotsAndReturningOwner(t *testing.T) {
 	text, _ := e.CatalogRead().LookupType(sqltype.Text)
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	b.aggregateClause = "SELECT"
+	b.clause.aggregateClause = "SELECT"
 	b.params.parameters[1], b.params.parameters[2] = text.Usage(), integer.Usage()
 	for _, absent := range []bool{false, true} {
 		for _, unique := range []bool{false, true} {
@@ -36,10 +36,10 @@ func TestSQLJSONObjectAggregatePolicySlotsAndReturningOwner(t *testing.T) {
 			}
 		}
 	}
-	if len(b.aggregates) != 4 {
-		t.Fatal("policies lost or duplicate ownership", len(b.aggregates))
+	if len(b.grouping.aggregates) != 4 {
+		t.Fatal("policies lost or duplicate ownership", len(b.grouping.aggregates))
 	}
-	for _, call := range b.aggregates {
+	for _, call := range b.grouping.aggregates {
 		if !call.includeNulls {
 			t.Fatal("executor dropped NULL keys")
 		}

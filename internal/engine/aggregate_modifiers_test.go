@@ -70,7 +70,7 @@ func TestAggregateModifiersBindingIdentity(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE SEQUENCE am_unit_sequence")
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	b.aggregateClause = "SELECT"
+	b.clause.aggregateClause = "SELECT"
 	for i, tc := range []struct {
 		call string
 		slot int
@@ -95,7 +95,7 @@ func TestAggregateModifiersBindingIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	call := b.aggregates[bound.(aggregateExpression).slot]
+	call := b.grouping.aggregates[bound.(aggregateExpression).slot]
 	if call.order[0].slot != 0 || call.order[1].slot != 0 || bound.Properties().Volatility != expr.Volatile {
 		t.Fatal(call, bound.Properties())
 	}
@@ -112,7 +112,7 @@ func TestAggregateModifiersParameterTargets(t *testing.T) {
 		"SELECT count(DISTINCT $1 ORDER BY $1)",
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		b.aggregateClause = "SELECT"
+		b.clause.aggregateClause = "SELECT"
 		raw := statement(t, query).(*parser.Select).Targets[0]
 		expression, err := b.bind(raw, expressionPolicy{context: projectionContext})
 		if err != nil {
@@ -122,7 +122,7 @@ func TestAggregateModifiersParameterTargets(t *testing.T) {
 		if err != nil {
 			t.Fatal(query, err)
 		}
-		call := b.aggregates[expression.(aggregateExpression).slot]
+		call := b.grouping.aggregates[expression.(aggregateExpression).slot]
 		if parameters.Count != 1 || parameters.Types[0].Type.ID() != sqltype.Text ||
 			call.argument.ResultUsage().Type.ID() != sqltype.Text ||
 			call.order[0].slot != 0 || call.order[0].cache != 0 || len(b.params.anyParameters) != 0 {

@@ -259,25 +259,25 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			}
 		}
 		if n, ok := bound.(*windowExpression); ok && r.Window != nil {
-			if n.call < 0 || n.call >= len(b.windowCalls) {
+			if n.call < 0 || n.call >= len(b.grouping.windowCalls) {
 				return fmt.Errorf("stuntgres: invalid stored window occurrence")
 			}
-			if call := b.windowCalls[n.call]; call.argument != nil {
+			if call := b.grouping.windowCalls[n.call]; call.argument != nil {
 				if err := child(r.Args[0], call.argument); err != nil {
 					return err
 				}
 			}
-			if call := b.windowCalls[n.call]; call.ordinal != nil {
+			if call := b.grouping.windowCalls[n.call]; call.ordinal != nil {
 				if err := child(r.Args[1], call.ordinal); err != nil {
 					return err
 				}
 			}
-			if call := b.windowCalls[n.call]; call.defaultValue != nil {
+			if call := b.grouping.windowCalls[n.call]; call.defaultValue != nil {
 				if err := child(r.Args[2], call.defaultValue); err != nil {
 					return err
 				}
 			}
-			spec := b.windowCalls[n.call].spec
+			spec := b.grouping.windowCalls[n.call].spec
 			for i, key := range r.Window.Partition {
 				if err := child(key, spec.partition[i]); err != nil {
 					return err

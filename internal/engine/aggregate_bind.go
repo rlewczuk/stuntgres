@@ -142,10 +142,10 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			// A call slot alone cannot prove window semantic identity.
 			return false
 		}
-		if e.call < 0 || o.call < 0 || e.call >= len(b.windowCalls) || o.call >= len(b.windowCalls) {
+		if e.call < 0 || o.call < 0 || e.call >= len(b.grouping.windowCalls) || o.call >= len(b.grouping.windowCalls) {
 			return e.slot == o.slot
 		}
-		a, c := b.windowCalls[e.call], b.windowCalls[o.call]
+		a, c := b.grouping.windowCalls[e.call], b.grouping.windowCalls[o.call]
 		return b.sameWindowCall(a, c)
 	case groupExpression:
 		o, ok := other.(groupExpression)
@@ -364,8 +364,8 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 	stage := func(info *expr.Info) { info.Property.StageDependent = true }
 	switch e := bound.(type) {
 	case subqueryExpression:
-		old := b.groupSubquery
-		b.groupSubquery = true
+		old := b.grouping.groupSubquery
+		b.grouping.groupSubquery = true
 		root, failure := rewriteQueryExpressions(e.queryPlan.Root, func(child expr.Expr) (expr.Expr, bool, error) {
 			if !expressionUsesFrame(child, b.frameID()) {
 				return child, false, nil
@@ -373,7 +373,7 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 			next, err := b.rewriteGroup(child, keys)
 			return next, true, err
 		})
-		b.groupSubquery = old
+		b.grouping.groupSubquery = old
 		if failure != nil {
 			return nil, failure
 		}
@@ -415,7 +415,7 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 				break
 			}
 		}
-		if b.groupSubquery {
+		if b.grouping.groupSubquery {
 			return nil, expr.ErrorAt("42803", fmt.Sprintf(`subquery uses ungrouped column "%s" from outer query`, name), e.Pos)
 		}
 		return nil, expr.ErrorAt("42803", fmt.Sprintf(`column "%s" must appear in the GROUP BY clause or be used in an aggregate function`, name), e.Pos)

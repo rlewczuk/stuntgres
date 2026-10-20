@@ -120,21 +120,21 @@ func TestQueryWindowValueBindingUnwind(t *testing.T) {
 	} {
 		t.Run(tc.q, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-			b.aggregateClause, b.queryFrame = "SELECT", 1
+			b.clause.aggregateClause, b.queryFrame = "SELECT", 1
 			seed := statement(t, "SELECT row_number() OVER()").(*parser.Select).Targets[0]
 			if _, err := b.bind(seed, expressionPolicy{context: projectionContext}); err != nil {
 				t.Fatal(err)
 			}
-			before := b.windowCalls[:len(b.windowCalls):len(b.windowCalls)]
-			b.windowCalls = before
+			before := b.grouping.windowCalls[:len(b.grouping.windowCalls):len(b.grouping.windowCalls)]
+			b.grouping.windowCalls = before
 			values := append([]windowCall(nil), before...)
 			_, err := b.bind(statement(t, tc.q).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
 			var d *sqlstate.Error
 			if !errors.As(err, &d) || d.Code != tc.code {
 				t.Fatal(err)
 			}
-			if len(b.windowCalls) != len(before) || cap(b.windowCalls) != cap(before) || &b.windowCalls[0] != &before[0] || !reflect.DeepEqual(values, b.windowCalls) || b.argumentOwner != (argumentWindowOwner{}) {
-				t.Fatal("failed call changed registration/owner", b.windowCalls, b.argumentOwner)
+			if len(b.grouping.windowCalls) != len(before) || cap(b.grouping.windowCalls) != cap(before) || &b.grouping.windowCalls[0] != &before[0] || !reflect.DeepEqual(values, b.grouping.windowCalls) || b.grouping.argumentOwner != (argumentWindowOwner{}) {
+				t.Fatal("failed call changed registration/owner", b.grouping.windowCalls, b.grouping.argumentOwner)
 			}
 		})
 	}

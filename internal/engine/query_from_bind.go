@@ -119,7 +119,7 @@ func (b *expressionBinder) queryQualifier(name parser.ObjectName, pos parser.Pos
 		match = q
 	}
 	if match != nil {
-		if b.aggregateClause == "FROM" && b.stringFromForbidden {
+		if b.clause.aggregateClause == "FROM" && b.clause.stringFromForbidden {
 			return nil, stringLateralError(*match, pos, false)
 		}
 		b.resolvedQueryFrame = b.frameID()
@@ -211,7 +211,7 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 			return nil, expr.ErrorAt("42702", fmt.Sprintf(`column reference "%s" is ambiguous`, name), raw.Pos)
 		}
 		match = &columns[i]
-		if b.aggregateClause == "FROM" && b.stringFromForbidden {
+		if b.clause.aggregateClause == "FROM" && b.clause.stringFromForbidden {
 			return nil, stringForbiddenColumn(*b.queryNamespace, match.slot, raw.Pos)
 		}
 	}
@@ -508,7 +508,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
-		oldStringForbidden := b.stringFromForbidden
+		oldStringForbidden := b.clause.stringFromForbidden
 		oldNamespace := b.queryNamespace
 		rightNamespace := lns
 		prefix := 0
@@ -519,11 +519,11 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 				return nil, queryNamespace{}, err
 			}
 		}
-		b.stringFromForbidden = oldStringForbidden || n.Kind == parser.JoinRight || n.Kind == parser.JoinFull
+		b.clause.stringFromForbidden = oldStringForbidden || n.Kind == parser.JoinRight || n.Kind == parser.JoinFull
 		b.queryNamespace = &rightNamespace
 		right, rns, err := b.bindFrom(n.Right)
 		b.queryNamespace = oldNamespace
-		b.stringFromForbidden = oldStringForbidden
+		b.clause.stringFromForbidden = oldStringForbidden
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
@@ -569,7 +569,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		b.queryNamespace = &ns
 		defer func() { b.queryNamespace = old }()
 		if n.On != nil {
-			b.aggregateClause = "JOIN conditions"
+			b.clause.aggregateClause = "JOIN conditions"
 			join.predicate, err = b.bindBoolean(n.On, filterContext, "JOIN/ON")
 			if err != nil {
 				return nil, queryNamespace{}, err
@@ -947,14 +947,14 @@ func functionColumnDefinitionMessage(call expr.Expr) string {
 func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr, ordinality bool, ordinal int, definitions []parser.FunctionColumnDefinition, multiUnnest bool) (LogicalNode, queryNamespace, error) {
 	calls := make([]expr.Expr, len(rawCalls))
 	schema := make([]catalog.Column, 0, len(calls))
-	oldClause := b.aggregateClause
-	b.aggregateClause = "FROM"
-	defer func() { b.aggregateClause = oldClause }()
+	oldClause := b.clause.aggregateClause
+	b.clause.aggregateClause = "FROM"
+	defer func() { b.clause.aggregateClause = oldClause }()
 	// Selected calls diagnose actual P/L captures after binding, rather
 	// than inheriting the string family's blanket FROM lookup guard.
-	oldForbidden := b.stringFromForbidden
-	b.stringFromForbidden = false
-	defer func() { b.stringFromForbidden = oldForbidden }()
+	oldForbidden := b.clause.stringFromForbidden
+	b.clause.stringFromForbidden = false
+	defer func() { b.clause.stringFromForbidden = oldForbidden }()
 	// FROM arguments are query expressions even before a local FROM
 	// namespace exists. An empty local frame still permits lexical outer
 	// references through queryScopes, including nested correlated SRFs.
@@ -965,10 +965,10 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 	for i, raw := range rawCalls {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 		if name == "string_to_table" {
-			b.stringFromForbidden = oldForbidden
+			b.clause.stringFromForbidden = oldForbidden
 		}
 		expr, err := b.bindFunctionSource(raw)
-		b.stringFromForbidden = false
+		b.clause.stringFromForbidden = false
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}

@@ -74,7 +74,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			if tc.populate {
 				arity = 2
 			}
-			if len(call.Args) != arity || call.Definitions || call.Unresolved != tc.anonymous || call.ReturnsSet() != tc.set || sourceReturnsSet(call) != tc.set || !sourceAdmitted(call) || binder.queryHasTargetSet != tc.set {
+			if len(call.Args) != arity || call.Definitions || call.Unresolved != tc.anonymous || call.ReturnsSet() != tc.set || sourceReturnsSet(call) != tc.set || !sourceAdmitted(call) || binder.clause.queryHasTargetSet != tc.set {
 				t.Fatal("physical/source/project contract", call)
 			}
 			if call.Properties().Volatility != expr.Stable || call.Properties().StageDependent != tc.set || !call.Properties().RuntimeDomainConversion || call.Properties().DomainDependent {
@@ -138,7 +138,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			if tc.anonymous {
 				raw := statement(t, "SELECT "+tc.expression).(*parser.Select).Targets[0].(parser.FunctionExpr)
 				_, sourceBinder, _ := strictNullUnitBind(t, e, op, scope, tc.expression)
-				sourceBinder.aggregateClause = "FROM"
+				sourceBinder.clause.aggregateClause = "FROM"
 				sourceBinder.queryNamespace = &queryNamespace{}
 				e.mu.Lock()
 				source, sourceErr := sourceBinder.bindFunctionSource(raw)
@@ -382,7 +382,7 @@ func eMustJSONBRoutineAuthority(t *testing.T, e *Engine, op *Operation) *Authori
 func TestJSONBRecordRoutineFailedConstructor(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	b.aggregateClause = "FROM"
+	b.clause.aggregateClause = "FROM"
 	usage := b.typ(sqltype.Int4).Usage()
 	usage.Typmod = 0
 	column := catalog.Column{Name: "base", Usage: usage}

@@ -1066,34 +1066,14 @@ type expressionBinder struct {
 	capture                    viewCapture
 	stored                     storedSyntaxState
 	prepared                   preparedCaptures
+	clause                     clauseState
+	grouping                   groupingState
 	engine                     *Engine
 	ctx                        context.Context
 	dependencies               []catalog.ExpressionDependency
 	input                      sqltype.InputEnvironment
 	op                         *Operation
 	expected                   *StatementDescription
-	jsonbRecordBase            bool // Scope named cast identity to selected base trees.
-	domainValueUsage           *sqltype.Usage
-	functionProjection         functionProjectionScope
-	selectedOperatorArgs       []expr.Expr
-	selectedOperatorSyntax     []parser.Expr
-	selectedCallArguments      bool              // Known arguments remain reusable throughout provider binding.
-	selectedCallReentry        bool              // Only the immediate selected occurrence skips selection once.
-	selectedWindowCallee       parser.ObjectName // Diagnostic spelling, never lookup authority.
-	aggregateClause            string
-	stringSetGuard             string
-	stringFromForbidden        bool
-	stringSingleInsert         bool
-	queryHasTargetSet          bool
-	fromSetObservation         fromSetObservation
-	regexpClause               string
-	aggregates                 []aggregateCall
-	groupingActive             bool
-	groupSets                  [][]int
-	windowRaw                  []parser.WindowDefinition
-	windowDefinitions          map[string]boundWindowSpec
-	windowCalls                []windowCall
-	argumentOwner              argumentWindowOwner
 	queryAuth                  *AuthorizationView
 	querySources               []queryLeaf
 	queryLockAdmission         *queryLockAdmission
@@ -1115,7 +1095,6 @@ type expressionBinder struct {
 	suppressWholePresence      bool
 	queryRowDiagnosticMode     lock.Mode // Clause diagnostics only; tuple authority is queryRowMark.
 	subqueryDemand             bool
-	groupSubquery              bool
 }
 
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
@@ -1246,8 +1225,8 @@ func (b *expressionBinder) finalizeProjection(node expr.Expr) (expr.Expr, error)
 	return b.coerceParameter(p, b.typ(sqltype.Text).Usage())
 }
 func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
-	if b.domainValueUsage != nil && len(raw.Name.Parts) == 1 && raw.Name.Parts[0].Text == "value" {
-		return domainValueExpression{b.info(*b.domainValueUsage, raw.Pos, expr.Properties{DomainDependent: true})}, nil
+	if b.clause.domainValueUsage != nil && len(raw.Name.Parts) == 1 && raw.Name.Parts[0].Text == "value" {
+		return domainValueExpression{b.info(*b.clause.domainValueUsage, raw.Pos, expr.Properties{DomainDependent: true})}, nil
 	}
 	if b.target.generatedOwner != nil {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
@@ -1287,7 +1266,7 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 		}
 		return node, nil
 	}
-	if b.consumer.checkConsumer && b.domainValueUsage == nil && len(raw.Name.Parts) > 0 {
+	if b.consumer.checkConsumer && b.clause.domainValueUsage == nil && len(raw.Name.Parts) > 0 {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 		switch name {
 		case "ctid", "xmin", "cmin", "xmax", "cmax":
@@ -1377,14 +1356,14 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 	if raw == nil {
 		return nil, fmt.Errorf("stuntgres: missing scalar expression")
 	}
-	if slot, ok := raw.(parser.ParameterExpr); ok && slot.Number < 0 && -slot.Number <= len(b.selectedOperatorArgs) {
-		node := b.selectedOperatorArgs[-slot.Number-1]
-		if b.argumentOwner.active && !b.argumentOwner.found {
+	if slot, ok := raw.(parser.ParameterExpr); ok && slot.Number < 0 && -slot.Number <= len(b.clause.selectedOperatorArgs) {
+		node := b.clause.selectedOperatorArgs[-slot.Number-1]
+		if b.grouping.argumentOwner.active && !b.grouping.argumentOwner.found {
 			// Selection analyzed this operand before the winning argument
 			// owner existed. Preserve its lexical occurrence even if the
 			// signature does not retain an executable argument.
 			if nested := windowOccurrence(node); nested != nil && nested.frame == b.frameID() {
-				b.argumentOwner.first, b.argumentOwner.found = nested.Pos, true
+				b.grouping.argumentOwner.first, b.grouping.argumentOwner.found = nested.Pos, true
 			}
 		}
 		return node, nil
@@ -1397,7 +1376,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			bindError = rejectRegexpSets(boundResult, "UPDATE", false)
 		}
 		if policy.context == filterContext {
-			clause := b.aggregateClause
+			clause := b.clause.aggregateClause
 			if clause == "" || clause == "SELECT" {
 				clause = "WHERE"
 			}
@@ -1435,8 +1414,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 		}
 	}
-	if node == nil && b.functionProjection.matches(raw) {
-		node = b.functionProjection.operand
+	if node == nil && b.clause.functionProjection.matches(raw) {
+		node = b.clause.functionProjection.operand
 	}
 	if node == nil {
 		switch r := raw.(type) {
@@ -1519,16 +1498,16 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				name.Parts = []parser.Identifier{*r.Schema, {Text: r.Name, Pos: r.Pos}}
 			}
 			diagnosticName := name
-			if len(b.selectedWindowCallee.Parts) != 0 {
+			if len(b.clause.selectedWindowCallee.Parts) != 0 {
 				// Consume before Signature binds any children. Nested calls
 				// must retain their own lexical diagnostic spelling.
-				diagnosticName = b.selectedWindowCallee
-				b.selectedWindowCallee = parser.ObjectName{}
+				diagnosticName = b.clause.selectedWindowCallee
+				b.clause.selectedWindowCallee = parser.ObjectName{}
 			}
-			parentAggregates, parentWindows := b.aggregates, b.windowCalls
+			parentAggregates, parentWindows := b.grouping.aggregates, b.grouping.windowCalls
 			defer func() {
 				if bindError != nil {
-					b.aggregates, b.windowCalls = parentAggregates, parentWindows
+					b.grouping.aggregates, b.grouping.windowCalls = parentAggregates, parentWindows
 				}
 			}()
 			if functions.HypotheticalSetName(r.Name) && !r.Within && len(r.Args) == 0 && r.Window != nil {
@@ -1557,9 +1536,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				}
 				return nil, expr.ErrorAt("42809", "window function "+objectNameText(diagnosticName)+" requires an OVER clause", r.Pos)
 			}
-			parentOwner := b.argumentOwner
-			b.argumentOwner = argumentWindowOwner{active: true}
-			defer func() { b.argumentOwner = parentOwner }()
+			parentOwner := b.grouping.argumentOwner
+			b.grouping.argumentOwner = argumentWindowOwner{active: true}
+			defer func() { b.grouping.argumentOwner = parentOwner }()
 			if b.target.generatedOwner != nil {
 				return nil, expr.ErrorAt("42803", "aggregate functions are not allowed in column generation expressions", r.Pos)
 			}
@@ -1569,7 +1548,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			if b.consumer.indexConsumer {
 				return nil, expr.ErrorAt("42803", "aggregate functions are not allowed in index expressions", r.Pos)
 			}
-			if b.aggregateClause == "VALUES" || b.aggregateClause == "INSERT VALUES" && (r.Name == "string_agg" || r.Name == "array_agg") {
+			if b.clause.aggregateClause == "VALUES" || b.clause.aggregateClause == "INSERT VALUES" && (r.Name == "string_agg" || r.Name == "array_agg") {
 				return nil, expr.ErrorAt("42803", "aggregate functions are not allowed in VALUES", r.Pos)
 			}
 			if b.consumer.checkConsumer {
@@ -1928,8 +1907,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			return nil, fmt.Errorf("stuntgres: unsupported scalar node")
 		}
 	}
-	if b.functionProjection.matches(raw) && b.functionProjection.operand == nil && node.ResultUsage().Type != nil && node.ResultUsage().Type.Concrete() && node.ResultUsage().Type.BaseType().IsComposite() {
-		b.functionProjection.operand = node
+	if b.clause.functionProjection.matches(raw) && b.clause.functionProjection.operand == nil && node.ResultUsage().Type != nil && node.ResultUsage().Type.Concrete() && node.ResultUsage().Type.BaseType().IsComposite() {
+		b.clause.functionProjection.operand = node
 	}
 	if policy.booleanConstruct != "" && node.ResultUsage().Type.IsDomain() && node.ResultUsage().Type.BaseType().ID() == sqltype.Bool {
 		var err error
@@ -2061,7 +2040,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	var target sqltype.Usage
 	var err error
 	annotation := raw.TypeName
-	if b.jsonbRecordBase {
+	if b.clause.jsonbRecordBase {
 		annotation, err = b.jsonbRecordCastAnnotation(raw)
 		if err != nil {
 			return nil, err
@@ -2077,7 +2056,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	if err != nil {
 		return nil, err
 	}
-	if b.jsonbRecordBase && raw.Syntax != parser.FunctionCast && target.Type.IsUserDefined() && target.Type.BaseType().IsComposite() {
+	if b.clause.jsonbRecordBase && raw.Syntax != parser.FunctionCast && target.Type.IsUserDefined() && target.Type.BaseType().IsComposite() {
 		b.captureComposite(preparedCompositeKey{offset: raw.TypeName.Pos.Offset, kind: compositeRecordArgument}, target, nil)
 	}
 	if target.Type.ID() == sqltype.Unknown {
@@ -2672,10 +2651,10 @@ func (b *expressionBinder) AnalyzeArgument(raw parser.Expr, request functions.An
 	case functions.StringTextArgument, functions.StringOtherArgument:
 		operand, err = b.stringOperand(raw, request.Intent == functions.StringTextArgument)
 	case functions.RecordBaseArgument:
-		previous := b.jsonbRecordBase
-		b.jsonbRecordBase = true
+		previous := b.clause.jsonbRecordBase
+		b.clause.jsonbRecordBase = true
 		operand, err = b.stringOperand(raw, false)
-		b.jsonbRecordBase = previous
+		b.clause.jsonbRecordBase = previous
 	case functions.StringProjectionArgument, functions.ProjectionArgument:
 		operand.node, err = b.bind(raw, expressionPolicy{context: projectionContext, stringInput: request.Intent == functions.StringProjectionArgument})
 		operand.raw = raw
@@ -2771,7 +2750,7 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 		}
 		return coercionExpression{b.info(request.Target, argument.Raw.SourcePosition(), properties), node, request.Plan, sqltype.Implicit, false}, nil
 	case functions.AssignmentFormalArgument:
-		if !b.selectedCallArguments || argument.Expression == nil || argument.Usage.Type == nil {
+		if !b.clause.selectedCallArguments || argument.Expression == nil || argument.Usage.Type == nil {
 			return b.bind(argument.Raw, expressionPolicy{context: assignmentContext, expected: request.Target, mode: sqltype.Implicit})
 		}
 	case functions.DirectFormalArgument:

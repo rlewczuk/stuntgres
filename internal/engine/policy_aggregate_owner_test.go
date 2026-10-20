@@ -59,25 +59,25 @@ func TestRLSPolicyAggregateClauseRestoration(t *testing.T) {
 	defer done()
 	b := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 	b.target.relation = d
-	b.aggregateClause = "policy expressions"
+	b.clause.aggregateClause = "policy expressions"
 	for range 2 {
 		leaveChild := b.enterQuery(false)
-		if b.aggregateClause != "" || len(b.queryScopes) != 1 || b.queryScopes[0].clause != "policy expressions" {
-			t.Fatal("child did not capture policy owner", b.aggregateClause, b.queryScopes)
+		if b.clause.aggregateClause != "" || len(b.queryScopes) != 1 || b.queryScopes[0].clause != "policy expressions" {
+			t.Fatal("child did not capture policy owner", b.clause.aggregateClause, b.queryScopes)
 		}
-		b.aggregateClause = "SELECT"
+		b.clause.aggregateClause = "SELECT"
 		leaveGrandchild := b.enterQuery(false)
 		if len(b.queryScopes) != 2 || b.queryScopes[0].clause != "policy expressions" || b.queryScopes[1].clause != "SELECT" {
 			t.Fatal("deep query lost lexical owner clauses", b.queryScopes)
 		}
-		b.aggregateClause = "WHERE"
+		b.clause.aggregateClause = "WHERE"
 		leaveGrandchild()
-		if b.aggregateClause != "SELECT" || len(b.queryScopes) != 1 {
-			t.Fatal("grandchild failed to restore child clause", b.aggregateClause, b.queryScopes)
+		if b.clause.aggregateClause != "SELECT" || len(b.queryScopes) != 1 {
+			t.Fatal("grandchild failed to restore child clause", b.clause.aggregateClause, b.queryScopes)
 		}
 		leaveChild()
-		if b.aggregateClause != "policy expressions" || len(b.queryScopes) != 0 || b.queryFrame != 0 {
-			t.Fatal("child failed to restore policy clause", b.aggregateClause, b.queryScopes, b.queryFrame)
+		if b.clause.aggregateClause != "policy expressions" || len(b.queryScopes) != 0 || b.queryFrame != 0 {
+			t.Fatal("child failed to restore policy clause", b.clause.aggregateClause, b.queryScopes, b.queryFrame)
 		}
 	}
 }

@@ -25,7 +25,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	b := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
 	b.consumer.policyConsumer, b.params.noParameters = true, true
 	// Query scopes carry this clause to the aggregate's semantic owner.
-	b.aggregateClause = "policy expressions"
+	b.clause.aggregateClause = "policy expressions"
 	b.target.relation = d
 	b.queryAuth, b.queryNamespace = &auth, &ns
 	b.querySources = []queryLeaf{{ref: ref, relation: d}}

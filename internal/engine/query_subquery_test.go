@@ -254,14 +254,14 @@ func TestQuerySubqueryFrames(t *testing.T) {
 	if present, err := rows.Next(context.Background(), scratch); present || err != nil {
 		t.Fatal("grandparent query did not end", present, err)
 	}
-	binder := expressionBinder{queryNamespace: &queryNamespace{}, queryFrame: 7, aggregateClause: "RETURNING"}
+	binder := expressionBinder{queryNamespace: &queryNamespace{}, queryFrame: 7, clause: clauseState{aggregateClause: "RETURNING"}}
 	original := binder.queryNamespace
 	restore := binder.enterQuery(false)
 	if binder.queryNamespace != nil || binder.frameID() == 7 || len(binder.queryScopes) != 1 {
 		t.Fatal("scope entry")
 	}
 	restore()
-	if binder.queryNamespace != original || binder.frameID() != 7 || binder.aggregateClause != "RETURNING" || len(binder.queryScopes) != 0 {
+	if binder.queryNamespace != original || binder.frameID() != 7 || binder.clause.aggregateClause != "RETURNING" || len(binder.queryScopes) != 0 {
 		t.Fatal("scope restoration")
 	}
 }
@@ -467,12 +467,12 @@ func TestQuerySubqueryDMLFrameRestoration(t *testing.T) {
 			}
 			b.queryAuth = &auth
 			b.params.updateParameters = true
-			b.aggregateClause = "RETURNING"
+			b.clause.aggregateClause = "RETURNING"
 			_, err := b.bindSelect(statement(t, sql).(*parser.Select), false)
 			if (sql == "SELECT missing") != (err != nil) {
 				t.Fatal(err)
 			}
-			if b.queryNamespace != nil || b.queryFrame != 0 || b.aggregateClause != "RETURNING" || len(b.queryScopes) != 0 {
+			if b.queryNamespace != nil || b.queryFrame != 0 || b.clause.aggregateClause != "RETURNING" || len(b.queryScopes) != 0 {
 				t.Fatal("synthesized ancestor leaked after binding", err)
 			}
 			if b.target.relation.Name() != "target" {

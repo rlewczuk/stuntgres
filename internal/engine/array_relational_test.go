@@ -138,7 +138,7 @@ func TestArrayRelationalSampleCounts(t *testing.T) {
 func arrayRelationalUnitUnnest(t *testing.T, input string) unnestExpression {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.aggregateClause = "SELECT"
+	b.clause.aggregateClause = "SELECT"
 	node, err := b.bindUnnest(arrayInspectUnitRaw("unnest", arrayInspectUnitArray(input)))
 	if err != nil {
 		t.Fatal(err)
@@ -405,7 +405,7 @@ func TestArrayRelationalUsage(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, name := range []string{"array_sample", "array_shuffle", "unnest"} {
 				b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
-				b.aggregateClause = "SELECT"
+				b.clause.aggregateClause = "SELECT"
 				b.target.relation = &catalog.Relation{Columns: []catalog.Column{{Name: "a", Usage: tc.input}}, Attributes: []int32{1}, Index: map[string]int{"a": 0}}
 				var input parser.Expr = parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "a"}}}}
 				position := parser.Position{Character: 20}

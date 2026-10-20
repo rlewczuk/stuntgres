@@ -33,14 +33,14 @@ func TestStatisticalAggregateWindowSignatures(t *testing.T) {
 				raw := statement(t, "SELECT "+name+"("+tc.args+") OVER ()").(*parser.Select).Targets[0].(parser.AggregateExpr)
 				e := New()
 				b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-				b.aggregateClause = "SELECT"
+				b.clause.aggregateClause = "SELECT"
 				e.mu.Lock()
 				defer e.mu.Unlock()
 				seed := statement(t, "SELECT count(*)").(*parser.Select).Targets[0]
 				if _, err := b.bind(seed, expressionPolicy{context: projectionContext}); err != nil {
 					t.Fatal(err)
 				}
-				before := append([]aggregateCall(nil), b.aggregates...)
+				before := append([]aggregateCall(nil), b.grouping.aggregates...)
 				callee := parser.ObjectName{Parts: []parser.Identifier{{Text: name, Pos: raw.Pos}}}
 				var argument expr.Expr
 				usage, err := b.resolveWindowAggregateSignature(raw, callee, &argument)
@@ -61,7 +61,7 @@ func TestStatisticalAggregateWindowSignatures(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				if !reflect.DeepEqual(before, b.aggregates) || len(b.windowCalls) != 0 || b.argumentOwner != (argumentWindowOwner{}) {
+				if !reflect.DeepEqual(before, b.grouping.aggregates) || len(b.grouping.windowCalls) != 0 || b.grouping.argumentOwner != (argumentWindowOwner{}) {
 					t.Fatal("excluded signature analysis registered group/window state or retained argument ownership")
 				}
 			})

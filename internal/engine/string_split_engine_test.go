@@ -49,7 +49,7 @@ func TestStringSplitExpansion(t *testing.T) {
 			} {
 				t.Run(prefix+"/"+scenario.name, func(t *testing.T) {
 					binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-					binder.aggregateClause = "SELECT"
+					binder.clause.aggregateClause = "SELECT"
 					raw := statement(t, query).(*parser.Select)
 					requests := make([]expr.Expr, len(raw.Targets))
 					for i, target := range raw.Targets {
@@ -136,7 +136,7 @@ func TestStringSplitExpansion(t *testing.T) {
 			} {
 				t.Run(prefix+"/"+scenario.name, func(t *testing.T) {
 					binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-					binder.aggregateClause = "SELECT"
+					binder.clause.aggregateClause = "SELECT"
 					shallow := "'p'||string_to_table('x',',')"
 					deep := "string_to_table(string_to_table('" + scenario.input + "',','),':')"
 					query := "SELECT " + shallow + "," + deep
@@ -276,7 +276,7 @@ func TestStringSplitExpansion(t *testing.T) {
 	})
 	t.Run("interleaved_target_schedule", func(t *testing.T) {
 		binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		binder.aggregateClause = "SELECT"
+		binder.clause.aggregateClause = "SELECT"
 		raw := statement(t, "SELECT 's',string_to_table('a,b',','),'t',string_to_table('x',',')").(*parser.Select)
 		requests := make([]expr.Expr, len(raw.Targets))
 		for i, target := range raw.Targets {
@@ -433,7 +433,7 @@ func TestStringSplitFrames(t *testing.T) {
 			"SELECT 7,string_to_table(string_to_table('a:b,c:d',','),':'),upper(string_to_table('x,y',','))",
 		} {
 			binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-			binder.aggregateClause = "SELECT"
+			binder.clause.aggregateClause = "SELECT"
 			raw := statement(t, query).(*parser.Select)
 			requests := make([]expr.Expr, len(raw.Targets))
 			schema := make(querySchema, len(raw.Targets))
@@ -542,7 +542,7 @@ func TestStringSplitFrames(t *testing.T) {
 }
 func TestStringSplitBinding(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.aggregateClause = "SELECT"
+	b.clause.aggregateClause = "SELECT"
 	for _, q := range []string{"SELECT string_to_table('a,b',',')", "SELECT string_to_array('a,b',',',NULL)", "SELECT split_part('a,b',',',-1)"} {
 		expr, err := b.bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
 		if err != nil {
@@ -564,24 +564,24 @@ func TestStringSplitBinding(t *testing.T) {
 			t.Fatal(q, err)
 		}
 	}
-	b.stringSetGuard = "CASE"
-	b.queryHasTargetSet = true
+	b.clause.stringSetGuard = "CASE"
+	b.clause.queryHasTargetSet = true
 	restore := b.enterQuery(false)
-	if b.stringSetGuard != "" || b.queryHasTargetSet {
+	if b.clause.stringSetGuard != "" || b.clause.queryHasTargetSet {
 		t.Fatal("query guard/flag crossed boundary")
 	}
 	restore()
-	if b.stringSetGuard != "CASE" || !b.queryHasTargetSet {
+	if b.clause.stringSetGuard != "CASE" || !b.clause.queryHasTargetSet {
 		t.Fatal("query guard/flag not restored")
 	}
-	b.queryHasTargetSet = false
+	b.clause.queryHasTargetSet = false
 	child := b.enterQuery(false)
-	b.queryHasTargetSet = true
+	b.clause.queryHasTargetSet = true
 	child()
-	if b.queryHasTargetSet {
+	if b.clause.queryHasTargetSet {
 		t.Fatal("child query set flag escaped owner")
 	}
-	b.stringSetGuard = ""
+	b.clause.stringSetGuard = ""
 	raw := statement(t, "SELECT replace(string_to_table('a,b',','),NULL,'x')").(*parser.Select)
 	bound, err := b.bind(raw.Targets[0], expressionPolicy{context: projectionContext})
 	if err != nil {
@@ -592,10 +592,10 @@ func TestStringSplitBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	literal, ok := folded.(literalExpression)
-	if !ok || !literal.value.IsNull() || !b.queryHasTargetSet {
+	if !ok || !literal.value.IsNull() || !b.clause.queryHasTargetSet {
 		t.Fatal("lost original set analysis after strict folding", folded)
 	}
-	descriptor := &catalog.Relation{View: &viewDefinition{syntax: raw, query: &BoundQuery{Root: &projectNode{child: &singletonNode{}, expressions: []expr.Expr{folded}, hasTargetSet: b.queryHasTargetSet}}}}
+	descriptor := &catalog.Relation{View: &viewDefinition{syntax: raw, query: &BoundQuery{Root: &projectNode{child: &singletonNode{}, expressions: []expr.Expr{folded}, hasTargetSet: b.clause.queryHasTargetSet}}}}
 	if _, _, _, reason := viewWriteShape(descriptor); reason != "Views that return set-returning functions are not automatically updatable." {
 		t.Fatal(reason)
 	}
@@ -848,7 +848,7 @@ func TestStringSplitPreflight(t *testing.T) {
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-				b.aggregateClause = "SELECT"
+				b.clause.aggregateClause = "SELECT"
 				raw := statement(t, tc.query).(*parser.Select)
 				expressions := make([]expr.Expr, len(raw.Targets))
 				schema := make(querySchema, len(raw.Targets))
@@ -950,7 +950,7 @@ func TestStringSplitPreflight(t *testing.T) {
 	})
 	for _, peer := range []bool{false, true} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		b.aggregateClause = "SELECT"
+		b.clause.aggregateClause = "SELECT"
 		query := "SELECT replace(string_to_table('a,b',','),NULL,'x') AS v"
 		if peer {
 			query += ",string_to_table('c,d,e',',') AS w"
@@ -1029,7 +1029,7 @@ func TestStringSplitPreflight(t *testing.T) {
 
 func TestStringSplitPreflightSiblingError(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.aggregateClause = "SELECT"
+	b.clause.aggregateClause = "SELECT"
 	raw := statement(t, "SELECT replace(string_to_table('a,b',','),NULL,split_part('x',',',0))").(*parser.Select)
 	bound, err := b.bind(raw.Targets[0], expressionPolicy{context: projectionContext})
 	if err != nil {

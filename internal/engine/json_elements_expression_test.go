@@ -14,7 +14,7 @@ import (
 
 func jsonElementsUnitMarker(t *testing.T, b *expressionBinder, name, input string) functions.JSONElements {
 	t.Helper()
-	b.aggregateClause = "SELECT"
+	b.clause.aggregateClause = "SELECT"
 	b.queryNamespace = &queryNamespace{}
 	node, err := b.bindFunction(nullCountRaw(name, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: input}}))
 	if err != nil {
@@ -40,7 +40,7 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 		if original.ResultUsage().Type != b.typ(id) || original.ResultUsage().Type.IsComposite() || !validExpressionUsage(view, original.ResultUsage()) {
 			t.Fatal("scalar result usage", original)
 		}
-		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.queryHasTargetSet || !sourceReturnsSet(original) || querySetDepth(original) != 1 {
+		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.clause.queryHasTargetSet || !sourceReturnsSet(original) || querySetDepth(original) != 1 {
 			t.Fatal("set properties", original)
 		}
 		fresh := jsonObjectUnitTypes()

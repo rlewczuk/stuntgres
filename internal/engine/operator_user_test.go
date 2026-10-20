@@ -176,7 +176,7 @@ func TestUserOperatorRoutineBindingActualProviders(t *testing.T) {
 		if err != nil || n != tc.want {
 			t.Fatal("actual provider result", n, err)
 		}
-		if b.selectedOperatorArgs != nil {
+		if b.clause.selectedOperatorArgs != nil {
 			t.Fatal("argument override leaked")
 		}
 	}

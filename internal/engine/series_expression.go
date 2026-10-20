@@ -221,7 +221,7 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (ex
 	if b.consumer.policyConsumer && b.queryFrame == 0 {
 		return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions")
 	}
-	if b.aggregateClause == "INSERT VALUES" {
+	if b.clause.aggregateClause == "INSERT VALUES" {
 		return nil, expr.ErrorAt("0A000", "generate_series is unsupported in INSERT VALUES", raw.Pos)
 	}
 	if err := b.stringSetAllowed(raw.Pos); err != nil {
@@ -230,9 +230,9 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (ex
 	if s.result != sqltype.Int4 && s.result != sqltype.Int8 && s.result != sqltype.Numeric {
 		return nil, expr.ErrorAt("0A000", "generate_series with temporal arguments is unsupported", raw.Pos)
 	}
-	switch b.aggregateClause {
+	switch b.clause.aggregateClause {
 	case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
-		b.queryHasTargetSet = true
+		b.clause.queryHasTargetSet = true
 	}
 	info, err := b.builtinRoutineInfo(b.info(b.typ(s.result).Usage(), raw.Pos, properties), functions.SeriesRoutineProvider, "generate_series", s.args[:s.arity]...)
 	if err != nil {

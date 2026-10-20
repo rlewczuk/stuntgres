@@ -174,7 +174,7 @@ func TestRangeInspectTextDiagnosticEnvelope(t *testing.T) {
 
 func TestRangeInspectChildFilterNamespaceOrdering(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.aggregateClause = "SELECT"
+	b.clause.aggregateClause = "SELECT"
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "absent", Pos: parser.Position{Character: 8}}, {Text: "isempty", Pos: parser.Position{Character: 15}}}}, Pos: parser.Position{Character: 8}}
 	raw.Args = []parser.Expr{parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "missing", Pos: parser.Position{Character: 23}}}}, Pos: parser.Position{Character: 23}}}
 	raw.Filter = parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1, Text: "1", Pos: parser.Position{Character: 44}}}
@@ -189,8 +189,8 @@ func TestRangeInspectChildFilterNamespaceOrdering(t *testing.T) {
 		t.Fatal("invalid FILTER produced carrier")
 	}
 	inspectBindingDiagnostic(t, err, "42804", "argument of FILTER must be type boolean, not type integer", "44")
-	if b.aggregateClause != "SELECT" {
-		t.Fatal("FILTER analysis leaked clause", b.aggregateClause)
+	if b.clause.aggregateClause != "SELECT" {
+		t.Fatal("FILTER analysis leaked clause", b.clause.aggregateClause)
 	}
 	raw.Filter = parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true, Pos: parser.Position{Character: 44}}}
 	_, err = b.bindFunctionProvider(raw)

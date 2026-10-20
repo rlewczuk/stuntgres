@@ -69,7 +69,7 @@ func seriesUnitRead(t *testing.T, e seriesExpression) []int64 {
 
 func TestSeriesBinding(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.aggregateClause = "SELECT"
+	b.clause.aggregateClause = "SELECT"
 	lit := func(n int64) parser.Expr {
 		return parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: n}}
 	}
@@ -78,7 +78,7 @@ func TestSeriesBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	e, ok := x.(seriesExpression)
-	if !ok || e.ResultUsage().Type.ID() != sqltype.Int4 || !e.Properties().StageDependent || !b.queryHasTargetSet || !sourceAdmitted(e) {
+	if !ok || e.ResultUsage().Type.ID() != sqltype.Int4 || !e.Properties().StageDependent || !b.clause.queryHasTargetSet || !sourceAdmitted(e) {
 		t.Fatal(x)
 	}
 	if _, err = e.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}); err == nil {

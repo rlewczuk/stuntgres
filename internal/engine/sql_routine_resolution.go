@@ -26,8 +26,8 @@ type sqlCallableSelection struct {
 }
 
 func (b *expressionBinder) bindSQLCallable(raw parser.FunctionExpr) (expr.Expr, bool, error) {
-	if b.selectedCallReentry {
-		b.selectedCallReentry = false
+	if b.clause.selectedCallReentry {
+		b.clause.selectedCallReentry = false
 		return nil, false, nil
 	}
 	if raw.Syntax != parser.OrdinaryFunctionSyntax || raw.StringSyntax != parser.OrdinaryStringSyntax || len(raw.ArgNames) != 0 {
@@ -377,20 +377,20 @@ func (b *expressionBinder) finishSQLCallable(raw parser.FunctionExpr, selected s
 		}
 		return sqlRoutineExpression{Info: info, procedure: d, ref: ref, args: selected.args}, nil
 	}
-	previous, previousSyntax, previousArguments := b.selectedOperatorArgs, b.selectedOperatorSyntax, b.selectedCallArguments
-	previousReentry, previousCallee := b.selectedCallReentry, b.selectedWindowCallee
-	b.selectedOperatorArgs, b.selectedOperatorSyntax, b.selectedCallArguments = selected.args, raw.Args, true
+	previous, previousSyntax, previousArguments := b.clause.selectedOperatorArgs, b.clause.selectedOperatorSyntax, b.clause.selectedCallArguments
+	previousReentry, previousCallee := b.clause.selectedCallReentry, b.clause.selectedWindowCallee
+	b.clause.selectedOperatorArgs, b.clause.selectedOperatorSyntax, b.clause.selectedCallArguments = selected.args, raw.Args, true
 	// The winner's immediate gateway consumes this bit before its provider
 	// analyzes FILTER, ORDER BY or other previously unanalyzed children.
-	b.selectedCallReentry = true
-	b.selectedWindowCallee = parser.ObjectName{}
+	b.clause.selectedCallReentry = true
+	b.clause.selectedWindowCallee = parser.ObjectName{}
 	if d != nil && d.RoutineKind == catalog.WindowRoutine {
-		b.selectedWindowCallee = raw.Name
+		b.clause.selectedWindowCallee = raw.Name
 	}
 	defer func() {
-		b.selectedOperatorArgs, b.selectedOperatorSyntax, b.selectedCallArguments = previous, previousSyntax, previousArguments
-		b.selectedCallReentry = previousReentry
-		b.selectedWindowCallee = previousCallee
+		b.clause.selectedOperatorArgs, b.clause.selectedOperatorSyntax, b.clause.selectedCallArguments = previous, previousSyntax, previousArguments
+		b.clause.selectedCallReentry = previousReentry
+		b.clause.selectedWindowCallee = previousCallee
 	}()
 	args := append([]parser.Expr(nil), raw.Args...)
 	for i, arg := range selected.args {

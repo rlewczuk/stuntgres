@@ -17,21 +17,21 @@ import (
 func intaggUnitAggregate(t *testing.T, e *Engine) (*expressionBinder, aggregateCall) {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	b.aggregateClause = "SELECT"
+	b.clause.aggregateClause = "SELECT"
 	raw := parser.AggregateExpr{Name: "int_array_aggregate", Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 2}}}}
 	if _, err := b.bind(raw, expressionPolicy{context: projectionContext}); err != nil {
 		t.Fatal(err)
 	}
-	if len(b.aggregates) != 1 {
-		t.Fatal("aggregate state slots", len(b.aggregates))
+	if len(b.grouping.aggregates) != 1 {
+		t.Fatal("aggregate state slots", len(b.grouping.aggregates))
 	}
-	return b, b.aggregates[0]
+	return b, b.grouping.aggregates[0]
 }
 
 func intaggUnitEnum(t *testing.T, e *Engine, input string) unnestExpression {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	b.aggregateClause = "SELECT"
+	b.clause.aggregateClause = "SELECT"
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "int_array_enum"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: input}}}}
 	node, err := b.bindFunctionProvider(raw)
 	if err != nil {

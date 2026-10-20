@@ -345,9 +345,9 @@ func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (expr.Expr, err
 	if len(raw.Args) > 31 {
 		return nil, expr.ErrorAt("54023", "GROUPING must have fewer than 32 arguments", raw.Pos)
 	}
-	parent := b.argumentOwner
-	b.argumentOwner = argumentWindowOwner{active: true}
-	defer func() { b.argumentOwner = parent }()
+	parent := b.grouping.argumentOwner
+	b.grouping.argumentOwner = argumentWindowOwner{active: true}
+	defer func() { b.grouping.argumentOwner = parent }()
 	args := make([]expr.Expr, len(raw.Args))
 	positions := make([]parser.Position, len(raw.Args))
 	for i, arg := range raw.Args {
@@ -358,7 +358,7 @@ func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (expr.Expr, err
 		args[i] = child
 		positions[i] = parser.ExpressionStart(arg)
 	}
-	if err := b.argumentOwner.nestingError(); err != nil {
+	if err := b.grouping.argumentOwner.nestingError(); err != nil {
 		return nil, err
 	}
 	if b.consumer.checkConsumer {
@@ -375,7 +375,7 @@ func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (expr.Expr, err
 			walkQueryArgumentExpression(arg, visit)
 		}
 	})
-	clause := b.aggregateClause
+	clause := b.clause.aggregateClause
 	if index >= 0 {
 		clause = b.queryScopes[index].clause
 	}
@@ -412,7 +412,7 @@ func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (expr.Expr, err
 	if index >= 0 {
 		b.queryScopes[index].groupingActive = true
 	} else {
-		b.groupingActive = true
+		b.grouping.active = true
 	}
 	usage := b.typ(sqltype.Int4).Usage()
 	return groupingExpression{Info: expr.Info{Usage: usage, Pos: raw.Pos, Property: expr.Properties{StageDependent: true}}, args: args, positions: positions, frame: owner, slot: -1}, nil
@@ -426,7 +426,7 @@ func (b *expressionBinder) rewriteGrouping(e groupingExpression, keys []expr.Exp
 	for i, arg := range e.args {
 		refs[i] = -1
 		_, variable := arg.(columnExpression)
-		if !b.groupSubquery || variable {
+		if !b.grouping.groupSubquery || variable {
 			for k, key := range keys {
 				if b.sameGroupExpression(arg, key) {
 					refs[i] = k
@@ -442,9 +442,9 @@ func (b *expressionBinder) rewriteGrouping(e groupingExpression, keys []expr.Exp
 			return nil, expr.ErrorAt("42803", "arguments to GROUPING must be grouping expressions of the associated query level", pos)
 		}
 	}
-	e.slot = len(keys) + len(b.aggregates)
-	e.masks = make([]int32, len(b.groupSets))
-	for i, set := range b.groupSets {
+	e.slot = len(keys) + len(b.grouping.aggregates)
+	e.masks = make([]int32, len(b.grouping.groupSets))
+	for i, set := range b.grouping.groupSets {
 		if err := b.ctx.Err(); err != nil {
 			return nil, err
 		}

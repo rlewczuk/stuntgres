@@ -37,7 +37,7 @@ func nestedFromSetError(pos parser.Position) error {
 }
 
 func (b *expressionBinder) bindFunctionSource(raw parser.FunctionExpr) (expr.Expr, error) {
-	before := b.fromSetObservation
+	before := b.clause.fromSetObservation
 	node, err := b.bindFunction(raw)
 	if err != nil {
 		return nil, err
@@ -46,14 +46,14 @@ func (b *expressionBinder) bindFunctionSource(raw parser.FunctionExpr) (expr.Exp
 		demand, _, _ := inquiry.SnapshotDemand(bareInquiryLiteralNull)
 		b.consumer.catalogSnapshot = b.consumer.catalogSnapshot || demand
 	}
-	if !sourceReturnsSet(node) && b.fromSetObservation != before {
-		return nil, nestedFromSetError(b.fromSetObservation.pos)
+	if !sourceReturnsSet(node) && b.clause.fromSetObservation != before {
+		return nil, nestedFromSetError(b.clause.fromSetObservation.pos)
 	}
 	return node, nil
 }
 
 func (b *expressionBinder) stringSetAllowed(pos parser.Position) error {
-	kind := b.aggregateClause
+	kind := b.clause.aggregateClause
 	if b.consumer.defaultConsumer {
 		kind = "DEFAULT expressions"
 	}
@@ -70,25 +70,25 @@ func (b *expressionBinder) stringSetAllowed(pos parser.Position) error {
 		kind = "index predicates"
 	}
 	hint := ""
-	if b.stringSetGuard != "" {
-		kind = b.stringSetGuard
+	if b.clause.stringSetGuard != "" {
+		kind = b.clause.stringSetGuard
 		hint = "You might be able to move the set-returning function into a LATERAL FROM item."
 	}
 	message := "set-returning functions are not allowed in " + kind
-	if b.argumentOwner.active && kind != "FILTER" {
+	if b.grouping.argumentOwner.active && kind != "FILTER" {
 		message = "aggregate function calls cannot contain set-returning function calls"
-		if b.argumentOwner.window {
+		if b.grouping.argumentOwner.window {
 			message = "window function calls cannot contain set-returning function calls"
 		}
 		hint = "You might be able to move the set-returning function into a LATERAL FROM item."
-	} else if b.stringSetGuard == "" {
+	} else if b.clause.stringSetGuard == "" {
 		switch kind {
 		case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions", "FROM":
 			return nil
 		case "window RANGE", "window GROUPS", "window ROWS":
 			message = "set-returning functions are not allowed in window definitions"
 		case "INSERT VALUES":
-			if b.stringSingleInsert {
+			if b.clause.stringSingleInsert {
 				return nil
 			}
 			message = "set-returning functions are not allowed in VALUES"
@@ -108,12 +108,12 @@ func stringLateralError(q queryQualifier, pos parser.Position, target bool) erro
 	return err
 }
 func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNode, queryNamespace, error) {
-	old, clause := b.queryNamespace, b.aggregateClause
+	old, clause := b.queryNamespace, b.clause.aggregateClause
 	if b.queryNamespace == nil {
 		b.queryNamespace = &queryNamespace{}
 	}
-	b.aggregateClause = "FROM"
-	defer func() { b.queryNamespace, b.aggregateClause = old, clause }()
+	b.clause.aggregateClause = "FROM"
+	defer func() { b.queryNamespace, b.clause.aggregateClause = old, clause }()
 	calls := make([]expr.Expr, len(raw.Calls))
 	schema := make(querySchema, len(calls))
 	ordinal := b.stored.functionCount
@@ -190,7 +190,7 @@ func stringForbiddenColumn(ns queryNamespace, slot int, pos parser.Position) err
 }
 
 func (b *expressionBinder) stringFromContext() bool {
-	if b.aggregateClause == "FROM" {
+	if b.clause.aggregateClause == "FROM" {
 		return true
 	}
 	for _, scope := range b.queryScopes {

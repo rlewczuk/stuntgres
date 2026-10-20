@@ -346,7 +346,7 @@ func TestOrderedSetAggregateGroupFrameAndPublication(t *testing.T) {
 
 func TestOrderedSetAggregateResolverAndIdentity(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.aggregateClause = "SELECT"
+	b.clause.aggregateClause = "SELECT"
 	position := parser.Position{Character: 8}
 	for _, tc := range []struct {
 		name, input, result string
@@ -380,7 +380,7 @@ func TestOrderedSetAggregateResolverAndIdentity(t *testing.T) {
 		if got := node.ResultUsage().Type.DiagnosticName(); got != tc.result {
 			t.Fatal(tc, got)
 		}
-		call := b.aggregates[node.(aggregateExpression).slot]
+		call := b.grouping.aggregates[node.(aggregateExpression).slot]
 		if call.order[0].slot != 0 || call.order[0].cache != 0 || call.stageWidth != 2 || (call.direct == nil) != (tc.name == "mode") {
 			t.Fatal("uncached input/direct identity", tc, call)
 		}
@@ -626,7 +626,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 				usage.Typmod = 8
 				usage.Collation = sqltype.CollationRef{ID: 950}
 			}
-			b.aggregateClause = "SELECT"
+			b.clause.aggregateClause = "SELECT"
 			b.params.parameters[1] = usage
 			position := parser.Position{Character: 8}
 			var key parser.Expr = parser.ParameterExpr{Number: 1, Pos: position}
@@ -654,7 +654,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			call := b.aggregates[0]
+			call := b.grouping.aggregates[0]
 			argument := call.argument
 			if b.bindingCatalog().State() != catalogView.State() || argument.ResultUsage().Type != input {
 				t.Fatal("input lost coherent binding generation", argument.ResultUsage(), input)

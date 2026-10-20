@@ -69,7 +69,7 @@ func TestJSONObjectAggregateSlotsAndDescriptors(t *testing.T) {
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	text, _ := e.CatalogRead().LookupType(sqltype.Text)
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	b.aggregateClause = "SELECT"
+	b.clause.aggregateClause = "SELECT"
 	b.params.parameters[1], b.params.parameters[2] = text.Usage(), integer.Usage()
 	for _, name := range []string{"json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_object_agg"} {
 		raw := parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}}, Pos: parser.Position{Character: 8}}
@@ -86,10 +86,10 @@ func TestJSONObjectAggregateSlotsAndDescriptors(t *testing.T) {
 			t.Fatal("fixed computed descriptor", node.ResultUsage())
 		}
 	}
-	if len(b.aggregates) != 4 {
-		t.Fatal("incompatible object calls share slots", len(b.aggregates))
+	if len(b.grouping.aggregates) != 4 {
+		t.Fatal("incompatible object calls share slots", len(b.grouping.aggregates))
 	}
-	for _, call := range b.aggregates {
+	for _, call := range b.grouping.aggregates {
 		if !call.includeNulls || call.argument.ResultUsage().Type != text || call.separator.ResultUsage().Type != integer {
 			t.Fatal("two inputs/presence lost", call)
 		}
@@ -97,7 +97,7 @@ func TestJSONObjectAggregateSlotsAndDescriptors(t *testing.T) {
 	if _, err := b.bind(parser.AggregateExpr{Name: "json_agg", Args: []parser.Expr{parser.ParameterExpr{Number: 2}}}, expressionPolicy{context: projectionContext}); err != nil {
 		t.Fatal(err)
 	}
-	if len(b.aggregates) != 5 {
+	if len(b.grouping.aggregates) != 5 {
 		t.Fatal("array/object slot collision")
 	}
 	schemaBinder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)

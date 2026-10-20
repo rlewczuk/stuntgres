@@ -105,18 +105,18 @@ func TestAnyValueEvaluationAndCancellation(t *testing.T) {
 func TestAnyValueResultUsage(t *testing.T) {
 	for _, q := range []string{"SELECT any_value('xy'::varchar(4) COLLATE \"C\") FROM t", "SELECT any_value('xy'::varchar(4) COLLATE \"POSIX\") FROM t", "SELECT any_value(1.2300::numeric(10,4)) FROM t", "SELECT any_value('12:34:56.123'::time(3)) FROM t"} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		b.aggregateClause = "SELECT"
+		b.clause.aggregateClause = "SELECT"
 		raw := statement(t, q).(*parser.Select).Targets[0]
 		result, err := b.bind(raw, expressionPolicy{context: projectionContext})
 		if err != nil {
 			t.Fatal(q, err)
 		}
-		argument := b.aggregates[0].argument.ResultUsage()
+		argument := b.grouping.aggregates[0].argument.ResultUsage()
 		usage := result.ResultUsage()
 		if usage.Type != argument.Type || usage.Typmod != -1 || usage.Collation != argument.Collation || !result.Properties().StageDependent {
 			t.Fatal("result descriptor/typmod/collation", usage, argument, result.Properties())
 		}
-		input := b.aggregates[0].argument
+		input := b.grouping.aggregates[0].argument
 		if result.CollationIndeterminate() != input.CollationIndeterminate() || result.ExplicitCollation() != input.ExplicitCollation() {
 			t.Fatal("lost operand collation provenance", result, input)
 		}

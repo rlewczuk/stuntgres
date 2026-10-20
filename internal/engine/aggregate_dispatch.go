@@ -45,7 +45,7 @@ func (b *expressionBinder) aggregateReturning(raw parser.AggregateExpr, node exp
 // inaccessible diagnostic candidate: it is never added to the source
 // namespace or read manifest. The returned function restores the binder.
 func (b *expressionBinder) valuesAggregateNamespace() func() {
-	if b.aggregateClause != "INSERT VALUES" || b.queryNamespace != nil {
+	if b.clause.aggregateClause != "INSERT VALUES" || b.queryNamespace != nil {
 		return func() {}
 	}
 	b.queryNamespace = &queryNamespace{}

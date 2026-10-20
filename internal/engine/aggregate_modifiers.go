@@ -14,9 +14,9 @@ func (b *expressionBinder) bindAggregateFilter(raw parser.AggregateExpr) (expr.E
 	if raw.Filter == nil {
 		return nil, nil
 	}
-	clause, regexpClause := b.aggregateClause, b.regexpClause
-	b.aggregateClause, b.regexpClause = "FILTER", "FILTER"
-	defer func() { b.aggregateClause, b.regexpClause = clause, regexpClause }()
+	clause, regexpClause := b.clause.aggregateClause, b.clause.regexpClause
+	b.clause.aggregateClause, b.clause.regexpClause = "FILTER", "FILTER"
+	defer func() { b.clause.aggregateClause, b.clause.regexpClause = clause, regexpClause }()
 	return b.bindBoolean(raw.Filter, projectionContext, "FILTER")
 }
 
@@ -163,7 +163,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 			call.distinct[i] = grouping
 		}
 	}
-	if err := b.argumentOwner.nestingError(); err != nil {
+	if err := b.grouping.argumentOwner.nestingError(); err != nil {
 		return nil, err
 	}
 	if object {
@@ -180,17 +180,17 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 		}
 	})
 	info.Property = properties
-	slot := len(b.aggregates)
+	slot := len(b.grouping.aggregates)
 	if properties.Volatility == expr.Immutable {
-		for i, existing := range b.aggregates {
+		for i, existing := range b.grouping.aggregates {
 			if b.sameAggregateCall(call, existing) {
 				slot = i
 				break
 			}
 		}
 	}
-	if slot == len(b.aggregates) {
-		b.aggregates = append(b.aggregates, call)
+	if slot == len(b.grouping.aggregates) {
+		b.grouping.aggregates = append(b.grouping.aggregates, call)
 	}
 	return aggregateExpression{Info: info, slot: slot, frame: b.frameID()}, nil
 }

@@ -41,7 +41,7 @@ func TestBitwiseAggregateSlotsAndMetadata(t *testing.T) {
 			usage.Typmod = 5
 		}
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-		b.aggregateClause = "SELECT"
+		b.clause.aggregateClause = "SELECT"
 		b.params.parameters[1] = usage
 		for _, name := range []string{"bit_and", "bit_or", "bit_xor", "bit_and"} {
 			raw := parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}}, Pos: parser.Position{Character: 8}}
@@ -57,12 +57,12 @@ func TestBitwiseAggregateSlotsAndMetadata(t *testing.T) {
 				t.Fatal("aggregate result usage", expr.ResultUsage())
 			}
 		}
-		if len(b.aggregates) != 3 {
-			t.Fatal("operation dedup identity", len(b.aggregates))
+		if len(b.grouping.aggregates) != 3 {
+			t.Fatal("operation dedup identity", len(b.grouping.aggregates))
 		}
 		for i, op := range []functions.AggregateOperation{functions.AggregateBitAnd, functions.AggregateBitOr, functions.AggregateBitXor} {
-			if b.aggregates[i].operation != op || b.aggregates[i].includeNulls {
-				t.Fatal("operation/strict identity", b.aggregates[i])
+			if b.grouping.aggregates[i].operation != op || b.grouping.aggregates[i].includeNulls {
+				t.Fatal("operation/strict identity", b.grouping.aggregates[i])
 			}
 		}
 		binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
@@ -184,7 +184,7 @@ func TestBitwiseAggregateValuesAnalysis(t *testing.T) {
 	for _, name := range []string{"bit_and", "bit_or", "bit_xor"} {
 		for _, phase := range []string{"valid", "signature", "filter"} {
 			b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-			b.aggregateClause = "INSERT VALUES"
+			b.clause.aggregateClause = "INSERT VALUES"
 			raw := parser.AggregateExpr{Name: name, Pos: parser.Position{Character: 10}, Args: []parser.Expr{one}}
 			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42803", Message: "aggregate functions are not allowed in VALUES", Position: "10"}
 			if phase != "valid" {
@@ -201,8 +201,8 @@ func TestBitwiseAggregateValuesAnalysis(t *testing.T) {
 			}
 			node, err := b.bind(wrapped, expressionPolicy{context: assignmentContext, expected: integer.Usage(), mode: sqltype.Assignment, column: "i"})
 			diagnostic, ok := err.(*sqlstate.Error)
-			if node != nil || !ok || *diagnostic != *want || len(b.aggregates) != 0 {
-				t.Fatal("VALUES precedence/registration rollback", phase, node, err, b.aggregates)
+			if node != nil || !ok || *diagnostic != *want || len(b.grouping.aggregates) != 0 {
+				t.Fatal("VALUES precedence/registration rollback", phase, node, err, b.grouping.aggregates)
 			}
 		}
 	}

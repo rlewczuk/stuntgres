@@ -36,7 +36,7 @@ func TestAdvisoryBlockingDomainInput(t *testing.T) {
 	}
 	probeBinder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	base := target.DomainBase()
-	probeBinder.domainValueUsage = &base
+	probeBinder.clause.domainValueUsage = &base
 	probeBinder.consumer.checkConsumer, probeBinder.params.noParameters = true, true
 	probeBinder.queryNamespace = &queryNamespace{}
 	probeRaw := statement(t, "SELECT pg_try_advisory_lock(NULL::integer, (VALUE::public.advisory_inner)::integer) IS NULL AND pg_blocking_pids(NULLIF((VALUE::public.advisory_inner)::integer,(VALUE::public.advisory_inner)::integer)) IS NULL AND CASE WHEN false THEN pg_safe_snapshot_blocking_pids(1/0) IS NULL ELSE true END").(*parser.Select).Targets[0]

@@ -196,7 +196,7 @@ func TestJSONBObjectBinderStageAndVolatility(t *testing.T) {
 		{"SELECT jsonb_object(ARRAY['k',clock_timestamp()::text])", expr.Properties{Volatility: expr.Volatile}},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		b.aggregateClause = "SELECT"
+		b.clause.aggregateClause = "SELECT"
 		raw := statement(t, tc.query).(*parser.Select).Targets[0]
 		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
 		if err != nil {

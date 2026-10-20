@@ -14,7 +14,7 @@ import (
 // shared with the containing statement, including parameter/source authority.
 func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth AuthorizationView, s *parser.Insert) error {
 	if s.Source == nil {
-		binder.aggregateClause = "INSERT VALUES"
+		binder.clause.aggregateClause = "INSERT VALUES"
 	}
 	var firstList expandedExpressionList
 	if len(s.Targets) == 0 && s.Source == nil {
@@ -60,14 +60,14 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 		}
 		return binder.captureRetainedWriteInput(b.insert.defaults, nil, nil)
 	}
-	binder.aggregateClause = "INSERT VALUES"
-	binder.stringSingleInsert = len(s.Rows) == 1 && !binder.target.mergeInput
+	binder.clause.aggregateClause = "INSERT VALUES"
+	binder.clause.stringSingleInsert = len(s.Rows) == 1 && !binder.target.mergeInput
 	// Keep aggregate signature/child error precedence independent of the
 	// stricter multi-row VALUES placement rule for set-returning functions.
-	oldRegexpClause := binder.regexpClause
-	defer func() { binder.regexpClause = oldRegexpClause }()
+	oldRegexpClause := binder.clause.regexpClause
+	defer func() { binder.clause.regexpClause = oldRegexpClause }()
 	if len(s.Rows) > 1 {
-		binder.regexpClause = "VALUES"
+		binder.clause.regexpClause = "VALUES"
 	}
 	b.expressions = make([][]expr.Expr, len(s.Rows))
 	b.insert.rows = s.Rows
@@ -245,7 +245,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 			b.insert.defaults = nil
 		}
 	}
-	if binder.stringSingleInsert {
+	if binder.clause.stringSingleInsert {
 		if err := binder.lowerStringInsert(b); err != nil {
 			return err
 		}

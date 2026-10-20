@@ -104,15 +104,15 @@ func (b *expressionBinder) bindSubscripts(raw parser.FunctionExpr, visible bool)
 	if b.consumer.policyConsumer && b.queryFrame == 0 {
 		return nil, sqlError("0A000", "set-returning functions are not allowed in policy expressions")
 	}
-	if b.aggregateClause == "INSERT VALUES" {
+	if b.clause.aggregateClause == "INSERT VALUES" {
 		return nil, expr.ErrorAt("0A000", "generate_subscripts is unsupported in INSERT VALUES", raw.Pos)
 	}
 	if err := b.stringSetAllowed(raw.Pos); err != nil {
 		return nil, err
 	}
-	switch b.aggregateClause {
+	switch b.clause.aggregateClause {
 	case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
-		b.queryHasTargetSet = true
+		b.clause.queryHasTargetSet = true
 	}
 	formal := [3]sqltype.ID{sqltype.ID(2277), sqltype.Int4, sqltype.Bool}
 	info, err := b.builtinRoutineInfo(b.info(b.typ(sqltype.Int4).Usage(), raw.Pos, properties), functions.SubscriptRoutineProvider, "generate_subscripts", formal[:len(args)]...)

@@ -183,8 +183,8 @@ func TestRegexpScalarOuterFromFrame(t *testing.T) {
 
 func TestRegexpScalarFilterPlacement(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.aggregateClause = "SELECT"
-	b.argumentOwner = argumentWindowOwner{active: true}
+	b.clause.aggregateClause = "SELECT"
+	b.grouping.argumentOwner = argumentWindowOwner{active: true}
 	literal := func(s string) parser.Expr {
 		return parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: s}}
 	}
@@ -195,8 +195,8 @@ func TestRegexpScalarFilterPlacement(t *testing.T) {
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != "set-returning functions are not allowed in FILTER" || diagnostic.Hint != "" {
 		t.Fatal("FILTER lost its expression owner to aggregate arguments", err)
 	}
-	if b.aggregateClause != "SELECT" || b.regexpClause != "" || !b.argumentOwner.active {
-		t.Fatal("FILTER leaked binding context", b.aggregateClause, b.regexpClause, b.argumentOwner)
+	if b.clause.aggregateClause != "SELECT" || b.clause.regexpClause != "" || !b.grouping.argumentOwner.active {
+		t.Fatal("FILTER leaked binding context", b.clause.aggregateClause, b.clause.regexpClause, b.grouping.argumentOwner)
 	}
 }
 

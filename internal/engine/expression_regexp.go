@@ -7,11 +7,11 @@ import (
 )
 
 func (b *expressionBinder) regexpPlacement(call functions.RegexpCall) error {
-	context := b.regexpClause
+	context := b.clause.regexpClause
 	hint := context == "CASE" || context == "COALESCE"
-	if context == "" && b.argumentOwner.active {
+	if context == "" && b.grouping.argumentOwner.active {
 		message := "aggregate function calls cannot contain set-returning function calls"
-		if b.argumentOwner.window {
+		if b.grouping.argumentOwner.window {
 			message = "window function calls cannot contain set-returning function calls"
 		}
 		err := expr.ErrorAt("0A000", message, call.SourcePosition()).(*sqlstate.Error)
@@ -35,9 +35,9 @@ func (b *expressionBinder) regexpPlacement(call functions.RegexpCall) error {
 		case b.consumer.policyConsumer && b.queryFrame == 0:
 			return sqlError("0A000", "set-returning functions are not allowed in policy expressions")
 		default:
-			switch b.aggregateClause {
+			switch b.clause.aggregateClause {
 			case "WHERE", "HAVING", "FILTER", "JOIN conditions", "LIMIT", "OFFSET", "UPDATE", "RETURNING", "VALUES", "window RANGE", "window ROWS", "window GROUPS":
-				context = b.aggregateClause
+				context = b.clause.aggregateClause
 				if context == "window RANGE" || context == "window ROWS" || context == "window GROUPS" {
 					context = "window definitions"
 				}

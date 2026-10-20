@@ -18,7 +18,7 @@ func TestJSONObjectUniqueAggregateSlotsAndRemap(t *testing.T) {
 	key, _ := source.CatalogRead().LookupType(sqltype.Text)
 	input, _ := source.CatalogRead().LookupType(sqltype.Int4)
 	b := newTestExpressionBinder(t, ctx, source, sqltype.InputEnvironment{}, nil)
-	b.aggregateClause = "SELECT"
+	b.clause.aggregateClause = "SELECT"
 	b.params.parameters[1], b.params.parameters[2] = key.Usage(), input.Usage()
 	names := []string{"json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_object_agg_unique", "jsonb_object_agg_unique", "json_object_agg_unique_strict", "jsonb_object_agg_unique_strict"}
 	for _, name := range names {
@@ -32,7 +32,7 @@ func TestJSONObjectUniqueAggregateSlotsAndRemap(t *testing.T) {
 			if err != nil || first.(aggregateExpression).slot != second.(aggregateExpression).slot {
 				t.Fatal("identical call did not reuse slot", err)
 			}
-			call := b.aggregates[first.(aggregateExpression).slot]
+			call := b.grouping.aggregates[first.(aggregateExpression).slot]
 			p := call.provider.(functions.JSONObjectAggregate)
 			id := sqltype.JSON
 			if strings.HasPrefix(name, "jsonb_") {
@@ -90,7 +90,7 @@ func TestJSONObjectUniqueAggregateSlotsAndRemap(t *testing.T) {
 			}
 		})
 	}
-	if len(b.aggregates) != len(names) {
-		t.Fatal("different object policies share slots", len(b.aggregates))
+	if len(b.grouping.aggregates) != len(names) {
+		t.Fatal("different object policies share slots", len(b.grouping.aggregates))
 	}
 }

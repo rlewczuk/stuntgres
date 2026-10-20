@@ -30,7 +30,7 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 			ctx := context.Background()
 			e := New()
 			b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-			b.aggregateClause = "SELECT"
+			b.clause.aggregateClause = "SELECT"
 			raw := parser.FunctionExpr{
 				Name: parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name}}},
 				Args: []parser.Expr{parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}},
@@ -113,7 +113,7 @@ func TestJSONBPathQueryInvocation(t *testing.T) {
 	ctx := context.Background()
 	e := New()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	b.aggregateClause = "SELECT"
+	b.clause.aggregateClause = "SELECT"
 	literal := func(value string) parser.Expr {
 		return parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: value}}
 	}

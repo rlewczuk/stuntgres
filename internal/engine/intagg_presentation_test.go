@@ -18,7 +18,7 @@ func intaggUnitRecipes(t *testing.T) {
 			e, ext := intaggUnitInstalled(t)
 			ctx := context.Background()
 			b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-			b.aggregateClause = "SELECT"
+			b.clause.aggregateClause = "SELECT"
 			syntax := statement(t, "SELECT "+call).(*parser.Select)
 			raw := syntax.Targets[0]
 			node, err := b.bind(raw, expressionPolicy{context: projectionContext})
@@ -35,8 +35,8 @@ func intaggUnitRecipes(t *testing.T) {
 				t.Fatal("missing bound occurrence", b.capture.routineRefs)
 			}
 			var child LogicalNode = &singletonNode{}
-			if len(b.aggregates) != 0 {
-				child = &aggregateNode{child: child, calls: b.aggregates}
+			if len(b.grouping.aggregates) != 0 {
+				child = &aggregateNode{child: child, calls: b.grouping.aggregates}
 			}
 			project := &projectNode{querySchema: querySchema{{Name: "v", Usage: node.ResultUsage()}}, child: child, expressions: []expr.Expr{node}, frame: b.frameID(), syntax: syntax}
 			definition := &viewDefinition{query: &BoundQuery{Root: project}, syntax: syntax, dependencies: b.dependencies, routineRefs: b.capture.routineRefs, literals: b.capture.literals, castUsages: b.capture.castUsages}

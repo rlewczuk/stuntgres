@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -83,4 +84,42 @@ type storedSyntaxState struct {
 	valuesCount   int
 	joinCount     int
 	functionCount int
+}
+
+// clauseState is the state of the clause being bound: its name for
+// diagnostics, the string and regexp set-returning guards, and the
+// selected-call context of an operator or SQL routine occurrence. Clause
+// binders save it, set it and restore it around their children.
+type clauseState struct {
+	aggregateClause     string
+	stringSetGuard      string
+	stringFromForbidden bool
+	stringSingleInsert  bool
+	queryHasTargetSet   bool
+	fromSetObservation  fromSetObservation
+	regexpClause        string
+	jsonbRecordBase     bool // Scope named cast identity to selected base trees.
+	domainValueUsage    *sqltype.Usage
+	functionProjection  functionProjectionScope
+	// Selected operator and SQL routine calls bind their arguments once and
+	// expose them to provider binding through these slots.
+	selectedOperatorArgs   []expr.Expr
+	selectedOperatorSyntax []parser.Expr
+	selectedCallArguments  bool              // Known arguments remain reusable throughout provider binding.
+	selectedCallReentry    bool              // Only the immediate selected occurrence skips selection once.
+	selectedWindowCallee   parser.ObjectName // Diagnostic spelling, never lookup authority.
+}
+
+// groupingState collects the aggregates, grouping sets and window calls of
+// the query level being bound, with the window definitions they resolve
+// against.
+type groupingState struct {
+	aggregates        []aggregateCall
+	active            bool
+	groupSets         [][]int
+	groupSubquery     bool
+	windowRaw         []parser.WindowDefinition
+	windowDefinitions map[string]boundWindowSpec
+	windowCalls       []windowCall
+	argumentOwner     argumentWindowOwner
 }

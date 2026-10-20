@@ -29,7 +29,7 @@ func TestRangeAggregateProvider(t *testing.T) {
 	for _, id := range []sqltype.ID{sqltype.Int4Range, sqltype.Int8Range, sqltype.NumRange, sqltype.Int4Multirange, sqltype.Int8Multirange, sqltype.NumMultirange} {
 		d, _ := e.CatalogRead().LookupType(id)
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-		b.aggregateClause = "SELECT"
+		b.clause.aggregateClause = "SELECT"
 		b.params.parameters[1] = d.Usage()
 		for _, name := range []string{"range_agg", "range_agg", "range_intersect_agg"} {
 			raw := parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}}, Pos: parser.Position{Character: 8}}
@@ -41,8 +41,8 @@ func TestRangeAggregateProvider(t *testing.T) {
 				t.Fatal("result usage", result.ResultUsage())
 			}
 		}
-		if len(b.aggregates) != 2 || b.aggregates[0].operation != functions.AggregateRangeUnion || b.aggregates[1].operation != functions.AggregateRangeIntersection || b.aggregates[0].includeNulls || b.aggregates[1].includeNulls {
-			t.Fatal("operation/strict call identity", b.aggregates)
+		if len(b.grouping.aggregates) != 2 || b.grouping.aggregates[0].operation != functions.AggregateRangeUnion || b.grouping.aggregates[1].operation != functions.AggregateRangeIntersection || b.grouping.aggregates[0].includeNulls || b.grouping.aggregates[1].includeNulls {
+			t.Fatal("operation/strict call identity", b.grouping.aggregates)
 		}
 		binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		binder.params.parameters[1] = d.Usage()

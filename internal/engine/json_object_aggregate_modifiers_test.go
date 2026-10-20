@@ -30,7 +30,7 @@ func testJSONObjectAggregateModifierProviderCompletion(t *testing.T, names []str
 					e := New()
 					ctx := context.Background()
 					b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-					b.aggregateClause = "SELECT"
+					b.clause.aggregateClause = "SELECT"
 					text, _ := e.CatalogRead().LookupType(sqltype.Text)
 					integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 					args, order := "$1,1", "$1"
@@ -72,7 +72,7 @@ func testJSONObjectAggregateModifierProviderCompletion(t *testing.T, names []str
 					if parameters.Types[0].Type != wantType || len(b.params.anyParameters) != 0 {
 						t.Fatal("incorrect parameter completion", parameters, b.params.anyParameters)
 					}
-					call := b.aggregates[node.(aggregateExpression).slot]
+					call := b.grouping.aggregates[node.(aggregateExpression).slot]
 					provider := call.provider.(functions.JSONObjectAggregate)
 					if provider.KeyUsage() != call.argument.ResultUsage() || provider.InputUsage() != call.separator.ResultUsage() {
 						t.Fatal("provider captured provisional inputs")
@@ -163,7 +163,7 @@ func testJSONObjectAggregateModifierOccurrenceRetention(t *testing.T, name strin
 			tc.q = strings.ReplaceAll(tc.q, "json_object_agg", name)
 			e := New()
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-			b.aggregateClause = "SELECT"
+			b.clause.aggregateClause = "SELECT"
 			raw := statement(t, tc.q).(*parser.Select)
 			for _, target := range raw.Targets {
 				if _, err := b.bind(target, expressionPolicy{context: projectionContext}); err != nil {
@@ -186,7 +186,7 @@ func TestJSONObjectAggregateModifierRepeatedDistinctCompletion(t *testing.T) {
 		e := New()
 		ctx := context.Background()
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-		b.aggregateClause = "SELECT"
+		b.clause.aggregateClause = "SELECT"
 		raw := statement(t, "/*é😀*/ SELECT json_object_agg(DISTINCT $1,$1"+order+")").(*parser.Select).Targets[0]
 		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
 		if err != nil {
@@ -195,7 +195,7 @@ func TestJSONObjectAggregateModifierRepeatedDistinctCompletion(t *testing.T) {
 		if _, err = b.finish(); err != nil || len(b.params.anyParameters) != 0 {
 			t.Fatal("DISTINCT did not complete both occurrences", b.params.anyParameters, err)
 		}
-		call := b.aggregates[node.(aggregateExpression).slot]
+		call := b.grouping.aggregates[node.(aggregateExpression).slot]
 		p := call.provider.(functions.JSONObjectAggregate)
 		text, _ := e.CatalogRead().LookupType(sqltype.Text)
 		if p.KeyUsage().Type != text || p.InputUsage().Type != text || len(call.distinct) != 2 {

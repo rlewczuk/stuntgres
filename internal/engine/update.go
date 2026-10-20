@@ -149,7 +149,7 @@ func (e *Engine) bindUpdate(b *binding, binder *expressionBinder, s *parser.Upda
 		}
 	}
 	binder.queryNamespace = &target
-	binder.aggregateClause = "UPDATE"
+	binder.clause.aggregateClause = "UPDATE"
 	if s.Where != nil {
 		u.predicate, err = binder.bind(s.Where, expressionPolicy{context: filterContext})
 		if err != nil {

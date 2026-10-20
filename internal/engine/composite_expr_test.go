@@ -118,7 +118,7 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		b.functionProjection = functionProjectionScope{argumentPos: raw.Pos, argumentKind: projectionArgumentKind(raw), operand: cached}
+		b.clause.functionProjection = functionProjectionScope{argumentPos: raw.Pos, argumentKind: projectionArgumentKind(raw), operand: cached}
 		node, err := b.bind(raw, expressionPolicy{context: projectionContext})
 		if err != nil || node.ResultUsage().Type != cached.ResultUsage().Type {
 			t.Fatal("operand was rebound", node, err)

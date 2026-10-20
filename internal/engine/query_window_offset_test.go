@@ -108,17 +108,17 @@ func TestQueryWindowOffsetGraph(t *testing.T) {
 		{"SELECT lead(1,0,missing) OVER()", "42703"},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		b.aggregateClause, b.queryFrame = "SELECT", 1
+		b.clause.aggregateClause, b.queryFrame = "SELECT", 1
 		if _, err := b.bind(statement(t, "SELECT row_number() OVER()").(*parser.Select).Targets[0], expressionPolicy{context: projectionContext}); err != nil {
 			t.Fatal(err)
 		}
-		before := b.windowCalls[:len(b.windowCalls):len(b.windowCalls)]
-		b.windowCalls = before
+		before := b.grouping.windowCalls[:len(b.grouping.windowCalls):len(b.grouping.windowCalls)]
+		b.grouping.windowCalls = before
 		values := append([]windowCall(nil), before...)
 		_, err := b.bind(statement(t, tc.q).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
 		var d *sqlstate.Error
-		if !errors.As(err, &d) || d.Code != tc.code || len(b.windowCalls) != len(before) || cap(b.windowCalls) != cap(before) || &b.windowCalls[0] != &before[0] || !reflect.DeepEqual(values, b.windowCalls) || b.argumentOwner != (argumentWindowOwner{}) {
-			t.Fatal("registration unwind", tc.q, err, b.windowCalls)
+		if !errors.As(err, &d) || d.Code != tc.code || len(b.grouping.windowCalls) != len(before) || cap(b.grouping.windowCalls) != cap(before) || &b.grouping.windowCalls[0] != &before[0] || !reflect.DeepEqual(values, b.grouping.windowCalls) || b.grouping.argumentOwner != (argumentWindowOwner{}) {
+			t.Fatal("registration unwind", tc.q, err, b.grouping.windowCalls)
 		}
 	}
 }

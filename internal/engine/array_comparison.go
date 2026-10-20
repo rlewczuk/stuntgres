@@ -117,7 +117,7 @@ func (b *expressionBinder) resolveComparisonTypes(raw parser.OperatorExpr, lt, r
 
 func (b *expressionBinder) resolveComparisonCandidates(raw parser.OperatorExpr, lt, rt *sqltype.Descriptor, candidates *operatorCandidateSet) (*sqltype.Descriptor, *sqltype.Descriptor, error) {
 	// Internal provider dispatch has already selected and coerced these inputs.
-	if len(raw.Args) == 2 && len(b.selectedOperatorArgs) == 2 {
+	if len(raw.Args) == 2 && len(b.clause.selectedOperatorArgs) == 2 {
 		left, lok := raw.Args[0].(parser.ParameterExpr)
 		right, rok := raw.Args[1].(parser.ParameterExpr)
 		if lok && rok && left.Number == -1 && right.Number == -2 {

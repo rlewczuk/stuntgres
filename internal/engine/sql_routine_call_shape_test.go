@@ -155,9 +155,9 @@ func TestSQLRoutineOriginalArgumentRecipes(t *testing.T) {
 	b.queryAuth = &auth
 	raw := statement(t, "SELECT 1+2").(*parser.Select).Targets[0]
 	node := &literalExpression{Info: expr.Info{Usage: b.Type(sqltype.Int4).Usage()}}
-	b.selectedOperatorArgs = []expr.Expr{node}
-	b.selectedOperatorSyntax = []parser.Expr{raw}
-	b.selectedCallArguments = true
+	b.clause.selectedOperatorArgs = []expr.Expr{node}
+	b.clause.selectedOperatorSyntax = []parser.Expr{raw}
+	b.clause.selectedCallArguments = true
 	carrier := parser.ParameterExpr{Number: -1, Pos: raw.SourcePosition()}
 	argument, err := b.AnalyzeArgument(carrier, functions.AnalysisRequest{Intent: functions.ComparisonArgument})
 	if err != nil || argument.Expression != node {

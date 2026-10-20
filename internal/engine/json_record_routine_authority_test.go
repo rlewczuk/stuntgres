@@ -73,7 +73,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			if tc.base >= 0 {
 				arity = 2
 			}
-			if len(call.Args) != arity || call.Plan.BaseIndex() != tc.base || call.Defined || call.Plan.ResultUsage() != call.ResultUsage() || call.Plan.ReturnsSet() != tc.set || sourceReturnsSet(call) != tc.set || !sourceAdmitted(call) || binder.queryHasTargetSet != tc.set {
+			if len(call.Args) != arity || call.Plan.BaseIndex() != tc.base || call.Defined || call.Plan.ResultUsage() != call.ResultUsage() || call.Plan.ReturnsSet() != tc.set || sourceReturnsSet(call) != tc.set || !sourceAdmitted(call) || binder.clause.queryHasTargetSet != tc.set {
 				t.Fatal("physical arity/base/defined/source/project identity", call)
 			}
 			if call.Properties().Volatility != expr.Stable || call.Properties().StageDependent != tc.set || call.Properties().DomainDependent || call.Properties().RuntimeDomainConversion {
@@ -130,7 +130,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 				// retain the exact original selected declaration, not select again.
 				raw := statement(t, "SELECT "+tc.expression).(*parser.Select).Targets[0].(parser.FunctionExpr)
 				_, sourceBinder, _ := strictNullUnitBind(t, e, op, scope, tc.expression)
-				sourceBinder.aggregateClause = "FROM"
+				sourceBinder.clause.aggregateClause = "FROM"
 				sourceBinder.queryNamespace = &queryNamespace{}
 				e.mu.Lock()
 				source, sourceErr := sourceBinder.bindFunctionSource(raw)
@@ -309,7 +309,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 func TestJSONRecordRoutineFailedConstructor(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	b.aggregateClause = "FROM"
+	b.clause.aggregateClause = "FROM"
 	// A retained physical usage with an invalid integer typmod reaches the
 	// genuine constructor's validation; no alternate provider or fake call is used.
 	usage := b.typ(sqltype.Int4).Usage()

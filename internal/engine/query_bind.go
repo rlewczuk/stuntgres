@@ -123,8 +123,8 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		return nil, err
 	}
 	b.queryNamespace = &namespace
-	b.aggregateClause, b.aggregates = "SELECT", nil
-	b.windowRaw = s.Windows
+	b.clause.aggregateClause, b.grouping.aggregates = "SELECT", nil
+	b.grouping.windowRaw = s.Windows
 	var projection []expr.Expr
 	var targetNames []string
 	var literalTargets []int
@@ -240,7 +240,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 	}
 	width := len(projection)
-	b.aggregateClause = "WHERE"
+	b.clause.aggregateClause = "WHERE"
 	if s.Where != nil {
 		filter, err := b.bindBoolean(s.Where, filterContext, "WHERE")
 		if err != nil {
@@ -258,13 +258,13 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 		root = &filterNode{querySchema: root.Schema(), child: root, predicate: filter}
 	}
-	b.aggregateClause = "GROUP BY"
+	b.clause.aggregateClause = "GROUP BY"
 	keys, comparisons, sets, err := b.bindGroupClause(s.GroupBy, projection, targetNames)
 	if err != nil {
 		return nil, err
 	}
-	b.groupSets = sets
-	b.aggregateClause = "HAVING"
+	b.grouping.groupSets = sets
+	b.clause.aggregateClause = "HAVING"
 	var having expr.Expr
 	if s.Having != nil {
 		var err error
@@ -286,7 +286,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			}
 		}
 	}
-	b.aggregateClause = "ORDER BY"
+	b.clause.aggregateClause = "ORDER BY"
 	order, err := b.bindOrder(s.Order, projection, targetNames, "ORDER BY")
 	if err != nil {
 		return nil, err
@@ -399,7 +399,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			}
 		}
 		if aggregate, ok := expression.(aggregateExpression); ok && aggregate.frame == b.frameID() {
-			operation := b.aggregates[aggregate.slot].operation
+			operation := b.grouping.aggregates[aggregate.slot].operation
 			switch operation {
 			case functions.AggregateJSON, functions.AggregateJSONStrict, functions.AggregateJSONArray, functions.AggregateJSONArrayAbsent, functions.AggregateJSONObject, functions.AggregateJSONObjectStrict:
 				// JSON aggregate projections expose computed nullability, including
@@ -433,7 +433,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			}
 		}
 	}
-	grouped := s.GroupBy != nil || b.groupingActive || len(b.aggregates) > 0 || having != nil
+	grouped := s.GroupBy != nil || b.grouping.active || len(b.grouping.aggregates) > 0 || having != nil
 	var stringAnalysis []expr.Expr
 	if b.params.noParameters || b.consumer.materializedDefinition {
 		stringAnalysis = append(stringAnalysis, projection...)
@@ -454,11 +454,11 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			suffix = "GROUP BY clause"
 		case s.Having != nil:
 			suffix = "HAVING clause"
-		case len(b.aggregates) != 0:
+		case len(b.grouping.aggregates) != 0:
 			suffix = "aggregate functions"
-		case len(b.windowCalls) != 0:
+		case len(b.grouping.windowCalls) != 0:
 			suffix = "window functions"
-		case b.queryHasTargetSet:
+		case b.clause.queryHasTargetSet:
 			suffix = "set-returning functions in the target list"
 		}
 		if suffix != "" {
@@ -475,24 +475,24 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		if err != nil {
 			return nil, err
 		}
-		for i, call := range b.aggregates {
+		for i, call := range b.grouping.aggregates {
 			for j, expr := range call.direct {
 				direct, err := b.rewriteOrderedSetDirect(expr, keys)
 				if err != nil {
 					return nil, err
 				}
-				b.aggregates[i].direct[j] = direct
+				b.grouping.aggregates[i].direct[j] = direct
 			}
 		}
-		schema := make([]catalog.Column, len(keys)+len(b.aggregates)+1)
+		schema := make([]catalog.Column, len(keys)+len(b.grouping.aggregates)+1)
 		for i, key := range keys {
 			schema[i] = catalog.Column{Usage: key.ResultUsage()}
 		}
-		for i, call := range b.aggregates {
+		for i, call := range b.grouping.aggregates {
 			schema[len(keys)+i] = catalog.Column{Usage: call.provider.ResultUsage()}
 		}
 		schema[len(schema)-1] = catalog.Column{Usage: b.typ(sqltype.Int4).Usage()}
-		root = &aggregateNode{querySchema: schema, child: root, keys: runtimeKeys, grouping: comparisons, sets: sets, groupingActive: b.groupingActive, calls: append([]aggregateCall(nil), b.aggregates...)}
+		root = &aggregateNode{querySchema: schema, child: root, keys: runtimeKeys, grouping: comparisons, sets: sets, groupingActive: b.grouping.active, calls: append([]aggregateCall(nil), b.grouping.aggregates...)}
 		for i, expr := range projection {
 			var err error
 			projection[i], err = b.rewriteGroup(expr, keys)
@@ -606,7 +606,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		results = append([]catalog.Column(nil), results...)
 	}
 	analysis := stringAnalysis
-	for _, call := range b.windowCalls {
+	for _, call := range b.grouping.windowCalls {
 		if !call.analysisOnly {
 			continue
 		}
@@ -640,8 +640,8 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			analysis = append(analysis, key.expression)
 		}
 	}
-	for _, definition := range b.windowRaw {
-		spec := b.windowDefinitions[definition.Name.Text]
+	for _, definition := range b.grouping.windowRaw {
+		spec := b.grouping.windowDefinitions[definition.Name.Text]
 		analysis = append(analysis, spec.partition...)
 		for _, key := range spec.order {
 			analysis = append(analysis, key.expression)
@@ -653,7 +653,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			analysis = append(analysis, spec.frame.end.offset)
 		}
 	}
-	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection, analysisExpressions: analysis, frame: b.frameID(), syntax: s, hasTargetSet: b.queryHasTargetSet}, regclassOutput: regclassOutput, visibilitySnapshot: b.consumer.visibilitySnapshot}, nil
+	return &BoundQuery{Root: &projectNode{querySchema: results, child: root, expressions: projection, analysisExpressions: analysis, frame: b.frameID(), syntax: s, hasTargetSet: b.clause.queryHasTargetSet}, regclassOutput: regclassOutput, visibilitySnapshot: b.consumer.visibilitySnapshot}, nil
 }
 
 func (b *expressionBinder) assignOutput(bound expr.Expr, target catalog.Column) (expr.Expr, error) {

@@ -136,9 +136,9 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 			}
 		}
 	}
-	previous, clause := b.target.returningAliases, b.aggregateClause
-	b.target.returningAliases, b.aggregateClause = &aliases, "RETURNING"
-	defer func() { b.target.returningAliases, b.aggregateClause = previous, clause }()
+	previous, clause := b.target.returningAliases, b.clause.aggregateClause
+	b.target.returningAliases, b.clause.aggregateClause = &aliases, "RETURNING"
+	defer func() { b.target.returningAliases, b.clause.aggregateClause = previous, clause }()
 	output := &boundReturning{}
 	appendOutput := func(expression expr.Expr, name string) {
 		descriptor := catalog.Column{Name: name, Usage: expression.ResultUsage()}

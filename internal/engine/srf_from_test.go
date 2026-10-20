@@ -78,7 +78,7 @@ func TestSRFFromBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	source, ok := node.(*functionFromNode)
-	if !ok || !source.regexpNamespace || b.queryHasTargetSet || len(ns.columns) != 2 || ns.columns[0].descriptor.Name != "generate_series" || ns.columns[1].descriptor.Usage.Type.ID() != sqltype.Int8 {
+	if !ok || !source.regexpNamespace || b.clause.queryHasTargetSet || len(ns.columns) != 2 || ns.columns[0].descriptor.Name != "generate_series" || ns.columns[1].descriptor.Usage.Type.ID() != sqltype.Int8 {
 		t.Fatal(node, ns)
 	}
 	if got := srfFromUnitRows(t, source); !reflect.DeepEqual(got, [][]any{{int64(2), int64(1)}, {int64(3), int64(2)}, {int64(4), int64(3)}}) {
@@ -240,13 +240,13 @@ func TestSRFFromOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	b.queryAuth = &auth
-	b.aggregateClause = "FROM"
+	b.clause.aggregateClause = "FROM"
 	parentCall := nullCountRaw("generate_series", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 2}})
 	parentCall.Pos = parser.Position{Character: 19, Offset: 18}
 	if _, err := b.bindFunction(parentCall); err != nil {
 		t.Fatal(err)
 	}
-	parent := b.fromSetObservation
+	parent := b.clause.fromSetObservation
 	childCall := parentCall
 	childCall.Pos = parser.Position{Character: 71, Offset: 70}
 	for _, fails := range []bool{false, true} {
@@ -255,8 +255,8 @@ func TestSRFFromOwnership(t *testing.T) {
 			target = nullCountRaw("generate_series", parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: false}})
 		}
 		_, err := b.bindSelect(&parser.Select{From: &parser.FunctionTable{Calls: []parser.FunctionExpr{childCall}}, Targets: []parser.Expr{target}}, false)
-		if (err != nil) != fails || b.fromSetObservation != parent || b.aggregateClause != "FROM" {
-			t.Fatal("child query observation restoration", fails, b.fromSetObservation, err)
+		if (err != nil) != fails || b.clause.fromSetObservation != parent || b.clause.aggregateClause != "FROM" {
+			t.Fatal("child query observation restoration", fails, b.clause.fromSetObservation, err)
 		}
 	}
 }

@@ -109,7 +109,7 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 		return err
 	}
 	binder.queryNamespace = &combined
-	binder.aggregateClause = "JOIN conditions"
+	binder.clause.aggregateClause = "JOIN conditions"
 	on, err := binder.bind(s.On, expressionPolicy{context: projectionContext})
 	if err != nil {
 		return err
@@ -179,7 +179,7 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 		arm.match, arm.action = raw.Match, raw.Action
 		if raw.Condition != nil {
 			binder.target.mergeWhen = true
-			binder.aggregateClause = "WHEN"
+			binder.clause.aggregateClause = "WHEN"
 			arm.condition, err = binder.bindBoolean(raw.Condition, filterContext, "WHEN")
 			binder.target.mergeWhen = false
 			if err != nil {
@@ -193,7 +193,7 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 		case parser.MergeDeleteAction:
 			merge.hasDelete = true
 		case parser.MergeUpdateAction:
-			binder.aggregateClause = "UPDATE"
+			binder.clause.aggregateClause = "UPDATE"
 			u := &boundUpdate{assignments: make([]expr.Expr, len(raw.Assignments))}
 			if err := e.bindUpdateAssignments(&arm.input, binder, raw.Assignments, u); err != nil {
 				return err

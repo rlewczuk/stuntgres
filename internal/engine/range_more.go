@@ -87,9 +87,9 @@ func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (expr.Expr, error
 	if err := b.stringSetAllowed(raw.Pos); err != nil {
 		return nil, err
 	}
-	switch b.aggregateClause {
+	switch b.clause.aggregateClause {
 	case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
-		b.queryHasTargetSet = true
+		b.clause.queryHasTargetSet = true
 	}
 	properties := expr.MergeProperties(expr.Properties{Volatility: expr.Immutable, StageDependent: true}, arg.Properties())
 	usage := result.Usage()

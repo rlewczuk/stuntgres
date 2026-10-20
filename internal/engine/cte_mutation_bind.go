@@ -108,7 +108,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 				return b, err
 			}
 			binder.queryNamespace = &target
-			binder.aggregateClause = "DELETE"
+			binder.clause.aggregateClause = "DELETE"
 		}
 		if s.Where != nil {
 			b.predicate, err = binder.bind(s.Where, expressionPolicy{context: filterContext})
@@ -195,7 +195,7 @@ func (b *expressionBinder) bindCTEMutation(statement parser.Statement) (binding,
 	targetName, targetAlias, uses := b.target.name, b.target.alias, b.target.uses
 	returningRead := b.target.returningReadRequired
 	subqueries, visibility := b.subqueryDemand, b.consumer.visibilitySnapshot
-	singleInsert := b.stringSingleInsert
+	singleInsert := b.clause.stringSingleInsert
 	restoreQuery := b.enterQuery(true)
 	defer func() {
 		restoreQuery()
@@ -206,14 +206,14 @@ func (b *expressionBinder) bindCTEMutation(statement parser.Statement) (binding,
 		b.target.name, b.target.alias, b.target.uses = targetName, targetAlias, uses
 		b.target.returningReadRequired = returningRead
 		b.subqueryDemand, b.consumer.visibilitySnapshot = subqueries, visibility
-		b.stringSingleInsert = singleInsert
+		b.clause.stringSingleInsert = singleInsert
 	}()
 	b.target.relation, b.target.ref, b.target.insertTarget = nil, ids.ObjectRef{}, nil
 	b.params.updateParameters, b.params.updateInputParameters = false, nil
 	b.target.deleteTarget, b.target.deleteUsingSources, b.target.mergeWhen, b.target.mergeInput = false, false, false, false
 	b.target.name, b.target.alias, b.target.uses = "", "", nil
 	b.target.returningReadRequired, b.subqueryDemand, b.consumer.visibilitySnapshot = false, false, false
-	b.stringSingleInsert = false
+	b.clause.stringSingleInsert = false
 	b.queryFrame = 0 // Installed mutation/RETURNING row frames are frame 1.
 	oldCTEs := len(b.cteBindings)
 	defer func() { b.cteBindings = b.cteBindings[:oldCTEs] }()

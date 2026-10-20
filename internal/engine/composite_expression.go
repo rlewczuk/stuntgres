@@ -707,7 +707,7 @@ func (s *functionProjectionScope) matches(raw parser.Expr) bool {
 	return s.argumentKind != 0 && raw.SourcePosition() == s.argumentPos && projectionArgumentKind(raw) == s.argumentKind
 }
 func (b *expressionBinder) noteFunctionSignature(name parser.ObjectName, pos parser.Position, err error) {
-	scope := &b.functionProjection
+	scope := &b.clause.functionProjection
 	if scope.argumentKind == 0 || scope.pos != pos || len(name.Parts) != len(scope.name.Parts) {
 		return
 	}
@@ -720,17 +720,17 @@ func (b *expressionBinder) noteFunctionSignature(name parser.ObjectName, pos par
 }
 
 func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (result expr.Expr, failure error) {
-	before := b.fromSetObservation
+	before := b.clause.fromSetObservation
 	defer func() {
-		if failure != nil || b.aggregateClause != "FROM" || !sourceReturnsSet(result) {
+		if failure != nil || b.clause.aggregateClause != "FROM" || !sourceReturnsSet(result) {
 			return
 		}
-		if b.fromSetObservation != before {
-			result, failure = nil, nestedFromSetError(b.fromSetObservation.pos)
+		if b.clause.fromSetObservation != before {
+			result, failure = nil, nestedFromSetError(b.clause.fromSetObservation.pos)
 			return
 		}
-		b.fromSetObservation.generation++
-		b.fromSetObservation.pos = raw.Pos
+		b.clause.fromSetObservation.generation++
+		b.clause.fromSetObservation.pos = raw.Pos
 	}()
 	if raw.Within {
 		combined := raw
@@ -748,12 +748,12 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (result expr.Ex
 		return nil, expr.ErrorAt("42809", "WITHIN GROUP specified, but "+name+" is not an aggregate function", raw.Pos)
 	}
 	eligible := len(raw.Name.Parts) == 1 && len(raw.Args) == 1 && len(raw.ArgNames) == 0 && !raw.Variadic && !raw.ResolutionOnly && raw.Syntax == parser.OrdinaryFunctionSyntax && raw.Filter == nil && raw.Window == nil && !raw.Star && !raw.Distinct && !raw.All && len(raw.Order) == 0
-	previousProjection := b.functionProjection
-	b.functionProjection = functionProjectionScope{}
+	previousProjection := b.clause.functionProjection
+	b.clause.functionProjection = functionProjectionScope{}
 	if eligible {
-		b.functionProjection = functionProjectionScope{name: raw.Name, pos: raw.Pos, argumentPos: raw.Args[0].SourcePosition(), argumentKind: projectionArgumentKind(raw.Args[0])}
+		b.clause.functionProjection = functionProjectionScope{name: raw.Name, pos: raw.Pos, argumentPos: raw.Args[0].SourcePosition(), argumentKind: projectionArgumentKind(raw.Args[0])}
 	}
-	defer func() { b.functionProjection = previousProjection }()
+	defer func() { b.clause.functionProjection = previousProjection }()
 	suppressed := eligible && directWholeCandidate(raw.Args[0])
 	previous := b.suppressWholePresence
 	if suppressed {
@@ -767,10 +767,10 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (result expr.Ex
 		}
 		return node, nil
 	}
-	if !eligible || b.functionProjection.noMatch != err || b.functionProjection.operand == nil {
+	if !eligible || b.clause.functionProjection.noMatch != err || b.clause.functionProjection.operand == nil {
 		return nil, err
 	}
-	base := b.functionProjection.operand
+	base := b.clause.functionProjection.operand
 	key := preparedCompositeKey{offset: raw.Pos.Offset, kind: compositeSelection}
 	captured, retained, failure := b.retainedComposite(key, base.ResultUsage())
 	if failure != nil {

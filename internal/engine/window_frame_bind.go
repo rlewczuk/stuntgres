@@ -13,16 +13,16 @@ func (b *expressionBinder) bindWindowBound(raw parser.FrameBound, order []sortKe
 	if raw.Offset == nil {
 		return bound, nil
 	}
-	old := b.aggregateClause
-	aggregates, windows := b.aggregates, b.windowCalls
-	b.aggregateClause = "window RANGE"
-	defer func() { b.aggregateClause = old; b.aggregates = aggregates; b.windowCalls = windows }()
+	old := b.clause.aggregateClause
+	aggregates, windows := b.grouping.aggregates, b.grouping.windowCalls
+	b.clause.aggregateClause = "window RANGE"
+	defer func() { b.clause.aggregateClause = old; b.grouping.aggregates = aggregates; b.grouping.windowCalls = windows }()
 	if unit == parser.FrameGroups || unit == parser.FrameRows {
 		label := "GROUPS"
 		if unit == parser.FrameRows {
 			label = "ROWS"
 		}
-		b.aggregateClause = "window " + label
+		b.clause.aggregateClause = "window " + label
 		var err error
 		bound.offset, err = b.bindQueryBound(raw.Offset, label, viewWindowLiteral, false)
 		return bound, err

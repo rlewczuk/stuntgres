@@ -234,26 +234,26 @@ func TestQueryWindowNtileBindingUnwind(t *testing.T) {
 		{"SELECT ntile(missing) OVER()", "42703"},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		b.aggregateClause, b.queryFrame = "SELECT", 1
+		b.clause.aggregateClause, b.queryFrame = "SELECT", 1
 		for _, q := range []string{"SELECT sum(1)", "SELECT row_number() OVER()"} {
 			if _, err := b.bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext}); err != nil {
 				t.Fatal(err)
 			}
 		}
-		before := b.windowCalls[:len(b.windowCalls):len(b.windowCalls)]
-		b.windowCalls = before
+		before := b.grouping.windowCalls[:len(b.grouping.windowCalls):len(b.grouping.windowCalls)]
+		b.grouping.windowCalls = before
 		values := append([]windowCall(nil), before...)
-		aggregates := b.aggregates[:len(b.aggregates):len(b.aggregates)]
-		b.aggregates = aggregates
+		aggregates := b.grouping.aggregates[:len(b.grouping.aggregates):len(b.grouping.aggregates)]
+		b.grouping.aggregates = aggregates
 		_, err := b.bind(statement(t, tc.q).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code {
 			t.Fatal(tc, err)
 		}
-		if len(b.windowCalls) != len(before) || cap(b.windowCalls) != cap(before) || &b.windowCalls[0] != &before[0] || !reflect.DeepEqual(values, b.windowCalls) || b.argumentOwner != (argumentWindowOwner{}) {
-			t.Fatal("failed call changed window registration/owner", tc, b.windowCalls, b.argumentOwner)
+		if len(b.grouping.windowCalls) != len(before) || cap(b.grouping.windowCalls) != cap(before) || &b.grouping.windowCalls[0] != &before[0] || !reflect.DeepEqual(values, b.grouping.windowCalls) || b.grouping.argumentOwner != (argumentWindowOwner{}) {
+			t.Fatal("failed call changed window registration/owner", tc, b.grouping.windowCalls, b.grouping.argumentOwner)
 		}
-		if len(b.aggregates) != len(aggregates) || cap(b.aggregates) != cap(aggregates) || &b.aggregates[0] != &aggregates[0] {
+		if len(b.grouping.aggregates) != len(aggregates) || cap(b.grouping.aggregates) != cap(aggregates) || &b.grouping.aggregates[0] != &aggregates[0] {
 			t.Fatal("failed call changed aggregate registration", tc)
 		}
 	}

@@ -133,7 +133,7 @@ func boundExpressionChildren(node expr.Expr, walk func(expr.Expr)) {
 
 func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 	e := node.(aggregateExpression)
-	call := b.aggregates[e.slot]
+	call := b.grouping.aggregates[e.slot]
 	walkArguments := func(visit func(expr.Expr)) {
 		// Ordered-set direct args do not select the aggregate's owner.
 		ownerCall := call
@@ -141,7 +141,7 @@ func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 		ownerCall.expressions(func(expr expr.Expr) { walkQueryArgumentExpression(expr, visit) })
 	}
 	owner, index := b.argumentQueryOwner(walkArguments)
-	clause := b.aggregateClause
+	clause := b.clause.aggregateClause
 	if index >= 0 {
 		clause = b.queryScopes[index].clause
 	}
@@ -222,8 +222,8 @@ func (b *expressionBinder) ownAggregate(node expr.Expr) (expr.Expr, error) {
 	if index >= 0 {
 		// This call was registered locally by the existing provider binder.
 		// Removing its last registration transfers execution to its lexical owner.
-		if e.slot == len(b.aggregates)-1 {
-			b.aggregates = b.aggregates[:e.slot]
+		if e.slot == len(b.grouping.aggregates)-1 {
+			b.grouping.aggregates = b.grouping.aggregates[:e.slot]
 		}
 		s := &b.queryScopes[index]
 		e.slot = len(s.aggregates)
@@ -296,8 +296,8 @@ func (b *expressionBinder) argumentQueryOwner(walk func(func(expr.Expr))) (uint3
 
 func (b *expressionBinder) aggregateCallAt(e aggregateExpression) (aggregateCall, bool) {
 	if e.frame == 0 || e.frame == b.frameID() {
-		if e.slot >= 0 && e.slot < len(b.aggregates) {
-			return b.aggregates[e.slot], true
+		if e.slot >= 0 && e.slot < len(b.grouping.aggregates) {
+			return b.grouping.aggregates[e.slot], true
 		}
 		return aggregateCall{}, false
 	}

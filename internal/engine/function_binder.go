@@ -21,8 +21,8 @@ func (b *expressionBinder) Type(id sqltype.ID) *sqltype.Descriptor { return b.ty
 // OriginalArgument recovers syntax only through the same private slot that
 // supplies an already-analyzed operand. It never binds or matches source keys.
 func (b *expressionBinder) OriginalArgument(raw parser.Expr) (parser.Expr, bool) {
-	if slot, ok := raw.(parser.ParameterExpr); ok && slot.Number < 0 && -slot.Number <= len(b.selectedOperatorSyntax) {
-		return b.selectedOperatorSyntax[-slot.Number-1], true
+	if slot, ok := raw.(parser.ParameterExpr); ok && slot.Number < 0 && -slot.Number <= len(b.clause.selectedOperatorSyntax) {
+		return b.clause.selectedOperatorSyntax[-slot.Number-1], true
 	}
 	return raw, false
 }
@@ -86,9 +86,9 @@ func (b *expressionBinder) AdmitSetReturning(pos parser.Position) error {
 	if err := b.stringSetAllowed(pos); err != nil {
 		return err
 	}
-	switch b.aggregateClause {
+	switch b.clause.aggregateClause {
 	case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
-		b.queryHasTargetSet = true
+		b.clause.queryHasTargetSet = true
 	}
 	return nil
 }
@@ -151,9 +151,9 @@ func (b *expressionBinder) CapturePolymorphicBody(node expr.Expr) error {
 }
 
 func (b *expressionBinder) TargetSet() {
-	switch b.aggregateClause {
+	switch b.clause.aggregateClause {
 	case "SELECT", "GROUP BY", "ORDER BY", "DISTINCT ON", "window definitions":
-		b.queryHasTargetSet = true
+		b.clause.queryHasTargetSet = true
 	}
 }
 
@@ -182,7 +182,7 @@ func (b *expressionBinder) FinishAggregate(raw parser.AggregateExpr, call functi
 	}
 	// ORDER BY matching may have resolved an UNKNOWN target; only an actual
 	// remaining ANY occurrence joins the unresolved-parameter guard.
-	b.RetainUntypedParameter(b.aggregates[result.(aggregateExpression).slot].argument)
+	b.RetainUntypedParameter(b.grouping.aggregates[result.(aggregateExpression).slot].argument)
 	return result, nil
 }
 

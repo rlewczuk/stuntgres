@@ -128,7 +128,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 	if !p.RowDependent || !p.ParameterDependent || p.StageDependent || p.Volatility != expr.Volatile || plannedVolatility(volatile) != expr.Volatile || generationImmutable(volatile) {
 		t.Fatal(p)
 	}
-	flags.aggregateClause = "SELECT"
+	flags.clause.aggregateClause = "SELECT"
 	stage, err := flags.bind(datetimeMakeRaw("date_bin", parser.ParameterExpr{Number: 1}, parser.AggregateExpr{Name: "min", Args: []parser.Expr{column}}, column), expressionPolicy{context: projectionContext})
 	if err != nil {
 		t.Fatal(err)

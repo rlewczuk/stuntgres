@@ -38,7 +38,7 @@ func (e *Engine) bindInsertConflictUpdate(b *binding, binder *expressionBinder, 
 		frame:      append(append([]catalog.Column(nil), target.frame...), target.frame...),
 	}
 	binder.queryNamespace = &namespace
-	binder.aggregateClause = "UPDATE"
+	binder.clause.aggregateClause = "UPDATE"
 	action := &boundUpdate{assignments: make([]expr.Expr, len(s.Conflict.Assignments))}
 	actionBinding := *b
 	actionBinding.targets = nil

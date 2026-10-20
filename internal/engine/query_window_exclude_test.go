@@ -334,8 +334,8 @@ func TestQueryWindowExcludeLiteralCapture(t *testing.T) {
 	binder := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
 	project := query.Root.(*projectNode)
 	window := project.child.(*windowNode)
-	binder.windowCalls = append([]windowCall(nil), window.calls...)
-	binder.windowCalls[0].spec = window.specs[0]
+	binder.grouping.windowCalls = append([]windowCall(nil), window.calls...)
+	binder.grouping.windowCalls[0].spec = window.specs[0]
 	raw := statement(t, sql).(*parser.Select).Targets[0]
 	if err := binder.captureViewLiterals(raw, project.expressions[0], viewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
