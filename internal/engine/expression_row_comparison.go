@@ -3,7 +3,7 @@ package engine
 import (
 	"fmt"
 	"strconv"
-	"strings"
+
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -159,29 +159,6 @@ func (b *expressionBinder) bindRowPredicateOperands(raw parser.OperatorExpr, ope
 		}
 	}
 	return e, nil
-}
-
-func renderRowComparison(e plan.RowComparisonExpr, operand func(expr.Expr) (string, error), operator string) (string, error) {
-	if len(e.Comparisons) == 0 && !e.Distinct() {
-		return "", fmt.Errorf("stuntgres: invalid stored row comparison")
-	}
-	left, right := make([]string, len(e.Comparisons)), make([]string, len(e.Comparisons))
-	for i, pair := range e.Comparisons {
-		var err error
-		left[i], err = operand(pair.Left)
-		if err != nil {
-			return "", err
-		}
-		right[i], err = operand(pair.Right)
-		if err != nil {
-			return "", err
-		}
-	}
-	constructor := ""
-	if len(e.Comparisons) < 2 {
-		constructor = "ROW"
-	}
-	return "(" + constructor + "(" + strings.Join(left, ", ") + ") " + operator + " " + constructor + "(" + strings.Join(right, ", ") + "))", nil
 }
 
 // Reuse the constructor's copy-on-change ownership mapping for analysis-only

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
@@ -812,4 +813,59 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 	default:
 		return "", fmt.Errorf("stuntgres: unsupported deparse node %T", node)
 	}
+}
+
+func renderScalarArrayComparison(n plan.ScalarArrayComparisonExpr, child func(expr.Expr) (string, error), identifier func(string) string) (string, error) {
+	left, err := child(n.Left)
+	if err != nil {
+		return "", err
+	}
+	var right string
+	if n.Array != nil {
+		right, err = child(n.Array)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		items := make([]string, len(n.Items))
+		for i, item := range n.Items {
+			items[i], err = child(item)
+			if err != nil {
+				return "", err
+			}
+		}
+		right = "ARRAY[" + strings.Join(items, ", ") + "]"
+	}
+	operator := n.Operator
+	if n.Namespace != "" {
+		operator = "OPERATOR(" + identifier(n.Namespace) + "." + operator + ")"
+	}
+	quantifier := "ANY"
+	if n.All {
+		quantifier = "ALL"
+	}
+	return "(" + left + " " + operator + " " + quantifier + " (" + right + "))", nil
+}
+
+func renderRowComparison(e plan.RowComparisonExpr, operand func(expr.Expr) (string, error), operator string) (string, error) {
+	if len(e.Comparisons) == 0 && !e.Distinct() {
+		return "", fmt.Errorf("stuntgres: invalid stored row comparison")
+	}
+	left, right := make([]string, len(e.Comparisons)), make([]string, len(e.Comparisons))
+	for i, pair := range e.Comparisons {
+		var err error
+		left[i], err = operand(pair.Left)
+		if err != nil {
+			return "", err
+		}
+		right[i], err = operand(pair.Right)
+		if err != nil {
+			return "", err
+		}
+	}
+	constructor := ""
+	if len(e.Comparisons) < 2 {
+		constructor = "ROW"
+	}
+	return "(" + constructor + "(" + strings.Join(left, ", ") + ") " + operator + " " + constructor + "(" + strings.Join(right, ", ") + "))", nil
 }

@@ -355,3 +355,9 @@ func bindingSessionToken(host analyzeHost) ids.SessionToken {
 	owner, _, _ := host.PlanOwner()
 	return owner
 }
+
+// newExpressionBinder is the root construction point: it binds through the
+// engine's host for op.
+func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
+	return newHostedBinder(ctx, e.analysisHost(op), input, expectedOf(expected))
+}

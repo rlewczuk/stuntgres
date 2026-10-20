@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"strings"
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -476,38 +475,6 @@ func mapScalarArrayChildren(n plan.ScalarArrayComparisonExpr, child func(expr.Ex
 		n.Items = items
 	}
 	return n, changed, nil
-}
-
-func renderScalarArrayComparison(n plan.ScalarArrayComparisonExpr, child func(expr.Expr) (string, error), identifier func(string) string) (string, error) {
-	left, err := child(n.Left)
-	if err != nil {
-		return "", err
-	}
-	var right string
-	if n.Array != nil {
-		right, err = child(n.Array)
-		if err != nil {
-			return "", err
-		}
-	} else {
-		items := make([]string, len(n.Items))
-		for i, item := range n.Items {
-			items[i], err = child(item)
-			if err != nil {
-				return "", err
-			}
-		}
-		right = "ARRAY[" + strings.Join(items, ", ") + "]"
-	}
-	operator := n.Operator
-	if n.Namespace != "" {
-		operator = "OPERATOR(" + identifier(n.Namespace) + "." + operator + ")"
-	}
-	quantifier := "ANY"
-	if n.All {
-		quantifier = "ALL"
-	}
-	return "(" + left + " " + operator + " " + quantifier + " (" + right + "))", nil
 }
 
 func arithmeticOperator(name string) sqltype.ArithmeticOperator {
