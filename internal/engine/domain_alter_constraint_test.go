@@ -175,7 +175,7 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 	if err == nil {
 		err = stage.Replace(&next)
 	}
-	stage.domainAlter = context.Background()
+	stage.domainAlterState().ctx = context.Background()
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -199,7 +199,7 @@ func TestDomainAlterConstraintGenerations(t *testing.T) {
 	if err := drop.removeDomainCheck(newD, newD.DomainChecks[0].OID); err != nil {
 		t.Fatal(err)
 	}
-	drop.domainAlter = context.Background()
+	drop.domainAlterState().ctx = context.Background()
 	domainUnitPublish(t, e, drop)
 	if domainUnitType(t, e.CatalogRead(), "child").SQLType.HasDomainChecks() || !newChild.SQLType.HasDomainChecks() || !newD.DomainChecks[0].NotValid {
 		t.Fatal("last DROP changed retained generations")

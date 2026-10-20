@@ -50,8 +50,8 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	stage.authorizeLocked(auth, op.session)
 	stage.dependencyPath = path
 	stage.domainBases = append(stage.domainBases, typ)
-	stage.typedSource = typ.Address()
-	stage.typedObserved = typedClosure(auth.Catalog, typ.Address())
+	stage.typedState().source = typ.Address()
+	stage.typedState().observed = typedClosure(auth.Catalog, typ.Address())
 	targets := typedPropagationOrder(auth.Catalog, typ.Address())
 	if len(targets) != 0 {
 		restrict := s.Rename != nil && s.Mode != parser.DropCascade

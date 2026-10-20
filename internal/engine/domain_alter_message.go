@@ -12,7 +12,7 @@ import (
 // instead fences their committed predecessors, never private-vs-committed pointer
 // equality and never another execution of the selected CHECK.
 func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogChanges, current *catalog.State) error {
-	if fence := stage.domainValidation; fence != nil {
+	if fence := stage.domainAlter.validationFence(); fence != nil {
 		stores := make(map[ids.ObjectAddress]*storage.Relation, len(fence.uses))
 		for _, use := range fence.uses {
 			stores[use.relation.Address()] = e.stageStorageLocked(stage, use.relation.Address())
@@ -38,12 +38,12 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 		}
 		changes.domainValidations = append(changes.domainValidations, committed)
 	}
-	if len(stage.domainIndexRoots) != 0 {
+	if len(stage.domainAlter.alteredIndexRoots()) != 0 {
 		changes.domainIndexRoots = maps.Clone(changes.domainIndexRoots)
 		if changes.domainIndexRoots == nil {
 			changes.domainIndexRoots = make(map[ids.ObjectAddress]*storage.IndexRoot)
 		}
-		for address, root := range stage.domainIndexRoots {
+		for address, root := range stage.domainAlter.alteredIndexRoots() {
 			if e.domainStageIndexRootLocked(stage, address) != root {
 				return catalog.Conflict{}
 			}
@@ -65,7 +65,7 @@ func (e *Engine) domainStageIndexRootLocked(stage *CatalogStage, address ids.Obj
 }
 
 func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes *catalogChanges) error {
-	if stage.domainAlter == nil {
+	if stage.domainAlter.alterContext() == nil {
 		return nil
 	}
 	e := scope.op.session.Engine()

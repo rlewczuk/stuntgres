@@ -85,7 +85,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		return Result{}, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.domainAlter = op.Context()
+	stage.domainAlterState().ctx = op.Context()
 	stage.authorizeLocked(auth, op.session)
 	scope.routineAuth = auth
 	scope.domainInputCatalog = auth.Catalog
@@ -212,7 +212,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		if graphErr != nil {
 			return Result{}, graphErr
 		}
-		stage.domainValidation = fence
+		stage.domainAlterState().validation = fence
 		for _, use := range fence.uses {
 			writes, deletes := scope.columnProjectionRoots(use.relation.Address())
 			if err := evaluation.validateSelectedDomainRows(auth.Catalog, &chosen, use, frontier, writes, deletes); err != nil {

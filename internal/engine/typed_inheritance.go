@@ -60,14 +60,14 @@ func typedClosure(view catalog.Read, source ids.ObjectAddress) map[ids.ObjectAdd
 }
 
 func typedObservationValid(stage *CatalogStage, current catalog.Read) bool {
-	if stage.typedSource == (ids.ObjectAddress{}) {
+	if stage.typed.sourceType() == (ids.ObjectAddress{}) {
 		return true
 	}
-	observed := typedClosure(current, stage.typedSource)
-	if len(observed) != len(stage.typedObserved) {
+	observed := typedClosure(current, stage.typed.sourceType())
+	if len(observed) != len(stage.typed.observedTables()) {
 		return false
 	}
-	for address, descriptor := range stage.typedObserved {
+	for address, descriptor := range stage.typed.observedTables() {
 		if observed[address] != descriptor {
 			return false
 		}

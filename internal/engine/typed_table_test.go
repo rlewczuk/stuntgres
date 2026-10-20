@@ -142,8 +142,8 @@ func TestTypedDirectGuardLookupOrdering(t *testing.T) {
 func typedRenameStage(t *testing.T, e *Engine, source, table *catalog.Relation) *CatalogStage {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
-	stage.typedSource = table.OfType
-	stage.typedObserved = typedClosure(stage.Base, table.OfType)
+	stage.typedState().source = table.OfType
+	stage.typedState().observed = typedClosure(stage.Base, table.OfType)
 	for _, old := range []*catalog.Relation{source, table} {
 		next, err := renameColumnCandidate(old, "note", "label")
 		if err != nil {

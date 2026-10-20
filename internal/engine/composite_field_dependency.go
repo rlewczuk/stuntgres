@@ -164,10 +164,10 @@ func (provider *dropProvider) compositeFieldNotice(message string) {
 
 // Only the already admitted typed propagation closure may prune inherited CHECKs.
 func typedFieldCheckOwner(stage *CatalogStage, relation *catalog.Relation) bool {
-	if stage.typedSource == (ids.ObjectAddress{}) || stage.typedObserved[relation.Address()] == nil {
+	if stage.typed.sourceType() == (ids.ObjectAddress{}) || stage.typed.observedTables()[relation.Address()] == nil {
 		return false
 	}
-	if relation.OfType == stage.typedSource {
+	if relation.OfType == stage.typed.sourceType() {
 		return true
 	}
 	if relation.Inheritance != nil {

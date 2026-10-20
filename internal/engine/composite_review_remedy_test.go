@@ -60,8 +60,8 @@ func TestCompositeAlterMaterializedStoredGuard(t *testing.T) {
 		view := e.catalog.read(&state)
 		domainUnitDiagnostic(t, rowRewriteError(view, source), "0A000", `cannot alter type "pair" because column "typed.v" uses it`)
 		stage := e.BeginCatalogStage(before)
-		stage.typedSource = table.OfType
-		stage.typedObserved = typedClosure(before, table.OfType)
+		stage.typedState().source = table.OfType
+		stage.typedState().observed = typedClosure(before, table.OfType)
 		if typedObservationValid(stage, view) {
 			t.Fatal("late materialized consumer escaped final observation")
 		}
@@ -132,8 +132,8 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 	before := e.CatalogRead()
 	stage := e.BeginCatalogStage(before)
 	defer e.DiscardCatalogStage(stage)
-	stage.typedSource = table.OfType
-	stage.typedObserved = typedClosure(before, table.OfType)
+	stage.typedState().source = table.OfType
+	stage.typedState().observed = typedClosure(before, table.OfType)
 	if err := stageCompositeFieldDependencies(stage, source, source.Attributes[0], parser.DropCascade, nil); err != nil {
 		t.Fatal(err)
 	}

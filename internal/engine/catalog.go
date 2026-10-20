@@ -351,8 +351,7 @@ type CatalogStage struct {
 	indexSets           map[ids.ObjectAddress]int
 	indexOutput         sqltype.OutputEnvironment
 	sequence            *sequenceStage
-	typedSource         ids.ObjectAddress
-	typedObserved       map[ids.ObjectAddress]catalog.Descriptor
+	typed               *typedStage
 	lifecycle           catalogLifecycle
 	invalid             error
 	authSession         *Session
@@ -369,9 +368,7 @@ type CatalogStage struct {
 	dependencyPath     []ids.ObjectAddress
 	domainTargets      []ids.ObjectAddress
 	domainBases        []catalog.Descriptor
-	domainValidation   *domainValidationFence
-	domainAlter        context.Context
-	domainIndexRoots   map[ids.ObjectAddress]*storage.IndexRoot
+	domainAlter        *domainAlterStage
 	// Physical retirement alone may saturate dependent descriptor/store/index
 	// counters; fresh identities and exact predecessor fences remain mandatory.
 	terminalCleanup bool
@@ -767,11 +764,11 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			e.mu.Unlock()
 			return ChangeSet{}, err
 		}
-		if !e.storage.IndexRootsCurrent(s.domainIndexRoots) {
+		if !e.storage.IndexRootsCurrent(s.domainAlter.alteredIndexRoots()) {
 			e.mu.Unlock()
 			return ChangeSet{}, catalog.Conflict{}
 		}
-		if s.domainValidation != nil && !s.domainValidation.current(e.catalog.read(current), currentStorage) {
+		if fence := s.domainAlter.validationFence(); fence != nil && !fence.current(e.catalog.read(current), currentStorage) {
 			e.mu.Unlock()
 			return ChangeSet{}, catalog.Conflict{}
 		}
@@ -1146,10 +1143,10 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			}
 		}
 		err := p.ctx.Err()
-		if err == nil && !e.storage.IndexRootsCurrent(s.domainIndexRoots) {
+		if err == nil && !e.storage.IndexRootsCurrent(s.domainAlter.alteredIndexRoots()) {
 			err = catalog.Conflict{}
 		}
-		if err == nil && s.domainValidation != nil && !s.domainValidation.current(e.catalog.read(e.catalog.state), e.storage.Relations) {
+		if fence := s.domainAlter.validationFence(); err == nil && fence != nil && !fence.current(e.catalog.read(e.catalog.state), e.storage.Relations) {
 			err = catalog.Conflict{}
 		}
 		if err == nil && s.databasePredecessor != nil && e.catalog.state.Get(catalog.CurrentDatabaseAddress) != s.databasePredecessor {
