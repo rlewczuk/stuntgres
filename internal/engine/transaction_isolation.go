@@ -50,7 +50,7 @@ func syncCharacteristics(t *transactionOwner) {
 	}
 	e.mu.Unlock()
 }
-func (t *transactionOwner) assignModes(modes []parser.TransactionMode) error {
+func assignModes(t *transactionOwner, modes []parser.TransactionMode) error {
 	isolation, readOnly, deferrable := t.isolation, t.readOnly, t.deferrable
 	for _, mode := range modes {
 		if mode.Isolation != parser.IsolationDefault {
@@ -110,7 +110,7 @@ func (e *Engine) applyCurrentCharacteristic(op *Operation, d settings.Definition
 		mode.AccessSet = true
 		mode.ReadOnly = d.Format(value) == "on"
 	}
-	if err := t.assignModes([]parser.TransactionMode{mode}); err != nil {
+	if err := assignModes(t, []parser.TransactionMode{mode}); err != nil {
 		return "", err
 	}
 	if d.Name == "transaction_isolation" {
@@ -171,7 +171,7 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 	if !t.inBlock() {
 		s.op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET TRANSACTION can only be used in transaction blocks"})
 	}
-	err := t.assignModes(stmt.Modes)
+	err := assignModes(t, stmt.Modes)
 	if err == nil {
 		s.completed = true
 	}

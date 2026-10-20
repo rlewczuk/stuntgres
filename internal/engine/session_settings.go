@@ -213,7 +213,7 @@ func (s *sessionSettings) initialize(ctx context.Context, definitions map[string
 			}
 		}
 		if (d.Access == settings.StartupOnly || d.Name == "server_encoding" || d.Name == "log_statement_stats") && normalized != d.BootDefault {
-			return RegistrationError("default provider cannot change " + d.Name)
+			return errors.New("stuntgres: default provider cannot change " + d.Name)
 		}
 		if err := ctx.Err(); err != nil {
 			return err

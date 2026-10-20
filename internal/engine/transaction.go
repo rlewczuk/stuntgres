@@ -237,7 +237,7 @@ func (e *Engine) Begin(op *Operation, options TxOptions) (ids.TxRef, error) {
 }
 
 func (t *transactionOwner) validate(ref ids.TxRef) error {
-	if ref.Domain() != t.session.token.Domain() || ref.Session() != t.session.token || ref.ID() == 0 || txOwnerOf(ref) != t {
+	if ref.Domain() != t.session.token.Domain() || ref.Session() != t.session.token || ref.ID() == 0 || ref.Attachment() != ids.TxOwner(t) {
 		return errors.New("stuntgres: foreign or missing transaction reference")
 	}
 	if t.state == TxIdle || ref != t.ref {

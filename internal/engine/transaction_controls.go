@@ -341,7 +341,7 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 			_, err = e.beginAdmitted(s.op, t, s.transactionStart)
 			if err == nil {
 				t.mu.Lock()
-				err = t.assignModes(control.Modes)
+				err = assignModes(t, control.Modes)
 				t.mu.Unlock()
 			}
 		} else if state == TxImplicit {
@@ -349,7 +349,7 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 			if err == nil {
 				t.mu.Lock()
 				t.state = TxActive
-				err = t.assignModes(control.Modes)
+				err = assignModes(t, control.Modes)
 				t.mu.Unlock()
 				t.session.mu.Lock()
 				t.session.timeouts.explicit = true
