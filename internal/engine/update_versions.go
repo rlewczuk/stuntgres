@@ -96,7 +96,7 @@ func (w *WriteStage) replaceRows(ref ids.ObjectRef, old []storage.RowVersion, ba
 		}
 	}
 	if s.foreignActionAuth != nil {
-		admission := s.foreignActionAdmissions[ref.Address]
+		admission := s.foreignActionsOrZero().admissions[ref.Address]
 		if admission == nil || !admission.writable {
 			return errors.New("stuntgres: missing writable internal action admission")
 		}

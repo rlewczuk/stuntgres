@@ -166,20 +166,20 @@ func TestForeignActionsAdmission(t *testing.T) {
 	}
 	ownerAuth := foreignActionOwner(auth, job.child.Owner)
 	scope.foreignActionAuth = &ownerAuth
-	scope.foreignActionsSettling = true
+	scope.foreignActions().settling = true
 	if err = scope.stage.replace(ref, predecessor[:], indexWriteBatch{values: replacement[:]}); err != nil {
 		t.Fatal(err)
 	}
 	scope.foreignActionAuth = nil
-	scope.foreignActionsSettling = false
+	scope.foreignActions().settling = false
 	next := scope.stage.rows[ref.Address][0]
-	if next.Row != old.Row || next.Version == old.Version || next.Base != old.Version || len(scope.foreignActionTransitions) != 1 || scope.foreignActionTransitions[0].old.Version != old.Version || scope.foreignActionTransitions[0].next.Version != next.Version {
-		t.Fatal("physical lineage was not recorded", old, next, scope.foreignActionTransitions)
+	if next.Row != old.Row || next.Version == old.Version || next.Base != old.Version || len(scope.foreignActionsOrZero().transitions) != 1 || scope.foreignActionsOrZero().transitions[0].old.Version != old.Version || scope.foreignActionsOrZero().transitions[0].next.Version != next.Version {
+		t.Fatal("physical lineage was not recorded", old, next, scope.foreignActionsOrZero().transitions)
 	}
 	if scope.lockedRef != named || scope.lockedStorage != stored || scope.lockedDescriptor != descriptor {
 		t.Fatal("child action spoofed initiating admission")
 	}
-	admission := scope.foreignActionAdmissions[ref.Address]
+	admission := scope.foreignActionsOrZero().admissions[ref.Address]
 	if !admission.mutated || admission.tx != scope.txRef || admission.storage != children.storage {
 		t.Fatal("missing captured physical child authority", admission)
 	}
@@ -227,7 +227,7 @@ func TestForeignActionsClosure(t *testing.T) {
 		t.Fatal(rows)
 	}
 	var events []foreignActionTransition
-	for _, event := range scope.foreignActionTransitions {
+	for _, event := range scope.foreignActionsOrZero().transitions {
 		if event.relation == ref.Address {
 			events = append(events, event)
 		}

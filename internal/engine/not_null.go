@@ -208,7 +208,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	var replacements []int32
 	var attachments []usingIndexAttachment
 	hasAttachments := false
-	hasForeignKeys := len(scope.alterForeignKeys) != 0
+	hasForeignKeys := len(scope.foreignActionsOrZero().alterKeys) != 0
 	for _, action := range s.Actions {
 		hasAttachments = hasAttachments || action.Action == parser.AddUsingIndex
 	}
@@ -567,10 +567,10 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		if action.Action != parser.AddForeignKey {
 			continue
 		}
-		if fkIndex >= len(scope.alterForeignKeys) {
+		if fkIndex >= len(scope.foreignActionsOrZero().alterKeys) {
 			return Result{}, ids.ErrCatalogReplaced
 		}
-		capture := scope.alterForeignKeys[fkIndex]
+		capture := scope.foreignActionsOrZero().alterKeys[fkIndex]
 		next, err = e.stageAddedForeignKey(auth, stage, next, action.ForeignKey, capture.target.Address, capture.index)
 		if err != nil {
 			return Result{}, err

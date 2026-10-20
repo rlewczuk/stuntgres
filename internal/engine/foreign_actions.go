@@ -187,10 +187,14 @@ func (s *StatementScope) settleForeignActions() error {
 	if err != nil {
 		return err
 	}
-	s.foreignActionJobs = jobs
 	if len(jobs) == 0 {
+		// An empty job list needs no slot: nil reads as no jobs.
+		if s.foreignActionsSlot != nil {
+			s.foreignActionsSlot.jobs = jobs
+		}
 		return nil
 	}
+	s.foreignActions().jobs = jobs
 	e := s.op.session.Engine()
 	// Borrow the initiating predecessor/successor images before any action merge.
 	for a, rows := range s.stage.rows {
@@ -205,7 +209,7 @@ func (s *StatementScope) settleForeignActions() error {
 			}
 			old, ok := image.previous(next.Row)
 			if ok {
-				s.foreignActionTransitions = append(s.foreignActionTransitions, foreignActionTransition{relation: a, old: old, next: next})
+				s.foreignActions().transitions = append(s.foreignActionsOrZero().transitions, foreignActionTransition{relation: a, old: old, next: next})
 			} else if next.Base != 0 {
 				return fmt.Errorf("stuntgres: missing foreign-key update predecessor")
 			}
@@ -231,14 +235,14 @@ func (s *StatementScope) settleForeignActions() error {
 				}
 			}
 			if ok {
-				s.foreignActionTransitions = append(s.foreignActionTransitions, foreignActionTransition{relation: a, old: old})
+				s.foreignActions().transitions = append(s.foreignActionsOrZero().transitions, foreignActionTransition{relation: a, old: old})
 			}
 		}
 	}
-	s.foreignActionsSettling = true
-	defer func() { s.foreignActionsSettling = false; s.foreignActionAuth = nil }()
-	for at := 0; at < len(s.foreignActionTransitions); at++ {
-		event := s.foreignActionTransitions[at]
+	s.foreignActions().settling = true
+	defer func() { s.foreignActions().settling = false; s.foreignActionAuth = nil }()
+	for at := 0; at < len(s.foreignActionsOrZero().transitions); at++ {
+		event := s.foreignActionsOrZero().transitions[at]
 		if err = s.op.Context().Err(); err != nil {
 			return err
 		}

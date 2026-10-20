@@ -33,7 +33,7 @@ func (s *StatementScope) validateForeignActionLocked(e *Engine, ref ids.ObjectRe
 	if err := s.validateLockedRelation(e); err != nil {
 		return err
 	}
-	admission := s.foreignActionAdmissions[ref.Address]
+	admission := s.foreignActionsOrZero().admissions[ref.Address]
 	if admission == nil || admission.ref != ref || admission.tx != s.txRef || s.owner.ref != s.txRef {
 		return errors.New("stuntgres: missing internal action admission")
 	}
@@ -103,10 +103,10 @@ func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *foreignKeyJo
 	if err := refreshForeignActionJob(view, job); err != nil {
 		return err
 	}
-	if s.foreignActionAdmissions == nil {
-		s.foreignActionAdmissions = make(map[ids.ObjectAddress]*foreignActionAdmission)
+	if s.foreignActionsOrZero().admissions == nil {
+		s.foreignActions().admissions = make(map[ids.ObjectAddress]*foreignActionAdmission)
 	}
-	if previous := s.foreignActionAdmissions[ref.Address]; previous != nil {
+	if previous := s.foreignActionsOrZero().admissions[ref.Address]; previous != nil {
 		if err := s.validateForeignActionLocked(e, ref); err != nil {
 			return err
 		}
@@ -120,7 +120,7 @@ func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *foreignKeyJo
 		previous.writable = previous.writable || writable
 		return nil
 	}
-	s.foreignActionAdmissions[ref.Address] = &foreignActionAdmission{ref: ref, storage: storage, relation: current, tx: s.txRef, jobs: []foreignKeyJob{*job}, writable: writable}
+	s.foreignActions().admissions[ref.Address] = &foreignActionAdmission{ref: ref, storage: storage, relation: current, tx: s.txRef, jobs: []foreignKeyJob{*job}, writable: writable}
 	return nil
 }
 
@@ -133,7 +133,7 @@ func (s *StatementScope) foreignActionRow(ref ids.ObjectRef, candidate storage.R
 	if err := s.validateForeignActionLocked(e, ref); err != nil {
 		return storage.RowVersion{}, false, err
 	}
-	stored := s.foreignActionAdmissions[ref.Address].storage
+	stored := s.foreignActionsOrZero().admissions[ref.Address].storage
 	if uniqueRowDeleted(candidate.Row, s.ownDeletes[ref.Address], s.stage.deletes[ref.Address]) {
 		return storage.RowVersion{}, false, nil
 	}
@@ -170,7 +170,7 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 	if err := s.validateForeignActionLocked(e, ref); err != nil {
 		return err
 	}
-	if !s.foreignActionAdmissions[ref.Address].writable {
+	if !s.foreignActionsOrZero().admissions[ref.Address].writable {
 		return errors.New("stuntgres: read-only internal action admission")
 	}
 	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted {
@@ -179,7 +179,7 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 	if uniqueRowDeleted(old.Row, s.ownDeletes[ref.Address], w.deletes[ref.Address]) {
 		return nil
 	}
-	stored := s.foreignActionAdmissions[ref.Address].storage
+	stored := s.foreignActionsOrZero().admissions[ref.Address].storage
 	candidate := visibility.DeleteCandidate{Ref: ref, Storage: stored, Row: old.Row, Version: old.Version, Base: old.Base, Own: old.Born == 0}
 	if old.Born != 0 {
 		candidate.Base = old.Version
@@ -187,18 +187,18 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 	if err := w.stageDeletionLocked(e, candidate, old); err != nil {
 		return err
 	}
-	s.foreignActionAdmissions[ref.Address].mutated = true
-	s.foreignActionTransitions = append(s.foreignActionTransitions, foreignActionTransition{relation: ref.Address, old: old, owner: s.foreignActionAdmissions[ref.Address].relation.Owner})
+	s.foreignActions().admissions[ref.Address].mutated = true
+	s.foreignActions().transitions = append(s.foreignActionsOrZero().transitions, foreignActionTransition{relation: ref.Address, old: old, owner: s.foreignActionsOrZero().admissions[ref.Address].relation.Owner})
 	return nil
 }
 
 func (s *StatementScope) recordForeignActionReplacement(ref ids.ObjectRef, old, next storage.RowVersion) {
-	if !s.foreignActionsSettling {
+	if !s.foreignActionsOrZero().settling {
 		return
 	}
-	admission := s.foreignActionAdmissions[ref.Address]
+	admission := s.foreignActionsOrZero().admissions[ref.Address]
 	admission.mutated = true
-	s.foreignActionTransitions = append(s.foreignActionTransitions, foreignActionTransition{relation: ref.Address, old: old, next: next, owner: admission.relation.Owner})
+	s.foreignActions().transitions = append(s.foreignActionsOrZero().transitions, foreignActionTransition{relation: ref.Address, old: old, next: next, owner: admission.relation.Owner})
 }
 
 func foreignActionOwner(auth AuthorizationView, owner authorization.PrincipalRef) AuthorizationView {
@@ -239,4 +239,33 @@ func (s *StatementScope) captureForeignActionRows(ref ids.ObjectRef) (foreignKey
 		}
 	}
 	return rows, retained, nil
+}
+
+// foreignActionScope is the statement's foreign-key action slot: admitted
+// referencing relations, row transitions, settling state, prepared check jobs
+// and the foreign-key targets of CREATE/ALTER TABLE.
+type foreignActionScope struct {
+	admissions     map[ids.ObjectAddress]*foreignActionAdmission
+	transitions    []foreignActionTransition
+	settling       bool
+	exclusionAdded bool // a new event admitted while settling actions
+	jobs           []foreignKeyJob
+	keyTargets     []ids.ObjectRef
+	alterKeys      []alterForeignKeyAdmission
+}
+
+// foreignActions returns the statement's foreignActions slot, allocating it on first use.
+func (s *StatementScope) foreignActions() *foreignActionScope {
+	if s.foreignActionsSlot == nil {
+		s.foreignActionsSlot = new(foreignActionScope)
+	}
+	return s.foreignActionsSlot
+}
+
+// foreignActionsOrZero reads the foreignActions slot; a nil slot reads as zero.
+func (s *StatementScope) foreignActionsOrZero() foreignActionScope {
+	if s.foreignActionsSlot == nil {
+		return foreignActionScope{}
+	}
+	return *s.foreignActionsSlot
 }

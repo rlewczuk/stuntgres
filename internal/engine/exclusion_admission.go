@@ -284,7 +284,7 @@ func (s *StatementScope) captureExclusionScan(ref ids.ObjectRef, binding *unique
 	if err != nil {
 		return exclusionScan{}, err
 	}
-	if admission := s.foreignActionAdmissions[ref.Address]; admission != nil && admission.mutated {
+	if admission := s.foreignActionsOrZero().admissions[ref.Address]; admission != nil && admission.mutated {
 		auth = foreignActionOwner(auth, admission.relation.Owner)
 	}
 	auth.Catalog = view
@@ -513,8 +513,8 @@ func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *uniqueWri
 		event := exclusionEvent{parent: ref, index: ref.Domain().Ref(ref.Epoch, index.Address()), constraint: c.OID, row: candidate.Row, version: candidate.Version}
 		if !slices.Contains(s.exclusionModes.events, event) {
 			s.exclusionModes.events = append(slices.Clone(s.exclusionModes.events), event)
-			if s.foreignActionsSettling {
-				s.foreignActionExclusionAdded = true
+			if s.foreignActionsOrZero().settling {
+				s.foreignActions().exclusionAdded = true
 			}
 		}
 	}

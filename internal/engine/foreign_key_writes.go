@@ -216,7 +216,7 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 		}
 	}
 	e.mu.Unlock()
-	s.foreignKeyTargets = targets
+	s.foreignActions().keyTargets = targets
 	slices.SortFunc(refs, func(a, b ids.ObjectRef) int { return cmp.Compare(a.Address.ObjectID, b.Address.ObjectID) })
 	for _, ref := range refs {
 		if err := s.foreignKeyGrant(ref, 0, lock.ShareRowExclusive, nil); err != nil {
@@ -244,7 +244,7 @@ func (s *StatementScope) checkForeignKeys() error {
 		return nil
 	}
 	e := s.op.session.Engine()
-	jobs := s.foreignActionJobs
+	jobs := s.foreignActionsOrZero().jobs
 	if len(jobs) == 0 {
 		return nil
 	}
@@ -267,10 +267,10 @@ func (s *StatementScope) checkForeignKeys() error {
 		}
 		f := job.definition
 		childAuth, parentAuth := auth, auth
-		if admission := s.foreignActionAdmissions[job.child.Address()]; admission != nil && admission.mutated {
+		if admission := s.foreignActionsOrZero().admissions[job.child.Address()]; admission != nil && admission.mutated {
 			childAuth = foreignActionOwner(auth, admission.relation.Owner)
 		}
-		if admission := s.foreignActionAdmissions[job.parent.Address()]; admission != nil && admission.mutated {
+		if admission := s.foreignActionsOrZero().admissions[job.parent.Address()]; admission != nil && admission.mutated {
 			parentAuth = foreignActionOwner(auth, admission.relation.Owner)
 		}
 		childRef := e.catalog.Domain.Ref(auth.Catalog.Epoch(), job.child.Address())

@@ -92,7 +92,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	if s.PartitionBy != nil || s.PartitionOf != nil {
 		partition, err = e.schemaPartitionTableLocked(scope, auth, stage, s, ns.Address)
 	} else {
-		err = e.schemaTableLocked(op, auth, stage, s, ns.Address, auth.State.CurrentUser, scope.input, scope.foreignKeyTargets)
+		err = e.schemaTableLocked(op, auth, stage, s, ns.Address, auth.State.CurrentUser, scope.input, scope.foreignActionsOrZero().keyTargets)
 	}
 	e.mu.Unlock()
 	if err != nil {
