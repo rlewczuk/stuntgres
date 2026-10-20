@@ -75,6 +75,12 @@ type analyzeHost interface {
 	// type and query mappers; leaf runs before children.
 	MapBoundExpression(view catalog.Read, reader catalog.DefinitionReader, node expr.Expr, substituteSources bool, leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, error)
 
+	// Stored views. View definitions stay engine payloads: the binder asks
+	// whether a CTE body's stored sources are volatile, and has a stored
+	// view's retained expressions capture the binder's input providers.
+	StoredViewVolatile(auth analyze.Authority, root plan.Node) (bool, error)
+	CaptureRetainedViewInput(auth analyze.Authority, relation *catalog.Relation, element func() error, diagnostic func(*sqltype.Descriptor) error) error
+
 	// Session.
 	PlanOwner() (owner ids.SessionToken, discardGeneration uint64, ok bool)
 
@@ -292,6 +298,14 @@ func (h *bindingHost) CaptureEnumOperationSafety(input *sqltype.InputEnvironment
 }
 
 func (h *bindingHost) FTSInput() sqltype.FTSInputNotices { return capturedFTSInput{op: h.op} }
+
+func (h *bindingHost) StoredViewVolatile(auth analyze.Authority, root plan.Node) (bool, error) {
+	return cteStoredViewVolatile(auth.ReadCatalog(), root)
+}
+
+func (h *bindingHost) CaptureRetainedViewInput(auth analyze.Authority, relation *catalog.Relation, element func() error, diagnostic func(*sqltype.Descriptor) error) error {
+	return captureRetainedDefinitionInput(auth.ReadCatalog(), viewOf(relation), element, diagnostic)
+}
 
 func (h *bindingHost) PlanOwner() (ids.SessionToken, uint64, bool) {
 	if h.op == nil {

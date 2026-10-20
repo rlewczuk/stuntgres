@@ -70,19 +70,19 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 	renderer.functionSources = presentation.deparse && viewHasFunctionSource(s.From)
 	_, renderer.simple = s.From.(*parser.TableReference)
 	renderer.simple = renderer.simple && (presentation.deparse || renderer.currentNames)
-	if table, ok := s.From.(*parser.TableReference); ok && viewCTETable(viewFromRoot(project), table) != nil {
+	if table, ok := s.From.(*parser.TableReference); ok && viewCTETable(analyze.ViewFromRoot(project), table) != nil {
 		renderer.simple = false
 	}
 	v := renderer
 	if s.Set != nil {
-		set := querySetNode(viewFromRoot(project))
+		set := querySetNode(analyze.ViewFromRoot(project))
 		if set == nil || set.Left == nil || set.Right == nil {
 			return "", fmt.Errorf("stuntgres: missing frozen set query")
 		}
 		if columns == nil {
 			columns = set.Schema()
 		}
-		if recursive, ok := viewFromRoot(project).(*plan.RecursiveUnionNode); ok && (recursive.Search != nil || recursive.Cycle != nil) {
+		if recursive, ok := analyze.ViewFromRoot(project).(*plan.RecursiveUnionNode); ok && (recursive.Search != nil || recursive.Cycle != nil) {
 			// Symbolic clauses regenerate outputs and hidden parent carries.
 			columns = columns[:recursive.Definition.UserWidth]
 		}
@@ -129,7 +129,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 		return renderer.selectQueryTailSQL(ctx, catalogView, s, text, presentation, setOperand)
 	}
 	if s.Values != nil {
-		values, ok := viewFromRoot(project).(*plan.ValuesNode)
+		values, ok := analyze.ViewFromRoot(project).(*plan.ValuesNode)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing frozen VALUES query")
 		}
@@ -211,7 +211,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 				if owner == nil {
 					return "", fmt.Errorf("stuntgres: missing frozen star frame")
 				}
-				text, err := renderer.slotSQL(ctx, catalogView, viewFromRoot(owner), column.Slot)
+				text, err := renderer.slotSQL(ctx, catalogView, analyze.ViewFromRoot(owner), column.Slot)
 				if err != nil {
 					return "", err
 				}
@@ -244,13 +244,13 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 			// aliases; omit AS only when it does not change the result label.
 			if setOperand {
 				for _, column := range setSourceColumns {
-					if targets[i] == renderer.slots[viewFromRoot(v.query.Root)][column.slot] {
+					if targets[i] == renderer.slots[analyze.ViewFromRoot(v.query.Root)][column.slot] {
 						natural = presentation.identifier(column.name)
 						break
 					}
 				}
 			} else {
-				for _, name := range renderer.slots[viewFromRoot(v.query.Root)] {
+				for _, name := range renderer.slots[analyze.ViewFromRoot(v.query.Root)] {
 					if targets[i] == name {
 						natural = name
 						break
@@ -260,7 +260,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 		}
 		if renderer.functionSources {
 			for _, column := range functionSourceColumns {
-				if column.slot >= 0 && targets[i] == renderer.slots[viewFromRoot(v.query.Root)][column.slot] {
+				if column.slot >= 0 && targets[i] == renderer.slots[analyze.ViewFromRoot(v.query.Root)][column.slot] {
 					natural = presentation.identifier(column.name)
 					break
 				}
@@ -485,7 +485,7 @@ func (renderer *viewRenderer) selectOutputSQL(ctx context.Context, catalog catal
 				if owner == nil {
 					return "", fmt.Errorf("stuntgres: missing frozen star frame")
 				}
-				return renderer.slotSQL(ctx, catalog, viewFromRoot(owner), column.Slot)
+				return renderer.slotSQL(ctx, catalog, analyze.ViewFromRoot(owner), column.Slot)
 			}
 			slot -= len(columns)
 			continue
@@ -574,7 +574,7 @@ func (v *viewRenderer) columnSQL(ctx context.Context, catalog catalog.Read, path
 	if owner == nil {
 		return "", fmt.Errorf("stuntgres: missing view column frame")
 	}
-	root := viewFromRoot(owner)
+	root := analyze.ViewFromRoot(owner)
 	if path.Clause == analyze.ViewJoinLiteral && column.Frame == path.Query {
 		root = viewJoinAt(root, path.Target)
 	}

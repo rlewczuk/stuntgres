@@ -16,7 +16,7 @@ type dumpPolicyGroup struct{ owner, table, sql string }
 func policyExpressionSQL(ctx context.Context, view catalog.Read, expression *policyExpression) (string, error) {
 	r := newViewRenderer(expression.presentation)
 	r.frame = 1
-	source := viewFromRoot(r.frames[1])
+	source := analyze.ViewFromRoot(r.frames[1])
 	leaf := r.sources[0]
 	d, ok := view.Relation(leaf.ref.Address)
 	if !ok {

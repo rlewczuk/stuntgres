@@ -59,7 +59,7 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 			for i := start; i < len(b.query.sources); i++ {
 				b.query.sources[i].AnalysisOnly = true
 			}
-			viewVolatile, err := cteStoredViewVolatile(b.query.auth.ReadCatalog(), query.Root)
+			viewVolatile, err := b.host.StoredViewVolatile(b.query.auth, query.Root)
 			if err != nil {
 				return nil, err
 			}

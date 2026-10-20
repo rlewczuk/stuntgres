@@ -28,7 +28,7 @@ func viewFunctionFromAt(root plan.Node, ordinal int, selected bool) *plan.Functi
 	return viewFunctionFromAt(right, ordinal, selected)
 }
 func (v *viewRenderer) renderFunctionTableSQL(ctx context.Context, catalog catalog.Read, raw *parser.FunctionTable, ns viewNamespace) (viewRenderFrom, error) {
-	root := viewFunctionFromAt(viewFromRoot(v.query.Root), ns.Ordinal, ns.Node == viewRegexpNamespace)
+	root := viewFunctionFromAt(analyze.ViewFromRoot(v.query.Root), ns.Ordinal, ns.Node == analyze.ViewRegexpNamespace)
 	if root == nil {
 		return viewRenderFrom{}, fmt.Errorf("stuntgres: missing frozen string function source")
 	}

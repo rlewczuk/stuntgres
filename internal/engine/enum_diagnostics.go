@@ -224,39 +224,8 @@ func captureRetainedExpressionInput(node expr.Expr, element func() error, diagno
 
 // Stored sources are opaque to the outer expression binder, but their
 // planning-time conversions consume the same published input environment.
-func (b *expressionBinder) captureRetainedViewInput(definition *viewDefinition) error {
-	return captureRetainedDefinitionInput(b.query.auth.ReadCatalog(), definition, b.captureElementInput, b.captureTypeDiagnosticInput)
-}
-
-// Each frozen consumer supplies its own coherent catalog and input owners.
-func captureRetainedDefinitionInput(view catalog.Read, definition *viewDefinition, element func() error, diagnostic func(*sqltype.Descriptor) error) error {
-	seen := make(map[*viewDefinition]bool)
-	var capture func(*viewDefinition) error
-	capture = func(definition *viewDefinition) error {
-		if seen[definition] {
-			return nil
-		}
-		seen[definition] = true
-		var failure error
-		walkQueryArgumentNode(definition.query.Root, func(node expr.Expr) {
-			if failure == nil {
-				failure = captureRetainedExpressionInput(node, element, diagnostic)
-			}
-		})
-		if failure != nil {
-			return failure
-		}
-		for _, source := range definition.sources {
-			relation, ok := view.Relation(source.ref.Address)
-			if ok && relation.RelationKind == catalog.ViewRelation {
-				if err := capture(viewOf(relation)); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
-	}
-	return capture(definition)
+func (b *expressionBinder) captureRetainedViewInput(relation *catalog.Relation) error {
+	return b.host.CaptureRetainedViewInput(b.query.auth, relation, b.captureElementInput, b.captureTypeDiagnosticInput)
 }
 
 // Retained write expressions are not rebound with the consuming statement.

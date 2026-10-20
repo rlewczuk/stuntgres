@@ -158,7 +158,7 @@ func seedRuleMutationSlots(renderer *viewRenderer, action ruleAction, query plan
 	if owner == nil {
 		return fmt.Errorf("stuntgres: missing rule mutation presentation frame")
 	}
-	root := viewFromRoot(owner)
+	root := analyze.ViewFromRoot(owner)
 	slots := renderer.slots[root]
 	var failure error
 	plan.VisitCTEQuery(query, func(plan.Node) {}, func(bound expr.Expr) {

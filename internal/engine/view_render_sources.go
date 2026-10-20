@@ -16,37 +16,6 @@ func viewSourceAlias(occurrence int) string {
 	return "__view_source_" + strconv.Itoa(occurrence)
 }
 
-func viewFromRoot(node plan.Node) plan.Node {
-	for {
-		switch n := node.(type) {
-		case *plan.SetProjectNode:
-			node = n.Child
-		case *plan.LimitNode:
-			node = n.Child
-		case *plan.EvaluationNode:
-			node = n.Child
-		case *plan.RowLockNode:
-			node = n.Child
-		case *plan.ProjectNode:
-			node = n.Child
-		case *plan.FilterNode:
-			node = n.Child
-		case *plan.SortNode:
-			node = n.Child
-		case *plan.AggregateNode:
-			node = n.Child
-		case *plan.WindowNode:
-			node = n.Child
-		case *plan.DistinctNode:
-			node = n.Child
-		case *plan.DistinctOnNode:
-			node = n.Child
-		default:
-			return node
-		}
-	}
-}
-
 func viewJoinAt(root plan.Node, ordinal int) *plan.JoinNode {
 	var visit func(plan.Node) *plan.JoinNode
 	visit = func(node plan.Node) *plan.JoinNode {
@@ -106,8 +75,8 @@ type viewRenderer struct {
 
 type viewRenderFrame struct {
 	namespace int
-	base      [viewRegexpNamespace + 1]int
-	seen      [viewRegexpNamespace + 1]bool
+	base      [analyze.ViewRegexpNamespace + 1]int
+	seen      [analyze.ViewRegexpNamespace + 1]bool
 }
 type viewRenderAlias struct {
 	depth, ordinal  int
@@ -207,13 +176,13 @@ func (v *viewRenderer) namespaceAlias(ns viewNamespace) string {
 	key := v.renderAliasKey(ns)
 	base := viewSourceAlias(key.ordinal)
 	switch ns.Node {
-	case viewJoinNamespace:
+	case analyze.ViewJoinNamespace:
 		base = "__view_using_" + strconv.Itoa(key.ordinal)
-	case viewValuesNamespace:
+	case analyze.ViewValuesNamespace:
 		base = "__view_values_" + strconv.Itoa(key.ordinal)
-	case viewDerivedNamespace:
+	case analyze.ViewDerivedNamespace:
 		base = "__view_derived_" + strconv.Itoa(key.ordinal)
-	case viewFunctionNamespace, viewRegexpNamespace:
+	case analyze.ViewFunctionNamespace, analyze.ViewRegexpNamespace:
 		base = "__view_function_" + strconv.Itoa(key.ordinal)
 	}
 	if key.depth > 1 {
@@ -416,7 +385,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 	case *parser.FunctionFrom:
 		return v.renderFunctionTableSQL(ctx, catalogView, &parser.FunctionTable{Calls: n.Calls, Ordinality: n.Ordinality, Lateral: n.Lateral, RowsFrom: len(n.Calls) > 1, Pos: n.Pos}, ns)
 	case *parser.DerivedQuery:
-		root := viewDerivedAt(viewFromRoot(v.query.Root), n.Query)
+		root := viewDerivedAt(analyze.ViewFromRoot(v.query.Root), n.Query)
 		if root == nil {
 			return viewRenderFrom{}, fmt.Errorf("stuntgres: missing frozen derived query")
 		}
@@ -448,7 +417,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 		aliased.relation = "(" + text + ")"
 		return aliased, nil
 	case *parser.TableReference:
-		if root := viewCTETable(viewFromRoot(v.query.Root), n); root != nil {
+		if root := viewCTETable(analyze.ViewFromRoot(v.query.Root), n); root != nil {
 			name := catalog.QuoteIdentifier(n.Name.Parts[0].Text)
 			from := viewRenderFrom{text: name, relation: name, root: root}
 			for i, column := range root.Schema() {
@@ -467,7 +436,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 		if !ok {
 			return viewRenderFrom{}, ids.ErrCatalogReplaced
 		}
-		root := viewSourceAt(viewFromRoot(v.query.Root), occurrence)
+		root := viewSourceAt(analyze.ViewFromRoot(v.query.Root), occurrence)
 		if root == nil {
 			return viewRenderFrom{}, fmt.Errorf("stuntgres: missing view source node")
 		}
@@ -582,7 +551,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 		return v.aliasFrom(from, ns, aliasName), nil
 	case *parser.JoinReference:
 		ordinal := ns.Ordinal
-		bound := viewJoinAt(viewFromRoot(v.query.Root), ordinal)
+		bound := viewJoinAt(analyze.ViewFromRoot(v.query.Root), ordinal)
 		if bound == nil {
 			return viewRenderFrom{}, fmt.Errorf("stuntgres: missing view join occurrence")
 		}
@@ -605,7 +574,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 		}
 		// Function arguments reference the owner's full FROM frame before the
 		// right source exists. Publish only finalized legal predecessor slots.
-		owner := viewFromRoot(v.query.Root)
+		owner := analyze.ViewFromRoot(v.query.Root)
 		offset, found := viewJoinOffset(owner, bound)
 		if !found {
 			return viewRenderFrom{}, fmt.Errorf("stuntgres: missing view join predecessor frame")

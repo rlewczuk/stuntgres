@@ -177,7 +177,7 @@ func queryRowLockLegality(root plan.Node, mode lock.Mode) error {
 			}
 		}
 	}
-	if suffix == "" && project.HasTargetSet && stringInheritedRowMark(viewFromRoot(project)) {
+	if suffix == "" && project.HasTargetSet && stringInheritedRowMark(analyze.ViewFromRoot(project)) {
 		suffix = "set-returning functions in the target list"
 	}
 	if suffix != "" {
@@ -202,7 +202,7 @@ func queryRowLockLegality(root plan.Node, mode lock.Mode) error {
 		}
 		return nil
 	}
-	return from(viewFromRoot(project))
+	return from(analyze.ViewFromRoot(project))
 }
 
 // View lock pushdown marks relation/subquery RTEs, not computed function rows.

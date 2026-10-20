@@ -341,7 +341,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		defer func() {
 			if failure == nil {
 				b.capture.Namespaces[ordinal].Frame = b.frameID()
-				b.capture.Namespaces[ordinal].Node, b.capture.Namespaces[ordinal].Ordinal = frozenNamespaceNode(root)
+				b.capture.Namespaces[ordinal].Node, b.capture.Namespaces[ordinal].Ordinal = analyze.FrozenNamespaceNode(root)
 				b.capture.Namespaces[ordinal].Columns = b.query.freezeViewColumns(namespace.columns)
 				for _, q := range namespace.qualifiers {
 					b.capture.Namespaces[ordinal].Qualifiers = append(b.capture.Namespaces[ordinal].Qualifiers, viewNamespaceQualifier{Name: q.name, Columns: b.query.freezeViewColumns(q.columns)})
@@ -415,7 +415,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			return nil, queryNamespace{}, sqlError("42809", fmt.Sprintf(`cannot read from index "%s"`, relation.Name()))
 		}
 		if relation.RelationKind == catalog.ViewRelation {
-			if err := b.captureRetainedViewInput(viewOf(relation)); err != nil {
+			if err := b.captureRetainedViewInput(relation); err != nil {
 				return nil, queryNamespace{}, err
 			}
 		}

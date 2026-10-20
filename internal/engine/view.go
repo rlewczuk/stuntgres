@@ -503,7 +503,7 @@ func (v *viewDefinition) validateNamespaces() error {
 		if project == nil {
 			return fmt.Errorf("stuntgres: missing view namespace frame")
 		}
-		if ns.Node < viewSourceNamespace || ns.Node > viewRegexpNamespace {
+		if ns.Node < analyze.ViewSourceNamespace || ns.Node > analyze.ViewRegexpNamespace {
 			return fmt.Errorf("stuntgres: invalid view namespace kind")
 		}
 		root := v.namespaceRoot(ns)
@@ -552,57 +552,24 @@ func (v *viewDefinition) validateNamespaces() error {
 	return nil
 }
 
-const (
-	viewSourceNamespace uint8 = iota + 1
-	viewJoinNamespace
-	viewValuesNamespace
-	viewDerivedNamespace
-	viewFunctionNamespace
-	viewRegexpNamespace
-)
-
-func frozenNamespaceNode(root plan.Node) (uint8, int) {
-	switch node := viewFromRoot(root).(type) {
-	case *plan.FunctionFromNode:
-		if node.RegexpNamespace {
-			return viewRegexpNamespace, node.ViewOrdinal
-		}
-		return viewFunctionNamespace, node.ViewOrdinal
-	case *plan.SourceNode:
-		return viewSourceNamespace, node.Occurrence
-	case *plan.JoinNode:
-		return viewJoinNamespace, node.ViewOrdinal
-	case *plan.ValuesNode:
-		return viewValuesNamespace, node.ViewOrdinal
-	case *plan.DerivedNode:
-		if node.CTE != nil {
-			return viewDerivedNamespace, node.Ordinal
-		}
-		return viewDerivedNamespace, int(node.Query.Root.(*plan.ProjectNode).Frame)
-	case *plan.WorktableScanNode:
-		return viewDerivedNamespace, node.Ordinal
-	}
-	return 0, 0
-}
-
 func (v *viewDefinition) namespaceRoot(ns viewNamespace) plan.Node {
 	project := v.frames[ns.Frame]
 	if project == nil {
 		return nil
 	}
-	from := viewFromRoot(project)
+	from := analyze.ViewFromRoot(project)
 	switch ns.Node {
-	case viewSourceNamespace:
+	case analyze.ViewSourceNamespace:
 		return viewSourceAt(from, ns.Ordinal)
-	case viewJoinNamespace:
+	case analyze.ViewJoinNamespace:
 		return viewJoinAt(from, ns.Ordinal)
-	case viewValuesNamespace:
+	case analyze.ViewValuesNamespace:
 		return viewValuesAt(from, ns.Ordinal)
-	case viewFunctionNamespace:
+	case analyze.ViewFunctionNamespace:
 		return viewFunctionFromAt(from, ns.Ordinal, false)
-	case viewRegexpNamespace:
+	case analyze.ViewRegexpNamespace:
 		return viewFunctionFromAt(from, ns.Ordinal, true)
-	case viewDerivedNamespace:
+	case analyze.ViewDerivedNamespace:
 		if ns.Ordinal < 0 {
 			return viewCTEOrdinal(from, ns.Ordinal)
 		}

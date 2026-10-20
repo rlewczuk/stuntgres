@@ -626,7 +626,7 @@ func (v *viewDefinition) validateLiterals(catalog catalog.Read) error {
 			continue
 		}
 		if s.Set != nil {
-			set := querySetNode(viewFromRoot(project))
+			set := querySetNode(analyze.ViewFromRoot(project))
 			if set == nil || set.Left == nil || set.Right == nil || set.Left.Syntax != s.Set.Left || set.Right.Syntax != s.Set.Right || set.Operation != s.Set.Operator || set.All != s.Set.All {
 				return fmt.Errorf("stuntgres: invalid frozen set syntax frames")
 			}
@@ -652,7 +652,7 @@ func (v *viewDefinition) validateLiterals(catalog catalog.Read) error {
 					if owner == nil {
 						return fmt.Errorf("stuntgres: missing frozen star frame")
 					}
-					root := viewFromRoot(owner)
+					root := analyze.ViewFromRoot(owner)
 					if column.Slot < 0 || column.Slot >= len(root.Schema()) {
 						return fmt.Errorf("stuntgres: invalid frozen view star slot")
 					}
@@ -723,7 +723,7 @@ func (v *viewDefinition) validateLiterals(catalog catalog.Read) error {
 		from = func(item parser.FromItem, node plan.Node) error {
 			switch raw := item.(type) {
 			case *parser.FunctionTable:
-				table, ok := viewFromRoot(node).(*plan.FunctionFromNode)
+				table, ok := analyze.ViewFromRoot(node).(*plan.FunctionFromNode)
 				if !ok {
 					return fmt.Errorf("stuntgres: invalid stored string function frame")
 				}
@@ -754,13 +754,13 @@ func (v *viewDefinition) validateLiterals(catalog catalog.Read) error {
 				}
 				return from(raw.Right, join.Right)
 			case *parser.ValuesQuery:
-				values, ok := viewFromRoot(node).(*plan.ValuesNode)
+				values, ok := analyze.ViewFromRoot(node).(*plan.ValuesNode)
 				if !ok {
 					return fmt.Errorf("stuntgres: invalid stored VALUES frame")
 				}
 				return v.validateValuesLiterals(catalog, raw, frame, values.ViewOrdinal, &count, &columnCount, &compositeCount, &routineCount)
 			case *parser.FunctionFrom:
-				function, ok := viewFromRoot(node).(*plan.FunctionFromNode)
+				function, ok := analyze.ViewFromRoot(node).(*plan.FunctionFromNode)
 				if !ok {
 					return fmt.Errorf("stuntgres: invalid stored function frame")
 				}
@@ -775,10 +775,10 @@ func (v *viewDefinition) validateLiterals(catalog catalog.Read) error {
 			return nil
 		}
 		if s.Values != nil {
-			if err := from(s.Values, viewFromRoot(project)); err != nil {
+			if err := from(s.Values, analyze.ViewFromRoot(project)); err != nil {
 				return err
 			}
-		} else if err := from(s.From, viewFromRoot(project)); err != nil {
+		} else if err := from(s.From, analyze.ViewFromRoot(project)); err != nil {
 			return err
 		}
 	}
@@ -796,7 +796,7 @@ func (v *viewDefinition) validateColumnOccurrence(path viewLiteralPath) error {
 	if !ok || owner == nil {
 		return fmt.Errorf("stuntgres: invalid view column frame")
 	}
-	root := viewFromRoot(owner)
+	root := analyze.ViewFromRoot(owner)
 	if path.Clause == analyze.ViewJoinLiteral && column.Frame == path.Query {
 		root = viewJoinAt(root, path.Target)
 	}

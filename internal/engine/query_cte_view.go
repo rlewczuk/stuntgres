@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -12,7 +13,7 @@ import (
 )
 
 func viewCTEScan(root plan.Node, match func(*plan.DerivedNode) bool) plan.Node {
-	switch n := viewFromRoot(root).(type) {
+	switch n := analyze.ViewFromRoot(root).(type) {
 	case *plan.DerivedNode:
 		if n.CTE != nil && match(n) {
 			return n
@@ -104,7 +105,7 @@ func (r *viewRenderer) withClauseSQL(ctx context.Context, catalogView catalog.Re
 			suffix += " CYCLE " + strings.Join(keys, ", ") + " SET " + catalog.QuoteIdentifier(cycle.Mark.Text)
 			if cycle.Value != nil {
 				project := r.queries[definition.Query.(*parser.Select)]
-				union, ok := viewFromRoot(project).(*plan.RecursiveUnionNode)
+				union, ok := analyze.ViewFromRoot(project).(*plan.RecursiveUnionNode)
 				if !ok || union.Cycle == nil {
 					return "", fmt.Errorf("stuntgres: missing stored cycle recipe")
 				}
