@@ -10,8 +10,9 @@ engine; they move here in step 12d.6. Since 12d.2 the binder names no engine
 type for its authority, prepared inputs or captured inputs. The package sits at layer L8 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports `plan`, `exec`, `catalog`, `storage`, `expr`, `functions`, `ids`,
-the Part A content of `sequence` (§3 rule 6), `parser`, `sqltype` and the
-standard library, and never the engine or `session`. See
+`pgcatalog`, the Part A content of `sequence` and `typedef` (§3 rule 6),
+`parser`, `sqlstate`, `sqltype` and the standard library, and never the
+engine or `session`. See
 [ENGINE-SPLIT-analyze.md](../../../docs/ENGINE-SPLIT-analyze.md) (step 12).
 
 ## What it owns
@@ -53,11 +54,22 @@ standard library, and never the engine or `session`. See
   and the `RegtypeRetarget`, `OperatorRetarget`, `RoutineRetarget` and
   `RegTSRetarget` interfaces, which point the engine's captured resolvers in
   an input environment at one literal's position and sinks.
-- **Slots** (`binding_groups.go`): `InsertConflictSlot` (the bound ON CONFLICT
-  clause with its per-execution arbiter and write state), `RuleCTEsSlot` (the
-  rule commands of a rule action's CTEs) and `ViewWriteSlot` (the view-write
-  lowering). The engine owns these values and recovers them with one checked
-  helper each (`binding_slots.go`).
+- **ON CONFLICT clause** (`insert_conflict.go`): `InsertConflict`, the bound
+  clause (inference `ConflictKey`s and predicate or named constraint, read
+  manifests, the DO UPDATE action and its RETURNING), held by
+  `InsertBinding.Conflict`. `Clone` copies the header for one command, as
+  rule actions need; the analyzed expressions stay shared.
+- **Slots** (`binding_groups.go`): `RuleCTEsSlot` (the rule commands of a rule
+  action's CTEs) and `ViewWriteSlot` (the view-write lowering; `Base` is the
+  base relation the write lands on). The engine owns these values and
+  recovers them with one checked helper each (`binding_slots.go`).
+- **Shared statement helpers**, used by the binder and by engine DDL:
+  `create_table_columns.go` (CREATE TABLE column declarations, column index,
+  NOT NULL and unique constraints, `LikeConstraint`, LIKE options) and
+  `statement_checks.go` (view output checks, INSERT targets and value errors,
+  generated-column and inheritance conflicts, `TableKindError`,
+  `GuardedCatalogRelation`, MERGE reachability). `statement_errors.go` holds
+  the package's own `sqlError` and `insertError`.
 
 ## Invariants
 
@@ -66,7 +78,12 @@ standard library, and never the engine or `session`. See
   Payloads and groups are values; `UpdateBinding`, `MergeBinding`,
   `Returning` and the slot values are shared pointers, as before the move.
 - **Nil slots mean absent.** The engine never stores a nil pointer in a slot,
-  so `b.ViewWrite != nil` and `b.Insert.Conflict != nil` keep their meaning.
+  so `b.ViewWrite != nil` keeps its meaning; `b.Insert.Conflict` is a plain
+  pointer, nil without ON CONFLICT.
+- **One clause per command.** Execution writes the normalized predicate and
+  the preflighted DO UPDATE action into the binding's clause, so a stored
+  rule action clones it per command; arbiter and write state never live in
+  the clause.
 - **Capture maps** keep their contents and iteration rules: stored SQL
   (views, rules, policies, defaults, checks) deparses byte-identically.
 - **No mutexes and no engine state.** The types are plain records; binding
@@ -85,8 +102,10 @@ statement-kind binders; the authority adapters (`analysis_authority.go`:
 `bindingAuthorityView`, `authorityOf`, `authorizationOf`), `expectedOf` and
 `checkExpectedLifetime` (`expected_inputs.go`) and the captured input
 resolvers with their retarget methods (`captured_input_target.go`); rule rewriting (`rule_*.go`) and its CTE commands;
-view-write lowering (`viewWrite`); the INSERT conflict clause and its
-execution state (`boundInsertConflict`); and the execution-side helpers over
+view-write lowering (`viewWrite`); the ON CONFLICT execution state
+(`insertConflictState`: selected arbiters, unique-key checkpoints, the
+affected count, the EXCLUDED frame and the write overlay, built per command
+over the binding's clause); and the execution-side helpers over
 the binding types: `physicalBinding`, `bindingDefaultOrigin`,
 `evalBindingDefault`, `applyDefaultOrigin`, `capturedDomainReplayCell`,
 `mergeHasVirtualReads`, `selectMergeArm`, `validateCompositeOccurrence` and
@@ -95,14 +114,18 @@ aliases in `analyze_aliases.go`.
 
 ## Testing
 
-The package has no unit tests of its own yet: the binding types are built by
-the engine's binder, so their tests stay in the engine. The seams have engine
-unit tests: slots, binding authorities, held inputs and captured input
-retargeting:
+`TestInsertConflictCloneOwnsTheClauseHeader` covers `InsertConflict.Clone`.
+The binding types are otherwise built by the engine's binder, so their tests
+stay in the engine. The seams have engine unit tests: slots, binding
+authorities, held inputs, captured input retargeting and the host's rule
+check:
 
 ```sh
-make check RUN='^(TestBindingSlotsKeepNilAbsent|TestBindingAuthorityOverlaysOperationDefinition|TestExpectedOfCopiesHeldInputs|TestCapturedInputsRetargetOnlyTheirSinks)$'
+make check RUN='^(TestInsertConflictCloneOwnsTheClauseHeader|TestBindingSlotsKeepNilAbsent|TestViewWriteSlotReportsBaseRelation|TestAnalysisHostReportsRelationRules|TestBindingAuthorityOverlaysOperationDefinition|TestExpectedOfCopiesHeldInputs|TestCapturedInputsRetargetOnlyTheirSinks)$'
 ```
+
+ON CONFLICT execution state over the clause: `TestRuleConflictInstantiation`,
+`TestRuleCTEConflictInstantiation` and the `TestInsertConflict` engine units.
 
 Engine units that build bindings: grep `internal/engine/*_test.go` for
 `binding{`, `describe(` and the payload names. Public proof is the reference

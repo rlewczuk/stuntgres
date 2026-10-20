@@ -643,6 +643,86 @@ tests (Go 1.26 `new(expr)`), so the renames used the go/types tools.
   `make deps`: module paths only. `AGENTS.md`: 100 lines before and after.
   racecheck/finalcheck skipped at user request.
 
+#### 12d.5 result
+
+Built at `372246284`, in parallel with 12d.3. Tools:
+`.cswd/tmp/PG18-ENGINE-SPLIT-ANALYZE-AGGREGATES-DML/` (the 15b `movedecl`, a
+`goimports` build, frontier outputs and specs), plus the 11c `frontier`,
+`expspec` and `movespec`, the 10c `movex` and the 10d `fieldrn`.
+
+- **File split** (`949747b68`): every area-5 file is wholly binder or wholly
+  engine. Binder halves went to `update_bind.go`, `merge_bind.go`,
+  `insert_conflict_bind.go`, `insert_query_bind.go`, `typed_table_bind.go`,
+  `table_inheritance_bind.go` and `describe_bind.go` (`describeWithFormals`
+  out of `engine.go`; its CREATE TABLE branch became `bindCreateTable` in
+  `create_table_bind.go`); engine halves to `update_assignment_eval.go`,
+  `update_from_admission.go` (`checkTemporaryStorageAccess` and
+  `queryTableRefsLocked` were engine-only), `merge_returning_output.go`,
+  `returning_preflight.go` and `insert_conflict_update.go`. The aggregate,
+  grouping-set and window files were already wholly binder.
+- **ON CONFLICT split** (`804df42f5`): `analyze.InsertConflict` (with
+  `ConflictKey` and `Clone`) is the bound clause and `InsertBinding.Conflict`
+  points at it; `InsertConflictSlot`, `insertConflictOf`,
+  `insertConflictSlotOf` and the `insertConflictSlot` alias are gone. The
+  engine's `insertConflictState` refers to the clause and holds one command's
+  arbiters, checkpoints, affected count, EXCLUDED frame and write overlay; it
+  is built in `execute_bound.go`, which already handed the object to
+  `StatementScope.insertConflict`. It shares the binding's clause, so
+  predicate normalization and DO UPDATE preflight still write into it; rule
+  paths `Clone` where they called `instantiate`. Field exports by `fieldrn`
+  (16 fields, about 450 sites).
+- **Shared helpers** (`1a329c118`): the CREATE TABLE column, NOT NULL, unique
+  and LIKE helpers (`create_table_columns.go`) and the statement checks
+  (`statement_checks.go`: view output, INSERT targets and value errors,
+  generated-column and inheritance conflicts, `TableKindError`,
+  `GuardedCatalogRelation`, `ValidateMergeReachability`) are used by both
+  the area-5 binders and engine DDL and import only lower packages, so they
+  moved to `analyze`, exported where the engine calls them and qualified at
+  45 engine files (no aliases). `analyze` has its own `sqlError` and
+  `insertError` (`statement_errors.go`). `isSystemColumn` became
+  `catalog.IsSystemColumn`. `analyze` now also imports `pgcatalog` (L5) and
+  the Part A `typedef`.
+- **Seam** (`a73ebbc83`): `ViewWriteSlot` gained `Base`, the base relation of
+  a view write, and the host gained `RelationHasRules`; `bindMutationCommand`
+  no longer reads `viewWrite` or the rule payload.
+- **Exports** (`363efc88e`): `describeWithFormals` became `Describe`, the one
+  entry point behind `describe`, `describeWithRule`, `describeScoped` and the
+  SQL routine definition path; `bindInsertDefaults` and the free
+  `sameGroupExpression` became `BindInsertDefaults` and `SameGroupExpression`.
+- **Frontier** after the session: the area-5 binder files reach only binder
+  files, the host, `analyze` and these root declarations, all shared with
+  other areas or deferred (see the notes): `sqlError`, `insertError`,
+  `objectNameText`, `columnDefault` and `domainNullInputExpression`,
+  `queryLockAdmission` (with `newQueryLockAdmission` and
+  `admittedMutationTarget`), `mutationBinding`, `foldCTERestrictions`,
+  `validateViewReadGraph`, `queryDemandProperties`, the `consumerContext`
+  partition methods (`partition_bind.go`), and the area-4 files
+  `query_name_hint.go` and `query_rewrite.go`.
+- **Tests.** New: `TestInsertConflictCloneOwnsTheClauseHeader` (`analyze`),
+  `TestViewWriteSlotReportsBaseRelation`,
+  `TestAnalysisHostReportsRelationRules`. Adapted: the conflict tests build
+  `insertConflictState` with `newInsertConflictState` and read execution
+  state from the scope (`insert_conflict_*_test.go`, `insert_returning_test.go`);
+  `TestRuleConflictInstantiation` and `TestRuleCTEConflictInstantiation`
+  now assert that each composed command gets its own clause (an execution
+  write through one command's state does not reach the recipe or the next
+  command), since execution state no longer lives in the binding;
+  `TestBindingSlotsKeepNilAbsent` lost its conflict-slot checks; rule test
+  helpers return `*analyze.InsertConflict`. No test moved or deleted.
+- **Verification.** `make build` and `go vet` (identical to the base) after
+  every commit; targeted engine selections (INSERT ON CONFLICT and its rule
+  and CTE paths, UPDATE, MERGE, RETURNING, CREATE TABLE LIKE/OF/INHERITS,
+  grouping sets, windows, aggregates, slots and host); `make quickcheck`
+  passed (48 GB memory cap). The step 12 reference selection plus CREATE
+  TABLE, generated columns, typed tables and grouping sets passed in quick
+  mode; with `REFERENCE=1` only the known `/postgres` drift failed
+  (`TestReferenceDeleteReturningBoundaries` and the four MERGE
+  repeatable-read tests), as on master. `make bench`, branch and master
+  interleaved under load: 912–1,021 µs/op against 856–1,136 µs/op, 5,014
+  allocs/op on both. `make deps`: module paths only; no engine subpackage
+  imports the root. `AGENTS.md`: 100 lines before and after.
+  racecheck/finalcheck skipped at user request.
+
 ### 12e — Remove the aliases (broad)
 
 Use the alias tool; audit locals named `analyze`.
@@ -743,14 +823,17 @@ in §8.3 pass.
     racecheck and finalcheck skipped at user request.
   - [ ] 12d.3 — expression core preparation
   - [ ] 12d.4 — query, FROM and CTE preparation
-  - [ ] 12d.5 — aggregates, windows and DML targets preparation
+  - [x] 12d.5 — aggregates, windows and DML targets preparation
+    (`949747b68`, `804df42f5`, `1a329c118`, `a73ebbc83`, `363efc88e`, then
+    the docs commit; see the 12d.5 result). Selected dual-mode proof and
+    quickcheck passed; racecheck and finalcheck skipped at user request.
   - [ ] 12d.6 — binder moved
 - [ ] 12e — Aliases removed
 
-Outstanding aliases: the 34 aliases in `internal/engine/analyze_aliases.go`:
-the 32 binding types (12d.1), including `ParameterInfo`, which the driver
+Outstanding aliases: the aliases in `internal/engine/analyze_aliases.go`:
+the binding types (12d.1), including `ParameterInfo`, which the driver
 names as `engine.ParameterInfo`, and `lookupKind` and `namespaceSelection`
-(12d.2).
+(12d.2). 12d.5 removed `insertConflictSlot` and added none.
 
 Notes for later steps:
 
@@ -762,7 +845,7 @@ Notes for later steps:
   Re-run `frontier` for each area. Known: `scalarRenderer` and
   `capturedACLItemOutput` (`bindCreateDefaults`, `default.go`),
   `queryLockAdmission` and `ruleNamespace` (binder fields and the
-  `describeWithFormals` parameters), and pure root helpers
+  `Describe` parameters), and pure root helpers
   (`definition*At`, `statementCatalogType`, `refreshableTemporalCapture`,
   `checkExpectedLifetime`/`checkSignature`, `regtypeInputError`).
 - 12d.6: `bindingAuthorityView`, `authorityOf`, `authorizationOf`,
@@ -773,10 +856,26 @@ Notes for later steps:
 - Binders without a stored authority (setting calls, collation errors) box
   a fresh view per `bindingAuthorization`; a binder-local cache would remove
   it, but not provably without behavior change (12d.2 planning).
-- 12d.5 (DML targets): split `boundInsertConflict` into the bound clause,
-  which moves to `analyze`, and its per-execution state (arbiters, catalog
-  checkpoints, `insertWriteOverlay`), which stays in the engine; then
-  `InsertConflictSlot` can shrink to the runtime half.
+- 12d.6, from 12d.5: edges of the area-5 binders left for the move because
+  other areas share them: `queryLockAdmission` (type, `newQueryLockAdmission`,
+  `mutationTargets` and `admittedMutationTarget` read by `bindCTEMutation`)
+  and `ruleNamespace` (`Describe` parameters), `mutationBinding`,
+  `foldCTERestrictions`/`activateCTESources`, `validateViewReadGraph`,
+  `queryDemandProperties`, `objectNameText`, and the `consumerContext`
+  partition methods in `partition_bind.go` (a binder group's methods, so the
+  file moves with the binder). `sqlError` and `insertError` resolve to the
+  `analyze` copies once the binder moves.
+- 12d.6, from 12d.5: `columnDefault`, `defaultDestination` and
+  `domainNullInputExpression` (`domain_default.go`, `domain_check.go`) are
+  expression builders the binder and engine DDL share. They were not moved
+  because they reach `coercionProperties`, which 12d.3 moves to `analyze`;
+  after 12d.3 they import only `analyze` and lower packages and can move to
+  `analyze` exported.
+- 12d.6, from 12d.5: the engine calls binder methods directly on binders it
+  builds (`sameGroupExpression` from `check.go`, `partition_proof.go`,
+  `partition_attach_schema.go` and `query_join_legality.go`, and
+  `IndexExpressionBinder` users); export them in one pass with `expspec`.
+  Only free functions were exported in the area sessions.
 - 12e: remove `analyze_aliases.go` with the `unalias` tool and settle §7
   decision 11 for `ParameterInfo` (the driver's `value.go` names it).
   Comments in engine files still name the old type names through the
@@ -786,9 +885,6 @@ Notes for later steps:
 - 12d: `newHostedBinder` is the analyze-side constructor; the root keeps
   `newExpressionBinder` and `Engine.analysisHost`. `IndexExpressionBinder`
   returns an `*expressionBinder`, so the root must name the moved type.
-- 12d area 5: the statement-kind binders ported here sit in mixed files
-  (`update*.go`, `merge.go`, `insert_*.go`, `typed_table.go`,
-  `table_inheritance.go`); split their binder halves out first.
 - 12d.6: `binder_groups.go` moves with the binder; `binding_groups.go`
   moved in 12d.1. The `binderfields` tool (12b) and `bindsplit`
   (12a) rewrite selectors and literals by field object and are the model for

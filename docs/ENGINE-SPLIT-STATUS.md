@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `fa25fc96c`. The later-wave plans
+Last verified against `master` at `372246284`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -16,10 +16,10 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 as another broad item (§8).
 
 - **Step 12 `analyze`** — the area preparations 12d.3 expression core
-  (item 40d), 12d.4 query, FROM and CTE (item 40e) and 12d.5 aggregates,
-  windows and DML targets (item 40f); they touch disjoint files and may run
-  in parallel. 12a–12c, the 12d refine, 12d.1 (binding types) and 12d.2
-  (binder seam cuts) are done; 12d.6 (item 40g) **broad** follows them.
+  (item 40d) and 12d.4 query, FROM and CTE (item 40e); they touch disjoint
+  files and may run in parallel. 12a–12c, the 12d refine, 12d.1 (binding
+  types), 12d.2 (binder seam cuts) and 12d.5 (aggregates, windows and DML
+  targets) are done; 12d.6 (item 40g) **broad** follows 12d.3 and 12d.4.
 
 Steps 1, 2 and 4–11 and `access` are done. Step 13's in-place untangling (13a,
 13b) is done; 13c (item 43) waits for 12d (item 40: 40d–40g). Step 16
@@ -291,7 +291,9 @@ A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
       the docs commit) *(racecheck/finalcheck skipped at user request)*
     - [ ] 12d.3 — Expression core prepared in place
     - [ ] 12d.4 — Query, FROM and CTE binding prepared in place
-    - [ ] 12d.5 — Aggregates, windows and DML targets prepared in place
+    - [x] 12d.5 — Aggregates, windows and DML targets prepared in place
+      (`949747b68`, `804df42f5`, `1a329c118`, `a73ebbc83`, `363efc88e`,
+      then the docs commit) *(racecheck/finalcheck skipped at user request)*
     - [ ] 12d.6 — Binder moved *(broad)*
   - [ ] 12e — Aliases removed *(broad)*
 - [ ] **Step 13 — `session`** ([prompt](ENGINE-SPLIT-session.md); 13a–13b
@@ -529,8 +531,10 @@ in the prompt file's Status section.
       racecheck/finalcheck skipped at user request
     - 40d. [ ] 12d.3 expression core preparation · needs 40c
     - 40e. [ ] 12d.4 query, FROM and CTE preparation · needs 40c
-    - 40f. [ ] 12d.5 aggregates, windows and DML targets preparation · needs
-      40c
+    - 40f. [x] 12d.5 aggregates, windows and DML targets preparation · needs
+      40c (`949747b68`, `804df42f5`, `1a329c118`, `a73ebbc83`, `363efc88e`,
+      then the docs commit) · selected dual-mode proof and quickcheck passed;
+      racecheck/finalcheck skipped at user request
     - 40g. [ ] 12d.6 binder moved · needs 40d, 40e, 40f · **broad**
 41. [ ] Analyze 12e — [analyze](ENGINE-SPLIT-analyze.md) 12e · needs 40 ·
     **broad**

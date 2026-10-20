@@ -198,7 +198,7 @@ caches no session, scope or owner. Catalog-identity consumers keep explicit
 `functions.SequenceCall` cases: stored DEFAULT SQL and replay eligibility,
 `validateCookedDefaultTemporary`, `closedSequenceDefault`, dependency references,
 view `Ref` remapping, COPY's nextval volatility and the identity DEFAULT
-constructor in `bindInsertDefaults`.
+constructor in `BindInsertDefaults`.
 
 Run `make check RUN='^Test(SerialStoredDefaultInvariants|SerialDefaultIdentityProviderTemporaryCollision|QueryParallelEligibility|TableLikeTemporary(DefaultAuthority|RetainedCopy)|Inheritance(MergeStableRemap|RetainedRowAuthority)|TableLikeCookedRowRemap|IdentityOwnCheckBindingAuthority)$'`
 for the actual binder, stored-default, remap and parallel-safety units that use
