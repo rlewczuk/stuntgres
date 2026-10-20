@@ -503,10 +503,12 @@ Public SQL/control proof stays in `reference/catalogs/extension_version_*`.
 
 Provider records, member validation, owner metadata and remap live in
 [`extension`](extension/README.md); `procedureProvider` owns the procedure
-class and delegates installed members to `extension.CatalogProvider`. Each
-`*_stage.go` declares an installer that embeds its stock provider and stages
-it; the registry holds the installers and installed members hold the bare
-provider. Run `make check RUN='^(TestExtensionMembersHoldBareProviders|TestInstalledCodecArrayUsesRegisteredTypeProvider|TestExtensionProviderValidatesOnlyInstalledProcedures)$'`.
+class and delegates installed members to `extension.CatalogProvider`. The
+providers stage themselves (`extension.Installer`) through `extensionHost`
+(`extension_host.go`), the root `extension.Stage` over the engine, the
+captured authorization view and the `CatalogStage`; every call runs under
+`Engine.mu`. The registry and the installed members hold the same stock
+provider. Run `make check RUN='^(TestExtensionHostRefusesDiscardedStage|TestExtensionMembersHoldBareProviders|TestInstalledCodecArrayUsesRegisteredTypeProvider|TestExtensionProviderValidatesOnlyInstalledProcedures)$'`.
 
 ### Expression node runtime and query executor
 

@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `fe9498916`. The later-wave plans
+Last verified against `master` at `204022e05`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -19,14 +19,15 @@ as another broad item (§8).
 - **Step 15 `typedef`** — 15d, DDL handlers moved (item 49). Shares
   `schemaHost` and `schema.go` with 14d (item 47): run them one after the
   other, or rebase the second onto the first.
-- **Step 16 `extension`** — 16d.1, staging (item 51a).
+- **Step 16 `extension`** — 16d.2, handler decisions (item 51b).
 - **Step 17 `sequence`** — 17d, handler decisions (item 53).
 - **Postponed packages** — planning round (item 54; docs only).
 
 Steps 1, 2 and 4–13 and `access` (A1–B5) are done. Step 13 ended with 13e
 (item 45): the session aliases are gone. Part A of steps 14–17 is done;
 with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
-16c (item 50) is done: 16d runs as 16d.1 and 16d.2 (items 51a, 51b).
+16c (item 50) is done: 16d runs as 16d.1 and 16d.2 (items 51a, 51b);
+16d.1 (item 51a) is done: the providers stage themselves.
 14c (item 46) is done: 14d (item 47) runs as one session.
 17c (item 52) is done: 17d moves the decisions in one session (item 53).
 15c (item 48) is done: 15d (item 49) runs as one session on 14c's
@@ -367,7 +368,9 @@ with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
     skipped at user request)*
   - [x] 16c — Host refined (docs only; the docs commit)
   - [ ] 16d — Installation handlers moved
-    - [ ] 16d.1 — Staging behind `extension.Stage`; installers removed
+    - [x] 16d.1 — Staging behind `extension.Stage`; installers removed
+      (`9b88e37b1`, `6ee7b321c`, then the docs commit) *(racecheck/finalcheck
+      skipped at user request)*
     - [ ] 16d.2 — Handler decisions behind `extension.Host`
 - [ ] **Step 17 — `sequence`** ([prompt](ENGINE-SPLIT-sequence.md); Part A
   needs Tier C sequence calls; Part B needs 13d)
@@ -661,8 +664,11 @@ in the prompt file's Status section.
     aliases
 51. [ ] Extension 16d — [extension](ENGINE-SPLIT-extension.md) 16d · needs
     50
-    - 51a. [ ] 16d.1 staging — [extension](ENGINE-SPLIT-extension.md#16d1--staging-linear-item-51a)
-      · needs 50
+    - 51a. [x] 16d.1 staging — [extension](ENGINE-SPLIT-extension.md#16d1--staging-linear-item-51a)
+      · needs 50 (`9b88e37b1`, `6ee7b321c`, then the docs commit) · providers
+      stage themselves behind `extension.Stage`, root `extensionHost`,
+      installers removed · selected unit and dual-mode proof and quickcheck
+      passed; bench unchanged; racecheck/finalcheck skipped at user request
     - 51b. [ ] 16d.2 handlers — [extension](ENGINE-SPLIT-extension.md#16d2--handlers-linear-item-51b)
       · needs 51a
 52. [x] Sequence 17c (refine, docs only) —

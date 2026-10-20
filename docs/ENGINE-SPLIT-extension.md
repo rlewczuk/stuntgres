@@ -59,7 +59,8 @@ Imports of the move set: `authorization`, `catalog`, `expr`, `functions`,
 `routine`, no `typedef`.
 
 **Part B** (stay in the engine until 16d): the provider `*_stage.go` files
-(since 16b each declares the installer that embeds its stock provider),
+(since 16b each declares the installer that embeds its stock provider;
+moved into `extension` as provider methods in 16d.1),
 `extension_install.go` (`extensionInstaller`, `registerExtension`,
 `executeExtension`, `publishExtensionStage`, `stageExtensionLocked`),
 `extension_update.go`, `extension_drop.go`, `extension_owner_import.go`.
@@ -448,7 +449,58 @@ live there too; dispatch, `Engine.mu` and publication stay in the root
     skipped at user request.
 - [x] 16c — Host refined (docs only; the commit that records this text)
 - [ ] 16d — Installation handlers moved (two sessions, per the 16c plan)
-  - [ ] 16d.1 — Staging: providers own staging behind `extension.Stage`
+  - [x] 16d.1 — Staging: providers own staging behind `extension.Stage`
+    (`9b88e37b1`, `6ee7b321c`, then the docs commit) *(racecheck/finalcheck
+    skipped at user request)*
+    - Base `204022e05`. The frontier tool over the seven `*_stage.go`
+      files and the three action helpers, after the seam commit, reports
+      no engine declaration used (OUT empty); inbound uses were only
+      `engine.go`, `extension_install.go`, `extension_update.go` and six
+      test files.
+    - `9b88e37b1` (seam in place): `extension/stage.go` declares `Stage`,
+      `ScriptFunction`, `Installer`, `Updater` and `UpdateAction` as 16c
+      decisions 1 and 2 describe. `ScriptFunctions(owner, namespace,
+      helpers) ([]*catalog.Procedure, error)` returns nil for a missing
+      helper; unaccent checks them in order and keeps its 42883 texts, so
+      the first error is unchanged (both lookups are pure reads). The root
+      `extensionHost` (`extension_host.go`: engine, captured
+      `AuthorizationView`, `*CatalogStage`; compile-time assertion)
+      implements `Stage` by delegating to the existing root code; `Read`
+      is the stage base, which is the `auth.Catalog` cube and intarray read
+      before. `ScriptFunctions` works on a copy of the view. The operation
+      field, `Host` and `stageOf` come with 16d.2. The seven installers
+      staged through the host; `extensionInstaller` became
+      `extension.Installer`.
+    - `6ee7b321c` (move): the seven files moved with `git mv` into
+      `extension` as `Stage` methods on the providers (fuzzystrmatch also
+      `Updates`, `stageUpdate`, `stageMembers`); the installer types are
+      deleted. `extensionActions`, `validateExtensionActions` and
+      `stageExtensionPath` moved to `extension_actions.go` as `Actions`,
+      `ValidateActions` and `StagePath`. The registry holds the `Stock*`
+      providers in the same order. `extension` now imports `typedef`
+      (`RelationTypeNameOccupied`); `go list -deps` shows no engine,
+      `analyze`, `routine` or `plan`.
+    - Tests: new seam test `TestExtensionHostRefusesDiscardedStage`
+      (`extension_host_test.go`), written first and observed failing.
+      Adapted: `TestExtensionMembersHoldBareProviders` keeps its member
+      assertion (`implementation != tc.stock`) and checks that the registry
+      holds the stock provider; `TestExtensionProviderIdentity` and
+      `available_extension_sources_test.go` compare to the stock provider;
+      the `extensionVersionRegistration` fixture embeds
+      `*extension.FuzzystrmatchProvider`; the direct staging calls in
+      `aggregate_identity_test.go`, `cube_provider_test.go` and the two
+      uuid-ossp tests call the providers with an `extensionHost`. No test
+      moved or was deleted.
+    - Verification: build, vet (only the existing `composites` and
+      `copylocks` findings), the 119 targeted engine units after every
+      commit, the 356-test 16a reference selection in quick mode, the 16a
+      public smoke (85 lines, identical on base and branch), `make
+      quickcheck` and `make deps` passed. With `REFERENCE=1`, the 123
+      reference tests named for an extension in files that run CREATE or
+      ALTER EXTENSION (eight packages) passed. Layering: no engine subpackage imports the
+      engine. Startup bench, interleaved 8 runs each (load 8–10): median
+      1,038 µs/op before, 997 µs/op after, samples 859–1,202 µs/op on both
+      sides; 5,020–5,023 allocs/op and about 1.64 MB/op on both.
   - [ ] 16d.2 — Handlers: CREATE/UPDATE staging, DROP selection, owner
     import and fence check behind `extension.Host`
 
@@ -458,7 +510,12 @@ Notes for later steps:
 
 - 16c/16d: the engine installers (`*_stage.go`) were the staging seam;
   16c decision 1 settles it: staging becomes a provider method behind
-  `extension.Stage` and the registry holds the providers directly.
+  `extension.Stage` and the registry holds the providers directly (done in
+  16d.1).
+- 16d.2: `extensionHost` gains the operation and `Host`; `StageCreate` and
+  `StageUpdate` build it once and call `Installer.Stage` and `StagePath`
+  (already in `extension`). `registerExtension` already calls
+  `extension.ValidateActions`.
 - 16d, for other Part B steps (14c, 15c, 17c): the staging host shape
   (16c decisions 2 and 3: one root adapter over engine, operation, view and
   stage; not a defined type over `CatalogStage`) applies to any feature
