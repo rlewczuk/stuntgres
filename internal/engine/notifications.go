@@ -104,12 +104,15 @@ func (n *sessionNotifications) EndSession(token ids.SessionToken, _ EndReason) e
 	return nil
 }
 
-func (s *Session) WaitForNotification(op *Operation) (Notification, error) {
-	if op == nil || op.self != op || op.session != s {
+// WaitForNotification consumes the next client-ready notification of op's
+// session, waiting until one arrives or op's context ends. The listener is root
+// state guarded by Engine.mu, so polling lives on the engine.
+func (e *Engine) WaitForNotification(op *Operation) (Notification, error) {
+	if op == nil || op.self != op || op.session == nil || engineOf(op.session) != e {
 		return Notification{}, errors.New("stuntgres: foreign notification operation")
 	}
 	for {
-		event, available, wake, err := s.pollNotification(op.Context().Err)
+		event, available, wake, err := e.pollNotification(op.session, op.Context().Err)
 		if err != nil || available {
 			return event, err
 		}
@@ -120,15 +123,18 @@ func (s *Session) WaitForNotification(op *Operation) (Notification, error) {
 	}
 }
 
-// PollProtocolNotification observes the queue and registers its wake atomically.
+// PollProtocolNotification observes s's queue and registers its wake atomically.
 // It owns no operation/activity lease: idle timeout and retirement stay live.
 // The serialized wire dispatcher supplies its separate TxIdle delivery gate.
-func (s *Session) PollProtocolNotification() (Notification, bool, <-chan struct{}, error) {
-	return s.pollNotification(func() error { return s.Check(context.Background()) })
+func (e *Engine) PollProtocolNotification(s *Session) (Notification, bool, <-chan struct{}, error) {
+	if s == nil || engineOf(s) != e {
+		return Notification{}, false, nil, errors.New("stuntgres: foreign notification session")
+	}
+	return e.pollNotification(s, func() error { return s.Check(context.Background()) })
 }
 
-func (s *Session) pollNotification(check func() error) (Notification, bool, <-chan struct{}, error) {
-	e, n := engineOf(s), &payloadOf(s).notifications
+func (e *Engine) pollNotification(s *Session, check func() error) (Notification, bool, <-chan struct{}, error) {
+	n := &payloadOf(s).notifications
 	for {
 		if check != nil {
 			if err := check(); err != nil {

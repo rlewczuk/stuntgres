@@ -44,7 +44,7 @@ func TestNotificationSessionLifecycle(t *testing.T) {
 			}
 			defer blocker.Done()
 			done := make(chan error, 1)
-			go func() { _, err := receiver.WaitForNotification(op); op.Done(); done <- err }()
+			go func() { _, err := engineOf(receiver).WaitForNotification(op); op.Done(); done <- err }()
 			notificationAwaitWait(t, receiver, ctx)
 			receiver.RequestEnd(reason)
 			select {
@@ -123,7 +123,7 @@ func TestNotificationReceiveOwnership(t *testing.T) {
 	}
 	original := payloadOf(receiver).notifications.state
 	cancel()
-	got, err := receiver.WaitForNotification(op)
+	got, err := engineOf(receiver).WaitForNotification(op)
 	op.Done()
 	if !errors.Is(err, context.Canceled) || got != (Notification{}) || payloadOf(receiver).notifications.state != original {
 		t.Fatal("cancellation consumed ready data", got, err)
@@ -146,7 +146,7 @@ func TestNotificationReceiveOwnership(t *testing.T) {
 	}
 	out := make(chan outcome, 2)
 	go func() {
-		event, err := receiver.WaitForNotification(activity)
+		event, err := engineOf(receiver).WaitForNotification(activity)
 		activity.Done()
 		out <- outcome{event, err}
 	}()
@@ -169,7 +169,7 @@ func TestNotificationReceiveOwnership(t *testing.T) {
 			t.Fatal(err)
 		}
 		go func() {
-			event, err := receiver.WaitForNotification(activity)
+			event, err := engineOf(receiver).WaitForNotification(activity)
 			activity.Done()
 			out <- outcome{event, err}
 		}()

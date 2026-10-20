@@ -238,7 +238,7 @@ func (c *client) drainNotifications() (<-chan struct{}, error) {
 		return nil, nil
 	}
 	for {
-		event, available, wake, err := c.session.PollProtocolNotification()
+		event, available, wake, err := c.db.engine.PollProtocolNotification(c.session)
 		if err != nil {
 			return nil, err
 		}

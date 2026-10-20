@@ -38,7 +38,7 @@ func notificationUnitReceive(t *testing.T, s *Session) Notification {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	event, err := s.WaitForNotification(op)
+	event, err := engineOf(s).WaitForNotification(op)
 	if err != nil {
 		t.Fatal(err)
 	}

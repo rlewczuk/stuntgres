@@ -21,7 +21,7 @@ func TestNotificationPhysicalCloseWake(t *testing.T) {
 	// op is already registered and leased, regardless of goroutine scheduling.
 	received := make(chan error, 1)
 	go func() {
-		_, err := native.session.WaitForNotification(op)
+		_, err := native.engine.WaitForNotification(op)
 		op.Done()
 		received <- err
 	}()

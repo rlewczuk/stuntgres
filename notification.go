@@ -42,7 +42,7 @@ func WaitForNotification(ctx context.Context, connection *sql.Conn) (Notificatio
 			return native.terminalError(err)
 		}
 		defer op.Done()
-		received, err := native.session.WaitForNotification(op)
+		received, err := native.engine.WaitForNotification(op)
 		if err != nil {
 			return native.terminalError(op.CommandError(err))
 		}

@@ -229,7 +229,7 @@ func TestProtocolCycleRetention(t *testing.T) {
 func TestProtocolNotificationPoll(t *testing.T) {
 	e := New()
 	s := sessionStart(t, e, nil)
-	_, available, wake, err := s.PollProtocolNotification()
+	_, available, wake, err := engineOf(s).PollProtocolNotification(s)
 	if err != nil || available || wake == nil {
 		t.Fatal(available, wake, err)
 	}
@@ -249,12 +249,12 @@ func TestProtocolNotificationPoll(t *testing.T) {
 		t.Fatal("atomic poll wake lost publication")
 	}
 	for _, want := range []string{"first", "second"} {
-		got, available, _, err := s.PollProtocolNotification()
+		got, available, _, err := engineOf(s).PollProtocolNotification(s)
 		if err != nil || !available || got.Payload != want || got.PID != 42 {
 			t.Fatal(got, available, err)
 		}
 	}
-	_, available, wake, err = s.PollProtocolNotification()
+	_, available, wake, err = engineOf(s).PollProtocolNotification(s)
 	if err != nil || available || wake == nil {
 		t.Fatal("drained queue lacked new wake", err)
 	}
@@ -266,7 +266,7 @@ func TestProtocolNotificationPoll(t *testing.T) {
 	default:
 		t.Fatal("retirement did not wake idle observer")
 	}
-	if _, _, _, err = s.PollProtocolNotification(); err == nil {
+	if _, _, _, err = engineOf(s).PollProtocolNotification(s); err == nil {
 		t.Fatal("retired observer accepted poll")
 	}
 }
