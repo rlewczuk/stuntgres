@@ -1,6 +1,9 @@
 # internal/engine/analyze
 
-Statement binding. Today it holds the bound form of a statement (`Binding`),
+Statement binding. Since 12d.6 it holds the expression binder (`Binder`, its
+field groups and the statement-kind binders), `Describe`, which binds one
+statement, and `Host`, the engine services the binder calls. It also holds
+the bound form of a statement (`Binding`),
 its per-kind payloads and the capture groups that views, rules, policies and
 prepared statements read, plus the vocabulary the binder and its host speak:
 the binding authority, the held description's inputs, name-lookup kinds and
@@ -10,18 +13,32 @@ holds the clean analysis helpers that the binder and engine code share
 signature check), and since 12d.4 the statement's row-lock admission, the
 query namespace types and the query helpers the binder shares with the
 engine, and since 12d.3b the DEFAULT closure predicates, the retained-input
-walk and the rule namespace. The expression binder itself, its field groups and the `analyzeHost` seam still live in the
-engine; they move here in step 12d.6. Since 12d.2 the binder names no engine
-type for its authority, prepared inputs or captured inputs. The package sits at layer L8 of
+walk and the rule namespace. The binder names no engine type; it reaches engine state only
+through `Host`. The package sits at layer L8 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports `plan`, `exec`, `catalog`, `storage`, `expr`, `functions`, `ids`,
-`lock`, `pgcatalog`, the Part A content of `sequence`, `typedef` and `extension` (§3 rule 6),
+`lock`, `access`, `authorization`, `pgcatalog`, the Part A content of
+`routine`, `sequence`, `typedef` and `extension` (§3 rule 6),
 `parser`, `sqlstate`, `sqltype` and the standard library, and never the
 engine or `session`. See
 [ENGINE-SPLIT-analyze.md](../../../docs/ENGINE-SPLIT-analyze.md) (step 12).
 
 ## What it owns
 
+- **`Binder`** (`expression.go` and the other expression, function,
+  operator, query, CTE, aggregate, window and DML binder files;
+  `binder_groups.go`): the binder state for one statement, the host, the
+  statement inputs and the field groups (`TargetContext`, `ParameterState`,
+  `ConsumerContext`, `StoredSyntaxState`, `ClauseState`, `GroupingState`,
+  `QueryScopeState`, `CTEState`). `NewBinder` builds one over a `Host`;
+  `Describe` (`describe_bind.go`) binds one statement into a `Binding`, with
+  the statement-kind binders (`*_bind.go`, `insert_binding.go`,
+  `update_rows.go`, ...). The members engine DDL and the engine's tests use
+  are exported; `functions` reaches the binder through `functions.Binder`.
+- **`Host`** (`host.go`): the engine services the binder calls (name and
+  type resolution, privileges, definition reads, captures, the retag walker,
+  stored views and the view read graph). The engine implements it
+  (`bindingHost`).
 - **`Binding`** (`binding.go`): the header every statement kind may use
   (target relation, storage and ref, view write, targets, used columns, the
   query, CTEs and query sources, snapshot demands, CURRENT OF, predicate,
@@ -140,8 +157,9 @@ engine or `session`. See
   the clause.
 - **Capture maps** keep their contents and iteration rules: stored SQL
   (views, rules, policies, defaults, checks) deparses byte-identically.
-- **No mutexes and no engine state.** The types are plain records; binding
-  runs under `Engine.mu` in the engine.
+- **No mutexes and no engine state.** The types are plain records and the
+  binder reaches engine state only through `Host`; binding runs under
+  `Engine.mu`, held by the engine caller.
 - **Authorities.** A nil `Authority` means none is stored; the engine never
   stores a nil pointer. Only the host interprets a binding authority: engine
   code recovers stored authorities with `authorizationOf`, which rejects
@@ -150,18 +168,22 @@ engine or `session`. See
 
 ## What stays in the engine
 
-The expression binder (`expressionBinder`, its groups in `binder_groups.go`,
-`newExpressionBinder`, `analyzeHost`/`bindingHost`), `describe` and the
-statement-kind binders; the authority adapters (`analysis_authority.go`:
+The binder's construction point `newExpressionBinder`, the host
+implementation (`bindingHost`, `Engine.analysisHost`, `analysis_host.go`) and
+the root wrappers `describe`, `describeWithRule` and `describeScoped`; engine
+DDL that drives a binder it builds (`bindRuleDefinitionLocked`,
+`bindCreateDefaults`, checks, defaults, index, partition and policy
+expressions); the authority adapters (`analysis_authority.go`:
 `bindingAuthorityView`, `authorityOf`, `authorizationOf`), `expectedOf`
 (`expected_inputs.go`), `signatureOf`/`checkStatementSignature` (the
 `StatementDescription` wrappers of `CheckSignature`), the retag walker the
-host lends the binder (`MapBoundExpression`), preflight
+host lends the binder (`MapBoundExpression`, `MapBoundQueryExpression`),
+preflight
 (`expression_preflight.go`) and the captured input
 resolvers with their retarget methods (`captured_input_target.go`); stored
 view definitions, which the binder reads only through the host's
-`StoredViewVolatile` and `CaptureRetainedViewInput`
-(`query_cte_volatility.go`, `view_retained_input.go`); query set preflight
+`StoredViewVolatile`, `CaptureRetainedViewInput` and `ValidateViewReadGraph`
+(`query_cte_volatility.go`, `view_retained_input.go`, `view_cycles.go`); query set preflight
 (`preflightQuerySet`, `query_set_preflight.go`); rule rewriting (`rule_*.go`) and its CTE commands;
 view-write lowering (`viewWrite`); the ON CONFLICT execution state
 (`insertConflictState`: selected arbiters, unique-key checkpoints, the
@@ -177,13 +199,14 @@ aliases in `analyze_aliases.go`.
 
 `TestInsertConflictCloneOwnsTheClauseHeader` covers `InsertConflict.Clone`
 and `TestExpectedCheckLifetimeFencesCatalogTypes` the held lifetime check.
-The binding types are otherwise built by the engine's binder, so their tests
-stay in the engine. The seams have engine unit tests: slots, binding
+The binder needs an engine host, so its unit tests stay in the engine and
+reach it through the aliases and the exported members. The seams have engine unit tests: slots, binding
 authorities, held inputs, captured input retargeting and the host's rule
-check, expression mapping and stored-view reads:
+check, expression and query mapping, stored-view reads and the view read
+graph:
 
 ```sh
-make check RUN='^(TestInsertConflictCloneOwnsTheClauseHeader|TestExpectedCheckLifetimeFencesCatalogTypes|TestBindingSlotsKeepNilAbsent|TestViewWriteSlotReportsBaseRelation|TestAnalysisHostReportsRelationRules|TestAnalysisHostMapsBoundExpressions|TestBindingAuthorityOverlaysOperationDefinition|TestExpectedOfCopiesHeldInputs|TestCapturedInputsRetargetOnlyTheirSinks|TestAnalysisHostReadsStoredViews)$'
+make check RUN='^(TestInsertConflictCloneOwnsTheClauseHeader|TestExpectedCheckLifetimeFencesCatalogTypes|TestBindingSlotsKeepNilAbsent|TestViewWriteSlotReportsBaseRelation|TestAnalysisHostReportsRelationRules|TestAnalysisHostMapsBoundExpressions|TestAnalysisHostMapsBoundQueryExpressions|TestAnalysisHostValidatesViewReadGraph|TestBindingAuthorityOverlaysOperationDefinition|TestExpectedOfCopiesHeldInputs|TestCapturedInputsRetargetOnlyTheirSinks|TestAnalysisHostReadsStoredViews)$'
 ```
 
 ON CONFLICT execution state over the clause: `TestRuleConflictInstantiation`,

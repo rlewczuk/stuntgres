@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `f049d2fe8`. The later-wave plans
+Last verified against `master` at `cb31ead98`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,14 +15,13 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 12 `analyze`** — 12d.6, the binder move (item 40g) **broad**.
-  12a–12c, the 12d refine, 12d.1 (binding types), 12d.2 (binder seam
-  cuts), 12d.3 (expression core), 12d.3b (the expression files no area
-  listed), 12d.4 (query, FROM and CTE) and 12d.5 (aggregates, windows and
-  DML targets) are done.
+- **Step 12 `analyze`** — 12e, the alias removal (item 41) **broad**. 12a–12d
+  are done (12d.6 moved the binder).
+- **`access` B5** — the binding walkers (item 42).
+- **Step 13 `session`** — 13c, the refine (item 43, docs only).
 
 Steps 1, 2 and 4–11 and `access` are done. Step 13's in-place untangling (13a,
-13b) is done; 13c (item 43) waits for 12d (item 40: 40g, 40h). Step 16
+13b) is done; 13c (item 43) is ready. Step 16
 Part A (16a, 16b) is done; 16c (item 50) waits for 13d (item 44). Step 17 Part
 A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
 
@@ -280,7 +279,7 @@ A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
   - [x] 12c — Refined; host seam in place (refine `4c5fdc26c`; `fcd02ccd9`,
     `befafa13a`, `30378dd42`, `9aed67fdb`, `bc537ad6e`, then the docs commit)
     *(racecheck/finalcheck skipped at user request)*
-  - [ ] 12d — `analyze` created and binding moved (several sessions)
+  - [x] 12d — `analyze` created and binding moved (several sessions)
     *(broad)*
     - [x] 12d refine (docs only; `b8850fca9`): the binder moves last
     - [x] 12d.1 — Binding types moved *(broad)* (`5173b29cd`, `70d43f3e9`,
@@ -292,7 +291,9 @@ A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
     - [x] 12d.3 — Expression core prepared in place (`429bf3989`,
       `a750bbf16`, `4f491dace`, `ff9c86427`, `2ba59b6ba`, then the docs
       commit) *(racecheck/finalcheck skipped at user request)*
-    - [ ] 12d.3b — Unlisted expression files prepared in place
+    - [x] 12d.3b — Unlisted expression files prepared in place (`8186d9690`,
+      `f18840612`, `e1f80935c`, then the docs commit)
+      *(racecheck/finalcheck skipped at user request)*
     - [x] 12d.4 — Query, FROM and CTE binding prepared in place
       (`d350f8a03`, `c6475646c`, `20e14024e`, `ee4b1ac07`, `36bdb885a`,
       `792c18427`, `86957752b`, then the docs commit)
@@ -300,7 +301,9 @@ A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
     - [x] 12d.5 — Aggregates, windows and DML targets prepared in place
       (`949747b68`, `804df42f5`, `1a329c118`, `a73ebbc83`, `363efc88e`,
       then the docs commit) *(racecheck/finalcheck skipped at user request)*
-    - [ ] 12d.6 — Binder moved *(broad)*
+    - [x] 12d.6 — Binder moved *(broad)* (`947dec977`, `5f9ca6d92`,
+      `babc61e76`, `3fa00a84e`, then the docs commit)
+      *(racecheck/finalcheck skipped at user request)*
   - [ ] 12e — Aliases removed *(broad)*
 - [ ] **Step 13 — `session`** ([prompt](ENGINE-SPLIT-session.md); 13a–13b
   need —; 13c needs 11c, 12d, 8b)
@@ -523,7 +526,7 @@ in the prompt file's Status section.
     `4c5fdc26c`; `fcd02ccd9` … `bc537ad6e`, then the docs commit) · selected
     dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
     user request
-40. [ ] Analyze 12d (several sessions) — [analyze](ENGINE-SPLIT-analyze.md)
+40. [x] Analyze 12d (several sessions) — [analyze](ENGINE-SPLIT-analyze.md)
     12d · needs 39, 37 · **broad** · done when 40a–40h are ticked
     - 40a. [x] 12d refine (docs only; `b8850fca9`) · the binder moves in one
       final session; the areas are prepared in place
@@ -548,7 +551,10 @@ in the prompt file's Status section.
       40c (`949747b68`, `804df42f5`, `1a329c118`, `a73ebbc83`, `363efc88e`,
       then the docs commit) · selected dual-mode proof and quickcheck passed;
       racecheck/finalcheck skipped at user request
-    - 40g. [ ] 12d.6 binder moved · needs 40d, 40e, 40f, 40h · **broad**
+    - 40g. [x] 12d.6 binder moved · needs 40d, 40e, 40f, 40h · **broad**
+      (`947dec977`, `5f9ca6d92`, `babc61e76`, `3fa00a84e`, then the docs
+      commit) · quickcheck and selected dual-mode proof passed;
+      racecheck/finalcheck skipped at user request
     - 40h. [x] 12d.3b unlisted expression files preparation (area 3b in the
       analyze prompt) · needs 40c (`8186d9690`, `f18840612`, `e1f80935c`,
       then the docs commit) · quickcheck passed; broad reference run

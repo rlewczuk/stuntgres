@@ -979,6 +979,72 @@ now wholly binder or wholly engine.
   engine subpackage imports the root. `AGENTS.md`: 100 lines before and
   after. racecheck/finalcheck skipped at user request.
 
+#### 12d.6 result
+
+Built at `cb31ead98` (after 12d.3b). Tools and scripts:
+`.cswd/tmp/PG18-ENGINE-SPLIT-ANALYZE-BINDER-MOVE/` (`c1.sh`–`c4.sh`,
+`c2-edit.py`, `c3-pre.py`, the specs, `names.txt`, and the new `aliasqual`,
+`unalias` limited to `-files`, which names moved types by their `analyze`
+names inside the moving files only), with the 12d.4 `frontier`, `expspec`,
+`poslit`, `movespec-qual` and `keylit`, the 10c `movex` and the 12d.3
+`movedecl`, `mvpkg.sh` and `impfix`. The move set is 113 files: every file
+with methods on the binder or its groups, the statement-kind binder files,
+`binder_groups.go`, `query_cte_fold.go`, `insert_values_aggregate.go`,
+`expression_regexp_set.go` and the host interface. Its frontier was closed
+before the move (only `sqlError` and `insertError`, which resolve to the
+identical `analyze` copies).
+
+- **Last splits and helpers** (`947dec977`): the `consumerContext` partition
+  methods → `partition_context_bind.go`; `frozenQueryDependencies` (engine
+  only) → `view_definition.go` and `viewRenderer.quantifiedFieldsSQL` →
+  `view_deparse.go`; `analyze.PGType` (`type_names.go`) and
+  `analyze.ColumnDefault`, `DefaultDestination` and
+  `DomainNullInputExpression` (`column_defaults.go`), qualified at their
+  callers.
+- **Host** (`5f9ca6d92`): `MapBoundQueryExpression` (the retag walker with
+  identity types and a subquery-root mapper) and `ValidateViewReadGraph`;
+  CTE restriction folding (`foldCTERestrictions`, `PushCTEOccurrence` and
+  their helpers) and `RebaseFunctionCorrelation` take the host. 49 host
+  methods.
+- **Exports in place** (`babc61e76`): `expspec`/`movex` exported the 186 keys
+  that engine code or its tests read (binder methods and fields, group
+  fields, vocabulary constants, binder-file helpers; `newHostedBinder` →
+  `NewBinder`, the `jsonbRecord*` members → `JSONBRecord*`), 6,856
+  references. The exported wrappers `Info`, `CollatedInfo`,
+  `DiagnosticTypeName` and `Type` only forwarded to unexported twins; the
+  twins took their names (641 references) and the wrappers were deleted.
+  The `analyzeHost` interface and `bindingSessionToken` moved to their own
+  file.
+- **Move** (`3fa00a84e`): `aliasqual` rewrote 307 alias uses in 42 moving
+  files; `movespec` (names `expressionBinder` → `Binder`, `analyzeHost` →
+  `Host`; `-extra fromSetObservation`, because its field shares the type's
+  name) produced 18 alias rows, 31 qualified functions and constants and 2
+  field renames (1,330 references, 197 engine files qualified); `git mv`
+  into `analyze/` (`analysis_host_seam.go` → `host.go`), package line,
+  `analyze.` qualifiers stripped, aliases merged, `goimports`, `keylit`,
+  gofmt. The root keeps `newExpressionBinder`, `Engine.analysisHost`,
+  `bindingHost`, the describe wrappers and the authority adapters. `analyze`
+  now also imports `access` (L4), `authorization` (L1) and the Part A
+  `routine` (decision 4); no lower package imports it.
+- **Tests.** New: `TestAnalysisHostMapsBoundQueryExpressions` and
+  `TestAnalysisHostValidatesViewReadGraph` (both failed to compile before the
+  host methods). Adapted mechanically, no assertion changed: 264 engine test
+  files (exported names, qualified helpers); `query_cte_test.go` and
+  `query_regexp_set_test.go` pass a host to `PushCTEOccurrence` and
+  `RebaseFunctionCorrelation`; `identity_check_test.go` calls
+  `BuiltinVisible(name)` instead of the identical
+  `builtinVisible(name, FunctionLookup)`. No test moved or deleted: binder
+  tests need an engine host.
+- **Verification.** `make build`, `go vet` (identical to the base up to the
+  three pre-existing unkeyed-literal warnings now reported in `analyze`),
+  gofmt and the targeted engine selection after every commit; the
+  stack-frame strings the cancel fixtures wait on name no binder function.
+  `make quickcheck` passed on `3fa00a84e` (48 GB memory cap). `REFERENCE=1` for CTE, CTE folding, regexp sets (correlation rebasing), subscripts, intagg, regclass, defaults and rule restrictions (`^TestReference(CTE|QueryCTE|RegexpSet|Subscript|Intagg|Regclass|Default|Rule(Restrictions|SelectReturn))`, eight packages; one run for the session at user request): passed. `make bench`, branch and master: 827–845 µs/op (one 963 µs warm-up) against 811–886 µs/op, 5,014 allocs/op and about 1.64 MB/op on both.
+  `make deps`: module paths only; no engine subpackage imports the root.
+  `AGENTS.md`: 100 lines before and after (the root bullet names the
+  analysis host instead of binding). racecheck/finalcheck skipped at user
+  request.
+
 ### 12e — Remove the aliases (broad)
 
 Use the alias tool; audit locals named `analyze`.
@@ -1066,7 +1132,7 @@ in §8.3 pass.
   allocs/op after (master 870–1,116 µs/op, 5,014 allocs; timing is noisy on
   both); a throwaway probe of four statements showed identical allocations
   per execution before and after.
-- [ ] 12d — `analyze` created and binding moved (sessions: 12d.1 binding
+- [x] 12d — `analyze` created and binding moved (sessions: 12d.1 binding
   types, 12d.2 seam cuts, 12d.3–12d.5 and 12d.3b area preparation, 12d.6
   binder move)
   - [x] 12d refine (docs only; `b8850fca9`)
@@ -1094,17 +1160,27 @@ in §8.3 pass.
     (`949747b68`, `804df42f5`, `1a329c118`, `a73ebbc83`, `363efc88e`, then
     the docs commit; see the 12d.5 result). Selected dual-mode proof and
     quickcheck passed; racecheck and finalcheck skipped at user request.
-  - [ ] 12d.6 — binder moved
+  - [x] 12d.6 — binder moved (`947dec977`, `5f9ca6d92`, `babc61e76`,
+    `3fa00a84e`, then the docs commit; see the 12d.6 result). quickcheck and
+    the selected `REFERENCE=1` run passed (known drift only); racecheck and
+    finalcheck skipped at user request.
 - [ ] 12e — Aliases removed
 
-Outstanding aliases: the 42 aliases in `internal/engine/analyze_aliases.go`:
+Outstanding aliases: the 60 aliases in `internal/engine/analyze_aliases.go`:
 the binding types (12d.1), including `ParameterInfo`, which the driver
 names as `engine.ParameterInfo`; `lookupKind` and `namespaceSelection`
 (12d.2); `queryLockAdmission`, `preparedSource`, `admittedMutationTarget`,
-`queryColumn`, `queryQualifier` and `queryNamespace` (12d.4). 12d.5 removed
-`insertConflictSlot`.
+`queryColumn`, `queryQualifier` and `queryNamespace` (12d.4); and 12d.6's
+binder types: `expressionBinder`, `analyzeHost`, the groups the engine
+names (`clauseState`, `consumerContext`, `groupingState`, `queryScopeState`,
+`storedSyntaxState`), the vocabulary (`expressionContext`,
+`expressionPolicy`, `comparisonOperand`, `argumentWindowOwner`,
+`functionProjectionScope`, `analyzedGroupItem`, `storedExpressionSyntaxKey`,
+`fromSetObservation`, `sqlCallable`) and `QueryTargetComparison`/
+`QueryTargetOccurrence`. 12d.5 removed `insertConflictSlot`.
 
-Notes for later steps:
+Notes for later steps (the `12d.6` notes below were settled by the 12d.6
+result):
 
 - 12c: the host seam replaces only `engine` and `op`; `ctx`, `expected`,
   `input` and `dependencies` stay as statement inputs and output. The
@@ -1185,7 +1261,10 @@ Notes for later steps:
   checkpoints, `insertWriteOverlay`), which stays in the engine; then
   `InsertConflictSlot` can shrink to the runtime half.
 - 12e: remove `analyze_aliases.go` with the `unalias` tool and settle §7
-  decision 11 for `ParameterInfo` (the driver's `value.go` names it).
+  decision 11 for `ParameterInfo` (the driver's `value.go` names it). After
+  12d.6 the 60 aliases include `expressionBinder` (`analyze.Binder`, named in
+  about 70 engine test files and by `newExpressionBinder` and
+  `IndexExpressionBinder`) and `analyzeHost` (`analyze.Host`).
   Comments in engine files still name the old type names through the
   aliases.
 - `slotwrap` (12d.1 tmp directory) turns a pointer field into an interface
@@ -1208,7 +1287,8 @@ Notes for later steps:
   `MapBoundExpression`.
 - `catalog.ObjectNameText` now exists: `routine`'s private copy and
   `functions.qualifiedName` (both noted in their prompts) can use it.
-- `access` B5 moves the binding walkers once 12d has moved `binding`.
+- `access` B5 moves the binding walkers; 12d has moved `binding` and the
+  binder (done with 12d.6).
 - Step 15 (`typedef`): the composite, enum and range binders move here, not
   with `typedef`.
 - Step 14 (`routine`): function and operator call resolution moves here.

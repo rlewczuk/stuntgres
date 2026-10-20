@@ -94,7 +94,7 @@ Engine declarations the clean set still uses (14b exports or moves them):
   and its dump are Part B (14c).
 
 **Binder file:** `function_routine_binding.go` (91, from 14a) holds the six
-`expressionBinder` methods that capture builtin routine declarations and
+`expressionBinder` (since 12d.6 `analyze.Binder`) methods that capture builtin routine declarations and
 their SQL-body closure (`builtinRoutineInfo`, `builtinRoutineReference`,
 `selectedBuiltinRoutineInfo`, `captureBuiltinRoutineDeclaration`,
 `capturePolymorphicBody`, `captureRoutineBody`); call resolution, step 12.

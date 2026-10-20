@@ -96,7 +96,7 @@ query scheduling remain in the engine, not this package.
 ## Binder
 
 `Binder` (`binder.go`) is what bind code may ask of the engine's analyzer; the
-engine's `expressionBinder` implements it with thin adapters
+`analyze.Binder` implements it with thin adapters
 (`internal/engine/function_binder.go`). Each method is a reviewed decision:
 
 - `AnalyzeArgument` / `CoerceArgument`: occurrence-owned argument analysis and
@@ -560,7 +560,7 @@ signature spelling by leaf name), `NotedResolutionError` (42883 through
 unqualified argument spelling, `unknown` for deferred literals).
 The engine also calls `ResolutionError` and `SignatureHint` directly, without
 the former package-level math aliases. Its distinct
-`expressionBinder.functionResolutionErrorForTypes` method remains: it notes
+`analyze.Binder.functionResolutionErrorForTypes` method remains: it notes
 only missing signatures (`!ambiguous`), preserving composite-projection
 fallback. Actual `SignatureError` adapters and deliberately unnoted builder
 paths retain their existing responsibilities.
@@ -650,7 +650,7 @@ WITHIN GROUP and DISTINCT inputs) is shared with the engine's finish.
 
 To add or port a builtin family:
 
-1. In the engine, turn `func (b *expressionBinder) bindX(...)` into
+1. In `analyze`, turn `func (b *Binder) bindX(...)` into
    `func bindX(b functions.Binder, ...)` (F4). The compiler then proves the
    interface is enough; record any new `Binder` method above.
 2. Move it here, add its `Definition`, and delete its engine branch and glue
