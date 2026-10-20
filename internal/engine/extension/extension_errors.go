@@ -54,3 +54,7 @@ func VersionError(version string) error {
 	}
 	return nil
 }
+
+func sqlError(code, message string) error {
+	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
+}
