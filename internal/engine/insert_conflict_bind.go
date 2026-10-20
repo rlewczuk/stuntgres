@@ -81,7 +81,7 @@ func bindInsertConflict(b *binding, shared *expressionBinder, auth analyze.Autho
 	binder.expected = shared.expected
 	binder.params.noParameters = false
 	if raw.Update {
-		binder.query.hidden = append(binder.query.hidden, queryQualifier{name: "excluded", original: "excluded", lateralForbidden: true})
+		binder.query.hidden = append(binder.query.hidden, queryQualifier{Name: "excluded", Original: "excluded", LateralForbidden: true})
 	}
 	c.Keys = make([]analyze.ConflictKey, len(raw.Keys))
 	for i, key := range raw.Keys {

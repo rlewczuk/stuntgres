@@ -130,7 +130,7 @@ func protocolBinder(t *testing.T) *expressionBinder {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	column := catalog.Column{Name: "k", Usage: b.typ(sqltype.Text).Usage()}
-	b.query.namespace = &queryNamespace{columns: []queryColumn{{descriptor: column, slot: 0, leaf: -1, physical: -1}}, frame: []catalog.Column{column}}
+	b.query.namespace = &queryNamespace{Columns: []queryColumn{{Descriptor: column, Slot: 0, Leaf: -1, Physical: -1}}, Frame: []catalog.Column{column}}
 	return b
 }
 

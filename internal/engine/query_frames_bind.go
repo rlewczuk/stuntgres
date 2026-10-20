@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/lock"
@@ -106,7 +107,7 @@ func (q *queryScopeState) outerQualifiers() []queryQualifier {
 		if len(s.hidden) != 0 {
 			out = append(out, s.hidden...)
 		} else if s.namespace != nil {
-			out = append(out, s.namespace.qualifiers...)
+			out = append(out, s.namespace.Qualifiers...)
 		}
 	}
 	return out
@@ -115,7 +116,7 @@ func (q *queryScopeState) outerQualifiers() []queryQualifier {
 func (b *expressionBinder) queryColumnInFrame(c queryColumn, pos parser.Position, frame uint32) expr.Expr {
 	expr := b.queryColumnAt(c, pos).(plan.ColumnExpr)
 	expr.Frame = frame
-	expr.MergeSource = c.leaf != queryTargetLeaf && b.mergeReturningFrame(frame)
+	expr.MergeSource = c.Leaf != analyze.QueryTargetLeaf && b.mergeReturningFrame(frame)
 	return expr
 }
 

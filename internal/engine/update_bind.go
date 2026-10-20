@@ -21,14 +21,14 @@ func bindUpdate(b *binding, binder *expressionBinder, s *parser.Update) error {
 	u := &boundUpdate{}
 	var err error
 	target := binder.mutationTargetNamespace()
-	binder.query.hidden = append(binder.query.hidden, target.qualifiers[0])
+	binder.query.hidden = append(binder.query.hidden, target.Qualifiers[0])
 	if s.From != nil {
 		var sources queryNamespace
 		u.From, sources, err = binder.bindFrom(s.From)
 		if err != nil {
 			return err
 		}
-		u.SourceWidth = len(sources.frame)
+		u.SourceWidth = len(sources.Frame)
 		target, err = combineQueryNamespace(target, rebaseQueryNamespace(sources, len(b.Relation.Columns)))
 		if err != nil {
 			return err

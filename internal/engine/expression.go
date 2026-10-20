@@ -196,7 +196,7 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 	if b.target.generatedOwner != nil {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
 		owner := b.target.generatedOwner
-		qualified := len(raw.Name.Parts) == 1 || len(raw.Name.Parts) == 2 && raw.Name.Parts[0].Text == owner.Name() || len(raw.Name.Parts) == 3 && raw.Name.Parts[1].Text == owner.Name() && raw.Name.Parts[0].Text == b.query.namespace.qualifiers[0].schema
+		qualified := len(raw.Name.Parts) == 1 || len(raw.Name.Parts) == 2 && raw.Name.Parts[0].Text == owner.Name() || len(raw.Name.Parts) == 3 && raw.Name.Parts[1].Text == owner.Name() && raw.Name.Parts[0].Text == b.query.namespace.Qualifiers[0].Schema
 		if qualified {
 			if name == "tableoid" {
 				ref := b.query.sources[0].Ref

@@ -40,7 +40,7 @@ func TestJSONBRecordBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	source, ok := node.(*plan.FunctionFromNode)
-	if !ok || len(source.Calls) != 1 || len(ns.columns) != 2 || ns.columns[0].descriptor.Usage.Type.ID() != sqltype.Int4 || ns.columns[1].descriptor.Usage.Type.ID() != sqltype.Text {
+	if !ok || len(source.Calls) != 1 || len(ns.Columns) != 2 || ns.Columns[0].Descriptor.Usage.Type.ID() != sqltype.Int4 || ns.Columns[1].Descriptor.Usage.Type.ID() != sqltype.Text {
 		t.Fatal("lost definition usage", node, ns)
 	}
 	call := source.Calls[0].(functions.JSONBRecord)
@@ -257,7 +257,7 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 		return next
 	}
 	column := func(name string, slot int, usage sqltype.Usage) queryColumn {
-		return queryColumn{descriptor: catalog.Column{Name: name, Usage: usage}, slot: slot, leaf: -1, physical: -1}
+		return queryColumn{Descriptor: catalog.Column{Name: name, Usage: usage}, Slot: slot, Leaf: -1, Physical: -1}
 	}
 	first := original.CompositeMember(0)
 	second := original.CompositeMember(1)
@@ -275,7 +275,7 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 	if err := validateCompositeOccurrence(captured, view); err != nil {
 		t.Fatal(err)
 	}
-	oldSource[0].descriptor.Name = "changed after capture"
+	oldSource[0].Descriptor.Name = "changed after capture"
 	if captured.Names[0] != "x" || captured.Attributes[0] != first.Attribute || captured.Attributes[1] != second.Attribute {
 		t.Fatal("capture borrowed mutable labels or lost stable attributes", captured)
 	}
@@ -290,7 +290,7 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 	currentColumns := []queryColumn{left, currentSource[0], currentSource[1], currentSource[2], ordinal}
 	call := callFor(current)
 	node := &plan.FunctionFromNode{Calls: []expr.Expr{call}, Ordinality: true, Frame: 3}
-	qualifier := queryQualifier{sourceRoot: node, columns: append(append([]queryColumn(nil), currentSource...), ordinal)}
+	qualifier := queryQualifier{SourceRoot: node, Columns: append(append([]queryColumn(nil), currentSource...), ordinal)}
 	out, err = b.jsonbRecordStarColumns(currentColumns, 3, star, &qualifier)
 	if err != nil || len(out) != 4 {
 		t.Fatal("retained projection", out, err)
@@ -299,7 +299,7 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 		name string
 		slot int
 	}{{"other", 0}, {"x", 5}, {"y", 6}, {"n", 8}} {
-		if out[i].descriptor.Name != want.name || out[i].slot != want.slot {
+		if out[i].Descriptor.Name != want.name || out[i].Slot != want.slot {
 			t.Fatal("unrelated slot, alias, or ordinal changed", out)
 		}
 	}
@@ -486,7 +486,7 @@ func TestJSONBRecordLayout(t *testing.T) {
 			t.Fatal(tc.query, err)
 		}
 		call := root.(*plan.FunctionFromNode).Calls[0].(functions.JSONBRecord)
-		if !call.Definitions || call.Unresolved || len(namespace.columns) != 2 || call.RecordUsage().Type.CompositeMember(0).Name != "a" {
+		if !call.Definitions || call.Unresolved || len(namespace.Columns) != 2 || call.RecordUsage().Type.CompositeMember(0).Name != "a" {
 			t.Fatal("lost caller layout", call, namespace)
 		}
 		if tc.nullInner {

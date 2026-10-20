@@ -18,12 +18,12 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
 	columns := make([]queryColumn, len(d.Columns))
 	for i, c := range d.Columns {
-		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
+		columns[i] = queryColumn{Descriptor: c, Slot: i, Leaf: 0, Physical: i}
 	}
 	ns := queryNamespace{
-		columns:    columns,
-		qualifiers: []queryQualifier{{name: d.Name(), original: d.Name(), schema: auth.Catalog.Get(d.Namespace()).Name(), ref: ref, columns: columns}},
-		frame:      d.Columns,
+		Columns:    columns,
+		Qualifiers: []queryQualifier{{Name: d.Name(), Original: d.Name(), Schema: auth.Catalog.Get(d.Namespace()).Name(), Ref: ref, Columns: columns}},
+		Frame:      d.Columns,
 	}
 	b := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
 	b.consumer.policyConsumer, b.params.noParameters = true, true

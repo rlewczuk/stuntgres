@@ -80,7 +80,7 @@ func TestSRFFromBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	source, ok := node.(*plan.FunctionFromNode)
-	if !ok || !source.RegexpNamespace || b.clause.queryHasTargetSet || len(ns.columns) != 2 || ns.columns[0].descriptor.Name != "generate_series" || ns.columns[1].descriptor.Usage.Type.ID() != sqltype.Int8 {
+	if !ok || !source.RegexpNamespace || b.clause.queryHasTargetSet || len(ns.Columns) != 2 || ns.Columns[0].Descriptor.Name != "generate_series" || ns.Columns[1].Descriptor.Usage.Type.ID() != sqltype.Int8 {
 		t.Fatal(node, ns)
 	}
 	if got := srfFromUnitRows(t, source); !reflect.DeepEqual(got, [][]any{{int64(2), int64(1)}, {int64(3), int64(2)}, {int64(4), int64(3)}}) {

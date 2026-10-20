@@ -19,7 +19,7 @@ func (b *expressionBinder) jsonbRecordStarColumns(columns []queryColumn, frame u
 	if b.query.namespace == nil {
 		return columns, nil
 	}
-	for _, qualifier := range b.query.namespace.qualifiers {
+	for _, qualifier := range b.query.namespace.Qualifiers {
 		var err error
 		columns, err = b.jsonbRecordQualifierStar(columns, frame, star, qualifier)
 		if err != nil {
@@ -30,7 +30,7 @@ func (b *expressionBinder) jsonbRecordStarColumns(columns []queryColumn, frame u
 }
 
 func (b *expressionBinder) jsonbRecordQualifierStar(columns []queryColumn, frame uint32, star parser.StarExpr, qualifier queryQualifier) ([]queryColumn, error) {
-	source, ok := qualifier.sourceRoot.(*plan.FunctionFromNode)
+	source, ok := qualifier.SourceRoot.(*plan.FunctionFromNode)
 	if !ok || source.Frame != frame {
 		return columns, nil
 	}
@@ -38,11 +38,11 @@ func (b *expressionBinder) jsonbRecordQualifierStar(columns []queryColumn, frame
 	for _, expression := range source.Calls {
 		width := exec.FunctionFromCallWidth(expression)
 		if call, selected := expression.(functions.JSONBRecord); selected && call.ResultUsage().Type.BaseType().IsComposite() {
-			if offset+width > len(qualifier.columns) {
+			if offset+width > len(qualifier.Columns) {
 				return nil, fmt.Errorf("stuntgres: invalid JSONB record source span")
 			}
 			var err error
-			columns, err = b.jsonbRecordCallStar(columns, qualifier.columns[offset:offset+width], star, call)
+			columns, err = b.jsonbRecordCallStar(columns, qualifier.Columns[offset:offset+width], star, call)
 			if err != nil {
 				return nil, err
 			}
@@ -62,15 +62,15 @@ func (b *expressionBinder) jsonbRecordCallStar(columns, source []queryColumn, st
 	}
 	first := 0
 	if len(source) != 0 {
-		first = source[0].slot
+		first = source[0].Slot
 	}
 	if !retained {
 		captured = compositeOccurrence{Kind: analyze.CompositeSourceExpansion, Base: usage, Attributes: make([]int32, 0, len(source)), Names: make([]string, 0, len(source))}
 		for _, column := range columns {
-			index := column.slot - first
+			index := column.Slot - first
 			if index >= 0 && index < len(source) {
 				captured.Attributes = append(captured.Attributes, shape.CompositeMember(index).Attribute)
-				captured.Names = append(captured.Names, column.descriptor.Name)
+				captured.Names = append(captured.Names, column.Descriptor.Name)
 			}
 		}
 	}
@@ -94,9 +94,9 @@ func (b *expressionBinder) jsonbRecordCallStar(columns, source []queryColumn, st
 	}
 	count, changed := 0, false
 	for _, column := range columns {
-		index := column.slot - first
+		index := column.Slot - first
 		if index >= 0 && index < len(source) {
-			if count >= len(captured.Attributes) || captured.Attributes[count] != shape.CompositeMember(index).Attribute || captured.Names[count] != column.descriptor.Name {
+			if count >= len(captured.Attributes) || captured.Attributes[count] != shape.CompositeMember(index).Attribute || captured.Names[count] != column.Descriptor.Name {
 				changed = true
 			}
 			count++
@@ -111,7 +111,7 @@ func (b *expressionBinder) jsonbRecordCallStar(columns, source []queryColumn, st
 	next := make([]queryColumn, 0, len(columns))
 	emitted := false
 	for _, column := range columns {
-		index := column.slot - first
+		index := column.Slot - first
 		if index < 0 || index >= len(source) {
 			next = append(next, column)
 			continue
@@ -122,7 +122,7 @@ func (b *expressionBinder) jsonbRecordCallStar(columns, source []queryColumn, st
 		for i, attribute := range captured.Attributes {
 			member, _ := shape.CompositeAttributeIndex(attribute)
 			retainedColumn := source[member]
-			retainedColumn.descriptor.Name = captured.Names[i]
+			retainedColumn.Descriptor.Name = captured.Names[i]
 			next = append(next, retainedColumn)
 		}
 		emitted = true

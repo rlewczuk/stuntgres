@@ -74,10 +74,10 @@ func (e *Engine) stageAlterIdentityTypes(scope *StatementScope, op *Operation, a
 func alterTypeNamespace(auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef) *queryNamespace {
 	columns := make([]queryColumn, len(original.Columns))
 	for i, column := range original.Columns {
-		columns[i] = queryColumn{descriptor: column, slot: i, leaf: queryTargetLeaf, physical: i}
+		columns[i] = queryColumn{Descriptor: column, Slot: i, Leaf: analyze.QueryTargetLeaf, Physical: i}
 	}
-	qualifier := queryQualifier{name: original.Name(), original: original.Name(), schema: auth.Catalog.Get(original.Namespace()).Name(), ref: ref, columns: columns}
-	return &queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: original.Columns}
+	qualifier := queryQualifier{Name: original.Name(), Original: original.Name(), Schema: auth.Catalog.Get(original.Namespace()).Name(), Ref: ref, Columns: columns}
+	return &queryNamespace{Columns: columns, Qualifiers: []queryQualifier{qualifier}, Frame: original.Columns}
 }
 
 func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef, action parser.AlterTableAction, usage sqltype.Usage, namespace *queryNamespace) (expr.Expr, []catalog.ExpressionDependency, error) {

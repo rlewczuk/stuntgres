@@ -82,17 +82,17 @@ func (b *expressionBinder) frozenWholeRowSource(qualifier queryQualifier, frame 
 			continue
 		}
 		for position, frozen := range namespace.Qualifiers {
-			if frozen.Name != qualifier.name || len(frozen.Columns) != len(qualifier.columns) {
+			if frozen.Name != qualifier.Name || len(frozen.Columns) != len(qualifier.Columns) {
 				continue
 			}
 			matches := true
-			for i, column := range qualifier.columns {
+			for i, column := range qualifier.Columns {
 				captured := frozen.Columns[i]
-				if captured.Name != column.descriptor.Name || captured.Leaf != column.leaf {
+				if captured.Name != column.Descriptor.Name || captured.Leaf != column.Leaf {
 					matches = false
 					break
 				}
-				if column.leaf >= 0 && captured.Attribute != b.query.sources[column.leaf].Relation.Attributes[column.physical] {
+				if column.Leaf >= 0 && captured.Attribute != b.query.sources[column.Leaf].Relation.Attributes[column.Physical] {
 					matches = false
 					break
 				}

@@ -53,21 +53,21 @@ func bindMerge(out *binding, binder *expressionBinder, auth analyze.Authority, r
 	binder.target.name, binder.target.alias = out.Relation.Name(), s.Alias.Text
 	binder.target.insertTarget = out.Relation
 	target := binder.mutationTargetNamespace()
-	binder.query.hidden = append(binder.query.hidden, target.qualifiers[0])
+	binder.query.hidden = append(binder.query.hidden, target.Qualifiers[0])
 	sourceHiddenStart := len(binder.query.hidden)
 	root, source, err := binder.bindFrom(s.Source)
 	if err != nil {
 		return err
 	}
-	for _, q := range source.qualifiers {
-		t := target.qualifiers[0]
-		if t.name == q.name && (t.alias != "" || q.alias != "" || t.ref == q.ref || q.ref == (ids.ObjectRef{})) {
-			d := sqlError("42712", fmt.Sprintf(`name "%s" specified more than once`, t.name)).(*sqlstate.Error)
+	for _, q := range source.Qualifiers {
+		t := target.Qualifiers[0]
+		if t.Name == q.Name && (t.Alias != "" || q.Alias != "" || t.Ref == q.Ref || q.Ref == (ids.ObjectRef{})) {
+			d := sqlError("42712", fmt.Sprintf(`name "%s" specified more than once`, t.Name)).(*sqlstate.Error)
 			d.Detail = "The name is used both as MERGE target table and data source."
 			return d
 		}
 	}
-	combined, err := combineQueryNamespace(target, rebaseQueryNamespace(source, len(target.frame)))
+	combined, err := combineQueryNamespace(target, rebaseQueryNamespace(source, len(target.Frame)))
 	if err != nil {
 		return err
 	}
@@ -88,7 +88,7 @@ func bindMerge(out *binding, binder *expressionBinder, auth analyze.Authority, r
 	default:
 		return expr.ErrorAt("0A000", "MERGE ON type is unsupported", s.On.SourcePosition())
 	}
-	merge := &boundMerge{Source: root, On: on, Arms: make([]boundMergeArm, len(s.Arms)), TargetWidth: len(target.frame), SourceWidth: len(source.frame)}
+	merge := &boundMerge{Source: root, On: on, Arms: make([]boundMergeArm, len(s.Arms)), TargetWidth: len(target.Frame), SourceWidth: len(source.Frame)}
 	var outputParameters map[int]sqltype.Usage
 	if s.Returning != nil {
 		wasUpdateParameters := binder.params.updateParameters
@@ -133,7 +133,7 @@ func bindMerge(out *binding, binder *expressionBinder, auth analyze.Authority, r
 				// Change only its action-local accessibility flag; appending the
 				// same entries would turn one missing column into plural ambiguity.
 				for i := sourceHiddenStart; i < len(sourceHidden); i++ {
-					sourceHidden[i].lateralForbidden = true
+					sourceHidden[i].LateralForbidden = true
 				}
 			}
 			binder.query.hidden = sourceHidden

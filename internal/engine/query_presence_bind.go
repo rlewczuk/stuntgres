@@ -8,11 +8,11 @@ import (
 // Slots belong to one bound query frame. Only namespace occurrences which may
 // be null-extended get a slot; ordinary queries and proven-present rows do not.
 func (b *expressionBinder) wholeRowPresence(q *queryQualifier, frame uint32) (int, error) {
-	if !q.nullExtended {
+	if !q.NullExtended {
 		return 0, nil
 	}
 	var slot *int
-	root := q.sourceRoot
+	root := q.SourceRoot
 unwrap:
 	for {
 		switch n := root.(type) {

@@ -58,24 +58,24 @@ func queryColumnDiagnostic(entries []queryQualifier, qualifier, name string, pos
 	exactLateralForbidden := false
 	exactCount := 0
 	for _, q := range entries {
-		if q.excludeColumnDiagnostics {
+		if q.ExcludeColumnDiagnostics {
 			continue
 		}
-		longest = max(longest, len(q.name))
+		longest = max(longest, len(q.Name))
 		exactAttributes := 0
-		for _, c := range q.columns {
-			longest = max(longest, len(c.descriptor.Name))
-			if c.descriptor.Name == name {
+		for _, c := range q.Columns {
+			longest = max(longest, len(c.Descriptor.Name))
+			if c.Descriptor.Name == name {
 				exactAttributes++
 				if exactAttributes > 1 {
 					return "", "", expr.ErrorAt("42702", fmt.Sprintf(`column reference "%s" is ambiguous`, name), pos)
 				}
 			}
 		}
-		if exactAttributes == 1 && (qualifier == "" || qualifier == q.name) {
+		if exactAttributes == 1 && (qualifier == "" || qualifier == q.Name) {
 			if exactCount == 0 {
-				exactRelation = q.name
-				exactLateralForbidden = q.lateralForbidden
+				exactRelation = q.Name
+				exactLateralForbidden = q.LateralForbidden
 			}
 			exactCount = min(2, exactCount+1)
 		}
@@ -120,22 +120,22 @@ func queryColumnDiagnostic(entries []queryQualifier, qualifier, name string, pos
 	var candidates [2]candidate
 	best, ties := 4, 0
 	for _, q := range entries {
-		if q.excludeColumnDiagnostics {
+		if q.ExcludeColumnDiagnostics {
 			continue
 		}
 		penalty := 0
 		if qualifier != "" {
-			penalty = boundedNameDistance(q.name, qualifierKey, left, right, min(3, best))
+			penalty = boundedNameDistance(q.Name, qualifierKey, left, right, min(3, best))
 		}
 		if penalty > min(3, best) {
 			continue
 		}
-		for _, c := range q.columns {
+		for _, c := range q.Columns {
 			// PostgreSQL uses strlen(request)/2 for this cutoff, although the
 			// edit distance itself operates on characters.
 			limit := min(3, best) - penalty
 			limit = min(limit, len(name)/2)
-			distance := boundedNameDistance(c.descriptor.Name, key, left, right, limit)
+			distance := boundedNameDistance(c.Descriptor.Name, key, left, right, limit)
 			if distance > limit {
 				continue
 			}
@@ -144,7 +144,7 @@ func queryColumnDiagnostic(entries []queryQualifier, qualifier, name string, pos
 				best, ties = distance, 0
 			}
 			if ties < len(candidates) {
-				candidates[ties] = candidate{q.name, c.descriptor.Name}
+				candidates[ties] = candidate{q.Name, c.Descriptor.Name}
 			}
 			ties++
 		}

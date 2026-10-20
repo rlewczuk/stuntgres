@@ -27,7 +27,10 @@ type (
 	preparedCaptures        = analyze.PreparedCaptures
 	preparedCompositeKey    = analyze.PreparedCompositeKey
 	preparedSource          = analyze.PreparedSource
+	queryColumn             = analyze.QueryColumn
 	queryLockAdmission      = analyze.LockAdmission
+	queryNamespace          = analyze.QueryNamespace
+	queryQualifier          = analyze.QueryQualifier
 	regObjectReference      = analyze.RegObjectReference
 	regtypeConstant         = analyze.RegtypeConstant
 	resolverInputs          = analyze.ResolverInputs

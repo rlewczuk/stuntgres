@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -48,8 +49,8 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 			return nil, expr.ErrorAt("42712", fmt.Sprintf(`table name "%s" specified more than once`, option.Alias.Text), option.Pos)
 		}
 		if b.query.namespace != nil {
-			for _, qualifier := range b.query.namespace.qualifiers {
-				if qualifier.name == option.Alias.Text {
+			for _, qualifier := range b.query.namespace.Qualifiers {
+				if qualifier.Name == option.Alias.Text {
 					return nil, expr.ErrorAt("42712", fmt.Sprintf(`table name "%s" specified more than once`, option.Alias.Text), option.Pos)
 				}
 			}
@@ -73,11 +74,11 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 	}
 	// Actual target/FROM relation qualifiers mask only implicit pseudo names.
 	if b.query.namespace != nil {
-		for _, qualifier := range b.query.namespace.qualifiers {
-			if !seenOld && qualifier.name == aliases.old {
+		for _, qualifier := range b.query.namespace.Qualifiers {
+			if !seenOld && qualifier.Name == aliases.old {
 				aliases.old = ""
 			}
-			if !seenNew && qualifier.name == aliases.new {
+			if !seenNew && qualifier.Name == aliases.new {
 				aliases.new = ""
 			}
 		}
@@ -91,7 +92,7 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 		switch column := expression.(type) {
 		case plan.ColumnExpr:
 			if b.query.namespace != nil {
-				descriptor = b.query.namespace.frame[column.Slot]
+				descriptor = b.query.namespace.Frame[column.Slot]
 			} else {
 				descriptor = b.target.relation.Columns[column.Slot]
 			}
@@ -127,28 +128,28 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 						appendOutput(b.returningColumnAt(slot, star.Pos, newValues), column.Name)
 					}
 				} else {
-					columns := b.query.namespace.columns
+					columns := b.query.namespace.Columns
 					if len(star.Qualifier.Parts) != 0 {
 						qualifier, err := b.queryQualifier(star.Qualifier, star.Pos)
 						if err != nil {
 							return nil, err
 						}
-						columns = qualifier.columns
+						columns = qualifier.Columns
 					}
 					if mode == returningMerge && len(star.Qualifier.Parts) == 0 {
 						for _, column := range columns {
-							if column.leaf != queryTargetLeaf {
-								appendOutput(b.queryColumnAt(column, star.Pos), column.descriptor.Name)
+							if column.Leaf != analyze.QueryTargetLeaf {
+								appendOutput(b.queryColumnAt(column, star.Pos), column.Descriptor.Name)
 							}
 						}
 						for _, column := range columns {
-							if column.leaf == queryTargetLeaf {
-								appendOutput(b.queryColumnAt(column, star.Pos), column.descriptor.Name)
+							if column.Leaf == analyze.QueryTargetLeaf {
+								appendOutput(b.queryColumnAt(column, star.Pos), column.Descriptor.Name)
 							}
 						}
 					} else {
 						for _, column := range columns {
-							appendOutput(b.queryColumnAt(column, star.Pos), column.descriptor.Name)
+							appendOutput(b.queryColumnAt(column, star.Pos), column.Descriptor.Name)
 						}
 					}
 				}
@@ -276,8 +277,8 @@ func (b *expressionBinder) returningColumn(raw parser.ColumnExpr) (expr.Expr, er
 	if len(parts) == 1 {
 		_, column := b.target.relation.Index[parts[0].Text]
 		if b.query.namespace != nil {
-			for _, candidate := range b.query.namespace.columns {
-				column = column || candidate.descriptor.Name == parts[0].Text
+			for _, candidate := range b.query.namespace.Columns {
+				column = column || candidate.Descriptor.Name == parts[0].Text
 			}
 		}
 		if !column {
@@ -323,8 +324,8 @@ func (b *expressionBinder) outerReturningScope(name parser.ObjectName) (*queryBi
 	}
 	label := name.Parts[0].Text
 	if b.query.namespace != nil {
-		for _, q := range b.query.namespace.qualifiers {
-			if q.name == label {
+		for _, q := range b.query.namespace.Qualifiers {
+			if q.Name == label {
 				return nil, false
 			}
 		}
@@ -335,8 +336,8 @@ func (b *expressionBinder) outerReturningScope(name parser.ObjectName) (*queryBi
 			continue
 		}
 		if scope.namespace != nil {
-			for _, q := range scope.namespace.qualifiers {
-				if q.name == label {
+			for _, q := range scope.namespace.Qualifiers {
+				if q.Name == label {
 					return nil, false
 				}
 			}

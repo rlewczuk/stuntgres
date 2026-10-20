@@ -84,7 +84,7 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 	n := &plan.SetNode{QuerySchema: make(plan.QuerySchema, width), Left: left, Right: right, Operation: strings.ToLower(operation), All: s.Set.All, LeftExpressions: make([]expr.Expr, width), RightExpressions: make([]expr.Expr, width)}
 	projection := make([]expr.Expr, width)
 	names := make([]string, width)
-	namespace := queryNamespace{frame: n.QuerySchema, columns: make([]queryColumn, width)}
+	namespace := queryNamespace{Frame: n.QuerySchema, Columns: make([]queryColumn, width)}
 	if !(n.Operation == "union" && n.All) {
 		n.Grouping = make([]plan.Grouping, width)
 	}
@@ -129,7 +129,7 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 		}
 		n.QuerySchema[i] = catalog.Column{Name: left.Schema()[i].Name, Usage: common}
 		names[i] = n.Schema()[i].Name
-		namespace.columns[i] = queryColumn{descriptor: n.Schema()[i], slot: i, leaf: -1, physical: -1}
+		namespace.Columns[i] = queryColumn{Descriptor: n.Schema()[i], Slot: i, Leaf: -1, Physical: -1}
 		projection[i] = plan.ColumnExpr{Info: info, Scope: 1, Frame: b.frameID(), Slot: i}
 		regclass = regclass || common.Type.ContainsCatalogIdentifier()
 		if n.Grouping != nil {

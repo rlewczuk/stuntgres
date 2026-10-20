@@ -186,15 +186,15 @@ func TestSumAnalysisNamespaceRestoration(t *testing.T) {
 			t.Run(map[bool]string{false: "nil_namespace", true: "existing_namespace"}[existingNamespace]+"/"+outcome, func(t *testing.T) {
 				b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 				b.clause.aggregateClause, b.target.insertTarget = "INSERT VALUES", target
-				hidden := []queryQualifier{{name: "earlier_hidden", columns: []queryColumn{{descriptor: catalog.Column{Name: "prior", Usage: integer.Usage()}}}}}
+				hidden := []queryQualifier{{Name: "earlier_hidden", Columns: []queryColumn{{Descriptor: catalog.Column{Name: "prior", Usage: integer.Usage()}}}}}
 				beforeHidden := append([]queryQualifier(nil), hidden...)
-				beforeHidden[0].columns = append([]queryColumn(nil), hidden[0].columns...)
+				beforeHidden[0].Columns = append([]queryColumn(nil), hidden[0].Columns...)
 				b.query.hidden = hidden
 				var namespace *queryNamespace
 				var beforeColumns []queryColumn
 				if existingNamespace {
-					namespace = &queryNamespace{columns: []queryColumn{{descriptor: catalog.Column{Name: "visible", Usage: integer.Usage()}}}}
-					beforeColumns = append([]queryColumn(nil), namespace.columns...)
+					namespace = &queryNamespace{Columns: []queryColumn{{Descriptor: catalog.Column{Name: "visible", Usage: integer.Usage()}}}}
+					beforeColumns = append([]queryColumn(nil), namespace.Columns...)
 					b.query.namespace = namespace
 				}
 				raw := parser.AggregateExpr{Name: "sum", Pos: parser.Position{Character: 10}, Args: []parser.Expr{one}}
@@ -209,8 +209,8 @@ func TestSumAnalysisNamespaceRestoration(t *testing.T) {
 				if b.query.namespace != namespace || len(b.query.hidden) != len(hidden) || &b.query.hidden[0] != &hidden[0] || !reflect.DeepEqual(b.query.hidden, beforeHidden) {
 					t.Fatal("SUM leaked or replaced namespace/hidden candidates", b.query.namespace, b.query.hidden)
 				}
-				if namespace != nil && !reflect.DeepEqual(namespace.columns, beforeColumns) {
-					t.Fatal("SUM mutated the incumbent source namespace", namespace.columns)
+				if namespace != nil && !reflect.DeepEqual(namespace.Columns, beforeColumns) {
+					t.Fatal("SUM mutated the incumbent source namespace", namespace.Columns)
 				}
 				if b.clause.aggregateClause != "INSERT VALUES" || b.target.insertTarget != target || len(b.target.uses) != 0 {
 					t.Fatal("SUM changed clause/target or read diagnostic-only destination", b.clause.aggregateClause, b.target.insertTarget, b.target.uses)

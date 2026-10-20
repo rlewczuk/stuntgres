@@ -387,7 +387,7 @@ func TestJSONBRecordRoutineFailedConstructor(t *testing.T) {
 	usage := b.typ(sqltype.Int4).Usage()
 	usage.Typmod = 0
 	column := catalog.Column{Name: "base", Usage: usage}
-	b.query.namespace = &queryNamespace{columns: []queryColumn{{descriptor: column, slot: 0, leaf: -1, physical: -1}}, frame: []catalog.Column{column}}
+	b.query.namespace = &queryNamespace{Columns: []queryColumn{{Descriptor: column, Slot: 0, Leaf: -1, Physical: -1}}, Frame: []catalog.Column{column}}
 	raw := statement(t, "SELECT jsonb_populate_record(base,'{}'::jsonb)").(*parser.Select).Targets[0].(parser.FunctionExpr)
 	_, err := b.bindFunctionSource(raw)
 	if err == nil {

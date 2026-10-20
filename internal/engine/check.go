@@ -42,10 +42,10 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
 	columns := make([]queryColumn, len(d.Columns))
 	for i, c := range d.Columns {
-		columns[i] = queryColumn{descriptor: c, slot: i, leaf: 0, physical: i}
+		columns[i] = queryColumn{Descriptor: c, Slot: i, Leaf: 0, Physical: i}
 	}
-	qualifier := queryQualifier{name: d.Name(), original: d.Name(), schema: auth.Catalog.Get(d.Namespace()).Name(), ref: ref, columns: columns}
-	ns := queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: d.Columns}
+	qualifier := queryQualifier{Name: d.Name(), Original: d.Name(), Schema: auth.Catalog.Get(d.Namespace()).Name(), Ref: ref, Columns: columns}
+	ns := queryNamespace{Columns: columns, Qualifiers: []queryQualifier{qualifier}, Frame: d.Columns}
 	used := constraintNames(auth.Catalog, d.Namespace(), d)
 	installed := make(map[string]bool, len(d.Constraints.NotNull)+len(d.Constraints.Check))
 	start := 0

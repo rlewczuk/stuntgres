@@ -147,7 +147,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				}
 				continue
 			}
-			columns := namespace.columns
+			columns := namespace.Columns
 			frame := b.frameID()
 			starPath := viewLiteralPath{Query: frame, Clause: analyze.ViewTargetLiteral, Target: target}
 			var returningScope *queryBindingScope
@@ -156,14 +156,14 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			if len(star.Qualifier.Parts) != 0 {
 				returningScope, newValues = b.outerReturningScope(star.Qualifier)
 				if returningScope != nil {
-					columns = returningScope.namespace.columns[:len(returningScope.relation.Columns)]
+					columns = returningScope.namespace.Columns[:len(returningScope.relation.Columns)]
 					frame = returningScope.frame
 				} else {
 					q, err := b.queryQualifier(star.Qualifier, star.Pos)
 					if err != nil {
 						return nil, err
 					}
-					columns, frame = q.columns, b.query.resolvedQueryFrame
+					columns, frame = q.Columns, b.query.resolvedQueryFrame
 					recordQualifier = q
 				}
 			} else if s.From == nil {
@@ -183,19 +183,19 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				b.capture.Stars[starPath] = nil
 			}
 			for _, c := range columns {
-				if c.hideStar {
+				if c.HideStar {
 					continue
 				}
 				var expr expr.Expr
 				if returningScope != nil {
-					expr = b.outerReturningColumnAt(returningScope, c.physical, star.Pos, newValues)
+					expr = b.outerReturningColumnAt(returningScope, c.Physical, star.Pos, newValues)
 				} else {
 					expr = b.queryColumnInFrame(c, star.Pos, frame)
 				}
 				projection = append(projection, expr)
-				targetNames = append(targetNames, c.descriptor.Name)
+				targetNames = append(targetNames, c.Descriptor.Name)
 				if b.params.noParameters || b.consumer.materializedDefinition {
-					b.capture.Stars[starPath] = append(b.capture.Stars[starPath], viewColumn{Frame: frame, Slot: c.slot})
+					b.capture.Stars[starPath] = append(b.capture.Stars[starPath], viewColumn{Frame: frame, Slot: c.Slot})
 					literalTargets = append(literalTargets, -1)
 				}
 			}
@@ -367,7 +367,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		regclassOutput = regclassOutput || result.Usage.Type.ContainsCatalogIdentifier()
 		result.Name = targetNames[i]
 		if c, ok := expression.(plan.ColumnExpr); ok && c.Scope == 1 && c.Frame == b.frameID() {
-			result = namespace.frame[c.Slot]
+			result = namespace.Frame[c.Slot]
 			result.Name = targetNames[i]
 		}
 		if operation, ok := expression.(plan.GroupingExpr); ok && operation.Frame == b.frameID() {

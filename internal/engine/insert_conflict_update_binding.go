@@ -22,20 +22,20 @@ func bindInsertConflictUpdate(b *binding, binder *expressionBinder, s *parser.In
 	if ruleNamespace != nil {
 		binder.target.ruleNamespace = nil
 		binder.query.hidden = append(append([]queryQualifier(nil), previousHidden...),
-			queryQualifier{name: "old", original: "old", lateralForbidden: true},
-			queryQualifier{name: "new", original: "new", lateralForbidden: true})
+			queryQualifier{Name: "old", Original: "old", LateralForbidden: true},
+			queryQualifier{Name: "new", Original: "new", LateralForbidden: true})
 	}
 	defer func() {
 		binder.target.ruleNamespace, binder.query.namespace, binder.query.hidden = ruleNamespace, previousNamespace, previousHidden
 	}()
 	target := binder.mutationTargetNamespace()
-	binder.query.hidden = append(binder.query.hidden, target.qualifiers[0])
+	binder.query.hidden = append(binder.query.hidden, target.Qualifiers[0])
 	excluded := rebaseQueryNamespace(target, len(b.Relation.Columns))
-	excluded.qualifiers[0] = queryQualifier{name: "excluded", columns: excluded.columns, lateralForbidden: true}
+	excluded.Qualifiers[0] = queryQualifier{Name: "excluded", Columns: excluded.Columns, LateralForbidden: true}
 	namespace := queryNamespace{
-		columns:    append(target.columns, excluded.columns...),
-		qualifiers: append(target.qualifiers, excluded.qualifiers...),
-		frame:      append(append([]catalog.Column(nil), target.frame...), target.frame...),
+		Columns:    append(target.Columns, excluded.Columns...),
+		Qualifiers: append(target.Qualifiers, excluded.Qualifiers...),
+		Frame:      append(append([]catalog.Column(nil), target.Frame...), target.Frame...),
 	}
 	binder.query.namespace = &namespace
 	binder.clause.aggregateClause = "UPDATE"

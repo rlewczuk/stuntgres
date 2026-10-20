@@ -24,9 +24,9 @@ func bindInsertSource(out *binding, binder *expressionBinder, auth analyze.Autho
 		// source. Keep it hidden when entering the shared SELECT binder.
 		columns := make([]queryColumn, len(out.Relation.Columns))
 		for i, descriptor := range out.Relation.Columns {
-			columns[i] = queryColumn{descriptor: descriptor, slot: i, leaf: queryTargetLeaf, physical: i}
+			columns[i] = queryColumn{Descriptor: descriptor, Slot: i, Leaf: analyze.QueryTargetLeaf, Physical: i}
 		}
-		target := queryQualifier{name: out.Relation.Name(), original: out.Relation.Name(), ref: out.Ref, columns: columns, schema: auth.ReadCatalog().Get(out.Relation.Namespace()).Name(), lateralForbidden: true}
+		target := queryQualifier{Name: out.Relation.Name(), Original: out.Relation.Name(), Ref: out.Ref, Columns: columns, Schema: auth.ReadCatalog().Get(out.Relation.Namespace()).Name(), LateralForbidden: true}
 		binder.query.hidden = append(binder.query.hidden, target)
 		query, err = binder.bindSelect(sel, true)
 		out.QuerySources = binder.query.sources
@@ -259,11 +259,11 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 		values.IdentityOrderDemand = make([]bool, width)
 	}
 	var root plan.Node = values
-	namespace := queryNamespace{frame: schema, values: true, identityValuesOrderDemand: values.IdentityOrderDemand}
+	namespace := queryNamespace{Frame: schema, Values: true, IdentityValuesOrderDemand: values.IdentityOrderDemand}
 	names := make([]string, width)
 	for i, column := range schema {
 		names[i] = column.Name
-		namespace.columns = append(namespace.columns, queryColumn{descriptor: column, slot: i, leaf: -1, physical: -1})
+		namespace.Columns = append(namespace.Columns, queryColumn{Descriptor: column, Slot: i, Leaf: -1, Physical: -1})
 	}
 	b.query.namespace = &namespace
 	order, err := b.bindOrder(source.Order, projection, names, "ORDER BY")

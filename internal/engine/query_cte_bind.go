@@ -131,12 +131,12 @@ func (b *expressionBinder) bindCTEScan(table *parser.TableReference, binding cte
 	b.cte.scanOrdinal++
 	columns := make([]queryColumn, len(schema))
 	for i, column := range schema {
-		columns[i] = queryColumn{descriptor: column, slot: i, leaf: -1, physical: i, cteScan: scan, hideStar: (d.Search != nil || d.Cycle != nil) && binding.contained && i >= d.UserWidth}
+		columns[i] = queryColumn{Descriptor: column, Slot: i, Leaf: -1, Physical: i, CTEScan: scan, HideStar: (d.Search != nil || d.Cycle != nil) && binding.contained && i >= d.UserWidth}
 	}
 	name := table.Name.Parts[0].Text
-	qualifier := queryQualifier{name: name, original: name, columns: columns}
+	qualifier := queryQualifier{Name: name, Original: name, Columns: columns}
 	b.query.hidden = append(b.query.hidden, qualifier)
-	return root, queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: schema}, nil
+	return root, queryNamespace{Columns: columns, Qualifiers: []queryQualifier{qualifier}, Frame: schema}, nil
 }
 
 func cteVolatile(root plan.Node) bool {

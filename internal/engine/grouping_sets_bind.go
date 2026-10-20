@@ -58,8 +58,8 @@ func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection [
 			if column, ok := item.Expr.(parser.ColumnExpr); ok && len(column.Name.Parts) == 1 {
 				name := column.Name.Parts[0].Text
 				input := false
-				for _, candidate := range b.query.namespace.columns {
-					input = input || candidate.descriptor.Name == name
+				for _, candidate := range b.query.namespace.Columns {
+					input = input || candidate.Descriptor.Name == name
 				}
 				if !input {
 					output := -1

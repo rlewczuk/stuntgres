@@ -16,10 +16,10 @@ func bindInsertReturning(b *binding, binder *expressionBinder, auth analyze.Auth
 	binder.query.namespace = &target
 	binder.query.hidden = nil
 	if s.Alias.Text != "" {
-		binder.query.hidden = append(binder.query.hidden, target.qualifiers[0])
+		binder.query.hidden = append(binder.query.hidden, target.Qualifiers[0])
 	}
 	if s.Conflict != nil && s.Conflict.Update {
-		binder.query.hidden = append(binder.query.hidden, queryQualifier{name: "excluded", original: "excluded", lateralForbidden: true})
+		binder.query.hidden = append(binder.query.hidden, queryQualifier{Name: "excluded", Original: "excluded", LateralForbidden: true})
 	}
 	previousUses := binder.target.uses
 	previousReadRequired := binder.target.returningReadRequired

@@ -334,22 +334,22 @@ func (b *expressionBinder) wholeRow(name parser.ObjectName, pos parser.Position,
 		return nil, err
 	}
 	frame := b.query.resolvedQueryFrame
-	if asValue && q.scalarAlias {
-		return b.queryColumnInFrame(q.columns[0], pos, frame), nil
+	if asValue && q.ScalarAlias {
+		return b.queryColumnInFrame(q.Columns[0], pos, frame), nil
 	}
-	fields := make([]expr.Expr, len(q.columns))
+	fields := make([]expr.Expr, len(q.Columns))
 	members := make([]sqltype.CompositeMember, len(fields))
 	props := expr.Properties{}
 	names := make([]string, len(fields))
-	for i, col := range q.columns {
+	for i, col := range q.Columns {
 		fields[i] = b.queryColumnInFrame(col, pos, frame)
-		names[i] = col.descriptor.Name
-		members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: col.descriptor.Name, Usage: col.descriptor.Usage}
+		names[i] = col.Descriptor.Name
+		members[i] = sqltype.CompositeMember{Attribute: int32(i + 1), Name: col.Descriptor.Name, Usage: col.Descriptor.Usage}
 		props = expr.MergeProperties(props, fields[i].Properties())
 	}
 	props.RowDependent = true
 	var typ *sqltype.Descriptor
-	descriptor, _ := b.definitionDescriptor(q.ref.Address)
+	descriptor, _ := b.definitionDescriptor(q.Ref.Address)
 	if relation, ok := descriptor.(*catalog.Relation); ok && relation.RowType != 0 {
 		typ, _ = b.definitionType(relation.RowType)
 	}
@@ -372,8 +372,8 @@ func (b *expressionBinder) wholeRow(name parser.ObjectName, pos parser.Position,
 	}
 	// A mutation target has no FROM producer; actual source qualifiers retain
 	// their producer even with zero members or the same name in another schema.
-	mergeSource := b.mergeReturningFrame(frame) && q.sourceRoot != nil
-	return plan.RowExpr{Info: b.info(typ.Usage(), pos, props), Fields: fields, WholeNames: names, WholeName: q.name, WholeSource: source, PresenceSlot: slot, PresenceFrame: frame, MergeSource: mergeSource}, nil
+	mergeSource := b.mergeReturningFrame(frame) && q.SourceRoot != nil
+	return plan.RowExpr{Info: b.info(typ.Usage(), pos, props), Fields: fields, WholeNames: names, WholeName: q.Name, WholeSource: source, PresenceSlot: slot, PresenceFrame: frame, MergeSource: mergeSource}, nil
 }
 
 // Expression-list expansion preserves original structural source occurrences.
@@ -626,9 +626,9 @@ func (b *expressionBinder) demandWholePresence(node expr.Expr) (expr.Expr, error
 		if namespace == nil {
 			return child, false, fmt.Errorf("stuntgres: missing whole-row demand namespace")
 		}
-		for i := range namespace.qualifiers {
-			qualifier := &namespace.qualifiers[i]
-			if qualifier.name != row.WholeName {
+		for i := range namespace.Qualifiers {
+			qualifier := &namespace.Qualifiers[i]
+			if qualifier.Name != row.WholeName {
 				continue
 			}
 			slot, err := b.wholeRowPresence(qualifier, row.PresenceFrame)

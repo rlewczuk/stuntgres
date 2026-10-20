@@ -96,7 +96,7 @@ func bindMutationCommand(binder *expressionBinder, auth analyze.Authority, requi
 		binder.query.auth = auth
 		if s.Using != nil {
 			target := binder.mutationTargetNamespace()
-			binder.query.hidden = append(binder.query.hidden, target.qualifiers[0])
+			binder.query.hidden = append(binder.query.hidden, target.Qualifiers[0])
 			var sources queryNamespace
 			binder.target.deleteUsingSources = true
 			b.Delete.Using, sources, err = binder.bindFrom(s.Using)
@@ -104,7 +104,7 @@ func bindMutationCommand(binder *expressionBinder, auth analyze.Authority, requi
 			if err != nil {
 				return b, err
 			}
-			b.Delete.SourceWidth = len(sources.frame)
+			b.Delete.SourceWidth = len(sources.Frame)
 			target, err = combineQueryNamespace(target, rebaseQueryNamespace(sources, len(b.Relation.Columns)))
 			if err != nil {
 				return b, err

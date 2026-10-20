@@ -405,12 +405,12 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		if e.Frame != b.frameID() {
 			return e, nil
 		}
-		name := b.query.namespace.frame[e.Slot].Name
-		for _, q := range b.query.namespace.qualifiers {
+		name := b.query.namespace.Frame[e.Slot].Name
+		for _, q := range b.query.namespace.Qualifiers {
 			found := false
-			for _, c := range q.columns {
-				if c.slot == e.Slot {
-					name = q.name + "." + c.descriptor.Name
+			for _, c := range q.Columns {
+				if c.Slot == e.Slot {
+					name = q.Name + "." + c.Descriptor.Name
 					found = true
 					break
 				}

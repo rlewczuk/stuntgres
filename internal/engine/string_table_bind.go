@@ -100,9 +100,9 @@ func (b *expressionBinder) stringSetAllowed(pos parser.Position) error {
 	return err
 }
 func stringLateralError(q queryQualifier, pos parser.Position, target bool) error {
-	err := expr.ErrorAt("42P10", fmt.Sprintf(`invalid reference to FROM-clause entry for table "%s"`, q.name), pos).(*sqlstate.Error)
+	err := expr.ErrorAt("42P10", fmt.Sprintf(`invalid reference to FROM-clause entry for table "%s"`, q.Name), pos).(*sqlstate.Error)
 	if target {
-		err.Hint = fmt.Sprintf(`There is an entry for table "%s", but it cannot be referenced from this part of the query.`, q.name)
+		err.Hint = fmt.Sprintf(`There is an entry for table "%s", but it cannot be referenced from this part of the query.`, q.Name)
 	} else {
 		err.Detail = "The combining JOIN type must be INNER or LEFT for a LATERAL reference."
 	}
@@ -144,16 +144,16 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (plan.Node
 	}
 	columns := make([]queryColumn, len(schema))
 	for i, col := range schema {
-		columns[i] = queryColumn{descriptor: col, slot: i, leaf: -1, physical: -1}
+		columns[i] = queryColumn{Descriptor: col, Slot: i, Leaf: -1, Physical: -1}
 	}
 	name := raw.Calls[0].Name.Parts[len(raw.Calls[0].Name.Parts)-1].Text
 	// One scalar call remains scalar even in ROWS FROM; ordinality and
 	// multiple calls declare tuples independently of their exposed labels.
-	qualifier := queryQualifier{name: name, original: name, columns: columns, scalarAlias: len(calls) == 1 && !raw.Ordinality}
+	qualifier := queryQualifier{Name: name, Original: name, Columns: columns, ScalarAlias: len(calls) == 1 && !raw.Ordinality}
 	b.query.hidden = append(b.query.hidden, qualifier)
 	captures := b.functionCaptures(calls)
 	node := &plan.FunctionFromNode{QuerySchema: schema, Calls: calls, Ordinality: raw.Ordinality, Correlated: len(captures) != 0, Frame: b.frameID(), ViewOrdinal: ordinal, Captures: captures}
-	return node, queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: schema}, nil
+	return node, queryNamespace{Columns: columns, Qualifiers: []queryQualifier{qualifier}, Frame: schema}, nil
 }
 
 // Only local expressions are rewritten; expression-owned queries retain their
@@ -180,9 +180,9 @@ func functionFrameReference(bound expr.Expr, frame uint32) bool {
 	return found
 }
 func stringForbiddenColumn(ns queryNamespace, slot int, pos parser.Position) error {
-	for _, qualifier := range ns.qualifiers {
-		for _, column := range qualifier.columns {
-			if column.slot == slot {
+	for _, qualifier := range ns.Qualifiers {
+		for _, column := range qualifier.Columns {
+			if column.Slot == slot {
 				return stringLateralError(qualifier, pos, false)
 			}
 		}
@@ -212,10 +212,10 @@ func (b *expressionBinder) functionCaptures(calls []expr.Expr) []plan.FunctionCo
 					return
 				}
 				name := ""
-				for _, qualifier := range b.query.namespace.qualifiers {
-					for _, candidate := range qualifier.columns {
-						if candidate.slot == column.Slot {
-							name = qualifier.name
+				for _, qualifier := range b.query.namespace.Qualifiers {
+					for _, candidate := range qualifier.Columns {
+						if candidate.Slot == column.Slot {
+							name = qualifier.Name
 							break
 						}
 					}

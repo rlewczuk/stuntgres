@@ -55,12 +55,12 @@ func TestQueryAliasesHintOccurrences(t *testing.T) {
 		{"distant_qualifier", []string{"id"}, "extraordinarilylongname", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			entry := queryQualifier{name: "x", ref: ref}
+			entry := queryQualifier{Name: "x", Ref: ref}
 			for _, name := range tc.columns {
-				entry.columns = append(entry.columns, queryColumn{descriptor: catalog.Column{Name: name}})
+				entry.Columns = append(entry.Columns, queryColumn{Descriptor: catalog.Column{Name: name}})
 			}
 			// Synthetic whole-join entries must not add a third tie or win.
-			join := queryQualifier{name: "j", columns: []queryColumn{{descriptor: catalog.Column{Name: "id"}}}, excludeColumnDiagnostics: true}
+			join := queryQualifier{Name: "j", Columns: []queryColumn{{Descriptor: catalog.Column{Name: "id"}}}, ExcludeColumnDiagnostics: true}
 			if detail, hint, err := queryColumnDiagnostic([]queryQualifier{entry, join}, tc.qualifier, "id", parser.Position{Offset: -1}, false); err != nil || detail != "" || hint != tc.want {
 				t.Fatal(detail, hint, err, tc.want)
 			}
@@ -90,7 +90,7 @@ func TestQueryAliasesUnicodeHintCutoff(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE t(id INT)")
 	ref := roleTableRef(t, e, "t")
-	entry := queryQualifier{name: "x", ref: ref, columns: []queryColumn{{descriptor: catalog.Column{Name: "aa"}}}}
+	entry := queryQualifier{Name: "x", Ref: ref, Columns: []queryColumn{{Descriptor: catalog.Column{Name: "aa"}}}}
 	// Two character substitutions are allowed because PostgreSQL's cutoff
 	// uses the four UTF8 bytes of the request, not its two characters.
 	if detail, hint, err := queryColumnDiagnostic([]queryQualifier{entry}, "x", "éé", parser.Position{Offset: -1}, false); err != nil || detail != "" || hint != `Perhaps you meant to reference the column "x.aa".` {
@@ -101,14 +101,14 @@ func TestQueryAliasesUnicodeHintCutoff(t *testing.T) {
 func TestQueryAliasesExactDiagnosticPrecedence(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE t(id INT)")
-	base := queryQualifier{name: "t", ref: roleTableRef(t, e, "t"), columns: []queryColumn{{descriptor: catalog.Column{Name: "id"}}}}
+	base := queryQualifier{Name: "t", Ref: roleTableRef(t, e, "t"), Columns: []queryColumn{{Descriptor: catalog.Column{Name: "id"}}}}
 	// Separate self-reference entries count even when physical refs coincide.
 	other := base
-	other.name = "u"
+	other.Name = "u"
 	fuzzy := base
-	fuzzy.name = "x"
-	fuzzy.columns = []queryColumn{{descriptor: catalog.Column{Name: "iid"}}}
-	join := queryQualifier{name: "j", columns: base.columns, excludeColumnDiagnostics: true}
+	fuzzy.Name = "x"
+	fuzzy.Columns = []queryColumn{{Descriptor: catalog.Column{Name: "iid"}}}
+	join := queryQualifier{Name: "j", Columns: base.Columns, ExcludeColumnDiagnostics: true}
 	for _, tc := range []struct {
 		name, qualifier string
 		entries         []queryQualifier
@@ -133,12 +133,12 @@ func TestQueryAliasesExactDiagnosticPrecedence(t *testing.T) {
 func TestQueryAliasesHiddenDuplicateDiagnostic(t *testing.T) {
 	e := New()
 	run(t, e, "CREATE TABLE t(id INT)")
-	base := queryQualifier{name: "t", ref: roleTableRef(t, e, "t"), columns: []queryColumn{{descriptor: catalog.Column{Name: "id"}}}}
+	base := queryQualifier{Name: "t", Ref: roleTableRef(t, e, "t"), Columns: []queryColumn{{Descriptor: catalog.Column{Name: "id"}}}}
 	other := base
-	other.name = "u"
+	other.Name = "u"
 	duplicate := base
-	duplicate.name = "x"
-	duplicate.columns = []queryColumn{{descriptor: catalog.Column{Name: "id"}}, {descriptor: catalog.Column{Name: "id"}}}
+	duplicate.Name = "x"
+	duplicate.Columns = []queryColumn{{Descriptor: catalog.Column{Name: "id"}}, {Descriptor: catalog.Column{Name: "id"}}}
 	for _, tc := range []struct {
 		name, qualifier string
 		entries         []queryQualifier
@@ -162,7 +162,7 @@ func TestQueryAliasesHiddenDuplicateDiagnostic(t *testing.T) {
 	}
 	// Join RTEs are excluded even if their exposed aliases repeat the name.
 	join := duplicate
-	join.excludeColumnDiagnostics = true
+	join.ExcludeColumnDiagnostics = true
 	detail, hint, err := queryColumnDiagnostic([]queryQualifier{join}, "", "id", parser.Position{Character: 8}, false)
 	if err != nil || detail != "" || hint != "" {
 		t.Fatal(detail, hint, err)
@@ -170,7 +170,7 @@ func TestQueryAliasesHiddenDuplicateDiagnostic(t *testing.T) {
 }
 
 func TestQueryValuesMissingColumnDiagnostics(t *testing.T) {
-	entry := queryQualifier{name: "v", columns: []queryColumn{{descriptor: catalog.Column{Name: "n"}}}}
+	entry := queryQualifier{Name: "v", Columns: []queryColumn{{Descriptor: catalog.Column{Name: "n"}}}}
 	detail, hint, err := queryColumnDiagnostic([]queryQualifier{entry}, "v", "nn", parser.Position{Character: 8}, false)
 	if err != nil || detail != "" || hint != `Perhaps you meant to reference the column "v.n".` {
 		t.Fatal(detail, hint, err)
@@ -185,7 +185,7 @@ func TestQueryValuesMissingColumnDiagnostics(t *testing.T) {
 			t.Fatal(detail, hint, err)
 		}
 	}
-	entry.excludeColumnDiagnostics = true
+	entry.ExcludeColumnDiagnostics = true
 	for _, name := range []string{"n", "nn"} {
 		detail, hint, err = queryColumnDiagnostic([]queryQualifier{entry}, "", name, parser.Position{Character: 8}, true)
 		if err != nil || detail != "" || hint != "" {
