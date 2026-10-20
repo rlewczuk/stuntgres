@@ -249,7 +249,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 					t.Fatal("already admitted base gained duplicate physical manifest ownership")
 				}
 			}
-			collectAuth, err := op.Authorization()
+			collectAuth, err := operationAuthorization(op)
 			if err != nil {
 				t.Fatal(err)
 			}

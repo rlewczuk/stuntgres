@@ -114,7 +114,7 @@ func TestRuleNamedConstraintRetirement(t *testing.T) {
 					e, session, event, parent := ruleNamedDependencyFixture(t, modifier, inferred)
 					before := e.catalog.state
 					op := alterConstraintOperation(t, session)
-					auth, err := op.Authorization()
+					auth, err := operationAuthorization(op)
 					if err != nil {
 						t.Fatal(err)
 					}

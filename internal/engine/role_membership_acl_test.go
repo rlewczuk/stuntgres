@@ -22,7 +22,7 @@ func TestMembershipInheritedOwnerAndColumnACL(t *testing.T) {
 	}
 	ref := roleTableRef(t, e, "secret")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
-	retained, err := op.Authorization()
+	retained, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +32,7 @@ func TestMembershipInheritedOwnerAndColumnACL(t *testing.T) {
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
-	view, err := op.Authorization()
+	view, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestMembershipInheritedOwnerAndColumnACL(t *testing.T) {
 	roleExecute(t, e, op, "GRANT rights TO reader")
 	roleExecute(t, e, op, "REVOKE INHERIT OPTION FOR middle FROM reader")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
-	view, err = op.Authorization()
+	view, err = operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestMembershipInheritedOwnerAndColumnACL(t *testing.T) {
 	if err := e.SetObjectACL(context.Background(), column, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner.Ref, Grantee: authorization.ACLGrantee{Role: rights.Ref}, Privileges: authorization.UpdatePrivilege}}}); err != nil {
 		t.Fatal(err)
 	}
-	view, err = op.Authorization()
+	view, err = operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

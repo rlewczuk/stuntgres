@@ -208,7 +208,7 @@ func TestForeignKeyTrustedReplayNamespacePrincipal(t *testing.T) {
 	if ordinary.State.CurrentUser == ordinary.State.Authenticated || trusted.State.CurrentUser != ordinary.State.Authenticated || trusted.namespaceUser != ordinary.State.CurrentUser || !slices.Contains(path, alpha) || trusted.SessionRoleState != ordinary.SessionRoleState {
 		t.Fatal("permission elevation replaced semantic namespace principal", ordinary.State, trusted.State, trusted.namespaceUser, path)
 	}
-	after, err := op.Authorization()
+	after, err := operationAuthorization(op)
 	if err != nil || after.State != ordinary.State || after.namespaceUser != (authorization.PrincipalRef{}) {
 		t.Fatal("transient replay authority changed public session identity", after.State, err)
 	}

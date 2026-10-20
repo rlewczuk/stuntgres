@@ -223,7 +223,7 @@ func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 	f.e.visibility.SetCommitSeqLocked(2)
 	authOp, done := roleOperation(t, f.e, "postgres")
 	defer done()
-	auth, err := authOp.Authorization()
+	auth, err := operationAuthorization(authOp)
 	if err != nil {
 		t.Fatal(err)
 	}

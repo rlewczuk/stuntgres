@@ -43,7 +43,7 @@ func TestAlterGeneratedExpressionCandidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref = catalogRef(t, e, e.CatalogRead(), "g2")
-	auth, err := admin.Authorization()
+	auth, err := operationAuthorization(admin)
 	if err != nil {
 		t.Fatal(err)
 	}

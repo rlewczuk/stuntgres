@@ -55,7 +55,7 @@ func TestPrimaryKeyCurrentACLDisclosure(t *testing.T) {
 				}
 				view := e.CatalogRead()
 				current := view.MustRelation(parent.Address())
-				auth, err := owner.Authorization()
+				auth, err := operationAuthorization(owner)
 				if err != nil {
 					t.Fatal(err)
 				}

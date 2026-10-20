@@ -31,7 +31,7 @@ type restoredForeignKeys struct {
 // Pending declarations live only inside the isolated Restore invocation. Capture
 // the declaring principal and namespace identities, not the later owner directive.
 func (e *Engine) captureRestoredForeignKeys(op *Operation, raw []parser.ForeignKeyConstraint) (restoredForeignKeys, error) {
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		return restoredForeignKeys{}, err
 	}

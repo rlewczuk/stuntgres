@@ -21,7 +21,7 @@ func TestPgClassCatalogACLRecheck(t *testing.T) {
 	reader, readerDone := roleOperation(t, e, role.Name)
 	defer readerDone()
 	requirement := access.Requirement{Object: ref, Privileges: authorization.SelectPrivilege}
-	retained, err := reader.Authorization()
+	retained, err := operationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestPgClassCatalogACLRecheck(t *testing.T) {
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
-	denied, err := reader.Authorization()
+	denied, err := operationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestPgClassCatalogACLRecheck(t *testing.T) {
 	if err := e.SetObjectACL(context.Background(), ref, d.Security.ACL); err != nil {
 		t.Fatal(err)
 	}
-	restored, err := reader.Authorization()
+	restored, err := operationAuthorization(reader)
 	if err != nil {
 		t.Fatal(err)
 	}

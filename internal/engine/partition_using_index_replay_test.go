@@ -33,7 +33,7 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	if err := e.beginPartitionUsingIndexReplay(op, raw); err != nil {
 		t.Fatal(err)
 	}
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestPartitionDetachUsingIndexReplayAuthority(t *testing.T) {
 	changed.ObjectRevision++
 	next.SetDescriptor(index.Address(), &changed)
 	e.catalog.state = next
-	fresh, err := op.Authorization()
+	fresh, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

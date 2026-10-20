@@ -2211,7 +2211,7 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 			}
 		}
 		if directive, ok := stmt.(*parser.SessionAuthorization); ok && directive.OwnerDirective && !directive.Default {
-			auth, authErr := op.Authorization()
+			auth, authErr := operationAuthorization(op)
 			if authErr != nil {
 				return authErr
 			}

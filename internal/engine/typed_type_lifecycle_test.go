@@ -139,7 +139,7 @@ func TestTypedPublicationFinalAuthorizationFence(t *testing.T) {
 			e, source, table := typedUnitCatalog(t, false)
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
-			auth, err := op.Authorization()
+			auth, err := operationAuthorization(op)
 			if err != nil {
 				t.Fatal(err)
 			}

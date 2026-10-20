@@ -180,7 +180,7 @@ func TestCollationOwnerMembershipRequiresDestinationCreate(t *testing.T) {
 		}
 	}
 	collationUnitPublish(t, e, stage)
-	auth, err := admin.Authorization()
+	auth, err := operationAuthorization(admin)
 	if err != nil {
 		t.Fatal(err)
 	}

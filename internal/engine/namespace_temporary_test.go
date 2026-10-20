@@ -62,7 +62,7 @@ func TestSequenceTemporaryNamespacePairAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		op.Done()
 		t.Fatal(err)
@@ -117,7 +117,7 @@ func TestSequenceTemporaryNamespacePairPrivate(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		auth, err := op.Authorization()
+		auth, err := operationAuthorization(op)
 		if err != nil {
 			op.Done()
 			t.Fatal(err)
@@ -189,7 +189,7 @@ func TestSequenceTemporaryNamespacePairAllocationFailure(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		auth, err := op.Authorization()
+		auth, err := operationAuthorization(op)
 		if err != nil {
 			op.Done()
 			t.Fatal(err)

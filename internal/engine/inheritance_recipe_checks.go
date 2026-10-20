@@ -286,7 +286,7 @@ func (e *Engine) pairRestoredGeneration(op *Operation, raw *parser.AlterTable, o
 	if !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || len(raw.Actions) != 1 || raw.Actions[0].Action != parser.SetExpression {
 		return reject()
 	}
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		return err
 	}
@@ -325,7 +325,7 @@ func (e *Engine) pairRestoredGeneration(op *Operation, raw *parser.AlterTable, o
 }
 
 func (e *Engine) captureRestoredGeneration(op *Operation, raw *parser.AlterTable) (restoredGenerationRecipe, error) {
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		return restoredGenerationRecipe{}, err
 	}
@@ -501,7 +501,7 @@ func capturedGenerationReplayPlan(view catalog.Read) (map[ids.ObjectAddress]*dum
 }
 
 func (e *Engine) closeRestoredRecipesForData(op *Operation, raw *parser.Insert, repairs []restoredGenerationRecipe) ([]restoredGenerationRecipe, error) {
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		return nil, err
 	}

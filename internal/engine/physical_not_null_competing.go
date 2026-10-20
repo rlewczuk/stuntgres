@@ -111,7 +111,7 @@ func (e *Engine) preparePhysicalCompetingUnique(op *Operation, raw *parser.Alter
 	if provider == nil || !provider.permuted || provider.op != op || !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || definition == nil || definition.Primary || definition.Name.Text == "" || len(definition.Columns) != len(provider.primary.Keys) {
 		return reject()
 	}
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		return nil, err
 	}

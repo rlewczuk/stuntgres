@@ -35,7 +35,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				if private {
 					session.transactions.catalog = changes
 				}
-				auth, err := message.op.Authorization()
+				auth, err := operationAuthorization(message.op)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -88,7 +88,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				if err != nil || result.Rows != nil || result.Count != 0 {
 					t.Fatal("actual retained ObjectGrant failed", err)
 				}
-				retained, err := message.op.Authorization()
+				retained, err := operationAuthorization(message.op)
 				if err != nil {
 					t.Fatal(err)
 				}

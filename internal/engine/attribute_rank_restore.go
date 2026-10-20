@@ -21,7 +21,7 @@ func (e *Engine) restoreAttributeRank(op *Operation, raw *parser.Update) error {
 	if err = op.Context().Err(); err != nil {
 		return err
 	}
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		return err
 	}

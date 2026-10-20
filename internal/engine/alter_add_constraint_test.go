@@ -58,7 +58,7 @@ func TestAlterAddConstraintStableKeys(t *testing.T) {
 	original := alterConstraintDescriptor(t, e, "t")
 	before, store := e.catalog.state, e.storage.Relations[original.Address()]
 	op := alterConstraintOperation(t, s)
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -260,7 +260,7 @@ func TestAlterAddConstraintAtomicity(t *testing.T) {
 	before, store := e.catalog.state, e.storage.Relations[original.Address()]
 	root := e.storage.IndexRoots[original.Constraints.Unique[0].Index]
 	op := alterConstraintOperation(t, s)
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -354,7 +354,7 @@ func TestAlterAddConstraintControls(t *testing.T) {
 	sourceStore := e.storage.Relations[source.Address()]
 	sourceNN, sourceCK, sourceFK := source.Constraints.NotNull[0].OID, source.Constraints.Check[0].OID, source.Constraints.ForeignKeys[0].OID
 	op := alterConstraintOperation(t, s)
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

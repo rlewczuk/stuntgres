@@ -59,7 +59,7 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 					t.Fatal(err)
 				}
 				done = cleanup
-				auth, err := op.Authorization()
+				auth, err := operationAuthorization(op)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -228,7 +228,7 @@ func TestReassignOwnedPublicationCompetingRoleChange(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer done()
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

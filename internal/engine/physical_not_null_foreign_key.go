@@ -61,7 +61,7 @@ type restoredPhysicalForeignKeyProvider struct {
 // Only the actual completed constructor/cleanup can issue this short-lived
 // readiness receipt. It never creates a key or grants foreign-key privileges.
 func (e *Engine) capturePhysicalForeignKeyProvider(op *Operation, name parser.ObjectName, created map[ids.ObjectAddress]ids.ObjectRef) (*restoredPhysicalForeignKeyProvider, error) {
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ func (e *Engine) capturePhysicalSelfForeignKey(op *Operation, raw *parser.AlterT
 			return reject()
 		}
 	}
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		return restoredForeignKeys{}, false, err
 	}

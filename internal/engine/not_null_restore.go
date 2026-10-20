@@ -93,7 +93,7 @@ func (e *Engine) pairRestoredNotNull(op *Operation, raw *parser.AlterTable, orig
 	if !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || len(raw.Actions) != 1 || raw.Actions[0].Action != parser.SetNotNull {
 		return restoredNotNull{}, sqlError("0A000", restoreNoInheritBoundary)
 	}
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		return restoredNotNull{}, err
 	}
@@ -131,7 +131,7 @@ func (e *Engine) restoreNoInheritNotNull(op *Operation, raw *parser.Update, orig
 	if err = op.Context().Err(); err != nil {
 		return err
 	}
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		return err
 	}

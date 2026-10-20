@@ -82,7 +82,7 @@ func TestDomainDefaultDependencyPreparedProjectionInternal(t *testing.T) {
 	if err := scope.acquireSequence(sourceRef, lock.AccessExclusive, true); err != nil {
 		t.Fatal(err)
 	}
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -252,7 +252,7 @@ func (e *Engine) restoreRetiredConstraint(op *Operation, raw *parser.Update, aut
 		return reject()
 	}
 	facts, archives, sources := authority.facts, authority.archives, authority.sources
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		return err
 	}

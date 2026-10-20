@@ -132,7 +132,7 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 	}
 	var entry *preparedTransaction
 	if err == nil {
-		auth, authErr := s.op.Authorization()
+		auth, authErr := operationAuthorization(s.op)
 		err = authErr
 		if err == nil {
 			entry = &preparedTransaction{gid: control.GID, owner: auth.State.CurrentUser, ref: ref, prepared: time.Now().UTC().Truncate(time.Microsecond), database: s.op.session.databaseName, ticket: t.ticket, writes: t.writes, deletes: t.deletes, catalog: t.catalog, roots: t.roots, frontier: t.frontier, options: TxOptions{Isolation: t.isolation, ReadOnly: t.readOnly, Deferrable: t.deferrable}}

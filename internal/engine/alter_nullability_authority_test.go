@@ -35,7 +35,7 @@ func TestAlterNullabilityAuthorizationLifetime(t *testing.T) {
 	s.mu.Lock()
 	after := s.authorization.revision
 	s.mu.Unlock()
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		op.Done()
 		t.Fatal(err)

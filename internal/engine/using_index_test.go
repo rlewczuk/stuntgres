@@ -572,7 +572,7 @@ func usingIndexUnitVarLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	auth, err := bindOp.Authorization()
+	auth, err := operationAuthorization(bindOp)
 	if err != nil {
 		bindOp.Done()
 		t.Fatal(err)

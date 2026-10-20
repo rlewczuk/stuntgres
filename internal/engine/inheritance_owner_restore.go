@@ -25,7 +25,7 @@ func (e *Engine) captureInheritedOwner(op *Operation, created ids.ObjectRef, own
 	if owner == (authorization.PrincipalRef{}) {
 		return restoredInheritedOwner{}, nil
 	}
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		return restoredInheritedOwner{}, err
 	}
@@ -65,7 +65,7 @@ func (e *Engine) restoreInheritedOwner(op *Operation, raw *parser.AlterOwner, pa
 	if raw.Kind != "table" || raw.IfExists || len(raw.Name.Parts) != 2 || raw.Target.Identity != "" || pair.ref == (ids.ObjectRef{}) {
 		return reject()
 	}
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		return err
 	}

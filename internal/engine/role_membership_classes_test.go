@@ -46,7 +46,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 	// Type ACLs use the same validated immutable descriptor staging as domain
 	// fixtures; this does not expand the production SetObjectACL capability.
 	setACL := func(ref ids.ObjectRef, acl authorization.ACLValue) error {
-		view, err := op.Authorization()
+		view, err := operationAuthorization(op)
 		if err != nil {
 			return err
 		}
@@ -77,7 +77,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
 	for _, ref := range refs {
-		view, err := op.Authorization()
+		view, err := operationAuthorization(op)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -101,7 +101,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 		if err := setACL(ref, authorization.ACLValue{Explicit: true}); err != nil {
 			t.Fatal(err)
 		}
-		view, err = op.Authorization()
+		view, err = operationAuthorization(op)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -122,7 +122,7 @@ func TestMembershipInheritedClassMasks(t *testing.T) {
 	roleExecute(t, e, op, "REVOKE INHERIT OPTION FOR owner FROM reader")
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
 	for _, ref := range refs {
-		view, err := op.Authorization()
+		view, err := operationAuthorization(op)
 		if err != nil {
 			t.Fatal(err)
 		}

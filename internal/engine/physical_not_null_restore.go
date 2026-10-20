@@ -92,7 +92,7 @@ func (e *Engine) preparePhysicalNotNullConstructor(op *Operation, raw *parser.Al
 			}
 		}
 	}
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ func (e *Engine) preparePhysicalNotNullConstructor(op *Operation, raw *parser.Al
 
 // Capture actual normal constructor results, not a generated-name prediction.
 func (e *Engine) capturePhysicalNotNullConstructor(op *Operation, constructor *physicalNotNullConstructor, indexes map[ids.ObjectAddress]*catalog.Relation) (*restoredPhysicalNotNull, error) {
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +225,7 @@ func (e *Engine) restorePhysicalNotNull(op *Operation, raw *parser.Delete, pair 
 	if err := op.Context().Err(); err != nil {
 		return err
 	}
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		return err
 	}

@@ -45,7 +45,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 		return nil
 	}
 	e := s.op.session.Engine()
-	auth, err := s.op.Authorization()
+	auth, err := operationAuthorization(s.op)
 	if err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 			return err
 		}
 	}
-	auth, err = s.op.Authorization()
+	auth, err = operationAuthorization(s.op)
 	if err != nil {
 		return err
 	}
@@ -174,7 +174,7 @@ func (s *StatementScope) validateAddedForeignKeys(view catalog.Read, child *cata
 	if len(added) == 0 {
 		return nil
 	}
-	auth, err := s.op.Authorization()
+	auth, err := operationAuthorization(s.op)
 	if err != nil {
 		return err
 	}

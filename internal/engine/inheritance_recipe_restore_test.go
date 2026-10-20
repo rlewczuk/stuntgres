@@ -29,7 +29,7 @@ func inheritedRestoreFixture(t *testing.T) (*Engine, *Operation, map[string]ids.
 	for _, sql := range declarations {
 		raw := statement(t, sql).(*parser.CreateTable)
 		roleExecute(t, e, op, sql)
-		auth, err := op.Authorization()
+		auth, err := operationAuthorization(op)
 		if err != nil {
 			t.Fatal(err)
 		}

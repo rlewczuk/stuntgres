@@ -26,7 +26,7 @@ func alterAddUnitScope(t *testing.T) (*Engine, *StatementScope, AuthorizationVie
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = scope.Finish(errors.New("unit candidate discarded")) })
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

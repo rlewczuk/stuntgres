@@ -128,7 +128,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 			t.Fatal("final descendant grant missing", physical)
 		}
 	}
-	collectAuth, err := op.Authorization()
+	collectAuth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

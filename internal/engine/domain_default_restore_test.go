@@ -28,7 +28,7 @@ func TestDomainDefaultReplayAdmissionInternal(t *testing.T) {
 	if err := scope.gate(source); err != nil {
 		t.Fatal(err)
 	}
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestDomainDefaultReplayAdmissionInternal(t *testing.T) {
 	normal := New()
 	normalOp, normalDone := roleOperation(t, normal, "postgres")
 	defer normalDone()
-	normalAuth, err := normalOp.Authorization()
+	normalAuth, err := operationAuthorization(normalOp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestDomainDefaultReplayDeferredChecksInternal(t *testing.T) {
 	if err := scope.gate(source); err != nil {
 		t.Fatal(err)
 	}
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestDomainDefaultReplayRoutineManifestInternal(t *testing.T) {
 	if err := scope.gate(source); err != nil {
 		t.Fatal(err)
 	}
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

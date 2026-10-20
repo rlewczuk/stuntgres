@@ -180,7 +180,7 @@ func TestCatalogSourceInputProvenance(t *testing.T) {
 	// New input fields must not permit a producer to combine different paired
 	// role publications with its runtime authority, even inside one owner.
 	op, done := roleOperation(t, e, "postgres")
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		done()
 		t.Fatal(err)

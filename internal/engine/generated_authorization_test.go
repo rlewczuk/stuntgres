@@ -151,7 +151,7 @@ func TestGeneratedPartialColumnAuthorization(t *testing.T) {
 				}
 			}
 			check(auth, tc.denied)
-			ownerAuth, err := admin.Authorization()
+			ownerAuth, err := operationAuthorization(admin)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -159,7 +159,7 @@ func TestGeneratedPartialColumnAuthorization(t *testing.T) {
 			if tc.denied {
 				before := auth.Catalog.State()
 				generatedAuthorizationGrant(t, e, admin, actor, ref, tc.grantOn, tc.grant)
-				granted, err := actor.Authorization()
+				granted, err := operationAuthorization(actor)
 				if err != nil {
 					t.Fatal(err)
 				}

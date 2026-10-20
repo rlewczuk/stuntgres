@@ -64,7 +64,7 @@ func TestSchemaOwnerTransferExplicitACL(t *testing.T) {
 		rights authorization.Privileges
 	}{{"former", authorization.CreatePrivilege}, {"successor", authorization.UsagePrivilege | authorization.CreatePrivilege}, {"reader", authorization.UsagePrivilege | authorization.CreatePrivilege}} {
 		roleExecute(t, e, op, "SET SESSION AUTHORIZATION "+tc.role)
-		view, err := op.Authorization()
+		view, err := operationAuthorization(op)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -84,7 +84,7 @@ func TestSchemaOwnerTransferExplicitACL(t *testing.T) {
 			t.Fatalf("%s ACL=%+v", tc.name, d.ACL)
 		}
 		roleExecute(t, e, op, "SET SESSION AUTHORIZATION successor")
-		view, err := op.Authorization()
+		view, err := operationAuthorization(op)
 		if err != nil {
 			t.Fatal(err)
 		}

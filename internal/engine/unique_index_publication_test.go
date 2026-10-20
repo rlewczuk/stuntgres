@@ -113,7 +113,7 @@ func newUniquePublicationFixture(t *testing.T, attached, composite, nnd bool, di
 	if disclosure == "columns" && composite {
 		grant(2, authorization.SelectPrivilege)
 	}
-	auth, err := owner.Authorization()
+	auth, err := operationAuthorization(owner)
 	if err != nil {
 		t.Fatal(err)
 	}

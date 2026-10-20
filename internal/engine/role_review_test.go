@@ -268,7 +268,7 @@ func TestRoleLaterDependentBatchPreservesEndpoints(t *testing.T) {
 			roleExecute(t, e, op, "INSERT INTO sentinel VALUES(7)")
 			roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 			roles, catalog := e.roles.published, e.catalog.state
-			beforeAuth, err := op.Authorization()
+			beforeAuth, err := operationAuthorization(op)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -282,7 +282,7 @@ func TestRoleLaterDependentBatchPreservesEndpoints(t *testing.T) {
 			if e.roles.published != roles || e.catalog.state != catalog || !reflect.DeepEqual(e.Roles().Memberships(), expectedEdges) {
 				t.Fatal("later dependency changed state")
 			}
-			afterAuth, err := op.Authorization()
+			afterAuth, err := operationAuthorization(op)
 			if err != nil || afterAuth.Stamp() != beforeAuth.Stamp() || afterAuth.State != beforeAuth.State ||
 				e.catalog.nextOID != beforeOID || e.catalog.nextRevision != beforeRevision || e.roles.nextPrincipal != beforePrincipal {
 				t.Fatal("later dependency changed authority/counters", err)
@@ -377,7 +377,7 @@ func TestAuthorizationPublicOrdinaryAndRoleGrantOptions(t *testing.T) {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
-	view, err := op.Authorization()
+	view, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -394,7 +394,7 @@ func TestAuthorizationPublicOrdinaryAndRoleGrantOptions(t *testing.T) {
 	if err := e.SetObjectACL(context.Background(), ref, acl); err != nil {
 		t.Fatal("real role options rejected", err)
 	}
-	view, err = op.Authorization()
+	view, err = operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -535,7 +535,7 @@ func TestRoleCatalogPublicationAuthorityFenceAndRecovery(t *testing.T) {
 			// views and explicit transaction identity work must remain independent.
 			_, err := e.Execute(peer, statement(t, "SHOW application_name"), 0, nil)
 			if err == nil {
-				_, err = peer.Authorization()
+				_, err = operationAuthorization(peer)
 			}
 			var ref ids.TxRef
 			if err == nil {

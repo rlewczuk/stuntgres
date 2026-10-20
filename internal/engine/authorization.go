@@ -198,7 +198,9 @@ func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Stateme
 	return auth, nil
 }
 
-func (op *Operation) Authorization() (AuthorizationView, error) {
+// operationAuthorization returns op's current authorization view. It takes
+// Engine.mu, then Session.mu inside authorizationLocked.
+func operationAuthorization(op *Operation) (AuthorizationView, error) {
 	if op == nil || op.self != op || op.session == nil {
 		return AuthorizationView{}, fmt.Errorf("stuntgres: foreign or missing operation")
 	}

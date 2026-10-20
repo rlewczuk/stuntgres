@@ -95,7 +95,7 @@ func (e *Engine) captureRestoredDomainOwner(op *Operation, created ids.ObjectRef
 	if err := op.Context().Err(); err != nil {
 		return typedef.RestoredDomainOwner{}, err
 	}
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		return typedef.RestoredDomainOwner{}, err
 	}
@@ -140,7 +140,7 @@ func (e *Engine) restoreDomainOwner(op *Operation, raw *parser.AlterOwner, pair 
 	if current != pair || raw.Name.Parts[0].Text != pair.Namespace.Name() || raw.Name.Parts[1].Text != pair.Domain.Name() {
 		return reject()
 	}
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		return err
 	}

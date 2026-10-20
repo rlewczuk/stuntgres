@@ -171,7 +171,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	if err = scope.acquireInheritanceSources(nil); err != nil {
 		t.Fatal(err)
 	}
-	collectAuth, err := op.Authorization()
+	collectAuth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

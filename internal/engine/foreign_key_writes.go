@@ -152,7 +152,7 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 		return nil
 	}
 	e := s.op.session.Engine()
-	auth, err := s.op.Authorization()
+	auth, err := operationAuthorization(s.op)
 	if err != nil {
 		return err
 	}
@@ -249,7 +249,7 @@ func (s *StatementScope) checkForeignKeys() error {
 	if len(jobs) == 0 {
 		return nil
 	}
-	auth, err := s.op.Authorization()
+	auth, err := operationAuthorization(s.op)
 	if err != nil {
 		return err
 	}

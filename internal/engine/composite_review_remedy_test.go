@@ -159,7 +159,7 @@ func TestCompositeAlterInheritedCheckStageAuthority(t *testing.T) {
 	if err != nil || len(actions) != 0 || len(renames) != 0 {
 		t.Fatal("unrelated inherited shape changed", err)
 	}
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

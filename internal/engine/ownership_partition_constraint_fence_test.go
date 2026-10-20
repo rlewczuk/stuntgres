@@ -77,7 +77,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 				if private {
 					session.transactions.catalog = changes
 				}
-				auth, err := message.op.Authorization()
+				auth, err := operationAuthorization(message.op)
 				if err != nil {
 					t.Fatal(err)
 				}

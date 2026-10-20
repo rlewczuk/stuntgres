@@ -85,7 +85,7 @@ func TestDeleteCoreAuthorization(t *testing.T) {
 	if result.Count != 0 || result.Rows != nil || !errors.As(err, &diagnostic) || *diagnostic != want {
 		t.Fatal(result, err, diagnostic)
 	}
-	view, err := op.Authorization()
+	view, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

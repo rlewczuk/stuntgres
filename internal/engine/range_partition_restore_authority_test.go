@@ -24,7 +24,7 @@ func TestRangePartitionPublicationTrustedImporterProvenance(t *testing.T) {
 	op.replay().defaultReplay = true
 	create := statement(t, "CREATE TABLE child PARTITION OF parent DEFAULT").(*parser.CreateTable)
 	alter := statement(t, "ALTER TABLE parent ALTER COLUMN k SET DEFAULT 1").(*parser.AlterTableDefault)
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestRangePartitionPublicationTrustedImporterProvenance(t *testing.T) {
 	defer actorDone()
 	actorOp.replay().tableDestination = true
 	actorOp.replay().defaultReplay = true
-	actorAuth, err := actorOp.Authorization()
+	actorAuth, err := operationAuthorization(actorOp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestRangePartitionPublicationTrustedImporterProvenance(t *testing.T) {
 	if _, err := stage.partitionParentAuthorization(actorOp, actorAuth, create); err == nil || partitionDefaultReplayAllowed(stage, actorOp, actorAuth, alter) {
 		t.Fatal("ended private operation retained authority", err)
 	}
-	grantFrontier, err := op.Authorization()
+	grantFrontier, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +113,7 @@ func TestRangePartitionPublicationTrustedImporterProvenance(t *testing.T) {
 	if _, err := stage.partitionParentAuthorization(op, auth, create); err == nil || partitionDefaultReplayAllowed(stage, op, auth, alter) {
 		t.Fatal("stale catalog authority accepted", err)
 	}
-	current, err := op.Authorization()
+	current, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestRangePartitionPublicationTrustedImporterProvenance(t *testing.T) {
 	if _, err := stage.partitionParentAuthorization(op, current, create); err == nil || partitionDefaultReplayAllowed(stage, op, current, alter) {
 		t.Fatal("stale role authority accepted", err)
 	}
-	liveAuth, err := sourceOp.Authorization()
+	liveAuth, err := operationAuthorization(sourceOp)
 	if err != nil {
 		t.Fatal(err)
 	}

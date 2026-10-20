@@ -22,7 +22,7 @@ func TestAlterAddConstraintBackingRetirement(t *testing.T) {
 	backing := old.Constraints.Unique[0].Index
 	root := e.storage.IndexRoots[backing]
 	op := alterConstraintOperation(t, s)
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestAlterAddConstraintDropModeIsolation(t *testing.T) {
 			ua, ub := old.Constraints.Unique[0].Index, old.Constraints.Unique[1].Index
 			uaRoot, ubRoot := e.storage.IndexRoots[ua], e.storage.IndexRoots[ub]
 			op := alterConstraintOperation(t, s)
-			auth, err := op.Authorization()
+			auth, err := operationAuthorization(op)
 			if err != nil {
 				t.Fatal(err)
 			}

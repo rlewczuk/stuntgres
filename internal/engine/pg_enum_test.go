@@ -114,7 +114,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	readerRole := roleAttributeCreate(t, e, op, "enum_metadata_reader", true, parser.RoleOptions{})
 	readerOp, readerDone := roleOperation(t, e, readerRole.Name)
 	defer readerDone()
-	retainedAuth, err := readerOp.Authorization()
+	retainedAuth, err := operationAuthorization(readerOp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
-	currentAuth, err := readerOp.Authorization()
+	currentAuth, err := operationAuthorization(readerOp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if err := e.SetObjectACL(context.Background(), ref, d.Security.ACL); err != nil {
 		t.Fatal(err)
 	}
-	restoredAuth, err := readerOp.Authorization()
+	restoredAuth, err := operationAuthorization(readerOp)
 	if err != nil {
 		t.Fatal(err)
 	}

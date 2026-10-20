@@ -73,7 +73,7 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 	q.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{2: {OID: 23003, Expression: literal}}
 	child := inheritanceUnitRelation(e, "c", 22002, "a", "x", "z")
 	view := inheritanceUnitView(e, p, q)
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +175,7 @@ func TestInheritanceMergeDefaultOverride(t *testing.T) {
 	p.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 23000, Expression: plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: first}}}
 	q.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 23001, Expression: plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: second}}}
 	view := inheritanceUnitView(e, p, q)
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,7 +216,7 @@ func TestInheritanceMergeShapeDeclarations(t *testing.T) {
 	e.catalog.state = inheritanceUnitView(e, p, q).State()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +289,7 @@ func TestInheritanceGenerationDeclarationProvenance(t *testing.T) {
 	expression := plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: value}
 	parent.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{1: {Kind: catalog.GenerationStored, Expression: expression, Planned: expression}}
 	view := inheritanceUnitView(e, parent)
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

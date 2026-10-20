@@ -145,7 +145,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	if err = fresh.acquireInheritanceSources(nil); err != nil {
 		t.Fatal(err)
 	}
-	collectAuth, err := freshOp.Authorization()
+	collectAuth, err := operationAuthorization(freshOp)
 	if err != nil {
 		t.Fatal(err)
 	}

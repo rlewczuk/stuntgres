@@ -19,7 +19,7 @@ func TestPGNamespaceTemporarySuperuserAuthority(t *testing.T) {
 	qualified := parser.ObjectName{Parts: []parser.Identifier{{Text: name}, {Text: "namespace_usage_object"}}}
 	peer, closePeer := roleOperation(t, e, "postgres")
 	defer closePeer()
-	superuser, err := peer.Authorization()
+	superuser, err := operationAuthorization(peer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestPGNamespaceTemporarySuperuserAuthority(t *testing.T) {
 	}
 	check(superuser, true)
 	roleExecute(t, e, peer, "SET ROLE namespace_usage_reader")
-	ordinary, err := peer.Authorization()
+	ordinary, err := operationAuthorization(peer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestPGNamespaceTemporarySuperuserAuthority(t *testing.T) {
 	roleErrorPosition(t, e, peer, "CREATE TABLE "+name+".foreign_create(i INT)", "42P16", "cannot create relations in temporary schemas of other sessions", "", "14")
 	closeCreator()
 	assertTemporaryNamespacePair(t, e, token, namespace)
-	retired, err := peer.Authorization()
+	retired, err := operationAuthorization(peer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestPGNamespaceTemporarySuperuserAuthority(t *testing.T) {
 	roleErrorPosition(t, e, peer, "SELECT i FROM "+name+".namespace_usage_object", "42P01", `relation "`+name+`.namespace_usage_object" does not exist`, "", "15")
 	roleErrorPosition(t, e, peer, "CREATE TABLE "+name+".retired_create(i INT)", "42P16", "cannot create relations in temporary schemas of other sessions", "", "14")
 	roleExecute(t, e, peer, "SET ROLE namespace_usage_reader")
-	denied, err := peer.Authorization()
+	denied, err := operationAuthorization(peer)
 	if err != nil {
 		t.Fatal(err)
 	}

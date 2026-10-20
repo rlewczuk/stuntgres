@@ -24,7 +24,7 @@ func TestPartitionAttachCheckReplayAuthority(t *testing.T) {
 	if err := e.beginPartitionCheckReplay(op, raw); err != nil {
 		t.Fatal(err)
 	}
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

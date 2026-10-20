@@ -95,7 +95,7 @@ func ownershipManualStart(t *testing.T, e *Engine, session *Session, sequence id
 	if changes != nil {
 		session.transactions.catalog = changes
 	}
-	auth, err := message.op.Authorization()
+	auth, err := operationAuthorization(message.op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -434,7 +434,7 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 				case <-time.After(5 * time.Second):
 					t.Fatal("OWNED CREATE did not resume after actual table wait")
 				}
-				fresh, err := message.op.Authorization()
+				fresh, err := operationAuthorization(message.op)
 				if err != nil {
 					t.Fatal(err)
 				}

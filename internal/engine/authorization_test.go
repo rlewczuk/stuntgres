@@ -48,14 +48,14 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 	roleExecute(t, e, op, "INSERT INTO secret VALUES(7,8,9)")
 	ref := roleTableRef(t, e, "secret")
 	owner := op.RoleState().CurrentUser
-	retained, err := op.Authorization()
+	retained, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
-	view, err := op.Authorization()
+	view, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func TestAuthorizationACLAndExactColumnUses(t *testing.T) {
 		}
 		roleError(t, e, op, sql, "42501", "permission denied for table secret", "")
 	}
-	view, err = op.Authorization()
+	view, err = operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -521,7 +521,7 @@ func TestAuthorizationOwnerDiagnosticAndInvalidACLs(t *testing.T) {
 	ref := roleTableRef(t, e, "secret")
 	owner := op.RoleState().CurrentUser
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION reader")
-	view, err := op.Authorization()
+	view, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -631,7 +631,7 @@ func TestAuthorizationStampRetainsRolePublication(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	roleExecute(t, e, op, "CREATE TABLE stamp_retained(id INT)")
-	held, err := op.Authorization()
+	held, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -641,7 +641,7 @@ func TestAuthorizationStampRetainsRolePublication(t *testing.T) {
 	if err := e.SetRoleReferences(context.Background(), "stamp fixture", []authorization.PrincipalRef{op.RoleState().CurrentUser}); err != nil {
 		t.Fatal(err)
 	}
-	fresh, err := op.Authorization()
+	fresh, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -652,7 +652,7 @@ func TestAuthorizationStampRetainsRolePublication(t *testing.T) {
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
-	newest, err := op.Authorization()
+	newest, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

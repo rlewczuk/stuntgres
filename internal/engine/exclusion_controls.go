@@ -87,7 +87,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 		s.op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET CONSTRAINTS can only be used in transaction blocks"})
 	}
 	e := s.op.session.Engine()
-	auth, err := s.op.Authorization()
+	auth, err := operationAuthorization(s.op)
 	if err != nil {
 		return Result{}, err
 	}

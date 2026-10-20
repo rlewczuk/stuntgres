@@ -64,7 +64,7 @@ func (e *Engine) prepareDeferredPhysicalPrimary(op *Operation, raw *parser.Alter
 	if !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || definition == nil || !definition.Primary || definition.NullsNotDistinct || definition.Name.Text == "" || len(definition.Columns) == 0 || pair.position != len(pair.repairs) || pair.primary != nil || pair.op != op {
 		return reject()
 	}
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		return nil, err
 	}

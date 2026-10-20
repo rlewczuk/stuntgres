@@ -424,7 +424,7 @@ func TestUUIDOsspRoutineDefaultACL(t *testing.T) {
 		if tc.sql != "" {
 			roleExecute(t, e, op, tc.sql)
 		}
-		auth, err := reader.Authorization()
+		auth, err := operationAuthorization(reader)
 		if err != nil {
 			t.Fatal(err)
 		}

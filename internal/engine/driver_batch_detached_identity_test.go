@@ -56,7 +56,7 @@ func TestDriverBatchDetachedPrincipalAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			auth, err := op.Authorization()
+			auth, err := operationAuthorization(op)
 			op.Done()
 			if err != nil || auth.RoleRecord != e.roles.published || auth.State.CurrentUser != entry.owner || auth.MissingCurrent != entry.owner {
 				t.Fatal("numeric authority did not admit missing effective name", err)

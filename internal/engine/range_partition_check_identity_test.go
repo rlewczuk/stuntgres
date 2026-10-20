@@ -24,7 +24,7 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 		t.Fatal("cooked row origin was not reowned")
 	}
 	original := child.Constraints.Check[0].Expression
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

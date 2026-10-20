@@ -330,7 +330,7 @@ func (s *StatementScope) acquireForeignKeyTypeProviders(view catalog.Read, addre
 }
 
 func (s *StatementScope) validateAlterForeignKeys(view catalog.Read, address ids.ObjectAddress) error {
-	auth, err := s.op.Authorization()
+	auth, err := operationAuthorization(s.op)
 	if err != nil {
 		return err
 	}
@@ -410,7 +410,7 @@ func (s *StatementScope) acquireForeignKeyDefinitionProviders(stage *CatalogStag
 			return err
 		}
 	}
-	auth, err := s.op.Authorization()
+	auth, err := operationAuthorization(s.op)
 	if err != nil {
 		return err
 	}

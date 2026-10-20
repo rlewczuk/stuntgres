@@ -252,7 +252,7 @@ func TestPredefinedCapabilityGrantSource(t *testing.T) {
 	}
 	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "grant_target"})
 	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), address)
-	view, err := op.Authorization()
+	view, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

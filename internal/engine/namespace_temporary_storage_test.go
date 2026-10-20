@@ -48,7 +48,7 @@ func namespaceCapturedAuthorization(t *testing.T, s *Session) AuthorizationView 
 		t.Fatal(err)
 	}
 	defer op.Done()
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

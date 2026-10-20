@@ -278,26 +278,6 @@ func (e *Engine) sessionSetting(s *sessionSettings, name string, create bool) (s
 	}
 	return settings.Definition{Name: key, Type: settings.String}, nil
 }
-func settingAccess(d settings.Definition, op *Operation) error {
-	switch d.Access {
-	case settings.StartupOnly:
-		return sqlError("55P02", fmt.Sprintf(`parameter "%s" cannot be changed without restarting the server`, d.Name))
-	case settings.ReadOnly:
-		return sqlError("55P02", fmt.Sprintf(`parameter "%s" cannot be changed`, d.Name))
-	case settings.Privileged:
-		if d.Name == "lc_messages" {
-			allowed, err := parameterSetAllowed(op, d.Name)
-			if err != nil {
-				return err
-			}
-			if allowed {
-				return nil
-			}
-		}
-		return sqlError("42501", fmt.Sprintf(`permission denied to set parameter "%s"`, d.Name))
-	}
-	return nil
-}
 
 // applySetting stages callbacks without publication locks, then atomically
 // installs recognition, transaction action and effective typed/text override.

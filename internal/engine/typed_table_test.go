@@ -20,7 +20,7 @@ func typedUnitCatalog(t *testing.T, empty bool) (*Engine, *catalog.Relation, *ca
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

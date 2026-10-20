@@ -114,7 +114,7 @@ func TestTypedSameUsageTypePreservesPhysicalRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer scope.Finish(errors.New("unit candidate discarded"))
-	auth, err := op.Authorization()
+	auth, err := operationAuthorization(op)
 	if err != nil {
 		t.Fatal(err)
 	}

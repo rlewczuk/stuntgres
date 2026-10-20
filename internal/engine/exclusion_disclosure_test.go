@@ -52,7 +52,7 @@ func TestExclusionDisclosure(t *testing.T) {
 				if disclosure == "columns" {
 					grant(2, authorization.SelectPrivilege)
 				}
-				auth, err := owner.Authorization()
+				auth, err := operationAuthorization(owner)
 				if err != nil {
 					t.Fatal(err)
 				}
