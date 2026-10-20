@@ -197,11 +197,11 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *c
 				if key.Derived == nil {
 					key.Attribute = c.Attributes[j]
 				} else {
-					node, err := declarations[i-start].like.remap(key.Derived.Definition, d, stage.Base)
+					node, err := remapLikeExpression(declarations[i-start].like, key.Derived.Definition, d, stage.Base)
 					if err != nil {
 						return err
 					}
-					execution, err := declarations[i-start].like.remap(key.Derived.Execution, d, stage.Base)
+					execution, err := remapLikeExpression(declarations[i-start].like, key.Derived.Execution, d, stage.Base)
 					if err != nil {
 						return err
 					}

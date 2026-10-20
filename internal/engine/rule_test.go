@@ -383,7 +383,7 @@ func TestRuleProgramAuthority(t *testing.T) {
 		if err := f.e.bindViewWrite(&mapped, auth, &parser.Update{}); err != nil {
 			t.Fatal(err)
 		}
-		if mapped.ref != f.viewRef || mapped.relation != f.view || mapped.physicalBinding().ref != f.baseRef || mapped.targets[0] != 1 {
+		if mapped.ref != f.viewRef || mapped.relation != f.view || physicalBinding(mapped).ref != f.baseRef || mapped.targets[0] != 1 {
 			t.Fatal("layered outer authority or inner event mapping lost")
 		}
 		if len(viewWriteOf(mapped.viewWrite).checks) != 0 || len(viewWriteOf(mapped.viewWrite).predicates) == 0 {

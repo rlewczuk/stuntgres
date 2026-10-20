@@ -56,7 +56,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 		}{event.Ref, lock.AccessShare})
 	}
 	for _, command := range commands {
-		physical := command.binding.physicalBinding()
+		physical := physicalBinding(command.binding)
 		if physical.relation != nil && physical.relation.RelationKind != catalog.ViewRelation {
 			requests = append(requests, struct {
 				ref  ids.ObjectRef

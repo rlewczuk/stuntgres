@@ -73,11 +73,11 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 				d.ColumnMeta.Defaults[target] = copied
 			}
 			if old, ok := in.source.ColumnMeta.Generations[sourceAttribute]; ok && declaration.generation == nil {
-				node, err := mapper.remap(old.Expression, d, auth.Catalog)
+				node, err := remapLikeExpression(&mapper, old.Expression, d, auth.Catalog)
 				if err != nil {
 					return err
 				}
-				planned, err := mapper.remap(old.Planned, d, auth.Catalog)
+				planned, err := remapLikeExpression(&mapper, old.Planned, d, auth.Catalog)
 				if err != nil {
 					return err
 				}
@@ -101,7 +101,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 			if old.NoInherit {
 				continue
 			}
-			node, err := mapper.remap(old.Expression, d, auth.Catalog)
+			node, err := remapLikeExpression(&mapper, old.Expression, d, auth.Catalog)
 			if err != nil {
 				return err
 			}

@@ -93,7 +93,7 @@ func partitionConstraintProven(scope *StatementScope, view catalog.Read, parent,
 		var node expr.Expr
 		if key.Derived != nil {
 			var err error
-			node, err = in.remap(key.Derived.Definition, relation, view)
+			node, err = remapLikeExpression(&in, key.Derived.Definition, relation, view)
 			if err != nil {
 				return false, err
 			}

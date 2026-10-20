@@ -271,7 +271,7 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 	}
 	key := preparedCompositeKey{offset: 40, kind: compositeSourceExpansion, projection: 7}
 	captured := b.prepared.composites[key]
-	if err := captured.validate(view); err != nil {
+	if err := validateCompositeOccurrence(captured, view); err != nil {
 		t.Fatal(err)
 	}
 	oldSource[0].descriptor.Name = "changed after capture"
@@ -408,7 +408,7 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 				if captured.kind != compositeRecordArgument || captured.base.Type != original {
 					t.Fatal("wrong provider capture", captured)
 				}
-				if err := captured.validate(view); err != nil {
+				if err := validateCompositeOccurrence(captured, view); err != nil {
 					t.Fatal(err)
 				}
 			}

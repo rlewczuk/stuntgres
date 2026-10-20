@@ -158,7 +158,7 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 			rewrite.mutation = index
 			continue
 		}
-		physical := rewrite.command.binding.physicalBinding()
+		physical := physicalBinding(rewrite.command.binding)
 		scope.mutations[scope.activeMutation] = scope.statementMutation
 		rewrite.mutation = len(scope.mutations)
 		scope.mutations = append(scope.mutations, statementMutation{statement: rewrite.command.syntax, lockedRef: physical.ref, lockedDescriptor: physical.relation, lockedStorage: physical.storage, viewWrite: viewWriteOf(rewrite.command.binding.viewWrite)})

@@ -136,11 +136,11 @@ func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
 	child := *parent
 	child.ObjectAddress.ObjectID++
 	mapper := createLikeInput{source: parent}
-	left, err := mapper.remap(original, &child, view)
+	left, err := remapLikeExpression(&mapper, original, &child, view)
 	if err != nil {
 		t.Fatal(err)
 	}
-	right, err := mapper.remap(original, &child, view)
+	right, err := remapLikeExpression(&mapper, original, &child, view)
 	if err != nil {
 		t.Fatal(err)
 	}

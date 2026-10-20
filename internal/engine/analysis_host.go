@@ -239,7 +239,7 @@ func (h *bindingHost) ReplayInsertAuthority() bool {
 }
 
 func (h *bindingHost) ReplayDomainCell(b *binding, s *parser.Insert, row, column int) (expr.Expr, bool, error) {
-	return b.capturedDomainReplayCell(h.op, s, row, column)
+	return capturedDomainReplayCell(b, h.op, s, row, column)
 }
 
 // DecodeDomainLiteral decodes a domain-constrained literal through the

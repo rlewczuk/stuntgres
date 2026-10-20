@@ -906,7 +906,7 @@ func (v *viewDefinition) validateLiteralTree(catalog catalog.Read, raw parser.Ex
 		if captured.kind == compositeDotBuiltin && captured.function != functions.NullCountFunctionKind(r.Field.Text) {
 			return fmt.Errorf("stuntgres: invalid frozen dot provider")
 		}
-		if err := captured.validate(catalog); err != nil {
+		if err := validateCompositeOccurrence(captured, catalog); err != nil {
 			return err
 		}
 		if err := v.validateCompositeSource(captured); err != nil {
@@ -972,7 +972,7 @@ func (v *viewDefinition) validateLiteralTree(catalog catalog.Read, raw parser.Ex
 			if captured.kind != compositeWholeRow {
 				return fmt.Errorf("stuntgres: invalid frozen scalar whole row")
 			}
-			if err := captured.validate(catalog); err != nil {
+			if err := validateCompositeOccurrence(captured, catalog); err != nil {
 				return err
 			}
 			if err := v.validateCompositeSource(captured); err != nil {
@@ -1002,7 +1002,7 @@ func (v *viewDefinition) validateLiteralTree(catalog catalog.Read, raw parser.Ex
 			if !ok || captured.kind != compositeExpansion && captured.kind != compositeWholeRow {
 				return fmt.Errorf("stuntgres: missing frozen whole row interpretation")
 			}
-			if err := captured.validate(catalog); err != nil {
+			if err := validateCompositeOccurrence(captured, catalog); err != nil {
 				return err
 			}
 			if err := v.validateCompositeSource(captured); err != nil {
@@ -1108,7 +1108,7 @@ func (v *viewDefinition) validateLiteralTree(catalog catalog.Read, raw parser.Ex
 			if captured.kind != compositeSelection || len(r.Args) != 1 {
 				return fmt.Errorf("stuntgres: invalid frozen functional projection")
 			}
-			if err := captured.validate(catalog); err != nil {
+			if err := validateCompositeOccurrence(captured, catalog); err != nil {
 				return err
 			}
 			if err := v.validateCompositeSource(captured); err != nil {

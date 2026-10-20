@@ -132,7 +132,7 @@ func partitionAttachSchema(ctxScope *StatementScope, view catalog.Read, parent, 
 			return nil, sqlError("42804", fmt.Sprintf(`child table is missing constraint "%s"`, required.Name))
 		}
 		actual := child.Constraints.Check[at]
-		mapped, err := in.remap(required.Expression, child, view)
+		mapped, err := remapLikeExpression(&in, required.Expression, child, view)
 		if err != nil {
 			return nil, err
 		}

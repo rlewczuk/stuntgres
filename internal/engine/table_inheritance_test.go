@@ -40,7 +40,7 @@ func TestInheritanceMergeStableRemap(t *testing.T) {
 	ref.Address.SubID = 7
 	node := plan.ColumnExpr{Info: expr.Info{Usage: testUsage(e, sqltype.Int4)}, Origin: ref, Scope: 1, Frame: 1, Slot: 1}
 	mapper := createLikeInput{source: parent, targetSlots: []int{1, 0}}
-	mapped, err := mapper.remap(node, child, e.CatalogRead())
+	mapped, err := remapLikeExpression(&mapper, node, child, e.CatalogRead())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestInheritanceMergeStableRemap(t *testing.T) {
 		t.Fatal(got, node)
 	}
 	sequence := functions.SequenceCall{Ref: ref}
-	mapped, err = mapper.remap(sequence, child, e.CatalogRead())
+	mapped, err = remapLikeExpression(&mapper, sequence, child, e.CatalogRead())
 	if err != nil || mapped.(functions.SequenceCall).Ref != ref {
 		t.Fatal(mapped, err)
 	}
@@ -258,7 +258,7 @@ func TestInheritanceRetainedRowAuthority(t *testing.T) {
 	state.SetEpoch(state.Epoch() + 1)
 	current := e.catalog.read(state)
 	mapper := createLikeInput{source: d}
-	mapped, err := mapper.remap(old, d, current)
+	mapped, err := remapLikeExpression(&mapper, old, d, current)
 	if err != nil || !sameInheritedExpression(mapped, old, d, current) || old.Origin != oldRef {
 		t.Fatal("retained row authority changed equality or source", mapped, old, err)
 	}

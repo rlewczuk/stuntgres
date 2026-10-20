@@ -313,7 +313,7 @@ func preflightMerge(c *exec.Context, merge *boundMerge, catalog catalog.Read) er
 				continue
 			}
 			defaultOwner := owner
-			arm.input.defaultOriginAt(j).apply(&defaultOwner)
+			applyDefaultOrigin(bindingDefaultOrigin(&arm.input, j), &defaultOwner)
 			arm.input.insert.defaults[j], _, err = preflightCoercionsWithPolicy(&defaultOwner, expression, true)
 			if err != nil {
 				return err
@@ -380,7 +380,7 @@ func mergeOnTruth(value sqltype.Value) (plan.Truth, error) {
 	return plan.False, fmt.Errorf("stuntgres: invalid MERGE ON carrier")
 }
 
-func (merge *boundMerge) hasVirtualReads() bool {
+func mergeHasVirtualReads(merge *boundMerge) bool {
 	if exec.QueryHasVirtualReads(merge.source) || exec.BoundHasVirtualReads(merge.on) {
 		return true
 	}
@@ -421,7 +421,7 @@ func (e *Engine) executeMerge(ctx context.Context, scope *StatementScope, b bind
 	if err := exec.SelectQuerySources(ctx, inputs); err != nil {
 		return Result{}, err
 	}
-	state := &exec.State{Source: inputs, Parameters: parameters, Input: scope.input, Output: scope.output, Locking: inputs.Locks != nil, VirtualReads: b.merge.hasVirtualReads()}
+	state := &exec.State{Source: inputs, Parameters: parameters, Input: scope.input, Output: scope.output, Locking: inputs.Locks != nil, VirtualReads: mergeHasVirtualReads(b.merge)}
 	if b.returning != nil {
 		for _, expr := range b.returning.expressions {
 			state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expr)

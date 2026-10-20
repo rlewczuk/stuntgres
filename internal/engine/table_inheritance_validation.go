@@ -17,7 +17,7 @@ func sameInheritedExpression(mapped, child expr.Expr, d *catalog.Relation, v cat
 		return true
 	}
 	identity := createLikeInput{source: d}
-	current, err := identity.remap(child, d, v)
+	current, err := remapLikeExpression(&identity, child, d, v)
 	return err == nil && sameGroupExpression(mapped, current)
 }
 
@@ -167,7 +167,7 @@ func validateInheritance(v catalog.Read, d *catalog.Relation) error {
 			for i, c := range parent.Columns {
 				mapper.targetSlots[i] = d.Index[c.Name]
 			}
-			node, err := mapper.remap(parent.Constraints.Check[source].Expression, d, v)
+			node, err := remapLikeExpression(&mapper, parent.Constraints.Check[source].Expression, d, v)
 			if err != nil || !sameInheritedExpression(node, d.Constraints.Check[child].Expression, d, v) {
 				return invalid()
 			}

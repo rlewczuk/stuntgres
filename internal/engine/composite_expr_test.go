@@ -260,11 +260,11 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 		t.Fatal("zero-width source occurrences conflated")
 	}
 	zero := compositeOccurrence{kind: compositeExpansion, base: empty.Usage()}
-	if err := zero.validate(view); err != nil {
+	if err := validateCompositeOccurrence(zero, view); err != nil {
 		t.Fatal("zero-width expansion lost authority", err)
 	}
 	zero.kind = 0
-	if err := zero.validate(view); err == nil {
+	if err := validateCompositeOccurrence(zero, view); err == nil {
 		t.Fatal("missing capture kind admitted")
 	}
 	whole := compositeOccurrence{kind: compositeWholeRow, base: mappedRow.Usage, source: plan.WholeRowSource{Namespace: 1, Frame: 1}}

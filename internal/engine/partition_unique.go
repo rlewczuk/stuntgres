@@ -111,11 +111,11 @@ func mapPartitionIndex(ctx context.Context, view catalog.Read, source, child *ca
 			key.Attribute = a
 			continue
 		}
-		node, err := in.remap(key.Derived.Definition, child, view)
+		node, err := remapLikeExpression(&in, key.Derived.Definition, child, view)
 		if err != nil {
 			return nil, err
 		}
-		execution, err := in.remap(key.Derived.Execution, child, view)
+		execution, err := remapLikeExpression(&in, key.Derived.Execution, child, view)
 		if err != nil {
 			return nil, err
 		}
@@ -126,11 +126,11 @@ func mapPartitionIndex(ctx context.Context, view catalog.Read, source, child *ca
 		key.Derived = derived
 	}
 	if old.Predicate != nil {
-		node, err := in.remap(old.Predicate.Definition, child, view)
+		node, err := remapLikeExpression(&in, old.Predicate.Definition, child, view)
 		if err != nil {
 			return nil, err
 		}
-		execution, err := in.remap(old.Predicate.Execution, child, view)
+		execution, err := remapLikeExpression(&in, old.Predicate.Execution, child, view)
 		if err != nil {
 			return nil, err
 		}

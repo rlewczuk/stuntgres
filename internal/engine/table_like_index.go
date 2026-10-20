@@ -73,11 +73,11 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 					key.Attribute = mapped
 					continue
 				}
-				node, err := in.remap(key.Derived.Definition, destination, auth.Catalog)
+				node, err := remapLikeExpression(in, key.Derived.Definition, destination, auth.Catalog)
 				if err != nil {
 					return err
 				}
-				execution, err := in.remap(key.Derived.Execution, destination, auth.Catalog)
+				execution, err := remapLikeExpression(in, key.Derived.Execution, destination, auth.Catalog)
 				if err != nil {
 					return err
 				}
@@ -88,11 +88,11 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 				key.Derived = derived
 			}
 			if old.Predicate != nil {
-				node, err := in.remap(old.Predicate.Definition, destination, auth.Catalog)
+				node, err := remapLikeExpression(in, old.Predicate.Definition, destination, auth.Catalog)
 				if err != nil {
 					return err
 				}
-				execution, err := in.remap(old.Predicate.Execution, destination, auth.Catalog)
+				execution, err := remapLikeExpression(in, old.Predicate.Execution, destination, auth.Catalog)
 				if err != nil {
 					return err
 				}

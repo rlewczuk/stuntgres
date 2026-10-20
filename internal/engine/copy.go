@@ -206,7 +206,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 			continue
 		}
 		defaultEvaluation := evaluation
-		b.defaultOriginAt(i).apply(&defaultEvaluation)
+		applyDefaultOrigin(bindingDefaultOrigin(&b, i), &defaultEvaluation)
 		folded, _, planErr := preflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 		if planErr != nil {
 			return 0, planErr
@@ -215,7 +215,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 			return 0, planErr
 		}
 		b.insert.defaults[i] = folded
-		if constant, ok := folded.(plan.LiteralExpr); ok && constant.Value.IsNull() && b.defaultOriginAt(i).definition.Expression == nil {
+		if constant, ok := folded.(plan.LiteralExpr); ok && constant.Value.IsNull() && bindingDefaultOrigin(&b, i).definition.Expression == nil {
 			b.insert.defaults[i] = nil
 		}
 	}

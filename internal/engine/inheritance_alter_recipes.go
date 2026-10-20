@@ -35,7 +35,7 @@ func retainInheritedRecipes(view catalog.Read, child *catalog.Relation, attribut
 				}
 				mapper.targetSlots[i] = slot
 			}
-			mapped, err := mapper.remap(definition.Expression, child, view)
+			mapped, err := remapLikeExpression(&mapper, definition.Expression, child, view)
 			if err != nil {
 				return provenance, err
 			}

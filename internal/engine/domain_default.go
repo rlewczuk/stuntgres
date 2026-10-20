@@ -119,7 +119,7 @@ func columnDefault(view catalog.Read, d *catalog.Relation, slot int) (expr.Expr,
 	return nil, defaultOrigin{}
 }
 
-func (o defaultOrigin) apply(c *exec.Context) {
+func applyDefaultOrigin(o defaultOrigin, c *exec.Context) {
 	c.QuoteOrigin = o.quote
 	c.RoutineRecipe, c.RoutineGraft = true, false
 	c.RoutineChecks = nil
@@ -182,11 +182,11 @@ func validateDomainDefault(view catalog.Read, d *catalog.Type) error {
 	}
 	return nil
 }
-func (b *binding) defaultOriginAt(slot int) defaultOrigin {
+func bindingDefaultOrigin(b *binding, slot int) defaultOrigin {
 	if slot < len(b.insert.defaultOrigins) {
 		return b.insert.defaultOrigins[slot]
 	}
-	physical := b.physicalBinding()
+	physical := physicalBinding(*b)
 	attribute := physical.relation.Attributes[slot]
 	definition := physical.relation.ColumnMeta.Defaults[attribute]
 	if definition.Expression == nil {
@@ -198,7 +198,7 @@ func (b *binding) defaultOriginAt(slot int) defaultOrigin {
 func evalDefaultExpression(c *exec.Context, node expr.Expr, origin defaultOrigin) (sqltype.Value, error) {
 	quote, recipe, graft := c.QuoteOrigin, c.RoutineRecipe, c.RoutineGraft
 	checks, refs, consumer := c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer
-	origin.apply(c)
+	applyDefaultOrigin(origin, c)
 	defer func() {
 		c.QuoteOrigin, c.RoutineRecipe, c.RoutineGraft = quote, recipe, graft
 		c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer = checks, refs, consumer
@@ -206,6 +206,6 @@ func evalDefaultExpression(c *exec.Context, node expr.Expr, origin defaultOrigin
 	return node.Eval(c)
 }
 
-func (b *binding) evalDefault(c *exec.Context, slot int, node expr.Expr) (sqltype.Value, error) {
-	return evalDefaultExpression(c, node, b.defaultOriginAt(slot))
+func evalBindingDefault(b *binding, c *exec.Context, slot int, node expr.Expr) (sqltype.Value, error) {
+	return evalDefaultExpression(c, node, bindingDefaultOrigin(b, slot))
 }

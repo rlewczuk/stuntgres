@@ -104,7 +104,7 @@ func (in createLikeInput) rowMapper(destination *catalog.Relation, authority cat
 	}, slots
 }
 
-func (in *createLikeInput) remap(node expr.Expr, destination *catalog.Relation, authority catalog.Read) (expr.Expr, error) {
+func remapLikeExpression(in *createLikeInput, node expr.Expr, destination *catalog.Relation, authority catalog.Read) (expr.Expr, error) {
 	if in.rowRef == nil {
 		in.rowRef, in.slots = in.rowMapper(destination, authority)
 	}
@@ -213,11 +213,11 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 						diagnostic.Hint = fmt.Sprintf("You can drop column %s of table %s instead.", destination.Columns[in.targetSlot(slot)].Name, destination.Name())
 						return diagnostic
 					}
-					node, err := in.remap(old.Expression, destination, auth.Catalog)
+					node, err := remapLikeExpression(in, old.Expression, destination, auth.Catalog)
 					if err != nil {
 						return err
 					}
-					planned, err := in.remap(old.Planned, destination, auth.Catalog)
+					planned, err := remapLikeExpression(in, old.Planned, destination, auth.Catalog)
 					if err != nil {
 						return err
 					}
@@ -268,7 +268,7 @@ func (e *Engine) stageLikeChecks(op *Operation, auth AuthorizationView, destinat
 			if ordinal == int(^uint(0)>>1) {
 				return fmt.Errorf("stuntgres: CHECK ordinal exhausted")
 			}
-			node, err := in.remap(old.Expression, destination, auth.Catalog)
+			node, err := remapLikeExpression(in, old.Expression, destination, auth.Catalog)
 			if err != nil {
 				return err
 			}

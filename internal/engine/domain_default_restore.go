@@ -369,7 +369,7 @@ func (e *Engine) executeDomainReplayInsert(op *Operation, s *parser.Insert, reco
 	return scope.Execute(s, 0, nil)
 }
 
-func (b *binding) capturedDomainReplayCell(op *Operation, s *parser.Insert, row, column int) (expr.Expr, bool, error) {
+func capturedDomainReplayCell(b *binding, op *Operation, s *parser.Insert, row, column int) (expr.Expr, bool, error) {
 	if op == nil || op.replayOrZero().domainReplay == nil || op.replayOrZero().domainReplay.statement != s {
 		return nil, false, nil
 	}

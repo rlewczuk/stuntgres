@@ -28,7 +28,7 @@ func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.I
 			if b.insert.defaultOrigins == nil {
 				b.insert.defaultOrigins = make([]defaultOrigin, len(d.Columns))
 				for j := range d.Columns {
-					b.insert.defaultOrigins[j] = physical.defaultOriginAt(j)
+					b.insert.defaultOrigins[j] = bindingDefaultOrigin(&physical, j)
 				}
 			}
 			b.insert.defaults[direct.Slot] = defaultDestination(node, d.Columns[direct.Slot].Usage)
@@ -94,7 +94,7 @@ func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.I
 // physicalBinding is used only after logical and per-layer permission checks.
 // RETURNING keeps its analyzed logical schema, even when the target is hidden
 // from the view after an UPDATE or was never visible after an INSERT.
-func (b binding) physicalBinding() binding {
+func physicalBinding(b binding) binding {
 	if b.viewWrite == nil {
 		return b
 	}

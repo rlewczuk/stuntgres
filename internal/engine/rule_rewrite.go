@@ -735,7 +735,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView, stmt parser.Statement, b binding, ancestry []ruleAncestry, program *ruleProgram) (int, error) {
 	event := ruleEvent(stmt)
 	firstCommand := len(program.commands)
-	b = b.physicalBinding()
+	b = physicalBinding(b)
 	if event == "" || b.relation == nil {
 		return e.appendRuleCommand(program, auth, stmt, b), nil
 	}

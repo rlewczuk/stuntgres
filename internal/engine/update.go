@@ -51,7 +51,7 @@ func preflightUpdateWithPlanning(c *exec.Context, original *boundUpdate, planCon
 		var recipe exec.Context
 		if len(original.defaultOrigins) != 0 && original.defaultOrigins[i].requested {
 			recipe = *c
-			original.defaultOrigins[i].apply(&recipe)
+			applyDefaultOrigin(original.defaultOrigins[i], &recipe)
 			owner = &recipe
 		}
 		folded, changed, err := preflightUpdateExpression(owner, expression, planConstants)

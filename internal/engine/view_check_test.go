@@ -76,7 +76,7 @@ func viewCheckUnitBinding(t *testing.T, f viewWriteFixture, scope *StatementScop
 	if err := f.e.bindViewWrite(&b, f.authorization(t, op), &parser.Update{}); err != nil {
 		t.Fatal(err)
 	}
-	return b.physicalBinding()
+	return physicalBinding(b)
 }
 
 func TestViewCheckStack(t *testing.T) {

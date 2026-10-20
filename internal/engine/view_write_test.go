@@ -108,7 +108,7 @@ func TestViewWriteMapping(t *testing.T) {
 	if err := f.e.bindViewWrite(&b, auth, &parser.Update{}); err != nil {
 		t.Fatal(err)
 	}
-	if b.relation != f.view || b.ref != f.viewRef || b.targets[0] != 1 || b.physicalBinding().ref != f.baseRef {
+	if b.relation != f.view || b.ref != f.viewRef || b.targets[0] != 1 || physicalBinding(b).ref != f.baseRef {
 		t.Fatal("logical/physical authority conflated", b.targets)
 	}
 	// Creation slots survive current dense compaction and column renames.
@@ -180,7 +180,7 @@ func TestViewWriteDefaults(t *testing.T) {
 	})
 	conflict := &boundInsertConflict{}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
-	if err := conflict.selectArbiters(&evaluation, b.physicalBinding().relation, f.e.CatalogRead()); err != nil {
+	if err := conflict.selectArbiters(&evaluation, physicalBinding(b).relation, f.e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	if len(conflict.selected) != 1 || conflict.selected[0] != indexAddress || b.relation != f.view {

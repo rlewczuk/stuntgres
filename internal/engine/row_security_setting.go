@@ -14,7 +14,7 @@ func checkRowSecurityBinding(scope *StatementScope, auth AuthorizationView, b bi
 	if scope.rowSecurity {
 		return nil
 	}
-	if relation := b.physicalBinding().relation; relation != nil {
+	if relation := physicalBinding(b).relation; relation != nil {
 		principal := access.RowSecurityPrincipal(auth.State.CurrentUser, rowSecurityLayers(auth.Catalog, b))
 		if err := access.RowSecuritySettingGuard(false, auth.Roles, relation, principal); err != nil {
 			return err

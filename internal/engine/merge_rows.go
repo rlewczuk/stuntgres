@@ -244,7 +244,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 				setFrame()
 			}
 		}
-		arm, err := b.merge.selectArm(&evaluation, class)
+		arm, err := selectMergeArm(b.merge, &evaluation, class)
 		if err != nil {
 			return nil, err
 		}
@@ -311,7 +311,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 			}
 			if !live || latest.Version != candidate.Version {
 				setFrame()
-				arm, err = b.merge.selectArm(&evaluation, class)
+				arm, err = selectMergeArm(b.merge, &evaluation, class)
 				if err != nil {
 					return nil, err
 				}
@@ -345,7 +345,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 			sourceAfter = false
 			class = parser.MergeNotMatched
 			setFrame()
-			arm, err = b.merge.selectArm(&evaluation, class)
+			arm, err = selectMergeArm(b.merge, &evaluation, class)
 			if err != nil {
 				return nil, err
 			}
@@ -477,7 +477,7 @@ func mergeMatches(evaluation *exec.Context, on expr.Expr) (bool, error) {
 	return truth == plan.True, err
 }
 
-func (merge *boundMerge) selectArm(evaluation *exec.Context, class parser.MergeMatch) (*boundMergeArm, error) {
+func selectMergeArm(merge *boundMerge, evaluation *exec.Context, class parser.MergeMatch) (*boundMergeArm, error) {
 	for i := range merge.arms {
 		arm := &merge.arms[i]
 		if arm.match != class {

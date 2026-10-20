@@ -45,7 +45,7 @@ func (s *StatementScope) installRuleScratch(c ruleCommandScratch) {
 }
 
 func bindingRuleRelation(b binding) *catalog.Relation {
-	return b.physicalBinding().relation
+	return physicalBinding(b).relation
 }
 
 func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Statement, b binding, auth AuthorizationView, parameters []sqltype.Value, candidate StatementDescription, quoteChanged bool) (Result, error) {
@@ -127,7 +127,7 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 		if err := scope.op.Context().Err(); err != nil {
 			return Result{}, err
 		}
-		physical := command.binding.physicalBinding()
+		physical := physicalBinding(command.binding)
 		scope.installRuleScratch(ruleCommandScratch{mutation: statementMutation{statement: command.syntax}, ref: physical.ref, descriptor: physical.relation, storage: physical.storage, viewWrite: viewWriteOf(command.binding.viewWrite), sources: command.binding.querySources, auth: &program.commands[i].auth})
 		captures := &exec.QuoteCaptureCandidate{}
 		if command.binding.parameters.Count == 0 {

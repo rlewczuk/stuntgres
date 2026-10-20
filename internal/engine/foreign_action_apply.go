@@ -73,7 +73,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 		for i, slot := range plan.targets {
 			if len(b.insert.defaults) != 0 {
 				plan.defaults[i] = b.insert.defaults[slot]
-				plan.defaultOrigins[i] = b.defaultOriginAt(slot)
+				plan.defaultOrigins[i] = bindingDefaultOrigin(&b, slot)
 			}
 		}
 		// Retained defaults can themselves cast to a checked domain even when
@@ -94,7 +94,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 				continue
 			}
 			defaultEvaluation := evaluation
-			b.defaultOriginAt(plan.targets[i]).apply(&defaultEvaluation)
+			applyDefaultOrigin(bindingDefaultOrigin(&b, plan.targets[i]), &defaultEvaluation)
 			folded, _, err := preflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 			if err != nil {
 				return nil, err

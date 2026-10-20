@@ -69,7 +69,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 					return Result{}, err
 				}
 			}
-			if err := insertConflictOf(b.insert.conflict).selectArbiters(&evaluation, b.physicalBinding().relation, auth.Catalog); err != nil {
+			if err := insertConflictOf(b.insert.conflict).selectArbiters(&evaluation, physicalBinding(b).relation, auth.Catalog); err != nil {
 				return Result{}, err
 			}
 			scope.insertConflict = insertConflictOf(b.insert.conflict)
@@ -195,7 +195,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 				continue
 			}
 			defaultEvaluation := evaluation
-			b.defaultOriginAt(i).apply(&defaultEvaluation)
+			applyDefaultOrigin(bindingDefaultOrigin(&b, i), &defaultEvaluation)
 			folded, changed, foldErr := preflightCoercionsWithPolicy(&defaultEvaluation, expression, true)
 			if foldErr != nil {
 				return Result{}, foldErr
@@ -288,7 +288,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	}
 	quoteCaptures.Sealed = true
 	scope.quoteCaptures = quoteCaptures
-	b = b.physicalBinding()
+	b = physicalBinding(b)
 	if err = partitionWriteExtensionBoundary(stmt, b.relation); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -635,7 +635,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 				}
 				for j, expression := range b.insert.defaults {
 					if expression != nil && row[j].Type() != nil {
-						row[j], err = b.evalDefault(&evaluation, j, expression)
+						row[j], err = evalBindingDefault(&b, &evaluation, j, expression)
 						if err != nil {
 							return Result{}, err
 						}

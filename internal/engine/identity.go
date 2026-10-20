@@ -220,7 +220,7 @@ func evaluateInsertValuesRow(read catalog.Read, b *binding, supplied []expr.Expr
 			continue
 		}
 		if len(b.insert.defaults) != 0 && b.insert.defaults[target] != nil {
-			value, err := b.evalDefault(evaluation, target, b.insert.defaults[target])
+			value, err := evalBindingDefault(b, evaluation, target, b.insert.defaults[target])
 			if err != nil {
 				return err
 			}
