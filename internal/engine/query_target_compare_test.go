@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -35,7 +36,7 @@ func TestQueryDistinctOnSubquerySemanticIdentity(t *testing.T) {
 		if got := (*expressionBinder)(nil).SameQueryTarget(a, b); got != tc.same {
 			t.Fatal("binding-local target predicate", tc.left, tc.right, got, tc.same)
 		}
-		if SameGroupExpression(a, b) {
+		if analyze.SameGroupExpression(a, b) {
 			t.Fatal("ordinary comparison acquired local subquery sharing")
 		}
 	}

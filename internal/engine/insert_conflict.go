@@ -102,7 +102,7 @@ func (c *insertConflictState) matches(parent *catalog.Relation, index *catalog.I
 			if err != nil {
 				return false, err
 			}
-			if target.Attribute != attribute || !SameGroupExpression(target.Expression, expression) {
+			if target.Attribute != attribute || !analyze.SameGroupExpression(target.Expression, expression) {
 				continue
 			}
 			usage, err := indexKeyUsage(parent, key)
@@ -129,7 +129,7 @@ func (c *insertConflictState) matches(parent *catalog.Relation, index *catalog.I
 		}
 		found := false
 		for _, target := range c.Keys {
-			if target.Attribute == attribute && SameGroupExpression(target.Expression, expression) {
+			if target.Attribute == attribute && analyze.SameGroupExpression(target.Expression, expression) {
 				found = true
 				break
 			}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -109,7 +110,7 @@ func TestAnyValueResultUsage(t *testing.T) {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		b.Clause.AggregateClause = "SELECT"
 		raw := statement(t, q).(*parser.Select).Targets[0]
-		result, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		result, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(q, err)
 		}

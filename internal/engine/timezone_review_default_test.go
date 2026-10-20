@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -26,7 +27,7 @@ func TestTimezoneReviewStoredStableDefaultValidation(t *testing.T) {
 	} {
 		t.Run(expression, func(t *testing.T) {
 			binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-			node, err := binder.Bind(castTarget(t, "SELECT "+expression+" FROM t"), expressionPolicy{Context: ProjectionContext})
+			node, err := binder.Bind(castTarget(t, "SELECT "+expression+" FROM t"), expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -50,7 +51,7 @@ func TestTimezoneReviewDefaultDependencyRejection(t *testing.T) {
 		{Volatility: expr.Stable, StageDependent: true},
 	} {
 		binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-		node, err := binder.Bind(castTarget(t, "SELECT TRUE FROM t"), expressionPolicy{Context: ProjectionContext})
+		node, err := binder.Bind(castTarget(t, "SELECT TRUE FROM t"), expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}

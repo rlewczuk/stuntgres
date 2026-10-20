@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -20,7 +21,7 @@ import (
 func preflightCast(t *testing.T, q string) expr.Expr {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	expression, err := b.Bind(castTarget(t, q), expressionPolicy{Context: ProjectionContext})
+	expression, err := b.Bind(castTarget(t, q), expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}

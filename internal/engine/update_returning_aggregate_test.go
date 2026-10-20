@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -20,7 +21,7 @@ func TestUpdateReturningMalformedSumShape(t *testing.T) {
 		{Name: "sum", Star: true},
 		{Name: "sum", Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 2}}}},
 	} {
-		node, err := binder.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		node, err := binder.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		var diagnostic *sqlstate.Error
 		message := "function sum() does not exist"
 		if len(raw.Args) == 2 {

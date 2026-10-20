@@ -248,7 +248,7 @@ func TestSRFFromOwnership(t *testing.T) {
 	if _, err := b.BindFunction(parentCall); err != nil {
 		t.Fatal(err)
 	}
-	parent := b.Clause.fromSetObservation
+	parent := b.Clause.FromSetObservation
 	childCall := parentCall
 	childCall.Pos = parser.Position{Character: 71, Offset: 70}
 	for _, fails := range []bool{false, true} {
@@ -257,8 +257,8 @@ func TestSRFFromOwnership(t *testing.T) {
 			target = nullCountRaw("generate_series", parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: false}})
 		}
 		_, err := b.BindSelect(&parser.Select{From: &parser.FunctionTable{Calls: []parser.FunctionExpr{childCall}}, Targets: []parser.Expr{target}}, false)
-		if (err != nil) != fails || b.Clause.fromSetObservation != parent || b.Clause.AggregateClause != "FROM" {
-			t.Fatal("child query observation restoration", fails, b.Clause.fromSetObservation, err)
+		if (err != nil) != fails || b.Clause.FromSetObservation != parent || b.Clause.AggregateClause != "FROM" {
+			t.Fatal("child query observation restoration", fails, b.Clause.FromSetObservation, err)
 		}
 	}
 }

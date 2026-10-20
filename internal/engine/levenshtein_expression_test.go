@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -59,7 +60,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 	}
 	var children []expr.Expr
 	plan.ExpressionChildren(n, func(child expr.Expr) { children = append(children, child) })
-	if !reflect.DeepEqual(children, n.Args) || !SameGroupExpression(n, n) {
+	if !reflect.DeepEqual(children, n.Args) || !analyze.SameGroupExpression(n, n) {
 		t.Fatal(children)
 	}
 	for i := range n.Args {
@@ -70,7 +71,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 		} else {
 			changed.Args[i] = n.Args[2+(i-1)%4]
 		}
-		if SameGroupExpression(n, changed) {
+		if analyze.SameGroupExpression(n, changed) {
 			t.Fatal("argument identity collapsed", i)
 		}
 	}

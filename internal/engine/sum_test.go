@@ -168,7 +168,7 @@ func TestSumAnalysisStructure(t *testing.T) {
 		{"outer_left_non_sum", parser.SubqueryExpr{Left: one, Query: &parser.Select{Targets: []parser.Expr{sum}}}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := ContainsValuesAggregateAnalysis(tc.raw); got != tc.want {
+			if got := analyze.ContainsValuesAggregateAnalysis(tc.raw); got != tc.want {
 				t.Fatalf("structural VALUES aggregate containment = %v, want %v", got, tc.want)
 			}
 		})
@@ -248,14 +248,14 @@ func TestSumAnalysisAssignmentBoundary(t *testing.T) {
 	wrapped := parser.CastExpr{Child: parser.CastExpr{Child: sum, TypeName: parser.TypeName{Name: "integer"}}, TypeName: parser.TypeName{Name: "integer"}}
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	b.Clause.AggregateClause = "INSERT VALUES"
-	policy := expressionPolicy{Context: AssignmentContext, Expected: integer.Usage(), Mode: sqltype.Assignment, Column: column.Name}
+	policy := expressionPolicy{Context: analyze.AssignmentContext, Expected: integer.Usage(), Mode: sqltype.Assignment, Column: column.Name}
 	node, err := b.Bind(wrapped, policy)
 	wantAnalysis := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: "argument of FILTER must be type boolean, not type integer", Position: "30"}
-	if node != nil || !ContainsValuesAggregateAnalysis(wrapped) || !reflect.DeepEqual(err, wantAnalysis) {
+	if node != nil || !analyze.ContainsValuesAggregateAnalysis(wrapped) || !reflect.DeepEqual(err, wantAnalysis) {
 		t.Fatalf("wrapped nil-source analysis = %v / %#v, want %#v", node, err, wantAnalysis)
 	}
 	node, err = b.Bind(boolean, policy)
-	if node == nil || err == nil || node.ResultUsage().Type.ID() != sqltype.Bool || ContainsValuesAggregateAnalysis(boolean) {
+	if node == nil || err == nil || node.ResultUsage().Type.ID() != sqltype.Bool || analyze.ContainsValuesAggregateAnalysis(boolean) {
 		t.Fatal("genuine assignment must retain its resolved source", node, err)
 	}
 	diagnostic := analyze.InsertValueError(e.CatalogRead(), err, column, boolean, node.ResultUsage().Type)

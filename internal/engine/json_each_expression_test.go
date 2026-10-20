@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -72,11 +73,11 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 				walked++
 			}
 		})
-		if walked != 1 || exec.PlannedVolatility(original) != expr.Immutable || !SameGroupExpression(original, original) {
+		if walked != 1 || exec.PlannedVolatility(original) != expr.Immutable || !analyze.SameGroupExpression(original, original) {
 			t.Fatal("closed traversal", walked)
 		}
 		clone, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
-		if err != nil || !SameGroupExpression(original, clone) {
+		if err != nil || !analyze.SameGroupExpression(original, clone) {
 			t.Fatal("stored reconstruction", clone, err)
 		}
 		folded, _, err := preflightCoercions(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}, original)

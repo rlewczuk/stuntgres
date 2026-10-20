@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -384,7 +385,7 @@ func (e *Engine) initCopyInputLocked(s *StatementScope, b *binding, auth Authori
 	binder := newExpressionBinder(s.op.Context(), e, s.input, s.op, nil)
 	binder.Query.Auth = &auth
 	binder.Target.InsertTarget = b.Relation
-	BindInsertDefaults(e.catalog.owner(), b, auth.Catalog, parser.OverrideSystem)
+	analyze.BindInsertDefaults(e.catalog.owner(), b, auth.Catalog, parser.OverrideSystem)
 	if err := binder.CaptureRetainedWriteInput(b.Insert.Defaults, b.Relation.ColumnMeta.Generations, b.Relation.Constraints.Check); err != nil {
 		return err
 	}

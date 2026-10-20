@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -88,7 +89,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 				return ids.ErrCatalogReplaced
 			}
 		}
-		node, err := binder.BindBoolean(c.Expression, ProjectionContext, "CHECK")
+		node, err := binder.BindBoolean(c.Expression, analyze.ProjectionContext, "CHECK")
 		if altering {
 			e.mu.Unlock()
 		}
@@ -129,7 +130,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 			if !altering && d.Inheritance != nil {
 				if provenance, inherited := d.Inheritance.Checks[name]; inherited {
 					old := slices.IndexFunc(d.Constraints.Check, func(c catalog.CheckConstraint) bool { return c.Name == name })
-					if old < 0 || !SameGroupExpression(d.Constraints.Check[old].Expression, node) {
+					if old < 0 || !analyze.SameGroupExpression(d.Constraints.Check[old].Expression, node) {
 						return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, d.Name()))
 					}
 					if c.NoInherit {

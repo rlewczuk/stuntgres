@@ -113,7 +113,7 @@ func TestArrayCompareBoundVisitors(t *testing.T) {
 	for _, q := range []string{"SELECT $1 IN(1,$2,3)", "SELECT $1=ANY($2)"} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, q).(*parser.Select).Targets[0]
-		original, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		original, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -128,7 +128,7 @@ func TestArrayCompareBoundVisitors(t *testing.T) {
 		}
 	}
 	for _, q := range []string{"SELECT 1 IN(1,2,NULL)", "SELECT 1=ANY('{1,NULL}'::INT[])"} {
-		original, err := b.Bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
+		original, err := b.Bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -149,7 +149,7 @@ func TestArrayCompareBoundVisitors(t *testing.T) {
 		if err != nil || truthErr != nil || truth != plan.True {
 			t.Fatal("predicate not rebound to actual child generations", truth, err, truthErr)
 		}
-		if !SameGroupExpression(original, original) || SameGroupExpression(original, mapped) {
+		if !analyze.SameGroupExpression(original, original) || analyze.SameGroupExpression(original, mapped) {
 			t.Fatal("structural identity ignored predicate generations")
 		}
 		node := original.(plan.ScalarArrayComparisonExpr)

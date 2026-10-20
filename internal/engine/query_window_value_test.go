@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -124,13 +125,13 @@ func TestQueryWindowValueBindingUnwind(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 			b.Clause.AggregateClause, b.Query.Frame = "SELECT", 1
 			seed := statement(t, "SELECT row_number() OVER()").(*parser.Select).Targets[0]
-			if _, err := b.Bind(seed, expressionPolicy{Context: ProjectionContext}); err != nil {
+			if _, err := b.Bind(seed, expressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 				t.Fatal(err)
 			}
 			before := b.Grouping.WindowCalls[:len(b.Grouping.WindowCalls):len(b.Grouping.WindowCalls)]
 			b.Grouping.WindowCalls = before
 			values := append([]plan.WindowCall(nil), before...)
-			_, err := b.Bind(statement(t, tc.q).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
+			_, err := b.Bind(statement(t, tc.q).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
 			var d *sqlstate.Error
 			if !errors.As(err, &d) || d.Code != tc.code {
 				t.Fatal(err)
@@ -296,7 +297,7 @@ func TestQueryWindowValueSortOwnerSlots(t *testing.T) {
 			if tc.order == " ORDER BY b" && node.Calls[0].Expression.Call != 1 {
 				t.Fatal("later demanded ordinal did not retain its own executing slot", node.Calls[0].Expression)
 			}
-			first, second := WindowOccurrence(project.Expressions[0]), WindowOccurrence(project.Expressions[1])
+			first, second := analyze.WindowOccurrence(project.Expressions[0]), analyze.WindowOccurrence(project.Expressions[1])
 			// Demanded projections may read ORDER caches instead of a leaf.
 			if first != nil && second != nil && (first.Slot == second.Slot) != tc.same {
 				t.Fatal("slot ownership", first, second)

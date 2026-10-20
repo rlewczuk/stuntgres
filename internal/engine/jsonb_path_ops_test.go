@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -31,7 +32,7 @@ func TestJSONBPathOpsBinding(t *testing.T) {
 			if !ok {
 				t.Fatal("not an operator")
 			}
-			call, err := b.BindCatalogOperator(raw, expressionPolicy{Context: ProjectionContext})
+			call, err := b.BindCatalogOperator(raw, expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}

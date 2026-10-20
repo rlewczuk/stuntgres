@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -73,16 +74,16 @@ func TestBinaryHashOccurrenceBinding(t *testing.T) {
 		return parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name, Pos: parser.Position{Offset: 8, Character: 8}}}}, Args: []parser.Expr{arg}, Pos: parser.Position{Offset: 8, Character: 8}}
 	}
 	parameter := parser.ParameterExpr{Number: 1, Pos: parser.Position{Offset: 15, Character: 15}}
-	sha, err := b.Bind(call("sha256", parameter), expressionPolicy{Context: ProjectionContext})
+	sha, err := b.Bind(call("sha256", parameter), expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil || sha.ResultUsage().Type.ID() != sqltype.Bytea {
 		t.Fatal(sha, err)
 	}
-	md5, err := b.Bind(call("md5", parameter), expressionPolicy{Context: ProjectionContext})
+	md5, err := b.Bind(call("md5", parameter), expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil || md5.ResultUsage().Type.ID() != sqltype.Text {
 		t.Fatal(md5, err)
 	}
 	fresh := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	selected, err := fresh.Bind(call("md5", parameter), expressionPolicy{Context: ProjectionContext})
+	selected, err := fresh.Bind(call("md5", parameter), expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil || selected.ResultUsage().Type.ID() != sqltype.Text || fresh.Params.Parameters[1].Type.ID() != sqltype.Text {
 		t.Fatal(selected, err, "unresolved MD5 did not select TEXT")
 	}

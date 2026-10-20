@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -23,7 +24,7 @@ func TestSQLJSONObjectAggregatePolicySlotsAndReturningOwner(t *testing.T) {
 			for range 2 {
 				target := parser.TypeName{Name: "text"}
 				raw := parser.AggregateExpr{Name: "json_objectagg", Args: []parser.Expr{parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}}, JSON: &parser.JSONAggregateOptions{Absent: absent, Unique: unique, Returning: &target}, Pos: parser.Position{Character: 8}}
-				node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+				node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 				if err != nil {
 					t.Fatal(err)
 				}

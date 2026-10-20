@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -24,7 +25,7 @@ func TestMathScalarBinding(t *testing.T) {
 		t.Run(tc.query, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 			raw := statement(t, tc.query).(*parser.Select).Targets[0]
-			node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+			node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}

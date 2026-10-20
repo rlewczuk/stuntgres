@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -121,7 +122,7 @@ func (e *Engine) bindIndexPredicate(op *Operation, input sqltype.InputEnvironmen
 	}
 	binder := e.indexExpressionBinder(op, input, auth, parent)
 	binder.Consumer.IndexPredicateConsumer = true
-	definition, err := binder.BindBoolean(raw, FilterContext, "WHERE")
+	definition, err := binder.BindBoolean(raw, analyze.FilterContext, "WHERE")
 	if err != nil {
 		return nil, err
 	}

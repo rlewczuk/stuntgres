@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -17,7 +18,7 @@ func TestExpressionCompareNullTemporalCaptureOrderAndFreeze(t *testing.T) {
 	for _, q := range []string{"SELECT 'now' IS DISTINCT FROM TIMESTAMP 'now' FROM t", "SELECT TIMESTAMP 'now' IS NOT DISTINCT FROM 'now' FROM t", "SELECT 'now' IS DISTINCT FROM TIME 'now' FROM t"} {
 		raw := statement(t, q).(*parser.Select).Targets[0]
 		b := newTestExpressionBinder(t, ctx, e, first, nil)
-		bound, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		bound, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -36,7 +37,7 @@ func TestExpressionCompareNullTemporalCaptureOrderAndFreeze(t *testing.T) {
 		description := StatementDescription{temporals: b.Prepared.Temporals}
 		later := sqltype.InputEnvironment{TransactionStart: first.TransactionStart.Add(25 * time.Hour)}
 		rebound := newTestExpressionBinder(t, ctx, e, later, &description)
-		bound, err = rebound.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		bound, err = rebound.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}

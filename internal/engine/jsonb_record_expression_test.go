@@ -79,7 +79,7 @@ func TestJSONBRecordBinding(t *testing.T) {
 	if err != nil || value.Type() != next.ResultUsage().Type || value.CompositeField(0).Type() != fresh[sqltype.Int4] {
 		t.Fatal(value, err)
 	}
-	if !SameGroupExpression(call, call) {
+	if !analyze.SameGroupExpression(call, call) {
 		t.Fatal("record equality lost")
 	}
 	if exec.PlannedVolatility(call) != expr.Stable {
@@ -199,7 +199,7 @@ func TestJSONBRecordExpansion(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !JSONBRecordUnresolved(base) {
+		if !analyze.JSONBRecordUnresolved(base) {
 			t.Fatal("lost explicit unresolved marker", base)
 		}
 		original := base.(functions.JSONBRecord)
@@ -223,7 +223,7 @@ func TestJSONBRecordExpansion(t *testing.T) {
 		t.Fatal("runtime ROW registration fabricated a static function layout", err)
 	}
 	base, err := b.BindCompositeBase(raw)
-	if err != nil || !JSONBRecordUnresolved(base) {
+	if err != nil || !analyze.JSONBRecordUnresolved(base) {
 		t.Fatal(base, err)
 	}
 	value, err := base.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
@@ -353,7 +353,7 @@ func TestJSONBRecordReplay(t *testing.T) {
 			for round := range 3 {
 				b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 				raw := statement(t, query).(*parser.Select).Targets[0]
-				node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+				node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 				if err != nil {
 					t.Fatal(round, err)
 				}
@@ -399,7 +399,7 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 			original, _ := view.LookupType(source.RowType)
 			first := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 			raw := statement(t, `SELECT jsonb_populate_record(`+tc.base+`,'{"id":1}'::jsonb)`).(*parser.Select).Targets[0].(parser.FunctionExpr)
-			if _, err := first.Bind(raw, expressionPolicy{Context: ProjectionContext}); err != nil {
+			if _, err := first.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 				t.Fatal(err)
 			}
 			if first.Clause.JSONBRecordBase || len(first.Prepared.Composites) == 0 {
@@ -427,7 +427,7 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 			raw.Args[0] = oldSpelling(raw.Args[0])
 			expected := &StatementDescription{catalogOwner: view.Owner(), catalogEpoch: view.Epoch(), composites: first.Prepared.Composites}
 			next := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, expected)
-			node, err := next.Bind(raw, expressionPolicy{Context: ProjectionContext})
+			node, err := next.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil || next.Clause.JSONBRecordBase {
 				t.Fatal("retained base rebound by stale name or leaked scope", err)
 			}
@@ -455,7 +455,7 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 	engine, _, _ := typedUnitCatalog(t, false)
 	b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, `SELECT jsonb_populate_record('(bad,x)'::pair,'{}'::jsonb)`).(*parser.Select).Targets[0]
-	if _, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext}); err == nil || b.Clause.JSONBRecordBase {
+	if _, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext}); err == nil || b.Clause.JSONBRecordBase {
 		t.Fatal("failed base analysis leaked its capture scope", err)
 	}
 }
@@ -510,7 +510,7 @@ func TestJSONBRecordLayout(t *testing.T) {
 		t.Fatal("composed unresolved result fabricated empty expansion")
 	}
 	base, err := b.BindCompositeBase(raw.Base)
-	if err != nil || !JSONBRecordUnresolved(base) {
+	if err != nil || !analyze.JSONBRecordUnresolved(base) {
 		t.Fatal("lost transitive static layout state", base, err)
 	}
 	if _, err := base.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Catalog: auth.Catalog}}); err == nil {

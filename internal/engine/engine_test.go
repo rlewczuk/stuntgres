@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -203,7 +204,7 @@ func testExecuteFrame(e *Engine, op *Operation, stmt parser.Statement, args []dr
 			value, err := p.Types[i].Type.InputWithEnvironment(ctx, s, -1, input)
 			if err != nil {
 				if p.Types[i].Type.ContainsRegclass() {
-					return SequenceInputError(err, parser.Position{}, "", i+1)
+					return analyze.SequenceInputError(err, parser.Position{}, "", i+1)
 				}
 				return err
 			}

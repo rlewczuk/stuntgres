@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -21,7 +22,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	stamp := parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "timestamp", Pos: parser.Position{Offset: 30, Character: 31}}, Text: "now", Pos: parser.Position{Offset: 40, Character: 41}}
 	b := newTestExpressionBinder(t, ctx, e, first, nil)
 	for _, expr := range []parser.Expr{raw, stamp} {
-		if _, err := b.Bind(expr, expressionPolicy{Context: ProjectionContext}); err != nil {
+		if _, err := b.Bind(expr, expressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -32,7 +33,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	}
 	current, _ := e.CatalogRead().LookupType(sqltype.Time)
 	b = newTestExpressionBinder(t, ctx, e, later, &desc)
-	node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+	node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +46,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 		t.Fatal(out)
 	}
 	dest, _, _ := current.ResolveModifiers(0)
-	node, err = b.Bind(raw, expressionPolicy{Context: AssignmentContext, Expected: dest, Mode: sqltype.Assignment})
+	node, err = b.Bind(raw, expressionPolicy{Context: analyze.AssignmentContext, Expected: dest, Mode: sqltype.Assignment})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +55,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	if err != nil || out != "04:05:07" {
 		t.Fatal(out, err)
 	}
-	node, err = b.Bind(stamp, expressionPolicy{Context: ProjectionContext})
+	node, err = b.Bind(stamp, expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +69,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	}
 	// Contextual UNKNOWN inputs freeze; actual parameters never become captures.
 	contextual := parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "now", Pos: parser.Position{Offset: 3, Character: 4}}}
-	policy := expressionPolicy{Context: AssignmentContext, Expected: current.Usage(), Mode: sqltype.Assignment}
+	policy := expressionPolicy{Context: analyze.AssignmentContext, Expected: current.Usage(), Mode: sqltype.Assignment}
 	b = newTestExpressionBinder(t, ctx, e, first, nil)
 	node, err = b.Bind(contextual, policy)
 	if err != nil {
@@ -98,7 +99,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	foreign := stamp
 	foreign.Pos = raw.Pos
 	b = newTestExpressionBinder(t, ctx, e, later, &desc)
-	if _, err = b.Bind(foreign, expressionPolicy{Context: ProjectionContext}); err == nil {
+	if _, err = b.Bind(foreign, expressionPolicy{Context: analyze.ProjectionContext}); err == nil {
 		t.Fatal("capture type changed")
 	}
 }

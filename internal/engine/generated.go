@@ -73,7 +73,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 			return catalog.ColumnGeneration{}, err
 		}
 	}
-	node, err := b.Bind(expression, expressionPolicy{Context: ProjectionContext, Expected: column.Usage.Type.Usage()})
+	node, err := b.Bind(expression, expressionPolicy{Context: analyze.ProjectionContext, Expected: column.Usage.Type.Usage()})
 	if err != nil {
 		return catalog.ColumnGeneration{}, err
 	}

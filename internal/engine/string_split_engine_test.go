@@ -57,7 +57,7 @@ func TestStringSplitExpansion(t *testing.T) {
 					requests := make([]expr.Expr, len(raw.Targets))
 					for i, target := range raw.Targets {
 						var err error
-						requests[i], err = binder.Bind(target, expressionPolicy{Context: ProjectionContext})
+						requests[i], err = binder.Bind(target, expressionPolicy{Context: analyze.ProjectionContext})
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -151,7 +151,7 @@ func TestStringSplitExpansion(t *testing.T) {
 					schema := make(plan.QuerySchema, len(raw.Targets))
 					for i, target := range raw.Targets {
 						var err error
-						requests[i], err = binder.Bind(target, expressionPolicy{Context: ProjectionContext})
+						requests[i], err = binder.Bind(target, expressionPolicy{Context: analyze.ProjectionContext})
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -284,7 +284,7 @@ func TestStringSplitExpansion(t *testing.T) {
 		requests := make([]expr.Expr, len(raw.Targets))
 		for i, target := range raw.Targets {
 			var err error
-			requests[i], err = binder.Bind(target, expressionPolicy{Context: ProjectionContext})
+			requests[i], err = binder.Bind(target, expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -442,7 +442,7 @@ func TestStringSplitFrames(t *testing.T) {
 			schema := make(plan.QuerySchema, len(raw.Targets))
 			for i, target := range raw.Targets {
 				var err error
-				requests[i], err = binder.Bind(target, expressionPolicy{Context: ProjectionContext})
+				requests[i], err = binder.Bind(target, expressionPolicy{Context: analyze.ProjectionContext})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -547,7 +547,7 @@ func TestStringSplitBinding(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	b.Clause.AggregateClause = "SELECT"
 	for _, q := range []string{"SELECT string_to_table('a,b',',')", "SELECT string_to_array('a,b',',',NULL)", "SELECT split_part('a,b',',',-1)"} {
-		expr, err := b.Bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
+		expr, err := b.Bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(q, err)
 		}
@@ -586,7 +586,7 @@ func TestStringSplitBinding(t *testing.T) {
 	}
 	b.Clause.StringSetGuard = ""
 	raw := statement(t, "SELECT replace(string_to_table('a,b',','),NULL,'x')").(*parser.Select)
-	bound, err := b.Bind(raw.Targets[0], expressionPolicy{Context: ProjectionContext})
+	bound, err := b.Bind(raw.Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -856,7 +856,7 @@ func TestStringSplitPreflight(t *testing.T) {
 				expressions := make([]expr.Expr, len(raw.Targets))
 				schema := make(plan.QuerySchema, len(raw.Targets))
 				for i, target := range raw.Targets {
-					expression, err := b.Bind(target, expressionPolicy{Context: ProjectionContext})
+					expression, err := b.Bind(target, expressionPolicy{Context: analyze.ProjectionContext})
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -962,7 +962,7 @@ func TestStringSplitPreflight(t *testing.T) {
 		projection := make([]expr.Expr, len(raw.Targets))
 		schema := make(plan.QuerySchema, len(raw.Targets))
 		for i, target := range raw.Targets {
-			expr, err := b.Bind(target, expressionPolicy{Context: ProjectionContext})
+			expr, err := b.Bind(target, expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1034,7 +1034,7 @@ func TestStringSplitPreflightSiblingError(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	b.Clause.AggregateClause = "SELECT"
 	raw := statement(t, "SELECT replace(string_to_table('a,b',','),NULL,split_part('x',',',0))").(*parser.Select)
-	bound, err := b.Bind(raw.Targets[0], expressionPolicy{Context: ProjectionContext})
+	bound, err := b.Bind(raw.Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal("immutable sibling error moved into binding", err)
 	}

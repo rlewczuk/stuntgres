@@ -23,7 +23,7 @@ func intaggUnitAggregate(t *testing.T, e *Engine) (*expressionBinder, plan.Aggre
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	b.Clause.AggregateClause = "SELECT"
 	raw := parser.AggregateExpr{Name: "int_array_aggregate", Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 2}}}}
-	if _, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext}); err != nil {
+	if _, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 		t.Fatal(err)
 	}
 	if len(b.Grouping.Aggregates) != 1 {
@@ -123,7 +123,7 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 	}
 	builtin := n
 	builtin.Procedure, builtin.Ref = nil, ids.ObjectRef{}
-	if SameGroupExpression(n, builtin) || analyze.SameQuerySetOccurrence(n, builtin) {
+	if analyze.SameGroupExpression(n, builtin) || analyze.SameQuerySetOccurrence(n, builtin) {
 		t.Fatal("enum/builtin identity collapsed")
 	}
 	refs, err := pgDependExpressionRefs(context.Background(), e.CatalogRead(), n)

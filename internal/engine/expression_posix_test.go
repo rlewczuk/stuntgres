@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -31,17 +32,17 @@ func TestPosixDependencyAndPresentationIdentity(t *testing.T) {
 	}
 	standard := extraction
 	standard.Syntax = parser.SQLFunctionSyntax
-	if !SameGroupExpression(extraction, standard) || !SameGroupExpression(standard, extraction) {
+	if !analyze.SameGroupExpression(extraction, standard) || !analyze.SameGroupExpression(standard, extraction) {
 		t.Fatal("regex substring presentation changed grouping identity")
 	}
 	swapped := extraction
 	swapped.Args = [2]expr.Expr{pattern, source}
-	if SameGroupExpression(extraction, swapped) {
+	if analyze.SameGroupExpression(extraction, swapped) {
 		t.Fatal("regex operands lost grouping identity")
 	}
 	otherOperator := predicate
 	otherOperator.Operator = "~*"
-	if SameGroupExpression(predicate, otherOperator) {
+	if analyze.SameGroupExpression(predicate, otherOperator) {
 		t.Fatal("regex operator lost grouping identity")
 	}
 }

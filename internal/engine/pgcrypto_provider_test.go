@@ -197,13 +197,13 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	if !reflect.DeepEqual(children, n.Args) {
 		t.Fatal(children)
 	}
-	if !SameGroupExpression(n, n) {
+	if !analyze.SameGroupExpression(n, n) {
 		t.Fatal("identity not reflexive")
 	}
 	swapped := n
 	swapped.Args = slices.Clone(n.Args)
 	swapped.Args[0], swapped.Args[1] = swapped.Args[1], swapped.Args[0]
-	if SameGroupExpression(n, swapped) {
+	if analyze.SameGroupExpression(n, swapped) {
 		t.Fatal("data/key identity collapsed")
 	}
 	retagged, _, err := retagBoundTypes(e.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })

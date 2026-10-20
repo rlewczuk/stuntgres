@@ -322,7 +322,7 @@ func (v *viewDefinition) validateLiteralTree(catalog catalog.Read, raw parser.Ex
 			if root == nil {
 				return fmt.Errorf("stuntgres: missing VALUES order frame")
 			}
-			_, _, err := OrderOrdinal(raw, len(root.Schema()), "ORDER BY")
+			_, _, err := analyze.OrderOrdinal(raw, len(root.Schema()), "ORDER BY")
 			return err
 		}
 		if integer, ok := raw.(parser.LiteralExpr); ok && (path.Clause == analyze.ViewGroupLiteral || path.Clause == analyze.ViewOrderLiteral || path.Clause == analyze.ViewDistinctOnLiteral) && path.Node == 0 && integer.Value.Kind == parser.IntegerValue {
@@ -331,10 +331,10 @@ func (v *viewDefinition) validateLiteralTree(catalog catalog.Read, raw parser.Ex
 				if path.Clause == analyze.ViewDistinctOnLiteral {
 					clause = "DISTINCT ON"
 				}
-				_, _, err := OrderOrdinal(raw, len(v.frames[path.Query].Schema()), clause)
+				_, _, err := analyze.OrderOrdinal(raw, len(v.frames[path.Query].Schema()), clause)
 				return err
 			}
-			_, _, err := GroupOrdinal(raw, len(v.frames[path.Query].Schema()))
+			_, _, err := analyze.GroupOrdinal(raw, len(v.frames[path.Query].Schema()))
 			return err
 		}
 		return fmt.Errorf("stuntgres: missing view literal occurrence")

@@ -148,7 +148,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 		binder.Query.Frame = 1
 		binder.Query.NextQueryFrame = 1
 		var err error
-		r.condition, err = binder.Bind(s.Condition, expressionPolicy{Context: FilterContext})
+		r.condition, err = binder.Bind(s.Condition, expressionPolicy{Context: analyze.FilterContext})
 		if err != nil {
 			return r, err
 		}

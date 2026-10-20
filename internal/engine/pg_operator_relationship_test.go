@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -22,7 +23,7 @@ func pgOperatorRelationshipBind(t *testing.T, e *Engine, name string, left, righ
 	column := func(name string) parser.Expr {
 		return parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}}
 	}
-	return b.Bind(parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: []parser.Expr{column("l"), column("r")}}, expressionPolicy{Context: ProjectionContext})
+	return b.Bind(parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Args: []parser.Expr{column("l"), column("r")}}, expressionPolicy{Context: analyze.ProjectionContext})
 }
 
 func pgOperatorPolymorphicRelationships(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -22,7 +23,7 @@ func TestBooleanCallPredicateBinding(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			call := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name, Pos: pos}}}, Args: []parser.Expr{parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 40}}}, Pos: pos}
 			raw := parser.LogicalExpr{Op: op, Left: parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: op == parser.LogicalOr}}, Right: call}
-			node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+			node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(name, err)
 			}
@@ -44,7 +45,7 @@ func TestBooleanCallPredicateBinding(t *testing.T) {
 				t.Fatal("decisive constant lost analyzed inquiry", name)
 			}
 			call.Args = []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue, Pos: pos}}}
-			null, err := b.BindBoolean(call, FilterContext, "WHERE")
+			null, err := b.BindBoolean(call, analyze.FilterContext, "WHERE")
 			if err != nil || null.ResultUsage() != b.Type(sqltype.Bool).Usage() {
 				t.Fatal(name, null, err)
 			}
@@ -68,7 +69,7 @@ func TestBooleanCallPredicateSetRejection(t *testing.T) {
 		for _, construct := range []string{"AND", "OR", "NOT"} {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			b.Clause.AggregateClause = "SELECT"
-			node, err := b.BindBoolean(call, ProjectionContext, construct)
+			node, err := b.BindBoolean(call, analyze.ProjectionContext, construct)
 			message := "argument of " + construct + " must not return a set"
 			if !boolean {
 				message = "argument of " + construct + " must be type boolean, not type integer"
@@ -81,7 +82,7 @@ func TestBooleanCallPredicateSetRejection(t *testing.T) {
 		}
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		b.Clause.AggregateClause = "SELECT"
-		node, err := b.Bind(call, expressionPolicy{Context: ProjectionContext})
+		node, err := b.Bind(call, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil || !exec.SourceReturnsSet(node) {
 			t.Fatal("standalone set projection changed", node, err)
 		}

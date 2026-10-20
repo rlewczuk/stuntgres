@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -40,7 +41,7 @@ func TestLogicalTypedTruthAndFrames(t *testing.T) {
 			raw.Right = rawParam(2)
 		}
 		var err error
-		nodes[i], err = binder.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		nodes[i], err = binder.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -103,7 +104,7 @@ func TestLogicalBindingDiagnosticsAndInvariants(t *testing.T) {
 	}
 	for _, op := range []parser.LogicalOperator{parser.LogicalAnd, parser.LogicalOr, parser.LogicalNot} {
 		construct := map[parser.LogicalOperator]string{parser.LogicalAnd: "AND", parser.LogicalOr: "OR", parser.LogicalNot: "NOT"}[op]
-		for _, exprContext := range []expressionContext{ProjectionContext, FilterContext} {
+		for _, exprContext := range []expressionContext{analyze.ProjectionContext, analyze.FilterContext} {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			raw := parser.LogicalExpr{Op: op, Left: literal(parser.IntegerValue), Pos: parser.Position{Character: 8}}
 			if op != parser.LogicalNot {
@@ -124,16 +125,16 @@ func TestLogicalBindingDiagnosticsAndInvariants(t *testing.T) {
 		{Op: parser.LogicalNot},
 	} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		if _, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext}); err == nil {
+		if _, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext}); err == nil {
 			t.Fatal("invalid raw logical node", raw)
 		}
 	}
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	_, err := b.Bind(parser.ParameterExpr{Number: 1, Pos: pos}, expressionPolicy{Context: ProjectionContext, Expected: b.Type(sqltype.Int4).Usage()})
+	_, err := b.Bind(parser.ParameterExpr{Number: 1, Pos: pos}, expressionPolicy{Context: analyze.ProjectionContext, Expected: b.Type(sqltype.Int4).Usage()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = b.BindBoolean(parser.ParameterExpr{Number: 1, Pos: pos}, ProjectionContext, "AND")
+	_, err = b.BindBoolean(parser.ParameterExpr{Number: 1, Pos: pos}, analyze.ProjectionContext, "AND")
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42804" || diagnostic.Message != "argument of AND must be type boolean, not type integer" || diagnostic.Position != "17" {
 		t.Fatal(err)

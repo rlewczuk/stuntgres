@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -271,7 +272,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 			t.Fatal("symbolic recipe", recipe, err)
 		}
 		persisted, err := remapBoundExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-		if err != nil || !SameGroupExpression(n, persisted) {
+		if err != nil || !analyze.SameGroupExpression(n, persisted) {
 			t.Fatal("symbolic remapping", err)
 		}
 		if err := validateGenerationPlan(e.CatalogRead(), nil, n); err != nil {

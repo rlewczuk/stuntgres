@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -108,7 +109,7 @@ func validateDomainDefault(view catalog.Read, d *catalog.Type) error {
 		if (parent == nil) != (d.DomainDefault == nil) {
 			return fmt.Errorf("stuntgres: inconsistent inherited domain default")
 		}
-		if parent != nil && (!SameGroupExpression(parent.Expression, d.DomainDefault.Expression) || !slices.Equal(parent.Dependencies, d.DomainDefault.Dependencies)) {
+		if parent != nil && (!analyze.SameGroupExpression(parent.Expression, d.DomainDefault.Expression) || !slices.Equal(parent.Dependencies, d.DomainDefault.Dependencies)) {
 			return fmt.Errorf("stuntgres: inconsistent inherited domain default recipe")
 		}
 		if parent != nil && d.DomainDefaultText != view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.SQLType.DomainBase().Type.ID())}).DomainDefaultText {

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"testing"
@@ -50,7 +51,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 			binder := newExpressionBinder(context.Background(), e, input, reader, nil)
 			binder.Query.Auth, binder.Target.Ref = &auth, ref
 			binder.Target.Relation = auth.Catalog.MustRelation(ref.Address)
-			node, err := binder.Bind(raw, expressionPolicy{Context: ProjectionContext})
+			node, err := binder.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal("actual network operator selection", err)

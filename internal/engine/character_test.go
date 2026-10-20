@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -69,7 +70,7 @@ func TestCharacterCastPreservesKnownParameterUsage(t *testing.T) {
 	source := b.Type(sqltype.BPChar).Usage()
 	b.Params.Parameters[1] = source
 	raw := statement(t, "SELECT CAST($1 AS text) FROM seed").(*parser.Select).Targets[0]
-	node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+	node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -94,7 +95,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 		binder.Stored.CheckLiterals = pending.literals
 		binder.Query.Namespace = &namespace
 		binder.Query.Sources = []exec.Leaf{{Ref: ref, Relation: &replacement}}
-		node, err := binder.BindBoolean(syntax[0].(*parser.CreateTable).Elements[0].Check.Expression, ProjectionContext, "CHECK")
+		node, err := binder.BindBoolean(syntax[0].(*parser.CreateTable).Elements[0].Check.Expression, analyze.ProjectionContext, "CHECK")
 		e.mu.Unlock()
 		if err != nil {
 			return nil, nil, alterTypeCheckReparseError(err)

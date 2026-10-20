@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -56,7 +57,7 @@ func TestConditionalAggregateGroupingIdentityAndRewrite(t *testing.T) {
 	if b.SameGroupExpression(groupList, changedList) {
 		t.Fatal("different conditional kind accepted as grouping key")
 	}
-	if AggregateOccurrence(list) == nil {
+	if analyze.AggregateOccurrence(list) == nil {
 		t.Fatal("nested aggregate occurrence lost")
 	}
 	rewritten, err := b.RewriteGroup(list, []expr.Expr{key})

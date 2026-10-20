@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -38,7 +39,7 @@ func TestNetworkOperatorBindingAndReownership(t *testing.T) {
 			e := New()
 			b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 			raw := bitOperatorRaw(tc.name, tc.args...)
-			node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+			node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}

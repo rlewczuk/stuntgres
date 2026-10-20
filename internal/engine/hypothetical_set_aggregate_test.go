@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -174,7 +175,7 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 				raw.Args = append(raw.Args, expr)
 				raw.Order = append(raw.Order, parser.OrderKey{Expr: expr, Pos: position})
 			}
-			node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+			node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}

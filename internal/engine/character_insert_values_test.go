@@ -50,7 +50,7 @@ func TestCharacterSourceValuesCommonUsage(t *testing.T) {
 			}
 			rows[i] = []expr.Expr{queryProbe(u, nil)}
 		}
-		got, err := CommonValuesUsage(rows, nil, 0, usage(sqltype.Text))
+		got, err := analyze.CommonValuesUsage(rows, nil, 0, usage(sqltype.Text))
 		if err != nil {
 			t.Errorf("ids=%v: %v", tc.ids, err)
 			continue
@@ -101,7 +101,7 @@ func TestCharacterSourceValuesSchemaAndTypmods(t *testing.T) {
 		a, _ := e.CatalogRead().LookupType(tc.first)
 		b, _ := e.CatalogRead().LookupType(tc.second)
 		text, _ := e.CatalogRead().LookupType(sqltype.Text)
-		_, err := CommonValuesUsage([][]expr.Expr{{queryProbe(a.Usage(), nil)}, {queryProbe(b.Usage(), nil)}}, nil, 0, text.Usage())
+		_, err := analyze.CommonValuesUsage([][]expr.Expr{{queryProbe(a.Usage(), nil)}, {queryProbe(b.Usage(), nil)}}, nil, 0, text.Usage())
 		d, ok := err.(*sqlstate.Error)
 		if !ok || d.Code != "42804" || d.Message != tc.message {
 			t.Fatal("category boundary changed", tc, err)
@@ -124,7 +124,7 @@ func TestCharacterSourceValuesCrossIdentityTypmods(t *testing.T) {
 			text, _ := e.CatalogRead().LookupType(sqltype.Text)
 			a, b := first.Usage(), second.Usage()
 			a.Typmod, b.Typmod = 6, 6
-			got, err := CommonValuesUsage([][]expr.Expr{{queryProbe(a, nil)}, {queryProbe(b, nil)}}, nil, 0, text.Usage())
+			got, err := analyze.CommonValuesUsage([][]expr.Expr{{queryProbe(a, nil)}, {queryProbe(b, nil)}}, nil, 0, text.Usage())
 			if err != nil || got != first.Usage() {
 				t.Fatal("cross-identity width retained", tc, got, err)
 			}
@@ -146,7 +146,7 @@ func TestCharacterInsertCastResolvedSourceDiagnostic(t *testing.T) {
 		t.Run(tc.cast, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			raw := statement(t, "/*é🙂*/ INSERT INTO dst VALUES(CAST('a' AS "+tc.cast+"))").(*parser.Insert).Rows[0][0]
-			node, err := b.Bind(raw, expressionPolicy{Context: AssignmentContext, Expected: integer.Usage(), Mode: sqltype.Assignment})
+			node, err := b.Bind(raw, expressionPolicy{Context: analyze.AssignmentContext, Expected: integer.Usage(), Mode: sqltype.Assignment})
 			if node == nil || err == nil || node.ResultUsage().Type.ID() != tc.id || node.ResultUsage().Typmod != 6 {
 				t.Fatal("resolved source lost at assignment failure", node, err)
 			}

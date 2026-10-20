@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -32,7 +33,7 @@ func TestMathTrigBinding(t *testing.T) {
 			t.Run(query, func(t *testing.T) {
 				b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 				raw := statement(t, query).(*parser.Select).Targets[0]
-				node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+				node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -60,7 +61,7 @@ func TestMathTrigBinding(t *testing.T) {
 func TestMathTrigEvaluationPhase(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT acos(2)").(*parser.Select).Targets[0]
-	node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+	node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal("binding executed a provider", err)
 	}
@@ -78,7 +79,7 @@ func TestMathTrigEvaluationPhase(t *testing.T) {
 	}
 	for _, query := range []string{"SELECT atan2(NULL,asin(2))", "SELECT atan2d(NULL,asind(2))", "SELECT atan2(NULL,sin('Infinity'))", "SELECT atan2d(NULL,sind('Infinity'))"} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		node, err := b.Bind(statement(t, query).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
+		node, err := b.Bind(statement(t, query).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal("binding demanded constant sibling", err)
 		}
@@ -92,7 +93,7 @@ func TestMathTrigEvaluationPhase(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 			raw := statement(t, "SELECT "+name+"('Infinity')").(*parser.Select).Targets[0]
-			node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+			node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal("binding executed direct provider", err)
 			}

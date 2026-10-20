@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -24,7 +25,7 @@ func TestPreparedParameterFormalSeed(t *testing.T) {
 	b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, nil)
 	seed := []sqltype.Usage{integer, text}
 	b.SeedParameters(seed)
-	node, err := b.Bind(parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 17}}, expressionPolicy{Context: FunctionArgumentContext, Expected: wide, Mode: sqltype.Assignment})
+	node, err := b.Bind(parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 17}}, expressionPolicy{Context: analyze.FunctionArgumentContext, Expected: wide, Mode: sqltype.Assignment})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +42,7 @@ func TestPreparedParameterFormalSeed(t *testing.T) {
 	}
 	for _, number := range []int{2, 2147483647} {
 		b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, nil)
-		if _, err := b.Bind(parser.ParameterExpr{Number: number}, expressionPolicy{Context: ProjectionContext, Expected: integer}); err != nil {
+		if _, err := b.Bind(parser.ParameterExpr{Number: number}, expressionPolicy{Context: analyze.ProjectionContext, Expected: integer}); err != nil {
 			t.Fatal(err)
 		}
 		_, err := b.Finish()

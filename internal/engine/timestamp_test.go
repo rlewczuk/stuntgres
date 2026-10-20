@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -20,7 +21,7 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 	raw := parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "timestamp", Modifiers: []parser.TypeModifier{{Integer: &p}}, Pos: parser.Position{Offset: 7, Character: 8}}, Text: "now", Pos: parser.Position{Offset: 20, Character: 21}}
 	first := sqltype.InputEnvironment{TransactionStart: time.Date(2024, 12, 31, 23, 59, 59, 123456000, time.UTC)}
 	b := newTestExpressionBinder(t, ctx, e, first, nil)
-	node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+	node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +42,7 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 	}
 	later := sqltype.InputEnvironment{TransactionStart: first.TransactionStart.Add(24 * time.Hour)}
 	b = newTestExpressionBinder(t, ctx, e, later, &wantDesc)
-	node, err = b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+	node, err = b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +53,7 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 	}
 	dest, _, _ := current.ResolveModifiers(0)
 	b = newTestExpressionBinder(t, ctx, e, later, &wantDesc)
-	node, err = b.Bind(raw, expressionPolicy{Context: AssignmentContext, Expected: dest, Mode: sqltype.Assignment})
+	node, err = b.Bind(raw, expressionPolicy{Context: analyze.AssignmentContext, Expected: dest, Mode: sqltype.Assignment})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,13 +65,13 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 	// An unrelated current contextual target is not forced to the old type.
 	contextual := parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "now", Pos: raw.Pos}}
 	text, _ := e.CatalogRead().LookupType(sqltype.Text)
-	node, err = b.Bind(contextual, expressionPolicy{Context: AssignmentContext, Expected: text.Usage(), Mode: sqltype.Assignment})
+	node, err = b.Bind(contextual, expressionPolicy{Context: analyze.AssignmentContext, Expected: text.Usage(), Mode: sqltype.Assignment})
 	if err != nil || node.ResultUsage().Type != text {
 		t.Fatal(node, err)
 	}
 	// Parameters carry no capture and retain unsized type identity.
 	b = newTestExpressionBinder(t, ctx, e, later, &wantDesc)
-	node, err = b.Bind(parser.ParameterExpr{Number: 1}, expressionPolicy{Context: AssignmentContext, Expected: dest, Mode: sqltype.Assignment})
+	node, err = b.Bind(parser.ParameterExpr{Number: 1}, expressionPolicy{Context: analyze.AssignmentContext, Expected: dest, Mode: sqltype.Assignment})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +200,7 @@ func TestTimestampRelativeConstantsFreezeAcrossDateline(t *testing.T) {
 	later := sqltype.InputEnvironment{TransactionStart: first.TransactionStart.Add(48 * time.Hour)}
 	for _, text := range []string{"today", "tomorrow", "yesterday"} {
 		raw := parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: text, Pos: parser.Position{Offset: 7, Character: 8}}}
-		policy := expressionPolicy{Context: AssignmentContext, Expected: typ.Usage(), Mode: sqltype.Assignment}
+		policy := expressionPolicy{Context: analyze.AssignmentContext, Expected: typ.Usage(), Mode: sqltype.Assignment}
 		b := newTestExpressionBinder(t, ctx, e, first, nil)
 		node, err := b.Bind(raw, policy)
 		if err != nil {

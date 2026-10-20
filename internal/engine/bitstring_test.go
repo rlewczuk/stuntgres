@@ -37,7 +37,7 @@ func TestBitstringLiteralBindingAndDeparse(t *testing.T) {
 		t.Fatal(literal, err)
 	}
 	// A destination cannot reinterpret a known B/X constant as unknown text.
-	node, err = b.Bind(parser.LiteralExpr{Value: parser.Value{Kind: parser.BitStringValue, Text: "b001", Pos: raw.Value.Pos}}, expressionPolicy{Expected: varying, Context: AssignmentContext})
+	node, err = b.Bind(parser.LiteralExpr{Value: parser.Value{Kind: parser.BitStringValue, Text: "b001", Pos: raw.Value.Pos}}, expressionPolicy{Expected: varying, Context: analyze.AssignmentContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestBitstringLiteralBindingAndDeparse(t *testing.T) {
 		if kind == parser.BitStringValue {
 			text = "b2"
 		}
-		_, err = b.Bind(parser.LiteralExpr{Value: parser.Value{Kind: kind, Text: text, Pos: raw.Value.Pos}}, expressionPolicy{Expected: fixed, Context: AssignmentContext})
+		_, err = b.Bind(parser.LiteralExpr{Value: parser.Value{Kind: kind, Text: text, Pos: raw.Value.Pos}}, expressionPolicy{Expected: fixed, Context: analyze.AssignmentContext})
 		var d *sqlstate.Error
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22P02", Message: `"2" is not a valid binary digit`, Position: "8"}
 		if !errors.As(err, &d) || *d != want {

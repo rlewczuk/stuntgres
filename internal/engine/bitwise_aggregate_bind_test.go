@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"testing"
@@ -46,7 +47,7 @@ func TestBitwiseAggregateSlotsAndMetadata(t *testing.T) {
 		b.Params.Parameters[1] = usage
 		for _, name := range []string{"bit_and", "bit_or", "bit_xor", "bit_and"} {
 			raw := parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}}, Pos: parser.Position{Character: 8}}
-			expr, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+			expr, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -197,10 +198,10 @@ func TestBitwiseAggregateValuesAnalysis(t *testing.T) {
 				want = &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: "argument of FILTER must be type boolean, not type integer", Position: "30"}
 			}
 			wrapped := parser.CastExpr{Child: raw, TypeName: parser.TypeName{Name: "integer"}}
-			if !ContainsValuesAggregateAnalysis(wrapped) {
+			if !analyze.ContainsValuesAggregateAnalysis(wrapped) {
 				t.Fatal("wrapped bitwise analysis omitted")
 			}
-			node, err := b.Bind(wrapped, expressionPolicy{Context: AssignmentContext, Expected: integer.Usage(), Mode: sqltype.Assignment, Column: "i"})
+			node, err := b.Bind(wrapped, expressionPolicy{Context: analyze.AssignmentContext, Expected: integer.Usage(), Mode: sqltype.Assignment, Column: "i"})
 			diagnostic, ok := err.(*sqlstate.Error)
 			if node != nil || !ok || *diagnostic != *want || len(b.Grouping.Aggregates) != 0 {
 				t.Fatal("VALUES precedence/registration rollback", phase, node, err, b.Grouping.Aggregates)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -310,7 +311,7 @@ func TestCommitTimeExpression(t *testing.T) {
 		if err := n.(expr.StoredProvider).ValidateStoredProvider(); err != nil {
 			t.Fatal(err)
 		}
-		if n.Properties().Volatility != expr.Volatile || exec.PlannedVolatility(n) != expr.Volatile || generationImmutable(n) || conditionalConstantInputs(n) || !SameGroupExpression(n, n) {
+		if n.Properties().Volatility != expr.Volatile || exec.PlannedVolatility(n) != expr.Volatile || generationImmutable(n) || conditionalConstantInputs(n) || !analyze.SameGroupExpression(n, n) {
 			t.Fatal("volatile expression lifecycle")
 		}
 		count := 0
@@ -329,7 +330,7 @@ func TestCommitTimeExpression(t *testing.T) {
 			t.Fatal(recipe, err)
 		}
 		persisted, err := remapBoundExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-		if err != nil || !SameGroupExpression(n, persisted) || persisted.(expr.StoredProvider).ValidateStoredProvider() != nil {
+		if err != nil || !analyze.SameGroupExpression(n, persisted) || persisted.(expr.StoredProvider).ValidateStoredProvider() != nil {
 			t.Fatal("symbolic persistence lost the inquiry signature or argument", err)
 		}
 		if len(n.(expr.Composite).Children()) != 0 {

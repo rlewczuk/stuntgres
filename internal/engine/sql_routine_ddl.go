@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -133,7 +134,7 @@ func (e *Engine) bindSQLRoutineLocked(op *Operation, auth AuthorizationView, d *
 		admission = &scope.queryLockAdmission
 		expected = scope.Expected
 	}
-	b, err := Describe(op.Context(), e.analysisHost(op), d.SQL.Query, authorityOf(auth), ids.ObjectRef{}, input, expectedOf(expected), admission, nil, true, d.SQL.Inputs)
+	b, err := analyze.Describe(op.Context(), e.analysisHost(op), d.SQL.Query, authorityOf(auth), ids.ObjectRef{}, input, expectedOf(expected), admission, nil, true, d.SQL.Inputs)
 	if err != nil {
 		return b, sqltype.CoercionPlan{}, exec.SQLRoutineContext(err, d.Name(), false)
 	}

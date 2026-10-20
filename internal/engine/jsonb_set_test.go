@@ -19,7 +19,7 @@ import (
 func jsonbSetUnitBind(t *testing.T, b *expressionBinder, q string) expr.Expr {
 	t.Helper()
 	raw := statement(t, q).(*parser.Select).Targets[0]
-	node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+	node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(q, err)
 	}
@@ -70,7 +70,7 @@ func TestJSONBSetBindingInferenceAndProperties(t *testing.T) {
 		`SELECT jsonb_set_lax('{}','{a}',NULL,missing,'return_target')`,
 	} {
 		binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
-		_, err := binder.Bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
+		_, err := binder.Bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "42703" {
 			t.Fatal("ordinary child analysis suppressed", q, err)
@@ -108,7 +108,7 @@ func TestJSONBSetRetagRemapAndPresentation(t *testing.T) {
 		t.Fatal(out, err)
 	}
 	mapped, err := remapBoundExpression(e, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-	if err != nil || !SameGroupExpression(e, mapped) {
+	if err != nil || !analyze.SameGroupExpression(e, mapped) {
 		t.Fatal(mapped, err)
 	}
 	variadic := jsonbSetUnitBind(t, b, `SELECT pg_catalog.jsonb_set('{"a":1}','{a}',VARIADIC '2'::jsonb)`)
@@ -164,7 +164,7 @@ func TestJSONBSetViewReplayDeterminism(t *testing.T) {
 			for round := range 3 {
 				b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 				raw := statement(t, query).(*parser.Select).Targets[0]
-				node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+				node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 				if err != nil {
 					t.Fatal(round, err)
 				}
@@ -214,7 +214,7 @@ func TestJSONBSetAllSlotGroupAndDependencyTraversal(t *testing.T) {
 		}
 		seen := false
 		plan.ExpressionChildren(e, func(child expr.Expr) {
-			if SameGroupExpression(child, column) {
+			if analyze.SameGroupExpression(child, column) {
 				seen = true
 			}
 		})
@@ -223,7 +223,7 @@ func TestJSONBSetAllSlotGroupAndDependencyTraversal(t *testing.T) {
 		}
 		other := e
 		other.Args[slot] = base.Args[slot]
-		if SameGroupExpression(e, other) {
+		if analyze.SameGroupExpression(e, other) {
 			t.Fatal("slot ignored in semantic identity", slot)
 		}
 	}

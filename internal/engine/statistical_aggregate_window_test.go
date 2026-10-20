@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -38,7 +39,7 @@ func TestStatisticalAggregateWindowSignatures(t *testing.T) {
 				e.mu.Lock()
 				defer e.mu.Unlock()
 				seed := statement(t, "SELECT count(*)").(*parser.Select).Targets[0]
-				if _, err := b.Bind(seed, expressionPolicy{Context: ProjectionContext}); err != nil {
+				if _, err := b.Bind(seed, expressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 					t.Fatal(err)
 				}
 				before := append([]plan.AggregateCall(nil), b.Grouping.Aggregates...)

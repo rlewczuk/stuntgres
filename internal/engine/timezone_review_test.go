@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -21,7 +22,7 @@ func TestTimezoneReviewConditionalProperties(t *testing.T) {
 	} {
 		t.Run(expression, func(t *testing.T) {
 			binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
-			node, err := binder.Bind(castTarget(t, "SELECT "+expression+" FROM t"), expressionPolicy{Context: ProjectionContext})
+			node, err := binder.Bind(castTarget(t, "SELECT "+expression+" FROM t"), expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -55,7 +56,7 @@ func TestTimezoneReviewATVolatility(t *testing.T) {
 		} {
 			t.Run(tc.operand+" "+suffix, func(t *testing.T) {
 				binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
-				node, err := binder.Bind(castTarget(t, "SELECT ("+tc.operand+") "+suffix+" FROM t"), expressionPolicy{Context: ProjectionContext})
+				node, err := binder.Bind(castTarget(t, "SELECT ("+tc.operand+") "+suffix+" FROM t"), expressionPolicy{Context: analyze.ProjectionContext})
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -31,7 +32,7 @@ func TestSQLRoutineClosedFormalBoundary(t *testing.T) {
 		}
 		b.SeedParameters(inputs)
 		n := count + 1
-		_, err := b.Bind(parser.ParameterExpr{Number: n, Pos: parser.Position{Character: 9}}, expressionPolicy{Context: ProjectionContext, Expected: integer})
+		_, err := b.Bind(parser.ParameterExpr{Number: n, Pos: parser.Position{Character: 9}}, expressionPolicy{Context: analyze.ProjectionContext, Expected: integer})
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "42P02" || d.Position != "9" || d.Message != fmt.Sprintf("there is no parameter $%d", n) {
 			t.Fatalf("count=%d: %v", count, err)
@@ -49,7 +50,7 @@ func TestSQLRoutineClosedFormalBoundary(t *testing.T) {
 	}
 	// Ordinary prepared input inference is deliberately still open.
 	b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, nil)
-	if _, err := b.Bind(parser.ParameterExpr{Number: 1}, expressionPolicy{Context: ProjectionContext, Expected: integer}); err != nil {
+	if _, err := b.Bind(parser.ParameterExpr{Number: 1}, expressionPolicy{Context: analyze.ProjectionContext, Expected: integer}); err != nil {
 		t.Fatal(err)
 	}
 	if info, err := b.Finish(); err != nil || info.Count != 1 {

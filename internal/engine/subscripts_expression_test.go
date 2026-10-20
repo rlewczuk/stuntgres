@@ -231,15 +231,15 @@ func TestSubscriptsExpressionHooks(t *testing.T) {
 			walked++
 		}
 	})
-	if walked != 3 || exec.PlannedVolatility(original) != expr.Immutable || exec.QuerySetDepth(original) != 1 || !SameGroupExpression(original, original) {
+	if walked != 3 || exec.PlannedVolatility(original) != expr.Immutable || exec.QuerySetDepth(original) != 1 || !analyze.SameGroupExpression(original, original) {
 		t.Fatal("visitor identity", walked)
 	}
 	other := subscriptsUnit(t, view, []sqltype.ArrayDimension{{Lower: 3, Length: 3}}, 1, false)
-	if SameGroupExpression(original, other) || analyze.SameQuerySetOccurrence(original, seriesUnit(t, original.ResultUsage().Type, 1, 3)) {
+	if analyze.SameGroupExpression(original, other) || analyze.SameQuerySetOccurrence(original, seriesUnit(t, original.ResultUsage().Type, 1, 3)) {
 		t.Fatal("marker/argument kinds conflated")
 	}
 	clone, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
-	if err != nil || !SameGroupExpression(original, clone) {
+	if err != nil || !analyze.SameGroupExpression(original, clone) {
 		t.Fatal("remap", clone, err)
 	}
 	for _, fold := range []func() (expr.Expr, bool, error){
@@ -278,7 +278,7 @@ func TestSubscriptsExpressionHooks(t *testing.T) {
 		}
 		return arg, false, nil
 	})
-	if err != nil || !did || !SameGroupExpression(n, other) || SameGroupExpression(original, other) {
+	if err != nil || !did || !analyze.SameGroupExpression(n, other) || analyze.SameGroupExpression(original, other) {
 		t.Fatal("copy-on-change", n, did, err)
 	}
 	if _, err := expr.Substitute(expr.Expr(original).(expr.Composite), expr.InfoOf(original), original.Args[:2]); err == nil {

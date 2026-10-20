@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -30,7 +31,7 @@ func TestArrayCompareDiagnosticPrecedence(t *testing.T) {
 		t.Run(tc.query, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			raw := statement(t, tc.query).(*parser.Select).Targets[0]
-			_, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+			_, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code || diagnostic.Message != tc.message || diagnostic.Position != tc.position || diagnostic.Hint != tc.hint {
 				t.Fatal(err, tc)
@@ -41,7 +42,7 @@ func TestArrayCompareDiagnosticPrecedence(t *testing.T) {
 	// selects a wider common type. SQL parameter inference is not rewritten.
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT $1::INT IN(1,2147483648)").(*parser.Select).Targets[0]
-	bound, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+	bound, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}

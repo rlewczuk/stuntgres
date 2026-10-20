@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -159,7 +160,7 @@ func TestAlterTypeCheckResolvedLiteralCapture(t *testing.T) {
 				if literal.ResultUsage().Type.ID() != tc.id || literal.Value.IsNull() != (i == 1) {
 					t.Fatal("lost concrete/NULL usage", i, literal)
 				}
-				node, err := binder.Bind(parser.ParameterExpr{Number: i + 1}, expressionPolicy{Context: ProjectionContext, Expected: binder.Type(sqltype.Text).Usage()})
+				node, err := binder.Bind(parser.ParameterExpr{Number: i + 1}, expressionPolicy{Context: analyze.ProjectionContext, Expected: binder.Type(sqltype.Text).Usage()})
 				if err != nil || !reflect.DeepEqual(node, literal) {
 					t.Fatal("re-input/coercion changed captured literal", i, node, literal, err)
 				}
@@ -168,14 +169,14 @@ func TestAlterTypeCheckResolvedLiteralCapture(t *testing.T) {
 				t.Fatal("transport leaked into parameter inference", binder)
 			}
 			for _, number := range []int{0, -1, 3} {
-				_, err := binder.Bind(parser.ParameterExpr{Number: number}, expressionPolicy{Context: ProjectionContext})
+				_, err := binder.Bind(parser.ParameterExpr{Number: number}, expressionPolicy{Context: analyze.ProjectionContext})
 				var diagnostic *sqlstate.Error
 				if !errors.As(err, &diagnostic) || diagnostic.Code != "42P02" {
 					t.Fatal("accepted unknown transport marker", number, err)
 				}
 			}
 			binder.Stored.CheckLiterals = nil
-			_, err = binder.Bind(parser.ParameterExpr{Number: 1}, expressionPolicy{Context: ProjectionContext})
+			_, err = binder.Bind(parser.ParameterExpr{Number: 1}, expressionPolicy{Context: analyze.ProjectionContext})
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "42P02" {
 				t.Fatal("public CHECK parameter admission changed", err)

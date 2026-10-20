@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -32,7 +33,7 @@ func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnviron
 func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, raw parser.Expr, literals []plan.LiteralExpr) (*catalog.DerivedIndexKey, string, error) {
 	binder := e.indexExpressionBinder(op, input, auth, parent)
 	binder.Stored.CheckLiterals = literals
-	definition, err := binder.Bind(raw, expressionPolicy{Context: ProjectionContext})
+	definition, err := binder.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		return nil, "", err
 	}

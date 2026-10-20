@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -52,7 +53,7 @@ func (e *Engine) bindDomainCheckRecipes(ctx context.Context, op *Operation, auth
 		b.Consumer.CheckConsumer, b.Params.NoParameters = true, true
 		base := d.SQLType.DomainBase()
 		b.Clause.DomainValueUsage = &base
-		node, err := b.BindBoolean(check.Expression, ProjectionContext, "CHECK")
+		node, err := b.BindBoolean(check.Expression, analyze.ProjectionContext, "CHECK")
 		if err != nil {
 			return alterCookingError(err)
 		}

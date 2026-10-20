@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"iter"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -106,7 +107,7 @@ func TestSQLRoutineStagedLookup(t *testing.T) {
 		if call, ok := raw.(parser.FunctionExpr); ok {
 			_, handled, err = b.BindSQLCallable(call)
 		} else {
-			_, handled, err = b.BindSQLRoutineSyntax(raw, expressionPolicy{Context: ProjectionContext})
+			_, handled, err = b.BindSQLRoutineSyntax(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		}
 		if handled || err != nil {
 			t.Fatal("negative SQL gate changed builtin owner", query, handled, err)

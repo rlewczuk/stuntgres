@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -22,7 +23,7 @@ func TestIdentifierExtremaInitialization(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			bound, err := b.Bind(parsed[0].(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
+			bound, err := b.Bind(parsed[0].(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal("describable extrema rejected at analysis", err)
 			}
@@ -90,7 +91,7 @@ func TestIdentifierPublicDeparseLeaves(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node, err := b.Bind(parsed[0].(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
+	node, err := b.Bind(parsed[0].(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}

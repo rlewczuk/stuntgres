@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -647,7 +648,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 				}
 				raw.Args = []parser.Expr{parser.TypedLiteralExpr{TypeName: direct, Text: text, Pos: position}}
 			}
-			result, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+			result, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -17,7 +17,7 @@ import (
 func jsonStripUnitBind(t *testing.T, b *expressionBinder, q string) expr.Expr {
 	t.Helper()
 	raw := statement(t, q).(*parser.Select).Targets[0]
-	node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+	node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 	}
 	for _, q := range []string{`SELECT json_strip_nulls(NULL,missing)`, `SELECT json_strip_nulls(missing,NULL)`} {
 		binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
-		if _, err := binder.Bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext}); err == nil {
+		if _, err := binder.Bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext}); err == nil {
 			t.Fatal("strict NULL hid binding error", q)
 		}
 	}
@@ -98,17 +98,17 @@ func TestJSONStripNullsBindingRetagRemap(t *testing.T) {
 		t.Fatal(out, err)
 	}
 	mapped, err := remapBoundExpression(e, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-	if err != nil || !SameGroupExpression(e, mapped) || exec.PlannedVolatility(mapped) != expr.Immutable {
+	if err != nil || !analyze.SameGroupExpression(e, mapped) || exec.PlannedVolatility(mapped) != expr.Immutable {
 		t.Fatal(mapped, err)
 	}
 	different := e
 	different.Args[1] = plan.LiteralExpr{Info: b.Info(b.Type(sqltype.Bool).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.Boolean(b.Type(sqltype.Bool), false)}
-	if SameGroupExpression(e, different) {
+	if analyze.SameGroupExpression(e, different) {
 		t.Fatal("group identity ignored Boolean formal")
 	}
 	var children []expr.Expr
 	plan.ExpressionChildren(e, func(child expr.Expr) { children = append(children, child) })
-	if len(children) != 2 || !SameGroupExpression(children[0], e.Args[0]) || !SameGroupExpression(children[1], e.Args[1]) {
+	if len(children) != 2 || !analyze.SameGroupExpression(children[0], e.Args[0]) || !analyze.SameGroupExpression(children[1], e.Args[1]) {
 		t.Fatal("formal traversal", children)
 	}
 }
@@ -129,7 +129,7 @@ func TestJSONStripNullsBindingStoredPresentation(t *testing.T) {
 		for round := range 3 {
 			b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 			raw := statement(t, query).(*parser.Select).Targets[0]
-			node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+			node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -164,10 +165,10 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 		}
 		return typ
 	})
-	if err != nil || !SameGroupExpression(again, mapped.DomainDefault.Expression) {
+	if err != nil || !analyze.SameGroupExpression(again, mapped.DomainDefault.Expression) {
 		t.Fatal("repeated remap lost association", err)
 	}
-	if pair.SQLType.CompositeLen() != 3 || before.Get(survivor.Address()) != survivor || !slices.Equal(originalRefs, survivor.DomainDefault.Dependencies) || !SameGroupExpression(survivor.DomainDefault.Expression, original) {
+	if pair.SQLType.CompositeLen() != 3 || before.Get(survivor.Address()) != survivor || !slices.Equal(originalRefs, survivor.DomainDefault.Dependencies) || !analyze.SameGroupExpression(survivor.DomainDefault.Expression, original) {
 		t.Fatal("retag mutated immutable predecessor")
 	}
 	oldText, err := (pgRenderer{view: before}).sql(op.Context(), original, pgRenderParent{})

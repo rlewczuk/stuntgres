@@ -68,7 +68,7 @@ func TestJSONExtractInferenceAndLifecycle(t *testing.T) {
 		t.Fatal(text, err)
 	}
 	mapped, err := remapBoundExpression(original, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-	if err != nil || !SameGroupExpression(original, mapped) {
+	if err != nil || !analyze.SameGroupExpression(original, mapped) {
 		t.Fatal(mapped, err)
 	}
 	if !n.Variadic || n.Labels[0] != "from_json" || n.Labels[1] != "path_elems" {
@@ -107,7 +107,7 @@ func TestJSONExtractStoredVariadicProvenance(t *testing.T) {
 			t.Run(q, func(t *testing.T) {
 				b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 				raw := statement(t, q).(*parser.Select).Targets[0]
-				node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+				node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 				if err != nil {
 					t.Fatal(err)
 				}

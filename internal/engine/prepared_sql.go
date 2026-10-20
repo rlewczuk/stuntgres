@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -150,7 +151,7 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 		binder.Query.Auth, binder.Params.NoParameters, binder.Params.ExecuteParameters = &auth, true, true
 		nodes := make([]expr.Expr, formal.Count)
 		for i, argument := range raw.Arguments {
-			node, err := binder.Bind(argument, expressionPolicy{Context: FunctionArgumentContext, Expected: formal.Types[i], Mode: sqltype.Assignment})
+			node, err := binder.Bind(argument, expressionPolicy{Context: analyze.FunctionArgumentContext, Expected: formal.Types[i], Mode: sqltype.Assignment})
 			if err != nil {
 				if d, ok := err.(*sqlstate.Error); ok && d.Code == "42804" && node != nil {
 					copy := *d

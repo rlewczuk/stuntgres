@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -169,7 +170,7 @@ func conflictPredicateProof(ctx *exec.Context, a, b expr.Expr) (bool, error) {
 	if truth, ok := conflictLiteralTruth(a); ok && truth != plan.True {
 		return true, nil
 	}
-	if SameGroupExpression(a, b) {
+	if analyze.SameGroupExpression(a, b) {
 		return true, nil
 	}
 	if right, ok := b.(plan.LogicalExpr); ok && right.Op == parser.LogicalAnd {
@@ -209,11 +210,11 @@ func conflictPredicateProof(ctx *exec.Context, a, b expr.Expr) (bool, error) {
 	return conflictComparisonProof(ctx, a, b)
 }
 func conflictStrictFor(node, subject expr.Expr) bool {
-	if SameGroupExpression(node, subject) {
+	if analyze.SameGroupExpression(node, subject) {
 		return node.ResultUsage().Type.ID() == sqltype.Bool
 	}
 	if c, ok := node.(plan.ComparisonExpr); ok {
-		return !c.Predicate.SessionDependent() && (SameGroupExpression(c.Left, subject) || SameGroupExpression(c.Right, subject))
+		return !c.Predicate.SessionDependent() && (analyze.SameGroupExpression(c.Left, subject) || analyze.SameGroupExpression(c.Right, subject))
 	}
 	if n, ok := node.(plan.LogicalExpr); ok && n.Op == parser.LogicalNot {
 		return conflictStrictFor(n.Left, subject)
@@ -305,8 +306,8 @@ func conflictComparisonProof(ctx *exec.Context, a, b expr.Expr) (bool, error) {
 		y.Left, y.Right = y.Right, y.Left
 		y.Operator = conflictCommuted(y.Operator)
 	}
-	if !SameGroupExpression(x.Left, y.Left) {
-		if SameGroupExpression(x.Left, y.Right) && SameGroupExpression(x.Right, y.Left) {
+	if !analyze.SameGroupExpression(x.Left, y.Left) {
+		if analyze.SameGroupExpression(x.Left, y.Right) && analyze.SameGroupExpression(x.Right, y.Left) {
 			y.Left, y.Right = y.Right, y.Left
 			y.Operator = conflictCommuted(y.Operator)
 		} else {
@@ -336,7 +337,7 @@ func conflictComparisonProof(ctx *exec.Context, a, b expr.Expr) (bool, error) {
 	if xi < 0 || yi < 0 {
 		return false, nil
 	}
-	if SameGroupExpression(x.Right, y.Right) {
+	if analyze.SameGroupExpression(x.Right, y.Right) {
 		return conflictSameOperators[xi][yi], nil
 	}
 	first, ok := x.Right.(plan.LiteralExpr)

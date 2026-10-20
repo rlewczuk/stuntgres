@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -51,7 +52,7 @@ func testJSONObjectAggregateModifierProviderCompletion(t *testing.T, names []str
 						args += " ORDER BY " + order
 					}
 					raw := statement(t, "/*é😀*/ SELECT "+name+"("+args+")").(*parser.Select).Targets[0]
-					node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+					node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -167,7 +168,7 @@ func testJSONObjectAggregateModifierOccurrenceRetention(t *testing.T, name strin
 			b.Clause.AggregateClause = "SELECT"
 			raw := statement(t, tc.q).(*parser.Select)
 			for _, target := range raw.Targets {
-				if _, err := b.Bind(target, expressionPolicy{Context: ProjectionContext}); err != nil {
+				if _, err := b.Bind(target, expressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 					t.Fatal("modifier analysis failed before occurrence validation", err)
 				}
 			}
@@ -189,7 +190,7 @@ func TestJSONObjectAggregateModifierRepeatedDistinctCompletion(t *testing.T) {
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		b.Clause.AggregateClause = "SELECT"
 		raw := statement(t, "/*é😀*/ SELECT json_object_agg(DISTINCT $1,$1"+order+")").(*parser.Select).Targets[0]
-		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}

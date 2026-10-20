@@ -117,16 +117,16 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 	t.Run("scoped operand reuse preserves policy", func(t *testing.T) {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := parser.RowExpr{Fields: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 7}}}, Pos: parser.Position{Offset: 10, Character: 11}, Explicit: true}
-		cached, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		cached, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
-		b.Clause.FunctionProjection = functionProjectionScope{ArgumentPos: raw.Pos, ArgumentKind: ProjectionArgumentKind(raw), Operand: cached}
-		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		b.Clause.FunctionProjection = functionProjectionScope{ArgumentPos: raw.Pos, ArgumentKind: analyze.ProjectionArgumentKind(raw), Operand: cached}
+		node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil || node.ResultUsage().Type != cached.ResultUsage().Type {
 			t.Fatal("operand was rebound", node, err)
 		}
-		node, err = b.Bind(raw, expressionPolicy{Context: FunctionArgumentContext, Expected: b.Type(sqltype.Bool).Usage(), Mode: sqltype.Implicit})
+		node, err = b.Bind(raw, expressionPolicy{Context: analyze.FunctionArgumentContext, Expected: b.Type(sqltype.Bool).Usage(), Mode: sqltype.Implicit})
 		if err == nil || node == nil || node.ResultUsage().Type != cached.ResultUsage().Type {
 			t.Fatal("reuse bypassed coercion policy", node, err)
 		}
@@ -180,7 +180,7 @@ func TestCompositeExprAssignmentPaths(t *testing.T) {
 			t.Fatal("RHS did not use original execution frame", number, err)
 		}
 	}
-	if usage := TargetUsage(outer.Usage(), []parser.TargetStep{field("p"), field("j")}); usage.Type != integer {
+	if usage := analyze.TargetUsage(outer.Usage(), []parser.TargetStep{field("p"), field("j")}); usage.Type != integer {
 		t.Fatal("leaf metadata", usage)
 	}
 	if _, err := b.BindAssignmentTarget(catalog.Column{Name: "v", Usage: outer.Usage()}, []parser.TargetStep{field("missing")}, parser.Position{}); err == nil {

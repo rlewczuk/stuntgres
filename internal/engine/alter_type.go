@@ -92,7 +92,7 @@ func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth Authorizat
 	binder.Target.Relation, binder.Target.Ref, binder.Params.NoParameters, binder.Query.Auth = original, ref, true, &auth
 	binder.Query.Namespace = namespace
 	binder.Query.Sources = []exec.Leaf{{Ref: ref, Relation: original}}
-	node, err := binder.Bind(action.Using, expressionPolicy{Context: ProjectionContext, Expected: usage.Type.Usage()})
+	node, err := binder.Bind(action.Using, expressionPolicy{Context: analyze.ProjectionContext, Expected: usage.Type.Usage()})
 	if err == nil && (binder.Prepared.RegclassConcat || binder.Consumer.CatalogSnapshot) {
 		err = e.captureCommentSnapshotLocked(scope)
 	}

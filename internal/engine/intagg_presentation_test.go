@@ -24,7 +24,7 @@ func intaggUnitRecipes(t *testing.T) {
 			b.Clause.AggregateClause = "SELECT"
 			syntax := statement(t, "SELECT "+call).(*parser.Select)
 			raw := syntax.Targets[0]
-			node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+			node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}

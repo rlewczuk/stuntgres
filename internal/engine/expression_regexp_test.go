@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -34,7 +35,7 @@ func TestRegexpScalarBinding(t *testing.T) {
 		{"regexp_split_to_array", []parser.Expr{literal("a b"), literal(" ")}, 1009},
 	} {
 		raw := nullCountRaw(tc.name, tc.args...)
-		bound, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		bound, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(tc.name, err)
 		}
@@ -49,25 +50,25 @@ func TestRegexpScalarBinding(t *testing.T) {
 	}
 	raw := nullCountRaw("regexp_like", literal("a"), literal("a"))
 	raw.ArgNames = []parser.Identifier{{Text: "pattern"}, {Text: "string"}}
-	first, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+	first, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
 	raw.ArgNames = nil
-	second, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
-	if err != nil || !SameGroupExpression(first, second) {
+	second, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+	if err != nil || !analyze.SameGroupExpression(first, second) {
 		t.Fatal(first, second, err)
 	}
 	collate := func(name string, pos int) parser.Expr {
 		return parser.CollateExpr{Child: literal("a"), Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Pos: parser.Position{Character: pos}}
 	}
 	raw = nullCountRaw("regexp_like", collate("C", 19), literal("a"))
-	bound, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+	bound, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil || bound.(functions.Regexp).Plan.Collation().ID != 950 {
 		t.Fatal(bound, err)
 	}
 	raw = nullCountRaw("regexp_like", collate("C", 19), collate("POSIX", 34))
-	_, err = b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+	_, err = b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42P21" {
 		t.Fatal(err)
@@ -78,7 +79,7 @@ func TestRegexpScalarPreflight(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := nullCountRaw("regexp_like", parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "a"}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "["}})
-	bound, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+	bound, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal("Prepare compiled pattern", err)
 	}
@@ -102,7 +103,7 @@ func TestRegexpScalarGroupingAlias(t *testing.T) {
 	literal := func(s string) parser.Expr {
 		return parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: s}}
 	}
-	first, err := b.Bind(nullCountRaw("regexp_split_to_table", literal("a b"), literal(" ")), expressionPolicy{Context: ProjectionContext})
+	first, err := b.Bind(nullCountRaw("regexp_split_to_table", literal("a b"), literal(" ")), expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +115,7 @@ func TestRegexpScalarGroupingAlias(t *testing.T) {
 	if _, ok := keys[0].(functions.RegexpSet); !ok {
 		t.Fatal("alias lost the set expression", keys[0])
 	}
-	second, err := b.Bind(nullCountRaw("regexp_split_to_table", literal("c d"), literal(" ")), expressionPolicy{Context: ProjectionContext})
+	second, err := b.Bind(nullCountRaw("regexp_split_to_table", literal("c d"), literal(" ")), expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}

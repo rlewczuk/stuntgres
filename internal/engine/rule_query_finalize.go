@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -163,7 +164,7 @@ func finalizeRuleQuery(view catalog.Read, root plan.Node, alreadyFinalized ...ma
 					}
 					on[i] = plan.SortKey{Expression: next, Slot: -1, Cache: -1, TargetIdentity: len(projection) + i + 1}
 					for _, key := range order {
-						if SameGroupExpression(next, key.Expression) {
+						if analyze.SameGroupExpression(next, key.Expression) {
 							on[i].TargetIdentity = key.TargetIdentity
 							break
 						}

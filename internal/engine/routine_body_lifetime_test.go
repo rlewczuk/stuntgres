@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -35,7 +36,7 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 	binder := newExpressionBinder(context.Background(), e, input, reader, nil)
 	binder.Query.Auth = &auth
 	binder.Query.Namespace = &queryNamespace{}
-	node, err := binder.Bind(parser.FunctionExpr{Name: preparedBoundaryName("bit_length"), Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "abc"}}}}, expressionPolicy{Context: ProjectionContext})
+	node, err := binder.Bind(parser.FunctionExpr{Name: preparedBoundaryName("bit_length"), Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "abc"}}}}, expressionPolicy{Context: analyze.ProjectionContext})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -327,7 +328,7 @@ func TestRoutineBodyEveryProviderOriginalLifetime(t *testing.T) {
 			binder := newExpressionBinder(context.Background(), e, input, reader, nil)
 			binder.Query.Auth, binder.Target.Ref = &auth, ref
 			binder.Target.Relation = auth.Catalog.MustRelation(ref.Address)
-			node, err := binder.Bind(raw, expressionPolicy{Context: ProjectionContext})
+			node, err := binder.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal("actual provider selection", err)

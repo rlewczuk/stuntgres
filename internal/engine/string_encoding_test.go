@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -30,7 +31,7 @@ func TestStringEncodingFormalBinding(t *testing.T) {
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		raw := statement(t, tc.query).(*parser.Select).Targets[0]
-		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(tc, err)
 		}
@@ -54,7 +55,7 @@ func TestStringEncodingFormalBinding(t *testing.T) {
 	}
 	for _, query := range []string{"SELECT chr(65::bigint)", "SELECT chr('65'::text)", "SELECT to_ascii('é',true)"} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-		_, err := b.Bind(statement(t, query).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
+		_, err := b.Bind(statement(t, query).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "42883" {
 			t.Fatal("wrong source admitted", query, err)
@@ -65,7 +66,7 @@ func TestStringEncodingFormalBinding(t *testing.T) {
 func TestStringEncodingRetainedFormalOwnership(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	for _, query := range []string{"SELECT to_ascii('é','LATIN1'::text)", "SELECT to_ascii('é',8::smallint)", "SELECT chr(65)", "SELECT ascii('é')", "SELECT unicode_assigned('é')", "SELECT unistr('plain')"} {
-		node, err := b.Bind(statement(t, query).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
+		node, err := b.Bind(statement(t, query).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -113,7 +114,7 @@ func TestStringEncodingChildrenAndStructuralIdentity(t *testing.T) {
 	}
 	bind := func(query string) expr.Expr {
 		t.Helper()
-		node, err := b.Bind(statement(t, query).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
+		node, err := b.Bind(statement(t, query).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}

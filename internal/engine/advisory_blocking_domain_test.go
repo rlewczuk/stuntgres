@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -42,7 +43,7 @@ func TestAdvisoryBlockingDomainInput(t *testing.T) {
 	probeBinder.Consumer.CheckConsumer, probeBinder.Params.NoParameters = true, true
 	probeBinder.Query.Namespace = &queryNamespace{}
 	probeRaw := statement(t, "SELECT pg_try_advisory_lock(NULL::integer, (VALUE::public.advisory_inner)::integer) IS NULL AND pg_blocking_pids(NULLIF((VALUE::public.advisory_inner)::integer,(VALUE::public.advisory_inner)::integer)) IS NULL AND CASE WHEN false THEN pg_safe_snapshot_blocking_pids(1/0) IS NULL ELSE true END").(*parser.Select).Targets[0]
-	probe, err := probeBinder.BindBoolean(probeRaw, ProjectionContext, "CHECK")
+	probe, err := probeBinder.BindBoolean(probeRaw, analyze.ProjectionContext, "CHECK")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +95,7 @@ func TestAdvisoryBlockingDomainInput(t *testing.T) {
 	// Reconstruct an actual CASE child through the generic simplifier. The
 	// inquiry follows the resulting child's properties, not stale outer facts.
 	caseRaw := statement(t, "SELECT pg_blocking_pids(CASE WHEN true THEN 0 ELSE $1 END)").(*parser.Select).Targets[0]
-	boundCase, err := b.Bind(caseRaw, expressionPolicy{Context: ProjectionContext})
+	boundCase, err := b.Bind(caseRaw, expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}

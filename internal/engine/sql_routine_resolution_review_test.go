@@ -3,6 +3,7 @@ package engine
 import (
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/sqltype"
 )
 
@@ -32,7 +33,7 @@ func TestSQLRoutineUnknownCategorySelection(t *testing.T) {
 					}
 					candidates[i].Inputs = []sqltype.Usage{types[tc.inputs[j][0]].Usage(), types[tc.inputs[j][1]].Usage()}
 				}
-				got := SelectSQLCallables(candidates, []comparisonOperand{{}, {}}, nil)
+				got := analyze.SelectSQLCallables(candidates, []comparisonOperand{{}, {}}, nil)
 				if len(got) != tc.want {
 					t.Fatalf("reverse=%v: got %d candidates, want %d", reverse, len(got), tc.want)
 				}

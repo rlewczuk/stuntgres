@@ -19,7 +19,7 @@ func TestSQLRoutineStoredDefaultValidation(t *testing.T) {
 	ctx := context.Background()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT routine_unit_stored(1)").(*parser.Select).Targets[0]
-	bound, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+	bound, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestSQLRoutineDefaultClosureBoundary(t *testing.T) {
 	} {
 		t.Run(test.expression, func(t *testing.T) {
 			raw := statement(t, "SELECT "+test.expression).(*parser.Select).Targets[0]
-			node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+			node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}

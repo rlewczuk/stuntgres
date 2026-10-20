@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -56,10 +57,10 @@ func TestJSONBObjectExpressionRetagRemapAndRendering(t *testing.T) {
 			t.Fatal(text, err)
 		}
 		mapped, err := remapBoundExpression(original, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-		if err != nil || !SameGroupExpression(original, mapped) {
+		if err != nil || !analyze.SameGroupExpression(original, mapped) {
 			t.Fatal(mapped, err)
 		}
-		if !SameGroupExpression(original, original) {
+		if !analyze.SameGroupExpression(original, original) {
 			t.Fatal("lost expression identity")
 		}
 		persistent, err := (scalarRenderer{}).scalarFunctionSQL(context.Background(), view, original)
@@ -119,7 +120,7 @@ func TestJSONBObjectExpressionGroupTraversal(t *testing.T) {
 	}
 	var count int
 	plan.ExpressionChildren(bound, func(child expr.Expr) {
-		if !SameGroupExpression(child, column) {
+		if !analyze.SameGroupExpression(child, column) {
 			t.Fatal(child)
 		}
 		count++
@@ -162,7 +163,7 @@ func TestJSONBObjectBinderInferenceAndProperties(t *testing.T) {
 	for _, query := range []string{"SELECT jsonb_object($1)", "SELECT jsonb_object($1,$2)", "SELECT jsonb_object($1,$1)"} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		raw := statement(t, query).(*parser.Select).Targets[0]
-		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(query, err)
 		}
@@ -182,7 +183,7 @@ func TestJSONBObjectBinderInferenceAndProperties(t *testing.T) {
 		Columns:    []catalog.Column{{Name: "a", Usage: array}, {Name: "v", Usage: array}},
 		Attributes: []int32{1, 2}, Index: map[string]int{"a": 0, "v": 1},
 	}
-	node, err := b.Bind(statement(t, "SELECT jsonb_object(a,v)").(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
+	node, err := b.Bind(statement(t, "SELECT jsonb_object(a,v)").(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil || !node.Properties().RowDependent || node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable {
 		t.Fatal(node, err)
 	}
@@ -200,7 +201,7 @@ func TestJSONBObjectBinderStageAndVolatility(t *testing.T) {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		b.Clause.AggregateClause = "SELECT"
 		raw := statement(t, tc.query).(*parser.Select).Targets[0]
-		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(tc.query, err)
 		}

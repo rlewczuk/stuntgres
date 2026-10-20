@@ -57,7 +57,7 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *cat
 			binder.Consumer.PartitionConsumer, binder.Params.NoParameters, binder.Query.Auth = "partition key expression", true, &auth
 			binder.Query.Namespace = &namespace
 			binder.Query.Sources = []exec.Leaf{{Ref: ref, Relation: d}}
-			node, err := binder.Bind(r.Expression, expressionPolicy{Context: ProjectionContext})
+			node, err := binder.Bind(r.Expression, expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				return nil, err
 			}
@@ -172,7 +172,7 @@ func (p *pendingPartitionDefinition) bindPartitionDatum(scope *StatementScope, d
 	binder.Query.Auth = &p.auth
 	binder.Params.NoParameters = true
 	binder.Consumer.PartitionConsumer = "partition bound"
-	node, err := binder.Bind(datum.Expression, expressionPolicy{Context: ProjectionContext, Expected: key.Usage.Type.Usage()})
+	node, err := binder.Bind(datum.Expression, expressionPolicy{Context: analyze.ProjectionContext, Expected: key.Usage.Type.Usage()})
 	if err != nil {
 		return nil, err
 	}

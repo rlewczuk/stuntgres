@@ -218,10 +218,10 @@ func TestSeriesExpressionHooks(t *testing.T) {
 			walked++
 		}
 	})
-	if walked != 3 || exec.PlannedVolatility(original) != expr.Immutable || exec.QuerySetDepth(original) != 1 || !SameGroupExpression(original, original) {
+	if walked != 3 || exec.PlannedVolatility(original) != expr.Immutable || exec.QuerySetDepth(original) != 1 || !analyze.SameGroupExpression(original, original) {
 		t.Fatal(walked)
 	}
-	if SameGroupExpression(original, seriesUnit(t, d, 1, 3, 2)) || SameGroupExpression(original, seriesUnit(t, fresh, 1, 3, 1)) {
+	if analyze.SameGroupExpression(original, seriesUnit(t, d, 1, 3, 2)) || analyze.SameGroupExpression(original, seriesUnit(t, fresh, 1, 3, 1)) {
 		t.Fatal("step/width equality")
 	}
 	for _, fold := range []func() (expr.Expr, bool, error){
@@ -238,7 +238,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 		}
 	}
 	clone, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
-	if err != nil || !SameGroupExpression(original, clone) {
+	if err != nil || !analyze.SameGroupExpression(original, clone) {
 		t.Fatal(clone, err)
 	}
 	text, err := (pgRenderer{view: view}).sql(context.Background(), original, pgRenderParent{})

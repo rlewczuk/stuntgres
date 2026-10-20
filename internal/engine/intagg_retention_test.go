@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/extension"
 	"testing"
 
@@ -160,7 +161,7 @@ func intaggUnitValuesScope(t *testing.T) {
 			case "input":
 				raw.Args[0], want = parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "bad"}}, "22P02"
 			}
-			_, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+			_, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 			state, ok := err.(interface{ SQLState() string })
 			if !ok || state.SQLState() != want {
 				t.Fatal("VALUES precedence", kind, err, want)

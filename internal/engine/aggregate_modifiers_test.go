@@ -5,6 +5,7 @@ import (
 	"errors"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -87,13 +88,13 @@ func TestAggregateModifiersBindingIdentity(t *testing.T) {
 		{"count(1 ORDER BY nextval('am_unit_sequence'))", 10},
 	} {
 		raw := statement(t, "SELECT "+tc.call).(*parser.Select).Targets[0]
-		expr, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		expr, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil || expr.(plan.AggregateExpr).Slot != tc.slot {
 			t.Fatal(i, expr, err)
 		}
 	}
 	raw := statement(t, "SELECT count(DISTINCT nextval('am_unit_sequence') ORDER BY nextval('am_unit_sequence'),nextval('am_unit_sequence'))").(*parser.Select).Targets[0]
-	bound, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+	bound, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +117,7 @@ func TestAggregateModifiersParameterTargets(t *testing.T) {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		b.Clause.AggregateClause = "SELECT"
 		raw := statement(t, query).(*parser.Select).Targets[0]
-		expression, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		expression, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(query, err)
 		}

@@ -132,7 +132,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	})
 	t.Run("select_producer_ownership", func(t *testing.T) {
 		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		random, err := binder.Bind(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "random"}}}}, expressionPolicy{Context: ProjectionContext})
+		random, err := binder.Bind(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "random"}}}}, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -242,7 +242,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 			t.Fatal(err)
 		}
 		bind := func(index int) expr.Expr {
-			node, err := binder.Bind(statements[0].(*parser.Select).Targets[index], expressionPolicy{Context: ProjectionContext})
+			node, err := binder.Bind(statements[0].(*parser.Select).Targets[index], expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -290,7 +290,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 			t.Fatal("single VALUES became a materialized supplied row")
 		}
 		for i, expression := range single.Expressions[0] {
-			if !SameGroupExpression(producer.new[i], expression) {
+			if !analyze.SameGroupExpression(producer.new[i], expression) {
 				t.Fatal("single VALUES recipe replaced by an output Var")
 			}
 		}

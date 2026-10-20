@@ -44,7 +44,7 @@ func TestDomainExpressionLogicalAndSignatureIdentity(t *testing.T) {
 	} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, "SELECT "+tc.expr+" FROM public.one").(*parser.Select).Targets[0]
-		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(tc.expr, err)
 		}
@@ -126,7 +126,7 @@ func TestDomainStoredCastUsesCapturedRenamedNamespace(t *testing.T) {
 	domainUnitTable(t, e, op, "CREATE TABLE public.one(id integer)")
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	ast := statement(t, "SELECT 7::public.a FROM public.one").(*parser.Select)
-	node, err := b.Bind(ast.Targets[0], expressionPolicy{Context: ProjectionContext})
+	node, err := b.Bind(ast.Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +166,7 @@ func TestDomainContextualLiteralTypmodEvaluation(t *testing.T) {
 	target := domainUnitType(t, e.CatalogRead(), "short").SQLType.Usage()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT 'abcd' FROM public.one").(*parser.Select).Targets[0]
-	node, err := b.Bind(raw, expressionPolicy{Context: AssignmentContext, Expected: target, Mode: sqltype.Assignment})
+	node, err := b.Bind(raw, expressionPolicy{Context: analyze.AssignmentContext, Expected: target, Mode: sqltype.Assignment})
 	if err != nil {
 		t.Fatal("assignment typmod evaluated while binding", err)
 	}
@@ -177,7 +177,7 @@ func TestDomainContextualLiteralTypmodEvaluation(t *testing.T) {
 	_, err = node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	domainUnitDiagnostic(t, err, "22001", "value too long for type character varying(3)")
 	raw = statement(t, "SELECT 'abcd'::public.short FROM public.one").(*parser.Select).Targets[0]
-	node, err = b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+	node, err = b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestDomainQualifiedBuiltinNameModifierIdentity(t *testing.T) {
 	domainUnitTable(t, e, op, "CREATE TABLE public.one(id integer)")
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT 1::public.uuid(3) FROM public.one").(*parser.Select).Targets[0]
-	_, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+	_, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 	domainUnitDiagnostic(t, err, "42601", `type modifier is not allowed for type "public.uuid"`)
 }
 
@@ -267,7 +267,7 @@ func TestDomainArrayBoundLiteralDiagnosticPosition(t *testing.T) {
 	domainUnitTable(t, e, op, "CREATE TABLE public.one(id integer)")
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT '[1:0]={}'::public.a FROM public.one").(*parser.Select).Targets[0]
-	_, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+	_, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 	domainUnitDiagnostic(t, err, "2202E", "upper bound cannot be less than lower bound")
 	diagnostic, ok := err.(*sqlstate.Error)
 	if !ok || diagnostic.Position != "8" {
@@ -310,7 +310,7 @@ func TestDomainIntervalLiteralCastInputUsage(t *testing.T) {
 		for _, expression := range []string{"'" + tc.input + "'::public." + tc.name, "CAST('" + tc.input + "' AS public." + tc.name + ")"} {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			raw := statement(t, "SELECT "+expression+" FROM public.one").(*parser.Select).Targets[0]
-			node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+			node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(expression, err)
 			}

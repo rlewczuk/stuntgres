@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"strconv"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -34,13 +35,13 @@ func TestNullCountResolver(t *testing.T) {
 	e := New()
 	for _, name := range []string{"num_nulls", "num_nonnulls"} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		_, err := b.Bind(nullCountRaw(name), expressionPolicy{Context: ProjectionContext})
+		_, err := b.Bind(nullCountRaw(name), expressionPolicy{Context: analyze.ProjectionContext})
 		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42883", Message: "function " + name + "() does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."})
 		args := make([]parser.Expr, 100)
 		for i := range args {
 			args[i] = parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}
 		}
-		bound, err := b.Bind(nullCountRaw(name, args...), expressionPolicy{Context: ProjectionContext})
+		bound, err := b.Bind(nullCountRaw(name, args...), expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -56,22 +57,22 @@ func TestNullCountResolver(t *testing.T) {
 		// Child transformation errors precede the outer function's arity guard.
 		args = append(args, parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}})
 		args[0] = parser.ParameterExpr{Number: 0, Pos: parser.Position{Character: 18}}
-		_, err = b.Bind(nullCountRaw(name, args...), expressionPolicy{Context: ProjectionContext})
+		_, err = b.Bind(nullCountRaw(name, args...), expressionPolicy{Context: analyze.ProjectionContext})
 		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42P02", Message: "there is no parameter $0", Position: "18"})
 		args[0] = parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}
-		_, err = b.Bind(nullCountRaw(name, args...), expressionPolicy{Context: ProjectionContext})
+		_, err = b.Bind(nullCountRaw(name, args...), expressionPolicy{Context: analyze.ProjectionContext})
 		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "54023", Message: "cannot pass more than 100 arguments to a function", Position: "8"})
 	}
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	arg := parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue, Pos: parser.Position{Character: 27}}}
 	raw := nullCountRaw("num_nulls", arg)
 	raw.Variadic = true
-	_, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+	_, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42804", Message: "VARIADIC argument must be an array", Position: "27"})
 	raw.Args = append(raw.Args, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}})
-	_, err = b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+	_, err = b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42883", Message: "function num_nulls(unknown, integer) does not exist", Position: "8", Hint: "No function matches the given name and argument types. You might need to add explicit type casts."})
-	_, err = b.Bind(nullCountRaw("num_nulls", parser.ParameterExpr{Number: 0, Pos: parser.Position{Character: 18}}), expressionPolicy{Context: ProjectionContext})
+	_, err = b.Bind(nullCountRaw("num_nulls", parser.ParameterExpr{Number: 0, Pos: parser.Position{Character: 18}}), expressionPolicy{Context: analyze.ProjectionContext})
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "42P02", Message: "there is no parameter $0", Position: "18"})
 }
 
@@ -81,7 +82,7 @@ func TestNullCountAnyOccurrences(t *testing.T) {
 	for _, id := range []sqltype.ID{sqltype.Int4, sqltype.Text, sqltype.Bool} {
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		parameter := parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 18}}
-		bound, err := b.Bind(nullCountRaw("num_nulls", parameter), expressionPolicy{Context: ProjectionContext})
+		bound, err := b.Bind(nullCountRaw("num_nulls", parameter), expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -103,7 +104,7 @@ func TestNullCountAnyOccurrences(t *testing.T) {
 		if err := known.Constrain(1, known.Type(id).Usage(), parameter.Pos); err != nil {
 			t.Fatal(err)
 		}
-		call, err := known.Bind(nullCountRaw("num_nonnulls", parameter), expressionPolicy{Context: ProjectionContext})
+		call, err := known.Bind(nullCountRaw("num_nonnulls", parameter), expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -117,7 +118,7 @@ func TestNullCountAnyOccurrences(t *testing.T) {
 		}
 	}
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	_, err := b.Bind(nullCountRaw("num_nulls", parser.ParameterExpr{Number: 2147483647}), expressionPolicy{Context: ProjectionContext})
+	_, err := b.Bind(nullCountRaw("num_nulls", parser.ParameterExpr{Number: 2147483647}), expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -46,7 +47,7 @@ func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
 	if original.ResultUsage().Type != result || original.Args[0].ResultUsage().Type != d {
 		t.Fatal("mutated retained generation")
 	}
-	if !SameGroupExpression(original, original) || SameGroupExpression(original, next) {
+	if !analyze.SameGroupExpression(original, original) || analyze.SameGroupExpression(original, next) {
 		t.Fatal("incorrect provider equivalence")
 	}
 	children := 0

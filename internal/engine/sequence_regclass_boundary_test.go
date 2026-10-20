@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -44,7 +45,7 @@ func sequenceBoundaryRunner(t *testing.T, e *Engine, op *Operation, query string
 				frame[0] = value
 			}
 			if err != nil {
-				return SequenceInputError(err, parser.Position{}, "", 1)
+				return analyze.SequenceInputError(err, parser.Position{}, "", 1)
 			}
 			return nil
 		})

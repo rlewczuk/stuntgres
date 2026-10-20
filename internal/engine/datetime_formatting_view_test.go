@@ -75,7 +75,7 @@ func TestDatetimeFormattingViewOIDCastReplay(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	raw := parser.CastExpr{Child: parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "42"}}, TypeName: parser.TypeName{Name: "oid"}}
-	node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+	node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +113,7 @@ func TestDatetimeFormattingCapturedLiteralGrouping(t *testing.T) {
 		e := New()
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		raw := parser.CastExpr{Child: c.source, TypeName: parser.TypeName{Name: "text"}}
-		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}

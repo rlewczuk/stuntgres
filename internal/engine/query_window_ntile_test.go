@@ -8,6 +8,7 @@ import (
 	"sort"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -238,7 +239,7 @@ func TestQueryWindowNtileBindingUnwind(t *testing.T) {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		b.Clause.AggregateClause, b.Query.Frame = "SELECT", 1
 		for _, q := range []string{"SELECT sum(1)", "SELECT row_number() OVER()"} {
-			if _, err := b.Bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext}); err != nil {
+			if _, err := b.Bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -247,7 +248,7 @@ func TestQueryWindowNtileBindingUnwind(t *testing.T) {
 		values := append([]plan.WindowCall(nil), before...)
 		aggregates := b.Grouping.Aggregates[:len(b.Grouping.Aggregates):len(b.Grouping.Aggregates)]
 		b.Grouping.Aggregates = aggregates
-		_, err := b.Bind(statement(t, tc.q).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
+		_, err := b.Bind(statement(t, tc.q).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code {
 			t.Fatal(tc, err)

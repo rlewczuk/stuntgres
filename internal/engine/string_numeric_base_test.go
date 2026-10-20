@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -22,7 +23,7 @@ func TestStringNumericBaseBindingAndRebinding(t *testing.T) {
 	}
 	parameter := parser.ParameterExpr{Number: 1}
 	for _, name := range []string{"to_bin", "to_oct", "to_hex"} {
-		_, err := b.Bind(call(name, parameter), expressionPolicy{Context: ProjectionContext})
+		_, err := b.Bind(call(name, parameter), expressionPolicy{Context: analyze.ProjectionContext})
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42725" || diagnostic.Position != "8" || diagnostic.Detail != "" || diagnostic.Hint != "Could not choose a best candidate function. You might need to add explicit type casts." {
 			t.Fatal(name, err)
@@ -34,7 +35,7 @@ func TestStringNumericBaseBindingAndRebinding(t *testing.T) {
 	for _, id := range []sqltype.ID{sqltype.Int4, sqltype.Int8} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		b.Params.Parameters[1] = b.Type(id).Usage()
-		node, err := b.Bind(call("to_hex", parameter), expressionPolicy{Context: ProjectionContext})
+		node, err := b.Bind(call("to_hex", parameter), expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -183,7 +184,7 @@ func TestStringNumericBaseMD5InternalCharAdmission(t *testing.T) {
 		}
 		cast := parser.CastExpr{Child: literal, TypeName: parser.TypeName{Name: "char", Quoted: true}}
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "md5"}}}, Args: []parser.Expr{cast}}
-		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(null, err)
 		}
@@ -202,7 +203,7 @@ func TestStringNumericBaseMD5InternalCharAdmission(t *testing.T) {
 				state(t, err, "0A000")
 			}
 		}
-		_, err = b.Bind(cast, expressionPolicy{Context: ProjectionContext})
+		_, err = b.Bind(cast, expressionPolicy{Context: analyze.ProjectionContext})
 		state(t, err, "0A000")
 		_, err = e.resolveType(cast.TypeName, binderOperation(b))
 		state(t, err, "0A000")
@@ -215,7 +216,7 @@ func TestStringNumericBaseMD5InternalCharAdmission(t *testing.T) {
 		}
 		cast := parser.CastExpr{Child: parser.ParameterExpr{Number: 1}, TypeName: parser.TypeName{Name: "char", Quoted: true}}
 		raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "md5"}}}, Args: []parser.Expr{cast}}
-		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal("CHAR parameter annotation", established, err)
 		}

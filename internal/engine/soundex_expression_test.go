@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
@@ -58,18 +59,18 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 			}
 			var children []expr.Expr
 			plan.ExpressionChildren(n, func(child expr.Expr) { children = append(children, child) })
-			if !reflect.DeepEqual(children, n.Args) || !SameGroupExpression(n, n) {
+			if !reflect.DeepEqual(children, n.Args) || !analyze.SameGroupExpression(n, n) {
 				t.Fatal(children)
 			}
 			changed := n
 			changed.Args = append([]expr.Expr(nil), n.Args...)
 			changed.Args[0] = plan.LiteralExpr{Info: expr.InfoOf(n.Args[0]), Value: sqltype.String(n.Args[0].ResultUsage().Type, "Andrew")}
-			if SameGroupExpression(n, changed) {
+			if analyze.SameGroupExpression(n, changed) {
 				t.Fatal("argument identity collapsed")
 			}
 			other := n
 			other.Ref.Address = ext.Members[0]
-			if SameGroupExpression(n, other) {
+			if analyze.SameGroupExpression(n, other) {
 				t.Fatal("procedure identity collapsed")
 			}
 			consumer := &catalog.Relation{ColumnMeta: catalog.ColumnMetadata{Generations: map[int32]catalog.ColumnGeneration{1: {Kind: catalog.GenerationStored, Expression: n, Planned: n, Dependencies: []ids.ObjectRef{n.Ref}}}}}

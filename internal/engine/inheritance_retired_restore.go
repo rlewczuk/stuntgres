@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -300,7 +301,7 @@ func (e *Engine) restoreRetiredConstraint(op *Operation, raw *parser.Update, aut
 		}
 	}
 	captured, exists := facts[fact.oid]
-	if !exists || captured.oid != fact.oid || fact.oid == 0 || captured.ref != ref || captured.name != fact.name || captured.check != fact.check || captured.notValid != fact.notValid || captured.noInherit != fact.noInherit || !slices.Equal(captured.attributes, fact.attributes) || !SameGroupExpression(captured.expression, fact.expression) || captured.local != repair.beforeLocal || captured.count != repair.before || provenance.Local != repair.beforeLocal || provenance.Count() != repair.before || len(provenance.Retired) != 0 || len(fact.attributes) != len(repair.columns) {
+	if !exists || captured.oid != fact.oid || fact.oid == 0 || captured.ref != ref || captured.name != fact.name || captured.check != fact.check || captured.notValid != fact.notValid || captured.noInherit != fact.noInherit || !slices.Equal(captured.attributes, fact.attributes) || !analyze.SameGroupExpression(captured.expression, fact.expression) || captured.local != repair.beforeLocal || captured.count != repair.before || provenance.Local != repair.beforeLocal || provenance.Count() != repair.before || len(provenance.Retired) != 0 || len(fact.attributes) != len(repair.columns) {
 		e.mu.Unlock()
 		return reject()
 	}

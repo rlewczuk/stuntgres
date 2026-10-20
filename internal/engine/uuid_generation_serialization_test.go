@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"testing"
@@ -22,7 +23,7 @@ func TestUUIDGenerationCapturedNullTyping(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			node, err := b.Bind(statements[0].(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
+			node, err := b.Bind(statements[0].(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -37,7 +38,7 @@ func TestUUIDGenerationCapturedNullTyping(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				node, err = b.Bind(statements[0].(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
+				node, err = b.Bind(statements[0].(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
 				if err != nil {
 					t.Fatal(err)
 				}

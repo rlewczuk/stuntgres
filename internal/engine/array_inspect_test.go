@@ -104,7 +104,7 @@ func TestArrayInspectStoredRemap(t *testing.T) {
 		if err != nil || nerr != nil || n != 3 || v.Type() != call.ResultUsage().Type {
 			t.Fatal(v, err, nerr)
 		}
-		if !SameGroupExpression(call, call) || !analyze.ClosedTransactionTimeDefault(call) || !analyze.ClosedUUIDDefault(call) || exec.PlannedPhysicalVolatility(call, false) != expr.Immutable {
+		if !analyze.SameGroupExpression(call, call) || !analyze.ClosedTransactionTimeDefault(call) || !analyze.ClosedUUIDDefault(call) || exec.PlannedPhysicalVolatility(call, false) != expr.Immutable {
 			t.Fatal("lost scalar traversal")
 		}
 		visited := 0
@@ -115,12 +115,12 @@ func TestArrayInspectStoredRemap(t *testing.T) {
 	}
 	other := old
 	other.Kind = functions.ArrayLower
-	if SameGroupExpression(old, other) {
+	if analyze.SameGroupExpression(old, other) {
 		t.Fatal("different kinds grouped together")
 	}
 	qualified := old
 	qualified.Namespace = "pg_catalog"
-	if !SameGroupExpression(old, qualified) || !SameGroupExpression(qualified, old) || old.Namespace != "" {
+	if !analyze.SameGroupExpression(old, qualified) || !analyze.SameGroupExpression(qualified, old) || old.Namespace != "" {
 		t.Fatal("lexical qualification changed resolved grouping identity")
 	}
 	unchanged, did, err := expr.Map(old, func(child expr.Expr) (expr.Expr, bool, error) { return child, false, nil })

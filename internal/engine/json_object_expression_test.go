@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -63,10 +64,10 @@ func TestJSONObjectExpressionRetagRemapAndRendering(t *testing.T) {
 			t.Fatal(text, err)
 		}
 		mapped, err := remapBoundExpression(original, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-		if err != nil || !SameGroupExpression(original, mapped) {
+		if err != nil || !analyze.SameGroupExpression(original, mapped) {
 			t.Fatal(mapped, err)
 		}
-		if !SameGroupExpression(original, original) {
+		if !analyze.SameGroupExpression(original, original) {
 			t.Fatal("lost expression identity")
 		}
 		persistent, err := (scalarRenderer{}).scalarFunctionSQL(context.Background(), view, original)
@@ -126,7 +127,7 @@ func TestJSONObjectExpressionGroupTraversal(t *testing.T) {
 	}
 	var count int
 	plan.ExpressionChildren(bound, func(child expr.Expr) {
-		if !SameGroupExpression(child, column) {
+		if !analyze.SameGroupExpression(child, column) {
 			t.Fatal(child)
 		}
 		count++

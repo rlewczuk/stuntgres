@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -56,7 +57,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 			// raw child DEFAULT (including serial) can resolve a parent conflict.
 			declaration := b.Create.Declarations[mapper.TargetSlots[sourceSlot]]
 			if old, ok := in.Source.ColumnMeta.Defaults[sourceAttribute]; ok && declaration.DefaultExpr == nil && !declaration.Serial {
-				if incumbent, ok := d.ColumnMeta.Defaults[target]; ok && !SameGroupExpression(incumbent.Expression, old.Expression) {
+				if incumbent, ok := d.ColumnMeta.Defaults[target]; ok && !analyze.SameGroupExpression(incumbent.Expression, old.Expression) {
 					if defaultConflicts == nil {
 						defaultConflicts = make(map[int32]bool)
 					}
@@ -81,7 +82,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 				if err != nil {
 					return err
 				}
-				if incumbent, ok := d.ColumnMeta.Generations[target]; ok && !SameGroupExpression(incumbent.Expression, node) {
+				if incumbent, ok := d.ColumnMeta.Generations[target]; ok && !analyze.SameGroupExpression(incumbent.Expression, node) {
 					if generationConflicts == nil {
 						generationConflicts = make(map[int32]bool)
 					}
@@ -110,7 +111,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 			graph.Checks[old.Name] = provenance
 			incumbent := slices.IndexFunc(d.Constraints.Check, func(c catalog.CheckConstraint) bool { return c.Name == old.Name })
 			if incumbent >= 0 {
-				if !SameGroupExpression(d.Constraints.Check[incumbent].Expression, node) {
+				if !analyze.SameGroupExpression(d.Constraints.Check[incumbent].Expression, node) {
 					return sqlError("42710", fmt.Sprintf(`check constraint name "%s" appears multiple times but with different expressions`, old.Name))
 				}
 				continue

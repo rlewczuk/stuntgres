@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -171,7 +172,7 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 			ownerAuth := foreignActionOwner(auth, child.Owner)
 			binder := newExpressionBinder(context.Background(), e, scope.input, caller, nil)
 			binder.Query.Auth, binder.Query.Namespace = &auth, &queryNamespace{}
-			node, err := binder.Bind(raw, expressionPolicy{Context: ProjectionContext})
+			node, err := binder.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)

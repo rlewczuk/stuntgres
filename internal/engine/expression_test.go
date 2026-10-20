@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"strconv"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -133,7 +134,7 @@ func TestExpressionScalarBehaviorAndSparseDiagnostics(t *testing.T) {
 		r.Rows.Close()
 	}
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	_, err := binder.Bind(parser.ParameterExpr{Number: 2147483647, Pos: parser.Position{Character: 8}}, expressionPolicy{Context: ProjectionContext})
+	_, err := binder.Bind(parser.ParameterExpr{Number: 2147483647, Pos: parser.Position{Character: 8}}, expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +147,7 @@ func TestExpressionOccurrenceSensitiveFallback(t *testing.T) {
 	for _, id := range []sqltype.ID{sqltype.Int4, sqltype.Bool, sqltype.Text} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 8}}
-		target, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		target, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -154,7 +155,7 @@ func TestExpressionOccurrenceSensitiveFallback(t *testing.T) {
 			t.Fatal("target inferred before context")
 		}
 		expected := b.Type(id).Usage()
-		later, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext, Expected: expected})
+		later, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext, Expected: expected})
 		if err != nil {
 			t.Fatal(err)
 		}

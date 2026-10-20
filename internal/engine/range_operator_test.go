@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -96,7 +97,7 @@ func TestRangeOperatorRetagAndStoredAuthority(t *testing.T) {
 	if original.Args[0].ResultUsage().Type != d || next.Namespace != "pg_catalog" {
 		t.Fatal("mutated retained identity")
 	}
-	if !SameGroupExpression(original, original) || SameGroupExpression(original, next) {
+	if !analyze.SameGroupExpression(original, original) || analyze.SameGroupExpression(original, next) {
 		t.Fatal("wrong expression equivalence")
 	}
 	if !generationImmutable(next) || exec.PlannedVolatility(next) != expr.Immutable || !conditionalConstantInputs(next) {

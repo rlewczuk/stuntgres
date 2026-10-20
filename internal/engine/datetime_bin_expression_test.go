@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -131,7 +132,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 		t.Fatal(p)
 	}
 	flags.Clause.AggregateClause = "SELECT"
-	stage, err := flags.Bind(datetimeMakeRaw("date_bin", parser.ParameterExpr{Number: 1}, parser.AggregateExpr{Name: "min", Args: []parser.Expr{column}}, column), expressionPolicy{Context: ProjectionContext})
+	stage, err := flags.Bind(datetimeMakeRaw("date_bin", parser.ParameterExpr{Number: 1}, parser.AggregateExpr{Name: "min", Args: []parser.Expr{column}}, column), expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}

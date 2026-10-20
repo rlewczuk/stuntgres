@@ -173,7 +173,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 		parser.CastExpr{Child: parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "clock_timestamp"}}}}, TypeName: parser.TypeName{Name: "text"}},
 		parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "lower"}}}, Args: []parser.Expr{parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "timeofday"}}}}}},
 	} {
-		node, err := binder.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		node, err := binder.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}

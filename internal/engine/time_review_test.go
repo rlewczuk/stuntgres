@@ -33,7 +33,7 @@ func TestTimeReviewAssignmentIdentity(t *testing.T) {
 				t.Fatal("missing target")
 			}
 			raw := parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: tc.source}, Text: tc.text, Pos: parser.Position{Character: 30}}
-			_, err := b.Bind(raw, expressionPolicy{Context: AssignmentContext, Expected: d.Usage(), Mode: sqltype.Assignment})
+			_, err := b.Bind(raw, expressionPolicy{Context: analyze.AssignmentContext, Expected: d.Usage(), Mode: sqltype.Assignment})
 			if err == nil {
 				t.Fatal("incompatible assignment accepted")
 			}
@@ -47,7 +47,7 @@ func TestTimeReviewAssignmentIdentity(t *testing.T) {
 	d, _ := e.CatalogRead().LookupType(sqltype.Time)
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "timestamp"}, Text: "2003-07-07 04:05:06"}
-	bound, err := b.Bind(raw, expressionPolicy{Context: AssignmentContext, Expected: d.Usage(), Mode: sqltype.Assignment})
+	bound, err := b.Bind(raw, expressionPolicy{Context: analyze.AssignmentContext, Expected: d.Usage(), Mode: sqltype.Assignment})
 	if err != nil {
 		t.Fatal(err)
 	}

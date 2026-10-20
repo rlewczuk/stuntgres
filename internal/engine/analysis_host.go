@@ -312,5 +312,5 @@ func (h *bindingHost) BindViewWrite(b *binding, auth analyze.Authority, stmt par
 // newExpressionBinder is the root construction point: it binds through the
 // engine's host for op.
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
-	return NewBinder(ctx, e.analysisHost(op), input, expectedOf(expected))
+	return analyze.NewBinder(ctx, e.analysisHost(op), input, expectedOf(expected))
 }

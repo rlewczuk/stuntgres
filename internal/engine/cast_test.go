@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -21,11 +22,11 @@ func castTarget(t *testing.T, q string) parser.Expr {
 func TestCastExpressionOccurrenceAndDiagnosticOwnership(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	first, err := b.Bind(castTarget(t, "SELECT $1::int4 FROM t"), expressionPolicy{Context: ProjectionContext})
+	first, err := b.Bind(castTarget(t, "SELECT $1::int4 FROM t"), expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
-	later, err := b.Bind(castTarget(t, "SELECT $1::text FROM t"), expressionPolicy{Context: ProjectionContext})
+	later, err := b.Bind(castTarget(t, "SELECT $1::text FROM t"), expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,11 +41,11 @@ func TestCastExpressionOccurrenceAndDiagnosticOwnership(t *testing.T) {
 		t.Fatal(got, err, accessErr)
 	}
 	earlierBinder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	earlier, err := earlierBinder.Bind(castTarget(t, "SELECT $1 FROM t"), expressionPolicy{Context: ProjectionContext})
+	earlier, err := earlierBinder.Bind(castTarget(t, "SELECT $1 FROM t"), expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := earlierBinder.Bind(castTarget(t, "SELECT $1::int4 FROM t"), expressionPolicy{Context: ProjectionContext}); err != nil {
+	if _, err := earlierBinder.Bind(castTarget(t, "SELECT $1::int4 FROM t"), expressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 		t.Fatal(err)
 	}
 	_, err = earlierBinder.FinalizeProjection(earlier)
@@ -61,7 +62,7 @@ func TestCastExpressionOccurrenceAndDiagnosticOwnership(t *testing.T) {
 		{"SELECT bool(NULL::int8) FROM t", "42883", "8", false},
 	} {
 		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		expr, err := binder.Bind(castTarget(t, tc.q), expressionPolicy{Context: ProjectionContext})
+		expr, err := binder.Bind(castTarget(t, tc.q), expressionPolicy{Context: analyze.ProjectionContext})
 		if tc.evaluation {
 			if err != nil {
 				t.Fatal(tc.q, err)

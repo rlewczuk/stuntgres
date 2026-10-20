@@ -89,7 +89,7 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 			}
 			qualified := call
 			qualified.Namespace = "pg_catalog"
-			if !SameGroupExpression(call, qualified) || !SameGroupExpression(qualified, call) {
+			if !analyze.SameGroupExpression(call, qualified) || !analyze.SameGroupExpression(qualified, call) {
 				t.Fatal("qualification altered builtin identity")
 			}
 			visited := 0
@@ -133,7 +133,7 @@ func TestArrayTransformNamedAndConcatSelection(t *testing.T) {
 		t.Fatal(err)
 	}
 	call := node.(functions.ArrayTransform)
-	if call.Slots != ([3]uint8{1, 0, 2}) || !SameGroupExpression(call.Formal(0), call.Args[1]) {
+	if call.Slots != ([3]uint8{1, 0, 2}) || !analyze.SameGroupExpression(call.Formal(0), call.Args[1]) {
 		t.Fatal(call.Slots)
 	}
 	sql, err := defaultSQL(ctx, e.CatalogRead(), call)

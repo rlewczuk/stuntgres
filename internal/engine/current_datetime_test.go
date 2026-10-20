@@ -4,6 +4,7 @@ import (
 	"context"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -25,7 +26,7 @@ func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
 			raw.HasPrecision = true
 			raw.Precision = 3
 		}
-		bound, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		bound, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(raw, err)
 		}

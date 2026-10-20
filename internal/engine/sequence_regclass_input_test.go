@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -31,7 +32,7 @@ func sequenceInputExecute(t *testing.T, e *Engine, op *Operation, query string, 
 			}
 			value, err := info.Types[i].Type.InputWithEnvironment(ctx, fmt.Sprint(arg), -1, input)
 			if err != nil {
-				return SequenceInputError(err, parser.Position{}, "", i+1)
+				return analyze.SequenceInputError(err, parser.Position{}, "", i+1)
 			}
 			frame[i] = value
 		}

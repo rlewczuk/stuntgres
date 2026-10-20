@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -84,7 +85,7 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 				}
 			}
 			mapped, err := remapBoundExpression(r, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-			if err != nil || !SameGroupExpression(r, mapped) {
+			if err != nil || !analyze.SameGroupExpression(r, mapped) {
 				t.Fatal(mapped, err)
 			}
 			old, err := n.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: ctx}})
@@ -128,7 +129,7 @@ func TestJSONBInsertAllSlotPropertiesAndTraversal(t *testing.T) {
 		}
 		seen := false
 		plan.ExpressionChildren(e, func(child expr.Expr) {
-			if SameGroupExpression(child, column) {
+			if analyze.SameGroupExpression(child, column) {
 				seen = true
 			}
 		})
@@ -137,7 +138,7 @@ func TestJSONBInsertAllSlotPropertiesAndTraversal(t *testing.T) {
 		}
 		other := e
 		other.Args[slot] = base.Args[slot]
-		if SameGroupExpression(e, other) {
+		if analyze.SameGroupExpression(e, other) {
 			t.Fatal("slot ignored in semantic identity", slot)
 		}
 	}

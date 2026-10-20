@@ -137,7 +137,7 @@ func protocolBinder(t *testing.T) *expressionBinder {
 func protocolBind(t *testing.T, b *expressionBinder, query string) (parser.Expr, expr.Expr) {
 	t.Helper()
 	raw := statement(t, query).(*parser.Select).Targets[0]
-	node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+	node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(query, err)
 	}

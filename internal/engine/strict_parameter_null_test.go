@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/parser"
@@ -56,7 +57,7 @@ func strictNullUnitBind(t *testing.T, e *Engine, op *Operation, scope *Statement
 	b.Query.Auth, b.Target.Ref = &auth, ref
 	b.Target.Relation = auth.Catalog.MustRelation(ref.Address)
 	b.Clause.AggregateClause = "SELECT"
-	node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+	node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal("actual provider binding", text, err)

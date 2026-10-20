@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -50,7 +51,7 @@ func TestBinaryBasicTypedMetadataAndConsumers(t *testing.T) {
 	}
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT length(1)").(*parser.Select).Targets[0]
-	if _, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext}); err == nil {
+	if _, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext}); err == nil {
 		t.Fatal("integer signature accepted")
 	}
 }

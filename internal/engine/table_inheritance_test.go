@@ -2,6 +2,7 @@ package engine
 
 import (
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -86,7 +87,7 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 	if len(child.Constraints.NotNull) != 1 || child.Constraints.NotNull[0].Name != "first" || child.Columns[0].Nullable || len(child.Inheritance.NotNull[1].Origins) != 2 || child.Inheritance.NotNull[1].Local || child.Inheritance.Columns[1].Local || !child.Inheritance.Columns[3].Local {
 		t.Fatal(child)
 	}
-	if !reflect.DeepEqual(child.Inheritance.Parents, []ids.ObjectAddress{p.Address(), q.Address()}) || !SameGroupExpression(child.ColumnMeta.Defaults[1].Expression, literal) || child.ColumnMeta.Defaults[1].OID != 0 || p.ColumnMeta.Defaults[1].OID != 23002 {
+	if !reflect.DeepEqual(child.Inheritance.Parents, []ids.ObjectAddress{p.Address(), q.Address()}) || !analyze.SameGroupExpression(child.ColumnMeta.Defaults[1].Expression, literal) || child.ColumnMeta.Defaults[1].OID != 0 || p.ColumnMeta.Defaults[1].OID != 23002 {
 		t.Fatal(child.ColumnMeta.Defaults, p.ColumnMeta.Defaults)
 	}
 	if err := e.assignDefinitionOIDsLocked(child); err != nil {
@@ -307,7 +308,7 @@ func TestInheritanceGenerationDeclarationProvenance(t *testing.T) {
 		if !provenance.Local || provenance.ExplicitGeneration != explicit {
 			t.Fatal("generation declaration provenance", provenance, explicit)
 		}
-		if !explicit && !SameGroupExpression(child.ColumnMeta.Generations[1].Expression, expression) {
+		if !explicit && !analyze.SameGroupExpression(child.ColumnMeta.Generations[1].Expression, expression) {
 			t.Fatal("plain local declaration lost inherited generation")
 		}
 	}

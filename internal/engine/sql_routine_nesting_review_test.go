@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -32,7 +33,7 @@ func TestSQLRoutineKnownArgumentWindowOwner(t *testing.T) {
 				Clause:   clauseState{SelectedOperatorArgs: []expr.Expr{node}},
 				Grouping: groupingState{ArgumentOwner: tc.owner},
 			}
-			bound, err := b.Bind(parser.ParameterExpr{Number: -1}, expressionPolicy{Context: ProjectionContext})
+			bound, err := b.Bind(parser.ParameterExpr{Number: -1}, expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil || bound != node {
 				t.Fatalf("known argument was replaced or evaluated: %v, %v", bound, err)
 			}
@@ -45,7 +46,7 @@ func TestSQLRoutineKnownArgumentWindowOwner(t *testing.T) {
 			}
 			// Reusing the same carrier must not change occurrence identity,
 			// register a second window, or replace the owner's first position.
-			bound, err = b.Bind(parser.ParameterExpr{Number: -1}, expressionPolicy{Context: ProjectionContext})
+			bound, err = b.Bind(parser.ParameterExpr{Number: -1}, expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil || bound != node || b.Grouping.ArgumentOwner != want || len(b.Grouping.WindowCalls) != 0 || len(b.Grouping.Aggregates) != 0 {
 				t.Fatal("carrier reuse changed bound identity or owner/registration state", err)
 			}

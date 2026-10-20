@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -75,7 +76,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	// the source generation. An equal OID cannot authorize capture adoption.
 	ctx := context.Background()
 	binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	bound, err := binder.Bind(nullCountRaw("quote_literal", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 42}}), expressionPolicy{Context: ProjectionContext})
+	bound, err := binder.Bind(nullCountRaw("quote_literal", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 42}}), expressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}

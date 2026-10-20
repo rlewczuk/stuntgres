@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -25,11 +26,11 @@ func TestJSONObjectUniqueAggregateSlotsAndRemap(t *testing.T) {
 	for _, name := range names {
 		t.Run(name, func(t *testing.T) {
 			raw := parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}}, Pos: parser.Position{Character: 8}}
-			first, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+			first, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
-			second, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+			second, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil || first.(plan.AggregateExpr).Slot != second.(plan.AggregateExpr).Slot {
 				t.Fatal("identical call did not reuse slot", err)
 			}

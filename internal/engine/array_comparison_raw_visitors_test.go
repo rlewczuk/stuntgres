@@ -3,6 +3,7 @@ package engine
 import (
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/parser"
 )
 
@@ -23,10 +24,10 @@ func TestArrayCompareVisitorsRawEngine(t *testing.T) {
 	}
 	for _, form := range forms {
 		t.Run(form.name, func(t *testing.T) {
-			if !ContainsValuesAggregateAnalysis(form.make(parser.AggregateExpr{Name: "sum"})) {
+			if !analyze.ContainsValuesAggregateAnalysis(form.make(parser.AggregateExpr{Name: "sum"})) {
 				t.Fatal("SUM child lost during failed analysis")
 			}
-			if ContainsValuesAggregateAnalysis(form.make(literal)) {
+			if analyze.ContainsValuesAggregateAnalysis(form.make(literal)) {
 				t.Fatal("spurious SUM analysis")
 			}
 			for _, stored := range []bool{false, true} {

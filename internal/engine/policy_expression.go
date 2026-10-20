@@ -32,7 +32,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	b.Target.Relation = d
 	b.Query.Auth, b.Query.Namespace = &auth, &ns
 	b.Query.Sources = []exec.Leaf{{Ref: ref, Relation: d}}
-	node, err := b.BindBoolean(raw, ProjectionContext, "POLICY")
+	node, err := b.BindBoolean(raw, analyze.ProjectionContext, "POLICY")
 	if err != nil {
 		return nil, alterCookingError(err)
 	}

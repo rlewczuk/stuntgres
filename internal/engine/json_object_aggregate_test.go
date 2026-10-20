@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -75,7 +76,7 @@ func TestJSONObjectAggregateSlotsAndDescriptors(t *testing.T) {
 	b.Params.Parameters[1], b.Params.Parameters[2] = text.Usage(), integer.Usage()
 	for _, name := range []string{"json_object_agg", "jsonb_object_agg", "json_object_agg_strict", "jsonb_object_agg_strict", "json_object_agg"} {
 		raw := parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}, parser.ParameterExpr{Number: 2}}, Pos: parser.Position{Character: 8}}
-		node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+		node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -96,7 +97,7 @@ func TestJSONObjectAggregateSlotsAndDescriptors(t *testing.T) {
 			t.Fatal("two inputs/presence lost", call)
 		}
 	}
-	if _, err := b.Bind(parser.AggregateExpr{Name: "json_agg", Args: []parser.Expr{parser.ParameterExpr{Number: 2}}}, expressionPolicy{Context: ProjectionContext}); err != nil {
+	if _, err := b.Bind(parser.AggregateExpr{Name: "json_agg", Args: []parser.Expr{parser.ParameterExpr{Number: 2}}}, expressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 		t.Fatal(err)
 	}
 	if len(b.Grouping.Aggregates) != 5 {

@@ -30,7 +30,7 @@ func TestIdentifierLiteralSerializationStability(t *testing.T) {
 			}
 			b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 			raw := parsed[0].(*parser.Select).Targets[0]
-			node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+			node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -60,7 +60,7 @@ func TestIdentifierArrayAnnotationAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-			_, err = b.Bind(parsed[0].(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
+			_, err = b.Bind(parsed[0].(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || diagnostic.Message != "unsupported column type" {
 				t.Fatal("identifier array annotation must reject before datum/NULL construction", typ, input, err)

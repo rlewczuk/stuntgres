@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -90,7 +91,7 @@ func TestProtocolValueCodecs(t *testing.T) {
 			if !retained {
 				binder.SeedParameters(description.Parameters.Types)
 			}
-			node, bindErr := binder.Bind(parser.ParameterExpr{Number: 1}, expressionPolicy{Context: ProjectionContext})
+			node, bindErr := binder.Bind(parser.ParameterExpr{Number: 1}, expressionPolicy{Context: analyze.ProjectionContext})
 			formal, formalErr := binder.Finish()
 			e.mu.Unlock()
 			if bindErr != nil || formalErr != nil {

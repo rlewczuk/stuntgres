@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -17,7 +18,7 @@ func TestIntervalImmutableConstantCapture(t *testing.T) {
 		if typed {
 			raw = parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "interval"}, Text: "-1 2:03:04", Pos: parser.Position{Offset: 7, Character: 8}}
 		}
-		policy := expressionPolicy{Context: AssignmentContext, Expected: d.Usage(), Mode: sqltype.Assignment}
+		policy := expressionPolicy{Context: analyze.AssignmentContext, Expected: d.Usage(), Mode: sqltype.Assignment}
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{IntervalStyle: sqltype.IntervalPostgres}, nil)
 		first, err := b.Bind(raw, policy)
 		if err != nil {

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -84,7 +85,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	if _, err := (scalarRenderer{}).scalarFunctionSQL(ctx, targetView, forged); err == nil {
 		t.Fatal("foreign stored provider accepted")
 	}
-	if !SameGroupExpression(bound, bound) || SameGroupExpression(bound, next) {
+	if !analyze.SameGroupExpression(bound, bound) || analyze.SameGroupExpression(bound, next) {
 		t.Fatal("provider equality")
 	}
 	var children int

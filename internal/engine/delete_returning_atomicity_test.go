@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -56,7 +57,7 @@ func TestDeleteReturningOutputAtomicity(t *testing.T) {
 			if phase == "sequence_error" {
 				e.mu.Lock()
 				binder := newExpressionBinder(ctx, e, scope.input, scope.op, nil)
-				output, err := binder.BindReturning(statement(t, "DELETE FROM t RETURNING nextval('seq')").(*parser.Delete).Returning, ReturningDelete)
+				output, err := binder.BindReturning(statement(t, "DELETE FROM t RETURNING nextval('seq')").(*parser.Delete).Returning, analyze.ReturningDelete)
 				e.mu.Unlock()
 				if err != nil {
 					t.Fatal(err)

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -23,7 +24,7 @@ func TestDateCaptureFreezeRebindAndParameters(t *testing.T) {
 			if typed {
 				raw = parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "date"}, Text: tc.text, Pos: pos}
 			}
-			policy := expressionPolicy{Context: AssignmentContext, Expected: d.Usage(), Mode: sqltype.Assignment}
+			policy := expressionPolicy{Context: analyze.AssignmentContext, Expected: d.Usage(), Mode: sqltype.Assignment}
 			b := newTestExpressionBinder(t, ctx, e, first, nil)
 			if _, err := b.Bind(raw, policy); err != nil {
 				t.Fatal(err)
@@ -70,7 +71,7 @@ func TestDateCaptureFreezeRebindAndParameters(t *testing.T) {
 			}
 			foreign := parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "timestamp"}, Text: "now", Pos: pos}
 			b = newTestExpressionBinder(t, ctx, e, later, &desc)
-			if _, err = b.Bind(foreign, expressionPolicy{Context: ProjectionContext}); err == nil {
+			if _, err = b.Bind(foreign, expressionPolicy{Context: analyze.ProjectionContext}); err == nil {
 				t.Fatal("DATE capture reconstructed as TIMESTAMP")
 			}
 		}

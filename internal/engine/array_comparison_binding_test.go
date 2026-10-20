@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -28,7 +29,7 @@ func TestArrayCompareBinding(t *testing.T) {
 		t.Run(tc.q, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			raw := statement(t, tc.q).(*parser.Select).Targets[0]
-			node, err := b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+			node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -104,15 +105,15 @@ func TestArrayCompareCommonType(t *testing.T) {
 		return comparisonOperand{Node: plan.ParameterExpr{Info: b.Info(b.Type(id).Usage(), parser.Position{}, expr.Properties{}), Number: 1}}
 	}
 	unknown := comparisonOperand{Node: plan.ParameterExpr{Number: 1}}
-	common, err := CommonExpressionUsage([]comparisonOperand{unknown, integer(sqltype.Int4), integer(sqltype.Int8)}, b.Type(sqltype.Text).Usage(), "")
+	common, err := analyze.CommonExpressionUsage([]comparisonOperand{unknown, integer(sqltype.Int4), integer(sqltype.Int8)}, b.Type(sqltype.Text).Usage(), "")
 	if err != nil || common.Type.ID() != 20 || len(b.Params.Parameters) != 0 {
 		t.Fatal(common, err, b.Params.Parameters)
 	}
-	common, err = CommonExpressionUsage([]comparisonOperand{integer(sqltype.Int4), integer(sqltype.Bool)}, b.Type(sqltype.Text).Usage(), "")
+	common, err = analyze.CommonExpressionUsage([]comparisonOperand{integer(sqltype.Int4), integer(sqltype.Bool)}, b.Type(sqltype.Text).Usage(), "")
 	if err != nil || common.Type != nil {
 		t.Fatal("category mismatch must silently decline batching", common, err)
 	}
-	_, err = CommonExpressionUsage([]comparisonOperand{integer(sqltype.Int4), integer(sqltype.Bool)}, b.Type(sqltype.Text).Usage(), "ARRAY")
+	_, err = analyze.CommonExpressionUsage([]comparisonOperand{integer(sqltype.Int4), integer(sqltype.Bool)}, b.Type(sqltype.Text).Usage(), "ARRAY")
 	state(t, err, "42804")
 	// Lexical frame identity, not dependence flags, distinguishes Vars.
 	local := plan.ColumnExpr{Info: b.Info(b.Type(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Frame: b.FrameID()}

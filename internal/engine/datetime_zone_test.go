@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -153,7 +154,7 @@ func TestDatetimeZoneSelectedCastDiagnosticAndScopeRestoration(t *testing.T) {
 		}
 		// The same failed pair outside selected analysis retains the existing
 		// adjacent unsupported-cast boundary; no new coercion was admitted.
-		_, err = b.Cast(span, expressionPolicy{Context: ProjectionContext})
+		_, err = b.Cast(span, expressionPolicy{Context: analyze.ProjectionContext})
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || b.Consumer.DatetimeZoneOperands {
 			t.Fatal("scope leaked", err, b.Consumer.DatetimeZoneOperands)
 		}

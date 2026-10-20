@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -144,7 +145,7 @@ func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !SameGroupExpression(left, right) || SameGroupExpression(original, left) || original.Owner != owner {
+	if !analyze.SameGroupExpression(left, right) || analyze.SameGroupExpression(original, left) || original.Owner != owner {
 		t.Fatal("mapped recipe equality lost exact row owner or mutated the source")
 	}
 	mapped := left.(plan.TableOIDExpr)
@@ -157,12 +158,12 @@ func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
 	} {
 		different := mapped
 		change(&different)
-		if SameGroupExpression(mapped, different) || SameGroupExpression(different, mapped) {
+		if analyze.SameGroupExpression(mapped, different) || analyze.SameGroupExpression(different, mapped) {
 			t.Fatal("distinct physical row authority or full Usage compared equal")
 		}
 	}
 	column := plan.ColumnExpr{Info: mapped.Info, Origin: mapped.Owner}
-	if SameGroupExpression(mapped, column) {
+	if analyze.SameGroupExpression(mapped, column) {
 		t.Fatal("different expression kind compared equal")
 	}
 }

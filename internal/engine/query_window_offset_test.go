@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -111,13 +112,13 @@ func TestQueryWindowOffsetGraph(t *testing.T) {
 	} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		b.Clause.AggregateClause, b.Query.Frame = "SELECT", 1
-		if _, err := b.Bind(statement(t, "SELECT row_number() OVER()").(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext}); err != nil {
+		if _, err := b.Bind(statement(t, "SELECT row_number() OVER()").(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 			t.Fatal(err)
 		}
 		before := b.Grouping.WindowCalls[:len(b.Grouping.WindowCalls):len(b.Grouping.WindowCalls)]
 		b.Grouping.WindowCalls = before
 		values := append([]plan.WindowCall(nil), before...)
-		_, err := b.Bind(statement(t, tc.q).(*parser.Select).Targets[0], expressionPolicy{Context: ProjectionContext})
+		_, err := b.Bind(statement(t, tc.q).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != tc.code || len(b.Grouping.WindowCalls) != len(before) || cap(b.Grouping.WindowCalls) != cap(before) || &b.Grouping.WindowCalls[0] != &before[0] || !reflect.DeepEqual(values, b.Grouping.WindowCalls) || b.Grouping.ArgumentOwner != (argumentWindowOwner{}) {
 			t.Fatal("registration unwind", tc.q, err, b.Grouping.WindowCalls)

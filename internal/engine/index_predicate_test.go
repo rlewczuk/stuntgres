@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -280,37 +281,37 @@ func TestPartialIndexImplication(t *testing.T) {
 		{other, active, false}, {active, nil, true}, {nil, active, false}, {param, param, false},
 		{or(active, fixed), or(active, fixed), true},
 	} {
-		if got := PartialPredicateImpliedBy(tc.q, tc.p); got != tc.want {
+		if got := analyze.PartialPredicateImpliedBy(tc.q, tc.p); got != tc.want {
 			t.Fatal(tc, got)
 		}
 	}
 	other = f.predicate
 	other.Pos = parser.Position{Character: 999}
-	if !PartialPredicateImpliedBy(other, active) {
+	if !analyze.PartialPredicateImpliedBy(other, active) {
 		t.Fatal("position changed identity")
 	}
 	other = f.predicate
 	other.Usage = f.parent.Columns[0].Usage
-	if PartialPredicateImpliedBy(other, active) {
+	if analyze.PartialPredicateImpliedBy(other, active) {
 		t.Fatal("type mismatch proved")
 	}
 	unknown := partialEvaluationWitness{Info: f.predicate.Info}
-	if PartialPredicateImpliedBy(unknown, unknown) {
+	if analyze.PartialPredicateImpliedBy(unknown, unknown) {
 		t.Fatal("unknown node proved")
 	}
 	other = f.predicate
 	other.CollationExplicit = parser.Position{Character: 1}
-	if PartialPredicateImpliedBy(other, active) {
+	if analyze.PartialPredicateImpliedBy(other, active) {
 		t.Fatal("explicit collation provenance mismatch proved")
 	}
 	explicit := other
 	other.CollationExplicit.Character = 2
-	if !PartialPredicateImpliedBy(other, explicit) {
+	if !analyze.PartialPredicateImpliedBy(other, explicit) {
 		t.Fatal("collation position changed identity")
 	}
 	other = f.predicate
 	other.CollationConflict = true
-	if PartialPredicateImpliedBy(other, active) {
+	if analyze.PartialPredicateImpliedBy(other, active) {
 		t.Fatal("indeterminate collation proved")
 	}
 	coercionPlan, err := sqltype.PlanCoercion(boolean, boolean, sqltype.Explicit)
@@ -320,11 +321,11 @@ func TestPartialIndexImplication(t *testing.T) {
 	coercion := plan.CoercionExpr{Info: f.predicate.Info, Child: active, Plan: coercionPlan, Mode: sqltype.Explicit}
 	sameCoercion := coercion
 	sameCoercion.Pos = parser.Position{Character: 2}
-	if !PartialPredicateImpliedBy(sameCoercion, coercion) {
+	if !analyze.PartialPredicateImpliedBy(sameCoercion, coercion) {
 		t.Fatal("exact coercion did not prove")
 	}
 	sameCoercion.Mode = sqltype.Assignment
-	if PartialPredicateImpliedBy(sameCoercion, coercion) {
+	if analyze.PartialPredicateImpliedBy(sameCoercion, coercion) {
 		t.Fatal("coercion mode mismatch proved")
 	}
 	// Exact comparisons do not derive inequalities or substitute parameters.
@@ -340,7 +341,7 @@ func TestPartialIndexImplication(t *testing.T) {
 		return plan.ComparisonExpr{Info: expr.Info{Usage: boolean}, Predicate: comparison, Operator: "<", Left: n, Right: right}
 	}
 	p := less(plan.LiteralExpr{Info: expr.Info{Usage: integer}, Value: two})
-	if PartialPredicateImpliedBy(less(plan.LiteralExpr{Info: expr.Info{Usage: integer}, Value: one}), p) {
+	if analyze.PartialPredicateImpliedBy(less(plan.LiteralExpr{Info: expr.Info{Usage: integer}, Value: one}), p) {
 		t.Fatal("inequality proof widened")
 	}
 	unresolved := plan.ParameterExpr{Info: expr.Info{Usage: integer, Property: expr.Properties{ParameterDependent: true}}, Number: 1}
@@ -348,7 +349,7 @@ func TestPartialIndexImplication(t *testing.T) {
 	qInfo := expr.InfoOf(q)
 	qInfo.Property.ParameterDependent = true
 	q = plan.ComparisonExpr{Info: qInfo, Predicate: comparison, Operator: "<", Left: n, Right: unresolved}
-	if PartialPredicateImpliedBy(q, p) || !PartialPredicateImpliedBy(and(p, param), p) {
+	if analyze.PartialPredicateImpliedBy(q, p) || !analyze.PartialPredicateImpliedBy(and(p, param), p) {
 		t.Fatal("parameter implication")
 	}
 	greater, err := sqltype.BindComparisonPredicate(sqltype.CompareGreater, integer.Type, integer.Type, boolean.Type, sqltype.CollationRef{}, false)
@@ -357,7 +358,7 @@ func TestPartialIndexImplication(t *testing.T) {
 	}
 	different := p.(plan.ComparisonExpr)
 	different.Predicate = greater
-	if PartialPredicateImpliedBy(different, p) {
+	if analyze.PartialPredicateImpliedBy(different, p) {
 		t.Fatal("different comparison provider proved")
 	}
 }

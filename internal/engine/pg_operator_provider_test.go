@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -146,7 +147,7 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 						args = []parser.Expr{column("l"), column("r")}
 					}
 					raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: candidate[2]}}}, Args: args}
-					bound, err = b.Bind(raw, expressionPolicy{Context: ProjectionContext})
+					bound, err = b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
 					executable = err == nil
 				}
 				if executable {
