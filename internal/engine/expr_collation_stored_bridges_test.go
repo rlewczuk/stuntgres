@@ -32,7 +32,7 @@ func exprCollationStoredBinding(t *testing.T, e *Engine, owner *Session, q strin
 	var bound binding
 	if err == nil {
 		bound, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
-		scope.routineAuth, scope.routineDependencies = auth, bound.dependencies
+		scope.routineAuth, scope.routineDependencies = auth, bound.Dependencies
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -67,11 +67,11 @@ func TestExprCollationStoredPreflightDemand(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			bound, scope := exprCollationStoredBinding(t, e, owner, tc.q)
-			if len(bound.querySources) != 1 || !reflect.DeepEqual(bound.querySources[0].Uses, tc.uses) {
-				t.Fatal("ordinary source occurrence uses", bound.querySources, tc.uses)
+			if len(bound.QuerySources) != 1 || !reflect.DeepEqual(bound.QuerySources[0].Uses, tc.uses) {
+				t.Fatal("ordinary source occurrence uses", bound.QuerySources, tc.uses)
 			}
-			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope), Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: bound.query.Root.(*plan.ProjectNode).Frame}}
-			err := validateQueryJoinExecution(&evaluation, bound.query.Root, e.CatalogRead(), 0)
+			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope), Input: scope.input, Output: scope.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: bound.Query.Root.(*plan.ProjectNode).Frame}}
+			err := validateQueryJoinExecution(&evaluation, bound.Query.Root, e.CatalogRead(), 0)
 			if tc.fail {
 				var diagnostic *sqlstate.Error
 				want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: "could not determine which collation to use for string comparison", Hint: "Use the COLLATE clause to set the collation explicitly."}
@@ -127,7 +127,7 @@ func TestExprCollationNestedPayloadDemand(t *testing.T) {
 			}
 			bound, scope := exprCollationStoredBinding(t, e, owner, tc.q)
 			e.mu.Lock()
-			source, err := e.captureQuerySourcesLocked(scope, bound.querySources, false)
+			source, err := e.captureQuerySourcesLocked(scope, bound.QuerySources, false)
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
@@ -198,7 +198,7 @@ func TestExprCollationDomainDerivation(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			bound, _ := exprCollationStoredBinding(t, e, owner, tc.q)
-			comparison, ok := bound.query.Root.(*plan.ProjectNode).Expressions[0].(plan.ComparisonExpr)
+			comparison, ok := bound.Query.Root.(*plan.ProjectNode).Expressions[0].(plan.ComparisonExpr)
 			if !ok {
 				t.Fatal("missing real comparison")
 			}
@@ -216,11 +216,11 @@ func TestExprCollationDomainDerivation(t *testing.T) {
 				}
 			}
 			if tc.childConflict {
-				if !left.Properties().RowDependent || len(bound.querySources) != 1 || !reflect.DeepEqual(bound.querySources[0].Uses, []int{0, 1}) {
-					t.Fatal("domain reset discarded child properties/dependencies", left.Properties(), bound.querySources)
+				if !left.Properties().RowDependent || len(bound.QuerySources) != 1 || !reflect.DeepEqual(bound.QuerySources[0].Uses, []int{0, 1}) {
+					t.Fatal("domain reset discarded child properties/dependencies", left.Properties(), bound.QuerySources)
 				}
 			}
-			value, err := comparison.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: bound.query.Root.(*plan.ProjectNode).Frame, Row: []sqltype.Value{sqltype.String(text, "A"), sqltype.String(text, "A")}}})
+			value, err := comparison.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: bound.Query.Root.(*plan.ProjectNode).Frame, Row: []sqltype.Value{sqltype.String(text, "A"), sqltype.String(text, "A")}}})
 			if tc.conflict {
 				var diagnostic *sqlstate.Error
 				if !errors.As(err, &diagnostic) || *diagnostic != (sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: "could not determine which collation to use for string comparison", Hint: "Use the COLLATE clause to set the collation explicitly."}) {

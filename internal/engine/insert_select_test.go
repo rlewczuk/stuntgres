@@ -139,13 +139,13 @@ func insertSelectEvaluationFixture(t *testing.T, sql string) (binding, *exec.Sou
 	e.mu.Lock()
 	relation := e.catalog.state.MustRelation(ref.Address)
 	e.mu.Unlock()
-	return binding{query: q, relation: relation, ref: ref, targets: []int{0}}, source
+	return binding{Query: q, Relation: relation, Ref: ref, Targets: []int{0}}, source
 }
 func TestInsertSelectEagerFailureAndCancellation(t *testing.T) {
 	for _, phase := range []string{"late source", "rejected scan", "assignment", "before apply", "sorting"} {
 		t.Run(phase, func(t *testing.T) {
 			b, source := insertSelectEvaluationFixture(t, "SELECT id FROM t WHERE f ORDER BY id")
-			project := b.query.Root.(*plan.ProjectNode)
+			project := b.Query.Root.(*plan.ProjectNode)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			sentinel := errors.New("late source evaluation")
@@ -205,7 +205,7 @@ func (c *insertCloseCursor) Close() error {
 func TestInsertSelectRequiredClose(t *testing.T) {
 	for _, primary := range []bool{false, true} {
 		b, source := insertSelectEvaluationFixture(t, "SELECT id FROM t")
-		stage, err := exec.OpenNode(context.Background(), &exec.State{Source: source}, b.query.Root)
+		stage, err := exec.OpenNode(context.Background(), &exec.State{Source: source}, b.Query.Root)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -234,7 +234,7 @@ func TestInsertSelectCancellationOnRequiredClose(t *testing.T) {
 	defer source.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	stage, err := exec.OpenNode(ctx, &exec.State{Source: source}, b.query.Root)
+	stage, err := exec.OpenNode(ctx, &exec.State{Source: source}, b.Query.Root)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -309,7 +309,7 @@ func TestQueryWindowGroupsDomainRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := description.query.Root
+	root := description.Query.Root
 	original := root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	types := make(map[sqltype.ID]*sqltype.Descriptor)
 	for _, typ := range sqltype.Builtins() {

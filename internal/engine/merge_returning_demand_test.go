@@ -27,13 +27,13 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 			t.Fatal(err)
 		}
 		state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output}
-		for _, expr := range b.returning.expressions {
+		for _, expr := range b.Returning.Expressions {
 			state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expr)
 		}
 		if !state.VirtualReads {
 			t.Fatal("output-only virtual demand absent")
 		}
-		cursor, err := exec.OpenNode(op.Context(), state, b.merge.source)
+		cursor, err := exec.OpenNode(op.Context(), state, b.Merge.Source)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -81,7 +81,7 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 		if !reflect.DeepEqual(got, want) {
 			t.Fatal("drained source/transition recipe provenance", got, want)
 		}
-		if err = rows.stage(scope.Writes(), b.ref); err != nil {
+		if err = rows.stage(scope.Writes(), b.Ref); err != nil {
 			scope.Finish(err)
 			t.Fatal(err)
 		}
@@ -135,11 +135,11 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 		defer op.Done()
 		defer target.Close()
 		defer inputs.Close()
-		if !b.returning.readRequired {
+		if !b.Returning.ReadRequired {
 			t.Fatal("zero-member target whole row lost SELECT demand")
 		}
-		c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, MergeReturning: true, MergeAction: b.merge.arms[0].action}}
-		for i, expr := range b.returning.expressions {
+		c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, MergeReturning: true, MergeAction: b.Merge.Arms[0].Action}}
+		for i, expr := range b.Returning.Expressions {
 			v, err := expr.Eval(&c)
 			if err != nil || v.IsNull() != (i == 1) || v.Type().CompositeLen() != 0 {
 				t.Fatal("zero-member presence", i, v, err)

@@ -40,7 +40,7 @@ func (b *expressionBinder) finalizeSetOperand(arm *plan.ProjectNode, slot int, t
 		if b.params.noParameters || b.consumer.materializedDefinition {
 			for i, raw := range arm.Syntax.Targets {
 				if raw == unknown.Raw {
-					if err := b.captureViewLiterals(raw, node, viewTargetLiteral, i); err != nil {
+					if err := b.captureViewLiterals(raw, node, ViewTargetLiteral, i); err != nil {
 						return nil, err
 					}
 					break
@@ -210,7 +210,7 @@ func (b *expressionBinder) bindSetOrder(order *parser.Order, projection []expr.E
 			}
 		}
 		if (b.params.noParameters || b.consumer.materializedDefinition) && !ordinal {
-			if err := b.captureViewLiterals(raw.Expr, projection[slot], viewOrderLiteral, i); err != nil {
+			if err := b.captureViewLiterals(raw.Expr, projection[slot], ViewOrderLiteral, i); err != nil {
 				return nil, err
 			}
 		}

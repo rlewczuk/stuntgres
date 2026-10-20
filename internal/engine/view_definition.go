@@ -32,19 +32,19 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 	if err != nil {
 		return nil, err
 	}
-	definition := &viewDefinition{query: b.query, syntax: syntax, dependencies: dependencies, barrier: barrier, invoker: invoker, rule: rule}
-	definition.literals, definition.castUsages = b.capture.literals, b.capture.castUsages
-	definition.routineRefs = b.capture.routineRefs
-	definition.operatorRefs = b.capture.operatorRefs
-	definition.composites = b.capture.composites
-	definition.similarSubstrings = b.capture.similarSubstrings
-	definition.posixSubstrings = b.capture.posixSubstrings
-	definition.collations = b.capture.collations
-	definition.columns, definition.stars = b.capture.columns, b.capture.stars
-	definition.frames, definition.queries = collectQueryFrames(b.query.Root)
-	definition.namespaces = b.capture.namespaces
-	definition.sequenceRefs = make(map[int]ids.ObjectRef, len(b.prepared.sequenceConstants))
-	for _, constant := range b.prepared.sequenceConstants {
+	definition := &viewDefinition{query: b.Query, syntax: syntax, dependencies: dependencies, barrier: barrier, invoker: invoker, rule: rule}
+	definition.literals, definition.castUsages = b.Capture.Literals, b.Capture.CastUsages
+	definition.routineRefs = b.Capture.RoutineRefs
+	definition.operatorRefs = b.Capture.OperatorRefs
+	definition.composites = b.Capture.Composites
+	definition.similarSubstrings = b.Capture.SimilarSubstrings
+	definition.posixSubstrings = b.Capture.PosixSubstrings
+	definition.collations = b.Capture.Collations
+	definition.columns, definition.stars = b.Capture.Columns, b.Capture.Stars
+	definition.frames, definition.queries = collectQueryFrames(b.Query.Root)
+	definition.namespaces = b.Capture.Namespaces
+	definition.sequenceRefs = make(map[int]ids.ObjectRef, len(b.Prepared.SequenceConstants))
+	for _, constant := range b.Prepared.SequenceConstants {
 		if constant.Temporary != (ids.SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || auth.session == nil || constant.Temporary != auth.session.token) {
 			return nil, sqlError("0A000", temporaryMessage)
 		}
@@ -53,29 +53,29 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 			definition.dependencies = append(definition.dependencies, catalog.ExpressionDependency{Ref: constant.Ref, Revision: constant.Stamp})
 		}
 	}
-	for _, constant := range b.prepared.regtypeConstants {
-		if constant.value.Type() != nil {
+	for _, constant := range b.Prepared.RegtypeConstants {
+		if constant.Value.Type() != nil {
 			var references []ids.ObjectRef
-			if err := (scalarRenderer{dependencies: &references}).recordCatalogAliasDependencies(auth.Catalog, constant.value); err != nil {
+			if err := (scalarRenderer{dependencies: &references}).recordCatalogAliasDependencies(auth.Catalog, constant.Value); err != nil {
 				return nil, err
 			}
-			if err := (scalarRenderer{dependencies: &references}).recordRoutineReferences(auth.Catalog, constant.value); err != nil {
+			if err := (scalarRenderer{dependencies: &references}).recordRoutineReferences(auth.Catalog, constant.Value); err != nil {
 				return nil, err
 			}
 			for _, ref := range references {
 				definition.dependencies = append(definition.dependencies, catalog.ExpressionDependency{Ref: ref, Revision: auth.Catalog.Get(ref.Address).Revision()})
 			}
 		}
-		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(constant.id)}
-		if constant.operator != 0 {
+		address := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(constant.ID)}
+		if constant.Operator != 0 {
 			address.ClassID = ids.OperatorClassID
 		}
 		if d, exists := auth.Catalog.Find(address); exists {
 			definition.dependencies = append(definition.dependencies, catalog.ExpressionDependency{Ref: e.catalog.Domain.Ref(auth.Catalog.Epoch(), address), Revision: d.Revision()})
 		}
 	}
-	definition.sources = make([]viewLeaf, len(b.querySources))
-	for occurrence, source := range b.querySources {
+	definition.sources = make([]viewLeaf, len(b.QuerySources))
+	for occurrence, source := range b.QuerySources {
 		leaf := &definition.sources[occurrence]
 		leaf.ref, leaf.mark, leaf.only = source.Ref, source.Mark, source.Only
 		leaf.analysisOnly = source.AnalysisOnly

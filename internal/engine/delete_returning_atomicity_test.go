@@ -39,7 +39,7 @@ func TestDeleteReturningOutputAtomicity(t *testing.T) {
 			calls := 0
 			probe := queryProbe(integer.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 				calls++
-				root := scope.stage.deletes[b.ref.Address]
+				root := scope.stage.deletes[b.Ref.Address]
 				if root == nil || len(root.Rows) != calls {
 					t.Fatal("output ran before actual stage", calls, root)
 				}
@@ -52,7 +52,7 @@ func TestDeleteReturningOutputAtomicity(t *testing.T) {
 				}
 				return c.Row[0], nil
 			})
-			b.returning = &boundReturning{expressions: []expr.Expr{probe}, schema: []catalog.Column{{Name: "v", Usage: integer.Usage()}}}
+			b.Returning = &boundReturning{Expressions: []expr.Expr{probe}, Schema: []catalog.Column{{Name: "v", Usage: integer.Usage()}}}
 			if phase == "sequence_error" {
 				e.mu.Lock()
 				binder := newExpressionBinder(ctx, e, scope.input, scope.op, nil)
@@ -61,8 +61,8 @@ func TestDeleteReturningOutputAtomicity(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				b.returning.expressions = append(output.expressions, probe)
-				b.returning.schema = append(output.schema, b.returning.schema...)
+				b.Returning.Expressions = append(output.Expressions, probe)
+				b.Returning.Schema = append(output.Schema, b.Returning.Schema...)
 			}
 			result, err := scope.deleteSource(b, source, nil, nil)
 			want := sentinel

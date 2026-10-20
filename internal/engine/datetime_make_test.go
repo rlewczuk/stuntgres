@@ -142,11 +142,11 @@ func TestDatetimeMakeArgumentAssociation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil {
+	if err := b.captureViewLiterals(raw, node, ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
-	renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.literals, castUsages: b.capture.castUsages}, frame: b.frameID(), presentation: viewPresentation{deparse: true, pretty: true}}
-	got, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, viewLiteralPath{clause: viewTargetLiteral})
+	renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.frameID(), presentation: viewPresentation{deparse: true, pretty: true}}
+	got, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, viewLiteralPath{Clause: ViewTargetLiteral})
 	if err != nil || got != "make_interval(secs => '1.5'::double precision, days => 2)" {
 		t.Fatal("written literal association/default omission", got, err)
 	}

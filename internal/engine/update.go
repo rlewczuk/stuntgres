@@ -15,19 +15,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type boundUpdate struct {
-	assignments    []expr.Expr
-	defaultOrigins []defaultOrigin
-	arrayTargets   []*plan.ArrayAssignmentTarget
-	// Group query graphs are owned by their first assignment recipe.
-	groups      []updateAssignmentGroup
-	origins     []parser.Position // Flat origins, including DEFAULT after group expansion.
-	outputWidth int
-	predicate   expr.Expr
-	from        plan.Node
-	sourceWidth int
-}
-
 // Reuse the shared coercion traversal; only changed execution branches are
 // copied. In particular, imported-frame literals never replace analyzed nodes.
 func preflightUpdate(c *exec.Context, original *boundUpdate, sourceDemand ...func(*boundUpdate) (plan.Node, error)) (*boundUpdate, error) {
@@ -37,21 +24,21 @@ func preflightUpdate(c *exec.Context, original *boundUpdate, sourceDemand ...fun
 func preflightUpdateWithPlanning(c *exec.Context, original *boundUpdate, planConstants bool, sourceDemand ...func(*boundUpdate) (plan.Node, error)) (*boundUpdate, error) {
 	result := original
 	var assignments []expr.Expr
-	targets, err := preflightArrayTargetsWithPlanning(c, original.arrayTargets, planConstants)
+	targets, err := preflightArrayTargetsWithPlanning(c, original.ArrayTargets, planConstants)
 	if err != nil {
 		return nil, err
 	}
-	if len(targets) != 0 && &targets[0] != &original.arrayTargets[0] {
+	if len(targets) != 0 && &targets[0] != &original.ArrayTargets[0] {
 		private := *original
-		private.arrayTargets = targets
+		private.ArrayTargets = targets
 		result = &private
 	}
-	for i, expression := range original.assignments {
+	for i, expression := range original.Assignments {
 		owner := c
 		var recipe exec.Context
-		if len(original.defaultOrigins) != 0 && original.defaultOrigins[i].requested {
+		if len(original.DefaultOrigins) != 0 && original.DefaultOrigins[i].Requested {
 			recipe = *c
-			applyDefaultOrigin(original.defaultOrigins[i], &recipe)
+			applyDefaultOrigin(original.DefaultOrigins[i], &recipe)
 			owner = &recipe
 		}
 		folded, changed, err := preflightUpdateExpression(owner, expression, planConstants)
@@ -60,18 +47,18 @@ func preflightUpdateWithPlanning(c *exec.Context, original *boundUpdate, planCon
 		}
 		if changed {
 			if assignments == nil {
-				assignments = append([]expr.Expr(nil), original.assignments...)
+				assignments = append([]expr.Expr(nil), original.Assignments...)
 			}
 			assignments[i] = folded
 		}
 	}
 	if assignments != nil {
 		private := *result
-		private.assignments = assignments
+		private.Assignments = assignments
 		result = &private
 	}
-	if original.predicate != nil {
-		folded, changed, err := preflightUpdateExpression(c, original.predicate, planConstants)
+	if original.Predicate != nil {
+		folded, changed, err := preflightUpdateExpression(c, original.Predicate, planConstants)
 		if err != nil {
 			return nil, err
 		}
@@ -80,11 +67,11 @@ func preflightUpdateWithPlanning(c *exec.Context, original *boundUpdate, planCon
 				private := *original
 				result = &private
 			}
-			result.predicate = folded
+			result.Predicate = folded
 		}
 	}
-	if original.from != nil {
-		from := original.from
+	if original.From != nil {
+		from := original.From
 		if c.PlanStaticOperators && len(sourceDemand) != 0 {
 			from, err = sourceDemand[0](result)
 			if err != nil {
@@ -95,12 +82,12 @@ func preflightUpdateWithPlanning(c *exec.Context, original *boundUpdate, planCon
 		if err != nil {
 			return nil, err
 		}
-		if folded != original.from {
+		if folded != original.From {
 			if result == original {
 				private := *original
 				result = &private
 			}
-			result.from = folded
+			result.From = folded
 		}
 	}
 	return result, nil
@@ -124,10 +111,10 @@ func preflightUpdateExpression(c *exec.Context, expression expr.Expr, planConsta
 // Transform FROM, WHERE, RETURNING (output fallback), then RHS/destinations.
 func bindUpdate(b *binding, binder *expressionBinder, s *parser.Update) error {
 	if s.CurrentOf != nil {
-		b.currentOf = s.CurrentOf.Text
+		b.CurrentOf = s.CurrentOf.Text
 	}
-	binder.target.relation, binder.target.ref = b.relation, b.ref
-	binder.target.name = b.relation.Name()
+	binder.target.relation, binder.target.ref = b.Relation, b.Ref
+	binder.target.name = b.Relation.Name()
 	binder.target.alias = s.Alias.Text
 	binder.params.updateParameters = true
 	defer func() {
@@ -140,12 +127,12 @@ func bindUpdate(b *binding, binder *expressionBinder, s *parser.Update) error {
 	binder.query.hidden = append(binder.query.hidden, target.qualifiers[0])
 	if s.From != nil {
 		var sources queryNamespace
-		u.from, sources, err = binder.bindFrom(s.From)
+		u.From, sources, err = binder.bindFrom(s.From)
 		if err != nil {
 			return err
 		}
-		u.sourceWidth = len(sources.frame)
-		target, err = combineQueryNamespace(target, rebaseQueryNamespace(sources, len(b.relation.Columns)))
+		u.SourceWidth = len(sources.frame)
+		target, err = combineQueryNamespace(target, rebaseQueryNamespace(sources, len(b.Relation.Columns)))
 		if err != nil {
 			return err
 		}
@@ -153,13 +140,13 @@ func bindUpdate(b *binding, binder *expressionBinder, s *parser.Update) error {
 	binder.query.namespace = &target
 	binder.clause.aggregateClause = "UPDATE"
 	if s.Where != nil {
-		u.predicate, err = binder.bind(s.Where, expressionPolicy{context: filterContext})
+		u.Predicate, err = binder.bind(s.Where, expressionPolicy{context: filterContext})
 		if err != nil {
 			return err
 		}
 	}
 	if s.Returning != nil {
-		b.returning, err = binder.bindReturning(s.Returning, returningUpdate)
+		b.Returning, err = binder.bindReturning(s.Returning, returningUpdate)
 		if err != nil {
 			return err
 		}
@@ -179,7 +166,7 @@ func bindUpdate(b *binding, binder *expressionBinder, s *parser.Update) error {
 	if err := bindUpdateAssignments(b, binder, s.Assignments, u); err != nil {
 		return err
 	}
-	if s.CurrentOf != nil && b.relation.View != nil {
+	if s.CurrentOf != nil && b.Relation.View != nil {
 		return sqlError("0A000", "WHERE CURRENT OF on a view is not implemented")
 	}
 	return nil
@@ -256,14 +243,14 @@ func (e *Engine) latestUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate
 func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding, source, from *exec.Source, parameters []sqltype.Value, schema string) (Result, error) {
 	defer source.Close()
 	source.Host = hostOf(s)
-	if b.storage == nil || b.storage != s.lockedStorage || b.storage != source.View.Data().GenerationAt(b.ref.Address) {
+	if b.Storage == nil || b.Storage != s.lockedStorage || b.Storage != source.View.Data().GenerationAt(b.Ref.Address) {
 		if from != nil {
 			from.Close()
 		}
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	var positioned mutationRowIdentity
-	if b.currentOf != "" {
+	if b.CurrentOf != "" {
 		var err error
 		positioned, err = s.positionedMutationRow(b)
 		if err != nil {
@@ -278,8 +265,8 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		if err := exec.SelectQuerySources(ctx, from); err != nil {
 			return Result{}, err
 		}
-		if b.viewWrite != nil || b.rule.template {
-			from = freezeViewWriteSources(s, from, b.querySources)
+		if b.ViewWrite != nil || b.Rule.Template {
+			from = freezeViewWriteSources(s, from, b.QuerySources)
 		}
 		defer from.Close()
 		inputs = from
@@ -288,36 +275,36 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	defer state.ReleaseMemberships()
 	eval := state.Evaluation(ctx)
 	var smallUpdateOutputs [4]sqltype.Value
-	if b.update.outputWidth != 0 {
-		if b.update.outputWidth <= len(smallUpdateOutputs) {
-			eval.UpdateOutputScratch = smallUpdateOutputs[:b.update.outputWidth]
+	if b.Update.OutputWidth != 0 {
+		if b.Update.OutputWidth <= len(smallUpdateOutputs) {
+			eval.UpdateOutputScratch = smallUpdateOutputs[:b.Update.OutputWidth]
 		} else {
-			eval.UpdateOutputScratch = make([]sqltype.Value, b.update.outputWidth)
+			eval.UpdateOutputScratch = make([]sqltype.Value, b.Update.OutputWidth)
 		}
 	}
 	var stage exec.Stage
 	var frame []sqltype.Value
 	var updated map[mutationRowIdentity]bool
 	sourceCount := 1
-	if b.update.from != nil {
-		state.VirtualReads = exec.QueryHasVirtualReads(b.update.from) || exec.BoundHasVirtualReads(b.update.predicate)
-		for _, expression := range b.update.assignments {
+	if b.Update.From != nil {
+		state.VirtualReads = exec.QueryHasVirtualReads(b.Update.From) || exec.BoundHasVirtualReads(b.Update.Predicate)
+		for _, expression := range b.Update.Assignments {
 			state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expression)
 		}
-		for _, target := range b.update.arrayTargets {
+		for _, target := range b.Update.ArrayTargets {
 			state.VirtualReads = state.VirtualReads || assignmentTargetHasVirtualReads(target)
 		}
-		if b.returning != nil {
-			for _, expression := range b.returning.expressions {
+		if b.Returning != nil {
+			for _, expression := range b.Returning.Expressions {
 				state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expression)
 			}
 		}
 		var err error
-		stage, err = exec.OpenNode(ctx, &state, b.update.from)
+		stage, err = exec.OpenNode(ctx, &state, b.Update.From)
 		if err != nil {
 			return Result{}, err
 		}
-		stage, err = exec.SettlePendingQueryMarks(ctx, &state, b.update.from, stage)
+		stage, err = exec.SettlePendingQueryMarks(ctx, &state, b.Update.From, stage)
 		if err != nil {
 			return Result{}, err
 		}
@@ -327,14 +314,14 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		}
 		sourceCount = stage.Count()
 		if sourceCount != 0 {
-			frame = make([]sqltype.Value, len(b.relation.Columns)+b.update.sourceWidth)
+			frame = make([]sqltype.Value, len(b.Relation.Columns)+b.Update.SourceWidth)
 			updated = make(map[mutationRowIdentity]bool)
 		}
 	}
 	var output *exec.FinalRows
 	keep := false
-	if b.returning != nil {
-		output = exec.NewFinalRows(b.returning.schema, 0)
+	if b.Returning != nil {
+		output = exec.NewFinalRows(b.Returning.Schema, 0)
 		output.Output = s.output
 		defer func() {
 			if !keep {
@@ -348,7 +335,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	for i := range source.Count() {
 		physical := mutationPhysicalRow(source, i, b)
 		old := physical.Version
-		if b.currentOf != "" && (positioned.ref != physical.Leaf.Ref || old.Row != positioned.row) {
+		if b.CurrentOf != "" && (positioned.ref != physical.Leaf.Ref || old.Row != positioned.row) {
 			continue
 		}
 		for j := range sourceCount {
@@ -357,13 +344,13 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			}
 			eval.Row = physical.Values(old)
 			eval.PhysicalTable = physical.Leaf.Ref
-			if b.update.from != nil {
+			if b.Update.From != nil {
 				copy(frame, eval.Row)
-				copy(frame[len(b.relation.Columns):], stage.Source.Row(stage.Index(j)))
+				copy(frame[len(b.Relation.Columns):], stage.Source.Row(stage.Index(j)))
 				eval.Row = frame
 				eval.BindQueryIdentity(stage.Source, stage.Index(j))
 			}
-			matches, err := exec.UpdateMatches(&eval, b.update.predicate)
+			matches, err := exec.UpdateMatches(&eval, b.Update.Predicate)
 			if err != nil {
 				return Result{}, err
 			}
@@ -380,7 +367,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		prior  map[ids.RowID]struct{}
 	}
 	var single physicalBatch
-	single.ref = b.ref
+	single.ref = b.Ref
 	if len(s.inheritedTargets) == 0 {
 		capacity := min(len(candidates), source.Count())
 		single.old = make([]storage.RowVersion, 0, capacity)
@@ -389,7 +376,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	batches := []physicalBatch(nil)
 	if len(s.inheritedTargets) != 0 && len(candidates) != 0 {
 		batches = make([]physicalBatch, len(s.inheritedTargets)+1)
-		batches[0].ref = b.ref
+		batches[0].ref = b.Ref
 		for i, target := range s.inheritedTargets {
 			batches[i+1].ref = target.Ref
 		}
@@ -419,9 +406,9 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		eval.Row = oldValues
 		eval.PhysicalTable = ref
 		eval.OldRow = nil
-		if b.update.from != nil {
+		if b.Update.From != nil {
 			copy(frame, oldValues)
-			copy(frame[len(b.relation.Columns):], stage.Source.Row(stage.Index(candidate.sourceIndex)))
+			copy(frame[len(b.Relation.Columns):], stage.Source.Row(stage.Index(candidate.sourceIndex)))
 			eval.Row = frame
 			eval.BindQueryIdentity(stage.Source, stage.Index(candidate.sourceIndex))
 		}
@@ -429,7 +416,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			if err := s.physicalRowEvent(ref, old, lock.MultiNoKeyLock, 0); err != nil {
 				return Result{}, err
 			}
-			matches, err := exec.UpdateMatches(&eval, b.update.predicate)
+			matches, err := exec.UpdateMatches(&eval, b.Update.Predicate)
 			if err != nil {
 				return Result{}, err
 			}
@@ -439,15 +426,15 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		}
 		// RHS and bounds see the unchanged old frame; partial writes compose
 		// only in this private replacement. Losing FROM pairs still demand SET.
-		row, err := evaluateUpdateAssignments(&eval, b.update, b.targets, oldValues)
+		row, err := evaluateUpdateAssignments(&eval, b.Update, b.Targets, oldValues)
 		if err != nil {
 			return Result{}, err
 		}
 		identity := mutationRowIdentity{ref, candidate.Row}
-		if b.update.from != nil && updated[identity] {
+		if b.Update.From != nil && updated[identity] {
 			continue
 		}
-		physicalRow := scatterMutationRow(candidate.physical, old, row, b.targets)
+		physicalRow := scatterMutationRow(candidate.physical, old, row, b.Targets)
 		if err := e.validateInheritedMutationRow(s, b, candidate.physical, schema, physicalRow, &eval); err != nil {
 			return Result{}, err
 		}
@@ -524,11 +511,11 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		batch.staged = len(s.stage.rows[ref.Address])
 		if output != nil {
 			eval.Row, eval.OldRow = row, oldValues
-			if b.update.from != nil {
+			if b.Update.From != nil {
 				copy(frame, row)
 				eval.Row = frame
 			}
-			for i, expr := range b.returning.expressions {
+			for i, expr := range b.Returning.Expressions {
 				value, err := expr.Eval(&eval)
 				if err != nil {
 					return Result{}, err
@@ -541,11 +528,11 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			output.Count++
 		}
 		count++
-		if b.update.from != nil {
+		if b.Update.From != nil {
 			updated[identity] = true
 		}
 	}
-	if output != nil && b.returning.regclassOutput && output.Count != 0 {
+	if output != nil && b.Returning.RegclassOutput && output.Count != 0 {
 		if err := e.captureRegclassOutput(s.op, output); err != nil {
 			return Result{}, err
 		}
@@ -566,22 +553,22 @@ func (e *Engine) rowConstraintError(s *StatementScope, b binding, schema, column
 		return err
 	}
 	if check != "" {
-		return checkDetailError(schema, b.relation.Name(), check, detail)
+		return checkDetailError(schema, b.Relation.Name(), check, detail)
 	}
-	return notNullDetailError(schema, b.relation.Name(), column, detail)
+	return notNullDetailError(schema, b.Relation.Name(), column, detail)
 }
 
 // Public UPDATE and admitted RI assignment share generation and local checks.
 func (e *Engine) validateMutationRow(s *StatementScope, b binding, schema string, row []sqltype.Value, eval *exec.Context) error {
 	generationEval := *eval
-	if err := evaluateGenerations(eval.Context, b.relation, row, &generationEval); err != nil {
+	if err := evaluateGenerations(eval.Context, b.Relation, row, &generationEval); err != nil {
 		return err
 	}
-	for i, column := range b.relation.Columns {
+	for i, column := range b.Relation.Columns {
 		if column.Nullable {
 			continue
 		}
-		value, err := logicalColumnValue(b.relation, i, row, &generationEval)
+		value, err := logicalColumnValue(b.Relation, i, row, &generationEval)
 		if err != nil {
 			return err
 		}
@@ -589,8 +576,8 @@ func (e *Engine) validateMutationRow(s *StatementScope, b binding, schema string
 			return e.rowConstraintError(s, b, schema, column.Name, "", row)
 		}
 	}
-	if len(b.relation.Constraints.Check) != 0 {
-		constraint, err := validateCheckRow(b.relation, row, eval)
+	if len(b.Relation.Constraints.Check) != 0 {
+		constraint, err := validateCheckRow(b.Relation, row, eval)
 		if err != nil {
 			return err
 		}
@@ -604,7 +591,7 @@ func (e *Engine) validateMutationRow(s *StatementScope, b binding, schema string
 // Capture only immutable authority under metadata locks. Provider output runs
 // unlocked; disclosure uses the named target's supplied-column manifest.
 func (e *Engine) rowConstraintDetail(s *StatementScope, b *binding, row []sqltype.Value) (string, error) {
-	if s != nil && s.partitionInsert != nil && b != nil && b.relation.Address() == s.partitionInsert.target.Address() {
+	if s != nil && s.partitionInsert != nil && b != nil && b.Relation.Address() == s.partitionInsert.target.Address() {
 		row = s.partitionInsert.namedRow
 	}
 	return e.rowDiagnosticDetail(s, b, row, false)
@@ -614,7 +601,7 @@ func (e *Engine) rowDiagnosticDetail(s *StatementScope, b *binding, row []sqltyp
 	e.mu.Lock()
 	err := s.validateLockedRelation(e)
 	if err == nil && s.foreignActionAuth != nil {
-		err = s.validateForeignActionLocked(e, b.ref)
+		err = s.validateForeignActionLocked(e, b.Ref)
 	}
 	var auth AuthorizationView
 	if err == nil {
@@ -624,12 +611,12 @@ func (e *Engine) rowDiagnosticDetail(s *StatementScope, b *binding, row []sqltyp
 	if err != nil {
 		return "", err
 	}
-	whole, err := auth.Effective(b.ref, false)
+	whole, err := auth.Effective(b.Ref, false)
 	if err != nil {
 		return "", err
 	}
 	if whole&authorization.SelectPrivilege != 0 {
-		return failingRowDetail(row, s.output, nil, nil, b.relation)
+		return failingRowDetail(row, s.output, nil, nil, b.Relation)
 	}
 	// Preserve the small/wide supplied-column manifest convention. Assignment
 	// order can differ from physical order, which governs diagnostic disclosure.
@@ -637,18 +624,18 @@ func (e *Engine) rowDiagnosticDetail(s *StatementScope, b *binding, row []sqltyp
 	var modified []uint64
 	var visibleColumns [64]int
 	visible := visibleColumns[:0]
-	if len(b.relation.Columns) > 64 {
-		modified = make([]uint64, (len(b.relation.Columns)+63)/64)
-		visible = make([]int, 0, len(b.relation.Columns))
+	if len(b.Relation.Columns) > 64 {
+		modified = make([]uint64, (len(b.Relation.Columns)+63)/64)
+		visible = make([]int, 0, len(b.Relation.Columns))
 	}
-	for _, index := range b.targets {
+	for _, index := range b.Targets {
 		word := &small
 		if modified != nil {
 			word = &modified[index/64]
 		}
 		*word |= uint64(1) << uint(index%64)
 	}
-	for index, attribute := range b.relation.Attributes {
+	for index, attribute := range b.Relation.Attributes {
 		word := small
 		if modified != nil {
 			word = modified[index/64]
@@ -657,7 +644,7 @@ func (e *Engine) rowDiagnosticDetail(s *StatementScope, b *binding, row []sqltyp
 			visible = append(visible, index)
 			continue
 		}
-		ref := b.ref
+		ref := b.Ref
 		ref.Address.SubID = attribute
 		rights, err := auth.Effective(ref, false)
 		if err != nil {
@@ -670,5 +657,5 @@ func (e *Engine) rowDiagnosticDetail(s *StatementScope, b *binding, row []sqltyp
 	if suppressEmpty && len(visible) == 0 {
 		return "", nil
 	}
-	return failingRowDetail(row, s.output, b.relation.Columns, visible, b.relation)
+	return failingRowDetail(row, s.output, b.Relation.Columns, visible, b.Relation)
 }

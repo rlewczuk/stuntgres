@@ -11,10 +11,10 @@ func bindInsertConflictUpdate(b *binding, binder *expressionBinder, s *parser.In
 	if s.Conflict == nil || !s.Conflict.Update {
 		return nil
 	}
-	c := insertConflictOf(b.insert.conflict)
-	c.width = len(b.relation.Columns)
-	binder.target.relation, binder.target.ref = b.relation, b.ref
-	binder.target.name, binder.target.alias = b.relation.Name(), s.Alias.Text
+	c := insertConflictOf(b.Insert.Conflict)
+	c.width = len(b.Relation.Columns)
+	binder.target.relation, binder.target.ref = b.Relation, b.Ref
+	binder.target.name, binder.target.alias = b.Relation.Name(), s.Alias.Text
 	binder.params.updateParameters = true
 	defer func() { binder.params.updateParameters = false; binder.params.updateInputParameters = nil }()
 	// Conflict UPDATE owns a fresh lexical namespace: the rule's formal
@@ -31,7 +31,7 @@ func bindInsertConflictUpdate(b *binding, binder *expressionBinder, s *parser.In
 	}()
 	target := binder.mutationTargetNamespace()
 	binder.query.hidden = append(binder.query.hidden, target.qualifiers[0])
-	excluded := rebaseQueryNamespace(target, len(b.relation.Columns))
+	excluded := rebaseQueryNamespace(target, len(b.Relation.Columns))
 	excluded.qualifiers[0] = queryQualifier{name: "excluded", columns: excluded.columns, lateralForbidden: true}
 	namespace := queryNamespace{
 		columns:    append(target.columns, excluded.columns...),
@@ -40,9 +40,9 @@ func bindInsertConflictUpdate(b *binding, binder *expressionBinder, s *parser.In
 	}
 	binder.query.namespace = &namespace
 	binder.clause.aggregateClause = "UPDATE"
-	action := &boundUpdate{assignments: make([]expr.Expr, len(s.Conflict.Assignments))}
+	action := &boundUpdate{Assignments: make([]expr.Expr, len(s.Conflict.Assignments))}
 	actionBinding := *b
-	actionBinding.targets = nil
+	actionBinding.Targets = nil
 	if err := bindUpdateAssignments(&actionBinding, binder, s.Conflict.Assignments, action); err != nil {
 		return err
 	}
@@ -51,10 +51,10 @@ func bindInsertConflictUpdate(b *binding, binder *expressionBinder, s *parser.In
 		if err != nil {
 			return err
 		}
-		action.predicate = predicate
+		action.Predicate = predicate
 	}
 	c.update = action
-	c.updateTargets = actionBinding.targets
+	c.updateTargets = actionBinding.Targets
 	c.actionReads = append([]int(nil), binder.target.uses...)
 	c.sources = binder.query.sources
 	return nil

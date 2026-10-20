@@ -13,29 +13,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type boundMerge struct {
-	source        plan.Node
-	on            expr.Expr
-	arms          []boundMergeArm
-	hasInsert     bool
-	hasDelete     bool
-	hasNothing    bool
-	hasBySource   bool
-	hasByTarget   bool
-	targetWidth   int
-	sourceWidth   int
-	insertTargets []int
-	updateTargets []int
-}
-
-type boundMergeArm struct {
-	match     parser.MergeMatch
-	action    parser.MergeAction
-	condition expr.Expr
-	input     binding
-	syntax    []parser.Expr
-}
-
 func mergeRelationKind(relation *catalog.Relation) error {
 	if relation.RelationKind == catalog.TableRelation || relation.RelationKind == catalog.PartitionedRelation {
 		return nil
@@ -77,20 +54,20 @@ func bindMerge(out *binding, binder *expressionBinder, auth AuthorizationView, r
 	if ref != requiredRef {
 		return ids.ErrCatalogReplaced
 	}
-	out.ref = ref
-	out.relation = auth.Catalog.MustRelation(ref.Address)
-	if !guardedCatalogRelation(out.relation) {
-		if err := mergeRelationKind(out.relation); err != nil {
+	out.Ref = ref
+	out.Relation = auth.Catalog.MustRelation(ref.Address)
+	if !guardedCatalogRelation(out.Relation) {
+		if err := mergeRelationKind(out.Relation); err != nil {
 			return err
 		}
 	}
-	out.storage = binder.host.AuthorizationStorage(auth, ref.Address)
-	if out.storage == nil && out.relation.RelationKind != catalog.PartitionedRelation && !guardedCatalogRelation(out.relation) {
+	out.Storage = binder.host.AuthorizationStorage(auth, ref.Address)
+	if out.Storage == nil && out.Relation.RelationKind != catalog.PartitionedRelation && !guardedCatalogRelation(out.Relation) {
 		return fmt.Errorf("stuntgres: relation storage is missing")
 	}
-	binder.target.relation, binder.target.ref = out.relation, ref
-	binder.target.name, binder.target.alias = out.relation.Name(), s.Alias.Text
-	binder.target.insertTarget = out.relation
+	binder.target.relation, binder.target.ref = out.Relation, ref
+	binder.target.name, binder.target.alias = out.Relation.Name(), s.Alias.Text
+	binder.target.insertTarget = out.Relation
 	target := binder.mutationTargetNamespace()
 	binder.query.hidden = append(binder.query.hidden, target.qualifiers[0])
 	sourceHiddenStart := len(binder.query.hidden)
@@ -127,17 +104,17 @@ func bindMerge(out *binding, binder *expressionBinder, auth AuthorizationView, r
 	default:
 		return expr.ErrorAt("0A000", "MERGE ON type is unsupported", s.On.SourcePosition())
 	}
-	merge := &boundMerge{source: root, on: on, arms: make([]boundMergeArm, len(s.Arms)), targetWidth: len(target.frame), sourceWidth: len(source.frame)}
+	merge := &boundMerge{Source: root, On: on, Arms: make([]boundMergeArm, len(s.Arms)), TargetWidth: len(target.frame), SourceWidth: len(source.frame)}
 	var outputParameters map[int]sqltype.Usage
 	if s.Returning != nil {
 		wasUpdateParameters := binder.params.updateParameters
 		binder.params.updateParameters = true
-		out.returning, err = binder.bindReturning(s.Returning, returningMerge)
+		out.Returning, err = binder.bindReturning(s.Returning, returningMerge)
 		binder.params.updateParameters = wasUpdateParameters
 		if err != nil {
 			return err
 		}
-		out.returning.readRequired = binder.target.returningReadRequired
+		out.Returning.ReadRequired = binder.target.returningReadRequired
 		for number, usage := range binder.params.parameters {
 			if usage.Type != nil {
 				if binder.params.updateInputParameters == nil {
@@ -160,9 +137,9 @@ func bindMerge(out *binding, binder *expressionBinder, auth AuthorizationView, r
 			binder.query.namespace = &combined
 		case parser.MergeNotMatchedBySource:
 			binder.query.namespace = &target
-			merge.hasBySource = true
+			merge.HasBySource = true
 		case parser.MergeNotMatched:
-			merge.hasByTarget = true
+			merge.HasByTarget = true
 		}
 		if raw.Match == parser.MergeNotMatchedBySource {
 			binder.query.namespace = &target
@@ -177,66 +154,66 @@ func bindMerge(out *binding, binder *expressionBinder, auth AuthorizationView, r
 			}
 			binder.query.hidden = sourceHidden
 		}
-		arm := &merge.arms[i]
-		arm.match, arm.action = raw.Match, raw.Action
+		arm := &merge.Arms[i]
+		arm.Match, arm.Action = raw.Match, raw.Action
 		if raw.Condition != nil {
 			binder.target.mergeWhen = true
 			binder.clause.aggregateClause = "WHEN"
-			arm.condition, err = binder.bindBoolean(raw.Condition, filterContext, "WHEN")
+			arm.Condition, err = binder.bindBoolean(raw.Condition, filterContext, "WHEN")
 			binder.target.mergeWhen = false
 			if err != nil {
 				return err
 			}
 		}
-		arm.input = binding{ref: ref, relation: out.relation, storage: out.storage}
+		arm.Input = binding{Ref: ref, Relation: out.Relation, Storage: out.Storage}
 		switch raw.Action {
 		case parser.MergeNothingAction:
-			merge.hasNothing = true
+			merge.HasNothing = true
 		case parser.MergeDeleteAction:
-			merge.hasDelete = true
+			merge.HasDelete = true
 		case parser.MergeUpdateAction:
 			binder.clause.aggregateClause = "UPDATE"
-			u := &boundUpdate{assignments: make([]expr.Expr, len(raw.Assignments))}
-			if err := bindUpdateAssignments(&arm.input, binder, raw.Assignments, u); err != nil {
+			u := &boundUpdate{Assignments: make([]expr.Expr, len(raw.Assignments))}
+			if err := bindUpdateAssignments(&arm.Input, binder, raw.Assignments, u); err != nil {
 				return err
 			}
-			merge.updateTargets = mergeTargetUnion(merge.updateTargets, arm.input.targets)
+			merge.UpdateTargets = mergeTargetUnion(merge.UpdateTargets, arm.Input.Targets)
 		case parser.MergeInsertAction:
-			merge.hasInsert = true
-			arm.syntax = raw.Values
+			merge.HasInsert = true
+			arm.Syntax = raw.Values
 			insert := parser.Insert{Name: s.Name, Targets: raw.Targets, Rows: [][]parser.Expr{raw.Values}, DefaultValues: raw.DefaultValues, Override: raw.Override, Pos: raw.ActionPos}
 			binder.target.mergeInput = true
-			err = bindInsertInput(&arm.input, binder, auth, &insert)
+			err = bindInsertInput(&arm.Input, binder, auth, &insert)
 			binder.target.mergeInput = false
 			if err != nil {
 				return err
 			}
-			if len(arm.input.insert.projection) == 0 {
-				arm.input.insert.projection = make([]int, len(out.relation.Columns))
-				for j := range arm.input.insert.projection {
-					arm.input.insert.projection[j] = -1
+			if len(arm.Input.Insert.Projection) == 0 {
+				arm.Input.Insert.Projection = make([]int, len(out.Relation.Columns))
+				for j := range arm.Input.Insert.Projection {
+					arm.Input.Insert.Projection[j] = -1
 				}
-				for j, target := range arm.input.targets {
-					arm.input.insert.projection[target] = j
+				for j, target := range arm.Input.Targets {
+					arm.Input.Insert.Projection[target] = j
 				}
 			}
-			merge.insertTargets = mergeTargetUnion(merge.insertTargets, arm.input.targets)
+			merge.InsertTargets = mergeTargetUnion(merge.InsertTargets, arm.Input.Targets)
 		}
-		for _, target := range arm.input.targets {
+		for _, target := range arm.Input.Targets {
 			found := false
-			for _, prior := range out.targets {
+			for _, prior := range out.Targets {
 				if target == prior {
 					found = true
 					break
 				}
 			}
 			if !found {
-				out.targets = append(out.targets, target)
+				out.Targets = append(out.Targets, target)
 			}
 		}
 	}
 	binder.query.hidden = hidden
-	out.merge = merge
+	out.Merge = merge
 	return nil
 }
 
@@ -262,84 +239,84 @@ func preflightMerge(c *exec.Context, merge *boundMerge, catalog catalog.Read) er
 	owner := *c
 	owner.Scope, owner.Frame = 1, 1
 	var err error
-	merge.source, err = preflightQuery(&owner, merge.source)
+	merge.Source, err = preflightQuery(&owner, merge.Source)
 	if err != nil {
 		return err
 	}
-	if err := validateQueryJoinExecution(&owner, merge.source, catalog, 0); err != nil {
+	if err := validateQueryJoinExecution(&owner, merge.Source, catalog, 0); err != nil {
 		return err
 	}
-	merge.on, _, err = preflightCoercions(&owner, merge.on)
+	merge.On, _, err = preflightCoercions(&owner, merge.On)
 	if err != nil {
 		return err
 	}
-	if err := validateExpressionJoinExecution(&owner, merge.on, catalog); err != nil {
+	if err := validateExpressionJoinExecution(&owner, merge.On, catalog); err != nil {
 		return err
 	}
-	for i := range merge.arms {
-		arm := &merge.arms[i]
-		arm.condition, _, err = preflightCoercions(&owner, arm.condition)
+	for i := range merge.Arms {
+		arm := &merge.Arms[i]
+		arm.Condition, _, err = preflightCoercions(&owner, arm.Condition)
 		if err != nil {
 			return err
 		}
-		if err := validateExpressionJoinExecution(&owner, arm.condition, catalog); err != nil {
+		if err := validateExpressionJoinExecution(&owner, arm.Condition, catalog); err != nil {
 			return err
 		}
-		if arm.action == parser.MergeUpdateAction {
-			arm.input.update, err = preflightUpdate(&owner, arm.input.update)
+		if arm.Action == parser.MergeUpdateAction {
+			arm.Input.Update, err = preflightUpdate(&owner, arm.Input.Update)
 			if err != nil {
 				return err
 			}
-			if err := validateMutationJoinExecution(&owner, &arm.input, nil, catalog); err != nil {
+			if err := validateMutationJoinExecution(&owner, &arm.Input, nil, catalog); err != nil {
 				return err
 			}
 			continue
 		}
-		if arm.action == parser.MergeDeleteAction || arm.action == parser.MergeNothingAction {
+		if arm.Action == parser.MergeDeleteAction || arm.Action == parser.MergeNothingAction {
 			continue
 		}
-		for j, expression := range arm.input.expressions[0] {
-			if len(arm.input.insert.identityDiscard) != 0 && arm.input.insert.identityDiscard[arm.input.targets[j]] {
+		for j, expression := range arm.Input.Expressions[0] {
+			if len(arm.Input.Insert.IdentityDiscard) != 0 && arm.Input.Insert.IdentityDiscard[arm.Input.Targets[j]] {
 				continue
 			}
 			folded, _, err := preflightCoercions(&owner, expression)
 			if err != nil {
-				return insertValueError(catalog, err, arm.input.relation.Columns[arm.input.targets[j]], arm.syntax[j], nil)
+				return insertValueError(catalog, err, arm.Input.Relation.Columns[arm.Input.Targets[j]], arm.Syntax[j], nil)
 			}
-			arm.input.expressions[0][j] = folded
+			arm.Input.Expressions[0][j] = folded
 		}
-		for j, expression := range arm.input.insert.defaults {
+		for j, expression := range arm.Input.Insert.Defaults {
 			if expression == nil {
 				continue
 			}
 			defaultOwner := owner
-			applyDefaultOrigin(bindingDefaultOrigin(&arm.input, j), &defaultOwner)
-			arm.input.insert.defaults[j], _, err = preflightCoercionsWithPolicy(&defaultOwner, expression, true)
+			applyDefaultOrigin(bindingDefaultOrigin(&arm.Input, j), &defaultOwner)
+			arm.Input.Insert.Defaults[j], _, err = preflightCoercionsWithPolicy(&defaultOwner, expression, true)
 			if err != nil {
 				return err
 			}
 		}
-		if err := validateMutationJoinExecution(&owner, &arm.input, arm.input.expressions, catalog); err != nil {
+		if err := validateMutationJoinExecution(&owner, &arm.Input, arm.Input.Expressions, catalog); err != nil {
 			return err
 		}
 	}
-	if merge.hasBySource && merge.hasByTarget {
+	if merge.HasBySource && merge.HasByTarget {
 		var facts fullJoinFacts
 		var err error
-		properties := merge.on.Properties()
-		_, literal := merge.on.(plan.LiteralExpr)
-		if merge.on.ResultUsage().Type.BaseType().ID() != sqltype.Bool && (literal || properties.Volatility == expr.Immutable && !properties.RowDependent && !properties.StageDependent && !properties.RuntimeDomainConversion) {
+		properties := merge.On.Properties()
+		_, literal := merge.On.(plan.LiteralExpr)
+		if merge.On.ResultUsage().Type.BaseType().ID() != sqltype.Bool && (literal || properties.Volatility == expr.Immutable && !properties.RowDependent && !properties.StageDependent && !properties.RuntimeDomainConversion) {
 			// MERGE admits integer/TEXT carriers independently of Boolean JOIN
 			// predicates. Preserve that truth contract in constant capability facts
 			// without replacing the expression or its analyzed dependencies.
 			var value sqltype.Value
-			value, err = merge.on.Eval(&owner)
+			value, err = merge.On.Eval(&owner)
 			if err == nil {
 				facts.truth, err = mergeOnTruth(value)
 				facts.constant = true
 			}
 		} else {
-			facts, err = fullJoinCondition(&owner, &plan.JoinNode{LeftWidth: merge.targetWidth, RightWidth: merge.sourceWidth}, merge.on, false)
+			facts, err = fullJoinCondition(&owner, &plan.JoinNode{LeftWidth: merge.TargetWidth, RightWidth: merge.SourceWidth}, merge.On, false)
 		}
 		if err != nil {
 			return err
@@ -381,26 +358,26 @@ func mergeOnTruth(value sqltype.Value) (plan.Truth, error) {
 }
 
 func mergeHasVirtualReads(merge *boundMerge) bool {
-	if exec.QueryHasVirtualReads(merge.source) || exec.BoundHasVirtualReads(merge.on) {
+	if exec.QueryHasVirtualReads(merge.Source) || exec.BoundHasVirtualReads(merge.On) {
 		return true
 	}
-	for _, arm := range merge.arms {
-		if exec.BoundHasVirtualReads(arm.condition) {
+	for _, arm := range merge.Arms {
+		if exec.BoundHasVirtualReads(arm.Condition) {
 			return true
 		}
-		if arm.input.update != nil {
-			for _, expr := range arm.input.update.assignments {
+		if arm.Input.Update != nil {
+			for _, expr := range arm.Input.Update.Assignments {
 				if exec.BoundHasVirtualReads(expr) {
 					return true
 				}
 			}
-			for _, target := range arm.input.update.arrayTargets {
+			for _, target := range arm.Input.Update.ArrayTargets {
 				if assignmentTargetHasVirtualReads(target) {
 					return true
 				}
 			}
 		}
-		for _, row := range arm.input.expressions {
+		for _, row := range arm.Input.Expressions {
 			for _, expr := range row {
 				if exec.BoundHasVirtualReads(expr) {
 					return true
@@ -414,21 +391,21 @@ func mergeHasVirtualReads(merge *boundMerge) bool {
 func (e *Engine) executeMerge(ctx context.Context, scope *StatementScope, b binding, target, inputs *exec.Source, parameters []sqltype.Value, schema string) (Result, error) {
 	defer target.Close()
 	defer inputs.Close()
-	unique, err := scope.bindUniqueWrite(b.ref)
+	unique, err := scope.bindUniqueWrite(b.Ref)
 	if err != nil {
 		return Result{}, err
 	}
 	if err := exec.SelectQuerySources(ctx, inputs); err != nil {
 		return Result{}, err
 	}
-	state := &exec.State{Source: inputs, Parameters: parameters, Input: scope.input, Output: scope.output, Locking: inputs.Locks != nil, VirtualReads: mergeHasVirtualReads(b.merge)}
-	if b.returning != nil {
-		for _, expr := range b.returning.expressions {
+	state := &exec.State{Source: inputs, Parameters: parameters, Input: scope.input, Output: scope.output, Locking: inputs.Locks != nil, VirtualReads: mergeHasVirtualReads(b.Merge)}
+	if b.Returning != nil {
+		for _, expr := range b.Returning.Expressions {
 			state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expr)
 		}
 	}
 	defer state.ReleaseMemberships()
-	cursor, err := exec.OpenNode(ctx, state, b.merge.source)
+	cursor, err := exec.OpenNode(ctx, state, b.Merge.Source)
 	if err != nil {
 		return Result{}, err
 	}
@@ -445,10 +422,10 @@ func (e *Engine) executeMerge(ctx context.Context, scope *StatementScope, b bind
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
-	if err := rows.stage(scope.Writes(), b.ref); err != nil {
+	if err := rows.stage(scope.Writes(), b.Ref); err != nil {
 		return Result{}, err
 	}
-	if rows.returning != nil && b.returning.regclassOutput && rows.returning.Count != 0 {
+	if rows.returning != nil && b.Returning.RegclassOutput && rows.returning.Count != 0 {
 		if err := e.captureRegclassOutput(scope.op, rows.returning); err != nil {
 			return Result{}, err
 		}

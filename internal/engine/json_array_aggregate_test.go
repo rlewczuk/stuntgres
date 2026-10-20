@@ -268,12 +268,12 @@ func TestJSONArrayAggregateStoredReturningPresentation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = b.captureViewLiterals(raw, bound, viewTargetLiteral, 0); err != nil {
+	if err = b.captureViewLiterals(raw, bound, ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
-	renderer := newViewRenderer(&viewDefinition{literals: b.capture.literals, castUsages: b.capture.castUsages})
+	renderer := newViewRenderer(&viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages})
 	renderer.frame = b.frameID()
-	text, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, viewLiteralPath{clause: viewTargetLiteral})
+	text, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, viewLiteralPath{Clause: ViewTargetLiteral})
 	if err != nil {
 		t.Fatal(err)
 	}

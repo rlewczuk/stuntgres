@@ -52,10 +52,10 @@ func TestDeparseConstraintsReviewRawTemporalCapture(t *testing.T) {
 			if err != nil || strings.Contains(rounded, ".1234") || !strings.Contains(rounded, ".123") {
 				t.Fatal(rounded, err)
 			}
-			if len(b.prepared.temporals) != 1 || b.prepared.temporals[0].typmod != -1 || !b.prepared.temporals[0].typed || b.prepared.temporals[0].typedTypmod != 3 {
-				t.Fatal(b.prepared.temporals)
+			if len(b.prepared.Temporals) != 1 || b.prepared.Temporals[0].Typmod != -1 || !b.prepared.Temporals[0].Typed || b.prepared.Temporals[0].TypedTypmod != 3 {
+				t.Fatal(b.prepared.Temporals)
 			}
-			description := StatementDescription{temporals: b.prepared.temporals}
+			description := StatementDescription{temporals: b.prepared.Temporals}
 			raw.Text = "must not be reparsed"
 			again := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, &description)
 			rebound, err := again.bind(raw, expressionPolicy{context: projectionContext})
@@ -276,7 +276,7 @@ func TestDeparseConstraintsReviewViewLiteralCaptureCutover(t *testing.T) {
 	run(t, e, "INSERT INTO t VALUES(1)")
 	run(t, e, "CREATE VIEW v AS SELECT TIME(3) '04:05:06.1235' AS clock,+2147483648 AS number FROM t")
 	view := viewOf(e.CatalogRead().MustRelation(roleTableRef(t, e, "v").Address))
-	literal, ok := view.literals[viewLiteralPath{query: view.query.Root.(*plan.ProjectNode).Frame, clause: viewTargetLiteral, target: 0, node: 0}]
+	literal, ok := view.literals[viewLiteralPath{Query: view.query.Root.(*plan.ProjectNode).Frame, Clause: ViewTargetLiteral, Target: 0, Node: 0}]
 	if !ok || literal.Usage.Type.ID() != sqltype.Time || literal.Usage.Typmod != 3 {
 		t.Fatal(view.literals)
 	}
@@ -284,7 +284,7 @@ func TestDeparseConstraintsReviewViewLiteralCaptureCutover(t *testing.T) {
 	if err != nil || raw != 14706123500 {
 		t.Fatal(raw, err)
 	}
-	literal, ok = view.literals[viewLiteralPath{query: view.query.Root.(*plan.ProjectNode).Frame, clause: viewTargetLiteral, target: 1, node: 1}]
+	literal, ok = view.literals[viewLiteralPath{Query: view.query.Root.(*plan.ProjectNode).Frame, Clause: ViewTargetLiteral, Target: 1, Node: 1}]
 	if !ok || literal.Usage.Type.ID() != sqltype.Int8 {
 		t.Fatal(view.literals)
 	}

@@ -19,19 +19,19 @@ func TestMergeNothingSelection(t *testing.T) {
 			defer target.Close()
 			defer source.Close()
 			c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-			arm, err := selectMergeArm(b.merge, &c, parser.MergeMatched)
+			arm, err := selectMergeArm(b.Merge, &c, parser.MergeMatched)
 			want := parser.MergeDeleteAction
 			if pred == "TRUE" {
 				want = parser.MergeNothingAction
 			}
-			if err != nil || arm == nil || arm.action != want {
+			if err != nil || arm == nil || arm.Action != want {
 				t.Fatal("first true", arm, err)
 			}
-			arm, err = selectMergeArm(b.merge, &c, parser.MergeNotMatched)
-			if err != nil || arm == nil || arm.action != parser.MergeNothingAction {
+			arm, err = selectMergeArm(b.Merge, &c, parser.MergeNotMatched)
+			if err != nil || arm == nil || arm.Action != parser.MergeNothingAction {
 				t.Fatal("class selection", arm, err)
 			}
-			arm, err = selectMergeArm(b.merge, &c, parser.MergeNotMatchedBySource)
+			arm, err = selectMergeArm(b.Merge, &c, parser.MergeNotMatchedBySource)
 			if err != nil || arm != nil {
 				t.Fatal("class widened", arm, err)
 			}
@@ -53,11 +53,11 @@ func TestMergeNothingPreflight(t *testing.T) {
 			defer op.Done()
 			defer target.Close()
 			defer source.Close()
-			if !b.merge.hasNothing || len(b.merge.arms[0].input.expressions) != 0 || len(b.merge.arms[0].input.insert.defaults) != 0 {
-				t.Fatal("no-op mutation schedule", b.merge)
+			if !b.Merge.HasNothing || len(b.Merge.Arms[0].Input.Expressions) != 0 || len(b.Merge.Arms[0].Input.Insert.Defaults) != 0 {
+				t.Fatal("no-op mutation schedule", b.Merge)
 			}
 			c := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Catalog: scope.inquiry.commentCatalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-			if err := preflightMerge(&c, b.merge, scope.inquiry.commentCatalog); err != nil {
+			if err := preflightMerge(&c, b.Merge, scope.inquiry.commentCatalog); err != nil {
 				t.Fatal("no-op preflight indexed mutation input", err)
 			}
 			if condition != "TRUE" {
@@ -66,7 +66,7 @@ func TestMergeNothingPreflight(t *testing.T) {
 				}
 				query := &exec.State{Source: source, Input: scope.input, Output: scope.output}
 				c.Query = query
-				_, err := selectMergeArm(b.merge, &c, parser.MergeMatched)
+				_, err := selectMergeArm(b.Merge, &c, parser.MergeMatched)
 				query.ReleaseMemberships()
 				state(t, err, "22012")
 			}
@@ -93,7 +93,7 @@ func TestMergeNothingPublication(t *testing.T) {
 			}
 			query := &exec.State{Source: source, Input: scope.input, Output: scope.output}
 			defer query.ReleaseMemberships()
-			cursor, err := exec.OpenNode(op.Context(), query, b.merge.source)
+			cursor, err := exec.OpenNode(op.Context(), query, b.Merge.Source)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -105,14 +105,14 @@ func TestMergeNothingPublication(t *testing.T) {
 				t.Fatal("omission assembled mutation/output", rows)
 			}
 			defer rows.returning.Close()
-			if err = rows.stage(scope.Writes(), b.ref); err != nil {
+			if err = rows.stage(scope.Writes(), b.Ref); err != nil {
 				t.Fatal(err)
 			}
 			if len(scope.stage.rows) != 0 {
 				t.Fatal("no-op mutation stage", scope.stage.rows)
 			}
-			if len(b.returning.schema) != 2 || b.returning.schema[0].Name != "merge_action" || b.returning.schema[1].Name != "v" {
-				t.Fatal("empty output schema", b.returning.schema)
+			if len(b.Returning.Schema) != 2 || b.Returning.Schema[0].Name != "merge_action" || b.Returning.Schema[1].Name != "v" {
+				t.Fatal("empty output schema", b.Returning.Schema)
 			}
 			var finish error
 			if veto {

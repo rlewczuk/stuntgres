@@ -14,8 +14,8 @@ func remapFrozenPresentation(view catalog.Read, original *viewDefinition, mappin
 	if len(original.columns) != 0 {
 		definition.columns = make(map[viewLiteralPath]viewColumn, len(original.columns))
 		for path, column := range original.columns {
-			if column.ruleSide != 0 {
-				column.ruleRef = ref(column.ruleRef)
+			if column.RuleSide != 0 {
+				column.RuleRef = ref(column.RuleRef)
 			}
 			definition.columns[path] = column
 		}
@@ -76,10 +76,10 @@ func remapFrozenPresentation(view catalog.Read, original *viewDefinition, mappin
 	if len(original.composites) != 0 {
 		definition.composites = make(map[viewLiteralPath]compositeOccurrence, len(original.composites))
 		for path, captured := range original.composites {
-			captured.base.Type = typ(captured.base.Type)
+			captured.Base.Type = typ(captured.Base.Type)
 			if collation != nil {
 				var err error
-				captured.base.Collation, err = collation(captured.base.Collation)
+				captured.Base.Collation, err = collation(captured.Base.Collation)
 				if err != nil {
 					return nil, err
 				}

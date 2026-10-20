@@ -137,7 +137,7 @@ func (e *Engine) bindSQLRoutineLocked(op *Operation, auth AuthorizationView, d *
 	if err != nil {
 		return b, sqltype.CoercionPlan{}, exec.SQLRoutineContext(err, d.Name(), false)
 	}
-	plan, err := validateSQLRoutineResult(b.query.Root.Schema(), d.SQL.Result)
+	plan, err := validateSQLRoutineResult(b.Query.Root.Schema(), d.SQL.Result)
 	return b, plan, exec.SQLRoutineContext(err, d.Name(), false)
 }
 

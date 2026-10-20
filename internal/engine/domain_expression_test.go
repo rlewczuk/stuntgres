@@ -129,28 +129,28 @@ func TestDomainStoredCastUsesCapturedRenamedNamespace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = b.captureViewLiterals(ast.Targets[0], node, viewTargetLiteral, 0); err != nil {
+	if err = b.captureViewLiterals(ast.Targets[0], node, ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
-	renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.literals, castUsages: b.capture.castUsages}, frame: b.frameID()}
+	renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.frameID()}
 	old := e.CatalogRead()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER SCHEMA public RENAME TO moved"))
-	text, err := renderer.expressionSQL(context.Background(), e.CatalogRead(), ast.Targets[0], viewLiteralPath{clause: viewTargetLiteral})
+	text, err := renderer.expressionSQL(context.Background(), e.CatalogRead(), ast.Targets[0], viewLiteralPath{Clause: ViewTargetLiteral})
 	if err != nil || text != `CAST(7 AS "moved"."a")` {
 		t.Fatal(text, err)
 	}
-	text, err = renderer.expressionSQL(context.Background(), old, ast.Targets[0], viewLiteralPath{clause: viewTargetLiteral})
+	text, err = renderer.expressionSQL(context.Background(), old, ast.Targets[0], viewLiteralPath{Clause: ViewTargetLiteral})
 	if err != nil || text != `CAST(7 AS "public"."a")` {
 		t.Fatal("retained rendering authority", text, err)
 	}
 	// Use a coherent path that does not expose the domain's namespace, so
 	// canonical presentation must spell the current qualified identity.
 	renderer.presentation = viewPresentation{deparse: true, pretty: true, path: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}
-	text, err = renderer.expressionSQL(context.Background(), e.CatalogRead(), ast.Targets[0], viewLiteralPath{clause: viewTargetLiteral})
+	text, err = renderer.expressionSQL(context.Background(), e.CatalogRead(), ast.Targets[0], viewLiteralPath{Clause: ViewTargetLiteral})
 	if err != nil || text != "7::moved.a" {
 		t.Fatal("renamed domain canonical cast", text, err)
 	}
-	text, err = renderer.expressionSQL(context.Background(), old, ast.Targets[0], viewLiteralPath{clause: viewTargetLiteral})
+	text, err = renderer.expressionSQL(context.Background(), old, ast.Targets[0], viewLiteralPath{Clause: ViewTargetLiteral})
 	if err != nil || text != "7::public.a" {
 		t.Fatal("retained domain canonical authority", text, err)
 	}

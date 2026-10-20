@@ -3,7 +3,6 @@ package engine
 import (
 	"slices"
 	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -14,16 +13,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type regtypeConstant struct {
-	offset     int
-	operator   sqltype.ID
-	typeID     sqltype.ID
-	id         uint32
-	value      sqltype.Value
-	qualified  []ids.ObjectAddress
-	operands   []catalog.ExpressionDependency
-	references []regObjectReference
-}
 type regtypeAnalysis struct {
 	constants         []regtypeConstant
 	path              sequence.Environment
@@ -34,24 +23,17 @@ type regtypeAnalysis struct {
 	invalidated       bool // A failed reanalysis must not revive these captures.
 }
 
-type regObjectReference struct {
-	address       ids.ObjectAddress
-	name          string
-	namespace     ids.ObjectAddress
-	namespaceName string
-}
-
 func (e *Engine) regtypeAnalysisLocked(auth AuthorizationView, constants []regtypeConstant) (*regtypeAnalysis, error) {
 	if len(constants) == 0 {
 		return nil, nil
 	}
 	cell := &regtypeAnalysis{constants: slices.Clone(constants), role: auth.State.CurrentUser, database: auth.session.databaseName}
 	for _, constant := range constants {
-		if constant.operator != 0 || constant.value.Type() == nil || constant.value.Type().ContainsRegtype() || constant.value.Type().ContainsOperatorAlias() || constant.value.Type().ContainsRegproc() {
+		if constant.Operator != 0 || constant.Value.Type() == nil || constant.Value.Type().ContainsRegtype() || constant.Value.Type().ContainsOperatorAlias() || constant.Value.Type().ContainsRegproc() {
 			cell.types = true
 		}
-		for _, reference := range constant.references {
-			cell.collations = cell.collations || reference.address.ClassID == ids.CollationClassID
+		for _, reference := range constant.References {
+			cell.collations = cell.collations || reference.Address.ClassID == ids.CollationClassID
 		}
 	}
 	var err error
@@ -92,23 +74,23 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 	// Preserve qualified namespace authority and operator operand stamps.
 	// Collation/namespace aliases additionally reanalyze changed captured names.
 	for _, constant := range cell.constants {
-		for _, operand := range constant.operands {
+		for _, operand := range constant.Operands {
 			d := auth.Catalog.Get(operand.Ref.Address)
 			if d == nil || operand.Ref.Domain() != e.catalog.Domain || operand.Ref.Epoch != auth.Catalog.Epoch() || d.Revision() != operand.Revision {
 				return false, nil
 			}
 		}
-		for _, reference := range constant.references {
-			d := auth.Catalog.Get(reference.address)
-			if d == nil || d.Name() != reference.name || d.Namespace() != reference.namespace {
+		for _, reference := range constant.References {
+			d := auth.Catalog.Get(reference.Address)
+			if d == nil || d.Name() != reference.Name || d.Namespace() != reference.Namespace {
 				return false, nil
 			}
-			if reference.address.ClassID == ids.CollationClassID {
-				ns := auth.Catalog.Get(reference.namespace)
-				if ns == nil || ns.Name() != reference.namespaceName {
+			if reference.Address.ClassID == ids.CollationClassID {
+				ns := auth.Catalog.Get(reference.Namespace)
+				if ns == nil || ns.Name() != reference.NamespaceName {
 					return false, nil
 				}
-				if err := auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), reference.namespace)); err != nil {
+				if err := auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), reference.Namespace)); err != nil {
 					if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
 						return false, nil
 					}
@@ -116,7 +98,7 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 				}
 			}
 		}
-		for _, namespace := range constant.qualified {
+		for _, namespace := range constant.Qualified {
 			if auth.Catalog.Get(namespace) == nil {
 				return false, nil
 			}
@@ -132,11 +114,11 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 }
 
 func (b *expressionBinder) regtypeConstant(text string, pos parser.Position) (sqltype.Value, error) {
-	constant := regtypeConstant{offset: pos.Offset}
+	constant := regtypeConstant{Offset: pos.Offset}
 	found := false
 	if b.expected != nil && b.expected.regtypes != nil {
 		for _, c := range b.expected.regtypes.constants {
-			if c.offset == pos.Offset && c.operator == 0 && c.typeID == 0 {
+			if c.Offset == pos.Offset && c.Operator == 0 && c.TypeID == 0 {
 				constant, found = c, true
 				break
 			}
@@ -152,25 +134,25 @@ func (b *expressionBinder) regtypeConstant(text string, pos parser.Position) (sq
 			return sqltype.Value{}, err
 		}
 		input.position = pos
-		input.qualified = &constant.qualified
-		constant.id, err = input.ResolveRegtype(b.ctx, text)
+		input.qualified = &constant.Qualified
+		constant.ID, err = input.ResolveRegtype(b.ctx, text)
 		if err != nil {
 			return sqltype.Value{}, regtypeInputError(err, pos)
 		}
 	}
-	b.prepared.regtypeConstants = append(b.prepared.regtypeConstants, constant)
-	return sqltype.RegtypeValue(b.typ(sqltype.Regtype), constant.id)
+	b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, constant)
+	return sqltype.RegtypeValue(b.typ(sqltype.Regtype), constant.ID)
 }
 
 func (b *expressionBinder) regtypeArrayConstant(text string, u sqltype.Usage, pos parser.Position) (sqltype.Value, error) {
 	if b.expected != nil && b.expected.regtypes != nil {
 		for _, constant := range b.expected.regtypes.constants {
-			if constant.offset == pos.Offset && constant.operator == 0 && constant.typeID == 0 && constant.value.Type() != nil {
-				value, err := constant.value.Retag(u.Type)
+			if constant.Offset == pos.Offset && constant.Operator == 0 && constant.TypeID == 0 && constant.Value.Type() != nil {
+				value, err := constant.Value.Retag(u.Type)
 				if err != nil {
 					return sqltype.Value{}, err
 				}
-				b.prepared.regtypeConstants = append(b.prepared.regtypeConstants, constant)
+				b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, constant)
 				return value, nil
 			}
 		}
@@ -179,18 +161,18 @@ func (b *expressionBinder) regtypeArrayConstant(text string, u sqltype.Usage, po
 		return sqltype.Value{}, err
 	}
 	input := b.input
-	constant := regtypeConstant{offset: pos.Offset}
+	constant := regtypeConstant{Offset: pos.Offset}
 	if resolver, ok := input.Regtype.(capturedRegtypeInput); ok {
 		resolver.position = pos
-		resolver.qualified = &constant.qualified
+		resolver.qualified = &constant.Qualified
 		input.Regtype = resolver
 	}
 	value, err := b.decodeLiteralInput(text, u.Type, -1, input.LiteralInput(pos.Character))
 	if err != nil {
 		return sqltype.Value{}, regtypeInputError(err, pos)
 	}
-	constant.value = value
-	b.prepared.regtypeConstants = append(b.prepared.regtypeConstants, constant)
+	constant.Value = value
+	b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, constant)
 	return value, nil
 }
 
@@ -213,7 +195,7 @@ func (b *expressionBinder) foldRegtypeConstant(child expr.Expr, coercionPlan sql
 	}
 	if !value.IsNull() {
 		if value.Type().ContainsRegproc() {
-			b.prepared.regtypeConstants = append(b.prepared.regtypeConstants, regtypeConstant{offset: info.Pos.Offset, typeID: value.Type().ID(), value: value})
+			b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, regtypeConstant{Offset: info.Pos.Offset, TypeID: value.Type().ID(), Value: value})
 			return plan.LiteralExpr{Info: info, Value: value}, true, nil
 		}
 		if value.Type().ContainsRegObject() {
@@ -233,37 +215,37 @@ func (b *expressionBinder) foldRegtypeConstant(child expr.Expr, coercionPlan sql
 			if err != nil {
 				return nil, true, err
 			}
-			constant := regtypeConstant{offset: info.Pos.Offset, id: id}
+			constant := regtypeConstant{Offset: info.Pos.Offset, ID: id}
 			if sqltype.IsOperatorAlias(value.Type().BaseType().ID()) || sqltype.IsRegTS(value.Type().BaseType().ID()) {
-				constant.operator = value.Type().BaseType().ID()
+				constant.Operator = value.Type().BaseType().ID()
 			}
-			b.prepared.regtypeConstants = append(b.prepared.regtypeConstants, constant)
+			b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, constant)
 		}
 	}
 	return plan.LiteralExpr{Info: info, Value: value}, true, nil
 }
 
 func (b *expressionBinder) recordRegObjectConstant(value sqltype.Value, pos parser.Position) error {
-	constant := regtypeConstant{offset: pos.Offset, value: value}
+	constant := regtypeConstant{Offset: pos.Offset, Value: value}
 	if err := b.captureRegObjectReferences(&constant); err != nil {
 		return err
 	}
-	b.prepared.regtypeConstants = append(b.prepared.regtypeConstants, constant)
+	b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, constant)
 	return nil
 }
 
 func (b *expressionBinder) captureRegObjectReferences(constant *regtypeConstant) error {
 	view := b.bindingCatalog()
-	return walkCatalogAliasDependencies(view, constant.value, func(address ids.ObjectAddress) error {
+	return walkCatalogAliasDependencies(view, constant.Value, func(address ids.ObjectAddress) error {
 		if address.ClassID == ids.TypeClassID {
 			return nil
 		}
 		d := view.Get(address)
-		reference := regObjectReference{address: address, name: d.Name(), namespace: d.Namespace()}
+		reference := regObjectReference{Address: address, Name: d.Name(), Namespace: d.Namespace()}
 		if address.ClassID == ids.CollationClassID {
-			reference.namespaceName = view.Get(d.Namespace()).Name()
+			reference.NamespaceName = view.Get(d.Namespace()).Name()
 		}
-		constant.references = append(constant.references, reference)
+		constant.References = append(constant.References, reference)
 		return nil
 	})
 }
@@ -271,15 +253,15 @@ func (b *expressionBinder) captureRegObjectReferences(constant *regtypeConstant)
 func (b *expressionBinder) regObjectConstant(text string, u sqltype.Usage, pos parser.Position) (sqltype.Value, error) {
 	if b.expected != nil && b.expected.regtypes != nil {
 		for _, constant := range b.expected.regtypes.constants {
-			if constant.offset == pos.Offset && constant.operator == 0 && constant.value.Type() != nil && constant.value.Type().ID() == u.Type.ID() {
-				value, err := constant.value.Retag(u.Type)
+			if constant.Offset == pos.Offset && constant.Operator == 0 && constant.Value.Type() != nil && constant.Value.Type().ID() == u.Type.ID() {
+				value, err := constant.Value.Retag(u.Type)
 				if err != nil {
 					return sqltype.Value{}, err
 				}
-				for _, operand := range constant.operands {
+				for _, operand := range constant.Operands {
 					b.dependency(operand.Ref, operand.Revision)
 				}
-				b.prepared.regtypeConstants = append(b.prepared.regtypeConstants, constant)
+				b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, constant)
 				return value, nil
 			}
 		}
@@ -288,23 +270,23 @@ func (b *expressionBinder) regObjectConstant(text string, u sqltype.Usage, pos p
 		return sqltype.Value{}, err
 	}
 	input := b.input
-	constant := regtypeConstant{offset: pos.Offset}
+	constant := regtypeConstant{Offset: pos.Offset}
 	if u.Type.ContainsRegproc() {
 		if resolver, ok := input.Regproc.(capturedRoutineInput); ok {
 			resolver.types.position = pos
-			resolver.types.qualified = &constant.qualified
+			resolver.types.qualified = &constant.Qualified
 			input.Regproc = resolver
 		}
 		if resolver, ok := input.Regtype.(capturedRegtypeInput); ok {
 			resolver.position = pos
-			resolver.qualified = &constant.qualified
+			resolver.qualified = &constant.Qualified
 			input.Regtype = resolver
 		}
 	}
 	if u.Type.ContainsOperatorAlias() {
 		if resolver, ok := input.Operator.(capturedOperatorInput); ok {
 			resolver.types.position = pos
-			resolver.qualified, resolver.operands = &constant.qualified, &constant.operands
+			resolver.qualified, resolver.operands = &constant.Qualified, &constant.Operands
 			input.Operator = resolver
 		}
 	}
@@ -312,13 +294,13 @@ func (b *expressionBinder) regObjectConstant(text string, u sqltype.Usage, pos p
 	if err != nil {
 		return sqltype.Value{}, regtypeInputError(err, pos)
 	}
-	constant.value = value
+	constant.Value = value
 	if err := b.captureRegObjectReferences(&constant); err != nil {
 		return sqltype.Value{}, err
 	}
-	for _, operand := range constant.operands {
+	for _, operand := range constant.Operands {
 		b.dependency(operand.Ref, operand.Revision)
 	}
-	b.prepared.regtypeConstants = append(b.prepared.regtypeConstants, constant)
+	b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, constant)
 	return value, nil
 }

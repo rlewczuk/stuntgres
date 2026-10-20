@@ -18,7 +18,7 @@ func (b *expressionBinder) stringNode(name string, result sqltype.Usage, pos par
 	}
 	for i, arg := range args {
 		if functions.StringCatalogOutput(name, textual[i], arg.ResultUsage()) {
-			b.prepared.regclassConcat = true
+			b.prepared.RegclassConcat = true
 		}
 	}
 	if err := b.capturePolymorphicBody(node); err != nil {

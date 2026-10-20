@@ -20,8 +20,8 @@ func TestDateRangeTemporalCapture(t *testing.T) {
 	v, err := b.inputConstant("[today,tomorrow)", d.Usage(), position)
 	if err != nil { t.Fatal(err) }
 	out, err := d.Output(ctx, v)
-	if err != nil || out != "[2000-02-29,2000-03-01)" || len(b.prepared.temporals) != 1 || !sqltype.SameDatum(v, b.prepared.temporals[0].value) { t.Fatal("initial compound capture", out, b.prepared.temporals, err) }
-	description := &StatementDescription{temporals: append([]temporalConstant(nil), b.prepared.temporals...)}
+	if err != nil || out != "[2000-02-29,2000-03-01)" || len(b.prepared.Temporals) != 1 || !sqltype.SameDatum(v, b.prepared.Temporals[0].Value) { t.Fatal("initial compound capture", out, b.prepared.Temporals, err) }
+	description := &StatementDescription{temporals: append([]temporalConstant(nil), b.prepared.Temporals...)}
 	retained := newTestExpressionBinder(t, ctx, e, later, description)
 	frozen, err := retained.inputConstant("invalid input must not be reparsed", d.Usage(), position)
 	if err != nil || !sqltype.SameDatum(v, frozen) { t.Fatal("literal capture moved", err) }
@@ -29,15 +29,15 @@ func TestDateRangeTemporalCapture(t *testing.T) {
 	if err != nil { t.Fatal(err) }
 	out, err = d.Output(ctx, fresh)
 	if err != nil || out != "[2001-01-01,2001-01-02)" || sqltype.SameDatum(v, fresh) { t.Fatal("fresh bound environment", out, err) }
-	if !refreshableTemporalCapture(b.prepared.temporals[0]) { t.Fatal("builtin daterange not refreshable") }
+	if !refreshableTemporalCapture(b.prepared.Temporals[0]) { t.Fatal("builtin daterange not refreshable") }
 	description.refreshTemporals = true
 	refreshed := newTestExpressionBinder(t, ctx, e, later, description)
 	candidate, err := refreshed.inputConstant("[today,tomorrow)", d.Usage(), position)
-	if err != nil || !sqltype.SameDatum(fresh, candidate) || len(refreshed.prepared.temporals) != 1 { t.Fatal("valid invalidation did not refresh", err) }
-	if !sqltype.SameDatum(description.temporals[0].value, v) { t.Fatal("candidate mutated retained capture") }
+	if err != nil || !sqltype.SameDatum(fresh, candidate) || len(refreshed.prepared.Temporals) != 1 { t.Fatal("valid invalidation did not refresh", err) }
+	if !sqltype.SameDatum(description.temporals[0].Value, v) { t.Fatal("candidate mutated retained capture") }
 	domain, err := sqltype.Domain(20000, "span", "span", d.Usage())
 	if err != nil { t.Fatal(err) }
 	logical, err := domain.Wrap(v)
 	if err != nil { t.Fatal(err) }
-	if refreshableTemporalCapture(temporalConstant{typeID: domain.ID(), typmod: -1, value: logical}) { t.Fatal("logical domain capture lost ownership fence") }
+	if refreshableTemporalCapture(temporalConstant{TypeID: domain.ID(), Typmod: -1, Value: logical}) { t.Fatal("logical domain capture lost ownership fence") }
 }

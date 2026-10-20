@@ -87,7 +87,7 @@ func partitionAttachSchema(ctxScope *StatementScope, view catalog.Read, parent, 
 			return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: fmt.Sprintf(`table "%s" contains column "%s" not found in parent "%s"`, child.Name(), column.Name, parent.Name()), Detail: "The new partition may contain only the columns present in parent."}
 		}
 	}
-	in := createLikeInput{source: parent, targetSlots: make([]int, len(parent.Columns))}
+	in := createLikeInput{Source: parent, TargetSlots: make([]int, len(parent.Columns))}
 	for i, column := range parent.Columns {
 		slot, ok := child.Index[column.Name]
 		if !ok {
@@ -113,11 +113,11 @@ func partitionAttachSchema(ctxScope *StatementScope, view catalog.Read, parent, 
 		if requiredGeneration {
 			return nil, sqlError("0A000", "partitioned table constraint combination is unsupported")
 		}
-		in.targetSlots[i] = slot
+		in.TargetSlots[i] = slot
 	}
 	for _, required := range parent.Constraints.NotNull {
 		parentSlot := parent.IndexForAttribute(required.Attribute)
-		attribute := child.Attributes[in.targetSlots[parentSlot]]
+		attribute := child.Attributes[in.TargetSlots[parentSlot]]
 		at := slices.IndexFunc(child.Constraints.NotNull, func(c catalog.NotNullConstraint) bool { return c.Attribute == attribute })
 		if at >= 0 && !required.NotValid && child.Constraints.NotNull[at].NotValid {
 			return nil, sqlError("42P17", fmt.Sprintf(`constraint "%s" conflicts with NOT VALID constraint on child table "%s"`, child.Constraints.NotNull[at].Name, child.Name()))

@@ -83,19 +83,19 @@ func partitionUniqueCoverage(table *catalog.Relation, index *catalog.IndexDefini
 // Mapping uses the same cooked-expression path as LIKE; inherited providers are
 // never resolved again by name. Sort presentation is not attachment identity.
 func mapPartitionIndex(ctx context.Context, view catalog.Read, source, child *catalog.Relation, old *catalog.IndexDefinition) (*catalog.IndexDefinition, error) {
-	in := createLikeInput{source: source, targetSlots: make([]int, len(source.Columns))}
+	in := createLikeInput{Source: source, TargetSlots: make([]int, len(source.Columns))}
 	for i, column := range source.Columns {
 		slot, ok := child.Index[column.Name]
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: missing partition index column")
 		}
-		in.targetSlots[i] = slot
+		in.TargetSlots[i] = slot
 	}
 	d := *old
 	d.Parent, d.PartitionParent, d.Constraint = child.Address(), ids.ObjectAddress{}, nil
 	d.Keys, d.Include = slices.Clone(old.Keys), slices.Clone(old.Include)
 	for i := range d.Include {
-		a, err := in.attribute(child, d.Include[i])
+		a, err := in.Attribute(child, d.Include[i])
 		if err != nil {
 			return nil, err
 		}
@@ -104,7 +104,7 @@ func mapPartitionIndex(ctx context.Context, view catalog.Read, source, child *ca
 	for i := range d.Keys {
 		key := &d.Keys[i]
 		if key.Derived == nil {
-			a, err := in.attribute(child, key.Attribute)
+			a, err := in.Attribute(child, key.Attribute)
 			if err != nil {
 				return nil, err
 			}

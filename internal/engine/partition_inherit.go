@@ -91,7 +91,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	for i := range d.Constraints.NotNull {
 		constraint := &d.Constraints.NotNull[i]
 		slot := d.IndexForAttribute(constraint.Attribute)
-		constraint.PartitionLocal = declarations[slot].columnNotNull
+		constraint.PartitionLocal = declarations[slot].ColumnNotNull
 		for _, element := range syntax.Elements {
 			if element.NotNull != nil && element.NotNull.Column.Text == d.Columns[slot].Name {
 				constraint.PartitionLocal = true
@@ -112,7 +112,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	if len(parent.ColumnMeta.Defaults) != 0 || len(localDefaults) != 0 {
 		d.ColumnMeta.Defaults = make(map[int32]catalog.ColumnDefault, len(parent.ColumnMeta.Defaults)+len(localDefaults))
 		for i, attribute := range parent.Attributes {
-			if declarations[i].defaultExpr != nil || declarations[i].identity != nil || declarations[i].generation != nil {
+			if declarations[i].DefaultExpr != nil || declarations[i].Identity != nil || declarations[i].Generation != nil {
 				continue
 			}
 			if definition, ok := parent.ColumnMeta.Defaults[attribute]; ok {

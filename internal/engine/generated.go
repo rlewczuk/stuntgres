@@ -27,12 +27,12 @@ func generationWriteError(column string, update bool) error {
 
 func (e *Engine) bindCreateGenerations(op *Operation, auth AuthorizationView, d *catalog.Relation, declarations []createColumnDeclaration, input sqltype.InputEnvironment) error {
 	for slot, declaration := range declarations {
-		if declaration.generation != nil {
+		if declaration.Generation != nil {
 			if d.ColumnMeta.Generations == nil {
 				d.ColumnMeta.Generations = make(map[int32]catalog.ColumnGeneration)
 			}
 			kind := catalog.GenerationVirtual
-			if declaration.generation.Kind == "stored" {
+			if declaration.Generation.Kind == "stored" {
 				kind = catalog.GenerationStored
 			}
 			d.ColumnMeta.Generations[d.Attributes[slot]] = catalog.ColumnGeneration{Kind: kind}
@@ -43,10 +43,10 @@ func (e *Engine) bindCreateGenerations(op *Operation, auth AuthorizationView, d 
 	}
 	ns := e.generationNamespace(auth, d)
 	for slot, declaration := range declarations {
-		if declaration.generation == nil {
+		if declaration.Generation == nil {
 			continue
 		}
-		definition, err := e.bindGeneration(op, auth, d, slot, declaration.generation.Expression, input, &ns)
+		definition, err := e.bindGeneration(op, auth, d, slot, declaration.Generation.Expression, input, &ns)
 		if err != nil {
 			return err
 		}

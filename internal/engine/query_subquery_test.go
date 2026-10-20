@@ -301,31 +301,31 @@ func TestQuerySubqueryManifest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(bound.querySources) != 3 {
-		t.Fatal("missing admitted occurrence", len(bound.querySources))
+	if len(bound.QuerySources) != 3 {
+		t.Fatal("missing admitted occurrence", len(bound.QuerySources))
 	}
-	if err = scope.validateQuerySources(bound.querySources); err != nil {
+	if err = scope.validateQuerySources(bound.QuerySources); err != nil {
 		t.Fatal(err)
 	}
 	for i, name := range []string{"a", "b", "c"} {
-		if bound.querySources[i].Relation.Name() != name {
-			t.Fatal(i, bound.querySources[i].Relation.Name())
+		if bound.QuerySources[i].Relation.Name() != name {
+			t.Fatal(i, bound.QuerySources[i].Relation.Name())
 		}
 	}
-	if bound.querySources[0].Mark.Mode != 0 || bound.querySources[1].Mark.Mode != 0 || bound.querySources[2].Mark.Mode == 0 {
+	if bound.QuerySources[0].Mark.Mode != 0 || bound.QuerySources[1].Mark.Mode != 0 || bound.QuerySources[2].Mark.Mode == 0 {
 		t.Fatal("row marks leaked across query boundaries")
 	}
-	changed := append([]exec.Leaf(nil), bound.querySources...)
+	changed := append([]exec.Leaf(nil), bound.QuerySources...)
 	changed[0], changed[1] = changed[1], changed[0]
 	if err = scope.validateQuerySources(changed); err != ids.ErrCatalogReplaced {
 		t.Fatal("reordered admission accepted", err)
 	}
-	changed = append([]exec.Leaf(nil), bound.querySources...)
+	changed = append([]exec.Leaf(nil), bound.QuerySources...)
 	changed[2].Mark = plan.RowMark{}
 	if err = scope.validateQuerySources(changed); err != ids.ErrCatalogReplaced {
 		t.Fatal("weakened row mark admitted", err)
 	}
-	if err = scope.validateQuerySources(bound.querySources[:2]); err != ids.ErrCatalogReplaced {
+	if err = scope.validateQuerySources(bound.QuerySources[:2]); err != ids.ErrCatalogReplaced {
 		t.Fatal("omitted occurrence admitted", err)
 	}
 }

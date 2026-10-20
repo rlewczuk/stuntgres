@@ -110,11 +110,11 @@ func TestJSONExtractStoredVariadicProvenance(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if err := b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil {
+				if err := b.captureViewLiterals(raw, node, ViewTargetLiteral, 0); err != nil {
 					t.Fatal(err)
 				}
-				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.literals, castUsages: b.capture.castUsages}, frame: b.frameID()}
-				replaySQL, err := renderer.expressionSQL(ctx, view, raw, viewLiteralPath{clause: viewTargetLiteral})
+				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.frameID()}
+				replaySQL, err := renderer.expressionSQL(ctx, view, raw, viewLiteralPath{Clause: ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(err)
 				}

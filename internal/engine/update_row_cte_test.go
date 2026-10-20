@@ -21,7 +21,7 @@ func TestUpdateRowCorrelatedCTEFrames(t *testing.T) {
 	if err := exec.SelectQuerySources(ctx, sources); err != nil {
 		t.Fatal(err)
 	}
-	source := b.update.assignments[0].(plan.SubqueryExpr)
+	source := b.Update.Assignments[0].(plan.SubqueryExpr)
 	project := source.QueryPlan.Root.(*plan.ProjectNode)
 	var producer *plan.ProjectNode
 	for _, analysis := range project.AnalysisExpressions {
@@ -36,7 +36,7 @@ func TestUpdateRowCorrelatedCTEFrames(t *testing.T) {
 	var target plan.ColumnExpr
 	found := false
 	plan.VisitCTEQuery(producer, func(plan.Node) {}, func(node expr.Expr) {
-		if column, ok := node.(plan.ColumnExpr); ok && column.Origin.Address.ObjectID == b.ref.Address.ObjectID {
+		if column, ok := node.(plan.ColumnExpr); ok && column.Origin.Address.ObjectID == b.Ref.Address.ObjectID {
 			if column.Frame != 1 {
 				t.Fatal("CTE correlation impersonated an empty intermediate SELECT frame", column.Frame)
 			}
@@ -62,11 +62,11 @@ func TestUpdateRowCorrelatedCTEFrames(t *testing.T) {
 	execution := exec.State{Source: sources, Input: scope.input, Output: scope.output}
 	defer execution.ReleaseMemberships()
 	eval := execution.Evaluation(ctx)
-	typ := b.relation.Columns[0].Usage.Type
+	typ := b.Relation.Columns[0].Usage.Type
 	for i, id := range []int64{1, 2, 1} {
 		old := []sqltype.Value{subqueryTestInteger(t, typ, id), subqueryTestInteger(t, typ, 7), subqueryTestInteger(t, typ, 8)}
 		eval.Row = old
-		row, err := evaluateUpdateAssignments(&eval, b.update, b.targets, old)
+		row, err := evaluateUpdateAssignments(&eval, b.Update, b.Targets, old)
 		want := id + int64((i+1)*10)
 		if err != nil || testExport(row[0]) != id || testExport(row[1]) != want || testExport(row[2]) != want+100 || draws != i+1 {
 			t.Fatal("producer tuple was stale, rebound or duplicated", row, draws, err)

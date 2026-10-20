@@ -338,11 +338,11 @@ func (v AuthorizationView) checkViewRowMarksExpanded(d *catalog.Relation, inheri
 		if err != nil {
 			return err
 		}
-		if err := v.checkColumns(binding{ref: use, relation: child}, authorization.SelectPrivilege, indices); err != nil {
+		if err := v.checkColumns(binding{Ref: use, Relation: child}, authorization.SelectPrivilege, indices); err != nil {
 			return err
 		}
 		if exec.EffectiveQueryRowMark(child, mark).Mode != 0 {
-			if err := v.checkColumns(binding{ref: use, relation: child}, authorization.UpdatePrivilege, nil); err != nil {
+			if err := v.checkColumns(binding{Ref: use, Relation: child}, authorization.UpdatePrivilege, nil); err != nil {
 				return err
 			}
 		}

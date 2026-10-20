@@ -55,7 +55,7 @@ func queryCoreFixture(t *testing.T, sql string) (*Engine, *plan.Query, *exec.Sou
 	if err != nil {
 		t.Fatal(err)
 	}
-	return e, b.query, source
+	return e, b.Query, source
 }
 
 type queryProbeExpression struct {

@@ -125,11 +125,11 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 		if star, ok := raw.(parser.StarExpr); ok {
 			if b.target.ruleNamespace != nil && len(star.Qualifier.Parts) == 1 && (star.Qualifier.Parts[0].Text == "old" || star.Qualifier.Parts[0].Text == "new") {
-				path := viewLiteralPath{query: b.frameID(), clause: viewTargetLiteral, target: target}
-				if b.capture.stars == nil {
-					b.capture.stars = make(map[viewLiteralPath][]viewColumn)
+				path := viewLiteralPath{Query: b.frameID(), Clause: ViewTargetLiteral, Target: target}
+				if b.capture.Stars == nil {
+					b.capture.Stars = make(map[viewLiteralPath][]viewColumn)
 				}
-				b.capture.stars[path] = nil
+				b.capture.Stars[path] = nil
 				for _, column := range b.target.ruleNamespace.relation.Columns {
 					name := star.Qualifier
 					name.Parts = []parser.Identifier{star.Qualifier.Parts[0], {Text: column.Name}}
@@ -141,13 +141,13 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 					projection = append(projection, expression)
 					targetNames = append(targetNames, column.Name)
 					literalTargets = append(literalTargets, -1)
-					b.capture.stars[path] = append(b.capture.stars[path], viewColumn{ruleRef: pseudo.Origin, ruleSide: pseudo.Frame})
+					b.capture.Stars[path] = append(b.capture.Stars[path], viewColumn{RuleRef: pseudo.Origin, RuleSide: pseudo.Frame})
 				}
 				continue
 			}
 			columns := namespace.columns
 			frame := b.frameID()
-			starPath := viewLiteralPath{query: frame, clause: viewTargetLiteral, target: target}
+			starPath := viewLiteralPath{Query: frame, Clause: ViewTargetLiteral, Target: target}
 			var returningScope *queryBindingScope
 			newValues := false
 			var recordQualifier *queryQualifier
@@ -175,10 +175,10 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				columns = frozenColumns
 			}
 			if b.params.noParameters || b.consumer.materializedDefinition {
-				if b.capture.stars == nil {
-					b.capture.stars = make(map[viewLiteralPath][]viewColumn)
+				if b.capture.Stars == nil {
+					b.capture.Stars = make(map[viewLiteralPath][]viewColumn)
 				}
-				b.capture.stars[starPath] = nil
+				b.capture.Stars[starPath] = nil
 			}
 			for _, c := range columns {
 				if c.hideStar {
@@ -193,7 +193,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				projection = append(projection, expr)
 				targetNames = append(targetNames, c.descriptor.Name)
 				if b.params.noParameters || b.consumer.materializedDefinition {
-					b.capture.stars[starPath] = append(b.capture.stars[starPath], viewColumn{frame: frame, slot: c.slot})
+					b.capture.Stars[starPath] = append(b.capture.Stars[starPath], viewColumn{Frame: frame, Slot: c.slot})
 					literalTargets = append(literalTargets, -1)
 				}
 			}
@@ -205,7 +205,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			projection = append(projection, expansion.Fields...)
 			targetNames = append(targetNames, expansion.Names...)
 			if b.params.noParameters || b.consumer.materializedDefinition {
-				path := viewLiteralPath{query: b.frameID(), clause: viewTargetLiteral, target: target}
+				path := viewLiteralPath{Query: b.frameID(), Clause: ViewTargetLiteral, Target: target}
 				ordinal := 0
 				if err := b.captureCompositeExpansion(field, expansion, path, &ordinal); err != nil {
 					return nil, err
@@ -238,7 +238,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			return nil, err
 		}
 		if b.params.noParameters || b.consumer.materializedDefinition {
-			if err := b.captureViewLiterals(s.Where, filter, viewWhereLiteral, 0); err != nil {
+			if err := b.captureViewLiterals(s.Where, filter, ViewWhereLiteral, 0); err != nil {
 				return nil, err
 			}
 		}
@@ -264,7 +264,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			return nil, err
 		}
 		if b.params.noParameters || b.consumer.materializedDefinition {
-			if err := b.captureViewLiterals(s.Having, having, viewHavingLiteral, 0); err != nil {
+			if err := b.captureViewLiterals(s.Having, having, ViewHavingLiteral, 0); err != nil {
 				return nil, err
 			}
 		}
@@ -322,7 +322,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				frozen.Keys[i].Expr = parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: int64(ordinal), Pos: key.Pos}}
 				continue
 			}
-			if err := b.captureViewLiterals(key.Expr, order[i].Expression, viewOrderLiteral, i); err != nil {
+			if err := b.captureViewLiterals(key.Expr, order[i].Expression, ViewOrderLiteral, i); err != nil {
 				return nil, err
 			}
 		}
@@ -334,7 +334,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		for i, raw := range frozen.On {
 			if ordinal := on[i].OutputOrdinal; ordinal != 0 {
 				frozen.On[i] = parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: int64(ordinal), Pos: parser.ExpressionStart(raw)}}
-			} else if err := b.captureViewLiterals(raw, on[i].Expression, viewDistinctOnLiteral, i); err != nil {
+			} else if err := b.captureViewLiterals(raw, on[i].Expression, ViewDistinctOnLiteral, i); err != nil {
 				return nil, err
 			}
 		}
@@ -357,7 +357,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 		if (b.params.noParameters || b.consumer.materializedDefinition) && literalTargets[i] >= 0 && expression.ResultUsage().Type != nil {
 			target := literalTargets[i]
-			if err := b.captureViewLiterals(s.Targets[target], expression, viewTargetLiteral, target); err != nil {
+			if err := b.captureViewLiterals(s.Targets[target], expression, ViewTargetLiteral, target); err != nil {
 				return nil, err
 			}
 		}
@@ -678,7 +678,7 @@ func (b *expressionBinder) assignOutput(bound expr.Expr, target catalog.Column) 
 		return nil, d
 	}
 	if coercionPlan.RequiresCatalogOutput() {
-		b.prepared.regclassConcat = true
+		b.prepared.RegclassConcat = true
 	}
 	info.Property = coercionProperties(input, coercionPlan)
 	bound = restoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})

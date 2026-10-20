@@ -298,7 +298,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return Result{}, err
 	}
 	if scope.sqlRoutine.scalar {
-		scope.sqlRoutine.resultPlan, err = validateSQLRoutineResult(b.query.Root.Schema(), scope.sqlRoutine.result)
+		scope.sqlRoutine.resultPlan, err = validateSQLRoutineResult(b.Query.Root.Schema(), scope.sqlRoutine.result)
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
@@ -306,11 +306,11 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	// Preserve the raw caller's capture group before attaching stored recipes.
 	// Rewrite metadata must not become caller-owned native lifetime provenance.
-	callerSequences, callerRegtypes := b.prepared.sequenceConstants, b.prepared.regtypeConstants
-	if b.viewWrite != nil {
+	callerSequences, callerRegtypes := b.Prepared.SequenceConstants, b.Prepared.RegtypeConstants
+	if b.ViewWrite != nil {
 		e.mu.Unlock()
-		if viewWriteOf(b.viewWrite).base.RelationKind != catalog.ViewRelation {
-			if err := scope.acquireViewWriteTarget(viewWriteOf(b.viewWrite)); err != nil {
+		if viewWriteOf(b.ViewWrite).base.RelationKind != catalog.ViewRelation {
+			if err := scope.acquireViewWriteTarget(viewWriteOf(b.ViewWrite)); err != nil {
 				return Result{}, err
 			}
 		}
@@ -325,7 +325,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		b.storage = scope.lockedStorage
+		b.Storage = scope.lockedStorage
 		if err := e.attachViewWriteSourcesLocked(scope, &b); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
@@ -335,45 +335,45 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if b.resolvers.regclass != nil {
-		scope.input.Regclass = b.resolvers.regclass
+	if b.Resolvers.Regclass != nil {
+		scope.input.Regclass = b.Resolvers.Regclass
 	}
-	if b.resolvers.regtype != nil {
-		scope.input.Regtype = b.resolvers.regtype
+	if b.Resolvers.Regtype != nil {
+		scope.input.Regtype = b.Resolvers.Regtype
 	}
-	if b.resolvers.regrole != nil {
-		scope.input.Regrole = b.resolvers.regrole
+	if b.Resolvers.Regrole != nil {
+		scope.input.Regrole = b.Resolvers.Regrole
 	}
-	if b.resolvers.operator != nil {
-		scope.input.Operator = b.resolvers.operator
+	if b.Resolvers.Operator != nil {
+		scope.input.Operator = b.Resolvers.Operator
 	}
-	if b.resolvers.regproc != nil {
-		scope.input.Regproc = b.resolvers.regproc
+	if b.Resolvers.Regproc != nil {
+		scope.input.Regproc = b.Resolvers.Regproc
 	}
-	if b.resolvers.regcollation != nil {
-		scope.input.Regcollation = b.resolvers.regcollation
+	if b.Resolvers.Regcollation != nil {
+		scope.input.Regcollation = b.Resolvers.Regcollation
 	}
-	if b.resolvers.regnamespace != nil {
-		scope.input.Regnamespace = b.resolvers.regnamespace
+	if b.Resolvers.Regnamespace != nil {
+		scope.input.Regnamespace = b.Resolvers.Regnamespace
 	}
-	if b.resolvers.regTS != nil {
-		scope.input.RegTS = b.resolvers.regTS
+	if b.Resolvers.RegTS != nil {
+		scope.input.RegTS = b.Resolvers.RegTS
 	}
-	if b.resolvers.aclitem != nil {
-		scope.input.ACLItem = b.resolvers.aclitem
+	if b.Resolvers.ACLItem != nil {
+		scope.input.ACLItem = b.Resolvers.ACLItem
 	}
-	if b.resolvers.fts != nil {
-		scope.input.FTS = b.resolvers.fts
+	if b.Resolvers.FTS != nil {
+		scope.input.FTS = b.Resolvers.FTS
 	}
-	if b.resolvers.typeDiagnosticName != nil {
-		scope.input.TypeDiagnosticName = b.resolvers.typeDiagnosticName
+	if b.Resolvers.TypeDiagnosticName != nil {
+		scope.input.TypeDiagnosticName = b.Resolvers.TypeDiagnosticName
 	}
-	scope.input.EnumMemberSafe = b.resolvers.enumMemberSafe
-	if err := scope.captureFormalInputLocked(auth, b.parameters.Types); err != nil {
+	scope.input.EnumMemberSafe = b.Resolvers.EnumMemberSafe
+	if err := scope.captureFormalInputLocked(auth, b.Parameters.Types); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if err := scope.validateQuerySources(b.querySources); err != nil {
+	if err := scope.validateQuerySources(b.QuerySources); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
@@ -383,18 +383,18 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	if scope.Expected != nil {
 		var results []catalog.Column
-		if b.query != nil && !b.commandQuery {
-			results = b.query.Root.Schema()
+		if b.Query != nil && !b.CommandQuery {
+			results = b.Query.Root.Schema()
 		}
-		if b.returning != nil {
-			results = b.returning.schema
+		if b.Returning != nil {
+			results = b.Returning.Schema
 		}
 		if scope.sqlRoutine.scalar {
 			// The caller freezes the declared scalar output. A SQL body's raw
 			// output may change through a valid assignment conversion on reanalysis.
 			results = scope.Expected.Results
 		}
-		if err := checkStatementSignature(*scope.Expected, StatementDescription{Parameters: b.parameters, Results: results, catalogOwner: auth.Catalog.Owner(), catalogEpoch: auth.Catalog.Epoch()}); err != nil {
+		if err := checkStatementSignature(*scope.Expected, StatementDescription{Parameters: b.Parameters, Results: results, catalogOwner: auth.Catalog.Owner(), catalogEpoch: auth.Catalog.Epoch()}); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -436,7 +436,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				scope.Expected.regtypes = regtypes
 			}
 			if replan {
-				scope.Expected.temporals = b.prepared.temporals
+				scope.Expected.temporals = b.Prepared.Temporals
 				if preparableBody(stmt) {
 					scope.Expected.analysis = prepared
 				}
@@ -444,16 +444,16 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			}
 		}
 	}
-	if count != b.parameters.Count {
+	if count != b.Parameters.Count {
 		e.mu.Unlock()
-		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want %d", count, b.parameters.Count)
+		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want %d", count, b.Parameters.Count)
 	}
 	canonical := make([]sqltype.Value, count)
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: canonical, Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}}
 	scope.domains.inputCatalog = auth.Catalog
 	scope.routineAuth = auth
-	scope.routineDependencies = b.dependencies
-	for _, usage := range b.parameters.Types {
+	scope.routineDependencies = b.Dependencies
+	for _, usage := range b.Parameters.Types {
 		if sqltype.ContainsDomainConstraints(usage.Type) {
 			evaluation.Input.DomainChecks = &evaluation
 			break
@@ -468,7 +468,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		// CHECK recipes use this captured authority and run without Engine.mu.
 		captured := auth.Catalog
 		e.mu.Unlock()
-		err = importFrame(ctx, b.parameters, canonical, evaluation.Input)
+		err = importFrame(ctx, b.Parameters, canonical, evaluation.Input)
 		e.mu.Lock()
 		if err != nil {
 			e.mu.Unlock()
@@ -484,12 +484,12 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, err
 		}
 		scope.routineAuth = auth
-		if err := typedef.ValidateCapturedInputBinding(captured, auth.Catalog, b.dependencies); err != nil {
+		if err := typedef.ValidateCapturedInputBinding(captured, auth.Catalog, b.Dependencies); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
 		for i, v := range canonical {
-			if v.Type() != b.parameters.Types[i].Type {
+			if v.Type() != b.Parameters.Types[i].Type {
 				e.mu.Unlock()
 				return Result{}, fmt.Errorf("stuntgres: invalid parameter frame")
 			}
@@ -497,19 +497,19 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	if p := scope.protocolOrZero().bind; p != nil {
 		p.values = canonical
-		if b.returning != nil {
-			p.columns = b.returning.schema
+		if b.Returning != nil {
+			p.columns = b.Returning.Schema
 		}
-		if b.query != nil && !b.commandQuery {
-			p.columns = b.query.Root.Schema()
+		if b.Query != nil && !b.CommandQuery {
+			p.columns = b.Query.Root.Schema()
 		}
 		if !protocolPlainSelect(stmt) {
 			e.mu.Unlock()
 			return Result{}, nil
 		}
 	}
-	if b.insert.conflict != nil && insertConflictOf(b.insert.conflict).update != nil {
-		if boundary := partitionWriteExtensionBoundary(stmt, physicalBinding(b).relation); boundary != nil {
+	if b.Insert.Conflict != nil && insertConflictOf(b.Insert.Conflict).update != nil {
+		if boundary := partitionWriteExtensionBoundary(stmt, physicalBinding(b).Relation); boundary != nil {
 			// Hierarchies have no conflict-update executor. Complete analysis
 			// and target/source authority before rejecting that capability,
 			// without demanding arbiters, defaults or routed row effects.
@@ -569,7 +569,7 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 	// Native has no cost-based custom/generic planner. Parameterized consumers
 	// fold into a fresh operation-local group, including stored origins.
 	quoteCaptures := exec.QuoteCaptureCandidate{}
-	if b.parameters.Count == 0 {
+	if b.Parameters.Count == 0 {
 		quoteCaptures = exec.QuoteCaptureCandidate{Entries: candidate.quotes, Private: quoteCapturesChanged}
 		pruneQuoteCaptures(&quoteCaptures, auth.Catalog)
 	}
@@ -595,13 +595,13 @@ func (e *Engine) validatePhysicalInsertRow(scope *StatementScope, b binding, nam
 	if err := evaluation.Context.Err(); err != nil {
 		return err
 	}
-	if err := evaluateGenerations(evaluation.Context, b.relation, row, evaluation); err != nil {
+	if err := evaluateGenerations(evaluation.Context, b.Relation, row, evaluation); err != nil {
 		return err
 	}
 	if err := access.RowSecurityProposal(scope.rlsProposal, scope.rlsProposalTable); err != nil {
 		return err
 	}
-	return validatePhysicalRowConstraints(b.relation, schema, row, evaluation, func() (string, error) { return e.rowConstraintDetail(scope, named, row) })
+	return validatePhysicalRowConstraints(b.Relation, schema, row, evaluation, func() (string, error) { return e.rowConstraintDetail(scope, named, row) })
 }
 
 // Shared by ordinary insertion and isolated native replacement. Validation does

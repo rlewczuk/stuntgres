@@ -72,30 +72,30 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	if err != nil {
 		return err
 	}
-	input.EnumMemberSafe = b.resolvers.enumMemberSafe
-	for _, column := range b.create.columns {
+	input.EnumMemberSafe = b.Resolvers.EnumMemberSafe
+	for _, column := range b.Create.Columns {
 		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(column.Usage.Type.ID())})
-		if b.create.ofType == nil {
+		if b.Create.OfType == nil {
 			if err := auth.CanUse(ref); err != nil {
 				return err
 			}
 		}
 		stage.domainBases = append(stage.domainBases, auth.Catalog.Get(ref.Address))
 	}
-	d, err := e.newTableDescriptorLocked(ns, name, owner, b.create.columns, b.create.columnIndex)
+	d, err := e.newTableDescriptorLocked(ns, name, owner, b.Create.Columns, b.Create.ColumnIndex)
 	if err != nil {
 		return err
 	}
-	if b.create.ofType != nil {
-		d.OfType = b.create.ofType.Address()
-		stage.domainBases = append(stage.domainBases, b.create.ofType)
+	if b.Create.OfType != nil {
+		d.OfType = b.Create.OfType.Address()
+		stage.domainBases = append(stage.domainBases, b.Create.OfType)
 	}
 	d.Security.ACL = stage.creationACL(owner, ns, authorization.DefaultTables)
 	if err := e.stageRowTypeLocked(stage, d); err != nil {
 		return err
 	}
 	d.OnCommit = s.OnCommit
-	d.Constraints.NotNull = b.create.notNull
+	d.Constraints.NotNull = b.Create.NotNull
 	if err := e.stageInheritance(op, auth, stage, d, b); err != nil {
 		return err
 	}
@@ -105,10 +105,10 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	if err := e.stageCreateIdentities(auth, stage, d, s); err != nil {
 		return err
 	}
-	if err := e.stageCreateSerials(stage, d, b.create.declarations); err != nil {
+	if err := e.stageCreateSerials(stage, d, b.Create.Declarations); err != nil {
 		return err
 	}
-	if err := e.stageLikeColumns(op, auth, stage, d, b.create.likes); err != nil {
+	if err := e.stageLikeColumns(op, auth, stage, d, b.Create.Likes); err != nil {
 		return err
 	}
 	// All owned sequences and their defaults share the private CREATE candidate.
@@ -120,12 +120,12 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	binder := newExpressionBinder(op.Context(), e, input, op, nil)
 	binder.query.auth = &auth
 	binder.consumer.defaultTemporary = auth.Catalog.MustNamespace(d.Namespace()).Temporary
-	for slot, declaration := range b.create.declarations {
-		if declaration.defaultExpr != nil {
+	for slot, declaration := range b.Create.Declarations {
+		if declaration.DefaultExpr != nil {
 			delete(d.ColumnMeta.Defaults, d.Attributes[slot])
 		}
 	}
-	defaults, err := bindCreateDefaults(binder, d.Columns, b.create.declarations)
+	defaults, err := bindCreateDefaults(binder, d.Columns, b.Create.Declarations)
 	if err != nil {
 		return err
 	}
@@ -136,13 +136,13 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 			d.ColumnMeta.Defaults[attribute] = definition
 		}
 	}
-	if err := e.bindCreateGenerations(op, auth, d, b.create.declarations, input); err != nil {
+	if err := e.bindCreateGenerations(op, auth, d, b.Create.Declarations, input); err != nil {
 		return err
 	}
 	if err := e.bindCreateChecks(op, auth, s, d, input, nil); err != nil {
 		return err
 	}
-	if err := e.stageLikeChecks(op, auth, d, b.create.likes); err != nil {
+	if err := e.stageLikeChecks(op, auth, d, b.Create.Likes); err != nil {
 		return err
 	}
 	if err := refreshGenerationChecks(d, auth.Catalog); err != nil {
@@ -182,13 +182,13 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 			}
 		}
 	}
-	if err := e.stageCreateUniques(op, stage, d, b.create.uniques); err != nil {
+	if err := e.stageCreateUniques(op, stage, d, b.Create.Uniques); err != nil {
 		return err
 	}
 	if err := e.stageCreateExclusions(op, input, auth, stage, d, s); err != nil {
 		return err
 	}
-	if err := e.stageLikeIndexes(op, auth, stage, d, b.create.likes); err != nil {
+	if err := e.stageLikeIndexes(op, auth, stage, d, b.Create.Likes); err != nil {
 		return err
 	}
 	return e.stageCreateForeignKeys(auth, stage, d, s, foreignTargets)

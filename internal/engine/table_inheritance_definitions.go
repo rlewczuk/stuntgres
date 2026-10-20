@@ -10,52 +10,52 @@ import (
 )
 
 func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Relation, b binding) error {
-	if len(b.create.inheritance) == 0 {
+	if len(b.Create.Inheritance) == 0 {
 		return nil
 	}
 	graph := &catalog.TableInheritance{Columns: make(map[int32]catalog.InheritedColumn, len(d.Columns)), Checks: make(map[string]catalog.InheritedConstraint), NotNull: make(map[int32]catalog.InheritedConstraint)}
 	d.Inheritance = graph
 	for slot, c := range d.Columns {
-		declaration := b.create.declarations[slot]
-		graph.Columns[d.Attributes[slot]] = catalog.InheritedColumn{Local: b.create.localColumns[c.Name], ExplicitDefault: declaration.defaultExpr != nil || declaration.serial || declaration.copiedDefault, ExplicitGeneration: declaration.generation != nil || declaration.copiedGeneration}
+		declaration := b.Create.Declarations[slot]
+		graph.Columns[d.Attributes[slot]] = catalog.InheritedColumn{Local: b.Create.LocalColumns[c.Name], ExplicitDefault: declaration.DefaultExpr != nil || declaration.Serial || declaration.CopiedDefault, ExplicitGeneration: declaration.Generation != nil || declaration.CopiedGeneration}
 	}
 	for _, c := range d.Constraints.NotNull {
 		graph.NotNull[c.Attribute] = catalog.InheritedConstraint{Local: true}
 	}
 	var defaultConflicts, generationConflicts map[int32]bool
-	for _, in := range b.create.inheritance {
-		graph.Parents = append(graph.Parents, in.source.Address())
-		stage.captureLikeSource(in.source)
-		mapper := createLikeInput{ref: in.ref, source: in.source, targetSlots: make([]int, len(in.source.Columns))}
-		for slot, c := range in.source.Columns {
+	for _, in := range b.Create.Inheritance {
+		graph.Parents = append(graph.Parents, in.Source.Address())
+		stage.captureLikeSource(in.Source)
+		mapper := createLikeInput{Ref: in.Ref, Source: in.Source, TargetSlots: make([]int, len(in.Source.Columns))}
+		for slot, c := range in.Source.Columns {
 			targetSlot := d.Index[c.Name]
-			mapper.targetSlots[slot] = targetSlot
+			mapper.TargetSlots[slot] = targetSlot
 			target := d.Attributes[targetSlot]
 			provenance := graph.Columns[target]
-			provenance.Origins = append(provenance.Origins, catalog.InheritanceOrigin{Parent: in.source.Address(), Attribute: in.source.Attributes[slot]})
+			provenance.Origins = append(provenance.Origins, catalog.InheritanceOrigin{Parent: in.Source.Address(), Attribute: in.Source.Attributes[slot]})
 			graph.Columns[target] = provenance
 		}
-		for _, c := range in.source.Constraints.NotNull {
+		for _, c := range in.Source.Constraints.NotNull {
 			if c.NoInherit {
 				continue
 			}
-			sourceSlot := slices.Index(in.source.Attributes, c.Attribute)
-			targetSlot := mapper.targetSlots[sourceSlot]
+			sourceSlot := slices.Index(in.Source.Attributes, c.Attribute)
+			targetSlot := mapper.TargetSlots[sourceSlot]
 			target := d.Attributes[targetSlot]
 			provenance := graph.NotNull[target]
-			provenance.Origins = append(provenance.Origins, catalog.InheritanceOrigin{Parent: in.source.Address(), Attribute: c.Attribute, Constraint: c.OID})
+			provenance.Origins = append(provenance.Origins, catalog.InheritanceOrigin{Parent: in.Source.Address(), Attribute: c.Attribute, Constraint: c.OID})
 			graph.NotNull[target] = provenance
 			if !slices.ContainsFunc(d.Constraints.NotNull, func(n catalog.NotNullConstraint) bool { return n.Attribute == target }) {
 				d.Constraints.NotNull = append(d.Constraints.NotNull, catalog.NotNullConstraint{Name: c.Name, Attribute: target})
 			}
 			d.Columns[targetSlot].Nullable = false
 		}
-		for sourceSlot, sourceAttribute := range in.source.Attributes {
-			target := d.Attributes[mapper.targetSlots[sourceSlot]]
+		for sourceSlot, sourceAttribute := range in.Source.Attributes {
+			target := d.Attributes[mapper.TargetSlots[sourceSlot]]
 			// LIKE expressions arrive after inherited conflicts are checked; only a
 			// raw child DEFAULT (including serial) can resolve a parent conflict.
-			declaration := b.create.declarations[mapper.targetSlots[sourceSlot]]
-			if old, ok := in.source.ColumnMeta.Defaults[sourceAttribute]; ok && declaration.defaultExpr == nil && !declaration.serial {
+			declaration := b.Create.Declarations[mapper.TargetSlots[sourceSlot]]
+			if old, ok := in.Source.ColumnMeta.Defaults[sourceAttribute]; ok && declaration.DefaultExpr == nil && !declaration.Serial {
 				if incumbent, ok := d.ColumnMeta.Defaults[target]; ok && !sameGroupExpression(incumbent.Expression, old.Expression) {
 					if defaultConflicts == nil {
 						defaultConflicts = make(map[int32]bool)
@@ -72,7 +72,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 				}
 				d.ColumnMeta.Defaults[target] = copied
 			}
-			if old, ok := in.source.ColumnMeta.Generations[sourceAttribute]; ok && declaration.generation == nil {
+			if old, ok := in.Source.ColumnMeta.Generations[sourceAttribute]; ok && declaration.Generation == nil {
 				node, err := remapLikeExpression(&mapper, old.Expression, d, auth.Catalog)
 				if err != nil {
 					return err
@@ -97,7 +97,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 				d.ColumnMeta.Generations[target] = copied
 			}
 		}
-		for _, old := range orderedChecks(in.source) {
+		for _, old := range orderedChecks(in.Source) {
 			if old.NoInherit {
 				continue
 			}
@@ -106,7 +106,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 				return err
 			}
 			provenance := graph.Checks[old.Name]
-			provenance.Origins = append(provenance.Origins, catalog.InheritanceOrigin{Parent: in.source.Address(), Constraint: old.OID})
+			provenance.Origins = append(provenance.Origins, catalog.InheritanceOrigin{Parent: in.Source.Address(), Constraint: old.OID})
 			graph.Checks[old.Name] = provenance
 			incumbent := slices.IndexFunc(d.Constraints.Check, func(c catalog.CheckConstraint) bool { return c.Name == old.Name })
 			if incumbent >= 0 {

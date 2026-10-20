@@ -378,7 +378,7 @@ func capturedDomainReplayCell(b *binding, op *Operation, s *parser.Insert, row, 
 	if !ok {
 		return nil, false, nil
 	}
-	if row != 0 || capture.relation != b.relation || column >= len(b.targets) || literal.ResultUsage() != b.relation.Columns[b.targets[column]].Usage {
+	if row != 0 || capture.relation != b.Relation || column >= len(b.Targets) || literal.ResultUsage() != b.Relation.Columns[b.Targets[column]].Usage {
 		return nil, true, fmt.Errorf("stuntgres: native domain replay destination changed")
 	}
 	return literal, true, nil

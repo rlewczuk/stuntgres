@@ -38,7 +38,7 @@ func (b *expressionBinder) normalizeQuantifiedConstructor(raw parser.Expr, const
 // still needs that identity. The ordinary pg_depend expression owner decides.
 func frozenQueryDependencies(view catalog.Read, b binding) ([]catalog.ExpressionDependency, error) {
 	var erased map[sqltype.ID]bool
-	plan.VisitCTEQuery(b.query.Root, func(plan.Node) {}, func(bound expr.Expr) {
+	plan.VisitCTEQuery(b.Query.Root, func(plan.Node) {}, func(bound expr.Expr) {
 		plan.WalkExpression(bound, func(node expr.Expr) {
 			if n, ok := node.(plan.SubqueryExpr); ok && n.ErasedLeftType != 0 {
 				if erased == nil {
@@ -49,15 +49,15 @@ func frozenQueryDependencies(view catalog.Read, b binding) ([]catalog.Expression
 		})
 	}, true)
 	if len(erased) == 0 {
-		return b.dependencies, nil
+		return b.Dependencies, nil
 	}
 	refs := pgDependRefs{ctx: context.Background(), catalog: view}
-	refs.query(b.query.Root)
+	refs.query(b.Query.Root)
 	if refs.err != nil {
 		return nil, refs.err
 	}
-	dependencies := make([]catalog.ExpressionDependency, 0, len(b.dependencies))
-	for _, dependency := range b.dependencies {
+	dependencies := make([]catalog.ExpressionDependency, 0, len(b.Dependencies))
+	for _, dependency := range b.Dependencies {
 		address := dependency.Ref.Address
 		if address.ClassID == ids.TypeClassID && erased[sqltype.ID(address.ObjectID)] {
 			if _, retained := refs.addresses[address]; !retained {
@@ -72,21 +72,21 @@ func frozenQueryDependencies(view catalog.Read, b binding) ([]catalog.Expression
 // Quantified and residual IN constructors share source slots, expansion
 // associations and synthetic member casts; only frozen capture needs this walk.
 func (b *expressionBinder) captureConstructorFields(raw parser.RowExpr, count int, fieldAt func(int) expr.Expr, expansions map[int]plan.CompositeExpansionBinding, memberCasts bool, path viewLiteralPath, ordinal *int) error {
-	if memberCasts && b.capture.castUsages == nil {
-		b.capture.castUsages = make(map[viewLiteralPath]sqltype.Usage)
+	if memberCasts && b.capture.CastUsages == nil {
+		b.capture.CastUsages = make(map[viewLiteralPath]sqltype.Usage)
 	}
 	slot := 0
 	for source, field := range raw.Fields {
 		if expansion, ok := expansions[source]; ok {
 			key := path
-			key.node = *ordinal
+			key.Node = *ordinal
 			if slot+len(expansion.Fields) > count {
 				return fmt.Errorf("stuntgres: missing row comparison source association")
 			}
 			if memberCasts {
 				for i := range expansion.Fields {
-					key.argument = i + 1
-					b.capture.castUsages[key] = fieldAt(slot + i).ResultUsage()
+					key.Argument = i + 1
+					b.capture.CastUsages[key] = fieldAt(slot + i).ResultUsage()
 				}
 			}
 			if err := b.captureCompositeExpansion(field, expansion, path, ordinal); err != nil {
@@ -100,8 +100,8 @@ func (b *expressionBinder) captureConstructorFields(raw parser.RowExpr, count in
 		}
 		if memberCasts {
 			key := path
-			key.argument = source + 1
-			b.capture.castUsages[key] = fieldAt(slot).ResultUsage()
+			key.Argument = source + 1
+			b.capture.CastUsages[key] = fieldAt(slot).ResultUsage()
 		}
 		if err := b.captureNormalizedViewLiteralTree(field, fieldAt(slot), path, ordinal); err != nil {
 			return err
@@ -117,7 +117,7 @@ func (b *expressionBinder) captureConstructorFields(raw parser.RowExpr, count in
 func (v *viewRenderer) quantifiedFieldsSQL(ctx context.Context, catalog catalog.Read, path viewLiteralPath, fields []string) (string, error) {
 	for i, text := range fields {
 		key := path
-		key.argument = i + 1
+		key.Argument = i + 1
 		usage, captured := v.castUsages[key]
 		if !captured {
 			continue

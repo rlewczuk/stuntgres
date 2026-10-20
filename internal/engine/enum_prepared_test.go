@@ -22,7 +22,7 @@ func TestEnumPreparedLiteralLifetime(t *testing.T) {
 		t.Fatal("enum literal did not enter immutable prepared analysis", description.temporals)
 	}
 	capture := description.temporals[0]
-	member, _ := capture.value.EnumMemberID()
+	member, _ := capture.Value.EnumMemberID()
 	members := old.SQLType.EnumMembers()
 	members[1].Label = "end"
 	typ, err := sqltype.EnumWithMembers(old.SQLType.ID(), old.Name(), old.SQLType.SQLName(), members)
@@ -47,7 +47,7 @@ func TestEnumPreparedLiteralLifetime(t *testing.T) {
 	auth, err := e.authorizationLocked(op)
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, &description)
 	b.query.auth = &auth
-	value, failure := b.inputConstant("q", typ.Usage(), parser.Position{Offset: capture.offset, Character: 8})
+	value, failure := b.inputConstant("q", typ.Usage(), parser.Position{Offset: capture.Offset, Character: 8})
 	e.mu.Unlock()
 	if err != nil || failure != nil {
 		t.Fatal(err, failure)
@@ -64,7 +64,7 @@ func TestEnumPreparedLiteralLifetime(t *testing.T) {
 	e.mu.Lock()
 	b = newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, &stale)
 	b.query.auth = &auth
-	_, failure = b.inputConstant("q", typ.Usage(), parser.Position{Offset: capture.offset, Character: 8})
+	_, failure = b.inputConstant("q", typ.Usage(), parser.Position{Offset: capture.Offset, Character: 8})
 	e.mu.Unlock()
 	if d, ok := failure.(*sqlstate.Error); !ok || d.Code != "0A000" || d.Message != "cached plan must not change result type" {
 		t.Fatal("replacement literal bypassed signature fence", failure)

@@ -135,7 +135,7 @@ func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
 	original := plan.TableOIDExpr{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: owner}
 	child := *parent
 	child.ObjectAddress.ObjectID++
-	mapper := createLikeInput{source: parent}
+	mapper := createLikeInput{Source: parent}
 	left, err := remapLikeExpression(&mapper, original, &child, view)
 	if err != nil {
 		t.Fatal(err)
@@ -170,7 +170,7 @@ func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
 func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	op := &Operation{ctx: context.Background()}
-	declarations := []createColumnDeclaration{{}, {generation: &parser.GenerationDefinition{Kind: "stored", Expression: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}}}
+	declarations := []createColumnDeclaration{{}, {Generation: &parser.GenerationDefinition{Kind: "stored", Expression: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}}}
 	if err := e.bindCreateGenerations(op, AuthorizationView{View: access.View{Catalog: view}}, d, declarations, sqltype.InputEnvironment{}); err != nil {
 		t.Fatal(err)
 	}

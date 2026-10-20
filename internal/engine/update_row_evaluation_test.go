@@ -17,7 +17,7 @@ func updateRowTestAction(t *testing.T, e *Engine, q *plan.Query) *boundUpdate {
 	source := subqueryTestExpression(t, e, q, parser.SubqueryScalar)
 	source.UpdateWidth = 2
 	source.Property.StageDependent = true
-	return &boundUpdate{assignments: []expr.Expr{source, plan.UpdateOutputExpr{Info: expr.Info{Usage: q.Root.Schema()[1].Usage, Property: expr.Properties{StageDependent: true}}, Index: 1}}, groups: []updateAssignmentGroup{{start: 0, width: 2}}, outputWidth: 2}
+	return &boundUpdate{Assignments: []expr.Expr{source, plan.UpdateOutputExpr{Info: expr.Info{Usage: q.Root.Schema()[1].Usage, Property: expr.Properties{StageDependent: true}}, Index: 1}}, Groups: []updateAssignmentGroup{{Start: 0, Width: 2}}, OutputWidth: 2}
 }
 
 func TestUpdateRowEvaluation(t *testing.T) {
@@ -86,10 +86,10 @@ func TestUpdateRowEvaluation(t *testing.T) {
 		defer execution.ReleaseMemberships()
 		c := execution.Evaluation(context.Background())
 		action := updateRowTestAction(t, e, q)
-		second := action.assignments[1].(plan.UpdateOutputExpr)
+		second := action.Assignments[1].(plan.UpdateOutputExpr)
 		second.Group = 2
-		action.assignments = append(action.assignments, action.assignments[0], second)
-		action.groups = append(action.groups, updateAssignmentGroup{start: 2, width: 2})
+		action.Assignments = append(action.Assignments, action.Assignments[0], second)
+		action.Groups = append(action.Groups, updateAssignmentGroup{Start: 2, Width: 2})
 		typ := project.Schema()[0].Usage.Type
 		old := []sqltype.Value{subqueryTestInteger(t, typ, 1), subqueryTestInteger(t, typ, 2), subqueryTestInteger(t, typ, 3), subqueryTestInteger(t, typ, 4)}
 		// Simulate a live outer tuple using the exact same context scratch.
@@ -109,7 +109,7 @@ func TestUpdateRowEvaluation(t *testing.T) {
 		old := []sqltype.Value{subqueryTestInteger(t, typ, 10), subqueryTestInteger(t, typ, 20)}
 		c := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Row: old}}
 		calls := [2]int{}
-		action := &boundUpdate{assignments: []expr.Expr{
+		action := &boundUpdate{Assignments: []expr.Expr{
 			queryProbe(typ.Usage(), func(c *exec.Context) (sqltype.Value, error) { calls[0]++; return c.Row[1], nil }),
 			queryProbe(typ.Usage(), func(c *exec.Context) (sqltype.Value, error) { calls[1]++; return c.Row[0], nil }),
 		}}
@@ -135,16 +135,16 @@ func TestUpdateRowCancellationBeforeFinish(t *testing.T) {
 				q = "UPDATE t SET (a,b)=(SELECT a+1,b+2 FROM (VALUES(1),(2)) draw(n) WHERE t.id=2 OR draw.n=1) RETURNING a,b"
 			}
 			op, scope, b, target, sources := updateFromBoundSources(t, e, owner, ctx, q)
-			source := b.update.assignments[0].(plan.SubqueryExpr)
+			source := b.Update.Assignments[0].(plan.SubqueryExpr)
 			project := source.QueryPlan.Root.(*plan.ProjectNode)
 			calls, stagedBeforeCancel := 0, false
 			subqueryTestTarget(t, project, queryProbe(project.Schema()[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				if phase == "late_cardinality" && calls == 3 {
-					stagedBeforeCancel = len(scope.stage.rows[b.ref.Address]) != 0
+					stagedBeforeCancel = len(scope.stage.rows[b.Ref.Address]) != 0
 				}
 				if calls == 2 && phase == "live_source" {
-					stagedBeforeCancel = len(scope.stage.rows[b.ref.Address]) != 0
+					stagedBeforeCancel = len(scope.stage.rows[b.Ref.Address]) != 0
 					cancel()
 					return sqltype.Value{}, ctx.Err()
 				}
@@ -161,7 +161,7 @@ func TestUpdateRowCancellationBeforeFinish(t *testing.T) {
 					t.Fatal("cardinality did not discard earlier staged row", result, calls, stagedBeforeCancel)
 				}
 			} else {
-				if err != nil || result.Count != 2 || result.Rows == nil || calls != 2 || len(scope.stage.rows[b.ref.Address]) == 0 {
+				if err != nil || result.Count != 2 || result.Rows == nil || calls != 2 || len(scope.stage.rows[b.Ref.Address]) == 0 {
 					t.Fatal("private replacements missing", result, err, calls)
 				}
 				result.Rows.Close()

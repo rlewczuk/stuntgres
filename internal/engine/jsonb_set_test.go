@@ -130,11 +130,11 @@ func TestJSONBSetRetagRemapAndPresentation(t *testing.T) {
 	raw := datetimeMakeRaw("jsonb_set_lax", rawArgs...)
 	raw.Args[0] = parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}
 	raw.ArgNames = []parser.Identifier{{Text: "replacement"}, {Text: "jsonb_in"}, {Text: "path"}, {Text: "null_value_treatment"}}
-	if err := b.captureViewLiterals(raw, e, viewTargetLiteral, 0); err != nil {
+	if err := b.captureViewLiterals(raw, e, ViewTargetLiteral, 0); err != nil {
 		t.Fatal("written/formal literal association", err)
 	}
-	renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.literals, castUsages: b.capture.castUsages}, frame: b.frameID()}
-	replaySQL, err := renderer.expressionSQL(ctx, view, raw, viewLiteralPath{clause: viewTargetLiteral})
+	renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.frameID()}
+	replaySQL, err := renderer.expressionSQL(ctx, view, raw, viewLiteralPath{Clause: ViewTargetLiteral})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,11 +175,11 @@ func TestJSONBSetViewReplayDeterminism(t *testing.T) {
 				if err != nil || text != tc.want {
 					t.Fatal("replay changed JSONB result", round, text, err)
 				}
-				if err := b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil {
+				if err := b.captureViewLiterals(raw, node, ViewTargetLiteral, 0); err != nil {
 					t.Fatal(round, err)
 				}
-				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.literals, castUsages: b.capture.castUsages}, frame: b.frameID()}
-				emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, viewLiteralPath{clause: viewTargetLiteral})
+				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.frameID()}
+				emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, viewLiteralPath{Clause: ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(round, err)
 				}

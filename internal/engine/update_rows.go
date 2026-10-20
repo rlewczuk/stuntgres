@@ -8,13 +8,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// The first recipe owns the source query through plan.SubqueryExpr. Remaining
-// outputs are lexical leaves, so all existing query graph transformations visit
-// a group source exactly once, without adding a parallel graph ownership path.
-type updateAssignmentGroup struct {
-	start, width int
-}
-
 // Analyze sources in original SET order, before the shared destination pass.
 // Constructors are expanded once, then their members use destination contexts;
 // SELECT outputs retain their independently analyzed types and origins.
@@ -30,13 +23,13 @@ func prepareUpdateAssignments(b *binding, binder *expressionBinder, raw []parser
 		}
 	}
 	assignments := raw
-	if !grouped && u.assignments == nil {
-		u.assignments = make([]expr.Expr, len(raw))
+	if !grouped && u.Assignments == nil {
+		u.Assignments = make([]expr.Expr, len(raw))
 	}
 	if grouped {
 		assignments = make([]parser.UpdateAssignment, 0, width)
-		u.assignments = make([]expr.Expr, 0, width)
-		u.origins = make([]parser.Position, 0, width)
+		u.Assignments = make([]expr.Expr, 0, width)
+		u.Origins = make([]parser.Position, 0, width)
 	}
 	appendMember := func(a parser.UpdateAssignment, node expr.Expr, origin parser.Position) error {
 		bound, err := bindUpdateAssignmentSource(b, binder, a, node, u, len(assignments), width)
@@ -45,8 +38,8 @@ func prepareUpdateAssignments(b *binding, binder *expressionBinder, raw []parser
 		}
 		if grouped {
 			assignments = append(assignments, a)
-			u.assignments = append(u.assignments, bound)
-			u.origins = append(u.origins, origin)
+			u.Assignments = append(u.Assignments, bound)
+			u.Origins = append(u.Origins, origin)
 		}
 		return nil
 	}
@@ -61,7 +54,7 @@ func prepareUpdateAssignments(b *binding, binder *expressionBinder, raw []parser
 				if err != nil {
 					return nil, err
 				}
-				u.assignments[i] = bound
+				u.Assignments[i] = bound
 			}
 			continue
 		}
@@ -112,8 +105,8 @@ func prepareUpdateAssignments(b *binding, binder *expressionBinder, raw []parser
 					return nil, err
 				}
 			}
-			u.groups = append(u.groups, updateAssignmentGroup{start: start, width: len(a.Targets)})
-			u.outputWidth = max(u.outputWidth, len(a.Targets))
+			u.Groups = append(u.Groups, updateAssignmentGroup{Start: start, Width: len(a.Targets)})
+			u.OutputWidth = max(u.OutputWidth, len(a.Targets))
 		default:
 			return nil, expr.ErrorAt("0A000", "source for a multiple-column UPDATE item must be a sub-SELECT or ROW() expression", parser.ExpressionStart(a.Value))
 		}
@@ -131,8 +124,8 @@ func bindUpdateAssignmentSource(b *binding, binder *expressionBinder, a parser.U
 			return nil, expr.ErrorAt("0A000", "cannot set an array element to DEFAULT", a.Target.Pos)
 		}
 	}
-	if slot, exists := b.relation.Index[a.Target.Text]; exists {
-		if _, generated := b.relation.ColumnMeta.Generations[b.relation.Attributes[slot]]; generated {
+	if slot, exists := b.Relation.Index[a.Target.Text]; exists {
+		if _, generated := b.Relation.ColumnMeta.Generations[b.Relation.Attributes[slot]]; generated {
 			if _, requested := a.Value.(parser.DefaultExpr); !requested {
 				return nil, generationWriteError(a.Target.Text, true)
 			}
@@ -140,19 +133,19 @@ func bindUpdateAssignmentSource(b *binding, binder *expressionBinder, a parser.U
 		}
 	}
 	if _, requested := a.Value.(parser.DefaultExpr); requested {
-		if slot, ok := b.relation.Index[a.Target.Text]; ok && b.relation.Columns[slot].Usage.Type.IsDomain() {
-			node, origin := columnDefault(binder.bindingCatalog(), b.relation, slot)
+		if slot, ok := b.Relation.Index[a.Target.Text]; ok && b.Relation.Columns[slot].Usage.Type.IsDomain() {
+			node, origin := columnDefault(binder.bindingCatalog(), b.Relation, slot)
 			if node == nil {
-				node = domainNullInputExpression(b.relation.Columns[slot].Usage)
+				node = domainNullInputExpression(b.Relation.Columns[slot].Usage)
 			}
-			if u.defaultOrigins == nil {
-				u.defaultOrigins = make([]defaultOrigin, width)
+			if u.DefaultOrigins == nil {
+				u.DefaultOrigins = make([]defaultOrigin, width)
 			}
-			origin.requested = true
-			u.defaultOrigins[index] = origin
+			origin.Requested = true
+			u.DefaultOrigins[index] = origin
 			return node, nil
 		}
-		if b.relation.RelationKind == catalog.ViewRelation {
+		if b.Relation.RelationKind == catalog.ViewRelation {
 			return nil, nil
 		}
 		return nil, expr.ErrorAt("0A000", "UPDATE DEFAULT is unsupported", a.Value.SourcePosition())
@@ -161,8 +154,8 @@ func bindUpdateAssignmentSource(b *binding, binder *expressionBinder, a parser.U
 		return bound, nil
 	}
 	expected := sqltype.Usage{}
-	if slot, ok := b.relation.Index[a.Target.Text]; ok {
-		expected = b.relation.Columns[slot].Usage
+	if slot, ok := b.Relation.Index[a.Target.Text]; ok {
+		expected = b.Relation.Columns[slot].Usage
 		if len(a.Steps) != 0 {
 			expected = targetUsage(expected, a.Steps)
 		}

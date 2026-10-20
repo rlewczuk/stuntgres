@@ -30,11 +30,11 @@ type copyBinaryCursor struct {
 }
 
 func newCopyBinaryCursor(s *StatementScope, b binding, r io.Reader) *copyBinaryCursor {
-	c := &copyBinaryCursor{scope: s, binding: b, reader: bufio.NewReader(copyReader{s, r}), defaults: make([]bool, len(b.relation.Columns)), omitted: make([]bool, len(b.relation.Columns))}
+	c := &copyBinaryCursor{scope: s, binding: b, reader: bufio.NewReader(copyReader{s, r}), defaults: make([]bool, len(b.Relation.Columns)), omitted: make([]bool, len(b.Relation.Columns))}
 	for i := range c.omitted {
 		c.omitted[i] = true
 	}
-	for _, i := range b.targets {
+	for _, i := range b.Targets {
 		c.omitted[i] = false
 	}
 	return c
@@ -142,12 +142,12 @@ func (c *copyBinaryCursor) Next(ctx context.Context, dst []sqltype.Value) (bool,
 		}
 		return false, c.diagnostic(err)
 	}
-	if int(count) != len(c.binding.targets) {
-		return false, c.diagnostic(sqlError("22P04", fmt.Sprintf("row field count is %d, expected %d", count, len(c.binding.targets))))
+	if int(count) != len(c.binding.Targets) {
+		return false, c.diagnostic(sqlError("22P04", fmt.Sprintf("row field count is %d, expected %d", count, len(c.binding.Targets))))
 	}
 	copy(c.defaults, c.omitted)
-	for i, target := range c.binding.targets {
-		column := c.binding.relation.Columns[target]
+	for i, target := range c.binding.Targets {
+		column := c.binding.Relation.Columns[target]
 		c.column = column.Name
 		p, err = c.readFixed(4)
 		if err != nil {
@@ -216,8 +216,8 @@ func (c *copyBinaryCursor) diagnostic(err error) error {
 	if !errors.As(err, &record) || c.number == 0 {
 		return err
 	}
-	prefix := fmt.Sprintf("COPY %s, line %d", c.binding.relation.Name(), c.number)
-	if strings.Contains(record.Context, fmt.Sprintf("COPY %s, line ", c.binding.relation.Name())) {
+	prefix := fmt.Sprintf("COPY %s, line %d", c.binding.Relation.Name(), c.number)
+	if strings.Contains(record.Context, fmt.Sprintf("COPY %s, line ", c.binding.Relation.Name())) {
 		return err
 	}
 	result := *record

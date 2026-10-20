@@ -135,7 +135,7 @@ func TestNetworkMaskStoredLiteralIdentity(t *testing.T) {
 		t.Run(tc.expression, func(t *testing.T) {
 			node, b, _ := strictNullUnitBind(t, e, op, scope, tc.expression)
 			raw := statement(t, "SELECT "+tc.expression).(*parser.Select).Targets[0]
-			if err := b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil {
+			if err := b.captureViewLiterals(raw, node, ViewTargetLiteral, 0); err != nil {
 				t.Fatal("literal pairing", err)
 			}
 			want := make(map[literalIdentity]int)
@@ -143,7 +143,7 @@ func TestNetworkMaskStoredLiteralIdentity(t *testing.T) {
 				want[identity]++
 			}
 			got := make(map[literalIdentity]int)
-			for _, literal := range b.capture.literals {
+			for _, literal := range b.capture.Literals {
 				value, err := literal.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 				if err != nil || value.IsNull() || value.Type() != literal.ResultUsage().Type || value.Type() != b.typ(value.Type().ID()) {
 					t.Fatal("lost exact literal authority", value, err)

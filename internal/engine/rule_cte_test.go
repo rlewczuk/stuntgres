@@ -46,15 +46,15 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		action := ruleUnitInsert(e, sink, 1, 11)
 		src.Rules = rulesPayloadOf([]ruleDefinition{{Name: "redirect", event: "INSERT", instead: true, actions: []ruleAction{action}}})
 		defer func() { src.Rules = nil }()
-		parent := binding{ctes: []*plan.CTEDefinition{definition}}
+		parent := binding{CTEs: []*plan.CTEDefinition{definition}}
 		e.mu.Lock()
 		err := e.normalizeRuleCTEsLocked(nil, auth, &parser.Select{}, &parent)
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
-		rewrite := ruleCTEsOf(parent.rule.ctes)[definition]
-		if rewrite == nil || rewrite.definition != definition || rewrite.definition.Statement != original.syntax || rewrite.definition.Mutation != &original.binding || rewrite.command.syntax != action.syntax || rewrite.command.binding.ref != action.binding.ref || rewrite.mutation != -1 {
+		rewrite := ruleCTEsOf(parent.Rule.CTEs)[definition]
+		if rewrite == nil || rewrite.definition != definition || rewrite.definition.Statement != original.syntax || rewrite.definition.Mutation != &original.binding || rewrite.command.syntax != action.syntax || rewrite.command.binding.Ref != action.binding.Ref || rewrite.mutation != -1 {
 			t.Fatal("normalization did not preserve the provider and select the executable target")
 		}
 		if definition.Query != nil {
@@ -81,21 +81,21 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		provider := &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Frame: 2, Child: leaf, Expressions: []expr.Expr{ruleUnitInt(sink, 1), ruleUnitInt(sink, 11)}}}
 		local := &plan.CTEDefinition{Query: provider, Owner: 1}
 		scan := &plan.DerivedNode{QuerySchema: plan.QuerySchema(sink.Columns), Query: provider, CTE: local, ScanFrame: 1}
-		action := binding{ctes: []*plan.CTEDefinition{local}, query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Frame: 1, Child: scan, Expressions: provider.Root.(*plan.ProjectNode).Expressions, AnalysisExpressions: []expr.Expr{plan.SubqueryExpr{QueryPlan: provider, CTEEdge: true}}}}}
+		action := binding{CTEs: []*plan.CTEDefinition{local}, Query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Frame: 1, Child: scan, Expressions: provider.Root.(*plan.ProjectNode).Expressions, AnalysisExpressions: []expr.Expr{plan.SubqueryExpr{QueryPlan: provider, CTEEdge: true}}}}}
 		parent := original.binding
-		parent.ctes = []*plan.CTEDefinition{definition}
+		parent.CTEs = []*plan.CTEDefinition{definition}
 		mapped, err := isolateRuleCTEFrames(auth.Catalog, parent, action, &parser.Insert{})
 		if err != nil {
 			t.Fatal(err)
 		}
-		mapped, err = offsetRuleSources(auth.Catalog, mapped, 3, parent.ctes)
+		mapped, err = offsetRuleSources(auth.Catalog, mapped, 3, parent.CTEs)
 		if err != nil {
 			t.Fatal(err)
 		}
-		project := mapped.query.Root.(*plan.ProjectNode)
+		project := mapped.Query.Root.(*plan.ProjectNode)
 		result := project.Child.(*plan.DerivedNode)
 		analysis := project.AnalysisExpressions[0].(plan.SubqueryExpr)
-		if result.CTE == local || result.CTE.Owner == definition.Owner || result.ScanFrame != 1 || result.Query != result.CTE.Query || mapped.ctes[0] != result.CTE || analysis.QueryPlan.Root != result.CTE.Query.Root {
+		if result.CTE == local || result.CTE.Owner == definition.Owner || result.ScanFrame != 1 || result.Query != result.CTE.Query || mapped.CTEs[0] != result.CTE || analysis.QueryPlan.Root != result.CTE.Query.Root {
 			t.Fatal("action provider mapping is incoherent or shadows protected owner")
 		}
 		if result.Query.Root.(*plan.ProjectNode).Frame == 2 || result.Query.Root.(*plan.ProjectNode).Child.(*plan.SourceNode).Occurrence != 4 {
@@ -121,7 +121,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		oldColumn.Frame = 1
 		provider := &plan.Query{Root: &plan.ProjectNode{Expressions: []expr.Expr{newColumn, oldColumn}}}
 		local := &plan.CTEDefinition{Query: provider, Position: position}
-		body := binding{ctes: []*plan.CTEDefinition{local}, query: &plan.Query{Root: &plan.ProjectNode{AnalysisExpressions: []expr.Expr{plan.SubqueryExpr{Info: expr.Info{Pos: position}, QueryPlan: provider, CTEEdge: true}}}}}
+		body := binding{CTEs: []*plan.CTEDefinition{local}, Query: &plan.Query{Root: &plan.ProjectNode{AnalysisExpressions: []expr.Expr{plan.SubqueryExpr{Info: expr.Info{Pos: position}, QueryPlan: provider, CTEEdge: true}}}}}
 		for _, action := range []parser.Statement{
 			&parser.Insert{With: []parser.CommonTableExpression{raw}},
 			&parser.Insert{Source: &parser.InsertSource{Select: &parser.Select{With: []parser.CommonTableExpression{raw}}}},
@@ -192,15 +192,15 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		auxiliary := ruleUnitInsert(e, sink, 7, 70)
 		owned := &plan.CTEDefinition{Statement: auxiliary.syntax, Mutation: &auxiliary.binding, Owner: 1, Name: "ignored"}
 		b := original.binding
-		b.ctes = []*plan.CTEDefinition{owned}
+		b.CTEs = []*plan.CTEDefinition{owned}
 		mapped, err := remapRuleBinding(auth.Catalog, b, func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch++; return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if mapped.ctes[0] == owned || mapped.ctes[0].Query != nil || mapped.ctes[0].Statement != auxiliary.syntax || cteMutationOf(mapped.ctes[0]).ref.Epoch != auxiliary.binding.ref.Epoch+1 {
+		if mapped.CTEs[0] == owned || mapped.CTEs[0].Query != nil || mapped.CTEs[0].Statement != auxiliary.syntax || cteMutationOf(mapped.CTEs[0]).Ref.Epoch != auxiliary.binding.Ref.Epoch+1 {
 			t.Fatal("unused owned modifier did not retain syntax/nil spool authority and remap target")
 		}
-		if cteMutationOf(owned).ref != auxiliary.binding.ref {
+		if cteMutationOf(owned).Ref != auxiliary.binding.Ref {
 			t.Fatal("persistent remap mutated frozen modifier")
 		}
 	})
@@ -211,21 +211,21 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 	original := ruleUnitInsert(e, src, 1, 10).binding
 	modifier := ruleUnitInsert(e, sink, 1, 10)
 	recipe := &boundInsertConflict{
-		targets: modifier.binding.targets, keys: []conflictKey{{attribute: 1}},
-		update:        &boundUpdate{assignments: []expr.Expr{ruleUnitInt(sink, 11)}},
+		targets: modifier.binding.Targets, keys: []conflictKey{{attribute: 1}},
+		update:        &boundUpdate{Assignments: []expr.Expr{ruleUnitInt(sink, 11)}},
 		updateTargets: []int{1}, width: 2,
 	}
-	modifier.binding.insert.conflict = insertConflictSlotOf(recipe)
+	modifier.binding.Insert.Conflict = insertConflictSlotOf(recipe)
 	definition := &plan.CTEDefinition{Statement: modifier.syntax, Mutation: &modifier.binding, Schema: plan.QuerySchema(sink.Columns), Owner: 3}
 	scan := &plan.DerivedNode{QuerySchema: definition.Schema, CTE: definition, ScanFrame: 1}
 	action := ruleUnitInsert(e, sink, 1, 10)
-	action.binding.expressions = nil
-	action.binding.query = &plan.Query{Root: &plan.ProjectNode{
+	action.binding.Expressions = nil
+	action.binding.Query = &plan.Query{Root: &plan.ProjectNode{
 		QuerySchema: plan.QuerySchema(sink.Columns), Frame: 1, Child: scan,
 		Expressions: []expr.Expr{ruleUnitInt(sink, 1), ruleUnitInt(sink, 10)},
 	}}
-	action.binding.ctes = []*plan.CTEDefinition{definition}
-	action.binding.rule.template = true
+	action.binding.CTEs = []*plan.CTEDefinition{definition}
+	action.binding.Rule.Template = true
 	compose := func() binding {
 		t.Helper()
 		result, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, action)
@@ -242,8 +242,8 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 	}
 	executable := func(b binding) (*plan.CTEDefinition, *boundInsertConflict) {
 		t.Helper()
-		provider := b.ctes[0]
-		tuple := ruleCTEsOf(b.rule.ctes)[provider]
+		provider := b.CTEs[0]
+		tuple := ruleCTEsOf(b.Rule.CTEs)[provider]
 		if tuple == nil || tuple.definition != provider || tuple.command.syntax != modifier.syntax || tuple.mutation != -1 {
 			t.Fatal("normalization lost the modifier's original provider/executable tuple")
 		}
@@ -263,11 +263,11 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 			visit(left)
 			visit(right)
 		}
-		visit(b.query.Root)
-		if !found || provider.Statement != definition.Statement || insertConflictOf(cteMutationOf(provider).insert.conflict) != insertConflictOf(tuple.command.binding.insert.conflict) {
+		visit(b.Query.Root)
+		if !found || provider.Statement != definition.Statement || insertConflictOf(cteMutationOf(provider).Insert.Conflict) != insertConflictOf(tuple.command.binding.Insert.Conflict) {
 			t.Fatal("composition/normalization disconnected modifier spool identity")
 		}
-		return provider, insertConflictOf(tuple.command.binding.insert.conflict)
+		return provider, insertConflictOf(tuple.command.binding.Insert.Conflict)
 	}
 	first := compose()
 	firstDefinition, firstConflict := executable(first)
@@ -298,23 +298,23 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 	}
 	// Executable descendants use the same stored-action refresh authority.
 	nested := modifier.binding
-	nested.ctes = []*plan.CTEDefinition{definition}
+	nested.CTEs = []*plan.CTEDefinition{definition}
 	ancestor := &plan.CTEDefinition{Statement: modifier.syntax, Mutation: &nested, Schema: definition.Schema, Owner: 4}
-	refreshed, err := refreshRuleActionCTEs(auth, binding{ctes: []*plan.CTEDefinition{ancestor}})
+	refreshed, err := refreshRuleActionCTEs(auth, binding{CTEs: []*plan.CTEDefinition{ancestor}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	outer := refreshed.ctes[0]
-	inner := cteMutationOf(outer).ctes[0]
-	if outer == ancestor || inner == definition || insertConflictOf(cteMutationOf(outer).insert.conflict) == recipe || insertConflictOf(cteMutationOf(inner).insert.conflict) == recipe || insertConflictOf(cteMutationOf(outer).insert.conflict) == insertConflictOf(cteMutationOf(inner).insert.conflict) {
+	outer := refreshed.CTEs[0]
+	inner := cteMutationOf(outer).CTEs[0]
+	if outer == ancestor || inner == definition || insertConflictOf(cteMutationOf(outer).Insert.Conflict) == recipe || insertConflictOf(cteMutationOf(inner).Insert.Conflict) == recipe || insertConflictOf(cteMutationOf(outer).Insert.Conflict) == insertConflictOf(cteMutationOf(inner).Insert.Conflict) {
 		t.Fatal("recursive stored modifier ancestry retained shared workspace")
 	}
-	if outer.Owner != ancestor.Owner || inner.Owner != definition.Owner || nested.ctes[0] != definition || ancestor.Mutation != &nested {
+	if outer.Owner != ancestor.Owner || inner.Owner != definition.Owner || nested.CTEs[0] != definition || ancestor.Mutation != &nested {
 		t.Fatal("recursive refresh mutated stored ownership/ancestry")
 	}
 	// Fresh ordinary bindings do not enter the stored modifier clone path.
 	ordinary, err := refreshRuleActionCTEs(auth, modifier.binding)
-	if err != nil || insertConflictOf(ordinary.insert.conflict) != recipe {
+	if err != nil || insertConflictOf(ordinary.Insert.Conflict) != recipe {
 		t.Fatal("ordinary binding acquired an unnecessary workspace clone")
 	}
 }

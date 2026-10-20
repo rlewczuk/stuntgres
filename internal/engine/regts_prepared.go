@@ -7,18 +7,18 @@ import (
 
 // Text-search captures reuse the existing occurrence-keyed analysis cell.
 func (b *expressionBinder) regTSConstant(text string, usage sqltype.Usage, pos parser.Position) (sqltype.Value, error) {
-	constant := regtypeConstant{offset: pos.Offset, operator: usage.Type.ID()}
+	constant := regtypeConstant{Offset: pos.Offset, Operator: usage.Type.ID()}
 	if b.expected != nil && b.expected.regtypes != nil {
 		for _, c := range b.expected.regtypes.constants {
-			if c.offset == pos.Offset && c.operator == usage.Type.ID() && c.value.Type() != nil {
-				value, err := c.value.Retag(usage.Type)
+			if c.Offset == pos.Offset && c.Operator == usage.Type.ID() && c.Value.Type() != nil {
+				value, err := c.Value.Retag(usage.Type)
 				if err != nil {
 					return sqltype.Value{}, err
 				}
-				for _, dependency := range c.operands {
+				for _, dependency := range c.Operands {
 					b.dependency(dependency.Ref, dependency.Revision)
 				}
-				b.prepared.regtypeConstants = append(b.prepared.regtypeConstants, c)
+				b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, c)
 				return value, nil
 			}
 		}
@@ -28,17 +28,17 @@ func (b *expressionBinder) regTSConstant(text string, usage sqltype.Usage, pos p
 	}
 	input := b.input
 	resolver := input.RegTS.(capturedRegTSInput)
-	resolver.qualified = &constant.qualified
-	resolver.resolved = &constant.operands
+	resolver.qualified = &constant.Qualified
+	resolver.resolved = &constant.Operands
 	input.RegTS = resolver
 	value, err := usage.Type.InputWithEnvironment(b.ctx, text, -1, input.LiteralInput(pos.Character))
 	if err != nil {
 		return sqltype.Value{}, regtypeInputError(err, pos)
 	}
-	constant.value = value
-	for _, dependency := range constant.operands {
+	constant.Value = value
+	for _, dependency := range constant.Operands {
 		b.dependency(dependency.Ref, dependency.Revision)
 	}
-	b.prepared.regtypeConstants = append(b.prepared.regtypeConstants, constant)
+	b.prepared.RegtypeConstants = append(b.prepared.RegtypeConstants, constant)
 	return value, nil
 }

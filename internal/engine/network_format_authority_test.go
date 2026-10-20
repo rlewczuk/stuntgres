@@ -157,15 +157,15 @@ func TestNetworkFormatStoredLiteralIdentity(t *testing.T) {
 		t.Run(tc.expression, func(t *testing.T) {
 			node, b, _ := strictNullUnitBind(t, e, op, scope, tc.expression)
 			raw := statement(t, "SELECT "+tc.expression).(*parser.Select).Targets[0]
-			if err := b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil {
+			if err := b.captureViewLiterals(raw, node, ViewTargetLiteral, 0); err != nil {
 				t.Fatal("stored literal occurrence pairing", err)
 			}
-			if len(b.capture.literals) != tc.literals {
-				t.Fatal("lost original literal occurrences", len(b.capture.literals), tc.literals)
+			if len(b.capture.Literals) != tc.literals {
+				t.Fatal("lost original literal occurrences", len(b.capture.Literals), tc.literals)
 			}
 			// Captured leaves retain their declared network type, not the parent's
 			// TEXT/INT4/BOOL result or an erased function-call placeholder.
-			for _, literal := range b.capture.literals {
+			for _, literal := range b.capture.Literals {
 				if !sqltype.IsNetwork(literal.ResultUsage().Type.BaseType().ID()) {
 					t.Fatal("lost typed network literal", literal.ResultUsage())
 				}

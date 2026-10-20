@@ -54,10 +54,10 @@ func ruleColumnInfo(column catalog.Column) expr.Info {
 }
 
 func makeRuleProducer(catalog catalog.Read, b binding, event string, outputUses ...[]int) (ruleProducer, error) {
-	d := b.relation
-	p := ruleProducer{old: make([]expr.Expr, len(d.Columns)), new: make([]expr.Expr, len(d.Columns)), sources: b.querySources}
+	d := b.Relation
+	p := ruleProducer{old: make([]expr.Expr, len(d.Columns)), new: make([]expr.Expr, len(d.Columns)), sources: b.QuerySources}
 	for i, column := range d.Columns {
-		ref := b.ref
+		ref := b.Ref
 		ref.Address.SubID = d.Attributes[i]
 		p.old[i] = plan.ColumnExpr{Info: ruleColumnInfo(column), Origin: ref, Scope: 1, Frame: 1, Slot: i}
 		p.new[i] = p.old[i]
@@ -66,20 +66,20 @@ func makeRuleProducer(catalog catalog.Read, b binding, event string, outputUses 
 		for i, column := range d.Columns {
 			p.old[i] = plan.LiteralExpr{Info: ruleColumnInfo(column), Value: sqltype.Null(column.Usage.Type)}
 			p.new[i] = p.old[i]
-			if len(b.insert.defaults) > i && b.insert.defaults[i] != nil {
-				p.new[i] = b.insert.defaults[i]
+			if len(b.Insert.Defaults) > i && b.Insert.Defaults[i] != nil {
+				p.new[i] = b.Insert.Defaults[i]
 			}
 		}
 		assign := func(output int, value expr.Expr) {
-			slot := b.targets[output]
-			if len(b.arrayTargets) > output && b.arrayTargets[output] != nil {
-				value = plan.AssignmentValueExpr{Info: expr.Info{Usage: d.Columns[slot].Usage, Pos: value.SourcePosition(), Property: expr.MergeProperties(p.new[slot].Properties(), value.Properties())}, Base: p.new[slot], Value: value, Target: b.arrayTargets[output]}
+			slot := b.Targets[output]
+			if len(b.ArrayTargets) > output && b.ArrayTargets[output] != nil {
+				value = plan.AssignmentValueExpr{Info: expr.Info{Usage: d.Columns[slot].Usage, Pos: value.SourcePosition(), Property: expr.MergeProperties(p.new[slot].Properties(), value.Properties())}, Base: p.new[slot], Value: value, Target: b.ArrayTargets[output]}
 			}
 			p.new[slot] = value
 		}
-		if b.query != nil {
-			project := b.query.Root.(*plan.ProjectNode)
-			if b.insert.subquerySource {
+		if b.Query != nil {
+			project := b.Query.Root.(*plan.ProjectNode)
+			if b.Insert.SubquerySource {
 				if len(outputUses) != 0 {
 					var err error
 					project, err = storedProjectionDemand(project, outputUses[0])
@@ -88,55 +88,55 @@ func makeRuleProducer(catalog catalog.Read, b binding, event string, outputUses 
 					}
 				}
 				p.root = &plan.DerivedNode{QuerySchema: plan.QuerySchema(project.Schema()), Query: &plan.Query{Root: project}}
-				for i := range b.targets {
+				for i := range b.Targets {
 					assign(i, plan.ColumnExpr{Info: ruleColumnInfo(project.Schema()[i]), Scope: 1, Frame: project.Frame, Slot: i})
 				}
 			} else {
 				p.root = project.Child
-				for i := range b.targets {
+				for i := range b.Targets {
 					assign(i, project.Expressions[i])
 				}
 			}
-		} else if len(b.expressions) == 1 {
+		} else if len(b.Expressions) == 1 {
 			// Released transformInsertStmt gives a single VALUES row target
 			// recipes directly, without a VALUES RTE or supplied-datum sharing.
 			p.root = &plan.SingletonNode{}
-			for i := range b.targets {
-				assign(i, b.expressions[0][i])
+			for i := range b.Targets {
+				assign(i, b.Expressions[0][i])
 			}
 		} else {
-			schema := make(plan.QuerySchema, len(b.targets))
-			for i, slot := range b.targets {
+			schema := make(plan.QuerySchema, len(b.Targets))
+			for i, slot := range b.Targets {
 				schema[i] = d.Columns[slot]
-				if len(b.expressions) != 0 {
-					schema[i].Usage = b.expressions[0][i].ResultUsage()
+				if len(b.Expressions) != 0 {
+					schema[i].Usage = b.Expressions[0][i].ResultUsage()
 				}
 				assign(i, plan.ColumnExpr{Info: ruleColumnInfo(schema[i]), Scope: 1, Frame: 1, Slot: i})
 			}
-			if len(b.expressions) == 0 {
+			if len(b.Expressions) == 0 {
 				p.root = &plan.SingletonNode{}
 			} else {
-				p.root = &plan.ValuesNode{QuerySchema: schema, Rows: b.expressions}
+				p.root = &plan.ValuesNode{QuerySchema: schema, Rows: b.Expressions}
 			}
 		}
 	} else {
-		p.sources = append([]exec.Leaf{{Ref: b.ref, Relation: d, Storage: b.storage, Uses: b.usedColumns}}, b.querySources...)
-		p.root = &plan.SourceNode{QuerySchema: plan.QuerySchema(d.Columns), Ref: b.ref, Occurrence: 0}
+		p.sources = append([]exec.Leaf{{Ref: b.Ref, Relation: d, Storage: b.Storage, Uses: b.UsedColumns}}, b.QuerySources...)
+		p.root = &plan.SourceNode{QuerySchema: plan.QuerySchema(d.Columns), Ref: b.Ref, Occurrence: 0}
 		var from plan.Node
 		var condition expr.Expr
 		if event == "UPDATE" {
-			from = b.update.from
-			condition = b.update.predicate
-			for i, slot := range b.targets {
-				value := b.update.assignments[i]
-				if len(b.update.arrayTargets) > i && b.update.arrayTargets[i] != nil {
-					value = plan.AssignmentValueExpr{Info: expr.Info{Usage: d.Columns[slot].Usage, Pos: value.SourcePosition(), Property: expr.MergeProperties(p.new[slot].Properties(), value.Properties())}, Base: p.new[slot], Value: value, Target: b.update.arrayTargets[i]}
+			from = b.Update.From
+			condition = b.Update.Predicate
+			for i, slot := range b.Targets {
+				value := b.Update.Assignments[i]
+				if len(b.Update.ArrayTargets) > i && b.Update.ArrayTargets[i] != nil {
+					value = plan.AssignmentValueExpr{Info: expr.Info{Usage: d.Columns[slot].Usage, Pos: value.SourcePosition(), Property: expr.MergeProperties(p.new[slot].Properties(), value.Properties())}, Base: p.new[slot], Value: value, Target: b.Update.ArrayTargets[i]}
 				}
 				p.new[slot] = value
 			}
 		} else {
-			from = b.delete.using
-			condition = b.predicate
+			from = b.Delete.Using
+			condition = b.Predicate
 		}
 		mapper := func(bound expr.Expr) (expr.Expr, bool, error) {
 			return rewriteViewExpression(catalog, bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
@@ -310,37 +310,37 @@ func ruleQueryInput(root plan.Node) plan.Node {
 }
 
 func normalizeRuleInsert(b binding) binding {
-	if b.query != nil {
+	if b.Query != nil {
 		return b
 	}
-	schema := make(plan.QuerySchema, len(b.targets))
-	for i, slot := range b.targets {
-		schema[i] = b.relation.Columns[slot]
+	schema := make(plan.QuerySchema, len(b.Targets))
+	for i, slot := range b.Targets {
+		schema[i] = b.Relation.Columns[slot]
 	}
-	if len(b.expressions) == 1 {
-		b.query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: schema, Child: &plan.SingletonNode{}, Expressions: b.expressions[0], Frame: 1}}
+	if len(b.Expressions) == 1 {
+		b.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: schema, Child: &plan.SingletonNode{}, Expressions: b.Expressions[0], Frame: 1}}
 	} else {
 		projection := make([]expr.Expr, len(schema))
 		for i, column := range schema {
 			projection[i] = plan.ColumnExpr{Info: ruleColumnInfo(column), Scope: 1, Frame: 1, Slot: i}
 		}
-		b.query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: schema, Child: &plan.ValuesNode{QuerySchema: schema, Rows: b.expressions}, Expressions: projection, Frame: 1}}
+		b.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: schema, Child: &plan.ValuesNode{QuerySchema: schema, Rows: b.Expressions}, Expressions: projection, Frame: 1}}
 	}
-	b.commandQuery = true
-	b.expressions = nil
+	b.CommandQuery = true
+	b.Expressions = nil
 	return b
 }
 
 func ruleSetAction(b binding, syntax parser.Statement) bool {
-	if _, selecting := syntax.(*parser.Select); !selecting || b.query == nil {
+	if _, selecting := syntax.(*parser.Select); !selecting || b.Query == nil {
 		return false
 	}
-	_, set := ruleQueryInput(b.query.Root).(*plan.SetNode)
+	_, set := ruleQueryInput(b.Query.Root).(*plan.SetNode)
 	return set
 }
 
 func composeRuleAction(auth AuthorizationView, original binding, event string, r ruleDefinition, action ruleAction) (binding, error) {
-	qualified := original.predicate != nil || original.update != nil && original.update.predicate != nil
+	qualified := original.Predicate != nil || original.Update != nil && original.Update.Predicate != nil
 	if (qualified || r.condition != nil) && ruleSetAction(action.binding, action.syntax) {
 		return binding{}, sqlError("0A000", "conditional UNION/INTERSECT/EXCEPT statements are not implemented")
 	}
@@ -358,16 +358,16 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 	// Resolve authority at the retained producer boundary, before switching
 	// to the event owner's context for stored action refresh and composition.
 	caller := auth.State.CurrentUser
-	auth.State.CurrentUser = original.relation.Owner
+	auth.State.CurrentUser = original.Relation.Owner
 	b := action.binding
 	dependenciesPrivate := false
-	b.insert.conflict = insertConflictSlotOf(insertConflictOf(b.insert.conflict).instantiate())
+	b.Insert.Conflict = insertConflictSlotOf(insertConflictOf(b.Insert.Conflict).instantiate())
 	b, err = refreshRuleActionCTEs(auth, b)
 	if err != nil {
 		return b, err
 	}
-	if b.relation != nil {
-		current, ok := catalog.Relation(b.ref.Address)
+	if b.Relation != nil {
+		current, ok := catalog.Relation(b.Ref.Address)
 		if !ok {
 			return b, ids.ErrCatalogReplaced
 		}
@@ -387,25 +387,25 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 	if err != nil {
 		return b, err
 	}
-	if len(original.ctes) != 0 {
-		if len(b.ctes) == 0 {
-			b.ctes = original.ctes
+	if len(original.CTEs) != 0 {
+		if len(b.CTEs) == 0 {
+			b.CTEs = original.CTEs
 		} else {
-			b.ctes = slices.Concat(original.ctes, b.ctes)
+			b.CTEs = slices.Concat(original.CTEs, b.CTEs)
 		}
-		b.cteSelectBodies = b.cteSelectBodies || original.cteSelectBodies
-		b.rule.ctes = original.rule.ctes
+		b.CTESelectBodies = b.CTESelectBodies || original.CTESelectBodies
+		b.Rule.CTEs = original.Rule.CTEs
 	}
 	actionFrame := uint32(1)
-	if b.query != nil {
-		actionFrame = b.query.Root.(*plan.ProjectNode).Frame
+	if b.Query != nil {
+		actionFrame = b.Query.Root.(*plan.ProjectNode).Frame
 	}
 	producerFrame := uint32(1)
-	if original.query != nil {
-		producerFrame = original.query.Root.(*plan.ProjectNode).Frame
+	if original.Query != nil {
+		producerFrame = original.Query.Root.(*plan.ProjectNode).Frame
 	}
 	actionMax, producerMax := ruleBindingMaxFrame(b), ruleBindingMaxFrame(original)
-	if actionFrame != producerFrame || producerMax > 1 || original.insert.subquerySource {
+	if actionFrame != producerFrame || producerMax > 1 || original.Insert.SubquerySource {
 		frame := func(old uint32) uint32 {
 			if old == 0 {
 				return 0
@@ -416,7 +416,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 			return old + actionMax + 1
 		}
 		rootFrame := frame
-		if original.insert.subquerySource {
+		if original.Insert.SubquerySource {
 			// The derived SELECT owns a private lexical frame. Only its output
 			// Vars enter the action frame; inner columns must not be graft-shifted.
 			rootFrame = func(old uint32) uint32 {
@@ -426,7 +426,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 				return old + actionMax + 1
 			}
 		}
-		p.root, _, err = rewriteRuleFrames(catalog, p.root, nil, rootFrame, original.ctes)
+		p.root, _, err = rewriteRuleFrames(catalog, p.root, nil, rootFrame, original.CTEs)
 		if err != nil {
 			return b, err
 		}
@@ -446,13 +446,13 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 	width := len(p.root.Schema())
 	targetWidth := 0
 	if _, ok := action.syntax.(*parser.Update); ok {
-		targetWidth = len(b.relation.Columns)
+		targetWidth = len(b.Relation.Columns)
 	}
 	if _, ok := action.syntax.(*parser.Delete); ok {
-		targetWidth = len(b.relation.Columns)
+		targetWidth = len(b.Relation.Columns)
 	}
 	sourceOffset := len(p.sources)
-	b, err = offsetRuleSources(catalog, b, sourceOffset, original.ctes)
+	b, err = offsetRuleSources(catalog, b, sourceOffset, original.CTEs)
 	if err != nil {
 		return b, err
 	}
@@ -475,12 +475,12 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 			if column.Frame == 2 {
 				recipes = p.new
 			}
-			slot := slices.Index(original.relation.Attributes, column.Origin.Address.SubID)
+			slot := slices.Index(original.Relation.Attributes, column.Origin.Address.SubID)
 			if slot < 0 || slot >= len(recipes) {
 				return nil, false, ids.ErrCatalogReplaced
 			}
-			if column.Frame == 2 && len(original.insert.defaults) > slot && original.insert.defaults[slot] != nil {
-				if err := loanRuleDefaultDependencies(catalog, original.relation, slot, &b.dependencies, &dependenciesPrivate); err != nil {
+			if column.Frame == 2 && len(original.Insert.Defaults) > slot && original.Insert.Defaults[slot] != nil {
+				if err := loanRuleDefaultDependencies(catalog, original.Relation, slot, &b.Dependencies, &dependenciesPrivate); err != nil {
 					return nil, false, err
 				}
 			}
@@ -521,7 +521,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 	}
 	var opaque map[plan.Node]bool
 	finish := ruleQueryFinalizer(catalog)
-	tree := newRuleTreeMapper(catalog, nil, 0, original.ctes, ruleTreeMapping{
+	tree := newRuleTreeMapper(catalog, nil, 0, original.CTEs, ruleTreeMapping{
 		leaf:   substitute,
 		finish: finish,
 		boundary: func(node plan.Node) (plan.Node, bool) {
@@ -554,7 +554,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 	mapTargets := func(targets []*plan.ArrayAssignmentTarget) ([]*plan.ArrayAssignmentTarget, error) {
 		return mapRuleAssignmentTargets(targets, mapper, func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil })
 	}
-	b.arrayTargets, err = mapTargets(b.arrayTargets)
+	b.ArrayTargets, err = mapTargets(b.ArrayTargets)
 	if err != nil {
 		return b, err
 	}
@@ -565,11 +565,11 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 		if refreshErr != nil {
 			return b, refreshErr
 		}
-		cb, err = offsetRuleSources(catalog, cb, sourceOffset+len(b.querySources))
+		cb, err = offsetRuleSources(catalog, cb, sourceOffset+len(b.QuerySources))
 		if err != nil {
 			return b, err
 		}
-		condition = cb.query.Root.(*plan.ProjectNode).Expressions[0]
+		condition = cb.Query.Root.(*plan.ProjectNode).Expressions[0]
 		_, condition, err = rewriteRuleFrames(catalog, nil, condition, func(old uint32) uint32 {
 			if old == 0 {
 				return 0
@@ -582,10 +582,10 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 		if err != nil {
 			return b, err
 		}
-		conditionSources = cb.querySources
-		b.dependencies = append(slices.Clone(b.dependencies), cb.dependencies...)
-		b.prepared.sequenceConstants = append(slices.Clone(b.prepared.sequenceConstants), cb.prepared.sequenceConstants...)
-		b.prepared.regtypeConstants = append(slices.Clone(b.prepared.regtypeConstants), cb.prepared.regtypeConstants...)
+		conditionSources = cb.QuerySources
+		b.Dependencies = append(slices.Clone(b.Dependencies), cb.Dependencies...)
+		b.Prepared.SequenceConstants = append(slices.Clone(b.Prepared.SequenceConstants), cb.Prepared.SequenceConstants...)
+		b.Prepared.RegtypeConstants = append(slices.Clone(b.Prepared.RegtypeConstants), cb.Prepared.RegtypeConstants...)
 	}
 	if condition != nil {
 		condition, _, err = mapper(condition)
@@ -607,7 +607,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 					return innerFrame
 				}
 				return old
-			}, b.ctes)
+			}, b.CTEs)
 			if err != nil {
 				return nil, err
 			}
@@ -650,85 +650,85 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 		}
 		return substituted, nil
 	}
-	if b.query != nil {
-		copy := *b.query
+	if b.Query != nil {
+		copy := *b.Query
 		copy.Root, err = graft(copy.Root)
 		if err != nil {
 			return b, err
 		}
-		b.query = &copy
+		b.Query = &copy
 	}
-	if b.update != nil {
-		u := *b.update
-		u.assignments = slices.Clone(u.assignments)
-		u.arrayTargets, err = mapTargets(u.arrayTargets)
+	if b.Update != nil {
+		u := *b.Update
+		u.Assignments = slices.Clone(u.Assignments)
+		u.ArrayTargets, err = mapTargets(u.ArrayTargets)
 		if err != nil {
 			return b, err
 		}
-		for i, expr := range u.assignments {
-			u.assignments[i], _, err = mapper(expr)
+		for i, expr := range u.Assignments {
+			u.Assignments[i], _, err = mapper(expr)
 			if err != nil {
 				return b, err
 			}
 		}
-		u.predicate, _, err = mapper(u.predicate)
+		u.Predicate, _, err = mapper(u.Predicate)
 		if err != nil {
 			return b, err
 		}
 		if condition != nil {
-			u.predicate = viewWritePredicate([]expr.Expr{condition}, u.predicate)
+			u.Predicate = viewWritePredicate([]expr.Expr{condition}, u.Predicate)
 		}
-		u.from, err = graft(u.from)
+		u.From, err = graft(u.From)
 		if err != nil {
 			return b, err
 		}
-		u.sourceWidth = len(u.from.Schema())
-		b.update = &u
+		u.SourceWidth = len(u.From.Schema())
+		b.Update = &u
 	}
 	if _, ok := action.syntax.(*parser.Delete); ok {
-		b.predicate, _, err = mapper(b.predicate)
+		b.Predicate, _, err = mapper(b.Predicate)
 		if err != nil {
 			return b, err
 		}
 		if condition != nil {
-			b.predicate = viewWritePredicate([]expr.Expr{condition}, b.predicate)
+			b.Predicate = viewWritePredicate([]expr.Expr{condition}, b.Predicate)
 		}
-		b.delete.using, err = graft(b.delete.using)
+		b.Delete.Using, err = graft(b.Delete.Using)
 		if err != nil {
 			return b, err
 		}
-		b.delete.sourceWidth = len(b.delete.using.Schema())
+		b.Delete.SourceWidth = len(b.Delete.Using.Schema())
 	}
 	var definitions []*plan.CTEDefinition
-	for i, definition := range b.ctes {
+	for i, definition := range b.CTEs {
 		mapped, mapErr := tree.definition(definition)
 		if mapErr != nil {
 			return b, mapErr
 		}
 		if mapped != definition {
 			if definitions == nil {
-				definitions = slices.Clone(b.ctes)
+				definitions = slices.Clone(b.CTEs)
 			}
 			definitions[i] = mapped
 		}
 	}
 	if definitions != nil {
-		b.ctes = definitions
+		b.CTEs = definitions
 	}
-	b.querySources = append(slices.Clone(p.sources), b.querySources...)
-	b.querySources = append(b.querySources, conditionSources...)
-	for i := range b.querySources {
+	b.QuerySources = append(slices.Clone(p.sources), b.QuerySources...)
+	b.QuerySources = append(b.QuerySources, conditionSources...)
+	for i := range b.QuerySources {
 		if i < sourceOffset {
-			if b.querySources[i].Principal == (authorization.PrincipalRef{}) {
-				b.querySources[i].Principal = caller
+			if b.QuerySources[i].Principal == (authorization.PrincipalRef{}) {
+				b.QuerySources[i].Principal = caller
 			}
 		} else {
-			b.querySources[i].Principal = auth.State.CurrentUser
+			b.QuerySources[i].Principal = auth.State.CurrentUser
 		}
 	}
-	b.subqueryDemand = b.subqueryDemand || original.subqueryDemand
-	b.dependencies = append(slices.Clone(original.dependencies), b.dependencies...)
-	b.parameters = original.parameters
+	b.SubqueryDemand = b.SubqueryDemand || original.SubqueryDemand
+	b.Dependencies = append(slices.Clone(original.Dependencies), b.Dependencies...)
+	b.Parameters = original.Parameters
 	return b, nil
 }
 
@@ -736,11 +736,11 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 	event := ruleEvent(stmt)
 	firstCommand := len(program.commands)
 	b = physicalBinding(b)
-	if event == "" || b.relation == nil {
+	if event == "" || b.Relation == nil {
 		return e.appendRuleCommand(program, auth, stmt, b), nil
 	}
-	current, ok := auth.Catalog.Relation(b.ref.Address)
-	if !ok || b.ref.Epoch != auth.Catalog.Epoch() {
+	current, ok := auth.Catalog.Relation(b.Ref.Address)
+	if !ok || b.Ref.Epoch != auth.Catalog.Epoch() {
 		return -1, ids.ErrCatalogReplaced
 	}
 	var err error
@@ -748,23 +748,23 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 	if err != nil {
 		return -1, err
 	}
-	if insert, ok := stmt.(*parser.Insert); ok && b.rule.template {
-		b.insert.defaults = nil
+	if insert, ok := stmt.(*parser.Insert); ok && b.Rule.Template {
+		b.Insert.Defaults = nil
 		bindInsertDefaults(e.catalog.owner(), &b, auth, insert.Override)
 	}
 	if current.RelationKind != catalog.ViewRelation {
-		b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
+		b.Storage = e.authorizationStorageLocked(auth, b.Ref.Address)
 	}
-	rules := rulesOf(b.relation)
+	rules := rulesOf(b.Relation)
 	matched := slices.ContainsFunc(rules, func(r ruleDefinition) bool { return r.event == event })
 	if matched {
-		dependency := catalog.ExpressionDependency{Ref: b.ref, Revision: current.Revision()}
+		dependency := catalog.ExpressionDependency{Ref: b.Ref, Revision: current.Revision()}
 		if !slices.Contains(program.events, dependency) {
 			program.events = append(program.events, dependency)
 		}
 	}
 	if current.RelationKind == catalog.ViewRelation && !matched {
-		b.viewWrite = nil
+		b.ViewWrite = nil
 		if err := e.bindViewWrite(&b, auth, stmt); err != nil {
 			return -1, err
 		}
@@ -773,9 +773,9 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 	if len(rules) == 0 {
 		return e.appendRuleCommand(program, auth, stmt, b), nil
 	}
-	key := ruleAncestry{b.ref, event}
+	key := ruleAncestry{b.Ref, event}
 	if slices.Contains(ancestry, key) {
-		return -1, sqlError("42P17", fmt.Sprintf(`infinite recursion detected in rules for relation "%s"`, b.relation.Name()))
+		return -1, sqlError("42P17", fmt.Sprintf(`infinite recursion detected in rules for relation "%s"`, b.Relation.Name()))
 	}
 	ancestry = append(ancestry, key)
 	if s, ok := stmt.(*parser.Insert); ok && s.Conflict != nil {
@@ -824,7 +824,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 			whole := address
 			whole.SubID = 0
 			if descriptor, ok := auth.Catalog.Find(whole); ok {
-				b.dependencies = append(b.dependencies, catalog.ExpressionDependency{Ref: e.catalog.Domain.Ref(auth.Catalog.Epoch(), address), Revision: descriptor.Revision()})
+				b.Dependencies = append(b.Dependencies, catalog.ExpressionDependency{Ref: e.catalog.Domain.Ref(auth.Catalog.Epoch(), address), Revision: descriptor.Revision()})
 			}
 		}
 		for _, action := range r.actions {
@@ -835,13 +835,13 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 				return -1, err
 			}
 			if ruleReturning(stmt) == nil {
-				composed.returning = nil
-			} else if action.binding.returning != nil {
+				composed.Returning = nil
+			} else if action.binding.Returning != nil {
 				providers++
 				if providers > 1 {
 					return -1, sqlError("0A000", "cannot have RETURNING lists in multiple rules")
 				}
-				composed.returning, err = ruleReturningProjection(auth.Catalog, b.returning, action.binding.returning)
+				composed.Returning, err = ruleReturningProjection(auth.Catalog, b.Returning, action.binding.Returning)
 				if err != nil {
 					return -1, err
 				}
@@ -858,7 +858,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 				source = ruleConditionalInstead
 			}
 			markRuleCommandSource(program, start, source)
-			if composed.returning != nil && ruleReturning(stmt) != nil {
+			if composed.Returning != nil && ruleReturning(stmt) != nil {
 				program.returning = index
 			}
 			if !original && r.instead && ruleEvent(action.syntax) == event {
@@ -878,7 +878,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 		}
 	}
 	if (!original || conditionalInstead) && ruleReturning(stmt) != nil && providers == 0 {
-		return -1, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`cannot perform %s RETURNING on relation "%s"`, event, b.relation.Name()), Hint: "You need an unconditional ON " + event + " DO INSTEAD rule with a RETURNING clause."}
+		return -1, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`cannot perform %s RETURNING on relation "%s"`, event, b.Relation.Name()), Hint: "You need an unconditional ON " + event + " DO INSTEAD rule with a RETURNING clause."}
 	}
 	if len(parser.StatementWith(stmt)) != 0 && len(program.commands)-firstCommand > 1 {
 		return -1, sqlError("0A000", "WITH cannot be used in a query that is rewritten by rules into multiple queries")
@@ -917,11 +917,11 @@ func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleD
 			if refreshErr != nil {
 				return b, refreshErr
 			}
-			cb, err = offsetRuleSources(catalog, cb, len(b.querySources))
+			cb, err = offsetRuleSources(catalog, cb, len(b.QuerySources))
 			if err != nil {
 				return b, err
 			}
-			qualification = cb.query.Root.(*plan.ProjectNode).Expressions[0]
+			qualification = cb.Query.Root.(*plan.ProjectNode).Expressions[0]
 			maxFrame := ruleBindingMaxFrame(b)
 			_, qualification, err = rewriteRuleFrames(catalog, nil, qualification, func(old uint32) uint32 {
 				if old <= 1 {
@@ -932,18 +932,18 @@ func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleD
 			if err != nil {
 				return b, err
 			}
-			b.querySources = append(slices.Clone(b.querySources), cb.querySources...)
-			b.dependencies = append(slices.Clone(b.dependencies), cb.dependencies...)
-			b.prepared.sequenceConstants = append(slices.Clone(b.prepared.sequenceConstants), cb.prepared.sequenceConstants...)
-			b.prepared.regtypeConstants = append(slices.Clone(b.prepared.regtypeConstants), cb.prepared.regtypeConstants...)
+			b.QuerySources = append(slices.Clone(b.QuerySources), cb.QuerySources...)
+			b.Dependencies = append(slices.Clone(b.Dependencies), cb.Dependencies...)
+			b.Prepared.SequenceConstants = append(slices.Clone(b.Prepared.SequenceConstants), cb.Prepared.SequenceConstants...)
+			b.Prepared.RegtypeConstants = append(slices.Clone(b.Prepared.RegtypeConstants), cb.Prepared.RegtypeConstants...)
 		}
-		tree := newRuleTreeMapper(catalog, nil, 0, b.ctes, ruleTreeMapping{finish: ruleQueryFinalizer(catalog), leaf: func(expr expr.Expr) (expr.Expr, bool, error) {
+		tree := newRuleTreeMapper(catalog, nil, 0, b.CTEs, ruleTreeMapping{finish: ruleQueryFinalizer(catalog), leaf: func(expr expr.Expr) (expr.Expr, bool, error) {
 			if column, ok := expr.(plan.ColumnExpr); ok && column.Scope == rulePseudoScope {
 				recipes := p.old
 				if column.Frame == 2 {
 					recipes = p.new
 				}
-				slot := slices.Index(b.relation.Attributes, column.Origin.Address.SubID)
+				slot := slices.Index(b.Relation.Attributes, column.Origin.Address.SubID)
 				if slot < 0 || slot >= len(recipes) {
 					return nil, false, ids.ErrCatalogReplaced
 				}
@@ -967,26 +967,26 @@ func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleD
 		return b, nil
 	}
 	if event == "INSERT" {
-		schema := make(plan.QuerySchema, len(b.targets))
+		schema := make(plan.QuerySchema, len(b.Targets))
 		frame := uint32(1)
-		if b.query != nil {
-			frame = b.query.Root.(*plan.ProjectNode).Frame
+		if b.Query != nil {
+			frame = b.Query.Root.(*plan.ProjectNode).Frame
 		}
-		projection := make([]expr.Expr, len(b.targets))
-		for i, slot := range b.targets {
-			schema[i] = b.relation.Columns[slot]
+		projection := make([]expr.Expr, len(b.Targets))
+		for i, slot := range b.Targets {
+			schema[i] = b.Relation.Columns[slot]
 			projection[i] = p.new[slot]
 		}
 		root := &plan.FilterNode{QuerySchema: plan.QuerySchema(p.root.Schema()), Child: p.root, Predicate: viewWritePredicate(predicates, nil)}
-		b.query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: schema, Child: root, Expressions: projection, Frame: frame}}
-		b.commandQuery = true
-		b.expressions = nil
+		b.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: schema, Child: root, Expressions: projection, Frame: frame}}
+		b.CommandQuery = true
+		b.Expressions = nil
 	} else if event == "UPDATE" {
-		u := *b.update
-		u.predicate = viewWritePredicate(predicates, u.predicate)
-		b.update = &u
+		u := *b.Update
+		u.Predicate = viewWritePredicate(predicates, u.Predicate)
+		b.Update = &u
 	} else {
-		b.predicate = viewWritePredicate(predicates, b.predicate)
+		b.Predicate = viewWritePredicate(predicates, b.Predicate)
 	}
 	return b, nil
 }
@@ -995,21 +995,21 @@ func ruleReturningProjection(catalog catalog.Read, original, provider *boundRetu
 	copy := *original
 	// Output names/usages belong to the caller; column privileges belong to
 	// the physical provider whose expressions replace those output Vars.
-	copy.reads = provider.reads
-	copy.readRequired = provider.readRequired
-	copy.visibilitySnapshot = copy.visibilitySnapshot || provider.visibilitySnapshot
-	copy.expressions = slices.Clone(original.expressions)
-	for i, bound := range copy.expressions {
+	copy.Reads = provider.Reads
+	copy.ReadRequired = provider.ReadRequired
+	copy.VisibilitySnapshot = copy.VisibilitySnapshot || provider.VisibilitySnapshot
+	copy.Expressions = slices.Clone(original.Expressions)
+	for i, bound := range copy.Expressions {
 		var err error
-		copy.expressions[i], _, err = rewriteViewExpression(catalog, bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
+		copy.Expressions[i], _, err = rewriteViewExpression(catalog, bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
 			column, ok := expr.(plan.ReturningColumnExpr)
 			if !ok {
 				return expr, false, nil
 			}
-			if column.Slot >= len(provider.expressions) {
+			if column.Slot >= len(provider.Expressions) {
 				return nil, false, ids.ErrCatalogReplaced
 			}
-			return provider.expressions[column.Slot], true, nil
+			return provider.Expressions[column.Slot], true, nil
 		})
 		if err != nil {
 			return nil, err
@@ -1019,25 +1019,25 @@ func ruleReturningProjection(catalog catalog.Read, original, provider *boundRetu
 }
 
 func (e *Engine) expandRuleResidualLocked(scope *StatementScope, auth AuthorizationView, stmt parser.Statement, b binding, ancestry []ruleAncestry, program *ruleProgram) (int, error) {
-	if b.relation.RelationKind != catalog.ViewRelation {
+	if b.Relation.RelationKind != catalog.ViewRelation {
 		return e.appendRuleCommand(program, auth, stmt, b), nil
 	}
-	prior := viewWriteOf(b.viewWrite)
-	b.viewWrite = nil
-	if err := e.bindViewWrite(&b, auth, stmt, b.ref); err != nil {
+	prior := viewWriteOf(b.ViewWrite)
+	b.ViewWrite = nil
+	if err := e.bindViewWrite(&b, auth, stmt, b.Ref); err != nil {
 		return -1, err
 	}
-	if b.viewWrite != nil && prior != nil {
-		viewWriteOf(b.viewWrite).layers = append(slices.Clone(prior.layers), viewWriteOf(b.viewWrite).layers...)
-		viewWriteOf(b.viewWrite).logical = prior.logical
+	if b.ViewWrite != nil && prior != nil {
+		viewWriteOf(b.ViewWrite).layers = append(slices.Clone(prior.layers), viewWriteOf(b.ViewWrite).layers...)
+		viewWriteOf(b.ViewWrite).logical = prior.logical
 	}
 	return e.expandRulesLocked(scope, auth, stmt, b, ancestry, program)
 }
 
 func refreshRuleBinding(catalog catalog.Read, b binding, current *catalog.Relation) (binding, error) {
-	old := b.relation
+	old := b.Relation
 	if slices.Equal(old.Attributes, current.Attributes) {
-		b.relation = current
+		b.Relation = current
 		return b, nil
 	}
 	slots := func(original []int) ([]int, error) {
@@ -1054,20 +1054,20 @@ func refreshRuleBinding(catalog catalog.Read, b binding, current *catalog.Relati
 		return next, nil
 	}
 	var err error
-	b.targets, err = slots(b.targets)
+	b.Targets, err = slots(b.Targets)
 	if err != nil {
 		return b, err
 	}
-	b.usedColumns, err = slots(b.usedColumns)
+	b.UsedColumns, err = slots(b.UsedColumns)
 	if err != nil {
 		return b, err
 	}
-	if b.insert.conflict != nil {
+	if b.Insert.Conflict != nil {
 		conflict, err := refreshRuleConflict(catalog, b, current, slots)
 		if err != nil {
 			return b, err
 		}
-		b.insert.conflict = insertConflictSlotOf(conflict)
+		b.Insert.Conflict = insertConflictSlotOf(conflict)
 	}
 	leaf := func(expr expr.Expr) (expr.Expr, bool, error) {
 		if column, ok := expr.(plan.ColumnExpr); ok && column.Scope == 1 && column.Frame == 1 && column.Slot >= len(old.Columns) {
@@ -1078,7 +1078,7 @@ func refreshRuleBinding(catalog catalog.Read, b binding, current *catalog.Relati
 			return column, true, nil
 		}
 		column, ok := expr.(plan.ColumnExpr)
-		if !ok || column.Origin.Address.ObjectID != b.ref.Address.ObjectID {
+		if !ok || column.Origin.Address.ObjectID != b.Ref.Address.ObjectID {
 			return expr, false, nil
 		}
 		if !(column.Scope == 0 && column.Frame == 0) && !(column.Scope == 1 && column.Frame == 1 && column.Slot < len(old.Columns)) {
@@ -1097,60 +1097,60 @@ func refreshRuleBinding(catalog catalog.Read, b binding, current *catalog.Relati
 	mapTargets := func(targets []*plan.ArrayAssignmentTarget) ([]*plan.ArrayAssignmentTarget, error) {
 		return mapRuleAssignmentTargets(targets, func(expr expr.Expr) (expr.Expr, bool, error) { return rewriteViewExpression(catalog, expr, nil, leaf) }, func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil })
 	}
-	b.arrayTargets, err = mapTargets(b.arrayTargets)
+	b.ArrayTargets, err = mapTargets(b.ArrayTargets)
 	if err != nil {
 		return b, err
 	}
-	if b.query != nil {
-		next := *b.query
+	if b.Query != nil {
+		next := *b.Query
 		next.Root, err = plan.RewriteQueryExpressions(next.Root, func(expr expr.Expr) (expr.Expr, bool, error) { return rewriteViewExpression(catalog, expr, nil, leaf) })
 		if err != nil {
 			return b, err
 		}
-		b.query = &next
+		b.Query = &next
 	}
-	if b.returning != nil {
-		next := *b.returning
-		next.expressions = slices.Clone(next.expressions)
-		for i, expr := range next.expressions {
-			next.expressions[i], err = mapExpr(expr)
+	if b.Returning != nil {
+		next := *b.Returning
+		next.Expressions = slices.Clone(next.Expressions)
+		for i, expr := range next.Expressions {
+			next.Expressions[i], err = mapExpr(expr)
 			if err != nil {
 				return b, err
 			}
 		}
-		b.returning = &next
+		b.Returning = &next
 	}
-	if b.update != nil {
-		u := *b.update
-		u.assignments = slices.Clone(u.assignments)
-		u.arrayTargets, err = mapTargets(u.arrayTargets)
+	if b.Update != nil {
+		u := *b.Update
+		u.Assignments = slices.Clone(u.Assignments)
+		u.ArrayTargets, err = mapTargets(u.ArrayTargets)
 		if err != nil {
 			return b, err
 		}
-		for i, expr := range u.assignments {
-			u.assignments[i], _, err = rewriteViewExpression(catalog, expr, nil, leaf)
+		for i, expr := range u.Assignments {
+			u.Assignments[i], _, err = rewriteViewExpression(catalog, expr, nil, leaf)
 			if err != nil {
 				return b, err
 			}
 		}
-		u.predicate, _, err = rewriteViewExpression(catalog, u.predicate, nil, leaf)
+		u.Predicate, _, err = rewriteViewExpression(catalog, u.Predicate, nil, leaf)
 		if err != nil {
 			return b, err
 		}
-		b.update = &u
+		b.Update = &u
 	}
-	b.predicate, _, err = rewriteViewExpression(catalog, b.predicate, nil, leaf)
+	b.Predicate, _, err = rewriteViewExpression(catalog, b.Predicate, nil, leaf)
 	if err != nil {
 		return b, err
 	}
-	b.relation = current
+	b.Relation = current
 	return b, nil
 }
 
 func refreshRuleSources(auth AuthorizationView, b binding) (binding, error) {
 	catalog := auth.Catalog
 	var sources []exec.Leaf
-	for i, source := range b.querySources {
+	for i, source := range b.QuerySources {
 		current, ok := catalog.Relation(source.Ref.Address)
 		if !ok || source.Relation == nil || source.Ref.Domain() != auth.Owner.Domain || source.Ref.Epoch != catalog.Epoch() || source.Ref.Address.SubID != 0 {
 			return b, ids.ErrCatalogReplaced
@@ -1160,7 +1160,7 @@ func refreshRuleSources(auth AuthorizationView, b binding) (binding, error) {
 			continue
 		}
 		if sources == nil {
-			sources = slices.Clone(b.querySources)
+			sources = slices.Clone(b.QuerySources)
 		}
 		updated := source
 		updated.Relation = current
@@ -1180,13 +1180,13 @@ func refreshRuleSources(auth AuthorizationView, b binding) (binding, error) {
 		sources[i] = updated
 	}
 	if sources != nil {
-		b.querySources = sources
+		b.QuerySources = sources
 	}
 	return b, nil
 }
 
 func refreshRuleConflict(catalog catalog.Read, b binding, current *catalog.Relation, slots func([]int) ([]int, error)) (*boundInsertConflict, error) {
-	c := *insertConflictOf(b.insert.conflict)
+	c := *insertConflictOf(b.Insert.Conflict)
 	var err error
 	c.targets, err = slots(c.targets)
 	if err != nil {
@@ -1204,10 +1204,10 @@ func refreshRuleConflict(catalog catalog.Read, b binding, current *catalog.Relat
 	if err != nil {
 		return nil, err
 	}
-	oldWidth, width := len(b.relation.Attributes), len(current.Attributes)
+	oldWidth, width := len(b.Relation.Attributes), len(current.Attributes)
 	leaf := func(expr expr.Expr) (expr.Expr, bool, error) {
 		column, ok := expr.(plan.ColumnExpr)
-		if !ok || column.Origin.Address.ClassID != b.ref.Address.ClassID || column.Origin.Address.ObjectID != b.ref.Address.ObjectID {
+		if !ok || column.Origin.Address.ClassID != b.Ref.Address.ClassID || column.Origin.Address.ObjectID != b.Ref.Address.ObjectID {
 			return expr, false, nil
 		}
 		if !(column.Scope == 0 && column.Frame == 0) && !(column.Scope == 1 && column.Frame == 1) {
@@ -1230,11 +1230,11 @@ func refreshRuleConflict(catalog catalog.Read, b binding, current *catalog.Relat
 		return column, true, nil
 	}
 	mapper := newRuleTreeMapper(catalog, nil, 0, nil, ruleTreeMapping{leaf: leaf})
-	mapped, err := mapRuleBindingRecipes(binding{insert: insertBinding{conflict: insertConflictSlotOf(&c)}}, mapper)
+	mapped, err := mapRuleBindingRecipes(binding{Insert: insertBinding{Conflict: insertConflictSlotOf(&c)}}, mapper)
 	if err != nil {
 		return nil, err
 	}
-	c = *insertConflictOf(mapped.insert.conflict)
+	c = *insertConflictOf(mapped.Insert.Conflict)
 	c.width = width
 	c.frame = nil
 	return &c, nil
@@ -1269,41 +1269,41 @@ func ruleBindingHasPseudo(b binding) bool {
 			}
 		}
 	}
-	if b.query != nil {
-		query(b.query.Root)
+	if b.Query != nil {
+		query(b.Query.Root)
 	}
-	for _, row := range b.expressions {
+	for _, row := range b.Expressions {
 		for _, expr := range row {
 			expression(expr)
 		}
 	}
-	expression(b.predicate)
-	query(b.delete.using)
-	targets(b.arrayTargets)
-	if b.update != nil {
-		query(b.update.from)
-		expression(b.update.predicate)
-		for _, expr := range b.update.assignments {
+	expression(b.Predicate)
+	query(b.Delete.Using)
+	targets(b.ArrayTargets)
+	if b.Update != nil {
+		query(b.Update.From)
+		expression(b.Update.Predicate)
+		for _, expr := range b.Update.Assignments {
 			expression(expr)
 		}
-		targets(b.update.arrayTargets)
+		targets(b.Update.ArrayTargets)
 	}
-	if b.returning != nil {
-		for _, expr := range b.returning.expressions {
+	if b.Returning != nil {
+		for _, expr := range b.Returning.Expressions {
 			expression(expr)
 		}
 	}
-	if b.insert.conflict != nil {
-		expression(insertConflictOf(b.insert.conflict).predicate)
-		for _, key := range insertConflictOf(b.insert.conflict).keys {
+	if b.Insert.Conflict != nil {
+		expression(insertConflictOf(b.Insert.Conflict).predicate)
+		for _, key := range insertConflictOf(b.Insert.Conflict).keys {
 			expression(key.expression)
 		}
-		if insertConflictOf(b.insert.conflict).update != nil {
-			expression(insertConflictOf(b.insert.conflict).update.predicate)
-			for _, expr := range insertConflictOf(b.insert.conflict).update.assignments {
+		if insertConflictOf(b.Insert.Conflict).update != nil {
+			expression(insertConflictOf(b.Insert.Conflict).update.Predicate)
+			for _, expr := range insertConflictOf(b.Insert.Conflict).update.Assignments {
 				expression(expr)
 			}
-			targets(insertConflictOf(b.insert.conflict).update.arrayTargets)
+			targets(insertConflictOf(b.Insert.Conflict).update.ArrayTargets)
 		}
 	}
 	return found

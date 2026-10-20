@@ -191,10 +191,10 @@ func TestIdentityDiscardedRuntimeConversionDemandBinding(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if bound.parameters.Count != 1 || bound.parameters.Types[0].Type.ID() != sqltype.Text {
-				t.Fatal("discard erased inferred import signature", bound.parameters)
+			if bound.Parameters.Count != 1 || bound.Parameters.Types[0].Type.ID() != sqltype.Text {
+				t.Fatal("discard erased inferred import signature", bound.Parameters)
 			}
-			project := bound.query.Root.(*plan.ProjectNode)
+			project := bound.Query.Root.(*plan.ProjectNode)
 			output, isLiteral := project.Expressions[0].(plan.LiteralExpr)
 			if got := isLiteral && output.Value.IsNull(); got != tc.outputNull {
 				t.Fatal("output demand", got, tc.outputNull)
@@ -202,8 +202,8 @@ func TestIdentityDiscardedRuntimeConversionDemandBinding(t *testing.T) {
 			if project.Schema()[0].Usage.Type.ID() != sqltype.Int4 {
 				t.Fatal("discard lost assigned schema", project.Schema())
 			}
-			value := sqltype.String(bound.parameters.Types[0].Type, "bad")
-			_, err = preflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: op.ctx, Parameters: []sqltype.Value{value}}}, bound.query.Root)
+			value := sqltype.String(bound.Parameters.Types[0].Type, "bad")
+			_, err = preflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: op.ctx, Parameters: []sqltype.Value{value}}}, bound.Query.Root)
 			if tc.fails {
 				state(t, err, "22P02")
 			} else if err != nil {

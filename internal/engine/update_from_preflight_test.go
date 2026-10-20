@@ -23,11 +23,11 @@ func TestUpdateFromImportedPreflightCopiesOnlyChangedTree(t *testing.T) {
 	defer scope.Finish(nil)
 	defer target.Close()
 	defer from.Close()
-	original := b.update
-	output := b.returning
-	cast := original.assignments[0].(plan.CoercionExpr)
-	join := original.from.(*plan.JoinNode)
-	predicate := original.predicate
+	original := b.Update
+	output := b.Returning
+	cast := original.Assignments[0].(plan.CoercionExpr)
+	join := original.From.(*plan.JoinNode)
+	predicate := original.Predicate
 	for _, input := range []string{"7", "bad", "17", "bad", "42"} {
 		value, err := cast.Child.ResultUsage().Type.Input(context.Background(), input, -1)
 		if err != nil {
@@ -41,10 +41,10 @@ func TestUpdateFromImportedPreflightCopiesOnlyChangedTree(t *testing.T) {
 				t.Fatal(private)
 			}
 		} else {
-			if err != nil || private == original || private.from == original.from || reflect.DeepEqual(private.predicate, predicate) || &private.assignments[0] == &original.assignments[0] {
+			if err != nil || private == original || private.From == original.From || reflect.DeepEqual(private.Predicate, predicate) || &private.Assignments[0] == &original.Assignments[0] {
 				t.Fatal("preflight failed copy-on-change", private, err)
 			}
-			foldedJoin := private.from.(*plan.JoinNode)
+			foldedJoin := private.From.(*plan.JoinNode)
 			if foldedJoin.Left != join.Left || foldedJoin.Right != join.Right || !reflect.DeepEqual(foldedJoin.QuerySchema, join.QuerySchema) || reflect.DeepEqual(foldedJoin.Predicate, join.Predicate) {
 				t.Fatal("source preflight rebuilt unchanged providers", foldedJoin, join)
 			}
@@ -52,25 +52,25 @@ func TestUpdateFromImportedPreflightCopiesOnlyChangedTree(t *testing.T) {
 				t.Fatal("ON coercion was not eagerly traversed")
 			}
 			folded, err := preflightReturning(&eval, output)
-			if err != nil || folded == output || !reflect.DeepEqual(folded.schema, output.schema) || !reflect.DeepEqual(folded.expressions[1], output.expressions[1]) {
+			if err != nil || folded == output || !reflect.DeepEqual(folded.Schema, output.Schema) || !reflect.DeepEqual(folded.Expressions[1], output.Expressions[1]) {
 				t.Fatal(folded, err)
 			}
-			result, err := private.assignments[0].Eval(&eval)
+			result, err := private.Assignments[0].Eval(&eval)
 			if err != nil || testExport(result) != map[string]int64{"7": 7, "17": 17, "42": 42}[input] {
 				t.Fatal(result, err)
 			}
 		}
-		if _, ok := original.assignments[0].(plan.CoercionExpr); !ok {
+		if _, ok := original.Assignments[0].(plan.CoercionExpr); !ok {
 			t.Fatal("analyzed SET mutated")
 		}
 		if _, ok := join.Predicate.(plan.ComparisonExpr).Right.(plan.CoercionExpr); !ok {
 			t.Fatal("analyzed ON mutated")
 		}
-		if _, ok := output.expressions[0].(plan.CoercionExpr); !ok {
+		if _, ok := output.Expressions[0].(plan.CoercionExpr); !ok {
 			t.Fatal("analyzed output mutated")
 		}
 	}
-	unchanged := &boundUpdate{assignments: []expr.Expr{output.expressions[1]}, from: join.Left}
+	unchanged := &boundUpdate{Assignments: []expr.Expr{output.Expressions[1]}, From: join.Left}
 	eval := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	same, err := preflightUpdate(&eval, unchanged)
 	if err != nil || same != unchanged {

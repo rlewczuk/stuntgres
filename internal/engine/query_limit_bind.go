@@ -17,12 +17,12 @@ func (b *expressionBinder) bindQueryBounds(raw *parser.QueryBounds, captureLiter
 	old := b.clause.aggregateClause
 	defer func() { b.clause.aggregateClause = old }()
 	b.clause.aggregateClause = "OFFSET"
-	n.Offset, err = b.bindQueryBound(raw.Offset, "OFFSET", viewOffsetLiteral, captureLiterals)
+	n.Offset, err = b.bindQueryBound(raw.Offset, "OFFSET", ViewOffsetLiteral, captureLiterals)
 	if err != nil {
 		return nil, err
 	}
 	b.clause.aggregateClause = "LIMIT"
-	n.Count, err = b.bindQueryBound(raw.Count, "LIMIT", viewLimitLiteral, captureLiterals)
+	n.Count, err = b.bindQueryBound(raw.Count, "LIMIT", ViewLimitLiteral, captureLiterals)
 	if err == nil && raw.WithTies {
 		if literal, ok := raw.Count.(parser.LiteralExpr); ok && literal.Value.Kind == parser.NullValue {
 			return nil, sqlError("2201W", "row count cannot be null in FETCH FIRST ... WITH TIES clause")

@@ -8,7 +8,7 @@ import (
 // Frozen action-owned modifiers are definitions to refresh, not protected
 // enclosing statement spools. One mapper reconnects declarations and all scans.
 func refreshRuleActionCTEs(auth AuthorizationView, b binding) (binding, error) {
-	if len(b.ctes) == 0 {
+	if len(b.CTEs) == 0 {
 		return b, nil
 	}
 	mapper := newRuleTreeMapper(auth.Catalog, nil, 0, nil, ruleTreeMapping{mutation: func(definition *plan.CTEDefinition) (binding, error) {
@@ -18,11 +18,11 @@ func refreshRuleActionCTEs(auth AuthorizationView, b binding) (binding, error) {
 		// catalog identity and every expression are unchanged. This mapper also
 		// visits action-owned descendant definitions and reconnects their scans;
 		// enclosing statement providers never enter this stored-action path.
-		body.insert.conflict = insertConflictSlotOf(insertConflictOf(body.insert.conflict).instantiate())
-		if body.ref.Epoch != auth.Catalog.Epoch() {
+		body.Insert.Conflict = insertConflictSlotOf(insertConflictOf(body.Insert.Conflict).instantiate())
+		if body.Ref.Epoch != auth.Catalog.Epoch() {
 			return body, ids.ErrCatalogReplaced
 		}
-		current, ok := auth.Catalog.Relation(body.ref.Address)
+		current, ok := auth.Catalog.Relation(body.Ref.Address)
 		if !ok {
 			return body, ids.ErrCatalogReplaced
 		}
@@ -31,10 +31,10 @@ func refreshRuleActionCTEs(auth AuthorizationView, b binding) (binding, error) {
 		if err != nil {
 			return body, err
 		}
-		body.storage = auth.engine.authorizationStorageLocked(auth, body.ref.Address)
+		body.Storage = auth.engine.authorizationStorageLocked(auth, body.Ref.Address)
 		return refreshRuleSources(auth, body)
 	}})
 	mapped, err := mapRuleBindingRecipes(b, mapper)
-	mapped.rule.ctes = nil
+	mapped.Rule.CTEs = nil
 	return mapped, err
 }

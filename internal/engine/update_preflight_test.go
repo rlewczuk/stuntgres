@@ -40,10 +40,10 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return b.update
+		return b.Update
 	}()
-	cast := original.assignments[0].(plan.CoercionExpr)
-	column := original.assignments[1]
+	cast := original.Assignments[0].(plan.CoercionExpr)
+	column := original.Assignments[1]
 	source := cast.Child.ResultUsage().Type
 	for _, input := range []string{"7", "oops", "", "17", "oops", "42"} {
 		value := sqltype.Null(source)
@@ -65,9 +65,9 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 			if err != nil || private == original {
 				t.Fatal(private, err)
 			}
-			literal, ok := private.assignments[0].(plan.LiteralExpr)
+			literal, ok := private.Assignments[0].(plan.LiteralExpr)
 			if !ok || literal.Info != cast.Info {
-				t.Fatal("fold lost conservative frame/source metadata", private.assignments[0])
+				t.Fatal("fold lost conservative frame/source metadata", private.Assignments[0])
 			}
 			actual, err := literal.Eval(&evaluation)
 			if err != nil {
@@ -93,23 +93,23 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 					t.Fatal("stale imported frame", n, want)
 				}
 			}
-			if !reflect.DeepEqual(private.assignments[1], column) {
+			if !reflect.DeepEqual(private.Assignments[1], column) {
 				t.Fatal("unchanged row-dependent branch replaced")
 			}
-			if &private.assignments[0] == &original.assignments[0] {
+			if &private.Assignments[0] == &original.Assignments[0] {
 				t.Fatal("assignment backing storage shared after fold")
 			}
 		}
-		if _, ok := original.assignments[0].(plan.CoercionExpr); !ok {
+		if _, ok := original.Assignments[0].(plan.CoercionExpr); !ok {
 			t.Fatal("analyzed assignment replaced")
 		}
-		if _, ok := original.predicate.(plan.ComparisonExpr).Right.(plan.CoercionExpr); !ok {
+		if _, ok := original.Predicate.(plan.ComparisonExpr).Right.(plan.CoercionExpr); !ok {
 			t.Fatal("analyzed predicate replaced")
 		}
 	}
 	// A harmless assignment cannot mask a missing WHERE preflight traversal.
 	whereOnly := *original
-	whereOnly.assignments = []expr.Expr{column}
+	whereOnly.Assignments = []expr.Expr{column}
 	bad, err := source.Input(context.Background(), "oops", -1)
 	if err != nil {
 		t.Fatal(err)
@@ -120,7 +120,7 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 	if failed != nil {
 		t.Fatal("failed WHERE preflight returned a partially prepared update")
 	}
-	unchanged := &boundUpdate{assignments: []expr.Expr{column}}
+	unchanged := &boundUpdate{Assignments: []expr.Expr{column}}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	same, err := preflightUpdate(&evaluation, unchanged)
 	if err != nil || same != unchanged {

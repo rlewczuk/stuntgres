@@ -17,11 +17,11 @@ import (
 // admission but before any physical data view or row-version acquisition.
 func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Statement, execution *preparedCommandExecution, parameters []sqltype.Value) (Result, error) {
 	b := execution.binding
-	if b.insert.conflict != nil {
+	if b.Insert.Conflict != nil {
 		e.mu.Unlock()
 		return Result{}, sqlError("0A000", "ON CONFLICT on foreign tables is unsupported in embedded mode")
 	}
-	if b.currentOf != "" {
+	if b.CurrentOf != "" {
 		e.mu.Unlock()
 		return Result{}, sqlError("0A000", "positioned foreign modification is unsupported in embedded mode")
 	}
@@ -33,25 +33,25 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 		op = catalog.ForeignDelete
 	}
 	invoker := execution.auth.State.CurrentUser
-	if b.viewWrite != nil {
-		for _, layer := range viewWriteOf(b.viewWrite).layers {
+	if b.ViewWrite != nil {
+		for _, layer := range viewWriteOf(b.ViewWrite).layers {
 			invoker = layer.relation.Owner
 			if viewOf(layer.relation).invoker {
 				invoker = execution.auth.State.CurrentUser
 			}
 		}
 	}
-	target, err := e.captureForeignSourceLocked(s, b.ref, b.relation, invoker, nil, plan.RowMark{})
+	target, err := e.captureForeignSourceLocked(s, b.Ref, b.Relation, invoker, nil, plan.RowMark{})
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if err = foreignOperationSupported(target.Foreign.Wrapper, op, b.relation.Name()); err != nil {
+	if err = foreignOperationSupported(target.Foreign.Wrapper, op, b.Relation.Name()); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	inputs, err := e.captureQuerySourcesLocked(s, b.querySources, len(b.querySources) == 0)
-	if err == nil && b.returning != nil {
+	inputs, err := e.captureQuerySourcesLocked(s, b.QuerySources, len(b.QuerySources) == 0)
+	if err == nil && b.Returning != nil {
 		err = e.captureCommentSnapshotLocked(s)
 	}
 	e.mu.Unlock()
@@ -82,35 +82,35 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 	evaluation.Query = state
 	evaluation.Scope, evaluation.Frame = 1, 1
 	evaluation.Host = hostOf(s)
-	evaluation.PhysicalTable = b.ref // Actual relation identity, never a fabricated row ID.
+	evaluation.PhysicalTable = b.Ref // Actual relation identity, never a fabricated row ID.
 	if op == catalog.ForeignInsert {
 		var rows [][]sqltype.Value
-		if b.commandQuery {
-			b.query = &plan.Query{Root: execution.queryRoot}
-			batch, err := evaluateInsertQuery(s.op.Context(), b, inputs, parameters, execution.auth.Catalog.Get(b.relation.Namespace()).Name(), s.input, s.output, s)
+		if b.CommandQuery {
+			b.Query = &plan.Query{Root: execution.queryRoot}
+			batch, err := evaluateInsertQuery(s.op.Context(), b, inputs, parameters, execution.auth.Catalog.Get(b.Relation.Namespace()).Name(), s.input, s.output, s)
 			if err != nil {
 				return Result{}, err
 			}
 			rows = batch.values
 		} else {
-			rows = make([][]sqltype.Value, 0, len(b.insert.rows))
-			for i, raw := range b.insert.rows {
-				row := make([]sqltype.Value, len(b.relation.Columns))
-				for j, c := range b.relation.Columns {
+			rows = make([][]sqltype.Value, 0, len(b.Insert.Rows))
+			for i, raw := range b.Insert.Rows {
+				row := make([]sqltype.Value, len(b.Relation.Columns))
+				for j, c := range b.Relation.Columns {
 					row[j] = sqltype.Null(c.Usage.Type)
 				}
-				if len(b.insert.projection) != 0 {
-					if err := evaluateInsertValuesRow(execution.auth.Catalog, &b, execution.expressions[i], raw, row, len(b.insert.rows) > 1, &evaluation); err != nil {
+				if len(b.Insert.Projection) != 0 {
+					if err := evaluateInsertValuesRow(execution.auth.Catalog, &b, execution.expressions[i], raw, row, len(b.Insert.Rows) > 1, &evaluation); err != nil {
 						return Result{}, err
 					}
 				} else {
-					for j, defaultExpr := range b.insert.defaults {
+					for j, defaultExpr := range b.Insert.Defaults {
 						if defaultExpr == nil {
 							continue
 						}
 						supplied := false
-						for k, target := range b.targets {
-							if target == j && b.expressions[i][k] != nil && (len(b.arrayTargets) == 0 || b.arrayTargets[k] == nil) {
+						for k, target := range b.Targets {
+							if target == j && b.Expressions[i][k] != nil && (len(b.ArrayTargets) == 0 || b.ArrayTargets[k] == nil) {
 								supplied = true
 								break
 							}
@@ -123,21 +123,21 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 						}
 					}
 					for j, rawValue := range raw {
-						if b.expressions[i][j] == nil {
+						if b.Expressions[i][j] == nil {
 							continue
 						}
-						target := b.targets[j]
-						if len(b.arrayTargets) != 0 && b.arrayTargets[j] != nil {
-							row[target], err = b.arrayTargets[j].ApplyExpression(&evaluation, row[target], execution.expressions[i][j])
+						target := b.Targets[j]
+						if len(b.ArrayTargets) != 0 && b.ArrayTargets[j] != nil {
+							row[target], err = b.ArrayTargets[j].ApplyExpression(&evaluation, row[target], execution.expressions[i][j])
 						} else {
 							row[target], err = execution.expressions[i][j].Eval(&evaluation)
 						}
 						if err != nil {
-							return Result{}, insertValueError(execution.auth.Catalog, err, b.relation.Columns[target], rawValue, nil)
+							return Result{}, insertValueError(execution.auth.Catalog, err, b.Relation.Columns[target], rawValue, nil)
 						}
 					}
 				}
-				if err := evaluateGenerations(s.op.Context(), b.relation, row, &evaluation); err != nil {
+				if err := evaluateGenerations(s.op.Context(), b.Relation, row, &evaluation); err != nil {
 					return Result{}, err
 				}
 				rows = append(rows, row)
@@ -150,11 +150,11 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 
 func (s *StatementScope) foreignInsertResult(m *foreignModification, b binding, rows [][]sqltype.Value, evaluation *exec.Context) (Result, error) {
 	var output *exec.FinalRows
-	if b.returning != nil {
-		output = exec.NewFinalRows(b.returning.schema, 0)
+	if b.Returning != nil {
+		output = exec.NewFinalRows(b.Returning.Schema, 0)
 		output.Output = s.output
 	}
-	rowByRow := b.returning != nil || b.viewWrite != nil && len(viewWriteOf(b.viewWrite).checks) != 0
+	rowByRow := b.Returning != nil || b.ViewWrite != nil && len(viewWriteOf(b.ViewWrite).checks) != 0
 	count, err := m.insertRows(s.op.Context(), s, rows, rowByRow, func(row []sqltype.Value) error {
 		if err := s.op.session.Engine().checkViewRow(s, &b, row, evaluation); err != nil {
 			return err
@@ -176,13 +176,13 @@ func projectForeignReturning(b binding, output *exec.FinalRows, row, old []sqlty
 	eval := *evaluation
 	eval.Scope, eval.Frame = 1, 1
 	eval.Row, eval.OldRow = row, old
-	if b.delete.using != nil || b.update != nil && b.update.from != nil {
+	if b.Delete.Using != nil || b.Update != nil && b.Update.From != nil {
 		// Keep the matched source suffix and query identity, replacing only
 		// the target prefix with the provider's actual NEW/returned tuple.
 		copy(evaluation.Row, row)
 		eval.Row = evaluation.Row
 	}
-	for i, expression := range b.returning.expressions {
+	for i, expression := range b.Returning.Expressions {
 		value, err := expression.Eval(&eval)
 		if err != nil {
 			return err
@@ -196,7 +196,7 @@ func projectForeignReturning(b binding, output *exec.FinalRows, row, old []sqlty
 	return nil
 }
 func (s *StatementScope) finishForeignResult(b binding, output *exec.FinalRows, count int64) (Result, error) {
-	if output != nil && b.returning.regclassOutput && count != 0 {
+	if output != nil && b.Returning.RegclassOutput && count != 0 {
 		if err := s.op.session.Engine().captureRegclassOutput(s.op, output); err != nil {
 			output.Close()
 			return Result{}, err
@@ -293,28 +293,28 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b bin
 		return Result{}, err
 	}
 	var from plan.Node
-	predicate := b.predicate
-	sourceWidth := b.delete.sourceWidth
-	if b.update != nil {
-		from, predicate, sourceWidth = b.update.from, b.update.predicate, b.update.sourceWidth
+	predicate := b.Predicate
+	sourceWidth := b.Delete.SourceWidth
+	if b.Update != nil {
+		from, predicate, sourceWidth = b.Update.From, b.Update.Predicate, b.Update.SourceWidth
 	} else {
-		from = b.delete.using
+		from = b.Delete.Using
 	}
 	var stage exec.Stage
 	var frame []sqltype.Value
 	sourceCount := 1
 	if from != nil {
 		state.VirtualReads = exec.QueryHasVirtualReads(from) || exec.BoundHasVirtualReads(predicate)
-		if b.update != nil {
-			for _, expression := range b.update.assignments {
+		if b.Update != nil {
+			for _, expression := range b.Update.Assignments {
 				state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expression)
 			}
-			for _, target := range b.update.arrayTargets {
+			for _, target := range b.Update.ArrayTargets {
 				state.VirtualReads = state.VirtualReads || assignmentTargetHasVirtualReads(target)
 			}
 		}
-		if b.returning != nil {
-			for _, expression := range b.returning.expressions {
+		if b.Returning != nil {
+			for _, expression := range b.Returning.Expressions {
 				state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expression)
 			}
 		}
@@ -328,13 +328,13 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b bin
 		}
 		sourceCount = stage.Count()
 		if sourceCount != 0 {
-			frame = make([]sqltype.Value, len(b.relation.Columns)+sourceWidth)
+			frame = make([]sqltype.Value, len(b.Relation.Columns)+sourceWidth)
 		}
 	}
 	var output *exec.FinalRows
 	keep := false
-	if b.returning != nil {
-		output = exec.NewFinalRows(b.returning.schema, 0)
+	if b.Returning != nil {
+		output = exec.NewFinalRows(b.Returning.Schema, 0)
 		output.Output = s.output
 		defer func() {
 			if !keep {
@@ -353,7 +353,7 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b bin
 			evaluation.Row = candidate.row
 			if from != nil {
 				copy(frame, candidate.row)
-				copy(frame[len(b.relation.Columns):], stage.Source.Row(stage.Index(i)))
+				copy(frame[len(b.Relation.Columns):], stage.Source.Row(stage.Index(i)))
 				evaluation.Row = frame
 				evaluation.BindQueryIdentity(stage.Source, stage.Index(i))
 			}
@@ -373,12 +373,12 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b bin
 			}
 			var returned catalog.ForeignRow
 			var present bool
-			if b.update != nil {
-				row, err := evaluateUpdateAssignments(evaluation, b.update, b.targets, candidate.row)
+			if b.Update != nil {
+				row, err := evaluateUpdateAssignments(evaluation, b.Update, b.Targets, candidate.row)
 				if err != nil {
 					return Result{}, err
 				}
-				if err := evaluateGenerations(ctx, b.relation, row, evaluation); err != nil {
+				if err := evaluateGenerations(ctx, b.Relation, row, evaluation); err != nil {
 					return Result{}, err
 				}
 				input, err := m.export(ctx, row, s)
@@ -406,7 +406,7 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b bin
 			if err != nil {
 				return Result{}, err
 			}
-			if b.update != nil {
+			if b.Update != nil {
 				if err := s.op.session.Engine().checkViewRow(s, &b, actual, evaluation); err != nil {
 					return Result{}, err
 				}

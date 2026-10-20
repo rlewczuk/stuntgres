@@ -103,17 +103,17 @@ func TestArraySearchViewCoercions(t *testing.T) {
 		raw  parser.Expr
 		node expr.Expr
 	}{{raw, outer}, {rawText, positions}} {
-		if err := b.captureViewLiterals(capture.raw, capture.node, viewTargetLiteral, i); err != nil {
+		if err := b.captureViewLiterals(capture.raw, capture.node, ViewTargetLiteral, i); err != nil {
 			t.Fatal(err)
 		}
 	}
 	syntax := &parser.Select{Targets: []parser.Expr{raw, rawText}}
 	project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "r", Usage: wideArray.Usage()}, {Name: "ps", Usage: array.Usage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{outer, positions}, Frame: b.frameID(), Syntax: syntax}
-	original := &viewDefinition{query: &plan.Query{Root: project}, syntax: syntax, literals: b.capture.literals, castUsages: b.capture.castUsages, collations: b.capture.collations}
+	original := &viewDefinition{query: &plan.Query{Root: project}, syntax: syntax, literals: b.capture.Literals, castUsages: b.capture.CastUsages, collations: b.capture.Collations}
 	path := []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, {ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}
 	render := func(view catalog.Read, definition *viewDefinition, target int, expression parser.Expr, want string) {
 		r := viewRenderer{viewDefinition: definition, frame: b.frameID(), presentation: viewPresentation{deparse: true, pretty: true, path: path}}
-		got, err := r.expressionSQL(ctx, view, expression, viewLiteralPath{clause: viewTargetLiteral, target: target})
+		got, err := r.expressionSQL(ctx, view, expression, viewLiteralPath{Clause: ViewTargetLiteral, Target: target})
 		if err != nil || got != want {
 			t.Fatalf("rendered %q want %q: %v", got, want, err)
 		}

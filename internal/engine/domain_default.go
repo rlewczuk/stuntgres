@@ -94,24 +94,15 @@ func defaultDestination(node expr.Expr, target sqltype.Usage) expr.Expr {
 	return plan.CoercionExpr{Info: expr.Info{Usage: target, Property: coercionProperties(node, coercionPlan)}, Child: node, Plan: coercionPlan, Mode: sqltype.Assignment}
 }
 
-// Default origin is statement-private authority, not a fabricated pg_attrdef for
-// a domain recipe. Views retain this origin while mapping to physical slots.
-type defaultOrigin struct {
-	definition catalog.ColumnDefault
-	consumer   *catalog.Relation
-	quote      exec.QuoteOrigin
-	requested  bool // UPDATE explicitly selected DEFAULT, including fresh NULL.
-}
-
 func columnDefault(view catalog.Read, d *catalog.Relation, slot int) (expr.Expr, defaultOrigin) {
 	attribute := d.Attributes[slot]
 	usage := d.Columns[slot].Usage
 	if definition, ok := d.ColumnMeta.Defaults[attribute]; ok {
-		return definition.Expression, defaultOrigin{definition: definition, consumer: d, quote: exec.QuoteOrigin{Owner: view.Owner().Domain.Ref(view.Epoch(), d.Address()), Attribute: attribute, Definition: definition.OID}}
+		return definition.Expression, defaultOrigin{Definition: definition, Consumer: d, Quote: exec.QuoteOrigin{Owner: view.Owner().Domain.Ref(view.Epoch(), d.Address()), Attribute: attribute, Definition: definition.OID}}
 	}
 	if definition := typedef.TypeDefault(view, usage.Type); definition != nil {
 		owner := view.Owner().Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
-		return defaultDestination(definition.Expression, usage), defaultOrigin{definition: *definition, quote: exec.QuoteOrigin{Owner: owner}}
+		return defaultDestination(definition.Expression, usage), defaultOrigin{Definition: *definition, Quote: exec.QuoteOrigin{Owner: owner}}
 	}
 	if usage.Type.HasDomainConstraints() {
 		return domainNullInputExpression(usage), defaultOrigin{}
@@ -120,10 +111,10 @@ func columnDefault(view catalog.Read, d *catalog.Relation, slot int) (expr.Expr,
 }
 
 func applyDefaultOrigin(o defaultOrigin, c *exec.Context) {
-	c.QuoteOrigin = o.quote
+	c.QuoteOrigin = o.Quote
 	c.RoutineRecipe, c.RoutineGraft = true, false
 	c.RoutineChecks = nil
-	c.RoutineReferences, c.RoutineConsumer = o.definition.Dependencies, o.consumer
+	c.RoutineReferences, c.RoutineConsumer = o.Definition.Dependencies, o.Consumer
 }
 
 func validateDomainDefault(view catalog.Read, d *catalog.Type) error {
@@ -183,16 +174,16 @@ func validateDomainDefault(view catalog.Read, d *catalog.Type) error {
 	return nil
 }
 func bindingDefaultOrigin(b *binding, slot int) defaultOrigin {
-	if slot < len(b.insert.defaultOrigins) {
-		return b.insert.defaultOrigins[slot]
+	if slot < len(b.Insert.DefaultOrigins) {
+		return b.Insert.DefaultOrigins[slot]
 	}
 	physical := physicalBinding(*b)
-	attribute := physical.relation.Attributes[slot]
-	definition := physical.relation.ColumnMeta.Defaults[attribute]
+	attribute := physical.Relation.Attributes[slot]
+	definition := physical.Relation.ColumnMeta.Defaults[attribute]
 	if definition.Expression == nil {
 		return defaultOrigin{}
 	}
-	return defaultOrigin{definition: definition, consumer: physical.relation, quote: exec.QuoteOrigin{Owner: physical.ref, Attribute: attribute, Definition: definition.OID}}
+	return defaultOrigin{Definition: definition, Consumer: physical.Relation, Quote: exec.QuoteOrigin{Owner: physical.Ref, Attribute: attribute, Definition: definition.OID}}
 }
 
 func evalDefaultExpression(c *exec.Context, node expr.Expr, origin defaultOrigin) (sqltype.Value, error) {

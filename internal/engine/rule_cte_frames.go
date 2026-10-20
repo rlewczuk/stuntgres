@@ -8,10 +8,10 @@ import (
 )
 
 func isolateRuleCTEFrames(view catalog.Read, original, action binding, syntax parser.Statement) (binding, error) {
-	if len(original.ctes) == 0 {
+	if len(original.CTEs) == 0 {
 		return action, nil
 	}
-	local := len(action.ctes) != 0
+	local := len(action.CTEs) != 0
 	visit := func(root plan.Node) {
 		plan.VisitCTEQuery(root, func(node plan.Node) {
 			if project, ok := node.(*plan.ProjectNode); ok && project.CTEOwner {
@@ -19,37 +19,37 @@ func isolateRuleCTEFrames(view catalog.Read, original, action binding, syntax pa
 			}
 		}, func(expr.Expr) {}, true)
 	}
-	if action.query != nil {
-		visit(action.query.Root)
+	if action.Query != nil {
+		visit(action.Query.Root)
 	}
-	if action.update != nil {
-		visit(action.update.from)
-		visit(&plan.ProjectNode{Expressions: action.update.assignments})
-		if action.update.predicate != nil {
-			visit(&plan.ProjectNode{Expressions: []expr.Expr{action.update.predicate}})
+	if action.Update != nil {
+		visit(action.Update.From)
+		visit(&plan.ProjectNode{Expressions: action.Update.Assignments})
+		if action.Update.Predicate != nil {
+			visit(&plan.ProjectNode{Expressions: []expr.Expr{action.Update.Predicate}})
 		}
 	}
-	visit(action.delete.using)
-	for _, row := range action.expressions {
+	visit(action.Delete.Using)
+	for _, row := range action.Expressions {
 		for _, bound := range row {
 			visit(&plan.ProjectNode{Expressions: []expr.Expr{bound}})
 		}
 	}
-	for _, bound := range action.insert.defaults {
+	for _, bound := range action.Insert.Defaults {
 		visit(&plan.ProjectNode{Expressions: []expr.Expr{bound}})
 	}
-	if action.returning != nil {
-		visit(&plan.ProjectNode{Expressions: action.returning.expressions})
+	if action.Returning != nil {
+		visit(&plan.ProjectNode{Expressions: action.Returning.Expressions})
 	}
-	if action.predicate != nil {
-		visit(&plan.ProjectNode{Expressions: []expr.Expr{action.predicate}})
+	if action.Predicate != nil {
+		visit(&plan.ProjectNode{Expressions: []expr.Expr{action.Predicate}})
 	}
-	if action.insert.conflict != nil {
-		if insertConflictOf(action.insert.conflict).predicate != nil {
-			visit(&plan.ProjectNode{Expressions: []expr.Expr{insertConflictOf(action.insert.conflict).predicate}})
+	if action.Insert.Conflict != nil {
+		if insertConflictOf(action.Insert.Conflict).predicate != nil {
+			visit(&plan.ProjectNode{Expressions: []expr.Expr{insertConflictOf(action.Insert.Conflict).predicate}})
 		}
-		if insertConflictOf(action.insert.conflict).update != nil {
-			visit(&plan.ProjectNode{Expressions: insertConflictOf(action.insert.conflict).update.assignments})
+		if insertConflictOf(action.Insert.Conflict).update != nil {
+			visit(&plan.ProjectNode{Expressions: insertConflictOf(action.Insert.Conflict).update.Assignments})
 		}
 	}
 	if !local {
@@ -71,5 +71,5 @@ func isolateRuleCTEFrames(view catalog.Read, original, action binding, syntax pa
 		}
 		return ownerFrame(old)
 	}
-	return mapRuleBindingRecipes(action, newRuleTreeMapper(view, frame, 0, original.ctes, ruleTreeMapping{ownerFrame: ownerFrame}))
+	return mapRuleBindingRecipes(action, newRuleTreeMapper(view, frame, 0, original.CTEs, ruleTreeMapping{ownerFrame: ownerFrame}))
 }

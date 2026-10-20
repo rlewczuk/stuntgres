@@ -50,10 +50,10 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 						return
 					}
 					action := r.actions[0]
-					body := action.binding.ctes[0]
+					body := action.binding.CTEs[0]
 					presentation := action.modifierPresentations[body.Statement]
-					project := cteMutationOf(body).query.Root.(*plan.ProjectNode)
-					outer := action.binding.query.Root.(*plan.ProjectNode)
+					project := cteMutationOf(body).Query.Root.(*plan.ProjectNode)
+					outer := action.binding.Query.Root.(*plan.ProjectNode)
 					if project.Frame == outer.Frame {
 						t.Fatal("modifier and consumer share a SELECT capture frame")
 					}
@@ -63,13 +63,13 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 						source.Origin.Address.ObjectID != inputRef.Address.ObjectID || source.Origin.Address.SubID != 1 {
 						t.Fatal("modifier's analyzed projection no longer belongs to input.v")
 					}
-					path := viewLiteralPath{query: project.Frame, clause: viewTargetLiteral}
+					path := viewLiteralPath{Query: project.Frame, Clause: ViewTargetLiteral}
 					column, ok := presentation.columns[path]
-					if !ok || column.ruleSide != 0 || column.frame != project.Frame {
+					if !ok || column.RuleSide != 0 || column.Frame != project.Frame {
 						t.Fatal("modifier input column was replaced by the consumer's NEW recipe")
 					}
-					path.query = outer.Frame
-					if action.presentation.columns[path].ruleSide != 2 {
+					path.Query = outer.Frame
+					if action.presentation.columns[path].RuleSide != 2 {
 						t.Fatal("consumer lost its independent NEW recipe")
 					}
 				}
@@ -78,15 +78,15 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 					t.Helper()
 					b := r.actions[0].binding
 					if cte {
-						if len(b.ctes) != 1 || b.ctes[0].Mutation == nil {
+						if len(b.CTEs) != 1 || b.CTEs[0].Mutation == nil {
 							t.Fatal("analyzed action lost its modifying CTE")
 						}
-						b = *cteMutationOf(b.ctes[0])
+						b = *cteMutationOf(b.CTEs[0])
 					}
-					if b.insert.conflict == nil || len(insertConflictOf(b.insert.conflict).keys) != 1 {
+					if b.Insert.Conflict == nil || len(insertConflictOf(b.Insert.Conflict).keys) != 1 {
 						t.Fatal("analyzed modifier lost its inference key")
 					}
-					return insertConflictOf(b.insert.conflict)
+					return insertConflictOf(b.Insert.Conflict)
 				}
 				original := conflict(stored)
 				assertKey := func(c *boundInsertConflict, catalog catalog.Read) {

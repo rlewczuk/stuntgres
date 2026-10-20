@@ -142,7 +142,7 @@ func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value,
 		}
 	}
 	leafBinding := b
-	leafBinding.relation, leafBinding.ref = destination, ref
+	leafBinding.Relation, leafBinding.Ref = destination, ref
 	schema := state.catalog.Get(destination.Namespace()).Name()
 	physicalRow := state.rowFor(destination, row)
 	if err := s.op.session.Engine().validatePhysicalInsertRow(s, leafBinding, &b, schema, physicalRow, evaluation); err != nil {

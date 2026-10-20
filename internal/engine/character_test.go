@@ -38,7 +38,7 @@ func TestCharacterRightColumnDependenceAndCastUsage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	project := b.query.Root.(*plan.ProjectNode)
+	project := b.Query.Root.(*plan.ProjectNode)
 	filter := project.Child.(*plan.FilterNode)
 	properties := filter.Predicate.Properties()
 	if !properties.RowDependent || properties.ParameterDependent || properties.Volatility != expr.Immutable {

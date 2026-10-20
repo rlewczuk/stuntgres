@@ -163,7 +163,7 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 			}
 			nodes[i] = node
 		}
-		if binder.consumer.catalogSnapshot || binder.prepared.regclassConcat {
+		if binder.consumer.catalogSnapshot || binder.prepared.RegclassConcat {
 			if err := e.captureCommentSnapshotLocked(s); err != nil {
 				return err
 			}

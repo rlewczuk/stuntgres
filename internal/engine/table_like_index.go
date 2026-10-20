@@ -9,26 +9,18 @@ import (
 	"stuntgres/internal/engine/ids"
 )
 
-func (in createLikeInput) attribute(destination *catalog.Relation, old int32) (int32, error) {
-	slot := slices.Index(in.source.Attributes, old)
-	if slot < 0 {
-		return 0, fmt.Errorf("stuntgres: missing LIKE index attribute")
-	}
-	return destination.Attributes[in.targetSlot(slot)], nil
-}
-
 // Clone live definitions, not source roots or validity flags. Invalid concurrent
 // source indexes are rebuilt as ordinary ready/valid/live destination indexes.
 func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *CatalogStage, destination *catalog.Relation, inputs []createLikeInput) error {
 	for i := range inputs {
 		in := &inputs[i]
-		if in.options&likeIndexes == 0 {
+		if in.Options&LikeIndexes == 0 {
 			continue
 		}
 		var sources []*catalog.Relation
 		for _, descriptor := range auth.Catalog.Descriptors() {
 			index, ok := descriptor.(*catalog.Relation)
-			if ok && index.SQLIndex != nil && index.SQLIndex.Parent == in.source.Address() && index.SQLIndex.Live {
+			if ok && index.SQLIndex != nil && index.SQLIndex.Parent == in.Source.Address() && index.SQLIndex.Live {
 				sources = append(sources, index)
 			}
 		}
@@ -57,7 +49,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 			definition.Keys = slices.Clone(old.Keys)
 			definition.Include = make([]int32, len(old.Include))
 			for i, attribute := range old.Include {
-				mapped, err := in.attribute(destination, attribute)
+				mapped, err := in.Attribute(destination, attribute)
 				if err != nil {
 					return err
 				}
@@ -66,7 +58,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 			for i := range definition.Keys {
 				key := &definition.Keys[i]
 				if key.Derived == nil {
-					mapped, err := in.attribute(destination, key.Attribute)
+					mapped, err := in.Attribute(destination, key.Attribute)
 					if err != nil {
 						return err
 					}
@@ -137,11 +129,11 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 					return err
 				}
 				for i, key := range old.Keys {
-					attribute, expression, keyErr := indexCatalogKey(in.source, key)
+					attribute, expression, keyErr := indexCatalogKey(in.Source, key)
 					if keyErr != nil || expression != nil {
 						return fmt.Errorf("stuntgres: invalid LIKE unique key")
 					}
-					c.Attributes[i], err = in.attribute(destination, attribute)
+					c.Attributes[i], err = in.Attribute(destination, attribute)
 					if err != nil {
 						return err
 					}
@@ -150,7 +142,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 				definition.Constraint = uniqueBacking(&c)
 			}
 			if old.IsExclusion() {
-				original := exclusionDefinition(in.source, source)
+				original := exclusionDefinition(in.Source, source)
 				if original == nil {
 					return fmt.Errorf("stuntgres: missing inherited exclusion owner")
 				}
@@ -177,7 +169,7 @@ func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *
 				lookup[columns[i].Name] = i
 			}
 			index := &catalog.Relation{ObjectAddress: address, ObjectNamespace: destination.Namespace(), ObjectName: name, ObjectRevision: revision, Owner: destination.Owner, Columns: columns, Attributes: slices.Clone(source.Attributes), ColumnMeta: catalog.ColumnMetadata{HighWater: source.ColumnMeta.HighWater}, Index: lookup, RelationKind: catalog.IndexRelation, SQLIndex: &definition}
-			if in.options&likeComments != 0 {
+			if in.Options&LikeComments != 0 {
 				index.Comment = source.Comment
 			}
 			if err := stage.Create(index); err != nil {

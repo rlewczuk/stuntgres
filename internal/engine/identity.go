@@ -178,14 +178,14 @@ func evaluateInsertValuesRow(read catalog.Read, b *binding, supplied []expr.Expr
 			if expression == nil {
 				continue
 			}
-			target := b.targets[i]
+			target := b.Targets[i]
 			value, err := expression.Eval(evaluation)
 			if err != nil {
-				return insertValueError(read, err, b.relation.Columns[target], syntax[i], nil)
+				return insertValueError(read, err, b.Relation.Columns[target], syntax[i], nil)
 			}
-			if len(b.insert.identityDiscard) == 0 || !b.insert.identityDiscard[target] {
-				if len(b.arrayTargets) != 0 && b.arrayTargets[i] != nil {
-					value, err = b.arrayTargets[i].Apply(evaluation, row[target], value)
+			if len(b.Insert.IdentityDiscard) == 0 || !b.Insert.IdentityDiscard[target] {
+				if len(b.ArrayTargets) != 0 && b.ArrayTargets[i] != nil {
+					value, err = b.ArrayTargets[i].Apply(evaluation, row[target], value)
 					if err != nil {
 						return err
 					}
@@ -194,16 +194,16 @@ func evaluateInsertValuesRow(read catalog.Read, b *binding, supplied []expr.Expr
 			}
 		}
 	}
-	for target, source := range b.insert.projection {
-		discard := len(b.insert.identityDiscard) != 0 && b.insert.identityDiscard[target]
+	for target, source := range b.Insert.Projection {
+		discard := len(b.Insert.IdentityDiscard) != 0 && b.Insert.IdentityDiscard[target]
 		if source >= 0 && supplied[source] != nil && !discard {
 			if !sourceFirst {
-				if len(b.arrayTargets) != 0 && b.arrayTargets[source] != nil {
-					for i, slot := range b.targets {
+				if len(b.ArrayTargets) != 0 && b.ArrayTargets[source] != nil {
+					for i, slot := range b.Targets {
 						if slot != target || supplied[i] == nil {
 							continue
 						}
-						value, err := b.arrayTargets[i].ApplyExpression(evaluation, row[target], supplied[i])
+						value, err := b.ArrayTargets[i].ApplyExpression(evaluation, row[target], supplied[i])
 						if err != nil {
 							return err
 						}
@@ -213,14 +213,14 @@ func evaluateInsertValuesRow(read catalog.Read, b *binding, supplied []expr.Expr
 				}
 				value, err := supplied[source].Eval(evaluation)
 				if err != nil {
-					return insertValueError(read, err, b.relation.Columns[target], syntax[source], nil)
+					return insertValueError(read, err, b.Relation.Columns[target], syntax[source], nil)
 				}
 				row[target] = value
 			}
 			continue
 		}
-		if len(b.insert.defaults) != 0 && b.insert.defaults[target] != nil {
-			value, err := evalBindingDefault(b, evaluation, target, b.insert.defaults[target])
+		if len(b.Insert.Defaults) != 0 && b.Insert.Defaults[target] != nil {
+			value, err := evalBindingDefault(b, evaluation, target, b.Insert.Defaults[target])
 			if err != nil {
 				return err
 			}

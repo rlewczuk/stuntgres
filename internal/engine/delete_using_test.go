@@ -22,7 +22,7 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 	}
 	op, scope, b, target, inputs := updateFromBoundSources(t, e, s, context.Background(), "DELETE FROM t d USING s x WHERE d.id=x.k RETURNING d.id,d.v,x.label,new.id")
 	data := target.View.Data()
-	if len(b.querySources) != 1 || inputs == nil || inputs.View == nil || inputs.View.Data() != data {
+	if len(b.QuerySources) != 1 || inputs == nil || inputs.View == nil || inputs.View.Data() != data {
 		t.Fatal("incoherent command capture")
 	}
 	original := append([]storage.RowVersion(nil), target.Committed...)
@@ -30,10 +30,10 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 		t.Fatal("equal values lack distinct physical identities")
 	}
 	calls := 0
-	out := b.returning.expressions[0]
-	b.returning.expressions[0] = queryProbe(out.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+	out := b.Returning.Expressions[0]
+	b.Returning.Expressions[0] = queryProbe(out.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		calls++
-		if root := scope.stage.deletes[b.ref.Address]; root == nil || len(root.Rows) != calls {
+		if root := scope.stage.deletes[b.Ref.Address]; root == nil || len(root.Rows) != calls {
 			t.Fatal("output precedes actual unique staging", calls, root)
 		}
 		return out.Eval(c)
@@ -50,10 +50,10 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 	if !reflect.DeepEqual(got, [][]driver.Value{{int64(2), int64(20), "same", nil}, {int64(2), int64(20), "same", nil}, {int64(3), int64(30), "third", nil}}) {
 		t.Fatal(got)
 	}
-	root := scope.stage.deletes[b.ref.Address]
+	root := scope.stage.deletes[b.Ref.Address]
 	for _, v := range original {
 		candidate, ok := root.Rows[v.Row]
-		if !ok || candidate.Storage != b.storage || candidate.Ref != b.ref || candidate.Version != v.Version {
+		if !ok || candidate.Storage != b.Storage || candidate.Ref != b.Ref || candidate.Version != v.Version {
 			t.Fatal("lost deletion authority", candidate, v)
 		}
 	}
@@ -66,7 +66,7 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 		t.Fatal("capture leaked")
 	}
 	for i, v := range original {
-		if testExport(v.Values[1]) != testExport(e.storage.Relations[b.ref.Address].Versions[i].Values[1]) {
+		if testExport(v.Values[1]) != testExport(e.storage.Relations[b.Ref.Address].Versions[i].Values[1]) {
 			t.Fatal("immutable predecessor changed")
 		}
 	}
@@ -98,7 +98,7 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 				sentinel := errors.New("late DELETE USING output failure")
 				switch phase {
 				case "source_rejected":
-					join := b.delete.using.(*plan.JoinNode)
+					join := b.Delete.Using.(*plan.JoinNode)
 					usage := join.Predicate.ResultUsage()
 					join.Predicate = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 						calls++
@@ -108,8 +108,8 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 						return sqltype.Boolean(usage.Type, false), nil
 					})
 				case "candidate_rejected":
-					usage := b.predicate.ResultUsage()
-					b.predicate = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
+					usage := b.Predicate.ResultUsage()
+					b.Predicate = queryProbe(usage, func(c *exec.Context) (sqltype.Value, error) {
 						calls++
 						if calls == 3 {
 							cancel()
@@ -117,10 +117,10 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 						return sqltype.Boolean(usage.Type, false), nil
 					})
 				default:
-					out := b.returning.expressions[0]
-					b.returning.expressions[0] = queryProbe(out.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+					out := b.Returning.Expressions[0]
+					b.Returning.Expressions[0] = queryProbe(out.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 						calls++
-						if len(scope.stage.deletes[b.ref.Address].Rows) != calls {
+						if len(scope.stage.deletes[b.Ref.Address].Rows) != calls {
 							t.Fatal("output before stage")
 						}
 						if calls == 2 {

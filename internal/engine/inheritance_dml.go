@@ -127,23 +127,23 @@ func (s *StatementScope) mutationStorage(ref ids.ObjectRef) *storage.Relation {
 // command view has frozen its roots. Each segment retains real physical rows.
 func (s *StatementScope) captureMutationSource(ctx context.Context, view *visibility.View, b binding) (*exec.Source, error) {
 	if s.rlsTargetDenied {
-		return captureDeniedQuerySource(view, b.ref)
+		return captureDeniedQuerySource(view, b.Ref)
 	}
 	if len(s.inheritedTargets) == 0 {
-		return captureQuerySource(ctx, view, b.ref)
+		return captureQuerySource(ctx, view, b.Ref)
 	}
 	pin := view.Retain()
 	if pin == nil {
 		return nil, errors.New("stuntgres: visibility view is released")
 	}
-	source := &exec.Source{Ref: b.ref, View: pin, Inheritance: make([]exec.InheritanceQuerySegment, 0, len(s.inheritedTargets)+1), InheritanceEnds: make([]int, len(s.inheritedTargets)+1)}
-	root := exec.Leaf{Ref: b.ref, Relation: b.relation, Storage: b.storage, Only: true}
+	source := &exec.Source{Ref: b.Ref, View: pin, Inheritance: make([]exec.InheritanceQuerySegment, 0, len(s.inheritedTargets)+1), InheritanceEnds: make([]int, len(s.inheritedTargets)+1)}
+	root := exec.Leaf{Ref: b.Ref, Relation: b.Relation, Storage: b.Storage, Only: true}
 	for i := 0; i <= len(s.inheritedTargets); i++ {
 		target := root
 		if i != 0 {
 			target = s.inheritedTargets[i-1]
 		}
-		layout, err := inheritanceQueryLayout(b.relation, target.Relation)
+		layout, err := inheritanceQueryLayout(b.Relation, target.Relation)
 		if err != nil {
 			source.Close()
 			return nil, err
@@ -169,7 +169,7 @@ func (s *StatementScope) captureMutationSource(ctx context.Context, view *visibi
 
 func mutationPhysicalRow(source *exec.Source, index int, b binding) exec.QueryPhysicalRow {
 	version := source.VersionAt(source.RawIndex(index))
-	return source.PhysicalRow(index, exec.Leaf{Ref: b.ref, Relation: b.relation, Storage: b.storage}, version)
+	return source.PhysicalRow(index, exec.Leaf{Ref: b.Ref, Relation: b.Relation, Storage: b.Storage}, version)
 }
 
 type mutationRowIdentity struct {
@@ -180,7 +180,7 @@ type mutationRowIdentity struct {
 // Physical generation/checks use the full physical proposal; diagnostic values
 // and SELECT rights are projected back to the named mutation target.
 func (e *Engine) validateInheritedMutationRow(s *StatementScope, named binding, physical exec.QueryPhysicalRow, schema string, row []sqltype.Value, eval *exec.Context) error {
-	if physical.Leaf.Ref == named.ref {
+	if physical.Leaf.Ref == named.Ref {
 		return e.validateMutationRow(s, named, schema, row, eval)
 	}
 	relation := physical.Leaf.Relation

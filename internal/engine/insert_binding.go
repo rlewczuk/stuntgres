@@ -29,16 +29,16 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth AuthorizationVie
 			return err
 		}
 		width := len(firstList.raw)
-		if width > len(b.relation.Columns) {
-			return insertError("42601", "INSERT has more expressions than target columns", firstList.raw[len(b.relation.Columns)].SourcePosition())
+		if width > len(b.Relation.Columns) {
+			return insertError("42601", "INSERT has more expressions than target columns", firstList.raw[len(b.Relation.Columns)].SourcePosition())
 		}
-		b.targets = make([]int, width)
-		for i := range b.targets {
-			b.targets[i] = i
+		b.Targets = make([]int, width)
+		for i := range b.Targets {
+			b.Targets[i] = i
 		}
 	} else {
-		b.targets = make([]int, len(s.Targets))
-		if err := bindInsertTargets(b.relation, s.Targets, b.targets); err != nil {
+		b.Targets = make([]int, len(s.Targets))
+		if err := bindInsertTargets(b.Relation, s.Targets, b.Targets); err != nil {
 			return err
 		}
 	}
@@ -49,21 +49,21 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth AuthorizationVie
 		if binder.target.mergeInput {
 			return expr.ErrorAt("0A000", "MERGE partial insertion targets are unsupported", target.Pos)
 		}
-		if b.arrayTargets == nil {
-			b.arrayTargets = make([]*plan.ArrayAssignmentTarget, len(b.targets))
+		if b.ArrayTargets == nil {
+			b.ArrayTargets = make([]*plan.ArrayAssignmentTarget, len(b.Targets))
 		}
-		partial, err := binder.bindAssignmentTarget(b.relation.Columns[b.targets[i]], target.Steps, target.Pos)
+		partial, err := binder.bindAssignmentTarget(b.Relation.Columns[b.Targets[i]], target.Steps, target.Pos)
 		if err != nil {
 			return err
 		}
-		b.arrayTargets[i] = partial
+		b.ArrayTargets[i] = partial
 	}
 	domainScheduling := bindInsertDefaults(binder.host.CatalogOwner(), b, auth, s.Override)
 	if s.Source != nil {
 		if err := bindInsertSource(b, binder, auth, s); err != nil {
 			return err
 		}
-		return binder.captureRetainedWriteInput(b.insert.defaults, nil, nil)
+		return binder.captureRetainedWriteInput(b.Insert.Defaults, nil, nil)
 	}
 	binder.clause.aggregateClause = "INSERT VALUES"
 	binder.clause.stringSingleInsert = len(s.Rows) == 1 && !binder.target.mergeInput
@@ -74,8 +74,8 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth AuthorizationVie
 	if len(s.Rows) > 1 {
 		binder.clause.regexpClause = "VALUES"
 	}
-	b.expressions = make([][]expr.Expr, len(s.Rows))
-	b.insert.rows = s.Rows
+	b.Expressions = make([][]expr.Expr, len(s.Rows))
+	b.Insert.Rows = s.Rows
 	width := -1
 	rowsExpanded := false
 	for rowIndex, written := range s.Rows {
@@ -90,10 +90,10 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth AuthorizationVie
 		row, expanded := list.raw, list.nodes
 		if len(list.expansions) != 0 {
 			if !rowsExpanded {
-				b.insert.rows = append([][]parser.Expr(nil), s.Rows...)
+				b.Insert.Rows = append([][]parser.Expr(nil), s.Rows...)
 				rowsExpanded = true
 			}
-			b.insert.rows[rowIndex] = row
+			b.Insert.Rows[rowIndex] = row
 		}
 		if width < 0 {
 			width = len(row)
@@ -105,13 +105,13 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth AuthorizationVie
 			}
 			return expr.ErrorAt("42601", "VALUES lists must all be the same length", pos)
 		}
-		if len(row) > len(b.targets) {
-			return insertError("42601", "INSERT has more expressions than target columns", row[len(b.targets)].SourcePosition())
+		if len(row) > len(b.Targets) {
+			return insertError("42601", "INSERT has more expressions than target columns", row[len(b.Targets)].SourcePosition())
 		}
-		if rowIndex == 0 && len(s.Targets) != 0 && len(row) < len(b.targets) {
+		if rowIndex == 0 && len(s.Targets) != 0 && len(row) < len(b.Targets) {
 			return insertError("42601", "INSERT has more target columns than expressions", s.Targets[len(row)].Pos)
 		}
-		b.expressions[rowIndex] = make([]expr.Expr, len(row))
+		b.Expressions[rowIndex] = make([]expr.Expr, len(row))
 		stringRow := binder.target.mergeInput
 		for _, v := range row {
 			stringRow = stringRow || parser.ContainsStringExpression(v)
@@ -124,25 +124,25 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth AuthorizationVie
 					if err != nil {
 						return err
 					}
-					b.expressions[rowIndex][j] = captured
+					b.Expressions[rowIndex][j] = captured
 					continue
 				}
 				if expanded != nil && expanded[j] != nil {
-					b.expressions[rowIndex][j] = expanded[j]
+					b.Expressions[rowIndex][j] = expanded[j]
 					continue
 				}
 				if _, requested := v.(parser.DefaultExpr); requested {
 					continue
 				}
-				c := b.relation.Columns[b.targets[j]]
-				if _, generated := b.relation.ColumnMeta.Generations[b.relation.Attributes[b.targets[j]]]; generated {
+				c := b.Relation.Columns[b.Targets[j]]
+				if _, generated := b.Relation.ColumnMeta.Generations[b.Relation.Attributes[b.Targets[j]]]; generated {
 					return generationWriteError(c.Name, false)
 				}
-				if identity, ok := b.relation.ColumnMeta.Identities[b.relation.Attributes[b.targets[j]]]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
+				if identity, ok := b.Relation.ColumnMeta.Identities[b.Relation.Attributes[b.Targets[j]]]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
 					return sequence.IdentityInsertError(c.Name)
 				}
 				if literal, ok := v.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
-					b.expressions[rowIndex][j] = plan.UnknownOutput{Info: expr.Info{Pos: v.SourcePosition()}, Raw: v}
+					b.Expressions[rowIndex][j] = plan.UnknownOutput{Info: expr.Info{Pos: v.SourcePosition()}, Raw: v}
 					continue
 				}
 				context := assignmentContext
@@ -153,28 +153,28 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth AuthorizationVie
 				if err != nil {
 					return err
 				}
-				b.expressions[rowIndex][j] = plan
+				b.Expressions[rowIndex][j] = plan
 			}
 		}
 		for j, v := range row {
 			if _, requested := v.(parser.DefaultExpr); requested {
-				if len(b.arrayTargets) != 0 && b.arrayTargets[j] != nil {
+				if len(b.ArrayTargets) != 0 && b.ArrayTargets[j] != nil {
 					return expr.ErrorAt("0A000", "cannot set an array element to DEFAULT", s.Targets[j].Pos)
 				}
 				continue
 			}
-			c := b.relation.Columns[b.targets[j]]
+			c := b.Relation.Columns[b.Targets[j]]
 			var partial *plan.ArrayAssignmentTarget
-			if len(b.arrayTargets) != 0 {
-				partial = b.arrayTargets[j]
+			if len(b.ArrayTargets) != 0 {
+				partial = b.ArrayTargets[j]
 				if partial != nil {
 					c = partial.Column(c)
 				}
 			}
-			if _, generated := b.relation.ColumnMeta.Generations[b.relation.Attributes[b.targets[j]]]; generated {
+			if _, generated := b.Relation.ColumnMeta.Generations[b.Relation.Attributes[b.Targets[j]]]; generated {
 				return generationWriteError(c.Name, false)
 			}
-			if identity, ok := b.relation.ColumnMeta.Identities[b.relation.Attributes[b.targets[j]]]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
+			if identity, ok := b.Relation.ColumnMeta.Identities[b.Relation.Attributes[b.Targets[j]]]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
 				return sequence.IdentityInsertError(c.Name)
 			}
 			var plan expr.Expr
@@ -184,7 +184,7 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth AuthorizationVie
 			} else if expanded != nil && expanded[j] != nil {
 				plan, err = binder.assignOutput(expanded[j], c)
 			} else if stringRow {
-				plan, err = binder.assignOutput(b.expressions[rowIndex][j], c)
+				plan, err = binder.assignOutput(b.Expressions[rowIndex][j], c)
 				if d, ok := err.(*sqlstate.Error); ok && d.Code == "42804" {
 					copy := *d
 					copy.Position = strconv.Itoa(parser.ExpressionStart(v).Character)
@@ -210,44 +210,44 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth AuthorizationVie
 				}
 				return insertValueError(auth.Catalog, err, c, v, source)
 			}
-			b.expressions[rowIndex][j] = plan
+			b.Expressions[rowIndex][j] = plan
 		}
 	}
-	if len(b.insert.defaults) != 0 {
+	if len(b.Insert.Defaults) != 0 {
 		remaining := 0
-		for _, expression := range b.insert.defaults {
+		for _, expression := range b.Insert.Defaults {
 			if expression != nil {
 				remaining++
 			}
 		}
-		for j, target := range b.targets {
-			if len(b.arrayTargets) != 0 && b.arrayTargets[j] != nil {
-				if b.insert.defaults[target] != nil {
-					b.insert.defaults[target] = nil
+		for j, target := range b.Targets {
+			if len(b.ArrayTargets) != 0 && b.ArrayTargets[j] != nil {
+				if b.Insert.Defaults[target] != nil {
+					b.Insert.Defaults[target] = nil
 					remaining--
 				}
 				continue
 			}
-			if len(b.insert.identityDiscard) != 0 && b.insert.identityDiscard[target] {
+			if len(b.Insert.IdentityDiscard) != 0 && b.Insert.IdentityDiscard[target] {
 				continue
 			}
-			if b.insert.defaults[target] == nil {
+			if b.Insert.Defaults[target] == nil {
 				continue
 			}
 			consumed := false
-			for _, row := range b.expressions {
+			for _, row := range b.Expressions {
 				if j >= len(row) || row[j] == nil {
 					consumed = true
 					break
 				}
 			}
 			if !consumed {
-				b.insert.defaults[target] = nil
+				b.Insert.Defaults[target] = nil
 				remaining--
 			}
 		}
 		if remaining == 0 {
-			b.insert.defaults = nil
+			b.Insert.Defaults = nil
 		}
 	}
 	if binder.clause.stringSingleInsert {
@@ -255,16 +255,16 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth AuthorizationVie
 			return err
 		}
 	}
-	if len(b.relation.ColumnMeta.Identities) != 0 || domainScheduling && len(b.insert.defaults) != 0 {
-		b.insert.projection = make([]int, len(b.relation.Columns))
-		for i := range b.insert.projection {
-			b.insert.projection[i] = -1
+	if len(b.Relation.ColumnMeta.Identities) != 0 || domainScheduling && len(b.Insert.Defaults) != 0 {
+		b.Insert.Projection = make([]int, len(b.Relation.Columns))
+		for i := range b.Insert.Projection {
+			b.Insert.Projection[i] = -1
 		}
-		for i, target := range b.targets {
-			b.insert.projection[target] = i
+		for i, target := range b.Targets {
+			b.Insert.Projection[target] = i
 		}
 	}
-	return binder.captureRetainedWriteInput(b.insert.defaults, nil, nil)
+	return binder.captureRetainedWriteInput(b.Insert.Defaults, nil, nil)
 }
 
 // INSERT, COPY and foreign actions share catalog-owned default/identity plans.
@@ -272,32 +272,32 @@ func bindInsertInput(b *binding, binder *expressionBinder, auth AuthorizationVie
 // existing destination-attribute projection rather than default-first demand.
 func bindInsertDefaults(owner *catalog.Owner, b *binding, auth AuthorizationView, override parser.InsertOverride) bool {
 	hasDomains, hasTypeDefaults, hasDomainInput := false, false, false
-	for _, column := range b.relation.Columns {
+	for _, column := range b.Relation.Columns {
 		hasDomains = hasDomains || column.Usage.Type.HasDomainConstraints()
 		hasTypeDefaults = hasTypeDefaults || typedef.TypeDefault(auth.Catalog, column.Usage.Type) != nil
 		hasDomainInput = hasDomainInput || sqltype.ContainsDomainConstraints(column.Usage.Type)
 	}
-	if len(b.relation.ColumnMeta.Defaults) == 0 && len(b.relation.ColumnMeta.Identities) == 0 && !hasDomains && !hasTypeDefaults {
+	if len(b.Relation.ColumnMeta.Defaults) == 0 && len(b.Relation.ColumnMeta.Identities) == 0 && !hasDomains && !hasTypeDefaults {
 		return hasDomainInput
 	}
-	b.insert.defaults = make([]expr.Expr, len(b.relation.Columns))
+	b.Insert.Defaults = make([]expr.Expr, len(b.Relation.Columns))
 	if hasTypeDefaults {
-		b.insert.defaultOrigins = make([]defaultOrigin, len(b.relation.Columns))
+		b.Insert.DefaultOrigins = make([]defaultOrigin, len(b.Relation.Columns))
 	}
-	for i, attribute := range b.relation.Attributes {
-		node, origin := columnDefault(auth.Catalog, b.relation, i)
-		b.insert.defaults[i] = node
-		if b.insert.defaultOrigins != nil {
-			b.insert.defaultOrigins[i] = origin
+	for i, attribute := range b.Relation.Attributes {
+		node, origin := columnDefault(auth.Catalog, b.Relation, i)
+		b.Insert.Defaults[i] = node
+		if b.Insert.DefaultOrigins != nil {
+			b.Insert.DefaultOrigins[i] = origin
 		}
-		if identity, ok := b.relation.ColumnMeta.Identities[attribute]; ok {
-			b.insert.defaults[i] = functions.SequenceCall{Info: expr.Info{Usage: b.relation.Columns[i].Usage, Property: expr.Properties{Volatility: expr.Volatile}}, Name: "nextval", Ref: owner.Domain.Ref(auth.Catalog.Epoch(), identity.Sequence), Identity: true}
+		if identity, ok := b.Relation.ColumnMeta.Identities[attribute]; ok {
+			b.Insert.Defaults[i] = functions.SequenceCall{Info: expr.Info{Usage: b.Relation.Columns[i].Usage, Property: expr.Properties{Volatility: expr.Volatile}}, Name: "nextval", Ref: owner.Domain.Ref(auth.Catalog.Epoch(), identity.Sequence), Identity: true}
 		}
 	}
 	if override == parser.OverrideUser {
-		b.insert.identityDiscard = make([]bool, len(b.relation.Columns))
-		for i, attribute := range b.relation.Attributes {
-			_, b.insert.identityDiscard[i] = b.relation.ColumnMeta.Identities[attribute]
+		b.Insert.IdentityDiscard = make([]bool, len(b.Relation.Columns))
+		for i, attribute := range b.Relation.Attributes {
+			_, b.Insert.IdentityDiscard[i] = b.Relation.ColumnMeta.Identities[attribute]
 		}
 	}
 	return hasDomainInput || hasTypeDefaults

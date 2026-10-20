@@ -17,32 +17,32 @@ func bindMutationCommand(binder *expressionBinder, auth AuthorizationView, requi
 	switch s := statement.(type) {
 	case *parser.Insert:
 		var err error
-		b.ref, err = binder.host.AdmittedReference(auth, s.Name, requiredRef)
+		b.Ref, err = binder.host.AdmittedReference(auth, s.Name, requiredRef)
 		if err != nil {
 			return b, err
 		}
-		if b.ref != requiredRef {
+		if b.Ref != requiredRef {
 			return b, ids.ErrCatalogReplaced
 		}
-		b.relation = auth.Catalog.MustRelation(b.ref.Address)
-		if b.relation.RelationKind == catalog.CompositeRelation {
-			return b, typedef.CompositeOpenError(b.relation, s.Name.Parts[0].Pos)
+		b.Relation = auth.Catalog.MustRelation(b.Ref.Address)
+		if b.Relation.RelationKind == catalog.CompositeRelation {
+			return b, typedef.CompositeOpenError(b.Relation, s.Name.Parts[0].Pos)
 		}
-		if b.relation.RelationKind == catalog.IndexRelation {
-			return b, tableKind(b.relation, "insert into")
+		if b.Relation.RelationKind == catalog.IndexRelation {
+			return b, tableKind(b.Relation, "insert into")
 		}
-		binder.target.insertTarget = b.relation
+		binder.target.insertTarget = b.Relation
 		if binder.target.ruleNamespace != nil {
 			// Reserve a mutation lexical frame without exposing INSERT's target.
 			binder.query.frame = 1
 			// SELECT frame allocation stays monotonic across stored modifiers.
 		}
-		if binder.host.ReplayInsertAuthority() && len(b.relation.ColumnMeta.Identities) != 0 && s.Override != parser.OverrideSystem {
+		if binder.host.ReplayInsertAuthority() && len(b.Relation.ColumnMeta.Identities) != 0 && s.Override != parser.OverrideSystem {
 			return b, sqlError("0A000", "restore identity rows require OVERRIDING SYSTEM VALUE")
 		}
-		if !b.relation.VirtualView {
-			b.storage = binder.host.AuthorizationStorage(auth, b.ref.Address)
-			if b.storage == nil && b.relation.RelationKind == catalog.TableRelation {
+		if !b.Relation.VirtualView {
+			b.Storage = binder.host.AuthorizationStorage(auth, b.Ref.Address)
+			if b.Storage == nil && b.Relation.RelationKind == catalog.TableRelation {
 				return b, fmt.Errorf("stuntgres: relation storage is missing")
 			}
 		}
@@ -62,49 +62,49 @@ func bindMutationCommand(binder *expressionBinder, auth AuthorizationView, requi
 		if err := bindMerge(&b, binder, auth, requiredRef, s); err != nil {
 			return b, err
 		}
-		if len(rulesOf(b.relation)) != 0 {
-			return b, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`cannot execute MERGE on relation "%s"`, b.relation.Name()), Detail: "MERGE is not supported for relations with rules."}
+		if len(rulesOf(b.Relation)) != 0 {
+			return b, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`cannot execute MERGE on relation "%s"`, b.Relation.Name()), Detail: "MERGE is not supported for relations with rules."}
 		}
 	case *parser.Delete:
 		var err error
-		b.ref, err = binder.host.AdmittedReference(auth, s.Name, requiredRef)
+		b.Ref, err = binder.host.AdmittedReference(auth, s.Name, requiredRef)
 		if err != nil {
 			return b, err
 		}
-		if b.ref != requiredRef {
+		if b.Ref != requiredRef {
 			return b, ids.ErrCatalogReplaced
 		}
-		b.relation = auth.Catalog.MustRelation(b.ref.Address)
-		if b.relation.RelationKind == catalog.CompositeRelation {
-			return b, typedef.CompositeOpenError(b.relation, s.Name.Parts[0].Pos)
+		b.Relation = auth.Catalog.MustRelation(b.Ref.Address)
+		if b.Relation.RelationKind == catalog.CompositeRelation {
+			return b, typedef.CompositeOpenError(b.Relation, s.Name.Parts[0].Pos)
 		}
-		if b.relation.RelationKind == catalog.IndexRelation {
-			return b, tableKind(b.relation, "delete from")
+		if b.Relation.RelationKind == catalog.IndexRelation {
+			return b, tableKind(b.Relation, "delete from")
 		}
-		if !b.relation.VirtualView {
-			b.storage = binder.host.AuthorizationStorage(auth, b.ref.Address)
-			if b.storage == nil && b.relation.RelationKind == catalog.TableRelation {
+		if !b.Relation.VirtualView {
+			b.Storage = binder.host.AuthorizationStorage(auth, b.Ref.Address)
+			if b.Storage == nil && b.Relation.RelationKind == catalog.TableRelation {
 				return b, fmt.Errorf("stuntgres: relation storage is missing")
 			}
 		}
-		binder.target.relation, binder.target.ref = b.relation, b.ref
+		binder.target.relation, binder.target.ref = b.Relation, b.Ref
 		if s.CurrentOf != nil {
-			b.currentOf = s.CurrentOf.Text
+			b.CurrentOf = s.CurrentOf.Text
 		}
-		binder.target.deleteTarget, binder.target.name, binder.target.alias = true, b.relation.Name(), s.Alias.Text
+		binder.target.deleteTarget, binder.target.name, binder.target.alias = true, b.Relation.Name(), s.Alias.Text
 		binder.query.auth = &auth
 		if s.Using != nil {
 			target := binder.mutationTargetNamespace()
 			binder.query.hidden = append(binder.query.hidden, target.qualifiers[0])
 			var sources queryNamespace
 			binder.target.deleteUsingSources = true
-			b.delete.using, sources, err = binder.bindFrom(s.Using)
+			b.Delete.Using, sources, err = binder.bindFrom(s.Using)
 			binder.target.deleteUsingSources = false
 			if err != nil {
 				return b, err
 			}
-			b.delete.sourceWidth = len(sources.frame)
-			target, err = combineQueryNamespace(target, rebaseQueryNamespace(sources, len(b.relation.Columns)))
+			b.Delete.SourceWidth = len(sources.frame)
+			target, err = combineQueryNamespace(target, rebaseQueryNamespace(sources, len(b.Relation.Columns)))
 			if err != nil {
 				return b, err
 			}
@@ -112,39 +112,39 @@ func bindMutationCommand(binder *expressionBinder, auth AuthorizationView, requi
 			binder.clause.aggregateClause = "DELETE"
 		}
 		if s.Where != nil {
-			b.predicate, err = binder.bind(s.Where, expressionPolicy{context: filterContext})
+			b.Predicate, err = binder.bind(s.Where, expressionPolicy{context: filterContext})
 			if err != nil {
 				return b, err
 			}
 		}
 		if s.Returning != nil {
-			b.returning, err = binder.bindReturning(s.Returning, returningDelete)
+			b.Returning, err = binder.bindReturning(s.Returning, returningDelete)
 			if err != nil {
 				return b, err
 			}
 		}
 	case *parser.Update:
 		var err error
-		b.ref, err = binder.host.AdmittedReference(auth, s.Name, requiredRef)
+		b.Ref, err = binder.host.AdmittedReference(auth, s.Name, requiredRef)
 		if err != nil {
 			return b, err
 		}
-		if b.ref != requiredRef {
+		if b.Ref != requiredRef {
 			return b, ids.ErrCatalogReplaced
 		}
-		b.relation = auth.Catalog.MustRelation(b.ref.Address)
-		if b.relation.RelationKind == catalog.CompositeRelation {
-			return b, typedef.CompositeOpenError(b.relation, s.Name.Parts[0].Pos)
+		b.Relation = auth.Catalog.MustRelation(b.Ref.Address)
+		if b.Relation.RelationKind == catalog.CompositeRelation {
+			return b, typedef.CompositeOpenError(b.Relation, s.Name.Parts[0].Pos)
 		}
-		if b.relation.RelationKind == catalog.IndexRelation {
-			return b, tableKind(b.relation, "change")
+		if b.Relation.RelationKind == catalog.IndexRelation {
+			return b, tableKind(b.Relation, "change")
 		}
-		if !b.relation.VirtualView && b.relation.RelationKind == catalog.CatalogRelation && !guardedCatalogRelation(b.relation) {
-			return b, tableKind(b.relation, "change")
+		if !b.Relation.VirtualView && b.Relation.RelationKind == catalog.CatalogRelation && !guardedCatalogRelation(b.Relation) {
+			return b, tableKind(b.Relation, "change")
 		}
-		if !b.relation.VirtualView {
-			b.storage = binder.host.AuthorizationStorage(auth, b.ref.Address)
-			if b.storage == nil && b.relation.RelationKind == catalog.TableRelation {
+		if !b.Relation.VirtualView {
+			b.Storage = binder.host.AuthorizationStorage(auth, b.Ref.Address)
+			if b.Storage == nil && b.Relation.RelationKind == catalog.TableRelation {
 				return b, fmt.Errorf("stuntgres: relation storage is missing")
 			}
 		}
@@ -152,37 +152,37 @@ func bindMutationCommand(binder *expressionBinder, auth AuthorizationView, requi
 		if err = bindUpdate(&b, binder, s); err != nil {
 			return b, err
 		}
-		b.querySources = binder.query.sources
+		b.QuerySources = binder.query.sources
 	}
-	b.usedColumns = binder.target.uses
-	b.subqueryDemand = binder.query.subqueryDemand
-	b.visibilitySnapshot = binder.consumer.visibilitySnapshot
-	if b.relation != nil {
+	b.UsedColumns = binder.target.uses
+	b.SubqueryDemand = binder.query.subqueryDemand
+	b.VisibilitySnapshot = binder.consumer.visibilitySnapshot
+	if b.Relation != nil {
 		switch statement.(type) {
 		case *parser.Insert, *parser.Update, *parser.Merge:
-			if err := binder.captureRetainedWriteInput(nil, b.relation.ColumnMeta.Generations, b.relation.Constraints.Check); err != nil {
+			if err := binder.captureRetainedWriteInput(nil, b.Relation.ColumnMeta.Generations, b.Relation.Constraints.Check); err != nil {
 				return b, err
 			}
 		}
 	}
-	b.querySources = binder.query.sources
+	b.QuerySources = binder.query.sources
 	if binder.target.ruleNamespace == nil {
 		if err := binder.host.BindViewWrite(&b, auth, statement); err != nil {
 			return b, err
 		}
 	}
-	binder.query.sources = b.querySources
-	if b.viewWrite != nil {
-		if err := binder.captureRetainedWriteInput(b.insert.defaults, viewWriteOf(b.viewWrite).base.ColumnMeta.Generations, viewWriteOf(b.viewWrite).base.Constraints.Check); err != nil {
+	binder.query.sources = b.QuerySources
+	if b.ViewWrite != nil {
+		if err := binder.captureRetainedWriteInput(b.Insert.Defaults, viewWriteOf(b.ViewWrite).base.ColumnMeta.Generations, viewWriteOf(b.ViewWrite).base.Constraints.Check); err != nil {
 			return b, err
 		}
 	}
 	// Stored-view grafts add real source/visibility demands outside the scalar
 	// binder. Retain them in both this command and the statement accumulators.
-	binder.query.subqueryDemand = binder.query.subqueryDemand || b.subqueryDemand
-	binder.consumer.visibilitySnapshot = binder.consumer.visibilitySnapshot || b.visibilitySnapshot
-	b.subqueryDemand = binder.query.subqueryDemand
-	b.visibilitySnapshot = binder.consumer.visibilitySnapshot
+	binder.query.subqueryDemand = binder.query.subqueryDemand || b.SubqueryDemand
+	binder.consumer.visibilitySnapshot = binder.consumer.visibilitySnapshot || b.VisibilitySnapshot
+	b.SubqueryDemand = binder.query.subqueryDemand
+	b.VisibilitySnapshot = binder.consumer.visibilitySnapshot
 	return b, nil
 }
 

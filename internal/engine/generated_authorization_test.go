@@ -34,7 +34,7 @@ func generatedAuthorizationFixture(t *testing.T) (*Engine, *Operation, *Operatio
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(admin)
 	if err == nil {
-		err = e.bindCreateGenerations(admin, auth, d, []createColumnDeclaration{{}, {generation: generation}}, sqltype.InputEnvironment{})
+		err = e.bindCreateGenerations(admin, auth, d, []createColumnDeclaration{{}, {Generation: generation}}, sqltype.InputEnvironment{})
 	}
 	if err == nil {
 		err = e.assignDefinitionOIDsLocked(d)
@@ -123,13 +123,13 @@ func TestGeneratedPartialColumnAuthorization(t *testing.T) {
 			if err != nil {
 				t.Fatal("binding", err)
 			}
-			if !reflect.DeepEqual(bound.targets, tc.targets) || !reflect.DeepEqual(bound.usedColumns, tc.reads) {
-				t.Fatalf("caller manifests targets=%v reads=%v; want targets=%v reads=%v", bound.targets, bound.usedColumns, tc.targets, tc.reads)
+			if !reflect.DeepEqual(bound.Targets, tc.targets) || !reflect.DeepEqual(bound.UsedColumns, tc.reads) {
+				t.Fatalf("caller manifests targets=%v reads=%v; want targets=%v reads=%v", bound.Targets, bound.UsedColumns, tc.targets, tc.reads)
 			}
-			if len(bound.querySources) != len(tc.sourceUses) {
-				t.Fatalf("source manifest count=%d; want %d", len(bound.querySources), len(tc.sourceUses))
+			if len(bound.QuerySources) != len(tc.sourceUses) {
+				t.Fatalf("source manifest count=%d; want %d", len(bound.QuerySources), len(tc.sourceUses))
 			}
-			for i, source := range bound.querySources {
+			for i, source := range bound.QuerySources {
 				if !reflect.DeepEqual(source.Uses, tc.sourceUses[i]) {
 					t.Fatalf("source %d reads=%v; want %v", i, source.Uses, tc.sourceUses[i])
 				}

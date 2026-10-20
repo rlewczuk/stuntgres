@@ -14,30 +14,30 @@ func TestRuleConflictInstantiation(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
 	original := ruleUnitInsert(e, src, 1, 10).binding
 	action := ruleUnitInsert(e, sink, 1, 10)
-	recipe := &boundInsertConflict{targets: action.binding.targets, keys: []conflictKey{{attribute: 1}}, update: &boundUpdate{assignments: []expr.Expr{ruleUnitInt(sink, 20)}}, updateTargets: []int{1}, width: 2}
-	action.binding.insert.conflict = insertConflictSlotOf(recipe)
+	recipe := &boundInsertConflict{targets: action.binding.Targets, keys: []conflictKey{{attribute: 1}}, update: &boundUpdate{Assignments: []expr.Expr{ruleUnitInt(sink, 20)}}, updateTargets: []int{1}, width: 2}
+	action.binding.Insert.Conflict = insertConflictSlotOf(recipe)
 	first, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, action)
 	if err != nil {
 		t.Fatal(err)
 	}
-	insertConflictOf(first.insert.conflict).markAffected(ids.RowID(42), 0)
-	insertConflictOf(first.insert.conflict).selected = append(insertConflictOf(first.insert.conflict).selected, sink.Address())
-	insertConflictOf(first.insert.conflict).frame = make([]sqltype.Value, 4)
-	insertConflictOf(first.insert.conflict).catalog = auth.Catalog.State()
-	insertConflictOf(first.insert.conflict).overlays = make(map[*uniqueBoundKey]*insertWriteKeyOverlay)
+	insertConflictOf(first.Insert.Conflict).markAffected(ids.RowID(42), 0)
+	insertConflictOf(first.Insert.Conflict).selected = append(insertConflictOf(first.Insert.Conflict).selected, sink.Address())
+	insertConflictOf(first.Insert.Conflict).frame = make([]sqltype.Value, 4)
+	insertConflictOf(first.Insert.Conflict).catalog = auth.Catalog.State()
+	insertConflictOf(first.Insert.Conflict).overlays = make(map[*uniqueBoundKey]*insertWriteKeyOverlay)
 	second, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, action)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if insertConflictOf(first.insert.conflict) == insertConflictOf(second.insert.conflict) || insertConflictOf(second.insert.conflict) == recipe || insertConflictOf(first.insert.conflict) == recipe {
+	if insertConflictOf(first.Insert.Conflict) == insertConflictOf(second.Insert.Conflict) || insertConflictOf(second.Insert.Conflict) == recipe || insertConflictOf(first.Insert.Conflict) == recipe {
 		t.Fatal("composed commands share conflict workspace")
 	}
-	for _, c := range []*boundInsertConflict{recipe, insertConflictOf(second.insert.conflict)} {
+	for _, c := range []*boundInsertConflict{recipe, insertConflictOf(second.Insert.Conflict)} {
 		if c.affected != 0 || len(c.affectedRows) != 0 || len(c.selected) != 0 || c.frame != nil || c.catalog != nil || c.overlays != nil || c.ownRowSlots != nil {
 			t.Fatal("execution state escaped its composed command")
 		}
 	}
-	if !slices.Equal(insertConflictOf(second.insert.conflict).updateTargets, []int{1}) {
+	if !slices.Equal(insertConflictOf(second.Insert.Conflict).updateTargets, []int{1}) {
 		t.Fatal("instantiation changed analyzed recipe")
 	}
 }
@@ -45,12 +45,12 @@ func TestRuleConflictInstantiation(t *testing.T) {
 func TestRuleConflictAttributeRefresh(t *testing.T) {
 	e, auth, _, sink := ruleUnitCatalog(t)
 	b := ruleUnitInsert(e, sink, 1, 10).binding
-	ref := b.ref
+	ref := b.Ref
 	ref.Address.SubID = sink.Attributes[1]
 	target := plan.ColumnExpr{Info: ruleColumnInfo(sink.Columns[1]), Origin: ref, Scope: 1, Frame: 1, Slot: 1}
 	excluded := target
 	excluded.Slot = 3
-	b.insert.conflict = insertConflictSlotOf(&boundInsertConflict{targets: b.targets, reads: []int{0}, actionReads: []int{1}, updateTargets: []int{1}, width: 2, update: &boundUpdate{assignments: []expr.Expr{excluded}, predicate: target}})
+	b.Insert.Conflict = insertConflictSlotOf(&boundInsertConflict{targets: b.Targets, reads: []int{0}, actionReads: []int{1}, updateTargets: []int{1}, width: 2, update: &boundUpdate{Assignments: []expr.Expr{excluded}, Predicate: target}})
 	current := *sink
 	current.Attributes = []int32{2, 1}
 	current.Columns = []catalog.Column{sink.Columns[1], sink.Columns[0]}
@@ -60,10 +60,10 @@ func TestRuleConflictAttributeRefresh(t *testing.T) {
 	view := e.catalog.read(catalog)
 	check := func(next binding) {
 		t.Helper()
-		if !slices.Equal(next.targets, []int{1, 0}) || !slices.Equal(insertConflictOf(next.insert.conflict).targets, []int{1, 0}) || !slices.Equal(insertConflictOf(next.insert.conflict).updateTargets, []int{0}) || !slices.Equal(insertConflictOf(next.insert.conflict).reads, []int{1}) || !slices.Equal(insertConflictOf(next.insert.conflict).actionReads, []int{0}) {
+		if !slices.Equal(next.Targets, []int{1, 0}) || !slices.Equal(insertConflictOf(next.Insert.Conflict).targets, []int{1, 0}) || !slices.Equal(insertConflictOf(next.Insert.Conflict).updateTargets, []int{0}) || !slices.Equal(insertConflictOf(next.Insert.Conflict).reads, []int{1}) || !slices.Equal(insertConflictOf(next.Insert.Conflict).actionReads, []int{0}) {
 			t.Fatal("conflict manifests did not follow stable attributes")
 		}
-		if insertConflictOf(next.insert.conflict).update.assignments[0].(plan.ColumnExpr).Slot != 2 || insertConflictOf(next.insert.conflict).update.predicate.(plan.ColumnExpr).Slot != 0 || insertConflictOf(next.insert.conflict).width != 2 {
+		if insertConflictOf(next.Insert.Conflict).update.Assignments[0].(plan.ColumnExpr).Slot != 2 || insertConflictOf(next.Insert.Conflict).update.Predicate.(plan.ColumnExpr).Slot != 0 || insertConflictOf(next.Insert.Conflict).width != 2 {
 			t.Fatal("target/EXCLUDED namespaces lost their distinct halves")
 		}
 	}
@@ -77,7 +77,7 @@ func TestRuleConflictAttributeRefresh(t *testing.T) {
 		t.Fatal(err)
 	}
 	check(mapped)
-	if b.targets[0] != 0 || insertConflictOf(b.insert.conflict).updateTargets[0] != 1 || insertConflictOf(b.insert.conflict).update.assignments[0].(plan.ColumnExpr).Slot != 3 || b.relation != sink {
+	if b.Targets[0] != 0 || insertConflictOf(b.Insert.Conflict).updateTargets[0] != 1 || insertConflictOf(b.Insert.Conflict).update.Assignments[0].(plan.ColumnExpr).Slot != 3 || b.Relation != sink {
 		t.Fatal("refresh/remap mutated the stored template")
 	}
 }
@@ -88,28 +88,28 @@ func TestRuleIndependentActionProducer(t *testing.T) {
 		t.Run(event, func(t *testing.T) {
 			original := ruleUnitInsert(e, src, 1, 10).binding
 			if event == "UPDATE" {
-				original.update = &boundUpdate{assignments: []expr.Expr{ruleUnitInt(src, 1), ruleUnitInt(src, 10)}}
+				original.Update = &boundUpdate{Assignments: []expr.Expr{ruleUnitInt(src, 1), ruleUnitInt(src, 10)}}
 			}
 			action := ruleUnitInsert(e, sink, 7, 8)
 			composed, err := composeRuleAction(auth, original, event, ruleDefinition{}, action)
 			if err != nil {
 				t.Fatal(err)
 			}
-			join := composed.query.Root.(*plan.ProjectNode).Child.(*plan.JoinNode)
-			if _, ok := join.Left.(*plan.SingletonNode); !ok || len(composed.querySources) != 0 {
+			join := composed.Query.Root.(*plan.ProjectNode).Child.(*plan.JoinNode)
+			if _, ok := join.Left.(*plan.SingletonNode); !ok || len(composed.QuerySources) != 0 {
 				t.Fatal("independent action still depends on event rows")
 			}
-			ref := original.ref
+			ref := original.Ref
 			ref.Address.SubID = src.Attributes[0]
-			action.binding.expressions = [][]expr.Expr{{plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: rulePseudoScope, Frame: 1}, ruleUnitInt(sink, 8)}}
+			action.binding.Expressions = [][]expr.Expr{{plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: rulePseudoScope, Frame: 1}, ruleUnitInt(sink, 8)}}
 			dependent, err := composeRuleAction(auth, original, event, ruleDefinition{}, action)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(dependent.querySources) == 0 {
+			if len(dependent.QuerySources) == 0 {
 				t.Fatal("OLD demand lost event-row authority")
 			}
-			if action.binding.expressions[0][0].(plan.ColumnExpr).Scope != rulePseudoScope {
+			if action.binding.Expressions[0][0].(plan.ColumnExpr).Scope != rulePseudoScope {
 				t.Fatal("composition mutated stored action")
 			}
 		})

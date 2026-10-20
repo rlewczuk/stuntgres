@@ -19,17 +19,17 @@ type deleteUsingCandidate struct {
 // occurrence indexes are retained, before any target row arbitration can wait.
 func (s *StatementScope) deleteUsingSource(b binding, source *exec.Source, evaluation *exec.Context, positioned mutationRowIdentity) (Result, error) {
 	ctx := evaluation.Context
-	evaluation.Query.VirtualReads = exec.QueryHasVirtualReads(b.delete.using) || exec.BoundHasVirtualReads(b.predicate)
-	if b.returning != nil {
-		for _, expression := range b.returning.expressions {
+	evaluation.Query.VirtualReads = exec.QueryHasVirtualReads(b.Delete.Using) || exec.BoundHasVirtualReads(b.Predicate)
+	if b.Returning != nil {
+		for _, expression := range b.Returning.Expressions {
 			evaluation.Query.VirtualReads = evaluation.Query.VirtualReads || exec.BoundHasVirtualReads(expression)
 		}
 	}
-	stage, err := exec.OpenNode(ctx, evaluation.Query, b.delete.using)
+	stage, err := exec.OpenNode(ctx, evaluation.Query, b.Delete.Using)
 	if err != nil {
 		return Result{}, err
 	}
-	stage, err = exec.SettlePendingQueryMarks(ctx, evaluation.Query, b.delete.using, stage)
+	stage, err = exec.SettlePendingQueryMarks(ctx, evaluation.Query, b.Delete.Using, stage)
 	if err != nil {
 		return Result{}, err
 	}
@@ -41,14 +41,14 @@ func (s *StatementScope) deleteUsingSource(b binding, source *exec.Source, evalu
 	sourceCount := stage.Count()
 	targetCount := 0
 	if sourceCount != 0 {
-		frame = make([]sqltype.Value, len(b.relation.Columns)+b.delete.sourceWidth)
+		frame = make([]sqltype.Value, len(b.Relation.Columns)+b.Delete.SourceWidth)
 		targetCount = source.Count()
 	}
 	var candidates []deleteUsingCandidate
 	for i := range targetCount {
 		physical := mutationPhysicalRow(source, i, b)
 		version := physical.Version
-		if b.currentOf != "" && (positioned.ref != physical.Leaf.Ref || version.Row != positioned.row) {
+		if b.CurrentOf != "" && (positioned.ref != physical.Leaf.Ref || version.Row != positioned.row) {
 			continue
 		}
 		candidate := physical.Deletion()
@@ -57,11 +57,11 @@ func (s *StatementScope) deleteUsingSource(b binding, source *exec.Source, evalu
 				return Result{}, err
 			}
 			copy(frame, physical.Values(version))
-			copy(frame[len(b.relation.Columns):], stage.Source.Row(stage.Index(j)))
+			copy(frame[len(b.Relation.Columns):], stage.Source.Row(stage.Index(j)))
 			evaluation.Row = frame
 			evaluation.BindQueryIdentity(stage.Source, stage.Index(j))
 			evaluation.PhysicalTable = physical.Leaf.Ref
-			matches, err := exec.UpdateMatches(evaluation, b.predicate)
+			matches, err := exec.UpdateMatches(evaluation, b.Predicate)
 			if err != nil {
 				return Result{}, err
 			}
@@ -76,8 +76,8 @@ func (s *StatementScope) deleteUsingSource(b binding, source *exec.Source, evalu
 	}
 	var rows *exec.FinalRows
 	keep := false
-	if b.returning != nil {
-		rows = exec.NewFinalRows(b.returning.schema, 0)
+	if b.Returning != nil {
+		rows = exec.NewFinalRows(b.Returning.Schema, 0)
 		rows.Output = s.output
 		defer func() {
 			if !keep {
@@ -106,7 +106,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *exec.Source, evalu
 			continue
 		}
 		copy(frame, pair.physical.Values(current))
-		copy(frame[len(b.relation.Columns):], stage.Source.Row(stage.Index(pair.sourceIndex)))
+		copy(frame[len(b.Relation.Columns):], stage.Source.Row(stage.Index(pair.sourceIndex)))
 		evaluation.Row = frame
 		evaluation.BindQueryIdentity(stage.Source, stage.Index(pair.sourceIndex))
 		evaluation.PhysicalTable = candidate.Ref
@@ -114,7 +114,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *exec.Source, evalu
 			if err := s.physicalRowEvent(candidate.Ref, current, lock.MultiUpdateLock, 0); err != nil {
 				return Result{}, err
 			}
-			matches, err := exec.UpdateMatches(evaluation, b.predicate)
+			matches, err := exec.UpdateMatches(evaluation, b.Predicate)
 			if err != nil {
 				return Result{}, err
 			}
@@ -135,7 +135,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *exec.Source, evalu
 		deletedIDs[identity] = true
 		count++
 		if rows != nil {
-			for output, expr := range b.returning.expressions {
+			for output, expr := range b.Returning.Expressions {
 				value, err := expr.Eval(evaluation)
 				if err != nil {
 					return Result{}, err
@@ -148,7 +148,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *exec.Source, evalu
 			rows.Count++
 		}
 	}
-	if rows != nil && b.returning.regclassOutput && count != 0 {
+	if rows != nil && b.Returning.RegclassOutput && count != 0 {
 		if err := s.op.session.Engine().captureRegclassOutput(s.op, rows); err != nil {
 			return Result{}, err
 		}

@@ -163,25 +163,25 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			original := binding{relation: &catalog.Relation{Columns: []catalog.Column{schema[0]}},
-				update: &boundUpdate{from: derived, sourceWidth: 1, assignments: []expr.Expr{expression}}}
-			private, err := preflightUpdate(&evaluation, original.update, func(prepared *boundUpdate) (plan.Node, error) {
+			original := binding{Relation: &catalog.Relation{Columns: []catalog.Column{schema[0]}},
+				Update: &boundUpdate{From: derived, SourceWidth: 1, Assignments: []expr.Expr{expression}}}
+			private, err := preflightUpdate(&evaluation, original.Update, func(prepared *boundUpdate) (plan.Node, error) {
 				current := original
-				current.update = prepared
+				current.Update = prepared
 				demanded, err := ruleMutationProducerDemand(current)
 				if err != nil {
 					return nil, err
 				}
-				return demanded.update.from, nil
+				return demanded.Update.From, nil
 			})
 			if used {
 				if !errors.As(err, &diagnostic) || diagnostic.Code != "22012" {
 					t.Fatalf("external mutation demand was not prepared: %v", err)
 				}
-			} else if err != nil || private.from == original.update.from {
+			} else if err != nil || private.From == original.Update.From {
 				t.Fatalf("unused mutation payload was not pruned privately: %v", err)
 			}
-			if original.update.from != derived || derived.Query.Root != child {
+			if original.Update.From != derived || derived.Query.Root != child {
 				t.Fatal("mutation source template was mutated")
 			}
 		}
@@ -207,10 +207,10 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		}
 		_, supplied := bind("SELECT 0 AS v", false)
 		original := ruleUnitInsert(e, src, 1, 0).binding
-		original.expressions = nil
-		original.targets = []int{1}
-		original.query = supplied
-		original.commandQuery, original.insert.subquerySource = true, true
+		original.Expressions = nil
+		original.Targets = []int{1}
+		original.Query = supplied
+		original.CommandQuery, original.Insert.SubquerySource = true, true
 		for _, shape := range []string{"demanded", "unused", "dead_case"} {
 			output := "q.n"
 			if shape == "unused" {
@@ -222,17 +222,17 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			statement, query := bind("SELECT "+output+" AS out FROM (SELECT 1/NEW.v AS n) AS q", true)
 			template := query.Root.(*plan.ProjectNode)
 			childTemplate := template.Child.(*plan.DerivedNode).Query.Root.(*plan.ProjectNode)
-			action := ruleAction{syntax: statement, binding: binding{query: query, commandQuery: true}}
+			action := ruleAction{syntax: statement, binding: binding{Query: query, CommandQuery: true}}
 			composed, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, action)
 			if err != nil {
 				t.Fatal(err)
 			}
-			joined := composed.query.Root.(*plan.ProjectNode).Child.(*plan.JoinNode)
+			joined := composed.Query.Root.(*plan.ProjectNode).Child.(*plan.JoinNode)
 			if !joined.CorrelatedRight || !joined.Right.(*plan.ProjectNode).RuleInvocation {
 				t.Fatal("unit did not reach the real correlated rule invocation")
 			}
 			planning := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: auth.Catalog, PlanStaticOperators: true}}
-			prepared, err := preflightQuery(&planning, composed.query.Root)
+			prepared, err := preflightQuery(&planning, composed.Query.Root)
 			if err != nil {
 				t.Fatalf("row-dependent payload was evaluated during planning: %v", err)
 			}
@@ -277,7 +277,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 				}
 			})
 			if query.Root != template || !pseudoRetained ||
-				original.query.Root != supplied.Root || supplied.Root.(*plan.ProjectNode).Expressions[0].(plan.LiteralExpr).Value.IsNull() {
+				original.Query.Root != supplied.Root || supplied.Root.(*plan.ProjectNode).Expressions[0].(plan.LiteralExpr).Value.IsNull() {
 				t.Fatal("composition or demand preparation mutated a stored provider recipe")
 			}
 		}
@@ -298,7 +298,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := binding{relation: &catalog.Relation{Columns: []catalog.Column{schema[0]}}, delete: deleteBinding{using: source}, predicate: predicate}
+		original := binding{Relation: &catalog.Relation{Columns: []catalog.Column{schema[0]}}, Delete: deleteBinding{Using: source}, Predicate: predicate}
 		private, err := ruleMutationProducerDemand(original)
 		if err != nil {
 			t.Fatal(err)
@@ -306,11 +306,11 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), PlanStaticOperators: true}}
 		// Match DELETE's established order: source preparation first, then
 		// predicate preparation. Liveness must not evaluate the predicate early.
-		prepared, err := preflightQuery(&evaluation, private.delete.using)
+		prepared, err := preflightQuery(&evaluation, private.Delete.Using)
 		if err != nil {
 			t.Fatalf("dead CASE revived source payload demand: %v", err)
 		}
-		preparedPredicate, _, err := preflightCoercions(&evaluation, private.predicate)
+		preparedPredicate, _, err := preflightCoercions(&evaluation, private.Predicate)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -335,7 +335,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		if !values[0].IsNull() {
 			t.Fatal("unused source did not retain a typed NULL payload slot")
 		}
-		if original.delete.using != source || source.Query.Root != child {
+		if original.Delete.Using != source || source.Query.Root != child {
 			t.Fatal("DELETE source template was mutated")
 		}
 		if _, ok := child.Expressions[0].(plan.ArithmeticExpr); !ok {

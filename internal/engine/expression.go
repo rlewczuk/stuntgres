@@ -714,7 +714,7 @@ func newHostedBinder(ctx context.Context, host analyzeHost, input sqltype.InputE
 		if expected.refreshTemporals {
 			for _, capture := range expected.temporals {
 				if !refreshableTemporalCapture(capture) {
-					b.prepared.temporals = append(b.prepared.temporals, capture)
+					b.prepared.Temporals = append(b.prepared.Temporals, capture)
 				}
 			}
 		}
@@ -1418,9 +1418,9 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				return nil, expr.ErrorAt("0A000", "typed literals are unsupported", rawType.Pos)
 			}
 			if found {
-				u.Typmod = saved.typmod
-				if saved.typed {
-					u.Typmod = saved.typedTypmod
+				u.Typmod = saved.Typmod
+				if saved.Typed {
+					u.Typmod = saved.TypedTypmod
 				}
 			}
 			inputUsage := u.BaseUsage()
@@ -1432,10 +1432,10 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				return nil, inputErrorAt(err, r.Pos)
 			}
 			if b.collectTemporalConstants() {
-				for i := range b.prepared.temporals {
-					if b.prepared.temporals[i].offset == r.Pos.Offset && b.prepared.temporals[i].typeID == u.Type.ID() {
-						b.prepared.temporals[i].typed = true
-						b.prepared.temporals[i].typedTypmod = u.Typmod
+				for i := range b.prepared.Temporals {
+					if b.prepared.Temporals[i].Offset == r.Pos.Offset && b.prepared.Temporals[i].TypeID == u.Type.ID() {
+						b.prepared.Temporals[i].Typed = true
+						b.prepared.Temporals[i].TypedTypmod = u.Typmod
 					}
 				}
 			}
@@ -1573,7 +1573,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			return node, err
 		}
 		if coercionPlan.RequiresCatalogOutput() {
-			b.prepared.regclassConcat = true
+			b.prepared.RegclassConcat = true
 		}
 		info.Property = coercionProperties(input, coercionPlan)
 		if folded, ok, err := b.foldRegtypeConstant(input, coercionPlan, info); ok || err != nil {
@@ -1666,7 +1666,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		return nil, err
 	}
 	if b.clause.jsonbRecordBase && raw.Syntax != parser.FunctionCast && target.Type.IsUserDefined() && target.Type.BaseType().IsComposite() {
-		b.prepared.captureComposite(preparedCompositeKey{offset: raw.TypeName.Pos.Offset, kind: compositeRecordArgument}, target, nil)
+		b.prepared.CaptureComposite(preparedCompositeKey{Offset: raw.TypeName.Pos.Offset, Kind: CompositeRecordArgument}, target, nil)
 	}
 	if target.Type.ID() == sqltype.Unknown {
 		// UNKNOWN is syntax provenance only, never an executable datum type.
@@ -1792,7 +1792,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		return nil, expr.ErrorAt("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 	}
 	if coercionPlan.RequiresCatalogOutput() {
-		b.prepared.regclassConcat = true
+		b.prepared.RegclassConcat = true
 	}
 	if source == target {
 		return child, nil
@@ -1989,15 +1989,15 @@ func (b *expressionBinder) collectTemporalConstants() bool {
 func (b *expressionBinder) captureAt(offset int) (temporalConstant, bool, error) {
 	if b.expected != nil {
 		captures := b.expected.temporals
-		i := sort.Search(len(captures), func(i int) bool { return captures[i].offset >= offset })
-		if i < len(captures) && captures[i].offset == offset {
+		i := sort.Search(len(captures), func(i int) bool { return captures[i].Offset >= offset })
+		if i < len(captures) && captures[i].Offset == offset {
 			if b.expected.refreshTemporals && refreshableTemporalCapture(captures[i]) {
 				return temporalConstant{}, false, nil
 			}
 			saved := captures[i]
-			for i++; i < len(captures) && captures[i].offset == offset; i++ {
-				if captures[i].typeID != saved.typeID || captures[i].typmod != saved.typmod ||
-					captures[i].typed != saved.typed || captures[i].typedTypmod != saved.typedTypmod {
+			for i++; i < len(captures) && captures[i].Offset == offset; i++ {
+				if captures[i].TypeID != saved.TypeID || captures[i].Typmod != saved.Typmod ||
+					captures[i].Typed != saved.Typed || captures[i].TypedTypmod != saved.TypedTypmod {
 					return temporalConstant{}, false, fmt.Errorf("stuntgres: ambiguous captured temporal metadata")
 				}
 			}
@@ -2010,14 +2010,14 @@ func (b *expressionBinder) captureAt(offset int) (temporalConstant, bool, error)
 func (b *expressionBinder) captured(offset int, usage sqltype.Usage) (temporalConstant, bool, error) {
 	if b.expected != nil {
 		captures := b.expected.temporals
-		i := sort.Search(len(captures), func(i int) bool { return captures[i].offset >= offset })
-		if i < len(captures) && captures[i].offset == offset {
+		i := sort.Search(len(captures), func(i int) bool { return captures[i].Offset >= offset })
+		if i < len(captures) && captures[i].Offset == offset {
 			if b.expected.refreshTemporals && refreshableTemporalCapture(captures[i]) {
 				return temporalConstant{}, false, nil
 			}
-			for ; i < len(captures) && captures[i].offset == offset; i++ {
+			for ; i < len(captures) && captures[i].Offset == offset; i++ {
 				capture := captures[i]
-				if capture.typeID == usage.Type.ID() && capture.typmod == usage.Typmod {
+				if capture.TypeID == usage.Type.ID() && capture.Typmod == usage.Typmod {
 					return capture, true, nil
 				}
 			}
@@ -2074,7 +2074,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 				}
 				return sqltype.Value{}, ids.ErrCatalogReplaced
 			}
-			return c.value.Retag(u.Type)
+			return c.Value.Retag(u.Type)
 		}
 		if u.Type.ContainsCatalogIdentifier() {
 			if err := b.captureElementInput(); err != nil {
@@ -2091,10 +2091,10 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 			return sqltype.Value{}, err
 		}
 		if b.collectTemporalConstants() {
-			i := sort.Search(len(b.prepared.temporals), func(i int) bool { return b.prepared.temporals[i].offset >= pos.Offset })
-			b.prepared.temporals = append(b.prepared.temporals, temporalConstant{})
-			copy(b.prepared.temporals[i+1:], b.prepared.temporals[i:])
-			b.prepared.temporals[i] = temporalConstant{offset: pos.Offset, typmod: u.Typmod, typeID: u.Type.ID(), value: value}
+			i := sort.Search(len(b.prepared.Temporals), func(i int) bool { return b.prepared.Temporals[i].Offset >= pos.Offset })
+			b.prepared.Temporals = append(b.prepared.Temporals, temporalConstant{})
+			copy(b.prepared.Temporals[i+1:], b.prepared.Temporals[i:])
+			b.prepared.Temporals[i] = temporalConstant{Offset: pos.Offset, Typmod: u.Typmod, TypeID: u.Type.ID(), Value: value}
 		}
 		return value, nil
 	}
@@ -2106,19 +2106,19 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		return sqltype.Value{}, err
 	}
 	if found {
-		if c.typeID == sqltype.Timetz {
-			return sqltype.TimetzValue(u.Type, c.scalar, c.west)
+		if c.TypeID == sqltype.Timetz {
+			return sqltype.TimetzValue(u.Type, c.Scalar, c.West)
 		}
-		if c.typeID == sqltype.Interval {
-			return sqltype.IntervalValue(u.Type, c.months, c.days, c.scalar)
+		if c.TypeID == sqltype.Interval {
+			return sqltype.IntervalValue(u.Type, c.Months, c.Days, c.Scalar)
 		}
-		if c.typeID == sqltype.Time {
-			return sqltype.TimeValue(u.Type, c.scalar)
+		if c.TypeID == sqltype.Time {
+			return sqltype.TimeValue(u.Type, c.Scalar)
 		}
-		if c.typeID == sqltype.Date {
-			return sqltype.DateValue(u.Type, c.scalar)
+		if c.TypeID == sqltype.Date {
+			return sqltype.DateValue(u.Type, c.Scalar)
 		}
-		return sqltype.TimestampValue(u.Type, c.scalar)
+		return sqltype.TimestampValue(u.Type, c.Scalar)
 	}
 	inputTypmod := int32(-1)
 	if u.Type.ID() == sqltype.Interval {
@@ -2153,9 +2153,9 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		}
 		// Symmetric comparison can contextualize an earlier unknown literal
 		// after its right operand. Keep captures ordered for rebind lookup.
-		i := sort.Search(len(b.prepared.temporals), func(i int) bool { return b.prepared.temporals[i].offset >= pos.Offset })
-		b.prepared.temporals = append(b.prepared.temporals, temporalConstant{})
-		copy(b.prepared.temporals[i+1:], b.prepared.temporals[i:])
+		i := sort.Search(len(b.prepared.Temporals), func(i int) bool { return b.prepared.Temporals[i].Offset >= pos.Offset })
+		b.prepared.Temporals = append(b.prepared.Temporals, temporalConstant{})
+		copy(b.prepared.Temporals[i+1:], b.prepared.Temporals[i:])
 		west := int32(0)
 		if u.Type.ID() == sqltype.Timetz {
 			west, err = v.TimeZoneOffset()
@@ -2163,7 +2163,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 				return sqltype.Value{}, err
 			}
 		}
-		b.prepared.temporals[i] = temporalConstant{offset: pos.Offset, scalar: n, typmod: u.Typmod, typeID: u.Type.ID(), west: west, months: months, days: days}
+		b.prepared.Temporals[i] = temporalConstant{Offset: pos.Offset, Scalar: n, Typmod: u.Typmod, TypeID: u.Type.ID(), West: west, Months: months, Days: days}
 	}
 	return v, nil
 }

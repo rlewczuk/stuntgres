@@ -140,33 +140,33 @@ func newViewRenderer(v *viewDefinition) *viewRenderer {
 		r.rowTargets = make(map[string]string)
 	}
 	for _, captured := range v.composites {
-		if captured.source.Namespace == 0 {
+		if captured.Source.Namespace == 0 {
 			continue
 		}
 		if r.wholeRows == nil {
 			r.wholeRows = make(map[plan.WholeRowSource]viewRenderWholeRow)
 		}
-		r.wholeRows[captured.source] = viewRenderWholeRow{}
+		r.wholeRows[captured.Source] = viewRenderWholeRow{}
 	}
 	if len(v.namespaces) != 0 {
 		r.renderFrames = make(map[uint32]viewRenderFrame)
 	}
 	for i, ns := range v.namespaces {
-		frame, exists := r.renderFrames[ns.frame]
+		frame, exists := r.renderFrames[ns.Frame]
 		if !exists {
 			frame.namespace = i
 		}
-		if !frame.seen[ns.node] || ns.ordinal < frame.base[ns.node] {
-			frame.base[ns.node], frame.seen[ns.node] = ns.ordinal, true
+		if !frame.seen[ns.Node] || ns.Ordinal < frame.base[ns.Node] {
+			frame.base[ns.Node], frame.seen[ns.Node] = ns.Ordinal, true
 		}
-		r.renderFrames[ns.frame] = frame
-		for _, c := range ns.columns {
-			r.reserved[c.name] = true
+		r.renderFrames[ns.Frame] = frame
+		for _, c := range ns.Columns {
+			r.reserved[c.Name] = true
 		}
-		for _, q := range ns.qualifiers {
-			r.reserved[q.name] = true
-			for _, c := range q.columns {
-				r.reserved[c.name] = true
+		for _, q := range ns.Qualifiers {
+			r.reserved[q.Name] = true
+			for _, c := range q.Columns {
+				r.reserved[c.Name] = true
 			}
 		}
 	}
@@ -200,12 +200,12 @@ func (v *viewRenderer) slotSQL(ctx context.Context, catalog catalog.Read, root p
 // replay. Normalize generated node IDs within the lexical frame, cache names
 // across siblings, and separate depths so correlations cannot be shadowed.
 func (v *viewRenderer) renderAliasKey(ns viewNamespace) viewRenderAlias {
-	return viewRenderAlias{depth: v.depth, node: ns.node, ordinal: ns.ordinal - v.renderFrames[ns.frame].base[ns.node]}
+	return viewRenderAlias{depth: v.depth, node: ns.Node, ordinal: ns.Ordinal - v.renderFrames[ns.Frame].base[ns.Node]}
 }
 func (v *viewRenderer) namespaceAlias(ns viewNamespace) string {
 	key := v.renderAliasKey(ns)
 	base := viewSourceAlias(key.ordinal)
-	switch ns.node {
+	switch ns.Node {
 	case viewJoinNamespace:
 		base = "__view_using_" + strconv.Itoa(key.ordinal)
 	case viewValuesNamespace:
@@ -239,9 +239,9 @@ func (v *viewRenderer) allocateAlias(key viewRenderAlias, base string) string {
 // Apply every alias in actual emitted order, mapping frozen labels by slot.
 // This handles prefixes after compaction and whole-join aliases hiding operands.
 func (v *viewRenderer) aliasFrom(from viewRenderFrom, ns viewNamespace, name string) viewRenderFrom {
-	labels := make(map[int]string, len(ns.columns))
-	for _, c := range ns.columns {
-		labels[c.slot] = c.name
+	labels := make(map[int]string, len(ns.Columns))
+	for _, c := range ns.Columns {
+		labels[c.Slot] = c.Name
 	}
 	// Private bridge labels identify positions, not user-visible output names.
 	// Reserve every original label before allocating replacements so a later
@@ -364,16 +364,16 @@ func (v *viewRenderer) fromSQL(ctx context.Context, catalog catalog.Read, item p
 	}
 	if err == nil && v.wholeRows != nil && from.wholeSQL != "" {
 		namespace := v.namespaces[from.namespace-1]
-		for position, qualifier := range namespace.qualifiers {
-			key := plan.WholeRowSource{Namespace: from.namespace, Qualifier: position, Frame: namespace.frame}
+		for position, qualifier := range namespace.Qualifiers {
+			key := plan.WholeRowSource{Namespace: from.namespace, Qualifier: position, Frame: namespace.Frame}
 			if _, demanded := v.wholeRows[key]; !demanded {
 				continue
 			}
-			names := make([]string, len(qualifier.columns))
-			for i, column := range qualifier.columns {
+			names := make([]string, len(qualifier.Columns))
+			for i, column := range qualifier.Columns {
 				found := false
 				for _, rendered := range from.columns {
-					if rendered.slot == column.slot {
+					if rendered.slot == column.Slot {
 						names[i] = rendered.name
 						found = true
 						break
@@ -383,7 +383,7 @@ func (v *viewRenderer) fromSQL(ctx context.Context, catalog catalog.Read, item p
 					return viewRenderFrom{}, fmt.Errorf("stuntgres: missing rendered whole-row field")
 				}
 			}
-			v.wholeRows[plan.WholeRowSource{Namespace: from.namespace, Qualifier: position, Frame: namespace.frame}] = viewRenderWholeRow{sql: from.wholeSQL + ".*", names: names}
+			v.wholeRows[plan.WholeRowSource{Namespace: from.namespace, Qualifier: position, Frame: namespace.Frame}] = viewRenderWholeRow{sql: from.wholeSQL + ".*", names: names}
 		}
 	}
 	return from, err
@@ -395,7 +395,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 	}
 	// Nested expressions can render in a different order from analysis.
 	// Namespace entries retain their owning query frame and bound node ordinal.
-	for v.namespace < len(v.namespaces) && v.namespaces[v.namespace].frame != v.frame {
+	for v.namespace < len(v.namespaces) && v.namespaces[v.namespace].Frame != v.frame {
 		v.namespace++
 	}
 	if v.namespace >= len(v.namespaces) {
@@ -431,7 +431,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 		aliased.relation = "(" + text + ")"
 		return aliased, nil
 	case *parser.ValuesQuery:
-		ordinal := ns.ordinal
+		ordinal := ns.Ordinal
 		text, err := v.valuesSQL(ctx, catalogView, n, ordinal)
 		if err != nil {
 			return viewRenderFrom{}, err
@@ -457,7 +457,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 			aliased.relation = name
 			return aliased, nil
 		}
-		occurrence := ns.ordinal
+		occurrence := ns.Ordinal
 		if occurrence < 0 || occurrence >= len(v.sources) {
 			return viewRenderFrom{}, fmt.Errorf("stuntgres: invalid view source occurrence")
 		}
@@ -470,9 +470,9 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 		if root == nil {
 			return viewRenderFrom{}, fmt.Errorf("stuntgres: missing view source node")
 		}
-		frozen := make(map[int32]viewNamespaceColumn, len(ns.columns))
-		for _, c := range ns.columns {
-			frozen[c.attribute] = c
+		frozen := make(map[int32]viewNamespaceColumn, len(ns.Columns))
+		for _, c := range ns.Columns {
+			frozen[c.Attribute] = c
 		}
 		if v.simple {
 			name := relationDiagnosticNameAt(catalogView, d, v.presentation.path)
@@ -494,8 +494,8 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 			}
 			for i, attribute := range d.Attributes {
 				if c, ok := frozen[attribute]; ok {
-					from.slots[c.slot] = v.presentation.identifier(d.Columns[i].Name)
-					from.columns = append(from.columns, viewRenderColumn{name: d.Columns[i].Name, slot: c.slot})
+					from.slots[c.Slot] = v.presentation.identifier(d.Columns[i].Name)
+					from.columns = append(from.columns, viewRenderColumn{name: d.Columns[i].Name, slot: c.Slot})
 				}
 			}
 			v.slots[root] = from.slots
@@ -522,7 +522,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 			for i, attribute := range d.Attributes {
 				column := viewRenderColumn{name: d.Columns[i].Name, slot: -1}
 				if captured, ok := frozen[attribute]; ok {
-					column.slot = captured.slot
+					column.slot = captured.Slot
 					from.slots[column.slot] = qualifier + "." + v.presentation.identifier(column.name)
 				}
 				from.columns = append(from.columns, column)
@@ -540,7 +540,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 		for _, attribute := range d.Attributes {
 			column := viewRenderColumn{slot: -1}
 			if c, ok := frozen[attribute]; ok {
-				column.name, column.slot = c.name, c.slot
+				column.name, column.slot = c.Name, c.Slot
 			} else {
 				column.name = v.freshLabel(ns, attribute, true)
 			}
@@ -580,7 +580,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 		}
 		return v.aliasFrom(from, ns, aliasName), nil
 	case *parser.JoinReference:
-		ordinal := ns.ordinal
+		ordinal := ns.Ordinal
 		bound := viewJoinAt(viewFromRoot(v.query.Root), ordinal)
 		if bound == nil {
 			return viewRenderFrom{}, fmt.Errorf("stuntgres: missing view join occurrence")
@@ -589,8 +589,8 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 		if n.UsingAlias != nil {
 			usingAlias = n.UsingAlias.Text
 		} else {
-			for i := range ns.keys {
-				if ns.columns[i].slot >= bound.LeftWidth+bound.RightWidth {
+			for i := range ns.Keys {
+				if ns.Columns[i].Slot >= bound.LeftWidth+bound.RightWidth {
 					// Reserve before rendering descendants. This qualifies the
 					// exact merged usage without hiding either physical input.
 					usingAlias = v.namespaceAlias(ns)
@@ -652,7 +652,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 			}
 		}
 		if n.On != nil {
-			on, err := v.expressionSQL(ctx, catalogView, n.On, viewLiteralPath{clause: viewJoinLiteral, target: ordinal})
+			on, err := v.expressionSQL(ctx, catalogView, n.On, viewLiteralPath{Clause: ViewJoinLiteral, Target: ordinal})
 			if err != nil {
 				return viewRenderFrom{}, err
 			}
@@ -663,16 +663,16 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 			if !prettyFunctionSources {
 				from.text = "(" + from.text + ")"
 			}
-		} else if len(ns.keys) > 0 {
-			keys := make([]string, len(ns.keys))
-			for i, key := range ns.keys {
+		} else if len(ns.Keys) > 0 {
+			keys := make([]string, len(ns.Keys))
+			for i, key := range ns.Keys {
 				keys[i] = catalog.QuoteIdentifier(key)
-				c := ns.columns[i]
-				from.columns = append(from.columns, viewRenderColumn{name: key, slot: c.slot})
+				c := ns.Columns[i]
+				from.columns = append(from.columns, viewRenderColumn{name: key, slot: c.Slot})
 				// A synthetic merged value is recreated by USING's implicit
 				// common-type binder, never an unsupported explicit cast.
-				if c.slot >= bound.LeftWidth+bound.RightWidth {
-					from.slots[c.slot] = catalog.QuoteIdentifier(usingAlias) + "." + catalog.QuoteIdentifier(key)
+				if c.Slot >= bound.LeftWidth+bound.RightWidth {
+					from.slots[c.Slot] = catalog.QuoteIdentifier(usingAlias) + "." + catalog.QuoteIdentifier(key)
 				}
 			}
 			from.text = "(" + left.text + joinText + right.text + " USING (" + strings.Join(keys, ", ") + ")"
@@ -704,7 +704,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 		for _, columns := range [][]viewRenderColumn{left.columns, right.columns} {
 			for _, c := range columns {
 				key := false
-				for _, name := range ns.keys {
+				for _, name := range ns.Keys {
 					if c.name == name {
 						key = true
 						break

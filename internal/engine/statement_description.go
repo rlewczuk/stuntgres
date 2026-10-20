@@ -28,24 +28,12 @@ type StatementDescription struct {
 	refreshTemporals bool // Candidate-only request; never published in a description.
 }
 
-type temporalConstant struct {
-	offset       int
-	scalar       int64
-	typmod       int32
-	typeID       sqltype.ID
-	west         int32
-	months, days int32
-	typed        bool
-	typedTypmod  int32
-	value        sqltype.Value // immutable analyzed compound or enum literal
-}
-
 func refreshableTemporalCapture(c temporalConstant) bool {
-	t := c.value.Type()
+	t := c.Value.Type()
 	if statementCatalogType(t) {
 		return false // Logical compounds retain even their embedded temporal fields.
 	}
-	id := c.typeID
+	id := c.TypeID
 	if t != nil {
 		for t.IsArray() {
 			t = t.Element()

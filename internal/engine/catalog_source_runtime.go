@@ -103,7 +103,7 @@ func (r engineCatalogRuntime) Effective(ref ids.ObjectRef, owner bool) (authoriz
 }
 func (r engineCatalogRuntime) CanUse(ref ids.ObjectRef) error { return r.auth.CanUse(ref) }
 func (r engineCatalogRuntime) SelectColumns(ref ids.ObjectRef, relation *catalog.Relation) error {
-	return r.auth.checkColumns(binding{ref: ref, relation: relation}, authorization.SelectPrivilege, nil)
+	return r.auth.checkColumns(binding{Ref: ref, Relation: relation}, authorization.SelectPrivilege, nil)
 }
 func (r engineCatalogRuntime) ValidateParameter(view catalog.Read, d *catalog.Parameter) error {
 	return (parameterProvider{&r.engine.settings}).Validate(view, d)

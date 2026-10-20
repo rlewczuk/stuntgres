@@ -19,11 +19,11 @@ func TestMergeInsertBinding(t *testing.T) {
 		sessionSQL(t, s, q)
 	}
 	op, scope, b, target, inputs := updateFromBoundSources(t, e, s, context.Background(), "MERGE INTO t USING source s ON t.id=s.id WHEN NOT MATCHED AND s.id=2 THEN INSERT(v,id) VALUES(s.v,s.id) WHEN NOT MATCHED THEN INSERT(id) VALUES(s.id)")
-	if !reflect.DeepEqual(b.targets, []int{1, 0}) || !reflect.DeepEqual(b.usedColumns, []int{0}) || len(b.merge.arms) != 2 {
-		t.Fatal("authority manifests", b.targets, b.usedColumns, b.merge)
+	if !reflect.DeepEqual(b.Targets, []int{1, 0}) || !reflect.DeepEqual(b.UsedColumns, []int{0}) || len(b.Merge.Arms) != 2 {
+		t.Fatal("authority manifests", b.Targets, b.UsedColumns, b.Merge)
 	}
-	first, second := &b.merge.arms[0].input, &b.merge.arms[1].input
-	if !reflect.DeepEqual(first.targets, []int{1, 0}) || !reflect.DeepEqual(second.targets, []int{0}) || first.insert.defaults != nil || len(second.insert.defaults) != 3 || second.insert.defaults[1] == nil {
+	first, second := &b.Merge.Arms[0].Input, &b.Merge.Arms[1].Input
+	if !reflect.DeepEqual(first.Targets, []int{1, 0}) || !reflect.DeepEqual(second.Targets, []int{0}) || first.Insert.Defaults != nil || len(second.Insert.Defaults) != 3 || second.Insert.Defaults[1] == nil {
 		t.Fatal("independent arm schedules", first, second)
 	}
 	data := target.View.Data()
@@ -31,7 +31,7 @@ func TestMergeInsertBinding(t *testing.T) {
 		t.Fatal("target/source did not share frontier")
 	}
 	r, err := e.executeMerge(op.ctx, scope, b, target, inputs, nil, "public")
-	if err != nil || r.Count != 2 || r.Rows != nil || len(scope.stage.rows[b.ref.Address]) != 2 {
+	if err != nil || r.Count != 2 || r.Rows != nil || len(scope.stage.rows[b.Ref.Address]) != 2 {
 		t.Fatal("completed producer", r, err, scope.stage.rows)
 	}
 	if err := scope.Finish(nil); err != nil {
@@ -79,10 +79,10 @@ func TestMergeInsertPublication(t *testing.T) {
 			s := sessionStart(t, e, nil)
 			sessionSQL(t, s, "CREATE TABLE t(id INT)")
 			op, scope, b, target, inputs := updateFromBoundSources(t, e, s, context.Background(), "MERGE INTO t USING (VALUES(7),(7)) s(id) ON t.id=s.id WHEN NOT MATCHED THEN INSERT VALUES(s.id)")
-			typ := b.relation.Columns[0].Usage.Type
+			typ := b.Relation.Columns[0].Usage.Type
 			value, _ := sqltype.Integer(typ, 7)
 			primary, cleanup := errors.New("late source"), errors.New("required Close")
-			cursor := &mergeInsertTestCursor{schema: b.merge.source.Schema(), rows: [][]sqltype.Value{{value}, {value}}}
+			cursor := &mergeInsertTestCursor{schema: b.Merge.Source.Schema(), rows: [][]sqltype.Value{{value}, {value}}}
 			if phase == "late_source" || phase == "primary_wins_close" {
 				cursor.nextError = primary
 			}
@@ -98,7 +98,7 @@ func TestMergeInsertPublication(t *testing.T) {
 				if err != nil || len(rows.values) != 2 {
 					t.Fatal("bag occurrences", rows, err)
 				}
-				if err := rows.stage(scope.Writes(), b.ref); err != nil {
+				if err := rows.stage(scope.Writes(), b.Ref); err != nil {
 					t.Fatal(err)
 				}
 				if err := scope.Finish(nil); err != nil {
@@ -150,19 +150,19 @@ func TestMergeInsertCancellation(t *testing.T) {
 			}
 			switch phase {
 			case "probe":
-				b.merge.on = wrap(b.merge.on)
+				b.Merge.On = wrap(b.Merge.On)
 			case "when":
-				b.merge.arms[0].condition = wrap(b.merge.arms[0].condition)
+				b.Merge.Arms[0].Condition = wrap(b.Merge.Arms[0].Condition)
 			case "assignment":
-				b.merge.arms[0].input.expressions[0][0] = wrap(b.merge.arms[0].input.expressions[0][0])
+				b.Merge.Arms[0].Input.Expressions[0][0] = wrap(b.Merge.Arms[0].Input.Expressions[0][0])
 			case "default":
-				b.merge.arms[0].input.insert.defaults[1] = wrap(b.merge.arms[0].input.insert.defaults[1])
+				b.Merge.Arms[0].Input.Insert.Defaults[1] = wrap(b.Merge.Arms[0].Input.Insert.Defaults[1])
 			}
 			var result Result
 			var err error
 			if phase == "source" || phase == "before_apply" {
-				value, _ := sqltype.Integer(b.relation.Columns[0].Usage.Type, 1)
-				cursor := &mergeInsertTestCursor{schema: b.merge.source.Schema(), rows: [][]sqltype.Value{{value}}}
+				value, _ := sqltype.Integer(b.Relation.Columns[0].Usage.Type, 1)
+				cursor := &mergeInsertTestCursor{schema: b.Merge.Source.Schema(), rows: [][]sqltype.Value{{value}}}
 				if phase == "source" {
 					cursor.beforeNext = cancel
 				} else {

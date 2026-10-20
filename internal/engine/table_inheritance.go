@@ -14,11 +14,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-type createInheritanceInput struct {
-	ref    ids.ObjectRef
-	source *catalog.Relation
-}
-
 func inheritanceHasChildren(v catalog.Read, parent ids.ObjectAddress) bool {
 	for _, descriptor := range v.Descriptors() {
 		if d, ok := descriptor.(*catalog.Relation); ok && d.Inheritance != nil && slices.Contains(d.Inheritance.Parents, parent) {
@@ -93,7 +88,7 @@ func describeInheritance(host analyzeHost, auth AuthorizationView, syntax *parse
 		localNames[c.Name] = true
 	}
 	var merged []catalog.Column
-	b.create.localColumns = localNames
+	b.Create.LocalColumns = localNames
 	index := make(map[string]int)
 	seen := make(map[ids.ObjectAddress]bool)
 	generated := make(map[string]bool)
@@ -137,7 +132,7 @@ func describeInheritance(host analyzeHost, auth AuthorizationView, syntax *parse
 			return nil, nil, nil, sqlError("42P07", fmt.Sprintf(`relation "%s" would be inherited from more than once`, source.Name()))
 		}
 		seen[ref.Address] = true
-		b.create.inheritance = append(b.create.inheritance, createInheritanceInput{ref, source})
+		b.Create.Inheritance = append(b.Create.Inheritance, createInheritanceInput{ref, source})
 		for sourceSlot, c := range source.Columns {
 			definition, isGenerated := source.ColumnMeta.Generations[source.Attributes[sourceSlot]]
 			if slot, ok := index[c.Name]; ok {
@@ -184,17 +179,17 @@ func describeInheritance(host analyzeHost, auth AuthorizationView, syntax *parse
 			merged = append(merged, c)
 			resultDeclarations = append(resultDeclarations, createColumnDeclaration{})
 		}
-		if generated[c.Name] && (declarations[i].defaultExpr != nil || declarations[i].serial) {
+		if generated[c.Name] && (declarations[i].DefaultExpr != nil || declarations[i].Serial) {
 			return nil, nil, nil, sqlError("42611", fmt.Sprintf(`column "%s" inherits from generated column but specifies default`, c.Name))
 		}
-		if ok && !generated[c.Name] && declarations[i].generation != nil {
+		if ok && !generated[c.Name] && declarations[i].Generation != nil {
 			diagnostic := sqlError("42611", fmt.Sprintf(`child column "%s" specifies generation expression`, c.Name)).(*sqlstate.Error)
 			diagnostic.Hint = "A child table column cannot be generated unless its parent column is."
 			return nil, nil, nil, diagnostic
 		}
-		if ok && generated[c.Name] && declarations[i].generation != nil {
+		if ok && generated[c.Name] && declarations[i].Generation != nil {
 			kind := catalog.GenerationVirtual
-			if declarations[i].generation.Kind == "stored" {
+			if declarations[i].Generation.Kind == "stored" {
 				kind = catalog.GenerationStored
 			}
 			if kinds[c.Name] != kind {
@@ -207,42 +202,42 @@ func describeInheritance(host analyzeHost, auth AuthorizationView, syntax *parse
 	for i := range likeConstraints {
 		likeConstraints[i].Attribute = int32(mapping[likeConstraints[i].Attribute-1] + 1)
 	}
-	for i := range b.create.likes {
-		in := &b.create.likes[i]
-		in.targetSlots = make([]int, len(in.source.Columns))
-		for j := range in.targetSlots {
-			in.targetSlots[j] = mapping[in.offset+j]
+	for i := range b.Create.Likes {
+		in := &b.Create.Likes[i]
+		in.TargetSlots = make([]int, len(in.Source.Columns))
+		for j := range in.TargetSlots {
+			in.TargetSlots[j] = mapping[in.Offset+j]
 		}
 	}
-	for _, in := range b.create.likes {
-		if in.options&likeGenerated != 0 {
-			for i, attribute := range in.source.Attributes {
-				if _, exists := in.source.ColumnMeta.Generations[attribute]; exists {
-					name := in.source.Columns[i].Name
+	for _, in := range b.Create.Likes {
+		if in.Options&LikeGenerated != 0 {
+			for i, attribute := range in.Source.Attributes {
+				if _, exists := in.Source.ColumnMeta.Generations[attribute]; exists {
+					name := in.Source.Columns[i].Name
 					if isGenerated, inherited := generated[name]; inherited && !isGenerated {
 						diagnostic := sqlError("42611", fmt.Sprintf(`child column "%s" specifies generation expression`, name)).(*sqlstate.Error)
 						diagnostic.Hint = "A child table column cannot be generated unless its parent column is."
 						return nil, nil, nil, diagnostic
 					}
-					resultDeclarations[in.targetSlot(i)].copiedGeneration = true
+					resultDeclarations[in.TargetSlot(i)].CopiedGeneration = true
 				}
 			}
 		}
-		if in.options&likeDefaults == 0 {
+		if in.Options&LikeDefaults == 0 {
 			continue
 		}
-		for i, attribute := range in.source.Attributes {
-			_, specified := in.source.ColumnMeta.Defaults[attribute]
-			if in.source.Inheritance != nil {
-				specified = specified || in.source.Inheritance.Columns[attribute].ExplicitDefault
+		for i, attribute := range in.Source.Attributes {
+			_, specified := in.Source.ColumnMeta.Defaults[attribute]
+			if in.Source.Inheritance != nil {
+				specified = specified || in.Source.Inheritance.Columns[attribute].ExplicitDefault
 			}
 			if specified {
-				resultDeclarations[in.targetSlot(i)].copiedDefault = true
+				resultDeclarations[in.TargetSlot(i)].CopiedDefault = true
 			}
 		}
 	}
 	for slot, column := range merged {
-		if generated[column.Name] && resultDeclarations[slot].copiedDefault {
+		if generated[column.Name] && resultDeclarations[slot].CopiedDefault {
 			return nil, nil, nil, sqlError("42611", fmt.Sprintf(`column "%s" inherits from generated column but specifies default`, column.Name))
 		}
 	}

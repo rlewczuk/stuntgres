@@ -9,19 +9,6 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// Both installed and SQL routines use the existing occurrence identity map.
-// Syntax markers demand a capture, but never grant catalog authority themselves.
-func (c *viewCapture) captureRoutineReference(path viewLiteralPath, ref ids.ObjectRef) error {
-	if c.routineRefs == nil {
-		c.routineRefs = make(map[viewLiteralPath]ids.ObjectRef)
-	}
-	if old, exists := c.routineRefs[path]; exists && old != ref {
-		return fmt.Errorf("stuntgres: conflicting frozen routine occurrence")
-	}
-	c.routineRefs[path] = ref
-	return nil
-}
-
 func (b *expressionBinder) captureSQLRoutineReference(path viewLiteralPath, n plan.SQLRoutineExpr) error {
 	if err := n.ValidateStoredProvider(); err != nil {
 		return err
@@ -33,7 +20,7 @@ func (b *expressionBinder) captureSQLRoutineReference(path viewLiteralPath, n pl
 	if _, err := routine.ValidateStoredRoutineDescriptor(read, n.Procedure); err != nil {
 		return err
 	}
-	return b.capture.captureRoutineReference(path, n.Ref)
+	return b.capture.CaptureRoutineReference(path, n.Ref)
 }
 
 func (v *viewDefinition) sqlRoutineRecipeProcedure(read catalog.Read, path viewLiteralPath, raw parser.FunctionExpr) (*catalog.Procedure, error) {

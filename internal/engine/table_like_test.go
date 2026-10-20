@@ -43,9 +43,9 @@ func TestTableLikeOptionMask(t *testing.T) {
 		mask    tableLikeMask
 	}{
 		{nil, 0},
-		{[]parser.LikeOption{{Name: "all", Including: true}, {Name: "defaults"}}, likeAll &^ likeDefaults},
-		{[]parser.LikeOption{{Name: "identity"}, {Name: "all", Including: true}}, likeAll},
-		{[]parser.LikeOption{{Name: "all", Including: true}, {Name: "all"}, {Name: "generated", Including: true}}, likeGenerated},
+		{[]parser.LikeOption{{Name: "all", Including: true}, {Name: "defaults"}}, LikeAll &^ LikeDefaults},
+		{[]parser.LikeOption{{Name: "identity"}, {Name: "all", Including: true}}, LikeAll},
+		{[]parser.LikeOption{{Name: "all", Including: true}, {Name: "all"}, {Name: "generated", Including: true}}, LikeGenerated},
 	} {
 		if got := tableLikeOptions(tc.options); got != tc.mask {
 			t.Fatal(got, tc.mask)
@@ -63,8 +63,8 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 	}
 	current := ref
 	current.Epoch = e.CatalogRead().Epoch()
-	in := createLikeInput{ref: current, source: source, offset: 1}
-	in.rowRef, in.slots = in.rowMapper(destination, e.CatalogRead())
+	in := createLikeInput{Ref: current, Source: source, Offset: 1}
+	in.RowRef, in.Slots = in.RowMapper(destination, e.CatalogRead())
 	columnRef := ref
 	columnRef.Address.SubID = 3
 	column := plan.ColumnExpr{Info: expr.Info{Usage: testUsage(e, sqltype.Int4)}, Origin: columnRef, Scope: 1, Frame: 1, Slot: 1}

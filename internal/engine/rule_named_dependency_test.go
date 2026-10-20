@@ -40,17 +40,17 @@ func ruleNamedDependencyAction(t *testing.T, event *catalog.Relation, modifier b
 		}
 		b := r.actions[0].binding
 		if modifier {
-			for _, definition := range b.ctes {
-				if definition.Mutation != nil && cteMutationOf(definition).insert.conflict != nil {
-					return r, insertConflictOf(cteMutationOf(definition).insert.conflict)
+			for _, definition := range b.CTEs {
+				if definition.Mutation != nil && cteMutationOf(definition).Insert.Conflict != nil {
+					return r, insertConflictOf(cteMutationOf(definition).Insert.Conflict)
 				}
 			}
 			t.Fatal("analyzed modifying WITH lost conflict body")
 		}
-		if b.insert.conflict == nil {
+		if b.Insert.Conflict == nil {
 			t.Fatal("analyzed action lost conflict")
 		}
-		return r, insertConflictOf(b.insert.conflict)
+		return r, insertConflictOf(b.Insert.Conflict)
 	}
 	t.Fatal("analyzed rule missing")
 	return ruleDefinition{}, nil
@@ -273,8 +273,8 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			if modifier {
 				body := mappedRule.actions[0].binding
 				var definition *plan.CTEDefinition
-				for _, candidate := range body.ctes {
-					if candidate.Mutation != nil && insertConflictOf(cteMutationOf(candidate).insert.conflict) == mappedConflict {
+				for _, candidate := range body.CTEs {
+					if candidate.Mutation != nil && insertConflictOf(cteMutationOf(candidate).Insert.Conflict) == mappedConflict {
 						definition = candidate
 					}
 				}
@@ -297,7 +297,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 					scan(left)
 					scan(right)
 				}
-				scan(body.query.Root)
+				scan(body.Query.Root)
 				if !foundScan {
 					t.Fatal("analyzed modifier consumer scan missing")
 				}

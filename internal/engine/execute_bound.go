@@ -26,7 +26,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	op := scope.op
 	ctx := op.Context()
 	var err error
-	expressions := b.expressions
+	expressions := b.Expressions
 	expressionsChanged := false
 	quoteCaptures := evaluation.QuoteCaptures
 	_, inserting := stmt.(*parser.Insert)
@@ -47,8 +47,8 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		}
 	}
 	scope.routineAuth = routineAuth
-	scope.routineDependencies = b.dependencies
-	if inserting || b.merge != nil || b.update != nil || b.query != nil || (deleting && (b.delete.using != nil || b.predicate != nil || b.returning != nil)) || len(b.insert.defaults) != 0 {
+	scope.routineDependencies = b.Dependencies
+	if inserting || b.Merge != nil || b.Update != nil || b.Query != nil || (deleting && (b.Delete.Using != nil || b.Predicate != nil || b.Returning != nil)) || len(b.Insert.Defaults) != 0 {
 		// Planning-owned conversions precede executor ACLs, without retaining
 		// Engine.mu or acquiring a data view. Analysis/namespace checks remain
 		// earlier, and only this execution's imported frame is materialized.
@@ -62,42 +62,42 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 				return Result{}, err
 			}
 		}
-		if b.insert.conflict != nil {
-			if insertConflictOf(b.insert.conflict).predicate != nil {
-				insertConflictOf(b.insert.conflict).predicate, err = normalizeConflictPredicate(&evaluation, insertConflictOf(b.insert.conflict).predicate)
+		if b.Insert.Conflict != nil {
+			if insertConflictOf(b.Insert.Conflict).predicate != nil {
+				insertConflictOf(b.Insert.Conflict).predicate, err = normalizeConflictPredicate(&evaluation, insertConflictOf(b.Insert.Conflict).predicate)
 				if err != nil {
 					return Result{}, err
 				}
 			}
-			if err := insertConflictOf(b.insert.conflict).selectArbiters(&evaluation, physicalBinding(b).relation, auth.Catalog); err != nil {
+			if err := insertConflictOf(b.Insert.Conflict).selectArbiters(&evaluation, physicalBinding(b).Relation, auth.Catalog); err != nil {
 				return Result{}, err
 			}
-			scope.insertConflict = insertConflictOf(b.insert.conflict)
-			if err := insertConflictOf(b.insert.conflict).preflightUpdate(&evaluation); err != nil {
+			scope.insertConflict = insertConflictOf(b.Insert.Conflict)
+			if err := insertConflictOf(b.Insert.Conflict).preflightUpdate(&evaluation); err != nil {
 				return Result{}, err
 			}
 		}
 		if inserting {
-			b.arrayTargets, err = preflightArrayTargets(&evaluation, b.arrayTargets)
+			b.ArrayTargets, err = preflightArrayTargets(&evaluation, b.ArrayTargets)
 			if err != nil {
 				return Result{}, err
 			}
 			// Supplied values retain priority over defaults and executor ACLs.
 			// Constant planning and frame conversions both run unlocked; only
 			// changed rows and the outer slice need execution-private copies.
-			destination, destinationTargets := b.relation, b.targets
-			if b.viewWrite != nil {
-				destination, destinationTargets = viewWriteOf(b.viewWrite).logical.relation, viewWriteOf(b.viewWrite).logical.targets
+			destination, destinationTargets := b.Relation, b.Targets
+			if b.ViewWrite != nil {
+				destination, destinationTargets = viewWriteOf(b.ViewWrite).logical.Relation, viewWriteOf(b.ViewWrite).logical.Targets
 			}
-			for i, row := range b.expressions {
+			for i, row := range b.Expressions {
 				var privateRow []expr.Expr
 				for j, expression := range row {
-					if len(b.expressions) == 1 && len(b.insert.identityDiscard) != 0 && b.insert.identityDiscard[b.targets[j]] {
+					if len(b.Expressions) == 1 && len(b.Insert.IdentityDiscard) != 0 && b.Insert.IdentityDiscard[b.Targets[j]] {
 						continue
 					}
 					folded, changed, foldErr := preflightCoercions(&evaluation, expression)
 					if foldErr != nil {
-						return Result{}, insertValueError(auth.Catalog, foldErr, destination.Columns[destinationTargets[j]], b.insert.rows[i][j], nil)
+						return Result{}, insertValueError(auth.Catalog, foldErr, destination.Columns[destinationTargets[j]], b.Insert.Rows[i][j], nil)
 					}
 					if changed {
 						if privateRow == nil {
@@ -108,60 +108,60 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 				}
 				if privateRow != nil {
 					if !expressionsChanged {
-						expressions = append([][]expr.Expr(nil), b.expressions...)
+						expressions = append([][]expr.Expr(nil), b.Expressions...)
 						expressionsChanged = true
 					}
 					expressions[i] = privateRow
 				}
 			}
 		}
-		if b.merge != nil {
-			err = preflightMerge(&evaluation, b.merge, auth.Catalog)
-		} else if b.update != nil {
+		if b.Merge != nil {
+			err = preflightMerge(&evaluation, b.Merge, auth.Catalog)
+		} else if b.Update != nil {
 			if evaluation.PlanStaticOperators {
-				b.update, err = preflightUpdate(&evaluation, b.update, func(prepared *boundUpdate) (plan.Node, error) {
+				b.Update, err = preflightUpdate(&evaluation, b.Update, func(prepared *boundUpdate) (plan.Node, error) {
 					demandBinding := b
-					demandBinding.update = prepared
+					demandBinding.Update = prepared
 					demanded, err := ruleMutationProducerDemand(demandBinding)
 					if err != nil {
 						return nil, err
 					}
-					return demanded.update.from, nil
+					return demanded.Update.From, nil
 				})
 			} else {
-				b.update, err = preflightUpdate(&evaluation, b.update)
+				b.Update, err = preflightUpdate(&evaluation, b.Update)
 			}
-			if err == nil && b.update.from != nil {
-				err = validateQueryJoinExecution(&evaluation, b.update.from, auth.Catalog, 0)
+			if err == nil && b.Update.From != nil {
+				err = validateQueryJoinExecution(&evaluation, b.Update.From, auth.Catalog, 0)
 			}
-		} else if b.query != nil {
-			queryRoot, err = preflightQuery(&evaluation, b.query.Root)
+		} else if b.Query != nil {
+			queryRoot, err = preflightQuery(&evaluation, b.Query.Root)
 			if err == nil {
 				err = validateQueryJoinExecution(&evaluation, queryRoot, auth.Catalog, 0)
 			}
 		} else if deleting {
-			if b.delete.using != nil {
-				b.delete.using, err = preflightQuery(&evaluation, b.delete.using)
+			if b.Delete.Using != nil {
+				b.Delete.Using, err = preflightQuery(&evaluation, b.Delete.Using)
 				if err == nil {
-					err = validateQueryJoinExecution(&evaluation, b.delete.using, auth.Catalog, 0)
+					err = validateQueryJoinExecution(&evaluation, b.Delete.Using, auth.Catalog, 0)
 				}
 			}
-			if err == nil && b.predicate != nil {
-				b.predicate, _, err = preflightCoercions(&evaluation, b.predicate)
+			if err == nil && b.Predicate != nil {
+				b.Predicate, _, err = preflightCoercions(&evaluation, b.Predicate)
 			}
 		}
-		if err == nil && b.returning != nil {
-			b.returning, err = preflightReturning(&evaluation, b.returning)
+		if err == nil && b.Returning != nil {
+			b.Returning, err = preflightReturning(&evaluation, b.Returning)
 		}
-		if err == nil && (inserting || b.update != nil || deleting || b.merge != nil) {
+		if err == nil && (inserting || b.Update != nil || deleting || b.Merge != nil) {
 			err = validateMutationJoinExecution(&evaluation, &b, expressions, auth.Catalog)
 		}
 		if err != nil {
 			return Result{}, err
 		}
-		if b.viewWrite != nil {
+		if b.ViewWrite != nil {
 			var checks []viewCheckGroup
-			for i, group := range viewWriteOf(b.viewWrite).checks {
+			for i, group := range viewWriteOf(b.ViewWrite).checks {
 				var predicates []expr.Expr
 				for j, expression := range group.predicates {
 					folded, changed, foldErr := preflightCoercions(&evaluation, expression)
@@ -177,20 +177,20 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 				}
 				if predicates != nil {
 					if checks == nil {
-						checks = append([]viewCheckGroup(nil), viewWriteOf(b.viewWrite).checks...)
+						checks = append([]viewCheckGroup(nil), viewWriteOf(b.ViewWrite).checks...)
 					}
 					checks[i].predicates = predicates
 				}
 			}
 			if checks != nil {
-				viewWriteOf(b.viewWrite).checks = checks
+				viewWriteOf(b.ViewWrite).checks = checks
 			}
 		}
 		// Both INSERT paths plan only defaults this binding actually consumes.
 		// Demand immutable conversions even for an empty query source, while
 		// keeping the stored definition and any runtime-only producer unfolded.
 		var privateDefaults []expr.Expr
-		for i, expression := range b.insert.defaults {
+		for i, expression := range b.Insert.Defaults {
 			if expression == nil {
 				continue
 			}
@@ -205,13 +205,13 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			}
 			if changed {
 				if privateDefaults == nil {
-					privateDefaults = append([]expr.Expr(nil), b.insert.defaults...)
+					privateDefaults = append([]expr.Expr(nil), b.Insert.Defaults...)
 				}
 				privateDefaults[i] = folded
 			}
 		}
 		if privateDefaults != nil {
-			b.insert.defaults = privateDefaults
+			b.Insert.Defaults = privateDefaults
 		}
 		e.mu.Lock()
 		if err = ctx.Err(); err != nil {
@@ -247,18 +247,18 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	}
 	// Preserve effect-free planning errors before catalog mutation admission,
 	// using refreshed role authority before table/source access or row effects.
-	if guardedCatalogRelation(b.relation) {
+	if guardedCatalogRelation(b.Relation) {
 		switch stmt.(type) {
 		case *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
-			err := guardedCatalogMutationError(auth, b.relation, false)
+			err := guardedCatalogMutationError(auth, b.Relation, false)
 			e.mu.Unlock()
 			return Result{}, err
 		}
 	}
 	switch stmt.(type) {
 	case *parser.Insert, *parser.Update, *parser.Delete:
-		if b.viewWrite == nil && b.relation.RelationKind != catalog.MaterializedViewRelation && b.relation.RelationKind != catalog.ForeignRelation {
-			if err := tableKind(b.relation, "change"); err != nil {
+		if b.ViewWrite == nil && b.Relation.RelationKind != catalog.MaterializedViewRelation && b.Relation.RelationKind != catalog.ForeignRelation {
+			if err := tableKind(b.Relation, "change"); err != nil {
 				e.mu.Unlock()
 				return Result{}, err
 			}
@@ -266,7 +266,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	}
 	// Released MERGE checks read-only after analysis/planning conversions, but
 	// before executor column/source ACLs. Other statements keep their ordering.
-	if b.merge != nil && scope.owner.readOnly && !temporaryDataTarget(auth, &b, stmt) {
+	if b.Merge != nil && scope.owner.readOnly && !temporaryDataTarget(auth, &b, stmt) {
 		e.mu.Unlock()
 		tag := "MERGE"
 		if prepared != nil && prepared.primaryTag != "" {
@@ -282,14 +282,14 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if scope.Expected != nil && b.parameters.Count == 0 && quoteCaptures.Private {
+	if scope.Expected != nil && b.Parameters.Count == 0 && quoteCaptures.Private {
 		scope.Expected.quotes = quoteCaptures.Entries
 		scope.Expected.quoteGeneration = op.session.discardPlansGeneration
 	}
 	quoteCaptures.Sealed = true
 	scope.quoteCaptures = quoteCaptures
 	b = physicalBinding(b)
-	if err = partitionWriteExtensionBoundary(stmt, b.relation); err != nil {
+	if err = partitionWriteExtensionBoundary(stmt, b.Relation); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
@@ -307,7 +307,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	// rowmarks retain their original SELECT FOR ... diagnostic.
 	if scope.owner.readOnly {
 		if selecting {
-			for _, leaf := range b.querySources {
+			for _, leaf := range b.QuerySources {
 				if leaf.Mark.Mode != 0 && leaf.Relation.RelationKind == catalog.ViewRelation {
 					tag = "SELECT"
 					break
@@ -315,8 +315,8 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			}
 		}
 	}
-	if selecting && tag == "" && scope.owner.readOnly && b.query != nil {
-		mode, modeErr := e.firstQueryRowModeLocked(scope, b.query.Root, b.querySources)
+	if selecting && tag == "" && scope.owner.readOnly && b.Query != nil {
+		mode, modeErr := e.firstQueryRowModeLocked(scope, b.Query.Root, b.QuerySources)
 		if modeErr != nil {
 			e.mu.Unlock()
 			return Result{}, modeErr
@@ -329,54 +329,54 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		e.mu.Unlock()
 		return Result{}, sqlError("25006", "cannot execute "+tag+" in a read-only transaction")
 	}
-	if b.relation != nil && b.relation.RelationKind == catalog.MaterializedViewRelation {
+	if b.Relation != nil && b.Relation.RelationKind == catalog.MaterializedViewRelation {
 		switch stmt.(type) {
 		case *parser.Insert, *parser.Update, *parser.Delete:
 			e.mu.Unlock()
-			return Result{}, tableKind(b.relation, "change")
+			return Result{}, tableKind(b.Relation, "change")
 		}
 	}
 	switch stmt.(type) {
 	case *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
-		if err := checkTemporaryStorageAccess(auth.Catalog, b.relation, op.session.token); err != nil {
+		if err := checkTemporaryStorageAccess(auth.Catalog, b.Relation, op.session.token); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
 	}
-	if b.query != nil || b.subqueryDemand || len(b.querySources) != 0 {
-		if err = e.initializeQueryLocksLocked(scope, queryRoot, b.querySources); err != nil {
+	if b.Query != nil || b.SubqueryDemand || len(b.QuerySources) != 0 {
+		if err = e.initializeQueryLocksLocked(scope, queryRoot, b.QuerySources); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
 	}
-	scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || b.visibilitySnapshot
-	if b.query != nil {
-		scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || b.query.VisibilitySnapshot
+	scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || b.VisibilitySnapshot
+	if b.Query != nil {
+		scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || b.Query.VisibilitySnapshot
 	}
-	if b.returning != nil {
-		scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || b.returning.visibilitySnapshot
+	if b.Returning != nil {
+		scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || b.Returning.VisibilitySnapshot
 	}
 	if scope.inquiry.visibilityDemand {
 		err = e.captureVisibilitySnapshotLocked(scope)
 	}
-	if err == nil && b.relation != nil {
-		err = e.captureCheckVisibilitySnapshotLocked(scope, b.relation)
+	if err == nil && b.Relation != nil {
+		err = e.captureCheckVisibilitySnapshotLocked(scope, b.Relation)
 	}
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if b.prepared.regclassConcat && b.query == nil {
+	if b.Prepared.RegclassConcat && b.Query == nil {
 		if err = e.captureCommentSnapshotLocked(scope); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
 	}
-	if b.relation != nil && b.relation.RelationKind == catalog.ForeignRelation {
+	if b.Relation != nil && b.Relation.RelationKind == catalog.ForeignRelation {
 		operation, modifying := catalog.ForeignInsert, true
 		switch stmt.(type) {
 		case *parser.Insert:
-			if b.insert.conflict != nil {
+			if b.Insert.Conflict != nil {
 				e.mu.Unlock()
 				return Result{}, sqlError("0A000", "ON CONFLICT on foreign tables is unsupported in embedded mode")
 			}
@@ -388,7 +388,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			modifying = false
 		}
 		if modifying {
-			if err := foreignModifyAdmission(auth.Catalog, b.relation, operation); err != nil {
+			if err := foreignModifyAdmission(auth.Catalog, b.Relation, operation); err != nil {
 				e.mu.Unlock()
 				return Result{}, err
 			}
@@ -425,7 +425,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		e.mu.Lock()
 	}
-	if b.relation != nil && b.relation.RelationKind == catalog.ForeignRelation {
+	if b.Relation != nil && b.Relation.RelationKind == catalog.ForeignRelation {
 		switch stmt.(type) {
 		case *parser.Insert, *parser.Update, *parser.Delete:
 			return e.executeForeignCommandLocked(scope, stmt, execution, canonical)
@@ -433,8 +433,8 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 	}
 	switch s := stmt.(type) {
 	case *parser.Merge:
-		err := e.captureCheckCommentSnapshotLocked(scope, b.relation)
-		if err == nil && b.returning != nil {
+		err := e.captureCheckCommentSnapshotLocked(scope, b.Relation)
+		if err == nil && b.Returning != nil {
 			err = e.captureCommentSnapshotLocked(scope)
 		}
 		if err != nil {
@@ -443,7 +443,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		collectAuth := auth
 		collectAuth.Recapture(scope.inheritanceRead(auth.Catalog))
-		refs, err := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.querySources, []ids.ObjectRef{b.ref}, scope.op.session.token, plan.RowMark{})
+		refs, err := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.QuerySources, []ids.ObjectRef{b.Ref}, scope.op.session.token, plan.RowMark{})
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
@@ -455,32 +455,32 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		var target *exec.Source
 		if scope.rlsTargetDenied {
-			target, err = captureDeniedQuerySource(view, b.ref)
+			target, err = captureDeniedQuerySource(view, b.Ref)
 		} else {
-			target, err = captureQuerySource(ctx, view, b.ref)
+			target, err = captureQuerySource(ctx, view, b.Ref)
 		}
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		inputs, err := e.captureQuerySourcesLocked(scope, b.querySources, false)
+		inputs, err := e.captureQuerySourcesLocked(scope, b.QuerySources, false)
 		if err != nil {
 			target.Close()
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		schema := auth.Catalog.Get(b.relation.Namespace()).Name()
+		schema := auth.Catalog.Get(b.Relation.Namespace()).Name()
 		e.mu.Unlock()
 		return e.executeMerge(ctx, scope, b, target, inputs, canonical, schema)
 	case *parser.Update:
-		err = e.captureCheckCommentSnapshotLocked(scope, b.relation)
+		err = e.captureCheckCommentSnapshotLocked(scope, b.Relation)
 		for _, target := range scope.inheritedTargets {
 			if err != nil {
 				break
 			}
 			err = e.captureCheckCommentSnapshotLocked(scope, target.Relation)
 		}
-		if err == nil && b.returning != nil {
+		if err == nil && b.Returning != nil {
 			err = e.captureCommentSnapshotLocked(scope)
 		}
 		if err != nil {
@@ -488,17 +488,17 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			return Result{}, err
 		}
 		var view *visibility.View
-		if len(b.querySources) != 0 || len(scope.inheritedTargets) != 0 {
+		if len(b.QuerySources) != 0 || len(scope.inheritedTargets) != 0 {
 			collectAuth := auth
 			collectAuth.Recapture(scope.inheritanceRead(auth.Catalog))
-			refs, collectErr := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.querySources, scope.mutationTargetRefs(b.ref), scope.op.session.token, plan.RowMark{})
+			refs, collectErr := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.QuerySources, scope.mutationTargetRefs(b.Ref), scope.op.session.token, plan.RowMark{})
 			if collectErr != nil {
 				e.mu.Unlock()
 				return Result{}, collectErr
 			}
 			view, err = scope.acquireDataViewsLocked(e, refs)
 		} else {
-			view, err = scope.acquireDataViewLocked(e, b.ref)
+			view, err = scope.acquireDataViewLocked(e, b.Ref)
 		}
 		if err != nil {
 			e.mu.Unlock()
@@ -510,23 +510,23 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			return Result{}, err
 		}
 		var from *exec.Source
-		if b.update.from != nil || b.subqueryDemand {
-			from, err = e.captureQuerySourcesLocked(scope, b.querySources, false)
+		if b.Update.From != nil || b.SubqueryDemand {
+			from, err = e.captureQuerySourcesLocked(scope, b.QuerySources, false)
 			if err != nil {
 				source.Close()
 				e.mu.Unlock()
 				return Result{}, err
 			}
 		}
-		schema := auth.Catalog.Get(b.relation.Namespace()).Name()
+		schema := auth.Catalog.Get(b.Relation.Namespace()).Name()
 		e.mu.Unlock()
 		return e.executeUpdate(ctx, scope, b, source, from, canonical, schema)
 	case *parser.Insert:
-		if err := e.captureCheckCommentSnapshotLocked(scope, b.relation); err != nil {
+		if err := e.captureCheckCommentSnapshotLocked(scope, b.Relation); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		if err := scope.capturePartitionInsertLocked(e, auth, b.relation); err != nil {
+		if err := scope.capturePartitionInsertLocked(e, auth, b.Relation); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -539,21 +539,21 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 				}
 			}()
 		}
-		if b.commandQuery {
-			source, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, len(b.querySources) == 0)
+		if b.CommandQuery {
+			source, sourceErr := e.captureQuerySourcesLocked(scope, b.QuerySources, len(b.QuerySources) == 0)
 			if sourceErr != nil {
 				e.mu.Unlock()
 				return Result{}, sourceErr
 			}
-			schema := auth.Catalog.Get(b.relation.Namespace()).Name()
+			schema := auth.Catalog.Get(b.Relation.Namespace()).Name()
 			e.mu.Unlock()
 			if err := exec.SelectQuerySources(ctx, source); err != nil {
 				return Result{}, err
 			}
-			if b.viewWrite != nil || b.rule.template {
-				source = freezeViewWriteSources(scope, source, b.querySources)
+			if b.ViewWrite != nil || b.Rule.Template {
+				source = freezeViewWriteSources(scope, source, b.QuerySources)
 			}
-			b.query = &plan.Query{Root: queryRoot}
+			b.Query = &plan.Query{Root: queryRoot}
 			rows, queryErr := evaluateInsertQuery(ctx, b, source, canonical, schema, scope.input, scope.output, scope)
 			if queryErr != nil {
 				return Result{}, queryErr
@@ -566,14 +566,14 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 				keepReturning = err == nil
 				return result, err
 			}
-			count, err := scope.applyInsertValidated(b.ref, rows)
+			count, err := scope.applyInsertValidated(b.Ref, rows)
 			if err != nil {
 				return Result{}, err
 			}
 			return Result{Count: int64(count)}, nil
 		}
-		if b.subqueryDemand {
-			inputs, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, false)
+		if b.SubqueryDemand {
+			inputs, sourceErr := e.captureQuerySourcesLocked(scope, b.QuerySources, false)
 			if sourceErr != nil {
 				e.mu.Unlock()
 				return Result{}, sourceErr
@@ -588,28 +588,28 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			if err := exec.SelectQuerySources(ctx, evaluation.Query.Source); err != nil {
 				return Result{}, err
 			}
-			if b.viewWrite != nil || b.rule.template {
-				evaluation.Query.Source = freezeViewWriteSources(scope, evaluation.Query.Source, b.querySources)
+			if b.ViewWrite != nil || b.Rule.Template {
+				evaluation.Query.Source = freezeViewWriteSources(scope, evaluation.Query.Source, b.QuerySources)
 			}
 			defer evaluation.Query.Source.Close()
 		}
 		var rows indexWriteBatch
 		if scope.insertReturning == nil {
-			rows.values = make([][]sqltype.Value, 0, len(b.insert.rows))
+			rows.values = make([][]sqltype.Value, 0, len(b.Insert.Rows))
 		}
-		for i, source := range b.insert.rows {
+		for i, source := range b.Insert.Rows {
 			if err = ctx.Err(); err != nil {
 				return Result{}, err
 			}
-			row := make([]sqltype.Value, len(b.relation.Columns))
-			for j, c := range b.relation.Columns {
+			row := make([]sqltype.Value, len(b.Relation.Columns))
+			for j, c := range b.Relation.Columns {
 				row[j] = sqltype.Null(c.Usage.Type)
 			}
-			if len(b.insert.projection) != 0 {
-				if err = evaluateInsertValuesRow(auth.Catalog, &b, expressions[i], source, row, len(b.insert.rows) > 1, &evaluation); err != nil {
+			if len(b.Insert.Projection) != 0 {
+				if err = evaluateInsertValuesRow(auth.Catalog, &b, expressions[i], source, row, len(b.Insert.Rows) > 1, &evaluation); err != nil {
 					return Result{}, err
 				}
-				schema := auth.Catalog.Get(b.relation.Namespace()).Name()
+				schema := auth.Catalog.Get(b.Relation.Namespace()).Name()
 				if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
 					return Result{}, err
 				}
@@ -626,14 +626,14 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 				}
 				continue
 			}
-			if len(b.insert.defaults) != 0 {
-				supplied := b.expressions[i]
-				for j, target := range b.targets {
-					if j < len(supplied) && supplied[j] != nil && (len(b.arrayTargets) == 0 || b.arrayTargets[j] == nil) {
+			if len(b.Insert.Defaults) != 0 {
+				supplied := b.Expressions[i]
+				for j, target := range b.Targets {
+					if j < len(supplied) && supplied[j] != nil && (len(b.ArrayTargets) == 0 || b.ArrayTargets[j] == nil) {
 						row[target] = sqltype.Value{}
 					}
 				}
-				for j, expression := range b.insert.defaults {
+				for j, expression := range b.Insert.Defaults {
 					if expression != nil && row[j].Type() != nil {
 						row[j], err = evalBindingDefault(&b, &evaluation, j, expression)
 						if err != nil {
@@ -643,14 +643,14 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 				}
 			}
 			for j, v := range source {
-				if b.expressions[i][j] == nil {
+				if b.Expressions[i][j] == nil {
 					continue
 				}
-				target := b.targets[j]
-				c := b.relation.Columns[target]
+				target := b.Targets[j]
+				c := b.Relation.Columns[target]
 				var value sqltype.Value
-				if len(b.arrayTargets) != 0 && b.arrayTargets[j] != nil {
-					value, err = b.arrayTargets[j].ApplyExpression(&evaluation, row[target], expressions[i][j])
+				if len(b.ArrayTargets) != 0 && b.ArrayTargets[j] != nil {
+					value, err = b.ArrayTargets[j].ApplyExpression(&evaluation, row[target], expressions[i][j])
 				} else {
 					value, err = expressions[i][j].Eval(&evaluation)
 				}
@@ -661,7 +661,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 					return Result{}, insertValueError(auth.Catalog, err, c, v, nil)
 				}
 			}
-			schema := auth.Catalog.Get(b.relation.Namespace()).Name()
+			schema := auth.Catalog.Get(b.Relation.Namespace()).Name()
 			if err = e.validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
 				return Result{}, err
 			}
@@ -685,7 +685,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			keepReturning = err == nil
 			return result, err
 		}
-		count, err := scope.applyInsertValidated(b.ref, rows)
+		count, err := scope.applyInsertValidated(b.Ref, rows)
 		if err != nil {
 			return Result{}, err
 		}
@@ -693,22 +693,22 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 	case *parser.Delete:
 		var view *visibility.View
 		var viewErr error
-		if len(b.querySources) != 0 || len(scope.inheritedTargets) != 0 {
+		if len(b.QuerySources) != 0 || len(scope.inheritedTargets) != 0 {
 			collectAuth := auth
 			collectAuth.Recapture(scope.inheritanceRead(auth.Catalog))
-			refs, err := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.querySources, scope.mutationTargetRefs(b.ref), scope.op.session.token, plan.RowMark{})
+			refs, err := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.QuerySources, scope.mutationTargetRefs(b.Ref), scope.op.session.token, plan.RowMark{})
 			if err != nil {
 				e.mu.Unlock()
 				return Result{}, err
 			}
 			view, viewErr = scope.acquireDataViewsLocked(e, refs)
 		} else {
-			view, viewErr = scope.acquireDataViewLocked(e, b.ref)
+			view, viewErr = scope.acquireDataViewLocked(e, b.Ref)
 		}
 		var inputs *exec.Source
-		if viewErr == nil && (b.delete.using != nil || b.subqueryDemand) {
-			inputs, viewErr = e.captureQuerySourcesLocked(scope, b.querySources, false)
-		} else if viewErr == nil && b.returning != nil {
+		if viewErr == nil && (b.Delete.Using != nil || b.SubqueryDemand) {
+			inputs, viewErr = e.captureQuerySourcesLocked(scope, b.QuerySources, false)
+		} else if viewErr == nil && b.Returning != nil {
 			viewErr = e.captureCommentSnapshotLocked(scope)
 		}
 		e.mu.Unlock()
@@ -725,7 +725,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		if scope.queryLocks == nil {
 			scope.queryLocks = &exec.LockContext{IdentityOnly: true}
 		}
-		source, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, s.Query.From == nil && s.Query.Values == nil)
+		source, sourceErr := e.captureQuerySourcesLocked(scope, b.QuerySources, s.Query.From == nil && s.Query.Values == nil)
 		e.mu.Unlock()
 		if sourceErr != nil {
 			return Result{}, sourceErr
@@ -736,7 +736,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		return scope.installSQLCursor(s, queryRoot, source, canonical)
 	case *parser.Select:
-		source, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, s.From == nil && s.Values == nil)
+		source, sourceErr := e.captureQuerySourcesLocked(scope, b.QuerySources, s.From == nil && s.Values == nil)
 		e.mu.Unlock()
 		if sourceErr != nil {
 			return Result{}, sourceErr
@@ -744,8 +744,8 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		if err := exec.SelectQuerySources(ctx, source); err != nil {
 			return Result{}, err
 		}
-		if b.rule.template {
-			source = freezeViewWriteSources(scope, source, b.querySources)
+		if b.Rule.Template {
+			source = freezeViewWriteSources(scope, source, b.QuerySources)
 		}
 		if scope.protocolOrZero().bind != nil {
 			return scope.installProtocolProducer(queryRoot, source, canonical)
@@ -758,7 +758,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		if queryErr != nil {
 			return Result{}, queryErr
 		}
-		if b.query.RegclassOutput && count != 0 {
+		if b.Query.RegclassOutput && count != 0 {
 			if err := e.captureRegclassOutput(op, rows.(*exec.FinalRows)); err != nil {
 				rows.Close()
 				return Result{}, err

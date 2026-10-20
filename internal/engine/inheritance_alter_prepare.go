@@ -186,10 +186,10 @@ phases:
 		}
 		if phase == 4 {
 			for _, added := range additions {
-				if !added.declaration.columnNotNull {
+				if !added.declaration.ColumnNotNull {
 					continue
 				}
-				action := parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: added.column.Name}, Constraint: parser.Identifier{Text: added.declaration.columnName}}
+				action := parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: added.column.Name}, Constraint: parser.Identifier{Text: added.declaration.ColumnName}}
 				before := next
 				var err error
 				next, err = notNullCandidate(op, auth.Catalog, next, action, notNullDirect)

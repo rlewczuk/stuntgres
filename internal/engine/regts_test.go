@@ -266,18 +266,18 @@ func TestRegTSPreparedCapture(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if len(b.prepared.regtypeConstants) != 3 || len(b.prepared.regtypeConstants[0].operands) != 1 || len(b.prepared.regtypeConstants[1].operands) != 0 || len(b.prepared.regtypeConstants[2].operands) != 0 || b.prepared.regtypeConstants[0].operator == b.prepared.regtypeConstants[1].operator {
-		t.Fatal("alias/occurrence/dependency capture", b.prepared.regtypeConstants)
+	if len(b.prepared.RegtypeConstants) != 3 || len(b.prepared.RegtypeConstants[0].Operands) != 1 || len(b.prepared.RegtypeConstants[1].Operands) != 0 || len(b.prepared.RegtypeConstants[2].Operands) != 0 || b.prepared.RegtypeConstants[0].Operator == b.prepared.RegtypeConstants[1].Operator {
+		t.Fatal("alias/occurrence/dependency capture", b.prepared.RegtypeConstants)
 	}
-	cell := &regtypeAnalysis{constants: append([]regtypeConstant(nil), b.prepared.regtypeConstants...)}
+	cell := &regtypeAnalysis{constants: append([]regtypeConstant(nil), b.prepared.RegtypeConstants...)}
 	expected := StatementDescription{regtypes: cell}
 	held := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, &expected)
 	held.query.auth = &auth
 	v, err := held.regTSConstant("reg_ts_missing", dictionary.Usage(), parser.Position{Offset: 7, Character: 8})
-	if err != nil || !sqltype.SameDatum(v, cell.constants[0].value) {
+	if err != nil || !sqltype.SameDatum(v, cell.constants[0].Value) {
 		t.Fatal("held literal recaptured", err)
 	}
-	if !reflect.DeepEqual(cell.constants, b.prepared.regtypeConstants) {
+	if !reflect.DeepEqual(cell.constants, b.prepared.RegtypeConstants) {
 		t.Fatal("held bind mutated shared captures")
 	}
 }

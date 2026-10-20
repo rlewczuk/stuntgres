@@ -33,7 +33,7 @@ type preparedCTEProgram struct {
 // The existing executors own their command semantics; one Finish owns the stage.
 // Engine.mu is held on entry and released on every return.
 func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parser.Statement, b binding, auth AuthorizationView, parameters []sqltype.Value, evaluation exec.Context, creationStage *CatalogStage, creationDescriptor *catalog.Relation) (result Result, failure error) {
-	if len(b.ctes) == 0 {
+	if len(b.CTEs) == 0 {
 		return e.executeBoundCommandLocked(scope, statement, b, auth, parameters, evaluation, creationStage, creationDescriptor, nil)
 	}
 	var prepared preparedCTEProgram
@@ -50,7 +50,7 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 	if scope.ruleActionAuth == nil {
 		scope.routineAuth = auth
 	}
-	if len(b.ctes) == 0 {
+	if len(b.CTEs) == 0 {
 		if _, err := e.executeBoundCommandLocked(scope, statement, b, auth, parameters, evaluation, creationStage, creationDescriptor, &prepared.main); err != nil {
 			return Result{}, err
 		}
@@ -68,7 +68,7 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 	}
 	// Normalized rule auxiliaries select one preparation policy for the entire
 	// auxiliary/primary program, even when the primary has no rules of its own.
-	if len(ruleCTEsOf(b.rule.ctes)) != 0 {
+	if len(ruleCTEsOf(b.Rule.CTEs)) != 0 {
 		evaluation.PlanStaticOperators = true
 		evaluation.SpecializeRuleParameters = true
 	}
@@ -81,7 +81,7 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 	main := scope.activeMutation
 	defer scope.activateMutation(main)
 	count, primaryTag := 0, ""
-	for _, definition := range b.ctes {
+	for _, definition := range b.CTEs {
 		mutation, ok := mutationBinding(definition)
 		if !ok {
 			continue
@@ -97,13 +97,13 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 	commands := make([]cteCommandExecution, 0, count)
 	// Complete every mandatory command's real static preflight/ACL/RLS before
 	// effects. No auxiliary parameter frame, rebind, or publication is involved.
-	for _, definition := range b.ctes {
+	for _, definition := range b.CTEs {
 		mutation, ok := mutationBinding(definition)
 		if !ok {
 			continue
 		}
 		syntax, commandBinding, commandAuth := definition.Statement, *mutation, auth
-		rewrite := ruleCTEsOf(b.rule.ctes)[definition]
+		rewrite := ruleCTEsOf(b.Rule.CTEs)[definition]
 		if rewrite != nil {
 			if _, selectOnly := rewrite.command.syntax.(*parser.Select); selectOnly {
 				continue
@@ -149,7 +149,7 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 	b, auth, commands := prepared.binding, prepared.auth, prepared.commands
 	scope.activeMutation = prepared.mainMutation
 	scope.installRuleScratch(prepared.mainScratch)
-	if len(b.ctes) == 0 {
+	if len(b.CTEs) == 0 {
 		return e.executePreparedCommandLocked(scope, statement, &prepared.main, parameters, creationStage, creationDescriptor)
 	}
 	originalRuleAuth := scope.ruleActionAuth
@@ -169,22 +169,22 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 	}
 	// Include every target, even INSERT without FROM, before the first effect.
 	// Dead SELECT definitions remain analysis-only and do not open providers.
-	leaves := b.querySources
+	leaves := b.QuerySources
 	for i := range scope.mutations {
 		mutation := scope.mutations[i]
 		if i == scope.activeMutation {
 			mutation = scope.statementMutation
 		}
 		if mutation.lockedRef.Domain() != nil {
-			if len(leaves) == len(b.querySources) {
+			if len(leaves) == len(b.QuerySources) {
 				leaves = append([]exec.Leaf(nil), leaves...)
 			}
 			leaves = append(leaves, exec.Leaf{Ref: mutation.lockedRef, Relation: mutation.lockedDescriptor.(*catalog.Relation), Only: true})
 			leaves = append(leaves, mutation.inheritedTargets...)
 		}
 	}
-	if len(scope.mutations) == 0 && b.ref.Domain() != nil {
-		leaves = append(append([]exec.Leaf(nil), leaves...), exec.Leaf{Ref: b.ref, Relation: b.relation})
+	if len(scope.mutations) == 0 && b.Ref.Domain() != nil {
+		leaves = append(append([]exec.Leaf(nil), leaves...), exec.Leaf{Ref: b.Ref, Relation: b.Relation})
 	}
 	collectAuth := auth
 	collectAuth.Recapture(scope.inheritanceRead(auth.Catalog))
@@ -198,8 +198,8 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 		return Result{}, err
 	}
 	var source *exec.Source
-	if b.cteSelectBodies {
-		source, err = e.captureQuerySourcesLocked(scope, b.querySources, true)
+	if b.CTESelectBodies {
+		source, err = e.captureQuerySourcesLocked(scope, b.QuerySources, true)
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
@@ -232,9 +232,9 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 			owner = current
 		}
 	}
-	addOwners(b.ctes)
+	addOwners(b.CTEs)
 	for i := range commands {
-		addOwners(commands[i].execution.binding.ctes)
+		addOwners(commands[i].execution.binding.CTEs)
 	}
 	scope.cteInvocation = owner
 	defer func() {
@@ -296,7 +296,7 @@ func completeCTEMutation(o *exec.CTEInvocation, definition *plan.CTEDefinition, 
 		return fmt.Errorf("stuntgres: CTE modifier completed more than once")
 	}
 	producer := &exec.CTEProducer{Done: true, Closed: true, Affected: result.Count}
-	if mutation, _ := mutationBinding(definition); mutation.returning != nil {
+	if mutation, _ := mutationBinding(definition); mutation.Returning != nil {
 		rows, ok := result.Rows.(*exec.FinalRows)
 		if !ok {
 			if result.Rows != nil {

@@ -51,7 +51,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 	if !available {
 		return nil, nil, false, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: fmt.Sprintf(`type "%s" already exists`, name), Hint: "A relation has an associated type of the same name, so you must use a name that doesn't conflict with any existing type."}
 	}
-	projection, ok := b.query.Root.(*plan.ProjectNode)
+	projection, ok := b.Query.Root.(*plan.ProjectNode)
 	if !ok {
 		return nil, nil, false, errors.New("stuntgres: query table lacks final projection")
 	}
@@ -121,7 +121,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 	}
 	// Source definitions and namespace lookup authority must still be current at
 	// publication, including for NO DATA. Stored data has no dependency on them.
-	for _, leaf := range b.querySources {
+	for _, leaf := range b.QuerySources {
 		stage.querySources = append(stage.querySources, leaf.Relation)
 		if descriptor := auth.Catalog.Get(leaf.Relation.Namespace()); descriptor != nil {
 			stage.querySources = append(stage.querySources, descriptor)
@@ -250,7 +250,7 @@ func (e *Engine) publishQueryTable(scope *StatementScope, stage *CatalogStage) e
 // Engine.mu is held on entry; every outcome releases it. The caller owns discard.
 func (e *Engine) executeQueryTableLocked(scope *StatementScope, s *parser.CreateQueryTable, b binding, root plan.Node, parameters []sqltype.Value, stage *CatalogStage, d *catalog.Relation) (Result, error) {
 	ctx := scope.op.Context()
-	source, err := e.captureQuerySourcesLocked(scope, b.querySources, s.Query.From == nil && s.Query.Values == nil)
+	source, err := e.captureQuerySourcesLocked(scope, b.QuerySources, s.Query.From == nil && s.Query.Values == nil)
 	e.mu.Unlock()
 	if err != nil {
 		return Result{}, err

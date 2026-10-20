@@ -140,11 +140,11 @@ func TestJSONStripNullsBindingStoredPresentation(t *testing.T) {
 			if err != nil || text != tc.want {
 				t.Fatal(text, err)
 			}
-			if err := b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil {
+			if err := b.captureViewLiterals(raw, node, ViewTargetLiteral, 0); err != nil {
 				t.Fatal(err)
 			}
-			renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.literals, castUsages: b.capture.castUsages}, frame: b.frameID()}
-			emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, viewLiteralPath{clause: viewTargetLiteral})
+			renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.frameID()}
+			emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, viewLiteralPath{Clause: ViewTargetLiteral})
 			if err != nil || round > 0 && emitted != previous {
 				t.Fatal(emitted, previous, err)
 			}

@@ -88,11 +88,11 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 	if err != nil {
 		return fail(err)
 	}
-	if declaration.identity != nil {
-		return fail(insertError("0A000", "ADD COLUMN identity declarations are unsupported", declaration.identity.Pos))
+	if declaration.Identity != nil {
+		return fail(insertError("0A000", "ADD COLUMN identity declarations are unsupported", declaration.Identity.Pos))
 	}
-	if declaration.generation != nil {
-		return fail(insertError("0A000", "ADD COLUMN generated declarations are unsupported", declaration.generation.Pos))
+	if declaration.Generation != nil {
+		return fail(insertError("0A000", "ADD COLUMN generated declarations are unsupported", declaration.Generation.Pos))
 	}
 	attribute := old.ColumnMeta.HighWater + 1
 	next := *old
@@ -110,7 +110,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 	added := addedColumn{attribute: attribute, column: column, declaration: declaration, value: sqltype.Null(usage.Type)}
 	node, origin := columnDefault(auth.Catalog, &next, len(next.Columns)-1)
 	added.expression = node
-	added.dependencies, added.consumer = origin.definition.Dependencies, origin.consumer
+	added.dependencies, added.consumer = origin.Definition.Dependencies, origin.Consumer
 	if sqltype.ContainsDomainConstraints(usage.Type) && scope.input.TypeDiagnosticName == nil {
 		var err error
 		scope.input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(auth)
@@ -118,11 +118,11 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 			return fail(err)
 		}
 	}
-	if declaration.defaultExpr != nil {
+	if declaration.DefaultExpr != nil {
 		binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
 		binder.query.auth = &auth
 		binder.consumer.defaultTemporary = auth.Catalog.MustNamespace(old.Namespace()).Temporary
-		node, err := binder.bindDefault(declaration.defaultExpr, definition)
+		node, err := binder.bindDefault(declaration.DefaultExpr, definition)
 		if err != nil {
 			return fail(alterCookingError(err))
 		}

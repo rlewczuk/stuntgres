@@ -73,7 +73,7 @@ func TestQueryDistinctSecondOutputOccurrence(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			sorted := b.query.Root.(*plan.ProjectNode).Child.(*plan.SortNode)
+			sorted := b.Query.Root.(*plan.ProjectNode).Child.(*plan.SortNode)
 			if sorted.Keys[0].Slot != 1 || sorted.Keys[0].OutputOrdinal != 2 {
 				t.Fatal("view output occurrence lost", sorted.Keys)
 			}
@@ -130,18 +130,18 @@ func TestQueryDistinctInsertSourceDescriptorOwnership(t *testing.T) {
 					e.mu.Unlock()
 					t.Fatal(err)
 				}
-				view, err := scope.acquireDataViewLocked(e, b.querySources[0].Ref)
+				view, err := scope.acquireDataViewLocked(e, b.QuerySources[0].Ref)
 				e.mu.Unlock()
 				if err != nil {
 					t.Fatal(err)
 				}
-				source, err := captureQuerySource(op.ctx, view, b.querySources[0].Ref)
+				source, err := captureQuerySource(op.ctx, view, b.QuerySources[0].Ref)
 				if err != nil {
 					t.Fatal(err)
 				}
 				borrowQueryAuthority(source, scope)
 				defer source.Close()
-				project := b.query.Root.(*plan.ProjectNode)
+				project := b.Query.Root.(*plan.ProjectNode)
 				node := project.Child
 				var expressions []expr.Expr
 				switch n := node.(type) {

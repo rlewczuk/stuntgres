@@ -269,17 +269,17 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 	if err != nil || len(out) != 4 {
 		t.Fatal("initial star", out, err)
 	}
-	key := preparedCompositeKey{offset: 40, kind: compositeSourceExpansion, projection: 7}
-	captured := b.prepared.composites[key]
+	key := preparedCompositeKey{Offset: 40, Kind: CompositeSourceExpansion, Projection: 7}
+	captured := b.prepared.Composites[key]
 	if err := validateCompositeOccurrence(captured, view); err != nil {
 		t.Fatal(err)
 	}
 	oldSource[0].descriptor.Name = "changed after capture"
-	if captured.names[0] != "x" || captured.attributes[0] != first.Attribute || captured.attributes[1] != second.Attribute {
+	if captured.Names[0] != "x" || captured.Attributes[0] != first.Attribute || captured.Attributes[1] != second.Attribute {
 		t.Fatal("capture borrowed mutable labels or lost stable attributes", captured)
 	}
-	b.expected = &StatementDescription{catalogOwner: view.Owner(), catalogEpoch: view.Epoch(), composites: b.prepared.composites}
-	b.prepared.composites = nil
+	b.expected = &StatementDescription{catalogOwner: view.Owner(), catalogEpoch: view.Epoch(), composites: b.prepared.Composites}
+	b.prepared.Composites = nil
 	current, err := sqltype.Composite(original.ID(), original.Name(), original.SQLName(), original.AssociatedArray(), []sqltype.CompositeMember{first, second, {Attribute: 99, Name: "extra", Usage: first.Usage}})
 	if err != nil {
 		t.Fatal(err)
@@ -364,11 +364,11 @@ func TestJSONBRecordReplay(t *testing.T) {
 				if err != nil || text != tc.want {
 					t.Fatal("replay changed conversion", round, text, err)
 				}
-				if err := b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil {
+				if err := b.captureViewLiterals(raw, node, ViewTargetLiteral, 0); err != nil {
 					t.Fatal(round, err)
 				}
-				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.literals, castUsages: b.capture.castUsages}, frame: b.frameID()}
-				emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, viewLiteralPath{clause: viewTargetLiteral})
+				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.Literals, castUsages: b.capture.CastUsages}, frame: b.frameID()}
+				emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, viewLiteralPath{Clause: ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(round, err)
 				}
@@ -401,11 +401,11 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 			if _, err := first.bind(raw, expressionPolicy{context: projectionContext}); err != nil {
 				t.Fatal(err)
 			}
-			if first.clause.jsonbRecordBase || len(first.prepared.composites) == 0 {
+			if first.clause.jsonbRecordBase || len(first.prepared.Composites) == 0 {
 				t.Fatal("base capture escaped or was absent")
 			}
-			for _, captured := range first.prepared.composites {
-				if captured.kind != compositeRecordArgument || captured.base.Type != original {
+			for _, captured := range first.prepared.Composites {
+				if captured.Kind != CompositeRecordArgument || captured.Base.Type != original {
 					t.Fatal("wrong provider capture", captured)
 				}
 				if err := validateCompositeOccurrence(captured, view); err != nil {
@@ -424,7 +424,7 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 				return expression
 			}
 			raw.Args[0] = oldSpelling(raw.Args[0])
-			expected := &StatementDescription{catalogOwner: view.Owner(), catalogEpoch: view.Epoch(), composites: first.prepared.composites}
+			expected := &StatementDescription{catalogOwner: view.Owner(), catalogEpoch: view.Epoch(), composites: first.prepared.Composites}
 			next := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, expected)
 			node, err := next.bind(raw, expressionPolicy{context: projectionContext})
 			if err != nil || next.clause.jsonbRecordBase {

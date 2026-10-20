@@ -95,17 +95,17 @@ func TestInsertSelectStaleEpoch(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal(err)
 			}
-			view, err := scope.acquireDataViewLocked(e, b.querySources[0].Ref)
+			view, err := scope.acquireDataViewLocked(e, b.QuerySources[0].Ref)
 			if err != nil {
 				e.mu.Unlock()
 				t.Fatal(err)
 			}
 			e.mu.Unlock()
-			source, err := captureQuerySource(op.ctx, view, b.querySources[0].Ref)
+			source, err := captureQuerySource(op.ctx, view, b.QuerySources[0].Ref)
 			if err != nil {
 				t.Fatal(err)
 			}
-			project := b.query.Root.(*plan.ProjectNode)
+			project := b.Query.Root.(*plan.ProjectNode)
 			original := project.Expressions[0]
 			calls := 0
 			project.Expressions[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
@@ -127,7 +127,7 @@ func TestInsertSelectStaleEpoch(t *testing.T) {
 			if err != nil || len(rows.values) != 2 || calls != 2 || source.View != nil {
 				t.Fatal(rows, err, calls, source.View)
 			}
-			if err = scope.Writes().Apply(b.ref, rows.values); !errors.Is(err, ids.ErrCatalogReplaced) {
+			if err = scope.Writes().Apply(b.Ref, rows.values); !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal(err)
 			}
 			if err = scope.Finish(err); !errors.Is(err, ids.ErrCatalogReplaced) {

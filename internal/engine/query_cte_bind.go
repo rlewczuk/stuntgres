@@ -84,8 +84,8 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 				return nil, err
 			}
 			definition.Statement, definition.Mutation = raw.Query, &mutation
-			if mutation.returning != nil {
-				definition.Schema = mutation.returning.schema
+			if mutation.Returning != nil {
+				definition.Schema = mutation.Returning.Schema
 			}
 		}
 		if len(raw.Columns) > len(definition.OutputSchema()) {
@@ -106,7 +106,7 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 			} else {
 				definition.Schema = aliased
 				mutation, _ := mutationBinding(definition)
-				mutation.returning.schema = aliased
+				mutation.Returning.Schema = aliased
 			}
 		}
 		definitions[index] = definition
@@ -122,7 +122,7 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 
 func (b *expressionBinder) bindCTEScan(table *parser.TableReference, binding cteBinding) (plan.Node, queryNamespace, error) {
 	d := binding.definition
-	if mutation, ok := mutationBinding(d); ok && mutation.returning == nil {
+	if mutation, ok := mutationBinding(d); ok && mutation.Returning == nil {
 		return nil, queryNamespace{}, expr.ErrorAt("0A000", fmt.Sprintf(`WITH query "%s" does not have a RETURNING clause`, table.Name.Parts[0].Text), table.Name.Parts[0].Pos)
 	}
 	d.References++

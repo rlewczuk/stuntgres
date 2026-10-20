@@ -50,23 +50,23 @@ func ruleUnitInt(d *catalog.Relation, n int64) expr.Expr {
 	return plan.LiteralExpr{Info: expr.Info{Usage: d.Columns[0].Usage, Pos: parser.Position{Offset: -1}}, Value: value}
 }
 func ruleUnitInsert(e *Engine, d *catalog.Relation, id, v int64) ruleAction {
-	return ruleAction{syntax: &parser.Insert{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}}, binding: binding{relation: d, ref: ruleUnitRef(e, d), targets: []int{0, 1}, expressions: [][]expr.Expr{{ruleUnitInt(d, id), ruleUnitInt(d, v)}}}}
+	return ruleAction{syntax: &parser.Insert{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}}, binding: binding{Relation: d, Ref: ruleUnitRef(e, d), Targets: []int{0, 1}, Expressions: [][]expr.Expr{{ruleUnitInt(d, id), ruleUnitInt(d, v)}}}}
 }
 
 func TestRuleTemplateSubstitution(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
 	original := ruleUnitInsert(e, src, 1, 10).binding
-	original.expressions = append(original.expressions, []expr.Expr{ruleUnitInt(src, 2), ruleUnitInt(src, 20)})
+	original.Expressions = append(original.Expressions, []expr.Expr{ruleUnitInt(src, 2), ruleUnitInt(src, 20)})
 	ref := ruleUnitRef(e, src)
 	ref.Address.SubID = 1
 	pseudo := plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: rulePseudoScope, Frame: 2, Slot: 0}
 	action := ruleUnitInsert(e, sink, 0, 0)
-	action.binding.expressions[0][0] = pseudo
+	action.binding.Expressions[0][0] = pseudo
 	composed, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, action)
 	if err != nil {
 		t.Fatal(err)
 	}
-	project := composed.query.Root.(*plan.ProjectNode)
+	project := composed.Query.Root.(*plan.ProjectNode)
 	column, ok := project.Expressions[0].(plan.ColumnExpr)
 	if !ok || column.Scope == rulePseudoScope || column.Slot != 0 {
 		t.Fatal("NEW was not substituted into typed producer")
@@ -75,7 +75,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	if !ok || len(join.Left.(*plan.ValuesNode).Rows) != 2 {
 		t.Fatal("lost VALUES producer multiplicity")
 	}
-	if action.binding.expressions[0][0].(plan.ColumnExpr).Scope != rulePseudoScope {
+	if action.binding.Expressions[0][0].(plan.ColumnExpr).Scope != rulePseudoScope {
 		t.Fatal("mutated stored template")
 	}
 	condition := ruleDefinition{event: "INSERT", instead: true, condition: pseudo}
@@ -84,7 +84,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	predicate := residual.query.Root.(*plan.ProjectNode).Child.(*plan.FilterNode).Predicate
+	predicate := residual.Query.Root.(*plan.ProjectNode).Child.(*plan.FilterNode).Predicate
 	value, err := predicate.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	if err != nil {
 		t.Fatal(err)
@@ -108,14 +108,14 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 			t.Fatal(err)
 		}
 		template := ruleUnitInsert(e, sink, 0, 0)
-		template.binding.expressions = nil
-		template.binding.commandQuery = true
-		template.binding.query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Child: order, Expressions: projection, Frame: 1}}
+		template.binding.Expressions = nil
+		template.binding.CommandQuery = true
+		template.binding.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Child: order, Expressions: projection, Frame: 1}}
 		rewritten, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, template)
 		if err != nil {
 			t.Fatal(err)
 		}
-		result := rewritten.query.Root.(*plan.ProjectNode)
+		result := rewritten.Query.Root.(*plan.ProjectNode)
 		sorted, ok := result.Child.(*plan.SortNode)
 		if !ok || sorted.Keys[0].Slot != -1 || sorted.Keys[0].Cache != 0 || sorted.CacheWidth != 1 {
 			t.Fatalf("computed ordering schedule: %#v", result.Child)
@@ -124,7 +124,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		if !ok || cached.Slot != 0 {
 			t.Fatal("projection lost the canonical ORDER cache")
 		}
-		if order.(*plan.SortNode).Keys[0].Cache != 0 || template.binding.query.Root.(*plan.ProjectNode).Child != order {
+		if order.(*plan.SortNode).Keys[0].Cache != 0 || template.binding.Query.Root.(*plan.ProjectNode).Child != order {
 			t.Fatal("template schedule mutated")
 		}
 	})
@@ -138,8 +138,8 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		schema[1].Usage = random.ResultUsage()
 		source := &plan.ProjectNode{QuerySchema: plan.QuerySchema(schema), Child: &plan.SingletonNode{}, Expressions: []expr.Expr{ruleUnitInt(src, 1), random}, Frame: 2}
 		selectBinding := original
-		selectBinding.query, selectBinding.expressions = &plan.Query{Root: source}, nil
-		selectBinding.insert.subquerySource = true
+		selectBinding.Query, selectBinding.Expressions = &plan.Query{Root: source}, nil
+		selectBinding.Insert.SubquerySource = true
 		producer, err := makeRuleProducer(auth.Catalog, selectBinding, "INSERT", []int{0})
 		if err != nil {
 			t.Fatal(err)
@@ -155,7 +155,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		pure := *source
 		pure.Expressions = []expr.Expr{source.Expressions[0], ruleUnitInt(src, 99)}
 		pure.QuerySchema = plan.QuerySchema(src.Columns)
-		selectBinding.query = &plan.Query{Root: &pure}
+		selectBinding.Query = &plan.Query{Root: &pure}
 		producer, err = makeRuleProducer(auth.Catalog, selectBinding, "INSERT", []int{0})
 		if err != nil {
 			t.Fatal(err)
@@ -165,19 +165,19 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 			t.Fatal("pure unused projection demand or template immutability lost")
 		}
 		template := ruleUnitInsert(e, sink, 0, 0)
-		template.binding.expressions[0][0] = pseudo
+		template.binding.Expressions[0][0] = pseudo
 		rewritten, err := composeRuleAction(auth, selectBinding, "INSERT", ruleDefinition{}, template)
 		if err != nil {
 			t.Fatal(err)
 		}
-		outer := rewritten.query.Root.(*plan.ProjectNode)
+		outer := rewritten.Query.Root.(*plan.ProjectNode)
 		inner := outer.Child.(*plan.JoinNode).Left.(*plan.DerivedNode).Query.Root.(*plan.ProjectNode)
 		output := outer.Expressions[0].(plan.ColumnExpr)
 		if inner.Frame == outer.Frame || output.Frame != outer.Frame || output.Slot != 0 || pure.Frame != 2 {
 			t.Fatal("producer lexical frame leaked into action frame or template changed")
 		}
 		valuesBinding := selectBinding
-		valuesBinding.insert.subquerySource = false
+		valuesBinding.Insert.SubquerySource = false
 		producer, err = makeRuleProducer(auth.Catalog, valuesBinding, "INSERT")
 		if err != nil {
 			t.Fatal(err)
@@ -287,7 +287,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		if _, ok := producer.root.(*plan.SingletonNode); !ok {
 			t.Fatal("single VALUES became a materialized supplied row")
 		}
-		for i, expression := range single.expressions[0] {
+		for i, expression := range single.Expressions[0] {
 			if !sameGroupExpression(producer.new[i], expression) {
 				t.Fatal("single VALUES recipe replaced by an output Var")
 			}
@@ -295,12 +295,12 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	})
 	t.Run("event_source_identity", func(t *testing.T) {
 		f := viewWriteMechanics(t)
-		original := binding{relation: f.base, ref: f.baseRef, storage: f.e.storage.Relations[f.base.Address()], targets: []int{0}, usedColumns: []int{0}, update: &boundUpdate{assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
+		original := binding{Relation: f.base, Ref: f.baseRef, Storage: f.e.storage.Relations[f.base.Address()], Targets: []int{0}, UsedColumns: []int{0}, Update: &boundUpdate{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
 		producer, err := makeRuleProducer(f.e.CatalogRead(), original, "UPDATE")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(producer.sources) != 1 || producer.sources[0].Storage != original.storage {
+		if len(producer.sources) != 1 || producer.sources[0].Storage != original.Storage {
 			t.Fatal("event producer lost original physical storage capture")
 		}
 		current, err := currentQuerySourceLocked(f.e, f.e.CatalogRead(), nil, producer.sources[0])
@@ -312,8 +312,8 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		authority := f.authorization(t, op)
 		imported := producer.sources[0]
 		imported.Storage = nil
-		refreshed, err := refreshRuleSources(authority, binding{querySources: []exec.Leaf{imported}})
-		if err != nil || refreshed.querySources[0].Storage != original.storage || imported.Storage != nil {
+		refreshed, err := refreshRuleSources(authority, binding{QuerySources: []exec.Leaf{imported}})
+		if err != nil || refreshed.QuerySources[0].Storage != original.Storage || imported.Storage != nil {
 			t.Fatal("stored/imported source did not capture current physical storage immutably", err)
 		}
 	})
@@ -334,7 +334,7 @@ func TestRuleProgramOrdering(t *testing.T) {
 		t.Fatalf("authority=%d commands=%d want0/4", count, len(p.commands))
 	}
 	for i, want := range []int64{1, 2, 3} {
-		project := p.commands[i+1].binding.query.Root.(*plan.ProjectNode)
+		project := p.commands[i+1].binding.Query.Root.(*plan.ProjectNode)
 		literal, ok := project.Expressions[0].(plan.LiteralExpr)
 		if !ok || !sqltype.SameDatum(literal.Value, ruleUnitInt(src, want).(plan.LiteralExpr).Value) {
 			t.Fatalf("action order %d differs from %d", i, want)
@@ -378,18 +378,18 @@ func TestRuleProgramAuthority(t *testing.T) {
 		project := viewOf(f.view).query.Root.(*plan.ProjectNode)
 		predicate := plan.LiteralExpr{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, true)}
 		project.Child = &plan.FilterNode{QuerySchema: plan.QuerySchema(f.base.Columns), Child: project.Child, Predicate: predicate}
-		original := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, update: &boundUpdate{assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
+		original := binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &boundUpdate{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
 		mapped := original
 		if err := f.e.bindViewWrite(&mapped, auth, &parser.Update{}); err != nil {
 			t.Fatal(err)
 		}
-		if mapped.ref != f.viewRef || mapped.relation != f.view || physicalBinding(mapped).ref != f.baseRef || mapped.targets[0] != 1 {
+		if mapped.Ref != f.viewRef || mapped.Relation != f.view || physicalBinding(mapped).Ref != f.baseRef || mapped.Targets[0] != 1 {
 			t.Fatal("layered outer authority or inner event mapping lost")
 		}
-		if len(viewWriteOf(mapped.viewWrite).checks) != 0 || len(viewWriteOf(mapped.viewWrite).predicates) == 0 {
+		if len(viewWriteOf(mapped.ViewWrite).checks) != 0 || len(viewWriteOf(mapped.ViewWrite).predicates) == 0 {
 			t.Fatal("rewrite boundary conflated CHECK enforcement with selection")
 		}
-		if original.viewWrite != nil || original.targets[0] != 0 || original.ref != f.viewRef {
+		if original.ViewWrite != nil || original.Targets[0] != 0 || original.Ref != f.viewRef {
 			t.Fatal("original binding mutated")
 		}
 		program := ruleProgram{count: -1, returning: -1}
@@ -452,7 +452,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 	t.Run("unused_owned_modifier", func(t *testing.T) {
 		outer := ruleUnitInsert(e, src, 1, 10)
 		auxiliary := ruleUnitInsert(e, sink, 7, 70)
-		outer.binding.ctes = []*plan.CTEDefinition{{Statement: auxiliary.syntax, Mutation: &auxiliary.binding, Owner: 1}}
+		outer.binding.CTEs = []*plan.CTEDefinition{{Statement: auxiliary.syntax, Mutation: &auxiliary.binding, Owner: 1}}
 		refs, err := ruleReferences(context.Background(), auth.Catalog, ruleDefinition{actions: []ruleAction{outer}})
 		if err != nil {
 			t.Fatal(err)
@@ -539,10 +539,10 @@ func TestRuleDefinitionRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rulesOf(mapped)[0].condition.(plan.ColumnExpr).Origin.Address.ObjectID != newSrc.Address().ObjectID || rulesOf(mapped)[0].actions[0].binding.ref.Address != newSink.Address() {
+	if rulesOf(mapped)[0].condition.(plan.ColumnExpr).Origin.Address.ObjectID != newSrc.Address().ObjectID || rulesOf(mapped)[0].actions[0].binding.Ref.Address != newSink.Address() {
 		t.Fatal("nested rule references not remapped")
 	}
-	if rulesOf(src)[0].condition.(plan.ColumnExpr).Origin != oldRef || rulesOf(src)[0].actions[0].binding.ref.Address != sink.Address() {
+	if rulesOf(src)[0].condition.(plan.ColumnExpr).Origin != oldRef || rulesOf(src)[0].actions[0].binding.Ref.Address != sink.Address() {
 		t.Fatal("remapping mutated original template")
 	}
 }

@@ -207,15 +207,15 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 			return r, err
 		}
 		normalizedCondition := binder.normalizeStoredExpression(s.Condition)
-		if err := binder.captureViewLiterals(normalizedCondition, r.condition, viewTargetLiteral, 0); err != nil {
+		if err := binder.captureViewLiterals(normalizedCondition, r.condition, ViewTargetLiteral, 0); err != nil {
 			return r, err
 		}
 		query := &parser.Select{Targets: []parser.Expr{normalizedCondition}}
-		b := binding{query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "condition", Usage: r.condition.ResultUsage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{r.condition}, Frame: binder.frameID(), Syntax: query}}, dependencies: binder.dependencies, querySources: binder.query.sources, capture: viewCapture{columns: binder.capture.columns, literals: binder.capture.literals, castUsages: binder.capture.castUsages, composites: binder.capture.composites, collations: binder.capture.collations, namespaces: binder.capture.namespaces}, prepared: preparedCaptures{sequenceConstants: binder.prepared.sequenceConstants, regtypeConstants: binder.prepared.regtypeConstants}}
-		b.capture.routineRefs = binder.capture.routineRefs
-		b.capture.operatorRefs = binder.capture.operatorRefs
-		for i := range b.querySources {
-			b.querySources[i].FrozenAttributes = slices.Clone(b.querySources[i].Relation.Attributes)
+		b := binding{Query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "condition", Usage: r.condition.ResultUsage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{r.condition}, Frame: binder.frameID(), Syntax: query}}, Dependencies: binder.dependencies, QuerySources: binder.query.sources, Capture: viewCapture{Columns: binder.capture.Columns, Literals: binder.capture.Literals, CastUsages: binder.capture.CastUsages, Composites: binder.capture.Composites, Collations: binder.capture.Collations, Namespaces: binder.capture.Namespaces}, Prepared: preparedCaptures{SequenceConstants: binder.prepared.SequenceConstants, RegtypeConstants: binder.prepared.RegtypeConstants}}
+		b.Capture.RoutineRefs = binder.capture.RoutineRefs
+		b.Capture.OperatorRefs = binder.capture.OperatorRefs
+		for i := range b.QuerySources {
+			b.QuerySources[i].FrozenAttributes = slices.Clone(b.QuerySources[i].Relation.Attributes)
 		}
 		r.conditionBinding = &b
 		r.conditionPresentation, err = e.freezeQueryPresentationLocked(auth, query, b, false, false, 0, "", false)
@@ -256,14 +256,14 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 			return r, err
 		}
 		b = retainRuleCTEPresentation(auth.Catalog, b)
-		b.rule.template = true
-		if b.parameters.Count != 0 {
+		b.Rule.Template = true
+		if b.Parameters.Count != 0 {
 			return r, sqlError("42P02", "there is no parameter $1")
 		}
-		for i := range b.querySources {
-			b.querySources[i].FrozenAttributes = slices.Clone(b.querySources[i].Relation.Attributes)
+		for i := range b.QuerySources {
+			b.QuerySources[i].FrozenAttributes = slices.Clone(b.QuerySources[i].Relation.Attributes)
 		}
-		if b.returning != nil {
+		if b.Returning != nil {
 			if r.condition != nil {
 				return r, sqlError("0A000", "RETURNING lists are not supported in conditional rules")
 			}
@@ -274,7 +274,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 			if providers > 1 {
 				return r, sqlError("0A000", "cannot have multiple RETURNING lists in a rule")
 			}
-			if err := ruleResultCheck(d, b.returning.schema, false); err != nil {
+			if err := ruleResultCheck(d, b.Returning.Schema, false); err != nil {
 				return r, err
 			}
 		}

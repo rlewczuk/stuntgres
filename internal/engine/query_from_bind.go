@@ -336,15 +336,15 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 	}()
 	ordinal := -1
 	if (b.params.noParameters || b.consumer.materializedDefinition) && item != nil {
-		ordinal = len(b.capture.namespaces)
-		b.capture.namespaces = append(b.capture.namespaces, viewNamespace{})
+		ordinal = len(b.capture.Namespaces)
+		b.capture.Namespaces = append(b.capture.Namespaces, viewNamespace{})
 		defer func() {
 			if failure == nil {
-				b.capture.namespaces[ordinal].frame = b.frameID()
-				b.capture.namespaces[ordinal].node, b.capture.namespaces[ordinal].ordinal = frozenNamespaceNode(root)
-				b.capture.namespaces[ordinal].columns = b.query.freezeViewColumns(namespace.columns)
+				b.capture.Namespaces[ordinal].Frame = b.frameID()
+				b.capture.Namespaces[ordinal].Node, b.capture.Namespaces[ordinal].Ordinal = frozenNamespaceNode(root)
+				b.capture.Namespaces[ordinal].Columns = b.query.freezeViewColumns(namespace.columns)
 				for _, q := range namespace.qualifiers {
-					b.capture.namespaces[ordinal].qualifiers = append(b.capture.namespaces[ordinal].qualifiers, viewNamespaceQualifier{q.name, b.query.freezeViewColumns(q.columns)})
+					b.capture.Namespaces[ordinal].Qualifiers = append(b.capture.Namespaces[ordinal].Qualifiers, viewNamespaceQualifier{q.name, b.query.freezeViewColumns(q.columns)})
 				}
 			}
 		}()
@@ -579,7 +579,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 				return nil, queryNamespace{}, err
 			}
 			if b.params.noParameters || b.consumer.materializedDefinition {
-				if err := b.captureViewLiterals(n.On, join.Predicate, viewJoinLiteral, joinOrdinal); err != nil {
+				if err := b.captureViewLiterals(n.On, join.Predicate, ViewJoinLiteral, joinOrdinal); err != nil {
 					return nil, queryNamespace{}, err
 				}
 			}
@@ -597,7 +597,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		}
 		if ordinal >= 0 {
 			for _, key := range keys {
-				b.capture.namespaces[ordinal].keys = append(b.capture.namespaces[ordinal].keys, key.Text)
+				b.capture.Namespaces[ordinal].Keys = append(b.capture.Namespaces[ordinal].Keys, key.Text)
 			}
 		}
 		if len(keys) > 0 {
@@ -1031,7 +1031,7 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 	if ordinal >= 0 {
 		for i, raw := range rawCalls {
 			bound := calls[i]
-			path := viewLiteralPath{query: b.frameID(), clause: viewFunctionLiteral, source: ordinal, target: i}
+			path := viewLiteralPath{Query: b.frameID(), Clause: ViewFunctionLiteral, Source: ordinal, Target: i}
 			at := 0
 			if err := b.captureViewLiteralTree(raw, bound, path, &at); err != nil {
 				return nil, queryNamespace{}, err

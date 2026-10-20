@@ -88,7 +88,7 @@ func TestRegclassDiagnosticSnapshotACL(t *testing.T) {
 				if whole {
 					detail = fmt.Sprintf("Failing row contains (2, 0, %s, %s, %s, %s).", scalar, scalar, array, array)
 				}
-				bound := binding{ref: ref, relation: relation, targets: []int{1}}
+				bound := binding{Ref: ref, Relation: relation, Targets: []int{1}}
 				for repeat := 0; repeat != 2; repeat++ {
 					err = e.rowConstraintError(scope, bound, "public", "", "rr_diag_bound", row)
 					nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "23514", Message: `new row for relation "rr_diag" violates check constraint "rr_diag_bound"`, Detail: detail, Schema: "public", Table: "rr_diag", Constraint: "rr_diag_bound"})

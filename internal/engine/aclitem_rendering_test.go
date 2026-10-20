@@ -94,7 +94,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 			t.Fatal(err)
 		}
 		render := func(value sqltype.Value, target sqltype.Usage) (string, error) {
-			leafPath := viewLiteralPath{node: 1}
+			leafPath := viewLiteralPath{Node: 1}
 			renderer := viewRenderer{viewDefinition: &viewDefinition{
 				literals:   map[viewLiteralPath]plan.LiteralExpr{leafPath: {Info: expr.Info{Usage: value.Type().Usage()}, Value: value}},
 				castUsages: map[viewLiteralPath]sqltype.Usage{{}: target},

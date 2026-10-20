@@ -27,15 +27,6 @@ type returningAliases struct {
 	mode     returningMode
 }
 
-type boundReturning struct {
-	expressions        []expr.Expr
-	schema             []catalog.Column
-	regclassOutput     bool
-	reads              []int
-	readRequired       bool // Whole-row references retain SELECT demand with zero members.
-	visibilitySnapshot bool
-}
-
 func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMode) (*boundReturning, error) {
 	aliases := returningAliases{old: "old", new: "new", mode: mode}
 	visible := b.target.name
@@ -122,8 +113,8 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 			}
 		}
 		descriptor.Name = name
-		output.expressions = append(output.expressions, expression)
-		output.schema = append(output.schema, descriptor)
+		output.Expressions = append(output.Expressions, expression)
+		output.Schema = append(output.Schema, descriptor)
 	}
 	for target, expression := range raw.Targets {
 		if err := b.ctx.Err(); err != nil {
@@ -190,7 +181,7 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 			appendOutput(expr, name)
 		}
 	}
-	if len(output.schema) == 0 {
+	if len(output.Schema) == 0 {
 		pos := raw.Targets[0].SourcePosition()
 		if field, ok := raw.Targets[0].(parser.FieldExpr); ok && field.OpenPos.Character != 0 {
 			pos = field.OpenPos
@@ -199,16 +190,16 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 	}
 	// Resolve output occurrences only after every target has constrained the
 	// shared parameter slots, matching ordinary scalar projection ordering.
-	for i, expr := range output.expressions {
+	for i, expr := range output.Expressions {
 		expr, err := b.finalizeProjection(expr)
 		if err != nil {
 			return nil, err
 		}
-		output.expressions[i] = expr
-		output.schema[i].Usage = expr.ResultUsage()
-		output.regclassOutput = output.regclassOutput || expr.ResultUsage().Type.ContainsCatalogIdentifier()
+		output.Expressions[i] = expr
+		output.Schema[i].Usage = expr.ResultUsage()
+		output.RegclassOutput = output.RegclassOutput || expr.ResultUsage().Type.ContainsCatalogIdentifier()
 	}
-	output.visibilitySnapshot = b.consumer.visibilitySnapshot
+	output.VisibilitySnapshot = b.consumer.visibilitySnapshot
 	return output, nil
 }
 
@@ -325,7 +316,7 @@ func (b *expressionBinder) returningColumn(raw parser.ColumnExpr) (expr.Expr, er
 
 func preflightReturning(c *exec.Context, output *boundReturning) (*boundReturning, error) {
 	var expressions []expr.Expr
-	for i, bound := range output.expressions {
+	for i, bound := range output.Expressions {
 		// Plan genuine SQL constants before importing frame coercions and before
 		// tuple/index demand. Row-dependent output still executes after insertion
 		// preparation; an imported parameter must not become a SQL constant.
@@ -340,7 +331,7 @@ func preflightReturning(c *exec.Context, output *boundReturning) (*boundReturnin
 		}
 		if changed {
 			if expressions == nil {
-				expressions = append([]expr.Expr(nil), output.expressions...)
+				expressions = append([]expr.Expr(nil), output.Expressions...)
 			}
 			expressions[i] = folded
 		}
@@ -349,7 +340,7 @@ func preflightReturning(c *exec.Context, output *boundReturning) (*boundReturnin
 		return output, nil
 	}
 	private := *output
-	private.expressions = expressions
+	private.Expressions = expressions
 	return &private, nil
 }
 

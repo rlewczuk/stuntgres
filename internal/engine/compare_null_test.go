@@ -211,22 +211,22 @@ func TestExpressionCompareNullDependenciesAndAuthorization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := b.query.Root.(*plan.ProjectNode).Expressions[0]
+	node := b.Query.Root.(*plan.ProjectNode).Expressions[0]
 	if !node.Properties().RowDependent || node.Properties().ParameterDependent || node.ResultUsage().Type.ID() != sqltype.Bool || node.ResultUsage().Typmod != -1 {
 		t.Fatal(node)
 	}
-	schema := b.query.Root.Schema()
+	schema := b.Query.Root.Schema()
 	if len(schema) != 1 || schema[0].Name != "?column?" || schema[0].OriginTable != 0 || schema[0].OriginAttribute != 0 || schema[0].NullabilityKnown || schema[0].Usage.Type.ID() != 16 || schema[0].Usage.Typmod != -1 {
 		t.Fatal("computed BOOL descriptor", schema)
 	}
 	seen := map[int32]bool{}
-	for _, d := range b.dependencies {
+	for _, d := range b.Dependencies {
 		if d.Ref.Address.ClassID == ids.RelationClassID && d.Ref.Address.ObjectID == ref.Address.ObjectID {
 			seen[d.Ref.Address.SubID] = true
 		}
 	}
 	if !seen[1] || !seen[2] {
-		t.Fatal("both operands must retain column dependencies", b.dependencies)
+		t.Fatal("both operands must retain column dependencies", b.Dependencies)
 	}
 	r := roleExecute(t, e, op, "SELECT v IS DISTINCT FROM id FROM secret")
 	if !reflect.DeepEqual(tuples(r), [][]driver.Value{{false}}) {
@@ -327,10 +327,10 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 		{"v<2 IS TRUE OR NOT f IS UNKNOWN AND v IS NOT NULL", [4]bool{true, false, true, true}, []int32{2, 3}},
 	} {
 		b, ref := describe("SELECT " + tc.expr + " FROM t WHERE " + tc.expr)
-		project := b.query.Root.(*plan.ProjectNode)
+		project := b.Query.Root.(*plan.ProjectNode)
 		filter := project.Child.(*plan.FilterNode)
-		if b.parameters.Count != 0 {
-			t.Fatal(b.parameters)
+		if b.Parameters.Count != 0 {
+			t.Fatal(b.Parameters)
 		}
 		for _, node := range []expr.Expr{project.Expressions[0], filter.Predicate} {
 			p := node.Properties()
@@ -346,7 +346,7 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 			}
 		}
 		seen := map[int32]bool{}
-		for _, d := range b.dependencies {
+		for _, d := range b.Dependencies {
 			if d.Ref.Domain() != e.catalog.Domain || d.Revision == 0 {
 				t.Fatal(d)
 			}
@@ -356,15 +356,15 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 		}
 		for _, column := range tc.columns {
 			if !seen[column] {
-				t.Fatal("composed child dependency missing", tc.expr, column, b.dependencies)
+				t.Fatal("composed child dependency missing", tc.expr, column, b.Dependencies)
 			}
 		}
 	}
 	b, ref := describe("SELECT id FROM t WHERE v IS NOT DISTINCT FROM $1 AND (v=$1) IS NOT FALSE ORDER BY id")
-	if b.parameters.Count != 1 || !reflect.DeepEqual(b.parameters.Types, []sqltype.Usage{integer.Usage()}) {
-		t.Fatal("held mixed comparison must infer INT4", b.parameters)
+	if b.Parameters.Count != 1 || !reflect.DeepEqual(b.Parameters.Types, []sqltype.Usage{integer.Usage()}) {
+		t.Fatal("held mixed comparison must infer INT4", b.Parameters)
 	}
-	filter := b.query.Root.(*plan.ProjectNode).Child.(*plan.SortNode).Child.(*plan.FilterNode)
+	filter := b.Query.Root.(*plan.ProjectNode).Child.(*plan.SortNode).Child.(*plan.FilterNode)
 	p := filter.Predicate.Properties()
 	if !p.RowDependent || !p.ParameterDependent || p.StageDependent || p.Volatility != expr.Immutable || filter.Predicate.ResultUsage() != boolean.Usage() {
 		t.Fatal(p, filter.Predicate.ResultUsage())
@@ -372,11 +372,11 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 	column := ref
 	column.Address.SubID = 2
 	found := false
-	for _, d := range b.dependencies {
+	for _, d := range b.Dependencies {
 		found = found || d.Ref == column
 	}
 	if !found {
-		t.Fatal("held predicate must depend on v", b.dependencies)
+		t.Fatal("held predicate must depend on v", b.Dependencies)
 	}
 	for n, parameter := range []sqltype.Value{intValue(1), intValue(2), sqltype.Null(integer), intValue(1)} {
 		want := [][4]bool{{true, false, false, true}, {false, false, true, false}, {false, true, false, false}, {true, false, false, true}}[n]
@@ -388,7 +388,7 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 			}
 		}
 	}
-	if !reflect.DeepEqual(b.parameters.Types, []sqltype.Usage{integer.Usage()}) {
-		t.Fatal("held frames changed inferred usage", b.parameters)
+	if !reflect.DeepEqual(b.Parameters.Types, []sqltype.Usage{integer.Usage()}) {
+		t.Fatal("held frames changed inferred usage", b.Parameters)
 	}
 }

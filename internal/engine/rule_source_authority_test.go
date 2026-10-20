@@ -51,30 +51,30 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					auth.Roles = e.roles.read(e.catalog.owner(), auth.Catalog, auth.RoleRecord)
 					inputRef, lookupRef := ruleUnitRef(e, &input), ruleUnitRef(e, sink)
 					original := ruleUnitInsert(e, src, 1, 10).binding
-					original.querySources = []exec.Leaf{{Ref: inputRef, Relation: &input, Uses: []int{0}}}
+					original.QuerySources = []exec.Leaf{{Ref: inputRef, Relation: &input, Uses: []int{0}}}
 					if effective {
-						original.querySources[0].Principal = reader.Ref
+						original.QuerySources[0].Principal = reader.Ref
 					}
 					from := &plan.SourceNode{QuerySchema: plan.QuerySchema(input.Columns), Ref: inputRef}
 					var syntax parser.Statement = &parser.Delete{}
-					original.delete.using = from
+					original.Delete.Using = from
 					if event == "UPDATE" {
 						syntax = &parser.Update{}
-						original.update = &boundUpdate{assignments: []expr.Expr{ruleUnitInt(src, 1), ruleUnitInt(src, 10)}, from: from}
+						original.Update = &boundUpdate{Assignments: []expr.Expr{ruleUnitInt(src, 1), ruleUnitInt(src, 10)}, From: from}
 					}
 					action := ruleUnitInsert(e, sink, 7, 8)
 					ref := lookupRef
 					ref.Address.SubID = sink.Attributes[0]
 					value := expr.Expr(plan.ColumnExpr{Info: ruleColumnInfo(sink.Columns[0]), Origin: ref, Scope: 1, Frame: 1})
 					if dependent {
-						ref = original.ref
+						ref = original.Ref
 						ref.Address.SubID = src.Attributes[0]
 						value = plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: rulePseudoScope, Frame: 1}
 					}
-					action.binding.expressions = nil
-					action.binding.commandQuery = true
-					action.binding.query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Child: &plan.SourceNode{QuerySchema: plan.QuerySchema(sink.Columns), Ref: lookupRef}, Expressions: []expr.Expr{value, ruleUnitInt(sink, 8)}, Frame: 1}}
-					action.binding.querySources = []exec.Leaf{{Ref: lookupRef, Relation: sink, Uses: []int{0}}}
+					action.binding.Expressions = nil
+					action.binding.CommandQuery = true
+					action.binding.Query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Child: &plan.SourceNode{QuerySchema: plan.QuerySchema(sink.Columns), Ref: lookupRef}, Expressions: []expr.Expr{value, ruleUnitInt(sink, 8)}, Frame: 1}}
+					action.binding.QuerySources = []exec.Leaf{{Ref: lookupRef, Relation: sink, Uses: []int{0}}}
 					src.Rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "r", event: event, actions: []ruleAction{action}}})
 					program := ruleProgram{count: -1, returning: -1}
 					e.mu.Lock()
@@ -83,7 +83,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					sources := program.commands[0].binding.querySources
+					sources := program.commands[0].binding.QuerySources
 					want := 1
 					if dependent {
 						want = 3
@@ -116,7 +116,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					} else if err != nil {
 						t.Fatal("caller revocation changed independent/effective authority", err)
 					}
-					if action.binding.querySources[0].Principal != (authorization.PrincipalRef{}) || original.querySources[0].Principal != inherited {
+					if action.binding.QuerySources[0].Principal != (authorization.PrincipalRef{}) || original.QuerySources[0].Principal != inherited {
 						t.Fatal("expansion mutated original source or stored action authority")
 					}
 				})

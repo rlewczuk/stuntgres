@@ -54,7 +54,7 @@ func (b *expressionBinder) jsonbRecordQualifierStar(columns []queryColumn, frame
 func (b *expressionBinder) jsonbRecordCallStar(columns, source []queryColumn, star parser.StarExpr, call functions.JSONBRecord) ([]queryColumn, error) {
 	usage := call.ResultUsage()
 	shape := usage.Type.BaseType()
-	key := preparedCompositeKey{offset: call.SourcePosition().Offset, kind: compositeSourceExpansion, projection: star.Pos.Offset}
+	key := preparedCompositeKey{Offset: call.SourcePosition().Offset, Kind: CompositeSourceExpansion, Projection: star.Pos.Offset}
 	captured, retained, err := b.retainedComposite(key, usage)
 	if err != nil {
 		return nil, err
@@ -64,26 +64,26 @@ func (b *expressionBinder) jsonbRecordCallStar(columns, source []queryColumn, st
 		first = source[0].slot
 	}
 	if !retained {
-		captured = compositeOccurrence{kind: compositeSourceExpansion, base: usage, attributes: make([]int32, 0, len(source)), names: make([]string, 0, len(source))}
+		captured = compositeOccurrence{Kind: CompositeSourceExpansion, Base: usage, Attributes: make([]int32, 0, len(source)), Names: make([]string, 0, len(source))}
 		for _, column := range columns {
 			index := column.slot - first
 			if index >= 0 && index < len(source) {
-				captured.attributes = append(captured.attributes, shape.CompositeMember(index).Attribute)
-				captured.names = append(captured.names, column.descriptor.Name)
+				captured.Attributes = append(captured.Attributes, shape.CompositeMember(index).Attribute)
+				captured.Names = append(captured.Names, column.descriptor.Name)
 			}
 		}
 	}
-	if len(captured.names) != len(captured.attributes) {
+	if len(captured.Names) != len(captured.Attributes) {
 		return nil, fmt.Errorf("stuntgres: invalid retained JSONB record labels")
 	}
-	if b.prepared.composites == nil {
-		b.prepared.composites = make(map[preparedCompositeKey]compositeOccurrence)
+	if b.prepared.Composites == nil {
+		b.prepared.Composites = make(map[preparedCompositeKey]compositeOccurrence)
 	}
-	b.prepared.composites[key] = captured
+	b.prepared.Composites[key] = captured
 	if !retained {
 		return columns, nil
 	}
-	for _, attribute := range captured.attributes {
+	for _, attribute := range captured.Attributes {
 		if _, exists := shape.CompositeAttributeIndex(attribute); !exists {
 			return nil, sqlError("42703", fmt.Sprintf("attribute %d of type record has been dropped", attribute))
 		}
@@ -95,13 +95,13 @@ func (b *expressionBinder) jsonbRecordCallStar(columns, source []queryColumn, st
 	for _, column := range columns {
 		index := column.slot - first
 		if index >= 0 && index < len(source) {
-			if count >= len(captured.attributes) || captured.attributes[count] != shape.CompositeMember(index).Attribute || captured.names[count] != column.descriptor.Name {
+			if count >= len(captured.Attributes) || captured.Attributes[count] != shape.CompositeMember(index).Attribute || captured.Names[count] != column.descriptor.Name {
 				changed = true
 			}
 			count++
 		}
 	}
-	if count != len(captured.attributes) {
+	if count != len(captured.Attributes) {
 		changed = true
 	}
 	if !changed {
@@ -118,10 +118,10 @@ func (b *expressionBinder) jsonbRecordCallStar(columns, source []queryColumn, st
 		if emitted {
 			continue
 		}
-		for i, attribute := range captured.attributes {
+		for i, attribute := range captured.Attributes {
 			member, _ := shape.CompositeAttributeIndex(attribute)
 			retainedColumn := source[member]
-			retainedColumn.descriptor.Name = captured.names[i]
+			retainedColumn.descriptor.Name = captured.Names[i]
 			next = append(next, retainedColumn)
 		}
 		emitted = true
@@ -141,16 +141,16 @@ func (b *expressionBinder) jsonbRecordCastAnnotation(raw parser.CastExpr) (parse
 	if b.expected.catalogOwner != view.Owner() || b.expected.catalogEpoch != view.Epoch() {
 		return annotation, nil
 	}
-	key := preparedCompositeKey{offset: raw.TypeName.Pos.Offset, kind: compositeRecordArgument}
+	key := preparedCompositeKey{Offset: raw.TypeName.Pos.Offset, Kind: CompositeRecordArgument}
 	captured, found := b.expected.composites[key]
 	if !found {
 		return annotation, nil
 	}
-	if captured.kind != compositeRecordArgument || captured.base.Type == nil || !captured.base.Type.BaseType().IsComposite() {
+	if captured.Kind != CompositeRecordArgument || captured.Base.Type == nil || !captured.Base.Type.BaseType().IsComposite() {
 		return annotation, fmt.Errorf("stuntgres: incompatible retained composite argument")
 	}
-	current, _ := view.LookupType(captured.base.Type.ID())
-	usage := captured.base
+	current, _ := view.LookupType(captured.Base.Type.ID())
+	usage := captured.Base
 	usage.Type = current
 	if _, valid, err := b.retainedComposite(key, usage); err != nil || !valid {
 		return annotation, err

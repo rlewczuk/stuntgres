@@ -182,7 +182,7 @@ func TestQueryAggregateHashCollisionEquality(t *testing.T) {
 
 func TestQueryAggregateInsertLateProviderFailure(t *testing.T) {
 	b, source := insertSelectEvaluationFixture(t, "SELECT count(*) FROM t GROUP BY v")
-	node := b.query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
+	node := b.Query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	original := node.Calls[0].Provider
 	sentinel := errors.New("late INSERT aggregate provider")
 	calls := 0

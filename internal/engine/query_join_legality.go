@@ -82,31 +82,31 @@ func validateMutationJoinExecution(c *exec.Context, b *binding, expressions [][]
 		}
 		return nil
 	}
-	if err := validateTargets(b.arrayTargets); err != nil {
+	if err := validateTargets(b.ArrayTargets); err != nil {
 		return err
 	}
-	action := b.update
-	if b.insert.conflict != nil && insertConflictOf(b.insert.conflict).update != nil {
-		action = insertConflictOf(b.insert.conflict).update
+	action := b.Update
+	if b.Insert.Conflict != nil && insertConflictOf(b.Insert.Conflict).update != nil {
+		action = insertConflictOf(b.Insert.Conflict).update
 	}
 	if action != nil {
-		if err := validateTargets(action.arrayTargets); err != nil {
+		if err := validateTargets(action.ArrayTargets); err != nil {
 			return err
 		}
-		for _, expression := range action.assignments {
+		for _, expression := range action.Assignments {
 			if err := validateExpressionJoinExecution(&owner, expression, catalog); err != nil {
 				return err
 			}
 		}
-		if err := validateExpressionJoinExecution(&owner, action.predicate, catalog); err != nil {
+		if err := validateExpressionJoinExecution(&owner, action.Predicate, catalog); err != nil {
 			return err
 		}
-	} else if err := validateExpressionJoinExecution(&owner, b.predicate, catalog); err != nil {
+	} else if err := validateExpressionJoinExecution(&owner, b.Predicate, catalog); err != nil {
 		return err
 	}
 	for _, row := range expressions {
 		for j, expression := range row {
-			if len(expressions) == 1 && len(b.insert.identityDiscard) != 0 && b.insert.identityDiscard[b.targets[j]] {
+			if len(expressions) == 1 && len(b.Insert.IdentityDiscard) != 0 && b.Insert.IdentityDiscard[b.Targets[j]] {
 				continue
 			}
 			if err := validateExpressionJoinExecution(&owner, expression, catalog); err != nil {
@@ -114,8 +114,8 @@ func validateMutationJoinExecution(c *exec.Context, b *binding, expressions [][]
 			}
 		}
 	}
-	if b.returning != nil {
-		for _, expression := range b.returning.expressions {
+	if b.Returning != nil {
+		for _, expression := range b.Returning.Expressions {
 			if err := validateExpressionJoinExecution(&owner, expression, catalog); err != nil {
 				return err
 			}

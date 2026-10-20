@@ -18,104 +18,104 @@ import (
 // view-write INSERT translation write it; execution, rule rewriting and
 // ON CONFLICT admission read it.
 type insertBinding struct {
-	subquerySource  bool // Analyzed SELECT or VALUES with query clauses; normalization never changes source ownership.
-	rows            [][]parser.Expr
-	defaults        []expr.Expr
-	defaultOrigins  []defaultOrigin
-	identityDiscard []bool
-	projection      []int
-	conflict        insertConflictSlot
+	SubquerySource  bool // Analyzed SELECT or VALUES with query clauses; normalization never changes source ownership.
+	Rows            [][]parser.Expr
+	Defaults        []expr.Expr
+	DefaultOrigins  []defaultOrigin
+	IdentityDiscard []bool
+	Projection      []int
+	Conflict        insertConflictSlot
 }
 
 // deleteBinding is the DELETE payload: the USING source and its frame width.
 // DELETE binding and rule grafting write it; execution and rule rewriting
 // read it.
 type deleteBinding struct {
-	using       plan.Node
-	sourceWidth int
+	Using       plan.Node
+	SourceWidth int
 }
 
 // createTableBinding is the CREATE TABLE payload. describe writes it, with
 // inheritance merged by describeInheritance; CREATE TABLE execution reads it.
 type createTableBinding struct {
-	columns      []catalog.Column
-	notNull      []catalog.NotNullConstraint
-	columnIndex  map[string]int
-	uniques      []createUniqueConstraint
-	declarations []createColumnDeclaration
-	likes        []createLikeInput
-	ofType       *catalog.Type
-	inheritance  []createInheritanceInput
-	localColumns map[string]bool
+	Columns      []catalog.Column
+	NotNull      []catalog.NotNullConstraint
+	ColumnIndex  map[string]int
+	Uniques      []createUniqueConstraint
+	Declarations []createColumnDeclaration
+	Likes        []createLikeInput
+	OfType       *catalog.Type
+	Inheritance  []createInheritanceInput
+	LocalColumns map[string]bool
 }
 
 // viewCapture holds the expression binder's rendering captures, keyed by
 // literal path. View, rule and policy definitions read them to deparse stored
 // SQL; the maps keep the binder's contents and iteration rules.
 type viewCapture struct {
-	literals          map[viewLiteralPath]plan.LiteralExpr
-	castUsages        map[viewLiteralPath]sqltype.Usage
-	routineRefs       map[viewLiteralPath]ids.ObjectRef
-	operatorRefs      map[viewLiteralPath]ids.ObjectRef
-	composites        map[viewLiteralPath]compositeOccurrence
-	similarSubstrings map[viewLiteralPath]bool
-	posixSubstrings   map[viewLiteralPath]bool
-	collations        map[viewLiteralPath]uint32
-	columns           map[viewLiteralPath]viewColumn
-	stars             map[viewLiteralPath][]viewColumn
-	namespaces        []viewNamespace
+	Literals          map[viewLiteralPath]plan.LiteralExpr
+	CastUsages        map[viewLiteralPath]sqltype.Usage
+	RoutineRefs       map[viewLiteralPath]ids.ObjectRef
+	OperatorRefs      map[viewLiteralPath]ids.ObjectRef
+	Composites        map[viewLiteralPath]compositeOccurrence
+	SimilarSubstrings map[viewLiteralPath]bool
+	PosixSubstrings   map[viewLiteralPath]bool
+	Collations        map[viewLiteralPath]uint32
+	Columns           map[viewLiteralPath]viewColumn
+	Stars             map[viewLiteralPath][]viewColumn
+	Namespaces        []viewNamespace
 }
 
 // preparedCaptures holds the constants a prepared statement re-resolves
 // against the current environment before each execution.
 type preparedCaptures struct {
-	temporals         []temporalConstant
-	composites        map[preparedCompositeKey]compositeOccurrence
-	sequenceConstants []sequence.Constant
-	regclassConcat    bool
-	regtypeConstants  []regtypeConstant
+	Temporals         []temporalConstant
+	Composites        map[preparedCompositeKey]compositeOccurrence
+	SequenceConstants []sequence.Constant
+	RegclassConcat    bool
+	RegtypeConstants  []regtypeConstant
 }
 
 // resolverInputs holds the statement input resolvers captured from the
 // binder's input environment; execution restores them into its own.
 type resolverInputs struct {
-	regclass           sqltype.RegclassResolver
-	regtype            sqltype.RegtypeResolver
-	regrole            sqltype.RegroleResolver
-	operator           sqltype.OperatorResolver
-	regproc            sqltype.RoutineResolver
-	regcollation       sqltype.RegcollationResolver
-	regnamespace       sqltype.RegnamespaceResolver
-	regTS              sqltype.RegTSResolver
-	aclitem            sqltype.ACLItemResolver
-	fts                sqltype.FTSInputNotices
-	typeDiagnosticName func(sqltype.ID) string
-	enumMemberSafe     func(sqltype.ID, int64) bool
+	Regclass           sqltype.RegclassResolver
+	Regtype            sqltype.RegtypeResolver
+	Regrole            sqltype.RegroleResolver
+	Operator           sqltype.OperatorResolver
+	Regproc            sqltype.RoutineResolver
+	Regcollation       sqltype.RegcollationResolver
+	Regnamespace       sqltype.RegnamespaceResolver
+	RegTS              sqltype.RegTSResolver
+	ACLItem            sqltype.ACLItemResolver
+	FTS                sqltype.FTSInputNotices
+	TypeDiagnosticName func(sqltype.ID) string
+	EnumMemberSafe     func(sqltype.ID, int64) bool
 }
 
 // newResolverInputs captures every statement input resolver of input.
-func newResolverInputs(input sqltype.InputEnvironment) resolverInputs {
+func NewResolverInputs(input sqltype.InputEnvironment) resolverInputs {
 	return resolverInputs{
-		regclass:           input.Regclass,
-		regtype:            input.Regtype,
-		regrole:            input.Regrole,
-		operator:           input.Operator,
-		regproc:            input.Regproc,
-		regcollation:       input.Regcollation,
-		regnamespace:       input.Regnamespace,
-		regTS:              input.RegTS,
-		aclitem:            input.ACLItem,
-		fts:                input.FTS,
-		typeDiagnosticName: input.TypeDiagnosticName,
-		enumMemberSafe:     input.EnumMemberSafe,
+		Regclass:           input.Regclass,
+		Regtype:            input.Regtype,
+		Regrole:            input.Regrole,
+		Operator:           input.Operator,
+		Regproc:            input.Regproc,
+		Regcollation:       input.Regcollation,
+		Regnamespace:       input.Regnamespace,
+		RegTS:              input.RegTS,
+		ACLItem:            input.ACLItem,
+		FTS:                input.FTS,
+		TypeDiagnosticName: input.TypeDiagnosticName,
+		EnumMemberSafe:     input.EnumMemberSafe,
 	}
 }
 
 // ruleBinding marks a rule action template and maps its CTEs to their rule
 // commands.
 type ruleBinding struct {
-	template bool
-	ctes     ruleCTEsSlot
+	Template bool
+	CTEs     ruleCTEsSlot
 }
 
 // The slots below carry engine-owned values through a binding without

@@ -99,13 +99,13 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	description := &StatementDescription{temporals: append([]temporalConstant(nil), binder.prepared.temporals...), catalogOwner: e.catalog.owner(), catalogEpoch: e.CatalogRead().Epoch()}
+	description := &StatementDescription{temporals: append([]temporalConstant(nil), binder.prepared.Temporals...), catalogOwner: e.catalog.owner(), catalogEpoch: e.CatalogRead().Epoch()}
 	retained := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, description)
 	again, err := retained.inputConstant("not_resolved_again", d.Usage(), pos)
 	if err != nil || !sqltype.SameDatum(captured, again) {
 		t.Fatal("prepared identity retention", err)
 	}
-	if !refreshableTemporalCapture(binder.prepared.temporals[0]) {
+	if !refreshableTemporalCapture(binder.prepared.Temporals[0]) {
 		t.Fatal("full analysis invalidation cannot refresh role literal")
 	}
 	textType := aclUnitType(t, e, sqltype.Text)
@@ -146,7 +146,7 @@ func TestRegroleStoredLiteral(t *testing.T) {
 		}
 		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: strconv.FormatUint(uint64(id), 10)}}
-		if err := binder.captureViewLiterals(raw, literal, viewTargetLiteral, 0); !reflect.DeepEqual(err, want) {
+		if err := binder.captureViewLiterals(raw, literal, ViewTargetLiteral, 0); !reflect.DeepEqual(err, want) {
 			t.Fatal("view freeze boundary", err)
 		}
 		// Data serialization is legal even when the exact same datum is banned
@@ -188,7 +188,7 @@ func TestRegroleStoredLiteral(t *testing.T) {
 	}
 	arrayLiteral := plan.LiteralExpr{Info: expr.Info{Usage: arrayType.Usage()}, Value: array}
 	renderer := viewRenderer{viewDefinition: &viewDefinition{
-		literals:   map[viewLiteralPath]plan.LiteralExpr{{node: 1}: arrayLiteral},
+		literals:   map[viewLiteralPath]plan.LiteralExpr{{Node: 1}: arrayLiteral},
 		castUsages: map[viewLiteralPath]sqltype.Usage{{}: arrayType.Usage()},
 	}}
 	raw := parser.CastExpr{Child: parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue}}}

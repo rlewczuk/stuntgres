@@ -36,13 +36,13 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 				return ruleExpressionSQL(ctx, view, expr, action, root)
 			})
 		}
-		if column.Scope != rulePseudoScope && column.Scope == 1 && column.Frame == 1 && action.binding.relation != nil {
-			offset := len(action.binding.relation.Columns)
+		if column.Scope != rulePseudoScope && column.Scope == 1 && column.Frame == 1 && action.binding.Relation != nil {
+			offset := len(action.binding.Relation.Columns)
 			var from plan.Node
-			if action.binding.update != nil {
-				from = action.binding.update.from
+			if action.binding.Update != nil {
+				from = action.binding.Update.From
 			} else {
-				from = action.binding.delete.using
+				from = action.binding.Delete.Using
 			}
 			if from != nil && column.Slot >= offset {
 				return ruleSourceColumnSQL(view, from, column.Slot-offset, action, func(root plan.Node, expr expr.Expr) (string, error) {
@@ -60,9 +60,9 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 		if err != nil {
 			return "", err
 		}
-		if conflict := insertConflictOf(action.binding.insert.conflict); conflict != nil && conflict.update != nil &&
+		if conflict := insertConflictOf(action.binding.Insert.Conflict); conflict != nil && conflict.update != nil &&
 			column.Scope == 1 && column.Frame == 1 && column.Slot >= conflict.width && column.Slot < 2*conflict.width &&
-			a == action.binding.ref.Address {
+			a == action.binding.Ref.Address {
 			return "EXCLUDED." + name, nil
 		}
 		if column.Scope == rulePseudoScope {
@@ -294,11 +294,11 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 	if _, selecting := action.syntax.(*parser.Select); selecting {
 		return action.presentation.selectSQL(ctx, view, viewPresentation{})
 	}
-	name, err := ruleRelationSQL(view, b.ref)
+	name, err := ruleRelationSQL(view, b.Ref)
 	if err != nil {
 		return "", err
 	}
-	d := view.MustRelation(b.ref.Address)
+	d := view.MustRelation(b.Ref.Address)
 	var sql strings.Builder
 	if definitions := parser.StatementWith(action.syntax); len(definitions) != 0 {
 		renderer := newViewRenderer(action.presentation)
@@ -310,7 +310,7 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 				}
 				return renderer.selectQuerySQL(ctx, view, query, project)
 			}
-			for _, definition := range b.ctes {
+			for _, definition := range b.CTEs {
 				mutation, ok := mutationBinding(definition)
 				if definition.Statement != statement || !ok {
 					continue
@@ -331,16 +331,16 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 	switch s := action.syntax.(type) {
 	case *parser.Insert:
 		sql.WriteString("INSERT INTO " + name)
-		if len(b.targets) != 0 {
-			names := make([]string, len(b.targets))
-			for i, slot := range b.targets {
-				attribute := b.relation.Attributes[slot]
+		if len(b.Targets) != 0 {
+			names := make([]string, len(b.Targets))
+			for i, slot := range b.Targets {
+				attribute := b.Relation.Attributes[slot]
 				names[i], err = deparseAttribute(d, attribute)
 				if err != nil {
 					return "", err
 				}
-				if len(b.arrayTargets) > i {
-					names[i], err = ruleAssignmentSQL(ctx, view, names[i], b.arrayTargets[i], action)
+				if len(b.ArrayTargets) > i {
+					names[i], err = ruleAssignmentSQL(ctx, view, names[i], b.ArrayTargets[i], action)
 					if err != nil {
 						return "", err
 					}
@@ -355,7 +355,7 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 		}
 		if s.DefaultValues {
 			sql.WriteString(" DEFAULT VALUES")
-		} else if action.presentation != nil && s.Source != nil && b.query != nil {
+		} else if action.presentation != nil && s.Source != nil && b.Query != nil {
 			text, err := action.presentation.selectSQL(ctx, view, viewPresentation{})
 			if err != nil {
 				return "", err
@@ -363,7 +363,7 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 			sql.WriteString(" " + text)
 		} else {
 			sql.WriteString(" VALUES ")
-			for i, row := range b.expressions {
+			for i, row := range b.Expressions {
 				if i != 0 {
 					sql.WriteString(", ")
 				}
@@ -379,7 +379,7 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 		}
 		if s.Conflict != nil {
 			sql.WriteString(" ON CONFLICT")
-			if constraint := insertConflictOf(b.insert.conflict).constraint; constraint != (ids.ObjectAddress{}) {
+			if constraint := insertConflictOf(b.Insert.Conflict).constraint; constraint != (ids.ObjectAddress{}) {
 				if constraint.ClassID != 2606 || constraint.SubID != 0 {
 					return "", fmt.Errorf("stuntgres: invalid named rule constraint identity")
 				}
@@ -390,9 +390,9 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 					return "", fmt.Errorf("stuntgres: missing named rule constraint")
 				}
 				sql.WriteString(" ON CONSTRAINT " + catalog.QuoteIdentifier(canonicalName))
-			} else if len(insertConflictOf(b.insert.conflict).keys) != 0 {
-				parts := make([]string, len(insertConflictOf(b.insert.conflict).keys))
-				for i, key := range insertConflictOf(b.insert.conflict).keys {
+			} else if len(insertConflictOf(b.Insert.Conflict).keys) != 0 {
+				parts := make([]string, len(insertConflictOf(b.Insert.Conflict).keys))
+				for i, key := range insertConflictOf(b.Insert.Conflict).keys {
 					if key.attribute != 0 {
 						parts[i], err = deparseAttribute(d, key.attribute)
 					} else {
@@ -411,27 +411,27 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 				}
 				sql.WriteString(" (" + strings.Join(parts, ", ") + ")")
 			}
-			if insertConflictOf(b.insert.conflict).predicate != nil {
-				text, err := ruleExpressionSQL(ctx, view, insertConflictOf(b.insert.conflict).predicate, action)
+			if insertConflictOf(b.Insert.Conflict).predicate != nil {
+				text, err := ruleExpressionSQL(ctx, view, insertConflictOf(b.Insert.Conflict).predicate, action)
 				if err != nil {
 					return "", err
 				}
 				sql.WriteString(" WHERE " + text)
 			}
-			if insertConflictOf(b.insert.conflict).update == nil {
+			if insertConflictOf(b.Insert.Conflict).update == nil {
 				sql.WriteString(" DO NOTHING")
 			} else {
 				sql.WriteString(" DO UPDATE SET ")
-				for i, expr := range insertConflictOf(b.insert.conflict).update.assignments {
+				for i, expr := range insertConflictOf(b.Insert.Conflict).update.Assignments {
 					if i != 0 {
 						sql.WriteString(", ")
 					}
-					column, err := deparseAttribute(d, b.relation.Attributes[insertConflictOf(b.insert.conflict).updateTargets[i]])
+					column, err := deparseAttribute(d, b.Relation.Attributes[insertConflictOf(b.Insert.Conflict).updateTargets[i]])
 					if err != nil {
 						return "", err
 					}
-					if len(insertConflictOf(b.insert.conflict).update.arrayTargets) > i {
-						column, err = ruleAssignmentSQL(ctx, view, column, insertConflictOf(b.insert.conflict).update.arrayTargets[i], action)
+					if len(insertConflictOf(b.Insert.Conflict).update.ArrayTargets) > i {
+						column, err = ruleAssignmentSQL(ctx, view, column, insertConflictOf(b.Insert.Conflict).update.ArrayTargets[i], action)
 						if err != nil {
 							return "", err
 						}
@@ -442,8 +442,8 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 					}
 					sql.WriteString(column + " = " + text)
 				}
-				if insertConflictOf(b.insert.conflict).update.predicate != nil {
-					text, err := ruleExpressionSQL(ctx, view, insertConflictOf(b.insert.conflict).update.predicate, action)
+				if insertConflictOf(b.Insert.Conflict).update.Predicate != nil {
+					text, err := ruleExpressionSQL(ctx, view, insertConflictOf(b.Insert.Conflict).update.Predicate, action)
 					if err != nil {
 						return "", err
 					}
@@ -458,15 +458,15 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 			return "", err
 		}
 		sql.WriteString(assignments)
-		if b.update.from != nil {
-			text, err := ruleFromSQL(ctx, view, b.update.from, action)
+		if b.Update.From != nil {
+			text, err := ruleFromSQL(ctx, view, b.Update.From, action)
 			if err != nil {
 				return "", err
 			}
 			sql.WriteString(" FROM " + text)
 		}
-		if b.update.predicate != nil {
-			text, err := ruleExpressionSQL(ctx, view, b.update.predicate, action)
+		if b.Update.Predicate != nil {
+			text, err := ruleExpressionSQL(ctx, view, b.Update.Predicate, action)
 			if err != nil {
 				return "", err
 			}
@@ -474,24 +474,24 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 		}
 	case *parser.Delete:
 		sql.WriteString("DELETE FROM " + name)
-		if b.delete.using != nil {
-			text, err := ruleFromSQL(ctx, view, b.delete.using, action)
+		if b.Delete.Using != nil {
+			text, err := ruleFromSQL(ctx, view, b.Delete.Using, action)
 			if err != nil {
 				return "", err
 			}
 			sql.WriteString(" USING " + text)
 		}
-		if b.predicate != nil {
-			text, err := ruleExpressionSQL(ctx, view, b.predicate, action)
+		if b.Predicate != nil {
+			text, err := ruleExpressionSQL(ctx, view, b.Predicate, action)
 			if err != nil {
 				return "", err
 			}
 			sql.WriteString(" WHERE " + text)
 		}
 	}
-	if b.returning != nil {
-		parts := make([]string, len(b.returning.expressions))
-		for i, expr := range b.returning.expressions {
+	if b.Returning != nil {
+		parts := make([]string, len(b.Returning.Expressions))
+		for i, expr := range b.Returning.Expressions {
 			parts[i], err = ruleExpressionSQL(ctx, view, expr, action)
 			if err != nil {
 				return "", err
@@ -549,7 +549,7 @@ func ruleDumpGroups(ctx context.Context, view catalog.Read, roles authorization.
 			if r.condition != nil {
 				renderer := newViewRenderer(r.conditionPresentation)
 				renderer.frame = r.conditionPresentation.query.Root.(*plan.ProjectNode).Frame
-				text, err := renderer.expressionSQL(ctx, view, r.conditionPresentation.syntax.Targets[0], viewLiteralPath{clause: viewTargetLiteral})
+				text, err := renderer.expressionSQL(ctx, view, r.conditionPresentation.syntax.Targets[0], viewLiteralPath{Clause: ViewTargetLiteral})
 				if err != nil {
 					return nil, err
 				}

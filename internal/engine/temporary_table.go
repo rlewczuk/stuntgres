@@ -329,15 +329,15 @@ func temporaryDataTarget(auth AuthorizationView, b *binding, stmt parser.Stateme
 		if !parser.HasModifyingCTE(stmt) {
 			return false
 		}
-		for _, definition := range b.ctes {
+		for _, definition := range b.CTEs {
 			if mutation, ok := mutationBinding(definition); ok && !temporaryDataTarget(auth, mutation, definition.Statement) {
 				return false
 			}
 		}
 		return true
 	case *parser.Copy, *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
-		if b.relation != nil {
-			ns, ok := auth.Catalog.Namespace(b.relation.Namespace())
+		if b.Relation != nil {
+			ns, ok := auth.Catalog.Namespace(b.Relation.Namespace())
 			return ok && ownTemporaryNamespace(auth, ns)
 		}
 	}

@@ -12,12 +12,12 @@ import (
 // Retain even unused definitions in the existing analysis-only query carrier so
 // current-name/literal presentation and remapping see their ordinary typed graph.
 func retainRuleCTEPresentation(view catalog.Read, b binding) binding {
-	if b.query == nil || len(b.ctes) == 0 {
+	if b.Query == nil || len(b.CTEs) == 0 {
 		return b
 	}
-	project := b.query.Root.(*plan.ProjectNode)
+	project := b.Query.Root.(*plan.ProjectNode)
 	var analysis []expr.Expr
-	for _, definition := range b.ctes {
+	for _, definition := range b.CTEs {
 		if definition.Query == nil {
 			continue
 		}
@@ -42,8 +42,8 @@ func retainRuleCTEPresentation(view catalog.Read, b binding) binding {
 	}
 	copy := *project
 	copy.AnalysisExpressions = analysis
-	query := *b.query
+	query := *b.Query
 	query.Root = &copy
-	b.query = &query
+	b.Query = &query
 	return b
 }

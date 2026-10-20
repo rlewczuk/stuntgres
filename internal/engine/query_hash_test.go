@@ -35,7 +35,7 @@ func hashCaptureQuery(t *testing.T, e *Engine, op *Operation, q string) (*plan.Q
 	if err == nil {
 		// Logical-stage fixtures supply cancellation contexts directly, but keep
 		// the actual admission alive until every retained stage is closed.
-		source, err = e.captureQuerySourcesForInvokerLocked(scope, bound.querySources, false, authorization.PrincipalRef{}, plan.RowMark{}, scope.queryLocks)
+		source, err = e.captureQuerySourcesForInvokerLocked(scope, bound.QuerySources, false, authorization.PrincipalRef{}, plan.RowMark{}, scope.queryLocks)
 	}
 	e.mu.Unlock()
 	if err == nil {
@@ -57,7 +57,7 @@ func hashCaptureQuery(t *testing.T, e *Engine, op *Operation, q string) (*plan.Q
 		}
 	}
 	t.Cleanup(release)
-	return bound.query, source, release
+	return bound.Query, source, release
 }
 func hashImplicitQuery(t *testing.T, e *Engine, q string) (*plan.Query, *exec.Source, func()) {
 	t.Helper()

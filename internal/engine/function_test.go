@@ -148,10 +148,10 @@ func TestNullCountDependenciesAndAuthorization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(bound.querySources) != 1 || bound.querySources[0].Ref != ref || !reflect.DeepEqual(bound.querySources[0].Uses, []int{1, 2}) {
-		t.Fatal(bound.querySources)
+	if len(bound.QuerySources) != 1 || bound.QuerySources[0].Ref != ref || !reflect.DeepEqual(bound.QuerySources[0].Uses, []int{1, 2}) {
+		t.Fatal(bound.QuerySources)
 	}
-	project := bound.query.Root.(*plan.ProjectNode)
+	project := bound.Query.Root.(*plan.ProjectNode)
 	for _, expression := range project.Expressions {
 		if p := expression.Properties(); p.Volatility != expr.Immutable || !p.RowDependent || p.ParameterDependent || p.StageDependent {
 			t.Fatal(p)
@@ -163,14 +163,14 @@ func TestNullCountDependenciesAndAuthorization(t *testing.T) {
 		}
 	}
 	refs := map[ids.ObjectRef]bool{}
-	for _, dep := range bound.dependencies {
+	for _, dep := range bound.Dependencies {
 		refs[dep.Ref] = true
 	}
 	for _, sub := range []int{2, 3} {
 		column := ref
 		column.Address.SubID = int32(sub)
 		if !refs[column] {
-			t.Fatal("missing argument dependency", strconv.Itoa(sub), bound.dependencies)
+			t.Fatal("missing argument dependency", strconv.Itoa(sub), bound.Dependencies)
 		}
 	}
 	reader, _ := e.Roles().Lookup("reader")

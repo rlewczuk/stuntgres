@@ -6,8 +6,8 @@ func bindInsertReturning(b *binding, binder *expressionBinder, auth Authorizatio
 	if s.Returning == nil {
 		return nil
 	}
-	binder.target.relation, binder.target.ref = b.relation, b.ref
-	binder.target.name, binder.target.alias = b.relation.Name(), s.Alias.Text
+	binder.target.relation, binder.target.ref = b.Relation, b.Ref
+	binder.target.name, binder.target.alias = b.Relation.Name(), s.Alias.Text
 	binder.query.auth = &auth
 	target := binder.mutationTargetNamespace()
 	binder.query.namespace = &target
@@ -42,11 +42,11 @@ func bindInsertReturning(b *binding, binder *expressionBinder, auth Authorizatio
 	if err != nil {
 		return err
 	}
-	output.reads = reads
-	output.readRequired = readRequired
-	b.returning = output
-	if b.insert.conflict != nil {
-		insertConflictOf(b.insert.conflict).returning = output
+	output.Reads = reads
+	output.ReadRequired = readRequired
+	b.Returning = output
+	if b.Insert.Conflict != nil {
+		insertConflictOf(b.Insert.Conflict).returning = output
 	}
 	return nil
 }

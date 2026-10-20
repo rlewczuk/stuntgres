@@ -31,19 +31,19 @@ func validateRuleList(view catalog.Read, d *catalog.Relation, rules []ruleDefini
 		}
 		providers := 0
 		for _, action := range r.actions {
-			if ruleEvent(action.syntax) == "" || action.binding.parameters.Count != 0 {
+			if ruleEvent(action.syntax) == "" || action.binding.Parameters.Count != 0 {
 				return fmt.Errorf("stuntgres: invalid rule action")
 			}
-			if action.binding.returning != nil {
+			if action.binding.Returning != nil {
 				providers++
 				if !r.instead || r.condition != nil || providers > 1 {
 					return fmt.Errorf("stuntgres: invalid rule RETURNING contract")
 				}
 			}
-			if action.binding.ref != (ids.ObjectRef{}) {
-				address := action.binding.ref.Address
+			if action.binding.Ref != (ids.ObjectRef{}) {
+				address := action.binding.Ref.Address
 				provider, ok := view.Relation(address)
-				if !ok || !storedReferenceEpochValid(view, d, action.binding.ref) || provider == nil {
+				if !ok || !storedReferenceEpochValid(view, d, action.binding.Ref) || provider == nil {
 					return fmt.Errorf("stuntgres: invalid rule action target")
 				}
 			}

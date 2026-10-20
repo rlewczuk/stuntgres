@@ -100,8 +100,8 @@ func copyCursorCapturedCancellation(t *testing.T, binaryInput bool) {
 			text := &copyCursor{
 				scope: scope,
 				binding: binding{
-					relation: &catalog.Relation{ObjectName: "t", Columns: []catalog.Column{{Name: "v", Usage: testUsage(e, sqltype.Int4)}}},
-					targets:  []int{0},
+					Relation: &catalog.Relation{ObjectName: "t", Columns: []catalog.Column{{Name: "v", Usage: testUsage(e, sqltype.Int4)}}},
+					Targets:  []int{0},
 				},
 				options:  copyOptions{delimiter: '\t', null: "\\N"},
 				reader:   bufio.NewReader(strings.NewReader(tc.input)),

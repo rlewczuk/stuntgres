@@ -59,29 +59,29 @@ func updateFromBoundSources(t *testing.T, e *Engine, session *Session, ctx conte
 	var view *visibility.View
 	if err == nil {
 		b, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
-		scope.routineAuth, scope.routineDependencies = auth, b.dependencies
+		scope.routineAuth, scope.routineDependencies = auth, b.Dependencies
 	}
 	if err == nil {
-		err = e.initializeQueryLocksLocked(scope, nil, b.querySources)
+		err = e.initializeQueryLocksLocked(scope, nil, b.QuerySources)
 	}
 	if err == nil {
 		err = e.captureCommentSnapshotLocked(scope)
 	}
 	var refs []ids.ObjectRef
 	if err == nil {
-		refs, err = e.queryTableRefsLocked(auth, auth.State.CurrentUser, b.querySources, []ids.ObjectRef{b.ref}, scope.op.session.token, plan.RowMark{})
+		refs, err = e.queryTableRefsLocked(auth, auth.State.CurrentUser, b.QuerySources, []ids.ObjectRef{b.Ref}, scope.op.session.token, plan.RowMark{})
 	}
 	if err == nil {
 		_, err = scope.acquireDataViewsLocked(e, refs)
 	}
 	if err == nil {
-		view, err = scope.acquireDataViewLocked(e, b.ref)
+		view, err = scope.acquireDataViewLocked(e, b.Ref)
 	}
 	if err == nil {
-		source, err = captureQuerySource(op.ctx, view, b.ref)
+		source, err = captureQuerySource(op.ctx, view, b.Ref)
 	}
 	if err == nil {
-		from, err = e.captureQuerySourcesLocked(scope, b.querySources, false)
+		from, err = e.captureQuerySourcesLocked(scope, b.QuerySources, false)
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -101,14 +101,14 @@ func TestUpdateFromFramesOriginsAndPhysicalTargets(t *testing.T) {
 	}
 	op, scope, b, target, from := updateFromBoundSources(t, e, a, context.Background(), "UPDATE t AS dst SET a=dst.b,b=dst.a FROM s JOIN r USING(k) WHERE dst.id=k RETURNING dst.*,k,s.k,r.k,s.v,old.a,new.a")
 	data := target.View.Data()
-	if len(data.Committed) != 3 || len(b.querySources) != 2 || from.Sources[0].View.Data() != data || from.Sources[1].View.Data() != data {
+	if len(data.Committed) != 3 || len(b.QuerySources) != 2 || from.Sources[0].View.Data() != data || from.Sources[1].View.Data() != data {
 		t.Fatal("incoherent target/source capture", data)
 	}
 	unused := catalogRef(t, e, target.View.Catalog(), "unused")
 	if _, found := data.Committed[unused.Address]; found {
 		t.Fatal("unrelated relation captured")
 	}
-	metadata := b.returning.schema
+	metadata := b.Returning.Schema
 	if len(metadata) != 9 || metadata[3].Usage.Type.ID() != sqltype.Int8 || metadata[3].OriginTable != metadata[4].OriginTable || metadata[3].OriginAttribute != metadata[4].OriginAttribute || metadata[3].OriginTable == metadata[5].OriginTable || metadata[6].Usage.Typmod != 11 {
 		t.Fatal(metadata)
 	}
@@ -136,7 +136,7 @@ func TestUpdateFromFramesOriginsAndPhysicalTargets(t *testing.T) {
 	if target.View != nil || from.Sources != nil || len(scope.querySources) != 0 {
 		t.Fatal("capture ownership leaked")
 	}
-	store := e.storage.Relations[b.ref.Address]
+	store := e.storage.Relations[b.Ref.Address]
 	if len(store.Versions) != 2 || store.Versions[0].Row != original[0].Row || store.Versions[1].Row != original[1].Row || original[0].Row == original[1].Row || store.Versions[0].Version == original[0].Version || testExport(original[0].Values[1]) != int64(10) {
 		t.Fatal("physical identity/head immutability", store.Versions, original)
 	}
@@ -157,16 +157,16 @@ func TestUpdateFromLosingPairsDemandAndFailureCleanup(t *testing.T) {
 			saved := append([]storage.RowVersion(nil), target.Committed...)
 			calls, outputs := 0, 0
 			sentinel := errors.New("losing UPDATE FROM assignment failure")
-			rhs := b.update.assignments[0]
-			b.update.assignments[0] = queryProbe(rhs.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+			rhs := b.Update.Assignments[0]
+			b.Update.Assignments[0] = queryProbe(rhs.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				if failLast && calls == 6 {
 					return sqltype.Value{}, sentinel
 				}
 				return rhs.Eval(c)
 			})
-			out := b.returning.expressions[0]
-			b.returning.expressions[0] = queryProbe(out.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { outputs++; return out.Eval(c) })
+			out := b.Returning.Expressions[0]
+			b.Returning.Expressions[0] = queryProbe(out.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { outputs++; return out.Eval(c) })
 			r, err := e.executeUpdate(op.ctx, scope, b, target, from, nil, "public")
 			if calls != 6 || outputs != 2 {
 				t.Fatal("pair versus successful-target demand", calls, outputs)

@@ -149,7 +149,7 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	consumer := *d
 	consumer.View = viewPayloadOf(definition)
 	w := &viewWrite{layers: []viewWriteLayer{{relation: &consumer}}}
-	b := binding{querySources: []exec.Leaf{{Ref: ref, Relation: d}}}
+	b := binding{QuerySources: []exec.Leaf{{Ref: ref, Relation: d}}}
 	mapped, err := w.graftQuery(&b, view, project, func(expr expr.Expr) (expr.Expr, bool, error) { return expr, false, nil })
 	if err != nil {
 		t.Fatal(err)
@@ -157,8 +157,8 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	next := mapped.(*plan.ProjectNode)
 	nextJoin := next.Child.(*plan.JoinNode)
 	l, r := next.Expressions[0].(plan.ColumnExpr), next.Expressions[1].(plan.ColumnExpr)
-	if len(b.querySources) != 3 || l.QueryOccurrence != 2 || r.QueryOccurrence != 3 || nextJoin.Left.(*plan.SourceNode).Occurrence != 1 || nextJoin.Right.(*plan.SourceNode).Occurrence != 2 {
-		t.Fatal("grafted aliases lost occurrence mapping", l, r, nextJoin, len(b.querySources))
+	if len(b.QuerySources) != 3 || l.QueryOccurrence != 2 || r.QueryOccurrence != 3 || nextJoin.Left.(*plan.SourceNode).Occurrence != 1 || nextJoin.Right.(*plan.SourceNode).Occurrence != 2 {
+		t.Fatal("grafted aliases lost occurrence mapping", l, r, nextJoin, len(b.QuerySources))
 	}
 	wrapped := next.Expressions[2].(plan.ArithmeticExpr)
 	nullTest := next.Expressions[3].(plan.NullTestExpr)

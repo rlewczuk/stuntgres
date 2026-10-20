@@ -30,7 +30,7 @@ func TestCTEDMLInvocationOwnership(t *testing.T) {
 				rows.Columns = schema
 				rows.Values = []sqltype.Value{value(1), value(10), value(2), sqltype.Null(integer), value(2), sqltype.Null(integer)}
 			}
-			definition := &plan.CTEDefinition{Owner: 1, Mutation: &binding{returning: &boundReturning{schema: schema}}, Schema: schema, Hint: hint, References: 2}
+			definition := &plan.CTEDefinition{Owner: 1, Mutation: &binding{Returning: &boundReturning{Schema: schema}}, Schema: schema, Hint: hint, References: 2}
 			if definition.Folded() {
 				t.Fatal("modifier folded")
 			}

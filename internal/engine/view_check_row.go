@@ -11,14 +11,14 @@ import (
 // Called only for admitted, finalized rows, after base constraints/uniqueness.
 // A stack copy separates NEW from UPDATE FROM's OLD/source/RETURNING frame.
 func (e *Engine) checkViewRow(scope *StatementScope, b *binding, row []sqltype.Value, evaluation *exec.Context) error {
-	if b.viewWrite == nil || len(viewWriteOf(b.viewWrite).checks) == 0 {
+	if b.ViewWrite == nil || len(viewWriteOf(b.ViewWrite).checks) == 0 {
 		return nil
 	}
 	newFrame := *evaluation
 	newFrame.Row = row
 	newFrame.Scope, newFrame.Frame = 1, 1
-	for i := len(viewWriteOf(b.viewWrite).checks) - 1; i >= 0; i-- {
-		group := &viewWriteOf(b.viewWrite).checks[i]
+	for i := len(viewWriteOf(b.ViewWrite).checks) - 1; i >= 0; i-- {
+		group := &viewWriteOf(b.ViewWrite).checks[i]
 		for j := len(group.predicates) - 1; j >= 0; j-- {
 			if err := exec.EvaluationContext(&newFrame); err != nil {
 				return err

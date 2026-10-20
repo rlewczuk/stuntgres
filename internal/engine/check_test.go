@@ -98,7 +98,7 @@ func TestCheckCancellationBeforePublication(t *testing.T) {
 	defer cancel()
 	op, scope, b, source := updateBoundSource(t, e, s, ctx, "UPDATE t SET v=v")
 	calls := 0
-	b.update.assignments[0] = queryProbe(b.relation.Columns[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
+	b.Update.Assignments[0] = queryProbe(b.Relation.Columns[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 		calls++
 		if calls == 2 {
 			cancel()

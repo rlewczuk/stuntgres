@@ -73,8 +73,8 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 				}
 				found = true
 				if tc.grouped {
-					update := rule.actions[0].binding.update
-					if len(update.groups) != 1 || update.groups[0].width != 2 || update.outputWidth != 2 {
+					update := rule.actions[0].binding.Update
+					if len(update.Groups) != 1 || update.Groups[0].Width != 2 || update.OutputWidth != 2 {
 						t.Fatal("reanalysis lost tuple owner", update)
 					}
 				}
@@ -103,12 +103,12 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 							}
 						})
 					}
-					if mapped.binding.update != nil {
-						for _, recipe := range mapped.binding.update.assignments {
+					if mapped.binding.Update != nil {
+						for _, recipe := range mapped.binding.Update.Assignments {
 							find(recipe)
 						}
 					} else {
-						find(mapped.binding.predicate)
+						find(mapped.binding.Predicate)
 					}
 					if executable == nil || mapped.presentation.queries[executable.Syntax] == executable {
 						t.Fatal("fixture did not establish independently remapped executable and presentation graphs")

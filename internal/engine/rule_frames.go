@@ -37,7 +37,7 @@ func ruleBindingMaxFrame(b binding) uint32 {
 			visit(&plan.ProjectNode{Expressions: []expr.Expr{bound}})
 		}
 	}
-	for _, definition := range b.ctes {
+	for _, definition := range b.CTEs {
 		if definition.Owner > max {
 			max = definition.Owner
 		}
@@ -45,43 +45,43 @@ func ruleBindingMaxFrame(b binding) uint32 {
 			visit(definition.Query.Root)
 		}
 	}
-	for _, expr := range b.insert.defaults {
+	for _, expr := range b.Insert.Defaults {
 		visitExpression(expr)
 	}
-	visitExpression(b.predicate)
-	if b.returning != nil {
-		for _, expr := range b.returning.expressions {
+	visitExpression(b.Predicate)
+	if b.Returning != nil {
+		for _, expr := range b.Returning.Expressions {
 			visitExpression(expr)
 		}
 	}
-	if b.insert.conflict != nil {
-		for _, key := range insertConflictOf(b.insert.conflict).keys {
+	if b.Insert.Conflict != nil {
+		for _, key := range insertConflictOf(b.Insert.Conflict).keys {
 			visitExpression(key.expression)
 		}
-		visitExpression(insertConflictOf(b.insert.conflict).predicate)
-		if insertConflictOf(b.insert.conflict).update != nil {
-			visitExpression(insertConflictOf(b.insert.conflict).update.predicate)
-			for _, expr := range insertConflictOf(b.insert.conflict).update.assignments {
+		visitExpression(insertConflictOf(b.Insert.Conflict).predicate)
+		if insertConflictOf(b.Insert.Conflict).update != nil {
+			visitExpression(insertConflictOf(b.Insert.Conflict).update.Predicate)
+			for _, expr := range insertConflictOf(b.Insert.Conflict).update.Assignments {
 				visitExpression(expr)
 			}
 		}
 	}
-	if b.query != nil {
-		visit(b.query.Root)
+	if b.Query != nil {
+		visit(b.Query.Root)
 	}
-	for _, row := range b.expressions {
+	for _, row := range b.Expressions {
 		for _, bound := range row {
 			visit(&plan.ProjectNode{Expressions: []expr.Expr{bound}})
 		}
 	}
-	if b.update != nil {
-		visit(b.update.from)
-		visitExpression(b.update.predicate)
-		for _, bound := range b.update.assignments {
+	if b.Update != nil {
+		visit(b.Update.From)
+		visitExpression(b.Update.Predicate)
+		for _, bound := range b.Update.Assignments {
 			visit(&plan.ProjectNode{Expressions: []expr.Expr{bound}})
 		}
 	}
-	visit(b.delete.using)
+	visit(b.Delete.Using)
 	return max
 }
 

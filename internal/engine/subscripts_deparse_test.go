@@ -41,10 +41,10 @@ func TestSubscriptsDeparse(t *testing.T) {
 					name = "bigint"
 				}
 				raw = parser.CastExpr{Child: raw, TypeName: parser.TypeName{Name: name, ArrayBounds: []int32{0}}}
-				definition.castUsages[viewLiteralPath{node: i + 1}] = usage
+				definition.castUsages[viewLiteralPath{Node: i + 1}] = usage
 			}
-			definition.literals[viewLiteralPath{node: tc.casts + 1}] = arrayLiteral
-			definition.literals[viewLiteralPath{node: tc.casts + 2}] = integerLiteral
+			definition.literals[viewLiteralPath{Node: tc.casts + 1}] = arrayLiteral
+			definition.literals[viewLiteralPath{Node: tc.casts + 2}] = integerLiteral
 			call := nullCountRaw("generate_subscripts", raw, parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}})
 			renderer := &viewRenderer{viewDefinition: definition}
 			ordinal := 0

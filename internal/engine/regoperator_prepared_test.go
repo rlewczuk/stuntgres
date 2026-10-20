@@ -48,8 +48,8 @@ func regoperatorPreparedValues(t *testing.T, r Result, ids []sqltype.ID, texts [
 func regoperatorPreparedSnapshot(constants []regtypeConstant) []regtypeConstant {
 	saved := slices.Clone(constants)
 	for i := range saved {
-		saved[i].qualified = slices.Clone(saved[i].qualified)
-		saved[i].operands = slices.Clone(saved[i].operands)
+		saved[i].Qualified = slices.Clone(saved[i].Qualified)
+		saved[i].Operands = slices.Clone(saved[i].Operands)
 	}
 	return saved
 }
@@ -82,7 +82,7 @@ func TestRegOperatorPreparedMixedIdentity(t *testing.T) {
 		t.Fatal("mixed constants did not share one analysis cell", d.regtypes)
 	}
 	for _, constant := range d.regtypes.constants {
-		if len(constant.operands) != 0 {
+		if len(constant.Operands) != 0 {
 			t.Fatal("numeric or name-only input invented operand dependencies", constant)
 		}
 	}
@@ -112,10 +112,10 @@ func TestRegOperatorPreparedMixedIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	shared := StatementDescription{regtypes: &regtypeAnalysis{constants: []regtypeConstant{
-		{offset: 7, id: 551},
-		{offset: 7, operator: sqltype.Regoper, id: 551},
-		{offset: 7, operator: sqltype.Regoperator, id: 551},
-		{offset: 8, operator: sqltype.Regoper, id: 597},
+		{Offset: 7, ID: 551},
+		{Offset: 7, Operator: sqltype.Regoper, ID: 551},
+		{Offset: 7, Operator: sqltype.Regoperator, ID: 551},
+		{Offset: 8, Operator: sqltype.Regoper, ID: 597},
 	}}}
 	b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, &shared)
 	b.query.auth = &auth
@@ -184,7 +184,7 @@ func TestRegOperatorPreparedPathPublication(t *testing.T) {
 	newValues := regoperatorPreparedValues(t, next, typeIDs, texts)
 	next.Rows.Close()
 	for _, c := range d.regtypes.constants {
-		if c.id != 91001 {
+		if c.ID != 91001 {
 			t.Fatal("effective operator path did not reanalyze", c)
 		}
 	}
@@ -192,7 +192,7 @@ func TestRegOperatorPreparedPathPublication(t *testing.T) {
 	for i := range oldValues {
 		oldOID, _ := oldValues[i].OperatorOID()
 		newOID, _ := newValues[i].OperatorOID()
-		if oldOID != 91000 || newOID != 91001 || oldConstants[i].id != 91000 || !reflect.DeepEqual(d.Results, oldSignature) {
+		if oldOID != 91000 || newOID != 91001 || oldConstants[i].ID != 91000 || !reflect.DeepEqual(d.Results, oldSignature) {
 			t.Fatal("successful publication mutated held identities/signature", oldOID, newOID)
 		}
 	}
@@ -249,7 +249,7 @@ func TestRegOperatorPreparedOperandManifest(t *testing.T) {
 			ast, d := sequencePreparedDescription(t, e, s, query)
 			old := regoperatorPreparedSnapshot(d.regtypes.constants)
 			signature := slices.Clone(d.Results)
-			operands := old[1].operands
+			operands := old[1].Operands
 			if len(operands) != 2 || operands[0].Ref.Address != typ.Address() || operands[0].Revision != typ.Revision() || operands[1].Ref.Address != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23}) {
 				t.Fatal("shared cell lacks exact ordered operand identity/revision manifest", operands)
 			}
@@ -371,7 +371,7 @@ func TestRegOperatorPreparedOperandBoundaries(t *testing.T) {
 	s := sessionStart(t, e, nil)
 	_, d := sequencePreparedDescription(t, e, s, "SELECT '-(NONE,int4)'::regoperator,'551'::regoperator,'||/'::regoper")
 	constants := d.regtypes.constants
-	if len(constants) != 3 || len(constants[0].operands) != 1 || constants[0].operands[0].Ref.Address != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23}) || len(constants[1].operands) != 0 || len(constants[2].operands) != 0 {
+	if len(constants) != 3 || len(constants[0].Operands) != 1 || constants[0].Operands[0].Ref.Address != (ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 23}) || len(constants[1].Operands) != 0 || len(constants[2].Operands) != 0 {
 		t.Fatal("NONE, numeric, or name-only input invented operand identities", constants)
 	}
 }

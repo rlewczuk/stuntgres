@@ -27,13 +27,13 @@ func retainInheritedRecipes(view catalog.Read, child *catalog.Relation, attribut
 		}
 		if definition, exists := parent.ColumnMeta.Generations[origin.Attribute]; exists && generated {
 			suppliedGeneration = true
-			mapper := createLikeInput{source: parent, targetSlots: make([]int, len(parent.Columns))}
+			mapper := createLikeInput{Source: parent, TargetSlots: make([]int, len(parent.Columns))}
 			for i, column := range parent.Columns {
 				slot, ok := child.Index[column.Name]
 				if !ok {
 					return provenance, ids.ErrCatalogReplaced
 				}
-				mapper.targetSlots[i] = slot
+				mapper.TargetSlots[i] = slot
 			}
 			mapped, err := remapLikeExpression(&mapper, definition.Expression, child, view)
 			if err != nil {

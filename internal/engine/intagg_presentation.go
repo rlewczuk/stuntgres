@@ -15,7 +15,7 @@ func (b *expressionBinder) captureIntaggReference(path viewLiteralPath, proc *ca
 	if err := extension.ValidateIntaggIdentity(b.bindingCatalog(), proc, ref, name); err != nil {
 		return err
 	}
-	return b.capture.captureRoutineReference(path, ref)
+	return b.capture.CaptureRoutineReference(path, ref)
 }
 
 func (v *viewDefinition) intaggRecipeProcedure(catalog catalog.Read, path viewLiteralPath, name string) (*catalog.Procedure, error) {

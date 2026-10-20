@@ -126,26 +126,11 @@ type createLikeConstraint struct {
 	catalog.NotNullConstraint
 }
 
-// Column-local structure is validated as CREATE reaches each typed column,
-// before later elements or any default-expression cooking.
-type createColumnDeclaration struct {
-	columnNotNull    bool
-	columnName       string
-	notNull          bool
-	name             string
-	defaultExpr      parser.Expr
-	copiedDefault    bool
-	identity         *parser.IdentityDefinition
-	generation       *parser.GenerationDefinition
-	copiedGeneration bool
-	serial           bool
-}
-
 func bindCreateColumnDeclaration(column *parser.Column, table string) (createColumnDeclaration, error) {
 	var declaration createColumnDeclaration
-	declaration.serial = sequence.SerialTypeName(column.TypeName) != ""
-	seen := declaration.serial
-	declaration.columnNotNull = declaration.serial
+	declaration.Serial = sequence.SerialTypeName(column.TypeName) != ""
+	seen := declaration.Serial
+	declaration.ColumnNotNull = declaration.Serial
 	for _, constraint := range column.Constraints {
 		if constraint.Check != nil || constraint.ForeignKey != nil {
 			continue
@@ -165,64 +150,64 @@ func bindCreateColumnDeclaration(column *parser.Column, table string) (createCol
 				return declaration, insertError("42601", "for a generated column, GENERATED ALWAYS must be specified", generation.ModePos)
 			}
 			conflict := ""
-			if declaration.generation != nil {
+			if declaration.Generation != nil {
 				conflict = "multiple generation clauses"
 			}
-			if declaration.defaultExpr != nil || declaration.serial {
+			if declaration.DefaultExpr != nil || declaration.Serial {
 				conflict = "both default and generation expression"
 			}
-			if declaration.identity != nil {
+			if declaration.Identity != nil {
 				conflict = "both identity and generation expression"
 			}
 			if conflict != "" {
 				return declaration, insertError("42601", fmt.Sprintf(`%s specified for column "%s" of table "%s"`, conflict, column.Name, table), constraint.Pos)
 			}
-			declaration.generation = generation
+			declaration.Generation = generation
 			continue
 		}
 		if constraint.Identity != nil {
-			if declaration.generation != nil {
+			if declaration.Generation != nil {
 				return declaration, insertError("42601", fmt.Sprintf(`both identity and generation expression specified for column "%s" of table "%s"`, column.Name, table), constraint.Pos)
 			}
-			if declaration.identity != nil {
+			if declaration.Identity != nil {
 				return declaration, insertError("42601", fmt.Sprintf(`multiple identity specifications for column "%s" of table "%s"`, column.Name, table), constraint.Pos)
 			}
-			if declaration.defaultExpr != nil {
+			if declaration.DefaultExpr != nil {
 				return declaration, insertError("42601", fmt.Sprintf(`both default and identity specified for column "%s" of table "%s"`, column.Name, table), constraint.Pos)
 			}
-			declaration.identity = constraint.Identity
+			declaration.Identity = constraint.Identity
 			constraint.NotNull = true
 		}
 		if constraint.Default != nil {
-			if declaration.generation != nil {
+			if declaration.Generation != nil {
 				return declaration, insertError("42601", fmt.Sprintf(`both default and generation expression specified for column "%s" of table "%s"`, column.Name, table), constraint.Pos)
 			}
-			if declaration.identity != nil {
+			if declaration.Identity != nil {
 				return declaration, insertError("42601", fmt.Sprintf(`both default and identity specified for column "%s" of table "%s"`, column.Name, table), constraint.Pos)
 			}
-			if declaration.defaultExpr != nil {
+			if declaration.DefaultExpr != nil {
 				return declaration, insertError("42601", fmt.Sprintf(`multiple default values specified for column "%s" of table "%s"`, column.Name, table), constraint.Pos)
 			}
-			declaration.defaultExpr = constraint.Default
+			declaration.DefaultExpr = constraint.Default
 			continue
 		}
-		if seen && declaration.columnNotNull != constraint.NotNull {
+		if seen && declaration.ColumnNotNull != constraint.NotNull {
 			return declaration, insertError("42601", fmt.Sprintf(`conflicting NULL/NOT NULL declarations for column "%s" of table "%s"`, column.Name, table), constraint.Pos)
 		}
 		name := constraint.Name.Text
-		if constraint.NotNull && declaration.columnName != "" && name != "" && declaration.columnName != name {
-			return declaration, sqlError("XX000", fmt.Sprintf(`conflicting not-null constraint names "%s" and "%s"`, declaration.columnName, name))
+		if constraint.NotNull && declaration.ColumnName != "" && name != "" && declaration.ColumnName != name {
+			return declaration, sqlError("XX000", fmt.Sprintf(`conflicting not-null constraint names "%s" and "%s"`, declaration.ColumnName, name))
 		}
-		seen, declaration.columnNotNull = true, constraint.NotNull
+		seen, declaration.ColumnNotNull = true, constraint.NotNull
 		if constraint.NotNull && name != "" {
-			declaration.columnName = name
+			declaration.ColumnName = name
 		}
 	}
-	if declaration.serial {
-		if declaration.defaultExpr != nil {
+	if declaration.Serial {
+		if declaration.DefaultExpr != nil {
 			return declaration, sqlError("42601", fmt.Sprintf(`multiple default values specified for column "%s" of table "%s"`, column.Name, table))
 		}
-		if declaration.identity != nil {
+		if declaration.Identity != nil {
 			return declaration, sqlError("42601", fmt.Sprintf(`both default and identity specified for column "%s" of table "%s"`, column.Name, table))
 		}
 	}
@@ -249,15 +234,15 @@ func bindCreateNotNull(s *parser.CreateTable, columns []catalog.Column, declarat
 	var constraints []catalog.NotNullConstraint
 	merge := func(slot int, name string) error {
 		old := &declarations[slot]
-		if old.name != "" && name != "" && old.name != name {
-			return sqlError("42601", fmt.Sprintf(`conflicting not-null constraint names "%s" and "%s"`, old.name, name))
+		if old.Name != "" && name != "" && old.Name != name {
+			return sqlError("42601", fmt.Sprintf(`conflicting not-null constraint names "%s" and "%s"`, old.Name, name))
 		}
-		if !old.notNull {
+		if !old.NotNull {
 			constraints = append(constraints, catalog.NotNullConstraint{Attribute: int32(slot + 1)})
 		}
-		old.notNull = true
+		old.NotNull = true
 		if name != "" {
-			old.name = name
+			old.Name = name
 		}
 		return nil
 	}
@@ -265,8 +250,8 @@ func bindCreateNotNull(s *parser.CreateTable, columns []catalog.Column, declarat
 	for elementIndex, element := range s.Elements {
 		if c := element.Column; c != nil {
 			slot := index[c.Name]
-			if declarations[slot].columnNotNull {
-				if err := merge(slot, declarations[slot].columnName); err != nil {
+			if declarations[slot].ColumnNotNull {
+				if err := merge(slot, declarations[slot].ColumnName); err != nil {
 					return nil, err
 				}
 			}
@@ -304,10 +289,10 @@ func bindCreateNotNull(s *parser.CreateTable, columns []catalog.Column, declarat
 		}
 	}
 	for i := range declarations {
-		columns[i].Nullable = !declarations[i].notNull
+		columns[i].Nullable = !declarations[i].NotNull
 	}
 	for i := range constraints {
-		constraints[i].Name = declarations[constraints[i].Attribute-1].name
+		constraints[i].Name = declarations[constraints[i].Attribute-1].Name
 	}
 	return constraints, nil
 }

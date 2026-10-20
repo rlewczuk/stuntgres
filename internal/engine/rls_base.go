@@ -130,11 +130,11 @@ func (e *Engine) rowSecurityInputLocked(scope *StatementScope, d *catalog.Relati
 // rowSecurityLayers collects the owner and security_invoker flag of each
 // view layer of an auto-updatable view write, outermost first.
 func rowSecurityLayers(view catalog.Read, b binding) []access.RowSecurityLayer {
-	if b.viewWrite == nil {
+	if b.ViewWrite == nil {
 		return nil
 	}
-	layers := make([]access.RowSecurityLayer, 0, len(viewWriteOf(b.viewWrite).layers))
-	for _, layer := range viewWriteOf(b.viewWrite).layers {
+	layers := make([]access.RowSecurityLayer, 0, len(viewWriteOf(b.ViewWrite).layers))
+	for _, layer := range viewWriteOf(b.ViewWrite).layers {
 		current := view.MustRelation(layer.ref.Address)
 		layers = append(layers, access.RowSecurityLayer{Owner: current.Owner, Invoker: viewOf(current).invoker})
 	}
@@ -144,7 +144,7 @@ func rowSecurityLayers(view catalog.Read, b binding) []access.RowSecurityLayer {
 func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, stmt parser.Statement) error {
 	scope.rlsTargetDenied = false
 	scope.rlsProposal, scope.rlsMergeInsert, scope.rlsMergeUpdate = access.RLSUnrestricted, access.RLSUnrestricted, access.RLSUnrestricted
-	if b.relation == nil {
+	if b.Relation == nil {
 		return nil
 	}
 	command := catalog.PolicyCommand("")
@@ -160,8 +160,8 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, st
 	default:
 		return nil
 	}
-	scope.rlsProposalTable = b.relation.Name()
-	if !b.relation.Security.RLSEnabled {
+	scope.rlsProposalTable = b.Relation.Name()
+	if !b.Relation.Security.RLSEnabled {
 		return nil
 	}
 	auth, err := e.statementAuthorizationLocked(scope.op, stmt)
@@ -174,15 +174,15 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, st
 	auth.Catalog = e.privateCatalogLocked(scope.owner.catalog)
 	auth.Recapture(auth.Catalog)
 	principal := access.RowSecurityPrincipal(auth.State.CurrentUser, rowSecurityLayers(auth.Catalog, b))
-	if err := access.RowSecuritySettingGuard(scope.rowSecurity, auth.Roles, b.relation, principal); err != nil {
+	if err := access.RowSecuritySettingGuard(scope.rowSecurity, auth.Roles, b.Relation, principal); err != nil {
 		return err
 	}
-	reads := b.returning != nil || len(b.usedColumns) != 0
-	if b.viewWrite != nil {
-		reads = reads || len(viewWriteOf(b.viewWrite).logical.usedColumns) != 0
+	reads := b.Returning != nil || len(b.UsedColumns) != 0
+	if b.ViewWrite != nil {
+		reads = reads || len(viewWriteOf(b.ViewWrite).logical.UsedColumns) != 0
 	}
 	if command != catalog.PolicyInsert {
-		decision, err := access.RowSecurityGroups(auth.Roles, b.relation, principal, command, false, reads)
+		decision, err := access.RowSecurityGroups(auth.Roles, b.Relation, principal, command, false, reads)
 		if err != nil {
 			return err
 		}
@@ -191,16 +191,16 @@ func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, st
 		}
 		scope.rlsTargetDenied = decision == access.RLSDefaultDeny
 	}
-	proposedRead := b.insert.conflict != nil && len(insertConflictOf(b.insert.conflict).reads) != 0
+	proposedRead := b.Insert.Conflict != nil && len(insertConflictOf(b.Insert.Conflict).reads) != 0
 	switch stmt.(type) {
 	case *parser.Insert:
-		scope.rlsProposal, err = access.RowSecurityGroups(auth.Roles, b.relation, principal, catalog.PolicyInsert, true, proposedRead)
+		scope.rlsProposal, err = access.RowSecurityGroups(auth.Roles, b.Relation, principal, catalog.PolicyInsert, true, proposedRead)
 	case *parser.Update:
-		scope.rlsProposal, err = access.RowSecurityGroups(auth.Roles, b.relation, principal, catalog.PolicyUpdate, true, reads)
+		scope.rlsProposal, err = access.RowSecurityGroups(auth.Roles, b.Relation, principal, catalog.PolicyUpdate, true, reads)
 	case *parser.Merge:
-		scope.rlsMergeInsert, err = access.RowSecurityGroups(auth.Roles, b.relation, principal, catalog.PolicyInsert, true, false)
+		scope.rlsMergeInsert, err = access.RowSecurityGroups(auth.Roles, b.Relation, principal, catalog.PolicyInsert, true, false)
 		if err == nil {
-			scope.rlsMergeUpdate, err = access.RowSecurityGroups(auth.Roles, b.relation, principal, catalog.PolicyUpdate, true, true)
+			scope.rlsMergeUpdate, err = access.RowSecurityGroups(auth.Roles, b.Relation, principal, catalog.PolicyUpdate, true, true)
 		}
 	}
 	return err

@@ -70,53 +70,53 @@ func validateRuleActionCTEs(action parser.Statement, b binding) error {
 		}
 	}
 	inspectBinding := func(body *binding) {
-		inspectTargets(body.arrayTargets)
-		if body.query != nil {
-			inspectQuery(body.query.Root)
+		inspectTargets(body.ArrayTargets)
+		if body.Query != nil {
+			inspectQuery(body.Query.Root)
 		}
-		for _, row := range body.expressions {
+		for _, row := range body.Expressions {
 			for _, expr := range row {
 				inspectExpression(expr)
 			}
 		}
-		for _, expr := range body.insert.defaults {
+		for _, expr := range body.Insert.Defaults {
 			inspectExpression(expr)
 		}
-		inspectExpression(body.predicate)
-		inspectQuery(body.delete.using)
-		if body.update != nil {
-			inspectQuery(body.update.from)
-			inspectExpression(body.update.predicate)
-			inspectTargets(body.update.arrayTargets)
-			for _, expr := range body.update.assignments {
+		inspectExpression(body.Predicate)
+		inspectQuery(body.Delete.Using)
+		if body.Update != nil {
+			inspectQuery(body.Update.From)
+			inspectExpression(body.Update.Predicate)
+			inspectTargets(body.Update.ArrayTargets)
+			for _, expr := range body.Update.Assignments {
 				inspectExpression(expr)
 			}
 		}
-		if body.returning != nil {
-			for _, expr := range body.returning.expressions {
+		if body.Returning != nil {
+			for _, expr := range body.Returning.Expressions {
 				inspectExpression(expr)
 			}
 		}
-		if body.insert.conflict != nil {
-			for _, key := range insertConflictOf(body.insert.conflict).keys {
+		if body.Insert.Conflict != nil {
+			for _, key := range insertConflictOf(body.Insert.Conflict).keys {
 				inspectExpression(key.expression)
 			}
-			inspectExpression(insertConflictOf(body.insert.conflict).predicate)
-			if insertConflictOf(body.insert.conflict).update != nil {
-				inspectTargets(insertConflictOf(body.insert.conflict).update.arrayTargets)
-				inspectExpression(insertConflictOf(body.insert.conflict).update.predicate)
-				for _, expr := range insertConflictOf(body.insert.conflict).update.assignments {
+			inspectExpression(insertConflictOf(body.Insert.Conflict).predicate)
+			if insertConflictOf(body.Insert.Conflict).update != nil {
+				inspectTargets(insertConflictOf(body.Insert.Conflict).update.ArrayTargets)
+				inspectExpression(insertConflictOf(body.Insert.Conflict).update.Predicate)
+				for _, expr := range insertConflictOf(body.Insert.Conflict).update.Assignments {
 					inspectExpression(expr)
 				}
 			}
-			if insertConflictOf(body.insert.conflict).returning != nil && insertConflictOf(body.insert.conflict).returning != body.returning {
-				for _, expr := range insertConflictOf(body.insert.conflict).returning.expressions {
+			if insertConflictOf(body.Insert.Conflict).returning != nil && insertConflictOf(body.Insert.Conflict).returning != body.Returning {
+				for _, expr := range insertConflictOf(body.Insert.Conflict).returning.Expressions {
 					inspectExpression(expr)
 				}
 			}
 		}
 	}
-	for _, definition := range b.ctes {
+	for _, definition := range b.CTEs {
 		if !owned(definition.Position) {
 			continue
 		}
@@ -127,11 +127,11 @@ func validateRuleActionCTEs(action parser.Statement, b binding) error {
 			inspectBinding(mutation)
 		}
 	}
-	if b.query != nil {
-		plan.VisitCTEQuery(b.query.Root, func(plan.Node) {}, func(bound expr.Expr) {
+	if b.Query != nil {
+		plan.VisitCTEQuery(b.Query.Root, func(plan.Node) {}, func(bound expr.Expr) {
 			plan.WalkExpression(bound, func(node expr.Expr) {
 				if query, ok := node.(plan.SubqueryExpr); ok && query.CTEEdge && owned(query.Pos) {
-					for _, definition := range b.ctes {
+					for _, definition := range b.CTEs {
 						if definition.Query == query.QueryPlan && owned(definition.Position) {
 							return
 						}

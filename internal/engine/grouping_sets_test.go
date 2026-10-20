@@ -248,7 +248,7 @@ func TestGroupingSetsInsertLateFailureAndActiveCancellation(t *testing.T) {
 	for _, phase := range []string{"late_finalize", "fanout_cancel"} {
 		t.Run(phase, func(t *testing.T) {
 			b, source := insertSelectEvaluationFixture(t, "SELECT count(*) FROM t GROUP BY GROUPING SETS((v),(v),())")
-			node := b.query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
+			node := b.Query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 			provider := node.Calls[0].Provider
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()

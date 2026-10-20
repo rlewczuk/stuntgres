@@ -13,7 +13,7 @@ import (
 // Caller rights are checked on the original logical target. Each nested layer
 // then uses its current owner or the original invoker, never the outer owner.
 func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) error {
-	w := viewWriteOf(b.viewWrite)
+	w := viewWriteOf(b.ViewWrite)
 	logical := w.logical
 	if err := v.checkBinding(logical, stmt); err != nil {
 		return err
@@ -26,7 +26,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 	case *parser.Delete:
 		mask = authorization.DeletePrivilege
 	}
-	reads := b.returning != nil || len(logical.usedColumns) != 0 || logical.insert.conflict != nil && len(insertConflictOf(logical.insert.conflict).reads) != 0
+	reads := b.Returning != nil || len(logical.UsedColumns) != 0 || logical.Insert.Conflict != nil && len(insertConflictOf(logical.Insert.Conflict).reads) != 0
 	for _, layer := range w.layers {
 		current, ok := v.Catalog.Relation(layer.ref.Address)
 		if !ok || current.View != layer.relation.View {
@@ -41,7 +41,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 		if !ok || !sameRelationRowShape(source, layer.source) {
 			return ids.ErrCatalogReplaced
 		}
-		physical := binding{relation: source, ref: layer.sourceRef}
+		physical := binding{Relation: source, Ref: layer.sourceRef}
 		if mask == authorization.DeletePrivilege {
 			if err := authority.Check(access.Requirement{Object: layer.sourceRef, Privileges: mask}); err != nil {
 				return err
@@ -78,7 +78,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 					return ids.ErrCatalogReplaced
 				}
 			}
-			sourceBinding := binding{ref: use, relation: relation}
+			sourceBinding := binding{Ref: use, Relation: relation}
 			if err := authority.checkColumns(sourceBinding, authorization.SelectPrivilege, indices); err != nil {
 				return err
 			}

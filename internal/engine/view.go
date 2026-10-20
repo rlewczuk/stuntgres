@@ -59,40 +59,12 @@ type viewLeaf struct {
 	mark         plan.RowMark
 }
 
-type viewColumn struct {
-	frame    uint32
-	slot     int
-	ruleRef  ids.ObjectRef
-	ruleSide uint32
-}
-
-// Namespace labels and frame slots are immutable analysis metadata, not an
-// execution node. Leaf/attribute identities survive current positional changes;
-// computed USING slots have no leaf identity.
-type viewNamespaceColumn struct {
-	name       string
-	slot, leaf int
-	attribute  int32
-}
-type viewNamespaceQualifier struct {
-	name    string
-	columns []viewNamespaceColumn
-}
-type viewNamespace struct {
-	frame      uint32
-	node       uint8
-	ordinal    int
-	columns    []viewNamespaceColumn
-	qualifiers []viewNamespaceQualifier
-	keys       []string
-}
-
 func (q *queryScopeState) freezeViewColumns(columns []queryColumn) []viewNamespaceColumn {
 	out := make([]viewNamespaceColumn, len(columns))
 	for i, c := range columns {
-		out[i] = viewNamespaceColumn{name: c.descriptor.Name, slot: c.slot, leaf: c.leaf}
+		out[i] = viewNamespaceColumn{Name: c.descriptor.Name, Slot: c.slot, Leaf: c.leaf}
 		if c.leaf >= 0 {
-			out[i].attribute = q.sources[c.leaf].Relation.Attributes[c.physical]
+			out[i].Attribute = q.sources[c.leaf].Relation.Attributes[c.physical]
 		}
 	}
 	return out
@@ -231,17 +203,17 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 	if err := e.attachCTEViewTargetsLocked(s, &b, false); err != nil {
 		return err
 	}
-	if err := s.validateQuerySources(b.querySources); err != nil {
+	if err := s.validateQuerySources(b.QuerySources); err != nil {
 		return err
 	}
 	if parser.HasModifyingCTE(view.Query) {
 		return sqlError("0A000", "views must not contain data-modifying statements in WITH")
 	}
-	persistence := requestedViewPersistence(auth.Catalog, view, b.querySources)
+	persistence := requestedViewPersistence(auth.Catalog, view, b.QuerySources)
 	if persistence == "temporary" && view.Persistence != "temporary" {
 		s.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`view "%s" will be a temporary view`, view.Name.Parts[len(view.Name.Parts)-1].Text)})
 	}
-	projection, ok := b.query.Root.(*plan.ProjectNode)
+	projection, ok := b.Query.Root.(*plan.ProjectNode)
 	if !ok {
 		return fmt.Errorf("stuntgres: view lacks final projection")
 	}
@@ -337,7 +309,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	b := scope.viewCreationOrZero().binding
-	if err := scope.validateQuerySources(b.querySources); err != nil {
+	if err := scope.validateQuerySources(b.QuerySources); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
@@ -348,7 +320,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	// CREATE checks local declaration shape before options and replacement prefix.
 	for _, option := range view.Options {
 		if option.Name.Text == "check_option" {
-			if err := validateViewCheckDeclaration(&viewDefinition{syntax: view.Query, query: b.query}); err != nil {
+			if err := validateViewCheckDeclaration(&viewDefinition{syntax: view.Query, query: b.Query}); err != nil {
 				e.mu.Unlock()
 				return Result{}, err
 			}
@@ -356,16 +328,16 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		}
 	}
 	if old != nil {
-		if err := checkViewOutputNames(b.query.Root.Schema(), old); err != nil {
+		if err := checkViewOutputNames(b.Query.Root.Schema(), old); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		if err := checkViewPrefix(auth.Catalog, old.Columns, b.query.Root.Schema()); err != nil {
+		if err := checkViewPrefix(auth.Catalog, old.Columns, b.Query.Root.Schema()); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
 	}
-	for _, column := range b.query.Root.Schema() {
+	for _, column := range b.Query.Root.Schema() {
 		if sqltype.OccurrenceRecordArray(column.Usage.Type) || column.Usage.Type.ID() == 2249 && column.Usage.Type.IsComposite() {
 			e.mu.Unlock()
 			typeName := "record"
@@ -379,7 +351,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	// boundary. Appended VOID columns and CREATE OR REPLACE of a missing
 	// destination still fail before a catalog stage can publish anything.
 	if view.Replace {
-		if err := checkViewOutputTypes(b.query.Root.Schema()); err != nil {
+		if err := checkViewOutputTypes(b.Query.Root.Schema()); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -390,7 +362,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		return Result{}, err
 	}
 	if old == nil {
-		if err := checkViewOutputNames(b.query.Root.Schema(), nil); err != nil {
+		if err := checkViewOutputNames(b.Query.Root.Schema(), nil); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -436,11 +408,11 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	definition.checkOption = mode
 	definition.options = transformViewOptions(nil, view.Options, false)
 	definition.quoteRevision = revision
-	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: revision, Owner: auth.State.CurrentUser, RelationKind: catalog.ViewRelation, View: viewPayloadOf(definition), Columns: append([]catalog.Column(nil), b.query.Root.Schema()...), Index: make(map[string]int), Attributes: make([]int32, len(b.query.Root.Schema()))}
+	d := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid}, ObjectNamespace: ns.Address, ObjectName: name, ObjectRevision: revision, Owner: auth.State.CurrentUser, RelationKind: catalog.ViewRelation, View: viewPayloadOf(definition), Columns: append([]catalog.Column(nil), b.Query.Root.Schema()...), Index: make(map[string]int), Attributes: make([]int32, len(b.Query.Root.Schema()))}
 	if old != nil {
 		*d = *old
 		d.ObjectRevision, d.View = revision, viewPayloadOf(definition)
-		d.Columns = append([]catalog.Column(nil), b.query.Root.Schema()...)
+		d.Columns = append([]catalog.Column(nil), b.Query.Root.Schema()...)
 		d.Attributes = make([]int32, len(d.Columns))
 		copy(d.Attributes, old.Attributes)
 		d.Index = make(map[string]int, len(d.Columns))
@@ -563,11 +535,11 @@ func (v *viewDefinition) validateNamespaces() error {
 		return fmt.Errorf("stuntgres: invalid view namespace count")
 	}
 	for _, ns := range v.namespaces {
-		project := v.frames[ns.frame]
+		project := v.frames[ns.Frame]
 		if project == nil {
 			return fmt.Errorf("stuntgres: missing view namespace frame")
 		}
-		if ns.node < viewSourceNamespace || ns.node > viewRegexpNamespace {
+		if ns.Node < viewSourceNamespace || ns.Node > viewRegexpNamespace {
 			return fmt.Errorf("stuntgres: invalid view namespace kind")
 		}
 		root := v.namespaceRoot(ns)
@@ -576,39 +548,39 @@ func (v *viewDefinition) validateNamespaces() error {
 		}
 		check := func(columns []viewNamespaceColumn) error {
 			for _, column := range columns {
-				if column.slot < 0 || column.slot >= len(root.Schema()) {
+				if column.Slot < 0 || column.Slot >= len(root.Schema()) {
 					return fmt.Errorf("stuntgres: invalid view namespace slot")
 				}
-				if column.leaf >= 0 {
-					if column.leaf >= len(v.sources) {
+				if column.Leaf >= 0 {
+					if column.Leaf >= len(v.sources) {
 						return fmt.Errorf("stuntgres: invalid view namespace occurrence")
 					}
 					found := false
-					for _, attribute := range v.sources[column.leaf].attributes {
-						found = found || attribute == column.attribute
+					for _, attribute := range v.sources[column.Leaf].attributes {
+						found = found || attribute == column.Attribute
 					}
 					if !found {
 						return fmt.Errorf("stuntgres: invalid view namespace attribute")
 					}
-				} else if column.attribute != 0 {
+				} else if column.Attribute != 0 {
 					return fmt.Errorf("stuntgres: invalid computed view namespace identity")
 				}
 			}
 			return nil
 		}
-		if err := check(ns.columns); err != nil {
+		if err := check(ns.Columns); err != nil {
 			return err
 		}
-		for _, q := range ns.qualifiers {
-			if err := check(q.columns); err != nil {
+		for _, q := range ns.Qualifiers {
+			if err := check(q.Columns); err != nil {
 				return err
 			}
 		}
-		if len(ns.keys) > len(ns.columns) {
+		if len(ns.Keys) > len(ns.Columns) {
 			return fmt.Errorf("stuntgres: invalid view USING namespace")
 		}
-		for i, key := range ns.keys {
-			if ns.columns[i].name != key {
+		for i, key := range ns.Keys {
+			if ns.Columns[i].Name != key {
 				return fmt.Errorf("stuntgres: invalid view USING key label")
 			}
 		}
@@ -650,27 +622,27 @@ func frozenNamespaceNode(root plan.Node) (uint8, int) {
 }
 
 func (v *viewDefinition) namespaceRoot(ns viewNamespace) plan.Node {
-	project := v.frames[ns.frame]
+	project := v.frames[ns.Frame]
 	if project == nil {
 		return nil
 	}
 	from := viewFromRoot(project)
-	switch ns.node {
+	switch ns.Node {
 	case viewSourceNamespace:
-		return viewSourceAt(from, ns.ordinal)
+		return viewSourceAt(from, ns.Ordinal)
 	case viewJoinNamespace:
-		return viewJoinAt(from, ns.ordinal)
+		return viewJoinAt(from, ns.Ordinal)
 	case viewValuesNamespace:
-		return viewValuesAt(from, ns.ordinal)
+		return viewValuesAt(from, ns.Ordinal)
 	case viewFunctionNamespace:
-		return viewFunctionFromAt(from, ns.ordinal, false)
+		return viewFunctionFromAt(from, ns.Ordinal, false)
 	case viewRegexpNamespace:
-		return viewFunctionFromAt(from, ns.ordinal, true)
+		return viewFunctionFromAt(from, ns.Ordinal, true)
 	case viewDerivedNamespace:
-		if ns.ordinal < 0 {
-			return viewCTEOrdinal(from, ns.ordinal)
+		if ns.Ordinal < 0 {
+			return viewCTEOrdinal(from, ns.Ordinal)
 		}
-		if child := v.frames[uint32(ns.ordinal)]; child != nil {
+		if child := v.frames[uint32(ns.Ordinal)]; child != nil {
 			return viewDerivedAt(from, child.Syntax)
 		}
 	}

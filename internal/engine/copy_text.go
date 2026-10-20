@@ -34,11 +34,11 @@ type copyCursor struct {
 }
 
 func newCopyCursor(scope *StatementScope, b binding, o copyOptions, r io.Reader) *copyCursor {
-	c := &copyCursor{scope: scope, binding: b, options: o, reader: bufio.NewReader(copyReader{scope, r}), defaults: make([]bool, len(b.relation.Columns)), omitted: make([]bool, len(b.relation.Columns))}
+	c := &copyCursor{scope: scope, binding: b, options: o, reader: bufio.NewReader(copyReader{scope, r}), defaults: make([]bool, len(b.Relation.Columns)), omitted: make([]bool, len(b.Relation.Columns))}
 	for i := range c.omitted {
 		c.omitted[i] = true
 	}
-	for _, target := range b.targets {
+	for _, target := range b.Targets {
 		c.omitted[target] = false
 	}
 	return c
@@ -219,11 +219,11 @@ func (c *copyCursor) split(defaultMarkers bool) error {
 		begin := len(c.decoded)
 		isNull := string(raw) == c.options.null
 		isDefault := defaultMarkers && c.options.hasDefault && string(raw) == c.options.def
-		if isDefault && len(c.fields) < len(c.binding.targets) {
-			target := c.binding.targets[len(c.fields)]
-			if len(c.binding.insert.defaults) == 0 || c.binding.insert.defaults[target] == nil {
+		if isDefault && len(c.fields) < len(c.binding.Targets) {
+			target := c.binding.Targets[len(c.fields)]
+			if len(c.binding.Insert.Defaults) == 0 || c.binding.Insert.Defaults[target] == nil {
 				d := c.lineError("unexpected default marker in COPY data", "").(*sqlstate.Error)
-				d.Detail = fmt.Sprintf("Column \"%s\" has no default value.", c.binding.relation.Columns[target].Name)
+				d.Detail = fmt.Sprintf("Column \"%s\" has no default value.", c.binding.Relation.Columns[target].Name)
 				return d
 			}
 		}
@@ -241,7 +241,7 @@ func (c *copyCursor) split(defaultMarkers bool) error {
 			return err
 		}
 	}
-	if len(c.binding.targets) == 0 && len(c.line) == 0 {
+	if len(c.binding.Targets) == 0 && len(c.line) == 0 {
 		c.fields = c.fields[:0]
 	}
 	return nil
@@ -257,11 +257,11 @@ func (c *copyCursor) header() error {
 	if err = c.split(false); err != nil {
 		return err
 	}
-	if len(c.fields) != len(c.binding.targets) {
-		return c.lineError(fmt.Sprintf("wrong number of fields in header line: got %d, expected %d", len(c.fields), len(c.binding.targets)), "")
+	if len(c.fields) != len(c.binding.Targets) {
+		return c.lineError(fmt.Sprintf("wrong number of fields in header line: got %d, expected %d", len(c.fields), len(c.binding.Targets)), "")
 	}
 	for i, field := range c.fields {
-		name := c.binding.relation.Columns[c.binding.targets[i]].Name
+		name := c.binding.Relation.Columns[c.binding.Targets[i]].Name
 		if field.isNull {
 			return c.lineError(fmt.Sprintf("column name mismatch in header line field %d: got null value (\"%s\"), expected \"%s\"", i+1, c.options.null, name), "")
 		}
@@ -310,8 +310,8 @@ func (c *copyCursor) Next(ctx context.Context, dst []sqltype.Value) (bool, error
 		return false, c.diagnostic(c.lineError("extra data after last expected column", ""))
 	}
 	copy(c.defaults, c.omitted)
-	for i, target := range c.binding.targets {
-		column := c.binding.relation.Columns[target]
+	for i, target := range c.binding.Targets {
+		column := c.binding.Relation.Columns[target]
 		if i >= len(c.fields) {
 			return false, c.diagnostic(c.lineError(fmt.Sprintf("missing data for column \"%s\"", column.Name), ""))
 		}
@@ -374,7 +374,7 @@ func (c *copyCursor) diagnostic(err error) error {
 		return err
 	}
 	result := *record
-	result.Context = fmt.Sprintf("COPY %s, line %d", c.binding.relation.Name(), c.number)
+	result.Context = fmt.Sprintf("COPY %s, line %d", c.binding.Relation.Name(), c.number)
 	if c.column != "" {
 		if c.nullInput {
 			result.Context += fmt.Sprintf(", column %s: null input", c.column)

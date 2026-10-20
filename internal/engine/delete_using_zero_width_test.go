@@ -12,15 +12,15 @@ func TestDeleteUsingZeroWidthCardinality(t *testing.T) {
 		sessionSQL(t, session, q)
 	}
 	op, scope, b, target, inputs := updateFromBoundSources(t, e, session, context.Background(), "DELETE FROM t USING s RETURNING 1 AS one")
-	if b.delete.sourceWidth != 0 || len(b.relation.Columns) != 0 || target.Count() != 2 {
-		t.Fatal("width confused with occurrence count", b.delete.sourceWidth, target.Count())
+	if b.Delete.SourceWidth != 0 || len(b.Relation.Columns) != 0 || target.Count() != 2 {
+		t.Fatal("width confused with occurrence count", b.Delete.SourceWidth, target.Count())
 	}
 	r, err := scope.deleteSource(b, target, inputs, nil)
 	if r.Rows != nil {
 		t.Cleanup(func() { r.Rows.Close() })
 	}
 	target.Close()
-	if err != nil || r.Count != 2 || len(scope.stage.deletes[b.ref.Address].Rows) != 2 {
+	if err != nil || r.Count != 2 || len(scope.stage.deletes[b.Ref.Address].Rows) != 2 {
 		t.Fatal(r, err)
 	}
 	got := tuples(r)

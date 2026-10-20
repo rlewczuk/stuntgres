@@ -49,106 +49,106 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 	var seen map[*plan.CTEDefinition]bool
 	var bindingRefs func(binding) error
 	bindingRefs = func(b binding) error {
-		if err := targets(b.arrayTargets); err != nil {
+		if err := targets(b.ArrayTargets); err != nil {
 			return err
 		}
-		if b.relation != nil {
-			for _, slot := range b.targets {
-				a := b.ref.Address
-				a.SubID = b.relation.Attributes[slot]
+		if b.Relation != nil {
+			for _, slot := range b.Targets {
+				a := b.Ref.Address
+				a.SubID = b.Relation.Attributes[slot]
 				add([]ids.ObjectAddress{a})
 			}
-			if len(b.targets) == 0 {
-				add([]ids.ObjectAddress{b.ref.Address})
+			if len(b.Targets) == 0 {
+				add([]ids.ObjectAddress{b.Ref.Address})
 			}
 		}
-		items, err := pgDependQueryRefs(ctx, catalog, nil, b.query)
+		items, err := pgDependQueryRefs(ctx, catalog, nil, b.Query)
 		if err != nil {
 			return err
 		}
 		add(items)
-		for _, row := range b.expressions {
+		for _, row := range b.Expressions {
 			for _, e := range row {
 				if err := expr(e); err != nil {
 					return err
 				}
 			}
 		}
-		if err := expr(b.predicate); err != nil {
+		if err := expr(b.Predicate); err != nil {
 			return err
 		}
-		if b.update != nil {
-			if err := targets(b.update.arrayTargets); err != nil {
+		if b.Update != nil {
+			if err := targets(b.Update.ArrayTargets); err != nil {
 				return err
 			}
-			for _, e := range b.update.assignments {
+			for _, e := range b.Update.Assignments {
 				if err := expr(e); err != nil {
 					return err
 				}
 			}
-			if err := expr(b.update.predicate); err != nil {
+			if err := expr(b.Update.Predicate); err != nil {
 				return err
 			}
-			items, err := pgDependQueryRefs(ctx, catalog, nil, &plan.Query{Root: b.update.from})
+			items, err := pgDependQueryRefs(ctx, catalog, nil, &plan.Query{Root: b.Update.From})
 			if err != nil {
 				return err
 			}
 			add(items)
 		}
-		if b.delete.using != nil {
-			items, err := pgDependQueryRefs(ctx, catalog, nil, &plan.Query{Root: b.delete.using})
+		if b.Delete.Using != nil {
+			items, err := pgDependQueryRefs(ctx, catalog, nil, &plan.Query{Root: b.Delete.Using})
 			if err != nil {
 				return err
 			}
 			add(items)
 		}
-		if b.returning != nil {
-			for _, e := range b.returning.expressions {
+		if b.Returning != nil {
+			for _, e := range b.Returning.Expressions {
 				if err := expr(e); err != nil {
 					return err
 				}
 			}
 		}
-		if b.insert.conflict != nil {
-			if insertConflictOf(b.insert.conflict).constraint != (ids.ObjectAddress{}) {
-				add([]ids.ObjectAddress{insertConflictOf(b.insert.conflict).constraint})
+		if b.Insert.Conflict != nil {
+			if insertConflictOf(b.Insert.Conflict).constraint != (ids.ObjectAddress{}) {
+				add([]ids.ObjectAddress{insertConflictOf(b.Insert.Conflict).constraint})
 			}
-			for _, key := range insertConflictOf(b.insert.conflict).keys {
+			for _, key := range insertConflictOf(b.Insert.Conflict).keys {
 				if err := expr(key.expression); err != nil {
 					return err
 				}
 			}
-			if err := expr(insertConflictOf(b.insert.conflict).predicate); err != nil {
+			if err := expr(insertConflictOf(b.Insert.Conflict).predicate); err != nil {
 				return err
 			}
-			if insertConflictOf(b.insert.conflict).update != nil {
+			if insertConflictOf(b.Insert.Conflict).update != nil {
 				// PostgreSQL's EXCLUDED targetlist captures every live attribute
 				// at definition time, independently of executable ACL read demand.
-				for _, attribute := range b.relation.Attributes {
-					a := b.ref.Address
+				for _, attribute := range b.Relation.Attributes {
+					a := b.Ref.Address
 					a.SubID = attribute
 					add([]ids.ObjectAddress{a})
 				}
-				if err := targets(insertConflictOf(b.insert.conflict).update.arrayTargets); err != nil {
+				if err := targets(insertConflictOf(b.Insert.Conflict).update.ArrayTargets); err != nil {
 					return err
 				}
-				for i, value := range insertConflictOf(b.insert.conflict).update.assignments {
+				for i, value := range insertConflictOf(b.Insert.Conflict).update.Assignments {
 					if err := expr(value); err != nil {
 						return err
 					}
-					a := b.ref.Address
-					a.SubID = b.relation.Attributes[insertConflictOf(b.insert.conflict).updateTargets[i]]
+					a := b.Ref.Address
+					a.SubID = b.Relation.Attributes[insertConflictOf(b.Insert.Conflict).updateTargets[i]]
 					add([]ids.ObjectAddress{a})
 				}
-				if err := expr(insertConflictOf(b.insert.conflict).update.predicate); err != nil {
+				if err := expr(insertConflictOf(b.Insert.Conflict).update.Predicate); err != nil {
 					return err
 				}
 			}
 		}
-		for _, dependency := range b.dependencies {
+		for _, dependency := range b.Dependencies {
 			add([]ids.ObjectAddress{dependency.Ref.Address})
 		}
-		for _, definition := range b.ctes {
+		for _, definition := range b.CTEs {
 			mutation, ok := mutationBinding(definition)
 			if !ok || seen[definition] {
 				continue

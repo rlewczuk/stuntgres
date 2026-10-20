@@ -148,20 +148,20 @@ func TestUpdateCoreLateEvaluatorFailure(t *testing.T) {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	view, err := scope.acquireDataViewLocked(e, bound.ref)
+	view, err := scope.acquireDataViewLocked(e, bound.Ref)
 	e.mu.Unlock()
 	if err != nil {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	source, err := captureQuerySource(op.Context(), view, bound.ref)
+	source, err := captureQuerySource(op.Context(), view, bound.Ref)
 	if err != nil {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
 	sentinel := errors.New("late evaluator failure")
 	calls := 0
-	bound.update.assignments[0] = queryProbe(bound.relation.Columns[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
+	bound.Update.Assignments[0] = queryProbe(bound.Relation.Columns[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 		calls++
 		if calls == 2 {
 			return sqltype.Value{}, sentinel

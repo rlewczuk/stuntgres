@@ -122,7 +122,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	frame := make([]sqltype.Value, len(b.relation.Columns)+width)
+	frame := make([]sqltype.Value, len(b.Relation.Columns)+width)
 	evaluation := state.Evaluation(ctx)
 	evaluation.Row = frame
 	evaluation.PresenceSlots = presenceSlots
@@ -135,13 +135,13 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 	}
 	var pairs []mergeCandidate
 	var targetMatched []bool
-	if b.merge.hasBySource {
+	if b.Merge.HasBySource {
 		targetMatched = make([]bool, target.Count())
 	}
 	capture := func(i int, class parser.MergeMatch, source int) mergeCandidate {
 		slot := target.RawIndex(i)
 		old := target.VersionAt(slot)
-		deletion := visibility.DeleteCandidate{Ref: b.ref, Storage: b.storage, Row: old.Row, Version: old.Version, Ordinal: slot}
+		deletion := visibility.DeleteCandidate{Ref: b.Ref, Storage: b.Storage, Row: old.Row, Version: old.Version, Ordinal: slot}
 		if slot >= len(target.Committed) {
 			deletion.Own = true
 			deletion.Ordinal -= len(target.Committed)
@@ -152,13 +152,13 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 		if presenceCount != 0 {
 			evaluation.Presence = presence[j*presenceCount : (j+1)*presenceCount]
 		}
-		copy(frame[len(b.relation.Columns):], sources[j*width:(j+1)*width])
+		copy(frame[len(b.Relation.Columns):], sources[j*width:(j+1)*width])
 		bindIdentity(j)
 		matched := false
 		for i := range target.Count() {
 			old := target.VersionAt(target.RawIndex(i))
 			copy(frame, old.Values)
-			truth, err := mergeMatches(&evaluation, b.merge.on)
+			truth, err := mergeMatches(&evaluation, b.Merge.On)
 			if err != nil {
 				return nil, err
 			}
@@ -170,7 +170,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 				}
 			}
 		}
-		if !matched && b.merge.hasByTarget {
+		if !matched && b.Merge.HasByTarget {
 			pairs = append(pairs, mergeCandidate{updateCandidate: updateCandidate{sourceIndex: j}, class: parser.MergeNotMatched})
 		}
 	}
@@ -180,7 +180,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 		}
 	}
 	var nullSource []sqltype.Value
-	if b.merge.hasBySource && (b.merge.hasInsert || b.returning != nil) {
+	if b.Merge.HasBySource && (b.Merge.HasInsert || b.Returning != nil) {
 		nullSource = make([]sqltype.Value, width)
 		for i, column := range sourceSchema {
 			nullSource[i] = sqltype.Null(column.Usage.Type)
@@ -198,7 +198,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 		}
 	}()
 	var accepted map[ids.RowID]bool
-	if len(b.merge.updateTargets) != 0 || b.merge.hasDelete {
+	if len(b.Merge.UpdateTargets) != 0 || b.Merge.HasDelete {
 		accepted = make(map[ids.RowID]bool)
 	}
 	var excluded []storage.RowVersion
@@ -209,7 +209,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 		source := nullSource
 		if candidate.sourceIndex >= 0 {
 			source = sources[candidate.sourceIndex*width : (candidate.sourceIndex+1)*width]
-			copy(frame[len(b.relation.Columns):], source)
+			copy(frame[len(b.Relation.Columns):], source)
 			bindIdentity(candidate.sourceIndex)
 			if presenceCount != 0 {
 				evaluation.Presence = presence[candidate.sourceIndex*presenceCount : (candidate.sourceIndex+1)*presenceCount]
@@ -231,11 +231,11 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 			}
 		}
 		setFrame()
-		if class == parser.MergeMatched && b.merge.hasBySource {
+		if class == parser.MergeMatched && b.Merge.HasBySource {
 			// BY SOURCE action classification owns a guarded ON evaluation,
 			// distinct from candidate matching and later update-chain rechecks.
 			// Initial BY SOURCE has no source row, so its guard skips ON.
-			matched, err := mergeMatches(&evaluation, b.merge.on)
+			matched, err := mergeMatches(&evaluation, b.Merge.On)
 			if err != nil {
 				return nil, err
 			}
@@ -244,24 +244,24 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 				setFrame()
 			}
 		}
-		arm, err := selectMergeArm(b.merge, &evaluation, class)
+		arm, err := selectMergeArm(b.Merge, &evaluation, class)
 		if err != nil {
 			return nil, err
 		}
-		if arm == nil || arm.action == parser.MergeNothingAction {
+		if arm == nil || arm.Action == parser.MergeNothingAction {
 			continue
 		}
 		sourceAfter := false
 		if class != parser.MergeNotMatched {
-			if arm.action == parser.MergeDeleteAction {
+			if arm.Action == parser.MergeDeleteAction {
 				err = scope.acquireRow(candidate.deletion)
 			} else {
-				err = scope.acquireUpdateRow(b.ref, old.Row)
+				err = scope.acquireUpdateRow(b.Ref, old.Row)
 			}
 			if err != nil {
 				return nil, err
 			}
-			latest, live, err := e.latestMergeRow(scope, b.ref, candidate.updateCandidate)
+			latest, live, err := e.latestMergeRow(scope, b.Ref, candidate.updateCandidate)
 			if err != nil {
 				return nil, err
 			}
@@ -270,25 +270,25 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 				if err != nil {
 					return nil, err
 				}
-				if strong && arm.action != parser.MergeDeleteAction {
-					if err := scope.acquireUpdateRowMode(b.ref, old.Row, lock.ForUpdate); err != nil {
+				if strong && arm.Action != parser.MergeDeleteAction {
+					if err := scope.acquireUpdateRowMode(b.Ref, old.Row, lock.ForUpdate); err != nil {
 						return nil, err
 					}
-					latest, live, err = e.latestMergeRow(scope, b.ref, candidate.updateCandidate)
+					latest, live, err = e.latestMergeRow(scope, b.Ref, candidate.updateCandidate)
 					if err != nil {
 						return nil, err
 					}
 				}
 				lockMode := lock.MultiNoKeyLock
-				if strong || arm.action == parser.MergeDeleteAction {
+				if strong || arm.Action == parser.MergeDeleteAction {
 					lockMode = lock.MultiUpdateLock
 				}
-				if err := scope.physicalRowEvent(b.ref, latest, lockMode, 0); err != nil {
+				if err := scope.physicalRowEvent(b.Ref, latest, lockMode, 0); err != nil {
 					return nil, err
 				}
 			}
 			if !live {
-				if class == parser.MergeNotMatchedBySource && arm.action == parser.MergeDeleteAction {
+				if class == parser.MergeNotMatchedBySource && arm.Action == parser.MergeDeleteAction {
 					continue
 				}
 				class = parser.MergeNotMatched
@@ -296,22 +296,22 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 				old = latest
 				setFrame()
 				if class == parser.MergeMatched {
-					matched, err := mergeMatches(&evaluation, b.merge.on)
+					matched, err := mergeMatches(&evaluation, b.Merge.On)
 					if err != nil {
 						return nil, err
 					}
 					if !matched {
 						class = parser.MergeNotMatched
-						if b.merge.hasBySource {
+						if b.Merge.HasBySource {
 							class = parser.MergeNotMatchedBySource
-							sourceAfter = b.merge.hasByTarget
+							sourceAfter = b.Merge.HasByTarget
 						}
 					}
 				}
 			}
 			if !live || latest.Version != candidate.Version {
 				setFrame()
-				arm, err = selectMergeArm(b.merge, &evaluation, class)
+				arm, err = selectMergeArm(b.Merge, &evaluation, class)
 				if err != nil {
 					return nil, err
 				}
@@ -321,20 +321,20 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 		// and then on its retained missing-target source. Initial BY SOURCE never
 		// enters MATCHED merely because a peer made ON true.
 		for {
-			if arm != nil && arm.action != parser.MergeNothingAction {
+			if arm != nil && arm.Action != parser.MergeNothingAction {
 				if err := e.appendMergeAction(scope, b, result, &evaluation, schema, unique, arm, old, candidate.deletion, accepted, &excluded); err != nil {
 					return nil, err
 				}
 				if output != nil {
 					actualOld := old.Values
 					var row []sqltype.Value
-					if arm.action != parser.MergeDeleteAction {
+					if arm.Action != parser.MergeDeleteAction {
 						row = result.values[len(result.values)-1]
 					}
-					if arm.action == parser.MergeInsertAction {
+					if arm.Action == parser.MergeInsertAction {
 						actualOld = nil
 					}
-					if err := output.project(b, &evaluation, arm.action, actualOld, row, source, candidate.sourceIndex >= 0); err != nil {
+					if err := output.project(b, &evaluation, arm.Action, actualOld, row, source, candidate.sourceIndex >= 0); err != nil {
 						return nil, err
 					}
 				}
@@ -345,7 +345,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 			sourceAfter = false
 			class = parser.MergeNotMatched
 			setFrame()
-			arm, err = selectMergeArm(b.merge, &evaluation, class)
+			arm, err = selectMergeArm(b.Merge, &evaluation, class)
 			if err != nil {
 				return nil, err
 			}
@@ -363,16 +363,16 @@ func mergeCardinalityError() error {
 }
 
 func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mergeRows, evaluation *exec.Context, schema string, unique bool, arm *boundMergeArm, old storage.RowVersion, deletion visibility.DeleteCandidate, accepted map[ids.RowID]bool, excluded *[]storage.RowVersion) error {
-	if arm.action == parser.MergeDeleteAction {
+	if arm.Action == parser.MergeDeleteAction {
 		if accepted[old.Row] {
 			return mergeCardinalityError()
 		}
 		// Initial DELETE owns rowUpdate before following a predecessor; an
 		// initial UPDATE restarts under the hasDelete strong-mode union.
-		if err := scope.claimUniqueRow(b.ref, old); err != nil {
+		if err := scope.claimUniqueRow(b.Ref, old); err != nil {
 			return err
 		}
-		if err := scope.physicalRowEvent(b.ref, old, lock.MultiUpdateAction, 0); err != nil {
+		if err := scope.physicalRowEvent(b.Ref, old, lock.MultiUpdateAction, 0); err != nil {
 			return err
 		}
 		*excluded = append(*excluded, old)
@@ -384,21 +384,21 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 		scope.projectExclusionDeletionLocked(e, projected)
 		e.mu.Unlock()
 		accepted[old.Row] = true
-		result.actions = append(result.actions, mergeActionRow{action: arm.action, deletion: deletion})
+		result.actions = append(result.actions, mergeActionRow{action: arm.Action, deletion: deletion})
 		return nil
 	}
-	row := make([]sqltype.Value, len(b.relation.Columns))
-	if arm.action == parser.MergeUpdateAction {
+	row := make([]sqltype.Value, len(b.Relation.Columns))
+	if arm.Action == parser.MergeUpdateAction {
 		copy(row, old.Values)
-		for i, expression := range arm.input.update.assignments {
+		for i, expression := range arm.Input.Update.Assignments {
 			if expression == nil {
 				continue
 			}
-			target := arm.input.targets[i]
+			target := arm.Input.Targets[i]
 			var value sqltype.Value
 			var err error
-			if len(arm.input.update.arrayTargets) != 0 && arm.input.update.arrayTargets[i] != nil {
-				value, err = arm.input.update.arrayTargets[i].ApplyExpression(evaluation, row[target], expression)
+			if len(arm.Input.Update.ArrayTargets) != 0 && arm.Input.Update.ArrayTargets[i] != nil {
+				value, err = arm.Input.Update.ArrayTargets[i].ApplyExpression(evaluation, row[target], expression)
 			} else {
 				value, err = expression.Eval(evaluation)
 			}
@@ -408,16 +408,16 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 			row[target] = value
 		}
 	} else {
-		for i, column := range b.relation.Columns {
+		for i, column := range b.Relation.Columns {
 			row[i] = sqltype.Null(column.Usage.Type)
 		}
-		if err := evaluateInsertValuesRow(scope.inquiry.commentCatalog, &arm.input, arm.input.expressions[0], arm.syntax, row, false, evaluation); err != nil {
+		if err := evaluateInsertValuesRow(scope.inquiry.commentCatalog, &arm.Input, arm.Input.Expressions[0], arm.Syntax, row, false, evaluation); err != nil {
 			return err
 		}
 	}
 	rowContext := *evaluation
 	scope.rlsProposal = scope.rlsMergeInsert
-	if arm.action == parser.MergeUpdateAction {
+	if arm.Action == parser.MergeUpdateAction {
 		scope.rlsProposal = scope.rlsMergeUpdate
 	}
 	if err := e.validateInsertRow(scope, b, schema, row, &rowContext); err != nil {
@@ -425,21 +425,21 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 	}
 	predecessor := storage.RowVersion{}
 	var actionMode lock.MultiMode
-	if arm.action == parser.MergeUpdateAction {
+	if arm.Action == parser.MergeUpdateAction {
 		// Demanded projection/constraints precede second-modification arbitration.
 		if accepted[old.Row] {
 			return mergeCardinalityError()
 		}
-		keyChanged, err := scope.uniqueKeyChanged(b.ref, old.Values, row)
+		keyChanged, err := scope.uniqueKeyChanged(b.Ref, old.Values, row)
 		if err != nil {
 			return err
 		}
 		if keyChanged {
-			if err := scope.acquireUpdateRowMode(b.ref, old.Row, lock.ForUpdate); err != nil {
+			if err := scope.acquireUpdateRowMode(b.Ref, old.Row, lock.ForUpdate); err != nil {
 				return err
 			}
 		}
-		if err := scope.claimUniqueRow(b.ref, old); err != nil {
+		if err := scope.claimUniqueRow(b.Ref, old); err != nil {
 			return err
 		}
 		old.PendingKeyChange = old.PendingKeyChange || keyChanged
@@ -447,7 +447,7 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 		if keyChanged {
 			actionMode = lock.MultiUpdateAction
 		}
-		if err := scope.physicalRowEvent(b.ref, old, actionMode, 0); err != nil {
+		if err := scope.physicalRowEvent(b.Ref, old, actionMode, 0); err != nil {
 			return err
 		}
 		*excluded = append(*excluded, old)
@@ -455,14 +455,14 @@ func (e *Engine) appendMergeAction(scope *StatementScope, b binding, result *mer
 	}
 	candidate := indexWriteCandidate{values: row}
 	if unique {
-		if err := scope.checkUniqueRow(b.ref, &candidate, *excluded, result.indexWriteBatch); err != nil {
+		if err := scope.checkUniqueRow(b.Ref, &candidate, *excluded, result.indexWriteBatch); err != nil {
 			return err
 		}
 	}
-	if arm.action == parser.MergeUpdateAction {
+	if arm.Action == parser.MergeUpdateAction {
 		accepted[old.Row] = true
 	}
-	result.actions = append(result.actions, mergeActionRow{action: arm.action, payload: len(result.values), updateMode: actionMode})
+	result.actions = append(result.actions, mergeActionRow{action: arm.Action, payload: len(result.values), updateMode: actionMode})
 	result.predecessors = append(result.predecessors, predecessor)
 	result.append(candidate)
 	return nil
@@ -478,12 +478,12 @@ func mergeMatches(evaluation *exec.Context, on expr.Expr) (bool, error) {
 }
 
 func selectMergeArm(merge *boundMerge, evaluation *exec.Context, class parser.MergeMatch) (*boundMergeArm, error) {
-	for i := range merge.arms {
-		arm := &merge.arms[i]
-		if arm.match != class {
+	for i := range merge.Arms {
+		arm := &merge.Arms[i]
+		if arm.Match != class {
 			continue
 		}
-		selected, err := exec.UpdateMatches(evaluation, arm.condition)
+		selected, err := exec.UpdateMatches(evaluation, arm.Condition)
 		if err != nil {
 			return nil, err
 		}
@@ -495,15 +495,15 @@ func selectMergeArm(merge *boundMerge, evaluation *exec.Context, class parser.Me
 }
 
 func (s *StatementScope) mergeFollowChainStrong(b binding) (bool, error) {
-	if b.merge.hasDelete {
+	if b.Merge.HasDelete {
 		return true, nil
 	}
-	unique, err := s.bindUniqueWrite(b.ref)
+	unique, err := s.bindUniqueWrite(b.Ref)
 	if err != nil {
 		return false, err
 	}
 	for _, key := range unique.keySlots {
-		for _, target := range b.merge.updateTargets {
+		for _, target := range b.Merge.UpdateTargets {
 			if key == target {
 				return true, nil
 			}

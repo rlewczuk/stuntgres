@@ -159,7 +159,7 @@ func sameViewRelation(a, b ids.ObjectRef) bool {
 }
 
 func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.Statement, consumed ...ids.ObjectRef) error {
-	if b.relation == nil || b.relation.RelationKind != catalog.ViewRelation {
+	if b.Relation == nil || b.Relation.RelationKind != catalog.ViewRelation {
 		return nil
 	}
 	operation := ""
@@ -174,9 +174,9 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 		return nil
 	}
 	w := &viewWrite{logical: *b}
-	w.logical.viewWrite = nil
-	d, ref := b.relation, b.ref
-	targets := append([]int(nil), b.targets...)
+	w.logical.ViewWrite = nil
+	d, ref := b.Relation, b.Ref
+	targets := append([]int(nil), b.Targets...)
 	seen := make(map[ids.ObjectRef]bool)
 	// outputs start in the logical target's canonical mutation frame.
 	outputs := make([]expr.Expr, len(d.Columns))
@@ -254,10 +254,10 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 			for j, prior := range mapped[:i] {
 				if prior == mapped[i] {
 					partial := false
-					if b.update != nil {
-						partial = len(b.update.arrayTargets) != 0 && b.update.arrayTargets[i] != nil && b.update.arrayTargets[j] != nil
+					if b.Update != nil {
+						partial = len(b.Update.ArrayTargets) != 0 && b.Update.ArrayTargets[i] != nil && b.Update.ArrayTargets[j] != nil
 					} else {
-						partial = len(b.arrayTargets) != 0 && b.arrayTargets[i] != nil && b.arrayTargets[j] != nil
+						partial = len(b.ArrayTargets) != 0 && b.ArrayTargets[i] != nil && b.ArrayTargets[j] != nil
 					}
 					if !partial {
 						return sqlError("42601", fmt.Sprintf("multiple assignments to same column %q", source.Columns[prior].Name))
@@ -395,8 +395,8 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 		}
 	}
 	w.base, w.ref, w.outputs = d, ref, outputs
-	b.viewWrite = viewWriteSlotOf(w)
-	b.targets = targets
+	b.ViewWrite = viewWriteSlotOf(w)
+	b.Targets = targets
 	return e.lowerViewWrite(b, auth, stmt)
 }
 
@@ -414,8 +414,8 @@ func rewriteViewExpression(view catalog.Read, bound expr.Expr, recipe *catalog.R
 }
 
 func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.Statement) error {
-	w := viewWriteOf(b.viewWrite)
-	logicalWidth, physicalWidth := len(w.logical.relation.Columns), len(w.base.Columns)
+	w := viewWriteOf(b.ViewWrite)
+	logicalWidth, physicalWidth := len(w.logical.Relation.Columns), len(w.base.Columns)
 	graft := func(root plan.Node, mapper func(expr.Expr) (expr.Expr, bool, error)) (plan.Node, error) {
 		return w.graftQuery(b, auth.Catalog, root, mapper)
 	}
@@ -423,12 +423,12 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 		return rewriteViewExpression(auth.Catalog, bound, nil, func(n expr.Expr) (expr.Expr, bool, error) {
 			switch n.(type) {
 			case plan.SubqueryExpr:
-				b.subqueryDemand = true
+				b.SubqueryDemand = true
 			case plan.ExtensionPathsExpr:
 				// This binding flag owns nonquery catalog/role capture in
 				// executeBoundCommandLocked; expressionBinder.catalogSnapshot is
 				// analysis-only and is not a field of binding.
-				b.prepared.regclassConcat = true
+				b.Prepared.RegclassConcat = true
 			case functions.Binary:
 				node := n.(functions.Binary)
 				if !node.Plan.Immutable() {
@@ -439,12 +439,12 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 							break
 						}
 					}
-					b.visibilitySnapshot = b.visibilitySnapshot || demand
+					b.VisibilitySnapshot = b.VisibilitySnapshot || demand
 				}
 			case expr.SnapshotDemander:
 				_, catalogText, visibility := n.(expr.SnapshotDemander).SnapshotDemand(exec.RandomLiteralNull)
-				b.prepared.regclassConcat = b.prepared.regclassConcat || catalogText
-				b.visibilitySnapshot = b.visibilitySnapshot || visibility
+				b.Prepared.RegclassConcat = b.Prepared.RegclassConcat || catalogText
+				b.VisibilitySnapshot = b.VisibilitySnapshot || visibility
 			}
 			old, absent := false, false
 			var c plan.ColumnExpr
@@ -457,7 +457,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 			default:
 				return n, false, nil
 			}
-			if sameViewRelation(c.Origin, w.logical.ref) && c.Frame == 1 {
+			if sameViewRelation(c.Origin, w.logical.Ref) && c.Frame == 1 {
 				if c.Slot < 0 || c.Slot >= len(w.outputs) {
 					return nil, false, ids.ErrCatalogReplaced
 				}
@@ -528,65 +528,65 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 			}
 		}
 	}
-	if b.update != nil {
-		u := *b.update
-		u.assignments = append([]expr.Expr(nil), u.assignments...)
-		for i, x := range u.assignments {
-			u.assignments[i], err = lower(x)
+	if b.Update != nil {
+		u := *b.Update
+		u.Assignments = append([]expr.Expr(nil), u.Assignments...)
+		for i, x := range u.Assignments {
+			u.Assignments[i], err = lower(x)
 			if err != nil {
 				return err
 			}
 		}
-		if len(u.arrayTargets) != 0 {
+		if len(u.ArrayTargets) != 0 {
 			var replacements []*plan.ArrayAssignmentTarget
-			for i, target := range u.arrayTargets {
+			for i, target := range u.ArrayTargets {
 				next, failure := lowerTarget(target)
 				if failure != nil {
 					return failure
 				}
 				if next != target {
 					if replacements == nil {
-						replacements = append([]*plan.ArrayAssignmentTarget(nil), u.arrayTargets...)
+						replacements = append([]*plan.ArrayAssignmentTarget(nil), u.ArrayTargets...)
 					}
 					replacements[i] = next
 				}
 			}
 			if replacements != nil {
-				u.arrayTargets = replacements
+				u.ArrayTargets = replacements
 			}
 		}
-		u.predicate, err = lower(u.predicate)
+		u.Predicate, err = lower(u.Predicate)
 		if err != nil {
 			return err
 		}
-		u.predicate = viewWritePredicate(w.predicates, u.predicate)
-		b.update = &u
+		u.Predicate = viewWritePredicate(w.predicates, u.Predicate)
+		b.Update = &u
 	} else if _, ok := stmt.(*parser.Delete); ok {
-		b.predicate, err = lower(b.predicate)
+		b.Predicate, err = lower(b.Predicate)
 		if err != nil {
 			return err
 		}
-		b.predicate = viewWritePredicate(w.predicates, b.predicate)
+		b.Predicate = viewWritePredicate(w.predicates, b.Predicate)
 	}
-	if b.returning != nil {
-		r := *b.returning
-		r.expressions = append([]expr.Expr(nil), r.expressions...)
-		for i, x := range r.expressions {
-			r.expressions[i], err = lower(x)
+	if b.Returning != nil {
+		r := *b.Returning
+		r.Expressions = append([]expr.Expr(nil), r.Expressions...)
+		for i, x := range r.Expressions {
+			r.Expressions[i], err = lower(x)
 			if err != nil {
 				return err
 			}
 		}
-		b.returning = &r
+		b.Returning = &r
 	}
-	if b.insert.conflict != nil {
-		conflict := *insertConflictOf(b.insert.conflict)
-		conflict.targets = b.targets
+	if b.Insert.Conflict != nil {
+		conflict := *insertConflictOf(b.Insert.Conflict)
+		conflict.targets = b.Targets
 		conflict.keys = append([]conflictKey(nil), conflict.keys...)
 		for i, key := range conflict.keys {
 			if key.attribute != 0 {
 				slot := -1
-				for j, attr := range w.logical.relation.Attributes {
+				for j, attr := range w.logical.Relation.Attributes {
 					if attr == key.attribute {
 						slot = j
 						break
@@ -611,13 +611,13 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 		if err != nil {
 			return err
 		}
-		b.insert.conflict = insertConflictSlotOf(&conflict)
+		b.Insert.Conflict = insertConflictSlotOf(&conflict)
 	}
 	if insert, ok := stmt.(*parser.Insert); ok {
 		return e.lowerViewInsert(b, auth, insert)
 	}
 	if _, ok := stmt.(*parser.Update); ok {
-		for _, slot := range b.targets {
+		for _, slot := range b.Targets {
 			name := w.base.Columns[slot].Name
 			attr := w.base.Attributes[slot]
 			if _, generated := w.base.ColumnMeta.Generations[attr]; generated {
@@ -629,11 +629,11 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 				d.Hint = ""
 				return d
 			}
-			for i, target := range b.targets {
-				if target == slot && b.update.assignments[i] == nil {
+			for i, target := range b.Targets {
+				if target == slot && b.Update.Assignments[i] == nil {
 					pos := parser.Position{}
-					if len(b.update.origins) != 0 {
-						pos = b.update.origins[i]
+					if len(b.Update.Origins) != 0 {
+						pos = b.Update.Origins[i]
 					} else {
 						pos = stmt.(*parser.Update).Assignments[i].Value.SourcePosition()
 					}

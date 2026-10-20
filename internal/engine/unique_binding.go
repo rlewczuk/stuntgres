@@ -7,15 +7,6 @@ import (
 	"stuntgres/internal/parser"
 )
 
-// Source provenance is CREATE-local, never part of the persistent constraint.
-// Ordinary LIKE index copies retain their existing independent copy semantics.
-type createUniqueConstraint struct {
-	catalog.UniqueConstraint
-	source       *catalog.Relation
-	like         *createLikeInput
-	copyComments bool
-}
-
 func bindCreateUniques(s *parser.CreateTable, index map[string]int, likes []createLikeInput, view catalog.Read) ([]createUniqueConstraint, error) {
 	table := s.Name.Parts[len(s.Name.Parts)-1].Text
 	var declarations []createUniqueConstraint
@@ -77,10 +68,10 @@ func bindCreateUniques(s *parser.CreateTable, index map[string]int, likes []crea
 	// redundancy candidate. It is retained first, even before explicit UNIQUE.
 	for i := range likes {
 		in := &likes[i]
-		if in.options&likeIndexes == 0 {
+		if in.Options&LikeIndexes == 0 {
 			continue
 		}
-		for _, old := range in.source.Constraints.Unique {
+		for _, old := range in.Source.Constraints.Unique {
 			if !old.Primary {
 				continue
 			}
@@ -91,13 +82,13 @@ func bindCreateUniques(s *parser.CreateTable, index map[string]int, likes []crea
 			if !ok || source.SQLIndex == nil {
 				return nil, fmt.Errorf("stuntgres: missing LIKE primary backing")
 			}
-			c := createUniqueConstraint{UniqueConstraint: catalog.UniqueConstraint{Primary: true, Attributes: make([]int32, len(old.Attributes))}, source: source, like: in, copyComments: in.options&likeComments != 0}
+			c := createUniqueConstraint{UniqueConstraint: catalog.UniqueConstraint{Primary: true, Attributes: make([]int32, len(old.Attributes))}, Source: source, Like: in, CopyComments: in.Options&LikeComments != 0}
 			for i, attribute := range old.Attributes {
-				slot := slices.Index(in.source.Attributes, attribute)
+				slot := slices.Index(in.Source.Attributes, attribute)
 				if slot < 0 {
 					return nil, fmt.Errorf("stuntgres: missing LIKE primary attribute")
 				}
-				c.Attributes[i] = int32(in.offset + slot + 1)
+				c.Attributes[i] = int32(in.Offset + slot + 1)
 			}
 			retained = append(retained, createUniqueConstraint{})
 			copy(retained[1:], retained[:len(retained)-1])

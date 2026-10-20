@@ -104,12 +104,12 @@ func TestViewWriteMapping(t *testing.T) {
 	f := viewWriteMechanics(t)
 	scope, op := f.scope(t)
 	auth := f.authorization(t, op)
-	b := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, update: &boundUpdate{assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
+	b := binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &boundUpdate{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
 	if err := f.e.bindViewWrite(&b, auth, &parser.Update{}); err != nil {
 		t.Fatal(err)
 	}
-	if b.relation != f.view || b.ref != f.viewRef || b.targets[0] != 1 || physicalBinding(b).ref != f.baseRef {
-		t.Fatal("logical/physical authority conflated", b.targets)
+	if b.Relation != f.view || b.Ref != f.viewRef || b.Targets[0] != 1 || physicalBinding(b).Ref != f.baseRef {
+		t.Fatal("logical/physical authority conflated", b.Targets)
 	}
 	// Creation slots survive current dense compaction and column renames.
 	compact := *f.base
@@ -164,12 +164,12 @@ func TestViewWriteDefaults(t *testing.T) {
 	scope, op := f.scope(t)
 	constant, _ := sqltype.Integer(f.integer, 42)
 	f.base.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{19: {Expression: plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: constant}}}
-	b := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, expressions: [][]expr.Expr{{nil}}}
+	b := binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Expressions: [][]expr.Expr{{nil}}}
 	if err := f.e.bindViewWrite(&b, f.authorization(t, op), &parser.Insert{Rows: [][]parser.Expr{{parser.DefaultExpr{}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if len(b.insert.defaults) != 3 || b.insert.defaults[2] == nil || b.targets[0] != 1 {
-		t.Fatal("hidden omission/default lost", b.targets, b.insert.defaults)
+	if len(b.Insert.Defaults) != 3 || b.Insert.Defaults[2] == nil || b.Targets[0] != 1 {
+		t.Fatal("hidden omission/default lost", b.Targets, b.Insert.Defaults)
 	}
 	// Conflict discovery consumes physical target authority, never the logical
 	// view address, even when DO NOTHING has no explicit inference keys.
@@ -180,10 +180,10 @@ func TestViewWriteDefaults(t *testing.T) {
 	})
 	conflict := &boundInsertConflict{}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
-	if err := conflict.selectArbiters(&evaluation, physicalBinding(b).relation, f.e.CatalogRead()); err != nil {
+	if err := conflict.selectArbiters(&evaluation, physicalBinding(b).Relation, f.e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	if len(conflict.selected) != 1 || conflict.selected[0] != indexAddress || b.relation != f.view {
+	if len(conflict.selected) != 1 || conflict.selected[0] != indexAddress || b.Relation != f.view {
 		t.Fatal("physical arbiter selection lost logical namespace", conflict.selected)
 	}
 	if err := scope.Finish(nil); err != nil {

@@ -339,13 +339,13 @@ func TestQueryWindowExcludeLiteralCapture(t *testing.T) {
 	binder.grouping.windowCalls = append([]plan.WindowCall(nil), window.Calls...)
 	binder.grouping.windowCalls[0].Spec = window.Specs[0]
 	raw := statement(t, sql).(*parser.Select).Targets[0]
-	if err := binder.captureViewLiterals(raw, project.Expressions[0], viewTargetLiteral, 0); err != nil {
+	if err := binder.captureViewLiterals(raw, project.Expressions[0], ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
-	if len(binder.capture.literals) != 1 || len(binder.capture.columns) != 1 {
-		t.Fatal("SUM argument children not captured", binder.capture.literals, binder.capture.columns)
+	if len(binder.capture.Literals) != 1 || len(binder.capture.Columns) != 1 {
+		t.Fatal("SUM argument children not captured", binder.capture.Literals, binder.capture.Columns)
 	}
-	for _, literal := range binder.capture.literals {
+	for _, literal := range binder.capture.Literals {
 		value, err := literal.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 		n, integerErr := value.Integer()
 		if err != nil || integerErr != nil || n != 1 {
@@ -395,7 +395,7 @@ func TestQueryWindowExcludeDomainRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := description.query.Root
+	root := description.Query.Root
 	original := root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	var domain *sqltype.Descriptor
 	plan.WalkExpression(original.Calls[0].Argument, func(expr expr.Expr) {

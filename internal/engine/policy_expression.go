@@ -36,19 +36,19 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 		return nil, alterCookingError(err)
 	}
 	raw = b.normalizeStoredExpression(raw)
-	if err = b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil {
+	if err = b.captureViewLiterals(raw, node, ViewTargetLiteral, 0); err != nil {
 		return nil, err
 	}
 	source := &plan.SourceNode{QuerySchema: d.Columns, Ref: ref, Occurrence: 0}
 	root := &plan.ProjectNode{Child: source, Expressions: []expr.Expr{node}, Frame: 1, QuerySchema: []catalog.Column{{Usage: node.ResultUsage()}}}
 	capture := binding{
-		query:        &plan.Query{Root: root},
-		dependencies: b.dependencies,
-		querySources: b.query.sources,
-		capture:      b.capture,
-		prepared: preparedCaptures{
-			sequenceConstants: b.prepared.sequenceConstants,
-			regtypeConstants:  b.prepared.regtypeConstants,
+		Query:        &plan.Query{Root: root},
+		Dependencies: b.dependencies,
+		QuerySources: b.query.sources,
+		Capture:      b.capture,
+		Prepared: preparedCaptures{
+			SequenceConstants: b.prepared.SequenceConstants,
+			RegtypeConstants:  b.prepared.RegtypeConstants,
 		},
 	}
 	frozen, err := e.freezeQueryPresentationLocked(auth, nil, capture, false, false, 0, "", false)

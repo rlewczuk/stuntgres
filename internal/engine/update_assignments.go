@@ -30,13 +30,13 @@ func bindUpdateAssignments(b *binding, binder *expressionBinder, assignments []p
 	}
 	seen := make(map[int]bool, len(assignments))
 	for i, a := range assignments {
-		slot, ok := b.relation.Index[a.Target.Text]
+		slot, ok := b.Relation.Index[a.Target.Text]
 		if !ok {
 			switch a.Target.Text {
 			case "ctid", "tableoid", "xmin", "xmax", "cmin", "cmax":
 				return expr.ErrorAt("0A000", fmt.Sprintf(`cannot assign to system column "%s"`, a.Target.Text), a.Target.Pos)
 			}
-			diagnostic := expr.ErrorAt("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Target.Text, b.relation.Name()), a.Target.Pos).(*sqlstate.Error)
+			diagnostic := expr.ErrorAt("42703", fmt.Sprintf(`column "%s" of relation "%s" does not exist`, a.Target.Text, b.Relation.Name()), a.Target.Pos).(*sqlstate.Error)
 			visible := binder.target.name
 			if binder.target.alias != "" {
 				visible = binder.target.alias
@@ -51,24 +51,24 @@ func bindUpdateAssignments(b *binding, binder *expressionBinder, assignments []p
 			return sqlError("42601", fmt.Sprintf(`multiple assignments to same column "%s"`, a.Target.Text))
 		}
 		seen[slot] = partial
-		if _, generated := b.relation.ColumnMeta.Generations[b.relation.Attributes[slot]]; generated {
-			b.targets = append(b.targets, slot)
+		if _, generated := b.Relation.ColumnMeta.Generations[b.Relation.Attributes[slot]]; generated {
+			b.Targets = append(b.Targets, slot)
 			continue
 		}
-		if identity, ok := b.relation.ColumnMeta.Identities[b.relation.Attributes[slot]]; ok && identity.Mode == parser.IdentityAlways {
+		if identity, ok := b.Relation.ColumnMeta.Identities[b.Relation.Attributes[slot]]; ok && identity.Mode == parser.IdentityAlways {
 			diagnostic := sequence.IdentityInsertError(a.Target.Text).(*sqlstate.Error)
 			diagnostic.Message = fmt.Sprintf(`column "%s" can only be updated to DEFAULT`, a.Target.Text)
 			diagnostic.Hint = ""
 			return diagnostic
 		}
-		b.targets = append(b.targets, slot)
-		source := u.assignments[i]
+		b.Targets = append(b.Targets, slot)
+		source := u.Assignments[i]
 		sourcePos, diagnosticPos := a.Value.SourcePosition(), parser.ExpressionStart(a.Value)
-		if len(u.origins) != 0 {
-			sourcePos, diagnosticPos = u.origins[i], u.origins[i]
+		if len(u.Origins) != 0 {
+			sourcePos, diagnosticPos = u.Origins[i], u.Origins[i]
 		}
-		dest := b.relation.Columns[slot]
-		if source == nil && b.relation.RelationKind == catalog.ViewRelation {
+		dest := b.Relation.Columns[slot]
+		if source == nil && b.Relation.RelationKind == catalog.ViewRelation {
 			continue
 		}
 		var target *plan.ArrayAssignmentTarget
@@ -77,10 +77,10 @@ func bindUpdateAssignments(b *binding, binder *expressionBinder, assignments []p
 			if err != nil {
 				return err
 			}
-			if u.arrayTargets == nil {
-				u.arrayTargets = make([]*plan.ArrayAssignmentTarget, len(assignments))
+			if u.ArrayTargets == nil {
+				u.ArrayTargets = make([]*plan.ArrayAssignmentTarget, len(assignments))
 			}
-			u.arrayTargets[i] = target
+			u.ArrayTargets[i] = target
 			dest = target.Column(dest)
 		}
 		if source.ResultUsage() != dest.Usage {
@@ -94,7 +94,7 @@ func bindUpdateAssignments(b *binding, binder *expressionBinder, assignments []p
 				if err != nil {
 					return err
 				}
-				u.assignments[i] = source
+				u.Assignments[i] = source
 				continue
 			}
 			input, annotations := domainCoercionInput(source, dest.Usage)
@@ -118,7 +118,7 @@ func bindUpdateAssignments(b *binding, binder *expressionBinder, assignments []p
 				return err
 			}
 			if coercionPlan.RequiresCatalogOutput() {
-				binder.prepared.regclassConcat = true
+				binder.prepared.RegclassConcat = true
 			}
 			info.Property = coercionProperties(input, coercionPlan)
 			source = restoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Assignment})
@@ -126,12 +126,12 @@ func bindUpdateAssignments(b *binding, binder *expressionBinder, assignments []p
 			if err != nil {
 				return err
 			}
-			u.assignments[i] = source
+			u.Assignments[i] = source
 		}
 	}
-	b.update = u
-	if u.defaultOrigins != nil {
-		return binder.captureRetainedWriteInput(u.assignments, nil, nil)
+	b.Update = u
+	if u.DefaultOrigins != nil {
+		return binder.captureRetainedWriteInput(u.Assignments, nil, nil)
 	}
 	return nil
 }
@@ -142,27 +142,27 @@ func evaluateUpdateAssignments(eval *exec.Context, action *boundUpdate, targets 
 	row := make([]sqltype.Value, len(old))
 	copy(row, old)
 	oldOutputs, oldReady := eval.UpdateOutputs, eval.UpdateOutputsReady
-	if action.outputWidth != 0 {
+	if action.OutputWidth != 0 {
 		if oldOutputs != nil {
 			// A nested mutation owner must not overwrite the caller's live tuple.
 			previousScratch := eval.UpdateOutputScratch
 			var small [4]sqltype.Value
-			if action.outputWidth <= len(small) {
-				eval.UpdateOutputScratch = small[:action.outputWidth]
+			if action.OutputWidth <= len(small) {
+				eval.UpdateOutputScratch = small[:action.OutputWidth]
 			} else {
-				eval.UpdateOutputScratch = make([]sqltype.Value, action.outputWidth)
+				eval.UpdateOutputScratch = make([]sqltype.Value, action.OutputWidth)
 			}
 			defer func() { eval.UpdateOutputScratch = previousScratch }()
 		}
-		if cap(eval.UpdateOutputScratch) < action.outputWidth {
-			eval.UpdateOutputScratch = make([]sqltype.Value, action.outputWidth)
+		if cap(eval.UpdateOutputScratch) < action.OutputWidth {
+			eval.UpdateOutputScratch = make([]sqltype.Value, action.OutputWidth)
 		}
 		defer func() { eval.UpdateOutputs, eval.UpdateOutputsReady = oldOutputs, oldReady }()
 	}
 	group := 0
-	for i, expr := range action.assignments {
-		if group < len(action.groups) && action.groups[group].start == i {
-			eval.UpdateOutputs = eval.UpdateOutputScratch[:action.groups[group].width]
+	for i, expr := range action.Assignments {
+		if group < len(action.Groups) && action.Groups[group].Start == i {
+			eval.UpdateOutputs = eval.UpdateOutputScratch[:action.Groups[group].Width]
 			eval.UpdateOutputsReady = false
 			group++
 		}
@@ -172,10 +172,10 @@ func evaluateUpdateAssignments(eval *exec.Context, action *boundUpdate, targets 
 		target := targets[i]
 		var value sqltype.Value
 		var err error
-		if len(action.arrayTargets) != 0 && action.arrayTargets[i] != nil {
-			value, err = action.arrayTargets[i].ApplyExpression(eval, row[target], expr)
-		} else if len(action.defaultOrigins) != 0 && action.defaultOrigins[i].requested {
-			value, err = evalDefaultExpression(eval, expr, action.defaultOrigins[i])
+		if len(action.ArrayTargets) != 0 && action.ArrayTargets[i] != nil {
+			value, err = action.ArrayTargets[i].ApplyExpression(eval, row[target], expr)
+		} else if len(action.DefaultOrigins) != 0 && action.DefaultOrigins[i].Requested {
+			value, err = evalDefaultExpression(eval, expr, action.DefaultOrigins[i])
 		} else {
 			value, err = expr.Eval(eval)
 		}

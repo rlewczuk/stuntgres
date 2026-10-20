@@ -17,8 +17,8 @@ func ruleProducerOutputUses(original binding, rule ruleDefinition, action bindin
 			if !ok || column.Scope != rulePseudoScope || column.Frame != 2 {
 				return
 			}
-			target := slices.Index(original.relation.Attributes, column.Origin.Address.SubID)
-			for output, slot := range original.targets {
+			target := slices.Index(original.Relation.Attributes, column.Origin.Address.SubID)
+			for output, slot := range original.Targets {
 				if slot == target && !slices.Contains(uses, output) {
 					uses = append(uses, output)
 				}
@@ -42,44 +42,44 @@ func ruleProducerOutputUses(original binding, rule ruleDefinition, action bindin
 		}
 	}
 	expression(rule.condition)
-	if rule.conditionBinding != nil && rule.conditionBinding.query != nil {
-		query(rule.conditionBinding.query.Root)
+	if rule.conditionBinding != nil && rule.conditionBinding.Query != nil {
+		query(rule.conditionBinding.Query.Root)
 	}
-	if action.query != nil {
-		query(action.query.Root)
+	if action.Query != nil {
+		query(action.Query.Root)
 	}
-	for _, row := range action.expressions {
+	for _, row := range action.Expressions {
 		for _, expr := range row {
 			expression(expr)
 		}
 	}
-	expression(action.predicate)
-	query(action.delete.using)
-	targets(action.arrayTargets)
-	if action.update != nil {
-		query(action.update.from)
-		expression(action.update.predicate)
-		for _, expr := range action.update.assignments {
+	expression(action.Predicate)
+	query(action.Delete.Using)
+	targets(action.ArrayTargets)
+	if action.Update != nil {
+		query(action.Update.From)
+		expression(action.Update.Predicate)
+		for _, expr := range action.Update.Assignments {
 			expression(expr)
 		}
-		targets(action.update.arrayTargets)
+		targets(action.Update.ArrayTargets)
 	}
-	if action.returning != nil {
-		for _, expr := range action.returning.expressions {
+	if action.Returning != nil {
+		for _, expr := range action.Returning.Expressions {
 			expression(expr)
 		}
 	}
-	if action.insert.conflict != nil {
-		expression(insertConflictOf(action.insert.conflict).predicate)
-		for _, key := range insertConflictOf(action.insert.conflict).keys {
+	if action.Insert.Conflict != nil {
+		expression(insertConflictOf(action.Insert.Conflict).predicate)
+		for _, key := range insertConflictOf(action.Insert.Conflict).keys {
 			expression(key.expression)
 		}
-		if insertConflictOf(action.insert.conflict).update != nil {
-			expression(insertConflictOf(action.insert.conflict).update.predicate)
-			for _, expr := range insertConflictOf(action.insert.conflict).update.assignments {
+		if insertConflictOf(action.Insert.Conflict).update != nil {
+			expression(insertConflictOf(action.Insert.Conflict).update.Predicate)
+			for _, expr := range insertConflictOf(action.Insert.Conflict).update.Assignments {
 				expression(expr)
 			}
-			targets(insertConflictOf(action.insert.conflict).update.arrayTargets)
+			targets(insertConflictOf(action.Insert.Conflict).update.ArrayTargets)
 		}
 	}
 	return uses
@@ -300,23 +300,23 @@ func ruleQueryProducerDemand(root plan.Node, external func(func(expr.Expr)), tar
 // expressions into the same liveness pass, without inventing a project/provider
 // or moving their execution frontier into the source.
 func ruleMutationProducerDemand(b binding) (binding, error) {
-	root := b.delete.using
-	if b.update != nil {
-		root = b.update.from
+	root := b.Delete.Using
+	if b.Update != nil {
+		root = b.Update.From
 	}
 	if root == nil {
 		return b, nil
 	}
 	mapped, err := ruleQueryProducerDemand(root, func(visit func(expr.Expr)) {
-		targets := b.arrayTargets
-		if b.update != nil {
-			for _, expression := range b.update.assignments {
+		targets := b.ArrayTargets
+		if b.Update != nil {
+			for _, expression := range b.Update.Assignments {
 				visit(expression)
 			}
-			visit(b.update.predicate)
-			targets = b.update.arrayTargets
+			visit(b.Update.Predicate)
+			targets = b.Update.ArrayTargets
 		} else {
-			visit(b.predicate)
+			visit(b.Predicate)
 		}
 		for _, target := range targets {
 			for ; target != nil; target = target.Next {
@@ -326,22 +326,22 @@ func ruleMutationProducerDemand(b binding) (binding, error) {
 				}
 			}
 		}
-		if b.returning != nil {
-			for _, expression := range b.returning.expressions {
+		if b.Returning != nil {
+			for _, expression := range b.Returning.Expressions {
 				visit(expression)
 			}
 		}
-	}, len(b.relation.Columns))
+	}, len(b.Relation.Columns))
 	if err != nil {
 		return binding{}, err
 	}
 	if mapped != root {
-		if b.update != nil {
-			copy := *b.update
-			copy.from = mapped
-			b.update = &copy
+		if b.Update != nil {
+			copy := *b.Update
+			copy.From = mapped
+			b.Update = &copy
 		} else {
-			b.delete.using = mapped
+			b.Delete.Using = mapped
 		}
 	}
 	return b, nil

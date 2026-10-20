@@ -99,7 +99,7 @@ func TestRLSBaseDecision(t *testing.T) {
 			e.mu.Unlock()
 			t.Fatal(err)
 		}
-		ref := b.querySources[0].Ref
+		ref := b.QuerySources[0].Ref
 		view, err := scope.acquireDataViewLocked(e, ref)
 		e.mu.Unlock()
 		if err != nil {
@@ -114,7 +114,7 @@ func TestRLSBaseDecision(t *testing.T) {
 		if source.View == nil || !source.RlsDenied || len(source.Committed) != 0 || len(source.Own) != 0 || source.HashIndexes != nil || source.PartialMask != nil {
 			t.Fatal("denied source lost ownership or captured physical rows/indexes")
 		}
-		stage, err := exec.OpenNode(op.ctx, &exec.State{Source: source}, b.query.Root.(*plan.ProjectNode).Child)
+		stage, err := exec.OpenNode(op.ctx, &exec.State{Source: source}, b.Query.Root.(*plan.ProjectNode).Child)
 		if err != nil {
 			t.Fatal(err)
 		}

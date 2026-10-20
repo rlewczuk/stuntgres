@@ -45,7 +45,7 @@ func (s *StatementScope) installRuleScratch(c ruleCommandScratch) {
 }
 
 func bindingRuleRelation(b binding) *catalog.Relation {
-	return physicalBinding(b).relation
+	return physicalBinding(b).Relation
 }
 
 func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Statement, b binding, auth AuthorizationView, parameters []sqltype.Value, candidate StatementDescription, quoteChanged bool) (Result, error) {
@@ -128,9 +128,9 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 			return Result{}, err
 		}
 		physical := physicalBinding(command.binding)
-		scope.installRuleScratch(ruleCommandScratch{mutation: statementMutation{statement: command.syntax}, ref: physical.ref, descriptor: physical.relation, storage: physical.storage, viewWrite: viewWriteOf(command.binding.viewWrite), sources: command.binding.querySources, auth: &program.commands[i].auth})
+		scope.installRuleScratch(ruleCommandScratch{mutation: statementMutation{statement: command.syntax}, ref: physical.Ref, descriptor: physical.Relation, storage: physical.Storage, viewWrite: viewWriteOf(command.binding.ViewWrite), sources: command.binding.QuerySources, auth: &program.commands[i].auth})
 		captures := &exec.QuoteCaptureCandidate{}
-		if command.binding.parameters.Count == 0 {
+		if command.binding.Parameters.Count == 0 {
 			*captures = exec.QuoteCaptureCandidate{Entries: candidate.quotes, Private: quoteChanged}
 			pruneQuoteCaptures(captures, command.auth.Catalog)
 		}
@@ -179,16 +179,16 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 			result.Count = output.Count
 		}
 		if output.Rows != nil {
-			if command.binding.returning != nil && (i == program.returning || i == program.count) {
+			if command.binding.Returning != nil && (i == program.returning || i == program.count) {
 				result.Rows = output.Rows
-			} else if _, selecting := command.syntax.(*parser.Select); selecting && b.returning == nil && scope.Expected == nil {
+			} else if _, selecting := command.syntax.(*parser.Select); selecting && b.Returning == nil && scope.Expected == nil {
 				result.RowSets = append(result.RowSets, output.Rows)
 			} else {
 				output.Rows.Close()
 			}
 		}
 		for _, rows := range output.RowSets {
-			if b.returning == nil && scope.Expected == nil {
+			if b.Returning == nil && scope.Expected == nil {
 				result.RowSets = append(result.RowSets, rows)
 			} else {
 				rows.Close()

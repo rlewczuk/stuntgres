@@ -19,11 +19,11 @@ func TestGeneratedVirtualMergeSavedSourceIdentity(t *testing.T) {
 	if err := exec.SelectQuerySources(op.ctx, inputs); err != nil {
 		t.Fatal(err)
 	}
-	state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output, VirtualReads: mergeHasVirtualReads(b.merge)}
+	state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output, VirtualReads: mergeHasVirtualReads(b.Merge)}
 	if !state.VirtualReads {
 		t.Fatal("MERGE action did not establish virtual demand")
 	}
-	cursor, err := exec.OpenNode(op.ctx, state, b.merge.source)
+	cursor, err := exec.OpenNode(op.ctx, state, b.Merge.Source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestGeneratedVirtualMergeSavedSourceIdentity(t *testing.T) {
 			}
 			seen[id-1] = true
 		case 3:
-			if !row[1].IsNull() || row[1].Type() != b.relation.Columns[1].Usage.Type {
+			if !row[1].IsNull() || row[1].Type() != b.Relation.Columns[1].Usage.Type {
 				t.Fatal("absent drained candidate recomputed generation", row)
 			}
 			seen[2] = true

@@ -11,46 +11,31 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-type tableLikeMask uint16
-
-const (
-	likeComments tableLikeMask = 1 << iota
-	likeCompression
-	likeConstraints
-	likeDefaults
-	likeGenerated
-	likeIdentity
-	likeIndexes
-	likeStatistics
-	likeStorage
-	likeAll = (1 << 9) - 1
-)
-
 func tableLikeOptions(options []parser.LikeOption) tableLikeMask {
 	var mask tableLikeMask
 	for _, option := range options {
 		var bit tableLikeMask
 		switch strings.ToLower(option.Name) {
 		case "comments":
-			bit = likeComments
+			bit = LikeComments
 		case "compression":
-			bit = likeCompression
+			bit = LikeCompression
 		case "constraints":
-			bit = likeConstraints
+			bit = LikeConstraints
 		case "defaults":
-			bit = likeDefaults
+			bit = LikeDefaults
 		case "generated":
-			bit = likeGenerated
+			bit = LikeGenerated
 		case "identity":
-			bit = likeIdentity
+			bit = LikeIdentity
 		case "indexes":
-			bit = likeIndexes
+			bit = LikeIndexes
 		case "statistics":
-			bit = likeStatistics
+			bit = LikeStatistics
 		case "storage":
-			bit = likeStorage
+			bit = LikeStorage
 		case "all":
-			bit = likeAll
+			bit = LikeAll
 		}
 		if option.Including {
 			mask |= bit
@@ -61,54 +46,11 @@ func tableLikeOptions(options []parser.LikeOption) tableLikeMask {
 	return mask
 }
 
-type createLikeInput struct {
-	ref         ids.ObjectRef
-	source      *catalog.Relation
-	sourceType  *catalog.Type
-	offset      int
-	targetSlots []int
-	options     tableLikeMask
-	rowRef      func(ids.ObjectRef) ids.ObjectRef
-	slots       map[int32]int
-}
-
-func (in createLikeInput) targetSlot(slot int) int {
-	if in.targetSlots != nil {
-		return in.targetSlots[slot]
-	}
-	return in.offset + slot
-}
-
-// Captures are transient CREATE inputs. Source rows, authority and object-literal
-// references are never imported; row owners and stable attributes are mapped.
-func (in createLikeInput) rowMapper(destination *catalog.Relation, authority catalog.Read) (func(ids.ObjectRef) ids.ObjectRef, map[int32]int) {
-	attributes := make(map[int32]int32, len(in.source.Attributes))
-	slots := make(map[int32]int, len(in.source.Attributes))
-	for slot, attribute := range in.source.Attributes {
-		target := destination.Attributes[in.targetSlot(slot)]
-		attributes[attribute] = target
-		slots[target] = in.targetSlot(slot)
-	}
-	// Retained TEMP source rows can carry an older epoch. Only mapped local
-	// row origins receive the fresh CREATE candidate's reference authority.
-	target := authority.Owner().Domain.Ref(authority.Epoch(), destination.Address())
-	return func(ref ids.ObjectRef) ids.ObjectRef {
-		address := ref.Address
-		address.SubID = 0
-		if address == in.source.Address() {
-			attribute := ref.Address.SubID
-			ref = target
-			ref.Address.SubID = attributes[attribute]
-		}
-		return ref
-	}, slots
-}
-
 func remapLikeExpression(in *createLikeInput, node expr.Expr, destination *catalog.Relation, authority catalog.Read) (expr.Expr, error) {
-	if in.rowRef == nil {
-		in.rowRef, in.slots = in.rowMapper(destination, authority)
+	if in.RowRef == nil {
+		in.RowRef, in.Slots = in.RowMapper(destination, authority)
 	}
-	return remapScalarExpression(node, nil, in.rowRef, in.slots, nil)
+	return remapScalarExpression(node, nil, in.RowRef, in.Slots, nil)
 }
 
 func (s *CatalogStage) captureLikeSource(source catalog.Descriptor) {
@@ -146,14 +88,14 @@ func (s *CatalogStage) validateLikeSources(current catalog.Read) error {
 func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *CatalogStage, destination *catalog.Relation, inputs []createLikeInput) error {
 	for i := range inputs {
 		in := &inputs[i]
-		stage.captureLikeSource(in.source)
-		if in.sourceType != nil {
-			stage.domainBases = append(stage.domainBases, in.sourceType)
+		stage.captureLikeSource(in.Source)
+		if in.SourceType != nil {
+			stage.domainBases = append(stage.domainBases, in.SourceType)
 		}
-		for slot, attribute := range in.source.Attributes {
-			target := destination.Attributes[in.targetSlot(slot)]
-			if in.options&likeIdentity != 0 {
-				if identity, ok := in.source.ColumnMeta.Identities[attribute]; ok {
+		for slot, attribute := range in.Source.Attributes {
+			target := destination.Attributes[in.TargetSlot(slot)]
+			if in.Options&LikeIdentity != 0 {
+				if identity, ok := in.Source.ColumnMeta.Identities[attribute]; ok {
 					sequence, ok := auth.Catalog.Relation(identity.Sequence)
 					if !ok || sequence.Sequence == nil {
 						return fmt.Errorf("stuntgres: missing LIKE identity provider")
@@ -162,16 +104,16 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 					options := *sequence.Sequence
 					options.Persistence = "logged"
 					read := e.stageRead(stage)
-					name := ownedSequenceName(destination.Name(), destination.Columns[in.targetSlot(slot)].Name, func(n string) bool {
+					name := ownedSequenceName(destination.Name(), destination.Columns[in.TargetSlot(slot)].Name, func(n string) bool {
 						return n == destination.Name() || len(read.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: destination.Namespace(), Name: n})) != 0
 					})
-					if err := e.stageIdentitySequence(stage, destination, in.targetSlot(slot), name, identity.Mode, options, nil); err != nil {
+					if err := e.stageIdentitySequence(stage, destination, in.TargetSlot(slot), name, identity.Mode, options, nil); err != nil {
 						return err
 					}
 				}
 			}
-			if in.options&likeDefaults != 0 {
-				if old, ok := in.source.ColumnMeta.Defaults[attribute]; ok {
+			if in.Options&LikeDefaults != 0 {
+				if old, ok := in.Source.ColumnMeta.Defaults[attribute]; ok {
 					// DEFAULT providers cannot reference the owner row; the cooked immutable
 					// tree, including frozen literals and external identities, is reusable.
 					node := old.Expression
@@ -180,7 +122,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 						return err
 					}
 					definition := catalog.ColumnDefault{Expression: node}
-					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.Owner, roles: auth.Roles}, provenance: in.source, capturedManifest: old.Dependencies, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(op.Context(), auth.Catalog, node); err != nil {
+					if _, err := (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.Owner, roles: auth.Roles}, provenance: in.Source, capturedManifest: old.Dependencies, dependencies: &definition.Dependencies, commentSnapshot: &definition.CatalogSnapshot, catalogAliasReferences: &definition.CatalogAliasReferences}).sql(op.Context(), auth.Catalog, node); err != nil {
 						return err
 					}
 					// Validate the original published recipe first. Old callable
@@ -190,7 +132,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 						if dependency.Address.ClassID != ids.ProcedureClassID || dependency.Epoch == auth.Catalog.Epoch() {
 							continue
 						}
-						sourceNamespace := auth.Catalog.MustNamespace(in.source.Namespace())
+						sourceNamespace := auth.Catalog.MustNamespace(in.Source.Namespace())
 						if temporary == (ids.SessionToken{}) || temporary != sourceNamespace.Temporary || temporary.Domain() != domainOf(e) {
 							return fmt.Errorf("stuntgres: stale stored routine reference")
 						}
@@ -206,11 +148,11 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 					}
 				}
 			}
-			if in.options&likeGenerated != 0 {
-				if old, ok := in.source.ColumnMeta.Generations[attribute]; ok {
+			if in.Options&LikeGenerated != 0 {
+				if old, ok := in.Source.ColumnMeta.Generations[attribute]; ok {
 					if _, inherited := destination.ColumnMeta.Generations[target]; inherited {
-						diagnostic := sqlError("2BP01", fmt.Sprintf("cannot drop default value for column %s of table %s because column %s of table %s requires it", destination.Columns[in.targetSlot(slot)].Name, destination.Name(), destination.Columns[in.targetSlot(slot)].Name, destination.Name())).(*sqlstate.Error)
-						diagnostic.Hint = fmt.Sprintf("You can drop column %s of table %s instead.", destination.Columns[in.targetSlot(slot)].Name, destination.Name())
+						diagnostic := sqlError("2BP01", fmt.Sprintf("cannot drop default value for column %s of table %s because column %s of table %s requires it", destination.Columns[in.TargetSlot(slot)].Name, destination.Name(), destination.Columns[in.TargetSlot(slot)].Name, destination.Name())).(*sqlstate.Error)
+						diagnostic.Hint = fmt.Sprintf("You can drop column %s of table %s instead.", destination.Columns[in.TargetSlot(slot)].Name, destination.Name())
 						return diagnostic
 					}
 					node, err := remapLikeExpression(in, old.Expression, destination, auth.Catalog)
@@ -231,8 +173,8 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 					destination.ColumnMeta.Generations[target] = definition
 				}
 			}
-			if in.options&likeComments != 0 {
-				if comment, ok := in.source.ColumnMeta.Comments[attribute]; ok {
+			if in.Options&LikeComments != 0 {
+				if comment, ok := in.Source.ColumnMeta.Comments[attribute]; ok {
 					if destination.ColumnMeta.Comments == nil {
 						destination.ColumnMeta.Comments = make(map[int32]string)
 					}
@@ -258,10 +200,10 @@ func (e *Engine) stageLikeChecks(op *Operation, auth AuthorizationView, destinat
 	}
 	for i := range inputs {
 		in := &inputs[i]
-		if in.options&likeConstraints == 0 {
+		if in.Options&LikeConstraints == 0 {
 			continue
 		}
-		for _, old := range orderedChecks(in.source) {
+		for _, old := range orderedChecks(in.Source) {
 			if names[old.Name] {
 				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, old.Name, destination.Name()))
 			}

@@ -68,7 +68,7 @@ func TestCountExpressionSlotsAndMetadata(t *testing.T) {
 
 func TestCountExpressionInsertArgumentFailure(t *testing.T) {
 	b, source := insertSelectEvaluationFixture(t, "SELECT count(v) FROM t")
-	node := b.query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
+	node := b.Query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	original := node.Calls[0].Argument
 	sentinel := errors.New("late INSERT count argument")
 	calls := 0

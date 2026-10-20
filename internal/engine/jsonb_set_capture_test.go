@@ -37,19 +37,19 @@ func jsonbSetContextualArrayCapture(t *testing.T, query, wantA, wantB string) {
 	}
 	// The actual selected-function path must capture the written VARCHAR cast
 	// and original column, not mistake the contextual TEXT conversion for it.
-	if err := b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil {
+	if err := b.captureViewLiterals(raw, node, ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
 	foundColumn, foundTypmod := false, false
-	for _, captured := range b.capture.columns {
-		foundColumn = foundColumn || captured.frame == b.frameID() && captured.slot == 0
+	for _, captured := range b.capture.Columns {
+		foundColumn = foundColumn || captured.Frame == b.frameID() && captured.Slot == 0
 	}
-	for _, usage := range b.capture.castUsages {
+	for _, usage := range b.capture.CastUsages {
 		length, known := usage.Length()
 		foundTypmod = foundTypmod || usage.Type.ID() == sqltype.VarChar && known && length == 1
 	}
 	if !foundColumn || !foundTypmod {
-		t.Fatal("capture lost original column identity or written typmod", b.capture.columns, b.capture.castUsages)
+		t.Fatal("capture lost original column identity or written typmod", b.capture.Columns, b.capture.CastUsages)
 	}
 	pathConversion := func(node expr.Expr) plan.CoercionExpr {
 		e := node.(functions.JSONBSet)

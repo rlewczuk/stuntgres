@@ -172,10 +172,10 @@ func TestLogicalDependenciesMetadataAndAuthorization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bound.parameters.Count != 1 || bound.parameters.Types[0] != eType(t, e, sqltype.Bool).Usage() {
-		t.Fatal(bound.parameters)
+	if bound.Parameters.Count != 1 || bound.Parameters.Types[0] != eType(t, e, sqltype.Bool).Usage() {
+		t.Fatal(bound.Parameters)
 	}
-	project := bound.query.Root.(*plan.ProjectNode)
+	project := bound.Query.Root.(*plan.ProjectNode)
 	for i, node := range project.Expressions {
 		p := node.Properties()
 		volatility := expr.Immutable
@@ -195,14 +195,14 @@ func TestLogicalDependenciesMetadataAndAuthorization(t *testing.T) {
 		}
 	}
 	refs := map[ids.ObjectRef]bool{}
-	for _, dependency := range bound.dependencies {
+	for _, dependency := range bound.Dependencies {
 		refs[dependency.Ref] = true
 	}
 	for _, sub := range []int32{1, 2, 3} {
 		column := ref
 		column.Address.SubID = sub
 		if !refs[column] {
-			t.Fatal("logical dependency omitted", sub, bound.dependencies)
+			t.Fatal("logical dependency omitted", sub, bound.Dependencies)
 		}
 	}
 	// The same actual-use authorization applies to decisive logical branches.

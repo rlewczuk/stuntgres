@@ -98,7 +98,7 @@ func TestCastExpressionReductionOriginsAndDependencies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	project := bound.query.Root.(*plan.ProjectNode)
+	project := bound.Query.Root.(*plan.ProjectNode)
 	original := project.Expressions[0].(plan.ColumnExpr)
 	for _, index := range []int{1, 2} {
 		reduced, ok := project.Expressions[index].(plan.ColumnExpr)
@@ -118,7 +118,7 @@ func TestCastExpressionReductionOriginsAndDependencies(t *testing.T) {
 		}
 	}
 	foundColumn, foundText := false, false
-	for _, dep := range bound.dependencies {
+	for _, dep := range bound.Dependencies {
 		if dep.Ref == original.Origin {
 			foundColumn = true
 		}
@@ -127,7 +127,7 @@ func TestCastExpressionReductionOriginsAndDependencies(t *testing.T) {
 		}
 	}
 	if !foundColumn || !foundText {
-		t.Fatal(bound.dependencies)
+		t.Fatal(bound.Dependencies)
 	}
 }
 

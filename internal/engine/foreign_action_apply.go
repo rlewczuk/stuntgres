@@ -65,14 +65,14 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 		evaluation.Input.DomainChecks = &evaluation
 	}
 	if action == parser.ForeignKeySetDefault {
-		b := binding{relation: job.child}
+		b := binding{Relation: job.child}
 		e := s.op.session.Engine()
 		bindInsertDefaults(e.catalog.owner(), &b, auth, parser.OverrideNone)
 		plan.defaults = make([]expr.Expr, len(plan.targets))
 		plan.defaultOrigins = make([]defaultOrigin, len(plan.targets))
 		for i, slot := range plan.targets {
-			if len(b.insert.defaults) != 0 {
-				plan.defaults[i] = b.insert.defaults[slot]
+			if len(b.Insert.Defaults) != 0 {
+				plan.defaults[i] = b.Insert.Defaults[slot]
 				plan.defaultOrigins[i] = bindingDefaultOrigin(&b, slot)
 			}
 		}
@@ -313,7 +313,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 				return s.foreignActionError(err, job, event, action, auth.Catalog)
 			}
 		}
-		b := binding{ref: ref, relation: job.child, targets: plan.targets}
+		b := binding{Ref: ref, Relation: job.child, Targets: plan.targets}
 		if err = e.validateMutationRow(s, b, schema, row, &evaluation); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}

@@ -18,8 +18,8 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 	var seen map[*plan.CTEDefinition]bool
 	expanded := false
 	for i := 0; i < len(commands); i++ {
-		for _, definition := range commands[i].binding.ctes {
-			rewrite := ruleCTEsOf(commands[i].binding.rule.ctes)[definition]
+		for _, definition := range commands[i].binding.CTEs {
+			rewrite := ruleCTEsOf(commands[i].binding.Rule.CTEs)[definition]
 			if rewrite == nil || seen[definition] {
 				continue
 			}
@@ -57,13 +57,13 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 	}
 	for _, command := range commands {
 		physical := physicalBinding(command.binding)
-		if physical.relation != nil && physical.relation.RelationKind != catalog.ViewRelation {
+		if physical.Relation != nil && physical.Relation.RelationKind != catalog.ViewRelation {
 			requests = append(requests, struct {
 				ref  ids.ObjectRef
 				mode lock.Mode
-			}{physical.ref, lock.RowExclusive})
-			if !slices.Contains(refs, physical.ref) {
-				refs = append(refs, physical.ref)
+			}{physical.Ref, lock.RowExclusive})
+			if !slices.Contains(refs, physical.Ref) {
+				refs = append(refs, physical.Ref)
 			}
 		}
 		collectAuth := command.auth
@@ -75,15 +75,15 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 			return command.auth.State.CurrentUser
 		}
 		var queryRefs []ids.ObjectRef
-		for start := 0; start < len(command.binding.querySources); {
-			invoker := principal(command.binding.querySources[start])
+		for start := 0; start < len(command.binding.QuerySources); {
+			invoker := principal(command.binding.QuerySources[start])
 			end := start + 1
-			for end < len(command.binding.querySources) && principal(command.binding.querySources[end]) == invoker {
+			for end < len(command.binding.QuerySources) && principal(command.binding.QuerySources[end]) == invoker {
 				end++
 			}
 			collectAuth.State.CurrentUser = invoker
 			var err error
-			queryRefs, err = e.queryTableRefsLocked(collectAuth, invoker, command.binding.querySources[start:end], queryRefs, scope.op.session.token, plan.RowMark{})
+			queryRefs, err = e.queryTableRefsLocked(collectAuth, invoker, command.binding.QuerySources[start:end], queryRefs, scope.op.session.token, plan.RowMark{})
 			if err != nil {
 				e.mu.Unlock()
 				return nil, err

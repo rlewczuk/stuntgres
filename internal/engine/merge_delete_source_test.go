@@ -22,9 +22,9 @@ func TestMergeDeleteSourceCompletion(t *testing.T) {
 			defer op.Done()
 			defer target.Close()
 			defer inputs.Close()
-			one, _ := sqltype.Integer(b.relation.Columns[0].Usage.Type, 1)
+			one, _ := sqltype.Integer(b.Relation.Columns[0].Usage.Type, 1)
 			primary, cleanup := errors.New("late DELETE source Next"), errors.New("required DELETE source Close")
-			cursor := &mergeInsertTestCursor{schema: b.merge.source.Schema(), rows: [][]sqltype.Value{{one}}}
+			cursor := &mergeInsertTestCursor{schema: b.Merge.Source.Schema(), rows: [][]sqltype.Value{{one}}}
 			if phase == "next" || phase == "primaryWins" {
 				cursor.nextError = primary
 			}
@@ -35,7 +35,7 @@ func TestMergeDeleteSourceCompletion(t *testing.T) {
 			cursor.beforeClose = func() {
 				lockState := e.locks.Inspect()
 				for resource, entry := range lockState.Resources {
-					if resource.ObjectRef == b.ref && resource.Row != 0 && (len(entry.Holders) != 0 || len(entry.Pending) != 0) {
+					if resource.ObjectRef == b.Ref && resource.Row != 0 && (len(entry.Holders) != 0 || len(entry.Pending) != 0) {
 						premature = true
 					}
 				}

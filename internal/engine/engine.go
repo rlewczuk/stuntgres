@@ -14,7 +14,6 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/pgcatalog"
@@ -55,53 +54,12 @@ type Engine struct {
 	foreignValueImporter exec.ForeignValueImporter
 	foreignValueExporter exec.ForeignValueExporter
 }
-type ParameterInfo struct {
-	Count int
-	Types []sqltype.Usage
-}
 type Result struct {
 	CommandTag string
 	Count      int64
 	Rows       exec.RowResult
 	RowSets    []exec.RowResult
 	created    ids.ObjectRef // Exact ordinary CREATE TABLE outcome; zero for a no-op.
-}
-
-// binding is the bound form of one statement. The header holds what every
-// statement kind may use; kind payloads and capture groups are held by value
-// (see binding_groups.go), so copying a binding copies them too.
-type binding struct {
-	relation           *catalog.Relation
-	storage            *storage.Relation
-	ref                ids.ObjectRef
-	viewWrite          viewWriteSlot
-	targets            []int
-	arrayTargets       []*plan.ArrayAssignmentTarget
-	usedColumns        []int
-	query              *plan.Query
-	ctes               []*plan.CTEDefinition
-	cteSelectBodies    bool
-	querySources       []exec.Leaf
-	visibilitySnapshot bool
-	subqueryDemand     bool
-	commandQuery       bool
-	currentOf          string // UPDATE and DELETE WHERE CURRENT OF.
-	predicate          expr.Expr
-	returning          *boundReturning
-	dependencies       []catalog.ExpressionDependency
-	parameters         ParameterInfo
-	expressions        [][]expr.Expr
-	// Statement kind payloads.
-	update *boundUpdate
-	merge  *boundMerge
-	insert insertBinding
-	delete deleteBinding
-	create createTableBinding
-	// Capture groups shared with the expression binder.
-	capture   viewCapture
-	prepared  preparedCaptures
-	resolvers resolverInputs
-	rule      ruleBinding
 }
 
 func New() *Engine {
@@ -382,8 +340,8 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	}
 	// Literal lifetimes belong to the caller's raw SQL, including its CTEs.
 	// Stored rule/view recipes carry their own captures and invalidation events.
-	callerSequences, callerRegtypes := b.prepared.sequenceConstants, b.prepared.regtypeConstants
-	if b.viewWrite != nil {
+	callerSequences, callerRegtypes := b.Prepared.SequenceConstants, b.Prepared.RegtypeConstants
+	if b.ViewWrite != nil {
 		if err := e.attachViewWriteSourcesLocked(scope, &b); err != nil {
 			return StatementDescription{}, err
 		}
@@ -391,7 +349,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	if err := e.attachCTEViewTargetsLocked(scope, &b, false); err != nil {
 		return StatementDescription{}, err
 	}
-	if err := scope.validateQuerySources(b.querySources); err != nil {
+	if err := scope.validateQuerySources(b.QuerySources); err != nil {
 		return StatementDescription{}, err
 	}
 	if err := e.normalizeRuleCTEsLocked(scope, auth, stmt, &b); err != nil {
@@ -411,22 +369,22 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		if err := checkRowSecurityRuleProgram(scope, auth, b, program); err != nil {
 			return StatementDescription{}, err
 		}
-		b.dependencies = append(b.dependencies, program.events...)
+		b.Dependencies = append(b.Dependencies, program.events...)
 		for _, command := range program.commands {
-			if command.binding.relation != nil {
-				b.dependencies = append(b.dependencies, catalog.ExpressionDependency{Ref: command.binding.ref, Revision: command.binding.relation.Revision()})
+			if command.binding.Relation != nil {
+				b.Dependencies = append(b.Dependencies, catalog.ExpressionDependency{Ref: command.binding.Ref, Revision: command.binding.Relation.Revision()})
 			}
-			b.dependencies = append(b.dependencies, command.binding.dependencies...)
+			b.Dependencies = append(b.Dependencies, command.binding.Dependencies...)
 		}
 	} else if err := checkRowSecurityBinding(scope, auth, b); err != nil {
 		return StatementDescription{}, err
 	}
 	var results []catalog.Column
-	if b.query != nil && !b.commandQuery {
-		results = b.query.Root.Schema()
+	if b.Query != nil && !b.CommandQuery {
+		results = b.Query.Root.Schema()
 	}
-	if b.returning != nil {
-		results = b.returning.schema
+	if b.Returning != nil {
+		results = b.Returning.Schema
 	}
 	analysis, err := e.sequenceAnalysisLocked(auth, callerSequences)
 	if err != nil {
@@ -447,7 +405,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 			return StatementDescription{}, err
 		}
 	}
-	return StatementDescription{Parameters: b.parameters, Results: results, catalogOwner: auth.Catalog.Owner(), catalogEpoch: auth.Catalog.Epoch(), temporals: b.prepared.temporals, composites: b.prepared.composites, sequences: cell, regtypes: regtypes, analysis: prepared, planOwner: op.session.token, planGeneration: op.session.discardPlansGeneration}, nil
+	return StatementDescription{Parameters: b.Parameters, Results: results, catalogOwner: auth.Catalog.Owner(), catalogEpoch: auth.Catalog.Epoch(), temporals: b.Prepared.Temporals, composites: b.Prepared.Composites, sequences: cell, regtypes: regtypes, analysis: prepared, planOwner: op.session.token, planGeneration: op.session.discardPlansGeneration}, nil
 }
 func objectNameText(n parser.ObjectName) string {
 	parts := make([]string, len(n.Parts))
@@ -513,13 +471,13 @@ func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Stat
 		view = s
 		stmt = s.Query
 		binder.params.noParameters = true
-		b.commandQuery = true
+		b.CommandQuery = true
 	}
 	if s, ok := stmt.(*parser.CreateQueryTable); ok {
 		materialized = s.Form == parser.CreateMaterializedView
 		binder.consumer.materializedDefinition = materialized
 		stmt = s.Query
-		b.commandQuery = true
+		b.CommandQuery = true
 	}
 	if _, selecting := stmt.(*parser.Select); !selecting {
 		if definitions := parser.StatementWith(stmt); len(definitions) != 0 {
@@ -538,7 +496,7 @@ func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Stat
 		var inherited []createLikeConstraint
 		if s.OfType != nil {
 			var err error
-			columns, declarations, b.create.ofType, err = bindTypedColumns(host, auth, s)
+			columns, declarations, b.Create.OfType, err = bindTypedColumns(host, auth, s)
 			if err != nil {
 				return b, err
 			}
@@ -592,7 +550,7 @@ func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Stat
 				if err != nil {
 					return b, err
 				}
-				if declaration.identity != nil && u.Type.ID() != sqltype.Int2 && u.Type.ID() != sqltype.Int4 && u.Type.ID() != sqltype.Int8 {
+				if declaration.Identity != nil && u.Type.ID() != sqltype.Int2 && u.Type.ID() != sqltype.Int4 && u.Type.ID() != sqltype.Int8 {
 					return b, sequence.OptionError("sequence type must be smallint, integer, or bigint")
 				}
 				declarations = append(declarations, declaration)
@@ -645,7 +603,7 @@ func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Stat
 					return b, err
 				}
 				offset := len(columns)
-				b.create.likes = append(b.create.likes, createLikeInput{ref: ref, source: source, sourceType: sourceType, offset: offset, options: tableLikeOptions(like.Options)})
+				b.Create.Likes = append(b.Create.Likes, createLikeInput{Ref: ref, Source: source, SourceType: sourceType, Offset: offset, Options: tableLikeOptions(like.Options)})
 				start := len(inherited)
 				for _, constraint := range source.Constraints.NotNull {
 					for i, attribute := range source.Attributes {
@@ -673,21 +631,21 @@ func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Stat
 		if len(columns) > 1600 {
 			return b, sqlError("54011", "tables can have at most 1600 columns")
 		}
-		b.create.columns = columns
+		b.Create.Columns = columns
 		var err error
-		b.create.columnIndex, err = bindCreateColumnIndex(columns)
+		b.Create.ColumnIndex, err = bindCreateColumnIndex(columns)
 		if err != nil {
 			return b, err
 		}
-		b.create.uniques, err = bindCreateUniques(s, b.create.columnIndex, b.create.likes, auth.Catalog)
+		b.Create.Uniques, err = bindCreateUniques(s, b.Create.ColumnIndex, b.Create.Likes, auth.Catalog)
 		if err != nil {
 			return b, err
 		}
-		b.create.notNull, err = bindCreateNotNull(s, columns, declarations, inherited, b.create.uniques, b.create.columnIndex)
+		b.Create.NotNull, err = bindCreateNotNull(s, columns, declarations, inherited, b.Create.Uniques, b.Create.ColumnIndex)
 		if err != nil {
 			return b, err
 		}
-		b.create.declarations = declarations
+		b.Create.Declarations = declarations
 	case *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 		var err error
 		b, err = bindMutationCommand(binder, auth, requiredRef, stmt)
@@ -697,7 +655,7 @@ func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Stat
 	case *parser.DeclareCursor:
 		var err error
 		binder.query.auth = &auth
-		b.query, err = binder.bindSelect(s.Query, false)
+		b.Query, err = binder.bindSelect(s.Query, false)
 		if err != nil {
 			return b, err
 		}
@@ -713,28 +671,28 @@ func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Stat
 			err.(*sqlstate.Error).Detail = "Scrollable cursors must be READ ONLY."
 			return b, err
 		}
-		b.commandQuery = true
+		b.CommandQuery = true
 	case *parser.Select:
 		var err error
 		binder.query.auth = &auth
-		b.query, err = binder.bindSelect(s, false)
+		b.Query, err = binder.bindSelect(s, false)
 		if err != nil {
 			return b, err
 		}
-		b.querySources = binder.query.sources
+		b.QuerySources = binder.query.sources
 		if view != nil {
-			if err := bindViewOutput(b.query, view); err != nil {
+			if err := bindViewOutput(b.Query, view); err != nil {
 				return b, err
 			}
 		}
 	default:
 		return b, sqlError("0A000", "unsupported statement")
 	}
-	b.ctes = binder.cte.statementCTEs
-	b.cteSelectBodies = binder.cte.selectBodies
-	b.querySources = binder.query.sources
+	b.CTEs = binder.cte.statementCTEs
+	b.CTESelectBodies = binder.cte.selectBodies
+	b.QuerySources = binder.query.sources
 	var err error
-	b.parameters, err = binder.finish()
+	b.Parameters, err = binder.finish()
 	if err != nil {
 		return b, err
 	}
@@ -743,11 +701,11 @@ func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Stat
 	}
 	if binder.cte.scanOrdinal != 0 {
 		queries := binder.cte.executables
-		if len(queries) == 0 && b.query != nil {
-			queries = []*plan.Query{b.query}
+		if len(queries) == 0 && b.Query != nil {
+			queries = []*plan.Query{b.Query}
 		}
 		for _, query := range queries {
-			activateCTESources(query.Root, b.querySources)
+			activateCTESources(query.Root, b.QuerySources)
 			query.Root, err = foldCTERestrictions(auth.Catalog, query.Root)
 			if err != nil {
 				return b, err
@@ -755,7 +713,7 @@ func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Stat
 		}
 	}
 	if materialized {
-		if b.parameters.Count != 0 {
+		if b.Parameters.Count != 0 {
 			return b, sqlError("0A000", "materialized views may not be defined using bound parameters")
 		}
 		for _, source := range binder.query.sources {
@@ -764,57 +722,57 @@ func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Stat
 			}
 		}
 	}
-	if len(b.querySources) != 0 && view == nil {
-		if _, err := validateViewReadGraph(auth.Catalog, b.querySources); err != nil {
+	if len(b.QuerySources) != 0 && view == nil {
+		if _, err := validateViewReadGraph(auth.Catalog, b.QuerySources); err != nil {
 			return b, err
 		}
 	}
 	// Virtual catalog views still undergo the existing semantic
 	// analysis. Reject only after predicates, assignments, RETURNING and
 	// parameters have bound, without ever requiring storage or evaluating writes.
-	if b.relation != nil && b.relation.VirtualView {
+	if b.Relation != nil && b.Relation.VirtualView {
 		switch stmt.(type) {
 		case *parser.Insert:
-			return b, pgcatalog.VirtualViewWriteError(b.relation, "insert", b.targets)
+			return b, pgcatalog.VirtualViewWriteError(b.Relation, "insert", b.Targets)
 		case *parser.Update:
-			return b, pgcatalog.VirtualViewWriteError(b.relation, "update", b.targets)
+			return b, pgcatalog.VirtualViewWriteError(b.Relation, "update", b.Targets)
 		case *parser.Delete:
-			return b, pgcatalog.VirtualViewWriteError(b.relation, "delete", nil)
+			return b, pgcatalog.VirtualViewWriteError(b.Relation, "delete", nil)
 		}
 	}
-	b.usedColumns, b.dependencies = binder.target.uses, binder.dependencies
-	b.visibilitySnapshot = binder.consumer.visibilitySnapshot
-	b.subqueryDemand = binder.query.subqueryDemand
-	b.capture = binder.capture
-	slices.SortFunc(binder.prepared.temporals, func(a, b temporalConstant) int { return a.offset - b.offset })
-	b.prepared = binder.prepared
+	b.UsedColumns, b.Dependencies = binder.target.uses, binder.dependencies
+	b.VisibilitySnapshot = binder.consumer.visibilitySnapshot
+	b.SubqueryDemand = binder.query.subqueryDemand
+	b.Capture = binder.capture
+	slices.SortFunc(binder.prepared.Temporals, func(a, b temporalConstant) int { return a.Offset - b.Offset })
+	b.Prepared = binder.prepared
 	if rule == nil && !parser.ModifyingStatement(stmt) {
 		if err := host.BindViewWrite(&b, auth, stmt); err != nil {
 			return b, err
 		}
 	}
-	for _, definition := range b.ctes {
+	for _, definition := range b.CTEs {
 		mutation, ok := mutationBinding(definition)
 		if !ok {
 			continue
 		}
-		mutation.querySources = b.querySources
-		mutation.parameters = b.parameters
+		mutation.QuerySources = b.QuerySources
+		mutation.Parameters = b.Parameters
 		// Auxiliary commands share this binder; borrow its completed original
 		// manifest, including bindings discovered after the auxiliary body.
-		mutation.dependencies = b.dependencies
-		if mutation.relation.VirtualView {
+		mutation.Dependencies = b.Dependencies
+		if mutation.Relation.VirtualView {
 			switch definition.Statement.(type) {
 			case *parser.Insert:
-				return b, pgcatalog.VirtualViewWriteError(mutation.relation, "insert", mutation.targets)
+				return b, pgcatalog.VirtualViewWriteError(mutation.Relation, "insert", mutation.Targets)
 			case *parser.Update:
-				return b, pgcatalog.VirtualViewWriteError(mutation.relation, "update", mutation.targets)
+				return b, pgcatalog.VirtualViewWriteError(mutation.Relation, "update", mutation.Targets)
 			case *parser.Delete:
-				return b, pgcatalog.VirtualViewWriteError(mutation.relation, "delete", nil)
+				return b, pgcatalog.VirtualViewWriteError(mutation.Relation, "delete", nil)
 			}
 		}
 	}
-	b.resolvers = newResolverInputs(binder.input)
+	b.Resolvers = NewResolverInputs(binder.input)
 	return b, nil
 }
 

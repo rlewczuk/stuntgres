@@ -98,7 +98,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *c
 	for i := range declarations {
 		d.Constraints.Unique[start+i] = declarations[i].UniqueConstraint
 		d.Constraints.Unique[start+i].IsLocal = true
-		if source := declarations[i].source; source != nil {
+		if source := declarations[i].Source; source != nil {
 			stage.captureLikeSource(source)
 		}
 	}
@@ -184,7 +184,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *c
 		}
 		definition := &catalog.IndexDefinition{Method: catalog.BtreeMethod, Parent: d.Address(), Unique: true, NullsNotDistinct: c.NullsNotDistinct, Constraint: uniqueBacking(c), Ready: true, Valid: true, Live: true}
 		index := &catalog.Relation{ObjectAddress: c.Index, ObjectNamespace: d.Namespace(), ObjectName: c.Name, ObjectRevision: revision, Owner: d.Owner, RelationKind: catalog.IndexRelation, SQLIndex: definition}
-		if source := declarations[i-start].source; source != nil {
+		if source := declarations[i-start].Source; source != nil {
 			// LIKE clones the actual key providers and presentation, not a
 			// freshly defaulted approximation or any source storage/root.
 			*definition = *source.SQLIndex
@@ -197,11 +197,11 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *c
 				if key.Derived == nil {
 					key.Attribute = c.Attributes[j]
 				} else {
-					node, err := remapLikeExpression(declarations[i-start].like, key.Derived.Definition, d, stage.Base)
+					node, err := remapLikeExpression(declarations[i-start].Like, key.Derived.Definition, d, stage.Base)
 					if err != nil {
 						return err
 					}
-					execution, err := remapLikeExpression(declarations[i-start].like, key.Derived.Execution, d, stage.Base)
+					execution, err := remapLikeExpression(declarations[i-start].Like, key.Derived.Execution, d, stage.Base)
 					if err != nil {
 						return err
 					}
@@ -214,7 +214,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *c
 			}
 			definition.Include = make([]int32, len(source.SQLIndex.Include))
 			for j, attribute := range source.SQLIndex.Include {
-				definition.Include[j], err = declarations[i-start].like.attribute(d, attribute)
+				definition.Include[j], err = declarations[i-start].Like.Attribute(d, attribute)
 				if err != nil {
 					return err
 				}
@@ -222,7 +222,7 @@ func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *c
 			index.Columns = slices.Clone(source.Columns)
 			index.Attributes = slices.Clone(source.Attributes)
 			index.ColumnMeta.HighWater = source.ColumnMeta.HighWater
-			if declarations[i-start].copyComments {
+			if declarations[i-start].CopyComments {
 				index.Comment = source.Comment
 			}
 		} else {

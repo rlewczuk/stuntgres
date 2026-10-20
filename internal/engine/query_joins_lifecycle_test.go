@@ -67,7 +67,7 @@ func TestQueryJoinsStatementFrontierAndNoWidening(t *testing.T) {
 	}
 	var source *exec.Source
 	if err == nil {
-		source, err = e.captureQuerySourcesLocked(scope, binding.querySources, false)
+		source, err = e.captureQuerySourcesLocked(scope, binding.QuerySources, false)
 	}
 	frontier := e.visibility.CommitSeq()
 	if err == nil {
@@ -84,7 +84,7 @@ func TestQueryJoinsStatementFrontierAndNoWidening(t *testing.T) {
 	}
 	defer source.Close()
 	data := source.View.Data()
-	if source.Sources[1].View.Data() != data || data.Frontier != frontier || len(data.Committed) != 2 || data.GenerationAt(binding.querySources[0].Ref.Address) != binding.querySources[0].Storage || data.GenerationAt(binding.querySources[1].Ref.Address) != binding.querySources[1].Storage {
+	if source.Sources[1].View.Data() != data || data.Frontier != frontier || len(data.Committed) != 2 || data.GenerationAt(binding.QuerySources[0].Ref.Address) != binding.QuerySources[0].Storage || data.GenerationAt(binding.QuerySources[1].Ref.Address) != binding.QuerySources[1].Storage {
 		t.Fatal(data)
 	}
 	peer := transactionBegin(t, b)
@@ -94,7 +94,7 @@ func TestQueryJoinsStatementFrontierAndNoWidening(t *testing.T) {
 	if err = exec.SelectQuerySources(op.ctx, source); err != nil {
 		t.Fatal(err)
 	}
-	rows, n, err := exec.Finalize(op.ctx, binding.query.Root, source, nil)
+	rows, n, err := exec.Finalize(op.ctx, binding.Query.Root, source, nil)
 	if err != nil || n != 1 {
 		t.Fatal(rows, n, err)
 	}
@@ -520,7 +520,7 @@ func TestQueryJoinsSelectedPrivateRoots(t *testing.T) {
 			}
 			var source *exec.Source
 			if err == nil {
-				source, err = e.captureQuerySourcesLocked(scope, bound.querySources, false)
+				source, err = e.captureQuerySourcesLocked(scope, bound.QuerySources, false)
 			}
 			e.mu.Unlock()
 			if err == nil {
@@ -530,7 +530,7 @@ func TestQueryJoinsSelectedPrivateRoots(t *testing.T) {
 				finish(err)
 				t.Fatal(err)
 			}
-			query = bound.query
+			query = bound.Query
 			return source, finish
 		}()
 		defer source.Close()

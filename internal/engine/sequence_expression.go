@@ -58,7 +58,7 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectR
 		if represented {
 			stamp = preparedDefinitionStamp(d, auth.session)
 		}
-		b.prepared.sequenceConstants = append(b.prepared.sequenceConstants, sequence.Constant{Offset: literal.Value.Pos.Offset, Ref: ref, Temporary: temporary, Stamp: stamp, Represented: represented})
+		b.prepared.SequenceConstants = append(b.prepared.SequenceConstants, sequence.Constant{Offset: literal.Value.Pos.Offset, Ref: ref, Temporary: temporary, Stamp: stamp, Represented: represented})
 		text := strconv.FormatUint(uint64(ref.Address.ObjectID), 10)
 		info := b.info(typ.Usage(), literal.Value.Pos, expr.Properties{})
 		if _, ok := auth.definitionRelation(ref.Address); ok {

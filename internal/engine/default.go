@@ -86,7 +86,7 @@ func bindCreateDefaults(b *expressionBinder, columns []catalog.Column, declarati
 	}
 	view := auth.Catalog
 	for slot := range declarations {
-		raw := declarations[slot].defaultExpr
+		raw := declarations[slot].DefaultExpr
 		if raw == nil {
 			continue
 		}

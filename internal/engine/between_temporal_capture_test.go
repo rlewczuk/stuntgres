@@ -38,21 +38,21 @@ func TestBetweenMixedTemporalCaptureIdentity(t *testing.T) {
 			e.mu.Unlock()
 			t.Fatal(err)
 		}
-		if len(bound.querySources) != 1 || bound.querySources[0].Ref != ref || !reflect.DeepEqual(bound.querySources[0].Uses, []int{0, 1}) || len(bound.parameters.Types) != 0 {
+		if len(bound.QuerySources) != 1 || bound.QuerySources[0].Ref != ref || !reflect.DeepEqual(bound.QuerySources[0].Uses, []int{0, 1}) || len(bound.Parameters.Types) != 0 {
 			e.mu.Unlock()
-			t.Fatal("mixed temporal dependencies changed", bound.querySources, bound.parameters)
+			t.Fatal("mixed temporal dependencies changed", bound.QuerySources, bound.Parameters)
 		}
-		desc := StatementDescription{temporals: bound.prepared.temporals}
+		desc := StatementDescription{temporals: bound.Prepared.Temporals}
 		before := append([]temporalConstant(nil), desc.temporals...)
 		counts := map[sqltype.ID]int{}
 		for _, capture := range before {
-			if capture.offset != 7 || capture.typmod != -1 {
+			if capture.Offset != 7 || capture.Typmod != -1 {
 				e.mu.Unlock()
 				t.Fatal(capture)
 			}
-			counts[capture.typeID]++
-			wantScalar := map[sqltype.ID]int64{sqltype.Date: 1, sqltype.Timestamp: 86400000000}[capture.typeID]
-			if capture.scalar != wantScalar {
+			counts[capture.TypeID]++
+			wantScalar := map[sqltype.ID]int64{sqltype.Date: 1, sqltype.Timestamp: 86400000000}[capture.TypeID]
+			if capture.Scalar != wantScalar {
 				e.mu.Unlock()
 				t.Fatal("incorrect frozen scalar", capture, wantScalar)
 			}
@@ -71,13 +71,13 @@ func TestBetweenMixedTemporalCaptureIdentity(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal(form, err)
 			}
-			if len(rebound.querySources) != 1 || rebound.querySources[0].Ref != bound.querySources[0].Ref || !reflect.DeepEqual(rebound.querySources[0].Uses, bound.querySources[0].Uses) || !reflect.DeepEqual(rebound.parameters, bound.parameters) {
+			if len(rebound.QuerySources) != 1 || rebound.QuerySources[0].Ref != bound.QuerySources[0].Ref || !reflect.DeepEqual(rebound.QuerySources[0].Uses, bound.QuerySources[0].Uses) || !reflect.DeepEqual(rebound.Parameters, bound.Parameters) {
 				e.mu.Unlock()
 				t.Fatal("rebind dependencies changed")
 			}
-			if !reflect.DeepEqual(desc.temporals, before) || len(rebound.prepared.temporals) != 0 {
+			if !reflect.DeepEqual(desc.temporals, before) || len(rebound.Prepared.Temporals) != 0 {
 				e.mu.Unlock()
-				t.Fatal("frozen captures replaced", desc.temporals, rebound.prepared.temporals)
+				t.Fatal("frozen captures replaced", desc.temporals, rebound.Prepared.Temporals)
 			}
 		}
 		e.mu.Unlock()
@@ -87,18 +87,18 @@ func TestBetweenMixedTemporalCaptureIdentity(t *testing.T) {
 func TestBetweenTemporalCaptureContextKey(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	captures := []temporalConstant{
-		{offset: 7, typeID: sqltype.Date, typmod: -1, scalar: 1},
-		{offset: 7, typeID: sqltype.Timestamp, typmod: -1, scalar: 86400000000},
-		{offset: 7, typeID: sqltype.Timestamp, typmod: 3, scalar: 86400123000},
-		{offset: 7, typeID: sqltype.Timestamp, typmod: 6, scalar: 86400123456},
-		{offset: 7, typeID: sqltype.Timestamp, typmod: 3, scalar: 86400123000},
+		{Offset: 7, TypeID: sqltype.Date, Typmod: -1, Scalar: 1},
+		{Offset: 7, TypeID: sqltype.Timestamp, Typmod: -1, Scalar: 86400000000},
+		{Offset: 7, TypeID: sqltype.Timestamp, Typmod: 3, Scalar: 86400123000},
+		{Offset: 7, TypeID: sqltype.Timestamp, Typmod: 6, Scalar: 86400123456},
+		{Offset: 7, TypeID: sqltype.Timestamp, Typmod: 3, Scalar: 86400123000},
 	}
 	desc := StatementDescription{temporals: captures}
 	b.expected = &desc
 	before := append([]temporalConstant(nil), captures...)
 	for _, expected := range captures {
-		usage := b.typ(expected.typeID).Usage()
-		usage.Typmod = expected.typmod
+		usage := b.typ(expected.TypeID).Usage()
+		usage.Typmod = expected.Typmod
 		for range 2 {
 			got, found, err := b.captured(7, usage)
 			if err != nil || !found || got != expected {
@@ -109,12 +109,12 @@ func TestBetweenTemporalCaptureContextKey(t *testing.T) {
 				t.Fatal(err)
 			}
 			var scalar int64
-			if expected.typeID == sqltype.Date {
+			if expected.TypeID == sqltype.Date {
 				scalar, err = value.Date()
 			} else {
 				scalar, err = value.Timestamp()
 			}
-			if err != nil || scalar != expected.scalar {
+			if err != nil || scalar != expected.Scalar {
 				t.Fatal(scalar, err, expected)
 			}
 		}
@@ -133,8 +133,8 @@ func TestBetweenTemporalCaptureContextKey(t *testing.T) {
 	if _, found, err := b.captured(8, missing); err != nil || found {
 		t.Fatal(found, err)
 	}
-	if !reflect.DeepEqual(before, desc.temporals) || len(b.prepared.temporals) != 0 {
-		t.Fatal("capture contract mutated", desc.temporals, b.prepared.temporals)
+	if !reflect.DeepEqual(before, desc.temporals) || len(b.prepared.Temporals) != 0 {
+		t.Fatal("capture contract mutated", desc.temporals, b.prepared.Temporals)
 	}
 	b.expected = &StatementDescription{temporals: []temporalConstant{captures[2], captures[4]}}
 	if got, found, err := b.captureAt(7); err != nil || !found || got != captures[2] {

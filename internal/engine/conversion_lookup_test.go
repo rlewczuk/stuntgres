@@ -229,7 +229,7 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	if err := captureRegprocOutputValue(rows, view, path, procedureValue); err != nil {
 		t.Fatal(err)
 	}
-	heldDescription := &StatementDescription{regtypes: &regtypeAnalysis{constants: []regtypeConstant{{offset: 7, typeID: sqltype.Regprocedure, value: procedureValue}}}}
+	heldDescription := &StatementDescription{regtypes: &regtypeAnalysis{constants: []regtypeConstant{{Offset: 7, TypeID: sqltype.Regprocedure, Value: procedureValue}}}}
 	stage = e.BeginCatalogStage(view)
 	if err := stage.Remove(e.catalog.Domain.Ref(view.Epoch(), second.Address())); err != nil {
 		t.Fatal(err)

@@ -141,7 +141,7 @@ func TestQueryDistinctOnFailureCancellationAndPublication(t *testing.T) {
 
 func TestQueryDistinctOnInsertKeyFailureNoBatch(t *testing.T) {
 	b, source := insertSelectEvaluationFixture(t, "SELECT DISTINCT ON(v) id FROM t")
-	node := b.query.Root.(*plan.ProjectNode).Child.(*plan.DistinctOnNode)
+	node := b.Query.Root.(*plan.ProjectNode).Child.(*plan.DistinctOnNode)
 	original := node.Expressions[0]
 	calls := 0
 	sentinel := errors.New("late ON INSERT key")

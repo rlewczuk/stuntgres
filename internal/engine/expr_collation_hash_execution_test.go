@@ -183,7 +183,7 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 		}
 		bound, scope := exprCollationStoredBinding(t, e, owner, `SELECT l.id+r.id AS total FROM expr_hash_source_v l JOIN expr_hash_source_v r ON l.id<>r.id WHERE l.hit AND r.hit`)
 		e.mu.Lock()
-		source, err := e.captureQuerySourcesLocked(scope, bound.querySources, false)
+		source, err := e.captureQuerySourcesLocked(scope, bound.QuerySources, false)
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -197,7 +197,7 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 		}
 		state := exec.State{Source: source, Input: scope.input, Output: scope.output}
 		defer state.ReleaseMemberships()
-		stage, err := exec.OpenQueryProjectStage(context.Background(), &state, bound.query.Root.(*plan.ProjectNode))
+		stage, err := exec.OpenQueryProjectStage(context.Background(), &state, bound.Query.Root.(*plan.ProjectNode))
 		if err != nil {
 			t.Fatal(err)
 		}

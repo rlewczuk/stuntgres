@@ -318,7 +318,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 				var added addedColumn
 				candidate, added, err = e.addColumnCandidate(scope, scope.op, auth, &next, a, nil)
 				if err == nil && added.column != nil {
-					if added.declaration.notNull {
+					if added.declaration.NotNull {
 						candidate, err = notNullCandidate(scope.op, auth.Catalog, candidate, parser.AlterTableAction{Action: parser.SetNotNull, Column: a.Column}, notNullDirect)
 					}
 					if err == nil {

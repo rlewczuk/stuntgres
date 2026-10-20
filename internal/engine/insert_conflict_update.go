@@ -50,8 +50,8 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 			}
 			if s.viewWrite != nil {
 				b := bindingForConflict(ref, s.viewWrite.base, c)
-				b.viewWrite = viewWriteSlotOf(s.viewWrite)
-				b.targets = c.targets
+				b.ViewWrite = viewWriteSlotOf(s.viewWrite)
+				b.Targets = c.targets
 				if err := e.checkViewRow(s, &b, proposal, &evaluation); err != nil {
 					return err
 				}
@@ -125,7 +125,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		copy(c.frame, old.Values)
 		copy(c.frame[c.width:], proposal)
 		evaluation.Row = c.frame
-		matches, err := exec.UpdateMatches(&evaluation, c.update.predicate)
+		matches, err := exec.UpdateMatches(&evaluation, c.update.Predicate)
 		if err != nil {
 			return err
 		}
@@ -140,7 +140,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		}
 		b := bindingForConflict(ref, parent, c)
 		// Constraint Detail can disclose SET outputs, not unread carried target data.
-		b.targets = c.updateTargets
+		b.Targets = c.updateTargets
 		if err := e.validatePhysicalInsertRow(s, b, &b, schema, row, &evaluation); err != nil {
 			return err
 		}
@@ -175,7 +175,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		if err := s.checkUniqueRow(ref, &replacement, []storage.RowVersion{old}, indexWriteBatch{}); err != nil {
 			return err
 		}
-		b.viewWrite = viewWriteSlotOf(s.viewWrite)
+		b.ViewWrite = viewWriteSlotOf(s.viewWrite)
 		if err := e.checkViewRow(s, &b, row, &evaluation); err != nil {
 			return err
 		}

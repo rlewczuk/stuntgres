@@ -51,18 +51,18 @@ func TestBetweenBindingProperties(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc.expr, err)
 		}
-		if len(bound.querySources) != 1 || bound.querySources[0].Ref != ref || !reflect.DeepEqual(bound.querySources[0].Uses, tc.used) {
-			t.Fatal(tc.expr, bound.querySources, tc.used)
+		if len(bound.QuerySources) != 1 || bound.QuerySources[0].Ref != ref || !reflect.DeepEqual(bound.QuerySources[0].Uses, tc.used) {
+			t.Fatal(tc.expr, bound.QuerySources, tc.used)
 		}
-		if len(bound.parameters.Types) != len(tc.ids) {
-			t.Fatal(bound.parameters)
+		if len(bound.Parameters.Types) != len(tc.ids) {
+			t.Fatal(bound.Parameters)
 		}
-		for i, u := range bound.parameters.Types {
+		for i, u := range bound.Parameters.Types {
 			if u.Type.ID() != tc.ids[i] {
 				t.Fatal(tc.expr, u)
 			}
 		}
-		node := bound.query.Root.(*plan.ProjectNode).Expressions[0]
+		node := bound.Query.Root.(*plan.ProjectNode).Expressions[0]
 		p := node.Properties()
 		if node.ResultUsage().Type.ID() != sqltype.Bool || p.RowDependent != tc.row || p.ParameterDependent != (len(tc.ids) > 0) || p.StageDependent || p.Volatility != expr.Immutable {
 			t.Fatal(tc.expr, node, p)
@@ -117,7 +117,7 @@ func TestBetweenTemporalCaptureRebind(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal(err)
 			}
-			desc := StatementDescription{temporals: bound.prepared.temporals}
+			desc := StatementDescription{temporals: bound.Prepared.Temporals}
 			before := append([]temporalConstant(nil), desc.temporals...)
 			wantCaptures := 4
 			if form == "BETWEEN SYMMETRIC" || form == "NOT BETWEEN SYMMETRIC" {
@@ -128,7 +128,7 @@ func TestBetweenTemporalCaptureRebind(t *testing.T) {
 				t.Fatal(before)
 			}
 			for i, capture := range before {
-				if capture.scalar != before[0].scalar || (capture.typmod != -1 && capture.typmod != 3) || (i > 0 && capture.offset < before[i-1].offset) {
+				if capture.Scalar != before[0].Scalar || (capture.Typmod != -1 && capture.Typmod != 3) || (i > 0 && capture.Offset < before[i-1].Offset) {
 					e.mu.Unlock()
 					t.Fatal("incoherent initial capture", before)
 				}
@@ -139,13 +139,13 @@ func TestBetweenTemporalCaptureRebind(t *testing.T) {
 					e.mu.Unlock()
 					t.Fatal(err)
 				}
-				node := rebound.query.Root.(*plan.ProjectNode).Expressions[0]
+				node := rebound.Query.Root.(*plan.ProjectNode).Expressions[0]
 				value, evalErr := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 				truth, truthErr := value.Boolean()
 				want := form == "BETWEEN" || form == "BETWEEN SYMMETRIC"
-				if evalErr != nil || truthErr != nil || truth != want || !reflect.DeepEqual(desc.temporals, before) || len(rebound.prepared.temporals) != 0 {
+				if evalErr != nil || truthErr != nil || truth != want || !reflect.DeepEqual(desc.temporals, before) || len(rebound.Prepared.Temporals) != 0 {
 					e.mu.Unlock()
-					t.Fatal("frozen capture/result changed", value, evalErr, truthErr, desc.temporals, rebound.prepared.temporals)
+					t.Fatal("frozen capture/result changed", value, evalErr, truthErr, desc.temporals, rebound.Prepared.Temporals)
 				}
 			}
 			e.mu.Unlock()

@@ -200,11 +200,11 @@ func (b *expressionBinder) compositeFieldAt(base expr.Expr, index int, pos parse
 	return plan.FieldExpr{Info: b.info(member.Usage, pos, base.Properties()), Base: base, Attribute: member.Attribute, Index: index}
 }
 func (b *expressionBinder) retainedCompositeField(base expr.Expr, key preparedCompositeKey, captured compositeOccurrence, pos parser.Position) expr.Expr {
-	index, exists := base.ResultUsage().Type.BaseType().CompositeAttributeIndex(captured.attributes[0])
-	b.prepared.captureComposite(key, captured.base, captured.attributes)
+	index, exists := base.ResultUsage().Type.BaseType().CompositeAttributeIndex(captured.Attributes[0])
+	b.prepared.CaptureComposite(key, captured.Base, captured.Attributes)
 	if !exists {
-		oldIndex, _ := captured.base.Type.BaseType().CompositeAttributeIndex(captured.attributes[0])
-		usage := captured.base.Type.BaseType().CompositeMember(oldIndex).Usage
+		oldIndex, _ := captured.Base.Type.BaseType().CompositeAttributeIndex(captured.Attributes[0])
+		usage := captured.Base.Type.BaseType().CompositeMember(oldIndex).Usage
 		return plan.LiteralExpr{Info: b.info(usage, pos, expr.Properties{}), Value: sqltype.Null(usage.Type)}
 	}
 	return b.compositeFieldAt(base, index, pos)
@@ -222,7 +222,7 @@ func (b *expressionBinder) bindField(raw parser.FieldExpr) (expr.Expr, error) {
 	if captured, found, err := b.retainedComposite(key, base.ResultUsage()); err != nil {
 		return nil, err
 	} else if found {
-		if captured.kind == compositeDotBuiltin {
+		if captured.Kind == CompositeDotBuiltin {
 			return b.bindDotBuiltin(raw, key)
 		}
 		return b.retainedCompositeField(base, key, captured, raw.Pos), nil
@@ -232,7 +232,7 @@ func (b *expressionBinder) bindField(raw parser.FieldExpr) (expr.Expr, error) {
 		return b.bindDotBuiltin(raw, key)
 	}
 	if field, ok := node.(plan.FieldExpr); err == nil && ok {
-		b.prepared.captureComposite(key, base.ResultUsage(), []int32{field.Attribute})
+		b.prepared.CaptureComposite(key, base.ResultUsage(), []int32{field.Attribute})
 	}
 	return node, err
 }
@@ -259,7 +259,7 @@ func (b *expressionBinder) expandComposite(raw parser.FieldExpr) (plan.Composite
 	if err != nil {
 		return plan.CompositeExpansionBinding{}, err
 	}
-	attributes := captured.attributes
+	attributes := captured.Attributes
 	if !found {
 		attributes = make([]int32, shape.CompositeLen())
 		for i := range attributes {
@@ -267,16 +267,16 @@ func (b *expressionBinder) expandComposite(raw parser.FieldExpr) (plan.Composite
 		}
 	}
 	if found {
-		b.prepared.captureComposite(key, captured.base, attributes)
+		b.prepared.CaptureComposite(key, captured.Base, attributes)
 	} else {
-		b.prepared.captureComposite(key, base.ResultUsage(), attributes)
+		b.prepared.CaptureComposite(key, base.ResultUsage(), attributes)
 	}
 	result := plan.CompositeExpansionBinding{Base: base, Fields: make([]expr.Expr, len(attributes)), Names: make([]string, len(attributes)), Attributes: attributes}
 	for i, attribute := range attributes {
 		index, exists := shape.CompositeAttributeIndex(attribute)
 		if found {
-			oldIndex, _ := captured.base.Type.BaseType().CompositeAttributeIndex(attribute)
-			member := captured.base.Type.BaseType().CompositeMember(oldIndex)
+			oldIndex, _ := captured.Base.Type.BaseType().CompositeAttributeIndex(attribute)
+			member := captured.Base.Type.BaseType().CompositeMember(oldIndex)
 			result.Names[i] = member.Name
 			if !exists {
 				result.Fields[i] = plan.LiteralExpr{Info: b.info(member.Usage, raw.Pos, expr.Properties{}), Value: sqltype.Null(member.Usage.Type)}
@@ -613,7 +613,7 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (result expr.Ex
 		return nil, err
 	}
 	base := b.clause.functionProjection.operand
-	key := preparedCompositeKey{offset: raw.Pos.Offset, kind: compositeSelection}
+	key := preparedCompositeKey{Offset: raw.Pos.Offset, Kind: CompositeSelection}
 	captured, retained, failure := b.retainedComposite(key, base.ResultUsage())
 	if failure != nil {
 		return nil, failure
@@ -628,7 +628,7 @@ func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (result expr.Ex
 	}
 	if found {
 		member := shape.CompositeMember(index)
-		b.prepared.captureComposite(key, base.ResultUsage(), []int32{member.Attribute})
+		b.prepared.CaptureComposite(key, base.ResultUsage(), []int32{member.Attribute})
 		return b.compositeFieldAt(base, index, raw.Pos), nil
 	}
 	return nil, err

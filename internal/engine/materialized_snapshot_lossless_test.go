@@ -33,7 +33,7 @@ func TestMaterializedViewSnapshotLosslessCoercions(t *testing.T) {
 		if _, err := b.inputConstant(text, u, parser.Position{}); err == nil {
 			t.Fatal("bind-time temporal input erased precision", id)
 		}
-		if len(b.prepared.temporals) != 0 {
+		if len(b.prepared.Temporals) != 0 {
 			t.Fatal("failed input installed temporal capture")
 		}
 	}

@@ -69,10 +69,10 @@ func bindTypedColumns(host analyzeHost, auth AuthorizationView, s *parser.Create
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		if declaration.identity != nil {
+		if declaration.Identity != nil {
 			return nil, nil, nil, sqlError("0A000", "identity columns are not supported on typed tables")
 		}
-		if declaration.generation != nil {
+		if declaration.Generation != nil {
 			return nil, nil, nil, sqlError("0A000", "generated columns are not supported on typed tables")
 		}
 		declarations[slot] = declaration

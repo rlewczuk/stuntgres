@@ -96,8 +96,8 @@ func TestPrimaryKeyLikeActualProviderAndComment(t *testing.T) {
 	if e.storage.IndexRoots[c.Index] == sourceRoot || len(e.storage.IndexRoots[c.Index].Entries) != 0 || len(sourceRoot.Entries) != 2 || index.Comment != "" || index.SQLIndex.Keys[1].ExplicitClass {
 		t.Fatal("LIKE transplanted root or mutated retained source")
 	}
-	bound, err := bindCreateUniques(ddl, clone.Index, []createLikeInput{{source: parent, offset: 1, options: likeIndexes | likeComments}}, e.CatalogRead())
-	if err != nil || len(bound) != 2 || bound[0].source != source || bound[0].like == nil || !bound[0].copyComments || bound[1].source != nil {
+	bound, err := bindCreateUniques(ddl, clone.Index, []createLikeInput{{Source: parent, Offset: 1, Options: LikeIndexes | LikeComments}}, e.CatalogRead())
+	if err != nil || len(bound) != 2 || bound[0].Source != source || bound[0].Like == nil || !bound[0].CopyComments || bound[1].Source != nil {
 		t.Fatal("bound source provenance", bound, err)
 	}
 }

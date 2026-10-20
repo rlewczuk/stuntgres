@@ -362,7 +362,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		if err == nil && pass == 4 {
 			inlineIndex := 0
 			for _, added := range additions {
-				if added.declaration.columnNotNull {
+				if added.declaration.ColumnNotNull {
 					before := next
 					if definition != nil && !definition.phaseZeroOnly {
 						if inlineIndex >= len(definition.inline) || definition.inline[inlineIndex].old != next {
@@ -376,7 +376,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 							next = preparedInline.next
 						}
 					} else {
-						next, err = notNullCandidate(op, auth.Catalog, next, parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: added.column.Name}, Constraint: parser.Identifier{Text: added.declaration.columnName}}, notNullDirect)
+						next, err = notNullCandidate(op, auth.Catalog, next, parser.AlterTableAction{Action: parser.AddNotNull, Column: parser.Identifier{Text: added.column.Name}, Constraint: parser.Identifier{Text: added.declaration.ColumnName}}, notNullDirect)
 					}
 					if err != nil {
 						break

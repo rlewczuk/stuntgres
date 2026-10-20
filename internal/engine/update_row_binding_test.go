@@ -40,20 +40,20 @@ func updateRowTestBinding(t *testing.T, q string) (*Engine, binding) {
 
 func TestUpdateRowBinding(t *testing.T) {
 	_, b := updateRowTestBinding(t, "UPDATE t SET id=id+1,(a,b)=(SELECT b,a),(c,d)=ROW(a,b)")
-	u := b.update
-	if !reflect.DeepEqual(b.targets, []int{0, 1, 2, 3, 4}) || len(u.assignments) != 5 || len(u.origins) != 5 || len(u.groups) != 1 || u.groups[0] != (updateAssignmentGroup{start: 1, width: 2}) || u.outputWidth != 2 {
-		t.Fatal("normalization order", b.targets, u)
+	u := b.Update
+	if !reflect.DeepEqual(b.Targets, []int{0, 1, 2, 3, 4}) || len(u.Assignments) != 5 || len(u.Origins) != 5 || len(u.Groups) != 1 || u.Groups[0] != (updateAssignmentGroup{Start: 1, Width: 2}) || u.OutputWidth != 2 {
+		t.Fatal("normalization order", b.Targets, u)
 	}
-	source, ok := u.assignments[1].(plan.SubqueryExpr)
+	source, ok := u.Assignments[1].(plan.SubqueryExpr)
 	if !ok || source.UpdateWidth != 2 || len(source.QueryPlan.Root.Schema()) != 2 {
-		t.Fatal("missing shared source", u.assignments[1])
+		t.Fatal("missing shared source", u.Assignments[1])
 	}
-	output, ok := u.assignments[2].(plan.UpdateOutputExpr)
-	if !ok || output.Index != 1 || output.Group != 1 || output.ResultUsage() != source.QueryPlan.Root.Schema()[1].Usage || output.SourcePosition() != u.origins[2] {
+	output, ok := u.Assignments[2].(plan.UpdateOutputExpr)
+	if !ok || output.Index != 1 || output.Group != 1 || output.ResultUsage() != source.QueryPlan.Root.Schema()[1].Usage || output.SourcePosition() != u.Origins[2] {
 		t.Fatal("output provenance", output)
 	}
 	_, single := updateRowTestBinding(t, "UPDATE t SET (a)=(SELECT b)")
-	if single.update.assignments[0].(plan.SubqueryExpr).UpdateWidth != 1 || len(single.update.groups) != 1 {
+	if single.Update.Assignments[0].(plan.SubqueryExpr).UpdateWidth != 1 || len(single.Update.Groups) != 1 {
 		t.Fatal("singleton group lost assignment identity")
 	}
 	for _, q := range []string{"UPDATE t SET a=1,b=2", "UPDATE t SET (a,b)=(SELECT 1,2)"} {
@@ -65,7 +65,7 @@ func TestUpdateRowBinding(t *testing.T) {
 			op, scope, b, _, _ := updateFromBoundSources(t, e, owner, context.Background(), q)
 			defer op.Done()
 			defer scope.Finish(context.Canceled)
-			if b.resolvers.typeDiagnosticName == nil || b.resolvers.typeDiagnosticName(b.relation.Columns[0].Usage.Type.ID()) != "positive" {
+			if b.Resolvers.TypeDiagnosticName == nil || b.Resolvers.TypeDiagnosticName(b.Relation.Columns[0].Usage.Type.ID()) != "positive" {
 				t.Fatal("assignment lost captured destination diagnostic naming")
 			}
 		})
@@ -74,9 +74,9 @@ func TestUpdateRowBinding(t *testing.T) {
 
 func TestUpdateRowVisitors(t *testing.T) {
 	e, b := updateRowTestBinding(t, "UPDATE t SET (a,b)=(SELECT a+$1::int,b)")
-	u := b.update
+	u := b.Update
 	queries, outputs := 0, 0
-	for _, recipe := range u.assignments {
+	for _, recipe := range u.Assignments {
 		plan.WalkExpression(recipe, func(node expr.Expr) {
 			switch node.(type) {
 			case plan.SubqueryExpr:
@@ -91,7 +91,7 @@ func TestUpdateRowVisitors(t *testing.T) {
 	}
 	queryMaps := 0
 	mapQuery := func(root plan.Node) (plan.Node, error) { queryMaps++; return root, nil }
-	for _, recipe := range u.assignments {
+	for _, recipe := range u.Assignments {
 		_, _, err := retagBoundTypesWithQuery(e.CatalogRead(), recipe, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, mapQuery)
 		if err != nil {
 			t.Fatal(err)
@@ -100,9 +100,9 @@ func TestUpdateRowVisitors(t *testing.T) {
 	if queryMaps != 1 {
 		t.Fatal("query graph mapping count", queryMaps)
 	}
-	original := u.assignments[0].(plan.SubqueryExpr)
+	original := u.Assignments[0].(plan.SubqueryExpr)
 	mapped, _, err := mapBoundExpression(e.CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(node expr.Expr) (expr.Expr, bool, error) { return node, false, nil })
-	if err != nil || mapped.(plan.SubqueryExpr).UpdateWidth != 2 || original.QueryPlan != u.assignments[0].(plan.SubqueryExpr).QueryPlan {
+	if err != nil || mapped.(plan.SubqueryExpr).UpdateWidth != 2 || original.QueryPlan != u.Assignments[0].(plan.SubqueryExpr).QueryPlan {
 		t.Fatal("lost marker or mutated template", err)
 	}
 	ctx := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
@@ -114,14 +114,14 @@ func TestUpdateRowVisitors(t *testing.T) {
 
 func TestUpdateRowRuleRestriction(t *testing.T) {
 	e, b := updateRowTestBinding(t, "UPDATE t SET (a,b)=(SELECT b,a)")
-	for _, recipe := range b.update.assignments {
+	for _, recipe := range b.Update.Assignments {
 		wrapped := plan.CollationExpr{Info: expr.InfoOf(recipe), Child: recipe}
 		state(t, validateRuleNewUpdateOutput(wrapped), "0A000")
 	}
 	_, one := updateRowTestBinding(t, "UPDATE t SET (a)=(SELECT b)")
-	state(t, validateRuleNewUpdateOutput(one.update.assignments[0]), "0A000")
+	state(t, validateRuleNewUpdateOutput(one.Update.Assignments[0]), "0A000")
 	_, constructor := updateRowTestBinding(t, "UPDATE t SET (a,b)=ROW(b,a)")
-	for _, recipe := range constructor.update.assignments {
+	for _, recipe := range constructor.Update.Assignments {
 		if err := validateRuleNewUpdateOutput(recipe); err != nil {
 			t.Fatal(err)
 		}
@@ -129,7 +129,7 @@ func TestUpdateRowRuleRestriction(t *testing.T) {
 	// A nested query's output markers are not current-level lexical recipes.
 	_, query, _ := queryJoinsFixture(t, "SELECT k FROM a WHERE k=2")
 	project := query.Root.(*plan.ProjectNode)
-	subqueryTestTarget(t, project, b.update.assignments[1])
+	subqueryTestTarget(t, project, b.Update.Assignments[1])
 	outer := subqueryTestExpression(t, e, query, parser.SubqueryScalar)
 	if err := validateRuleNewUpdateOutput(outer); err != nil {
 		t.Fatal("restriction crossed scalar SubLink boundary", err)

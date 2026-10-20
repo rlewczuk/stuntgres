@@ -13,8 +13,8 @@ import (
 // VALUES ordinals follow structural source preorder, independent of physical
 // table occurrences and source offsets. Row/key indices are local to a source.
 func (b *expressionBinder) captureValuesViewLiteral(raw parser.Expr, bound expr.Expr, clause viewLiteralClause, source, row, column int) error {
-	path := viewLiteralPath{query: b.frameID(), clause: clause, source: source, row: row, target: column}
-	if clause == viewValuesOrderLiteral {
+	path := viewLiteralPath{Query: b.frameID(), Clause: clause, Source: source, Row: row, Target: column}
+	if clause == ViewValuesOrderLiteral {
 		if integer, ok := raw.(parser.LiteralExpr); ok && integer.Value.Kind == parser.IntegerValue {
 			return nil
 		}
@@ -81,7 +81,7 @@ func (v *viewRenderer) valuesSQL(ctx context.Context, catalogView catalog.Read, 
 	for i, row := range source.Rows {
 		cells := make([]string, 0, len(row))
 		for j, raw := range row {
-			text, err := v.expressionSQL(ctx, catalogView, raw, viewLiteralPath{clause: viewValuesCellLiteral, source: occurrence, row: i, target: j})
+			text, err := v.expressionSQL(ctx, catalogView, raw, viewLiteralPath{Clause: ViewValuesCellLiteral, Source: occurrence, Row: i, Target: j})
 			if err != nil {
 				return "", err
 			}
@@ -98,7 +98,7 @@ func (v *viewRenderer) valuesSQL(ctx context.Context, catalogView catalog.Read, 
 	if source.Order != nil {
 		keys := make([]string, len(source.Order.Keys))
 		for i, key := range source.Order.Keys {
-			part, err := v.expressionSQL(ctx, catalogView, key.Expr, viewLiteralPath{clause: viewValuesOrderLiteral, source: occurrence, target: i})
+			part, err := v.expressionSQL(ctx, catalogView, key.Expr, viewLiteralPath{Clause: ViewValuesOrderLiteral, Source: occurrence, Target: i})
 			if err != nil {
 				return "", err
 			}
@@ -121,13 +121,13 @@ func (v *viewRenderer) valuesSQL(ctx context.Context, catalogView catalog.Read, 
 			clause viewLiteralClause
 			name   string
 		}{
-			{source.Bounds.Offset, viewValuesOffsetLiteral, "OFFSET"},
-			{source.Bounds.Count, viewValuesLimitLiteral, "LIMIT"},
+			{source.Bounds.Offset, ViewValuesOffsetLiteral, "OFFSET"},
+			{source.Bounds.Count, ViewValuesLimitLiteral, "LIMIT"},
 		} {
 			if bound.raw == nil {
 				continue
 			}
-			part, err := v.expressionSQL(ctx, catalogView, bound.raw, viewLiteralPath{clause: bound.clause, source: occurrence})
+			part, err := v.expressionSQL(ctx, catalogView, bound.raw, viewLiteralPath{Clause: bound.clause, Source: occurrence})
 			if err != nil {
 				return "", err
 			}
@@ -144,27 +144,27 @@ func (v *viewRenderer) valuesSQL(ctx context.Context, catalogView catalog.Read, 
 func (v *viewDefinition) validateValuesLiterals(catalog catalog.Read, source *parser.ValuesQuery, frame uint32, occurrence int, count, columns, composites, intaggCount *int) error {
 	validate := func(raw parser.Expr, clause viewLiteralClause, row, column int) error {
 		ordinal := 0
-		return v.validateLiteralTree(catalog, raw, viewLiteralPath{query: frame, clause: clause, source: occurrence, row: row, target: column}, &ordinal, count, columns, composites, intaggCount)
+		return v.validateLiteralTree(catalog, raw, viewLiteralPath{Query: frame, Clause: clause, Source: occurrence, Row: row, Target: column}, &ordinal, count, columns, composites, intaggCount)
 	}
 	for i, row := range source.Rows {
 		for j, raw := range row {
-			if err := validate(raw, viewValuesCellLiteral, i, j); err != nil {
+			if err := validate(raw, ViewValuesCellLiteral, i, j); err != nil {
 				return err
 			}
 		}
 	}
 	if source.Order != nil {
 		for i, key := range source.Order.Keys {
-			if err := validate(key.Expr, viewValuesOrderLiteral, 0, i); err != nil {
+			if err := validate(key.Expr, ViewValuesOrderLiteral, 0, i); err != nil {
 				return err
 			}
 		}
 	}
 	if source.Bounds != nil {
-		if err := validate(source.Bounds.Offset, viewValuesOffsetLiteral, 0, 0); err != nil {
+		if err := validate(source.Bounds.Offset, ViewValuesOffsetLiteral, 0, 0); err != nil {
 			return err
 		}
-		if err := validate(source.Bounds.Count, viewValuesLimitLiteral, 0, 0); err != nil {
+		if err := validate(source.Bounds.Count, ViewValuesLimitLiteral, 0, 0); err != nil {
 			return err
 		}
 	}

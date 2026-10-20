@@ -81,13 +81,13 @@ func partitionConstraintProven(scope *StatementScope, view catalog.Read, parent,
 		return false, scope.op.Context().Err()
 	}
 	var keys [32]expr.Expr
-	in := createLikeInput{source: parent, targetSlots: make([]int, len(parent.Columns))}
+	in := createLikeInput{Source: parent, TargetSlots: make([]int, len(parent.Columns))}
 	for i, column := range parent.Columns {
 		slot, ok := relation.Index[column.Name]
 		if !ok {
 			return false, ids.ErrCatalogReplaced
 		}
-		in.targetSlots[i] = slot
+		in.TargetSlots[i] = slot
 	}
 	for i, key := range parent.Partition.Keys {
 		var node expr.Expr
@@ -98,7 +98,7 @@ func partitionConstraintProven(scope *StatementScope, view catalog.Read, parent,
 				return false, err
 			}
 		} else {
-			slot := in.targetSlots[parent.IndexForAttribute(key.Attribute)]
+			slot := in.TargetSlots[parent.IndexForAttribute(key.Attribute)]
 			ref := view.Owner().Domain.Ref(view.Epoch(), relation.Address())
 			ref.Address.SubID = relation.Attributes[slot]
 			node = plan.ColumnExpr{Info: expr.Info{Usage: relation.Columns[slot].Usage, Property: expr.Properties{RowDependent: true}}, Origin: ref, Scope: 1, Frame: 1, Slot: slot}

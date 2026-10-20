@@ -102,7 +102,7 @@ func (v AuthorizationView) CheckCreate(ref ids.ObjectRef) error {
 	return v.View.CheckCreate(v, ref)
 }
 func (v AuthorizationView) checkColumns(b binding, mask authorization.Privileges, indices []int) error {
-	return v.View.CheckColumns(v, b.ref, b.relation, mask, indices)
+	return v.View.CheckColumns(v, b.Ref, b.Relation, mask, indices)
 }
 
 // TemporaryNamespace implements access.Environment: the session's own TEMP
@@ -228,86 +228,86 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 	return authorization, nil
 }
 func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error {
-	if b.viewWrite != nil {
+	if b.ViewWrite != nil {
 		return v.checkViewWrite(b, stmt)
 	}
 	switch stmt.(type) {
 	case *parser.Select, *parser.DeclareCursor, *parser.CreateQueryTable:
-		return v.checkQuerySources(b.querySources)
+		return v.checkQuerySources(b.QuerySources)
 	}
-	if b.relation == nil {
+	if b.Relation == nil {
 		return nil
 	}
 	switch stmt.(type) {
 	case *parser.Insert:
-		if err := v.checkColumns(b, authorization.InsertPrivilege, b.targets); err != nil {
+		if err := v.checkColumns(b, authorization.InsertPrivilege, b.Targets); err != nil {
 			return err
 		}
-		if b.insert.conflict != nil && len(insertConflictOf(b.insert.conflict).reads) != 0 {
-			if err := v.checkColumns(b, authorization.SelectPrivilege, insertConflictOf(b.insert.conflict).reads); err != nil {
+		if b.Insert.Conflict != nil && len(insertConflictOf(b.Insert.Conflict).reads) != 0 {
+			if err := v.checkColumns(b, authorization.SelectPrivilege, insertConflictOf(b.Insert.Conflict).reads); err != nil {
 				return err
 			}
 		}
-		if b.insert.conflict != nil && insertConflictOf(b.insert.conflict).update != nil {
-			if err := v.checkColumns(b, authorization.UpdatePrivilege, insertConflictOf(b.insert.conflict).updateTargets); err != nil {
+		if b.Insert.Conflict != nil && insertConflictOf(b.Insert.Conflict).update != nil {
+			if err := v.checkColumns(b, authorization.UpdatePrivilege, insertConflictOf(b.Insert.Conflict).updateTargets); err != nil {
 				return err
 			}
-			if len(insertConflictOf(b.insert.conflict).actionReads) != 0 {
-				if err := v.checkColumns(b, authorization.SelectPrivilege, insertConflictOf(b.insert.conflict).actionReads); err != nil {
+			if len(insertConflictOf(b.Insert.Conflict).actionReads) != 0 {
+				if err := v.checkColumns(b, authorization.SelectPrivilege, insertConflictOf(b.Insert.Conflict).actionReads); err != nil {
 					return err
 				}
 			}
 		}
-		if b.returning != nil && (b.returning.readRequired || len(b.returning.reads) != 0) {
-			if err := v.checkColumns(b, authorization.SelectPrivilege, b.returning.reads); err != nil {
+		if b.Returning != nil && (b.Returning.ReadRequired || len(b.Returning.Reads) != 0) {
+			if err := v.checkColumns(b, authorization.SelectPrivilege, b.Returning.Reads); err != nil {
 				return err
 			}
 		}
-		return v.checkQuerySources(b.querySources)
+		return v.checkQuerySources(b.QuerySources)
 	case *parser.Merge:
-		if b.merge.hasDelete {
-			if err := v.Check(access.Requirement{Object: b.ref, Privileges: authorization.DeletePrivilege}); err != nil {
+		if b.Merge.HasDelete {
+			if err := v.Check(access.Requirement{Object: b.Ref, Privileges: authorization.DeletePrivilege}); err != nil {
 				return err
 			}
 		}
-		if b.merge.hasInsert {
-			if err := v.checkColumns(b, authorization.InsertPrivilege, b.merge.insertTargets); err != nil {
+		if b.Merge.HasInsert {
+			if err := v.checkColumns(b, authorization.InsertPrivilege, b.Merge.InsertTargets); err != nil {
 				return err
 			}
 		}
-		if len(b.merge.updateTargets) != 0 {
-			if err := v.checkColumns(b, authorization.UpdatePrivilege, b.merge.updateTargets); err != nil {
+		if len(b.Merge.UpdateTargets) != 0 {
+			if err := v.checkColumns(b, authorization.UpdatePrivilege, b.Merge.UpdateTargets); err != nil {
 				return err
 			}
 		}
-		if b.merge.hasNothing || len(b.usedColumns) != 0 || b.returning != nil && b.returning.readRequired {
-			if err := v.checkColumns(b, authorization.SelectPrivilege, b.usedColumns); err != nil {
+		if b.Merge.HasNothing || len(b.UsedColumns) != 0 || b.Returning != nil && b.Returning.ReadRequired {
+			if err := v.checkColumns(b, authorization.SelectPrivilege, b.UsedColumns); err != nil {
 				return err
 			}
 		}
-		return v.checkQuerySources(b.querySources)
+		return v.checkQuerySources(b.QuerySources)
 	case *parser.Delete:
-		if err := v.Check(access.Requirement{Object: b.ref, Privileges: authorization.DeletePrivilege}); err != nil {
+		if err := v.Check(access.Requirement{Object: b.Ref, Privileges: authorization.DeletePrivilege}); err != nil {
 			return err
 		}
-		if len(b.usedColumns) != 0 {
-			if err := v.checkColumns(b, authorization.SelectPrivilege, b.usedColumns); err != nil {
+		if len(b.UsedColumns) != 0 {
+			if err := v.checkColumns(b, authorization.SelectPrivilege, b.UsedColumns); err != nil {
 				return err
 			}
 		}
-		return v.checkQuerySources(b.querySources)
+		return v.checkQuerySources(b.QuerySources)
 	case *parser.Update:
-		if err := v.checkColumns(b, authorization.UpdatePrivilege, b.targets); err != nil {
+		if err := v.checkColumns(b, authorization.UpdatePrivilege, b.Targets); err != nil {
 			return err
 		}
-		if len(b.usedColumns) != 0 {
-			if err := v.checkColumns(b, authorization.SelectPrivilege, b.usedColumns); err != nil {
+		if len(b.UsedColumns) != 0 {
+			if err := v.checkColumns(b, authorization.SelectPrivilege, b.UsedColumns); err != nil {
 				return err
 			}
 		}
-		return v.checkQuerySources(b.querySources)
+		return v.checkQuerySources(b.QuerySources)
 	default:
-		return v.checkColumns(b, authorization.SelectPrivilege, b.usedColumns)
+		return v.checkColumns(b, authorization.SelectPrivilege, b.UsedColumns)
 	}
 }
 
@@ -323,7 +323,7 @@ func (v AuthorizationView) checkQuerySources(sources []exec.Leaf) error {
 				return err
 			}
 		}
-		if err := sourceAuth.checkColumns(binding{ref: source.Ref, relation: source.Relation}, authorization.SelectPrivilege, source.Uses); err != nil {
+		if err := sourceAuth.checkColumns(binding{Ref: source.Ref, Relation: source.Relation}, authorization.SelectPrivilege, source.Uses); err != nil {
 			return err
 		}
 	}
@@ -336,7 +336,7 @@ func (v AuthorizationView) checkQuerySources(sources []exec.Leaf) error {
 			}
 		}
 		if exec.EffectiveQueryRowMark(source.Relation, source.Mark).Mode != 0 {
-			if err := sourceAuth.checkColumns(binding{ref: source.Ref, relation: source.Relation}, authorization.UpdatePrivilege, nil); err != nil {
+			if err := sourceAuth.checkColumns(binding{Ref: source.Ref, Relation: source.Relation}, authorization.UpdatePrivilege, nil); err != nil {
 				return err
 			}
 		}

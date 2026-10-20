@@ -150,11 +150,11 @@ type protocolLiteral struct {
 
 func protocolLiterals(t *testing.T, b *expressionBinder, want map[viewLiteralPath]protocolLiteral) {
 	t.Helper()
-	if len(b.capture.literals) != len(want) {
-		t.Fatalf("literal key set: got %v, want %v", b.capture.literals, want)
+	if len(b.capture.Literals) != len(want) {
+		t.Fatalf("literal key set: got %v, want %v", b.capture.Literals, want)
 	}
 	for key, expected := range want {
-		got, ok := b.capture.literals[key]
+		got, ok := b.capture.Literals[key]
 		if !ok {
 			t.Fatalf("missing literal at %+v", key)
 		}
@@ -178,18 +178,18 @@ func TestViewLiteralProtocolWrittenOperands(t *testing.T) {
 		n.Args[3] = captureCompositeOnly{Expr: n.Args[3]}
 		n.Args[4] = captureCompositeOnly{Expr: n.Args[4]}
 		frozen := n
-		if err := b.captureViewLiterals(raw, captureJSONBSet{n}, viewTargetLiteral, 0); err != nil {
+		if err := b.captureViewLiterals(raw, captureJSONBSet{n}, ViewTargetLiteral, 0); err != nil {
 			t.Fatal(err)
 		}
-		base := viewLiteralPath{query: b.frameID(), clause: viewTargetLiteral}
+		base := viewLiteralPath{Query: b.frameID(), Clause: ViewTargetLiteral}
 		first, last, column := base, base, base
-		first.node, column.node, last.node = 1, 3, 4
+		first.Node, column.Node, last.Node = 1, 3, 4
 		protocolLiterals(t, b, map[viewLiteralPath]protocolLiteral{first: {sqltype.JSONB, "9"}, last: {sqltype.JSONB, "{}"}})
-		if !reflect.DeepEqual(b.capture.columns, map[viewLiteralPath]viewColumn{column: {frame: b.frameID(), slot: 0}}) {
-			t.Fatal("written column association", b.capture.columns)
+		if !reflect.DeepEqual(b.capture.Columns, map[viewLiteralPath]viewColumn{column: {Frame: b.frameID(), Slot: 0}}) {
+			t.Fatal("written column association", b.capture.Columns)
 		}
-		if len(b.capture.castUsages) != 0 || !reflect.DeepEqual(n, frozen) || !reflect.DeepEqual(before.WrittenSlots, n.WrittenSlots) || before.Labels != n.Labels {
-			t.Fatal("capture mutated inputs or captured defaults", b.capture.castUsages)
+		if len(b.capture.CastUsages) != 0 || !reflect.DeepEqual(n, frozen) || !reflect.DeepEqual(before.WrittenSlots, n.WrittenSlots) || before.Labels != n.Labels {
+			t.Fatal("capture mutated inputs or captured defaults", b.capture.CastUsages)
 		}
 	})
 	t.Run("variadic_last_operand", func(t *testing.T) {
@@ -200,14 +200,14 @@ func TestViewLiteralProtocolWrittenOperands(t *testing.T) {
 		if !n.Variadic {
 			t.Fatal("fixture lost variadic operand")
 		}
-		if err := b.captureViewLiterals(raw, captureStringVariadic{n}, viewTargetLiteral, 2); err != nil {
+		if err := b.captureViewLiterals(raw, captureStringVariadic{n}, ViewTargetLiteral, 2); err != nil {
 			t.Fatal(err)
 		}
-		one := viewLiteralPath{query: b.frameID(), clause: viewTargetLiteral, target: 2, node: 2}
+		one := viewLiteralPath{Query: b.frameID(), Clause: ViewTargetLiteral, Target: 2, Node: 2}
 		two := one
-		two.node = 3
+		two.Node = 3
 		protocolLiterals(t, b, map[viewLiteralPath]protocolLiteral{one: {sqltype.Int4, "1"}, two: {sqltype.Int4, "2"}})
-		if !reflect.DeepEqual(before, n.Args) || len(b.capture.columns) != 0 || len(b.capture.castUsages) != 0 {
+		if !reflect.DeepEqual(before, n.Args) || len(b.capture.Columns) != 0 || len(b.capture.CastUsages) != 0 {
 			t.Fatal("variadic operand storage changed")
 		}
 	})
@@ -234,12 +234,12 @@ func TestViewLiteralProtocolOccurrenceOwnership(t *testing.T) {
 	last.Pos = parser.Position{Offset: 7}
 	outer.Args[1] = last
 	contexts := []viewLiteralPath{
-		{query: b.frameID(), clause: viewTargetLiteral, target: 0},
-		{query: b.frameID(), clause: viewTargetLiteral, target: 1},
-		{query: b.frameID(), clause: viewWhereLiteral},
-		{query: b.frameID() + 1, clause: viewTargetLiteral},
-		{query: b.frameID(), clause: viewFunctionLiteral, source: 1, target: 1},
-		{query: b.frameID(), clause: viewValuesCellLiteral, row: 1, target: 1},
+		{Query: b.frameID(), Clause: ViewTargetLiteral, Target: 0},
+		{Query: b.frameID(), Clause: ViewTargetLiteral, Target: 1},
+		{Query: b.frameID(), Clause: ViewWhereLiteral},
+		{Query: b.frameID() + 1, Clause: ViewTargetLiteral},
+		{Query: b.frameID(), Clause: ViewFunctionLiteral, Source: 1, Target: 1},
+		{Query: b.frameID(), Clause: ViewValuesCellLiteral, Row: 1, Target: 1},
 	}
 	want := make(map[viewLiteralPath]protocolLiteral)
 	for _, path := range contexts {
@@ -252,12 +252,12 @@ func TestViewLiteralProtocolOccurrenceOwnership(t *testing.T) {
 		}
 		for i, text := range []string{"11", "22", "33"} {
 			key := path
-			key.node = i + 2
+			key.Node = i + 2
 			want[key] = protocolLiteral{sqltype.Int4, text}
 		}
 	}
 	protocolLiterals(t, b, want)
-	if !reflect.DeepEqual(args, node.(functions.NullCount).Args) || len(b.capture.columns) != 0 || len(b.capture.castUsages) != 0 {
+	if !reflect.DeepEqual(args, node.(functions.NullCount).Args) || len(b.capture.Columns) != 0 || len(b.capture.CastUsages) != 0 {
 		t.Fatal("occurrence capture changed input or annotation ownership")
 	}
 }
@@ -268,20 +268,20 @@ func TestViewLiteralProtocolAnnotations(t *testing.T) {
 		raw, node := protocolBind(t, b, `SELECT array_position(ARRAY[1::smallint],2)`)
 		n := node.(functions.ArraySearch)
 		before := append([]expr.Expr(nil), n.Args...)
-		if err := b.captureViewLiterals(raw, captureArraySearch{n}, viewTargetLiteral, 0); err != nil {
+		if err := b.captureViewLiterals(raw, captureArraySearch{n}, ViewTargetLiteral, 0); err != nil {
 			t.Fatal(err)
 		}
-		parent := viewLiteralPath{query: b.frameID(), clause: viewTargetLiteral, argument: 1}
+		parent := viewLiteralPath{Query: b.frameID(), Clause: ViewTargetLiteral, Argument: 1}
 		written := parent
-		written.argument = 0
-		written.node = 2
+		written.Argument = 0
+		written.Node = 2
 		want := map[viewLiteralPath]sqltype.Usage{parent: n.Args[0].ResultUsage(), written: b.typ(sqltype.Int2).Usage()}
-		if !reflect.DeepEqual(b.capture.castUsages, want) || !reflect.DeepEqual(before, n.Args) {
-			t.Fatal("selected parent versus written cast ownership", b.capture.castUsages, want)
+		if !reflect.DeepEqual(b.capture.CastUsages, want) || !reflect.DeepEqual(before, n.Args) {
+			t.Fatal("selected parent versus written cast ownership", b.capture.CastUsages, want)
 		}
 		one, two := parent, parent
-		one.argument, two.argument = 0, 0
-		one.node, two.node = 3, 4
+		one.Argument, two.Argument = 0, 0
+		one.Node, two.Node = 3, 4
 		protocolLiterals(t, b, map[viewLiteralPath]protocolLiteral{one: {sqltype.Int4, "1"}, two: {sqltype.Int4, "2"}})
 	})
 	t.Run("sleep_call_not_argument", func(t *testing.T) {
@@ -289,15 +289,15 @@ func TestViewLiteralProtocolAnnotations(t *testing.T) {
 		raw, node := protocolBind(t, b, `SELECT pg_sleep(17)`)
 		n := node.(functions.DatetimeSleep)
 		before := n
-		if err := b.captureViewLiterals(raw, captureSleep{n}, viewTargetLiteral, 0); err != nil {
+		if err := b.captureViewLiterals(raw, captureSleep{n}, ViewTargetLiteral, 0); err != nil {
 			t.Fatal(err)
 		}
-		parent := viewLiteralPath{query: b.frameID(), clause: viewTargetLiteral}
-		if !reflect.DeepEqual(b.capture.castUsages, map[viewLiteralPath]sqltype.Usage{parent: b.typ(sqltype.Float8).Usage()}) || !reflect.DeepEqual(before, n) {
-			t.Fatal("sleep call-level usage", b.capture.castUsages)
+		parent := viewLiteralPath{Query: b.frameID(), Clause: ViewTargetLiteral}
+		if !reflect.DeepEqual(b.capture.CastUsages, map[viewLiteralPath]sqltype.Usage{parent: b.typ(sqltype.Float8).Usage()}) || !reflect.DeepEqual(before, n) {
+			t.Fatal("sleep call-level usage", b.capture.CastUsages)
 		}
 		child := parent
-		child.node = 1
+		child.Node = 1
 		protocolLiterals(t, b, map[viewLiteralPath]protocolLiteral{child: {sqltype.Int4, "17"}})
 	})
 	for _, tc := range []struct {
@@ -316,20 +316,20 @@ func TestViewLiteralProtocolAnnotations(t *testing.T) {
 			} else {
 				wrapped = capturePosix{node.(functions.PosixSubstring)}
 			}
-			if err := b.captureViewLiterals(raw, wrapped, viewTargetLiteral, 0); err != nil {
+			if err := b.captureViewLiterals(raw, wrapped, ViewTargetLiteral, 0); err != nil {
 				t.Fatal(err)
 			}
-			parent := viewLiteralPath{query: b.frameID(), clause: viewTargetLiteral}
+			parent := viewLiteralPath{Query: b.frameID(), Clause: ViewTargetLiteral}
 			want := map[viewLiteralPath]bool{parent: true}
 			if tc.similar {
-				if !reflect.DeepEqual(b.capture.similarSubstrings, want) || len(b.capture.posixSubstrings) != 0 {
+				if !reflect.DeepEqual(b.capture.SimilarSubstrings, want) || len(b.capture.PosixSubstrings) != 0 {
 					t.Fatal("SIMILAR annotation ownership")
 				}
-			} else if !reflect.DeepEqual(b.capture.posixSubstrings, want) || len(b.capture.similarSubstrings) != 0 {
+			} else if !reflect.DeepEqual(b.capture.PosixSubstrings, want) || len(b.capture.SimilarSubstrings) != 0 {
 				t.Fatal("POSIX annotation ownership")
 			}
-			if len(b.capture.castUsages) != 0 {
-				t.Fatal("substring acquired cast annotations", b.capture.castUsages)
+			if len(b.capture.CastUsages) != 0 {
+				t.Fatal("substring acquired cast annotations", b.capture.CastUsages)
 			}
 		})
 	}
@@ -340,14 +340,14 @@ func TestViewLiteralProtocolAnnotations(t *testing.T) {
 		n := conversion.Child.(functions.SQLJSON)
 		before := append([]expr.Expr(nil), n.Args...)
 		conversion.Child = captureSQLJSON{n}
-		if err := b.captureViewLiterals(raw, conversion, viewTargetLiteral, 0); err != nil {
+		if err := b.captureViewLiterals(raw, conversion, ViewTargetLiteral, 0); err != nil {
 			t.Fatal(err)
 		}
-		parent := viewLiteralPath{query: b.frameID(), clause: viewTargetLiteral}
+		parent := viewLiteralPath{Query: b.frameID(), Clause: ViewTargetLiteral}
 		child := parent
-		child.node = 1
-		if !reflect.DeepEqual(b.capture.castUsages, map[viewLiteralPath]sqltype.Usage{parent: b.typ(sqltype.Text).Usage()}) || !reflect.DeepEqual(b.capture.columns, map[viewLiteralPath]viewColumn{child: {frame: b.frameID(), slot: 0}}) || len(b.capture.literals) != 0 || !reflect.DeepEqual(before, n.Args) {
-			t.Fatal("FORMAT input or RETURNING ownership", b.capture.castUsages, b.capture.columns)
+		child.Node = 1
+		if !reflect.DeepEqual(b.capture.CastUsages, map[viewLiteralPath]sqltype.Usage{parent: b.typ(sqltype.Text).Usage()}) || !reflect.DeepEqual(b.capture.Columns, map[viewLiteralPath]viewColumn{child: {Frame: b.frameID(), Slot: 0}}) || len(b.capture.Literals) != 0 || !reflect.DeepEqual(before, n.Args) {
+			t.Fatal("FORMAT input or RETURNING ownership", b.capture.CastUsages, b.capture.Columns)
 		}
 	})
 	t.Run("dot_builtin", func(t *testing.T) {
@@ -355,15 +355,15 @@ func TestViewLiteralProtocolAnnotations(t *testing.T) {
 		_, node := protocolBind(t, b, `SELECT num_nulls(k)`)
 		n := node.(functions.NullCount)
 		raw := statement(t, `SELECT (k).num_nulls`).(*parser.Select).Targets[0]
-		if err := b.captureViewLiterals(raw, captureNullCount{n}, viewTargetLiteral, 0); err != nil {
+		if err := b.captureViewLiterals(raw, captureNullCount{n}, ViewTargetLiteral, 0); err != nil {
 			t.Fatal(err)
 		}
-		parent := viewLiteralPath{query: b.frameID(), clause: viewTargetLiteral}
+		parent := viewLiteralPath{Query: b.frameID(), Clause: ViewTargetLiteral}
 		child := parent
-		child.node = 1
-		want := compositeOccurrence{kind: compositeDotBuiltin, base: b.typ(sqltype.Text).Usage(), function: functions.CountNulls}
-		if !reflect.DeepEqual(b.capture.composites, map[viewLiteralPath]compositeOccurrence{parent: want}) || !reflect.DeepEqual(b.capture.columns, map[viewLiteralPath]viewColumn{child: {frame: b.frameID(), slot: 0}}) || len(b.capture.castUsages) != 0 {
-			t.Fatal("dot builtin identity/base ownership", b.capture.composites, b.capture.columns)
+		child.Node = 1
+		want := compositeOccurrence{Kind: CompositeDotBuiltin, Base: b.typ(sqltype.Text).Usage(), Function: functions.CountNulls}
+		if !reflect.DeepEqual(b.capture.Composites, map[viewLiteralPath]compositeOccurrence{parent: want}) || !reflect.DeepEqual(b.capture.Columns, map[viewLiteralPath]viewColumn{child: {Frame: b.frameID(), Slot: 0}}) || len(b.capture.CastUsages) != 0 {
+			t.Fatal("dot builtin identity/base ownership", b.capture.Composites, b.capture.Columns)
 		}
 	})
 }
@@ -402,7 +402,7 @@ func TestViewLiteralProtocolRejectsMismatch(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			fresh := protocolBinder(t)
-			err := fresh.captureViewLiterals(tc.raw, tc.node, viewTargetLiteral, 0)
+			err := fresh.captureViewLiterals(tc.raw, tc.node, ViewTargetLiteral, 0)
 			if err == nil {
 				t.Fatal("mismatched raw/bound pair accepted")
 			}
@@ -424,15 +424,15 @@ func TestViewLiteralProtocolQueryBoundaries(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[viewLiteralPath]protocolLiteral{
-		{query: 1, clause: viewFunctionLiteral, node: 1}: {sqltype.Int4, "1"},
-		{query: 1, clause: viewFunctionLiteral, node: 3}: {sqltype.Int4, "11"},
-		{query: 1, clause: viewFunctionLiteral, node: 4}: {sqltype.Int4, "22"},
-		{query: 2, clause: viewTargetLiteral, node: 1}:   {sqltype.Int4, "33"},
-		{query: 2, clause: viewTargetLiteral, node: 2}:   {sqltype.Int4, "44"},
+		{Query: 1, Clause: ViewFunctionLiteral, Node: 1}: {sqltype.Int4, "1"},
+		{Query: 1, Clause: ViewFunctionLiteral, Node: 3}: {sqltype.Int4, "11"},
+		{Query: 1, Clause: ViewFunctionLiteral, Node: 4}: {sqltype.Int4, "22"},
+		{Query: 2, Clause: ViewTargetLiteral, Node: 1}:   {sqltype.Int4, "33"},
+		{Query: 2, Clause: ViewTargetLiteral, Node: 2}:   {sqltype.Int4, "44"},
 	}
 	protocolLiterals(t, b, want)
 	frames, queries := collectQueryFrames(query.Root)
-	definition := &viewDefinition{syntax: raw, query: query, frames: frames, queries: queries, namespaces: b.capture.namespaces, literals: b.capture.literals, columns: b.capture.columns, castUsages: b.capture.castUsages}
+	definition := &viewDefinition{syntax: raw, query: query, frames: frames, queries: queries, namespaces: b.capture.Namespaces, literals: b.capture.Literals, columns: b.capture.Columns, castUsages: b.capture.CastUsages}
 	if err := definition.validateLiterals(b.bindingCatalog()); err != nil {
 		t.Fatal(err)
 	}
@@ -449,7 +449,7 @@ func TestViewLiteralProtocolQueryBoundaries(t *testing.T) {
 		if next.Usage.Type != fresh[original.Usage.Type.ID()] || next.Usage.Type == original.Usage.Type {
 			t.Fatal("retag lost fresh descriptor", path)
 		}
-		if original.Usage.Type != b.capture.literals[path].Usage.Type {
+		if original.Usage.Type != b.capture.Literals[path].Usage.Type {
 			t.Fatal("retag mutated captured source")
 		}
 	}
@@ -466,7 +466,7 @@ func TestViewLiteralProtocolInstalledWrapper(t *testing.T) {
 	if _, ok := any(wrapper).(expr.Capturable); !ok {
 		t.Fatal("fixture lost promoted capture hook")
 	}
-	if err := b.captureViewLiterals(raw, wrapper, viewTargetLiteral, 0); err != nil {
+	if err := b.captureViewLiterals(raw, wrapper, ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
 	mapped, err := remapBoundExpression(wrapper, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
@@ -482,7 +482,7 @@ func TestViewLiteralProtocolInstalledWrapper(t *testing.T) {
 	if err := validateInstalledUUIDOssp(got, b.bindingCatalog()); err == nil {
 		t.Fatal("lost installed identity validation")
 	}
-	if len(b.capture.literals) != 0 || len(b.capture.castUsages) != 0 {
+	if len(b.capture.Literals) != 0 || len(b.capture.CastUsages) != 0 {
 		t.Fatal("leaf acquired captures")
 	}
 }

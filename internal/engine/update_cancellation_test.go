@@ -39,16 +39,16 @@ func updateBoundSource(t *testing.T, e *Engine, s *Session, ctx context.Context,
 	var view *visibility.View
 	if err == nil {
 		b, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
-		scope.routineAuth, scope.routineDependencies = auth, b.dependencies
+		scope.routineAuth, scope.routineDependencies = auth, b.Dependencies
 	}
 	if err == nil {
-		view, err = scope.acquireDataViewLocked(e, b.ref)
+		view, err = scope.acquireDataViewLocked(e, b.Ref)
 	}
 	e.mu.Unlock()
 	if err != nil {
 		fail(err)
 	}
-	source, err := captureQuerySource(op.Context(), view, b.ref)
+	source, err := captureQuerySource(op.Context(), view, b.Ref)
 	if err != nil {
 		fail(err)
 	}
@@ -81,7 +81,7 @@ func TestUpdateCoreMidExecutionCancellation(t *testing.T) {
 				defer cancel()
 				op, scope, b, source := updateBoundSource(t, e, a, ctx, "UPDATE t SET v=v")
 				calls := 0
-				b.update.assignments[0] = queryProbe(b.relation.Columns[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
+				b.Update.Assignments[0] = queryProbe(b.Relation.Columns[0].Usage, func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if calls == 2 {
 						if deadline {

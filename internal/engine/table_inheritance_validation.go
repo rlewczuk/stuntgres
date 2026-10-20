@@ -16,7 +16,7 @@ func sameInheritedExpression(mapped, child expr.Expr, d *catalog.Relation, v cat
 	if sameGroupExpression(mapped, child) {
 		return true
 	}
-	identity := createLikeInput{source: d}
+	identity := createLikeInput{Source: d}
 	current, err := remapLikeExpression(&identity, child, d, v)
 	return err == nil && sameGroupExpression(mapped, current)
 }
@@ -72,13 +72,13 @@ func validateInheritance(v catalog.Read, d *catalog.Relation) error {
 	}
 	for _, parentAddress := range graph.Parents {
 		parent := v.MustRelation(parentAddress)
-		mapper := createLikeInput{source: parent, targetSlots: make([]int, len(parent.Columns))}
+		mapper := createLikeInput{Source: parent, TargetSlots: make([]int, len(parent.Columns))}
 		for i, column := range parent.Columns {
 			target, exists := d.Index[column.Name]
 			if !exists || target < 0 || target >= len(d.Attributes) {
 				return invalid()
 			}
-			mapper.targetSlots[i] = target
+			mapper.TargetSlots[i] = target
 		}
 		for _, constraint := range parent.Constraints.NotNull {
 			if constraint.NoInherit {
@@ -88,7 +88,7 @@ func validateInheritance(v catalog.Read, d *catalog.Relation) error {
 			if sourceSlot < 0 {
 				return invalid()
 			}
-			target := d.Attributes[mapper.targetSlots[sourceSlot]]
+			target := d.Attributes[mapper.TargetSlots[sourceSlot]]
 			if !slices.ContainsFunc(graph.NotNull[target].Origins, func(origin catalog.InheritanceOrigin) bool {
 				return origin.Parent == parentAddress && origin.Constraint == constraint.OID && origin.Attribute == constraint.Attribute
 			}) {
@@ -107,7 +107,7 @@ func validateInheritance(v catalog.Read, d *catalog.Relation) error {
 			if sourceSlot < 0 {
 				return invalid()
 			}
-			target := d.Attributes[mapper.targetSlots[sourceSlot]]
+			target := d.Attributes[mapper.TargetSlots[sourceSlot]]
 			child, ok := d.ColumnMeta.Generations[target]
 			if !ok || child.Kind != generation.Kind {
 				return invalid()
@@ -163,9 +163,9 @@ func validateInheritance(v catalog.Read, d *catalog.Relation) error {
 			if source < 0 {
 				return invalid()
 			}
-			mapper := createLikeInput{source: parent, targetSlots: make([]int, len(parent.Columns))}
+			mapper := createLikeInput{Source: parent, TargetSlots: make([]int, len(parent.Columns))}
 			for i, c := range parent.Columns {
-				mapper.targetSlots[i] = d.Index[c.Name]
+				mapper.TargetSlots[i] = d.Index[c.Name]
 			}
 			node, err := remapLikeExpression(&mapper, parent.Constraints.Check[source].Expression, d, v)
 			if err != nil || !sameInheritedExpression(node, d.Constraints.Check[child].Expression, d, v) {

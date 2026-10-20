@@ -27,7 +27,7 @@ func (b *expressionBinder) bindExtensionPaths(raw parser.FunctionExpr, arg expr.
 	if err != nil {
 		return nil, err
 	}
-	b.consumer.catalogSnapshot, b.prepared.regclassConcat = true, true
+	b.consumer.catalogSnapshot, b.prepared.RegclassConcat = true, true
 	return plan.ExtensionPathsExpr{Info: info, Arg: arg}, nil
 }
 

@@ -9,46 +9,46 @@ import (
 // The logical binder has checked arity, expressions and types. Logical view
 // defaults win for exposed columns; only true absence falls back to the base.
 func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.Insert) error {
-	d := viewWriteOf(b.viewWrite).base
-	physical := binding{relation: d, ref: viewWriteOf(b.viewWrite).ref}
+	d := viewWriteOf(b.ViewWrite).base
+	physical := binding{Relation: d, Ref: viewWriteOf(b.ViewWrite).ref}
 	domainScheduling := bindInsertDefaults(e.catalog.owner(), &physical, auth, parser.OverrideNone)
-	b.insert.defaults, b.insert.defaultOrigins = physical.insert.defaults, physical.insert.defaultOrigins
-	if b.insert.defaults == nil {
-		b.insert.defaults = make([]expr.Expr, len(d.Columns))
+	b.Insert.Defaults, b.Insert.DefaultOrigins = physical.Insert.Defaults, physical.Insert.DefaultOrigins
+	if b.Insert.Defaults == nil {
+		b.Insert.Defaults = make([]expr.Expr, len(d.Columns))
 	}
-	b.insert.identityDiscard = nil
-	b.insert.projection = nil
-	for i, output := range viewWriteOf(b.viewWrite).outputs {
+	b.Insert.IdentityDiscard = nil
+	b.Insert.Projection = nil
+	for i, output := range viewWriteOf(b.ViewWrite).outputs {
 		direct, ok := viewDirectColumn(output)
 		if !ok {
 			continue
 		}
-		node, origin := columnDefault(auth.Catalog, viewWriteOf(b.viewWrite).logical.relation, i)
-		if origin.definition.Expression != nil {
-			if b.insert.defaultOrigins == nil {
-				b.insert.defaultOrigins = make([]defaultOrigin, len(d.Columns))
+		node, origin := columnDefault(auth.Catalog, viewWriteOf(b.ViewWrite).logical.Relation, i)
+		if origin.Definition.Expression != nil {
+			if b.Insert.DefaultOrigins == nil {
+				b.Insert.DefaultOrigins = make([]defaultOrigin, len(d.Columns))
 				for j := range d.Columns {
-					b.insert.defaultOrigins[j] = bindingDefaultOrigin(&physical, j)
+					b.Insert.DefaultOrigins[j] = bindingDefaultOrigin(&physical, j)
 				}
 			}
-			b.insert.defaults[direct.Slot] = defaultDestination(node, d.Columns[direct.Slot].Usage)
-			b.insert.defaultOrigins[direct.Slot] = origin
+			b.Insert.Defaults[direct.Slot] = defaultDestination(node, d.Columns[direct.Slot].Usage)
+			b.Insert.DefaultOrigins[direct.Slot] = origin
 		}
 	}
 	if s.Override == parser.OverrideUser && len(d.ColumnMeta.Identities) != 0 {
-		b.insert.identityDiscard = make([]bool, len(d.Columns))
+		b.Insert.IdentityDiscard = make([]bool, len(d.Columns))
 		for i, attr := range d.Attributes {
-			_, b.insert.identityDiscard[i] = d.ColumnMeta.Identities[attr]
+			_, b.Insert.IdentityDiscard[i] = d.ColumnMeta.Identities[attr]
 		}
 	}
-	for i, slot := range b.targets {
+	for i, slot := range b.Targets {
 		attr := d.Attributes[slot]
 		supplied := false
 		defaultUsed := false
-		if b.query != nil {
+		if b.Query != nil {
 			supplied = true
 		} else {
-			for _, row := range b.expressions {
+			for _, row := range b.Expressions {
 				if i < len(row) && row[i] != nil {
 					supplied = true
 				} else {
@@ -64,15 +64,15 @@ func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.I
 				return sequence.IdentityInsertError(d.Columns[slot].Name)
 			}
 		}
-		discard := len(b.insert.identityDiscard) != 0 && b.insert.identityDiscard[slot]
-		partial := len(b.arrayTargets) != 0 && b.arrayTargets[i] != nil
+		discard := len(b.Insert.IdentityDiscard) != 0 && b.Insert.IdentityDiscard[slot]
+		partial := len(b.ArrayTargets) != 0 && b.ArrayTargets[i] != nil
 		if partial || supplied && !defaultUsed && !discard {
-			b.insert.defaults[slot] = nil
+			b.Insert.Defaults[slot] = nil
 		}
 	}
 	needsProjection := len(d.ColumnMeta.Identities) != 0
 	if domainScheduling && !needsProjection {
-		for _, node := range b.insert.defaults {
+		for _, node := range b.Insert.Defaults {
 			if node != nil {
 				needsProjection = true
 				break
@@ -80,12 +80,12 @@ func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.I
 		}
 	}
 	if needsProjection {
-		b.insert.projection = make([]int, len(d.Columns))
-		for i := range b.insert.projection {
-			b.insert.projection[i] = -1
+		b.Insert.Projection = make([]int, len(d.Columns))
+		for i := range b.Insert.Projection {
+			b.Insert.Projection[i] = -1
 		}
-		for i, slot := range b.targets {
-			b.insert.projection[slot] = i
+		for i, slot := range b.Targets {
+			b.Insert.Projection[slot] = i
 		}
 	}
 	return nil
@@ -95,9 +95,9 @@ func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.I
 // RETURNING keeps its analyzed logical schema, even when the target is hidden
 // from the view after an UPDATE or was never visible after an INSERT.
 func physicalBinding(b binding) binding {
-	if b.viewWrite == nil {
+	if b.ViewWrite == nil {
 		return b
 	}
-	b.relation, b.ref = viewWriteOf(b.viewWrite).base, viewWriteOf(b.viewWrite).ref
+	b.Relation, b.Ref = viewWriteOf(b.ViewWrite).base, viewWriteOf(b.ViewWrite).ref
 	return b
 }

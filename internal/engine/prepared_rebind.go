@@ -105,8 +105,8 @@ func preparedDefinitionStamp(d catalog.Descriptor, session *Session) ids.Definit
 // sources and analysis-only dependencies without a second AST visitor.
 func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationView, b binding) (*preparedAnalysis, error) {
 	target := s.lockedRef
-	if b.viewWrite != nil {
-		target = viewWriteOf(b.viewWrite).logical.ref
+	if b.ViewWrite != nil {
+		target = viewWriteOf(b.ViewWrite).logical.Ref
 	}
 	cell := &preparedAnalysis{domain: e.catalog.Domain, epoch: s.prepared.epoch, session: s.op.session.token, private: s.prepared.private, path: s.prepared.path, namespace: s.prepared.namespace, target: target, needsReanalysis: s.prepared.changedDuringAdmission}
 	seen := make(map[ids.ObjectRef]bool)
@@ -159,7 +159,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 			}
 			ref := mutation.lockedRef
 			if mutation.viewWrite != nil {
-				ref = mutation.viewWrite.logical.ref
+				ref = mutation.viewWrite.logical.Ref
 			}
 			if ref.Domain() == nil {
 				continue
@@ -173,7 +173,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 	if len(s.queryLockAdmission.tableQueries) != 0 {
 		cell.sources = make(map[*parser.TableReference]preparedSource, len(s.queryLockAdmission.tableQueries))
 	}
-	for _, leaf := range b.querySources {
+	for _, leaf := range b.QuerySources {
 		if _, admitted := s.queryLockAdmission.tableQueries[leaf.Table]; admitted {
 			cell.sources[leaf.Table] = preparedSource{query: s.queryLockAdmission.retainedQuery(leaf.Table), ref: leaf.Ref}
 		}
@@ -181,7 +181,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 			return nil, err
 		}
 	}
-	for _, dep := range b.dependencies {
+	for _, dep := range b.Dependencies {
 		if err := visit(dep.Ref); err != nil {
 			return nil, err
 		}

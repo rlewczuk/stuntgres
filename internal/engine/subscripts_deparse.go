@@ -16,7 +16,7 @@ func (v *viewRenderer) subscriptsArraySQLAt(ctx context.Context, catalog catalog
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	path.node = *ordinal
+	path.Node = *ordinal
 	cast, isCast := raw.(parser.CastExpr)
 	usage, captured := v.castUsages[path]
 	if !isCast || !captured || !usage.Type.BaseType().IsArray() {
@@ -24,7 +24,7 @@ func (v *viewRenderer) subscriptsArraySQLAt(ctx context.Context, catalog catalog
 	}
 	(*ordinal)++
 	literalPath := path
-	literalPath.node = *ordinal
+	literalPath.Node = *ordinal
 	text, err := v.subscriptsArraySQLAt(ctx, catalog, cast.Child, path, ordinal)
 	if err != nil {
 		return "", err

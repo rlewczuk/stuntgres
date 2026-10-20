@@ -10,7 +10,7 @@ import (
 )
 
 func (v *viewRenderer) wholeRowSQL(captured compositeOccurrence) (string, error) {
-	rendered, ok := v.wholeRows[captured.source]
+	rendered, ok := v.wholeRows[captured.Source]
 	if !ok || rendered.sql == "" {
 		return "", fmt.Errorf("stuntgres: missing rendered whole-row occurrence")
 	}
@@ -18,27 +18,27 @@ func (v *viewRenderer) wholeRowSQL(captured compositeOccurrence) (string, error)
 }
 
 func (v *viewRenderer) frozenCompositeFields(ctx context.Context, catalogView catalog.Read, captured compositeOccurrence, base string) ([]string, error) {
-	shape := captured.base.Type.BaseType()
-	fields := make([]string, len(captured.attributes))
+	shape := captured.Base.Type.BaseType()
+	fields := make([]string, len(captured.Attributes))
 	var exposed []string
 	var scalarRoot plan.Node
 	var scalarColumns []viewNamespaceColumn
-	if captured.source.Namespace != 0 {
-		rendered, ok := v.wholeRows[captured.source]
+	if captured.Source.Namespace != 0 {
+		rendered, ok := v.wholeRows[captured.Source]
 		if !ok || rendered.sql == "" {
 			return nil, fmt.Errorf("stuntgres: missing rendered whole-row field namespace")
 		}
 		exposed = rendered.names
-		namespace := v.namespaces[captured.source.Namespace-1]
+		namespace := v.namespaces[captured.Source.Namespace-1]
 		root := v.namespaceRoot(namespace)
-		if function, ok := root.(*plan.FunctionFromNode); ok && len(function.Calls) == 1 && !function.Ordinality && !function.Calls[0].ResultUsage().Type.IsComposite() && captured.kind == compositeExpansion {
+		if function, ok := root.(*plan.FunctionFromNode); ok && len(function.Calls) == 1 && !function.Ordinality && !function.Calls[0].ResultUsage().Type.IsComposite() && captured.Kind == CompositeExpansion {
 			// A namespace list is not a composite field selection on the
 			// function's scalar alias value. Replay its analyzed column slots.
 			scalarRoot = root
-			scalarColumns = namespace.qualifiers[captured.source.Qualifier].columns
+			scalarColumns = namespace.Qualifiers[captured.Source.Qualifier].Columns
 		}
 	}
-	for i, attribute := range captured.attributes {
+	for i, attribute := range captured.Attributes {
 		index, ok := shape.CompositeAttributeIndex(attribute)
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: retired rendered composite member")
@@ -47,7 +47,7 @@ func (v *viewRenderer) frozenCompositeFields(ctx context.Context, catalogView ca
 			if index >= len(scalarColumns) {
 				return nil, fmt.Errorf("stuntgres: missing rendered scalar namespace member")
 			}
-			text, err := v.slotSQL(ctx, catalogView, scalarRoot, scalarColumns[index].slot)
+			text, err := v.slotSQL(ctx, catalogView, scalarRoot, scalarColumns[index].Slot)
 			if err != nil {
 				return nil, err
 			}
@@ -67,10 +67,10 @@ func (v *viewRenderer) frozenCompositeFields(ctx context.Context, catalogView ca
 }
 
 func (v *viewRenderer) compositeExpansionSQL(ctx context.Context, catalog catalog.Read, raw parser.FieldExpr, path viewLiteralPath) ([]string, error) {
-	path.query = v.frame
-	path.node = 0
+	path.Query = v.frame
+	path.Node = 0
 	captured, ok := v.composites[path]
-	if !ok || captured.kind != compositeExpansion {
+	if !ok || captured.Kind != CompositeExpansion {
 		return nil, fmt.Errorf("stuntgres: missing frozen composite expansion")
 	}
 	ordinal := 1
@@ -83,7 +83,7 @@ func (v *viewRenderer) compositeExpansionSQL(ctx context.Context, catalog catalo
 
 func frozenDotBuiltinSQL(captured compositeOccurrence, base string) (string, error) {
 	name := ""
-	switch captured.function {
+	switch captured.Function {
 	case functions.CountNulls:
 		name = "num_nulls"
 	case functions.CountNonnulls:

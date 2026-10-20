@@ -114,15 +114,15 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	}
 	saved := regoperatorPreparedSnapshot(d.regtypes.constants)
 	c := saved[0]
-	if c.typeID == 0 || c.operator != 0 || c.value.Type() == nil || !c.value.Type().ContainsRegproc() || !c.value.Type().ContainsOperatorAlias() {
+	if c.TypeID == 0 || c.Operator != 0 || c.Value.Type() == nil || !c.Value.Type().ContainsRegproc() || !c.Value.Type().ContainsOperatorAlias() {
 		t.Fatal("mixed datum lost routine-owner classification", c)
 	}
-	if saved[1].operator != sqltype.Regoperator || saved[1].typeID != 0 || saved[2].operator != 0 || saved[2].typeID != 0 {
+	if saved[1].Operator != sqltype.Regoperator || saved[1].TypeID != 0 || saved[2].Operator != 0 || saved[2].TypeID != 0 {
 		t.Fatal("operator and standalone REGTYPE classifications conflated", saved)
 	}
-	procedure, procedureErr := c.value.CompositeField(0).ProcedureOID()
-	operatorID, operatorErr := c.value.CompositeField(1).OperatorOID()
-	typeID, typeErr := c.value.CompositeField(2).TypeOID()
+	procedure, procedureErr := c.Value.CompositeField(0).ProcedureOID()
+	operatorID, operatorErr := c.Value.CompositeField(1).OperatorOID()
+	typeID, typeErr := c.Value.CompositeField(2).TypeOID()
 	if procedureErr != nil || operatorErr != nil || typeErr != nil || procedure != 1397 || operatorID != 92001 || typeID != 23 {
 		t.Fatal("fresh mixed members lost actual identities", procedure, operatorID, typeID, procedureErr, operatorErr, typeErr)
 	}
@@ -131,7 +131,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 		{Ref: e.catalog.Domain.Ref(e.CatalogRead().Epoch(), typ.Address()), Revision: typ.Revision()},
 		{Ref: e.catalog.Domain.Ref(e.CatalogRead().Epoch(), int4.Address()), Revision: int4.Revision()},
 	}
-	if !reflect.DeepEqual(c.operands, want) || !slices.Contains(c.qualified, ns) {
+	if !reflect.DeepEqual(c.Operands, want) || !slices.Contains(c.Qualified, ns) {
 		t.Fatal("mixed owner lost exact operand stamps or qualified authority", c)
 	}
 	assertDependencies := func(deps []catalog.ExpressionDependency) {
@@ -159,7 +159,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 		}
 		cells := regoperatorPreparedSnapshot(saved)
 		for i := range cells {
-			cells[i].offset = 7
+			cells[i].Offset = 7
 		}
 		expected := StatementDescription{regtypes: &regtypeAnalysis{constants: cells}}
 		b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, &expected)
@@ -167,21 +167,21 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 		pos := parser.Position{Offset: 7, Character: 8}
 		fresh := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, nil)
 		fresh.query.auth = &auth
-		freshValue, err := fresh.routineConstant(`("abs(integer)","public.#=#(routine_types.secret,integer)",integer)`, c.value.Type().Usage(), pos)
-		if err != nil || !sqltype.SameDatum(freshValue, c.value) || len(fresh.prepared.regtypeConstants) != 1 {
-			t.Fatal("fresh mixed capture at shared occurrence", freshValue, err, fresh.prepared.regtypeConstants)
+		freshValue, err := fresh.routineConstant(`("abs(integer)","public.#=#(routine_types.secret,integer)",integer)`, c.Value.Type().Usage(), pos)
+		if err != nil || !sqltype.SameDatum(freshValue, c.Value) || len(fresh.prepared.RegtypeConstants) != 1 {
+			t.Fatal("fresh mixed capture at shared occurrence", freshValue, err, fresh.prepared.RegtypeConstants)
 		}
 		assertDependencies(fresh.dependencies)
-		if !reflect.DeepEqual(fresh.prepared.regtypeConstants[0], cells[0]) {
-			t.Fatal("fresh capture differs from retained occurrence", fresh.prepared.regtypeConstants[0], cells[0])
+		if !reflect.DeepEqual(fresh.prepared.RegtypeConstants[0], cells[0]) {
+			t.Fatal("fresh capture differs from retained occurrence", fresh.prepared.RegtypeConstants[0], cells[0])
 		}
-		value, err := b.routineConstant("not a composite", c.value.Type().Usage(), pos)
-		if err != nil || !sqltype.SameDatum(value, c.value) {
+		value, err := b.routineConstant("not a composite", c.Value.Type().Usage(), pos)
+		if err != nil || !sqltype.SameDatum(value, c.Value) {
 			t.Fatal("retained mixed datum was reparsed or cross-selected", value, err)
 		}
 		assertDependencies(b.dependencies)
-		if len(b.prepared.regtypeConstants) != 1 || !reflect.DeepEqual(b.prepared.regtypeConstants[0], cells[0]) {
-			t.Fatal("retained mixed capture lost qualification or operand stamps", b.prepared.regtypeConstants)
+		if len(b.prepared.RegtypeConstants) != 1 || !reflect.DeepEqual(b.prepared.RegtypeConstants[0], cells[0]) {
+			t.Fatal("retained mixed capture lost qualification or operand stamps", b.prepared.RegtypeConstants)
 		}
 		operator, _ := auth.Catalog.LookupType(sqltype.Regoperator)
 		value, err = b.operatorConstant("missing operator", operator, pos)
@@ -223,7 +223,7 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	defer result.Rows.Close()
 	values := make([]sqltype.Value, 3)
 	present, err := result.Rows.Next(context.Background(), values)
-	if err != nil || !present || !sqltype.SameDatum(values[0], c.value) {
+	if err != nil || !present || !sqltype.SameDatum(values[0], c.Value) {
 		t.Fatal("recovered mixed datum changed identity", values, err)
 	}
 	assertDependencies(d.analysis.dependencies)
@@ -249,12 +249,12 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 	}
 	defer revised.Rows.Close()
 	present, err = revised.Rows.Next(context.Background(), values)
-	if err != nil || !present || !sqltype.SameDatum(values[0], c.value) || d.analysis == priorAnalysis {
+	if err != nil || !present || !sqltype.SameDatum(values[0], c.Value) || d.analysis == priorAnalysis {
 		t.Fatal("mixed revision did not recapture unchanged actual identities", values, err)
 	}
 	want[0].Revision = changed.Revision()
-	if !reflect.DeepEqual(d.regtypes.constants[0].operands, want) {
-		t.Fatal("mixed recapture retained stale operand stamps", d.regtypes.constants[0].operands, want)
+	if !reflect.DeepEqual(d.regtypes.constants[0].Operands, want) {
+		t.Fatal("mixed recapture retained stale operand stamps", d.regtypes.constants[0].Operands, want)
 	}
 	assertDependencies(d.analysis.dependencies)
 	if !reflect.DeepEqual(d.Results, signature) || !regoperatorPreparedCellValid(t, e, s, d.regtypes) {

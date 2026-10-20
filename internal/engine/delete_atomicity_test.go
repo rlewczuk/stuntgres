@@ -42,7 +42,7 @@ func deleteProbeScope(t *testing.T, s *Session) (*StatementScope, binding, *exec
 	}
 	t.Cleanup(source.Close)
 	relation := scope.lockedDescriptor.(*catalog.Relation)
-	return scope, binding{ref: ref, relation: relation, storage: scope.lockedStorage}, source
+	return scope, binding{Ref: ref, Relation: relation, Storage: scope.lockedStorage}, source
 }
 
 func TestDeleteCoreAtomicity(t *testing.T) {
@@ -60,7 +60,7 @@ func TestDeleteCoreAtomicity(t *testing.T) {
 			defer cancel()
 			scope.op.ctx = ctx
 			calls := 0
-			b.predicate = queryProbe(boolean.Usage(), func(c *exec.Context) (sqltype.Value, error) {
+			b.Predicate = queryProbe(boolean.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 				calls++
 				if phase == "late_predicate" && calls == 2 {
 					return sqltype.Value{}, sentinel
@@ -84,7 +84,7 @@ func TestDeleteCoreAtomicity(t *testing.T) {
 			if !errors.Is(err, want) || result.Count != 0 || result.Rows != nil {
 				t.Fatal(result, err, want)
 			}
-			if e.visibility.CommitSeq() != originalFrontier || e.storage.Relations[b.ref.Address].Ends != nil {
+			if e.visibility.CommitSeq() != originalFrontier || e.storage.Relations[b.Ref.Address].Ends != nil {
 				t.Fatal("partial publication")
 			}
 			transactionRows(t, s, "SELECT v FROM t ORDER BY v", 1, 2, 3)
@@ -164,7 +164,7 @@ func TestDeleteCoreExplicitFailure(t *testing.T) {
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
 	sentinel := errors.New("later row predicate")
 	calls := 0
-	binding.predicate = queryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
+	binding.Predicate = queryProbe(boolean.Usage(), func(*exec.Context) (sqltype.Value, error) {
 		calls++
 		if calls == 2 {
 			return sqltype.Value{}, sentinel
@@ -194,7 +194,7 @@ func TestDeleteCoreStageAuthority(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO t VALUES(1),(1)")
 	scope, b, source := deleteProbeScope(t, s)
 	version := source.Committed[0]
-	candidate := visibility.DeleteCandidate{Ref: b.ref, Storage: b.storage, Row: version.Row, Version: version.Version, Ordinal: 0}
+	candidate := visibility.DeleteCandidate{Ref: b.Ref, Storage: b.Storage, Row: version.Row, Version: version.Version, Ordinal: 0}
 	copiedScope := *scope
 	if err := copiedScope.acquireRow(candidate); err == nil {
 		t.Fatal("copied scope acquired a row")
@@ -255,13 +255,13 @@ func TestDeleteCoreStageShapeAuthority(t *testing.T) {
 	sessionSQL(t, s, "INSERT INTO t VALUES(1),(2)")
 	scope, b, source := deleteProbeScope(t, s)
 	version := source.Committed[0]
-	candidate := visibility.DeleteCandidate{Ref: b.ref, Storage: b.storage, Row: version.Row, Version: version.Version, Ordinal: 0}
+	candidate := visibility.DeleteCandidate{Ref: b.Ref, Storage: b.Storage, Row: version.Row, Version: version.Version, Ordinal: 0}
 	if err := scope.acquireRow(candidate); err != nil {
 		t.Fatal(err)
 	}
 	e.mu.Lock()
-	replacement := *b.storage
-	e.storage.InstallRelationLocked(b.ref.Address, &replacement)
+	replacement := *b.Storage
+	e.storage.InstallRelationLocked(b.Ref.Address, &replacement)
 	e.mu.Unlock()
 	if _, err := scope.Writes().Delete(candidate); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("changed shape admitted staged deletion", err)

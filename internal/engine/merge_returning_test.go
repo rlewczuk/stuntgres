@@ -21,7 +21,7 @@ func TestMergeReturningFrames(t *testing.T) {
 	defer target.Close()
 	defer inputs.Close()
 	integer := func(n int64) sqltype.Value {
-		v, err := sqltype.Integer(b.relation.Columns[0].Usage.Type, n)
+		v, err := sqltype.Integer(b.Relation.Columns[0].Usage.Type, n)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -37,13 +37,13 @@ func TestMergeReturningFrames(t *testing.T) {
 		if action == parser.MergeInsertAction {
 			owner.OldRow = nil
 		}
-		v, err := b.returning.expressions[0].Eval(&child)
+		v, err := b.Returning.Expressions[0].Eval(&child)
 		want := map[parser.MergeAction]string{parser.MergeInsertAction: "INSERT", parser.MergeUpdateAction: "UPDATE", parser.MergeDeleteAction: "DELETE"}[action]
 		if err != nil || testExport(v) != want {
 			t.Fatal("lexical action owner", v, err, want)
 		}
 		for index, absent := range map[int]bool{1: action == parser.MergeInsertAction, 2: action == parser.MergeDeleteAction, 4: action == parser.MergeInsertAction, 5: action == parser.MergeDeleteAction} {
-			v, err = b.returning.expressions[index].Eval(&child)
+			v, err = b.Returning.Expressions[index].Eval(&child)
 			if err != nil || v.IsNull() != absent {
 				t.Fatal("transition presence", action, index, v, err)
 			}
@@ -51,7 +51,7 @@ func TestMergeReturningFrames(t *testing.T) {
 	}
 	owner.MergeAction = parser.MergeUpdateAction
 	owner.OldRow = old
-	whole := b.returning.expressions[4].(plan.ReturningWholeRowExpr)
+	whole := b.Returning.Expressions[4].(plan.ReturningWholeRowExpr)
 	calls := 0
 	member := whole.Members[0]
 	whole.Members[0] = queryProbe(member.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { calls++; return member.Eval(c) })
@@ -68,12 +68,12 @@ func TestMergeReturningFrames(t *testing.T) {
 		t.Fatal("present all-NULL row collapsed", v, err, calls)
 	}
 	owner.MergeSourcePresent = false
-	v, err = b.returning.expressions[6].Eval(&child)
+	v, err = b.Returning.Expressions[6].Eval(&child)
 	if err != nil || !v.IsNull() {
 		t.Fatal("missing source whole row", v, err)
 	}
 	child.Outer = nil
-	if _, err = b.returning.expressions[0].Eval(&child); err == nil {
+	if _, err = b.Returning.Expressions[0].Eval(&child); err == nil {
 		t.Fatal("missing lexical owner accepted")
 	}
 	if err = scope.Finish(errors.New("unit rollback")); err == nil {
@@ -97,16 +97,16 @@ func TestMergeReturningPublication(t *testing.T) {
 			defer op.Done()
 			defer target.Close()
 			defer inputs.Close()
-			one, _ := sqltype.Integer(b.relation.Columns[0].Usage.Type, 1)
+			one, _ := sqltype.Integer(b.Relation.Columns[0].Usage.Type, 1)
 			two, _ := sqltype.Integer(one.Type(), 2)
 			injected := errors.New("private output/producer veto")
-			cursor := &mergeInsertTestCursor{schema: b.merge.source.Schema(), rows: [][]sqltype.Value{{one}, {two}}}
+			cursor := &mergeInsertTestCursor{schema: b.Merge.Source.Schema(), rows: [][]sqltype.Value{{one}, {two}}}
 			if phase == "producerClose" {
 				cursor.closeError = injected
 			}
 			calls := 0
-			if b.returning != nil {
-				b.returning.expressions[1] = queryProbe(b.returning.schema[1].Usage, func(c *exec.Context) (sqltype.Value, error) {
+			if b.Returning != nil {
+				b.Returning.Expressions[1] = queryProbe(b.Returning.Schema[1].Usage, func(c *exec.Context) (sqltype.Value, error) {
 					calls++
 					if cursor.closed != 1 || len(scope.stage.rows) != 0 || c.MergeAction != parser.MergeUpdateAction {
 						t.Fatal("projection crossed source/publication boundary", cursor.closed, calls)
@@ -150,7 +150,7 @@ func TestMergeReturningPublication(t *testing.T) {
 					t.Fatal("accepted output count", calls, rows.returning.Count)
 				}
 			}
-			if err = rows.stage(scope.Writes(), b.ref); err != nil {
+			if err = rows.stage(scope.Writes(), b.Ref); err != nil {
 				scope.Finish(err)
 				t.Fatal(err)
 			}

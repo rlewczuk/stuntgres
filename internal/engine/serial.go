@@ -16,7 +16,7 @@ import (
 
 func (e *Engine) stageCreateSerials(stage *CatalogStage, table *catalog.Relation, declarations []createColumnDeclaration) error {
 	for slot, declaration := range declarations {
-		if !declaration.serial {
+		if !declaration.Serial {
 			continue
 		}
 		_, _, typeName := sequence.TypeLimits(table.Columns[slot].Usage.Type.ID())
@@ -51,7 +51,7 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *catalog.Relation
 		stage.sequenceState().setGenerator(address, &storage.SequenceGenerator{Last: options.Start, Generation: revision})
 		// Route synthetic syntax through the same closed default binder as Restore.
 		namespace, _ := read.Descriptor(table.Namespace())
-		declarations[slot].defaultExpr = parser.CallExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_catalog"}, {Text: "nextval"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(name)}}}}
+		declarations[slot].DefaultExpr = parser.CallExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_catalog"}, {Text: "nextval"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(name)}}}}
 	}
 	return nil
 }

@@ -922,7 +922,7 @@ func catalogExpressionTypesChanged(d *catalog.Relation, typ func(*sqltype.Descri
 					changed = changed || usage.Type != typ(usage.Type)
 				}
 				for _, captured := range condition.presentation.composites {
-					changed = changed || captured.base.Type != typ(captured.base.Type)
+					changed = changed || captured.Base.Type != typ(captured.Base.Type)
 				}
 			}
 		}
@@ -962,7 +962,7 @@ func catalogExpressionTypesChanged(d *catalog.Relation, typ func(*sqltype.Descri
 			changed = changed || usage.Type != typ(usage.Type)
 		}
 		for _, captured := range viewOf(d).composites {
-			changed = changed || captured.base.Type != typ(captured.base.Type)
+			changed = changed || captured.Base.Type != typ(captured.Base.Type)
 		}
 		for _, literal := range viewOf(d).literals {
 			expression(literal)

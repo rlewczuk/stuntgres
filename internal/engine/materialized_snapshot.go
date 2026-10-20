@@ -329,20 +329,20 @@ func (e *Engine) importMaterializedSnapshotRow(ctx context.Context, op *Operatio
 	if err != nil {
 		return nil, err
 	}
-	if b.parameters.Count != 0 || len(b.querySources) != 0 || len(b.insert.defaults) != 0 {
+	if b.Parameters.Count != 0 || len(b.QuerySources) != 0 || len(b.Insert.Defaults) != 0 {
 		return nil, fmt.Errorf("stuntgres: invalid materialized view snapshot row binding")
 	}
 	environment := input
-	environment.Regclass, environment.Regtype = b.resolvers.regclass, b.resolvers.regtype
-	environment.Regrole, environment.Operator, environment.Regproc = b.resolvers.regrole, b.resolvers.operator, b.resolvers.regproc
-	environment.Regcollation, environment.Regnamespace = b.resolvers.regcollation, b.resolvers.regnamespace
-	environment.RegTS, environment.ACLItem = b.resolvers.regTS, b.resolvers.aclitem
-	environment.FTS = b.resolvers.fts
-	environment.TypeDiagnosticName, environment.EnumMemberSafe = b.resolvers.typeDiagnosticName, b.resolvers.enumMemberSafe
-	scope.routineDependencies = b.dependencies
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Input: environment, Output: scope.output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.dependencies}}
+	environment.Regclass, environment.Regtype = b.Resolvers.Regclass, b.Resolvers.Regtype
+	environment.Regrole, environment.Operator, environment.Regproc = b.Resolvers.Regrole, b.Resolvers.Operator, b.Resolvers.Regproc
+	environment.Regcollation, environment.Regnamespace = b.Resolvers.Regcollation, b.Resolvers.Regnamespace
+	environment.RegTS, environment.ACLItem = b.Resolvers.RegTS, b.Resolvers.ACLItem
+	environment.FTS = b.Resolvers.FTS
+	environment.TypeDiagnosticName, environment.EnumMemberSafe = b.Resolvers.TypeDiagnosticName, b.Resolvers.EnumMemberSafe
+	scope.routineDependencies = b.Dependencies
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(scope), Input: environment, Output: scope.output, Catalog: auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.Dependencies}}
 	evaluation.Input.DomainChecks = &evaluation
-	for _, expressions := range b.expressions {
+	for _, expressions := range b.Expressions {
 		values := make([]sqltype.Value, len(d.Columns))
 		for i, expression := range expressions {
 			expression, _, err = preflightCoercionsWithPolicy(&evaluation, expression, false)

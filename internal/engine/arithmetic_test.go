@@ -39,10 +39,10 @@ func TestExpressionArithmeticInferenceAndDependencies(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if bound.parameters.Count != 1 || bound.parameters.Types[0].Type.ID() != tc.slot {
-			t.Fatal(bound.parameters)
+		if bound.Parameters.Count != 1 || bound.Parameters.Types[0].Type.ID() != tc.slot {
+			t.Fatal(bound.Parameters)
 		}
-		project := bound.query.Root.(*plan.ProjectNode)
+		project := bound.Query.Root.(*plan.ProjectNode)
 		for i, n := range project.Expressions {
 			if n.ResultUsage().Type.ID() != tc.results[i] || !n.Properties().ParameterDependent || n.Properties().Volatility != expr.Immutable {
 				t.Fatal(n)
@@ -70,13 +70,13 @@ func TestExpressionArithmeticInferenceAndDependencies(t *testing.T) {
 				}
 			}
 			columns := 0
-			for _, d := range bound.dependencies {
+			for _, d := range bound.Dependencies {
 				if d.Ref.Address.SubID != 0 {
 					columns++
 				}
 			}
 			if columns != 2 {
-				t.Fatal("lost recursive column dependencies", bound.dependencies)
+				t.Fatal("lost recursive column dependencies", bound.Dependencies)
 			}
 		}
 	}

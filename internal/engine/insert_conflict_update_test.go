@@ -46,13 +46,13 @@ func conflictUpdateAnalyzedScope(t *testing.T, e *Engine, s *Session, q string) 
 		t.Fatal(err)
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	if err := insertConflictOf(b.insert.conflict).selectArbiters(&evaluation, b.relation, e.CatalogRead()); err != nil {
+	if err := insertConflictOf(b.Insert.Conflict).selectArbiters(&evaluation, b.Relation, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	if err := insertConflictOf(b.insert.conflict).preflightUpdate(&evaluation); err != nil {
+	if err := insertConflictOf(b.Insert.Conflict).preflightUpdate(&evaluation); err != nil {
 		t.Fatal(err)
 	}
-	scope.insertConflict = insertConflictOf(b.insert.conflict)
+	scope.insertConflict = insertConflictOf(b.Insert.Conflict)
 	return op, scope, b
 }
 
@@ -62,12 +62,12 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(k INT UNIQUE,v INT)")
 	sessionSQL(t, s, "CREATE TABLE src(k INT,v INT)")
 	op, scope, b := conflictUpdateAnalyzedScope(t, e, s, "INSERT INTO t AS dst SELECT k,v FROM src ON CONFLICT(k) DO UPDATE SET v=dst.v+excluded.v WHERE excluded.k>0")
-	c := insertConflictOf(b.insert.conflict)
-	if !reflect.DeepEqual(b.targets, []int{0, 1}) || !reflect.DeepEqual(c.updateTargets, []int{1}) || !reflect.DeepEqual(c.reads, []int{0}) || !reflect.DeepEqual(c.actionReads, []int{1, 0}) || len(c.sources) != 1 || !reflect.DeepEqual(c.sources[0].Uses, []int{0, 1}) {
-		t.Fatal("distinct INSERT/UPDATE/action/source manifests", b.targets, c.updateTargets, c.reads, c.actionReads, c.sources)
+	c := insertConflictOf(b.Insert.Conflict)
+	if !reflect.DeepEqual(b.Targets, []int{0, 1}) || !reflect.DeepEqual(c.updateTargets, []int{1}) || !reflect.DeepEqual(c.reads, []int{0}) || !reflect.DeepEqual(c.actionReads, []int{1, 0}) || len(c.sources) != 1 || !reflect.DeepEqual(c.sources[0].Uses, []int{0, 1}) {
+		t.Fatal("distinct INSERT/UPDATE/action/source manifests", b.Targets, c.updateTargets, c.reads, c.actionReads, c.sources)
 	}
 	integer := func(n int64) sqltype.Value {
-		v, err := sqltype.Integer(b.relation.Columns[0].Usage.Type, n)
+		v, err := sqltype.Integer(b.Relation.Columns[0].Usage.Type, n)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -79,7 +79,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 	if err != nil || testExport(values[1]) != int64(3) || testExport(old[1]) != int64(1) {
 		t.Fatal("target/excluded slots and immutable RHS", values, old, err)
 	}
-	unique, err := scope.bindUniqueWrite(b.ref)
+	unique, err := scope.bindUniqueWrite(b.Ref)
 	if err != nil || !reflect.DeepEqual(unique.keySlots, []int{0}) {
 		t.Fatal("installed simple/nonpartial FK-key bitmap", unique, err)
 	}
@@ -97,15 +97,15 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 		if err != nil {
 			return binding{}, err
 		}
-		bound, err := describe(op.Context(), e.analysisHost(op), statements[0], auth, b.ref, scope.input, nil, nil)
+		bound, err := describe(op.Context(), e.analysisHost(op), statements[0], auth, b.Ref, scope.input, nil, nil)
 		if err == nil {
-			scope.routineAuth, scope.routineDependencies = auth, bound.dependencies
+			scope.routineAuth, scope.routineDependencies = auth, bound.Dependencies
 		}
 		return bound, err
 	}
 	parameters, err := analyze("INSERT INTO t VALUES(1,0) ON CONFLICT(k) DO UPDATE SET v=$1 WHERE $2")
-	if err != nil || parameters.parameters.Count != 2 || parameters.parameters.Types[0].Type.ID() != sqltype.Int4 || parameters.parameters.Types[1].Type.ID() != sqltype.Bool {
-		t.Fatal("action-only contextual parameter manifest", parameters.parameters, err)
+	if err != nil || parameters.Parameters.Count != 2 || parameters.Parameters.Types[0].Type.ID() != sqltype.Int4 || parameters.Parameters.Types[1].Type.ID() != sqltype.Bool {
+		t.Fatal("action-only contextual parameter manifest", parameters.Parameters, err)
 	}
 	for _, tc := range []struct{ q, code, message, position string }{
 		{"INSERT INTO t VALUES(1,0) ON CONFLICT(k) DO UPDATE SET v=$1 WHERE $1", "42804", "argument of WHERE must be type boolean, not type integer", "67"},
@@ -136,27 +136,27 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc.name, err)
 		}
-		original := insertConflictOf(action.insert.conflict).update
-		err = insertConflictOf(action.insert.conflict).preflightUpdate(&evaluation)
+		original := insertConflictOf(action.Insert.Conflict).update
+		err = insertConflictOf(action.Insert.Conflict).preflightUpdate(&evaluation)
 		if tc.error {
 			var d *sqlstate.Error
-			if !errors.As(err, &d) || d.Code != "22012" || d.Message != "division by zero" || insertConflictOf(action.insert.conflict).update != original {
+			if !errors.As(err, &d) || d.Code != "22012" || d.Message != "division by zero" || insertConflictOf(action.Insert.Conflict).update != original {
 				t.Fatal("immutable action planning error without plan mutation", tc.name, err)
 			}
 			continue
 		}
-		if err != nil || (tc.unchanged && insertConflictOf(action.insert.conflict).update != original) {
+		if err != nil || (tc.unchanged && insertConflictOf(action.Insert.Conflict).update != original) {
 			t.Fatal("runtime-owned SET remains unevaluated and unchanged", tc.name, err)
 		}
 		if !tc.unchanged {
-			if insertConflictOf(action.insert.conflict).update == original {
+			if insertConflictOf(action.Insert.Conflict).update == original {
 				t.Fatal("constant action requires private execution tree")
 			}
-			value, err := insertConflictOf(action.insert.conflict).update.assignments[0].Eval(&evaluation)
+			value, err := insertConflictOf(action.Insert.Conflict).update.Assignments[0].Eval(&evaluation)
 			if err != nil || testExport(value) != int64(3) {
 				t.Fatal(value, err)
 			}
-			if _, literal := original.assignments[0].(plan.LiteralExpr); literal {
+			if _, literal := original.Assignments[0].(plan.LiteralExpr); literal {
 				t.Fatal("analyzed action was mutated")
 			}
 		}
@@ -297,7 +297,7 @@ func TestInsertConflictUpdateCursorFailure(t *testing.T) {
 		sessionSQL(t, s, "INSERT INTO t VALUES(1,10)")
 		_, scope, b := conflictUpdateAnalyzedScope(t, e, s, "INSERT INTO t SELECT k,v FROM t ON CONFLICT(k) DO UPDATE SET v=excluded.v")
 		integer := func(n int64) sqltype.Value {
-			v, err := sqltype.Integer(b.relation.Columns[0].Usage.Type, n)
+			v, err := sqltype.Integer(b.Relation.Columns[0].Usage.Type, n)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -305,7 +305,7 @@ func TestInsertConflictUpdateCursorFailure(t *testing.T) {
 		}
 		injected := errors.New("producer veto")
 		secondary := errors.New("close veto")
-		cursor := &insertConflictInputCursor{schema: b.relation.Columns, rows: [][]sqltype.Value{{integer(2), integer(20)}, {integer(1), integer(11)}}}
+		cursor := &insertConflictInputCursor{schema: b.Relation.Columns, rows: [][]sqltype.Value{{integer(2), integer(20)}, {integer(1), integer(11)}}}
 		if failure != "close" {
 			cursor.nextError = injected
 		}
@@ -316,7 +316,7 @@ func TestInsertConflictUpdateCursorFailure(t *testing.T) {
 			cursor.closeError = secondary
 		}
 		rows, err := assembleInsertRows(scope.op.Context(), b, cursor, -1, "public", scope.input, scope.output, scope, true, nil, nil)
-		if !errors.Is(err, injected) || rows.values != nil || cursor.closes != 1 || len(scope.stage.rows[b.ref.Address]) == 0 {
+		if !errors.Is(err, injected) || rows.values != nil || cursor.closes != 1 || len(scope.stage.rows[b.Ref.Address]) == 0 {
 			t.Fatal("cursor failure after actual mixed-stage prefix", rows, err, cursor.closes, scope.stage.rows)
 		}
 		consumed, affected := 1, 1

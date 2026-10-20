@@ -208,7 +208,7 @@ func TestQuerySetCoercionFrames(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	project := b.query.Root.(*plan.ProjectNode)
+	project := b.Query.Root.(*plan.ProjectNode)
 	n := project.Child.(*plan.SetNode)
 	if n.Left.Frame == n.Right.Frame || n.Left.Frame == project.Frame || n.Right.Frame == project.Frame {
 		t.Fatal("set arms share frame", project.Frame, n.Left.Frame, n.Right.Frame)
@@ -227,7 +227,7 @@ func TestQuerySetCoercionFrames(t *testing.T) {
 	if n.Left.Expressions[0].ResultUsage().Type == nil {
 		t.Fatal("unknown output escaped parent resolution")
 	}
-	if canSimplifyExists(b.query) {
+	if canSimplifyExists(b.Query) {
 		t.Fatal("set presence discarded key demand")
 	}
 	if _, discard := pruneIdentityQueryProducer(n, project.Expressions[0]); discard {
@@ -345,7 +345,7 @@ func TestQuerySetArmCleanupErrorPriority(t *testing.T) {
 
 func TestQuerySetInsertNoBatchOnLateArmFailure(t *testing.T) {
 	b, source := insertSelectEvaluationFixture(t, "SELECT id FROM t")
-	project := b.query.Root.(*plan.ProjectNode)
+	project := b.Query.Root.(*plan.ProjectNode)
 	arm := *project
 	arm.Expressions = append([]expr.Expr(nil), project.Expressions...)
 	arm.QuerySchema = append(plan.QuerySchema(nil), project.QuerySchema...)
@@ -404,7 +404,7 @@ func TestQuerySetAssignmentSchemaOwnership(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			project := bound.query.Root.(*plan.ProjectNode)
+			project := bound.Query.Root.(*plan.ProjectNode)
 			if project.Schema()[0].Usage.Type.ID() != sqltype.Int4 || project.Expressions[0].ResultUsage().Type.ID() != sqltype.Int4 {
 				t.Fatal("destination projection is not assigned INT4", project.Schema())
 			}

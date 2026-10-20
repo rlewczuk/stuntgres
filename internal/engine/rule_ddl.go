@@ -99,7 +99,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			if parser.HasModifyingCTE(query) {
 				return fail(sqlError("0A000", "rules on SELECT must not contain data-modifying statements in WITH"))
 			}
-			if err := ruleResultCheck(old, b.query.Root.Schema(), true); err != nil {
+			if err := ruleResultCheck(old, b.Query.Root.Schema(), true); err != nil {
 				return fail(err)
 			}
 			temporary := viewOf(old).temporary != (ids.SessionToken{})
@@ -110,7 +110,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			definition.options = viewOf(old).options
 			definition.checkOption = viewOf(old).checkOption
 			next.View = viewPayloadOf(definition)
-			sources = b.querySources
+			sources = b.QuerySources
 		} else {
 			if name == "_RETURN" {
 				return fail(sqlError("42P17", "non-view rule must not be named \"_RETURN\""))
@@ -133,7 +133,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 				next.Rules = rulesPayloadOf(append(rulesOf(&next), definition))
 			}
 			for _, action := range definition.actions {
-				sources = append(sources, action.binding.querySources...)
+				sources = append(sources, action.binding.QuerySources...)
 			}
 			if definition.conditionPresentation != nil {
 				for _, source := range definition.conditionPresentation.sources {

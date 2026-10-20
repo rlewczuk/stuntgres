@@ -40,21 +40,21 @@ func bindInsertSource(out *binding, binder *expressionBinder, auth Authorization
 	var query *plan.Query
 	var err error
 	if sel := s.Source.Select; sel != nil {
-		out.insert.subquerySource = true
+		out.Insert.SubquerySource = true
 		binder.query.auth = &auth
 		// INSERT's target is an error namespace entry, not a correlation
 		// source. Keep it hidden when entering the shared SELECT binder.
-		columns := make([]queryColumn, len(out.relation.Columns))
-		for i, descriptor := range out.relation.Columns {
+		columns := make([]queryColumn, len(out.Relation.Columns))
+		for i, descriptor := range out.Relation.Columns {
 			columns[i] = queryColumn{descriptor: descriptor, slot: i, leaf: queryTargetLeaf, physical: i}
 		}
-		target := queryQualifier{name: out.relation.Name(), original: out.relation.Name(), ref: out.ref, columns: columns, schema: auth.Catalog.Get(out.relation.Namespace()).Name(), lateralForbidden: true}
+		target := queryQualifier{name: out.Relation.Name(), original: out.Relation.Name(), ref: out.Ref, columns: columns, schema: auth.Catalog.Get(out.Relation.Namespace()).Name(), lateralForbidden: true}
 		binder.query.hidden = append(binder.query.hidden, target)
 		query, err = binder.bindSelect(sel, true)
-		out.querySources = binder.query.sources
+		out.QuerySources = binder.query.sources
 	} else {
-		out.insert.subquerySource = s.Source.Values.Order != nil || s.Source.Values.Bounds != nil
-		query, err = binder.bindValues(s.Source.Values, s.Override == parser.OverrideUser && len(out.relation.ColumnMeta.Identities) != 0)
+		out.Insert.SubquerySource = s.Source.Values.Order != nil || s.Source.Values.Bounds != nil
+		query, err = binder.bindValues(s.Source.Values, s.Override == parser.OverrideUser && len(out.Relation.ColumnMeta.Identities) != 0)
 	}
 	if err != nil {
 		return err
@@ -62,35 +62,35 @@ func bindInsertSource(out *binding, binder *expressionBinder, auth Authorization
 	project := query.Root.(*plan.ProjectNode)
 	width := len(project.Expressions)
 	if len(s.Targets) == 0 {
-		if width > len(out.relation.Columns) {
-			return insertError("42601", "INSERT has more expressions than target columns", project.Expressions[len(out.relation.Columns)].SourcePosition())
+		if width > len(out.Relation.Columns) {
+			return insertError("42601", "INSERT has more expressions than target columns", project.Expressions[len(out.Relation.Columns)].SourcePosition())
 		}
-		out.targets = make([]int, width)
+		out.Targets = make([]int, width)
 		for i := range width {
-			out.targets[i] = i
+			out.Targets[i] = i
 		}
 	} else {
-		if width > len(out.targets) {
-			return insertError("42601", "INSERT has more expressions than target columns", project.Expressions[len(out.targets)].SourcePosition())
+		if width > len(out.Targets) {
+			return insertError("42601", "INSERT has more expressions than target columns", project.Expressions[len(out.Targets)].SourcePosition())
 		}
-		if width < len(out.targets) {
+		if width < len(out.Targets) {
 			return insertError("42601", "INSERT has more target columns than expressions", s.Targets[width].Pos)
 		}
 	}
 	schemaDetached := false
 	for i, expr := range project.Expressions {
-		target := out.relation.Columns[out.targets[i]]
+		target := out.Relation.Columns[out.Targets[i]]
 		var partial *plan.ArrayAssignmentTarget
-		if len(out.arrayTargets) != 0 {
-			partial = out.arrayTargets[i]
+		if len(out.ArrayTargets) != 0 {
+			partial = out.ArrayTargets[i]
 			if partial != nil {
 				target = partial.Column(target)
 			}
 		}
-		if _, generated := out.relation.ColumnMeta.Generations[out.relation.Attributes[out.targets[i]]]; generated {
+		if _, generated := out.Relation.ColumnMeta.Generations[out.Relation.Attributes[out.Targets[i]]]; generated {
 			return generationWriteError(target.Name, false)
 		}
-		if identity, ok := out.relation.ColumnMeta.Identities[out.relation.Attributes[out.targets[i]]]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
+		if identity, ok := out.Relation.ColumnMeta.Identities[out.Relation.Attributes[out.Targets[i]]]; ok && identity.Mode == parser.IdentityAlways && s.Override == parser.OverrideNone {
 			return sequence.IdentityInsertError(target.Name)
 		}
 		assigned, err := binder.assignOutput(expr, target)
@@ -125,10 +125,10 @@ func bindInsertSource(out *binding, binder *expressionBinder, auth Authorization
 	}
 	// Analysis and parameter inference above remain complete. Only unused pure
 	// USER identity projections lose runtime demand, before coercion preflight.
-	if len(out.insert.identityDiscard) != 0 && (s.Source.Select != nil || len(s.Source.Values.Rows) == 1) {
-		for i, target := range out.targets {
+	if len(out.Insert.IdentityDiscard) != 0 && (s.Source.Select != nil || len(s.Source.Values.Rows) == 1) {
+		for i, target := range out.Targets {
 			expression := project.Expressions[i]
-			if !out.insert.identityDiscard[target] || expression.Properties().Volatility == expr.Volatile {
+			if !out.Insert.IdentityDiscard[target] || expression.Properties().Volatility == expr.Volatile {
 				continue
 			}
 			var discard bool
@@ -140,27 +140,27 @@ func bindInsertSource(out *binding, binder *expressionBinder, auth Authorization
 	}
 	// This binding owns the schedule; supplied query outputs, including NULL,
 	// never consume defaults. Filter once rather than masking every row.
-	if len(out.insert.defaults) != 0 {
+	if len(out.Insert.Defaults) != 0 {
 		remaining := 0
-		for _, expression := range out.insert.defaults {
+		for _, expression := range out.Insert.Defaults {
 			if expression != nil {
 				remaining++
 			}
 		}
-		for _, target := range out.targets {
-			if len(out.insert.identityDiscard) != 0 && out.insert.identityDiscard[target] {
+		for _, target := range out.Targets {
+			if len(out.Insert.IdentityDiscard) != 0 && out.Insert.IdentityDiscard[target] {
 				continue
 			}
-			if out.insert.defaults[target] != nil {
-				out.insert.defaults[target] = nil
+			if out.Insert.Defaults[target] != nil {
+				out.Insert.Defaults[target] = nil
 				remaining--
 			}
 		}
 		if remaining == 0 {
-			out.insert.defaults = nil
+			out.Insert.Defaults = nil
 		}
 	}
-	out.query, out.commandQuery = query, true
+	out.Query, out.CommandQuery = query, true
 	return nil
 }
 
@@ -260,14 +260,14 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 			slot := 0
 			for target, raw := range written {
 				if expansion, expanded := lists[i].expansions[target]; expanded {
-					path := viewLiteralPath{query: b.frameID(), clause: viewValuesCellLiteral, source: occurrence, row: i, target: target}
+					path := viewLiteralPath{Query: b.frameID(), Clause: ViewValuesCellLiteral, Source: occurrence, Row: i, Target: target}
 					ordinal := 0
 					if err := b.captureCompositeExpansion(raw, expansion, path, &ordinal); err != nil {
 						return nil, err
 					}
 					slot += len(expansion.Fields)
 				} else {
-					if err := b.captureValuesViewLiteral(raw, nodes[i][slot], viewValuesCellLiteral, occurrence, i, target); err != nil {
+					if err := b.captureValuesViewLiteral(raw, nodes[i][slot], ViewValuesCellLiteral, occurrence, i, target); err != nil {
 						return nil, err
 					}
 					slot++
@@ -298,16 +298,16 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 	if b.params.noParameters || b.consumer.materializedDefinition {
 		if source.Order != nil {
 			for i, key := range source.Order.Keys {
-				if err := b.captureValuesViewLiteral(key.Expr, order[i].Expression, viewValuesOrderLiteral, occurrence, 0, i); err != nil {
+				if err := b.captureValuesViewLiteral(key.Expr, order[i].Expression, ViewValuesOrderLiteral, occurrence, 0, i); err != nil {
 					return nil, err
 				}
 			}
 		}
 		if source.Bounds != nil {
-			if err := b.captureValuesViewLiteral(source.Bounds.Offset, bounds.Offset, viewValuesOffsetLiteral, occurrence, 0, 0); err != nil {
+			if err := b.captureValuesViewLiteral(source.Bounds.Offset, bounds.Offset, ViewValuesOffsetLiteral, occurrence, 0, 0); err != nil {
 				return nil, err
 			}
-			if err := b.captureValuesViewLiteral(source.Bounds.Count, bounds.Count, viewValuesLimitLiteral, occurrence, 0, 0); err != nil {
+			if err := b.captureValuesViewLiteral(source.Bounds.Count, bounds.Count, ViewValuesLimitLiteral, occurrence, 0, 0); err != nil {
 				return nil, err
 			}
 		}
@@ -386,16 +386,16 @@ func valuesOrderColumnError(schema []catalog.Column, name string, pos parser.Pos
 // runs unlocked; only the complete, constrained batch reaches WriteStage.Apply.
 func evaluateInsertQuery(ctx context.Context, b binding, source *exec.Source, parameters []sqltype.Value, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, scope *StatementScope) (indexWriteBatch, error) {
 	defer source.Close()
-	project, ok := b.query.Root.(*plan.ProjectNode)
+	project, ok := b.Query.Root.(*plan.ProjectNode)
 	if !ok {
 		return indexWriteBatch{}, fmt.Errorf("stuntgres: INSERT query lacks final projection")
 	}
 	// Bind uniqueness before opening the producer: opening can itself evaluate
 	// rows. A target without unique indexes needs no per-row catalog recapture;
 	// its epoch is still checked when the completed batch reaches Apply.
-	unique := len(b.relation.Constraints.Unique) != 0
-	if scope != nil && scope.partitionInsert == nil && b.relation.RelationKind != catalog.ForeignRelation {
-		bound, err := scope.bindUniqueWrite(b.ref)
+	unique := len(b.Relation.Constraints.Unique) != 0
+	if scope != nil && scope.partitionInsert == nil && b.Relation.RelationKind != catalog.ForeignRelation {
+		bound, err := scope.bindUniqueWrite(b.Ref)
 		if err != nil {
 			return indexWriteBatch{}, err
 		}
@@ -432,7 +432,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor exec.RowCursor, c
 			rows.values = make([][]sqltype.Value, 0)
 		}
 	}
-	scratch := make([]sqltype.Value, len(b.targets))
+	scratch := make([]sqltype.Value, len(b.Targets))
 	defaultSource, _ := cursor.(interface{ rowDefaults() []bool })
 	var copyInsert *copyInsertionState
 	if producer, ok := cursor.(copyInsertionCursor); ok && scope != nil && (unique || scope.partitionInsert != nil) {
@@ -463,21 +463,21 @@ func assembleInsertRows(ctx context.Context, b binding, cursor exec.RowCursor, c
 			}
 			break
 		}
-		row := make([]sqltype.Value, len(b.relation.Columns))
-		for j, c := range b.relation.Columns {
+		row := make([]sqltype.Value, len(b.Relation.Columns))
+		for j, c := range b.Relation.Columns {
 			row[j] = sqltype.Null(c.Usage.Type)
 		}
-		for j, target := range b.targets {
+		for j, target := range b.Targets {
 			value := scratch[j]
-			if len(b.arrayTargets) != 0 && b.arrayTargets[j] != nil {
-				value, err = b.arrayTargets[j].Apply(&evaluation, row[target], value)
+			if len(b.ArrayTargets) != 0 && b.ArrayTargets[j] != nil {
+				value, err = b.ArrayTargets[j].Apply(&evaluation, row[target], value)
 				if err != nil {
 					return indexWriteBatch{}, err
 				}
 			}
 			row[target] = value
 		}
-		for j, expression := range b.insert.defaults {
+		for j, expression := range b.Insert.Defaults {
 			if expression != nil && (defaultSource == nil || defaultSource.rowDefaults()[j]) {
 				row[j], err = evalBindingDefault(&b, &evaluation, j, expression)
 				if err != nil {
@@ -506,16 +506,16 @@ func assembleInsertRows(ctx context.Context, b binding, cursor exec.RowCursor, c
 				}
 				continue
 			}
-			if err := scope.checkInsertUniqueRow(b.ref, &candidate, rows); err != nil {
+			if err := scope.checkInsertUniqueRow(b.Ref, &candidate, rows); err != nil {
 				return indexWriteBatch{}, err
 			}
 			rows.append(candidate)
 			continue
 		}
-		if err := evaluateGenerations(ctx, b.relation, row, &evaluation); err != nil {
+		if err := evaluateGenerations(ctx, b.Relation, row, &evaluation); err != nil {
 			return indexWriteBatch{}, err
 		}
-		if b.relation.RelationKind == catalog.ForeignRelation {
+		if b.Relation.RelationKind == catalog.ForeignRelation {
 			rows.append(candidate)
 			continue
 		}
@@ -524,14 +524,14 @@ func assembleInsertRows(ctx context.Context, b binding, cursor exec.RowCursor, c
 				return indexWriteBatch{}, err
 			}
 		}
-		for j, c := range b.relation.Columns {
+		for j, c := range b.Relation.Columns {
 			if err := ctx.Err(); err != nil {
 				return indexWriteBatch{}, err
 			}
 			if c.Nullable {
 				continue
 			}
-			value, err := logicalColumnValue(b.relation, j, row, &evaluation)
+			value, err := logicalColumnValue(b.Relation, j, row, &evaluation)
 			if err != nil {
 				return indexWriteBatch{}, err
 			}
@@ -542,8 +542,8 @@ func assembleInsertRows(ctx context.Context, b binding, cursor exec.RowCursor, c
 				return indexWriteBatch{}, scope.op.session.Engine().rowConstraintError(scope, b, schema, c.Name, "", row)
 			}
 		}
-		if len(b.relation.Constraints.Check) != 0 {
-			constraint, checkErr := validateCheckRow(b.relation, row, &evaluation)
+		if len(b.Relation.Constraints.Check) != 0 {
+			constraint, checkErr := validateCheckRow(b.Relation, row, &evaluation)
 			if checkErr != nil {
 				return indexWriteBatch{}, checkErr
 			}
@@ -566,7 +566,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor exec.RowCursor, c
 				continue
 			}
 		}
-		if b.viewWrite != nil {
+		if b.ViewWrite != nil {
 			if err := scope.op.session.Engine().checkViewRow(scope, &b, row, &evaluation); err != nil {
 				return indexWriteBatch{}, err
 			}

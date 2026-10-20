@@ -31,7 +31,7 @@ type copyInsertionState struct {
 
 func newCopyInsertionState(cursor copyInsertionCursor, b binding) *copyInsertionState {
 	state := &copyInsertionState{cursor: cursor}
-	for _, expression := range b.insert.defaults {
+	for _, expression := range b.Insert.Defaults {
 		if exec.PlannedPhysicalVolatility(expression, true) == expr.Volatile {
 			state.single = true
 			break
@@ -47,7 +47,7 @@ func (state *copyInsertionState) record(s *StatementScope, b binding, candidate 
 	if s.partitionInsert == nil {
 		return
 	}
-	group := s.partitionInsertionGroup(b.ref)
+	group := s.partitionInsertionGroup(b.Ref)
 	// Freeze the already-validated physical destination before the next input
 	// overwrites the current partition projection. No second generation Eval.
 	candidate.values = s.partitionStoredRow(candidate.values)
@@ -82,7 +82,7 @@ func (state *copyInsertionState) flush(s *StatementScope, b binding, rows *index
 			}
 		}
 		if err != nil {
-			return copyInsertionDiagnostic(s.copyCommandError(err), b.relation.Name(), state.lines[position-state.first])
+			return copyInsertionDiagnostic(s.copyCommandError(err), b.Relation.Name(), state.lines[position-state.first])
 		}
 		rows.set(position, candidate)
 		return nil

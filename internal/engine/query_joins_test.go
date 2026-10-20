@@ -74,7 +74,7 @@ func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*Engine, 
 	}
 	if err == nil {
 		// Standalone stages supply contexts, but still need live admission authority.
-		source, err = e.captureQuerySourcesForInvokerLocked(scope, b.querySources, false, authorization.PrincipalRef{}, plan.RowMark{}, scope.queryLocks)
+		source, err = e.captureQuerySourcesForInvokerLocked(scope, b.QuerySources, false, authorization.PrincipalRef{}, plan.RowMark{}, scope.queryLocks)
 	}
 	e.mu.Unlock()
 	if err == nil {
@@ -84,7 +84,7 @@ func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*Engine, 
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	return e, b.query, source, release
+	return e, b.Query, source, release
 }
 
 func TestQueryJoinsMergedMetadataAndFrames(t *testing.T) {

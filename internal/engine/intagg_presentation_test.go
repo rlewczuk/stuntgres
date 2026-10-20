@@ -27,28 +27,28 @@ func intaggUnitRecipes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil {
+			if err := b.captureViewLiterals(raw, node, ViewTargetLiteral, 0); err != nil {
 				t.Fatal(err)
 			}
-			path := viewLiteralPath{query: b.frameID(), clause: viewTargetLiteral}
+			path := viewLiteralPath{Query: b.frameID(), Clause: ViewTargetLiteral}
 			name := extension.IntaggRecipeFunction(raw)
-			ref, ok := b.capture.routineRefs[path]
-			if !ok || ref.Address == (ids.ObjectAddress{}) || len(b.capture.routineRefs) != 1 {
-				t.Fatal("missing bound occurrence", b.capture.routineRefs)
+			ref, ok := b.capture.RoutineRefs[path]
+			if !ok || ref.Address == (ids.ObjectAddress{}) || len(b.capture.RoutineRefs) != 1 {
+				t.Fatal("missing bound occurrence", b.capture.RoutineRefs)
 			}
 			var child plan.Node = &plan.SingletonNode{}
 			if len(b.grouping.aggregates) != 0 {
 				child = &plan.AggregateNode{Child: child, Calls: b.grouping.aggregates}
 			}
 			project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: node.ResultUsage()}}, Child: child, Expressions: []expr.Expr{node}, Frame: b.frameID(), Syntax: syntax}
-			definition := &viewDefinition{query: &plan.Query{Root: project}, syntax: syntax, dependencies: b.dependencies, routineRefs: b.capture.routineRefs, literals: b.capture.literals, castUsages: b.capture.castUsages}
+			definition := &viewDefinition{query: &plan.Query{Root: project}, syntax: syntax, dependencies: b.dependencies, routineRefs: b.capture.RoutineRefs, literals: b.capture.Literals, castUsages: b.capture.CastUsages}
 			definition.frames, definition.queries = collectQueryFrames(project)
 			if err := definition.validateLiterals(e.CatalogRead()); err != nil {
 				t.Fatal(err)
 			}
 			renderer := newViewRenderer(definition)
 			renderer.frame = b.frameID()
-			text, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, viewLiteralPath{clause: viewTargetLiteral})
+			text, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, viewLiteralPath{Clause: ViewTargetLiteral})
 			if err != nil || !strings.HasPrefix(text, `"public"."`+name+`"(`) {
 				t.Fatal("unqualified bound recipe", text, err)
 			}
@@ -65,7 +65,7 @@ func intaggUnitRecipes(t *testing.T) {
 				t.Fatal("raw-name fallback accepted")
 			}
 			extra := *definition
-			extra.routineRefs = map[viewLiteralPath]ids.ObjectRef{path: ref, {query: b.frameID(), target: 99}: ref}
+			extra.routineRefs = map[viewLiteralPath]ids.ObjectRef{path: ref, {Query: b.frameID(), Target: 99}: ref}
 			if err := extra.validateLiterals(e.CatalogRead()); err == nil {
 				t.Fatal("unused frozen capture accepted")
 			}

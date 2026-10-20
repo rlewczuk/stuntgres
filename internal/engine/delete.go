@@ -192,14 +192,14 @@ func (s *StatementScope) executeDelete(b binding, view *visibility.View, inputs 
 }
 
 func (s *StatementScope) deleteSource(b binding, source, inputs *exec.Source, parameters []sqltype.Value) (Result, error) {
-	if b.storage == nil || b.storage != s.lockedStorage || b.storage != source.View.Data().GenerationAt(b.ref.Address) {
+	if b.Storage == nil || b.Storage != s.lockedStorage || b.Storage != source.View.Data().GenerationAt(b.Ref.Address) {
 		if inputs != nil {
 			inputs.Close()
 		}
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	var positioned mutationRowIdentity
-	if b.currentOf != "" {
+	if b.CurrentOf != "" {
 		var err error
 		positioned, err = s.positionedMutationRow(b)
 		if err != nil {
@@ -215,8 +215,8 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *exec.Source, pa
 		if err := exec.SelectQuerySources(ctx, inputs); err != nil {
 			return Result{}, err
 		}
-		if b.viewWrite != nil || b.rule.template {
-			inputs = freezeViewWriteSources(s, inputs, b.querySources)
+		if b.ViewWrite != nil || b.Rule.Template {
+			inputs = freezeViewWriteSources(s, inputs, b.QuerySources)
 		}
 		defer inputs.Close()
 		state := &exec.State{Source: inputs, Parameters: parameters, Input: s.input, Output: s.output, Locking: inputs.Locks != nil}
@@ -224,14 +224,14 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *exec.Source, pa
 		inputs.Host = hostOf(s)
 		evaluation.Query = state
 	}
-	if b.delete.using != nil {
+	if b.Delete.Using != nil {
 		return s.deleteUsingSource(b, source, &evaluation, positioned)
 	}
 	var count int64
 	var rows *exec.FinalRows
 	keep := false
-	if b.returning != nil {
-		rows = exec.NewFinalRows(b.returning.schema, 0)
+	if b.Returning != nil {
+		rows = exec.NewFinalRows(b.Returning.Schema, 0)
 		rows.Output = s.output
 		defer func() {
 			if !keep {
@@ -245,13 +245,13 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *exec.Source, pa
 		}
 		physical := mutationPhysicalRow(source, i, b)
 		version := physical.Version
-		if b.currentOf != "" && (positioned.ref != physical.Leaf.Ref || version.Row != positioned.row) {
+		if b.CurrentOf != "" && (positioned.ref != physical.Leaf.Ref || version.Row != positioned.row) {
 			continue
 		}
 		evaluation.Row = physical.Values(version)
 		evaluation.PhysicalTable = physical.Leaf.Ref
-		if b.predicate != nil {
-			value, err := b.predicate.Eval(&evaluation)
+		if b.Predicate != nil {
+			value, err := b.Predicate.Eval(&evaluation)
 			if err != nil {
 				return Result{}, err
 			}
@@ -279,9 +279,9 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *exec.Source, pa
 				return Result{}, err
 			}
 		}
-		if current.Version != candidate.Version && b.predicate != nil {
+		if current.Version != candidate.Version && b.Predicate != nil {
 			evaluation.Row = physical.Values(current)
-			value, err := b.predicate.Eval(&evaluation)
+			value, err := b.Predicate.Eval(&evaluation)
 			if err != nil {
 				return Result{}, err
 			}
@@ -304,7 +304,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *exec.Source, pa
 			count++
 			if rows != nil {
 				evaluation.Row = physical.Values(current)
-				for output, expr := range b.returning.expressions {
+				for output, expr := range b.Returning.Expressions {
 					value, err := expr.Eval(&evaluation)
 					if err != nil {
 						return Result{}, err
@@ -318,7 +318,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *exec.Source, pa
 			}
 		}
 	}
-	if rows != nil && b.returning.regclassOutput && count != 0 {
+	if rows != nil && b.Returning.RegclassOutput && count != 0 {
 		if err := s.op.session.Engine().captureRegclassOutput(s.op, rows); err != nil {
 			return Result{}, err
 		}

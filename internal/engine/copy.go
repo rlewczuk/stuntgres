@@ -122,17 +122,17 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		if readOnly && !temporaryDataTarget(auth, &b, syntax) {
 			return 0, sqlError("25006", "cannot execute COPY FROM in a read-only transaction")
 		}
-	} else if err = copyRelationKind(b.relation, false); err != nil {
+	} else if err = copyRelationKind(b.Relation, false); err != nil {
 		return 0, err
 	}
-	if err := checkTemporaryStorageAccess(auth.Catalog, b.relation, s.op.session.token); err != nil {
+	if err := checkTemporaryStorageAccess(auth.Catalog, b.Relation, s.op.session.token); err != nil {
 		return 0, err
 	}
 	options, err = parseCopyOptions(syntax)
 	if err != nil {
 		return 0, err
 	}
-	if err = options.bindForces(b.relation, b.targets, nil); err != nil {
+	if err = options.bindForces(b.Relation, b.Targets, nil); err != nil {
 		return 0, err
 	}
 	if !syntax.From {
@@ -155,9 +155,9 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		return s.copyOutput(rows, options, destination)
 	}
 	var foreign *foreignModification
-	if b.relation.RelationKind == catalog.ForeignRelation {
+	if b.Relation.RelationKind == catalog.ForeignRelation {
 		e.mu.Lock()
-		target, captureErr := e.captureForeignSourceLocked(s, b.ref, b.relation, authorization.PrincipalRef{}, nil, plan.RowMark{})
+		target, captureErr := e.captureForeignSourceLocked(s, b.Ref, b.Relation, authorization.PrincipalRef{}, nil, plan.RowMark{})
 		e.mu.Unlock()
 		if captureErr != nil {
 			return 0, captureErr
@@ -176,33 +176,33 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		return 0, err
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: auth.Catalog}}
-	selected := make([]bool, len(b.relation.Columns))
-	for _, target := range b.targets {
+	selected := make([]bool, len(b.Relation.Columns))
+	for _, target := range b.Targets {
 		selected[target] = true
 	}
 	binaryInput := options.format == copyFormatBinary && (s.protocolOrZero().command || s.protocolOrZero().simple)
-	inputColumns := len(b.insert.defaults)
+	inputColumns := len(b.Insert.Defaults)
 	if binaryInput {
-		inputColumns = len(b.relation.Columns)
+		inputColumns = len(b.Relation.Columns)
 	}
 	for i := range inputColumns {
 		if binaryInput {
 			// The live descriptor excludes dropped attributes, but includes
 			// omitted COPY targets. Resolve each receive provider before that
 			// attribute's default planning and before CopyInResponse.
-			if err = b.relation.Columns[i].Usage.Type.CheckBinaryInputDeclaration(); err != nil {
+			if err = b.Relation.Columns[i].Usage.Type.CheckBinaryInputDeclaration(); err != nil {
 				return 0, err
 			}
 		}
-		if i >= len(b.insert.defaults) {
+		if i >= len(b.Insert.Defaults) {
 			continue
 		}
-		expression := b.insert.defaults[i]
+		expression := b.Insert.Defaults[i]
 		if expression == nil {
 			continue
 		}
 		if selected[i] && !options.hasDefault {
-			b.insert.defaults[i] = nil
+			b.Insert.Defaults[i] = nil
 			continue
 		}
 		defaultEvaluation := evaluation
@@ -214,12 +214,12 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		if planErr = validateExpressionJoinExecution(&defaultEvaluation, folded, auth.Catalog); planErr != nil {
 			return 0, planErr
 		}
-		b.insert.defaults[i] = folded
-		if constant, ok := folded.(plan.LiteralExpr); ok && constant.Value.IsNull() && bindingDefaultOrigin(&b, i).definition.Expression == nil {
-			b.insert.defaults[i] = nil
+		b.Insert.Defaults[i] = folded
+		if constant, ok := folded.(plan.LiteralExpr); ok && constant.Value.IsNull() && bindingDefaultOrigin(&b, i).Definition.Expression == nil {
+			b.Insert.Defaults[i] = nil
 		}
 	}
-	if err = copyRelationKind(b.relation, true); err != nil {
+	if err = copyRelationKind(b.Relation, true); err != nil {
 		return 0, err
 	}
 	e.mu.Lock()
@@ -227,22 +227,22 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		auth, err = e.statementAuthorizationLocked(s.op, syntax)
 	}
 	if err == nil {
-		err = auth.checkColumns(b, authorization.InsertPrivilege, b.targets)
+		err = auth.checkColumns(b, authorization.InsertPrivilege, b.Targets)
 	}
 	if err == nil {
 		err = e.visibilityWriteLocked(s.txRef)
 	}
 	if err == nil {
-		err = e.captureCheckCommentSnapshotLocked(s, b.relation)
+		err = e.captureCheckCommentSnapshotLocked(s, b.Relation)
 	}
 	if err == nil && foreign == nil {
-		err = s.capturePartitionInsertLocked(e, auth, b.relation)
+		err = s.capturePartitionInsertLocked(e, auth, b.Relation)
 	}
 	schema := ""
 	if err == nil {
-		schema = auth.Catalog.Get(b.relation.Namespace()).Name()
+		schema = auth.Catalog.Get(b.Relation.Namespace()).Name()
 		s.routineAuth = auth
-		e.markTemporaryAccessLocked(s, b.ref)
+		e.markTemporaryAccessLocked(s, b.Ref)
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -253,7 +253,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	}
 	unique := &uniqueWriteBinding{}
 	if foreign == nil {
-		unique, err = s.bindUniqueWrite(b.ref)
+		unique, err = s.bindUniqueWrite(b.Ref)
 		if err != nil {
 			return 0, err
 		}
@@ -279,7 +279,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 			s.op.copyInput.decoding.Store(true)
 			defer s.op.stopCopyInput()
 		}
-		if err := s.startProtocolCopy(hooks, true, options, len(b.targets)); err != nil {
+		if err := s.startProtocolCopy(hooks, true, options, len(b.Targets)); err != nil {
 			return indexWriteBatch{}, err
 		}
 		rows, err := assembleInsertRows(s.op.Context(), b, cursor, -1, schema, s.input, s.output, s, len(unique.keys) != 0 || unique.checked, nil, nil)
@@ -311,7 +311,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		}
 		return n, nil
 	}
-	n, err := s.applyInsertValidated(b.ref, rows)
+	n, err := s.applyInsertValidated(b.Ref, rows)
 	if err != nil {
 		return 0, cursor.diagnostic(err)
 	}
@@ -327,14 +327,14 @@ func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b bindi
 		return
 	}
 	s.routineAuth = auth
-	b.ref = s.lockedRef
-	b.relation, _ = auth.Catalog.Relation(b.ref.Address)
-	if b.relation == nil {
+	b.Ref = s.lockedRef
+	b.Relation, _ = auth.Catalog.Relation(b.Ref.Address)
+	if b.Relation == nil {
 		err = ids.ErrCatalogReplaced
 		return
 	}
-	b.storage = e.authorizationStorageLocked(auth, b.ref.Address)
-	b.targets, err = copyTargets(b.relation, syntax.Columns)
+	b.Storage = e.authorizationStorageLocked(auth, b.Ref.Address)
+	b.Targets, err = copyTargets(b.Relation, syntax.Columns)
 	if err != nil {
 		return
 	}
@@ -342,7 +342,7 @@ func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b bindi
 	if syntax.From {
 		privilege = authorization.InsertPrivilege
 	}
-	err = auth.checkColumns(b, privilege, b.targets)
+	err = auth.checkColumns(b, privilege, b.Targets)
 	return
 }
 
@@ -383,15 +383,15 @@ func copyRelationKind(relation *catalog.Relation, from bool) error {
 func (e *Engine) initCopyInputLocked(s *StatementScope, b *binding, auth AuthorizationView) error {
 	binder := newExpressionBinder(s.op.Context(), e, s.input, s.op, nil)
 	binder.query.auth = &auth
-	binder.target.insertTarget = b.relation
+	binder.target.insertTarget = b.Relation
 	bindInsertDefaults(e.catalog.owner(), b, auth, parser.OverrideSystem)
-	if err := binder.captureRetainedWriteInput(b.insert.defaults, b.relation.ColumnMeta.Generations, b.relation.Constraints.Check); err != nil {
+	if err := binder.captureRetainedWriteInput(b.Insert.Defaults, b.Relation.ColumnMeta.Generations, b.Relation.Constraints.Check); err != nil {
 		return err
 	}
 	s.input = binder.input
-	for _, target := range b.targets {
+	for _, target := range b.Targets {
 		var err error
-		usage := b.relation.Columns[target].Usage
+		usage := b.Relation.Columns[target].Usage
 		if usage.Type.ContainsRegclass() && s.input.Regclass == nil {
 			s.input.Regclass, err = e.captureRegclassInput(auth)
 		}
@@ -438,15 +438,15 @@ func (e *Engine) initCopyInputLocked(s *StatementScope, b *binding, auth Authori
 func (s *StatementScope) copyTableRows(b binding, auth AuthorizationView) (*exec.FinalRows, error) {
 	e := s.op.session.Engine()
 	e.mu.Lock()
-	view, err := s.acquireDataViewLocked(e, b.ref)
+	view, err := s.acquireDataViewLocked(e, b.Ref)
 	if err == nil {
-		e.markTemporaryAccessLocked(s, b.ref)
+		e.markTemporaryAccessLocked(s, b.Ref)
 	}
 	e.mu.Unlock()
 	if err != nil {
 		return nil, err
 	}
-	source, err := captureQueryPrefix(view, b.ref)
+	source, err := captureQueryPrefix(view, b.Ref)
 	if err != nil {
 		return nil, err
 	}
@@ -454,13 +454,13 @@ func (s *StatementScope) copyTableRows(b binding, auth AuthorizationView) (*exec
 	if err = exec.SelectQuerySources(s.op.Context(), source); err != nil {
 		return nil, err
 	}
-	schema := make([]catalog.Column, len(b.targets))
-	for i, target := range b.targets {
-		schema[i] = b.relation.Columns[target]
+	schema := make([]catalog.Column, len(b.Targets))
+	for i, target := range b.Targets {
+		schema[i] = b.Relation.Columns[target]
 	}
 	rows := exec.NewFinalRows(schema, source.Count())
 	rows.Source = source
-	rows.Slots = b.targets
+	rows.Slots = b.Targets
 	rows.Output = s.output
 	if err = e.captureRegclassOutput(s.op, rows); err != nil {
 		rows.Close()

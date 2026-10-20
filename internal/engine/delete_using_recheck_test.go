@@ -20,11 +20,11 @@ func TestDeleteUsingLateRecheckFailureDiscardsStage(t *testing.T) {
 	op, scope, b, target, inputs := updateFromBoundSources(t, e, writer, context.Background(), "DELETE FROM t USING s WHERE t.id=s.k RETURNING t.id")
 	sessionSQL(t, peer, "UPDATE t SET v=21 WHERE id=2")
 	sentinel := errors.New("latest-target recheck failure")
-	predicate := b.predicate
+	predicate := b.Predicate
 	failed := false
-	b.predicate = queryProbe(predicate.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
+	b.Predicate = queryProbe(predicate.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 		if testExport(c.Row[1]) == int64(21) {
-			root := scope.stage.deletes[b.ref.Address]
+			root := scope.stage.deletes[b.Ref.Address]
 			if root == nil || len(root.Rows) != 1 {
 				t.Fatal("recheck did not follow a staged earlier target", root)
 			}

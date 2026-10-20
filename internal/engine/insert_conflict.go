@@ -68,20 +68,20 @@ func bindInsertConflict(b *binding, shared *expressionBinder, auth Authorization
 		d.Hint = "For example, ON CONFLICT (column_name)."
 		return d
 	}
-	c := &boundInsertConflict{targets: b.targets}
-	b.insert.conflict = insertConflictSlotOf(c)
+	c := &boundInsertConflict{targets: b.Targets}
+	b.Insert.Conflict = insertConflictSlotOf(c)
 	if raw.Constraint.Text != "" {
-		for _, u := range b.relation.Constraints.Unique {
+		for _, u := range b.Relation.Constraints.Unique {
 			if u.Name == raw.Constraint.Text {
 				c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: u.OID}
 				c.namedIndex = u.Index
 				for _, a := range u.Attributes {
-					c.reads = append(c.reads, slices.Index(b.relation.Attributes, a))
+					c.reads = append(c.reads, slices.Index(b.Relation.Attributes, a))
 				}
 				return nil
 			}
 		}
-		for _, definition := range b.relation.Constraints.Exclusion {
+		for _, definition := range b.Relation.Constraints.Exclusion {
 			if definition.Name != raw.Constraint.Text {
 				continue
 			}
@@ -93,12 +93,12 @@ func bindInsertConflict(b *binding, shared *expressionBinder, auth Authorization
 			}
 			for _, key := range index.SQLIndex.Keys {
 				if key.Derived == nil {
-					c.reads = append(c.reads, slices.Index(b.relation.Attributes, key.Attribute))
+					c.reads = append(c.reads, slices.Index(b.Relation.Attributes, key.Attribute))
 					continue
 				}
 				for _, dependency := range key.Derived.Dependencies {
-					if dependency.Address.ClassID == b.ref.Address.ClassID && dependency.Address.ObjectID == b.ref.Address.ObjectID && dependency.Address.SubID != 0 {
-						slot := slices.Index(b.relation.Attributes, dependency.Address.SubID)
+					if dependency.Address.ClassID == b.Ref.Address.ClassID && dependency.Address.ObjectID == b.Ref.Address.ObjectID && dependency.Address.SubID != 0 {
+						slot := slices.Index(b.Relation.Attributes, dependency.Address.SubID)
 						if !slices.Contains(c.reads, slot) {
 							c.reads = append(c.reads, slot)
 						}
@@ -107,21 +107,21 @@ func bindInsertConflict(b *binding, shared *expressionBinder, auth Authorization
 			}
 			return nil
 		}
-		for _, check := range b.relation.Constraints.Check {
+		for _, check := range b.Relation.Constraints.Check {
 			if check.Name == raw.Constraint.Text {
 				c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: check.OID}
 				return nil
 			}
 		}
-		for _, nn := range b.relation.Constraints.NotNull {
+		for _, nn := range b.Relation.Constraints.NotNull {
 			if nn.Name == raw.Constraint.Text {
 				c.constraint = ids.ObjectAddress{ClassID: 2606, ObjectID: nn.OID}
 				return nil
 			}
 		}
-		return sqlError("42704", fmt.Sprintf("constraint %q for table %q does not exist", raw.Constraint.Text, b.relation.Name()))
+		return sqlError("42704", fmt.Sprintf("constraint %q for table %q does not exist", raw.Constraint.Text, b.Relation.Name()))
 	}
-	binder := shared.host.IndexExpressionBinder(shared.input, auth, b.relation)
+	binder := shared.host.IndexExpressionBinder(shared.input, auth, b.Relation)
 	binder.params.parameters = shared.params.parameters
 	binder.expected = shared.expected
 	binder.params.noParameters = false

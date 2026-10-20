@@ -14,13 +14,13 @@ func checkRowSecurityBinding(scope *StatementScope, auth AuthorizationView, b bi
 	if scope.rowSecurity {
 		return nil
 	}
-	if relation := physicalBinding(b).relation; relation != nil {
+	if relation := physicalBinding(b).Relation; relation != nil {
 		principal := access.RowSecurityPrincipal(auth.State.CurrentUser, rowSecurityLayers(auth.Catalog, b))
 		if err := access.RowSecuritySettingGuard(false, auth.Roles, relation, principal); err != nil {
 			return err
 		}
 	}
-	for _, leaf := range b.querySources {
+	for _, leaf := range b.QuerySources {
 		principal := leaf.Principal
 		if principal == (authorization.PrincipalRef{}) {
 			principal = auth.State.CurrentUser
@@ -29,16 +29,16 @@ func checkRowSecurityBinding(scope *StatementScope, auth AuthorizationView, b bi
 			return err
 		}
 	}
-	for _, definition := range b.ctes {
+	for _, definition := range b.CTEs {
 		if mutation, ok := mutationBinding(definition); ok {
 			caller := auth
-			if rewrite := ruleCTEsOf(b.rule.ctes)[definition]; rewrite != nil {
+			if rewrite := ruleCTEsOf(b.Rule.CTEs)[definition]; rewrite != nil {
 				caller = rewrite.caller
 			}
 			if err := checkRowSecurityBinding(scope, caller, *mutation); err != nil {
 				return err
 			}
-			if rewrite := ruleCTEsOf(b.rule.ctes)[definition]; rewrite != nil {
+			if rewrite := ruleCTEsOf(b.Rule.CTEs)[definition]; rewrite != nil {
 				if err := checkRowSecurityBinding(scope, rewrite.command.auth, rewrite.command.binding); err != nil {
 					return err
 				}

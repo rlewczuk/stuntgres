@@ -44,10 +44,10 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b.parameters.Count != 2 || b.parameters.Types[0].Type.ID() != sqltype.Text || b.parameters.Types[1].Type.ID() != sqltype.Int4 || b.parameters.Types[1].Typmod != -1 {
-		t.Fatal(b.parameters)
+	if b.Parameters.Count != 2 || b.Parameters.Types[0].Type.ID() != sqltype.Text || b.Parameters.Types[1].Type.ID() != sqltype.Int4 || b.Parameters.Types[1].Typmod != -1 {
+		t.Fatal(b.Parameters)
 	}
-	project := b.query.Root.(*plan.ProjectNode)
+	project := b.Query.Root.(*plan.ProjectNode)
 	filter := project.Child.(*plan.SortNode).Child.(*plan.FilterNode)
 	if len(project.Expressions) != 3 || project.Expressions[0].ResultUsage().Type.ID() != sqltype.Text || project.Expressions[2].ResultUsage().Type.ID() != sqltype.Text {
 		t.Fatal(project.Schema())
@@ -60,14 +60,14 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 		t.Fatal("dependence metadata")
 	}
 	refs := map[ids.ObjectRef]bool{}
-	for _, d := range b.dependencies {
+	for _, d := range b.Dependencies {
 		if refs[d.Ref] || d.Ref.Domain() != e.catalog.Domain || d.Revision == 0 {
 			t.Fatal(d)
 		}
 		refs[d.Ref] = true
 	}
 	if !refs[column.Origin] || len(refs) < 4 {
-		t.Fatal(b.dependencies)
+		t.Fatal(b.Dependencies)
 	}
 	typ, _ := e.CatalogRead().LookupType(sqltype.Bool)
 	for _, tc := range []struct {
@@ -107,7 +107,7 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 		})
 	}
 	wg.Wait()
-	if !reflect.DeepEqual(b.parameters.Types, []sqltype.Usage{text.Usage(), integer.Usage()}) {
+	if !reflect.DeepEqual(b.Parameters.Types, []sqltype.Usage{text.Usage(), integer.Usage()}) {
 		t.Fatal("execution mutated inference")
 	}
 	ctx, cancel := context.WithCancel(context.Background())

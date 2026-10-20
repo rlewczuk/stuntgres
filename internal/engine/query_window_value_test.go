@@ -197,7 +197,7 @@ func TestQueryWindowValueDomainRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := description.query.Root
+	root := description.Query.Root
 	original := root.(*plan.ProjectNode).Child.(*plan.WindowNode).Calls[0]
 	domain := original.Argument.ResultUsage().Type
 	if !domain.IsDomain() || original.Expression.ResultUsage().Type != domain {

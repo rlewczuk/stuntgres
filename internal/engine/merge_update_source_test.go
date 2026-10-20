@@ -38,11 +38,11 @@ func mergeUpdateSourceCompletion(t *testing.T, targetOnly, empty bool) {
 			defer op.Done()
 			defer target.Close()
 			defer inputs.Close()
-			typ := b.relation.Columns[0].Usage.Type
+			typ := b.Relation.Columns[0].Usage.Type
 			one, _ := sqltype.Integer(typ, 1)
 			two, _ := sqltype.Integer(typ, 2)
 			primary, cleanup := errors.New("late source Next"), errors.New("required source Close")
-			cursor := &mergeInsertTestCursor{schema: b.merge.source.Schema(), rows: [][]sqltype.Value{{one}, {two}}}
+			cursor := &mergeInsertTestCursor{schema: b.Merge.Source.Schema(), rows: [][]sqltype.Value{{one}, {two}}}
 			if targetOnly {
 				cursor.rows = [][]sqltype.Value{{two}, {two}}
 				if empty {
@@ -59,7 +59,7 @@ func mergeUpdateSourceCompletion(t *testing.T, targetOnly, empty bool) {
 			cursor.beforeClose = func() {
 				lockState := e.locks.Inspect()
 				for resource, entry := range lockState.Resources {
-					if resource.ObjectRef == b.ref && resource.Row != 0 && (len(entry.Holders) != 0 || len(entry.Pending) != 0) {
+					if resource.ObjectRef == b.Ref && resource.Row != 0 && (len(entry.Holders) != 0 || len(entry.Pending) != 0) {
 						premature = true
 					}
 				}

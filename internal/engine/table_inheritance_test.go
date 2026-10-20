@@ -39,7 +39,7 @@ func TestInheritanceMergeStableRemap(t *testing.T) {
 	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), parent.Address())
 	ref.Address.SubID = 7
 	node := plan.ColumnExpr{Info: expr.Info{Usage: testUsage(e, sqltype.Int4)}, Origin: ref, Scope: 1, Frame: 1, Slot: 1}
-	mapper := createLikeInput{source: parent, targetSlots: []int{1, 0}}
+	mapper := createLikeInput{Source: parent, TargetSlots: []int{1, 0}}
 	mapped, err := remapLikeExpression(&mapper, node, child, e.CatalogRead())
 	if err != nil {
 		t.Fatal(err)
@@ -79,7 +79,7 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 	auth.Catalog = view
 	auth.Recapture(auth.Catalog)
 	stage := e.BeginCatalogStage(view)
-	b := binding{create: createTableBinding{inheritance: []createInheritanceInput{{source: p}, {source: q}}, localColumns: map[string]bool{"z": true}, declarations: make([]createColumnDeclaration, 3)}}
+	b := binding{Create: createTableBinding{Inheritance: []createInheritanceInput{{Source: p}, {Source: q}}, LocalColumns: map[string]bool{"z": true}, Declarations: make([]createColumnDeclaration, 3)}}
 	if err := e.stageInheritance(op, auth, stage, child, b); err != nil {
 		t.Fatal(err)
 	}
@@ -183,11 +183,11 @@ func TestInheritanceMergeDefaultOverride(t *testing.T) {
 	for _, kind := range []string{"absent", "explicit", "copied"} {
 		override := kind == "explicit"
 		child := inheritanceUnitRelation(e, "c", 22002, "a")
-		b := binding{create: createTableBinding{inheritance: []createInheritanceInput{{source: p}, {source: q}}, declarations: make([]createColumnDeclaration, 1), localColumns: map[string]bool{"a": kind != "absent"}}}
+		b := binding{Create: createTableBinding{Inheritance: []createInheritanceInput{{Source: p}, {Source: q}}, Declarations: make([]createColumnDeclaration, 1), LocalColumns: map[string]bool{"a": kind != "absent"}}}
 		if override {
-			b.create.declarations[0].defaultExpr = parser.LiteralExpr{}
+			b.Create.Declarations[0].DefaultExpr = parser.LiteralExpr{}
 		}
-		b.create.declarations[0].copiedDefault = kind == "copied"
+		b.Create.Declarations[0].CopiedDefault = kind == "copied"
 		stage := e.BeginCatalogStage(view)
 		err := e.stageInheritance(op, auth, stage, child, b)
 		if !override {
@@ -233,14 +233,14 @@ func TestInheritanceMergeShapeDeclarations(t *testing.T) {
 		t.Fatal(err)
 	}
 	var names []string
-	for _, column := range bound.create.columns {
+	for _, column := range bound.Create.Columns {
 		names = append(names, column.Name)
 	}
-	if !reflect.DeepEqual(names, []string{"a", "x", "y", "z"}) || len(bound.create.declarations) != 4 || !bound.create.localColumns["a"] || bound.create.localColumns["x"] || !bound.create.localColumns["z"] || len(bound.create.inheritance) != 2 {
-		t.Fatal(names, bound.create.localColumns, bound.create.declarations)
+	if !reflect.DeepEqual(names, []string{"a", "x", "y", "z"}) || len(bound.Create.Declarations) != 4 || !bound.Create.LocalColumns["a"] || bound.Create.LocalColumns["x"] || !bound.Create.LocalColumns["z"] || len(bound.Create.Inheritance) != 2 {
+		t.Fatal(names, bound.Create.LocalColumns, bound.Create.Declarations)
 	}
-	if bound.create.columns[1].Usage.Type.ID() != sqltype.Text || bound.create.columns[2].Usage.Type.ID() != sqltype.Bool || bound.create.columns[3].Usage.Type.ID() != sqltype.Int8 {
-		t.Fatal(bound.create.columns)
+	if bound.Create.Columns[1].Usage.Type.ID() != sqltype.Text || bound.Create.Columns[2].Usage.Type.ID() != sqltype.Bool || bound.Create.Columns[3].Usage.Type.ID() != sqltype.Int8 {
+		t.Fatal(bound.Create.Columns)
 	}
 	if p.Columns[1].Name != "x" || q.Columns[0].Name != "y" {
 		t.Fatal("source physical shape changed")
@@ -257,7 +257,7 @@ func TestInheritanceRetainedRowAuthority(t *testing.T) {
 	state := catalog.CloneState(v.State())
 	state.SetEpoch(state.Epoch() + 1)
 	current := e.catalog.read(state)
-	mapper := createLikeInput{source: d}
+	mapper := createLikeInput{Source: d}
 	mapped, err := remapLikeExpression(&mapper, old, d, current)
 	if err != nil || !sameInheritedExpression(mapped, old, d, current) || old.Origin != oldRef {
 		t.Fatal("retained row authority changed equality or source", mapped, old, err)
@@ -296,9 +296,9 @@ func TestInheritanceGenerationDeclarationProvenance(t *testing.T) {
 	auth.Recapture(auth.Catalog)
 	for _, explicit := range []bool{false, true} {
 		child := inheritanceUnitRelation(e, "c", 22001, "g")
-		b := binding{create: createTableBinding{inheritance: []createInheritanceInput{{source: parent}}, localColumns: map[string]bool{"g": true}, declarations: make([]createColumnDeclaration, 1)}}
+		b := binding{Create: createTableBinding{Inheritance: []createInheritanceInput{{Source: parent}}, LocalColumns: map[string]bool{"g": true}, Declarations: make([]createColumnDeclaration, 1)}}
 		if explicit {
-			b.create.declarations[0].generation = &parser.GenerationDefinition{Kind: "stored"}
+			b.Create.Declarations[0].Generation = &parser.GenerationDefinition{Kind: "stored"}
 		}
 		if err := e.stageInheritance(op, auth, e.BeginCatalogStage(view), child, b); err != nil {
 			t.Fatal(err)

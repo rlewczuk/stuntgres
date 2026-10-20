@@ -41,7 +41,7 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 			op, scope, b := conflictUpdateAnalyzedScope(t, e, s, "INSERT INTO t VALUES(1,1) ON CONFLICT(k) DO UPDATE SET v=t.v+excluded.v")
 			evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 			integer := func(n int64) sqltype.Value {
-				value, err := sqltype.Integer(b.relation.Columns[0].Usage.Type, n)
+				value, err := sqltype.Integer(b.Relation.Columns[0].Usage.Type, n)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -54,8 +54,8 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 					t.Fatal("distinct mixed effect", k, admitted, err)
 				}
 				stage := scope.stage.rows[ref.Address]
-				if len(stage) != k || insertConflictOf(b.insert.conflict).affected != k || len(insertConflictOf(b.insert.conflict).affectedRows) != k || insertConflictOf(b.insert.conflict).affectedRows[stage[k-1].Row] != k-1 {
-					t.Fatal("append order/identity lookup/count", k, len(stage), insertConflictOf(b.insert.conflict).affected)
+				if len(stage) != k || insertConflictOf(b.Insert.Conflict).affected != k || len(insertConflictOf(b.Insert.Conflict).affectedRows) != k || insertConflictOf(b.Insert.Conflict).affectedRows[stage[k-1].Row] != k-1 {
+					t.Fatal("append order/identity lookup/count", k, len(stage), insertConflictOf(b.Insert.Conflict).affected)
 				}
 				if k == 1 {
 					pinned = stage[:1]
@@ -96,8 +96,8 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 			if duplicate {
 				_, finishErr = scope.admitInsertRow(ref, &indexWriteCandidate{values: []sqltype.Value{integer(1), integer(1)}}, indexWriteBatch{}, &evaluation)
 				var d *sqlstate.Error
-				if !errors.As(finishErr, &d) || d.Code != "21000" || len(scope.stage.rows[ref.Address]) != size*2 || insertConflictOf(b.insert.conflict).affected != size*2 {
-					t.Fatal("duplicate does not append or count", finishErr, insertConflictOf(b.insert.conflict).affected)
+				if !errors.As(finishErr, &d) || d.Code != "21000" || len(scope.stage.rows[ref.Address]) != size*2 || insertConflictOf(b.Insert.Conflict).affected != size*2 {
+					t.Fatal("duplicate does not append or count", finishErr, insertConflictOf(b.Insert.Conflict).affected)
 				}
 			}
 			if err := scope.Finish(finishErr); err != finishErr {

@@ -17,10 +17,10 @@ type insertReturningOutput struct {
 }
 
 func (s *StatementScope) beginInsertReturning(b binding) {
-	if b.returning == nil {
+	if b.Returning == nil {
 		return
 	}
-	rows := exec.NewFinalRows(b.returning.schema, 0)
+	rows := exec.NewFinalRows(b.Returning.Schema, 0)
 	rows.Output = s.output
 	s.insertReturning = &insertReturningOutput{binding: b, rows: rows}
 }
@@ -32,7 +32,7 @@ func (s *StatementScope) projectInsertReturning(row, old []sqltype.Value, c *exe
 	evaluation := *c
 	evaluation.Scope, evaluation.Frame = 1, 1
 	evaluation.Row, evaluation.OldRow = row, old
-	for i, expr := range output.binding.returning.expressions {
+	for i, expr := range output.binding.Returning.Expressions {
 		value, err := expr.Eval(&evaluation)
 		if err != nil {
 			return err
@@ -47,7 +47,7 @@ func (s *StatementScope) projectInsertReturning(row, old []sqltype.Value, c *exe
 }
 func (s *StatementScope) finishInsertReturning() (Result, error) {
 	output := s.insertReturning
-	if output.binding.returning.regclassOutput && output.rows.Count != 0 {
+	if output.binding.Returning.RegclassOutput && output.rows.Count != 0 {
 		if err := s.op.session.Engine().captureRegclassOutput(s.op, output.rows); err != nil {
 			return Result{}, err
 		}
@@ -146,8 +146,8 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 	auth.Catalog = catalog
 	auth.Recapture(auth.Catalog)
 	b := s.insertReturning.binding
-	if b.viewWrite == nil && s.partitionInsert == nil {
-		b.ref, b.relation = ref, parent
+	if b.ViewWrite == nil && s.partitionInsert == nil {
+		b.Ref, b.Relation = ref, parent
 	}
 	if err = auth.checkBinding(b, &parser.Insert{}); err != nil {
 		return false, false, err
@@ -196,14 +196,14 @@ func (s *StatementScope) partitionReturningGroup(ref ids.ObjectRef) *partitionIn
 func (s *StatementScope) admitInsertProducer(b binding, candidate *indexWriteCandidate, prefix indexWriteBatch, c *exec.Context) (bool, error) {
 	row := candidate.values
 	if s.insertReturning == nil {
-		return s.admitInsertRow(b.ref, candidate, prefix, c)
+		return s.admitInsertRow(b.Ref, candidate, prefix, c)
 	}
 	if s.insertConflict == nil || s.insertConflict.update == nil {
 		if err := s.op.session.Engine().checkViewRow(s, &b, row, c); err != nil {
 			return false, err
 		}
 	}
-	accepted, err := s.acceptInsertReturning(b.ref, candidate, c)
+	accepted, err := s.acceptInsertReturning(b.Ref, candidate, c)
 	if err != nil || !accepted {
 		return false, err
 	}

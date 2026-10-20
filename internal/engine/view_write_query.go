@@ -30,7 +30,7 @@ func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root plan.Node, re
 			break
 		}
 	}
-	b.subqueryDemand = true
+	b.SubqueryDemand = true
 	if definition == nil {
 		return plan.RewriteQueryExpressions(root, rewrite)
 	}
@@ -46,7 +46,7 @@ func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root plan.Node, re
 			if !ok {
 				return 0, ids.ErrCatalogReplaced
 			}
-			slot = len(b.querySources)
+			slot = len(b.QuerySources)
 			if w.queryOccurrences == nil {
 				w.queryOccurrences = make(map[viewWriteOccurrence]int)
 			}
@@ -55,8 +55,8 @@ func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root plan.Node, re
 			if err != nil {
 				return 0, err
 			}
-			b.querySources = append(b.querySources, exec.Leaf{Ref: use, Relation: relation, FrozenAttributes: leaf.attributes, Mark: leaf.mark})
-			b.subqueryDemand = true
+			b.QuerySources = append(b.QuerySources, exec.Leaf{Ref: use, Relation: relation, FrozenAttributes: leaf.attributes, Mark: leaf.mark})
+			b.SubqueryDemand = true
 		}
 		return slot, nil
 	}
@@ -116,7 +116,7 @@ func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root plan.Node, re
 		}
 		copy := *source
 		copy.Occurrence = slot
-		copy.Ref = b.querySources[slot].Ref
+		copy.Ref = b.QuerySources[slot].Ref
 		return &copy, nil
 	})
 }
@@ -128,10 +128,10 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *binding)
 	}
 	auth.Catalog = e.privateCatalogLocked(scope.owner.catalog)
 	auth.Recapture(auth.Catalog)
-	original := len(viewWriteOf(b.viewWrite).logical.querySources)
-	for i := original; i < len(b.querySources); i++ {
+	original := len(viewWriteOf(b.ViewWrite).logical.QuerySources)
+	for i := original; i < len(b.QuerySources); i++ {
 		rewritten := false
-		for _, ordinal := range viewWriteOf(b.viewWrite).queryOccurrences {
+		for _, ordinal := range viewWriteOf(b.ViewWrite).queryOccurrences {
 			if ordinal == i {
 				rewritten = true
 				break
@@ -140,13 +140,13 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *binding)
 		if !rewritten {
 			continue
 		}
-		source := &b.querySources[i]
+		source := &b.QuerySources[i]
 		source.Storage = e.privateStorageLocked(scope.owner.catalog, source.Ref.Address)
-		for key, ordinal := range viewWriteOf(b.viewWrite).queryOccurrences {
+		for key, ordinal := range viewWriteOf(b.ViewWrite).queryOccurrences {
 			if ordinal != i {
 				continue
 			}
-			for _, layer := range viewWriteOf(b.viewWrite).layers {
+			for _, layer := range viewWriteOf(b.ViewWrite).layers {
 				if viewOf(layer.relation) != key.definition {
 					continue
 				}

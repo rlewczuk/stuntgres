@@ -32,7 +32,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			if !ok {
 				t.Fatalf("not a scalar SQL provider: %T", node)
 			}
-			if err := b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil {
+			if err := b.captureViewLiterals(raw, node, ViewTargetLiteral, 0); err != nil {
 				t.Fatal(err)
 			}
 			frozen, ok := b.normalizeStoredExpression(raw).(parser.FunctionExpr)
@@ -45,13 +45,13 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			ownedSyntax := *syntax
 			ownedSyntax.Targets = []parser.Expr{frozen}
 			project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: node.ResultUsage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{node}, Frame: b.frameID(), Syntax: &ownedSyntax}
-			definition := &viewDefinition{query: &plan.Query{Root: project}, syntax: &ownedSyntax, dependencies: b.dependencies, routineRefs: b.capture.routineRefs, literals: b.capture.literals, castUsages: b.capture.castUsages}
+			definition := &viewDefinition{query: &plan.Query{Root: project}, syntax: &ownedSyntax, dependencies: b.dependencies, routineRefs: b.capture.RoutineRefs, literals: b.capture.Literals, castUsages: b.capture.CastUsages}
 			definition.frames, definition.queries = collectQueryFrames(project)
 			read := e.CatalogRead()
 			if err := definition.validateLiterals(read); err != nil {
 				t.Fatal(err)
 			}
-			path := viewLiteralPath{query: b.frameID(), clause: viewTargetLiteral}
+			path := viewLiteralPath{Query: b.frameID(), Clause: ViewTargetLiteral}
 			if definition.routineRefs[path] != n.Ref || len(definition.castUsages) != 1 {
 				t.Fatal("lost selected identity or implicit argument conversion")
 			}
@@ -77,7 +77,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 				t.Fatal("missing SQL capture accepted")
 			}
 			extra := *definition
-			extra.routineRefs = map[viewLiteralPath]ids.ObjectRef{path: n.Ref, {query: b.frameID(), target: 99}: n.Ref}
+			extra.routineRefs = map[viewLiteralPath]ids.ObjectRef{path: n.Ref, {Query: b.frameID(), Target: 99}: n.Ref}
 			if err := extra.validateLiterals(read); err == nil {
 				t.Fatal("extra SQL capture accepted")
 			}
@@ -90,7 +90,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 				t.Helper()
 				renderer := newViewRenderer(definition)
 				renderer.frame = b.frameID()
-				text, err := renderer.expressionSQL(ctx, e.CatalogRead(), frozen, viewLiteralPath{clause: viewTargetLiteral})
+				text, err := renderer.expressionSQL(ctx, e.CatalogRead(), frozen, viewLiteralPath{Clause: ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -29,7 +29,7 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 			t.Fatal(err)
 		}
 		n := bound.(functions.BlockingInquiry)
-		if err := b.captureViewLiterals(raw, n, viewTargetLiteral, 0); err != nil {
+		if err := b.captureViewLiterals(raw, n, ViewTargetLiteral, 0); err != nil {
 			t.Fatal("literal recipe pairing", err)
 		}
 		if got, err := (scalarRenderer{owner: owner}).sql(ctx, catalog, n); err != nil || !strings.Contains(got, "pg_catalog."+name+"(") {

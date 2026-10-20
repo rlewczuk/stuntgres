@@ -259,15 +259,15 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	if b.sameGroupExpression(left, right) {
 		t.Fatal("zero-width source occurrences conflated")
 	}
-	zero := compositeOccurrence{kind: compositeExpansion, base: empty.Usage()}
+	zero := compositeOccurrence{Kind: CompositeExpansion, Base: empty.Usage()}
 	if err := validateCompositeOccurrence(zero, view); err != nil {
 		t.Fatal("zero-width expansion lost authority", err)
 	}
-	zero.kind = 0
+	zero.Kind = 0
 	if err := validateCompositeOccurrence(zero, view); err == nil {
 		t.Fatal("missing capture kind admitted")
 	}
-	whole := compositeOccurrence{kind: compositeWholeRow, base: mappedRow.Usage, source: plan.WholeRowSource{Namespace: 1, Frame: 1}}
+	whole := compositeOccurrence{Kind: CompositeWholeRow, Base: mappedRow.Usage, Source: plan.WholeRowSource{Namespace: 1, Frame: 1}}
 	if err := (&viewDefinition{}).validateCompositeSource(whole); err == nil {
 		t.Fatal("missing actual namespace source admitted")
 	}

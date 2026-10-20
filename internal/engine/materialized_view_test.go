@@ -110,7 +110,7 @@ func TestMaterializedViewDefinition(t *testing.T) {
 	defer done()
 	source := &catalog.Relation{ObjectNamespace: d.Namespace(), Attributes: []int32{1, 3}}
 	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), d.Address())
-	b := binding{query: viewOf(d).query, querySources: []exec.Leaf{{Ref: ref, Relation: source, Uses: []int{1}}}, dependencies: []catalog.ExpressionDependency{{Ref: ref, Revision: d.Revision()}}}
+	b := binding{Query: viewOf(d).query, QuerySources: []exec.Leaf{{Ref: ref, Relation: source, Uses: []int{1}}}, Dependencies: []catalog.ExpressionDependency{{Ref: ref, Revision: d.Revision()}}}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	if err != nil {
@@ -123,10 +123,10 @@ func TestMaterializedViewDefinition(t *testing.T) {
 		t.Fatal(err)
 	}
 	source.Attributes[1] = 9
-	if definition.query != b.query || definition.syntax != viewOf(d).syntax || definition.rule == 0 || definition.rule == viewOf(d).rule {
+	if definition.query != b.Query || definition.syntax != viewOf(d).syntax || definition.rule == 0 || definition.rule == viewOf(d).rule {
 		t.Fatal("definition rebound or lost fresh rule identity")
 	}
-	if !reflect.DeepEqual(definition.sources[0].attributes, []int32{1, 3}) || !reflect.DeepEqual(definition.sources[0].reads, []int32{3}) || definition.dependencies[0] != b.dependencies[0] {
+	if !reflect.DeepEqual(definition.sources[0].attributes, []int32{1, 3}) || !reflect.DeepEqual(definition.sources[0].reads, []int32{3}) || definition.dependencies[0] != b.Dependencies[0] {
 		t.Fatal("frozen hidden-attribute/source dependencies changed")
 	}
 }

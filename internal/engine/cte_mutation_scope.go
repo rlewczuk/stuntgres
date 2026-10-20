@@ -150,9 +150,9 @@ func (e *Engine) attachCTEViewTargetsLocked(scope *StatementScope, b *binding, e
 	}
 	main := scope.activeMutation
 	defer scope.activateMutation(main)
-	for _, definition := range b.ctes {
+	for _, definition := range b.CTEs {
 		mutation, ok := mutationBinding(definition)
-		if !ok || mutation.viewWrite == nil {
+		if !ok || mutation.ViewWrite == nil {
 			continue
 		}
 		index := scope.mutationIndex(definition.Statement)
@@ -162,12 +162,12 @@ func (e *Engine) attachCTEViewTargetsLocked(scope *StatementScope, b *binding, e
 		scope.activateMutation(index)
 		if execute {
 			e.mu.Unlock()
-			err := scope.acquireViewWriteTarget(viewWriteOf(mutation.viewWrite))
+			err := scope.acquireViewWriteTarget(viewWriteOf(mutation.ViewWrite))
 			e.mu.Lock()
 			if err != nil {
 				return err
 			}
-			mutation.storage = scope.lockedStorage
+			mutation.Storage = scope.lockedStorage
 		}
 		if err := e.attachViewWriteSourcesLocked(scope, mutation); err != nil {
 			return err

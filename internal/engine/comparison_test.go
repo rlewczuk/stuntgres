@@ -53,15 +53,15 @@ func TestCompareOpsBindingPropertiesAndOccurrences(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc.q, err)
 		}
-		if len(bound.querySources) != 1 || bound.querySources[0].Ref != ref || !reflect.DeepEqual(bound.querySources[0].Uses, tc.used) {
-			t.Fatal(tc.q, bound.querySources, tc.used)
+		if len(bound.QuerySources) != 1 || bound.QuerySources[0].Ref != ref || !reflect.DeepEqual(bound.QuerySources[0].Uses, tc.used) {
+			t.Fatal(tc.q, bound.QuerySources, tc.used)
 		}
-		for _, u := range bound.parameters.Types {
+		for _, u := range bound.Parameters.Types {
 			if u.Type.ID() != tc.id {
 				t.Fatal(tc.q, u)
 			}
 		}
-		project := bound.query.Root.(*plan.ProjectNode)
+		project := bound.Query.Root.(*plan.ProjectNode)
 		for i, node := range project.Expressions {
 			comparison, ok := node.(plan.ComparisonExpr)
 			if !ok {
@@ -88,13 +88,13 @@ func TestCompareOpsBindingPropertiesAndOccurrences(t *testing.T) {
 				}
 				if col, ok := child.(plan.ColumnExpr); ok {
 					found := false
-					for _, d := range bound.dependencies {
+					for _, d := range bound.Dependencies {
 						if d.Ref == col.Origin {
 							found = true
 						}
 					}
 					if !found || col.Origin.Address.SubID != int32(col.Slot+1) {
-						t.Fatal(col, bound.dependencies)
+						t.Fatal(col, bound.Dependencies)
 					}
 				}
 			}
@@ -169,7 +169,7 @@ func TestCompareOpsTemporalCaptureRebind(t *testing.T) {
 			e.mu.Unlock()
 			t.Fatal(err)
 		}
-		desc := StatementDescription{temporals: bound.prepared.temporals}
+		desc := StatementDescription{temporals: bound.Prepared.Temporals}
 		before := append([]temporalConstant(nil), desc.temporals...)
 		for range 2 {
 			rebound, err := describe(op.ctx, e.analysisHost(op), ast, auth, ref, later, &desc, nil)
@@ -177,7 +177,7 @@ func TestCompareOpsTemporalCaptureRebind(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal(err)
 			}
-			c := rebound.query.Root.(*plan.ProjectNode).Expressions[0].(plan.ComparisonExpr)
+			c := rebound.Query.Root.(*plan.ProjectNode).Expressions[0].(plan.ComparisonExpr)
 			if c.Left.ResultUsage().Typmod != -1 || c.Right.ResultUsage().Typmod != 0 {
 				e.mu.Unlock()
 				t.Fatal(c)

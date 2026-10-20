@@ -72,7 +72,7 @@ func TestPrimaryKeyNotNullBinding(t *testing.T) {
 		{NotNull: true, Name: parser.Identifier{Text: "nn"}},
 	}}
 	declaration, err := bindCreateColumnDeclaration(column, "t")
-	if err != nil || !declaration.columnNotNull || declaration.columnName != "nn" || column.Constraints[0].Name.Text != "" || column.Constraints[0].Unique.Name.Text != "pk" {
+	if err != nil || !declaration.ColumnNotNull || declaration.ColumnName != "nn" || column.Constraints[0].Name.Text != "" || column.Constraints[0].Unique.Name.Text != "pk" {
 		t.Fatal("separate NN and PK names", column, declaration, err)
 	}
 	column.Constraints = append([]parser.ColumnConstraint{{NotNull: false}}, parser.ColumnConstraint{Unique: &parser.UniqueConstraint{Primary: true}, Pos: parser.Position{Character: 27}})

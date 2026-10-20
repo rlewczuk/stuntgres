@@ -131,7 +131,7 @@ func TestQueryDistinctFailureAndCancellationFrontiers(t *testing.T) {
 
 func TestQueryDistinctInsertNoBatchOnLateProjectionFailure(t *testing.T) {
 	b, source := insertSelectEvaluationFixture(t, "SELECT DISTINCT v FROM t")
-	node := b.query.Root.(*plan.ProjectNode).Child.(*plan.DistinctNode)
+	node := b.Query.Root.(*plan.ProjectNode).Child.(*plan.DistinctNode)
 	original := node.Expressions[0]
 	calls := 0
 	sentinel := errors.New("late distinct INSERT source")

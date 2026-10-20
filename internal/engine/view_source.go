@@ -130,7 +130,7 @@ func authorizeViewSourceSnapshot(auth AuthorizationView, ref ids.ObjectRef, defi
 		if err != nil {
 			return err
 		}
-		if err := auth.checkColumns(binding{ref: use, relation: source}, authorization.SelectPrivilege, indices); err != nil {
+		if err := auth.checkColumns(binding{Ref: use, Relation: source}, authorization.SelectPrivilege, indices); err != nil {
 			return err
 		}
 	}
