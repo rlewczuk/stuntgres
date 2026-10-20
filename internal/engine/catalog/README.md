@@ -106,6 +106,12 @@ standard library, and never the engine or its sibling `functions`. The lower
   The shared SQL-name gate includes staged additions and removals; ordinary,
   aggregate-spelled and function-cast-spelled calls never scan the full base
   descriptor inventory merely to discover routine candidates.
+- **Builtin routine identities** (`builtin_routine_identities.go`,
+  `regproc_lookup.go`). The released REL_18_0 `pg_proc` identities as
+  lookup-only `RoutineIdentity` facts: `BuiltinRoutineIdentities` returns a
+  copy, `BuiltinRoutineIdentityByOID` looks one up. They are not
+  descriptors and never grant execution; the engine's regproc lookup builds
+  its name and signature indexes from them.
 - **Diagnostic names** (`diagnostic_names.go`). `QuoteIdentifier` always
   quotes; `DependencyIdentifier` quotes like PostgreSQL 18
   `quote_identifier` (every keyword except unreserved ones, independent of
@@ -143,7 +149,7 @@ DDL commands, `CatalogStage` and its publication coordination (storage row
 shapes, index candidates, domain validation, materialized replacement, role
 candidates), publication itself, the `catalogStore` allocators, seeding, the
 transaction catalog journal, and the validators that need engine services:
-relation, type, extension and procedure, operator and parameter validation
+relation, type, extension, procedure, operator and parameter validation
 (stored-SQL rendering, expression nodes, the operator inventory, settings
 definitions, extension implementations). Those register through the same
 `Provider` registry. The engine names the moved declarations directly

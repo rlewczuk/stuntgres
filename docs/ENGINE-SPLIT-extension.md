@@ -23,56 +23,64 @@ validation, ownership metadata and remap) becomes a feature package. The
 function kernels are already in `functions`; installation stays in the engine
 until Part B.
 
-## Inventory (measured at `75fe0d710`)
+## Inventory (re-measured at `1ecaa1876` in 16a)
 
-16 files, about 2.1k lines; 873 of 1,925 declaration lines are clean.
-Feature work adds extensions often (`PG18-EXT-*` parts): re-measure first.
+Since `75fe0d710` feature work added `cube`, provider `Versions()`, ALTER
+EXTENSION UPDATE (`extension_update.go`; fuzzystrmatch `updates`,
+`stageUpdate`, `stageMembers`) and `pg_extension_update_paths`
+(`extension_paths*.go`). Before 16a, the extension files held 144
+declarations: 99 clean, 45 dirty. Every provider record and its validation
+was clean except intarray and cube validation, which called `typeProvider`
+directly and so reached the binder through domain default validation. 16a
+made them clean (Status below).
 
-**Clean declarations:**
+**16b move set** (17 whole files, about 1.3k lines; the frontier tool finds
+no engine declaration they use):
 
-- providers: `fuzzystrmatchProvider` (`Control`, `ValidateExtension`,
-  `validateProcedure`), `fuzzystrmatchMembers`, `fuzzystrmatchResult`,
-  `stockFuzzystrmatch`; `intaggProvider` (`Control`, `ValidateExtension`,
-  `validateProcedure`), `intaggMembers`, `stockIntagg`; `intarrayProvider`
-  (`Control`), `intarrayInputContext`, `intarrayTypeContext`,
-  `queryIntSignature`, `stockIntarray`; `pgcryptoProvider` (`Control`,
-  `ValidateExtension`, `validateProcedure`), `stockPgcrypto`;
-  `unaccentProvider` (`Control`, `ValidateExtension`), `stockUnaccent`;
-  `uuidOsspProvider` (`Control`, `ValidateExtension`,
-  `validateProcedure`), `stockUUIDOssp`;
-- `extension_implementation.go`: the `*ProviderOf` accessors (all clean);
-- `extension_catalog.go`: `extensionCatalogProvider` (type and `ClassID`),
-  `extensionMembership`, `namespaceChildren`, `procedureInNamespaces`
-  (`procedureArity` is `pgcatalog.ProcedureArity` since 9b);
-- `extension_owners.go` (203 of 306 lines): `decodeExtensionOwners`,
-  `extensionMemberOwner`, `extensionOwnerFields`, `extensionOwnerMetadata`,
-  `extensionOwnerRecord`, `extensionOwnersMarker`;
-- `extension_remap.go`: `remapExtensionDescriptor` (all clean);
-- `extension_drop.go`: `extensionRemovalRoots`; `extension_install.go`:
-  `extensionAuthorityObservation`, `extensionMemberConflict`,
-  `extensionNameConflict`, `unaccentTemplateContext`;
-- `intagg_expression.go`: `sameIntaggIdentity`, `validateIntaggIdentity`;
-  `intagg_presentation.go`: `intaggRecipeFunction`;
-- `pgcrypto_expression.go`: `closedPgcryptoDefault`,
-  `cryptoExpressionSignature`, `installedCryptoFunctionExpression`;
-  `uuid_ossp_expression.go`: `installedUUIDOsspFunctionExpression` (all
-  clean).
+- providers: `cube_provider.go`, `fuzzystrmatch_provider.go`,
+  `intagg_provider.go`, `intarray_provider.go`, `pgcrypto_provider.go`,
+  `unaccent_provider.go`, `uuid_ossp_provider.go` (type, `Control`,
+  `Versions`, stock instance, script contexts, `ValidateExtension`,
+  `validateProcedure`);
+- `extension_catalog.go`: `extensionCatalogProvider` (Extension, TS template
+  and TS dictionary classes, plus installed member procedures),
+  `validateProviderHeader`, `validateInstalledProcedure`,
+  `extensionMembership`;
+- `extension_type_validation.go` (`validateRegisteredType`),
+  `extension_implementation.go` (the `*ProviderOf` accessors),
+  `extension_remap.go`, `extension_owners.go` (owner metadata codec),
+  `extension_errors.go`, `extension_authority.go`, `extension_removal.go`;
+- `intagg_identity.go` (`sameIntaggIdentity`, `validateIntaggIdentity`,
+  `intaggRecipeFunction`) and `intagg_aggregate.go` (`intaggDefinition`,
+  `validateOwnedAggregate`, `remapOwnedAggregate`).
 
-**Dirty, and why:**
+Imports of the move set: `authorization`, `catalog`, `expr`, `functions`,
+`ids`, `parser`, `sqlstate`, `sqltype` and the standard library. No
+`routine`, no `typedef`.
 
-- every provider's `stage` method (`CatalogStage`, `Engine`), the
-  `extensionInstaller` interface, `Engine.executeExtension`,
-  `stageExtensionLocked`, `registerExtension`, `executeDropExtension`,
-  `importExtensionOwners`: Part B;
-- `extensionCatalogProvider.Validate` and `intarrayProvider.
-  ValidateExtension`/`validateProcedure`: through `typeProvider.Validate`
-  (stored-SQL rendering), see step 15;
-- the intagg binder methods: step 12; `EvalContext.FunctionPgcrypto*`:
-  step 11; `installedFunctionExpression.Eval`: step 10.
+**Part B** (stay in the engine until 16d): the provider `*_stage.go` files,
+`extension_install.go` (`extensionInstaller`, `registerExtension`,
+`executeExtension`, `publishExtensionStage`, `stageExtensionLocked`),
+`extension_update.go`, `extension_drop.go`, `extension_owner_import.go`.
 
-**Not extension code:** `extension_database.go` is database GRANT and
-`initializeDatabase`; leave it, and rename it in 16a (for example
-`database_grant.go`).
+**Not extension code, stays in the engine:**
+
+- `procedure_provider.go`: `procedureProvider`, the procedure-class
+  validator for builtin, SQL, foreign and conversion routines (uses
+  `routine` and `typedef` lookups). A candidate for `routine` Part B (14c).
+- `procedure_lookup.go` (`procedureInNamespaces`, used by conversion,
+  foreign, operator DDL and regproc) and `namespace_children.go`
+  (`namespaceChildren`, schema/DISCARD/TEMP retirement).
+- `database_grant.go` (was `extension_database.go`): database GRANT and
+  `initializeDatabase`.
+- Node and binder code (decision of 16a item 4, see Status): the installed
+  expression wrappers `installedFunctionExpression`,
+  `installedCryptoFunctionExpression`, `installedUUIDOsspFunctionExpression`
+  with `closedPgcryptoDefault` and `cryptoExpressionSignature`, and the
+  `pg_extension_update_paths` node `extensionPathsExpression`, go with
+  `plan` (10c/10d); `EvalContext.FunctionPgcrypto*` with step 11; the intagg
+  binder methods and `bindExtensionPaths` with step 12; the intagg view
+  recipe methods with the postponed `view` package.
 
 ## Part A
 
@@ -144,9 +152,108 @@ checks in §8.3 pass.
 
 ## Status
 
-- [ ] 16a — In place
+- [x] 16a — In place (`d0a013406`, `bc0e3d81b`, `54d886952`, `46da1763e`,
+  then the docs commit) *(racecheck/finalcheck skipped at user request)*
+  - Re-measured with the reach and frontier tools of 15b at `1ecaa1876` and
+    after the work; the inventory above is current.
+  - `d0a013406` (splits, declarations unchanged): each provider's `stage`
+    (fuzzystrmatch also `updates`, `stageUpdate`, `stageMembers`) moved to a
+    sibling `*_stage.go`; `unaccentProvider.ValidateExtension` and
+    `unaccentTemplateContext` joined `unaccent_provider.go`; the clean
+    helpers left the handler files (`extension_errors.go`,
+    `extension_authority.go`, `extension_removal.go`, `intagg_identity.go`,
+    `extension_owner_import.go` takes `importExtensionOwners` out of
+    `extension_owners.go`). `procedureInNamespaces` and `namespaceChildren`
+    are generic and got engine files. `extension_database.go` →
+    `database_grant.go`, `aggregate_identity.go` → `intagg_aggregate.go`
+    (its regproc helper `routineDescriptorOwner` → `regproc_lookup.go`).
+  - `bc0e3d81b` (item 3, capability): intarray and cube validate their
+    associated array through `validateRegisteredType`, which takes the type
+    provider from `catalog.Owner.Provider(ids.TypeClassID)`, the immutable
+    registry the `catalog.Read` already carries (§4.1 pattern 3). No new
+    interface: the registry is the narrow seam. A live engine always
+    registers `typeProvider` there. `typeProvider.Validate` still calls
+    `stockIntarray`/`stockCube` (engine → extension after 16b).
+  - `54d886952` (deviation, approved): `extensionCatalogProvider.Validate`
+    also validated every builtin, SQL, foreign and conversion procedure,
+    with `routine.BuiltinRoutine` and `typedef.ConversionRoutineName`.
+    `procedureProvider` now owns the procedure class: routines without an
+    extension implementation keep their checks in the old order, routines
+    with one are delegated to `extensionCatalogProvider`, which rejects
+    everything else. The shared address/name/namespace check is
+    `validateProviderHeader`. Registration keeps its order
+    (`extensionCatalogProvider{Extension}`, `procedureProvider{}`, TS
+    template, TS dictionary). The nine direct procedure-class validations
+    (`control.go`, `generated.go`, `temporary_provenance.go`) and
+    `TestRoutineReleaseInventory` use `procedureProvider`. Every descriptor
+    an engine can create validates with the same result and error; only an
+    unknown, non-engine implementation type on a conversion routine (not
+    constructible: `registerExtension` takes the unexported
+    `extensionInstaller`) would now be rejected.
+  - `46da1763e` (beyond the plan): `validateOwnedAggregate` read the engine's
+    `routineByOID`. The lookup-only REL_18_0 identity table
+    (`regproc_identities.go`, pure `catalog.RoutineIdentity` data, no
+    generator) moved to `catalog/builtin_routine_identities.go` with
+    `catalog.BuiltinRoutineIdentities()` (a copy) and
+    `catalog.BuiltinRoutineIdentityByOID`; the engine keeps its name and
+    signature indexes, built from it once at package init.
+  - Item 4 (wrappers): the installed expression wrappers and the
+    `pg_extension_update_paths` node are plan nodes whose catalog identity is
+    engine state (`expr` README); they stay with node code and move with
+    `plan`, not `extension` (inventory above).
+  - Tests: new seam tests `TestInstalledCodecArrayUsesRegisteredTypeProvider`
+    (`extension_type_validation_test.go`) and
+    `TestExtensionProviderValidatesOnlyInstalledProcedures`
+    (`procedure_provider_test.go`), written first and observed failing.
+    `TestRoutineReleaseInventory`, `TestObjectAddress*` and the
+    `pg_aggregate` test read the identity table through the catalog
+    accessors (OID uniqueness now checked per fact); none moved or deleted.
+  - Verification: build, vet (only the existing `composites`,
+    `copylocks` and `lostcancel` findings), 117 targeted engine unit tests
+    after every commit, a 356-test reference selection (every test in a
+    `reference/` file naming CREATE/ALTER/DROP EXTENSION, `pg_extension`,
+    `pg_available_extensions`, an extension member, regproc or `pg_proc`) in
+    quick mode and with `REFERENCE=1`, `make quickcheck` and `make deps`
+    passed on the base `1ecaa1876`. With `REFERENCE=1` only
+    `TestReferenceObjectACLDatabase/postgres` fails: order-dependent
+    PostgreSQL-side state; it passes alone and fails the same way on a clean
+    `1ecaa1876` snapshot. Layering: no engine subpackage imports the engine.
+    A public `database/sql` smoke (CREATE/ALTER/DROP EXTENSION for all seven
+    extensions, members in tables and views, `pg_extension`, regproc,
+    native Dump/Restore round trip) printed identical output on base and
+    branch. Startup bench, interleaved 8 runs each on a loaded host (load
+    16–25): median 1,137 µs/op before, 1,077 µs/op after; about 5,026
+    allocs/op before and 5,022 after, 1.64 MB/op on both. Samples above 1 ms
+    come from host contention. After rebasing on `cdf48fdd6` (session 13a)
+    build, the targeted units, the quick-mode reference selection, the
+    frontier check and `make quickcheck` passed again. Racecheck and
+    finalcheck skipped at user request.
 - [ ] 16b — `extension` created and clean set moved
 - [ ] 16c — Host refined (docs only; after 13d)
 - [ ] 16d — Installation handlers moved
 
 Outstanding aliases: none yet.
+
+Notes for later steps:
+
+- 16b: move the 17 files of the move set whole; export with `movex`. The
+  engine keeps calling `stockIntarray`/`stockCube` from `typeProvider` and
+  registers `extensionCatalogProvider` for three classes plus the
+  `procedureProvider` delegation, so the concrete providers and the
+  validator must be exported (`extension.CatalogProvider`,
+  `extension.ValidateProviderHeader` or a procedure-validation entry point).
+- 10c/10d: the installed wrappers check provider identity with
+  `pgcryptoProviderOf(proc) != stockPgcrypto` and call
+  `stock*.validateProcedure`. `plan` sits below `extension`, so those checks
+  must go through `catalog.Owner().Extensions[name]` and the procedure
+  provider registry instead of naming extension types.
+- 14c/14d: `procedureProvider` (builtin, SQL, foreign and conversion
+  routine validation) is routine code; `routineByOID`'s callers now use the
+  catalog identity table.
+- Unrelated, found by the 16a public smoke on base and branch alike:
+  after `CREATE TABLE t (id int, q query_int)` and
+  `CREATE VIEW v AS SELECT id FROM t`, `DROP EXTENSION intarray CASCADE`
+  fails with the internal error `stuntgres: foreign view query type`
+  (PostgreSQL drops only column `t.q`). Without the view, or with a view
+  that reads `q`, it succeeds. Needs a reference test and a fix (not split
+  work).

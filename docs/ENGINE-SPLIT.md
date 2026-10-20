@@ -1152,15 +1152,19 @@ cut). Prompt file: [ENGINE-SPLIT-typedef.md](ENGINE-SPLIT-typedef.md).
 ### Step 16 — `engine/extension`: installed extensions
 
 **Part A (16a, 16b).** Extension provider records and control data
-(fuzzystrmatch, intagg, intarray, pgcrypto, unaccent, uuid-ossp), member
+(cube, fuzzystrmatch, intagg, intarray, pgcrypto, unaccent, uuid-ossp), member
 validation, membership and owner metadata decoding, extension remap.
 
 **Part B (16c, 16d)** after step 13: CREATE/DROP EXTENSION, provider staging,
 owner import.
 
-**Stays elsewhere.** The installed-function expression wrappers stay with the
-engine's node code (their catalog identity is engine state, see the `expr`
-README); `extension_database.go` is database GRANT, not extension code.
+**Stays elsewhere.** The installed-function expression wrappers and the
+`pg_extension_update_paths` node stay with the engine's node code and move
+with `plan` (their catalog identity is engine state, see the `expr` README).
+Generic procedure validation (`procedureProvider`: builtin, SQL, foreign and
+conversion routines) is routine code, split from the extension validator in
+16a. `database_grant.go` (formerly `extension_database.go`) is database
+GRANT, not extension code.
 
 **Needs** 15b (`intarray` validation goes through type validation). Prompt
 file: [ENGINE-SPLIT-extension.md](ENGINE-SPLIT-extension.md).
@@ -1276,7 +1280,7 @@ package-specific scope. This section holds the rules every session follows.
 | 13 | [`ENGINE-SPLIT-session.md`](ENGINE-SPLIT-session.md) | 13a–13b: —; 13c: 11c, 12d, 8b | 13a done (statement scope slots; racecheck/finalcheck skipped at user request); 13b–13e planned |
 | 14 | [`ENGINE-SPLIT-routine.md`](ENGINE-SPLIT-routine.md) | A: `PG18-ROUTINE-CORE` merged, 14b also the F3 aliases item of step 3; B: 13d | 14a done in place, 14b `routine` created and clean set moved (racecheck skipped at user request); 14c–14d planned |
 | 15 | [`ENGINE-SPLIT-typedef.md`](ENGINE-SPLIT-typedef.md) | A: 14b; B: 13d | 15a done in place, 15b `typedef` created and clean set moved (racecheck/finalcheck skipped at user request); 15c–15d planned |
-| 16 | [`ENGINE-SPLIT-extension.md`](ENGINE-SPLIT-extension.md) | A: 15b; B: 13d | planned (16a–16d) |
+| 16 | [`ENGINE-SPLIT-extension.md`](ENGINE-SPLIT-extension.md) | A: 15b; B: 13d | 16a done in place (racecheck/finalcheck skipped at user request); 16b–16d planned |
 | 17 | [`ENGINE-SPLIT-sequence.md`](ENGINE-SPLIT-sequence.md) | A: step 3 Tier C sequence calls; B: 13d | 17a done in place, 17b `sequence` created and clean set moved (racecheck/finalcheck skipped at user request); 17c–17d planned |
 
 Tracks may run in parallel only on separate branches. Do not run two broad

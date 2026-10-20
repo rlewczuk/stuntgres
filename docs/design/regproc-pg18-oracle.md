@@ -42,7 +42,7 @@ pg_catalog default. proargtypes already includes IN/INOUT/VARIADIC arguments and
 excludes OUT-only arguments; no execution/provider inference is made from prokind.
 Extraction was source research, not a build/test/formatter or native verification.
 
-`internal/engine/regproc_identities.go` contains only the resulting fixed identity
+`internal/engine/catalog/builtin_routine_identities.go` contains only the resulting fixed identity
 facts. Shared name/OID indexes are initialized once; actual descriptors win the
 same-OID merge and duplicate conversion identities are not new overloads. No
 lookup-only fact is registered as an executable descriptor or projected SQL row.

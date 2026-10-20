@@ -271,8 +271,7 @@ and leaves aliases:
    `query_expression_walk.go`, `query_join_legality.go` (if 11a left it
    binder-side), `string_table_bind.go`, `string_set_lower.go`.
 4. Aggregates, grouping and windows: `aggregate_bind.go`,
-   `aggregate_modifiers.go`,
-   `aggregate_identity.go`, `aggregate_dispatch.go`,
+   `aggregate_modifiers.go`, `aggregate_dispatch.go`,
    `grouping_sets_bind.go`, `window_bind.go`, `window_frame_bind.go`.
 5. DML targets and describe: `cte_mutation_bind.go`, `insert_binding.go`,
    `returning.go` binders, `describe`.

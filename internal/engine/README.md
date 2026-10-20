@@ -499,6 +499,11 @@ outside the mutex, then perform real competing updates, ACL/role mutations,
 Reset/replacement or cancellation, retaining exact winner consumers/data.
 Public SQL/control proof stays in `reference/catalogs/extension_version_*`.
 
+Extension validation seams (step 16a): installed codec types validate their
+array through the registered type provider, and `procedureProvider` owns the
+procedure class while the extension validator accepts only installed members.
+Run `make check RUN='^(TestInstalledCodecArrayUsesRegisteredTypeProvider|TestExtensionProviderValidatesOnlyInstalledProcedures)$'`.
+
 ### Expression node runtime
 
 Engine expression nodes never name `*EvalContext` in their `Eval` methods.
@@ -514,7 +519,7 @@ output, subquery, SQL routine) holds that node's evaluation body. Statement-only
 environments through `expr.Context`, at the same points as before. A
 data-modifying CTE carries its binding as the opaque `cteMutation`, recovered
 only through `mutationBinding`. The installed-function and extension-path
-nodes still recover `*EvalContext` until the extension package owns them.
+nodes still recover `*EvalContext`; they move with `plan`, not `extension`.
 
 Run `make check RUN='^TestNodeRuntimePrologue$'` for the prologue seam; public
 evaluation proof is the existing query, CTE, RETURNING, MERGE, window,
