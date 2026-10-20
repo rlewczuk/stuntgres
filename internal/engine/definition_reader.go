@@ -28,32 +28,11 @@ func (a AuthorizationView) definitionDescriptors() iter.Seq2[ids.ObjectAddress, 
 }
 
 func (a AuthorizationView) definitionProceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
-	return definitionProceduresNamedAt(a.Catalog, a.definition, namespace, name)
+	return catalog.DefinitionProceduresNamedAt(a.Catalog, a.definition, namespace, name)
 }
 
-func definitionProceduresNamedAt(view catalog.Read, reader catalog.DefinitionReader, namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
-	if reader != nil {
-		return reader.ProceduresNamed(namespace, name)
-	}
-	return indexedDefinitionProcedures(view, nil, namespace, name)
-}
-
-// Enumeration discovers candidates; the selected provider still supplies the
-// ordinary exact dependency and permission proof.
-func indexedDefinitionProcedures(view catalog.Read, reader catalog.DefinitionReader, namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
-	return func(yield func(*catalog.Procedure) bool) {
-		for _, address := range view.State().ProceduresNamed(namespace, name) {
-			descriptor, present := catalog.DescriptorAt(view, reader, address)
-			if d, ok := descriptor.(*catalog.Procedure); present && ok && d.Namespace() == namespace && d.Name() == name {
-				if !yield(d) {
-					return
-				}
-			}
-		}
-	}
-}
 func (a AuthorizationView) definitionType(id sqltype.ID) (*sqltype.Descriptor, bool) {
-	return definitionTypeAt(a.Catalog, a.definition, id)
+	return catalog.DefinitionTypeAt(a.Catalog, a.definition, id)
 }
 
 type stageDefinitionReader struct{ stage *CatalogStage }
@@ -154,23 +133,11 @@ func (r stageDefinitionReader) HasSQLProcedureName(name string) bool {
 }
 
 func (a AuthorizationView) definitionNamespace(address ids.ObjectAddress) (*catalog.Namespace, bool) {
-	return definitionNamespaceAt(a.Catalog, a.definition, address)
-}
-
-func definitionNamespaceAt(view catalog.Read, reader catalog.DefinitionReader, address ids.ObjectAddress) (*catalog.Namespace, bool) {
-	descriptor, exists := catalog.DescriptorAt(view, reader, address)
-	namespace, ok := descriptor.(*catalog.Namespace)
-	return namespace, exists && ok
+	return catalog.DefinitionNamespaceAt(a.Catalog, a.definition, address)
 }
 
 func (a AuthorizationView) definitionRelation(address ids.ObjectAddress) (*catalog.Relation, bool) {
-	return definitionRelationAt(a.Catalog, a.definition, address)
-}
-
-func definitionRelationAt(view catalog.Read, reader catalog.DefinitionReader, address ids.ObjectAddress) (*catalog.Relation, bool) {
-	descriptor, exists := catalog.DescriptorAt(view, reader, address)
-	relation, ok := descriptor.(*catalog.Relation)
-	return relation, exists && ok
+	return catalog.DefinitionRelationAt(a.Catalog, a.definition, address)
 }
 
 func (r stageDefinitionReader) indexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
@@ -179,45 +146,10 @@ func (r stageDefinitionReader) indexLayout(address ids.ObjectAddress) (indexLayo
 }
 
 func (a AuthorizationView) definitionArray(element *sqltype.Descriptor) (*sqltype.Descriptor, bool) {
-	return definitionArrayAt(a.Catalog, a.definition, element)
-}
-
-func definitionTypeAt(view catalog.Read, reader catalog.DefinitionReader, id sqltype.ID) (*sqltype.Descriptor, bool) {
-	if reader == nil {
-		return view.LookupType(id)
-	}
-	descriptor, exists := reader.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(id)})
-	typ, ok := descriptor.(*catalog.Type)
-	if !exists || !ok {
-		return nil, false
-	}
-	return typ.SQLType, true
-}
-
-func definitionArrayAt(view catalog.Read, reader catalog.DefinitionReader, element *sqltype.Descriptor) (*sqltype.Descriptor, bool) {
-	if element == nil {
-		return nil, false
-	}
-	if reader == nil {
-		return view.LookupArray(element)
-	}
-	descriptor, exists := reader.Descriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(element.ID())})
-	typ, ok := descriptor.(*catalog.Type)
-	if !exists || !ok || typ.SQLType != element {
-		return nil, false
-	}
-	array, ok := definitionTypeAt(view, reader, typ.Array)
-	return array, ok && array.IsArray() && array.Element() == element
+	return catalog.DefinitionArrayAt(a.Catalog, a.definition, element)
 }
 
 func (r scalarRenderer) descriptor(view catalog.Read, address ids.ObjectAddress) catalog.Descriptor {
 	descriptor, _ := catalog.DescriptorAt(view, r.definition, address)
 	return descriptor
-}
-
-func definitionLookupAt(view catalog.Read, reader catalog.DefinitionReader, key ids.NameKey) ids.ObjectAddress {
-	if reader != nil {
-		return reader.Lookup(key)
-	}
-	return view.NameAddress(key)
 }

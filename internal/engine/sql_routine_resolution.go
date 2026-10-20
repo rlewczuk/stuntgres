@@ -66,7 +66,7 @@ func (b *expressionBinder) selectSQLCallable(raw parser.FunctionExpr, cast *pars
 	seen := map[catalog.ProcedureSignature]bool{}
 	hasSQL := false
 	for i := range path.Count() {
-		for d := range definitionProceduresNamedAt(auth.ReadCatalog(), b.host.DefinitionOf(auth), path.At(i), name) {
+		for d := range catalog.DefinitionProceduresNamedAt(auth.ReadCatalog(), b.host.DefinitionOf(auth), path.At(i), name) {
 			if d.RoutineKind != catalog.FunctionRoutine && d.RoutineKind != catalog.AggregateRoutine && d.RoutineKind != catalog.WindowRoutine || seen[d.Signature] {
 				continue
 			}

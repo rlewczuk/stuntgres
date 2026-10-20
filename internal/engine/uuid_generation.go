@@ -5,9 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
-	"stuntgres/internal/engine/plan"
 )
 
 // Session-owned, nontransactional clock. Only the clock update holds mu;
@@ -33,52 +31,3 @@ func (h *statementHost) FunctionUUIDReady() error {
 	return nil
 }
 func (h *statementHost) FunctionUUIDTime() int64 { return h.op.session.uuid.now() }
-
-// Only selected UUID leaves may introduce volatility into a closed DEFAULT.
-// Shift arguments themselves must be closed Immutable/Stable trees. This does
-// not extend the separate fixed-nextval allowance or admit random()/setseed().
-func closedUUIDDefault(node expr.Expr) bool {
-	if node == nil {
-		return true
-	}
-	p := node.Properties()
-	if p.RowDependent || p.ParameterDependent || p.StageDependent {
-		return false
-	}
-	switch n := node.(type) {
-	case plan.InstalledUUIDOsspExpr:
-		return validInstalledUUIDOsspShape(n)
-	case functions.UUIDGeneration:
-		for _, arg := range n.Args {
-			if arg.Properties().Volatility > expr.Stable || !closedUUIDDefault(arg) {
-				return false
-			}
-		}
-		return true
-	case plan.RowExpr, plan.FieldExpr:
-		valid := true
-		plan.ExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
-		return valid
-	case functions.DatetimeTrunc, functions.DatetimeBin, functions.DatetimeZoneCalendar:
-		// Looked through here only; the transaction-time check closes them by
-		// volatility.
-		valid := true
-		plan.ExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
-		return valid
-	case plan.ScalarArrayComparisonExpr:
-		valid := true
-		plan.ExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
-		return valid
-	case plan.CoercionExpr, plan.CollationExpr, plan.ComparisonExpr, plan.ArithmeticExpr, plan.BitwiseExpr, plan.LikeExpr, plan.NullTestExpr, plan.TruthTestExpr, plan.LogicalExpr, plan.DistinctExpr, plan.ConditionalExpr, plan.CaseExpr:
-		valid := true
-		plan.ExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
-		return valid
-	case expr.ClosureTransparent:
-		// Function nodes the closure looks through.
-		valid := true
-		plan.ExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
-		return valid
-	default:
-		return p.Volatility <= expr.Stable
-	}
-}

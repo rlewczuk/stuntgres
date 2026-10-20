@@ -3,6 +3,9 @@ package engine
 import (
 	"context"
 	"reflect"
+	"testing"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
@@ -10,7 +13,6 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestPGAggregateIntaggOwnership(t *testing.T) {
@@ -43,7 +45,7 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 		if n != 1 || selected != helper {
 			t.Fatal("owned bare alias", selected, n)
 		}
-		if procedureInNamespaces(view, namespaceSelection{Qualified: proc.Namespace()}, helper.Name, helper.Signature) != nil {
+		if analyze.ProcedureInNamespaces(view, namespaceSelection{Qualified: proc.Namespace()}, helper.Name, helper.Signature) != nil {
 			t.Fatal("metadata helper became callable")
 		}
 		reserved := make(map[ids.OID]bool)

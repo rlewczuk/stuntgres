@@ -2,12 +2,14 @@ package engine
 
 import (
 	"context"
+	"testing"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestSQLRoutineStoredDefaultValidation(t *testing.T) {
@@ -94,7 +96,7 @@ func TestSQLRoutineDefaultClosureBoundary(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got := closedSQLRoutineDefault(node); got != test.want {
+			if got := analyze.ClosedSQLRoutineDefault(node); got != test.want {
 				t.Fatalf("SQL default closure = %v, want %v", got, test.want)
 			}
 		})

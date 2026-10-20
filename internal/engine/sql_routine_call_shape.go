@@ -17,7 +17,7 @@ func sqlCallableShape(view catalog.Read, reader catalog.DefinitionReader, d *cat
 	if d.Signature != "" {
 		for part := range strings.SplitSeq(string(d.Signature), ",") {
 			id, err := strconv.ParseUint(part, 10, 32)
-			t, ok := definitionTypeAt(view, reader, sqltype.ID(id))
+			t, ok := catalog.DefinitionTypeAt(view, reader, sqltype.ID(id))
 			if err != nil || !ok {
 				return candidate, false
 			}
@@ -44,7 +44,7 @@ func sqlCallableShape(view catalog.Read, reader catalog.DefinitionReader, d *cat
 		if n < fixed {
 			return candidate, false
 		}
-		element, ok := definitionTypeAt(view, reader, variadic)
+		element, ok := catalog.DefinitionTypeAt(view, reader, variadic)
 		if !ok {
 			return candidate, false
 		}

@@ -25,7 +25,7 @@ func catalogTypeDeclaration(view catalog.Read, u sqltype.Usage) (string, error) 
 
 func catalogTypeDeclarationAt(view catalog.Read, reader catalog.DefinitionReader, u sqltype.Usage) (string, error) {
 	if u.Type.IsArray() {
-		array, ok := definitionArrayAt(view, reader, u.Type.Element())
+		array, ok := catalog.DefinitionArrayAt(view, reader, u.Type.Element())
 		if !ok || array != u.Type || !u.Valid() {
 			return "", fmt.Errorf("stuntgres: invalid array declaration authority")
 		}

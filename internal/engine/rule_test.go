@@ -5,7 +5,11 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"testing"
+	"time"
+
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -16,8 +20,6 @@ import (
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
-	"time"
 )
 
 func ruleUnitCatalog(t *testing.T) (*Engine, AuthorizationView, *catalog.Relation, *catalog.Relation) {
@@ -59,7 +61,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	original.Expressions = append(original.Expressions, []expr.Expr{ruleUnitInt(src, 2), ruleUnitInt(src, 20)})
 	ref := ruleUnitRef(e, src)
 	ref.Address.SubID = 1
-	pseudo := plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: rulePseudoScope, Frame: 2, Slot: 0}
+	pseudo := plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 2, Slot: 0}
 	action := ruleUnitInsert(e, sink, 0, 0)
 	action.binding.Expressions[0][0] = pseudo
 	composed, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, action)
@@ -68,14 +70,14 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	}
 	project := composed.Query.Root.(*plan.ProjectNode)
 	column, ok := project.Expressions[0].(plan.ColumnExpr)
-	if !ok || column.Scope == rulePseudoScope || column.Slot != 0 {
+	if !ok || column.Scope == analyze.RulePseudoScope || column.Slot != 0 {
 		t.Fatal("NEW was not substituted into typed producer")
 	}
 	join, ok := project.Child.(*plan.JoinNode)
 	if !ok || len(join.Left.(*plan.ValuesNode).Rows) != 2 {
 		t.Fatal("lost VALUES producer multiplicity")
 	}
-	if action.binding.Expressions[0][0].(plan.ColumnExpr).Scope != rulePseudoScope {
+	if action.binding.Expressions[0][0].(plan.ColumnExpr).Scope != analyze.RulePseudoScope {
 		t.Fatal("mutated stored template")
 	}
 	condition := ruleDefinition{event: "INSERT", instead: true, condition: pseudo}
@@ -189,7 +191,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	t.Run("pseudo_metadata_namespace", func(t *testing.T) {
 		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		binder.query.auth = &auth
-		binder.target.ruleNamespace = &ruleNamespace{relation: src, ref: ruleUnitRef(e, src), event: "INSERT"}
+		binder.target.ruleNamespace = &analyze.RuleNamespace{Relation: src, Ref: ruleUnitRef(e, src), Event: "INSERT"}
 		binder.query.frame, binder.query.nextQueryFrame = 1, 1
 		statements, err := parser.Parse("SELECT NEW.id,NEW.v")
 		if err != nil {
@@ -204,7 +206,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 			t.Fatal("pseudo frame borrowed unrelated FROM metadata")
 		}
 		for _, expression := range project.Expressions {
-			if expression.(plan.ColumnExpr).Scope != rulePseudoScope {
+			if expression.(plan.ColumnExpr).Scope != analyze.RulePseudoScope {
 				t.Fatal("pseudo scope identity erased during analysis")
 			}
 		}
@@ -234,7 +236,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	})
 	t.Run("generic_function_properties", func(t *testing.T) {
 		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		binder.target.ruleNamespace = &ruleNamespace{relation: src, ref: ruleUnitRef(e, src), event: "INSERT"}
+		binder.target.ruleNamespace = &analyze.RuleNamespace{Relation: src, Ref: ruleUnitRef(e, src), Event: "INSERT"}
 		statements, err := parser.Parse("SELECT abs(NEW.v),random(1,2),format('%s',NEW.v)")
 		if err != nil {
 			t.Fatal(err)
@@ -251,7 +253,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 			t.Fatal("random provider lost intrinsic volatility")
 		}
 		replaceFormal := func(expr expr.Expr) (expr.Expr, bool, error) {
-			if column, ok := expr.(plan.ColumnExpr); ok && column.Scope == rulePseudoScope {
+			if column, ok := expr.(plan.ColumnExpr); ok && column.Scope == analyze.RulePseudoScope {
 				return draw, true, nil
 			}
 			return expr, false, nil
@@ -467,7 +469,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 	})
 	ref := ruleUnitRef(e, src)
 	ref.Address.SubID = 1
-	condition := plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: rulePseudoScope, Frame: 2}
+	condition := plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 2}
 	r := ruleDefinition{OID: 900101, Name: "r", event: "INSERT", condition: condition, actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}
 	refs, err := ruleReferences(context.Background(), auth.Catalog, r)
 	if err != nil {
@@ -516,7 +518,7 @@ func TestRuleDefinitionRemap(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
 	oldRef := ruleUnitRef(e, src)
 	oldRef.Address.SubID = 1
-	src.Rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "r", event: "INSERT", condition: plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: oldRef, Scope: rulePseudoScope, Frame: 2}, references: []ids.ObjectAddress{oldRef.Address}, actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}})
+	src.Rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "r", event: "INSERT", condition: plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: oldRef, Scope: analyze.RulePseudoScope, Frame: 2}, references: []ids.ObjectAddress{oldRef.Address}, actions: []ruleAction{ruleUnitInsert(e, sink, 1, 10)}}})
 	newSrc, newSink := *src, *sink
 	newSrc.ObjectAddress.ObjectID += 10
 	newSink.ObjectAddress.ObjectID += 10

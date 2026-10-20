@@ -26,11 +26,11 @@ func (b *expressionBinder) definitionDescriptor(address ids.ObjectAddress) (cata
 }
 
 func (b *expressionBinder) definitionType(id sqltype.ID) (*sqltype.Descriptor, bool) {
-	return definitionTypeAt(b.bindingCatalog(), b.definitionReader(), id)
+	return catalog.DefinitionTypeAt(b.bindingCatalog(), b.definitionReader(), id)
 }
 
 func (b *expressionBinder) definitionArray(element *sqltype.Descriptor) (*sqltype.Descriptor, bool) {
-	return definitionArrayAt(b.bindingCatalog(), b.definitionReader(), element)
+	return catalog.DefinitionArrayAt(b.bindingCatalog(), b.definitionReader(), element)
 }
 
 // The authority* reads go through auth's own catalog and definition reader,
@@ -40,13 +40,13 @@ func (b *expressionBinder) authorityDescriptor(auth analyze.Authority, address i
 }
 
 func (b *expressionBinder) authorityRelation(auth analyze.Authority, address ids.ObjectAddress) (*catalog.Relation, bool) {
-	return definitionRelationAt(auth.ReadCatalog(), b.host.DefinitionOf(auth), address)
+	return catalog.DefinitionRelationAt(auth.ReadCatalog(), b.host.DefinitionOf(auth), address)
 }
 
 func (b *expressionBinder) authorityNamespace(auth analyze.Authority, address ids.ObjectAddress) (*catalog.Namespace, bool) {
-	return definitionNamespaceAt(auth.ReadCatalog(), b.host.DefinitionOf(auth), address)
+	return catalog.DefinitionNamespaceAt(auth.ReadCatalog(), b.host.DefinitionOf(auth), address)
 }
 
 func (b *expressionBinder) authorityType(auth analyze.Authority, id sqltype.ID) (*sqltype.Descriptor, bool) {
-	return definitionTypeAt(auth.ReadCatalog(), b.host.DefinitionOf(auth), id)
+	return catalog.DefinitionTypeAt(auth.ReadCatalog(), b.host.DefinitionOf(auth), id)
 }

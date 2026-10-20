@@ -4,11 +4,13 @@ import (
 	"context"
 	"runtime"
 	"strings"
+	"testing"
+	"time"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
-	"testing"
-	"time"
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -143,7 +145,7 @@ func TestDatetimeSleepStored(t *testing.T) {
 		t.Fatal(err)
 	}
 	n := node.(functions.DatetimeSleep)
-	if !closedTransactionTimeDefault(n) {
+	if !analyze.ClosedTransactionTimeDefault(n) {
 		t.Fatal("closed sleep default rejected")
 	}
 	target := New()
@@ -164,7 +166,7 @@ func TestDatetimeSleepStored(t *testing.T) {
 	}
 	bad := n
 	bad.Property.ParameterDependent = true
-	if closedTransactionTimeDefault(bad) {
+	if analyze.ClosedTransactionTimeDefault(bad) {
 		t.Fatal("dependent default accepted")
 	}
 	interval, err := b.bindFunction(datetimeMakeRaw("pg_sleep_for", ageFiniteTyped("interval", "0")))

@@ -2,13 +2,14 @@ package engine
 
 import (
 	"strings"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestRuleCTECommandNormalization(t *testing.T) {
@@ -116,7 +117,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 	t.Run("top_owned_namespace_only", func(t *testing.T) {
 		position := parser.Position{Offset: 17}
 		raw := parser.CommonTableExpression{Name: parser.Identifier{Text: "q", Pos: position}}
-		newColumn := plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Scope: rulePseudoScope, Frame: 2}
+		newColumn := plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Scope: analyze.RulePseudoScope, Frame: 2}
 		oldColumn := newColumn
 		oldColumn.Frame = 1
 		provider := &plan.Query{Root: &plan.ProjectNode{Expressions: []expr.Expr{newColumn, oldColumn}}}
@@ -140,7 +141,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		}
 	})
 	t.Run("semantic_provider_memo_and_finalization", func(t *testing.T) {
-		pseudo := plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Scope: rulePseudoScope, Frame: 2}
+		pseudo := plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Scope: analyze.RulePseudoScope, Frame: 2}
 		provider := &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Frame: 2, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{pseudo, ruleUnitInt(sink, 10)}}}
 		local := &plan.CTEDefinition{Query: provider, Owner: 1}
 		scan := &plan.DerivedNode{QuerySchema: plan.QuerySchema(sink.Columns), CTE: local, Query: provider, ScanFrame: 1}
@@ -149,7 +150,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		finishCount := 0
 		mapper := newRuleTreeMapper(auth.Catalog, nil, 0, nil, ruleTreeMapping{
 			leaf: func(expr expr.Expr) (expr.Expr, bool, error) {
-				if column, ok := expr.(plan.ColumnExpr); ok && column.Scope == rulePseudoScope {
+				if column, ok := expr.(plan.ColumnExpr); ok && column.Scope == analyze.RulePseudoScope {
 					return ruleUnitInt(sink, 11), true, nil
 				}
 				return expr, false, nil
@@ -184,7 +185,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		if err != nil || repeated != mapped || finishCount != 2 {
 			t.Fatalf("query finalization not exactly once per changed query: %d %v", finishCount, err)
 		}
-		if provider.Root.(*plan.ProjectNode).Expressions[0].(plan.ColumnExpr).Scope != rulePseudoScope {
+		if provider.Root.(*plan.ProjectNode).Expressions[0].(plan.ColumnExpr).Scope != analyze.RulePseudoScope {
 			t.Fatal("semantic graft mutated stored provider")
 		}
 	})

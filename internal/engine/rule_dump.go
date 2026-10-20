@@ -37,7 +37,7 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 				return ruleExpressionSQL(ctx, view, expr, action, root)
 			})
 		}
-		if column.Scope != rulePseudoScope && column.Scope == 1 && column.Frame == 1 && action.binding.Relation != nil {
+		if column.Scope != analyze.RulePseudoScope && column.Scope == 1 && column.Frame == 1 && action.binding.Relation != nil {
 			offset := len(action.binding.Relation.Columns)
 			var from plan.Node
 			if action.binding.Update != nil {
@@ -66,7 +66,7 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 			a == action.binding.Ref.Address {
 			return "EXCLUDED." + name, nil
 		}
-		if column.Scope == rulePseudoScope {
+		if column.Scope == analyze.RulePseudoScope {
 			side := "OLD"
 			if column.Frame == 2 {
 				side = "NEW"

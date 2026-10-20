@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
@@ -142,27 +141,6 @@ func (b *expressionBinder) conditionalEquality(left, right comparisonOperand, po
 	return l, r, comparison, routine, err
 }
 
-// Extrema retain ordering authority separately from scalar equality. Identifier
-// types without ordering remain describable, but never acquire a fake comparator.
-func bindExtremaComparison(usage sqltype.Usage, indeterminate bool) (sqltype.Comparison, bool, error) {
-	// Array SQL comparison does not expand the independently bounded extrema
-	// consumer. Preserve its previous analysis failure, including domains.
-	if usage.Type.BaseType().IsArray() {
-		return sqltype.Comparison{}, false, sqlError("42883", "incompatible comparison operands")
-	}
-	if usage.Type.BaseType().IsEnum() || sqltype.IsTransactionIdentifier(usage.Type.BaseType().ID()) {
-		comparison, err := sqltype.BindOrdering(usage)
-		if err != nil && (usage.Type.BaseType().ID() == sqltype.Xid || usage.Type.BaseType().ID() == sqltype.Cid) {
-			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42883" {
-				return sqltype.Comparison{}, true, nil
-			}
-		}
-		return comparison, false, err
-	}
-	comparison, err := sqltype.BindComparison(usage.Type, usage.Type, usage.Collation, indeterminate)
-	return comparison, false, err
-}
-
 func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (expr.Expr, error) {
 	oldRegexp := b.clause.regexpClause
 	if raw.Kind == parser.Coalesce {
@@ -219,7 +197,7 @@ func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (expr.Exp
 		info.RoutineReference = routine
 	}
 	if raw.Kind == parser.Greatest || raw.Kind == parser.Least {
-		comparison, missingOrdering, err = bindExtremaComparison(info.Usage, info.CollationConflict)
+		comparison, missingOrdering, err = analyze.BindExtremaComparison(info.Usage, info.CollationConflict)
 		if err != nil {
 			return nil, err
 		}

@@ -293,7 +293,7 @@ func (v *viewDefinition) validateLiteralTree(catalog catalog.Read, raw parser.Ex
 		return nil
 	case parser.LiteralExpr, parser.TypedLiteralExpr:
 		if literal, ok := v.literals[path]; ok {
-			if err := validateRegroleStoredLiteral(literal.Value); err != nil {
+			if err := analyze.ValidateRegroleStoredLiteral(literal.Value); err != nil {
 				return err
 			}
 			usage := literal.ResultUsage()

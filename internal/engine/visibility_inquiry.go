@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
@@ -18,7 +19,7 @@ func namedObjectVisibleAt(view catalog.Read, reader catalog.DefinitionReader, pa
 	for _, namespace := range path {
 		key := catalog.DescriptorNameKey(d)
 		key.Namespace = namespace
-		if found := definitionLookupAt(view, reader, key); found != (ids.ObjectAddress{}) {
+		if found := catalog.DefinitionLookupAt(view, reader, key); found != (ids.ObjectAddress{}) {
 			return found == d.Address()
 		}
 	}

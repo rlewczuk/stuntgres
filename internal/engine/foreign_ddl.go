@@ -64,7 +64,7 @@ func (e *Engine) foreignProcedureLocked(auth AuthorizationView, name *parser.Obj
 	if err != nil {
 		return nil, err
 	}
-	p := procedureInNamespaces(auth.Catalog, path, name.Parts[len(name.Parts)-1].Text, signature)
+	p := analyze.ProcedureInNamespaces(auth.Catalog, path, name.Parts[len(name.Parts)-1].Text, signature)
 	if p == nil {
 		args := ""
 		if signature == catalog.ForeignValidatorSignature {

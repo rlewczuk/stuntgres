@@ -3,6 +3,9 @@ package engine
 import (
 	"context"
 	"errors"
+	"testing"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -10,7 +13,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestRuleStaticOperatorPreflight(t *testing.T) {
@@ -197,7 +199,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			binder.query.frame, binder.query.nextQueryFrame = 1, 1
 			if rule {
-				binder.target.ruleNamespace = &ruleNamespace{relation: src, ref: ruleUnitRef(e, src), event: "INSERT"}
+				binder.target.ruleNamespace = &analyze.RuleNamespace{Relation: src, Ref: ruleUnitRef(e, src), Event: "INSERT"}
 			}
 			query, err := binder.BindSelect(statement, true)
 			if err != nil {
@@ -272,7 +274,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			}
 			pseudoRetained := false
 			plan.WalkExpression(childTemplate.Expressions[0], func(node expr.Expr) {
-				if column, ok := node.(plan.ColumnExpr); ok && column.Scope == rulePseudoScope {
+				if column, ok := node.(plan.ColumnExpr); ok && column.Scope == analyze.RulePseudoScope {
 					pseudoRetained = true
 				}
 			})

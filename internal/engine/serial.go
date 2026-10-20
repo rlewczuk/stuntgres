@@ -1,17 +1,14 @@
 package engine
 
 import (
-	"strconv"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
 
 func (e *Engine) stageCreateSerials(stage *CatalogStage, table *catalog.Relation, declarations []createColumnDeclaration) error {
@@ -54,37 +51,6 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *catalog.Relation
 		declarations[slot].DefaultExpr = parser.CallExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "pg_catalog"}, {Text: "nextval"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: catalog.QuoteIdentifier(namespace.Name()) + "." + catalog.QuoteIdentifier(name)}}}}
 	}
 	return nil
-}
-
-// Only fixed nextval leaves remain volatile inside constructor/field/cast wrappers.
-func closedSequenceDefault(node expr.Expr) bool {
-	if node == nil || node.Properties().RowDependent || node.Properties().ParameterDependent || node.Properties().StageDependent {
-		return false
-	}
-	switch n := node.(type) {
-	case plan.CoercionExpr:
-		return closedSequenceDefault(n.Child)
-	case plan.RowExpr:
-		for _, field := range n.Fields {
-			if field.Properties().Volatility > expr.Stable && !closedSequenceDefault(field) {
-				return false
-			}
-		}
-		return true
-	case plan.FieldExpr:
-		return closedSequenceDefault(n.Base)
-	case functions.SequenceCall:
-		if n.Name != "nextval" || n.Identity || len(n.Args) != 1 || n.Ref == (ids.ObjectRef{}) || n.ResultUsage().Type.ID() != sqltype.Int8 || n.Properties() != (expr.Properties{Volatility: expr.Volatile}) {
-			return false
-		}
-		literal, ok := n.Args[0].(plan.LiteralExpr)
-		if !ok || literal.Value.IsNull() || literal.ResultUsage().Type.ID() != sqltype.Regclass || literal.Properties() != (expr.Properties{}) {
-			return false
-		}
-		text, err := literal.Value.Text()
-		return err == nil && text == strconv.FormatUint(uint64(n.Ref.Address.ObjectID), 10)
-	}
-	return false
 }
 
 func closedRegclassDefault(node expr.Expr) bool {

@@ -102,7 +102,7 @@ func (r inheritanceDefinitionReader) Descriptors() iter.Seq2[ids.ObjectAddress, 
 func (r inheritanceDefinitionReader) ProceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
 	// As with full discovery, candidate enumeration does not create observations.
 	r.observations = nil
-	return indexedDefinitionProcedures(r.base, r, namespace, name)
+	return catalog.IndexedDefinitionProcedures(r.base, r, namespace, name)
 }
 func (r inheritanceDefinitionReader) HasSQLProcedureName(name string) bool {
 	return r.base.State().HasSQLProcedureName(name)

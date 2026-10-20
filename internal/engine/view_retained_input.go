@@ -19,7 +19,7 @@ func captureRetainedDefinitionInput(view catalog.Read, definition *viewDefinitio
 		var failure error
 		analyze.WalkQueryArgumentNode(definition.query.Root, func(node expr.Expr) {
 			if failure == nil {
-				failure = captureRetainedExpressionInput(node, element, diagnostic)
+				failure = analyze.CaptureRetainedExpressionInput(node, element, diagnostic)
 			}
 		})
 		if failure != nil {

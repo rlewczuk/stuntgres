@@ -412,7 +412,7 @@ func describe(ctx context.Context, host analyzeHost, stmt parser.Statement, auth
 	return describeWithRule(ctx, host, stmt, auth, requiredRef, input, expected, admission, nil, initial...)
 }
 
-func describeWithRule(ctx context.Context, host analyzeHost, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected *StatementDescription, admission *queryLockAdmission, rule *ruleNamespace, initial ...[]sqltype.Usage) (binding, error) {
+func describeWithRule(ctx context.Context, host analyzeHost, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected *StatementDescription, admission *queryLockAdmission, rule *analyze.RuleNamespace, initial ...[]sqltype.Usage) (binding, error) {
 	return Describe(ctx, host, stmt, authorityOf(auth), requiredRef, input, expectedOf(expected), admission, rule, false, initial...)
 }
 

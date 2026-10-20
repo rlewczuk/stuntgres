@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -76,7 +77,7 @@ func (p unaccentInstaller) stage(e *Engine, stage *CatalogStage, ext *catalog.Ex
 		signature catalog.ProcedureSignature
 		arguments string
 	}{{"unaccent_init", catalog.UnaccentInitSignature, "internal"}, {"unaccent_lexize", catalog.UnaccentLexizeSignature, "internal, internal, internal, internal"}} {
-		procedure := procedureInNamespaces(auth.Catalog, namespaceSelection{Path: path}, helper.name, helper.signature)
+		procedure := analyze.ProcedureInNamespaces(auth.Catalog, namespaceSelection{Path: path}, helper.name, helper.signature)
 		if procedure == nil {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: fmt.Sprintf("function %s(%s) does not exist", helper.name, helper.arguments), Context: extension.UnaccentTemplateContext}
 		}

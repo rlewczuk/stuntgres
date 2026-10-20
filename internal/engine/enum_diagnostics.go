@@ -1,9 +1,9 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -40,7 +40,7 @@ func (b *expressionBinder) captureTypeDiagnosticInput(typ *sqltype.Descriptor) e
 		b.input.FTS = b.host.FTSInput()
 	}
 	acl := typ.ContainsACLItem() && b.input.ACLItem == nil
-	naming := b.input.TypeDiagnosticName == nil && needsTypeDiagnosticInput(typ)
+	naming := b.input.TypeDiagnosticName == nil && analyze.NeedsTypeDiagnosticInput(typ)
 	if !acl && !naming {
 		return nil
 	}
@@ -54,7 +54,7 @@ func (b *expressionBinder) captureTypeDiagnosticInput(typ *sqltype.Descriptor) e
 // Comparisons need names, not input codecs or role-name resolution. Capture the
 // existing naming authority once without acquiring unrelated ACL input state.
 func (b *expressionBinder) captureComparisonDiagnosticInput(typ *sqltype.Descriptor) error {
-	if b.input.TypeDiagnosticName != nil || !needsTypeDiagnosticInput(typ) {
+	if b.input.TypeDiagnosticName != nil || !analyze.NeedsTypeDiagnosticInput(typ) {
 		return nil
 	}
 	auth, err := b.bindingAuthorization()
@@ -91,77 +91,6 @@ func hasEnumInput(typ *sqltype.Descriptor) bool {
 	return false
 }
 
-func needsTypeDiagnosticInput(typ *sqltype.Descriptor) bool {
-	if typ == nil {
-		return false
-	}
-	if typ.IsUserDefined() || typ.HasDomainConstraints() {
-		return true
-	}
-	typ = typ.BaseType()
-	if typ.IsEnum() {
-		return true
-	}
-	if typ.IsArray() {
-		return needsTypeDiagnosticInput(typ.Element())
-	}
-	if typ.IsComposite() {
-		for i := range typ.CompositeLen() {
-			if needsTypeDiagnosticInput(typ.CompositeMember(i).Usage.Type) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// Retained reads and writes have identical input demands, independent of the
-// tree walker used by their consumer. Naming never suppresses catalog input.
-func captureRetainedExpressionInput(node expr.Expr, element func() error, diagnostic func(*sqltype.Descriptor) error) error {
-	// Stored columns and record constructors can demand a named nested provider
-	// without any input conversion. Retain the same naming authority as fresh
-	// comparison binding, including domain and array identity.
-	if needsTypeDiagnosticInput(node.ResultUsage().Type) {
-		if err := diagnostic(node.ResultUsage().Type); err != nil {
-			return err
-		}
-	}
-	switch node := node.(type) {
-	case functions.Enum:
-		return diagnostic(node.Plan.Enum())
-	case functions.JSONBRecord:
-		targets := [2]*sqltype.Descriptor{node.RecordUsage().Type}
-		if len(node.Args) == 2 {
-			targets[1] = node.Args[0].ResultUsage().Type
-		}
-		for i, target := range targets {
-			if target == nil || i == 1 && target == targets[0] {
-				continue
-			}
-			if target.ContainsCatalogIdentifier() {
-				if err := element(); err != nil {
-					return err
-				}
-			}
-			if err := diagnostic(target); err != nil {
-				return err
-			}
-		}
-	case plan.CoercionExpr:
-		target := node.ResultUsage().Type
-		characterInput := sqltype.IsCharacter(node.Child.ResultUsage().Type.BaseType().ID())
-		if characterInput || sqltype.ContainsDomainConstraints(target) {
-			if characterInput && target.ContainsCatalogIdentifier() {
-				if err := element(); err != nil {
-					return err
-				}
-			}
-			return diagnostic(target)
-		}
-	}
-	return nil
-}
-
 // Stored sources are opaque to the outer expression binder, but their
 // planning-time conversions consume the same published input environment.
 func (b *expressionBinder) captureRetainedViewInput(relation *catalog.Relation) error {
@@ -176,7 +105,7 @@ func (b *expressionBinder) captureRetainedWriteInput(defaults []expr.Expr, gener
 		if failure != nil {
 			return
 		}
-		failure = captureRetainedExpressionInput(node, b.captureElementInput, b.captureTypeDiagnosticInput)
+		failure = analyze.CaptureRetainedExpressionInput(node, b.captureElementInput, b.captureTypeDiagnosticInput)
 	}
 	for _, node := range defaults {
 		plan.WalkExpression(node, visit)

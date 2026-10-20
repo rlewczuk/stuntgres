@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -28,10 +29,10 @@ func conditionalDefaultClosureBind(t *testing.T) func(*testing.T, string) expr.E
 
 func conditionalDefaultClosureWant(t *testing.T, node expr.Expr, timeClosed, uuidClosed bool) {
 	t.Helper()
-	if got := closedTransactionTimeDefault(node); got != timeClosed {
+	if got := analyze.ClosedTransactionTimeDefault(node); got != timeClosed {
 		t.Errorf("transaction-time closure of %T = %v, want %v", node, got, timeClosed)
 	}
-	if got := closedUUIDDefault(node); got != uuidClosed {
+	if got := analyze.ClosedUUIDDefault(node); got != uuidClosed {
 		t.Errorf("UUID closure of %T = %v, want %v", node, got, uuidClosed)
 	}
 }
@@ -205,7 +206,7 @@ func TestConditionalDefaultClosurePolicyPrecedence(t *testing.T) {
 	} {
 		invalid := clock
 		mutate(&invalid)
-		if closedTransactionTimeDefault(invalid) {
+		if analyze.ClosedTransactionTimeDefault(invalid) {
 			t.Error("invalid intrinsic time leaf admitted", invalid)
 		}
 	}
@@ -242,7 +243,7 @@ func TestConditionalDefaultClosurePolicyPrecedence(t *testing.T) {
 	conditionalDefaultClosureWant(t, badShape, false, false)
 	staged := installed
 	staged.Property.StageDependent = true
-	if !validInstalledUUIDOsspShape(staged) {
+	if !analyze.ValidInstalledUUIDOsspShape(staged) {
 		t.Fatal("fixture must retain valid installed shape despite stage dependence")
 	}
 	conditionalDefaultClosureWant(t, staged, false, false)
@@ -310,8 +311,8 @@ func TestConditionalDefaultClosureSQLRoutineConsumer(t *testing.T) {
 	} {
 		t.Run(test.sql, func(t *testing.T) {
 			node := conditionalDefaultClosureACL(t, bind(t, test.sql), functions.ACLMake)
-			valid, containsSQL := sqlRoutineDefaultClosure(node)
-			if valid != test.valid || containsSQL || closedSQLRoutineDefault(node) {
+			valid, containsSQL := analyze.SQLRoutineDefaultClosure(node)
+			if valid != test.valid || containsSQL || analyze.ClosedSQLRoutineDefault(node) {
 				t.Fatalf("ACL fallback = (%v,%v), want (%v,false), never a SQL-routine default", valid, containsSQL, test.valid)
 			}
 			for _, dependence := range []string{"row", "parameter", "stage"} {
@@ -320,8 +321,8 @@ func TestConditionalDefaultClosureSQLRoutineConsumer(t *testing.T) {
 				dependent.Property.RowDependent = dependence == "row"
 				dependent.Property.ParameterDependent = dependence == "parameter"
 				dependent.Property.StageDependent = dependence == "stage"
-				valid, containsSQL := sqlRoutineDefaultClosure(dependent)
-				if valid || containsSQL || closedSQLRoutineDefault(dependent) {
+				valid, containsSQL := analyze.SQLRoutineDefaultClosure(dependent)
+				if valid || containsSQL || analyze.ClosedSQLRoutineDefault(dependent) {
 					t.Error("dependent ACL rescued by stable SQL-routine bypass", dependence, valid, containsSQL)
 				}
 			}

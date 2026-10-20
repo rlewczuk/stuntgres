@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -103,7 +104,7 @@ func TestArrayInspectStoredRemap(t *testing.T) {
 		if err != nil || nerr != nil || n != 3 || v.Type() != call.ResultUsage().Type {
 			t.Fatal(v, err, nerr)
 		}
-		if !SameGroupExpression(call, call) || !closedTransactionTimeDefault(call) || !closedUUIDDefault(call) || exec.PlannedPhysicalVolatility(call, false) != expr.Immutable {
+		if !SameGroupExpression(call, call) || !analyze.ClosedTransactionTimeDefault(call) || !analyze.ClosedUUIDDefault(call) || exec.PlannedPhysicalVolatility(call, false) != expr.Immutable {
 			t.Fatal("lost scalar traversal")
 		}
 		visited := 0
@@ -141,9 +142,9 @@ func TestArrayInspectClosedDefaults(t *testing.T) {
 		if err != nil {
 			t.Fatal(producer, err)
 		}
-		valid := closedTransactionTimeDefault(node)
+		valid := analyze.ClosedTransactionTimeDefault(node)
 		if producer == "uuidv4" {
-			valid = closedUUIDDefault(node)
+			valid = analyze.ClosedUUIDDefault(node)
 		}
 		if !valid || exec.PlannedPhysicalVolatility(node, false) != expr.Volatile {
 			t.Fatal("lost nested producer", producer)

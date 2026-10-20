@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
@@ -35,7 +36,7 @@ func selectExactRoutine(view catalog.Read, path namespaceSelection, name string,
 		if !routineNamespaceVisible(view, namespace) {
 			continue
 		}
-		if p := procedureInNamespaces(view, namespaceSelection{Qualified: namespace}, name, signature); p != nil {
+		if p := analyze.ProcedureInNamespaces(view, namespaceSelection{Qualified: namespace}, name, signature); p != nil {
 			return catalog.RoutineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}, 1
 		}
 		for _, d := range view.Descriptors() {

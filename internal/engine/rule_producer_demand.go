@@ -3,6 +3,7 @@ package engine
 import (
 	"slices"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 )
@@ -14,7 +15,7 @@ func ruleProducerOutputUses(original binding, rule ruleDefinition, action bindin
 	inspect := func(bound expr.Expr) {
 		plan.WalkExpression(bound, func(node expr.Expr) {
 			column, ok := node.(plan.ColumnExpr)
-			if !ok || column.Scope != rulePseudoScope || column.Frame != 2 {
+			if !ok || column.Scope != analyze.RulePseudoScope || column.Frame != 2 {
 				return
 			}
 			target := slices.Index(original.Relation.Attributes, column.Origin.Address.SubID)

@@ -2,13 +2,15 @@ package engine
 
 import (
 	"context"
+	"testing"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestUUIDGenerationBinderNullAndDemand(t *testing.T) {
@@ -26,7 +28,7 @@ func TestUUIDGenerationBinderNullAndDemand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Volatile || closedUUIDDefault(node) {
+	if !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Volatile || analyze.ClosedUUIDDefault(node) {
 		t.Fatal("parameter dependence", node.Properties())
 	}
 	uuid := b.typ(sqltype.UUID)
@@ -50,7 +52,7 @@ func TestUUIDGenerationBinderNullAndDemand(t *testing.T) {
 	if generationImmutable(bound) {
 		t.Fatal("UUID admitted to immutable consumer")
 	}
-	if closedUUIDDefault(functions.Random{Info: expr.Info{Usage: uuid.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "random"}) {
+	if analyze.ClosedUUIDDefault(functions.Random{Info: expr.Info{Usage: uuid.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "random"}) {
 		t.Fatal("unrelated volatile default admitted")
 	}
 }

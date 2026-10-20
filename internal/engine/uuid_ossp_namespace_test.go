@@ -4,10 +4,12 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"testing"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
-	"testing"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -28,7 +30,7 @@ func TestUUIDOsspNamespaceExpressionIdentity(t *testing.T) {
 				t.Fatal(err)
 			}
 			n := node.(plan.InstalledUUIDOsspExpr)
-			if n.Name != name || !slices.Contains(ext.Members, n.Ref.Address) || n.Procedure.Name() != name || n.ResultUsage().Type.ID() != sqltype.UUID || exec.PlannedVolatility(n) != expr.Immutable || !generationImmutable(n) || !closedUUIDDefault(n) {
+			if n.Name != name || !slices.Contains(ext.Members, n.Ref.Address) || n.Procedure.Name() != name || n.ResultUsage().Type.ID() != sqltype.UUID || exec.PlannedVolatility(n) != expr.Immutable || !generationImmutable(n) || !analyze.ClosedUUIDDefault(n) {
 				t.Fatal("constant shape/identity", n)
 			}
 			if carrier, err := routine.ExpressionRoutineDescriptor(n); err != nil || carrier != n.Procedure {

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -137,13 +138,13 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 		if kind == functions.TransactionTimeNow && binder.sameGroupExpression(leaf, other) {
 			t.Error("alias spelling merged")
 		}
-		if !closedTransactionTimeDefault(leaf) {
+		if !analyze.ClosedTransactionTimeDefault(leaf) {
 			t.Error("selected closed default rejected")
 		}
 		for _, properties := range []expr.Properties{{Volatility: expr.Volatile, RowDependent: true}, {Volatility: expr.Volatile, ParameterDependent: true}, {Volatility: expr.Volatile, StageDependent: true}} {
 			bad := leaf
 			bad.Property = properties
-			if closedTransactionTimeDefault(bad) {
+			if analyze.ClosedTransactionTimeDefault(bad) {
 				t.Error("dependent leaf admitted")
 			}
 		}
@@ -165,7 +166,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 		t.Error("demoted clock admitted")
 	}
 	random := functions.Random{Info: expr.Info{Usage: binder.typ(sqltype.Float8).Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "random"}
-	if closedTransactionTimeDefault(random) {
+	if analyze.ClosedTransactionTimeDefault(random) {
 		t.Error("unrelated volatile default admitted")
 	}
 	for _, raw := range []parser.Expr{
@@ -176,7 +177,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !closedTransactionTimeDefault(node) {
+		if !analyze.ClosedTransactionTimeDefault(node) {
 			t.Error("closed selected wrapper rejected")
 		}
 		if _, err := (scalarRenderer{}).sql(ctx, engine.CatalogRead(), node); err != nil {

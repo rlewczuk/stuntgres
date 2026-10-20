@@ -993,7 +993,7 @@ func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.
 		}
 		leftParent.unary = len(e.Args) == 1
 		operatorOperand := func(index int, parent pgRenderParent) (string, error) {
-			if arrayMembershipName(spelling) || spelling == "||" {
+			if analyze.ArrayMembershipName(spelling) || spelling == "||" {
 				return selectedOperand(index, e.Args[index], parent)
 			}
 			return operand(e.Args[index], parent)

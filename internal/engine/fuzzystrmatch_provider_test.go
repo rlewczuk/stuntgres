@@ -6,6 +6,9 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"testing"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -15,7 +18,6 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func daitchUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
@@ -270,7 +272,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	foreignArray, _ := foreign.CatalogRead().LookupType(1009)
 	forged := n
 	forged.Usage.Type = foreignArray
-	if validInstalledText(forged) {
+	if analyze.ValidInstalledText(forged) {
 		t.Fatal("foreign array/argument generation admitted")
 	}
 	if _, err := forged.Eval(ctx); err == nil {

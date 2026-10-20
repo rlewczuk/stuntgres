@@ -2,13 +2,14 @@ package engine
 
 import (
 	"slices"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestRuleConflictInstantiation(t *testing.T) {
@@ -104,7 +105,7 @@ func TestRuleIndependentActionProducer(t *testing.T) {
 			}
 			ref := original.Ref
 			ref.Address.SubID = src.Attributes[0]
-			action.binding.Expressions = [][]expr.Expr{{plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: rulePseudoScope, Frame: 1}, ruleUnitInt(sink, 8)}}
+			action.binding.Expressions = [][]expr.Expr{{plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 1}, ruleUnitInt(sink, 8)}}
 			dependent, err := composeRuleAction(auth, original, event, ruleDefinition{}, action)
 			if err != nil {
 				t.Fatal(err)
@@ -112,7 +113,7 @@ func TestRuleIndependentActionProducer(t *testing.T) {
 			if len(dependent.QuerySources) == 0 {
 				t.Fatal("OLD demand lost event-row authority")
 			}
-			if action.binding.Expressions[0][0].(plan.ColumnExpr).Scope != rulePseudoScope {
+			if action.binding.Expressions[0][0].(plan.ColumnExpr).Scope != analyze.RulePseudoScope {
 				t.Fatal("composition mutated stored action")
 			}
 		})

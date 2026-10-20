@@ -11,8 +11,6 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func arrayMembershipName(name string) bool { return name == "@>" || name == "<@" || name == "&&" }
-
 func (b *expressionBinder) bindArrayMembership(raw parser.OperatorExpr) (expr.Expr, error) {
 	if len(raw.Args) != 2 {
 		return nil, fmt.Errorf("stuntgres: invalid membership arity")

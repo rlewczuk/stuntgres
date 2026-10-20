@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -471,7 +472,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 		if !ok {
 			return bound, false, nil
 		}
-		if column.Scope == rulePseudoScope {
+		if column.Scope == analyze.RulePseudoScope {
 			recipes := p.old
 			if column.Frame == 2 {
 				recipes = p.new
@@ -939,7 +940,7 @@ func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleD
 			b.Prepared.RegtypeConstants = append(slices.Clone(b.Prepared.RegtypeConstants), cb.Prepared.RegtypeConstants...)
 		}
 		tree := newRuleTreeMapper(catalog, nil, 0, b.CTEs, ruleTreeMapping{finish: ruleQueryFinalizer(catalog), leaf: func(expr expr.Expr) (expr.Expr, bool, error) {
-			if column, ok := expr.(plan.ColumnExpr); ok && column.Scope == rulePseudoScope {
+			if column, ok := expr.(plan.ColumnExpr); ok && column.Scope == analyze.RulePseudoScope {
 				recipes := p.old
 				if column.Frame == 2 {
 					recipes = p.new
@@ -1244,7 +1245,7 @@ func ruleBindingHasPseudo(b binding) bool {
 	found := false
 	inspect := func(bound expr.Expr) {
 		plan.WalkExpression(bound, func(node expr.Expr) {
-			if column, ok := node.(plan.ColumnExpr); ok && column.Scope == rulePseudoScope {
+			if column, ok := node.(plan.ColumnExpr); ok && column.Scope == analyze.RulePseudoScope {
 				found = true
 			}
 		})

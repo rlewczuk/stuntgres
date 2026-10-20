@@ -2,6 +2,8 @@ package engine
 
 import (
 	"slices"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -21,7 +23,7 @@ func defaultReplayDeferrable(definition catalog.ColumnDefault) bool {
 	if definition.CatalogAliasReferences {
 		return true
 	}
-	if closedSequenceDefault(node) {
+	if analyze.ClosedSequenceDefault(node) {
 		eligible, captured := true, false
 		plan.WalkExpression(node, func(child expr.Expr) {
 			if call, ok := child.(functions.SequenceCall); ok {

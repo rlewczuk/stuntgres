@@ -41,7 +41,7 @@ func validateRuleActionCTEs(action parser.Statement, b binding) error {
 		plan.WalkExpression(bound, func(node expr.Expr) {
 			switch node := node.(type) {
 			case plan.ColumnExpr:
-				if node.Scope == rulePseudoScope {
+				if node.Scope == analyze.RulePseudoScope {
 					old = old || node.Frame == 1
 					new = new || node.Frame == 2
 				}

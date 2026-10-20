@@ -187,7 +187,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			}
 		}
 		if literal, ok := bound.(plan.LiteralExpr); ok {
-			if err := validateRegroleStoredLiteral(literal.Value); err != nil {
+			if err := analyze.ValidateRegroleStoredLiteral(literal.Value); err != nil {
 				return err
 			}
 			if b.capture.Literals == nil {
@@ -202,7 +202,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 				b.capture.Columns = make(map[viewLiteralPath]viewColumn)
 			}
 			captured := viewColumn{Frame: column.Frame, Slot: column.Slot}
-			if column.Scope == rulePseudoScope {
+			if column.Scope == analyze.RulePseudoScope {
 				captured.RuleRef = column.Origin
 				captured.RuleSide = column.Frame
 			}

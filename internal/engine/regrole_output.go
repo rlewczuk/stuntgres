@@ -88,13 +88,3 @@ func captureRegroleOutputValue(rows *exec.FinalRows, output capturedRegroleOutpu
 	rows.Output.Regrole = rows
 	return nil
 }
-
-// This is a dependency/persistence restriction, not a data codec restriction.
-// Opaque array payloads, domains, runtime casts and typed NULL are not scalar
-// REGROLE Const nodes. Their ordinary expression children are checked by callers.
-func validateRegroleStoredLiteral(value sqltype.Value) error {
-	if value.Type().ID() == sqltype.Regrole && !value.IsNull() {
-		return sqlError("0A000", "constant of the type regrole cannot be used here")
-	}
-	return nil
-}

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/typedef"
@@ -58,7 +59,7 @@ func (e *Engine) captureTypeDiagnosticInput(auth AuthorizationView, op *Operatio
 	if typ.ContainsACLItem() && input.ACLItem == nil {
 		input.ACLItem = e.captureACLItemInput(auth, op)
 	}
-	if input.TypeDiagnosticName == nil && needsTypeDiagnosticInput(typ) {
+	if input.TypeDiagnosticName == nil && analyze.NeedsTypeDiagnosticInput(typ) {
 		var err error
 		input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(auth)
 		return err

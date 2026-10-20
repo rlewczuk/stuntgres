@@ -71,7 +71,7 @@ func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationVi
 		return err
 	}
 	name := s.Function.Parts[len(s.Function.Parts)-1].Text
-	procedure := procedureInNamespaces(auth.Catalog, path, name, catalog.ConversionSignature)
+	procedure := analyze.ProcedureInNamespaces(auth.Catalog, path, name, catalog.ConversionSignature)
 	functionName := catalog.ObjectNameText(s.Function)
 	if procedure == nil {
 		return sqlError("42883", "function "+functionName+"(integer, integer, cstring, internal, integer, boolean) does not exist")

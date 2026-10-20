@@ -38,7 +38,7 @@ func (b *expressionBinder) bindRangeShared(raw parser.OperatorExpr) (expr.Expr, 
 		return nil, functions.OperatorError(sqlError("42883", "operator does not exist"), left, nil, raw)
 	}
 	if !sqltype.IsRangeInspectType(left) && !sqltype.IsRangeInspectType(right) && (left != nil || right != nil) {
-		if arrayMembershipName(name) {
+		if analyze.ArrayMembershipName(name) {
 			return b.finishArrayMembership(raw, operands)
 		}
 		if arithmeticName(name) {

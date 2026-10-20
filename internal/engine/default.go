@@ -117,7 +117,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		return "", fmt.Errorf("stuntgres: missing default node")
 	}
 	u, p := node.ResultUsage(), node.Properties()
-	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.owner == nil && (r.domainValue == nil && p.Volatility > expr.Stable && !closedSequenceDefault(node) && !closedUUIDDefault(node) && !closedTransactionTimeDefault(node) && !closedPgcryptoDefault(node) && !closedSQLRoutineDefault(node) || p.RowDependent) || p.ParameterDependent || p.StageDependent || p.DomainDependent && r.domainValue == nil {
+	if u.Type == nil || !u.Valid() || !u.Type.Concrete() || r.owner == nil && (r.domainValue == nil && p.Volatility > expr.Stable && !analyze.ClosedSequenceDefault(node) && !analyze.ClosedUUIDDefault(node) && !analyze.ClosedTransactionTimeDefault(node) && !analyze.ClosedPgcryptoDefault(node) && !analyze.ClosedSQLRoutineDefault(node) || p.RowDependent) || p.ParameterDependent || p.StageDependent || p.DomainDependent && r.domainValue == nil {
 		return "", fmt.Errorf("stuntgres: invalid stored default properties")
 	}
 	if err := validateUsageCollationAt(view, r.definition, u); err != nil {
@@ -223,7 +223,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		}
 		return r.scalarFunctionSQL(ctx, view, n)
 	case functions.SequenceCall:
-		if r.owner == nil && !closedSequenceDefault(n) {
+		if r.owner == nil && !analyze.ClosedSequenceDefault(n) {
 			return "", fmt.Errorf("stuntgres: invalid stored sequence default")
 		}
 		args := n.Args
@@ -287,7 +287,7 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 	case plan.CaseExpr, plan.ConditionalExpr:
 		return r.conditionalSQL(ctx, view, node)
 	case plan.LiteralExpr:
-		if err := validateRegroleStoredLiteral(n.Value); err != nil {
+		if err := analyze.ValidateRegroleStoredLiteral(n.Value); err != nil {
 			return "", err
 		}
 		if n.RegclassRef != (ids.ObjectRef{}) {

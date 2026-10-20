@@ -8,10 +8,12 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"testing"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
-	"testing"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -35,7 +37,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	if carrier, err := routine.ExpressionRoutineDescriptor(n); err != nil || carrier != n.Procedure {
 		t.Fatal("missing common original routine carrier", carrier, err)
 	}
-	if n.Ref.Address != ext.Members[0] || n.ResultUsage().Type.ID() != sqltype.UUID || exec.PlannedVolatility(n) != expr.Volatile || !validInstalledUUIDOsspShape(n) || !closedUUIDDefault(n) || generationImmutable(n) {
+	if n.Ref.Address != ext.Members[0] || n.ResultUsage().Type.ID() != sqltype.UUID || exec.PlannedVolatility(n) != expr.Volatile || !analyze.ValidInstalledUUIDOsspShape(n) || !analyze.ClosedUUIDDefault(n) || generationImmutable(n) {
 		t.Fatal("installed UUID shape/properties", n)
 	}
 	if generationHasTableOID(n) {
@@ -164,7 +166,7 @@ func TestUUIDOsspGroupedExpressionIdentity(t *testing.T) {
 	if !n.Properties().StageDependent || n.Properties().Volatility != expr.Volatile || n.Procedure != node.(plan.InstalledUUIDOsspExpr).Procedure {
 		t.Fatal("grouping lost staged volatility/installed identity", n)
 	}
-	if closedUUIDDefault(grouped) {
+	if analyze.ClosedUUIDDefault(grouped) {
 		t.Fatal("grouped execution leaf admitted as a closed DEFAULT")
 	}
 	if err := validateInstalledUUIDOssp(n, view); err != nil {
@@ -179,7 +181,7 @@ func TestUUIDOsspGroupedExpressionIdentity(t *testing.T) {
 	} {
 		bad := n
 		mutate(&bad)
-		if err := validateInstalledUUIDOssp(bad, view); err == nil || closedUUIDDefault(bad) {
+		if err := validateInstalledUUIDOssp(bad, view); err == nil || analyze.ClosedUUIDDefault(bad) {
 			t.Fatal("group stage masked invalid leaf properties or relaxed DEFAULT", bad)
 		}
 	}
@@ -196,7 +198,7 @@ func TestUUIDOsspGroupedExpressionIdentity(t *testing.T) {
 		t.Fatal("retagging remapped grouped leaf", err)
 	}
 	got := rebound.(plan.InstalledUUIDOsspExpr)
-	if got.Ref != n.Ref || got.Procedure != n.Procedure || !got.Properties().StageDependent || exec.PlannedVolatility(got) != expr.Volatile || closedUUIDDefault(got) {
+	if got.Ref != n.Ref || got.Procedure != n.Procedure || !got.Properties().StageDependent || exec.PlannedVolatility(got) != expr.Volatile || analyze.ClosedUUIDDefault(got) {
 		t.Fatal("grouped remap lost identity/stage or relaxed DEFAULT", got)
 	}
 }
@@ -344,7 +346,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		t.Fatal("retag must resolve selected remapped address", err)
 	}
 	current, err := routine.ExpressionRoutineDescriptor(relocated)
-	if err != nil || current != state.Get(mapping[n.Ref.Address]) || !validInstalledUUIDOsspShape(relocated.(plan.InstalledUUIDOsspExpr)) {
+	if err != nil || current != state.Get(mapping[n.Ref.Address]) || !analyze.ValidInstalledUUIDOsspShape(relocated.(plan.InstalledUUIDOsspExpr)) {
 		t.Fatal("remapped common and installed carriers diverged", err)
 	}
 	auth := catalogAuthorization(e, view)

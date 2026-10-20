@@ -138,7 +138,7 @@ func TestRegroleStoredLiteral(t *testing.T) {
 	want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "constant of the type regrole cannot be used here"}
 	for _, id := range []uint32{0, 10, 4294967295} {
 		value, _ := sqltype.RegroleValue(d, id)
-		if got := validateRegroleStoredLiteral(value); !reflect.DeepEqual(got, want) {
+		if got := analyze.ValidateRegroleStoredLiteral(value); !reflect.DeepEqual(got, want) {
 			t.Fatal("complete stored diagnostic", got)
 		}
 		literal := plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: value}
@@ -173,7 +173,7 @@ func TestRegroleStoredLiteral(t *testing.T) {
 		t.Fatal("domain wrapper lost owning descriptor or physical identity", id, err)
 	}
 	for _, allowed := range []sqltype.Value{sqltype.Null(d), array, wrapped, sqltype.Null(arrayType)} {
-		if err := validateRegroleStoredLiteral(allowed); err != nil {
+		if err := analyze.ValidateRegroleStoredLiteral(allowed); err != nil {
 			t.Fatal("non-scalar-Const rejected", err)
 		}
 	}

@@ -7,6 +7,10 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
+	"testing"
+	"time"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -16,9 +20,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
-	"sync"
-	"testing"
-	"time"
 )
 
 func extensionTemporaryOperation(t *testing.T, e *Engine, name string) (*Operation, func()) {
@@ -324,7 +325,7 @@ func TestExtensionTemporaryLookup(t *testing.T) {
 		t.Fatal("authorized foreign installed path omitted", path, err)
 	}
 	selected, err := e.lookupNamespaces(foreignAuth, qualified, analyze.InstalledFunctionLookup)
-	if err != nil || procedureInNamespaces(foreignAuth.Catalog, selected, "unaccent", catalog.UnaccentTextSignature) == nil {
+	if err != nil || analyze.ProcedureInNamespaces(foreignAuth.Catalog, selected, "unaccent", catalog.UnaccentTextSignature) == nil {
 		t.Fatal("real foreign member lookup", selected, err)
 	}
 	for _, kind := range []lookupKind{analyze.RelationLookup, analyze.TypeLookup, analyze.FunctionLookup, analyze.OperatorLookup, analyze.CollationLookup, analyze.ConversionLookup} {

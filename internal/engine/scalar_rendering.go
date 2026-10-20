@@ -34,7 +34,7 @@ func (r scalarRenderer) renderingWithReturning(ctx context.Context, view catalog
 		if t == nil {
 			return "", fmt.Errorf("stuntgres: foreign stored function type")
 		}
-		if found, ok := definitionTypeAt(view, r.definition, t.ID()); !ok || found != t {
+		if found, ok := catalog.DefinitionTypeAt(view, r.definition, t.ID()); !ok || found != t {
 			return "", fmt.Errorf("stuntgres: foreign stored function type")
 		}
 	}

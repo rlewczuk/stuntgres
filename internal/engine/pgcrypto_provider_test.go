@@ -6,6 +6,9 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"testing"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -16,7 +19,6 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func pgcryptoUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
@@ -223,7 +225,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	aesCall := aesNode.(plan.InstalledCryptoExpr)
-	if aesCall.Ref.Address != ext.Members[9] || len(aesCall.Args) != 4 || cryptoExpressionSignature(aesCall) != "17,17,17,25" {
+	if aesCall.Ref.Address != ext.Members[9] || len(aesCall.Args) != 4 || analyze.CryptoExpressionSignature(aesCall) != "17,17,17,25" {
 		t.Fatal("four-child installed identity", aesCall)
 	}
 	children = nil
@@ -259,7 +261,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 			t.Fatal(v.name, err)
 		}
 		call := bound.(plan.InstalledCryptoExpr)
-		if call.ResultUsage().Type.ID() != v.result || exec.PlannedVolatility(call) != expr.Volatile || !closedPgcryptoDefault(call) {
+		if call.ResultUsage().Type.ID() != v.result || exec.PlannedVolatility(call) != expr.Volatile || !analyze.ClosedPgcryptoDefault(call) {
 			t.Fatal("random/FIPS properties", call)
 		}
 		if err := validateInstalledCrypto(call, e.CatalogRead()); err != nil {
@@ -278,7 +280,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 		if err := validateInstalledCrypto(actual, e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
-		if exec.PlannedVolatility(actual) != expr.Volatile || !closedPgcryptoDefault(actual) {
+		if exec.PlannedVolatility(actual) != expr.Volatile || !analyze.ClosedPgcryptoDefault(actual) {
 			t.Fatal("lost reconstructed volatility")
 		}
 		rendered, err := (scalarRenderer{}).sql(context.Background(), e.CatalogRead(), actual)

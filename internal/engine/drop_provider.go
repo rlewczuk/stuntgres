@@ -671,7 +671,7 @@ func (prepared *preparedDrop) Descriptors() iter.Seq2[ids.ObjectAddress, catalog
 
 func (prepared *preparedDrop) ProceduresNamed(namespace ids.ObjectAddress, name string) iter.Seq[*catalog.Procedure] {
 	return func(yield func(*catalog.Procedure) bool) {
-		for d := range indexedDefinitionProcedures(prepared.discovery, prepared, namespace, name) {
+		for d := range catalog.IndexedDefinitionProcedures(prepared.discovery, prepared, namespace, name) {
 			if !yield(d) {
 				return
 			}

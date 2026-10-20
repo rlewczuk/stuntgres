@@ -317,7 +317,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 		changed = changed || n.Procedure != proc || n.Dictionary != dict || n.Template != tmpl
 		n.Procedure, n.Dictionary, n.Template = proc, dict, tmpl
 		n.Info = info
-		if !validInstalledText(n) {
+		if !analyze.ValidInstalledText(n) {
 			return nil, false, fmt.Errorf("stuntgres: invalid remapped installed function")
 		}
 		rebound = n
@@ -645,7 +645,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 				left, right = n.Args[0].ResultUsage().Type, n.Args[1].ResultUsage().Type
 			}
 			if n.Kind == parser.Greatest || n.Kind == parser.Least {
-				n.Comparison, n.MissingOrdering, err = bindExtremaComparison(info.Usage, conflict)
+				n.Comparison, n.MissingOrdering, err = analyze.BindExtremaComparison(info.Usage, conflict)
 			} else {
 				n.Comparison, err = sqltype.BindComparison(left, right, ref, conflict)
 			}

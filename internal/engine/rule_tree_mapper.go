@@ -3,6 +3,7 @@ package engine
 import (
 	"slices"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -93,7 +94,7 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 			}
 			switch node := expr.(type) {
 			case plan.ColumnExpr:
-				if node.Scope == rulePseudoScope {
+				if node.Scope == analyze.RulePseudoScope {
 					return expr, false, nil
 				}
 				changed := false

@@ -14,16 +14,6 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// Immutable templates use the same bound mutations and query graph as ordinary
-// commands. Pseudo columns are analysis-only lexical frames, never row callbacks.
-const rulePseudoScope = ^uint32(0)
-
-type ruleNamespace struct {
-	relation *catalog.Relation
-	ref      ids.ObjectRef
-	event    string
-}
-
 type ruleAction struct {
 	syntax                parser.Statement
 	binding               binding
@@ -148,7 +138,7 @@ func ruleReturning(s parser.Statement) *parser.Returning {
 
 func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth AuthorizationView, d *catalog.Relation, ref ids.ObjectRef, s *parser.CreateRule) (ruleDefinition, error) {
 	r := ruleDefinition{Name: s.Name.Text, event: strings.ToUpper(s.Event), instead: s.Instead}
-	ns := &ruleNamespace{relation: d, ref: ref, event: r.event}
+	ns := &analyze.RuleNamespace{Relation: d, Ref: ref, Event: r.event}
 	if s.Condition != nil {
 		binder := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
 		binder.target.ruleNamespace = ns

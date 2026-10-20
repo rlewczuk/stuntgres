@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"testing"
+
+	"stuntgres/internal/engine/analyze"
 )
 
 func TestSerialDefaultIdentityProviderTemporaryCollision(t *testing.T) {
@@ -40,7 +42,7 @@ func TestSerialDefaultIdentityProviderTemporaryCollision(t *testing.T) {
 			}
 			consumer := dest.catalog.state.MustRelation(roleTableRef(t, dest, "portable.consumer").Address)
 			current := serialLeaf(consumer.ColumnMeta.Defaults[1].Expression)
-			if current.Ref.Address == temp || !closedSequenceDefault(consumer.ColumnMeta.Defaults[1].Expression) {
+			if current.Ref.Address == temp || !analyze.ClosedSequenceDefault(consumer.ColumnMeta.Defaults[1].Expression) {
 				t.Fatal("identity provider reference not remapped", current.Ref)
 			}
 			provider := dest.catalog.state.MustRelation(current.Ref.Address)

@@ -94,7 +94,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			if parser.HasModifyingCTE(query) {
 				analysis = query
 			}
-			b, err := describeWithRule(scope.op.Context(), e.analysisHost(scope.op), analysis, auth, ids.ObjectRef{}, scope.input, nil, nil, &ruleNamespace{relation: old, ref: ref, event: "SELECT"})
+			b, err := describeWithRule(scope.op.Context(), e.analysisHost(scope.op), analysis, auth, ids.ObjectRef{}, scope.input, nil, nil, &analyze.RuleNamespace{Relation: old, Ref: ref, Event: "SELECT"})
 			if err != nil {
 				return fail(err)
 			}

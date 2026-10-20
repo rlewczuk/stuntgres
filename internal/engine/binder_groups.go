@@ -26,7 +26,7 @@ type targetContext struct {
 	relation              *catalog.Relation
 	insertTarget          *catalog.Relation // Diagnostic candidate only, never a source.
 	ref                   ids.ObjectRef
-	ruleNamespace         *ruleNamespace
+	ruleNamespace         *analyze.RuleNamespace
 	generatedOwner        *catalog.Relation
 	deleteTarget          bool
 	deleteUsingSources    bool

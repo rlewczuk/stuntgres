@@ -3,12 +3,13 @@ package engine
 import (
 	"context"
 	"fmt"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
-	"testing"
 )
 
 // The SQL below constructs real analyzed templates and index providers. The
@@ -59,7 +60,7 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 						t.Fatal("modifier and consumer share a SELECT capture frame")
 					}
 					source, ok := project.Expressions[0].(plan.ColumnExpr)
-					if !ok || source.Scope == rulePseudoScope || source.Frame != project.Frame ||
+					if !ok || source.Scope == analyze.RulePseudoScope || source.Frame != project.Frame ||
 						source.Origin.Address.ClassID != inputRef.Address.ClassID ||
 						source.Origin.Address.ObjectID != inputRef.Address.ObjectID || source.Origin.Address.SubID != 1 {
 						t.Fatal("modifier's analyzed projection no longer belongs to input.v")

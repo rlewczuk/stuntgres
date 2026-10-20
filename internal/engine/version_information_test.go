@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -61,7 +62,7 @@ func TestVersionInformationBinding(t *testing.T) {
 		if sides, err := plan.JoinExpressionSides(leaf, 0, 0); err != nil || sides != 0 {
 			t.Fatal("invented row source", sides, err)
 		}
-		if !b.sameGroupExpression(leaf, leaf) || !closedTransactionTimeDefault(leaf) {
+		if !b.sameGroupExpression(leaf, leaf) || !analyze.ClosedTransactionTimeDefault(leaf) {
 			t.Error("lost group/default leaf participation")
 		}
 		other := leaf

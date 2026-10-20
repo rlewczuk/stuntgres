@@ -3,13 +3,15 @@ package engine
 import (
 	"context"
 	"strings"
+	"testing"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func uuidExtractEngineUnit(t *testing.T, b *expressionBinder, kind functions.UUIDExtractKind) functions.UUIDExtract {
@@ -124,7 +126,7 @@ func TestUUIDExtractScalarLifecycle(t *testing.T) {
 	if err != nil || node.Properties().Volatility != expr.Volatile || exec.PlannedVolatility(node) != expr.Volatile || generationImmutable(node) {
 		t.Fatal("volatile child erased", node, err)
 	}
-	if !closedUUIDDefault(node) {
+	if !analyze.ClosedUUIDDefault(node) {
 		t.Fatal("closed UUID traversal lost")
 	}
 }

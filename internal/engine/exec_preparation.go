@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -20,5 +21,5 @@ func (enginePreparation) DomainCatalog(c *exec.Context) catalog.Read {
 }
 
 func (enginePreparation) ValidInstalledText(n plan.InstalledTextExpr) bool {
-	return validInstalledText(n)
+	return analyze.ValidInstalledText(n)
 }

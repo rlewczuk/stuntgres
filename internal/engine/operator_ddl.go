@@ -81,7 +81,7 @@ func (e *Engine) operatorRoutine(auth AuthorizationView, name parser.ObjectName,
 			types[i] = t.DiagnosticName()
 		}
 	}
-	d := procedureInNamespaces(auth.Catalog, path, name.Parts[len(name.Parts)-1].Text, catalog.ProcedureSignature(strings.Join(ids, ",")))
+	d := analyze.ProcedureInNamespaces(auth.Catalog, path, name.Parts[len(name.Parts)-1].Text, catalog.ProcedureSignature(strings.Join(ids, ",")))
 	if d == nil {
 		return nil, sqlError("42883", "function "+catalog.ObjectNameText(name)+"("+strings.Join(types, ", ")+") does not exist")
 	}

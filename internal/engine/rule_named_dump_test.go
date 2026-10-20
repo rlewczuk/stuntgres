@@ -5,12 +5,13 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"testing"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
-	"testing"
 )
 
 // This supplements the public dual-mode scenarios with real analyzed provider
@@ -84,7 +85,7 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 						}
 						for i, expr := range project.Expressions {
 							column, ok := expr.(plan.ColumnExpr)
-							if !ok || column.Scope == rulePseudoScope || column.Frame != project.Frame ||
+							if !ok || column.Scope == analyze.RulePseudoScope || column.Frame != project.Frame ||
 								column.Origin.Address.ClassID != inputRef.Address.ClassID ||
 								column.Origin.Address.ObjectID != inputRef.Address.ObjectID || column.Origin.Address.SubID != int32(i+1) {
 								t.Fatal("modifier projection lost its own input attribute")

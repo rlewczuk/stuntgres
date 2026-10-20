@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -114,7 +115,7 @@ func (r scalarRenderer) conditionalSQL(ctx context.Context, view catalog.Read, n
 			missingOrdering := false
 			ref, conflict := e.Comparison.InputCollation()
 			if e.Kind == parser.Greatest || e.Kind == parser.Least {
-				comparison, missingOrdering, err = bindExtremaComparison(e.Usage, conflict)
+				comparison, missingOrdering, err = analyze.BindExtremaComparison(e.Usage, conflict)
 			} else {
 				comparison, err = sqltype.BindComparison(left, right, ref, conflict)
 			}

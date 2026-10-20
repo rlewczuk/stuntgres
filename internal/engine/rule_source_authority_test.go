@@ -2,13 +2,15 @@ package engine
 
 import (
 	"strings"
+	"testing"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
-	"testing"
 )
 
 func TestRuleExpansionSourceAuthority(t *testing.T) {
@@ -69,7 +71,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					if dependent {
 						ref = original.Ref
 						ref.Address.SubID = src.Attributes[0]
-						value = plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: rulePseudoScope, Frame: 1}
+						value = plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Origin: ref, Scope: analyze.RulePseudoScope, Frame: 1}
 					}
 					action.binding.Expressions = nil
 					action.binding.CommandQuery = true

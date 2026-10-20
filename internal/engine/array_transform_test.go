@@ -3,6 +3,9 @@ package engine
 import (
 	"context"
 	"strings"
+	"testing"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -10,7 +13,6 @@ import (
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestArrayTransformResolverOwners(t *testing.T) {
@@ -92,7 +94,7 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 			}
 			visited := 0
 			plan.ExpressionChildren(call, func(expr.Expr) { visited++ })
-			if visited != len(call.Args) || !closedTransactionTimeDefault(call) || !closedUUIDDefault(call) {
+			if visited != len(call.Args) || !analyze.ClosedTransactionTimeDefault(call) || !analyze.ClosedUUIDDefault(call) {
 				t.Fatal("lost children", visited)
 			}
 			volatility := expr.Immutable

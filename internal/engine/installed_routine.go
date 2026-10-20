@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
@@ -35,13 +36,13 @@ func (b *expressionBinder) InstalledRoutine(name parser.ObjectName, family funct
 			if text == "gen_random_uuid" && namespace.ObjectID == ids.PGCatalogNamespaceOID {
 				return functions.CatalogBuiltin{}, nil
 			}
-			proc = procedureInNamespaces(auth.ReadCatalog(), analyze.NamespaceSelection{Qualified: namespace}, text, catalog.ProcedureSignature(signature))
+			proc = analyze.ProcedureInNamespaces(auth.ReadCatalog(), analyze.NamespaceSelection{Qualified: namespace}, text, catalog.ProcedureSignature(signature))
 			if proc != nil {
 				break
 			}
 		}
 	} else {
-		proc = procedureInNamespaces(auth.ReadCatalog(), path, text, catalog.ProcedureSignature(signature))
+		proc = analyze.ProcedureInNamespaces(auth.ReadCatalog(), path, text, catalog.ProcedureSignature(signature))
 	}
 	if proc == nil {
 		return nil, nil
@@ -171,7 +172,7 @@ func (r installedExtensionRoutine) attachText(call functions.InstalledText, ref 
 	r.binder.dependency(ref, p.Revision())
 	call.RoutineReference = p
 	node := plan.InstalledTextExpr{InstalledText: call, Procedure: p, Dictionary: dict, Template: tmpl, Ref: ref}
-	if !validInstalledText(node) {
+	if !analyze.ValidInstalledText(node) {
 		return nil, fmt.Errorf("stuntgres: invalid installed function binding")
 	}
 	return node, nil

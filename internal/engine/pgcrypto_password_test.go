@@ -2,10 +2,12 @@ package engine
 
 import (
 	"context"
+	"testing"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
-	"testing"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -40,7 +42,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 		if err := validateInstalledCrypto(n, e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
-		if !closedPgcryptoDefault(n) {
+		if !analyze.ClosedPgcryptoDefault(n) {
 			t.Fatal("closed installed crypto default rejected", v.name)
 		}
 		stored, err := binder.bindDefault(raw, catalog.Column{Name: "salt", Usage: binder.typ(sqltype.Text).Usage()})
@@ -57,7 +59,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 		} {
 			bad := n
 			bad.Property = properties
-			if closedPgcryptoDefault(bad) {
+			if analyze.ClosedPgcryptoDefault(bad) {
 				t.Fatal("dependent crypto DEFAULT admitted", properties)
 			}
 		}
@@ -65,7 +67,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 		proc := *n.Procedure
 		proc.Implementation = new(*extension.StockPgcrypto)
 		foreign.Procedure = &proc
-		if closedPgcryptoDefault(foreign) {
+		if analyze.ClosedPgcryptoDefault(foreign) {
 			t.Fatal("foreign crypto DEFAULT provider admitted")
 		}
 		rebuilt, err := n.Reconstruct(n.Info, n.Args)
@@ -89,7 +91,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 		}
 	}
 	random := functions.Random{Info: expr.Info{Usage: binder.typ(sqltype.Float8).Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "random"}
-	if closedPgcryptoDefault(random) {
+	if analyze.ClosedPgcryptoDefault(random) {
 		t.Fatal("unrelated volatile DEFAULT admitted")
 	}
 }

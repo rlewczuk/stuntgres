@@ -30,6 +30,6 @@ func validExpressionUsageAt(view catalog.Read, reader catalog.DefinitionReader, 
 		}
 		return true
 	}
-	current, ok := definitionTypeAt(view, reader, typ.ID())
+	current, ok := catalog.DefinitionTypeAt(view, reader, typ.ID())
 	return ok && current == typ
 }

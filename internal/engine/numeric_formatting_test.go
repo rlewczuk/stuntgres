@@ -2,13 +2,15 @@ package engine
 
 import (
 	"context"
+	"testing"
+
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"testing"
 )
 
 func TestNumericFormattingBindingAuthority(t *testing.T) {
@@ -114,10 +116,10 @@ func TestNumericFormattingUUIDDefaultAdmission(t *testing.T) {
 		if !ok || numeric.Properties().Volatility != expr.Volatile {
 			t.Fatal("numeric wrapper lost UUID child volatility", node)
 		}
-		if !closedUUIDDefault(numeric.Args[0]) {
+		if !analyze.ClosedUUIDDefault(numeric.Args[0]) {
 			t.Fatal("existing closed UUID source composition was rejected")
 		}
-		if !closedUUIDDefault(numeric) {
+		if !analyze.ClosedUUIDDefault(numeric) {
 			t.Error("numeric wrapper rejected otherwise admitted closed UUID DEFAULT", raw)
 		}
 		for _, property := range []expr.Properties{
@@ -127,7 +129,7 @@ func TestNumericFormattingUUIDDefaultAdmission(t *testing.T) {
 		} {
 			dependent := numeric
 			dependent.Property = property
-			if closedUUIDDefault(dependent) {
+			if analyze.ClosedUUIDDefault(dependent) {
 				t.Fatal("dependent numeric DEFAULT admitted", property)
 			}
 		}
@@ -141,7 +143,7 @@ func TestNumericFormattingUUIDDefaultAdmission(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if closedUUIDDefault(node) {
+		if analyze.ClosedUUIDDefault(node) {
 			t.Fatal("unrelated volatile descendant admitted through numeric wrapper", raw)
 		}
 	}

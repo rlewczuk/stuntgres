@@ -3,6 +3,7 @@ package engine
 import (
 	"slices"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 )
@@ -16,7 +17,7 @@ func ruleQueryHasPseudo(root plan.Node) bool {
 		}
 		plan.QueryExpressions(node, func(bound expr.Expr) {
 			plan.WalkExpression(bound, func(expr expr.Expr) {
-				if column, ok := expr.(plan.ColumnExpr); ok && column.Scope == rulePseudoScope {
+				if column, ok := expr.(plan.ColumnExpr); ok && column.Scope == analyze.RulePseudoScope {
 					found = true
 				}
 				if query, ok := expr.(plan.SubqueryExpr); ok {
