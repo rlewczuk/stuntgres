@@ -6,7 +6,7 @@ import (
 	"errors"
 	"io"
 	"slices"
-	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/exec"
 	"testing"
 )
 
@@ -70,7 +70,7 @@ func TestDriverBatchResultSetMechanics(t *testing.T) {
 }
 
 type batchCloseObserver struct {
-	engine.RowResult
+	exec.RowResult
 	calls   int
 	failure error
 }
@@ -108,7 +108,7 @@ func TestDriverBatchPrimaryCleanupAndCancellation(t *testing.T) {
 			if primary {
 				terminal = errors.New("already executed terminal error")
 			}
-			r := newBatchRows(context.Background(), []engine.RowResult{first, second}, terminal)
+			r := newBatchRows(context.Background(), []exec.RowResult{first, second}, terminal)
 			want := cleanup
 			if primary {
 				want = terminal

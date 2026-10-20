@@ -9,17 +9,18 @@ import (
 	"reflect"
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqltype"
 )
 
 type rows struct {
 	ctx                context.Context
 	columns            []catalog.Column
-	cursor             engine.RowResult
+	cursor             exec.RowResult
 	closed, exhausted  bool
 	terminal, closeErr error
 	scratch            []sqltype.Value
-	pending            []engine.RowResult
+	pending            []exec.RowResult
 	batchError         error
 }
 
@@ -30,7 +31,7 @@ func newRows(ctx context.Context, r engine.Result) *rows {
 	}
 	return &rows{ctx: ctx, columns: schema, cursor: r.Rows, scratch: make([]sqltype.Value, len(schema))}
 }
-func newBatchRows(ctx context.Context, sets []engine.RowResult, terminal error) *rows {
+func newBatchRows(ctx context.Context, sets []exec.RowResult, terminal error) *rows {
 	schema := sets[0].Schema()
 	width := len(schema)
 	for _, set := range sets[1:] {

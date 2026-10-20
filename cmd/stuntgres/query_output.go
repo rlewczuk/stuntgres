@@ -6,6 +6,7 @@ import (
 	"math"
 	"stuntgres/internal/engine"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -58,7 +59,7 @@ func (c *client) writeFields(fields []engine.ProtocolField, buffer *[]byte) (log
 
 // writeRows writes only retained data; its caller owns the result descriptor's
 // execution-stage timing and must send it exactly once before data.
-func (c *client) writeRows(ctx context.Context, rows engine.RowResult, buffer *[]byte, scratch *[]sqltype.Value) (logicalErr, transportErr error) {
+func (c *client) writeRows(ctx context.Context, rows exec.RowResult, buffer *[]byte, scratch *[]sqltype.Value) (logicalErr, transportErr error) {
 	schema := rows.Schema()
 	if cap(*scratch) < len(schema) {
 		*scratch = make([]sqltype.Value, len(schema))

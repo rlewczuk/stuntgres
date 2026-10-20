@@ -7,6 +7,7 @@ import (
 	"errors"
 	"runtime"
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"sync/atomic"
 )
@@ -127,7 +128,7 @@ func (c *conn) PrepareContext(ctx context.Context, query string) (driver.Stmt, e
 // Completed outputs are transport, not transaction or execution authority.
 type commandOutput struct {
 	engine.Result
-	sets []engine.RowResult
+	sets []exec.RowResult
 }
 
 func (r *commandOutput) close() error {
