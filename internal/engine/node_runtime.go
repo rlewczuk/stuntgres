@@ -19,18 +19,23 @@ type nodeRuntime interface {
 	// BeginEvaluation is the shared node prologue: missing-context check,
 	// domain-check wiring while a domain value is active, then cancellation.
 	BeginEvaluation() error
-	// CoercionEnvironments returns the input and output environments of a
-	// coercion: the live statement scope supplies catalog-backed resolvers the
+	// ApplyCoercion applies a coercion plan with the coercion environments:
+	// the live statement scope supplies catalog-backed resolvers the
 	// evaluation context lacks, and domainChecks wires domain evaluation.
-	CoercionEnvironments(domainChecks bool) (sqltype.InputEnvironment, sqltype.OutputEnvironment)
+	ApplyCoercion(plan sqltype.CoercionPlan, value sqltype.Value, domainChecks bool) (sqltype.Value, error)
 	// RowAbsent reports whether a whole-row reference reads an absent source
 	// row of its frame.
 	RowAbsent(rowExpression) (bool, error)
 
+	// FrameValue is the plain column read of slot in the frame (scope,
+	// frame), checked against usage; ParameterValue reads a statement
+	// parameter. Both take scalar coordinates so the hot path copies no node.
+	FrameValue(scope, frame uint32, slot int, usage sqltype.Usage) (sqltype.Value, error)
+	ParameterValue(number int, usage sqltype.Usage) (sqltype.Value, error)
+
 	// Frame nodes: each reads the row, frame, query or domain state of the
 	// current evaluation frame or one of its outer frames.
 	EvalColumn(columnExpression) (sqltype.Value, error)
-	EvalParameter(parameterExpression) (sqltype.Value, error)
 	EvalGroup(groupExpression) (sqltype.Value, error)
 	EvalGrouping(groupingExpression) (sqltype.Value, error)
 	EvalTableOID(tableOIDExpression) (sqltype.Value, error)
@@ -70,7 +75,7 @@ func beginEvaluation(ctx expr.Context) (nodeRuntime, error) {
 
 func (c *EvalContext) BeginEvaluation() error { return evaluationContext(c) }
 
-func (c *EvalContext) CoercionEnvironments(domainChecks bool) (sqltype.InputEnvironment, sqltype.OutputEnvironment) {
+func (c *EvalContext) ApplyCoercion(plan sqltype.CoercionPlan, value sqltype.Value, domainChecks bool) (sqltype.Value, error) {
 	output := c.Output
 	output.Regclass = c.liveScope()
 	output.Regtype = c.liveScope()
@@ -95,5 +100,5 @@ func (c *EvalContext) CoercionEnvironments(domainChecks bool) (sqltype.InputEnvi
 	if domainChecks {
 		input.DomainChecks = c
 	}
-	return input, output
+	return plan.Apply(c.Context, value, input, output)
 }

@@ -225,18 +225,20 @@ type columnExpression struct {
 	mergeSource     bool // Missing MERGE source tuples short-circuit virtual recipes.
 }
 
-func (c *EvalContext) columnRowContext(e columnExpression) (*EvalContext, error) {
+// frameRow runs the node prologue and returns the evaluation frame that owns
+// (scope, frame), after checking that slot holds a value valid for usage.
+func (c *EvalContext) frameRow(scope, frame uint32, slot int, usage sqltype.Usage) (*EvalContext, error) {
 	if err := evaluationContext(c); err != nil {
 		return nil, err
 	}
-	for c != nil && (c.Scope != e.scope || c.Frame != e.frame) {
+	for c != nil && (c.Scope != scope || c.Frame != frame) {
 		c = c.Outer
 	}
-	if c == nil || e.slot < 0 || e.slot >= len(c.Row) {
+	if c == nil || slot < 0 || slot >= len(c.Row) {
 		return nil, fmt.Errorf("stuntgres: invalid expression row frame")
 	}
-	v := c.Row[e.slot]
-	if !v.ValidResult(e.Usage) {
+	v := c.Row[slot]
+	if !v.ValidResult(usage) {
 		return nil, fmt.Errorf("stuntgres: invalid expression column type")
 	}
 	return c, nil
@@ -247,11 +249,23 @@ func (e columnExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
+	// A plain column passes only its frame coordinates, not the whole node.
+	if e.virtual == nil && !e.mergeSource {
+		return runtime.FrameValue(e.scope, e.frame, e.slot, e.Usage)
+	}
 	return runtime.EvalColumn(e)
 }
 
+func (c *EvalContext) FrameValue(scope, frame uint32, slot int, usage sqltype.Usage) (sqltype.Value, error) {
+	row, err := c.frameRow(scope, frame, slot, usage)
+	if err != nil {
+		return sqltype.Value{}, err
+	}
+	return row.Row[slot], nil
+}
+
 func (c *EvalContext) EvalColumn(e columnExpression) (sqltype.Value, error) {
-	row, err := c.columnRowContext(e)
+	row, err := c.frameRow(e.scope, e.frame, e.slot, e.Usage)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -316,18 +330,18 @@ func (e parameterExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return runtime.EvalParameter(e)
+	return runtime.ParameterValue(e.number, e.Usage)
 }
 
-func (c *EvalContext) EvalParameter(e parameterExpression) (sqltype.Value, error) {
+func (c *EvalContext) ParameterValue(number int, usage sqltype.Usage) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.number <= 0 || e.number > len(c.Parameters) {
+	if number <= 0 || number > len(c.Parameters) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid expression parameter frame")
 	}
-	v := c.Parameters[e.number-1]
-	if e.Usage.Type == nil || !e.Usage.Type.Concrete() || v.Type() != e.Usage.Type {
+	v := c.Parameters[number-1]
+	if usage.Type == nil || !usage.Type.Concrete() || v.Type() != usage.Type {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid expression parameter type")
 	}
 	return v, nil
@@ -362,8 +376,7 @@ func (e coercionExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	input, output := runtime.CoercionEnvironments(sqltype.ContainsDomainConstraints(e.Usage.Type))
-	return e.plan.Apply(ctx.FunctionContext(), v, input, output)
+	return runtime.ApplyCoercion(e.plan, v, sqltype.ContainsDomainConstraints(e.Usage.Type))
 }
 func coercionProperties(child expr.Expr, plan sqltype.CoercionPlan) expr.Properties {
 	properties := child.Properties()
