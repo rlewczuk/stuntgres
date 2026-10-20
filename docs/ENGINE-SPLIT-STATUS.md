@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `204022e05`. The later-wave plans
+Last verified against `master` at `25b589df5`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,10 +15,9 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 14 `routine`** — 14d, DDL handlers moved (item 47).
-- **Step 15 `typedef`** — 15d, DDL handlers moved (item 49). Shares
-  `schemaHost` and `schema.go` with 14d (item 47): run them one after the
-  other, or rebase the second onto the first.
+- **Step 15 `typedef`** — 15d, DDL handlers moved (item 49). Builds on the
+  `schemaHost` that 14d (item 47) added; see the routine prompt file's notes
+  for the method-name clash between the two hosts.
 - **Step 16 `extension`** — 16d.2, handler decisions (item 51b).
 - **Step 17 `sequence`** — 17d, handler decisions (item 53).
 - **Postponed packages** — planning round (item 54; docs only).
@@ -28,7 +27,7 @@ Steps 1, 2 and 4–13 and `access` (A1–B5) are done. Step 13 ended with 13e
 with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
 16c (item 50) is done: 16d runs as 16d.1 and 16d.2 (items 51a, 51b);
 16d.1 (item 51a) is done: the providers stage themselves.
-14c (item 46) is done: 14d (item 47) runs as one session.
+14d (item 47) is done: step 14 is complete.
 17c (item 52) is done: 17d moves the decisions in one session (item 53).
 15c (item 48) is done: 15d (item 49) runs as one session on 14c's
 `schemaHost`.
@@ -340,7 +339,7 @@ with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
   - [x] 13e — Aliases removed *(broad)* (`7893db6ce`, `a858f66ba`,
     `6079f8c03`, `99a56020a`, then the docs commit) *(racecheck/finalcheck
     skipped at user request)*
-- [ ] **Step 14 — `routine`** ([prompt](ENGINE-SPLIT-routine.md); Part A
+- [x] **Step 14 — `routine`** ([prompt](ENGINE-SPLIT-routine.md); Part A
   needs `PG18-ROUTINE-CORE` merged, 14b also the F3 aliases item; Part B
   needs 13d)
   - [x] 14a — In place (`f4645bc19`, `87bf1455e`, `f33847363`, then the docs
@@ -348,7 +347,8 @@ with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
   - [x] 14b — `routine` created and clean set moved (`aaf6759a4`,
     `d6becc9d6`, then the docs commit) *(racecheck skipped at user request)*
   - [x] 14c — Host refined (docs only; the commit that records this status)
-  - [ ] 14d — DDL handlers moved
+  - [x] 14d — DDL handlers moved (`df37c5dfb`, `193c703f7`, `5604d3ccf`,
+    then the docs commit) *(racecheck/finalcheck skipped at user request)*
 - [ ] **Step 15 — `typedef`** ([prompt](ENGINE-SPLIT-typedef.md); Part A
   needs 14b; Part B needs 13d)
   - [x] 15a — In place (`1045960f6`, `9e4924bbd`, `0add6a48b`, `92fd3299a`,
@@ -649,7 +649,12 @@ in the prompt file's Status section.
     `routine.DDLHost` on a scope-free root `schemaHost`, authority as an
     opaque value, dumps wait for a dump seam; 14d is one session ·
     quickcheck passed; racecheck/finalcheck skipped at user request
-47. [ ] Routine 14d — [routine](ENGINE-SPLIT-routine.md) 14d · needs 46
+47. [x] Routine 14d — [routine](ENGINE-SPLIT-routine.md) 14d · needs 46 ·
+    (`df37c5dfb`, `193c703f7`, `5604d3ccf`, then the docs commit) · operator
+    and CREATE FUNCTION staging in `routine` behind `DDLHost` on the root
+    `schemaHost`; nine option helpers unexported; no aliases · selected
+    unit and dual-mode proof and quickcheck passed; racecheck/finalcheck
+    skipped at user request
 48. [x] Typedef 15c (refine, docs only) — [typedef](ENGINE-SPLIT-typedef.md)
     15c · needs 44, 27 · (docs: the commit that records this status) ·
     `typedef.StageHost` on 14c's `schemaHost`, authority as a value; stage

@@ -413,9 +413,69 @@ seam (14c). The checks in §8.3 pass.
   - Decisions: `routine.DDLHost` on a scope-free root `schemaHost`,
     authority as an opaque `routine.Authority` value, dumps wait for a dump
     seam, 14d is one session with no aliases.
-- [ ] 14d — DDL handlers moved
+- [x] 14d — DDL handlers moved (`df37c5dfb`, `193c703f7`, `5604d3ccf`,
+  then the docs commit) *(racecheck/finalcheck skipped at user request)*
+  - Re-measured at `9a68139e7`; started from `204022e05`. 14c's reach still
+    held, and `routine` → `access`/`proc`/`session` makes no cycle (only
+    `analyze` imports `routine`).
+  - `df37c5dfb` (host, port in place): `routine/host.go` declares
+    `Authority`, `Stage` and `DDLHost`; the root `schema_host.go` holds
+    `schemaHost` (engine, operation, catalog stage), its assertion, the
+    `RoutineAuthority` marker on `AuthorizationView` and the checked
+    `routineAuthorityOf`. `stageSchemaLocked` builds one per statement. The
+    staging became functions over `(h DDLHost, auth Authority, ...)`, split
+    into the files they move to; `sql_routine_ddl.go` became
+    `sql_routine_binding.go`. `frontier` OUT was only `sqlError`, which
+    `routine` already copies.
+  - Host refinements against the 14c draft: no host `Check`.
+    `AuthorizationView.Check`, `CanUse` and `CheckCreate` are exactly
+    `v.View.Check(v, ...)`, so handlers call
+    `AccessView(auth).Check(auth, ...)` through `ddlCheck`, always pairing a
+    view with its own authority; the peer check pairs both with
+    `Recapture`'s result and keeps the ref on the caller's epoch, as before.
+    `LookupFunction` and `SelectFunction` each resolve the function path;
+    the estimator's second `SelectFunction` repeats a deterministic lookup
+    under `Engine.mu` where the old code reused one path. `ResolveType`
+    replaces `resolveOperatorArgument`. `RecordDependencyPath` and
+    `DependencyObject` read the reference path in the root.
+  - `193c703f7` (move): `routine/operator_ddl.go` (create, alter, drop,
+    option collection), `operator_links.go`, `operator_lookup.go`,
+    `ddl_authority.go` (`ddlCheck`, `ddlRef`), `function_ddl.go`;
+    `operatorOptionsSyntax` joined `operator_options.go`. Entry points
+    `StageCreateOperator`, `StageAlterOperator`, `StageDropOperator`,
+    `StageCreateFunction`. `routine/function_restore.go` holds
+    `RestoreDirective`, `ReplayDirective` (`control.go`) and
+    `RebindSQLDefinitions` (`temporary_preservation.go`), moved from
+    `sql_routine_dump.go`. `routine` imports `access`, `proc` and `session`
+    as well; never `analyze`, a feature package or the root (`go list`).
+  - `5604d3ccf` (unexport): the nine helpers of step 3, all used only in
+    `routine` after the move. `ValidOperatorName` and
+    `ReleasedOperatorEstimatorResult` stay exported (engine tests);
+    `OperatorRoutineKey` stays (14b's lookup key type).
+  - Tests: `TestUserOperatorOptionExtraction` moved to
+    `routine/operator_options_test.go` with copies of
+    `operatorParsedOptions` and `operatorOptionDiagnostic`. Engine tests
+    call the `routine.Stage*` entry points through `schemaHost`. Adapted:
+    the three exact lookups of a published `public.op(int4, int4)`
+    (`TestUserOperatorCatalogExactUtilityLifecycle` and the reciprocal-peer
+    test in `operator_option_test.go`) read the catalog by name
+    (`operatorUnitLookup`); the exact lookup itself stays covered by the
+    same tests' ALTER and DROP. Rewritten:
+    `TestUserOperatorCatalogEstimatorReleasedIdentity` stages CREATE
+    OPERATOR with `restrict=eqsel, join=eqjoinsel` and checks the staged
+    identities (101, 105), their result type and that neither is a callable
+    declaration, instead of calling the private estimator lookup. None
+    deleted.
+  - Verification (rebased onto `25b589df5`): build, vet (only the existing
+    `composites`/`copylocks`/`lostcancel` findings), 54 targeted unit tests
+    after each commit, the 129-test reference selection (14b's 126 plus
+    `RoutineNesting{Diagnostics,Boundaries}` and `FDWRoutineGrants`) in
+    quick mode and with `REFERENCE=1`, `make quickcheck` and `make deps`
+    passed. No `make bench`: seeding and startup are untouched. Racecheck
+    and finalcheck skipped at user request.
 
-Outstanding aliases: none (14b qualified every reference; no type aliases).
+Outstanding aliases: none (14b qualified every reference; no type aliases;
+14d moved only functions).
 
 Notes for later steps:
 
@@ -443,6 +503,16 @@ Notes for later steps:
   staging moves into `routine`, unexport the ones nothing else uses (list
   in 14d step 3). `OperatorSeeded` and `OperatorInputName` stay exported
   (`analyze` and the engine use them).
+- 15d (`typedef` on `schemaHost`): `routine.DDLHost` and the planned
+  `typedef.StageHost` share method names whose parameter or result types
+  differ (`AccessView`, `Recapture`, `CreationNamespace`, `CheckCreateIn`,
+  `ResolveType`, `DependencyObject`, `RecordDependencyPath`, `Stage`), since
+  each package declares its own `Authority` and `Stage`. One struct cannot
+  implement both. Either give `typedef` a defined type over the same fields
+  (`type typedefHost schemaHost`, sharing the root functions), or move
+  `Authority` and `Stage` down into one shared package. Note also that
+  15c's `StagedCreationNamespace` is 14d's `CreationNamespace`, and 14d has
+  no host `Check` (see 14d above).
 - Dump seam (postponed `control`): `operator_dump.go`,
   `sqlRoutineDumpEvents`, `sqlRoutineDumpStatement` and
   `routineIdentityByOID` move once the dump graph (`dumpEventKey`,
