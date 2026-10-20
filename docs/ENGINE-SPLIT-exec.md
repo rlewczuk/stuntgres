@@ -212,6 +212,8 @@ broad item regenerates them.
 
 ### 11d — Remove the aliases (broad)
 
+Done; see "11d result" in Status. The plan below is kept as the record.
+
 Rename locals and parameters named `exec` first (one today, in
 `insert_conflict_update_benchmark_test.go`), and alias the `os/exec` import
 in `typed_review_regression_test.go` and
@@ -284,19 +286,12 @@ names no `exec.Context` internals: DML executors open their inputs through
   `0305ed82a`, `7b9306c29`, `8a00419e6`, `ad098af9b`, `6d6267f35`,
   `0bfa0b5c5`, `2e68cbd93`, then the docs commit) *(racecheck/finalcheck
   skipped at user request)*
-- [ ] 11d — Aliases removed
+- [x] 11d — Aliases removed (`4d4e0942e`, `4acc2dac9`, `17fc012f5`,
+  `7d6ffd65a`, then the docs commit) *(racecheck/finalcheck skipped at user
+  request)*
 
-Outstanding aliases: the 56 type aliases in
-`internal/engine/exec_aliases.go` (`EvalContext` → `exec.Context`,
-`querySource` → `exec.Source`, `queryState` → `exec.State`, `indexedStage`
-→ `exec.Stage`, `finalRows`, `queryAuthority` → `exec.Authority`,
-`queryLeaf` → `exec.Leaf`, `queryLockContext` → `exec.LockContext`,
-`execHost` → `exec.Host`, `execPreparation` → `exec.Preparation`,
-`evalFrame`/`evalStatement`/`evalAdmission` → `exec.EvalFrame`/
-`EvalStatement`/`EvalAdmission`, `RowCursor`, `RowResult`, and 41 records
-and helpers named by engine code or tests, from `admissionAuthority` to
-`windowSums`). Functions and constants have no aliases; engine code calls
-them qualified.
+Outstanding aliases: none. The engine, the root driver and `cmd/stuntgres`
+name the `exec` types directly.
 
 ### 11a result
 
@@ -610,3 +605,52 @@ Notes for later steps:
   `openAggregateNode`); a missed match leaves an unbounded query running
   without a memory limit. Run such selections under a memory cap.
 
+### 11d result
+
+Built at `5aa8e344e`. Tools and scripts:
+`.cswd/tmp/PG18-ENGINE-SPLIT-EXEC-ALIASES/` (`c1.sh` … `c4.sh`; the
+`unalias` tool of 10d, with the spec derived from `exec_aliases.go`).
+
+- **Free the name** (`4d4e0942e`): the conflict-update benchmark's `exec`
+  local is `execute`; the two typed-publication tests import `os/exec` as
+  `osexec`. The dry run showed that no rewrite site needed this (none of the
+  three files names an alias), so it is a guard: inside the engine, `exec`
+  always means the executor package.
+- **Driver and CLI** (`4acc2dac9`): `rows.go`, `conn.go`,
+  `driver_batch_rows_test.go` and `cmd/stuntgres/query_output.go` name
+  `exec.RowResult` (7 references); §7 decision 11 is now in effect.
+- **Engine rewrite** (`17fc012f5`): 3,215 references in 578 engine files
+  (production and tests; `EvalContext` 1,233, `evalStatement` 738,
+  `querySource` 341, `evalFrame` 221, `queryLeaf` 129, `queryState` 125),
+  0 shadowed; `exec_aliases.go` deleted. Besides the renames the diff holds
+  only added imports and gofmt realignment; no file that was not
+  gofmt-clean on master was touched. `go vet` output is identical to the
+  base.
+- **Comments** (`7d6ffd65a`): nine comments that named alias spellings
+  (eight in the engine, one in `expr/context.go`) name the `exec` types.
+- **Tests.** None moved, deleted or rewritten; the only test edits are the
+  mechanical renames above.
+- **Verification.** `make build`, `go vet` (unchanged against the base) and
+  the targeted selection (statement host, preparation install, ordered
+  aggregate sort, driver batch rows, node prologue, query joins/CTE/window/
+  limit/parallel/lock-arbiter units, SQL cursors, typed publication) after
+  every commit; `make quickcheck` passed on the final code (inside a 48 GB
+  memory cap). `REFERENCE=1` passed for `^TestReferenceQuery` and for row
+  and query locks, view locks, SQL cursors, `pg_cursors`, transaction
+  isolation and `pg_sequences`, except the six `/postgres` leaves of
+  `TestReferenceQueryFromValuesPhysicalReplacement`, which fail the same
+  way on master (oracle drift). `make bench`: 841–871 µs/op and 5,014
+  allocs/op (one 1.09 ms warm-up run), against 838–889 µs/op and 5,014
+  allocs/op on master; under the 1 ms target. `exec` imports are
+  unchanged. `make deps`: module paths only. `AGENTS.md`: 100 lines before
+  and after. racecheck/finalcheck skipped at user request.
+
+Notes for later steps:
+
+- Aliases do not change runtime type or frame names, so the reference
+  cancellation fixtures (`recursiveUnion`, `sortOrderedAggregate`,
+  `openAggregateNode`) were unaffected; a real rename in `exec` still needs
+  the memory-capped check described in the 11c notes.
+- Step 12d/12e and step 13 inherit engine code that names `exec.Context`,
+  `exec.Source` and `exec.Authority` directly; moving that code only needs
+  the `exec` import, not an alias step.

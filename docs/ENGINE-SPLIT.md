@@ -1273,8 +1273,8 @@ These packages get prompt files after the steps above. Each needs `session`
     and `ids`) or the engine keeps a permanent facade alias (§3 rule 2).
     Settled for step 8 (8c): the driver imports `settings` directly;
     `RegistrationError` stays an engine function. Settled for step 11 (11a):
-    `exec` owns `RowCursor` and `RowResult`; the driver and `cmd/stuntgres`
-    import `exec` directly after 11d, with no permanent alias.
+    `exec` owns `RowCursor` and `RowResult`; since 11d the driver and
+    `cmd/stuntgres` import `exec` directly, with no permanent alias.
 
 ## 8. Implementation sessions
 
@@ -1295,7 +1295,7 @@ package-specific scope. This section holds the rules every session follows.
 | 8 | [`ENGINE-SPLIT-settings.md`](ENGINE-SPLIT-settings.md) | — | done (8a–8c; racecheck skipped at user request) |
 | 9 | [`ENGINE-SPLIT-pgcatalog.md`](ENGINE-SPLIT-pgcatalog.md) | 5, B4; 8b for 9b | done (9a in place, 9b package created and producers moved, 9c aliases removed; racecheck skipped at user request) |
 | 10 | [`ENGINE-SPLIT-plan.md`](ENGINE-SPLIT-plan.md) | 2, 3 F1, 5 | done (10a–10d): `plan` created, IR, node types and installed extension nodes moved, aliases removed (racecheck/finalcheck skipped by user) |
-| 11 | [`ENGINE-SPLIT-exec.md`](ENGINE-SPLIT-exec.md) | 10c, 13a | 11a refined (host list, move set, decisions 8 and 11); 11b host seam in place; 11c `exec` created and executor moved, with aliases (racecheck/finalcheck skipped at user request); 11d planned |
+| 11 | [`ENGINE-SPLIT-exec.md`](ENGINE-SPLIT-exec.md) | 10c, 13a | done (11a–11d): refined (decisions 8 and 11), host seam, `exec` created and executor moved, aliases removed (racecheck/finalcheck skipped at user request) |
 | 12 | [`ENGINE-SPLIT-analyze.md`](ENGINE-SPLIT-analyze.md) | 12a–12b: —; 12c: 10c | 12a–12c done (12c: analyze host seam; racecheck/finalcheck skipped at user request); 12d–12e planned |
 | 13 | [`ENGINE-SPLIT-session.md`](ENGINE-SPLIT-session.md) | 13a–13b: —; 13c: 11c, 12d, 8b | 13a and 13b done (statement scope slots; operation, journal, stage and owner slots; racecheck/finalcheck skipped at user request); 13c–13e planned |
 | 14 | [`ENGINE-SPLIT-routine.md`](ENGINE-SPLIT-routine.md) | A: `PG18-ROUTINE-CORE` merged, 14b also the F3 aliases item of step 3; B: 13d | 14a done in place, 14b `routine` created and clean set moved (racecheck skipped at user request); 14c–14d planned |

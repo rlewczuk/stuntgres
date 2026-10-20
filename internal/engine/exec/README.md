@@ -114,9 +114,8 @@ preparation, `deparseRelation`, `identifyObjectValues`,
 `expressionPrincipal`, `evalSerialSequence`, `validateSelectedDomainRows`,
 `validInstalledText`, ...).
 
-Until step 11d the engine names the moved types through the temporary
-aliases in `internal/engine/exec_aliases.go` (`EvalContext`, `querySource`,
-`RowCursor`, `RowResult`, ...).
+The engine, the root driver and `cmd/stuntgres` name these types directly
+(`exec.Context`, `exec.Source`, `exec.RowResult`, ...); no aliases remain.
 
 ## Testing
 
@@ -137,7 +136,7 @@ makes that test's unbounded query run until it exhausts memory.
 The executor's unit tests still live in the engine, because they build
 statements through an `Engine` and `Session`: grep
 `internal/engine/*_test.go` for `exec.OpenNode`, `exec.Finalize`,
-`querySource`, `RowCursor` and `statementHost`. Run row-lock, cursor,
+`exec.Source`, `exec.RowCursor` and `statementHost`. Run row-lock, cursor,
 foreign-scan, CTE and detach selections with `RACE=1`.
 
 Public proof is the reference selection of step 11, in quick mode and with

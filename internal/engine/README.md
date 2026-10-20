@@ -514,8 +514,8 @@ The plan IR and the expression node types live in
 The query executor and `*exec.Context`, its only implementation, live in
 [`exec`](exec/README.md): the shared prologue, the `Eval*` bodies, the node
 openers, row-lock arbitration and the cursors. The engine implements
-`exec.Host` on `statementHost` and installs `enginePreparation`; until step
-11d it names the moved types through `exec_aliases.go`. A data-modifying
+`exec.Host` on `statementHost` and installs `enginePreparation`; it names
+the `exec` types directly, with no aliases. A data-modifying
 CTE carries its binding as the opaque `plan.CTEMutation`, recovered only
 through `mutationBinding`. The installed extension routine nodes and the
 `pg_extension_update_paths` node live in `plan` too; their provider

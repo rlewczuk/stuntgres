@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `21fce56f1`. The later-wave plans
+Last verified against `master` at `5aa8e344e`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,13 +15,10 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 11 `exec`** — 11d aliases removed (item 38) **broad**; 11a–11c
-  are done.
 - **Step 12 `analyze`** — 12d (item 40) **broad**, several sessions;
-  12a–12c are done. Items 38 and 40 are both broad: run them one after the
-  other.
+  12a–12c are done.
 
-Steps 1, 2 and 4–10 and `access` are done. Step 13's in-place untangling (13a,
+Steps 1, 2 and 4–11 and `access` are done. Step 13's in-place untangling (13a,
 13b) is done; 13c (item 43) waits for 12d (item 40). Step 16
 Part A (16a, 16b) is done; 16c (item 50) waits for 13d (item 44). Step 17 Part
 A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
@@ -258,7 +255,7 @@ A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
   - [x] 10d — Aliases removed *(broad)* (`fb6c19185`, `367313c0d`,
     `3860f511e`, `9ba165e93`, `3f66996a4`, `50e07094a`, then the docs commit)
     *(racecheck/finalcheck skipped at user request)*
-- [ ] **Step 11 — `exec`** ([prompt](ENGINE-SPLIT-exec.md); needs 10c, 13a)
+- [x] **Step 11 — `exec`** ([prompt](ENGINE-SPLIT-exec.md); needs 10c, 13a)
   - [x] 11a — Refined (docs only; host list, move set, §7 decisions 8 and
     11; the commit that records this status)
   - [x] 11b — Host seam in place (`220b72d76`, `f93b0f837`, `b82df3645`,
@@ -268,7 +265,9 @@ A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
   - [x] 11c — `exec` created and executor moved *(broad)* (`45af3aed4` …
     `2e68cbd93`, then the docs commit) *(racecheck/finalcheck skipped at
     user request)*
-  - [ ] 11d — Aliases removed *(broad)*
+  - [x] 11d — Aliases removed *(broad)* (`4d4e0942e`, `4acc2dac9`,
+    `17fc012f5`, `7d6ffd65a`, then the docs commit) *(racecheck/finalcheck
+    skipped at user request)*
 - [ ] **Step 12 — `analyze`** ([prompt](ENGINE-SPLIT-analyze.md); 12a–12b
   need —; 12c needs 10c; 12d needs 11c)
   - [x] 12a — `binding` split per statement kind *(broad)* (`50c0912f5`)
@@ -493,7 +492,10 @@ in the prompt file's Status section.
     (`45af3aed4` … `2e68cbd93`, then the docs commit) · selected dual-mode
     proof and quickcheck passed; racecheck/finalcheck skipped at user
     request; exec stays below the feature packages
-38. [ ] Exec 11d — [exec](ENGINE-SPLIT-exec.md) 11d · needs 37 · **broad**
+38. [x] Exec 11d — [exec](ENGINE-SPLIT-exec.md) 11d · needs 37 · **broad**
+    (`4d4e0942e` … `7d6ffd65a`, then the docs commit) · selected dual-mode
+    proof and quickcheck passed; racecheck/finalcheck skipped at user
+    request; the driver and `cmd/stuntgres` import `exec` directly
 39. [x] Analyze 12c (refine, then host seam) —
     [analyze](ENGINE-SPLIT-analyze.md) 12c · needs 21, 33 · (refine
     `4c5fdc26c`; `fcd02ccd9` … `bc537ad6e`, then the docs commit) · selected
