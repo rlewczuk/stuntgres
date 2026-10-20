@@ -30,7 +30,7 @@ query or inferred from successful planning. Future owner additions must preserve
 existing IDs. These are not PostgreSQL's generated row IDs. Type/function OIDs
 and relation identity are exact fixed PostgreSQL identities.
 
-The engine's dedicated `capturePGCast` validates current descriptor ownership
+The dedicated `capturePGCast` producer (now in `internal/engine/pgcatalog`) validates current descriptor ownership
 and both endpoints, then projects the owner values using owned OID/CHAR columns.
 It allocates one row bag and one contiguous value buffer; it neither enumerates
 unrelated relations nor plans coercions per read. It checks cancellation before

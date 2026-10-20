@@ -292,7 +292,7 @@ The later waves (§6) refine L6 into these layers:
 
 ```text
  L1  engine/settings       setting definitions, values, validation (sqltype, sqlstate)    step 8
- L5  engine/pgcatalog      system relation producers (catalog, authorization, lock, settings) step 9
+ L5  engine/pgcatalog      system relation producers (catalog, authorization, lock, expr)   step 9
  L6  engine/plan           plan IR and concrete expression node types (expr, functions, catalog, lock) step 10
  L7  engine/exec           executor runtime, the concrete evaluation context (plan, storage, visibility, access) step 11
  L8  engine/analyze        binder and statement binding (plan; exec only for constant evaluation) step 12
@@ -913,9 +913,13 @@ name `settings.` directly. Prompt file:
 `timezone_sources.go`, `prepared_source.go`, `table_view_summary.go`,
 `table_privileges.go`, `data_type_privileges.go`), their static column specs
 (`initializeCatalogSources` and the smaller spec tables) and their pure helpers
-(`pgLockRows`, `pgConstraintBuilder`, `pgTypeFacts`, `pgDependPinned`, ...).
+(`pgLockRows`, `pgConstraintBuilder`, `pgTypeFacts`, ...). `pgDependPinned`
+stays in the engine (9b): it reads unpublished definition state.
 
-**In-place port (9a): implemented and verified; 9b/9c remain pending.**
+**In-place port (9a) and package move (9b): implemented and verified; 9c
+(alias removal) remains.** The current layout is described in the
+[`pgcatalog` README](../internal/engine/pgcatalog/README.md); the 9a bullets
+below use the engine-local names of that time.
 
 - Non-producer publication/index history now lives in
   `catalog_relation_history.go`, sequence predicate admission in
@@ -952,9 +956,14 @@ registration during catalog seeding.
 
 **Doable because** 30 producers are dirty only through `*querySource`, and
 the rest only through provenance checks that `catalog.Owner` can answer.
+9b found more reach than this: expression trees, the foreign-key binder, type
+and ACL validation, output formatters, pin checks and the `routine` operator
+inventory. Ten more value-taking `Runtime` methods cover them.
 
 **Done when** `pgcatalog` imports only `catalog`, `authorization`, `lock`,
-`settings`, `expr`, `ids`, `sqltype`, `sqlstate` and the standard library, and
+`settings`, `expr`, `ids`, `sqltype`, `sqlstate`, `parser` and the standard
+library (9b: `parser` because descriptors store parser enums; `settings` is not
+needed), and
 the engine dispatches system relations through one registry lookup. Prompt
 file: [ENGINE-SPLIT-pgcatalog.md](ENGINE-SPLIT-pgcatalog.md).
 
@@ -1252,7 +1261,7 @@ package-specific scope. This section holds the rules every session follows.
 | 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | done (7a–7c) |
 | A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | done (A1, B0–B4, names cleanup); B5 after 12d |
 | 8 | [`ENGINE-SPLIT-settings.md`](ENGINE-SPLIT-settings.md) | — | done (8a–8c; racecheck skipped at user request) |
-| 9 | [`ENGINE-SPLIT-pgcatalog.md`](ENGINE-SPLIT-pgcatalog.md) | 5, B4; 8b for 9b | 9a done in place; 9b–9c planned |
+| 9 | [`ENGINE-SPLIT-pgcatalog.md`](ENGINE-SPLIT-pgcatalog.md) | 5, B4; 8b for 9b | 9a done in place; 9b done (package created, producers moved; racecheck skipped at user request); 9c planned |
 | 10 | [`ENGINE-SPLIT-plan.md`](ENGINE-SPLIT-plan.md) | 2, 3 F1, 5 | 10a done (racecheck/finalcheck skipped by user); 10b–10d planned |
 | 11 | [`ENGINE-SPLIT-exec.md`](ENGINE-SPLIT-exec.md) | 10c, 13a | planned (11a–11d) |
 | 12 | [`ENGINE-SPLIT-analyze.md`](ENGINE-SPLIT-analyze.md) | 12a–12b: —; 12c: 10c | 12a done (racecheck/finalcheck skipped at user request); 12b–12e planned |

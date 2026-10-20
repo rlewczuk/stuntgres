@@ -42,8 +42,8 @@ Feature work adds extensions often (`PG18-EXT-*` parts): re-measure first.
   `validateProcedure`), `stockUUIDOssp`;
 - `extension_implementation.go`: the `*ProviderOf` accessors (all clean);
 - `extension_catalog.go`: `extensionCatalogProvider` (type and `ClassID`),
-  `extensionMembership`, `namespaceChildren`, `procedureArity`,
-  `procedureInNamespaces`;
+  `extensionMembership`, `namespaceChildren`, `procedureInNamespaces`
+  (`procedureArity` is `pgcatalog.ProcedureArity` since 9b);
 - `extension_owners.go` (203 of 306 lines): `decodeExtensionOwners`,
   `extensionMemberOwner`, `extensionOwnerFields`, `extensionOwnerMetadata`,
   `extensionOwnerRecord`, `extensionOwnersMarker`;

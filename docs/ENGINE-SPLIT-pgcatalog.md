@@ -186,6 +186,23 @@ for selected native, unchanged dual-mode reference and race commands.
    `settings`, `expr`, `ids`, `sqltype`, `sqlstate` and the standard
    library. Not `access`, `storage` or `visibility`.
 
+**Implemented** (`1642db564`, `195e9a584`, `a4a5c66af`, `18da282df`, then
+the docs commit). Differences from the list above, found by re-measuring:
+
+- `pgDependPinned` stays in the engine (`catalog_pinning.go`): it reads
+  unpublished definition state through `definitionReader`. Producers reach it
+  through `Runtime.Pinned`. No `Pinned` export.
+- Ten more `Runtime` methods: `ExpressionTree`, `ForeignKeyComparisons`,
+  `ValidateType`, `TypeOutput`, `ObjectACL`, `ValidateACL` (so `access` is not
+  imported), `Pinned`, `OperatorSeeded`, `OperatorDependencies` (both now in
+  `routine`, L10, after 14b) and `TypeProviderProcedure`.
+- `pgcatalog` also imports `parser` (descriptor fields are parser enums) and
+  does not need `settings`.
+- Pure helpers moved with the producers and are exported where the engine
+  calls them: `CollationActualVersion`, `DescriptorComment`, `ProcedureArity`,
+  `ForeignDependencies`, `ClassACL`, `LockRows`, the OID constants and others
+  (see the package README). Engine unit tests also call several row helpers.
+
 ### 9c — Remove the aliases
 
 Use the alias tool of 5f/6c. Expect few aliases: most moved code is
@@ -251,10 +268,49 @@ catalog relations through one registry lookup, and no producer builds a
 ## Status
 
 - [x] 9a — One producer contract and one registry, in place
-- [ ] 9b — `pgcatalog` created and producers moved
+- [x] 9b — `pgcatalog` created and producers moved (`1642db564`,
+  `195e9a584`, `a4a5c66af`, `18da282df`, then the docs commit)
+  *(racecheck/finalcheck skipped at user request)*
 - [ ] 9c — Aliases removed
 
-Outstanding aliases: none yet.
+Outstanding aliases (`internal/engine/pgcatalog_aliases.go`):
+`catalogSourceInput`, `catalogSourceProducer`, `catalogSourceRuntime`,
+`catalogCursorFact`, `catalogSettingsFact`, `catalogPreparedFact`,
+`catalogRuleFact`, `catalogForeignKeyComparison`,
+`catalogSourceRegistration` and `pgDependEdge`. Functions and constants are
+already called as `pgcatalog.X`.
+
+Observed 9b evidence (rebased on `d27607c9c`): build, `make deps` (module
+paths only), the `pgcatalog` import check and full quickcheck passed. Selected
+engine producer units passed after each commit. `REFERENCE=1` passed for the
+catalog families (PGType, PGConstraint, PGDepend, PgClass, PGAttribute,
+PGTablespace, PGParameterACL, PGOperator, PGDescription, PGAggregate,
+PGDatabase, PGCollation, PGExtension, DataTypePrivileges, PGCursors,
+ViewLocks, PGIndexes, PGNamespace, roles/group/user, table views and the
+remaining `pg_*` selections), except
+`TestReferencePGNamespaceViewStoragePrecedence/postgres` ("cannot access
+temporary tables of other sessions"), which fails the same way on `master`
+`d27607c9c`; its stuntgres subtest passed. Targeted `RACE=1` for `pg_locks`,
+`pg_cursors` and `pg_sequences` passed. A public `database/sql` smoke dumping
+54 system relations after varied DDL, an open cursor, a held lock and a
+sequence call was byte-identical before and after. `make bench`: before
+847,507–1,084,765 ns/op, after 855,772–1,051,114 ns/op, steady 5100
+allocs/op both (one warm-up sample each above); some samples exceed 1 ms on
+this shared host, with no regression. Full racecheck and finalcheck were
+skipped at user request.
+
+Tests moved or adapted in 9b:
+
+- Moved: `TestPgClassPartitionTree` to `pgcatalog/partition_bound_tree_test.go`
+  (descriptors from `sqltype.Builtins()` instead of an engine). The rest of
+  `pg_class_options_bounds_test.go` is now `pg_class_options_test.go`.
+- New: `TestProducerRegistryLookup` (registry order, lookup, gaps, explicit
+  OIDs absent, `Registrations` returns a copy; mutation-checked).
+- Adapted: engine producer units call producers through registry-backed
+  fixtures (`catalog_source_producers_test.go`); 97 unit inputs that had no
+  `Runtime` get the inert `engineCatalogRuntime{}`;
+  `TestCatalogSourceProducerCoverage` reads `pgcatalog.Registrations()`.
+  Assertions are unchanged. No test was deleted.
 
 Observed 9a evidence: the four new contract units passed and the root's external
 public `database/sql` smoke passed dispatch, direct/new/SAME-held DDL metadata,
@@ -270,6 +326,14 @@ speedup or consistently sub-millisecond startup is claimed.
 `reference/` and `smoke/` are unchanged; 9b/9c remain pending.
 
 Notes for later steps:
+
+- 9c: replace the ten type aliases with `pgcatalog.` names and delete
+  `pgcatalog_aliases.go`; consider whether the registry-backed producer
+  fixtures should be renamed.
+- Producer unit tests stay in the engine because they need an engine-seeded
+  catalog. Moving them needs a catalog seeding fixture below the engine; until
+  then pgcatalog exports a few row helpers (`ClassRow`, `AttributeRow`,
+  `TypeFacts`, `ConstraintOperator`, `CollectDepend`, ...) for those tests.
 
 - `pg_stat_activity` and `pg_prepared_statements` are not implemented;
   adding them is feature work, not part of the split. Once `pgcatalog`

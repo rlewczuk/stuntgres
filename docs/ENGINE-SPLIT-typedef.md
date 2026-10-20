@@ -30,14 +30,15 @@ changes the domain files. Re-measure first; the restore half is a Dump/Restore
 helper (Part A if clean, otherwise `control`).
 
 **Clean files:** `collation_dump.go` (72), `collation_remap.go` (35),
-`collation_validation.go` (61), `conversion_descriptions.go` (130),
+`collation_validation.go` (61),
 `conversion_dump.go` (153), `domain_alter_discovery.go` (156),
 `domain_alter_index_outputs.go` (74), `domain_remap.go` (544).
+Step 9b moved `conversion_descriptions.go`, `builtinCollationVersion` and
+`collationActualVersion` into `pgcatalog`.
 
 **Clean declarations in mixed files:**
 
 - `collation.go`: `collationName`, `collationSQLName`;
-  `collation_ddl.go`: `builtinCollationVersion`, `collationActualVersion`;
   `collation_names.go`: `collationDisplayName`; `collation_seed_dump.go`:
   `collationSeedDumpStatements`;
 - `conversion_routines.go`: `builtinConversionRoutines`,

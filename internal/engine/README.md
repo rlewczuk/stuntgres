@@ -15,64 +15,50 @@ their existing locks remain engine-owned. The engine, the root driver and
 
 ## System catalog producers
 
-The 9a cutover stays in this package; `pgcatalog` extraction is not implemented.
-Every eligible system relation uses one rows-only contract:
+The rows-only producers, their `Input`/`Runtime` contract, the OID registry,
+the descriptor spec data and their pure helpers live in
+[`pgcatalog`](pgcatalog/README.md). The engine keeps the orchestration around
+them:
 
-```go
-type catalogSourceInput struct {
-    Context context.Context
-    Catalog catalog.Read
-    Roles   authorization.Read
-    Owner   *catalog.Owner
-    Ref     ids.ObjectRef
-    Source  *catalog.Relation
-    Runtime catalogSourceRuntime
-}
-type catalogSourceProducer func(catalogSourceInput) ([][]sqltype.Value, error)
-```
-
-Producers own rows, not `querySource` or `StatementScope`.
-`catalog_source_producers.go` holds the process-initialized, immutable,
-OID-sorted registry and binary-search lookup. `captureCatalogSourceRows` alone
-wraps successful producer rows as `querySource{ref, anonymous}`; private units
-may use that same production wrapper to retain source-carrier assertions.
-All five foreign metadata relations (`pg_foreign_data_wrapper`,
-`pg_foreign_server`, `pg_user_mapping`, `pg_foreign_table`, `pg_user_mappings`)
-use this registry with fresh paired authorization. Only `pg_locks` and lazy
-`pg_sequences` have explicit non-producer handlers.
-
-`catalog_source_capture.go` chooses per-OID immutable catalog/role roots,
-presentation and unlock timing, not a second producer dispatcher.
-`engineCatalogRuntime` is a per-call, demand-only adapter: construction retains
-handles and cheap facts without enumerating unrelated runtime state. Its
-value-taking operations expose neither Engine, StatementScope, AuthorizationView
-nor bindings. Cursors are observed without fetching; settings capture one
-coherent physical-session `row_security` tuple after unlocking; prepared rows
-use the actual registry, assigned XID and currently published owner name.
-Expression/query walkers, deparsers and error-bearing privilege operations stay
-adapter-owned. Physical TEMP ownership, sequence journal overlays, cancellation
-boundaries and foreign disclosure booleans retain their existing semantics.
-Lock capture retains its unlock/capture/relock epoch fence and never takes the
-lock manager mutex under `Engine.mu`; lazy sequence completion alone demands
-sequence locks and generator state.
+- `catalog_source_capture.go`: `openCatalogSourceLocked` looks up
+  `pgcatalog.ProducerFor` and chooses per-OID immutable catalog/role roots,
+  presentation and unlock timing; it is not a second producer dispatcher.
+  `captureCatalogSourceRows` alone wraps producer rows as
+  `querySource{ref, anonymous}`; private units use that same wrapper. Only
+  `pg_locks` and lazy `pg_sequences` have explicit non-producer handlers.
+- `catalog_source_runtime.go`: `engineCatalogRuntime` implements
+  `pgcatalog.Runtime` per call and on demand: construction retains handles and
+  cheap facts without enumerating unrelated runtime state. Its value-taking
+  operations expose neither Engine, StatementScope, AuthorizationView nor
+  bindings. Cursors are observed without fetching; settings capture one
+  coherent physical-session `row_security` tuple after unlocking; prepared
+  rows use the actual registry, assigned XID and currently published owner
+  name. Expression/query walkers, deparsers, the foreign-key binder, type and
+  ACL validation, output formatters and error-bearing privilege operations
+  stay adapter-owned. Physical TEMP ownership, sequence journal overlays,
+  cancellation boundaries and foreign disclosure booleans keep their
+  semantics.
+- `pg_locks_capture.go` keeps the unlock/capture/relock epoch fence and never
+  takes the lock manager mutex under `Engine.mu`; `pgcatalog.LockRows` builds
+  the rows. Lazy sequence completion alone demands sequence locks and
+  generator state.
+- `catalog_sources.go`: `initializeCatalogSources`, `catalogSourceDescriptor`
+  and `registerCatalogSource` resolve owned types from `pgcatalog.Specs` and
+  register fresh descriptors, preserving registration order, OIDs, columns,
+  typmods, dimensions, nullability, collation, origins, flags and actual
+  row/array links.
+- `catalog_pinning.go`: `pgDependPinned`, reached by producers through
+  `Runtime.Pinned`.
 
 Provenance is same-pointer authority, not equal names/OIDs/epochs:
 `catalogStore.owner()` supplies the stable `*catalog.Owner`, whose Domain,
 Principals and ACLAuthority are the engine's exact paired authorities.
-`pgClassACL(owner, roles, array, acl)` and the existing hidden
-`capturedRegroleOutput`/`capturedACLItemOutput` formatters use that Owner and
-immutable role reads, not Engine. Retained roots, type-generation checks,
-absent versus explicit-empty ACLs and ordinary error stages remain significant.
-
-`catalog_source_specs.go` contains process-initialized pure ordered specs,
-separate from sorted producer lookup. Engine-owned `initializeCatalogSources`,
-`catalogSourceDescriptor` and `registerCatalogSource` resolve owned types and
-allocate/register fresh descriptors, preserving registration order, OIDs,
-columns, typmods, dimensions, nullability, collation, origins, flags and actual
-row/array links. Publication/index history lives in
-`catalog_relation_history.go`, sequence predicate admission in
-`query_pg_sequences_admission.go`, and shared expression/plan reference walking
-in `expression_references.go`; those are not producer ownership.
+Publication/index history lives in `catalog_relation_history.go`, sequence
+predicate admission in `query_pg_sequences_admission.go`, and shared
+expression/plan reference walking in `expression_references.go`; those are not
+producer ownership. `pgcatalog_aliases.go` holds the temporary step 9b type
+aliases (`catalogSourceInput`, `catalogSourceRuntime`, the fact types,
+`pgDependEdge`, ...), removed in 9c.
 
 ## Testing
 
@@ -258,10 +244,12 @@ No startup optimization or timing-equivalence claim is made.
 
 ### System catalog producer contract
 
-The new private contract units cover actual producer/explicit-handler ownership
-and unknown errors, independent Owner/root provenance, real runtime capture and
-ordered descriptor metadata. Existing units retain their source/ACL/lifetime
-assertions through the real engine wrapper.
+These engine units cover producer/explicit-handler ownership and unknown
+errors, independent Owner/root provenance, real runtime capture and ordered
+descriptor metadata. Producer units reach producers through the real
+`pgcatalog` registry (`catalog_source_producers_test.go`) and the production
+wrapper. Engine-free units are in the
+[`pgcatalog` README](pgcatalog/README.md#testing).
 
 ```sh
 make check RUN='^(TestCatalogSourceProducerCoverage|TestCatalogSourceInputProvenance|TestCatalogSourceRuntimeCapture|TestCatalogSourceSpecMetadata)$'
