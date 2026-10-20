@@ -1,9 +1,7 @@
 package engine
 
 import (
-	"context"
 	"fmt"
-	"slices"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -14,55 +12,6 @@ import (
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
-
-func extensionActions(implementation catalog.ExtensionImplementation) []extension.UpdateAction {
-	if updater, ok := implementation.(extension.Updater); ok {
-		return updater.Updates()
-	}
-	return nil
-}
-func validateExtensionActions(implementation catalog.ExtensionImplementation) error {
-	versions := implementation.Versions()
-	if err := versions.Validate(implementation.Control().Version); err != nil {
-		return err
-	}
-	seen := map[catalog.ExtensionVersionEdge]bool{}
-	for _, action := range extensionActions(implementation) {
-		if action.Stage == nil || seen[action.Edge] || !slices.Contains(versions.Edges, action.Edge) {
-			return fmt.Errorf("stuntgres: invalid extension update action")
-		}
-		seen[action.Edge] = true
-	}
-	for _, edge := range versions.Edges {
-		if versions.InstallPath(edge.From) != nil && !seen[edge] {
-			return fmt.Errorf("stuntgres: executable extension edge has no action")
-		}
-	}
-	return nil
-}
-
-func stageExtensionPath(ctx context.Context, stage extension.Stage, implementation catalog.ExtensionImplementation, ext *catalog.Extension, owner authorization.PrincipalRef, path []string) error {
-	for i := 1; i < len(path); i++ {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		edge := catalog.ExtensionVersionEdge{From: path[i-1], To: path[i]}
-		found := false
-		for _, action := range extensionActions(implementation) {
-			if action.Edge == edge {
-				if err := action.Stage(stage, ext, owner); err != nil {
-					return err
-				}
-				found = true
-				break
-			}
-		}
-		if !found || ext.Version != edge.To {
-			return fmt.Errorf("stuntgres: unavailable executable extension transition")
-		}
-	}
-	return nil
-}
 
 func (e *Engine) executeExtensionUpdate(scope *StatementScope, s *parser.AlterExtensionUpdate, count int) (Result, error) {
 	if count != 0 {
@@ -151,7 +100,7 @@ func (e *Engine) stageExtensionUpdateLocked(scope *StatementScope, s *parser.Alt
 	if err := stage.Replace(&ext); err != nil {
 		return nil, err
 	}
-	if err := stageExtensionPath(scope.op.Context(), &extensionHost{engine: e, auth: auth, stage: stage}, implementation, &ext, owner, path); err != nil {
+	if err := extension.StagePath(scope.op.Context(), &extensionHost{engine: e, auth: auth, stage: stage}, implementation, &ext, owner, path); err != nil {
 		return nil, err
 	}
 	return stage, nil

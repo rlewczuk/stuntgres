@@ -220,7 +220,7 @@ func TestPGAggregateIntaggAllocationFailure(t *testing.T) {
 	stage := e.BeginCatalogStage(before)
 	ext := &catalog.Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: 200000}, ObjectName: "intagg", Version: "1.1", TargetNamespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Owner: e.roles.domain.Principal(10)}
 	e.catalog.nextOID = ^ids.OID(0) - 1 // aggregate and state can allocate; final helper cannot.
-	if err := (intaggInstaller{extension.StockIntagg}).Stage(&extensionHost{engine: e, stage: stage}, ext, ext.Owner); err == nil {
+	if err := extension.StockIntagg.Stage(&extensionHost{engine: e, stage: stage}, ext, ext.Owner); err == nil {
 		t.Fatal("helper allocation exhaustion accepted")
 	}
 	if e.catalog.state != before.State() {

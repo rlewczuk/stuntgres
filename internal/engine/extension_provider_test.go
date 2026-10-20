@@ -58,19 +58,19 @@ func TestExtensionProviderIdentity(t *testing.T) {
 	view := e.CatalogRead()
 	seen := map[ids.ObjectAddress]bool{}
 	registry := &Engine{}
-	if err := registry.registerExtension("unaccent", unaccentInstaller{extension.StockUnaccent}); err != nil {
+	if err := registry.registerExtension("unaccent", extension.StockUnaccent); err != nil {
 		t.Fatal(err)
 	}
-	if err := registry.registerExtension("unaccent", unaccentInstaller{extension.StockUnaccent}); err == nil {
+	if err := registry.registerExtension("unaccent", extension.StockUnaccent); err == nil {
 		t.Fatal("duplicate registration accepted")
 	}
 	if err := registry.registerExtension("other", nil); err == nil {
 		t.Fatal("nil implementation accepted")
 	}
-	if err := registry.registerExtension("other", unaccentInstaller{&extension.UnaccentProvider{}}); err == nil {
+	if err := registry.registerExtension("other", &extension.UnaccentProvider{}); err == nil {
 		t.Fatal("implementation without a version accepted")
 	}
-	if err := e.registerExtension("unaccent", unaccentInstaller{extension.StockUnaccent}); err == nil {
+	if err := e.registerExtension("unaccent", extension.StockUnaccent); err == nil {
 		t.Fatal("initialized registry mutated")
 	}
 	for i, signature := range []catalog.ProcedureSignature{catalog.UnaccentDictionarySignature, catalog.UnaccentTextSignature, catalog.UnaccentInitSignature, catalog.UnaccentLexizeSignature} {
@@ -85,9 +85,9 @@ func TestExtensionProviderIdentity(t *testing.T) {
 		if proc.Volatility != vol || proc.Strict != strict || proc.Result != result {
 			t.Fatal("procedure properties", i)
 		}
-		// Every member holds the registered installer's one implementation
+		// Every member holds the registered provider's one implementation
 		// instance; typed views of another extension's kind stay nil.
-		if proc.Implementation != e.catalog.Extensions["unaccent"].(unaccentInstaller).UnaccentProvider || extension.UnaccentProviderOf(proc) != extension.StockUnaccent || extension.PgcryptoProviderOf(proc) != nil || extension.IntaggProviderOf(proc) != nil {
+		if proc.Implementation != e.catalog.Extensions["unaccent"] || extension.UnaccentProviderOf(proc) != extension.StockUnaccent || extension.PgcryptoProviderOf(proc) != nil || extension.IntaggProviderOf(proc) != nil {
 			t.Fatal("member implementation identity", i)
 		}
 	}
@@ -371,8 +371,9 @@ func TestExtensionOwnerMetadata(t *testing.T) {
 	extensionOwnershipImportUnits(t)
 }
 
-// The registry holds the engine installers; installed members hold the bare
-// stock provider, so member identity never depends on engine staging code.
+// The registry holds the stock providers, which stage themselves; installed
+// members hold that same stock provider, so member identity never depends on
+// engine staging code.
 func TestExtensionMembersHoldBareProviders(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -381,8 +382,8 @@ func TestExtensionMembersHoldBareProviders(t *testing.T) {
 		name  string
 		stock catalog.ExtensionImplementation
 	}{{"cube", extension.StockCube}, {"unaccent", extension.StockUnaccent}, {"intarray", extension.StockIntarray}, {"fuzzystrmatch", extension.StockFuzzystrmatch}, {"intagg", extension.StockIntagg}, {"pgcrypto", extension.StockPgcrypto}, {"uuid-ossp", extension.StockUUIDOssp}} {
-		if _, ok := e.catalog.Extensions[tc.name].(extension.Installer); !ok {
-			t.Fatal("registered implementation is not an installer", tc.name)
+		if registered, ok := e.catalog.Extensions[tc.name].(extension.Installer); !ok || registered != tc.stock {
+			t.Fatal("registered implementation is not the stock installer", tc.name)
 		}
 		e.mu.Lock()
 		stage, err := e.stageExtensionLocked(&StatementScope{op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: tc.name}})
@@ -407,7 +408,7 @@ func TestExtensionMembersHoldBareProviders(t *testing.T) {
 				continue
 			}
 			members++
-			if _, installer := implementation.(extension.Installer); installer || implementation != tc.stock {
+			if implementation != tc.stock {
 				t.Fatal("member does not hold the bare stock provider", tc.name, a)
 			}
 		}

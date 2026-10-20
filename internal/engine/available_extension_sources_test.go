@@ -207,12 +207,12 @@ func TestAvailableExtensionsMetadataValues(t *testing.T) {
 	// metadata is read as a detached copy, so readers cannot mutate registered
 	// storage.
 	registry := &Engine{}
-	if err := registry.registerExtension("unaccent", unaccentInstaller{extension.StockUnaccent}); err != nil {
+	if err := registry.registerExtension("unaccent", extension.StockUnaccent); err != nil {
 		t.Fatal(err)
 	}
 	read := registry.catalog.Extensions["unaccent"].Control()
 	*read.Comment = "mutated"
-	if stored := registry.catalog.Extensions["unaccent"].Control(); registry.catalog.Extensions["unaccent"] != (unaccentInstaller{extension.StockUnaccent}) || *stored.Comment != "text search dictionary that removes accents" {
+	if stored := registry.catalog.Extensions["unaccent"].Control(); registry.catalog.Extensions["unaccent"] != extension.StockUnaccent || *stored.Comment != "text search dictionary that removes accents" {
 		t.Fatal("registry storage shared", stored)
 	}
 	empty, schema = "", "fixed_control_schema"

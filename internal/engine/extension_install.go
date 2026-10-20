@@ -24,7 +24,7 @@ func (e *Engine) registerExtension(name string, implementation extension.Install
 	if catalog.ExtensionNameDetail(name, false) != "" {
 		return fmt.Errorf("stuntgres: invalid extension registration name")
 	}
-	if err := validateExtensionActions(implementation); err != nil {
+	if err := extension.ValidateActions(implementation); err != nil {
 		return err
 	}
 	if e.catalog.Extensions == nil {
@@ -186,7 +186,7 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	if err := installer.Stage(host, ext, memberOwner); err != nil {
 		return nil, err
 	}
-	if err := stageExtensionPath(op.Context(), host, implementation, ext, memberOwner, path); err != nil {
+	if err := extension.StagePath(op.Context(), host, implementation, ext, memberOwner, path); err != nil {
 		return nil, err
 	}
 	return stage, nil

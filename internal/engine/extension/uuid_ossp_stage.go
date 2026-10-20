@@ -1,8 +1,7 @@
-package engine
+package extension
 
 import (
 	"fmt"
-	"stuntgres/internal/engine/extension"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -11,11 +10,9 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-// uuidOsspInstaller stages the uuid-ossp provider for the engine. Installed
-// members hold the bare provider, never the installer.
-type uuidOsspInstaller struct{ *extension.UUIDOsspProvider }
-
-func (p uuidOsspInstaller) Stage(stage extension.Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
+// Stage installs the uuid-ossp functions into stage, owned by owner,
+// allocating identities in member order.
+func (p *UUIDOsspProvider) Stage(stage Stage, ext *catalog.Extension, owner authorization.PrincipalRef) error {
 	ext.Members = make([]ids.ObjectAddress, 0, len(functions.UUIDOsspMembers))
 	for _, member := range functions.UUIDOsspMembers {
 		oid, err := stage.AllocateOID()
@@ -27,7 +24,7 @@ func (p uuidOsspInstaller) Stage(stage extension.Stage, ext *catalog.Extension, 
 			return err
 		}
 		address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: oid}
-		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.Name, Signature: "", Owner: owner, RoutineKind: catalog.FunctionRoutine, Result: 2950, Volatility: member.Volatility, Strict: true, Implementation: p.UUIDOsspProvider}
+		proc := &catalog.Procedure{ObjectAddress: address, ObjectNamespace: ext.TargetNamespace, Extension: ext.Address(), ObjectRevision: revision, ObjectName: member.Name, Signature: "", Owner: owner, RoutineKind: catalog.FunctionRoutine, Result: 2950, Volatility: member.Volatility, Strict: true, Implementation: p}
 		if stage.LookupName(catalog.DescriptorNameKey(proc)) != (ids.ObjectAddress{}) {
 			return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42723", Message: fmt.Sprintf("function %q already exists with same argument types", proc.Name())}
 		}

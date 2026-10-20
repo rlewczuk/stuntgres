@@ -10,7 +10,7 @@ import (
 // Registration-only metadata fixtures never install a synthetic provider or
 // stand in for the genuine fuzzy update used by publication/manifest tests.
 type extensionVersionRegistration struct {
-	fuzzystrmatchInstaller
+	*extension.FuzzystrmatchProvider
 	inventory      catalog.ExtensionVersions
 	defaultVersion string
 	actions        []extension.UpdateAction
@@ -20,7 +20,7 @@ func (p *extensionVersionRegistration) Versions() catalog.ExtensionVersions {
 	return p.inventory.Detached()
 }
 func (p *extensionVersionRegistration) Control() catalog.ExtensionControl {
-	c := p.fuzzystrmatchInstaller.Control()
+	c := p.FuzzystrmatchProvider.Control()
 	c.Version = p.defaultVersion
 	return c
 }
@@ -52,9 +52,9 @@ func TestExtensionVersionGraph(t *testing.T) {
 	if !reflect.DeepEqual(cycle.Path("a", "d"), []string{"a", "c", "d"}) || cycle.Path("a", "missing") != nil {
 		t.Fatal("shortest cyclic directed path")
 	}
-	for _, provider := range []extension.Installer{cubeInstaller{extension.StockCube}, unaccentInstaller{extension.StockUnaccent}, intarrayInstaller{extension.StockIntarray}, intaggInstaller{extension.StockIntagg}, pgcryptoInstaller{extension.StockPgcrypto}, uuidOsspInstaller{extension.StockUUIDOssp}} {
+	for _, provider := range []extension.Installer{extension.StockCube, extension.StockUnaccent, extension.StockIntarray, extension.StockIntagg, extension.StockPgcrypto, extension.StockUUIDOssp} {
 		versions := provider.Versions()
-		if len(versions.Bases) != 1 || versions.Bases[0] != provider.Control().Version || len(versions.Edges) != 0 || validateExtensionActions(provider) != nil {
+		if len(versions.Bases) != 1 || versions.Bases[0] != provider.Control().Version || len(versions.Edges) != 0 || extension.ValidateActions(provider) != nil {
 			t.Fatal("current-only inventory", versions)
 		}
 		versions.Bases[0] = "mutated"
@@ -88,18 +88,18 @@ func TestExtensionVersionGraph(t *testing.T) {
 			t.Fatal(tc.value, got)
 		}
 	}
-	good := (fuzzystrmatchInstaller{extension.StockFuzzystrmatch}).Updates()[0]
+	good := extension.StockFuzzystrmatch.Updates()[0]
 	for _, actions := range [][]extension.UpdateAction{nil, {good, good}, {{Edge: good.Edge}}, {{Edge: catalog.ExtensionVersionEdge{From: "1.2", To: "1.1"}, Stage: good.Stage}}} {
-		p := &extensionVersionRegistration{fuzzystrmatchInstaller{extension.StockFuzzystrmatch}, extension.StockFuzzystrmatch.Versions(), "1.2", actions}
+		p := &extensionVersionRegistration{extension.StockFuzzystrmatch, extension.StockFuzzystrmatch.Versions(), "1.2", actions}
 		if (&Engine{}).registerExtension("fuzzystrmatch", p) == nil {
 			t.Fatal("invalid executable coverage admitted", actions)
 		}
 	}
-	p := &extensionVersionRegistration{fuzzystrmatchInstaller{extension.StockFuzzystrmatch}, extension.StockFuzzystrmatch.Versions(), "1.0", []extension.UpdateAction{good}}
+	p := &extensionVersionRegistration{extension.StockFuzzystrmatch, extension.StockFuzzystrmatch.Versions(), "1.0", []extension.UpdateAction{good}}
 	if (&Engine{}).registerExtension("fuzzystrmatch", p) == nil {
 		t.Fatal("graph-only default admitted")
 	}
-	if err := (&Engine{}).registerExtension("fuzzystrmatch", fuzzystrmatchInstaller{extension.StockFuzzystrmatch}); err != nil {
+	if err := (&Engine{}).registerExtension("fuzzystrmatch", extension.StockFuzzystrmatch); err != nil {
 		t.Fatal("unreachable metadata edge incorrectly requires action", err)
 	}
 }
