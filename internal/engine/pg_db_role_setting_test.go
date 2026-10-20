@@ -86,7 +86,7 @@ func TestPGDBRoleSettingShapeAndOwnership(t *testing.T) {
 		t.Fatal("table discovery")
 	}
 	class := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
-	facts, err := pgcatalog.ClassRow(catalogSourceInput{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: e.catalog.owner(), Source: class, Runtime: engineCatalogRuntime{}}, d)
+	facts, err := pgcatalog.ClassRow(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: e.catalog.owner(), Source: class, Runtime: engineCatalogRuntime{}}, d)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -68,6 +68,6 @@ func (e *Engine) captureCatalogSourceLocked(ctx context.Context, view catalog.Re
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: unknown catalog source")
 	}
-	in := catalogSourceInput{Context: ctx, Catalog: view, Roles: roles, Owner: e.catalog.owner(), Ref: ref, Source: source, Runtime: engineCatalogRuntime{engine: e, sequenceBase: view.State()}}
+	in := pgcatalog.Input{Context: ctx, Catalog: view, Roles: roles, Owner: e.catalog.owner(), Ref: ref, Source: source, Runtime: engineCatalogRuntime{engine: e, sequenceBase: view.State()}}
 	return captureCatalogSourceRows(in, produce)
 }

@@ -137,7 +137,7 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	oldState.SetDescriptor(namespace, &catalog.Namespace{ObjectAddress: namespace, Comment: "namespace"})
 	oldState.SetDescriptor(relation, d)
 	old := e.catalog.read(&oldState)
-	captured, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: old, Ref: ref, Source: source, Owner: (old).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDescription)
+	captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: old, Ref: ref, Source: source, Owner: (old).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDescription)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +163,7 @@ func TestPGDescriptionStableKeysAndSnapshots(t *testing.T) {
 	updated.Comment = "replacement"
 	updated.ColumnMeta.Comments = map[int32]string{3: "replacement third"}
 	newState.SetDescriptor(relation, &updated)
-	newRows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.catalog.read(&newState), Ref: ref, Source: source, Owner: (e.catalog.read(&newState)).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDescription)
+	newRows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.catalog.read(&newState), Ref: ref, Source: source, Owner: (e.catalog.read(&newState)).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDescription)
 	if err != nil || pgDescriptionUnitBag(t, newRows)[relation] != "replacement" {
 		t.Fatal(err)
 	}
@@ -190,7 +190,7 @@ func TestPGDescriptionCanceledCapture(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, state := range []*catalog.State{e.catalog.state, catalog.NewState(0)} {
-		captured, err := captureCatalogSourceRows(catalogSourceInput{Context: ctx, Catalog: e.catalog.read(state), Ref: ref, Source: source, Owner: (e.catalog.read(state)).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDescription)
+		captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: e.catalog.read(state), Ref: ref, Source: source, Owner: (e.catalog.read(state)).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDescription)
 		if captured != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial canceled source", captured, err)
 		}
@@ -200,7 +200,7 @@ func TestPGDescriptionCanceledCapture(t *testing.T) {
 func TestPGDescriptionBuiltinSeeds(t *testing.T) {
 	e := New()
 	source, ref := pgDescriptionUnitSource(t, e)
-	captured, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: source, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDescription)
+	captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: source, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDescription)
 	if err != nil {
 		t.Fatal(err)
 	}

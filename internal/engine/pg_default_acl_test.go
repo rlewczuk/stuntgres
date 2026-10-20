@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -29,7 +30,7 @@ func defaultACLUnitCapture(t *testing.T, f defaultUnitFixture, c catalog.Read) *
 	t.Helper()
 	d, ref := defaultACLUnitSource(t, f.e, c)
 	f.e.mu.Lock()
-	rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: c, Roles: f.e.roles.read(f.e.catalog.owner(), c, f.e.roles.published), Ref: ref, Source: d, Owner: f.e.catalog.owner(), Runtime: engineCatalogRuntime{engine: f.e}}, capturePGDefaultACL)
+	rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: c, Roles: f.e.roles.read(f.e.catalog.owner(), c, f.e.roles.published), Ref: ref, Source: d, Owner: f.e.catalog.owner(), Runtime: engineCatalogRuntime{engine: f.e}}, capturePGDefaultACL)
 	f.e.mu.Unlock()
 	if err != nil || rows == nil {
 		t.Fatal("capture", rows, err)
@@ -237,7 +238,7 @@ func TestPGDefaultACLAuthorityAndCancellation(t *testing.T) {
 	reject := func(view catalog.Read, r authorization.Read, reference ids.ObjectRef, source *catalog.Relation) {
 		t.Helper()
 		f.e.mu.Lock()
-		rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Roles: r, Ref: reference, Source: source, Owner: f.e.catalog.owner(), Runtime: engineCatalogRuntime{engine: f.e}}, capturePGDefaultACL)
+		rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Roles: r, Ref: reference, Source: source, Owner: f.e.catalog.owner(), Runtime: engineCatalogRuntime{engine: f.e}}, capturePGDefaultACL)
 		f.e.mu.Unlock()
 		var diagnostic *sqlstate.Error
 		if err == nil || rows != nil || errors.As(err, &diagnostic) {
@@ -333,7 +334,7 @@ func TestPGDefaultACLAuthorityAndCancellation(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		controlled := &namespaceCancelContext{Context: ctx, cancel: cancel, at: at}
 		f.e.mu.Lock()
-		rows, err := captureCatalogSourceRows(catalogSourceInput{Context: controlled, Catalog: c, Roles: roles, Ref: ref, Source: d, Owner: f.e.catalog.owner(), Runtime: engineCatalogRuntime{engine: f.e}}, capturePGDefaultACL)
+		rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: controlled, Catalog: c, Roles: roles, Ref: ref, Source: d, Owner: f.e.catalog.owner(), Runtime: engineCatalogRuntime{engine: f.e}}, capturePGDefaultACL)
 		f.e.mu.Unlock()
 		cancel()
 		if rows != nil || !errors.Is(err, context.Canceled) || f.e.catalog.state != state || f.e.roles.published != roleRoot || f.e.catalog.nextOID != frontier {

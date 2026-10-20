@@ -126,13 +126,13 @@ func TestInheritanceGraphDirectDependEdges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got []pgDependEdge
+	var got []pgcatalog.DependEdge
 	for _, edge := range edges {
 		if edge.Dependent == leaf.Address() && edge.Referenced.ClassID == ids.RelationClassID {
 			got = append(got, edge)
 		}
 	}
-	if !reflect.DeepEqual(got, []pgDependEdge{{Dependent: leaf.Address(), Referenced: c.Address(), DepType: 'n'}}) {
+	if !reflect.DeepEqual(got, []pgcatalog.DependEdge{{Dependent: leaf.Address(), Referenced: c.Address(), DepType: 'n'}}) {
 		t.Fatal(got)
 	}
 }

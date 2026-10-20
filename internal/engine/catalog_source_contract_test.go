@@ -33,7 +33,7 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 	if err := validateCatalogSourceProducers(pgcatalog.Registrations()); err != nil {
 		t.Fatal(err)
 	}
-	for _, invalid := range [][]catalogSourceRegistration{
+	for _, invalid := range [][]pgcatalog.Registration{
 		{{1247, capturePGType}, {1247, capturePGAttribute}},
 		{{pgcatalog.LocksOID, capturePGType}},
 		{{12048, capturePGType}},
@@ -161,7 +161,7 @@ func TestCatalogSourceInputProvenance(t *testing.T) {
 	e, foreign := New(), New()
 	view := e.CatalogRead()
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.TypeOID})
-	in := catalogSourceInput{Context: t.Context(), Catalog: view, Roles: e.Roles(), Owner: e.catalog.owner(), Ref: e.catalog.Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engineCatalogRuntime{}}
+	in := pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: e.Roles(), Owner: e.catalog.owner(), Ref: e.catalog.Domain.Ref(view.Epoch(), source.Address()), Source: source, Runtime: engineCatalogRuntime{}}
 	rows, err := capturePGType(in)
 	if err != nil || len(rows) == 0 {
 		t.Fatal(err)
@@ -185,7 +185,7 @@ func TestCatalogSourceInputProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.DataTypePrivilegesOID})
-	mixed := catalogSourceInput{Context: t.Context(), Catalog: view, Roles: foreign.Roles(), Owner: e.catalog.owner(), Ref: e.catalog.Domain.Ref(view.Epoch(), d.Address()), Source: d, Runtime: engineCatalogRuntime{auth: auth, database: "unit_database"}}
+	mixed := pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: foreign.Roles(), Owner: e.catalog.owner(), Ref: e.catalog.Domain.Ref(view.Epoch(), d.Address()), Source: d, Runtime: engineCatalogRuntime{auth: auth, database: "unit_database"}}
 	if got, err := captureDataTypePrivileges(mixed); got != nil || err == nil {
 		done()
 		t.Fatal("mixed input/runtime roles admitted", err)
@@ -307,7 +307,7 @@ func TestCatalogSourceRuntimeCapture(t *testing.T) {
 		}
 		view := e.CatalogRead()
 		d := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12001})
-		in := catalogSourceInput{Context: t.Context(), Catalog: view, Roles: retained, Owner: e.catalog.owner(), Source: d, Runtime: engineCatalogRuntime{engine: e}}
+		in := pgcatalog.Input{Context: t.Context(), Catalog: view, Roles: retained, Owner: e.catalog.owner(), Source: d, Runtime: engineCatalogRuntime{engine: e}}
 		e.mu.Lock()
 		expectedXID := e.visibility.AssignedXIDLocked(e.prepared["producer_runtime_gid"].ref)
 		rows, err := capturePreparedSource(in)
@@ -413,7 +413,7 @@ func TestCatalogSourceSpecMetadata(t *testing.T) {
 
 // Used by behavioral coverage with local invalid inventories, without mutating
 // process-global dispatch ownership.
-func validateCatalogSourceProducers(entries []catalogSourceRegistration) error {
+func validateCatalogSourceProducers(entries []pgcatalog.Registration) error {
 	for i, entry := range entries {
 		if entry.Produce == nil || explicitCatalogSource(entry.OID) || i > 0 && entries[i-1].OID >= entry.OID {
 			return fmt.Errorf("stuntgres: invalid catalog producer ownership")

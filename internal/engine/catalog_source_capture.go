@@ -28,7 +28,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		}
 		return nil, fmt.Errorf("stuntgres: unknown catalog source")
 	}
-	in := catalogSourceInput{Context: scope.op.Context(), Owner: e.catalog.owner(), Ref: ref, Source: source}
+	in := pgcatalog.Input{Context: scope.op.Context(), Owner: e.catalog.owner(), Ref: ref, Source: source}
 	runtime := engineCatalogRuntime{engine: e}
 	unlockBefore := false
 	switch oid {
@@ -106,7 +106,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 func explicitCatalogSource(oid ids.OID) bool { return oid == pgcatalog.LocksOID || oid == 12048 }
 
 // Engine is the sole owner of querySource construction, including error paths.
-func captureCatalogSourceRows(in catalogSourceInput, produce catalogSourceProducer) (*querySource, error) {
+func captureCatalogSourceRows(in pgcatalog.Input, produce pgcatalog.Producer) (*querySource, error) {
 	rows, err := produce(in)
 	if err != nil {
 		return nil, err

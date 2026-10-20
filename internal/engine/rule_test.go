@@ -483,7 +483,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 		t.Fatal(err)
 	}
 	owner := ids.ObjectAddress{ClassID: 2618, ObjectID: r.OID}
-	if !slices.Contains(edges, pgDependEdge{owner, src.Address(), 'a'}) {
+	if !slices.Contains(edges, pgcatalog.DependEdge{owner, src.Address(), 'a'}) {
 		t.Fatal("rule lacks AUTO event edge")
 	}
 	t.Run("mixed_drop_closure", func(t *testing.T) {

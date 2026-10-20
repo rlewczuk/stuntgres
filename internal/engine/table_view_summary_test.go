@@ -205,7 +205,7 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 		}
 	}
 	e.mu.Lock()
-	captured, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: catalogView, Roles: e.roles.read(e.catalog.owner(), catalogView, e.roles.published), Ref: ids.ObjectRef{}, Source: source, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e, presentation: viewPresentation{}}}, captureTableViewSummary)
+	captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalogView, Roles: e.roles.read(e.catalog.owner(), catalogView, e.roles.published), Ref: ids.ObjectRef{}, Source: source, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e, presentation: viewPresentation{}}}, captureTableViewSummary)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -240,7 +240,7 @@ func TestTableSummaryColumnACLNeutrality(t *testing.T) {
 		catalog := e.CatalogRead()
 		source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12003})
 		e.mu.Lock()
-		captured, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: catalog, Roles: e.roles.read(e.catalog.owner(), catalog, e.roles.published), Ref: ids.ObjectRef{}, Source: source, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e, presentation: viewPresentation{}}}, captureTableViewSummary)
+		captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Roles: e.roles.read(e.catalog.owner(), catalog, e.roles.published), Ref: ids.ObjectRef{}, Source: source, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e, presentation: viewPresentation{}}}, captureTableViewSummary)
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
@@ -278,7 +278,7 @@ func TestTableSummaryOwnerReplacement(t *testing.T) {
 	capture := func(catalog catalog.Read) []sqltype.Value {
 		source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12003})
 		e.mu.Lock()
-		captured, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: catalog, Roles: e.roles.read(e.catalog.owner(), catalog, e.roles.published), Ref: ids.ObjectRef{}, Source: source, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e, presentation: viewPresentation{}}}, captureTableViewSummary)
+		captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Roles: e.roles.read(e.catalog.owner(), catalog, e.roles.published), Ref: ids.ObjectRef{}, Source: source, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e, presentation: viewPresentation{}}}, captureTableViewSummary)
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

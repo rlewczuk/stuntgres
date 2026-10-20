@@ -532,7 +532,7 @@ func TestUsingIndexIncludeLifecycle(t *testing.T) {
 	for _, attribute := range parent.Attributes {
 		target := parent.Address()
 		target.SubID = attribute
-		if !slices.Contains(edges, pgDependEdge{Dependent: ids.ObjectAddress{ClassID: 2606, ObjectID: constraint.OID}, Referenced: target, DepType: 'a'}) {
+		if !slices.Contains(edges, pgcatalog.DependEdge{Dependent: ids.ObjectAddress{ClassID: 2606, ObjectID: constraint.OID}, Referenced: target, DepType: 'a'}) {
 			t.Fatal("missing key/include auto dependency", target)
 		}
 	}

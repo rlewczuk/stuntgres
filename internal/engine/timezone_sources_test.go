@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -71,7 +72,7 @@ func TestTimezoneSourceCapturedInstantAndOwnership(t *testing.T) {
 		{boundary, -14400000000, true},
 	} {
 		input := sqltype.InputEnvironment{TransactionStart: tc.instant}
-		rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{input: input}}, captureTimezoneSource)
+		rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{input: input}}, captureTimezoneSource)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -103,7 +104,7 @@ func TestTimezoneSourceCapturedInstantAndOwnership(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if source, err := captureCatalogSourceRows(catalogSourceInput{Context: ctx, Ref: ref, Source: d, Runtime: engineCatalogRuntime{input: sqltype.InputEnvironment{}}}, captureTimezoneSource); source != nil || !errors.Is(err, context.Canceled) {
+	if source, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Ref: ref, Source: d, Runtime: engineCatalogRuntime{input: sqltype.InputEnvironment{}}}, captureTimezoneSource); source != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal(source, err)
 	}
 }

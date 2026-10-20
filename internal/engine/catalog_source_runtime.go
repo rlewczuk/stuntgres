@@ -29,15 +29,15 @@ type engineCatalogRuntime struct {
 }
 
 func (r engineCatalogRuntime) CursorCount() int { return len(r.cursors.entries) }
-func (r engineCatalogRuntime) VisitCursors(visit func(catalogCursorFact) error) error {
+func (r engineCatalogRuntime) VisitCursors(visit func(pgcatalog.CursorFact) error) error {
 	for name, cursor := range r.cursors.entries {
-		if err := visit(catalogCursorFact{name, cursor.statement, cursor.hold, cursor.scroll, cursor.created}); err != nil {
+		if err := visit(pgcatalog.CursorFact{name, cursor.statement, cursor.hold, cursor.scroll, cursor.created}); err != nil {
 			return err
 		}
 	}
 	return nil
 }
-func (r engineCatalogRuntime) SessionSettings() catalogSettingsFact {
+func (r engineCatalogRuntime) SessionSettings() pgcatalog.SettingsFact {
 	s := r.settings
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -48,15 +48,15 @@ func (r engineCatalogRuntime) SessionSettings() catalogSettingsFact {
 	if _, present := s.values["row_security"]; present {
 		source = "session"
 	}
-	return catalogSettingsFact{s.value("row_security"), s.defaults["row_security"], source}
+	return pgcatalog.SettingsFact{s.value("row_security"), s.defaults["row_security"], source}
 }
 func (r engineCatalogRuntime) PreparedCount() int { return len(r.engine.prepared) }
-func (r engineCatalogRuntime) VisitPreparedTransactions(ctx context.Context, visit func(catalogPreparedFact) error) error {
+func (r engineCatalogRuntime) VisitPreparedTransactions(ctx context.Context, visit func(pgcatalog.PreparedFact) error) error {
 	for _, entry := range r.engine.prepared {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		fact := catalogPreparedFact{XID: r.engine.visibility.AssignedXIDLocked(entry.ref), GID: entry.gid, Prepared: entry.prepared, Database: entry.database}
+		fact := pgcatalog.PreparedFact{XID: r.engine.visibility.AssignedXIDLocked(entry.ref), GID: entry.gid, Prepared: entry.prepared, Database: entry.database}
 		if role, ok := r.engine.roles.published.Root.Read(authorization.PrincipalRef{}).Find(entry.owner); ok {
 			fact.Owner, fact.OwnerPresent = role.Name, true
 		}
@@ -191,9 +191,9 @@ func (r engineCatalogRuntime) PartitionReferences(ctx context.Context, view cata
 func (r engineCatalogRuntime) HasRules(relation *catalog.Relation) bool {
 	return len(rulesOf(relation)) != 0
 }
-func (r engineCatalogRuntime) VisitRules(relation *catalog.Relation, visit func(catalogRuleFact) error) error {
+func (r engineCatalogRuntime) VisitRules(relation *catalog.Relation, visit func(pgcatalog.RuleFact) error) error {
 	for _, rule := range rulesOf(relation) {
-		if err := visit(catalogRuleFact{rule.OID, rule.Name, ruleEventCode(rule.event), rule.instead, rule.references}); err != nil {
+		if err := visit(pgcatalog.RuleFact{rule.OID, rule.Name, ruleEventCode(rule.event), rule.instead, rule.references}); err != nil {
 			return err
 		}
 	}
@@ -243,14 +243,14 @@ func (r engineCatalogRuntime) VisitSequenceDefinitions(ctx context.Context, visi
 func (r engineCatalogRuntime) ExpressionTree(typ *sqltype.Descriptor, expression expr.Expr) (sqltype.Value, error) {
 	return catalogTree(typ, expression)
 }
-func (r engineCatalogRuntime) ForeignKeyComparisons(view catalog.Read, child, parent, index *catalog.Relation, key catalog.ForeignKeyConstraint) ([]catalogForeignKeyComparison, error) {
+func (r engineCatalogRuntime) ForeignKeyComparisons(view catalog.Read, child, parent, index *catalog.Relation, key catalog.ForeignKeyConstraint) ([]pgcatalog.ForeignKeyComparison, error) {
 	bound, err := bindForeignKeyComparison(view, child, parent, index, key)
 	if err != nil {
 		return nil, err
 	}
-	comparisons := make([]catalogForeignKeyComparison, len(bound))
+	comparisons := make([]pgcatalog.ForeignKeyComparison, len(bound))
 	for i, comparison := range bound {
-		comparisons[i] = catalogForeignKeyComparison{comparison.child, comparison.parent, comparison.comparison}
+		comparisons[i] = pgcatalog.ForeignKeyComparison{comparison.child, comparison.parent, comparison.comparison}
 	}
 	return comparisons, nil
 }

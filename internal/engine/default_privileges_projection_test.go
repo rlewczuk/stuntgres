@@ -19,7 +19,7 @@ func defaultUnitProjection(t *testing.T, catalog catalog.Read, auth Authorizatio
 	t.Helper()
 	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.TablePrivilegesOID})
 	ref := catalog.Owner().Domain.Ref(catalog.Epoch(), source.Address())
-	rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: catalog, Ref: ref, Source: source, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: engineCatalogRuntime{auth: auth, temporary: catalogSourceTemporaryOwner(auth), database: "unit_database"}}, captureTablePrivileges)
+	rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Ref: ref, Source: source, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: engineCatalogRuntime{auth: auth, temporary: catalogSourceTemporaryOwner(auth), database: "unit_database"}}, captureTablePrivileges)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +187,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	ref := f.e.catalog.Domain.Ref(view.Epoch(), source.Address())
-	rows, err := captureCatalogSourceRows(catalogSourceInput{Context: canceled, Catalog: view, Ref: ref, Source: source, Roles: (AuthorizationView{}).Roles, Owner: (AuthorizationView{}).Owner, Runtime: engineCatalogRuntime{auth: AuthorizationView{}, temporary: catalogSourceTemporaryOwner(AuthorizationView{}), database: "unit_database"}}, captureTablePrivileges)
+	rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: canceled, Catalog: view, Ref: ref, Source: source, Roles: (AuthorizationView{}).Roles, Owner: (AuthorizationView{}).Owner, Runtime: engineCatalogRuntime{auth: AuthorizationView{}, temporary: catalogSourceTemporaryOwner(AuthorizationView{}), database: "unit_database"}}, captureTablePrivileges)
 	if rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled source exposed partial rows", rows, err)
 	}

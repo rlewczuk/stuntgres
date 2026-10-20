@@ -27,7 +27,7 @@ func namespaceUnitCapture(t *testing.T, e *Engine, c catalog.Read) *querySource 
 	t.Helper()
 	d, ref := namespaceUnitSource(t, e, c)
 	e.mu.Lock()
-	rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: c, Roles: e.roles.read(e.catalog.owner(), c, e.roles.published), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGNamespace)
+	rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: c, Roles: e.roles.read(e.catalog.owner(), c, e.roles.published), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGNamespace)
 	e.mu.Unlock()
 	if err != nil || rows == nil || rows.ref != ref {
 		t.Fatal(rows, err)
@@ -230,7 +230,7 @@ func TestPGNamespaceAuthority(t *testing.T) {
 	reject := func(catalog catalog.Read, roles authorization.Read, r ids.ObjectRef, source *catalog.Relation) {
 		t.Helper()
 		e.mu.Lock()
-		rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: catalog, Roles: roles, Ref: r, Source: source, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGNamespace)
+		rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Roles: roles, Ref: r, Source: source, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGNamespace)
 		e.mu.Unlock()
 		if err == nil || rows != nil {
 			t.Fatal("invalid capture authority admitted", rows, err)
@@ -325,7 +325,7 @@ func TestPGNamespaceCancellation(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		controlled := &namespaceCancelContext{Context: ctx, cancel: cancel, at: at}
 		e.mu.Lock()
-		rows, err := captureCatalogSourceRows(catalogSourceInput{Context: controlled, Catalog: c, Roles: roles, Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGNamespace)
+		rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: controlled, Catalog: c, Roles: roles, Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGNamespace)
 		e.mu.Unlock()
 		cancel()
 		if !errors.Is(err, context.Canceled) || rows != nil || e.catalog.state != c.State() || e.catalog.nextOID != oid || e.catalog.nextRevision != revision {

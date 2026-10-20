@@ -54,7 +54,7 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 				if got, ok := session.Setting("row_security"); !ok || got != value {
 					t.Fatal("effective setting", got, ok, value)
 				}
-				rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: session.settings}}, capturePGSettings)
+				rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: session.settings}}, capturePGSettings)
 				if err != nil || len(rows.anonymous) != 1 {
 					t.Fatal(rows, err)
 				}

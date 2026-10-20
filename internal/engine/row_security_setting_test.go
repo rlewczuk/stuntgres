@@ -46,7 +46,7 @@ func TestRowSecuritySettingProvenance(t *testing.T) {
 	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
 	capture := func(value, source string) *querySource {
 		t.Helper()
-		rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: settings}}, capturePGSettings)
+		rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: settings}}, capturePGSettings)
 		if err != nil || len(rows.anonymous) != 1 {
 			t.Fatal(rows, err)
 		}
@@ -78,7 +78,7 @@ func TestRowSecuritySettingProvenance(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if source, err := captureCatalogSourceRows(catalogSourceInput{Context: ctx, Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: settings}}, capturePGSettings); source != nil || err != context.Canceled {
+	if source, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: settings}}, capturePGSettings); source != nil || err != context.Canceled {
 		t.Fatal(source, err)
 	}
 }

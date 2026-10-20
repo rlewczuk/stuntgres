@@ -91,13 +91,13 @@ func TestPrimaryKeyRealMetadataAndDependencies(t *testing.T) {
 		t.Fatal(err)
 	}
 	constraint := ids.ObjectAddress{ClassID: 2606, ObjectID: parent.Constraints.Unique[0].OID}
-	want := []pgDependEdge{{Dependent: index.Address(), Referenced: constraint, DepType: 'i'}}
+	want := []pgcatalog.DependEdge{{Dependent: index.Address(), Referenced: constraint, DepType: 'i'}}
 	for _, attribute := range []int32{1, 2} {
 		column := parent.Address()
 		column.SubID = attribute
-		want = append(want, pgDependEdge{Dependent: constraint, Referenced: column, DepType: 'a'})
+		want = append(want, pgcatalog.DependEdge{Dependent: constraint, Referenced: column, DepType: 'a'})
 	}
-	var got []pgDependEdge
+	var got []pgcatalog.DependEdge
 	for _, edge := range edges {
 		if edge.Dependent == index.Address() || edge.Dependent == constraint {
 			got = append(got, edge)
