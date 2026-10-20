@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -29,7 +30,7 @@ func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth Authorizati
 		}
 		return nil, nil, false, err
 	}
-	if err = checkPersistentCreationNamespace(auth.Catalog, ns.Address); err != nil {
+	if err = access.CheckPersistentCreationNamespace(auth.Catalog, ns.Address); err != nil {
 		return nil, nil, false, err
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text

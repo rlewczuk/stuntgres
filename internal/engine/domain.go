@@ -35,7 +35,7 @@ func (e *Engine) stageCreateDomainLocked(op *session.Operation, auth Authorizati
 			return err
 		}
 	}
-	if err = checkPersistentCreationNamespace(auth.Catalog, ns.Address); err != nil {
+	if err = access.CheckPersistentCreationNamespace(auth.Catalog, ns.Address); err != nil {
 		return err
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text

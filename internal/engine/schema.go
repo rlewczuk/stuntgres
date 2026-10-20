@@ -28,14 +28,6 @@ func schemaNotice(op *session.Operation, code, message string) {
 	op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: code, Message: message})
 }
 
-// Non-table creation and namespace moves retain their TEMP capability boundary.
-func checkPersistentCreationNamespace(catalog catalog.Read, namespace ids.ObjectAddress) error {
-	if catalog.MustNamespace(namespace).Temporary != (ids.SessionToken{}) {
-		return sqlError("0A000", "temporary schema creation is unsupported")
-	}
-	return nil
-}
-
 func (e *Engine) schemaTableLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ids.ObjectAddress, owner authorization.PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ids.ObjectRef) error {
 	auth.Catalog = stage.Base
 	auth.Recapture(auth.Catalog)

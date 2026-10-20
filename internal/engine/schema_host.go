@@ -15,8 +15,8 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-// schemaHost is the root adapter behind routine.DDLHost for one schema
-// statement. Schema staging runs under Engine.mu without a StatementScope, so
+// schemaHost is the root adapter behind routine.DDLHost (and, as
+// typedefHost, typedef.StageHost) for one schema statement. Schema staging runs under Engine.mu without a StatementScope, so
 // it holds the engine, the operation and the catalog stage, and no
 // authorization view: the handlers pass their authority in.
 type schemaHost struct {

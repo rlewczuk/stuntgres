@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
@@ -31,7 +32,7 @@ func (e *Engine) stageCreateCompositeLocked(op *session.Operation, auth Authoriz
 			return err
 		}
 	}
-	if err := checkPersistentCreationNamespace(auth.Catalog, ns.Address); err != nil {
+	if err := access.CheckPersistentCreationNamespace(auth.Catalog, ns.Address); err != nil {
 		return err
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text

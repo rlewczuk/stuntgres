@@ -52,7 +52,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *session.Operation,
 	if err != nil {
 		return fail(err)
 	}
-	if err = checkPersistentCreationNamespace(auth.Catalog, destination.Address); err != nil {
+	if err = access.CheckPersistentCreationNamespace(auth.Catalog, destination.Address); err != nil {
 		return fail(err)
 	}
 	if err = auth.CheckCreate(destination); err != nil {
