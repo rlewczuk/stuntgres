@@ -448,7 +448,7 @@ live there too; dispatch, `Engine.mu` and publication stay in the root
     allocs/op and about 1.64 MB/op on both. Racecheck and finalcheck
     skipped at user request.
 - [x] 16c — Host refined (docs only; the commit that records this text)
-- [ ] 16d — Installation handlers moved (two sessions, per the 16c plan)
+- [x] 16d — Installation handlers moved (two sessions, per the 16c plan)
   - [x] 16d.1 — Staging: providers own staging behind `extension.Stage`
     (`9b88e37b1`, `6ee7b321c`, then the docs commit) *(racecheck/finalcheck
     skipped at user request)*
@@ -501,8 +501,61 @@ live there too; dispatch, `Engine.mu` and publication stay in the root
       engine. Startup bench, interleaved 8 runs each (load 8–10): median
       1,038 µs/op before, 997 µs/op after, samples 859–1,202 µs/op on both
       sides; 5,020–5,023 allocs/op and about 1.64 MB/op on both.
-  - [ ] 16d.2 — Handlers: CREATE/UPDATE staging, DROP selection, owner
-    import and fence check behind `extension.Host`
+  - [x] 16d.2 — Handlers: CREATE/UPDATE staging, DROP selection, owner
+    import and fence check behind `extension.Host` (`b1398311f`,
+    `659f7699d`, `ff925b36e`, then the docs commit) *(racecheck/finalcheck
+    skipped at user request)*
+    - Base `909cd38fc`, rebased on `3c6a855bc` (15d and 17d; neither
+      touched the extension files except `extension_drop_test.go`). The
+      frontier tool over the five in-place functions reported one engine
+      declaration used, `sqlError`; `extension` got its own unexported
+      copy. Inbound uses were only the five root wrappers.
+    - `b1398311f` (seam): `extension/host.go` declares `Host` (`Context`,
+      `Notice`, `CreationPath`, `ReplayingTableDestination`,
+      `BootstrapSuperuser`, `AllocateOID`, `Revision`, `BeginStage`) and
+      `Authority` (`Check`, `Effective`) as 16c decision 3 describes.
+      `extensionHost` gains the operation and implements `Host`;
+      `BeginStage` begins the stage from the captured catalog, authorizes
+      it and sets the extension namespace, and the checked `stageOf`
+      returns the `*CatalogStage` (refusing a foreign `Stage` or a host
+      with no begun stage). Compile-time assertions for `Host`, `Stage` and
+      `AuthorizationView` as `Authority`.
+    - `659f7699d` (in place): CREATE and UPDATE staging became root
+      functions over `Host`, `Authority` and the captured `access.View`;
+      the registry and the object domain are read from `view.Owner`, the
+      same `catalog.Owner` the root embeds. DROP selection, the owner
+      import loop and the fence check became functions over values.
+      `stageExtensionLocked` and `stageExtensionUpdateLocked` stay as thin
+      root wrappers with their signatures, so their ten test callers are
+      unchanged.
+    - `ff925b36e` (move): `StageCreate` (`extension_create.go`),
+      `StageUpdate` (`extension_update.go`), `DropTargets`
+      (`extension_drop.go`, notices through a callback), `ImportOwners`
+      (`extension_owner_import.go`) and `AuthorityObservation.Current`
+      (`extension_authority.go`). The root keeps `registerExtension`,
+      `executeExtension`, `executeExtensionUpdate`,
+      `publishExtensionStage`, `executeDropExtension`,
+      `importExtensionOwners`, `extensionAuthorityFence` and
+      `extensionHost`. `extension` now imports `access`; `go list -deps`
+      shows no engine, `analyze`, `routine` or `plan`.
+    - Lesson: the first move pass stripped the `extension.` qualifier with
+      a word regex, which also cut "this extension." out of the two
+      42501 CREATE privilege hints. The 119 targeted engine units passed;
+      the quick-mode reference selection caught it (four tests). Fixed in
+      the move commit; a literal-by-literal comparison of the handler code
+      before and after the move now matches exactly. Strip qualifiers with
+      a type-checked tool, or compare string literals after a regex move.
+    - Tests: new seam test `TestExtensionHostBeginStageHandsBackRootStage`
+      (`extension_host_test.go`), written first and observed failing
+      against stubs. No test moved, adapted or deleted.
+    - Verification: build, vet (only the existing `composites` and
+      `copylocks` findings), the 120 targeted engine units after every
+      commit and after the rebase, the 356-test 16a reference selection in
+      quick mode, the 16a public smoke (85 lines, identical on base and
+      branch), `make quickcheck` and `make deps` passed. With
+      `REFERENCE=1`, the 123 extension reference tests of 16d.1 passed.
+      Layering: no engine subpackage imports the engine. `make bench` not
+      run: registration and startup are unchanged.
 
 Outstanding aliases: none (16b moved without aliases).
 
@@ -512,10 +565,9 @@ Notes for later steps:
   16c decision 1 settles it: staging becomes a provider method behind
   `extension.Stage` and the registry holds the providers directly (done in
   16d.1).
-- 16d.2: `extensionHost` gains the operation and `Host`; `StageCreate` and
-  `StageUpdate` build it once and call `Installer.Stage` and `StagePath`
-  (already in `extension`). `registerExtension` already calls
-  `extension.ValidateActions`.
+- 16d.2 (done): `extensionHost` gained the operation and `Host`;
+  `StageCreate` and `StageUpdate` call `Installer.Stage` and `StagePath` on
+  the stage `BeginStage` returns.
 - 16d, for other Part B steps (14c, 15c, 17c): the staging host shape
   (16c decisions 2 and 3: one root adapter over engine, operation, view and
   stage; not a defined type over `CatalogStage`) applies to any feature

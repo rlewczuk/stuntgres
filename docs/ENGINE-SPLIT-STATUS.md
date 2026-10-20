@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `32c82307e`. The later-wave plans
+Last verified against `master` at `3c6a855bc`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,7 +15,6 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 16 `extension`** — 16d.2, handler decisions (item 51b).
 - **Postponed packages** — planning round (item 54; docs only).
 
 Steps 1, 2 and 4–13 and `access` (A1–B5) are done. Step 13 ended with 13e
@@ -23,6 +22,9 @@ Steps 1, 2 and 4–13 and `access` (A1–B5) are done. Step 13 ended with 13e
 with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
 16c (item 50) is done: 16d runs as 16d.1 and 16d.2 (items 51a, 51b);
 16d.1 (item 51a) is done: the providers stage themselves.
+16d.2 (item 51b) is done: step 16 is complete; the handler decisions sit
+behind `extension.Host` on the root `extensionHost`. Steps 14–17 are done;
+only the planning round of the postponed packages (item 54) remains.
 14d (item 47) is done: step 14 is complete.
 17d (item 53) is done: step 17 is complete.
 15d (item 49) is done: step 15 is complete; the type stage handlers sit
@@ -359,18 +361,20 @@ behind `typedef.StageHost` on `typedefHost`, a defined type over
   - [x] 15d — DDL handlers moved (`b239d72bd`, `6e22f709a`, `2122c7bc2`,
     `37c02a9f6`, `9688a64ac`, then the docs commit) *(racecheck/finalcheck
     skipped at user request)*
-- [ ] **Step 16 — `extension`** ([prompt](ENGINE-SPLIT-extension.md); Part A
+- [x] **Step 16 — `extension`** ([prompt](ENGINE-SPLIT-extension.md); Part A
   needs 15b; Part B needs 13d)
   - [x] 16a — In place (`d0a013406`, `bc0e3d81b`, `54d886952`, `46da1763e`, then the docs commit)
   - [x] 16b — `extension` created and clean set moved (`e6ff96286`,
     `a8f3f5a8e`, `d55a47824`, then the docs commit) *(racecheck/finalcheck
     skipped at user request)*
   - [x] 16c — Host refined (docs only; the docs commit)
-  - [ ] 16d — Installation handlers moved
+  - [x] 16d — Installation handlers moved
     - [x] 16d.1 — Staging behind `extension.Stage`; installers removed
       (`9b88e37b1`, `6ee7b321c`, then the docs commit) *(racecheck/finalcheck
       skipped at user request)*
-    - [ ] 16d.2 — Handler decisions behind `extension.Host`
+    - [x] 16d.2 — Handler decisions behind `extension.Host`
+      (`b1398311f`, `659f7699d`, `ff925b36e`, then the docs commit)
+      *(racecheck/finalcheck skipped at user request)*
 - [x] **Step 17 — `sequence`** ([prompt](ENGINE-SPLIT-sequence.md); Part A
   needs Tier C sequence calls; Part B needs 13d)
   - [x] 17a — In place (`6ab03f25b`, `68d49b5a8`, `88c3aac0f`, `d43c3b1fb`,
@@ -673,15 +677,20 @@ in the prompt file's Status section.
     `extension.Stage`, handler decisions behind `extension.Host`, one root
     adapter `extensionHost`; dispatch and publication stay in the root; no
     aliases
-51. [ ] Extension 16d — [extension](ENGINE-SPLIT-extension.md) 16d · needs
+51. [x] Extension 16d — [extension](ENGINE-SPLIT-extension.md) 16d · needs
     50
     - 51a. [x] 16d.1 staging — [extension](ENGINE-SPLIT-extension.md#16d1--staging-linear-item-51a)
       · needs 50 (`9b88e37b1`, `6ee7b321c`, then the docs commit) · providers
       stage themselves behind `extension.Stage`, root `extensionHost`,
       installers removed · selected unit and dual-mode proof and quickcheck
       passed; bench unchanged; racecheck/finalcheck skipped at user request
-    - 51b. [ ] 16d.2 handlers — [extension](ENGINE-SPLIT-extension.md#16d2--handlers-linear-item-51b)
-      · needs 51a
+    - 51b. [x] 16d.2 handlers — [extension](ENGINE-SPLIT-extension.md#16d2--handlers-linear-item-51b)
+      · needs 51a (`b1398311f`, `659f7699d`, `ff925b36e`, then the docs
+      commit) · `StageCreate`, `StageUpdate`, `DropTargets`, `ImportOwners`
+      and `AuthorityObservation.Current` in `extension` behind `Host` and
+      `Authority`; dispatch, publication and the removal pipeline stay in
+      the root; no aliases · selected unit and dual-mode proof and
+      quickcheck passed; racecheck/finalcheck skipped at user request
 52. [x] Sequence 17c (refine, docs only) —
     [sequence](ENGINE-SPLIT-sequence.md) 17c · needs 44, 31 · (the docs
     commit) · measured at `1f606f52d`: decisions move as pure functions,

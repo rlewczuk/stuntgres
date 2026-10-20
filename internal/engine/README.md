@@ -511,7 +511,12 @@ providers stage themselves (`extension.Installer`) through `extensionHost`
 (`extension_host.go`), the root `extension.Stage` over the engine, the
 captured authorization view and the `CatalogStage`; every call runs under
 `Engine.mu`. The registry and the installed members hold the same stock
-provider. Run `make check RUN='^(TestExtensionHostRefusesDiscardedStage|TestExtensionMembersHoldBareProviders|TestInstalledCodecArrayUsesRegisteredTypeProvider|TestExtensionProviderValidatesOnlyInstalledProcedures)$'`.
+provider. The CREATE, ALTER EXTENSION UPDATE and DROP EXTENSION decisions,
+the owner-import matching and the fence check are `extension` functions too
+(`StageCreate`, `StageUpdate`, `DropTargets`, `ImportOwners`,
+`AuthorityObservation.Current`); `extensionHost` is also their
+`extension.Host`, and the root keeps dispatch, `Engine.mu`, publication and
+the removal pipeline. Run `make check RUN='^(TestExtensionHostRefusesDiscardedStage|TestExtensionHostBeginStageHandsBackRootStage|TestExtensionMembersHoldBareProviders|TestInstalledCodecArrayUsesRegisteredTypeProvider|TestExtensionProviderValidatesOnlyInstalledProcedures)$'`.
 
 ### Expression node runtime and query executor
 

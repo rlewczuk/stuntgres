@@ -3,13 +3,14 @@
 The installed-extension layer that does not need the engine: provider
 records and control data for the seven bundled extensions (cube,
 fuzzystrmatch, intagg, intarray, pgcrypto, unaccent, uuid-ossp), member
-validation, membership, the owner metadata codec used by native Dump, and
-extension remap, and provider staging. Part A of step 16 moved the records
-here and 16d.1 the staging; the CREATE/ALTER/DROP EXTENSION handler
-decisions follow in 16d.2. The package sits
-at layer L10 of
+validation, membership, the owner metadata codec used by native Dump,
+extension remap, provider staging, and the decisions of the CREATE, ALTER
+EXTENSION UPDATE and DROP EXTENSION handlers and of the Restore owner
+import. Part A of step 16 moved the records here, 16d.1 the staging and
+16d.2 the handler decisions. The package sits at layer L10 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
-It imports only `authorization`, `catalog`, `expr`, `functions` (the moved
+It imports only `access` (privilege requirements and the captured view),
+`authorization`, `catalog`, `expr`, `functions` (the moved
 kernels and member tables), `ids`, `parser`, `sqlstate`, `sqltype`, `typedef`
 (the relation type name check of cube and intarray staging) and the standard
 library, and never the engine, `analyze`, `routine` or `plan`. See
@@ -49,20 +50,38 @@ library, and never the engine, `analyze`, `routine` or `plan`. See
   fuzzystrmatch is also an `Updater` (`Updates`, one `UpdateAction` per
   executable version edge). `Actions`, `ValidateActions` (registration
   check) and `StagePath` (runs the update actions along a version path).
+- **Handlers** (`host.go`, `extension_create.go`, `extension_update.go`,
+  `extension_drop.go`, `extension_owner_import.go`): `Host` is the statement
+  host of CREATE and ALTER EXTENSION UPDATE (context, notices, the creation
+  path, the trusted-replay flag, the bootstrap superuser, OID and revision
+  allocation, and `BeginStage`, which begins and authorizes the stage and
+  returns it as a `Stage`). `Authority` is the statement authority
+  (`Check`, `Effective`); the catalog, roles, role state, registry
+  (`Owner.Extensions`) and object domain come from the captured
+  `access.View` passed beside it. `StageCreate` and `StageUpdate` make
+  every decision of the two statements and stage the result, returning nil
+  for a skipped statement (IF NOT EXISTS, already installed version).
+  `DropTargets` selects DROP EXTENSION's targets (notices through a
+  callback). `ImportOwners` applies Restore's owner records to a private
+  clone of the catalog state and reports whether an owner changed.
 - **Owners, remap, errors**: the owner metadata codec (`OwnerMetadata`,
   `DecodeOwners`, `OwnerRecord`, `MemberOwner`, `OwnersMarker`;
   `extension_owners.go`), `RemapDescriptor` (`extension_remap.go`),
   `MemberConflict`, `NameConflict` and `VersionError`
-  (`extension_errors.go`), `AuthorityObservation` and `RemovalRoots`.
+  (`extension_errors.go`), `AuthorityObservation` (its `Current` is the
+publication fence check) and `RemovalRoots`.
 
 ## Invariants
 
 - **No locks, no engine state.** The package has no mutex and reads the
-  catalog only through `catalog.Read` and `Stage`.
-- **Lock contract.** The engine calls `Installer.Stage`, the update actions
-  and `StagePath` with `Engine.mu` held, and its `Stage` implementation
-  (`extensionHost`) runs under that lock too; staging must not call
-  anything that takes it. Allocation and check order are part of the
+  catalog only through `catalog.Read`, `Stage` and the `*catalog.State`
+  values the engine passes (`ImportOwners` writes only its private clone).
+- **Lock contract.** The engine calls `StageCreate`, `StageUpdate`,
+  `DropTargets`, `ImportOwners`, `AuthorityObservation.Current`,
+  `Installer.Stage`, the update actions and `StagePath` with `Engine.mu`
+  held, and its `Host` and `Stage` implementation (`extensionHost`) runs
+  under that lock too; nothing here may call anything that takes it.
+  Provider validation (`ValidateExtension`) runs later, outside the lock. Allocation and check order are part of the
   output: installed OIDs, revisions and the first error must not change.
 - **Immutable stock providers.** The stock instances are never mutated;
   `Control` and `Versions` return detached copies.
@@ -77,10 +96,16 @@ library, and never the engine, `analyze`, `routine` or `plan`. See
 
 ## What stays in the engine
 
-The `extension.Stage` adapter `extensionHost` (`extension_host.go`); the
-handlers and registration (`extension_install.go`, `extension_update.go`,
-`extension_drop.go`, `extension_owner_import.go`; their decisions move in
-16d.2); `procedureProvider` (builtin, SQL, foreign and conversion routine
+The `extension.Host` and `extension.Stage` adapter `extensionHost`
+(`extension_host.go`, with `stageOf`, which gives the root its
+`CatalogStage` back); registration (`registerExtension`, the startup list in
+`engine.go`); the orchestration of the handlers (`extension_install.go`,
+`extension_update.go`, `extension_drop.go`, `extension_owner_import.go`):
+argument count, `Engine.mu`, authorization capture, publication
+(`publishExtensionStage`), DROP's removal pipeline and its multi-target
+2BP01 text and cascade notice, and the owner import's authority check,
+clone, expression reown and publish; the fence wrapper
+`extensionAuthorityFence`; `procedureProvider` (builtin, SQL, foreign and conversion routine
 validation, a `routine` candidate); `namespaceChildren` and
 `database_grant.go` (`procedureInNamespaces` is `analyze.ProcedureInNamespaces`); the installed expression
 wrappers and the `pg_extension_update_paths` node, which move with `plan`;
@@ -92,7 +117,7 @@ The package has no unit tests of its own: every witness needs an engine
 that installs the extension. Engine witnesses:
 
 ```sh
-make check RUN='^(TestExtensionHostRefusesDiscardedStage|TestExtensionMembersHoldBareProviders|TestExtensionProviderIdentity|TestInstalledCodecArrayUsesRegisteredTypeProvider|TestExtensionProviderValidatesOnlyInstalledProcedures|TestExtensionOwnerManifestAdmission|TestPgcryptoOwnerMetadata|TestExtensionVersionGraph)$'
+make check RUN='^(TestExtensionHostRefusesDiscardedStage|TestExtensionHostBeginStageHandsBackRootStage|TestExtensionMembersHoldBareProviders|TestExtensionProviderIdentity|TestInstalledCodecArrayUsesRegisteredTypeProvider|TestExtensionProviderValidatesOnlyInstalledProcedures|TestExtensionOwnerManifestAdmission|TestPgcryptoOwnerMetadata|TestExtensionVersionGraph)$'
 ```
 
 Public behavior is covered by the CREATE/ALTER/DROP EXTENSION, extension
