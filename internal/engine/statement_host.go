@@ -4,6 +4,10 @@ import (
 	"context"
 	"time"
 
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
@@ -24,6 +28,11 @@ type execHost interface {
 	Context() context.Context
 	Environments() (sqltype.InputEnvironment, sqltype.OutputEnvironment)
 	StatementStart() time.Time
+
+	// Row locks: lock waits and current row versions at grant time.
+	AcquireQueryRow(leaf queryLeaf, row ids.RowID, mark plan.RowMark) (bool, error)
+	LatestQueryRow(leaf queryLeaf, candidate storage.RowVersion, hint int, mode lock.Mode) (storage.RowVersion, bool, error)
+	QueryLocks() *queryLockContext
 
 	presentationFormatters
 }
@@ -67,6 +76,9 @@ func (h *statementHost) Environments() (sqltype.InputEnvironment, sqltype.Output
 	return h.input, h.output
 }
 func (h *statementHost) StatementStart() time.Time { return h.statementStart }
+
+// QueryLocks is the statement's row-lock context, read at recheck time.
+func (h *statementHost) QueryLocks() *queryLockContext { return h.queryLocks }
 
 func (h *statementHost) FormatRegclass(id uint32) (string, error) {
 	return h.scope().FormatRegclass(id)

@@ -466,7 +466,7 @@ func recheckLockedSource(source *querySource, rows [][]sqltype.Value, evaluation
 		return frame, true, nil
 	}
 	if source.lineage != nil {
-		if !changedQueryLockSource(source.lineage.stage, evaluation.liveScope().queryLocks) {
+		if !changedQueryLockSource(source.lineage.stage, evaluation.liveHost().QueryLocks()) {
 			return source.row(source.lineage.currentIndex), true, nil
 		}
 		child := *evaluation
@@ -491,7 +491,7 @@ func recheckLockedSource(source *querySource, rows [][]sqltype.Value, evaluation
 	return rows[source.occurrence], true, nil
 }
 func recheckLockedQuery(node plan.Node, inputs *querySource, rows [][]sqltype.Value, evaluation *EvalContext, scratch []sqltype.Value, offset *int, frozen []sqltype.Value) ([]sqltype.Value, bool, error) {
-	if absentLockedQuery(node, inputs, evaluation.liveScope().queryLocks) {
+	if absentLockedQuery(node, inputs, evaluation.liveHost().QueryLocks()) {
 		return nil, true, nil
 	}
 	switch n := node.(type) {
@@ -580,8 +580,8 @@ func recheckLockedQuery(node plan.Node, inputs *querySource, rows [][]sqltype.Va
 		}
 		frame := scratch[*offset : *offset+len(n.Schema())]
 		*offset += len(frame)
-		leftAbsent := absentLockedQuery(n.Left, inputs, evaluation.liveScope().queryLocks)
-		rightAbsent := absentLockedQuery(n.Right, inputs, evaluation.liveScope().queryLocks)
+		leftAbsent := absentLockedQuery(n.Left, inputs, evaluation.liveHost().QueryLocks())
+		rightAbsent := absentLockedQuery(n.Right, inputs, evaluation.liveHost().QueryLocks())
 		if leftAbsent {
 			for i := range n.LeftWidth {
 				frame[i] = sqltype.Null(n.Schema()[i].Usage.Type)
@@ -649,8 +649,8 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node plan.Node, 
 	out.source, out.expressions, out.evaluation = source, child.expressions, child.evaluation
 	out.pending = nil
 	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
-		scope := state.source.liveScope()
-		if scope == nil {
+		host := state.source.liveHost()
+		if host == nil {
 			return false, fmt.Errorf("stuntgres: missing row locking scope")
 		}
 		for {
@@ -686,7 +686,7 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node plan.Node, 
 					continue
 				}
 				candidate := locator.version
-				acquired, err := scope.acquireQueryRow(locator.leaf, candidate.Row, mark)
+				acquired, err := host.AcquireQueryRow(locator.leaf, candidate.Row, mark)
 				if err != nil {
 					return false, err
 				}
@@ -694,7 +694,7 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node plan.Node, 
 					live = false
 					break
 				}
-				current, present, err := scope.latestQueryRow(locator.leaf, candidate, locator.hint, mark.Mode)
+				current, present, err := host.LatestQueryRow(locator.leaf, candidate, locator.hint, mark.Mode)
 				if err != nil {
 					return false, err
 				}

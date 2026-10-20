@@ -106,7 +106,10 @@ func appendQueryProvenance(dst []int, source *querySource, index int) []int {
 
 // The source manifest, not target-only DML authority or a re-resolved name,
 // identifies each grant. Waiting shares the existing journal/deadline machinery.
-func (s *StatementScope) acquireQueryRow(leaf queryLeaf, row ids.RowID, mark plan.RowMark) (bool, error) {
+// It may block in the lock manager: the replacement read lock is released
+// across the wait and retaken for implicit statements, then Engine.mu is taken.
+func (h *statementHost) AcquireQueryRow(leaf queryLeaf, row ids.RowID, mark plan.RowMark) (bool, error) {
+	s := h.scope()
 	if err := s.active(); err != nil {
 		return false, err
 	}
@@ -149,7 +152,10 @@ func (s *StatementScope) acquireQueryRow(leaf queryLeaf, row ids.RowID, mark pla
 	return err == nil, err
 }
 
-func (s *StatementScope) latestQueryRow(leaf queryLeaf, candidate storage.RowVersion, hint int, mode lock.Mode) (result storage.RowVersion, present bool, err error) {
+// LatestQueryRow takes Engine.mu for the current version and records the
+// physical row event after releasing it.
+func (h *statementHost) LatestQueryRow(leaf queryLeaf, candidate storage.RowVersion, hint int, mode lock.Mode) (result storage.RowVersion, present bool, err error) {
+	s := h.scope()
 	e := s.op.session.Engine()
 	var physical storage.RowVersion
 	defer func() {
@@ -199,7 +205,7 @@ func (s *StatementScope) latestQueryRow(leaf queryLeaf, candidate storage.RowVer
 }
 
 func openRowLockNode(ctx context.Context, state *queryState, n *plan.RowLockNode) (indexedStage, error) {
-	if state.source.liveScope() == nil {
+	if state.source.liveHost() == nil {
 		return indexedStage{}, fmt.Errorf("stuntgres: missing row locking scope")
 	}
 	previous := state.locking
