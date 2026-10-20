@@ -70,13 +70,6 @@ func stageExtensionPath(ctx context.Context, e *Engine, stage *CatalogStage, imp
 	return nil
 }
 
-func extensionVersionError(version string) error {
-	if detail := catalog.ExtensionNameDetail(version, true); detail != "" {
-		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid extension version name: "%s"`, version), Detail: detail}
-	}
-	return nil
-}
-
 func (e *Engine) executeExtensionUpdate(scope *StatementScope, s *parser.AlterExtensionUpdate, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)

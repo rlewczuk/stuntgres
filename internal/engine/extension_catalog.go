@@ -2,7 +2,6 @@ package engine
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -241,76 +240,4 @@ func extensionMembership(d catalog.Descriptor) ids.ObjectAddress {
 		return d.Extension
 	}
 	return ids.ObjectAddress{}
-}
-
-// Namespace retirement owns complete installations by their real target, not
-// by the extension's database-wide name or generic Namespace field.
-func namespaceChildren(base catalog.Read, namespaces map[ids.ObjectAddress]bool) ([]ids.ObjectAddress, error) {
-	selected := make(map[ids.ObjectAddress]bool)
-	for address, descriptor := range base.Descriptors() {
-		if namespaces[descriptor.Namespace()] {
-			selected[address] = true
-		}
-		if extension, ok := descriptor.(*catalog.Extension); ok && namespaces[extension.TargetNamespace] {
-			selected[address] = true
-			for _, member := range extension.Members {
-				d := base.Get(member)
-				if d == nil || d.Namespace() != extension.TargetNamespace || extensionMembership(d) != address {
-					return nil, fmt.Errorf("stuntgres: invalid namespace extension membership")
-				}
-				selected[member] = true
-			}
-		}
-	}
-	children := make([]ids.ObjectAddress, 0, len(selected))
-	for address := range selected {
-		children = append(children, address)
-	}
-	sort.Slice(children, func(i, j int) bool {
-		if children[i].ClassID != children[j].ClassID {
-			return children[i].ClassID < children[j].ClassID
-		}
-		return children[i].ObjectID < children[j].ObjectID
-	})
-	return children, nil
-}
-
-func procedureInNamespaces(catalog catalog.Read, path namespaceSelection, name string, signature catalog.ProcedureSignature) *catalog.Procedure {
-	for i := range path.count() {
-		address := catalog.NameAddress(ids.NameKey{ClassID: ids.ProcedureClassID, Namespace: path.at(i), Name: name, Signature: string(signature)})
-		if address != (ids.ObjectAddress{}) {
-			procedure, _ := catalog.Procedure(address)
-			return procedure
-		}
-	}
-	return nil
-}
-
-func (p *unaccentProvider) ValidateExtension(v catalog.Read, d *catalog.Extension) error {
-	invalid := func() error { return fmt.Errorf("stuntgres: invalid unaccent manifest") }
-	if p != stockUnaccent || len(d.Members) != 6 {
-		return invalid()
-	}
-	classes := [6]ids.OID{ids.ProcedureClassID, ids.ProcedureClassID, ids.ProcedureClassID, ids.ProcedureClassID, ids.TSTemplateClassID, ids.TSDictionaryClassID}
-	for i, member := range d.Members {
-		if member.ClassID != classes[i] {
-			return invalid()
-		}
-	}
-	signatures := [4]catalog.ProcedureSignature{catalog.UnaccentDictionarySignature, catalog.UnaccentTextSignature, catalog.UnaccentInitSignature, catalog.UnaccentLexizeSignature}
-	for i, signature := range signatures {
-		proc, ok := v.Procedure(d.Members[i])
-		if !ok || proc.Signature != signature || proc.Implementation != p {
-			return invalid()
-		}
-	}
-	tmpl, ok := v.TSTemplate(d.Members[4])
-	if !ok || tmpl.Init != d.Members[2] || tmpl.Lexize != d.Members[3] || unaccentTemplateProviderOf(tmpl) != p {
-		return invalid()
-	}
-	dict, ok := v.TSDictionary(d.Members[5])
-	if !ok || dict.Template != d.Members[4] || unaccentDictionaryProviderOf(dict) != p {
-		return invalid()
-	}
-	return nil
 }

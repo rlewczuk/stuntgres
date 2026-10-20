@@ -11,24 +11,6 @@ func intaggDefinition(function, transition, final ids.OID) catalog.AggregateDefi
 	return catalog.AggregateDefinition{Function: function, Kind: "n", Functions: [8]ids.OID{transition, final}, FinalModify: "r", MovingFinalModify: "r", TransitionType: 2281}
 }
 
-// A helper's dependencies are dependencies on this real aggregate descriptor,
-// never invented ObjectRefs for metadata-only identities.
-func routineDescriptorOwner(view catalog.Read, id ids.OID) *catalog.Procedure {
-	if p, ok := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}); ok {
-		return p
-	}
-	for _, d := range view.Descriptors() {
-		if p, ok := d.(*catalog.Procedure); ok && p.Aggregate != nil {
-			for _, helper := range p.Aggregate.Helpers {
-				if helper.ID == id {
-					return p
-				}
-			}
-		}
-	}
-	return nil
-}
-
 func validateOwnedAggregate(view catalog.Read, proc *catalog.Procedure) error {
 	invalid := func() error { return fmt.Errorf("stuntgres: invalid intagg aggregate metadata") }
 	if proc.Name() != "int_array_aggregate" {

@@ -5,7 +5,6 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/parser"
 )
 
 // Occurrences use the same normalized structural paths as frozen literal and
@@ -16,20 +15,6 @@ func (b *expressionBinder) captureIntaggReference(path viewLiteralPath, proc *ca
 		return err
 	}
 	return b.capture.captureRoutineReference(path, ref)
-}
-
-func intaggRecipeFunction(raw parser.Expr) string {
-	switch call := raw.(type) {
-	case parser.AggregateExpr:
-		if call.Name == "int_array_aggregate" {
-			return call.Name
-		}
-	case parser.FunctionExpr:
-		if len(call.Name.Parts) != 0 && call.Name.Parts[len(call.Name.Parts)-1].Text == "int_array_enum" {
-			return "int_array_enum"
-		}
-	}
-	return ""
 }
 
 func (v *viewDefinition) intaggRecipeProcedure(catalog catalog.Read, path viewLiteralPath, name string) (*catalog.Procedure, error) {
