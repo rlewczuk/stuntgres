@@ -353,6 +353,7 @@ func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement,
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.Session)
+	host := schemaHost{e: e, op: op, stage: stage}
 	databaseGate := func() error {
 		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), catalog.CurrentDatabaseAddress)
 		rights, err := auth.Effective(ref, false)
@@ -414,19 +415,19 @@ func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement,
 			return nil, err
 		}
 	case *parser.CreateFunction:
-		if err = e.stageCreateFunctionLocked(op, auth, stage, s, input); err != nil {
+		if err = stageCreateFunction(host, auth, s, input); err != nil {
 			return nil, err
 		}
 	case *parser.CreateOperator:
-		if err = e.stageCreateOperatorLocked(op, auth, stage, s); err != nil {
+		if err = stageCreateOperator(host, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.AlterOperator:
-		if err = e.stageAlterOperatorLocked(op, auth, stage, s); err != nil {
+		if err = stageAlterOperator(host, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.DropOperator:
-		if err = e.stageDropOperatorLocked(op, auth, stage, s); err != nil {
+		if err = stageDropOperator(host, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateDomain:

@@ -15,7 +15,7 @@ func TestUserOperatorCatalogEstimatorReleasedIdentity(t *testing.T) {
 		join bool
 		want ids.OID
 	}{{"eqsel", false, 101}, {"eqjoinsel", true, 105}} {
-		id, err := e.operatorEstimator(auth, operatorUnitName("pg_catalog", tc.name), tc.join)
+		id, err := operatorEstimator(schemaHost{e: e}, auth, operatorUnitName("pg_catalog", tc.name), tc.join)
 		if err != nil || id != tc.want || routine.ReleasedOperatorEstimatorResult(id) != 701 {
 			t.Fatal(id, err)
 		}

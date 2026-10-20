@@ -28,7 +28,7 @@ func operatorUnitStage(t *testing.T, e *Engine, op *session.Operation, auth Auth
 	t.Helper()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	e.mu.Lock()
-	err := e.stageCreateOperatorLocked(op, auth, stage, s)
+	err := stageCreateOperator(schemaHost{e: e, op: op, stage: stage}, auth, s)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -67,7 +67,7 @@ func TestUserOperatorCatalogShellCompletion(t *testing.T) {
 	bad.Options = append(bad.Options, parser.OperatorOption{Name: "negator", HasValue: true, Kind: parser.OperatorOptionNameArgument, Reference: operatorUnitName("public", "#@#")})
 	stage = e.BeginCatalogStage(auth.Catalog)
 	e.mu.Lock()
-	err := e.stageCreateOperatorLocked(op, auth, stage, bad)
+	err := stageCreateOperator(schemaHost{e: e, op: op, stage: stage}, auth, bad)
 	e.mu.Unlock()
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "42P13" || d.Message != "only boolean operators can have negators" {
@@ -516,7 +516,7 @@ func TestUserOperatorCatalogExactUtilityLifecycle(t *testing.T) {
 	collationUnitPublish(t, e, stage)
 	auth.Recapture(e.CatalogRead())
 	signature := parser.OperatorSignature{Name: create.Name, Left: parser.TypeName{Name: "int4"}, Right: parser.TypeName{Name: "int4"}}
-	d, err := e.findUtilityOperator(op, auth, signature)
+	d, err := findUtilityOperator(schemaHost{e: e, op: op}, auth, signature)
 	if err != nil {
 		t.Fatal("exact utility lookup", err)
 	}
@@ -526,7 +526,7 @@ func TestUserOperatorCatalogExactUtilityLifecycle(t *testing.T) {
 	base := auth.Catalog.State()
 	stage = e.BeginCatalogStage(auth.Catalog)
 	e.mu.Lock()
-	err = e.stageCreateOperatorLocked(op, auth, stage, create)
+	err = stageCreateOperator(schemaHost{e: e, op: op, stage: stage}, auth, create)
 	e.mu.Unlock()
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42723" || diagnostic.Message != "operator #=# already exists" {
@@ -537,7 +537,7 @@ func TestUserOperatorCatalogExactUtilityLifecycle(t *testing.T) {
 	}
 	stage = e.BeginCatalogStage(auth.Catalog)
 	e.mu.Lock()
-	err = e.stageAlterOperatorLocked(op, auth, stage, &parser.AlterOperator{Signature: signature, Action: "options", Options: []parser.OperatorOption{{Name: "hashes", HasValue: true, Kind: parser.OperatorOptionStringArgument, Value: "true"}}})
+	err = stageAlterOperator(schemaHost{e: e, op: op, stage: stage}, auth, &parser.AlterOperator{Signature: signature, Action: "options", Options: []parser.OperatorOption{{Name: "hashes", HasValue: true, Kind: parser.OperatorOptionStringArgument, Value: "true"}}})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal("exact ALTER lookup", err)
@@ -549,7 +549,7 @@ func TestUserOperatorCatalogExactUtilityLifecycle(t *testing.T) {
 		t.Fatal("ALTER must preserve identity and immutable predecessor", altered, d)
 	}
 	stage = e.BeginCatalogStage(auth.Catalog)
-	if err := e.stageDropOperatorLocked(op, auth, stage, &parser.DropOperator{Signatures: []parser.OperatorSignature{signature}}); err != nil {
+	if err := stageDropOperator(schemaHost{e: e, op: op, stage: stage}, auth, &parser.DropOperator{Signatures: []parser.OperatorSignature{signature}}); err != nil {
 		t.Fatal("exact DROP lookup", err)
 	}
 	if len(stage.domainTargets) != 1 || stage.domainTargets[0] != d.Address() {
@@ -612,7 +612,7 @@ func TestUserOperatorCatalogDropClosureRootsAndLinks(t *testing.T) {
 		return parser.OperatorSignature{Name: operatorUnitName("public", name), Left: parser.TypeName{Name: "int4"}, Right: parser.TypeName{Name: "int4"}}
 	}
 	stage = e.BeginCatalogStage(auth.Catalog)
-	if err := e.stageDropOperatorLocked(op, auth, stage, &parser.DropOperator{Signatures: []parser.OperatorSignature{signature("#!#"), signature("#~#"), signature("#!#")}}); err != nil {
+	if err := stageDropOperator(schemaHost{e: e, op: op, stage: stage}, auth, &parser.DropOperator{Signatures: []parser.OperatorSignature{signature("#!#"), signature("#~#"), signature("#!#")}}); err != nil {
 		t.Fatal(err)
 	}
 	if len(stage.domainTargets) != 2 {
