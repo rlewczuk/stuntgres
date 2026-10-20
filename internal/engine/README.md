@@ -89,8 +89,9 @@ split evidence lives in
 `functions` owns the ten immutable inquiry/identity nodes, their binders,
 registry definitions and node-owned protocols, including all seven visibility
 kinds and twelve deparse signatures. Keyword identity keeps its distinct parser
-route. `catalog_inquiry_runtime.go` and `session_inquiry_runtime.go` implement
-the narrow functions capabilities on `*EvalContext`, not forwarding engine nodes.
+route. `catalog_inquiry_runtime.go` and `session_inquiry_runtime.go` hold the
+`statementHost` bodies behind the narrow functions capabilities that
+`exec.Context` forwards, not forwarding engine nodes.
 The leaf imports no engine/catalog/storage/lock/visibility state packages.
 
 Engine retains SQL-callable precedence, analyzer/coercion authority, statement
@@ -506,18 +507,20 @@ class and delegates installed members to `extension.CatalogProvider`. Each
 it; the registry holds the installers and installed members hold the bare
 provider. Run `make check RUN='^(TestExtensionMembersHoldBareProviders|TestInstalledCodecArrayUsesRegisteredTypeProvider|TestExtensionProviderValidatesOnlyInstalledProcedures)$'`.
 
-### Expression node runtime
+### Expression node runtime and query executor
 
 The plan IR and the expression node types live in
 [`plan`](plan/README.md), which documents the `plan.Runtime` capability.
-`*EvalContext` is its only implementation (`node_runtime.go`): it holds the
-shared prologue and the `Eval*` bodies of the frame and executor nodes. The
-engine names the `plan` types directly. A data-modifying CTE carries
-its binding as the opaque `plan.CTEMutation`, recovered only through
-`mutationBinding`. The installed extension routine nodes and the
+The query executor and `*exec.Context`, its only implementation, live in
+[`exec`](exec/README.md): the shared prologue, the `Eval*` bodies, the node
+openers, row-lock arbitration and the cursors. The engine implements
+`exec.Host` on `statementHost` and installs `enginePreparation`; until step
+11d it names the moved types through `exec_aliases.go`. A data-modifying
+CTE carries its binding as the opaque `plan.CTEMutation`, recovered only
+through `mutationBinding`. The installed extension routine nodes and the
 `pg_extension_update_paths` node live in `plan` too; their provider
-validators (`validInstalledText`, `validateInstalled*`) stay here, beside
-`EvalInstalledText` and `OpenExtensionPaths`.
+validators (`validInstalledText`, `validateInstalled*`) stay here, and
+`exec` reaches `validInstalledText` through the preparation value.
 
 Run `make check RUN='^TestNodeRuntimePrologue$'` for the prologue seam; public
 evaluation proof is the existing query, CTE, RETURNING, MERGE, window,

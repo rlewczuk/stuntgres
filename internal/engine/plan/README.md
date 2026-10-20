@@ -1,10 +1,10 @@
 # internal/engine/plan
 
 The logical plan IR and the engine's concrete expression node types. Binding
-builds these closed, immutable trees; execution opens and evaluates them in
-the engine. Node `Eval` methods never name engine state: they use
+builds these closed, immutable trees; [`exec`](../exec/README.md) opens and
+evaluates them. Node `Eval` methods never name engine state: they use
 `expr.Context`, or the `Runtime` capability declared here and implemented by
-the engine's evaluation context. The package sits at layer L6 of
+`exec.Context`. The package sits at layer L6 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports only `catalog`, `expr`, `functions`, `ids`, `lock`, `parser`,
 `sqlstate`, `sqltype` and the standard library, and never the engine. See
@@ -44,12 +44,19 @@ It imports only `catalog`, `expr`, `functions`, `ids`, `lock`, `parser`,
   identity against the extension providers.
 - **Three-valued logic** (`expression.go`): `Truth`, `True`, `False`,
   `Unknown` and `TruthOf`.
+- **Walkers** shared by binding and execution: `WalkExpression`,
+  `ExpressionChildren`, `WalkDemandedExpression` and
+  `LiteralSearchedCaseMatch` (`expression_walk.go`);
+  `RewriteQueryExpressions`, `VisitExecutableQuery`, `VisitCTEQuery`,
+  `QueryInputs` and `QueryExpressions` (`query_walk.go`);
+  `FunctionFromConjuncts`, `FunctionFromRestriction`,
+  `PartitionFunctionConjuncts` and `JoinExpressionSides`
+  (`function_from_filter.go`).
 
 ## Node runtime
 
 `Runtime` (`runtime.go`) embeds `expr.Context` and is the only capability a
-node evaluation needs beyond it. The engine's `*EvalContext` is its only
-implementation.
+node evaluation needs beyond it. `*exec.Context` is its only implementation.
 
 - `BeginEvaluation` is the shared prologue: missing-context check,
   domain-check wiring while a domain value is active, then cancellation,
@@ -64,11 +71,11 @@ implementation.
   `EvalGrouping`, `EvalTableOID`, `EvalReturningColumn`,
   `EvalReturningWholeRow`, `EvalMergeAction`, `EvalCachedOrder`,
   `EvalWindow`, `EvalDomainValue`, `EvalUpdateOutput`, `EvalSubquery`,
-  `EvalSQLRoutine`) holds that node's evaluation body in the engine.
+  `EvalSQLRoutine`) holds that node's evaluation body in `exec`.
 - `EvalInstalledText` runs the prologue, checks the captured provider and
   evaluates the kernel; `OpenExtensionPaths` lists the named extension's
-  version pairs from the live catalog. Both stay in the engine because they
-  read the extension providers.
+  version pairs from the live catalog. The provider check and the catalog
+  read stay in the engine, behind `exec`'s preparation value and host.
 
 Statement-only nodes run the prologue and then read `FunctionContext()`,
 `FunctionInput()` and `FunctionOutput()`; frame and executor nodes delegate
@@ -90,16 +97,17 @@ their whole `Eval` to the runtime.
   payload that plan code only tests for presence; the engine recovers the
   analyzed statement through its `mutationBinding`.
 
-## What stays in the engine
+## What stays outside
 
-`EvalContext` and the `Eval*` bodies; `openQueryNode` and the node openers
-(including `openFunctionCall`); `queryState`, `querySource`,
-`indexedStage`, `finalRows`; `RowCursor` and `RowResult`; the binder that
-constructs the nodes; the central switches that list node types (deparse,
-remap, retag, conditional planning, query walks, join legality, aggregate
-binding, defaults); the installed-node validators (`validInstalledText`,
-`validateInstalled*`, `closedPgcryptoDefault`) and `bindExtensionPaths`.
-The engine names the types here directly; no aliases remain.
+Execution lives in [`exec`](../exec/README.md): the evaluation context and
+the `Eval*` bodies, `OpenNode` and the node openers (including
+`OpenFunctionCall`), the runtime records, `RowCursor` and `RowResult`. The
+engine keeps the binder that constructs the nodes; the central switches
+that list node types (deparse, remap, retag, conditional planning, join
+legality, aggregate binding, defaults); the installed-node validators
+(`validInstalledText`, `validateInstalled*`, `closedPgcryptoDefault`) and
+`bindExtensionPaths`. The engine names the types here directly; no aliases
+remain.
 
 ## Testing
 

@@ -36,8 +36,8 @@ it has no shared state and no mutex.
 
 ## `Context` capability groups
 
-`Context` is the evaluation runtime visible outside the engine. The engine's
-`*EvalContext` is its only implementation. Every method is a per-evaluation
+`Context` is the evaluation runtime visible outside the engine.
+`*exec.Context` ([`exec`](../exec/README.md)) is its only implementation. Every method is a per-evaluation
 capability of the current statement; none may be backed by a global or
 package-level variable. Evaluation always receives a non-nil `Context`.
 
@@ -281,13 +281,13 @@ asks `ResultNullability` without requiring Composite membership.
 
 ## What stays in the engine
 
-`EvalContext` and its private state, and binding. The concrete nodes
+Binding. The evaluation context lives in [`exec`](../exec/README.md). The concrete nodes
 (column, parameter, coercion, CASE, row, subquery and the rest) and the plan
 IR live in [`plan`](../plan/README.md); they recover the `plan.Runtime`
 capability from the `Context` they receive: statement-only nodes run its
 prologue and then use this `Context`'s environments; frame and executor
-nodes delegate to its `Eval*` methods, whose bodies stay in the engine. No
-node recovers `*EvalContext`; the installed extension nodes use runtime
+nodes delegate to its `Eval*` methods, whose bodies live in `exec`. No
+node recovers `*exec.Context`; the installed extension nodes use runtime
 methods too.
 Catalog/session function nodes instead live in `functions` and recover its
 CatalogInquiryRuntime/SessionInquiryRuntime from this Context. Those finite

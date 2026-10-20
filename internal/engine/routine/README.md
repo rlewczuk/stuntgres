@@ -72,7 +72,7 @@ Part B, 14c/14d), the catalog writes that install the seed
 `operator_binding.go`, `operator_routine_binding.go`; step 12), routine call
 admission (`routine_admission.go`, `routine_body_admission.go`,
 `routine_program.go`, `routine_inquiry.go`; step 11),
-`EvalContext.selectExpressionRecipe`, `dropProvider.clearOperatorLinks`,
+`selectExpressionRecipe`, `dropProvider.clearOperatorLinks`,
 `procedureReturnsSet` (it needs the intagg extension provider, step 16), and
 operator dump rendering (`operator_dump.go`), which needs the engine's dump
 graph and type-declaration rendering until a dump seam exists.

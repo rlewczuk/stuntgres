@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `12d7ef8b9`. The later-wave plans
+Last verified against `master` at `21fce56f1`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,12 +15,14 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 11 `exec`** — 11c `exec` created and executor moved (item 37)
-  **broad**; 11a and 11b are done.
+- **Step 11 `exec`** — 11d aliases removed (item 38) **broad**; 11a–11c
+  are done.
+- **Step 12 `analyze`** — 12d (item 40) **broad**, several sessions;
+  12a–12c are done. Items 38 and 40 are both broad: run them one after the
+  other.
 
-Step 12's 12a–12c are done; 12d (item 40) waits for 11c (item 37).
 Steps 1, 2 and 4–10 and `access` are done. Step 13's in-place untangling (13a,
-13b) is done; 13c (item 43) waits for 11c (item 37) and 12d (item 40). Step 16
+13b) is done; 13c (item 43) waits for 12d (item 40). Step 16
 Part A (16a, 16b) is done; 16c (item 50) waits for 13d (item 44). Step 17 Part
 A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
 
@@ -263,7 +265,9 @@ A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
     `f205fff26`, `53c9ff63e`, `6071a1cc4`, `0a3e5e602`, `ccb197d87`,
     `e2d780fc6`, then the docs commit) *(racecheck/finalcheck skipped at user
     request)*
-  - [ ] 11c — `exec` created and executor moved *(broad)*
+  - [x] 11c — `exec` created and executor moved *(broad)* (`45af3aed4` …
+    `2e68cbd93`, then the docs commit) *(racecheck/finalcheck skipped at
+    user request)*
   - [ ] 11d — Aliases removed *(broad)*
 - [ ] **Step 12 — `analyze`** ([prompt](ENGINE-SPLIT-analyze.md); 12a–12b
   need —; 12c needs 10c; 12d needs 11c)
@@ -485,7 +489,10 @@ in the prompt file's Status section.
     (`220b72d76` … `e2d780fc6`, then the docs commit) · selected dual-mode
     proof and quickcheck passed; racecheck/finalcheck skipped at user
     request; preparation callbacks use one stateless value, not the host
-37. [ ] Exec 11c — [exec](ENGINE-SPLIT-exec.md) 11c · needs 36 · **broad**
+37. [x] Exec 11c — [exec](ENGINE-SPLIT-exec.md) 11c · needs 36 · **broad**
+    (`45af3aed4` … `2e68cbd93`, then the docs commit) · selected dual-mode
+    proof and quickcheck passed; racecheck/finalcheck skipped at user
+    request; exec stays below the feature packages
 38. [ ] Exec 11d — [exec](ENGINE-SPLIT-exec.md) 11d · needs 37 · **broad**
 39. [x] Analyze 12c (refine, then host seam) —
     [analyze](ENGINE-SPLIT-analyze.md) 12c · needs 21, 33 · (refine

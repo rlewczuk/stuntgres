@@ -1,0 +1,151 @@
+# internal/engine/exec
+
+The query executor runtime and the concrete evaluation context. It opens
+bound `plan` trees over captured sources, produces rows, arbitrates row
+locks and evaluates expressions. It reaches statement, session and engine
+state only through one host interface and one installed preparation value,
+both implemented by the root engine. The package sits at layer L7 of
+[ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
+It imports `plan`, `expr`, `functions`, `catalog`, `storage`, `visibility`,
+`lock`, `ids`, `proc`, `authorization`, `parser`, `sqltype`, `sqlstate` and
+the standard library, and never the engine, `analyze` or `session`. See
+[ENGINE-SPLIT-exec.md](../../../docs/ENGINE-SPLIT-exec.md) (step 11).
+
+## What it owns
+
+- **Runtime records** (`query.go`, `query_sources.go`, `query_locks.go`):
+  `Source` (a captured relation or composite source with its versions,
+  visibility and back-pointers), `State` (one query invocation), `Stage`
+  (an indexed producer stage), `FinalRows`, `Authority` (the borrowed
+  statement authority a held cursor keeps), `Leaf`, `LockContext`,
+  inheritance segments and physical rows.
+- **Openers and producers** (`query*.go`, `window*_query.go`,
+  `aggregate_query.go`, `view_producer.go`): `OpenNode` dispatches every
+  plan node; `Finalize` and `FinalizeSelect` (with the parallel finalizer)
+  turn a root into a `RowResult`. CTE scans and invocations
+  (`CTEInvocation`, `CTEProducer`), set operations, recursive unions, set
+  lowering validators, windows, aggregates, DISTINCT, LIMIT/FETCH WITH TIES,
+  subqueries and their presence rows.
+- **Row locks** (`query_locks.go`, `query_pending_locks.go`,
+  `query_lock_order.go`, `query_lock_versions.go`): view-row arbitration,
+  recheck of locked rows against the join and filter predicates, pending
+  marks and locked-order refresh.
+- **Sources outside the heap**: the foreign scan stage and its owner
+  (`foreign_scan.go`, `foreign_values.go`, `fdw_error.go`) and the
+  `pg_sequences` stage with its predicate admission
+  (`query_pg_sequences_admission.go`).
+- **Cursors** (`query.go`): `RowCursor` and `RowResult`; the driver reads
+  results through them.
+- **Evaluation context** (`context*.go`, `node_runtime.go`, `aggregate.go`):
+  `Context` with its `EvalFrame`, `EvalStatement` and `EvalAdmission`
+  groups. It implements `expr.Context`, `plan.Runtime`, the seven
+  `functions` runtimes, `sqltype.DomainCheckEvaluator` and the
+  `pgcatalog` ACL inquiry. The `Eval*` bodies and frame reads live here;
+  capability methods forward to the host.
+- **Seams**: `Host` and `PresentationFormatters` (`host.go`),
+  `DetachedPresentation` (`detached_presentation.go`), `Preparation` and
+  `InstallPreparation` (`preparation.go`), and the opaque admission slots
+  `AdmissionAuthority` and `AdmissionProgram` (`context_admission.go`).
+
+## The host
+
+`Host` (`host.go`) lists every method with its group. The engine
+implements it on `statementHost`, a defined type over `StatementScope`.
+
+| Group | Methods | Lock and lifetime contract |
+|---|---|---|
+| Environment | `Context`, `Environments`, `StatementStart`, `CTEInvocation` | Read where the runtime reads them; a held cursor detaches the host between fetches. |
+| Presentation | the nine `sqltype` formatters | Read the statement's comment/deparse snapshot. With no host, output uses `DetachedPresentation`, which owns the missing-snapshot messages. |
+| Row locks | `AcquireQueryRow`, `LatestQueryRow`, `QueryLocks` | `AcquireQueryRow` may block in the lock manager; it releases the replacement read lock across the wait (retaking it for implicit statements), then takes `Engine.mu`. `LatestQueryRow` takes `Engine.mu` and records the physical row event after releasing it. |
+| Foreign owner | `ReleaseReplacementRead`, `TouchForeignScan`, `EnlistForeign` | Release the replacement read lock before external I/O; enlist the statement's foreign transaction participant. |
+| Sequences | `CompletePGSequence` | Acquires the sequence lock, then reads the generator under `Engine.mu`. |
+| Capabilities | the function, expression and plan runtime bodies | Take `Engine.mu`, read session state or have side effects (advisory locks, XID assignment, sequence calls, notices). |
+
+Every method is called without `Engine.mu` held, and none returns an engine
+struct. Records store the host once, never per row. A record with no
+statement scope holds an untyped nil host (`LiveHost` never returns a typed
+nil); the `Context` forwarders keep their prologue first and then the
+nil-host diagnostic, so error order is unchanged.
+
+## Preparation
+
+Domain checks and preflight coercions also run in contexts with no
+statement scope (generated columns, index expressions and predicates,
+partition admission, temporary commit, concurrent refresh), so they cannot
+hang off a nil-able host. `Preparation` is one stateless package value:
+`PreflightCoercions` (the join opener re-runs it on its predicate),
+`CheckDomain`, `DomainCatalog` (the catalog a domain check reads) and
+`ValidInstalledText` (the installed text call's provider check). The engine
+installs its implementation from `init` with `InstallPreparation`; until
+then every method panics with `exec: preparation not installed`.
+
+## Invariants
+
+- **No mutexes.** The package adds no lock. Lock order, modes and wait
+  behavior belong to the engine host bodies and the `lock` manager; the lock
+  manager's mutex is never taken under `Engine.mu`.
+- **Snapshots.** Records borrow immutable published snapshots and catalog
+  reads; no snapshot copies row values. Repeatable read retains every
+  immutable root before analysis waits; read committed views stay fresh at
+  grant time (see the `visibility` README).
+- **Cancellation** is checked at the same points as before the move;
+  cursors release pins and sources on every exit, and `Close` is
+  idempotent.
+- **Admission slots are opaque.** `EvalAdmission` copies the borrowed
+  authority and routine program pointers with the context; only engine
+  helpers type-assert them. A prepared domain programme's phases are an
+  opaque slot as well; the runtime reads only its expressions.
+- **No per-row allocations** from the seams: the host and preparation are
+  interface values stored once.
+
+## What stays in the engine
+
+Statement dispatch (`executeStatement`, `executeBoundLocked`, ...); query
+admission and capture (`query_admission.go`, `query_lock_admission.go`,
+`captureQuerySources*`, the view row-lock legality checks); preflight
+(`query_preflight.go` and the `preflightCoercions` family); the binder
+methods in the `query_*_bind.go` files; the join legality checks; the DML
+executors, which open their inputs with `exec.OpenNode`; data-modifying CTE
+execution (`completeCTEMutation`); CREATE TABLE AS; SQL cursors and protocol
+portals; rule execution; `statementHost` with the capability bodies,
+`enginePreparation`, and the engine-side helpers that take a `*Context`
+(`routineAdmissionAuthority`, `selectExpressionRecipe`, the domain-check
+preparation, `deparseRelation`, `identifyObjectValues`,
+`expressionPrincipal`, `evalSerialSequence`, `validateSelectedDomainRows`,
+`validInstalledText`, ...).
+
+Until step 11d the engine names the moved types through the temporary
+aliases in `internal/engine/exec_aliases.go` (`EvalContext`, `querySource`,
+`RowCursor`, `RowResult`, ...).
+
+## Testing
+
+Package unit tests (the preparation install seam and the ordered-aggregate
+sort cancellation):
+
+```sh
+make check RUN='^(TestMissingPreparationFailsLoudly|TestInstallPreparation|TestSortOrderedAggregateCancellation)$'
+```
+
+Two reference fixtures wait for native stack frames by name, so keep them:
+`sortOrderedAggregate` (`TestReferenceOrderedSetAggregateActiveCancellation`)
+stays unexported, and the recursive union stage keeps the unexported defined
+type `recursiveUnionStage`, which `exec` names as the alias
+`RecursiveUnionStage` (`TestReferenceQueryCycleLifecycle`). Renaming either
+makes that test's unbounded query run until it exhausts memory.
+
+The executor's unit tests still live in the engine, because they build
+statements through an `Engine` and `Session`: grep
+`internal/engine/*_test.go` for `exec.OpenNode`, `exec.Finalize`,
+`querySource`, `RowCursor` and `statementHost`. Run row-lock, cursor,
+foreign-scan, CTE and detach selections with `RACE=1`.
+
+Public proof is the reference selection of step 11, in quick mode and with
+`REFERENCE=1`:
+
+```sh
+make check RUN='^TestReferenceQuery'
+make check RUN='^TestReference(RowLock|QueryLock|ViewLocks|SQLCursor|PGCursor|TransactionIsolation|PGSequence)'
+make check RUN='^TestReferenceFDW(Scan|Rescan|CursorLifecycle|LocalRechecks|LocalConsumers|Transactions|Concurrency)'
+make check RUN='^TestReference(Domain|Reg(class|type|proc|role|oper|namespace|collation|config|dictionary)|GroupingSets|CTEDML|CommitTime|TransactionIdentity|Advisory|Routine)'
+```

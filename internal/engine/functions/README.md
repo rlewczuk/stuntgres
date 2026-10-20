@@ -324,8 +324,8 @@ either a genuine analyzer capability or a leak that a later step removes.
 `expr.Context` carries the runtime services every family may use. Tier C
 families, whose evaluation reads engine state owned by a subsystem, get a
 narrow capability interface here instead; a node recovers it from
-`expr.Context` by type assertion, and the engine's `*EvalContext` implements
-it with a compile-time assertion. `expr.Context` does not grow per family.
+`expr.Context` by type assertion, and `*exec.Context` implements it with a
+compile-time assertion, forwarding the body to the engine's statement host. `expr.Context` does not grow per family.
 
 - `ACLRuntime` (`acl_runtime.go`, the ACL SQL functions): `ACLAuthority`
   (also `ACLAuthoritySource`, which the aclitem algorithms take) is the
@@ -338,7 +338,7 @@ it with a compile-time assertion. `expr.Context` does not grow per family.
   the node passes values (OIDs, names, privilege text) and caches nothing.
 - `TransactionInquiryRuntime` (`transaction_inquiry_runtime.go`) supplies age,
   current/assigned ID, status, members and commit timestamp snapshots through
-  the engine's `*EvalContext`. Identity calls initialize/check the evaluation
+  `*exec.Context`. Identity calls initialize/check the evaluation
   context before evaluating children; child errors and strict NULL then precede
   live-scope demand. Scalar member misuse checks scope before its invocation
   error. Timestamp calls deliberately have no such eager context prelude:
@@ -356,7 +356,7 @@ it with a compile-time assertion. `expr.Context` does not grow per family.
   descriptors and immutable provenance, never children or engine structures.
 - `SessionInquiryRuntime` (`session_inquiry_runtime.go`): identity values,
   physical TEMP namespace getter/classifier and effective schema arrays.
-  `*EvalContext` implements both with compile-time conformance assertions.
+  `*exec.Context` implements both with compile-time conformance assertions.
   Captured catalog/roles/comments/paths, authorization recapture, locks,
   current-schema caches, pending-TEMP staging/publication, FK/rule/view authority,
   address resolution, deparse engines and serial ownership remain engine-owned.
@@ -887,8 +887,8 @@ with the engine's presentation code; `containsEmptyACL` (`acl_empty.go`)
 serves Dump and deparse.
 
 Physical-session RNG, UUID clock/entropy and SQL time ownership stay in the
-engine: `random.go`, the `EvalContext` clock and sleep methods in
-`transaction_time.go`, and the closed DEFAULT admission of clock and sleep
+engine: `random.go`, the session generators behind the `exec.Context` clock
+and sleep methods, and the closed DEFAULT admission of clock and sleep
 calls (`closedTransactionTimeDefault`). Function evaluation borrows the same owners only when demanded. Literal
 NULL folding and reached runtime argument effects remain distinct. Aggregate
 providers own execution-local state; the engine owns FILTER/DISTINCT/ORDER,
