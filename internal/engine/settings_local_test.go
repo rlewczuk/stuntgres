@@ -15,15 +15,15 @@ func TestSettingsLocalActions(t *testing.T) {
 		}{
 			{"S", "s"}, {"L", "b"}, {"SL", "s"}, {"LS", "s"}, {"SLSL", "s"}, {"SLD", "s"}, {"SLR", ""}, {"SDR", "s"},
 		} {
-			s := &sessionSettings{values: map[string]string{"x": "b"}, typed: map[string]settingValue{"x": {number: math.SmallestNonzeroFloat64}}}
+			s := &sessionSettings{values: map[string]string{"x": "b"}, typed: map[string]settingValue{"x": {Number: math.SmallestNonzeroFloat64}}}
 			for _, action := range tc.actions {
 				switch action {
 				case 'S':
 					s.touch("x", false)
-					s.restore("x", settingOverride{present: true, text: "s", typed: settingValue{number: 2}})
+					s.restore("x", settingOverride{present: true, text: "s", typed: settingValue{Number: 2}})
 				case 'L':
 					s.touch("x", true)
-					s.restore("x", settingOverride{present: true, text: "l", typed: settingValue{number: 3}})
+					s.restore("x", settingOverride{present: true, text: "l", typed: settingValue{Number: 3}})
 				case 'D':
 					s.touch("x", true)
 					s.restore("x", settingOverride{})
@@ -45,7 +45,7 @@ func TestSettingsLocalActions(t *testing.T) {
 			if s.values["x"] != want || s.actions != nil {
 				t.Fatalf("%s commit=%v got=%q want=%q", tc.actions, commit, s.values["x"], want)
 			}
-			if !commit && s.typed["x"].number != math.SmallestNonzeroFloat64 {
+			if !commit && s.typed["x"].Number != math.SmallestNonzeroFloat64 {
 				t.Fatal("typed original lost")
 			}
 			s.finishTransaction(commit)

@@ -281,7 +281,7 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 	}
 	// Search paths resolve lexical schema names against the candidate too.
 	// The real public namespace now has only its private candidate_schema name.
-	path, err := e.settings.Definitions()["search_path"].parse("candidate_schema")
+	path, err := e.settings.Definitions()["search_path"].Parse("candidate_schema")
 	if err != nil {
 		t.Fatal(err)
 	}

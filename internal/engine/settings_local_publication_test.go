@@ -86,7 +86,7 @@ func TestSettingsLocalExactTypedUndo(t *testing.T) {
 	e := NewWithSettings([]SettingDefinition{d}, "", false)
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, "SET demo.exact='0x1p-1074'")
-	original := math.Float64bits(s.settings.typed["demo.exact"].number)
+	original := math.Float64bits(s.settings.typed["demo.exact"].Number)
 	if original != math.Float64bits(math.SmallestNonzeroFloat64) {
 		t.Fatal(original)
 	}
@@ -94,13 +94,13 @@ func TestSettingsLocalExactTypedUndo(t *testing.T) {
 		ref := transactionBegin(t, s)
 		sessionSQL(t, s, "SET LOCAL demo.exact='2'")
 		transactionEnd(t, s, ref, commit)
-		if math.Float64bits(s.settings.typed["demo.exact"].number) != original {
+		if math.Float64bits(s.settings.typed["demo.exact"].Number) != original {
 			t.Fatal("undo reparsed lossy SHOW text")
 		}
 	}
 	ref := transactionBegin(t, s)
 	sessionSQL(t, s, "SET demo.exact='0x1p-1023'")
-	candidate := math.Float64bits(s.settings.typed["demo.exact"].number)
+	candidate := math.Float64bits(s.settings.typed["demo.exact"].Number)
 	if candidate != math.Float64bits(0x1p-1023) {
 		t.Fatal("SESSION candidate was not exact")
 	}
@@ -109,7 +109,7 @@ func TestSettingsLocalExactTypedUndo(t *testing.T) {
 	}
 	sessionSQL(t, s, "SET LOCAL demo.exact='2'")
 	transactionEnd(t, s, ref, true)
-	if math.Float64bits(s.settings.typed["demo.exact"].number) != candidate {
+	if math.Float64bits(s.settings.typed["demo.exact"].Number) != candidate {
 		t.Fatal("masked candidate lost typed bits")
 	}
 }

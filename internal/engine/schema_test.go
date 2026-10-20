@@ -174,13 +174,13 @@ func TestSchemaSearchPathSessionDefaultsAndSpecials(t *testing.T) {
 	}{
 		{a, []string{"s1", "s2"}}, {b, []string{"s2", "s1"}},
 	} {
-		if got := tc.session.settings.defaultTyped["search_path"].path; !reflect.DeepEqual(got, tc.want) {
+		if got := tc.session.settings.defaultTyped["search_path"].Path; !reflect.DeepEqual(got, tc.want) {
 			t.Fatal("captured provider default", got, tc.want)
 		}
-		if got := tc.session.settings.typedValue("search_path").path; !reflect.DeepEqual(got, tc.want) {
+		if got := tc.session.settings.typedValue("search_path").Path; !reflect.DeepEqual(got, tc.want) {
 			t.Fatal("initial typed setting", got, tc.want)
 		}
-		override, err := e.settings.Definitions()["search_path"].parse("public")
+		override, err := e.settings.Definitions()["search_path"].Parse("public")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -190,7 +190,7 @@ func TestSchemaSearchPathSessionDefaultsAndSpecials(t *testing.T) {
 		tc.session.settings.values["search_path"] = "public"
 		tc.session.settings.typed["search_path"] = override
 		e.resetAllSettingsLocked(tc.session)
-		got := tc.session.settings.typedValue("search_path").path
+		got := tc.session.settings.typedValue("search_path").Path
 		tc.session.mu.Unlock()
 		tc.session.settings.mu.Unlock()
 		e.mu.Unlock()

@@ -146,9 +146,9 @@ func (s *Session) readyTimeoutLocked(now time.Time) {
 // restoration are distinct: restoring a positive value must not rearm a budget
 // retired by SET0 or ERROR. Explicit assignment can arm an inactive live owner.
 func (s *Session) publishTimeoutSettingsLocked(settings *sessionSettings, assignment bool, now time.Time) {
-	s.timeouts.transactionLimit = time.Duration(settings.typedValue("transaction_timeout").number) * time.Millisecond
-	s.timeouts.idleTransactionLimit = time.Duration(settings.typedValue("idle_in_transaction_session_timeout").number) * time.Millisecond
-	s.timeouts.idleSessionLimit = time.Duration(settings.typedValue("idle_session_timeout").number) * time.Millisecond
+	s.timeouts.transactionLimit = time.Duration(settings.typedValue("transaction_timeout").Number) * time.Millisecond
+	s.timeouts.idleTransactionLimit = time.Duration(settings.typedValue("idle_in_transaction_session_timeout").Number) * time.Millisecond
+	s.timeouts.idleSessionLimit = time.Duration(settings.typedValue("idle_session_timeout").Number) * time.Millisecond
 	if s.timeouts.transactionLimit == 0 {
 		s.timeouts.transaction.stop()
 	} else if assignment && s.state == live && s.timeouts.transaction.deadline.IsZero() && s.timeouts.authority != (ids.TxRef{}) {

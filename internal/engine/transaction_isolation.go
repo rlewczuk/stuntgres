@@ -90,7 +90,7 @@ func (e *Engine) applyCurrentCharacteristic(op *Operation, d SettingDefinition, 
 	if input == nil {
 		return "", sqlError("0A000", fmt.Sprintf(`parameter "%s" cannot be reset`, d.Name))
 	}
-	value, err := d.parse(*input)
+	value, err := d.Parse(*input)
 	if err != nil {
 		return "", err
 	}
@@ -102,12 +102,12 @@ func (e *Engine) applyCurrentCharacteristic(op *Operation, d SettingDefinition, 
 	}
 	mode := parser.TransactionMode{}
 	if d.Name == "transaction_isolation" {
-		mode.Isolation = parser.TransactionIsolation(isolationFromText(d.format(value)))
+		mode.Isolation = parser.TransactionIsolation(isolationFromText(d.Format(value)))
 	} else if d.Name == "transaction_deferrable" {
-		mode.DeferrableSet, mode.Deferrable = true, d.format(value) == "on"
+		mode.DeferrableSet, mode.Deferrable = true, d.Format(value) == "on"
 	} else {
 		mode.AccessSet = true
-		mode.ReadOnly = d.format(value) == "on"
+		mode.ReadOnly = d.Format(value) == "on"
 	}
 	if err := t.assignModes([]parser.TransactionMode{mode}); err != nil {
 		return "", err

@@ -42,7 +42,7 @@ func timeoutMechanicsSettings(s *Session, transaction, idleTransaction, idleSess
 		"idle_in_transaction_session_timeout": idleTransaction,
 		"idle_session_timeout":                idleSession,
 	} {
-		s.settings.typed[name] = settingValue{number: float64(duration / time.Millisecond)}
+		s.settings.typed[name] = settingValue{Number: float64(duration / time.Millisecond)}
 	}
 	s.mu.Lock()
 	s.publishTimeoutSettingsLocked(s.settings, assignment, now)

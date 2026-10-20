@@ -94,13 +94,13 @@ func TestFormatEncodingCapturedDefaults(t *testing.T) {
 		if settings.value(name) != want {
 			t.Fatal(name, settings.value(name), want)
 		}
-		if localeSetting(name) && settings.defaultTyped[name].locale == (sqltype.Locale{}) {
+		if localeSetting(name) && settings.defaultTyped[name].Locale == (sqltype.Locale{}) {
 			t.Fatal("locale default not typed", name)
 		}
 	}
 	values["lc_numeric"] = "C.UTF-8"
 	values["extra_float_digits"] = "3"
-	if settings.value("lc_numeric") != "POSIX" || settings.typedValue("extra_float_digits").number != -1 {
+	if settings.value("lc_numeric") != "POSIX" || settings.typedValue("extra_float_digits").Number != -1 {
 		t.Fatal("live provider leaked into captured defaults")
 	}
 	for _, bad := range []struct{ name, value string }{{"lc_numeric", "C.UTF-8"}, {"lc_messages", ""}, {"client_encoding", "LATIN1"}, {"icu_validation_level", "bogus"}, {"extra_float_digits", "4"}} {
@@ -115,13 +115,13 @@ func TestFormatEncodingCapturedDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, input := range []string{"-15", "0", "1", "3"} {
-		value, err := float.parse(input)
-		if err != nil || float.format(value) != input {
+		value, err := float.Parse(input)
+		if err != nil || float.Format(value) != input {
 			t.Fatal(input, value, err)
 		}
 	}
 	for _, input := range []string{"-16", "4"} {
-		_, err := float.parse(input)
+		_, err := float.Parse(input)
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "22023" {
 			t.Fatal(input, err)

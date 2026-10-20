@@ -41,7 +41,7 @@ func TestSettingsTimezoneAbbreviationsCapturedProvider(t *testing.T) {
 	sessionSQL(t, a, "COMMIT")
 	check(a, sqltype.TimezoneAbbreviationsIndia)
 	def := e.settings.Definitions()["timezone_abbreviations"]
-	if _, err := def.parse("default"); err == nil {
+	if _, err := def.Parse("default"); err == nil {
 		t.Fatal("invalid exact-case name accepted")
 	}
 	bad := &settingsDefaultProviderForTest{values: map[string]string{"timezone_abbreviations": "default"}, calls: map[string]int{}}

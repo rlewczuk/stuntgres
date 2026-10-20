@@ -189,12 +189,12 @@ func ValidateSetting(d SettingDefinition) (SettingDefinition, error) {
 	} else if len(d.EnumValues) != 0 {
 		return d, registrationError("enum values require an enum setting")
 	}
-	v, err := d.parse(d.BootDefault)
+	v, err := d.Parse(d.BootDefault)
 	if err != nil {
 		return d, registrationError("invalid setting default: " + err.Error())
 	}
 	d.bootValue = v
-	d.BootDefault = d.format(v)
+	d.BootDefault = d.Format(v)
 	return d, nil
 }
 
@@ -237,14 +237,14 @@ func normalizeApplicationName(value string) (string, *sqlstate.Error, error) {
 }
 
 type settingValue struct {
-	text                  string
-	number                float64
-	boolean               bool
-	path                  []string
-	zone                  *sqltype.Zone
-	dateStyle             sqltype.DateStyle
-	timezoneAbbreviations sqltype.TimezoneAbbreviations
-	locale                sqltype.Locale
+	Text                  string
+	Number                float64
+	Boolean               bool
+	Path                  []string
+	Zone                  *sqltype.Zone
+	DateStyle             sqltype.DateStyle
+	TimezoneAbbreviations sqltype.TimezoneAbbreviations
+	Locale                sqltype.Locale
 }
 
 func settingDiagnostic(message, hint string) error {
@@ -254,14 +254,14 @@ func (d SettingDefinition) invalid(input, hint string) error {
 	return settingDiagnostic(fmt.Sprintf(`invalid value for parameter "%s": "%s"`, settingDisplayName(d.Name), input), hint)
 }
 
-func (d SettingDefinition) parse(input string) (settingValue, error) {
+func (d SettingDefinition) Parse(input string) (settingValue, error) {
 	v := settingValue{}
 	if d.Name == "timezone_abbreviations" {
 		set, ok := sqltype.ParseTimezoneAbbreviations(input)
 		if !ok {
 			return v, d.invalid(input, "")
 		}
-		v.timezoneAbbreviations, v.text = set, set.String()
+		v.TimezoneAbbreviations, v.Text = set, set.String()
 		return v, nil
 	}
 	if d.Name == "timezone" {
@@ -278,7 +278,7 @@ func (d SettingDefinition) parse(input string) (settingValue, error) {
 			}
 			return v, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid value for parameter "TimeZone": "%s"`, input), Detail: detail}
 		}
-		v.zone, v.text = zone, zone.Name()
+		v.Zone, v.Text = zone, zone.Name()
 		return v, nil
 	}
 	if d.Name == "datestyle" {
@@ -286,7 +286,7 @@ func (d SettingDefinition) parse(input string) (settingValue, error) {
 		if detail != "" {
 			return v, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid value for parameter "DateStyle": "%s"`, input), Detail: detail}
 		}
-		v.dateStyle, v.text = style, style.String()
+		v.DateStyle, v.Text = style, style.String()
 		return v, nil
 	}
 	switch d.Type {
@@ -294,19 +294,19 @@ func (d SettingDefinition) parse(input string) (settingValue, error) {
 		if !utf8.ValidString(input) || strings.IndexByte(input, 0) >= 0 {
 			return v, errors.New("stuntgres: invalid UTF-8 or NUL setting")
 		}
-		v.text = input
+		v.Text = input
 		if d.Name == "search_path" {
 			var err error
-			v.path, err = parseSearchPath(input)
+			v.Path, err = parseSearchPath(input)
 			if err != nil {
 				return settingValue{}, err
 			}
 		}
 		if d.Normalize != nil {
 			var err error
-			v.text, _, err = d.Normalize(input)
+			v.Text, _, err = d.Normalize(input)
 			if err == nil && localeSetting(d.Name) {
-				v.locale, _ = sqltype.ParseCLocale(v.text)
+				v.Locale, _ = sqltype.ParseCLocale(v.Text)
 			}
 			return v, err
 		}
@@ -314,7 +314,7 @@ func (d SettingDefinition) parse(input string) (settingValue, error) {
 	case SettingBoolean:
 		s := settingFold(input)
 		if s == "1" {
-			v.boolean = true
+			v.Boolean = true
 			return v, nil
 		}
 		if s == "0" {
@@ -323,7 +323,7 @@ func (d SettingDefinition) parse(input string) (settingValue, error) {
 		if s != "" && s != "o" {
 			for _, word := range []string{"true", "yes", "on"} {
 				if strings.HasPrefix(word, s) {
-					v.boolean = true
+					v.Boolean = true
 					return v, nil
 				}
 			}
@@ -338,12 +338,12 @@ func (d SettingDefinition) parse(input string) (settingValue, error) {
 		key := settingFold(input)
 		if d.Normalize != nil {
 			var err error
-			v.text, _, err = d.Normalize(input)
+			v.Text, _, err = d.Normalize(input)
 			return v, err
 		}
 		for _, word := range d.EnumValues {
 			if settingFold(word) == key {
-				v.text = word
+				v.Text = word
 				return v, nil
 			}
 		}
@@ -375,7 +375,7 @@ func (d SettingDefinition) parse(input string) (settingValue, error) {
 	} else if number < d.FloatMin || number > d.FloatMax {
 		return v, settingDiagnostic(fmt.Sprintf(`%s%s is outside the valid range for parameter "%s" (%s%s .. %s%s)`, settingRealText(number), baseUnitLabel(d.Unit), d.Name, settingRealText(d.FloatMin), baseUnitLabel(d.Unit), settingRealText(d.FloatMax), baseUnitLabel(d.Unit)), "")
 	}
-	v.number = number
+	v.Number = number
 	return v, nil
 }
 
@@ -635,22 +635,22 @@ func convertSettingUnit(n float64, suffix string, u SettingUnit) (float64, bool)
 	}
 	return 0, false
 }
-func (d SettingDefinition) format(v settingValue) string {
+func (d SettingDefinition) Format(v settingValue) string {
 	switch d.Type {
 	case SettingBoolean:
-		if v.boolean {
+		if v.Boolean {
 			return "on"
 		}
 		return "off"
 	case SettingString, SettingEnum:
-		return v.text
+		return v.Text
 	}
-	n := v.number
+	n := v.Number
 	suffix := ""
 	if d.Unit != SettingUnitNone && n > 0 {
 		table, base, _ := unitTable(d.Unit)
 		for _, unit := range table {
-			q := v.number / (unit.factor / base)
+			q := v.Number / (unit.factor / base)
 			if d.Type == SettingFloating {
 				n = q
 				suffix = unit.name

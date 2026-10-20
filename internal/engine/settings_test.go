@@ -98,24 +98,24 @@ func TestSettingTypedInput(t *testing.T) {
 		{SettingDefinition{Type: SettingInteger, IntegerMin: -10, IntegerMax: 10}, "-0.5", "0"},
 	} {
 		tc.d.Name = "demo.value"
-		v, err := tc.d.parse(tc.input)
-		if err != nil || tc.d.format(v) != tc.want {
-			t.Errorf("%+v %q got %q err %v want %q", tc.d, tc.input, tc.d.format(v), err, tc.want)
+		v, err := tc.d.Parse(tc.input)
+		if err != nil || tc.d.Format(v) != tc.want {
+			t.Errorf("%+v %q got %q err %v want %q", tc.d, tc.input, tc.d.Format(v), err, tc.want)
 		}
 	}
 	for _, input := range []string{"0b10", "0o10", "1_000", "08", "NaN", "1kB", "1 2", "1e999"} {
 		d := SettingDefinition{Name: "demo.count", Type: SettingInteger, IntegerMax: 10}
-		if _, err := d.parse(input); err == nil {
+		if _, err := d.Parse(input); err == nil {
 			t.Errorf("accepted %q", input)
 		}
 	}
 	for _, input := range []string{"o", " true ", ""} {
-		if _, err := (SettingDefinition{Name: "demo.flag", Type: SettingBoolean}).parse(input); err == nil {
+		if _, err := (SettingDefinition{Name: "demo.flag", Type: SettingBoolean}).Parse(input); err == nil {
 			t.Errorf("accepted Boolean %q", input)
 		}
 	}
 	for _, input := range []string{"NaN", "1e999", "1e-999", "1e-320", "1_000", "0b10"} {
-		if _, err := (SettingDefinition{Name: "demo.real", Type: SettingFloating, FloatMax: 10}).parse(input); err == nil {
+		if _, err := (SettingDefinition{Name: "demo.real", Type: SettingFloating, FloatMax: 10}).Parse(input); err == nil {
 			t.Errorf("accepted real %q", input)
 		}
 	}
@@ -229,7 +229,7 @@ func TestSettingProviderDefaultsAndDescriptorOwnership(t *testing.T) {
 			t.Fatal(name, p.calls)
 		}
 	}
-	if a.settings.defaultTyped["demo.ratio"].number != 1.23456789 {
+	if a.settings.defaultTyped["demo.ratio"].Number != 1.23456789 {
 		t.Fatal("default lost precision")
 	}
 	if got := tuples(sessionSQL(t, a, "SHOW demo.mode"))[0][0]; got != "fast" {
@@ -264,13 +264,13 @@ func TestSettingExactDecimalDefaultCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if def.bootValue.number != 0x1p-1023 {
+	if def.bootValue.Number != 0x1p-1023 {
 		t.Fatal("registered default lost exactness", def.bootValue)
 	}
 	e := NewWithSettings([]SettingDefinition{def}, "", false)
 	p := &settingsDefaultProviderForTest{values: map[string]string{"demo.ratio": "-" + exact}, calls: map[string]int{}}
 	a := sessionStart(t, e, p)
-	if p.calls["demo.ratio"] != 1 || a.settings.defaultTyped["demo.ratio"].number != -0x1p-1023 {
+	if p.calls["demo.ratio"] != 1 || a.settings.defaultTyped["demo.ratio"].Number != -0x1p-1023 {
 		t.Fatal("provider default lost exactness", p.calls, a.settings.defaultTyped)
 	}
 	p.values["demo.ratio"] = "1"
@@ -279,11 +279,11 @@ func TestSettingExactDecimalDefaultCapture(t *testing.T) {
 	if got := tuples(sessionSQL(t, a, "SHOW demo.ratio"))[0][0]; got != "-1.11254e-308" {
 		t.Fatal(got)
 	}
-	if a.settings.typedValue("demo.ratio").number != -0x1p-1023 {
+	if a.settings.typedValue("demo.ratio").Number != -0x1p-1023 {
 		t.Fatal("reset reparsed rounded display")
 	}
 	b := sessionStart(t, e, p)
-	if b.settings.defaultTyped["demo.ratio"].number != 1 {
+	if b.settings.defaultTyped["demo.ratio"].Number != 1 {
 		t.Fatal("replacement did not capture new default")
 	}
 }

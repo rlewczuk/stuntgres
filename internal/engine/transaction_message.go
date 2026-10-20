@@ -133,9 +133,9 @@ func (op *Operation) refreshStatementBudget() error {
 	}
 	settings := op.session.settings
 	settings.mu.Lock()
-	timeout := settings.typedValue("statement_timeout").number
-	transactionTimeout := settings.typedValue("transaction_timeout").number
-	lockTimeout := settings.typedValue("lock_timeout").number
+	timeout := settings.typedValue("statement_timeout").Number
+	transactionTimeout := settings.typedValue("transaction_timeout").Number
+	lockTimeout := settings.typedValue("lock_timeout").Number
 	threshold, _ := messageLevel(settings.value(clientMinMessages.Name))
 	settings.mu.Unlock()
 	op.session.mu.Lock()

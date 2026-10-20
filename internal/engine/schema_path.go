@@ -15,10 +15,10 @@ func (e *Engine) explicitPath(auth AuthorizationView) ([]ids.ObjectAddress, bool
 	return e.explicitPathFor(auth, relationLookup)
 }
 func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]ids.ObjectAddress, bool, error) {
-	entries := e.settings.Definitions()["search_path"].BootValue().path
+	entries := e.settings.Definitions()["search_path"].BootValue().Path
 	if auth.settings != nil && !auth.materializedPopulation {
 		auth.settings.mu.Lock()
-		entries = auth.settings.typedValue("search_path").path
+		entries = auth.settings.typedValue("search_path").Path
 		auth.settings.mu.Unlock()
 	}
 	restricted := [2]string{"pg_catalog", "pg_temp"}

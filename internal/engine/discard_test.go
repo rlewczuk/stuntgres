@@ -505,10 +505,10 @@ func TestDiscardConfiguredReset(t *testing.T) {
 	reset, authenticated, counted := s.authorization.state.ResetRole, s.authorization.state.Authenticated, s.countedAuthenticated
 	// Alter genuine owner overrides without inventing connector options.
 	s.settings.values["application_name"] = "changed"
-	s.settings.typed["application_name"] = settingValue{text: "changed"}
+	s.settings.typed["application_name"] = settingValue{Text: "changed"}
 	s.settings.placeholders["discard.placeholder"] = true
 	s.settings.values["discard.placeholder"] = "changed"
-	s.settings.typed["discard.placeholder"] = settingValue{text: "changed"}
+	s.settings.typed["discard.placeholder"] = settingValue{Text: "changed"}
 	s.authorization.state.CurrentUser = authenticated
 	discardUnitApply(t, s, parser.DiscardAll)
 	if provider.calls != calls || s.settings.value("application_name") != "discard-configured" || !s.settings.placeholders["discard.placeholder"] || s.authorization.state.CurrentUser != reset || s.authorization.state.SessionUser != authenticated || s.countedAuthenticated != counted {

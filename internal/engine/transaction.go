@@ -475,16 +475,16 @@ func sessionPresentation(session *Session) (input sqltype.InputEnvironment, outp
 	if !ok {
 		abbreviations = settings.defaultTyped["timezone_abbreviations"]
 	}
-	input.TimezoneAbbreviations = abbreviations.timezoneAbbreviations
-	input.Zone, output.Zone = zone.zone, zone.zone
-	input.DateStyle, output.DateStyle = style.dateStyle, style.dateStyle
+	input.TimezoneAbbreviations = abbreviations.TimezoneAbbreviations
+	input.Zone, output.Zone = zone.Zone, zone.Zone
+	input.DateStyle, output.DateStyle = style.DateStyle, style.DateStyle
 	output.IntervalStyle = sqltype.ParseIntervalStyle(settings.value("intervalstyle"))
 	input.IntervalStyle = output.IntervalStyle
-	output.ExtraFloatDigits = int32(settings.typedValue("extra_float_digits").number)
+	output.ExtraFloatDigits = int32(settings.typedValue("extra_float_digits").Number)
 	output.FloatPrecisionSet = true
-	input.NumericLocale = settings.typedValue("lc_numeric").locale
-	input.MonetaryLocale = settings.typedValue("lc_monetary").locale
-	input.TimeLocale = settings.typedValue("lc_time").locale
+	input.NumericLocale = settings.typedValue("lc_numeric").Locale
+	input.MonetaryLocale = settings.typedValue("lc_monetary").Locale
+	input.TimeLocale = settings.typedValue("lc_time").Locale
 	output.NumericLocale, output.MonetaryLocale, output.TimeLocale = input.NumericLocale, input.MonetaryLocale, input.TimeLocale
 	return input, output
 }

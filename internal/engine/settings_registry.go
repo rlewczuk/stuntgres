@@ -22,12 +22,12 @@ func newSettingsRegistry(registered []SettingDefinition, trackCommitTimestamps b
 				if d.Name == "track_commit_timestamp" && trackCommitTimestamps {
 					d.BootDefault = "on"
 				}
-				v, err := d.parse(d.BootDefault)
+				v, err := d.Parse(d.BootDefault)
 				if err != nil {
 					panic(err)
 				} // Builtin definitions are source-owned constants.
 				d.bootValue = v
-				d.BootDefault = d.format(v)
+				d.BootDefault = d.Format(v)
 			}
 			r.definitions[d.Name] = d
 			r.order = append(r.order, d.Name)

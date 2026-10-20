@@ -21,12 +21,12 @@ func (s *Session) AcquireCommand(ctx context.Context) (*Operation, parser.Option
 		return nil, parser.Options{}, err
 	}
 	s.settings.mu.Lock()
-	standard := s.settings.typedValue("standard_conforming_strings").boolean
+	standard := s.settings.typedValue("standard_conforming_strings").Boolean
 	op.nonstandardStrings = !standard
-	timeout := s.settings.typedValue("statement_timeout").number
-	op.lockTimeout = time.Duration(s.settings.typedValue("lock_timeout").number) * time.Millisecond
-	op.parallelWorkers = int(s.settings.typedValue("max_parallel_workers_per_gather").number)
-	transactionTimeout := s.settings.typedValue("transaction_timeout").number
+	timeout := s.settings.typedValue("statement_timeout").Number
+	op.lockTimeout = time.Duration(s.settings.typedValue("lock_timeout").Number) * time.Millisecond
+	op.parallelWorkers = int(s.settings.typedValue("max_parallel_workers_per_gather").Number)
+	transactionTimeout := s.settings.typedValue("transaction_timeout").Number
 	op.noticeThreshold, _ = messageLevel(s.settings.value(clientMinMessages.Name))
 	op.commandAdmission = true
 	op.commandStart = start

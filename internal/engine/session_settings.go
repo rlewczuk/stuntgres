@@ -203,11 +203,11 @@ func (s *sessionSettings) initialize(ctx context.Context, definitions map[string
 				if name == "row_security" {
 					s.rowSecurityProviderDefault = true
 				}
-				v, err = d.parse(input)
+				v, err = d.Parse(input)
 				if err != nil {
 					return err
 				}
-				normalized = d.format(v)
+				normalized = d.Format(v)
 			}
 		}
 		if (d.Access == settingStartupOnly || d.Name == "server_encoding" || d.Name == "log_statement_stats") && normalized != d.BootDefault {
@@ -311,7 +311,7 @@ func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d SettingDe
 	if input != nil {
 		var err error
 		if d.Normalize != nil {
-			v.text, notice, err = d.Normalize(*input)
+			v.Text, notice, err = d.Normalize(*input)
 		} else if d.Name == "datestyle" {
 			owner.mu.Lock()
 			current, ok := owner.typed[d.Name]
@@ -320,16 +320,16 @@ func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d SettingDe
 			}
 			defaults := owner.defaultTyped[d.Name]
 			owner.mu.Unlock()
-			style, detail := sqltype.ParseDateStyle(*input, current.dateStyle, defaults.dateStyle)
+			style, detail := sqltype.ParseDateStyle(*input, current.DateStyle, defaults.DateStyle)
 			if detail != "" {
 				err = &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid value for parameter "DateStyle": "%s"`, *input), Detail: detail}
 			}
-			v.dateStyle, v.text = style, style.String()
+			v.DateStyle, v.Text = style, style.String()
 		} else {
-			v, err = d.parse(*input)
+			v, err = d.Parse(*input)
 		}
 		if err == nil && localeSetting(d.Name) {
-			v.locale, _ = sqltype.ParseCLocale(v.text)
+			v.Locale, _ = sqltype.ParseCLocale(v.Text)
 		}
 		if err != nil {
 			if notice != nil {
@@ -358,7 +358,7 @@ func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d SettingDe
 		delete(owner.values, d.Name)
 		delete(owner.typed, d.Name)
 	} else {
-		owner.values[d.Name] = d.format(v)
+		owner.values[d.Name] = d.Format(v)
 		owner.typed[d.Name] = v
 	}
 	if d.Name == "transaction_timeout" || d.Name == "idle_in_transaction_session_timeout" || d.Name == "idle_session_timeout" {
