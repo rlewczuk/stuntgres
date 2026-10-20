@@ -248,6 +248,76 @@ all read other groups too.
    analyzer capability, or a leak to remove by passing a value.
 3. `describe`/`describeWithRule` take the host instead of `*Engine`.
 
+**Refine result (approved; measured at `12d7ef8b9`, before 11c).** The 11a
+`paths`, `frontier` and `reach` tools, rooted at `expressionBinder` and
+`newExpressionBinder` (outputs in
+`.cswd/tmp/PG18-ENGINE-SPLIT-ANALYZE-HOST/`).
+
+- **Direct paths.** `b.engine` has 42 uses and `b.op` 34 in binder methods.
+  Outside them, production reads the binder's `engine` in `default.go`,
+  `installed_routine.go`, `intagg_expression.go` and
+  `foreign_action_apply.go`, and its `op` in `cte_mutation_bind.go`,
+  `insert_binding.go`, `insert_conflict.go` and `foreign_action_apply.go`.
+- **The describe chain.** `describeWithFormals` calls `bindTypedColumns`,
+  `resolveTableColumnType`, `resolveColumnCollation`, `resolveReference`,
+  `catalog.Domain.Ref`, `describeInheritance`, `bindMutationCommand`,
+  `bindViewWrite` and `captureEnumOperationInput` on the engine. The
+  binder-side `*Engine` methods `bindMutationCommand`, `bindInsertInput`,
+  `bindInsertDefaults`, `bindInsertReturning`, `bindInsertConflict`,
+  `bindInsertConflictUpdate`, `bindInsertSource`, `bindMerge`, `bindUpdate`,
+  `bindUpdateAssignments`, `prepareUpdateAssignments`,
+  `bindUpdateAssignmentSource`, `bindTypedColumns`, `describeInheritance` and
+  `indexExpressionBinder` use the engine only to call each other and a few
+  services. They are ported in place to functions that reach the services
+  through the binder's host; `bindInsertDefaults` takes the `*catalog.Owner`
+  instead (its only engine use).
+- **Indirect paths, left for 12d.** `AuthorizationView` (it holds `engine` and
+  `session`; the binder keeps `query.auth` and passes it to every resolution
+  service); the captured resolver inputs (`capturedRegtypeInput`,
+  `capturedOperatorInput`, `capturedRoutineInput`, `capturedFTSInput` hold an
+  `*Operation`, `capturedRegTSInput` an `AuthorizationView`);
+  `StatementDescription` (→ `preparedAnalysis` → `catalogChanges`);
+  `binding.rule` (→ `ruleCTECommand` → `AuthorizationView`);
+  `installedExtensionRoutine` (holds the binder).
+- **Constant evaluation.** Only `foldRegtypeConstant` (a scope-free context
+  with `Context` and `Input`) and `decodeLiteralInput` (a domain literal under
+  the scope's locked input) build an `EvalContext`. `analyze` imports `exec`
+  only for scope-free constant folding, as §3 L8 allows; domain-constrained
+  literal decoding goes through the host. Preflight stays in the engine: it
+  is statement preparation, reaches routine admission and is never called by
+  the binder.
+- **Host adapter.** Binders also run without a `StatementScope` (DDL,
+  defaults, checks, index expressions, generated columns, Restore), always
+  with an engine and usually with an operation. So the adapter is
+  `bindingHost{engine, op}`, not `statementHost` (a deviation from §7
+  decision 8, like 11b's preparation value). A nil `op` keeps today's nil-op
+  semantics. Every host method is called with `Engine.mu` held and never
+  takes or releases it.
+- **`analyzeHost` methods (35).**
+
+  | Group | Methods | Today |
+  |---|---|---|
+  | Authority | `Authorization`, `Definition`, `AuthorizationStorage`, `AdmittedReference`, `ResolveReference` | `authorizationLocked(op)`, `op.definition`, `authorizationStorageLocked`, `admittedReference`, `resolveReference` |
+  | Catalog | `CatalogOwner`, `CurrentCatalog` | `catalog.owner()` (and `Domain.Ref`), `catalog.read(catalog.state)` |
+  | Names | `LookupNamespaces`, `LookupNamespacesSnapshot`, `LookupPath`, `ReferencePath`, `Regclass`, `LookupCollation`, `LookupIndexClass`, `NamedType` | the same-named engine methods |
+  | Types | `ResolveType`, `ResolveAnnotationType`, `ResolveStringAnnotationType`, `ResolveAnnotationTypeInput`, `ResolveTableColumnType`, `ResolveColumnCollation` | the same, which take `op` |
+  | Captures | `CaptureElementInput`, `CaptureOperatorInput`, `CaptureRegtypeInput`, `CaptureTypeDiagnosticInput`, `CaptureTypeDiagnosticName`, `CaptureEnumOperationInput`, `CaptureEnumOperationSafety`, `FTSInput` | the `capture*` services, `captureEnumOperationSafety(op, …)`, `capturedFTSInput{op}` |
+  | Session | `PlanOwner` | `op.session.token`, `discardPlansGeneration` |
+  | Effects | `EmitWarning`, `ReplayInsertAuthority`, `ReplayDomainCell` | `op.emitNotice`, `op.replayOrZero()`, `capturedDomainReplayCell(op, …)` |
+  | Upward | `DecodeDomainLiteral`, `BindViewWrite` | the scope half of `decodeLiteralInput`; `bindViewWrite` (view-write lowering, postponed `view`) |
+
+- **Entry points.** `describe`, `describeWithRule` and `describeWithFormals`
+  become functions taking the host; `describeScoped` stays an engine method
+  that builds the host from its scope. `newExpressionBinder(ctx, e, input,
+  op, expected)` keeps its signature as the root construction point.
+- **12d area order** stays as below, with two refinements: the first session
+  (binding types) also settles how `analyze` represents the authority, since
+  `queryScopeState.auth` and `binding.rule` move there; area 5 also takes the
+  statement-kind binders ported in place here (`bindUpdate*`, `bindMerge`,
+  the INSERT source, conflict and RETURNING binders, `bindTypedColumns`,
+  `describeInheritance`, `indexExpressionBinder`), split out of their mixed
+  DML and DDL files.
+
 ### 12d — Move, area by area (broad; several sessions)
 
 Each session re-measures the clean set for its area, exports in place, moves,
