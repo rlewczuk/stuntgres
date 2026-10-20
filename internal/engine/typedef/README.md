@@ -2,16 +2,27 @@
 
 User-defined type support that does not need the engine: domains, enums,
 composites and typed tables, collations and conversions. Part A of step 15
-moved the records, validation, Dump/Restore and remap helpers here; the DDL
-handlers follow in Part B (15c/15d). The package sits at layer L10 of
+moved the records, validation, Dump/Restore and remap helpers here; Part B
+(15d) moved the DDL stage handlers, which reach the engine through
+`StageHost`. The package sits at layer L10 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
-It imports only `authorization`, `catalog`, `expr`, `ids`, `session` (for
-the journal slot interfaces), `storage`, `parser`, `sqltype`, `sqlstate` and
-the standard library, and never the engine or `routine`. See
+It imports only `access`, `authorization`, `catalog`, `expr`, `ids`,
+`pgcatalog` (collation versions), `session` (the journal slot interfaces and
+notice levels), `storage`, `parser`, `sqltype`, `sqlstate` and the standard
+library, and never the engine, `analyze`, `exec` or `routine`. See
 [ENGINE-SPLIT-typedef.md](../../../docs/ENGINE-SPLIT-typedef.md).
 
 ## What it owns
 
+- **Stage handlers** (`collation_ddl.go`, `conversion_ddl.go`, `domain.go`,
+  `enum.go`, `composite.go`, `typed_type_drop.go`): CREATE/ALTER/DROP
+  COLLATION and CONVERSION, CREATE/DROP DOMAIN, CREATE TYPE AS ENUM and
+  CREATE/DROP TYPE (composite), as `Stage...Locked(h, auth, statement)`.
+  The ALTER staging cores `StageAlterEnumLabelLocked`
+  (`enum_label_stage.go`, returning an `EnumLabelEdit`) and
+  `StageAlterDomainConstraintLocked` (`domain_constraint_stage.go`,
+  returning a `DomainConstraintEdit`) stage one ALTER TYPE ... VALUE or
+  ALTER DOMAIN constraint action; their executors stay in the engine.
 - **Collations** (`collation_name.go`, `collation_provider.go`,
   `collation_remap.go`, `collation_seed_dump.go`): `CollationName`,
   `CollationSQLName`, `ValidateCollationProvider`, the import remapper
@@ -33,7 +44,8 @@ the standard library, and never the engine or `routine`. See
   `ReownDomainDatum`; `domain_reown.go`); `TypeDefault`, `DefaultDomainACL`,
   captured input providers (`domain_input.go`) and
   the restored-owner record (`domain_owner_restore.go`).
-- **Enums**: `EnumInsertionOrder` (`enum_order.go`) and `EnumSafety`.
+- **Enums**: the PostgreSQL sort-order insertion rule (`enum_order.go`) and
+  `EnumSafety`.
 - **Composites and typed tables**: `CompositeOpenError`, `ContainsRowType`,
   `RowRewriteError`, `CompositeMembers`, `ChooseAssociatedArrayName`
   (`row_type.go`), the typed-table shape checks (`typed_shape.go`), the
@@ -47,6 +59,36 @@ the standard library, and never the engine or `routine`. See
   `CatalogStage`), `DomainJournal` and `EnumJournal` (the type state of the
   catalog journal, implementing `session.DomainSlot` and `session.EnumSlot`;
   `journal_slots.go`).
+
+## The stage host
+
+The stage handlers run under `Engine.mu` without a statement scope, and
+reach the engine only through `StageHost` (`stage_host.go`). The engine
+implements it on `typedefHost`, a defined type over the fields of the root
+`schemaHost` (engine, operation, catalog stage) that also backs
+`routine.DDLHost`; the two cannot share one method set because each package
+declares its own `Authority` and `Stage`.
+
+- **`Authority`** is the statement authority as an opaque value
+  (`access.Environment` plus the `TypedefAuthority` marker). Handlers keep it
+  by value. `CreationNamespace` may stage an implicit TEMP namespace and
+  returns a new authority that reads the stage; the handler assigns it to
+  its own `auth`, so later checks read the recaptured view, and the
+  argument is never changed. Checks go through `AccessView(auth).Check(auth,
+  ...)` (`check`), and object references use the view's owner domain and
+  epoch (`objectRef`).
+- **`Stage`** is the private catalog change (`Create`, `Replace`, `Get`,
+  `LookupName`); the engine stage keeps its lifecycle checks.
+  `ReplaceUnsynchronized`, the dependency fields (`AddDomainBase`,
+  `DropTarget`, `RecordDependencyPath`) and `RemoveDomainCheck` are host
+  methods because they write engine-private stage state.
+- Name and type resolution (`SearchNamespaces`, `LookupFunction`,
+  `NamedType`, `FindCollation`, `Resolve*`) and domain default and check
+  binding stay in the engine behind the host, because they need `analyze`.
+  OIDs, revisions and enum members come from `AllocateOID`, `Revision` and
+  `AllocateEnumMember` in the order the handlers ask.
+- **Lock contract.** Every host method runs with `Engine.mu` held; none
+  takes or releases it, and none waits on the lock manager.
 
 ## Invariants
 
@@ -70,7 +112,18 @@ the standard library, and never the engine or `routine`. See
 
 ## What stays in the engine
 
-The DDL handlers (Part B); the dump statements that produce the engine's
+The `typedefHost` adapter (`typedef_host.go`) and the schema statement
+dispatch (`schema.go`); the self-orchestrating executors (`executeEnumDDL`,
+`executeAlterDomain`, `executeAlterComposite`, `alterTableOfLocked`) and the
+resolvers `resolveAlterEnumLocked`/`resolveAlterDomainLocked`, which hold
+the lock windows, lock-manager waits, row validation and publication; the
+enum journal updates; `type_generation.go` and `enum_generation.go`
+(publication-time reownership); domain index generations
+(`domain_alter_indexes.go`); journal capture (`domain_alter_message.go`);
+TEMP collation cleanup and `collationCreationNamespaceLocked`
+(`collation_temporary.go`); `conversionCheckCreate`
+(`conversion_create_check.go`, shared with `routine.DDLHost`); the dump
+statements that produce the engine's
 dump-graph record `dumpDomain` (`collationDumpStatements`,
 `conversionDumpStatements`, `compositeDumpStatement`); type-declaration
 and literal rendering (`catalogTypeDeclaration*`, `catalogLiteral*`), which
@@ -87,6 +140,18 @@ Package seams:
 
 ```sh
 make check RUN='^(TestBuiltinConversionProcedures|TestBuiltinDomainSeeds|TestDomainDefaultReplayPairingInternal|TestPGEnumSortInsertion)$'
+```
+
+The engine side of the stage host (`typedefHost`):
+
+```sh
+make check RUN='^TestTypedefHost'
+```
+
+Engine witnesses that call the stage handlers or run their executors:
+
+```sh
+make check RUN='^Test(CollationOwnerMembershipRequiresDestinationCreate|ConversionDescriptor|ConversionHandlerEmptyProbePrecedence|ConversionDefaultLookup|DefaultPrivilegesArrayAuthority|DomainAlterConstraint|DomainBaseUsageAndOwnerAuthorizationInternal|EnumCatalogStagingAndAuthority|ArrayCatalogAssociationPublicationAndOrigin)'
 ```
 
 Engine witnesses that use the package through the catalog and DDL:

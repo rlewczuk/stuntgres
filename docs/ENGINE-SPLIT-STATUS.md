@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `909cd38fc`. The later-wave plans
+Last verified against `master` at `32c82307e`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,9 +15,6 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 15 `typedef`** — 15d, DDL handlers moved (item 49). Builds on the
-  `schemaHost` that 14d (item 47) added; see the routine prompt file's notes
-  for the method-name clash between the two hosts.
 - **Step 16 `extension`** — 16d.2, handler decisions (item 51b).
 - **Postponed packages** — planning round (item 54; docs only).
 
@@ -28,8 +25,9 @@ with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
 16d.1 (item 51a) is done: the providers stage themselves.
 14d (item 47) is done: step 14 is complete.
 17d (item 53) is done: step 17 is complete.
-15c (item 48) is done: 15d (item 49) runs as one session on 14c's
-`schemaHost`.
+15d (item 49) is done: step 15 is complete; the type stage handlers sit
+behind `typedef.StageHost` on `typedefHost`, a defined type over
+`schemaHost`'s fields.
 
 ## Task tree
 
@@ -348,7 +346,7 @@ with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
   - [x] 14c — Host refined (docs only; the commit that records this status)
   - [x] 14d — DDL handlers moved (`df37c5dfb`, `193c703f7`, `5604d3ccf`,
     then the docs commit) *(racecheck/finalcheck skipped at user request)*
-- [ ] **Step 15 — `typedef`** ([prompt](ENGINE-SPLIT-typedef.md); Part A
+- [x] **Step 15 — `typedef`** ([prompt](ENGINE-SPLIT-typedef.md); Part A
   needs 14b; Part B needs 13d)
   - [x] 15a — In place (`1045960f6`, `9e4924bbd`, `0add6a48b`, `92fd3299a`,
     `ed21b3bf3`, then the docs commit) *(racecheck/finalcheck skipped at user
@@ -358,7 +356,9 @@ with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
     skipped at user request)*
   - [x] 15c — Host refined (docs: the commit that records this status)
     *(racecheck/finalcheck skipped at user request)*
-  - [ ] 15d — DDL handlers moved
+  - [x] 15d — DDL handlers moved (`b239d72bd`, `6e22f709a`, `2122c7bc2`,
+    `37c02a9f6`, `9688a64ac`, then the docs commit) *(racecheck/finalcheck
+    skipped at user request)*
 - [ ] **Step 16 — `extension`** ([prompt](ENGINE-SPLIT-extension.md); Part A
   needs 15b; Part B needs 13d)
   - [x] 16a — In place (`d0a013406`, `bc0e3d81b`, `54d886952`, `46da1763e`, then the docs commit)
@@ -661,7 +661,12 @@ in the prompt file's Status section.
     `typedef.StageHost` on 14c's `schemaHost`, authority as a value; stage
     handlers and two staging cores move, executors stay · quickcheck passed;
     racecheck/finalcheck skipped at user request
-49. [ ] Typedef 15d — [typedef](ENGINE-SPLIT-typedef.md) 15d · needs 48
+49. [x] Typedef 15d — [typedef](ENGINE-SPLIT-typedef.md) 15d · needs 48 ·
+    (`b239d72bd`, `6e22f709a`, `2122c7bc2`, `37c02a9f6`, `9688a64ac`, then
+    the docs commit) · type stage handlers and the ALTER ENUM/DOMAIN staging
+    cores in `typedef` behind `StageHost` on the root `typedefHost`; no
+    aliases · selected unit and dual-mode proof and quickcheck passed;
+    racecheck/finalcheck skipped at user request
 50. [x] Extension 16c (refine, docs only) —
     [extension](ENGINE-SPLIT-extension.md) 16c · needs 44, 29 · (the docs
     commit) · measured at `1f606f52d`: providers own staging behind

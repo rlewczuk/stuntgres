@@ -35,6 +35,8 @@ algorithms it applies live in [`authorization`](../authorization/README.md).
   `OwnershipEligibility`, `OwnershipDatabaseCreate`, `SchemaOwner` and
   `OwnershipRoleOperand`, which share the `current_user`/`session_user`
   string protocol.
+- **Namespaces** (`namespace.go`): `CheckPersistentCreationNamespace`, the
+  TEMP capability boundary of non-table creation and namespace moves.
 - **Row security** (`rls.go`): `RowSecurityApplies`, `RowSecurityDecision`,
   `RowSecurityGroups` (returning an `RLSDisposition`), `RowSecurityProposal`,
   `RowSecurityExpressionError` and `RowSecurityPrincipal` over the view

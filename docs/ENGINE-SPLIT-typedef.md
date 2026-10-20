@@ -500,7 +500,75 @@ Part B: the type DDL handlers live in `typedef`. The checks in §8.3 pass.
     `schemaHost` with authority as a per-call value for the same
     `stageSchemaLocked` dispatch, so 15c reuses it instead of forking it.
   - Verification: `make quickcheck` passed; docs only, so no reference run.
-- [ ] 15d — DDL handlers moved
+- [x] 15d — DDL handlers moved (`b239d72bd`, `6e22f709a`, `2122c7bc2`,
+  `37c02a9f6`, `9688a64ac`, then the docs commit) *(racecheck/finalcheck
+  skipped at user request)*
+  - `b239d72bd` (seam): `typedef/stage_host.go` declares `Authority`,
+    `Stage` and `StageHost` (32 methods) with the lock contract; the root
+    implements it in `typedef_host.go` with the `TypedefAuthority` marker and
+    `typedefAuthorityOf`. `checkPersistentCreationNamespace` moved down to
+    `access.CheckPersistentCreationNamespace` (six root callers) instead of
+    being copied.
+  - `6e22f709a` (port in place): the eleven stage handlers,
+    `findUtilityCollation`, `findUtilityConversion` and
+    `collationVersionWarning` take `(StageHost, Authority, statement)`.
+    Every `&auth` recapture became `ns, auth, err = h.CreationNamespace(...)`
+    on the handler's own authority, so later checks still read the
+    recaptured view. `stageSchemaLocked` passes `typedefHost(host)` and
+    `executeEnumDDL` builds one.
+  - `2122c7bc2` (cores): `StageAlterEnumLabelLocked` returns an
+    `EnumLabelEdit` (skipped, or the added member); the root applies the
+    enum journal's `Unsafe` mark after the core instead of before the
+    replacement, which is equivalent because the cloned journal is
+    discarded on any error. `StageAlterDomainConstraintLocked` returns a
+    `DomainConstraintEdit` (next, selected, validating or skipped); the root
+    keeps the unlock and discard on skip.
+  - `37c02a9f6` (move): eight files (about 1.1k lines) moved into
+    `typedef`; `conversionCheckCreate` stays in the root
+    (`conversion_create_check.go`) because `routine.DDLHost` shares it.
+    `typedef` now also imports `access` and `pgcatalog`; no `analyze`,
+    `exec`, `routine` or engine import, and no aliases.
+  - `9688a64ac` (unexport): `check`, `objectRef`, `notice` (exported only
+    for the in-place port) and `enumInsertionOrder`. The seed record types
+    and the two edit types stay exported because exported functions return
+    them.
+  - Deviation: 15c put `typedef.StageHost` on `schemaHost` itself. Go cannot
+    do that: `routine.DDLHost` (14d, merged first) and `typedef.StageHost`
+    need methods with the same names (`AccessView`, `CreationNamespace`,
+    `CheckCreateIn`, `ResolveType`, `DependencyObject`,
+    `RecordDependencyPath`, `Stage`) but each package's own `Authority` and
+    `Stage` types. The root uses `type typedefHost schemaHost`, a defined
+    type over the same fields with its own methods; both call the same root
+    functions. Names: 14d's `CreationNamespace` is 15c's
+    `StagedCreationNamespace`, the plain one is `ExistingCreationNamespace`;
+    15c's `Check` became the package helper `check`, as in `routine`; host
+    `LookupFunction` (from 14d) serves the conversion function lookup;
+    `TrustedRestoreDestination` takes the guard's object name so each
+    handler keeps its internal error text; `DependencyObject` returns the
+    reference-path error that collation and conversion drops return.
+  - Tests: new seam tests `TestTypedefHostCreationNamespaceRecapturesCopy`,
+    `TestTypedefHostStageKeepsLifecycle` and
+    `TestTypedefHostSearchNamespacesMapsClasses` (`typedef_host_test.go`),
+    written first and observed failing. The 18 engine call sites in 8 test
+    files were adapted mechanically (a `typedefHost` literal, then
+    `typedef.` qualification); none moved or deleted.
+  - Verification: `make build` and `go vet` after every commit (only the
+    existing `composites`, `copylocks` and `lostcancel` findings); 185
+    targeted engine and `typedef` unit tests (the 15b selection plus the
+    collation, conversion, domain, enum, composite, typed-table and seam
+    tests) after every commit; the 625-test 15a reference selection in quick
+    mode after every commit and with `REFERENCE=1` at the end; `make
+    quickcheck`, `make deps` and the `go list` layering check, on the base
+    `909cd38fc` (after rebasing onto routine 14d: `schema_host.go` kept
+    14d's file; the commits applied cleanly otherwise). After rebasing onto
+    `32c82307e` (sequence 17d; only a status-page conflict) build, vet, the
+    targeted units, the quick-mode selection and `make quickcheck` passed
+    again. With `REFERENCE=1`
+    only the known oracle-side drift
+    `TestReferenceCompositeExprReturning/postgres` and
+    `TestReferenceCompositeExprCorrelatedReturning/postgres` fail (as in 15a
+    and 15b; every stuntgres subtest passes). No bench: startup is not
+    touched. Racecheck and finalcheck skipped at user request.
 
 Outstanding aliases: none (15b qualified every reference; no type aliases).
 
@@ -510,6 +578,8 @@ Notes for later steps:
   `typeProvider.Validate`; keep that seam usable from `extension`.
 - Moving `typeProvider.Validate` itself needs a stored-SQL rendering seam
   (catalog prompt file, notes for later steps).
+- Part B is done: the stage handlers live in `typedef`. What stays in the
+  root and why is in the typedef README ("What stays in the engine").
 - The slot structs now live in `typedef` (`typedef.DomainAlterStage`,
   `TypedStage`, `DomainJournal`, `EnumJournal`, with exported fields); their
   accessors on `CatalogStage` and `catalogChanges` (`domainAlterState`,
@@ -522,19 +592,19 @@ Notes for later steps:
   seam (routine prompt file). `typeProvider` waits for the stored-SQL
   rendering seam. 15c leaves both out of 15d: plan them in the item 54
   round (`control` owns Dump/Restore).
-- 14d/15d both build on `schemaHost` and share root functions
+- 14d/15d both build on `schemaHost`'s fields and share root functions
   (`collationCreationNamespaceLocked`, `conversionCheckCreate`,
-  `dependencyObject`). 16c's `extensionHost` stays separate (installers
-  capture one view). If a third package needs `Authority`/`Stage`, move
-  them down instead of copying.
+  `dependencyObject`), through two adapters (`schemaHost`, `typedefHost`).
+  16c's `extensionHost` stays separate (installers capture one view). If a
+  third package needs `Authority`/`Stage`, move them down instead of
+  copying; one shared `Authority` and `Stage` would also let one adapter
+  serve both hosts.
 - `collation_temporary.go` holds session-end TEMP cleanup and
   `collationCreationNamespaceLocked`, a general staged creation-namespace
   helper (operators, routines, conversions). Rename both when a later step
   touches them.
 - 13a/13b: `conversionDefault` stayed in the engine as the
   `StatementScope` presentation cache record; move it with that slot.
-- When the DDL handlers move, unexport the `typedef` names that nothing
-  outside the package uses any more.
 - 13b: the domain, typed-table and enum slots exist; skip them. The journal
   fence list of 13b item 2 must keep `domainJournal.validations` first in
   `catalogReadPreflightLocked`.

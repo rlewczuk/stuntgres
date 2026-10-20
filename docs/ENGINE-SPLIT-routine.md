@@ -512,7 +512,8 @@ Notes for later steps:
   (`type typedefHost schemaHost`, sharing the root functions), or move
   `Authority` and `Stage` down into one shared package. Note also that
   15c's `StagedCreationNamespace` is 14d's `CreationNamespace`, and 14d has
-  no host `Check` (see 14d above).
+  no host `Check` (see 14d above). 15d took the defined type
+  (`typedefHost`) and reused 14d's `CreationNamespace` name.
 - Dump seam (postponed `control`): `operator_dump.go`,
   `sqlRoutineDumpEvents`, `sqlRoutineDumpStatement` and
   `routineIdentityByOID` move once the dump graph (`dumpEventKey`,
