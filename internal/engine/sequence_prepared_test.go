@@ -80,7 +80,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		cell := d.sequences
 		constant := &cell.constants[0]
 		path := &cell.path.namespaces[0]
-		key := s.sequencePath.key
+		key := s.sequences.path.key
 		ref := cell.constants[0].ref
 		stamp := e.catalog.state.MustRelation(ref.Address).SequencePlanStamp
 		sessionSQL(t, s, "CREATE SEQUENCE a.s START 100")
@@ -94,7 +94,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 			if got[0][0] != want {
 				t.Fatal(got, want)
 			}
-			if d.sequences != cell || &cell.constants[0] != constant || &cell.path.namespaces[0] != path || s.sequencePath.key != key {
+			if d.sequences != cell || &cell.constants[0] != constant || &cell.path.namespaces[0] != path || s.sequences.path.key != key {
 				t.Fatal("unchanged execution replaced analysis or effective namespace cache")
 			}
 		}

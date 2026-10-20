@@ -34,20 +34,14 @@ func (e *Engine) clearPersistentSequenceMemoryLocked() {
 	defer e.sessionMu.Unlock()
 	for _, s := range e.sessions {
 		s.sqlRoutines = nil
-		for a := range s.sequences {
+		s.sequences.retainLocked(func(a ids.ObjectAddress) bool {
 			r, ok := e.catalog.state.Relation(a)
-			keep := false
-			if ok {
-				ns, ok := e.catalog.state.Namespace(r.Namespace())
-				keep = ok && ns.Temporary == s.token
+			if !ok {
+				return false
 			}
-			if !keep {
-				delete(s.sequences, a)
-				if s.lastSequence == a {
-					s.lastSequence = ids.ObjectAddress{}
-				}
-			}
-		}
+			ns, ok := e.catalog.state.Namespace(r.Namespace())
+			return ok && ns.Temporary == s.token
+		})
 	}
 }
 

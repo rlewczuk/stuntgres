@@ -150,8 +150,8 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				}
 				generator := e.storage.Sequences[ref.Address]
 				generatorValue := *generator
-				memory := session.sequences[ref.Address]
-				memoryValue, lastSequence := *memory, session.lastSequence
+				memory := session.sequences.memory(ref.Address)
+				memoryValue, lastSequence := *memory, session.sequences.last()
 				if !generator.Called || generator.Last != 42 || !memory.valid || memory.value != 40 || memory.remaining != 2 {
 					t.Fatal("fixture lacks actual reserved counter/currval/cache state")
 				}
@@ -261,7 +261,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 				if e.roles.published != oldRoles || session.authorization.revision != sessionRevision || e.catalog.state.Epoch() != epoch || old.Owner != dbRole || !reflect.DeepEqual(old.Security.ACL, retainedACL) || *old.Sequence != retainedOptions || auth.Catalog.Get(ref.Address) != old || auth.Catalog.Get(catalog.CurrentDatabaseAddress) != selectedDB || auth.DatabasePredecessor != committed || originalCatalog.Get(catalog.CurrentDatabaseAddress) != committed {
 					t.Fatal("publication mutated immutable retained authority or sequence roots")
 				}
-				if e.storage.Sequences[ref.Address] != generator || *generator != generatorValue || session.sequences[ref.Address] != memory || *memory != memoryValue || session.lastSequence != lastSequence {
+				if e.storage.Sequences[ref.Address] != generator || *generator != generatorValue || session.sequences.memory(ref.Address) != memory || *memory != memoryValue || session.sequences.last() != lastSequence {
 					t.Fatal("OWNER publication changed actual nontransactional counter/cache/currval")
 				}
 				for address, g := range generators {

@@ -75,10 +75,10 @@ func TestAlterTablespaceAdmittedTypePrefix(t *testing.T) {
 	b := old.ColumnMeta.Identities[old.Attributes[1]].Sequence
 	third := old.ColumnMeta.Identities[old.Attributes[2]].Sequence
 	generatorC := e.storage.Sequences[third]
-	valueC, cacheC := *generatorC, *c.op.session.sequences[third]
+	valueC, cacheC := *generatorC, *c.op.session.sequences.memory(third)
 	generatorA, generatorB := e.storage.Sequences[a], e.storage.Sequences[b]
 	valueA, valueB := *generatorA, *generatorB
-	memoryA, memoryB := c.op.session.sequences[a], c.op.session.sequences[b]
+	memoryA, memoryB := c.op.session.sequences.memory(a), c.op.session.sequences.memory(b)
 	cacheB := *memoryB
 	if memoryA.remaining != 4 || memoryB.remaining != 4 {
 		t.Fatal("fixture did not reserve actual cache tails", memoryA, memoryB)
@@ -101,7 +101,7 @@ func TestAlterTablespaceAdmittedTypePrefix(t *testing.T) {
 		t.Fatal("AS occurrence order/failing occurrence was lost", sequence.Sequence, stage.generators[a])
 	}
 	prior := stage.Get(third).(*catalog.Relation)
-	if prior.Sequence.SQLType != sqltype.Int8 || prior.Revision() >= sequence.Revision() || stage.generators[third] == nil || stage.generators[third].Generation != prior.Revision() || cacheC.remaining != 4 || c.op.session.sequences[third].remaining != 0 {
+	if prior.Sequence.SQLType != sqltype.Int8 || prior.Revision() >= sequence.Revision() || stage.generators[third] == nil || stage.generators[third].Generation != prior.Revision() || cacheC.remaining != 4 || c.op.session.sequences.memory(third).remaining != 0 {
 		t.Fatal("distinct identity AS order/cache effects were lost", prior, sequence, stage.generators[third])
 	}
 	if stage.Get(b) != nil || stage.generators[b] != nil || memoryA.remaining != 0 || !reflect.DeepEqual(*memoryB, cacheB) {
@@ -147,7 +147,7 @@ func TestAlterTablespaceAdmissionFailureNoPrefix(t *testing.T) {
 			}
 			before := c.e.catalog.state
 			a := original.ColumnMeta.Identities[original.Attributes[0]].Sequence
-			memory := *c.op.session.sequences[a]
+			memory := *c.op.session.sequences.memory(a)
 			generator := *c.e.storage.Sequences[a]
 			prepared, err := tablespacePrefixPrepare(c, old, c.raw.Actions)
 			tablespacePrefixCode(t, err, tc.code)
@@ -155,7 +155,7 @@ func TestAlterTablespaceAdmissionFailureNoPrefix(t *testing.T) {
 				t.Fatal("admission failure exposed a stageable prefix", prepared.types)
 			}
 			stage, stageErr := c.e.stageAlterIdentityTypes(c.scope, c.op, c.auth, original, c.raw.Actions, prepared.types)
-			if stage != nil || stageErr != nil || *c.op.session.sequences[a] != memory || *c.e.storage.Sequences[a] != generator || c.e.catalog.state != before {
+			if stage != nil || stageErr != nil || *c.op.session.sequences.memory(a) != memory || *c.e.storage.Sequences[a] != generator || c.e.catalog.state != before {
 				t.Fatal("failed admission staged AS", stage, stageErr)
 			}
 			c.scope.Finish(err)
@@ -187,7 +187,7 @@ func TestAlterTablespacePrefixErrorOwnership(t *testing.T) {
 				b := old.ColumnMeta.Identities[old.Attributes[1]].Sequence
 				generatorA, generatorB := e.storage.Sequences[a], e.storage.Sequences[b]
 				valueA, valueB := *generatorA, *generatorB
-				memoryA, memoryB := c.op.session.sequences[a], c.op.session.sequences[b]
+				memoryA, memoryB := c.op.session.sequences.memory(a), c.op.session.sequences.memory(b)
 				cacheA, cacheB := *memoryA, *memoryB
 				_, saved := tablespacePrefixPrepare(c, old, c.raw.Actions)
 				tablespacePrefixCode(t, saved, "42804")

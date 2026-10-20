@@ -49,8 +49,10 @@ func (e *Engine) sequenceEnvironmentLocked(auth AuthorizationView) (sequenceEnvi
 	} else {
 		key.text = e.settings.Definitions()["search_path"].BootValue().Text
 	}
-	if auth.session != nil && auth.session.sequencePath.valid && auth.session.sequencePath.key == key {
-		return auth.session.sequencePath.environment, nil
+	if auth.session != nil {
+		if environment, ok := auth.session.sequences.cachedPath(key); ok {
+			return environment, nil
+		}
 	}
 	path, pending, err := e.explicitPath(auth)
 	if err != nil {
@@ -59,7 +61,7 @@ func (e *Engine) sequenceEnvironmentLocked(auth AuthorizationView) (sequenceEnvi
 	catalog := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
 	result := sequenceEnvironment{namespaces: path, pendingTemp: pending, implicitCatalog: !slices.Contains(path, catalog), implicitTemp: key.temp != (ids.ObjectAddress{}) && !slices.Contains(path, key.temp)}
 	if auth.session != nil {
-		auth.session.sequencePath = sequencePathCache{valid: true, key: key, environment: result}
+		auth.session.sequences.storePathLocked(key, result)
 	}
 	return result, nil
 }

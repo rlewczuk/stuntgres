@@ -70,7 +70,7 @@ func ownershipManualCapture(e *Engine, session *Session, sequence ids.ObjectRef)
 	snapshot := ownershipManualSnapshot{
 		roots: indexMaintenanceCapture(e), roles: e.roles.published, revision: session.authorization.revision,
 		generators: make(map[ids.ObjectAddress]*storage.SequenceGenerator), generatorValues: make(map[ids.ObjectAddress]storage.SequenceGenerator),
-		memory: session.sequences[sequence.Address], last: session.lastSequence,
+		memory: session.sequences.memory(sequence.Address), last: session.sequences.last(),
 		rows: make(map[ids.ObjectAddress][]storage.RowVersion),
 	}
 	snapshot.memoryValue = *snapshot.memory
@@ -108,7 +108,7 @@ func ownershipManualStart(t *testing.T, e *Engine, session *Session, sequence id
 	}
 	values := tuples(result)
 	result.Rows.Close()
-	if !reflect.DeepEqual(values, [][]driver.Value{{int64(40)}}) || e.storage.Sequences[sequence.Address].Last != 42 || session.sequences[sequence.Address].remaining != 2 {
+	if !reflect.DeepEqual(values, [][]driver.Value{{int64(40)}}) || e.storage.Sequences[sequence.Address].Last != 42 || session.sequences.memory(sequence.Address).remaining != 2 {
 		t.Fatal("fixture did not consume actual nontransactional CACHE3 sequence", values)
 	}
 	if _, err := message.step(statement(t, "INSERT INTO ownership_fence_sentinel VALUES(9)")); err != nil {
@@ -167,7 +167,7 @@ func ownershipManualRetainedUnchanged(t *testing.T, e *Engine, session *Session,
 	if e.roles.published != before.roles || session.authorization.revision != before.revision || e.catalog.state.Epoch() != auth.Catalog.Epoch() || auth.DatabasePredecessor != committed || auth.Catalog.Get(sequence.Address) != old || old.Owner != auth.Roles.LookupRef("pg_database_owner") || old.Comment != "retained sequence comment" || !reflect.DeepEqual(old.Security.ACL, retainedACL) || *old.Sequence != retainedOptions {
 		t.Fatal("manual utility mutated retained sequence/ACL/paired authority")
 	}
-	if session.sequences[sequence.Address] != before.memory || *before.memory != before.memoryValue || session.lastSequence != before.last {
+	if session.sequences.memory(sequence.Address) != before.memory || *before.memory != before.memoryValue || session.sequences.last() != before.last {
 		t.Fatal("manual utility changed actual currval/cache/lastval memory")
 	}
 	for address, generator := range before.generators {

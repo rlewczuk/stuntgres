@@ -90,8 +90,8 @@ func preparedDefinitionStamp(d catalog.Descriptor, session *Session) ids.Definit
 	if relation, ok := d.(*catalog.Relation); ok && relation.RelationKind == catalog.SequenceRelation {
 		stamp := relation.SequencePlanStamp
 		if session != nil {
-			if memory := session.sequences[relation.Address()]; memory != nil {
-				stamp = max(stamp, memory.analysisStamp)
+			if memory := session.sequences.memory(relation.Address()); memory != nil {
+				stamp = max(stamp, memory.sourceStamp())
 			}
 		}
 		return stamp

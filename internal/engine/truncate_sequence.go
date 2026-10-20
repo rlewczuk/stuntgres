@@ -116,22 +116,13 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 		stage.generators[d.Address()] = &storage.SequenceGenerator{Last: d.Sequence.Start, Generation: rev}
 	}
 	session := s.op.session
-	if len(s.truncateSequences) != 0 && session.sequences == nil {
-		session.sequences = make(map[ids.ObjectAddress]*sequenceMemory, len(s.truncateSequences))
-	}
 	for _, sequence := range s.truncateSequences {
 		a := sequence.ref.Address
-		m := session.sequences[a]
-		if m == nil {
-			m = &sequenceMemory{}
-			session.sequences[a] = m
-		}
 		// Reset itself discards the initiating backend's old unused tail,
 		// even if it rolls back without another function demand. Its local
 		// source event also survives rollback, without changing observation
 		// validity/value, the last-demanded sequence, or a peer's analysis.
-		m.remaining = 0
-		m.analysisStamp = stage.Get(a).(*catalog.Relation).SequencePlanStamp
+		session.sequences.demandLocked(a).markSourceEventLocked(stage.Get(a).(*catalog.Relation).SequencePlanStamp)
 	}
 	s.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 	return observed, nil

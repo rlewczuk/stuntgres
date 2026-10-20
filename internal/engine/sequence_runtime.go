@@ -40,7 +40,7 @@ func (c *EvalContext) Sequence(request functions.SequenceRequest) (int64, error)
 	}
 	if request.Name == "lastval" {
 		e.mu.Lock()
-		ref = e.catalog.Domain.Ref(e.catalog.state.Epoch(), scope.op.session.lastSequence)
+		ref = e.catalog.Domain.Ref(e.catalog.state.Epoch(), scope.op.session.sequences.last())
 		e.mu.Unlock()
 		if ref.Address == (ids.ObjectAddress{}) {
 			return 0, sqlError("55000", "lastval is not yet defined in this session")
@@ -123,44 +123,26 @@ func (c *EvalContext) Sequence(request functions.SequenceRequest) (int64, error)
 	if g == nil {
 		return 0, fmt.Errorf("stuntgres: sequence state missing")
 	}
-	if session.sequences == nil {
-		session.sequences = make(map[ids.ObjectAddress]*sequenceMemory)
-	}
-	m := session.sequences[ref.Address]
-	if m == nil {
-		m = &sequenceMemory{}
-		session.sequences[ref.Address] = m
-	}
-	if m.generation != g.Generation {
-		m.remaining = 0
-		m.generation = g.Generation
-	}
+	m := session.sequences.demandLocked(ref.Address)
+	m.observeLocked(g.Generation)
 	var result int64
 	switch request.Name {
 	case "currval", "lastval":
-		if !m.valid {
+		value, valid := m.current()
+		if !valid {
 			msg := fmt.Sprintf(`currval of sequence "%s" is not yet defined in this session`, d.Name())
 			if request.Name == "lastval" {
 				msg = "lastval is not yet defined in this session"
 			}
 			return 0, sqlError("55000", msg)
 		}
-		result = m.value
+		result = value
 	case "nextval":
-		if m.remaining == 0 {
-			first, count, err := reserveSequence(*d.Sequence, g, d.Name())
-			if err != nil {
-				return 0, err
-			}
-			m.next, m.remaining = first, count
+		result, err = m.nextLocked(*d.Sequence, g, d.Name())
+		if err != nil {
+			return 0, err
 		}
-		result = m.next
-		m.remaining--
-		if m.remaining != 0 {
-			m.next += d.Sequence.Increment
-		}
-		m.value, m.valid = result, true
-		session.lastSequence = d.Address()
+		session.sequences.recordLastLocked(d.Address())
 	case "setval":
 		result, err = request.Value.Integer()
 		if err != nil {
@@ -177,10 +159,7 @@ func (c *EvalContext) Sequence(request functions.SequenceRequest) (int64, error)
 			}
 		}
 		g.Last, g.Called = result, called
-		m.remaining = 0
-		if called {
-			m.value, m.valid = result, true
-		}
+		m.setLocked(result, called)
 	}
 	return result, nil
 }

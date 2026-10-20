@@ -95,12 +95,10 @@ type Session struct {
 	cursors                *cursorRegistry
 	preparedSQL            *sqlPreparedRegistry
 	authorization          *sessionAuthorization
-	sequences              map[ids.ObjectAddress]*sequenceMemory
-	lastSequence           ids.ObjectAddress
+	sequences              sessionSequences
 	discardPlansGeneration uint64 // serialized by physical-owner statement admission
 	sqlRoutines            map[ids.ObjectAddress]sqlRoutineAnalysis
 	temporaryNamespace     ids.ObjectAddress
-	sequencePath           sequencePathCache
 	random                 randomState
 	arrayRandom            randomState // independent of random()/setseed()
 	uuid                   uuidClock

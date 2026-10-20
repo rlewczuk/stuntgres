@@ -167,8 +167,7 @@ func (e *Engine) endTemporarySession(s *Session) error {
 			}
 		}
 		if len(namespaces) == 0 {
-			s.sequences = nil
-			s.lastSequence = ids.ObjectAddress{}
+			s.sequences.forgetLocked()
 			s.temporaryNamespace = ids.ObjectAddress{}
 			e.mu.Unlock()
 			return nil
@@ -315,8 +314,7 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 	e.storage.ReplaceIndexRootsLocked(roots)
 	stage.lifecycle = catalogPublished
 	e.catalog.nextRevision = nextRevision
-	s.sequences = nil
-	s.lastSequence = ids.ObjectAddress{}
+	s.sequences.forgetLocked()
 	s.temporaryNamespace = ids.ObjectAddress{}
 	return true, nil
 }

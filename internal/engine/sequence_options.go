@@ -5,22 +5,10 @@ import (
 	"math"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
-
-type sequenceMemory struct {
-	value      int64
-	valid      bool
-	next       int64
-	remaining  uint64
-	generation ids.DefinitionRevision
-	// Local relation-source invalidation survives reverted reset without
-	// borrowing generator/cache identity or changing currval/lastval.
-	analysisStamp ids.DefinitionRevision
-}
 
 func sequenceTypeLimits(id sqltype.ID) (int64, int64, string) {
 	switch id {

@@ -24,7 +24,7 @@ func TestTruncateRestartSavepoints(t *testing.T) {
 		t.Fatal("replacement mutated original counter")
 	}
 	sessionSQL(t, s, "ROLLBACK TO before_reset")
-	if s.transactions.catalog != catalog || !sameVersionRoot(s.transactions.writes[p.Address], writes) || e.catalog.state.Get(ps.Address) != descriptor || s.sequences[ps.Address].value != 1 || !s.sequences[ps.Address].valid || s.lastSequence != ps.Address {
+	if s.transactions.catalog != catalog || !sameVersionRoot(s.transactions.writes[p.Address], writes) || e.catalog.state.Get(ps.Address) != descriptor || s.sequences.memory(ps.Address).value != 1 || !s.sequences.memory(ps.Address).valid || s.sequences.last() != ps.Address {
 		t.Fatal("savepoint failed binding/root/memory separation")
 	}
 	lockState := e.locks.Inspect()
@@ -57,7 +57,7 @@ func TestTruncateRestartSavepoints(t *testing.T) {
 	}
 	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 3)
 	transactionEnd(t, s, tx, false)
-	if e.storage.Sequences[ps.Address] != original || original.Last != 4 || s.sequences[ps.Address].value != 3 || !s.sequences[ps.Address].valid {
+	if e.storage.Sequences[ps.Address] != original || original.Last != 4 || s.sequences.memory(ps.Address).value != 3 || !s.sequences.memory(ps.Address).valid {
 		t.Fatal("outer rollback undid ordinary allocation or local observation")
 	}
 	lockEmpty(t, e)
@@ -69,12 +69,12 @@ func TestTruncateRestartCache(t *testing.T) {
 		sessionSQL(t, s, "ALTER SEQUENCE p_id_seq CACHE 4")
 		sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 3)
 		original := e.storage.Sequences[ps.Address]
-		if original.Last != 6 || s.sequences[ps.Address].remaining != 3 {
+		if original.Last != 6 || s.sequences.memory(ps.Address).remaining != 3 {
 			t.Fatal("cache fixture not primed")
 		}
 		tx := transactionBegin(t, s)
 		truncateUnitExecute(t, e, s, truncateRestartUnitAST("p"))
-		if s.sequences[ps.Address].remaining != 0 || s.sequences[ps.Address].value != 3 || !s.sequences[ps.Address].valid || s.lastSequence != ps.Address {
+		if s.sequences.memory(ps.Address).remaining != 0 || s.sequences.memory(ps.Address).value != 3 || !s.sequences.memory(ps.Address).valid || s.sequences.last() != ps.Address {
 			t.Fatal("reset did not discard just unused tail")
 		}
 		transactionEnd(t, s, tx, false) // No sequence operation after reset.
@@ -94,16 +94,16 @@ func TestTruncateRestartCache(t *testing.T) {
 		truncateUnitExecute(t, e, s, truncateRestartUnitAST("p"))
 		transactionEnd(t, s, tx, false)
 		sequenceScalar(t, peer, "SELECT nextval('p_id_seq')", 4)
-		if e.storage.Sequences[ps.Address] != original || peer.sequences[ps.Address].remaining != 2 {
+		if e.storage.Sequences[ps.Address] != original || peer.sequences.memory(ps.Address).remaining != 2 {
 			t.Fatal("rollback invalidated untouched peer tail")
 		}
 		truncateUnitExecute(t, e, s, truncateRestartUnitAST("p"))
-		if e.storage.Sequences[ps.Address] == original || peer.sequences[ps.Address].value != 4 {
+		if e.storage.Sequences[ps.Address] == original || peer.sequences.memory(ps.Address).value != 4 {
 			t.Fatal("commit did not replace binding/preserved local observation")
 		}
 		sequenceScalar(t, peer, "SELECT currval('p_id_seq')", 4)
 		sequenceScalar(t, peer, "SELECT nextval('p_id_seq')", 1)
-		if peer.sequences[ps.Address].generation != e.storage.Sequences[ps.Address].Generation {
+		if peer.sequences.memory(ps.Address).generation != e.storage.Sequences[ps.Address].Generation {
 			t.Fatal("peer did not adopt committed generation")
 		}
 		lockEmpty(t, e)
@@ -138,8 +138,8 @@ func TestTruncateRestartCache(t *testing.T) {
 			if end == "DiscardSequences" {
 				sessionSQL(t, s, "DISCARD SEQUENCES")
 			}
-			memory := s.sequences[ref.Address]
-			if memory == nil || memory.analysisStamp <= original.SequencePlanStamp || memory.valid || memory.value != 0 || memory.remaining != 0 || s.lastSequence != (ids.ObjectAddress{}) || peer.sequences[ref.Address] != nil || e.catalog.state.Get(ref.Address) != original {
+			memory := s.sequences.memory(ref.Address)
+			if memory == nil || memory.analysisStamp <= original.SequencePlanStamp || memory.valid || memory.value != 0 || memory.remaining != 0 || s.sequences.last() != (ids.ObjectAddress{}) || peer.sequences.memory(ref.Address) != nil || e.catalog.state.Get(ref.Address) != original {
 				t.Fatal("local source event minted an observation, touched peer, mutated descriptor, or was undone")
 			}
 			e.mu.Lock()

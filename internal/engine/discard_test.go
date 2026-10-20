@@ -47,9 +47,9 @@ func TestDiscardOwnerPrecision(t *testing.T) {
 			a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90001}
 			memory := &sequenceMemory{valid: true, value: 7}
-			a.sequences, b.sequences = make(map[ids.ObjectAddress]*sequenceMemory), make(map[ids.ObjectAddress]*sequenceMemory)
-			a.sequences[address], b.sequences[address] = memory, &sequenceMemory{valid: true, value: 8}
-			a.lastSequence, b.lastSequence = address, address
+			a.sequences.memories, b.sequences.memories = make(map[ids.ObjectAddress]*sequenceMemory), make(map[ids.ObjectAddress]*sequenceMemory)
+			a.sequences.memories[address], b.sequences.memories[address] = memory, &sequenceMemory{valid: true, value: 8}
+			a.sequences.lastAddress, b.sequences.lastAddress = address, address
 			entry := &sqlPreparedStatement{body: &parser.Select{}}
 			a.preparedSQL.entries["p"], b.preparedSQL.entries["p"] = entry, entry
 			var tx ids.TxRef
@@ -64,7 +64,7 @@ func TestDiscardOwnerPrecision(t *testing.T) {
 			if a.resources != resources || a.serial != serial || a.advisory.ticket != ticket || !a.IsLive() {
 				t.Fatal("DISCARD detached or retired physical owners")
 			}
-			if e.catalog.state != catalog || e.roles.published != roles || b.preparedSQL.entries["p"] != entry || b.sequences[address].value != 8 || b.lastSequence != address || b.discardPlansGeneration != 0 {
+			if e.catalog.state != catalog || e.roles.published != roles || b.preparedSQL.entries["p"] != entry || b.sequences.memory(address).value != 8 || b.sequences.last() != address || b.discardPlansGeneration != 0 {
 				t.Fatal("DISCARD changed shared/peer state")
 			}
 			if category == parser.DiscardAll {
@@ -75,10 +75,10 @@ func TestDiscardOwnerPrecision(t *testing.T) {
 				t.Fatal("subset deallocated definitions/cursors")
 			}
 			if category == parser.DiscardPlans {
-				if a.sequences[address] != memory || a.lastSequence != address {
+				if a.sequences.memory(address) != memory || a.sequences.last() != address {
 					t.Fatal("PLANS lost sequence memory")
 				}
-			} else if len(a.sequences) != 0 || a.lastSequence != (ids.ObjectAddress{}) {
+			} else if len(a.sequences.memories) != 0 || a.sequences.last() != (ids.ObjectAddress{}) {
 				t.Fatal("sequence memories retained")
 			}
 			if category != parser.DiscardAll {
@@ -94,8 +94,8 @@ func TestDiscardPublicationBoundary(t *testing.T) {
 			t.Run(map[bool]string{true: "cancel-before", false: "cancel-after"}[before], func(t *testing.T) {
 				s := sessionStart(t, New(), nil)
 				address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90001}
-				s.sequences = make(map[ids.ObjectAddress]*sequenceMemory)
-				s.sequences[address] = &sequenceMemory{valid: true, value: 7}
+				s.sequences.memories = make(map[ids.ObjectAddress]*sequenceMemory)
+				s.sequences.memories[address] = &sequenceMemory{valid: true, value: 7}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				op, scope := discardUnitScope(t, s, ctx, category)
@@ -105,7 +105,7 @@ func TestDiscardPublicationBoundary(t *testing.T) {
 				}
 				result, err := scope.executeDiscard(&parser.Discard{Category: category}, 0)
 				if before {
-					if !errors.Is(err, context.Canceled) || scope.completed || s.discardPlansGeneration != 0 || s.sequences[address] == nil {
+					if !errors.Is(err, context.Canceled) || scope.completed || s.discardPlansGeneration != 0 || s.sequences.memory(address) == nil {
 						t.Fatal("canceled preflight installed effects", err)
 					}
 					if err := scope.Finish(err); !errors.Is(err, context.Canceled) {

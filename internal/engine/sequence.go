@@ -469,8 +469,8 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			changes.generators[d.Address()] = &replacement
 		}
 		if s.Action == "" || persistenceChanged {
-			if m := op.session.sequences[d.Address()]; m != nil {
-				m.remaining = 0
+			if m := op.session.sequences.memory(d.Address()); m != nil {
+				m.discardTailLocked()
 			}
 		}
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ref, e.catalog.state.Get(ref.Address))

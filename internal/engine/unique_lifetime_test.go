@@ -167,14 +167,14 @@ func TestUniqueRealRetainedTemporaryRemapping(t *testing.T) {
 			tempRef := description.sequences.constants[0].ref
 			temp := target.catalog.state.Get(tempRef.Address)
 			generator := target.storage.Sequences[tempRef.Address]
-			memory := b.sequences[tempRef.Address]
+			memory := b.sequences.memory(tempRef.Address)
 			if !self && tempRef.Address.ObjectID != original.Address().ObjectID {
 				t.Fatal("fixture must produce a real retained TEMP address collision", tempRef.Address, original.Address())
 			}
 			if _, err := target.ReplaceCatalog(ctx, source, before); err != nil {
 				t.Fatal(err)
 			}
-			if target.catalog.state.Get(tempRef.Address) != temp || target.storage.Sequences[tempRef.Address] != generator || b.sequences[tempRef.Address] != memory {
+			if target.catalog.state.Get(tempRef.Address) != temp || target.storage.Sequences[tempRef.Address] != generator || b.sequences.memory(tempRef.Address) != memory {
 				t.Fatal("retained TEMP identity changed")
 			}
 			parent := target.catalog.state.MustRelation(roleTableRef(t, target, "portable.t").Address)
