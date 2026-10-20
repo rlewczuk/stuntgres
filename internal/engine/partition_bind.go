@@ -48,16 +48,16 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *cat
 			}
 		} else {
 			ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
-			columns := make([]queryColumn, len(d.Columns))
+			columns := make([]analyze.QueryColumn, len(d.Columns))
 			for j, c := range d.Columns {
-				columns[j] = queryColumn{Descriptor: c, Slot: j, Leaf: 0, Physical: j}
+				columns[j] = analyze.QueryColumn{Descriptor: c, Slot: j, Leaf: 0, Physical: j}
 			}
-			namespace := queryNamespace{Columns: columns, Qualifiers: []queryQualifier{{Name: d.Name(), Original: d.Name(), Schema: auth.Catalog.Get(d.Namespace()).Name(), Ref: ref, Columns: columns}}, Frame: d.Columns}
+			namespace := analyze.QueryNamespace{Columns: columns, Qualifiers: []analyze.QueryQualifier{{Name: d.Name(), Original: d.Name(), Schema: auth.Catalog.Get(d.Namespace()).Name(), Ref: ref, Columns: columns}}, Frame: d.Columns}
 			binder := newExpressionBinder(op.Context(), e, input, op, nil)
 			binder.Consumer.PartitionConsumer, binder.Params.NoParameters, binder.Query.Auth = "partition key expression", true, &auth
 			binder.Query.Namespace = &namespace
 			binder.Query.Sources = []exec.Leaf{{Ref: ref, Relation: d}}
-			node, err := binder.Bind(r.Expression, expressionPolicy{Context: analyze.ProjectionContext})
+			node, err := binder.Bind(r.Expression, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				return nil, err
 			}
@@ -172,7 +172,7 @@ func (p *pendingPartitionDefinition) bindPartitionDatum(scope *StatementScope, d
 	binder.Query.Auth = &p.auth
 	binder.Params.NoParameters = true
 	binder.Consumer.PartitionConsumer = "partition bound"
-	node, err := binder.Bind(datum.Expression, expressionPolicy{Context: analyze.ProjectionContext, Expected: key.Usage.Type.Usage()})
+	node, err := binder.Bind(datum.Expression, analyze.ExpressionPolicy{Context: analyze.ProjectionContext, Expected: key.Usage.Type.Usage()})
 	if err != nil {
 		return nil, err
 	}

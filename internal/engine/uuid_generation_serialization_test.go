@@ -23,7 +23,7 @@ func TestUUIDGenerationCapturedNullTyping(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			node, err := b.Bind(statements[0].(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+			node, err := b.Bind(statements[0].(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -38,7 +38,7 @@ func TestUUIDGenerationCapturedNullTyping(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				node, err = b.Bind(statements[0].(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+				node, err = b.Bind(statements[0].(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 				if err != nil {
 					t.Fatal(err)
 				}

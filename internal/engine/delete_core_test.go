@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/sqltype"
 )
 
@@ -110,7 +111,7 @@ func TestDeleteCorePrepared(t *testing.T) {
 			t.Fatal(err)
 		}
 		scope.Expected = &description
-		result, err := scope.Execute(ast, 1, func(ctx context.Context, p ParameterInfo, dst []sqltype.Value, input sqltype.InputEnvironment) error {
+		result, err := scope.Execute(ast, 1, func(ctx context.Context, p analyze.ParameterInfo, dst []sqltype.Value, input sqltype.InputEnvironment) error {
 			if tc.value == nil {
 				dst[0] = sqltype.Null(p.Types[0].Type)
 				return nil

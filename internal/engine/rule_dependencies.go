@@ -48,8 +48,8 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 		return nil, err
 	}
 	var seen map[*plan.CTEDefinition]bool
-	var bindingRefs func(binding) error
-	bindingRefs = func(b binding) error {
+	var bindingRefs func(analyze.Binding) error
+	bindingRefs = func(b analyze.Binding) error {
 		if err := targets(b.ArrayTargets); err != nil {
 			return err
 		}

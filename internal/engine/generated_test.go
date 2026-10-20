@@ -74,8 +74,8 @@ func TestGeneratedOriginalReferencesAndPrivateReadManifest(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored}}
 	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
-	columns := []queryColumn{{Descriptor: d.Columns[0], Slot: 0, Leaf: 0, Physical: 0}, {Descriptor: d.Columns[1], Slot: 1, Leaf: 0, Physical: 1}}
-	ns := queryNamespace{Columns: columns, Qualifiers: []queryQualifier{{Name: "g", Original: "g", Schema: "public", Ref: ref, Columns: columns}}, Frame: d.Columns}
+	columns := []analyze.QueryColumn{{Descriptor: d.Columns[0], Slot: 0, Leaf: 0, Physical: 0}, {Descriptor: d.Columns[1], Slot: 1, Leaf: 0, Physical: 1}}
+	ns := analyze.QueryNamespace{Columns: columns, Qualifiers: []analyze.QueryQualifier{{Name: "g", Original: "g", Schema: "public", Ref: ref, Columns: columns}}, Frame: d.Columns}
 	auth := AuthorizationView{View: access.View{Catalog: view}}
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
 	b.Target.GeneratedOwner = d
@@ -136,7 +136,7 @@ func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
 	original := plan.TableOIDExpr{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Owner: owner}
 	child := *parent
 	child.ObjectAddress.ObjectID++
-	mapper := createLikeInput{Source: parent}
+	mapper := analyze.LikeInput{Source: parent}
 	left, err := remapLikeExpression(&mapper, original, &child, view)
 	if err != nil {
 		t.Fatal(err)
@@ -171,7 +171,7 @@ func TestGeneratedTableOIDStructuralEquality(t *testing.T) {
 func TestGeneratedNullDefinitionValidationAndIdentity(t *testing.T) {
 	e, view, d := generatedUnitDescriptor(t)
 	op := &Operation{ctx: context.Background()}
-	declarations := []createColumnDeclaration{{}, {Generation: &parser.GenerationDefinition{Kind: "stored", Expression: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}}}
+	declarations := []analyze.ColumnDeclaration{{}, {Generation: &parser.GenerationDefinition{Kind: "stored", Expression: parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}}}}
 	if err := e.bindCreateGenerations(op, AuthorizationView{View: access.View{Catalog: view}}, d, declarations, sqltype.InputEnvironment{}); err != nil {
 		t.Fatal(err)
 	}

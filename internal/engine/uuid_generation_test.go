@@ -16,7 +16,7 @@ import (
 func TestUUIDGenerationBinderNullAndDemand(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	for _, name := range []string{"gen_random_uuid", "uuidv4", "uuidv7"} {
-		node, err := b.Bind(nullCountRaw(name), expressionPolicy{Context: analyze.ProjectionContext})
+		node, err := b.Bind(nullCountRaw(name), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -24,7 +24,7 @@ func TestUUIDGenerationBinderNullAndDemand(t *testing.T) {
 			t.Fatal(name, node)
 		}
 	}
-	node, err := b.Bind(nullCountRaw("uuidv7", parser.ParameterExpr{Number: 1}), expressionPolicy{Context: analyze.ProjectionContext})
+	node, err := b.Bind(nullCountRaw("uuidv7", parser.ParameterExpr{Number: 1}), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func TestUUIDGenerationBinderNullAndDemand(t *testing.T) {
 	argument := plan.LiteralExpr{Info: expr.Info{Usage: iv.Usage()}, Value: sqltype.Null(iv)}
 	bound := functions.UUIDGeneration{Info: expr.Info{Usage: uuid.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Name: "uuidv7", Args: []expr.Expr{argument}}
 	// Tree inspection, descriptor remapping and rendering do not evaluate a child.
-	stored, err := b.Bind(nullCountRaw("uuidv7", parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "0"}}), expressionPolicy{Context: analyze.ProjectionContext})
+	stored, err := b.Bind(nullCountRaw("uuidv7", parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "0"}}), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestUUIDGenerationStrictNullPhysicalTrees(t *testing.T) {
 		parser.CaseExpr{Arms: []parser.CaseArm{{Condition: yes, Result: typedNull}}, Else: zero},
 		parser.ConditionalExpr{Kind: parser.Coalesce, Args: []parser.Expr{typedNull, typedNull}},
 	} {
-		analyzed, err := b.Bind(nullCountRaw("uuidv7", child), expressionPolicy{Context: analyze.ProjectionContext})
+		analyzed, err := b.Bind(nullCountRaw("uuidv7", child), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -105,7 +105,7 @@ func TestUUIDGenerationStrictNullPhysicalTrees(t *testing.T) {
 		}
 	}
 	for _, raw := range []parser.FunctionExpr{nullCountRaw("uuidv7"), nullCountRaw("uuidv7", zero)} {
-		analyzed, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		analyzed, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}

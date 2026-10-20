@@ -186,15 +186,15 @@ func TestSumAnalysisNamespaceRestoration(t *testing.T) {
 			t.Run(map[bool]string{false: "nil_namespace", true: "existing_namespace"}[existingNamespace]+"/"+outcome, func(t *testing.T) {
 				b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 				b.Clause.AggregateClause, b.Target.InsertTarget = "INSERT VALUES", target
-				hidden := []queryQualifier{{Name: "earlier_hidden", Columns: []queryColumn{{Descriptor: catalog.Column{Name: "prior", Usage: integer.Usage()}}}}}
-				beforeHidden := append([]queryQualifier(nil), hidden...)
-				beforeHidden[0].Columns = append([]queryColumn(nil), hidden[0].Columns...)
+				hidden := []analyze.QueryQualifier{{Name: "earlier_hidden", Columns: []analyze.QueryColumn{{Descriptor: catalog.Column{Name: "prior", Usage: integer.Usage()}}}}}
+				beforeHidden := append([]analyze.QueryQualifier(nil), hidden...)
+				beforeHidden[0].Columns = append([]analyze.QueryColumn(nil), hidden[0].Columns...)
 				b.Query.Hidden = hidden
-				var namespace *queryNamespace
-				var beforeColumns []queryColumn
+				var namespace *analyze.QueryNamespace
+				var beforeColumns []analyze.QueryColumn
 				if existingNamespace {
-					namespace = &queryNamespace{Columns: []queryColumn{{Descriptor: catalog.Column{Name: "visible", Usage: integer.Usage()}}}}
-					beforeColumns = append([]queryColumn(nil), namespace.Columns...)
+					namespace = &analyze.QueryNamespace{Columns: []analyze.QueryColumn{{Descriptor: catalog.Column{Name: "visible", Usage: integer.Usage()}}}}
+					beforeColumns = append([]analyze.QueryColumn(nil), namespace.Columns...)
 					b.Query.Namespace = namespace
 				}
 				raw := parser.AggregateExpr{Name: "sum", Pos: parser.Position{Character: 10}, Args: []parser.Expr{one}}
@@ -248,7 +248,7 @@ func TestSumAnalysisAssignmentBoundary(t *testing.T) {
 	wrapped := parser.CastExpr{Child: parser.CastExpr{Child: sum, TypeName: parser.TypeName{Name: "integer"}}, TypeName: parser.TypeName{Name: "integer"}}
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	b.Clause.AggregateClause = "INSERT VALUES"
-	policy := expressionPolicy{Context: analyze.AssignmentContext, Expected: integer.Usage(), Mode: sqltype.Assignment, Column: column.Name}
+	policy := analyze.ExpressionPolicy{Context: analyze.AssignmentContext, Expected: integer.Usage(), Mode: sqltype.Assignment, Column: column.Name}
 	node, err := b.Bind(wrapped, policy)
 	wantAnalysis := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: "argument of FILTER must be type boolean, not type integer", Position: "30"}
 	if node != nil || !analyze.ContainsValuesAggregateAnalysis(wrapped) || !reflect.DeepEqual(err, wantAnalysis) {

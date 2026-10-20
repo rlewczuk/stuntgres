@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -27,7 +28,7 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	equality := expressionBinder{Consumer: consumerContext{CheckDefinitionEquality: true}}
+	equality := analyze.Binder{Consumer: analyze.ConsumerContext{CheckDefinitionEquality: true}}
 	for _, test := range []struct {
 		expression string
 		equal      bool
@@ -57,7 +58,7 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 	implicit := plan.CoercionExpr{Info: binder.Info(original.ResultUsage(), original.SourcePosition(), original.Properties()), Child: original, Plan: coercionPlan, Mode: sqltype.Implicit}
 	explicit := implicit
 	explicit.Mode = sqltype.Explicit
-	grouping := expressionBinder{}
+	grouping := analyze.Binder{}
 	if !equality.SameGroupExpression(implicit, explicit) || grouping.SameGroupExpression(implicit, explicit) {
 		t.Fatal("CHECK-only coercion identity changed grouping semantics")
 	}

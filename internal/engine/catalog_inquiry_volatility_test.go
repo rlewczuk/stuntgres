@@ -15,7 +15,7 @@ func TestCatalogInquiryRetainedVolatility(t *testing.T) {
 	e := New()
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT current_schemas(CASE WHEN true THEN false ELSE random()>0 END)").(*parser.Select).Targets[0]
-	node, err := binder.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+	node, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}

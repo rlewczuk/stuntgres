@@ -194,7 +194,7 @@ func (e *Engine) stageAddedUnique(op *Operation, auth AuthorizationView, stage *
 	}
 	next := *parent
 	e.mu.Lock()
-	err = e.stageUniqueDefinitions(op, stage, &next, []createUniqueConstraint{{UniqueConstraint: definition}}, true)
+	err = e.stageUniqueDefinitions(op, stage, &next, []analyze.UniqueConstraint{{UniqueConstraint: definition}}, true)
 	e.mu.Unlock()
 	if err != nil {
 		return nil, err

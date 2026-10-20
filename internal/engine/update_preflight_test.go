@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -25,7 +26,7 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 	}
 	defer done()
 	ast := statement(t, "UPDATE t SET i=int4($1::text),n=i WHERE i=int4($1::text)")
-	original := func() *boundUpdate {
+	original := func() *analyze.UpdateBinding {
 		e.mu.Lock()
 		defer e.mu.Unlock()
 		auth, err := e.authorizationLocked(op)
@@ -120,7 +121,7 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 	if failed != nil {
 		t.Fatal("failed WHERE preflight returned a partially prepared update")
 	}
-	unchanged := &boundUpdate{Assignments: []expr.Expr{column}}
+	unchanged := &analyze.UpdateBinding{Assignments: []expr.Expr{column}}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}}
 	same, err := preflightUpdate(&evaluation, unchanged)
 	if err != nil || same != unchanged {
@@ -212,7 +213,7 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 					op.session.RequestEnd(CleanClose)
 				}
 			}
-			result, executeErr := scope.Execute(statement(t, "UPDATE t SET i=int4($1::text) WHERE i IS NOT NULL"), 1, func(c context.Context, signature ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {
+			result, executeErr := scope.Execute(statement(t, "UPDATE t SET i=int4($1::text) WHERE i IS NOT NULL"), 1, func(c context.Context, signature analyze.ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {
 				value, err := signature.Types[0].Type.Input(c, "42", -1)
 				if err != nil {
 					return err

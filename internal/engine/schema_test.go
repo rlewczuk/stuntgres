@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/settings"
@@ -402,7 +403,7 @@ func TestSchemaPreparedSignatureBeforeImporter(t *testing.T) {
 	}
 	scope.Expected = &expected
 	called := false
-	_, err = scope.Execute(ast, 1, func(context.Context, ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error {
+	_, err = scope.Execute(ast, 1, func(context.Context, analyze.ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error {
 		called = true
 		return nil
 	})

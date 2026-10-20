@@ -20,7 +20,7 @@ type ruleTreeMapping struct {
 	leaf       func(expr.Expr) (expr.Expr, bool, error)
 	boundary   func(plan.Node) (plan.Node, bool)
 	finish     func(plan.Node) (plan.Node, error)
-	mutation   func(*plan.CTEDefinition) (binding, error)
+	mutation   func(*plan.CTEDefinition) (analyze.Binding, error)
 }
 
 // One memo owns the entire binding: every action-local provider and its scans

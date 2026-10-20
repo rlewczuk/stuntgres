@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqlstate"
@@ -99,7 +100,7 @@ func copyCursorCapturedCancellation(t *testing.T, binaryInput bool) {
 			var cursor exec.RowCursor
 			text := &copyCursor{
 				scope: scope,
-				binding: binding{
+				binding: analyze.Binding{
 					Relation: &catalog.Relation{ObjectName: "t", Columns: []catalog.Column{{Name: "v", Usage: testUsage(e, sqltype.Int4)}}},
 					Targets:  []int{0},
 				},

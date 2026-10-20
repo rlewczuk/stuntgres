@@ -17,7 +17,7 @@ func TestStringIdentBinding(t *testing.T) {
 	for _, query := range []string{"SELECT parse_ident($1,$2)", "SELECT parse_ident(strict=>$2,str=>$1)"} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		raw := statement(t, query).(*parser.Select).Targets[0]
-		bound, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		bound, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -69,7 +69,7 @@ func TestStringIdentBinding(t *testing.T) {
 func TestStringIdentReconstruction(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	raw := statement(t, `SELECT parse_ident(strict=>false,str=>'A.B[]')`).(*parser.Select).Targets[0]
-	bound, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+	bound, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,11 +84,11 @@ func TestStringIdentReconstruction(t *testing.T) {
 	}
 	for _, deparse := range []bool{false, true} {
 		renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}, frame: b.FrameID(), presentation: viewPresentation{deparse: deparse, pretty: true}}
-		sql, err := renderer.expressionSQL(context.Background(), b.BindingCatalog(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
+		sql, err := renderer.expressionSQL(context.Background(), b.BindingCatalog(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 		if err != nil {
 			t.Fatal(err)
 		}
-		replayed, err := b.Bind(statement(t, "SELECT "+sql).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+		replayed, err := b.Bind(statement(t, "SELECT "+sql).(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal("frozen view named replay", sql, err)
 		}
@@ -127,7 +127,7 @@ func TestStringIdentReconstruction(t *testing.T) {
 			if err != nil {
 				t.Fatal("bound presentation", i, pretty, err)
 			}
-			replayed, err := owner.Bind(statement(t, "SELECT "+rendered).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+			replayed, err := owner.Bind(statement(t, "SELECT "+rendered).(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal("bound presentation replay", i, pretty, rendered, err)
 			}
@@ -146,7 +146,7 @@ func TestStringIdentReconstruction(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		replayed, err := owner.Bind(statement(t, "SELECT "+sql).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+		replayed, err := owner.Bind(statement(t, "SELECT "+sql).(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal("canonical named replay", sql, err)
 		}

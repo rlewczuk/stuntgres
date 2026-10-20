@@ -154,7 +154,7 @@ func TestDatetimeZoneSelectedCastDiagnosticAndScopeRestoration(t *testing.T) {
 		}
 		// The same failed pair outside selected analysis retains the existing
 		// adjacent unsupported-cast boundary; no new coercion was admitted.
-		_, err = b.Cast(span, expressionPolicy{Context: analyze.ProjectionContext})
+		_, err = b.Cast(span, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || b.Consumer.DatetimeZoneOperands {
 			t.Fatal("scope leaked", err, b.Consumer.DatetimeZoneOperands)
 		}

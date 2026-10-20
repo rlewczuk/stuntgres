@@ -37,15 +37,15 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 		if !ok || identity != helper || routineDescriptorOwner(view, helper.ID) != proc {
 			t.Fatal("owned alias lookup", i, identity)
 		}
-		selected, n := selectExactRoutine(view, namespaceSelection{Qualified: proc.Namespace()}, helper.Name, helper.Signature)
+		selected, n := selectExactRoutine(view, analyze.NamespaceSelection{Qualified: proc.Namespace()}, helper.Name, helper.Signature)
 		if n != 1 || selected != helper {
 			t.Fatal("owned exact signature", selected, n)
 		}
-		selected, n = selectRoutine(view, namespaceSelection{Qualified: proc.Namespace()}, helper.Name, nil)
+		selected, n = selectRoutine(view, analyze.NamespaceSelection{Qualified: proc.Namespace()}, helper.Name, nil)
 		if n != 1 || selected != helper {
 			t.Fatal("owned bare alias", selected, n)
 		}
-		if analyze.ProcedureInNamespaces(view, namespaceSelection{Qualified: proc.Namespace()}, helper.Name, helper.Signature) != nil {
+		if analyze.ProcedureInNamespaces(view, analyze.NamespaceSelection{Qualified: proc.Namespace()}, helper.Name, helper.Signature) != nil {
 			t.Fatal("metadata helper became callable")
 		}
 		reserved := make(map[ids.OID]bool)

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -27,7 +28,7 @@ func TestProtocolCopyQuerySignatureScope(t *testing.T) {
 			scope.protocol().command = test.wire
 			var commandErr error
 			defer func() { _ = scope.Finish(commandErr) }()
-			outer := &StatementDescription{Parameters: ParameterInfo{Count: 1, Types: []sqltype.Usage{testUsage(e, sqltype.Int4)}}}
+			outer := &StatementDescription{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{testUsage(e, sqltype.Int4)}}}
 			scope.Expected = outer
 			sql := "COPY (SELECT 1) TO STDOUT"
 			if test.innerError {

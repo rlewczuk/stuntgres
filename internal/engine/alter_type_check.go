@@ -70,12 +70,12 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 	}
 	replacement := *next
 	replacement.Constraints.Check = slices.Clone(next.Constraints.Check)
-	columns := make([]queryColumn, len(next.Columns))
+	columns := make([]analyze.QueryColumn, len(next.Columns))
 	for i, column := range next.Columns {
-		columns[i] = queryColumn{Descriptor: column, Slot: i, Leaf: 0, Physical: i}
+		columns[i] = analyze.QueryColumn{Descriptor: column, Slot: i, Leaf: 0, Physical: i}
 	}
-	qualifier := queryQualifier{Name: next.Name(), Original: next.Name(), Schema: auth.Catalog.Get(next.Namespace()).Name(), Ref: ref, Columns: columns}
-	namespace := queryNamespace{Columns: columns, Qualifiers: []queryQualifier{qualifier}, Frame: next.Columns}
+	qualifier := analyze.QueryQualifier{Name: next.Name(), Original: next.Name(), Schema: auth.Catalog.Get(next.Namespace()).Name(), Ref: ref, Columns: columns}
+	namespace := analyze.QueryNamespace{Columns: columns, Qualifiers: []analyze.QueryQualifier{qualifier}, Frame: next.Columns}
 	var ordered []catalog.CheckConstraint
 	for _, pending := range queue {
 		// Parse in CHECK context so selected calls remain functions, rather than

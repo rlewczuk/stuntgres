@@ -41,12 +41,12 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		return nil
 	}
 	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
-	columns := make([]queryColumn, len(d.Columns))
+	columns := make([]analyze.QueryColumn, len(d.Columns))
 	for i, c := range d.Columns {
-		columns[i] = queryColumn{Descriptor: c, Slot: i, Leaf: 0, Physical: i}
+		columns[i] = analyze.QueryColumn{Descriptor: c, Slot: i, Leaf: 0, Physical: i}
 	}
-	qualifier := queryQualifier{Name: d.Name(), Original: d.Name(), Schema: auth.Catalog.Get(d.Namespace()).Name(), Ref: ref, Columns: columns}
-	ns := queryNamespace{Columns: columns, Qualifiers: []queryQualifier{qualifier}, Frame: d.Columns}
+	qualifier := analyze.QueryQualifier{Name: d.Name(), Original: d.Name(), Schema: auth.Catalog.Get(d.Namespace()).Name(), Ref: ref, Columns: columns}
+	ns := analyze.QueryNamespace{Columns: columns, Qualifiers: []analyze.QueryQualifier{qualifier}, Frame: d.Columns}
 	used := constraintNames(auth.Catalog, d.Namespace(), d)
 	installed := make(map[string]bool, len(d.Constraints.NotNull)+len(d.Constraints.Check))
 	start := 0
@@ -112,7 +112,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 			return sqlError("42710", `check constraint "`+name+`" already exists`)
 		}
 		if ancestor, ok := inherited[name]; ok {
-			equality := expressionBinder{Consumer: consumerContext{CheckDefinitionEquality: true}}
+			equality := analyze.Binder{Consumer: analyze.ConsumerContext{CheckDefinitionEquality: true}}
 			if !equality.SameGroupExpression(node, ancestor.Expression) {
 				return sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, d.Name()))
 			}

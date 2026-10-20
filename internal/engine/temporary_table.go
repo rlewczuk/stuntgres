@@ -324,7 +324,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 	}
 }
 
-func temporaryDataTarget(auth AuthorizationView, b *binding, stmt parser.Statement) bool {
+func temporaryDataTarget(auth AuthorizationView, b *analyze.Binding, stmt parser.Statement) bool {
 	switch stmt.(type) {
 	case *parser.Select:
 		if !parser.HasModifyingCTE(stmt) {

@@ -22,7 +22,7 @@ func (s *StatementScope) acquireQueryRelations(statement parser.Statement, autho
 	return s.acquireAdmittedQueryRelations(admission, tables, queries, authorityStmt, execute)
 }
 
-func (s *StatementScope) acquireAdmittedQueryRelations(admission queryLockAdmission, tables []*parser.TableReference, queries []*parser.Select, authorityStmt parser.Statement, execute bool) error {
+func (s *StatementScope) acquireAdmittedQueryRelations(admission analyze.LockAdmission, tables []*parser.TableReference, queries []*parser.Select, authorityStmt parser.Statement, execute bool) error {
 	s.queryLockAdmission = admission
 	for i, table := range tables {
 		mark := admission.TableMark(table)
@@ -35,7 +35,7 @@ func (s *StatementScope) acquireAdmittedQueryRelations(admission queryLockAdmiss
 			if !ok || prior.Query != admission.RetainedQuery(table) {
 				return ids.ErrCatalogReplaced
 			}
-			s.queryLockAdmission.TableQueries[table] = preparedSource{Query: queries[i], Ref: prior.Ref}
+			s.queryLockAdmission.TableQueries[table] = analyze.PreparedSource{Query: queries[i], Ref: prior.Ref}
 		}
 		if err := s.acquireRelationTarget(selection, authorityStmt, execute, true); err != nil {
 			return analyze.FutureCTEError(err, admission.FutureCTE[table])

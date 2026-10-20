@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -16,7 +17,7 @@ type viewWriteOccurrence struct {
 
 // Only transplanted, demanded subqueries acquire an execution source slot.
 // Frozen view layouts are bridged by capture, not by re-resolving SQL names.
-func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root plan.Node, rewrite func(expr.Expr) (expr.Expr, bool, error)) (plan.Node, error) {
+func (w *viewWrite) graftQuery(b *analyze.Binding, view catalog.Read, root plan.Node, rewrite func(expr.Expr) (expr.Expr, bool, error)) (plan.Node, error) {
 	project, ok := root.(*plan.ProjectNode)
 	if !ok {
 		return plan.RewriteQueryExpressions(root, rewrite)
@@ -121,7 +122,7 @@ func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root plan.Node, re
 	})
 }
 
-func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *binding) error {
+func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *analyze.Binding) error {
 	auth, err := e.authorizationLocked(scope.op)
 	if err != nil {
 		return err

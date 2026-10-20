@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/visibility"
@@ -17,7 +18,7 @@ type deleteUsingCandidate struct {
 
 // The source stage owns immutable joined frames. Only qualifying identities and
 // occurrence indexes are retained, before any target row arbitration can wait.
-func (s *StatementScope) deleteUsingSource(b binding, source *exec.Source, evaluation *exec.Context, positioned mutationRowIdentity) (Result, error) {
+func (s *StatementScope) deleteUsingSource(b analyze.Binding, source *exec.Source, evaluation *exec.Context, positioned mutationRowIdentity) (Result, error) {
 	ctx := evaluation.Context
 	evaluation.Query.VirtualReads = exec.QueryHasVirtualReads(b.Delete.Using) || exec.BoundHasVirtualReads(b.Predicate)
 	if b.Returning != nil {

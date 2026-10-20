@@ -48,7 +48,7 @@ func (e *Engine) schemaPartitionChildLocked(scope *StatementScope, auth Authoriz
 	if err = e.stageRowTypeLocked(stage, d); err != nil {
 		return nil, err
 	}
-	declarations := make([]createColumnDeclaration, len(d.Columns))
+	declarations := make([]analyze.ColumnDeclaration, len(d.Columns))
 	var seenColumns []bool
 	for _, element := range syntax.Elements {
 		if element.Column == nil {

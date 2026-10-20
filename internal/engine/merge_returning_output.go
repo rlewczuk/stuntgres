@@ -2,6 +2,7 @@ package engine
 
 import (
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -10,12 +11,12 @@ import (
 // This execution-private collector never escapes before executeMerge's staging
 // and the request's sole Finish. It reuses one full target-first/source frame.
 type mergeReturningOutput struct {
-	returning *boundReturning
+	returning *analyze.Returning
 	rows      *exec.FinalRows
 	frame     []sqltype.Value
 }
 
-func newMergeReturningOutput(b binding, s *StatementScope) *mergeReturningOutput {
+func newMergeReturningOutput(b analyze.Binding, s *StatementScope) *mergeReturningOutput {
 	if b.Returning == nil {
 		return nil
 	}
@@ -24,7 +25,7 @@ func newMergeReturningOutput(b binding, s *StatementScope) *mergeReturningOutput
 	return &mergeReturningOutput{returning: b.Returning, rows: rows, frame: make([]sqltype.Value, b.Merge.TargetWidth+b.Merge.SourceWidth)}
 }
 
-func (o *mergeReturningOutput) project(b binding, c *exec.Context, action parser.MergeAction, old, row, source []sqltype.Value, sourcePresent bool) error {
+func (o *mergeReturningOutput) project(b analyze.Binding, c *exec.Context, action parser.MergeAction, old, row, source []sqltype.Value, sourcePresent bool) error {
 	if o == nil {
 		return nil
 	}

@@ -126,18 +126,18 @@ func (captureCompositeOnly) Eval(expr.Context) (sqltype.Value, error) {
 	panic("capture evaluated Composite-only node")
 }
 
-func protocolBinder(t *testing.T) *expressionBinder {
+func protocolBinder(t *testing.T) *analyze.Binder {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	column := catalog.Column{Name: "k", Usage: b.Type(sqltype.Text).Usage()}
-	b.Query.Namespace = &queryNamespace{Columns: []queryColumn{{Descriptor: column, Slot: 0, Leaf: -1, Physical: -1}}, Frame: []catalog.Column{column}}
+	b.Query.Namespace = &analyze.QueryNamespace{Columns: []analyze.QueryColumn{{Descriptor: column, Slot: 0, Leaf: -1, Physical: -1}}, Frame: []catalog.Column{column}}
 	return b
 }
 
-func protocolBind(t *testing.T, b *expressionBinder, query string) (parser.Expr, expr.Expr) {
+func protocolBind(t *testing.T, b *analyze.Binder, query string) (parser.Expr, expr.Expr) {
 	t.Helper()
 	raw := statement(t, query).(*parser.Select).Targets[0]
-	node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+	node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(query, err)
 	}
@@ -149,7 +149,7 @@ type protocolLiteral struct {
 	text string
 }
 
-func protocolLiterals(t *testing.T, b *expressionBinder, want map[viewLiteralPath]protocolLiteral) {
+func protocolLiterals(t *testing.T, b *analyze.Binder, want map[analyze.ViewLiteralPath]protocolLiteral) {
 	t.Helper()
 	if len(b.Capture.Literals) != len(want) {
 		t.Fatalf("literal key set: got %v, want %v", b.Capture.Literals, want)
@@ -182,11 +182,11 @@ func TestViewLiteralProtocolWrittenOperands(t *testing.T) {
 		if err := b.CaptureViewLiterals(raw, captureJSONBSet{n}, analyze.ViewTargetLiteral, 0); err != nil {
 			t.Fatal(err)
 		}
-		base := viewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral}
+		base := analyze.ViewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral}
 		first, last, column := base, base, base
 		first.Node, column.Node, last.Node = 1, 3, 4
-		protocolLiterals(t, b, map[viewLiteralPath]protocolLiteral{first: {sqltype.JSONB, "9"}, last: {sqltype.JSONB, "{}"}})
-		if !reflect.DeepEqual(b.Capture.Columns, map[viewLiteralPath]viewColumn{column: {Frame: b.FrameID(), Slot: 0}}) {
+		protocolLiterals(t, b, map[analyze.ViewLiteralPath]protocolLiteral{first: {sqltype.JSONB, "9"}, last: {sqltype.JSONB, "{}"}})
+		if !reflect.DeepEqual(b.Capture.Columns, map[analyze.ViewLiteralPath]analyze.ViewColumn{column: {Frame: b.FrameID(), Slot: 0}}) {
 			t.Fatal("written column association", b.Capture.Columns)
 		}
 		if len(b.Capture.CastUsages) != 0 || !reflect.DeepEqual(n, frozen) || !reflect.DeepEqual(before.WrittenSlots, n.WrittenSlots) || before.Labels != n.Labels {
@@ -204,10 +204,10 @@ func TestViewLiteralProtocolWrittenOperands(t *testing.T) {
 		if err := b.CaptureViewLiterals(raw, captureStringVariadic{n}, analyze.ViewTargetLiteral, 2); err != nil {
 			t.Fatal(err)
 		}
-		one := viewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral, Target: 2, Node: 2}
+		one := analyze.ViewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral, Target: 2, Node: 2}
 		two := one
 		two.Node = 3
-		protocolLiterals(t, b, map[viewLiteralPath]protocolLiteral{one: {sqltype.Int4, "1"}, two: {sqltype.Int4, "2"}})
+		protocolLiterals(t, b, map[analyze.ViewLiteralPath]protocolLiteral{one: {sqltype.Int4, "1"}, two: {sqltype.Int4, "2"}})
 		if !reflect.DeepEqual(before, n.Args) || len(b.Capture.Columns) != 0 || len(b.Capture.CastUsages) != 0 {
 			t.Fatal("variadic operand storage changed")
 		}
@@ -234,7 +234,7 @@ func TestViewLiteralProtocolOccurrenceOwnership(t *testing.T) {
 	last := outer.Args[1].(plan.LiteralExpr)
 	last.Pos = parser.Position{Offset: 7}
 	outer.Args[1] = last
-	contexts := []viewLiteralPath{
+	contexts := []analyze.ViewLiteralPath{
 		{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral, Target: 0},
 		{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral, Target: 1},
 		{Query: b.FrameID(), Clause: analyze.ViewWhereLiteral},
@@ -242,7 +242,7 @@ func TestViewLiteralProtocolOccurrenceOwnership(t *testing.T) {
 		{Query: b.FrameID(), Clause: analyze.ViewFunctionLiteral, Source: 1, Target: 1},
 		{Query: b.FrameID(), Clause: analyze.ViewValuesCellLiteral, Row: 1, Target: 1},
 	}
-	want := make(map[viewLiteralPath]protocolLiteral)
+	want := make(map[analyze.ViewLiteralPath]protocolLiteral)
 	for _, path := range contexts {
 		ordinal := 0
 		if err := b.CaptureViewLiteralTree(raw, captureNullCount{outer}, path, &ordinal); err != nil {
@@ -272,18 +272,18 @@ func TestViewLiteralProtocolAnnotations(t *testing.T) {
 		if err := b.CaptureViewLiterals(raw, captureArraySearch{n}, analyze.ViewTargetLiteral, 0); err != nil {
 			t.Fatal(err)
 		}
-		parent := viewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral, Argument: 1}
+		parent := analyze.ViewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral, Argument: 1}
 		written := parent
 		written.Argument = 0
 		written.Node = 2
-		want := map[viewLiteralPath]sqltype.Usage{parent: n.Args[0].ResultUsage(), written: b.Type(sqltype.Int2).Usage()}
+		want := map[analyze.ViewLiteralPath]sqltype.Usage{parent: n.Args[0].ResultUsage(), written: b.Type(sqltype.Int2).Usage()}
 		if !reflect.DeepEqual(b.Capture.CastUsages, want) || !reflect.DeepEqual(before, n.Args) {
 			t.Fatal("selected parent versus written cast ownership", b.Capture.CastUsages, want)
 		}
 		one, two := parent, parent
 		one.Argument, two.Argument = 0, 0
 		one.Node, two.Node = 3, 4
-		protocolLiterals(t, b, map[viewLiteralPath]protocolLiteral{one: {sqltype.Int4, "1"}, two: {sqltype.Int4, "2"}})
+		protocolLiterals(t, b, map[analyze.ViewLiteralPath]protocolLiteral{one: {sqltype.Int4, "1"}, two: {sqltype.Int4, "2"}})
 	})
 	t.Run("sleep_call_not_argument", func(t *testing.T) {
 		b := protocolBinder(t)
@@ -293,13 +293,13 @@ func TestViewLiteralProtocolAnnotations(t *testing.T) {
 		if err := b.CaptureViewLiterals(raw, captureSleep{n}, analyze.ViewTargetLiteral, 0); err != nil {
 			t.Fatal(err)
 		}
-		parent := viewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral}
-		if !reflect.DeepEqual(b.Capture.CastUsages, map[viewLiteralPath]sqltype.Usage{parent: b.Type(sqltype.Float8).Usage()}) || !reflect.DeepEqual(before, n) {
+		parent := analyze.ViewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral}
+		if !reflect.DeepEqual(b.Capture.CastUsages, map[analyze.ViewLiteralPath]sqltype.Usage{parent: b.Type(sqltype.Float8).Usage()}) || !reflect.DeepEqual(before, n) {
 			t.Fatal("sleep call-level usage", b.Capture.CastUsages)
 		}
 		child := parent
 		child.Node = 1
-		protocolLiterals(t, b, map[viewLiteralPath]protocolLiteral{child: {sqltype.Int4, "17"}})
+		protocolLiterals(t, b, map[analyze.ViewLiteralPath]protocolLiteral{child: {sqltype.Int4, "17"}})
 	})
 	for _, tc := range []struct {
 		name, query string
@@ -320,8 +320,8 @@ func TestViewLiteralProtocolAnnotations(t *testing.T) {
 			if err := b.CaptureViewLiterals(raw, wrapped, analyze.ViewTargetLiteral, 0); err != nil {
 				t.Fatal(err)
 			}
-			parent := viewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral}
-			want := map[viewLiteralPath]bool{parent: true}
+			parent := analyze.ViewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral}
+			want := map[analyze.ViewLiteralPath]bool{parent: true}
 			if tc.similar {
 				if !reflect.DeepEqual(b.Capture.SimilarSubstrings, want) || len(b.Capture.PosixSubstrings) != 0 {
 					t.Fatal("SIMILAR annotation ownership")
@@ -344,10 +344,10 @@ func TestViewLiteralProtocolAnnotations(t *testing.T) {
 		if err := b.CaptureViewLiterals(raw, conversion, analyze.ViewTargetLiteral, 0); err != nil {
 			t.Fatal(err)
 		}
-		parent := viewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral}
+		parent := analyze.ViewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral}
 		child := parent
 		child.Node = 1
-		if !reflect.DeepEqual(b.Capture.CastUsages, map[viewLiteralPath]sqltype.Usage{parent: b.Type(sqltype.Text).Usage()}) || !reflect.DeepEqual(b.Capture.Columns, map[viewLiteralPath]viewColumn{child: {Frame: b.FrameID(), Slot: 0}}) || len(b.Capture.Literals) != 0 || !reflect.DeepEqual(before, n.Args) {
+		if !reflect.DeepEqual(b.Capture.CastUsages, map[analyze.ViewLiteralPath]sqltype.Usage{parent: b.Type(sqltype.Text).Usage()}) || !reflect.DeepEqual(b.Capture.Columns, map[analyze.ViewLiteralPath]analyze.ViewColumn{child: {Frame: b.FrameID(), Slot: 0}}) || len(b.Capture.Literals) != 0 || !reflect.DeepEqual(before, n.Args) {
 			t.Fatal("FORMAT input or RETURNING ownership", b.Capture.CastUsages, b.Capture.Columns)
 		}
 	})
@@ -359,11 +359,11 @@ func TestViewLiteralProtocolAnnotations(t *testing.T) {
 		if err := b.CaptureViewLiterals(raw, captureNullCount{n}, analyze.ViewTargetLiteral, 0); err != nil {
 			t.Fatal(err)
 		}
-		parent := viewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral}
+		parent := analyze.ViewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral}
 		child := parent
 		child.Node = 1
-		want := compositeOccurrence{Kind: analyze.CompositeDotBuiltin, Base: b.Type(sqltype.Text).Usage(), Function: functions.CountNulls}
-		if !reflect.DeepEqual(b.Capture.Composites, map[viewLiteralPath]compositeOccurrence{parent: want}) || !reflect.DeepEqual(b.Capture.Columns, map[viewLiteralPath]viewColumn{child: {Frame: b.FrameID(), Slot: 0}}) || len(b.Capture.CastUsages) != 0 {
+		want := analyze.CompositeOccurrence{Kind: analyze.CompositeDotBuiltin, Base: b.Type(sqltype.Text).Usage(), Function: functions.CountNulls}
+		if !reflect.DeepEqual(b.Capture.Composites, map[analyze.ViewLiteralPath]analyze.CompositeOccurrence{parent: want}) || !reflect.DeepEqual(b.Capture.Columns, map[analyze.ViewLiteralPath]analyze.ViewColumn{child: {Frame: b.FrameID(), Slot: 0}}) || len(b.Capture.CastUsages) != 0 {
 			t.Fatal("dot builtin identity/base ownership", b.Capture.Composites, b.Capture.Columns)
 		}
 	})
@@ -424,7 +424,7 @@ func TestViewLiteralProtocolQueryBoundaries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[viewLiteralPath]protocolLiteral{
+	want := map[analyze.ViewLiteralPath]protocolLiteral{
 		{Query: 1, Clause: analyze.ViewFunctionLiteral, Node: 1}: {sqltype.Int4, "1"},
 		{Query: 1, Clause: analyze.ViewFunctionLiteral, Node: 3}: {sqltype.Int4, "11"},
 		{Query: 1, Clause: analyze.ViewFunctionLiteral, Node: 4}: {sqltype.Int4, "22"},

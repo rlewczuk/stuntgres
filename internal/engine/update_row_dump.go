@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -11,7 +12,7 @@ import (
 
 // Destination coercions rebind from the independent SELECT's output schema on
 // Restore. Rendering each output as a scalar SELECT would duplicate its demand.
-func ruleUpdateAssignmentsSQL(ctx context.Context, view catalog.Read, b *binding, action ruleAction) (string, error) {
+func ruleUpdateAssignmentsSQL(ctx context.Context, view catalog.Read, b *analyze.Binding, action ruleAction) (string, error) {
 	var sql strings.Builder
 	targetSQL := func(i int) (string, error) {
 		column, err := deparseAttribute(b.Relation, b.Relation.Attributes[b.Targets[i]])

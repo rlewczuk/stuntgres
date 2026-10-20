@@ -22,7 +22,7 @@ import (
 type addedColumn struct {
 	attribute    int32
 	column       *parser.Column
-	declaration  createColumnDeclaration
+	declaration  analyze.ColumnDeclaration
 	expression   expr.Expr
 	dependencies []ids.ObjectRef // Borrowed cooked DEFAULT manifest, distinct from the ALTER statement.
 	consumer     *catalog.Relation

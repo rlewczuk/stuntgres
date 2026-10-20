@@ -41,7 +41,7 @@ func tableLikeBuild(t *testing.T, e *Engine, op *Operation, query string) (*Cata
 func TestTableLikeOptionMask(t *testing.T) {
 	for _, tc := range []struct {
 		options []parser.LikeOption
-		mask    tableLikeMask
+		mask    analyze.LikeMask
 	}{
 		{nil, 0},
 		{[]parser.LikeOption{{Name: "all", Including: true}, {Name: "defaults"}}, analyze.LikeAll &^ analyze.LikeDefaults},
@@ -64,7 +64,7 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 	}
 	current := ref
 	current.Epoch = e.CatalogRead().Epoch()
-	in := createLikeInput{Ref: current, Source: source, Offset: 1}
+	in := analyze.LikeInput{Ref: current, Source: source, Offset: 1}
 	in.RowRef, in.Slots = in.RowMapper(destination, e.CatalogRead())
 	columnRef := ref
 	columnRef.Address.SubID = 3

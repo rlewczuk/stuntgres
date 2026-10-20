@@ -19,14 +19,14 @@ func TestExpectedOfCopiesHeldInputs(t *testing.T) {
 	}
 	owner := &catalog.Owner{}
 	d := &StatementDescription{
-		Parameters:       ParameterInfo{Count: 1, Types: []sqltype.Usage{{}}},
+		Parameters:       analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{{}}},
 		Results:          []catalog.Column{{Name: "a"}},
 		catalogOwner:     owner,
 		catalogEpoch:     ids.CatalogEpoch(3),
-		temporals:        []temporalConstant{{Offset: 4}},
-		composites:       map[preparedCompositeKey]compositeOccurrence{{}: {}},
+		temporals:        []analyze.TemporalConstant{{Offset: 4}},
+		composites:       map[analyze.PreparedCompositeKey]analyze.CompositeOccurrence{{}: {}},
 		sequences:        &sequence.Analysis{Constants: []sequence.Constant{{Offset: 5}}},
-		regtypes:         &regtypeAnalysis{constants: []regtypeConstant{{Offset: 6}}},
+		regtypes:         &regtypeAnalysis{constants: []analyze.RegtypeConstant{{Offset: 6}}},
 		planOwner:        ids.SessionToken{},
 		planGeneration:   7,
 		refreshTemporals: true,

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -125,7 +126,7 @@ func (s *StatementScope) mutationStorage(ref ids.ObjectRef) *storage.Relation {
 
 // Capture the already admitted manifest, never rediscover a graph after the
 // command view has frozen its roots. Each segment retains real physical rows.
-func (s *StatementScope) captureMutationSource(ctx context.Context, view *visibility.View, b binding) (*exec.Source, error) {
+func (s *StatementScope) captureMutationSource(ctx context.Context, view *visibility.View, b analyze.Binding) (*exec.Source, error) {
 	if s.rlsTargetDenied {
 		return captureDeniedQuerySource(view, b.Ref)
 	}
@@ -167,7 +168,7 @@ func (s *StatementScope) captureMutationSource(ctx context.Context, view *visibi
 	return source, nil
 }
 
-func mutationPhysicalRow(source *exec.Source, index int, b binding) exec.QueryPhysicalRow {
+func mutationPhysicalRow(source *exec.Source, index int, b analyze.Binding) exec.QueryPhysicalRow {
 	version := source.VersionAt(source.RawIndex(index))
 	return source.PhysicalRow(index, exec.Leaf{Ref: b.Ref, Relation: b.Relation, Storage: b.Storage}, version)
 }
@@ -179,7 +180,7 @@ type mutationRowIdentity struct {
 
 // Physical generation/checks use the full physical proposal; diagnostic values
 // and SELECT rights are projected back to the named mutation target.
-func (e *Engine) validateInheritedMutationRow(s *StatementScope, named binding, physical exec.QueryPhysicalRow, schema string, row []sqltype.Value, eval *exec.Context) error {
+func (e *Engine) validateInheritedMutationRow(s *StatementScope, named analyze.Binding, physical exec.QueryPhysicalRow, schema string, row []sqltype.Value, eval *exec.Context) error {
 	if physical.Leaf.Ref == named.Ref {
 		return e.validateMutationRow(s, named, schema, row, eval)
 	}

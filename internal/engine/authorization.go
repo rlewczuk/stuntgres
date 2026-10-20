@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -101,7 +102,7 @@ func (v AuthorizationView) CanUse(ref ids.ObjectRef) error     { return v.View.C
 func (v AuthorizationView) CheckCreate(ref ids.ObjectRef) error {
 	return v.View.CheckCreate(v, ref)
 }
-func (v AuthorizationView) checkColumns(b binding, mask authorization.Privileges, indices []int) error {
+func (v AuthorizationView) checkColumns(b analyze.Binding, mask authorization.Privileges, indices []int) error {
 	return v.View.CheckColumns(v, b.Ref, b.Relation, mask, indices)
 }
 
@@ -227,7 +228,7 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 	}
 	return authorization, nil
 }
-func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error {
+func (v AuthorizationView) checkBinding(b analyze.Binding, stmt parser.Statement) error {
 	if b.ViewWrite != nil {
 		return v.checkViewWrite(b, stmt)
 	}
@@ -323,7 +324,7 @@ func (v AuthorizationView) checkQuerySources(sources []exec.Leaf) error {
 				return err
 			}
 		}
-		if err := sourceAuth.checkColumns(binding{Ref: source.Ref, Relation: source.Relation}, authorization.SelectPrivilege, source.Uses); err != nil {
+		if err := sourceAuth.checkColumns(analyze.Binding{Ref: source.Ref, Relation: source.Relation}, authorization.SelectPrivilege, source.Uses); err != nil {
 			return err
 		}
 	}
@@ -336,7 +337,7 @@ func (v AuthorizationView) checkQuerySources(sources []exec.Leaf) error {
 			}
 		}
 		if exec.EffectiveQueryRowMark(source.Relation, source.Mark).Mode != 0 {
-			if err := sourceAuth.checkColumns(binding{Ref: source.Ref, Relation: source.Relation}, authorization.UpdatePrivilege, nil); err != nil {
+			if err := sourceAuth.checkColumns(analyze.Binding{Ref: source.Ref, Relation: source.Relation}, authorization.UpdatePrivilege, nil); err != nil {
 				return err
 			}
 		}

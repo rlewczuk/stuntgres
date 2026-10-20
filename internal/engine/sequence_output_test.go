@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -37,7 +38,7 @@ func TestSequenceRegclassOutputAndNumericIdentity(t *testing.T) {
 			return Result{}, err
 		}
 		scope.Expected = &pd
-		r, err := scope.Execute(parameter, 1, func(ctx context.Context, info ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
+		r, err := scope.Execute(parameter, 1, func(ctx context.Context, info analyze.ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
 			var err error
 			frame[0], err = info.Types[0].Type.InputWithEnvironment(ctx, fmt.Sprint(oid), -1, input)
 			return err

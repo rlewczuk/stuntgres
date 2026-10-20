@@ -34,7 +34,7 @@ const (
 
 type ruleCommand struct {
 	syntax  parser.Statement
-	binding binding
+	binding analyze.Binding
 	auth    AuthorizationView
 	source  ruleCommandSource
 }
@@ -55,7 +55,7 @@ func ruleColumnInfo(column catalog.Column) expr.Info {
 	return expr.Info{Usage: column.Usage, Pos: parser.Position{Offset: -1}, Property: expr.Properties{RowDependent: true}}
 }
 
-func makeRuleProducer(catalog catalog.Read, b binding, event string, outputUses ...[]int) (ruleProducer, error) {
+func makeRuleProducer(catalog catalog.Read, b analyze.Binding, event string, outputUses ...[]int) (ruleProducer, error) {
 	d := b.Relation
 	p := ruleProducer{old: make([]expr.Expr, len(d.Columns)), new: make([]expr.Expr, len(d.Columns)), sources: b.QuerySources}
 	for i, column := range d.Columns {
@@ -311,7 +311,7 @@ func ruleQueryInput(root plan.Node) plan.Node {
 	}
 }
 
-func normalizeRuleInsert(b binding) binding {
+func normalizeRuleInsert(b analyze.Binding) analyze.Binding {
 	if b.Query != nil {
 		return b
 	}
@@ -333,7 +333,7 @@ func normalizeRuleInsert(b binding) binding {
 	return b
 }
 
-func ruleSetAction(b binding, syntax parser.Statement) bool {
+func ruleSetAction(b analyze.Binding, syntax parser.Statement) bool {
 	if _, selecting := syntax.(*parser.Select); !selecting || b.Query == nil {
 		return false
 	}
@@ -341,15 +341,15 @@ func ruleSetAction(b binding, syntax parser.Statement) bool {
 	return set
 }
 
-func composeRuleAction(auth AuthorizationView, original binding, event string, r ruleDefinition, action ruleAction) (binding, error) {
+func composeRuleAction(auth AuthorizationView, original analyze.Binding, event string, r ruleDefinition, action ruleAction) (analyze.Binding, error) {
 	qualified := original.Predicate != nil || original.Update != nil && original.Update.Predicate != nil
 	if (qualified || r.condition != nil) && ruleSetAction(action.binding, action.syntax) {
-		return binding{}, sqlError("0A000", "conditional UNION/INTERSECT/EXCEPT statements are not implemented")
+		return analyze.Binding{}, sqlError("0A000", "conditional UNION/INTERSECT/EXCEPT statements are not implemented")
 	}
 	catalog := auth.Catalog
 	p, err := makeRuleProducer(catalog, original, event, ruleProducerOutputUses(original, r, action.binding))
 	if err != nil {
-		return binding{}, err
+		return analyze.Binding{}, err
 	}
 	// Unqualified UPDATE/DELETE actions that do not reference the event
 	// namespace run independently of the event table's physical row count.
@@ -734,7 +734,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 	return b, nil
 }
 
-func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView, stmt parser.Statement, b binding, ancestry []ruleAncestry, program *ruleProgram) (int, error) {
+func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView, stmt parser.Statement, b analyze.Binding, ancestry []ruleAncestry, program *ruleProgram) (int, error) {
 	event := ruleEvent(stmt)
 	firstCommand := len(program.commands)
 	b = physicalBinding(b)
@@ -888,7 +888,7 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 	return count, nil
 }
 
-func (e *Engine) appendRuleCommand(program *ruleProgram, auth AuthorizationView, stmt parser.Statement, b binding) int {
+func (e *Engine) appendRuleCommand(program *ruleProgram, auth AuthorizationView, stmt parser.Statement, b analyze.Binding) int {
 	index := len(program.commands)
 	program.commands = append(program.commands, ruleCommand{syntax: stmt, binding: b, auth: auth})
 	return index
@@ -902,7 +902,7 @@ func markRuleCommandSource(program *ruleProgram, start int, source ruleCommandSo
 	}
 }
 
-func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleDefinition) (binding, error) {
+func ruleResidual(auth AuthorizationView, b analyze.Binding, event string, rules []ruleDefinition) (analyze.Binding, error) {
 	catalog := auth.Catalog
 	p, err := makeRuleProducer(catalog, b, event)
 	if err != nil {
@@ -993,7 +993,7 @@ func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleD
 	return b, nil
 }
 
-func ruleReturningProjection(catalog catalog.Read, original, provider *boundReturning) (*boundReturning, error) {
+func ruleReturningProjection(catalog catalog.Read, original, provider *analyze.Returning) (*analyze.Returning, error) {
 	copy := *original
 	// Output names/usages belong to the caller; column privileges belong to
 	// the physical provider whose expressions replace those output Vars.
@@ -1020,7 +1020,7 @@ func ruleReturningProjection(catalog catalog.Read, original, provider *boundRetu
 	return &copy, nil
 }
 
-func (e *Engine) expandRuleResidualLocked(scope *StatementScope, auth AuthorizationView, stmt parser.Statement, b binding, ancestry []ruleAncestry, program *ruleProgram) (int, error) {
+func (e *Engine) expandRuleResidualLocked(scope *StatementScope, auth AuthorizationView, stmt parser.Statement, b analyze.Binding, ancestry []ruleAncestry, program *ruleProgram) (int, error) {
 	if b.Relation.RelationKind != catalog.ViewRelation {
 		return e.appendRuleCommand(program, auth, stmt, b), nil
 	}
@@ -1036,7 +1036,7 @@ func (e *Engine) expandRuleResidualLocked(scope *StatementScope, auth Authorizat
 	return e.expandRulesLocked(scope, auth, stmt, b, ancestry, program)
 }
 
-func refreshRuleBinding(catalog catalog.Read, b binding, current *catalog.Relation) (binding, error) {
+func refreshRuleBinding(catalog catalog.Read, b analyze.Binding, current *catalog.Relation) (analyze.Binding, error) {
 	old := b.Relation
 	if slices.Equal(old.Attributes, current.Attributes) {
 		b.Relation = current
@@ -1149,7 +1149,7 @@ func refreshRuleBinding(catalog catalog.Read, b binding, current *catalog.Relati
 	return b, nil
 }
 
-func refreshRuleSources(auth AuthorizationView, b binding) (binding, error) {
+func refreshRuleSources(auth AuthorizationView, b analyze.Binding) (analyze.Binding, error) {
 	catalog := auth.Catalog
 	var sources []exec.Leaf
 	for i, source := range b.QuerySources {
@@ -1187,7 +1187,7 @@ func refreshRuleSources(auth AuthorizationView, b binding) (binding, error) {
 	return b, nil
 }
 
-func refreshRuleConflict(catalog catalog.Read, b binding, current *catalog.Relation, slots func([]int) ([]int, error)) (*analyze.InsertConflict, error) {
+func refreshRuleConflict(catalog catalog.Read, b analyze.Binding, current *catalog.Relation, slots func([]int) ([]int, error)) (*analyze.InsertConflict, error) {
 	c := *b.Insert.Conflict
 	var err error
 	c.Targets, err = slots(c.Targets)
@@ -1232,7 +1232,7 @@ func refreshRuleConflict(catalog catalog.Read, b binding, current *catalog.Relat
 		return column, true, nil
 	}
 	mapper := newRuleTreeMapper(catalog, nil, 0, nil, ruleTreeMapping{leaf: leaf})
-	mapped, err := mapRuleBindingRecipes(binding{Insert: insertBinding{Conflict: &c}}, mapper)
+	mapped, err := mapRuleBindingRecipes(analyze.Binding{Insert: analyze.InsertBinding{Conflict: &c}}, mapper)
 	if err != nil {
 		return nil, err
 	}
@@ -1241,7 +1241,7 @@ func refreshRuleConflict(catalog catalog.Read, b binding, current *catalog.Relat
 	return &c, nil
 }
 
-func ruleBindingHasPseudo(b binding) bool {
+func ruleBindingHasPseudo(b analyze.Binding) bool {
 	found := false
 	inspect := func(bound expr.Expr) {
 		plan.WalkExpression(bound, func(node expr.Expr) {

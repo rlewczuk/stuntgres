@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -67,7 +68,7 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 		}
 		child.Expected = &description
 	}
-	result, err := e.executeStatement(child, d.SQL.Query, len(frame.Parameters), func(_ context.Context, _ ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
+	result, err := e.executeStatement(child, d.SQL.Query, len(frame.Parameters), func(_ context.Context, _ analyze.ParameterInfo, dst []sqltype.Value, _ sqltype.InputEnvironment) error {
 		copy(dst, frame.Parameters)
 		return nil
 	})

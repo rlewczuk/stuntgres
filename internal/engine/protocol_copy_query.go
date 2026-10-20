@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
@@ -22,7 +23,9 @@ func (s *StatementScope) prepareCopyQueryRows(query *parser.Select) (exec.RowRes
 	}
 	capture := protocolPortal{}
 	s.protocol().bind = &capture
-	_, err := s.op.session.Engine().executeStatement(s, query, 0, func(context.Context, ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error { return nil })
+	_, err := s.op.session.Engine().executeStatement(s, query, 0, func(context.Context, analyze.ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error {
+		return nil
+	})
 	if err != nil {
 		_ = s.protocolTerminalIO(func() error { return capture.releaseExecutor(s.op.Context()) })
 		return nil, err

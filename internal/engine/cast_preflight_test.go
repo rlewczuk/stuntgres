@@ -21,7 +21,7 @@ import (
 func preflightCast(t *testing.T, q string) expr.Expr {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	expression, err := b.Bind(castTarget(t, q), expressionPolicy{Context: analyze.ProjectionContext})
+	expression, err := b.Bind(castTarget(t, q), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 )
@@ -12,7 +13,7 @@ import (
 // not wrap that same typed leaf again on every Dump/Restore round trip. Keep
 // differing casts and their original traversal ordinals intact. This applies
 // only to subscripts dump arguments, not general stored-expression rendering.
-func (v *viewRenderer) subscriptsArraySQLAt(ctx context.Context, catalog catalog.Read, raw parser.Expr, path viewLiteralPath, ordinal *int) (string, error) {
+func (v *viewRenderer) subscriptsArraySQLAt(ctx context.Context, catalog catalog.Read, raw parser.Expr, path analyze.ViewLiteralPath, ordinal *int) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}

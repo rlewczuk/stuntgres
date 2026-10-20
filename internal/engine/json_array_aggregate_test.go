@@ -30,7 +30,7 @@ func TestJSONArrayAggregateSlotsAndDescriptors(t *testing.T) {
 	b.Params.Parameters[1] = integer.Usage()
 	for _, name := range []string{"json_agg", "jsonb_agg", "json_agg_strict", "jsonb_agg_strict", "json_agg"} {
 		raw := parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}}, Pos: parser.Position{Character: 8}}
-		node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -60,7 +60,7 @@ func TestJSONArrayAggregateSlotsAndDescriptors(t *testing.T) {
 	}
 	for _, absent := range []bool{true, false, true} {
 		raw := parser.AggregateExpr{Name: "json_arrayagg", Args: []parser.Expr{parser.ParameterExpr{Number: 1}}, JSON: &parser.JSONAggregateOptions{Absent: absent}}
-		if _, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext}); err != nil {
+		if _, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -265,7 +265,7 @@ func TestJSONArrayAggregateStoredReturningPresentation(t *testing.T) {
 	raw := statement(t, "SELECT json_arrayagg('[1]'::text FORMAT JSON NULL ON NULL RETURNING varchar(10) FORMAT JSON)").(*parser.Select).Targets[0]
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	b.Clause.AggregateClause = "SELECT"
-	bound, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+	bound, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,7 +274,7 @@ func TestJSONArrayAggregateStoredReturningPresentation(t *testing.T) {
 	}
 	renderer := newViewRenderer(&viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages})
 	renderer.frame = b.FrameID()
-	text, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
+	text, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil {
 		t.Fatal(err)
 	}

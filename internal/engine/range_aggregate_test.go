@@ -36,7 +36,7 @@ func TestRangeAggregateProvider(t *testing.T) {
 		b.Params.Parameters[1] = d.Usage()
 		for _, name := range []string{"range_agg", "range_agg", "range_intersect_agg"} {
 			raw := parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}}, Pos: parser.Position{Character: 8}}
-			result, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+			result, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}

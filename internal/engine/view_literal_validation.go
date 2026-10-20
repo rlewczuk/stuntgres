@@ -22,7 +22,7 @@ func (v *viewDefinition) validateLiterals(catalog catalog.Read) error {
 				return fmt.Errorf("stuntgres: missing stored query syntax")
 			}
 			ordinal := 0
-			if err := v.validateLiteralTree(catalog, v.expressionSyntax, viewLiteralPath{Query: frame, Clause: analyze.ViewTargetLiteral}, &ordinal, &count, &columnCount, &compositeCount, &routineCount); err != nil {
+			if err := v.validateLiteralTree(catalog, v.expressionSyntax, analyze.ViewLiteralPath{Query: frame, Clause: analyze.ViewTargetLiteral}, &ordinal, &count, &columnCount, &compositeCount, &routineCount); err != nil {
 				return err
 			}
 			continue
@@ -37,14 +37,14 @@ func (v *viewDefinition) validateLiterals(catalog catalog.Read) error {
 				return fmt.Errorf("stuntgres: invalid frozen set syntax frames")
 			}
 		}
-		validate := func(raw parser.Expr, clause viewLiteralClause, target int) error {
+		validate := func(raw parser.Expr, clause analyze.ViewLiteralClause, target int) error {
 			ordinal := 0
-			return v.validateLiteralTree(catalog, raw, viewLiteralPath{Query: frame, Clause: clause, Target: target}, &ordinal, &count, &columnCount, &compositeCount, &routineCount)
+			return v.validateLiteralTree(catalog, raw, analyze.ViewLiteralPath{Query: frame, Clause: clause, Target: target}, &ordinal, &count, &columnCount, &compositeCount, &routineCount)
 		}
 		for i, raw := range s.Targets {
 			if _, star := raw.(parser.StarExpr); star {
 				starCount++
-				path := viewLiteralPath{Query: frame, Clause: analyze.ViewTargetLiteral, Target: i}
+				path := analyze.ViewLiteralPath{Query: frame, Clause: analyze.ViewTargetLiteral, Target: i}
 				columns, ok := v.stars[path]
 				if !ok {
 					return fmt.Errorf("stuntgres: missing frozen view star")
@@ -87,7 +87,7 @@ func (v *viewDefinition) validateLiterals(catalog catalog.Read) error {
 		}
 		for i, definition := range s.Windows {
 			ordinal := 0
-			path := viewLiteralPath{Query: frame, Clause: analyze.ViewWindowLiteral, Target: i}
+			path := analyze.ViewLiteralPath{Query: frame, Clause: analyze.ViewWindowLiteral, Target: i}
 			for _, key := range definition.Spec.Partition {
 				if err := v.validateLiteralTree(catalog, key, path, &ordinal, &count, &columnCount, &compositeCount, &routineCount); err != nil {
 					return err
@@ -131,7 +131,7 @@ func (v *viewDefinition) validateLiterals(catalog catalog.Read) error {
 				}
 				for i, call := range parser.NormalizedFunctionCalls(raw) {
 					if table.RegexpNamespace {
-						path := viewLiteralPath{Query: frame, Clause: analyze.ViewFunctionLiteral, Source: table.ViewOrdinal, Target: i}
+						path := analyze.ViewLiteralPath{Query: frame, Clause: analyze.ViewFunctionLiteral, Source: table.ViewOrdinal, Target: i}
 						ordinal := 0
 						if err := v.validateLiteralTree(catalog, call, path, &ordinal, &count, &columnCount, &compositeCount, &routineCount); err != nil {
 							return err
@@ -167,7 +167,7 @@ func (v *viewDefinition) validateLiterals(catalog catalog.Read) error {
 					return fmt.Errorf("stuntgres: invalid stored function frame")
 				}
 				for i, call := range raw.Calls {
-					path := viewLiteralPath{Query: frame, Clause: analyze.ViewFunctionLiteral, Source: function.ViewOrdinal, Target: i}
+					path := analyze.ViewLiteralPath{Query: frame, Clause: analyze.ViewFunctionLiteral, Source: function.ViewOrdinal, Target: i}
 					ordinal := 0
 					if err := v.validateLiteralTree(catalog, call, path, &ordinal, &count, &columnCount, &compositeCount, &routineCount); err != nil {
 						return err
@@ -192,7 +192,7 @@ func (v *viewDefinition) validateLiterals(catalog catalog.Read) error {
 
 // Scalar stars and ordinary column syntax close over the same captured frame
 // and slot, independently of composite expansion occurrences.
-func (v *viewDefinition) validateColumnOccurrence(path viewLiteralPath) error {
+func (v *viewDefinition) validateColumnOccurrence(path analyze.ViewLiteralPath) error {
 	column, ok := v.columns[path]
 	owner := v.frames[column.Frame]
 	if !ok || owner == nil {
@@ -211,7 +211,7 @@ func (v *viewDefinition) validateColumnOccurrence(path viewLiteralPath) error {
 	return nil
 }
 
-func (v *viewDefinition) validateLiteralTree(catalog catalog.Read, raw parser.Expr, path viewLiteralPath, ordinal, count, columnCount, compositeCount, routineCount *int) error {
+func (v *viewDefinition) validateLiteralTree(catalog catalog.Read, raw parser.Expr, path analyze.ViewLiteralPath, ordinal, count, columnCount, compositeCount, routineCount *int) error {
 	if raw == nil {
 		return nil
 	}

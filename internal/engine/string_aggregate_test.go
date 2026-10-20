@@ -25,7 +25,7 @@ func TestStringAggregateBindingIdentity(t *testing.T) {
 		{"string_agg('a',',')", 5}, {"string_agg('a'::bytea,','::bytea ORDER BY 1)", 6},
 	} {
 		raw := statement(t, "SELECT "+tc.call+" FROM t").(*parser.Select).Targets[0]
-		result, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		result, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(i, err)
 		}
@@ -41,7 +41,7 @@ func TestStringAggregateBindingIdentity(t *testing.T) {
 		binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		binder.Clause.AggregateClause = "SELECT"
 		raw := statement(t, q).(*parser.Select).Targets[0]
-		result, err := binder.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		result, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(q, err)
 		}

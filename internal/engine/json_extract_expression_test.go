@@ -107,7 +107,7 @@ func TestJSONExtractStoredVariadicProvenance(t *testing.T) {
 			t.Run(q, func(t *testing.T) {
 				b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 				raw := statement(t, q).(*parser.Select).Targets[0]
-				node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+				node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -115,7 +115,7 @@ func TestJSONExtractStoredVariadicProvenance(t *testing.T) {
 					t.Fatal(err)
 				}
 				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}, frame: b.FrameID()}
-				replaySQL, err := renderer.expressionSQL(ctx, view, raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
+				replaySQL, err := renderer.expressionSQL(ctx, view, raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(err)
 				}

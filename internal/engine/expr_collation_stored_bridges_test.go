@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
@@ -14,7 +15,7 @@ import (
 
 // Use the ordinary admitted statement/binding path, including its occurrence
 // manifest and current attribute capabilities, rather than synthetic view roots.
-func exprCollationStoredBinding(t *testing.T, e *Engine, owner *Session, q string) (binding, *StatementScope) {
+func exprCollationStoredBinding(t *testing.T, e *Engine, owner *Session, q string) (analyze.Binding, *StatementScope) {
 	t.Helper()
 	op := transactionOperation(t, owner)
 	t.Cleanup(op.Done)
@@ -29,7 +30,7 @@ func exprCollationStoredBinding(t *testing.T, e *Engine, owner *Session, q strin
 	}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
-	var bound binding
+	var bound analyze.Binding
 	if err == nil {
 		bound, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 		scope.routineAuth, scope.routineDependencies = auth, bound.Dependencies

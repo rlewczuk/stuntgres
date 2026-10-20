@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -27,7 +28,7 @@ func retainInheritedRecipes(view catalog.Read, child *catalog.Relation, attribut
 		}
 		if definition, exists := parent.ColumnMeta.Generations[origin.Attribute]; exists && generated {
 			suppliedGeneration = true
-			mapper := createLikeInput{Source: parent, TargetSlots: make([]int, len(parent.Columns))}
+			mapper := analyze.LikeInput{Source: parent, TargetSlots: make([]int, len(parent.Columns))}
 			for i, column := range parent.Columns {
 				slot, ok := child.Index[column.Name]
 				if !ok {

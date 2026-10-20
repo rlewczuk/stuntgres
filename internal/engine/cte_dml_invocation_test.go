@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -30,7 +31,7 @@ func TestCTEDMLInvocationOwnership(t *testing.T) {
 				rows.Columns = schema
 				rows.Values = []sqltype.Value{value(1), value(10), value(2), sqltype.Null(integer), value(2), sqltype.Null(integer)}
 			}
-			definition := &plan.CTEDefinition{Owner: 1, Mutation: &binding{Returning: &boundReturning{Schema: schema}}, Schema: schema, Hint: hint, References: 2}
+			definition := &plan.CTEDefinition{Owner: 1, Mutation: &analyze.Binding{Returning: &analyze.Returning{Schema: schema}}, Schema: schema, Hint: hint, References: 2}
 			if definition.Folded() {
 				t.Fatal("modifier folded")
 			}
@@ -93,7 +94,7 @@ func TestCTEDMLInvocationOwnership(t *testing.T) {
 			}
 		}
 	}
-	noReturning := &plan.CTEDefinition{Owner: 1, Mutation: &binding{}}
+	noReturning := &plan.CTEDefinition{Owner: 1, Mutation: &analyze.Binding{}}
 	completion := &exec.CTEInvocation{Frame: 1}
 	if err := completeCTEMutation(completion, noReturning, Result{Count: 2}); err != nil {
 		t.Fatal(err)

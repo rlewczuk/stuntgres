@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -140,7 +141,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 				raw := statement(t, "SELECT "+tc.expression).(*parser.Select).Targets[0].(parser.FunctionExpr)
 				_, sourceBinder, _ := strictNullUnitBind(t, e, op, scope, tc.expression)
 				sourceBinder.Clause.AggregateClause = "FROM"
-				sourceBinder.Query.Namespace = &queryNamespace{}
+				sourceBinder.Query.Namespace = &analyze.QueryNamespace{}
 				e.mu.Lock()
 				source, sourceErr := sourceBinder.BindFunctionSource(raw)
 				e.mu.Unlock()
@@ -387,7 +388,7 @@ func TestJSONBRecordRoutineFailedConstructor(t *testing.T) {
 	usage := b.Type(sqltype.Int4).Usage()
 	usage.Typmod = 0
 	column := catalog.Column{Name: "base", Usage: usage}
-	b.Query.Namespace = &queryNamespace{Columns: []queryColumn{{Descriptor: column, Slot: 0, Leaf: -1, Physical: -1}}, Frame: []catalog.Column{column}}
+	b.Query.Namespace = &analyze.QueryNamespace{Columns: []analyze.QueryColumn{{Descriptor: column, Slot: 0, Leaf: -1, Physical: -1}}, Frame: []catalog.Column{column}}
 	raw := statement(t, "SELECT jsonb_populate_record(base,'{}'::jsonb)").(*parser.Select).Targets[0].(parser.FunctionExpr)
 	_, err := b.BindFunctionSource(raw)
 	if err == nil {

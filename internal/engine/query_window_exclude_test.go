@@ -107,7 +107,7 @@ func TestQueryWindowExcludeIdentityAndMetadata(t *testing.T) {
 	if node.Calls[4].Expression.ResultUsage().Type.ID() != sqltype.Numeric {
 		t.Fatal("bigint SUM result")
 	}
-	binder := &expressionBinder{}
+	binder := &analyze.Binder{}
 	a, b := node.Specs[0], node.Specs[0]
 	b.Frame.Exclusion = parser.ExcludeTies
 	if binder.SameWindowSpec(a, b) || !binder.SameWindowSort(a, b) || !binder.SameWindowCall(node.Calls[1], node.Calls[2]) {

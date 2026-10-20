@@ -29,7 +29,7 @@ func TestTimestamptzRangeTemporalCapture(t *testing.T) {
 	if err != nil || out != `("2000-02-29 12:34:56.123456+00","2000-03-01 00:00:00+00"]` || len(b.Prepared.Temporals) != 1 || !sqltype.SameDatum(v, b.Prepared.Temporals[0].Value) {
 		t.Fatal("whole capture", out, b.Prepared.Temporals, err)
 	}
-	description := &StatementDescription{temporals: append([]temporalConstant(nil), b.Prepared.Temporals...)}
+	description := &StatementDescription{temporals: append([]analyze.TemporalConstant(nil), b.Prepared.Temporals...)}
 	retained := newTestExpressionBinder(t, ctx, e, later, description)
 	frozen, err := retained.InputConstant("must not reparse", d.Usage(), position)
 	if err != nil || !sqltype.SameDatum(v, frozen) {
@@ -63,7 +63,7 @@ func TestTimestamptzRangeTemporalCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if analyze.RefreshableTemporal(temporalConstant{TypeID: domain.ID(), Typmod: -1, Value: logical}) {
+	if analyze.RefreshableTemporal(analyze.TemporalConstant{TypeID: domain.ID(), Typmod: -1, Value: logical}) {
 		t.Fatal("domain ownership fence lost")
 	}
 	for _, tc := range []struct {

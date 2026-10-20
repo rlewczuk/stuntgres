@@ -100,7 +100,7 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	description := &StatementDescription{temporals: append([]temporalConstant(nil), binder.Prepared.Temporals...), catalogOwner: e.catalog.owner(), catalogEpoch: e.CatalogRead().Epoch()}
+	description := &StatementDescription{temporals: append([]analyze.TemporalConstant(nil), binder.Prepared.Temporals...), catalogOwner: e.catalog.owner(), catalogEpoch: e.CatalogRead().Epoch()}
 	retained := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, description)
 	again, err := retained.InputConstant("not_resolved_again", d.Usage(), pos)
 	if err != nil || !sqltype.SameDatum(captured, again) {
@@ -189,12 +189,12 @@ func TestRegroleStoredLiteral(t *testing.T) {
 	}
 	arrayLiteral := plan.LiteralExpr{Info: expr.Info{Usage: arrayType.Usage()}, Value: array}
 	renderer := viewRenderer{viewDefinition: &viewDefinition{
-		literals:   map[viewLiteralPath]plan.LiteralExpr{{Node: 1}: arrayLiteral},
-		castUsages: map[viewLiteralPath]sqltype.Usage{{}: arrayType.Usage()},
+		literals:   map[analyze.ViewLiteralPath]plan.LiteralExpr{{Node: 1}: arrayLiteral},
+		castUsages: map[analyze.ViewLiteralPath]sqltype.Usage{{}: arrayType.Usage()},
 	}}
 	raw := parser.CastExpr{Child: parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue}}}
 	ordinal := 0
-	text, err := renderer.expressionSQLAt(context.Background(), view, raw, viewLiteralPath{}, &ordinal, pgRenderParent{})
+	text, err := renderer.expressionSQLAt(context.Background(), view, raw, analyze.ViewLiteralPath{}, &ordinal, pgRenderParent{})
 	if err != nil || text != "CAST('{10}' AS REGROLE[])" {
 		t.Fatal("opaque role array acquired redundant replay cast", text, err)
 	}

@@ -3,13 +3,14 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 )
 
-func (v *viewDefinition) sqlRoutineRecipeProcedure(read catalog.Read, path viewLiteralPath, raw parser.FunctionExpr) (*catalog.Procedure, error) {
+func (v *viewDefinition) sqlRoutineRecipeProcedure(read catalog.Read, path analyze.ViewLiteralPath, raw parser.FunctionExpr) (*catalog.Procedure, error) {
 	ref, exists := v.routineRefs[path]
 	consumer, _ := read.Relation(v.consumer)
 	if !raw.StoredSQLRoutine || !exists || ref.Address.ClassID != ids.ProcedureClassID || ref.Address.SubID != 0 || !storedViewReferenceValid(read, consumer, ref) || ref.Epoch != read.Epoch() && (consumer == nil || viewOf(consumer) != v) {
@@ -30,7 +31,7 @@ func (v *viewDefinition) sqlRoutineRecipeProcedure(read catalog.Read, path viewL
 	return nil, fmt.Errorf("stuntgres: missing frozen SQL routine dependency")
 }
 
-func (v *viewRenderer) sqlRoutineRecipeName(read catalog.Read, path viewLiteralPath, raw parser.FunctionExpr) (string, error) {
+func (v *viewRenderer) sqlRoutineRecipeName(read catalog.Read, path analyze.ViewLiteralPath, raw parser.FunctionExpr) (string, error) {
 	d, err := v.sqlRoutineRecipeProcedure(read, path, raw)
 	if err != nil {
 		return "", err

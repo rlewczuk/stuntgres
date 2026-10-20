@@ -39,7 +39,7 @@ func ruleCTEProgramError(program ruleProgram) error {
 
 // All original bodies have completed ordinary typed analysis and parameter
 // inference. Rewrite modifiers before parent rules, without altering providers.
-func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth AuthorizationView, statement parser.Statement, b *binding) error {
+func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth AuthorizationView, statement parser.Statement, b *analyze.Binding) error {
 	matched := func(relation *catalog.Relation, statement parser.Statement) bool {
 		return relation != nil && slices.ContainsFunc(rulesOf(relation), func(rule ruleDefinition) bool { return rule.event == ruleEvent(statement) })
 	}
@@ -87,7 +87,7 @@ func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth Authorizati
 // Admit normalized actual targets before canonical CTE static preflight. The
 // original parsed contexts remain present for caller/name/storage fences.
 // Enter held; success retains Engine.mu, failure releases it.
-func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Statement, b *binding) ([]ids.ObjectRef, error) {
+func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Statement, b *analyze.Binding) ([]ids.ObjectRef, error) {
 	if len(ruleCTEsOf(b.Rule.CTEs)) == 0 {
 		return nil, nil
 	}

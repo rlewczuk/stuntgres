@@ -25,7 +25,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			b.Clause.AggregateClause = "SELECT"
 			syntax := statement(t, "SELECT "+call).(*parser.Select)
 			raw := syntax.Targets[0]
-			node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+			node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -52,7 +52,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			if err := definition.validateLiterals(read); err != nil {
 				t.Fatal(err)
 			}
-			path := viewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral}
+			path := analyze.ViewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral}
 			if definition.routineRefs[path] != n.Ref || len(definition.castUsages) != 1 {
 				t.Fatal("lost selected identity or implicit argument conversion")
 			}
@@ -67,7 +67,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			badReferences = append(badReferences, e.catalog.Domain.Ref(read.Epoch(), builtins[0]))
 			for _, ref := range badReferences {
 				bad := *definition
-				bad.routineRefs = map[viewLiteralPath]ids.ObjectRef{path: ref}
+				bad.routineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: ref}
 				if err := bad.validateLiterals(read); err == nil {
 					t.Fatal("forged frozen SQL reference accepted", ref)
 				}
@@ -78,7 +78,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 				t.Fatal("missing SQL capture accepted")
 			}
 			extra := *definition
-			extra.routineRefs = map[viewLiteralPath]ids.ObjectRef{path: n.Ref, {Query: b.FrameID(), Target: 99}: n.Ref}
+			extra.routineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: n.Ref, {Query: b.FrameID(), Target: 99}: n.Ref}
 			if err := extra.validateLiterals(read); err == nil {
 				t.Fatal("extra SQL capture accepted")
 			}
@@ -91,7 +91,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 				t.Helper()
 				renderer := newViewRenderer(definition)
 				renderer.frame = b.FrameID()
-				text, err := renderer.expressionSQL(ctx, e.CatalogRead(), frozen, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
+				text, err := renderer.expressionSQL(ctx, e.CatalogRead(), frozen, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(err)
 				}

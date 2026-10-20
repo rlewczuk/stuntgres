@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -42,7 +43,7 @@ func TestPreparedSQLActualNoSnapshotDemand(t *testing.T) {
 				_ = scope.Finish(err)
 				t.Fatal(err)
 			}
-			formal := ParameterInfo{Count: 1, Types: []sqltype.Usage{testUsage(e, tc.formal)}}
+			formal := analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{testUsage(e, tc.formal)}}
 			frame := make([]sqltype.Value, 1)
 			err = scope.sqlExecuteImporter(&parser.ExecuteSQL{Name: parser.Identifier{Text: "p"}, Arguments: []parser.Expr{tc.actual}}, false)(op.ctx, formal, frame, scope.input)
 			if !e.mu.TryLock() {
@@ -88,7 +89,7 @@ func TestPreparedSQLActualProgramOwnership(t *testing.T) {
 		Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "owned"}}},
 	}
 	importer := scope.sqlExecuteImporter(&parser.ExecuteSQL{Name: parser.Identifier{Text: "p"}, Arguments: []parser.Expr{actual}}, true)
-	formal := ParameterInfo{Count: 1, Types: []sqltype.Usage{testUsage(e, sqltype.Int4)}}
+	formal := analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{testUsage(e, sqltype.Int4)}}
 	frame := make([]sqltype.Value, 1)
 	var original []routineAdmission
 	for i := range 32 {

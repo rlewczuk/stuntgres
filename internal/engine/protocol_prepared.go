@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -54,7 +55,7 @@ func (s *StatementScope) ParseProtocol(name, source string, hints []uint32) (Pro
 			return ProtocolStatement{}, err
 		}
 		s.worked = true
-		description := StatementDescription{Parameters: ParameterInfo{Count: len(hints)}}
+		description := StatementDescription{Parameters: analyze.ParameterInfo{Count: len(hints)}}
 		if err = s.publishProtocolStatement(name, &sqlPreparedStatement{source: source, description: description, parameterOIDs: slices.Clone(hints)}); err != nil {
 			return ProtocolStatement{}, err
 		}
@@ -96,7 +97,7 @@ func (s *StatementScope) ParseProtocol(name, source string, hints []uint32) (Pro
 	if body != nil {
 		description, err = s.describeProtocolBody(body)
 	} else {
-		description.Parameters = ParameterInfo{Count: len(hints), Types: types}
+		description.Parameters = analyze.ParameterInfo{Count: len(hints), Types: types}
 	}
 	if err != nil {
 		return ProtocolStatement{}, err
@@ -180,7 +181,7 @@ func (s *StatementScope) describeProtocolBody(body parser.Statement) (StatementD
 			return StatementDescription{}, sqlError("42P18", fmt.Sprintf("could not determine data type of parameter $%d", i+1))
 		}
 	}
-	description.Parameters = ParameterInfo{Count: len(s.initialParameters), Types: slices.Clone(s.initialParameters)}
+	description.Parameters = analyze.ParameterInfo{Count: len(s.initialParameters), Types: slices.Clone(s.initialParameters)}
 	return description, nil
 }
 func (s *StatementScope) CloseProtocolStatement(name string) error {
@@ -218,7 +219,7 @@ func protocolPlainSelect(stmt parser.Statement) bool {
 	return true
 }
 
-func protocolParameterOIDs(formal ParameterInfo) []uint32 {
+func protocolParameterOIDs(formal analyze.ParameterInfo) []uint32 {
 	ids := make([]uint32, formal.Count)
 	for i, usage := range formal.Types {
 		if usage.Type != nil {

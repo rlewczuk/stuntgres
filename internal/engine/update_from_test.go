@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -17,7 +18,7 @@ import (
 
 // This fixture exercises package admission/binding/capture functions, not the
 // public driver. Captures use exactly the executor's combined relation set.
-func updateFromBoundSources(t *testing.T, e *Engine, session *Session, ctx context.Context, q string) (*Operation, *StatementScope, binding, *exec.Source, *exec.Source) {
+func updateFromBoundSources(t *testing.T, e *Engine, session *Session, ctx context.Context, q string) (*Operation, *StatementScope, analyze.Binding, *exec.Source, *exec.Source) {
 	t.Helper()
 	op, err := session.Acquire(ctx)
 	if err != nil {
@@ -55,7 +56,7 @@ func updateFromBoundSources(t *testing.T, e *Engine, session *Session, ctx conte
 	}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
-	var b binding
+	var b analyze.Binding
 	var view *visibility.View
 	if err == nil {
 		b, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)

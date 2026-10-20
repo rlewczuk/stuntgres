@@ -123,7 +123,7 @@ func (s *StatementScope) acquireCTEMutations(statement parser.Statement, execute
 		if mutation.lockedRef.Domain() == nil {
 			continue
 		}
-		s.queryLockAdmission.MutationTargets = append(s.queryLockAdmission.MutationTargets, admittedMutationTarget{Statement: mutation.statement, Ref: mutation.lockedRef})
+		s.queryLockAdmission.MutationTargets = append(s.queryLockAdmission.MutationTargets, analyze.MutationTarget{Statement: mutation.statement, Ref: mutation.lockedRef})
 	}
 	if err := s.acquireViewSources(); err != nil {
 		return err
@@ -140,7 +140,7 @@ func (s *StatementScope) acquireCTEMutations(statement parser.Statement, execute
 
 // Retain the same view rewrite/grant path for auxiliary commands. Enter/return
 // with Engine.mu held; a real target wait releases it, never changes the owner.
-func (e *Engine) attachCTEViewTargetsLocked(scope *StatementScope, b *binding, execute bool) error {
+func (e *Engine) attachCTEViewTargetsLocked(scope *StatementScope, b *analyze.Binding, execute bool) error {
 	if len(scope.mutations) == 0 {
 		return nil
 	}

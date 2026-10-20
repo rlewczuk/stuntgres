@@ -22,7 +22,7 @@ import (
 type foreignActionPlan struct {
 	targets, parentSlots []int
 	defaults             []expr.Expr
-	defaultOrigins       []defaultOrigin
+	defaultOrigins       []analyze.DefaultOrigin
 	conversions          []sqltype.CoercionPlan
 	convert              []bool
 	input                sqltype.InputEnvironment
@@ -67,11 +67,11 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 		evaluation.Input.DomainChecks = &evaluation
 	}
 	if action == parser.ForeignKeySetDefault {
-		b := binding{Relation: job.child}
+		b := analyze.Binding{Relation: job.child}
 		e := s.op.session.Engine()
 		analyze.BindInsertDefaults(e.catalog.owner(), &b, auth.Catalog, parser.OverrideNone)
 		plan.defaults = make([]expr.Expr, len(plan.targets))
-		plan.defaultOrigins = make([]defaultOrigin, len(plan.targets))
+		plan.defaultOrigins = make([]analyze.DefaultOrigin, len(plan.targets))
 		for i, slot := range plan.targets {
 			if len(b.Insert.Defaults) != 0 {
 				plan.defaults[i] = b.Insert.Defaults[slot]
@@ -80,7 +80,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 		}
 		// Retained defaults can themselves cast to a checked domain even when
 		// the action destination is an ordinary base type.
-		binder := expressionBinder{Host: e.analysisHost(s.op), Ctx: s.op.Context(), Input: plan.input, Query: queryScopeState{Auth: &auth}}
+		binder := analyze.Binder{Host: e.analysisHost(s.op), Ctx: s.op.Context(), Input: plan.input, Query: analyze.QueryScopeState{Auth: &auth}}
 		e.mu.Lock()
 		err := binder.CaptureRetainedWriteInput(plan.defaults, nil, nil)
 		e.mu.Unlock()
@@ -315,7 +315,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 				return s.foreignActionError(err, job, event, action, auth.Catalog)
 			}
 		}
-		b := binding{Ref: ref, Relation: job.child, Targets: plan.targets}
+		b := analyze.Binding{Ref: ref, Relation: job.child, Targets: plan.targets}
 		if err = e.validateMutationRow(s, b, schema, row, &evaluation); err != nil {
 			return s.foreignActionError(err, job, event, action, auth.Catalog)
 		}

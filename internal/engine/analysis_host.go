@@ -28,7 +28,7 @@ type bindingHost struct {
 	op     *Operation
 }
 
-var _ analyzeHost = (*bindingHost)(nil)
+var _ analyze.Host = (*bindingHost)(nil)
 
 // analysisHost returns the binding host for op. A session operation carries
 // its own host value and the engine one for binding without an operation
@@ -264,7 +264,7 @@ func (h *bindingHost) ReplayInsertAuthority() bool {
 	return h.op != nil && h.op.replayOrZero().insertAuthority
 }
 
-func (h *bindingHost) ReplayDomainCell(b *binding, s *parser.Insert, row, column int) (expr.Expr, bool, error) {
+func (h *bindingHost) ReplayDomainCell(b *analyze.Binding, s *parser.Insert, row, column int) (expr.Expr, bool, error) {
 	return capturedDomainReplayCell(b, h.op, s, row, column)
 }
 
@@ -301,16 +301,16 @@ func (h *bindingHost) DecodeDomainLiteral(ctx context.Context, auth analyze.Auth
 
 // IndexExpressionBinder builds a nested binder over an index's parent
 // relation under the operation's current context.
-func (h *bindingHost) IndexExpressionBinder(input sqltype.InputEnvironment, auth analyze.Authority, parent *catalog.Relation) *expressionBinder {
+func (h *bindingHost) IndexExpressionBinder(input sqltype.InputEnvironment, auth analyze.Authority, parent *catalog.Relation) *analyze.Binder {
 	return h.engine.indexExpressionBinder(h.op, input, h.view(auth), parent)
 }
 
-func (h *bindingHost) BindViewWrite(b *binding, auth analyze.Authority, stmt parser.Statement, consumed ...ids.ObjectRef) error {
+func (h *bindingHost) BindViewWrite(b *analyze.Binding, auth analyze.Authority, stmt parser.Statement, consumed ...ids.ObjectRef) error {
 	return h.engine.bindViewWrite(b, h.view(auth), stmt, consumed...)
 }
 
 // newExpressionBinder is the root construction point: it binds through the
 // engine's host for op.
-func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
+func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *analyze.Binder {
 	return analyze.NewBinder(ctx, e.analysisHost(op), input, expectedOf(expected))
 }

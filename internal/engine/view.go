@@ -26,18 +26,18 @@ type viewDefinition struct {
 	sources           []viewLeaf
 	dependencies      []catalog.ExpressionDependency
 	sequenceRefs      map[int]ids.ObjectRef
-	literals          map[viewLiteralPath]plan.LiteralExpr
-	castUsages        map[viewLiteralPath]sqltype.Usage
-	routineRefs       map[viewLiteralPath]ids.ObjectRef
-	operatorRefs      map[viewLiteralPath]ids.ObjectRef
-	composites        map[viewLiteralPath]compositeOccurrence
-	similarSubstrings map[viewLiteralPath]bool
-	posixSubstrings   map[viewLiteralPath]bool
-	columns           map[viewLiteralPath]viewColumn
-	stars             map[viewLiteralPath][]viewColumn
+	literals          map[analyze.ViewLiteralPath]plan.LiteralExpr
+	castUsages        map[analyze.ViewLiteralPath]sqltype.Usage
+	routineRefs       map[analyze.ViewLiteralPath]ids.ObjectRef
+	operatorRefs      map[analyze.ViewLiteralPath]ids.ObjectRef
+	composites        map[analyze.ViewLiteralPath]analyze.CompositeOccurrence
+	similarSubstrings map[analyze.ViewLiteralPath]bool
+	posixSubstrings   map[analyze.ViewLiteralPath]bool
+	columns           map[analyze.ViewLiteralPath]analyze.ViewColumn
+	stars             map[analyze.ViewLiteralPath][]analyze.ViewColumn
 	frames            map[uint32]*plan.ProjectNode
 	queries           map[*parser.Select]*plan.ProjectNode
-	namespaces        []viewNamespace
+	namespaces        []analyze.ViewNamespace
 	barrier, invoker  bool
 	checkOption       viewCheckMode
 	options           []string // Immutable ordered installed name=value facts, including explicit false.
@@ -45,7 +45,7 @@ type viewDefinition struct {
 	consumer          ids.ObjectAddress
 	temporary         ids.SessionToken
 	references        map[ids.ObjectRef]catalog.Descriptor
-	collations        map[viewLiteralPath]uint32
+	collations        map[analyze.ViewLiteralPath]uint32
 	quoteRevision     ids.DefinitionRevision // frozen defining revision, not later relation renames
 }
 
@@ -510,7 +510,7 @@ func (v *viewDefinition) validateNamespaces() error {
 		if root == nil {
 			return fmt.Errorf("stuntgres: missing view namespace node")
 		}
-		check := func(columns []viewNamespaceColumn) error {
+		check := func(columns []analyze.ViewNamespaceColumn) error {
 			for _, column := range columns {
 				if column.Slot < 0 || column.Slot >= len(root.Schema()) {
 					return fmt.Errorf("stuntgres: invalid view namespace slot")
@@ -552,7 +552,7 @@ func (v *viewDefinition) validateNamespaces() error {
 	return nil
 }
 
-func (v *viewDefinition) namespaceRoot(ns viewNamespace) plan.Node {
+func (v *viewDefinition) namespaceRoot(ns analyze.ViewNamespace) plan.Node {
 	project := v.frames[ns.Frame]
 	if project == nil {
 		return nil
@@ -586,7 +586,7 @@ func (v *viewDefinition) namespaceRoot(ns viewNamespace) plan.Node {
 type viewCreationScope struct {
 	namespace   ids.ObjectRef
 	persistence string
-	binding     binding
+	binding     analyze.Binding
 	changes     *catalogChanges
 	active      []ids.ObjectAddress
 }
@@ -613,7 +613,7 @@ func (v *viewCreationScope) endStatement() {
 	if v == nil {
 		return
 	}
-	v.namespace, v.persistence, v.binding, v.changes = ids.ObjectRef{}, "", binding{}, nil
+	v.namespace, v.persistence, v.binding, v.changes = ids.ObjectRef{}, "", analyze.Binding{}, nil
 }
 
 // setActiveViews installs a saved view-expansion stack; restoring an empty

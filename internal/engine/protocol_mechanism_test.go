@@ -81,7 +81,7 @@ func TestProtocolValueCodecs(t *testing.T) {
 		defer done()
 		for _, retained := range []bool{false, true} {
 			record := sqltype.DeferredRecord()
-			description := StatementDescription{Parameters: ParameterInfo{Count: 1, Types: []sqltype.Usage{record.Usage()}}}
+			description := StatementDescription{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{record.Usage()}}}
 			e.mu.Lock()
 			var expected *StatementDescription
 			if retained {
@@ -91,7 +91,7 @@ func TestProtocolValueCodecs(t *testing.T) {
 			if !retained {
 				binder.SeedParameters(description.Parameters.Types)
 			}
-			node, bindErr := binder.Bind(parser.ParameterExpr{Number: 1}, expressionPolicy{Context: analyze.ProjectionContext})
+			node, bindErr := binder.Bind(parser.ParameterExpr{Number: 1}, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			formal, formalErr := binder.Finish()
 			e.mu.Unlock()
 			if bindErr != nil || formalErr != nil {

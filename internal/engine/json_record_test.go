@@ -15,10 +15,10 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func jsonRecordUnitCall(t *testing.T, b *expressionBinder, name string, defined bool) functions.JSONRecord {
+func jsonRecordUnitCall(t *testing.T, b *analyze.Binder, name string, defined bool) functions.JSONRecord {
 	t.Helper()
 	b.Clause.AggregateClause = "FROM"
-	b.Query.Namespace = &queryNamespace{}
+	b.Query.Namespace = &analyze.QueryNamespace{}
 	raw := nullCountRaw(name, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: `{"a":2}`}})
 	node, err := b.BindFunctionSource(raw)
 	if err != nil {

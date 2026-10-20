@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -14,7 +15,7 @@ import (
 // Engine.mu is held. Both ordinary and materialized views freeze the same bound
 // identities and renderer metadata; only ordinary views execute this definition
 // when read. A zero rule requests a new identity for a newly created relation.
-func (e *Engine) freezeViewDefinitionLocked(auth AuthorizationView, syntax *parser.Select, b binding, barrier, invoker bool, rule ids.OID, kind catalog.RelationKind, temporary bool) (*viewDefinition, error) {
+func (e *Engine) freezeViewDefinitionLocked(auth AuthorizationView, syntax *parser.Select, b analyze.Binding, barrier, invoker bool, rule ids.OID, kind catalog.RelationKind, temporary bool) (*viewDefinition, error) {
 	temporaryMessage := "temporary views are unsupported"
 	if kind == catalog.MaterializedViewRelation {
 		temporaryMessage = "materialized views must not use temporary tables or views"
@@ -32,7 +33,7 @@ func (e *Engine) freezeViewDefinitionLocked(auth AuthorizationView, syntax *pars
 
 // Policies share analyzed expression/query presentation without inheriting a
 // view's temporary-source restriction. An empty message permits those sources.
-func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *parser.Select, b binding, barrier, invoker bool, rule ids.OID, temporaryMessage string, temporaryConsumer bool) (*viewDefinition, error) {
+func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *parser.Select, b analyze.Binding, barrier, invoker bool, rule ids.OID, temporaryMessage string, temporaryConsumer bool) (*viewDefinition, error) {
 	dependencies, err := frozenQueryDependencies(auth.Catalog, b)
 	if err != nil {
 		return nil, err
@@ -113,7 +114,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 // Preserve the prepared source manifest. Only frozen presentation loses a
 // constructor's erased outer identity, and only when no executable occurrence
 // still needs that identity. The ordinary pg_depend expression owner decides.
-func frozenQueryDependencies(view catalog.Read, b binding) ([]catalog.ExpressionDependency, error) {
+func frozenQueryDependencies(view catalog.Read, b analyze.Binding) ([]catalog.ExpressionDependency, error) {
 	var erased map[sqltype.ID]bool
 	plan.VisitCTEQuery(b.Query.Root, func(plan.Node) {}, func(bound expr.Expr) {
 		plan.WalkExpression(bound, func(node expr.Expr) {

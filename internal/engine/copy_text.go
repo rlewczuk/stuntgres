@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqlstate"
@@ -20,7 +21,7 @@ type copyField struct {
 }
 type copyCursor struct {
 	scope                        *StatementScope
-	binding                      binding
+	binding                      analyze.Binding
 	options                      copyOptions
 	reader                       *bufio.Reader
 	line, decoded                []byte
@@ -33,7 +34,7 @@ type copyCursor struct {
 	nullInput                    bool
 }
 
-func newCopyCursor(scope *StatementScope, b binding, o copyOptions, r io.Reader) *copyCursor {
+func newCopyCursor(scope *StatementScope, b analyze.Binding, o copyOptions, r io.Reader) *copyCursor {
 	c := &copyCursor{scope: scope, binding: b, options: o, reader: bufio.NewReader(copyReader{scope, r}), defaults: make([]bool, len(b.Relation.Columns)), omitted: make([]bool, len(b.Relation.Columns))}
 	for i := range c.omitted {
 		c.omitted[i] = true

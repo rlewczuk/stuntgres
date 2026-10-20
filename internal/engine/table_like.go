@@ -11,7 +11,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func remapLikeExpression(in *createLikeInput, node expr.Expr, destination *catalog.Relation, authority catalog.Read) (expr.Expr, error) {
+func remapLikeExpression(in *analyze.LikeInput, node expr.Expr, destination *catalog.Relation, authority catalog.Read) (expr.Expr, error) {
 	if in.RowRef == nil {
 		in.RowRef, in.Slots = in.RowMapper(destination, authority)
 	}
@@ -50,7 +50,7 @@ func (s *CatalogStage) validateLikeSources(current catalog.Read) error {
 	return nil
 }
 
-func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *CatalogStage, destination *catalog.Relation, inputs []createLikeInput) error {
+func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *CatalogStage, destination *catalog.Relation, inputs []analyze.LikeInput) error {
 	for i := range inputs {
 		in := &inputs[i]
 		stage.captureLikeSource(in.Source)
@@ -151,7 +151,7 @@ func (e *Engine) stageLikeColumns(op *Operation, auth AuthorizationView, stage *
 	return nil
 }
 
-func (e *Engine) stageLikeChecks(op *Operation, auth AuthorizationView, destination *catalog.Relation, inputs []createLikeInput) error {
+func (e *Engine) stageLikeChecks(op *Operation, auth AuthorizationView, destination *catalog.Relation, inputs []analyze.LikeInput) error {
 	names := make(map[string]bool)
 	ordinal := 0
 	for _, constraint := range destination.Constraints.NotNull {

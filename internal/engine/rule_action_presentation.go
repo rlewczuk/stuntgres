@@ -7,7 +7,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) freezeRuleActionPresentationLocked(auth AuthorizationView, action parser.Statement, b binding) (*viewDefinition, error) {
+func (e *Engine) freezeRuleActionPresentationLocked(auth AuthorizationView, action parser.Statement, b analyze.Binding) (*viewDefinition, error) {
 	if query, ok := action.(*parser.Select); ok {
 		return e.freezeQueryPresentationLocked(auth, query, b, false, false, 0, "", false)
 	}
@@ -67,10 +67,10 @@ func (e *Engine) freezeRuleActionPresentationLocked(auth AuthorizationView, acti
 	return presentation, nil
 }
 
-func (e *Engine) freezeRuleModifierPresentationsLocked(auth AuthorizationView, b binding) (map[parser.Statement]*viewDefinition, error) {
+func (e *Engine) freezeRuleModifierPresentationsLocked(auth AuthorizationView, b analyze.Binding) (map[parser.Statement]*viewDefinition, error) {
 	var presentations map[parser.Statement]*viewDefinition
-	var collect func(binding) error
-	collect = func(body binding) error {
+	var collect func(analyze.Binding) error
+	collect = func(body analyze.Binding) error {
 		for _, definition := range body.CTEs {
 			mutation, ok := analyze.MutationBinding(definition)
 			if !ok || presentations[definition.Statement] != nil {

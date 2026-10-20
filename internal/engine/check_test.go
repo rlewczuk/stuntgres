@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqlstate"
@@ -69,7 +70,7 @@ func TestCheckACLCompletedProtectedRow(t *testing.T) {
 				if prepared {
 					count = 1
 				}
-				r, err := scope.Execute(ast, count, func(ctx context.Context, p ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
+				r, err := scope.Execute(ast, count, func(ctx context.Context, p analyze.ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
 					v, e := sqltype.Integer(p.Types[0].Type, 2)
 					frame[0] = v
 					return e

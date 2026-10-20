@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -61,7 +62,7 @@ func TestQueryJoinsStatementFrontierAndNoWidening(t *testing.T) {
 	var widenErr error
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
-	var binding binding
+	var binding analyze.Binding
 	if err == nil {
 		binding, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 	}
@@ -514,7 +515,7 @@ func TestQueryJoinsSelectedPrivateRoots(t *testing.T) {
 			}
 			e.mu.Lock()
 			auth, err := e.authorizationLocked(op)
-			var bound binding
+			var bound analyze.Binding
 			if err == nil {
 				bound, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 			}

@@ -1,13 +1,14 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
 
-func isolateRuleCTEFrames(view catalog.Read, original, action binding, syntax parser.Statement) (binding, error) {
+func isolateRuleCTEFrames(view catalog.Read, original, action analyze.Binding, syntax parser.Statement) (analyze.Binding, error) {
 	if len(original.CTEs) == 0 {
 		return action, nil
 	}

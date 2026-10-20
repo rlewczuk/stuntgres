@@ -175,7 +175,7 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 				raw.Args = append(raw.Args, expr)
 				raw.Order = append(raw.Order, parser.OrderKey{Expr: expr, Pos: position})
 			}
-			node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+			node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}

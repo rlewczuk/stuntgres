@@ -9,6 +9,7 @@ import (
 	"io"
 	"math"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/sqlstate"
@@ -19,7 +20,7 @@ const copyBinarySignature = "PGCOPY\n\xff\r\n\x00"
 
 type copyBinaryCursor struct {
 	scope             *StatementScope
-	binding           binding
+	binding           analyze.Binding
 	reader            *bufio.Reader
 	scratch           [4096]byte
 	payload           []byte
@@ -29,7 +30,7 @@ type copyBinaryCursor struct {
 	header, ended     bool
 }
 
-func newCopyBinaryCursor(s *StatementScope, b binding, r io.Reader) *copyBinaryCursor {
+func newCopyBinaryCursor(s *StatementScope, b analyze.Binding, r io.Reader) *copyBinaryCursor {
 	c := &copyBinaryCursor{scope: s, binding: b, reader: bufio.NewReader(copyReader{s, r}), defaults: make([]bool, len(b.Relation.Columns)), omitted: make([]bool, len(b.Relation.Columns))}
 	for i := range c.omitted {
 		c.omitted[i] = true

@@ -14,10 +14,10 @@ import (
 	"testing"
 )
 
-func jsonEachUnitMarker(t *testing.T, b *expressionBinder, name, input string) functions.JSONEach {
+func jsonEachUnitMarker(t *testing.T, b *analyze.Binder, name, input string) functions.JSONEach {
 	t.Helper()
 	b.Clause.AggregateClause = "SELECT"
-	b.Query.Namespace = &queryNamespace{}
+	b.Query.Namespace = &analyze.QueryNamespace{}
 	node, err := b.BindFunction(nullCountRaw(name, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: input}}))
 	if err != nil {
 		t.Fatal(err)

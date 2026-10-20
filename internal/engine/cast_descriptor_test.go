@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/sqltype"
 )
@@ -223,7 +224,7 @@ func TestCastPublishedDescriptorsPreflightReuse(t *testing.T) {
 								if prepared {
 									scope.Expected = &held
 								}
-								result, executeErr := scope.Execute(ast, 1, func(ctx context.Context, parameters ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {
+								result, executeErr := scope.Execute(ast, 1, func(ctx context.Context, parameters analyze.ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {
 									frame[0] = sqltype.Null(parameters.Types[0].Type)
 									if execution.null {
 										return nil

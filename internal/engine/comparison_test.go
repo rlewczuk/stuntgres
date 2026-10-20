@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -170,7 +171,7 @@ func TestCompareOpsTemporalCaptureRebind(t *testing.T) {
 			t.Fatal(err)
 		}
 		desc := StatementDescription{temporals: bound.Prepared.Temporals}
-		before := append([]temporalConstant(nil), desc.temporals...)
+		before := append([]analyze.TemporalConstant(nil), desc.temporals...)
 		for range 2 {
 			rebound, err := describe(op.ctx, e.analysisHost(op), ast, auth, ref, later, &desc, nil)
 			if err != nil {

@@ -32,7 +32,7 @@ func validateCookedDefaultTemporary(node expr.Expr, consumer ids.SessionToken) e
 	return err
 }
 
-func bindCreateDefaults(b *expressionBinder, columns []catalog.Column, declarations []createColumnDeclaration) (map[int32]catalog.ColumnDefault, error) {
+func bindCreateDefaults(b *analyze.Binder, columns []catalog.Column, declarations []analyze.ColumnDeclaration) (map[int32]catalog.ColumnDefault, error) {
 	var defaults map[int32]catalog.ColumnDefault
 	auth, err := b.BindingAuthorization()
 	if err != nil {

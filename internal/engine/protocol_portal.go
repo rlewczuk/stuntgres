@@ -7,6 +7,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -141,7 +142,7 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input Protoc
 			delete(r.portals, name)
 		}
 	}()
-	importer := func(ctx context.Context, formal ParameterInfo, frame []sqltype.Value, env sqltype.InputEnvironment) error {
+	importer := func(ctx context.Context, formal analyze.ParameterInfo, frame []sqltype.Value, env sqltype.InputEnvironment) error {
 		if e := s.protocolImport(input, formats, formal, frame, env, &p.context, protocolBindInput); e != nil {
 			var diagnostic *sqlstate.Error
 			if errors.As(e, &diagnostic) {
@@ -186,7 +187,7 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input Protoc
 			return out, err
 		}
 		if count != 0 {
-			formal := ParameterInfo{Count: int(count), Types: make([]sqltype.Usage, int(count))}
+			formal := analyze.ParameterInfo{Count: int(count), Types: make([]sqltype.Usage, int(count))}
 			e := s.op.session.Engine()
 			e.mu.Lock()
 			auth, lookupErr := e.authorizationLocked(s.op)
@@ -359,7 +360,7 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 		if p.producer == nil {
 			s.Expected = &p.entry.description
 			stream := protocolCopyExecution{source: source, destination: destination, hooks: hooks}
-			result, e := s.execute(p.entry.body, len(p.values), func(_ context.Context, _ ParameterInfo, frame []sqltype.Value, _ sqltype.InputEnvironment) error {
+			result, e := s.execute(p.entry.body, len(p.values), func(_ context.Context, _ analyze.ParameterInfo, frame []sqltype.Value, _ sqltype.InputEnvironment) error {
 				copy(frame, p.values)
 				return nil
 			}, &stream)

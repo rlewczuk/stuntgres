@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -11,7 +12,7 @@ import (
 	"testing"
 )
 
-func updateRowTestBinding(t *testing.T, q string) (*Engine, binding) {
+func updateRowTestBinding(t *testing.T, q string) (*Engine, analyze.Binding) {
 	t.Helper()
 	e := New()
 	run(t, e, "CREATE TABLE t(id INT,a INT,b INT,c INT,d INT)")
@@ -41,7 +42,7 @@ func updateRowTestBinding(t *testing.T, q string) (*Engine, binding) {
 func TestUpdateRowBinding(t *testing.T) {
 	_, b := updateRowTestBinding(t, "UPDATE t SET id=id+1,(a,b)=(SELECT b,a),(c,d)=ROW(a,b)")
 	u := b.Update
-	if !reflect.DeepEqual(b.Targets, []int{0, 1, 2, 3, 4}) || len(u.Assignments) != 5 || len(u.Origins) != 5 || len(u.Groups) != 1 || u.Groups[0] != (updateAssignmentGroup{Start: 1, Width: 2}) || u.OutputWidth != 2 {
+	if !reflect.DeepEqual(b.Targets, []int{0, 1, 2, 3, 4}) || len(u.Assignments) != 5 || len(u.Origins) != 5 || len(u.Groups) != 1 || u.Groups[0] != (analyze.AssignmentGroup{Start: 1, Width: 2}) || u.OutputWidth != 2 {
 		t.Fatal("normalization order", b.Targets, u)
 	}
 	source, ok := u.Assignments[1].(plan.SubqueryExpr)

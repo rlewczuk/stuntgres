@@ -20,7 +20,7 @@ func TestBitstringLiteralBindingAndDeparse(t *testing.T) {
 	varying := b.Type(sqltype.VarBit).Usage()
 	varying.Typmod = 5
 	raw := parser.LiteralExpr{Value: parser.Value{Kind: parser.BitStringValue, Text: "x0f", Pos: parser.Position{Offset: 7, Character: 8}}}
-	node, err := b.Bind(raw, expressionPolicy{})
+	node, err := b.Bind(raw, analyze.ExpressionPolicy{})
 	if err != nil || node.ResultUsage().Type.ID() != sqltype.Bit || node.ResultUsage().Typmod != -1 || node.ResultUsage().Collation != (sqltype.CollationRef{}) {
 		t.Fatal(node, err)
 	}
@@ -37,7 +37,7 @@ func TestBitstringLiteralBindingAndDeparse(t *testing.T) {
 		t.Fatal(literal, err)
 	}
 	// A destination cannot reinterpret a known B/X constant as unknown text.
-	node, err = b.Bind(parser.LiteralExpr{Value: parser.Value{Kind: parser.BitStringValue, Text: "b001", Pos: raw.Value.Pos}}, expressionPolicy{Expected: varying, Context: analyze.AssignmentContext})
+	node, err = b.Bind(parser.LiteralExpr{Value: parser.Value{Kind: parser.BitStringValue, Text: "b001", Pos: raw.Value.Pos}}, analyze.ExpressionPolicy{Expected: varying, Context: analyze.AssignmentContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestBitstringLiteralBindingAndDeparse(t *testing.T) {
 		if kind == parser.BitStringValue {
 			text = "b2"
 		}
-		_, err = b.Bind(parser.LiteralExpr{Value: parser.Value{Kind: kind, Text: text, Pos: raw.Value.Pos}}, expressionPolicy{Expected: fixed, Context: analyze.AssignmentContext})
+		_, err = b.Bind(parser.LiteralExpr{Value: parser.Value{Kind: kind, Text: text, Pos: raw.Value.Pos}}, analyze.ExpressionPolicy{Expected: fixed, Context: analyze.AssignmentContext})
 		var d *sqlstate.Error
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22P02", Message: `"2" is not a valid binary digit`, Position: "8"}
 		if !errors.As(err, &d) || *d != want {
@@ -74,7 +74,7 @@ func TestBitstringFormatLiteralReplay(t *testing.T) {
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	for _, tc := range []struct{ input, canonical string }{{"b001", "001"}, {"x0f", "00001111"}, {"b", ""}} {
 		raw := nullCountRaw("format", formatUnitLiteral("%s"), parser.LiteralExpr{Value: parser.Value{Kind: parser.BitStringValue, Text: tc.input}})
-		node, err := b.Bind(raw, expressionPolicy{})
+		node, err := b.Bind(raw, analyze.ExpressionPolicy{})
 		if err != nil {
 			t.Fatal(err)
 		}

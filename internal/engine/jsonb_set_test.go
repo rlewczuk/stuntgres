@@ -16,10 +16,10 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func jsonbSetUnitBind(t *testing.T, b *expressionBinder, q string) expr.Expr {
+func jsonbSetUnitBind(t *testing.T, b *analyze.Binder, q string) expr.Expr {
 	t.Helper()
 	raw := statement(t, q).(*parser.Select).Targets[0]
-	node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+	node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(q, err)
 	}
@@ -70,7 +70,7 @@ func TestJSONBSetBindingInferenceAndProperties(t *testing.T) {
 		`SELECT jsonb_set_lax('{}','{a}',NULL,missing,'return_target')`,
 	} {
 		binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
-		_, err := binder.Bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+		_, err := binder.Bind(statement(t, q).(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "42703" {
 			t.Fatal("ordinary child analysis suppressed", q, err)
@@ -135,7 +135,7 @@ func TestJSONBSetRetagRemapAndPresentation(t *testing.T) {
 		t.Fatal("written/formal literal association", err)
 	}
 	renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}, frame: b.FrameID()}
-	replaySQL, err := renderer.expressionSQL(ctx, view, raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
+	replaySQL, err := renderer.expressionSQL(ctx, view, raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +164,7 @@ func TestJSONBSetViewReplayDeterminism(t *testing.T) {
 			for round := range 3 {
 				b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 				raw := statement(t, query).(*parser.Select).Targets[0]
-				node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+				node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 				if err != nil {
 					t.Fatal(round, err)
 				}
@@ -180,7 +180,7 @@ func TestJSONBSetViewReplayDeterminism(t *testing.T) {
 					t.Fatal(round, err)
 				}
 				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}, frame: b.FrameID()}
-				emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
+				emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(round, err)
 				}

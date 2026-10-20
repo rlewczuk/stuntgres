@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -81,7 +82,7 @@ func partitionConstraintProven(scope *StatementScope, view catalog.Read, parent,
 		return false, scope.op.Context().Err()
 	}
 	var keys [32]expr.Expr
-	in := createLikeInput{Source: parent, TargetSlots: make([]int, len(parent.Columns))}
+	in := analyze.LikeInput{Source: parent, TargetSlots: make([]int, len(parent.Columns))}
 	for i, column := range parent.Columns {
 		slot, ok := relation.Index[column.Name]
 		if !ok {
@@ -150,7 +151,7 @@ type partitionProof struct {
 }
 
 func partitionProofSame(a, b expr.Expr) bool {
-	binder := expressionBinder{Consumer: consumerContext{CheckDefinitionEquality: true}}
+	binder := analyze.Binder{Consumer: analyze.ConsumerContext{CheckDefinitionEquality: true}}
 	return binder.SameGroupExpression(a, b)
 }
 

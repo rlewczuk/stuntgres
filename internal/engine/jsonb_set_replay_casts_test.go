@@ -34,7 +34,7 @@ func TestJSONBSetViewReplayCastBoundaries(t *testing.T) {
 			for round := range 3 {
 				b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 				raw := statement(t, query).(*parser.Select).Targets[0]
-				node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+				node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 				if err != nil {
 					t.Fatal(round, err)
 				}
@@ -59,7 +59,7 @@ func TestJSONBSetViewReplayCastBoundaries(t *testing.T) {
 					t.Fatal(round, err)
 				}
 				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}, frame: b.FrameID()}
-				emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
+				emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(round, err)
 				}

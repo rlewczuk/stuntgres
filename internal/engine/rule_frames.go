@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -22,7 +23,7 @@ func rewriteRuleFrames(view catalog.Read, root plan.Node, expr expr.Expr, frame 
 	return mapped, mappedExpr, err
 }
 
-func ruleBindingMaxFrame(b binding) uint32 {
+func ruleBindingMaxFrame(b analyze.Binding) uint32 {
 	max := uint32(1)
 	visit := func(root plan.Node) {
 		frames, _ := collectQueryFrames(root)
@@ -98,7 +99,7 @@ func rewriteRuleOccurrences(view catalog.Read, root plan.Node, expr expr.Expr, o
 	return mapped, mappedExpr, err
 }
 
-func offsetRuleSources(view catalog.Read, b binding, offset int, retainedCTEs ...[]*plan.CTEDefinition) (binding, error) {
+func offsetRuleSources(view catalog.Read, b analyze.Binding, offset int, retainedCTEs ...[]*plan.CTEDefinition) (analyze.Binding, error) {
 	if offset == 0 {
 		return b, nil
 	}

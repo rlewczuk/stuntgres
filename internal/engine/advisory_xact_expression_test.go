@@ -22,7 +22,7 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 			t.Run(name+"/"+arguments, func(t *testing.T) {
 				b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 				raw := statement(t, "SELECT "+name+"("+arguments+")").(*parser.Select).Targets[0]
-				bound, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+				bound, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -71,7 +71,7 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					rebound, err := b.Bind(statement(t, "SELECT "+text).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+					rebound, err := b.Bind(statement(t, "SELECT "+text).(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -85,7 +85,7 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 	}
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	for _, q := range []string{"SELECT pg_advisory_xact_lock(NULL,CASE WHEN pg_try_advisory_lock(12) THEN 1 ELSE 0 END)", "SELECT pg_try_advisory_xact_lock(NULL,1)"} {
-		bound, err := b.Bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+		bound, err := b.Bind(statement(t, q).(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}

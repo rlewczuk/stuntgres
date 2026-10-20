@@ -3,6 +3,7 @@ package engine
 import (
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -21,7 +22,7 @@ func routineSpelling(view catalog.Read, path []ids.ObjectAddress, id ids.OID, si
 	if signatureQualified {
 		signature = &procedure.Signature
 	}
-	selected, count := selectRoutine(view, namespaceSelection{Path: path}, procedure.Name, signature)
+	selected, count := selectRoutine(view, analyze.NamespaceSelection{Path: path}, procedure.Name, signature)
 	name := regclassIdentifier(procedure.Name)
 	if qualified || count != 1 || selected.ID != id {
 		namespace := view.Get(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: procedure.Namespace})

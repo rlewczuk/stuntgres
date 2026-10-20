@@ -24,7 +24,7 @@ func sequenceInputExecute(t *testing.T, e *Engine, op *Operation, query string, 
 		t.Fatal(err)
 	}
 	scope.Expected = &description
-	r, err := scope.Execute(ast, len(args), func(ctx context.Context, info ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
+	r, err := scope.Execute(ast, len(args), func(ctx context.Context, info analyze.ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
 		for i, arg := range args {
 			if arg == nil {
 				frame[i] = sqltype.Null(info.Types[i].Type)

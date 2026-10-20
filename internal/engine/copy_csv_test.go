@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -135,7 +136,7 @@ func TestCopyCSVFraming(t *testing.T) {
 			{"'a!!!!',tail\n", "a!!"},
 			{"'a!x'b,tail\n", "a!xb"},
 		} {
-			c := copyCursor{options: copyOptions{format: copyFormatCSV, quote: '\'', escape: '!', delimiter: ','}, reader: bufio.NewReaderSize(strings.NewReader(tc.input), 16), binding: binding{Targets: []int{0, 1}}}
+			c := copyCursor{options: copyOptions{format: copyFormatCSV, quote: '\'', escape: '!', delimiter: ','}, reader: bufio.NewReaderSize(strings.NewReader(tc.input), 16), binding: analyze.Binding{Targets: []int{0, 1}}}
 			present, err := c.readLine()
 			if err != nil || !present || string(c.line) != strings.TrimSuffix(tc.input, "\n") {
 				t.Fatalf("raw %q present %v err %v", c.line, present, err)
@@ -159,7 +160,7 @@ func TestCopyCSVFields(t *testing.T) {
 		{"\"a\"\"b\",\\n", []string{"a\"b", `\n`}, []bool{true, false}, []bool{false, false}},
 		{"\"" + strings.Repeat("x", 90000) + "\",tail", []string{strings.Repeat("x", 90000), "tail"}, []bool{true, false}, []bool{false, false}},
 	} {
-		c := copyCursor{options: copyOptions{format: copyFormatCSV, delimiter: ',', quote: '"', escape: '"'}, line: []byte(tc.input), binding: binding{Targets: make([]int, len(tc.want))}}
+		c := copyCursor{options: copyOptions{format: copyFormatCSV, delimiter: ',', quote: '"', escape: '"'}, line: []byte(tc.input), binding: analyze.Binding{Targets: make([]int, len(tc.want))}}
 		if err := c.split(true); err != nil {
 			t.Fatal(err)
 		}

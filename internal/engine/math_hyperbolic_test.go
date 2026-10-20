@@ -20,7 +20,7 @@ func TestMathHyperbolicBinding(t *testing.T) {
 			t.Run(name+"_"+input, func(t *testing.T) {
 				b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 				raw := statement(t, "SELECT "+name+"("+input+")").(*parser.Select).Targets[0]
-				node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+				node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -45,7 +45,7 @@ func TestMathHyperbolicEvaluationPhase(t *testing.T) {
 	for _, query := range []string{"SELECT acosh(0)", "SELECT atanh(2)"} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		raw := statement(t, query).(*parser.Select).Targets[0]
-		node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal("binding evaluated provider", err)
 		}

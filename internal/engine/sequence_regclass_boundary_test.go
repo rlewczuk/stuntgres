@@ -39,7 +39,7 @@ func sequenceBoundaryRunner(t *testing.T, e *Engine, op *Operation, query string
 		if prepared {
 			scope.Expected = &description
 		}
-		r, err := scope.Execute(ast, 1, func(ctx context.Context, info ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
+		r, err := scope.Execute(ast, 1, func(ctx context.Context, info analyze.ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
 			value, err := info.Types[0].Type.InputWithEnvironment(ctx, text, -1, input)
 			if err == nil {
 				frame[0] = value

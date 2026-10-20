@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
@@ -229,13 +230,13 @@ func TestConversionRegprocCapturedProcedurePresentation(t *testing.T) {
 	if err := captureRegprocOutputValue(rows, view, path, procedureValue); err != nil {
 		t.Fatal(err)
 	}
-	heldDescription := &StatementDescription{regtypes: &regtypeAnalysis{constants: []regtypeConstant{{Offset: 7, TypeID: sqltype.Regprocedure, Value: procedureValue}}}}
+	heldDescription := &StatementDescription{regtypes: &regtypeAnalysis{constants: []analyze.RegtypeConstant{{Offset: 7, TypeID: sqltype.Regprocedure, Value: procedureValue}}}}
 	stage = e.BeginCatalogStage(view)
 	if err := stage.Remove(e.catalog.Domain.Ref(view.Epoch(), second.Address())); err != nil {
 		t.Fatal(err)
 	}
 	collationUnitPublish(t, e, stage)
-	binder := &expressionBinder{Ctx: context.Background(), Expected: expectedOf(heldDescription)}
+	binder := &analyze.Binder{Ctx: context.Background(), Expected: expectedOf(heldDescription)}
 	heldValue, err := binder.RoutineConstant("pg_catalog.unaccent(text)", procedureType.Usage(), parser.Position{Offset: 7, Character: 8})
 	if err != nil {
 		t.Fatal("retained literal after referent removal", err)

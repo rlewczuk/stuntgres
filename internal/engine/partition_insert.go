@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -97,7 +98,7 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 	return nil
 }
 
-func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value, evaluation *exec.Context) error {
+func (s *StatementScope) validatePartitionInsert(b analyze.Binding, row []sqltype.Value, evaluation *exec.Context) error {
 	state := s.partitionInsert
 	state.namedRow = row
 	if state.target.Partition != nil {
@@ -158,7 +159,7 @@ func (s *StatementScope) validatePartitionInsert(b binding, row []sqltype.Value,
 	return nil
 }
 
-func (s *StatementScope) validateTargetPartitionConstraint(b binding, row []sqltype.Value, evaluation *exec.Context) error {
+func (s *StatementScope) validateTargetPartitionConstraint(b analyze.Binding, row []sqltype.Value, evaluation *exec.Context) error {
 	state := s.partitionInsert
 	for child := state.target; child.Membership != nil; {
 		parent := state.catalog.MustRelation(child.Membership.Parent)

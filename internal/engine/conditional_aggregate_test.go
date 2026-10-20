@@ -12,7 +12,7 @@ import (
 )
 
 func TestConditionalAggregateGroupingIdentityAndRewrite(t *testing.T) {
-	b := expressionBinder{Ctx: context.Background()}
+	b := analyze.Binder{Ctx: context.Background()}
 	var integer *sqltype.Descriptor
 	for _, typ := range sqltype.Builtins() {
 		if typ.ID() == sqltype.Int8 {

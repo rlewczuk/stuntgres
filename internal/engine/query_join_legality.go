@@ -67,7 +67,7 @@ func nullableQueryRowMark(node plan.Node, marks []plan.RowMark, inherited plan.R
 
 // Mutation targets and RETURNING are planned even when their input selects no
 // rows. Walk only the execution-owned expressions that the binding consumes.
-func validateMutationJoinExecution(c *exec.Context, b *binding, expressions [][]expr.Expr, catalog catalog.Read) error {
+func validateMutationJoinExecution(c *exec.Context, b *analyze.Binding, expressions [][]expr.Expr, catalog catalog.Read) error {
 	owner := *c
 	owner.Scope, owner.Frame = 1, 1
 	validateTargets := func(targets []*plan.ArrayAssignmentTarget) error {
@@ -515,7 +515,7 @@ func fullJoinCondition(c *exec.Context, join *plan.JoinNode, bound expr.Expr, ne
 			return a, nil
 		}
 		var common []fullJoinKey
-		binder := expressionBinder{}
+		binder := analyze.Binder{}
 		for _, left := range a.keys {
 			for _, right := range b.keys {
 				if binder.SameGroupExpression(left.left, right.left) && binder.SameGroupExpression(left.right, right.right) {

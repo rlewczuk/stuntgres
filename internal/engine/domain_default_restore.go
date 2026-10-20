@@ -210,7 +210,7 @@ func restoreDomainReplayNode(c *exec.Context, e *Engine, op *Operation, auth Aut
 	e.mu.Lock()
 	binder := newExpressionBinder(c.Context, e, c.Input, op, nil)
 	binder.Query.Auth = &auth
-	binder.Query.Namespace = &queryNamespace{}
+	binder.Query.Namespace = &analyze.QueryNamespace{}
 	binder.Params.NoParameters = true
 	node, err := binder.BindDefault(raw, catalog.Column{Name: "native captured cell", Usage: u})
 	if err == nil {
@@ -370,7 +370,7 @@ func (e *Engine) executeDomainReplayInsert(op *Operation, s *parser.Insert, reco
 	return scope.Execute(s, 0, nil)
 }
 
-func capturedDomainReplayCell(b *binding, op *Operation, s *parser.Insert, row, column int) (expr.Expr, bool, error) {
+func capturedDomainReplayCell(b *analyze.Binding, op *Operation, s *parser.Insert, row, column int) (expr.Expr, bool, error) {
 	if op == nil || op.replayOrZero().domainReplay == nil || op.replayOrZero().domainReplay.statement != s {
 		return nil, false, nil
 	}

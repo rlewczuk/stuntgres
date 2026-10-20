@@ -122,30 +122,30 @@ func TestSQLRoutineCallableShapeMasking(t *testing.T) {
 	}
 	input := []sqltype.Usage{integer.Usage()}
 	for _, reverse := range []bool{false, true} {
-		fixed := sqlCallable{Inputs: input, Path: 0}
-		variadic := sqlCallable{Inputs: input, Path: 0, Variadic: true}
+		fixed := analyze.SQLCallable{Inputs: input, Path: 0}
+		variadic := analyze.SQLCallable{Inputs: input, Path: 0, Variadic: true}
 		first, second := fixed, variadic
 		if reverse {
 			first, second = second, first
 		}
-		got := analyze.AppendSQLCallable([]sqlCallable{first}, second)
+		got := analyze.AppendSQLCallable([]analyze.SQLCallable{first}, second)
 		if len(got) != 1 || got[0].Variadic {
 			t.Fatal("nonvariadic declaration did not win its namespace", reverse)
 		}
 	}
-	early := sqlCallable{Inputs: input, Path: 0, Variadic: true}
-	later := sqlCallable{Inputs: input, Path: 1}
-	if got := analyze.AppendSQLCallable([]sqlCallable{early}, later); len(got) != 1 || got[0].Path != 0 {
+	early := analyze.SQLCallable{Inputs: input, Path: 0, Variadic: true}
+	later := analyze.SQLCallable{Inputs: input, Path: 1}
+	if got := analyze.AppendSQLCallable([]analyze.SQLCallable{early}, later); len(got) != 1 || got[0].Path != 0 {
 		t.Fatal("later namespace replaced identical expanded inputs")
 	}
 	later.Inputs = []sqltype.Usage{wide.Usage()}
-	if got := analyze.AppendSQLCallable([]sqlCallable{early}, later); len(got) != 2 {
+	if got := analyze.AppendSQLCallable([]analyze.SQLCallable{early}, later); len(got) != 2 {
 		t.Fatal("different input signature was masked")
 	}
 	// Equally defaultable declarations in one namespace do not get an
 	// iteration-order winner merely because omitted tails are different.
-	left := sqlCallable{Inputs: input, Path: 0}
-	if got := analyze.AppendSQLCallable([]sqlCallable{left}, left); len(got) != 2 {
+	left := analyze.SQLCallable{Inputs: input, Path: 0}
+	if got := analyze.AppendSQLCallable([]analyze.SQLCallable{left}, left); len(got) != 2 {
 		t.Fatal("ambiguous supplied inputs got an arbitrary winner")
 	}
 }
@@ -195,7 +195,7 @@ func TestSQLRoutineWindowCallShapeTargets(t *testing.T) {
 		Args: make([]parser.Expr, 3),
 	}
 	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}
-	var template sqlCallable
+	var template analyze.SQLCallable
 	for d := range auth.definitionProceduresNamed(namespace, "lag") {
 		if d.Signature == "5077,23,5077" {
 			var ok bool

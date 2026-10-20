@@ -43,7 +43,7 @@ func TestPrimaryKeyNotNullBinding(t *testing.T) {
 		{Column: &parser.Column{Name: "a", Constraints: []parser.ColumnConstraint{{NotNull: false}}}},
 		{Unique: &parser.UniqueConstraint{Primary: true, Columns: []parser.Identifier{{Text: "a"}, {Text: "b"}}}},
 	}}
-	declarations := make([]createColumnDeclaration, len(columns))
+	declarations := make([]analyze.ColumnDeclaration, len(columns))
 	for i := range columns {
 		var err error
 		declarations[i], err = analyze.BindCreateColumnDeclaration(s.Elements[i].Column, "t")

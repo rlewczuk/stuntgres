@@ -9,9 +9,9 @@ import (
 
 // The logical binder has checked arity, expressions and types. Logical view
 // defaults win for exposed columns; only true absence falls back to the base.
-func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.Insert) error {
+func (e *Engine) lowerViewInsert(b *analyze.Binding, auth AuthorizationView, s *parser.Insert) error {
 	d := viewWriteOf(b.ViewWrite).base
-	physical := binding{Relation: d, Ref: viewWriteOf(b.ViewWrite).ref}
+	physical := analyze.Binding{Relation: d, Ref: viewWriteOf(b.ViewWrite).ref}
 	domainScheduling := analyze.BindInsertDefaults(e.catalog.owner(), &physical, auth.Catalog, parser.OverrideNone)
 	b.Insert.Defaults, b.Insert.DefaultOrigins = physical.Insert.Defaults, physical.Insert.DefaultOrigins
 	if b.Insert.Defaults == nil {
@@ -27,7 +27,7 @@ func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.I
 		node, origin := analyze.ColumnDefault(auth.Catalog, viewWriteOf(b.ViewWrite).logical.Relation, i)
 		if origin.Definition.Expression != nil {
 			if b.Insert.DefaultOrigins == nil {
-				b.Insert.DefaultOrigins = make([]defaultOrigin, len(d.Columns))
+				b.Insert.DefaultOrigins = make([]analyze.DefaultOrigin, len(d.Columns))
 				for j := range d.Columns {
 					b.Insert.DefaultOrigins[j] = bindingDefaultOrigin(&physical, j)
 				}
@@ -95,7 +95,7 @@ func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.I
 // physicalBinding is used only after logical and per-layer permission checks.
 // RETURNING keeps its analyzed logical schema, even when the target is hidden
 // from the view after an UPDATE or was never visible after an INSERT.
-func physicalBinding(b binding) binding {
+func physicalBinding(b analyze.Binding) analyze.Binding {
 	if b.ViewWrite == nil {
 		return b
 	}

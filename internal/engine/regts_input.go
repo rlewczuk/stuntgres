@@ -68,7 +68,7 @@ func (r capturedRegTSInput) ResolveRegdictionary(ctx context.Context, text strin
 	if err != nil {
 		return 0, err
 	}
-	selection := namespaceSelection{Path: r.path}
+	selection := analyze.NamespaceSelection{Path: r.path}
 	if len(parts) == 2 {
 		ns := r.auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text})
 		if parts[0].Text == "pg_temp" {
@@ -82,7 +82,7 @@ func (r capturedRegTSInput) ResolveRegdictionary(ctx context.Context, text strin
 				*r.qualified = append(*r.qualified, ns)
 			}
 		}
-		selection = namespaceSelection{Qualified: ns}
+		selection = analyze.NamespaceSelection{Qualified: ns}
 	}
 	for i := range selection.Count() {
 		ns := selection.At(i)

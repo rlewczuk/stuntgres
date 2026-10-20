@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"reflect"
 	"strconv"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -94,7 +95,7 @@ func TestRangePartitionConstraintPrivacy(t *testing.T) {
 						t.Fatal(err)
 					}
 					scope.Expected = description
-					result, err := scope.Execute(ast, count, func(ctx context.Context, parameters ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
+					result, err := scope.Execute(ast, count, func(ctx context.Context, parameters analyze.ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
 						if count == 0 {
 							return nil
 						}
@@ -298,7 +299,7 @@ func TestRangePartitionPhysicalConstraintPrivacy(t *testing.T) {
 							t.Fatal(err)
 						}
 						scope.Expected = description
-						result, err := scope.Execute(ast, count, func(ctx context.Context, parameters ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
+						result, err := scope.Execute(ast, count, func(ctx context.Context, parameters analyze.ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
 							for i := range count {
 								if nulls[i] {
 									frame[i] = sqltype.Null(parameters.Types[i].Type)

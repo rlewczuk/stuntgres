@@ -21,7 +21,7 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 	bind := func(text string) expr.Expr {
 		t.Helper()
 		raw := statement(t, "SELECT "+text).(*parser.Select).Targets[0]
-		x, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		x, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -103,7 +103,7 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 	}
 	b.Consumer.DefaultConsumer = true
 	raw := statement(t, "SELECT pi()").(*parser.Select).Targets[0]
-	if _, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext}); err == nil {
+	if _, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err == nil {
 		t.Fatal("widened default admission")
 	}
 }

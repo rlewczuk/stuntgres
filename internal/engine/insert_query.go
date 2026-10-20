@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
@@ -12,7 +13,7 @@ import (
 
 // evaluateInsertQuery owns the source pin and all destination rows. Evaluation
 // runs unlocked; only the complete, constrained batch reaches WriteStage.Apply.
-func evaluateInsertQuery(ctx context.Context, b binding, source *exec.Source, parameters []sqltype.Value, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, scope *StatementScope) (indexWriteBatch, error) {
+func evaluateInsertQuery(ctx context.Context, b analyze.Binding, source *exec.Source, parameters []sqltype.Value, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, scope *StatementScope) (indexWriteBatch, error) {
 	defer source.Close()
 	project, ok := b.Query.Root.(*plan.ProjectNode)
 	if !ok {
@@ -38,7 +39,7 @@ func evaluateInsertQuery(ctx context.Context, b binding, source *exec.Source, pa
 	return assembleInsertRows(ctx, b, &stage, -1, schema, input, output, scope, unique, parameters, state)
 }
 
-func assembleInsertRows(ctx context.Context, b binding, cursor exec.RowCursor, count int, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, scope *StatementScope, unique bool, parameters []sqltype.Value, query *exec.State) (rows indexWriteBatch, err error) {
+func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowCursor, count int, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, scope *StatementScope, unique bool, parameters []sqltype.Value, query *exec.State) (rows indexWriteBatch, err error) {
 	// A required Close error vetoes the batch, but never hides a primary failure.
 	defer func() {
 		closeErr := cursor.Close()

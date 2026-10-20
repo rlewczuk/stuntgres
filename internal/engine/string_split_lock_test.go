@@ -51,7 +51,7 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 	filteredNode := &plan.FunctionFromNode{Calls: []expr.Expr{filteredCall}, Ordinality: true, Frame: 1, QuerySchema: plan.QuerySchema{{Usage: text.Usage()}, {Usage: bigint.Usage()}}}
 	field := plan.ColumnExpr{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}
 	raw := statement(t, "SELECT 'x'='b'").(*parser.Select).Targets[0].(parser.OperatorExpr)
-	predicate, err := b.BindComparisonOperands(raw, sqltype.CompareEqual, comparisonOperand{Node: field}, comparisonOperand{Node: stringSplitLiteral(b, "b")})
+	predicate, err := b.BindComparisonOperands(raw, sqltype.CompareEqual, analyze.ComparisonOperand{Node: field}, analyze.ComparisonOperand{Node: stringSplitLiteral(b, "b")})
 	if err != nil {
 		t.Fatal(err)
 	}

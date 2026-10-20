@@ -13,7 +13,7 @@ import (
 )
 
 type preparedCommandExecution struct {
-	binding     binding
+	binding     analyze.Binding
 	auth        AuthorizationView
 	evaluation  exec.Context
 	queryRoot   plan.Node
@@ -23,7 +23,7 @@ type preparedCommandExecution struct {
 
 // Enter with Engine.mu held; every outcome releases it. Binding, signature and
 // parameter import are statement-wide and have already completed exactly once.
-func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.Statement, b binding, auth AuthorizationView, canonical []sqltype.Value, evaluation exec.Context, creationStage *CatalogStage, creationDescriptor *catalog.Relation, prepared *preparedCommandExecution) (Result, error) {
+func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.Statement, b analyze.Binding, auth AuthorizationView, canonical []sqltype.Value, evaluation exec.Context, creationStage *CatalogStage, creationDescriptor *catalog.Relation, prepared *preparedCommandExecution) (Result, error) {
 	op := scope.op
 	ctx := op.Context()
 	var err error
@@ -120,7 +120,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			err = preflightMerge(&evaluation, b.Merge, auth.Catalog)
 		} else if b.Update != nil {
 			if evaluation.PlanStaticOperators {
-				b.Update, err = preflightUpdate(&evaluation, b.Update, func(prepared *boundUpdate) (plan.Node, error) {
+				b.Update, err = preflightUpdate(&evaluation, b.Update, func(prepared *analyze.UpdateBinding) (plan.Node, error) {
 					demandBinding := b
 					demandBinding.Update = prepared
 					demanded, err := ruleMutationProducerDemand(demandBinding)

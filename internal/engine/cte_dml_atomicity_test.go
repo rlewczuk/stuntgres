@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -147,7 +148,7 @@ func TestCTEDMLLateFailureIdentity(t *testing.T) {
 			if err == nil {
 				err = scope.captureIdentityLocked(auth)
 			}
-			var bound binding
+			var bound analyze.Binding
 			if err == nil {
 				bound, err = describe(ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 			}

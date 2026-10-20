@@ -18,7 +18,7 @@ import (
 
 // This fixture binds the real INSERT plan and starts its private output owner;
 // the tests replace only the producer/projection seam that they observe.
-func insertReturningAnalyzedScope(t *testing.T, e *Engine, s *Session, query string) (*Operation, *StatementScope, binding) {
+func insertReturningAnalyzedScope(t *testing.T, e *Engine, s *Session, query string) (*Operation, *StatementScope, analyze.Binding) {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -45,7 +45,7 @@ func insertReturningAnalyzedScope(t *testing.T, e *Engine, s *Session, query str
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
-	var b binding
+	var b analyze.Binding
 	if err == nil {
 		b, err = describe(op.Context(), e.analysisHost(op), stmt, auth, ref, scope.input, nil, nil)
 	}

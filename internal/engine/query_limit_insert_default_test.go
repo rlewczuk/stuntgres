@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -26,7 +27,7 @@ func TestQueryLimitInsertDefaultDemand(t *testing.T) {
 				calls++
 				return value, nil
 			})
-			bound := binding{Relation: relation, Query: query, Targets: []int{0}, Insert: insertBinding{Defaults: []expr.Expr{nil, probe}}}
+			bound := analyze.Binding{Relation: relation, Query: query, Targets: []int{0}, Insert: analyze.InsertBinding{Defaults: []expr.Expr{nil, probe}}}
 			rows, err := evaluateInsertQuery(context.Background(), bound, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
 			if err != nil || len(rows.values) != int(count) || calls != int(count) || source.View != nil {
 				t.Fatal(rows, err, calls, source.View)
@@ -59,7 +60,7 @@ func TestQueryLimitInsertDefaultFailure(t *testing.T) {
 		}
 		return value, nil
 	})
-	bound := binding{Relation: relation, Query: query, Targets: []int{0}, Insert: insertBinding{Defaults: []expr.Expr{nil, probe}}}
+	bound := analyze.Binding{Relation: relation, Query: query, Targets: []int{0}, Insert: analyze.InsertBinding{Defaults: []expr.Expr{nil, probe}}}
 	rows, err := evaluateInsertQuery(context.Background(), bound, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
 	// One destination row was assembled before the next retained default
 	// failed. Neither that successful prefix nor the source pin may escape.

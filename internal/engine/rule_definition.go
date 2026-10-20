@@ -16,7 +16,7 @@ import (
 
 type ruleAction struct {
 	syntax                parser.Statement
-	binding               binding
+	binding               analyze.Binding
 	presentation          *viewDefinition
 	modifierPresentations map[parser.Statement]*viewDefinition
 }
@@ -28,7 +28,7 @@ type ruleDefinition struct {
 	instead               bool
 	condition             expr.Expr
 	conditionPresentation *viewDefinition
-	conditionBinding      *binding
+	conditionBinding      *analyze.Binding
 	actions               []ruleAction
 	references            []ids.ObjectAddress
 }
@@ -148,7 +148,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 		binder.Query.Frame = 1
 		binder.Query.NextQueryFrame = 1
 		var err error
-		r.condition, err = binder.Bind(s.Condition, expressionPolicy{Context: analyze.FilterContext})
+		r.condition, err = binder.Bind(s.Condition, analyze.ExpressionPolicy{Context: analyze.FilterContext})
 		if err != nil {
 			return r, err
 		}
@@ -157,7 +157,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 			return r, err
 		}
 		query := &parser.Select{Targets: []parser.Expr{normalizedCondition}}
-		b := binding{Query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "condition", Usage: r.condition.ResultUsage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{r.condition}, Frame: binder.FrameID(), Syntax: query}}, Dependencies: binder.Dependencies, QuerySources: binder.Query.Sources, Capture: viewCapture{Columns: binder.Capture.Columns, Literals: binder.Capture.Literals, CastUsages: binder.Capture.CastUsages, Composites: binder.Capture.Composites, Collations: binder.Capture.Collations, Namespaces: binder.Capture.Namespaces}, Prepared: preparedCaptures{SequenceConstants: binder.Prepared.SequenceConstants, RegtypeConstants: binder.Prepared.RegtypeConstants}}
+		b := analyze.Binding{Query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "condition", Usage: r.condition.ResultUsage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{r.condition}, Frame: binder.FrameID(), Syntax: query}}, Dependencies: binder.Dependencies, QuerySources: binder.Query.Sources, Capture: analyze.ViewCapture{Columns: binder.Capture.Columns, Literals: binder.Capture.Literals, CastUsages: binder.Capture.CastUsages, Composites: binder.Capture.Composites, Collations: binder.Capture.Collations, Namespaces: binder.Capture.Namespaces}, Prepared: analyze.PreparedCaptures{SequenceConstants: binder.Prepared.SequenceConstants, RegtypeConstants: binder.Prepared.RegtypeConstants}}
 		b.Capture.RoutineRefs = binder.Capture.RoutineRefs
 		b.Capture.OperatorRefs = binder.Capture.OperatorRefs
 		for i := range b.QuerySources {

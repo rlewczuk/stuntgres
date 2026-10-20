@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -13,7 +14,7 @@ import (
 	"testing"
 )
 
-func conflictUpdateAnalyzedScope(t *testing.T, e *Engine, s *Session, q string) (*Operation, *StatementScope, binding) {
+func conflictUpdateAnalyzedScope(t *testing.T, e *Engine, s *Session, q string) (*Operation, *StatementScope, analyze.Binding) {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -37,7 +38,7 @@ func conflictUpdateAnalyzedScope(t *testing.T, e *Engine, s *Session, q string) 
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
-	var b binding
+	var b analyze.Binding
 	if err == nil {
 		b, err = describe(op.Context(), e.analysisHost(op), stmt, auth, ref, scope.input, nil, nil)
 	}
@@ -84,19 +85,19 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(unique.keySlots, []int{0}) {
 		t.Fatal("installed simple/nonpartial FK-key bitmap", unique, err)
 	}
-	analyzeConflict := func(q string) (binding, error) {
+	analyzeConflict := func(q string) (analyze.Binding, error) {
 		statements, err := parser.Parse(q)
 		if err != nil {
-			return binding{}, fmt.Errorf("parse %q: %w", q, err)
+			return analyze.Binding{}, fmt.Errorf("parse %q: %w", q, err)
 		}
 		if len(statements) != 1 {
-			return binding{}, fmt.Errorf("parse %q: expected one statement, got %d", q, len(statements))
+			return analyze.Binding{}, fmt.Errorf("parse %q: expected one statement, got %d", q, len(statements))
 		}
 		e.mu.Lock()
 		defer e.mu.Unlock()
 		auth, err := e.authorizationLocked(op)
 		if err != nil {
-			return binding{}, err
+			return analyze.Binding{}, err
 		}
 		bound, err := describe(op.Context(), e.analysisHost(op), statements[0], auth, b.Ref, scope.input, nil, nil)
 		if err == nil {

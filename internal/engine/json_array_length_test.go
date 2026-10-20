@@ -75,7 +75,7 @@ func TestJSONArrayLengthParameterProperties(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 			pos := parser.Position{Offset: 7, Character: 8}
 			raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: tc.name, Pos: pos}}}, Args: []parser.Expr{parser.ParameterExpr{Number: 1, Pos: parser.Position{Offset: 25, Character: 26}}}, Pos: pos}
-			bound, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+			bound, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}

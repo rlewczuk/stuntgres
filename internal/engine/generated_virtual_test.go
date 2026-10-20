@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -130,7 +131,7 @@ func TestGeneratedVirtualReadManifestAndLogicalNullability(t *testing.T) {
 	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
 	b.Query.Sources = []exec.Leaf{{Ref: ref, Relation: d}}
-	node := b.QueryColumnAt(queryColumn{Descriptor: d.Columns[1], Slot: 1, Leaf: 0, Physical: 1}, parser.Position{})
+	node := b.QueryColumnAt(analyze.QueryColumn{Descriptor: d.Columns[1], Slot: 1, Leaf: 0, Physical: 1}, parser.Position{})
 	if len(b.Query.Sources[0].Uses) != 1 || b.Query.Sources[0].Uses[0] != 1 {
 		t.Fatal("base SELECT widened", b.Query.Sources[0].Uses)
 	}

@@ -15,10 +15,10 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func jsonElementsUnitMarker(t *testing.T, b *expressionBinder, name, input string) functions.JSONElements {
+func jsonElementsUnitMarker(t *testing.T, b *analyze.Binder, name, input string) functions.JSONElements {
 	t.Helper()
 	b.Clause.AggregateClause = "SELECT"
-	b.Query.Namespace = &queryNamespace{}
+	b.Query.Namespace = &analyze.QueryNamespace{}
 	node, err := b.BindFunction(nullCountRaw(name, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: input}}))
 	if err != nil {
 		t.Fatal(err)

@@ -165,9 +165,9 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			original := binding{Relation: &catalog.Relation{Columns: []catalog.Column{schema[0]}},
-				Update: &boundUpdate{From: derived, SourceWidth: 1, Assignments: []expr.Expr{expression}}}
-			private, err := preflightUpdate(&evaluation, original.Update, func(prepared *boundUpdate) (plan.Node, error) {
+			original := analyze.Binding{Relation: &catalog.Relation{Columns: []catalog.Column{schema[0]}},
+				Update: &analyze.UpdateBinding{From: derived, SourceWidth: 1, Assignments: []expr.Expr{expression}}}
+			private, err := preflightUpdate(&evaluation, original.Update, func(prepared *analyze.UpdateBinding) (plan.Node, error) {
 				current := original
 				current.Update = prepared
 				demanded, err := ruleMutationProducerDemand(current)
@@ -224,7 +224,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			statement, query := bind("SELECT "+output+" AS out FROM (SELECT 1/NEW.v AS n) AS q", true)
 			template := query.Root.(*plan.ProjectNode)
 			childTemplate := template.Child.(*plan.DerivedNode).Query.Root.(*plan.ProjectNode)
-			action := ruleAction{syntax: statement, binding: binding{Query: query, CommandQuery: true}}
+			action := ruleAction{syntax: statement, binding: analyze.Binding{Query: query, CommandQuery: true}}
 			composed, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, action)
 			if err != nil {
 				t.Fatal(err)
@@ -300,7 +300,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := binding{Relation: &catalog.Relation{Columns: []catalog.Column{schema[0]}}, Delete: deleteBinding{Using: source}, Predicate: predicate}
+		original := analyze.Binding{Relation: &catalog.Relation{Columns: []catalog.Column{schema[0]}}, Delete: analyze.DeleteBinding{Using: source}, Predicate: predicate}
 		private, err := ruleMutationProducerDemand(original)
 		if err != nil {
 			t.Fatal(err)

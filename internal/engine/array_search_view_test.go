@@ -114,7 +114,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	path := []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, {ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}
 	render := func(view catalog.Read, definition *viewDefinition, target int, expression parser.Expr, want string) {
 		r := viewRenderer{viewDefinition: definition, frame: b.FrameID(), presentation: viewPresentation{deparse: true, pretty: true, path: path}}
-		got, err := r.expressionSQL(ctx, view, expression, viewLiteralPath{Clause: analyze.ViewTargetLiteral, Target: target})
+		got, err := r.expressionSQL(ctx, view, expression, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral, Target: target})
 		if err != nil || got != want {
 			t.Fatalf("rendered %q want %q: %v", got, want, err)
 		}

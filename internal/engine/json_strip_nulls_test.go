@@ -14,10 +14,10 @@ import (
 	"testing"
 )
 
-func jsonStripUnitBind(t *testing.T, b *expressionBinder, q string) expr.Expr {
+func jsonStripUnitBind(t *testing.T, b *analyze.Binder, q string) expr.Expr {
 	t.Helper()
 	raw := statement(t, q).(*parser.Select).Targets[0]
-	node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+	node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 	}
 	for _, q := range []string{`SELECT json_strip_nulls(NULL,missing)`, `SELECT json_strip_nulls(missing,NULL)`} {
 		binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
-		if _, err := binder.Bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext}); err == nil {
+		if _, err := binder.Bind(statement(t, q).(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err == nil {
 			t.Fatal("strict NULL hid binding error", q)
 		}
 	}
@@ -129,7 +129,7 @@ func TestJSONStripNullsBindingStoredPresentation(t *testing.T) {
 		for round := range 3 {
 			b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 			raw := statement(t, query).(*parser.Select).Targets[0]
-			node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+			node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -145,7 +145,7 @@ func TestJSONStripNullsBindingStoredPresentation(t *testing.T) {
 				t.Fatal(err)
 			}
 			renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}, frame: b.FrameID()}
-			emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
+			emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 			if err != nil || round > 0 && emitted != previous {
 				t.Fatal(emitted, previous, err)
 			}

@@ -35,7 +35,7 @@ func TestRegexpScalarBinding(t *testing.T) {
 		{"regexp_split_to_array", []parser.Expr{literal("a b"), literal(" ")}, 1009},
 	} {
 		raw := nullCountRaw(tc.name, tc.args...)
-		bound, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		bound, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(tc.name, err)
 		}
@@ -50,12 +50,12 @@ func TestRegexpScalarBinding(t *testing.T) {
 	}
 	raw := nullCountRaw("regexp_like", literal("a"), literal("a"))
 	raw.ArgNames = []parser.Identifier{{Text: "pattern"}, {Text: "string"}}
-	first, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+	first, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
 	raw.ArgNames = nil
-	second, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+	second, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil || !analyze.SameGroupExpression(first, second) {
 		t.Fatal(first, second, err)
 	}
@@ -63,12 +63,12 @@ func TestRegexpScalarBinding(t *testing.T) {
 		return parser.CollateExpr{Child: literal("a"), Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Pos: parser.Position{Character: pos}}
 	}
 	raw = nullCountRaw("regexp_like", collate("C", 19), literal("a"))
-	bound, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+	bound, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil || bound.(functions.Regexp).Plan.Collation().ID != 950 {
 		t.Fatal(bound, err)
 	}
 	raw = nullCountRaw("regexp_like", collate("C", 19), collate("POSIX", 34))
-	_, err = b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+	_, err = b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "42P21" {
 		t.Fatal(err)
@@ -79,7 +79,7 @@ func TestRegexpScalarPreflight(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := nullCountRaw("regexp_like", parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "a"}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "["}})
-	bound, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+	bound, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal("Prepare compiled pattern", err)
 	}
@@ -99,11 +99,11 @@ func TestRegexpScalarPreflight(t *testing.T) {
 
 func TestRegexpScalarGroupingAlias(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	b.Query.Namespace = &queryNamespace{}
+	b.Query.Namespace = &analyze.QueryNamespace{}
 	literal := func(s string) parser.Expr {
 		return parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: s}}
 	}
-	first, err := b.Bind(nullCountRaw("regexp_split_to_table", literal("a b"), literal(" ")), expressionPolicy{Context: analyze.ProjectionContext})
+	first, err := b.Bind(nullCountRaw("regexp_split_to_table", literal("a b"), literal(" ")), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestRegexpScalarGroupingAlias(t *testing.T) {
 	if _, ok := keys[0].(functions.RegexpSet); !ok {
 		t.Fatal("alias lost the set expression", keys[0])
 	}
-	second, err := b.Bind(nullCountRaw("regexp_split_to_table", literal("c d"), literal(" ")), expressionPolicy{Context: analyze.ProjectionContext})
+	second, err := b.Bind(nullCountRaw("regexp_split_to_table", literal("c d"), literal(" ")), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +187,7 @@ func TestRegexpScalarOuterFromFrame(t *testing.T) {
 func TestRegexpScalarFilterPlacement(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	b.Clause.AggregateClause = "SELECT"
-	b.Grouping.ArgumentOwner = argumentWindowOwner{Active: true}
+	b.Grouping.ArgumentOwner = analyze.ArgumentWindowOwner{Active: true}
 	literal := func(s string) parser.Expr {
 		return parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: s}}
 	}

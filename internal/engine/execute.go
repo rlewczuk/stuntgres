@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -529,7 +530,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 
 // The caller owns Engine.mu. Every return releases it. Rule programs reuse this
 // executor without importing parameters again or opening another statement.
-func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement, b binding, auth AuthorizationView, canonical []sqltype.Value, candidate StatementDescription, quoteCapturesChanged bool) (Result, error) {
+func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement, b analyze.Binding, auth AuthorizationView, canonical []sqltype.Value, candidate StatementDescription, quoteCapturesChanged bool) (Result, error) {
 	op := scope.op
 	ctx := op.Context()
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: canonical, Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}}
@@ -582,7 +583,7 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 
 // A complete projected row is constrained before another identity source row
 // is demanded. This does not publish rows: the caller still stages one batch.
-func (e *Engine) validateInsertRow(scope *StatementScope, b binding, schema string, row []sqltype.Value, evaluation *exec.Context) error {
+func (e *Engine) validateInsertRow(scope *StatementScope, b analyze.Binding, schema string, row []sqltype.Value, evaluation *exec.Context) error {
 	if scope.partitionInsert != nil {
 		return scope.validatePartitionInsert(b, row, evaluation)
 	}
@@ -591,7 +592,7 @@ func (e *Engine) validateInsertRow(scope *StatementScope, b binding, schema stri
 
 // Physical constraints own evaluation and error identity; the original named
 // target owns disclosure authority. The named binding is read-only.
-func (e *Engine) validatePhysicalInsertRow(scope *StatementScope, b binding, named *binding, schema string, row []sqltype.Value, evaluation *exec.Context) error {
+func (e *Engine) validatePhysicalInsertRow(scope *StatementScope, b analyze.Binding, named *analyze.Binding, schema string, row []sqltype.Value, evaluation *exec.Context) error {
 	if err := evaluation.Context.Err(); err != nil {
 		return err
 	}

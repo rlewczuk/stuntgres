@@ -28,12 +28,12 @@ func TestQueryDistinctOnSubquerySemanticIdentity(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT "+tc.left+","+tc.right+" FROM t")
 		project := query.Root.(*plan.ProjectNode)
 		a, b := project.Expressions[0], project.Expressions[1]
-		got := (*expressionBinder)(nil).SameSubqueryTarget(a, b)
+		got := (*analyze.Binder)(nil).SameSubqueryTarget(a, b)
 		source.Close()
 		if got != tc.same {
 			t.Fatal(tc.left, tc.right, got, tc.same)
 		}
-		if got := (*expressionBinder)(nil).SameQueryTarget(a, b); got != tc.same {
+		if got := (*analyze.Binder)(nil).SameQueryTarget(a, b); got != tc.same {
 			t.Fatal("binding-local target predicate", tc.left, tc.right, got, tc.same)
 		}
 		if analyze.SameGroupExpression(a, b) {
@@ -68,7 +68,7 @@ func TestQueryDistinctOnSameSubqueryTargetAndRemap(t *testing.T) {
 
 func TestQueryDistinctOnSubqueryFrameAndSourceGuards(t *testing.T) {
 	var frames [4][2]uint32
-	c := QueryTargetComparison{Frames: frames[:0]}
+	c := analyze.QueryTargetComparison{Frames: frames[:0]}
 	if !c.PairFrame(2, 3) || !c.SameFrame(2, 3) || c.SameFrame(2, 2) || c.SameFrame(1, 3) || !c.SameFrame(1, 1) || c.PairFrame(2, 4) || c.PairFrame(4, 3) {
 		t.Fatal("non-bijective child/outer frame identity", c)
 	}
@@ -78,8 +78,8 @@ func TestQueryDistinctOnSubqueryFrameAndSourceGuards(t *testing.T) {
 	leaf := root.Child.(*plan.SourceNode)
 	changed := *leaf
 	changed.Ref = ids.ObjectRef{}
-	var occurrences [4]QueryTargetOccurrence
-	c = QueryTargetComparison{Frames: frames[:0], Occurrences: occurrences[:0]}
+	var occurrences [4]analyze.QueryTargetOccurrence
+	c = analyze.QueryTargetComparison{Frames: frames[:0], Occurrences: occurrences[:0]}
 	if c.SameQuery(nil, leaf, &changed) {
 		t.Fatal("distinct physical source references shared")
 	}

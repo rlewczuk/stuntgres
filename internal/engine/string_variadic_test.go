@@ -76,7 +76,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	// the source generation. An equal OID cannot authorize capture adoption.
 	ctx := context.Background()
 	binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-	bound, err := binder.Bind(nullCountRaw("quote_literal", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 42}}), expressionPolicy{Context: analyze.ProjectionContext})
+	bound, err := binder.Bind(nullCountRaw("quote_literal", parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 42}}), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -481,7 +481,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 					owner, statement = &peerDescription, peerAST
 				}
 				scope.Expected = owner
-				result, err := scope.Execute(statement, 1, func(ctx context.Context, p ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
+				result, err := scope.Execute(statement, 1, func(ctx context.Context, p analyze.ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
 					value, err := sqltype.Integer(p.Types[0].Type, id)
 					frame[0] = value
 					return err
@@ -569,7 +569,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 					t.Fatal(err)
 				}
 				scope.Expected = &description
-				result, err := scope.Execute(ast, 1, func(ctx context.Context, p ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
+				result, err := scope.Execute(ast, 1, func(ctx context.Context, p analyze.ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
 					value, err := sqltype.Integer(p.Types[0].Type, id)
 					frame[0] = value
 					return err

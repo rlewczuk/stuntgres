@@ -53,7 +53,7 @@ func TestDeleteReturningOutputAtomicity(t *testing.T) {
 				}
 				return c.Row[0], nil
 			})
-			b.Returning = &boundReturning{Expressions: []expr.Expr{probe}, Schema: []catalog.Column{{Name: "v", Usage: integer.Usage()}}}
+			b.Returning = &analyze.Returning{Expressions: []expr.Expr{probe}, Schema: []catalog.Column{{Name: "v", Usage: integer.Usage()}}}
 			if phase == "sequence_error" {
 				e.mu.Lock()
 				binder := newExpressionBinder(ctx, e, scope.input, scope.op, nil)

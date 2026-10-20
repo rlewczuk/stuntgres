@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -202,7 +203,7 @@ func TestUniqueInsertPrivilegeDisclosure(t *testing.T) {
 					}
 					scope.Expected = &description
 				}
-				result, err := scope.Execute(ast, count, func(ctx context.Context, parameters ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
+				result, err := scope.Execute(ast, count, func(ctx context.Context, parameters analyze.ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
 					value, err := sqltype.Integer(parameters.Types[0].Type, 1)
 					frame[0] = value
 					return err

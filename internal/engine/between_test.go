@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -118,7 +119,7 @@ func TestBetweenTemporalCaptureRebind(t *testing.T) {
 				t.Fatal(err)
 			}
 			desc := StatementDescription{temporals: bound.Prepared.Temporals}
-			before := append([]temporalConstant(nil), desc.temporals...)
+			before := append([]analyze.TemporalConstant(nil), desc.temporals...)
 			wantCaptures := 4
 			if form == "BETWEEN SYMMETRIC" || form == "NOT BETWEEN SYMMETRIC" {
 				wantCaptures = 8

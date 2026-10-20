@@ -3,6 +3,7 @@ package engine
 import (
 	"strconv"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -22,7 +23,7 @@ type preparedAnalysis struct {
 	namespace       uint64
 	target          ids.ObjectRef
 	targets         map[parser.Statement]ids.ObjectRef
-	sources         map[*parser.TableReference]preparedSource
+	sources         map[*parser.TableReference]analyze.PreparedSource
 	dependencies    []catalog.ExpressionDependency
 	needsReanalysis bool // A granted definition evolved after this attempt resolved names.
 }
@@ -98,7 +99,7 @@ func preparedDefinitionStamp(d catalog.Descriptor, session *Session) ids.Definit
 // Build only on initial or invalidated analysis. Existing binder dependencies
 // cover analyzed types/columns; view traversal supplies recursively rewritten
 // sources and analysis-only dependencies without a second AST visitor.
-func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationView, b binding) (*preparedAnalysis, error) {
+func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationView, b analyze.Binding) (*preparedAnalysis, error) {
 	target := s.lockedRef
 	if b.ViewWrite != nil {
 		target = viewWriteOf(b.ViewWrite).logical.Ref
@@ -166,11 +167,11 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 		}
 	}
 	if len(s.queryLockAdmission.TableQueries) != 0 {
-		cell.sources = make(map[*parser.TableReference]preparedSource, len(s.queryLockAdmission.TableQueries))
+		cell.sources = make(map[*parser.TableReference]analyze.PreparedSource, len(s.queryLockAdmission.TableQueries))
 	}
 	for _, leaf := range b.QuerySources {
 		if _, admitted := s.queryLockAdmission.TableQueries[leaf.Table]; admitted {
-			cell.sources[leaf.Table] = preparedSource{Query: s.queryLockAdmission.RetainedQuery(leaf.Table), Ref: leaf.Ref}
+			cell.sources[leaf.Table] = analyze.PreparedSource{Query: s.queryLockAdmission.RetainedQuery(leaf.Table), Ref: leaf.Ref}
 		}
 		if err := visit(leaf.Ref); err != nil {
 			return nil, err

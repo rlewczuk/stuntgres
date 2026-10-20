@@ -105,7 +105,7 @@ func TestViewWriteMapping(t *testing.T) {
 	f := viewWriteMechanics(t)
 	scope, op := f.scope(t)
 	auth := f.authorization(t, op)
-	b := binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &boundUpdate{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
+	b := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
 	if err := f.e.bindViewWrite(&b, auth, &parser.Update{}); err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,7 @@ func TestViewWriteDefaults(t *testing.T) {
 	scope, op := f.scope(t)
 	constant, _ := sqltype.Integer(f.integer, 42)
 	f.base.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{19: {Expression: plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: constant}}}
-	b := binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Expressions: [][]expr.Expr{{nil}}}
+	b := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Expressions: [][]expr.Expr{{nil}}}
 	if err := f.e.bindViewWrite(&b, f.authorization(t, op), &parser.Insert{Rows: [][]parser.Expr{{parser.DefaultExpr{}}}}); err != nil {
 		t.Fatal(err)
 	}

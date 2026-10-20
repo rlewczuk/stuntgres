@@ -11,7 +11,7 @@ import (
 // Called under Engine.mu after identity/schema analysis, before execution ACLs.
 // Bound occurrences and stored view identities are the existing analysis owners;
 // no data capture, expression evaluation or catalog-wide discovery occurs here.
-func checkRowSecurityBinding(scope *StatementScope, auth AuthorizationView, b binding) error {
+func checkRowSecurityBinding(scope *StatementScope, auth AuthorizationView, b analyze.Binding) error {
 	if scope.rowSecurity {
 		return nil
 	}
@@ -51,7 +51,7 @@ func checkRowSecurityBinding(scope *StatementScope, auth AuthorizationView, b bi
 
 // Nonempty rule actions retain the caller's original range-table obligations.
 // INSTEAD NOTHING has no executable query and therefore no such checks.
-func checkRowSecurityRuleProgram(scope *StatementScope, auth AuthorizationView, original binding, program ruleProgram) error {
+func checkRowSecurityRuleProgram(scope *StatementScope, auth AuthorizationView, original analyze.Binding, program ruleProgram) error {
 	if scope.rowSecurity || len(program.commands) == 0 {
 		return nil
 	}

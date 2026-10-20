@@ -149,7 +149,7 @@ func intaggUnitValuesScope(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			b.Clause.AggregateClause = "INSERT VALUES"
-			b.Query.Hidden = []queryQualifier{{Name: "outside"}}
+			b.Query.Hidden = []analyze.QueryQualifier{{Name: "outside"}}
 			raw := parser.AggregateExpr{Name: "int_array_aggregate", Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 1}}}}
 			want := "42803"
 			missing := parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "missing"}}}}
@@ -161,7 +161,7 @@ func intaggUnitValuesScope(t *testing.T) {
 			case "input":
 				raw.Args[0], want = parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "bad"}}, "22P02"
 			}
-			_, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+			_, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			state, ok := err.(interface{ SQLState() string })
 			if !ok || state.SQLState() != want {
 				t.Fatal("VALUES precedence", kind, err, want)

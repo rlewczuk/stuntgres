@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -110,7 +111,7 @@ func TestMaterializedViewDefinition(t *testing.T) {
 	defer done()
 	source := &catalog.Relation{ObjectNamespace: d.Namespace(), Attributes: []int32{1, 3}}
 	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), d.Address())
-	b := binding{Query: viewOf(d).query, QuerySources: []exec.Leaf{{Ref: ref, Relation: source, Uses: []int{1}}}, Dependencies: []catalog.ExpressionDependency{{Ref: ref, Revision: d.Revision()}}}
+	b := analyze.Binding{Query: viewOf(d).query, QuerySources: []exec.Leaf{{Ref: ref, Relation: source, Uses: []int{1}}}, Dependencies: []catalog.ExpressionDependency{{Ref: ref, Revision: d.Revision()}}}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	if err != nil {

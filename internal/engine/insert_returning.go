@@ -2,6 +2,7 @@ package engine
 
 import (
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
@@ -11,12 +12,12 @@ import (
 )
 
 type insertReturningOutput struct {
-	binding binding
+	binding analyze.Binding
 	rows    *exec.FinalRows
 	overlay insertWriteOverlay
 }
 
-func (s *StatementScope) beginInsertReturning(b binding) {
+func (s *StatementScope) beginInsertReturning(b analyze.Binding) {
 	if b.Returning == nil {
 		return
 	}
@@ -193,7 +194,7 @@ func (s *StatementScope) partitionReturningGroup(ref ids.ObjectRef) *partitionIn
 
 // Returning actions own their immutable payload in WriteStage, so callers must
 // not retain a duplicate producer prefix. Upsert projects at its action seam.
-func (s *StatementScope) admitInsertProducer(b binding, candidate *indexWriteCandidate, prefix indexWriteBatch, c *exec.Context) (bool, error) {
+func (s *StatementScope) admitInsertProducer(b analyze.Binding, candidate *indexWriteCandidate, prefix indexWriteBatch, c *exec.Context) (bool, error) {
 	row := candidate.values
 	if s.insertReturning == nil {
 		return s.admitInsertRow(b.Ref, candidate, prefix, c)

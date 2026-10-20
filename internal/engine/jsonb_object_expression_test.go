@@ -163,7 +163,7 @@ func TestJSONBObjectBinderInferenceAndProperties(t *testing.T) {
 	for _, query := range []string{"SELECT jsonb_object($1)", "SELECT jsonb_object($1,$2)", "SELECT jsonb_object($1,$1)"} {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		raw := statement(t, query).(*parser.Select).Targets[0]
-		node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(query, err)
 		}
@@ -183,7 +183,7 @@ func TestJSONBObjectBinderInferenceAndProperties(t *testing.T) {
 		Columns:    []catalog.Column{{Name: "a", Usage: array}, {Name: "v", Usage: array}},
 		Attributes: []int32{1, 2}, Index: map[string]int{"a": 0, "v": 1},
 	}
-	node, err := b.Bind(statement(t, "SELECT jsonb_object(a,v)").(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+	node, err := b.Bind(statement(t, "SELECT jsonb_object(a,v)").(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil || !node.Properties().RowDependent || node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable {
 		t.Fatal(node, err)
 	}
@@ -201,7 +201,7 @@ func TestJSONBObjectBinderStageAndVolatility(t *testing.T) {
 		b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 		b.Clause.AggregateClause = "SELECT"
 		raw := statement(t, tc.query).(*parser.Select).Targets[0]
-		node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(tc.query, err)
 		}

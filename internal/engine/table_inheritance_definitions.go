@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Relation, b binding) error {
+func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Relation, b analyze.Binding) error {
 	if len(b.Create.Inheritance) == 0 {
 		return nil
 	}
@@ -27,7 +27,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 	for _, in := range b.Create.Inheritance {
 		graph.Parents = append(graph.Parents, in.Source.Address())
 		stage.captureLikeSource(in.Source)
-		mapper := createLikeInput{Ref: in.Ref, Source: in.Source, TargetSlots: make([]int, len(in.Source.Columns))}
+		mapper := analyze.LikeInput{Ref: in.Ref, Source: in.Source, TargetSlots: make([]int, len(in.Source.Columns))}
 		for slot, c := range in.Source.Columns {
 			targetSlot := d.Index[c.Name]
 			mapper.TargetSlots[slot] = targetSlot

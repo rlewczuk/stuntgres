@@ -132,7 +132,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 		t.Fatal(p)
 	}
 	flags.Clause.AggregateClause = "SELECT"
-	stage, err := flags.Bind(datetimeMakeRaw("date_bin", parser.ParameterExpr{Number: 1}, parser.AggregateExpr{Name: "min", Args: []parser.Expr{column}}, column), expressionPolicy{Context: analyze.ProjectionContext})
+	stage, err := flags.Bind(datetimeMakeRaw("date_bin", parser.ParameterExpr{Number: 1}, parser.AggregateExpr{Name: "min", Args: []parser.Expr{column}}, column), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}

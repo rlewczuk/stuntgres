@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/sqlstate"
@@ -29,7 +30,7 @@ type copyInsertionState struct {
 	groups       map[*partitionInsertGroup]int
 }
 
-func newCopyInsertionState(cursor copyInsertionCursor, b binding) *copyInsertionState {
+func newCopyInsertionState(cursor copyInsertionCursor, b analyze.Binding) *copyInsertionState {
 	state := &copyInsertionState{cursor: cursor}
 	for _, expression := range b.Insert.Defaults {
 		if exec.PlannedPhysicalVolatility(expression, true) == expr.Volatile {
@@ -40,7 +41,7 @@ func newCopyInsertionState(cursor copyInsertionCursor, b binding) *copyInsertion
 	return state
 }
 
-func (state *copyInsertionState) record(s *StatementScope, b binding, candidate *indexWriteCandidate, position int) {
+func (state *copyInsertionState) record(s *StatementScope, b analyze.Binding, candidate *indexWriteCandidate, position int) {
 	line, size := state.cursor.insertionOrigin()
 	state.lines = append(state.lines, line)
 	state.bytes += size
@@ -67,7 +68,7 @@ func (state *copyInsertionState) full() bool {
 	return state.single || len(state.lines) >= 1000 || state.bytes >= 65535
 }
 
-func (state *copyInsertionState) flush(s *StatementScope, b binding, rows *indexWriteBatch, evaluation *exec.Context) error {
+func (state *copyInsertionState) flush(s *StatementScope, b analyze.Binding, rows *indexWriteBatch, evaluation *exec.Context) error {
 	insert := func(position int, group *partitionInsertGroup) error {
 		candidate := rows.candidate(position)
 		var err error

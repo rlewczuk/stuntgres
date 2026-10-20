@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -37,7 +38,7 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 			action := stored.actions[0]
 			owner := action.presentation.frames[1]
 			child := owner.Child
-			columns := make(map[viewLiteralPath]viewColumn, len(action.presentation.columns))
+			columns := make(map[analyze.ViewLiteralPath]analyze.ViewColumn, len(action.presentation.columns))
 			for key, column := range action.presentation.columns {
 				columns[key] = column
 			}

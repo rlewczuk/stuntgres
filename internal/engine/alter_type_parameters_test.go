@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -35,7 +36,7 @@ func TestAlterTypePreparedSourceMetadata(t *testing.T) {
 				t.Fatal(err)
 			}
 			scope.Expected = &held
-			_, executeErr := scope.Execute(ast, 1, func(ctx context.Context, parameters ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {
+			_, executeErr := scope.Execute(ast, 1, func(ctx context.Context, parameters analyze.ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {
 				if parameters.Types[0] != original {
 					t.Fatal("held input metadata changed", parameters.Types, original)
 				}
@@ -53,7 +54,7 @@ func TestAlterTypePreparedSourceMetadata(t *testing.T) {
 					t.Fatal(err)
 				}
 				narrowing.Expected = &held
-				_, executeErr := narrowing.Execute(ast, 1, func(ctx context.Context, parameters ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {
+				_, executeErr := narrowing.Execute(ast, 1, func(ctx context.Context, parameters analyze.ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {
 					if parameters.Types[0] != original {
 						t.Fatal("narrowing changed held source metadata", parameters.Types)
 					}

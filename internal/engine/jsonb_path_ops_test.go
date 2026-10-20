@@ -32,7 +32,7 @@ func TestJSONBPathOpsBinding(t *testing.T) {
 			if !ok {
 				t.Fatal("not an operator")
 			}
-			call, err := b.BindCatalogOperator(raw, expressionPolicy{Context: analyze.ProjectionContext})
+			call, err := b.BindCatalogOperator(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}

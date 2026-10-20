@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -12,7 +13,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func deleteProbeScope(t *testing.T, s *Session) (*StatementScope, binding, *exec.Source) {
+func deleteProbeScope(t *testing.T, s *Session) (*StatementScope, analyze.Binding, *exec.Source) {
 	t.Helper()
 	op := transactionOperation(t, s)
 	scope, err := s.Engine().StartStatement(op)
@@ -42,7 +43,7 @@ func deleteProbeScope(t *testing.T, s *Session) (*StatementScope, binding, *exec
 	}
 	t.Cleanup(source.Close)
 	relation := scope.lockedDescriptor.(*catalog.Relation)
-	return scope, binding{Ref: ref, Relation: relation, Storage: scope.lockedStorage}, source
+	return scope, analyze.Binding{Ref: ref, Relation: relation, Storage: scope.lockedStorage}, source
 }
 
 func TestDeleteCoreAtomicity(t *testing.T) {

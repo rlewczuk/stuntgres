@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -68,7 +69,7 @@ func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*Engine, 
 	}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
-	var b binding
+	var b analyze.Binding
 	if err == nil {
 		b, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 	}

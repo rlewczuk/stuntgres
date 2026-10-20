@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -89,7 +90,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 			usages = append(usages, typ.Usage())
 		}
 	}
-	formal := ParameterInfo{Count: len(usages), Types: usages}
+	formal := analyze.ParameterInfo{Count: len(usages), Types: usages}
 	if err = s.captureFormalInputLocked(auth, usages); err == nil {
 		err = e.captureCommentSnapshotLocked(s)
 	}

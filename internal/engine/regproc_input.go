@@ -97,7 +97,7 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 		}
 		parts = parts[1:]
 	}
-	selection := namespaceSelection{Path: r.path}
+	selection := analyze.NamespaceSelection{Path: r.path}
 	missing := func() (uint32, error) { return 0, sqlError("42883", fmt.Sprintf(`function "%s" does not exist`, text)) }
 	if len(parts) == 2 {
 		namespace := r.types.auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text})
@@ -113,7 +113,7 @@ func (r capturedRoutineInput) resolveRoutine(ctx context.Context, text string, s
 		if r.types.qualified != nil && !slices.Contains(*r.types.qualified, namespace) {
 			*r.types.qualified = append(*r.types.qualified, namespace)
 		}
-		selection = namespaceSelection{Qualified: namespace}
+		selection = analyze.NamespaceSelection{Qualified: namespace}
 	}
 	selected, count := selectRoutine(r.types.auth.Catalog, selection, parts[len(parts)-1].Text, exact)
 	if count == 0 {

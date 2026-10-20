@@ -10,7 +10,7 @@ import (
 // PostgreSQL checks the action's own WITH and INSERT source SELECT's WITH,
 // not WITHs in nested subqueries or the enclosing statement. Position selects
 // the already resolved definition recipe; SQL names are never rebound here.
-func validateRuleActionCTEs(action parser.Statement, b binding) error {
+func validateRuleActionCTEs(action parser.Statement, b analyze.Binding) error {
 	direct := parser.StatementWith(action)
 	var source []parser.CommonTableExpression
 	if insert, ok := action.(*parser.Insert); ok && insert.Source != nil && insert.Source.Select != nil {
@@ -70,7 +70,7 @@ func validateRuleActionCTEs(action parser.Statement, b binding) error {
 			}
 		}
 	}
-	inspectBinding := func(body *binding) {
+	inspectBinding := func(body *analyze.Binding) {
 		inspectTargets(body.ArrayTargets)
 		if body.Query != nil {
 			inspectQuery(body.Query.Root)

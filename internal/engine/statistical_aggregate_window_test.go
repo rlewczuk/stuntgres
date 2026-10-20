@@ -39,7 +39,7 @@ func TestStatisticalAggregateWindowSignatures(t *testing.T) {
 				e.mu.Lock()
 				defer e.mu.Unlock()
 				seed := statement(t, "SELECT count(*)").(*parser.Select).Targets[0]
-				if _, err := b.Bind(seed, expressionPolicy{Context: analyze.ProjectionContext}); err != nil {
+				if _, err := b.Bind(seed, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 					t.Fatal(err)
 				}
 				before := append([]plan.AggregateCall(nil), b.Grouping.Aggregates...)
@@ -63,7 +63,7 @@ func TestStatisticalAggregateWindowSignatures(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				if !reflect.DeepEqual(before, b.Grouping.Aggregates) || len(b.Grouping.WindowCalls) != 0 || b.Grouping.ArgumentOwner != (argumentWindowOwner{}) {
+				if !reflect.DeepEqual(before, b.Grouping.Aggregates) || len(b.Grouping.WindowCalls) != 0 || b.Grouping.ArgumentOwner != (analyze.ArgumentWindowOwner{}) {
 					t.Fatal("excluded signature analysis registered group/window state or retained argument ownership")
 				}
 			})

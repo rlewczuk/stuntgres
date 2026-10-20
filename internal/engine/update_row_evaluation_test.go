@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -12,12 +13,12 @@ import (
 	"testing"
 )
 
-func updateRowTestAction(t *testing.T, e *Engine, q *plan.Query) *boundUpdate {
+func updateRowTestAction(t *testing.T, e *Engine, q *plan.Query) *analyze.UpdateBinding {
 	t.Helper()
 	source := subqueryTestExpression(t, e, q, parser.SubqueryScalar)
 	source.UpdateWidth = 2
 	source.Property.StageDependent = true
-	return &boundUpdate{Assignments: []expr.Expr{source, plan.UpdateOutputExpr{Info: expr.Info{Usage: q.Root.Schema()[1].Usage, Property: expr.Properties{StageDependent: true}}, Index: 1}}, Groups: []updateAssignmentGroup{{Start: 0, Width: 2}}, OutputWidth: 2}
+	return &analyze.UpdateBinding{Assignments: []expr.Expr{source, plan.UpdateOutputExpr{Info: expr.Info{Usage: q.Root.Schema()[1].Usage, Property: expr.Properties{StageDependent: true}}, Index: 1}}, Groups: []analyze.AssignmentGroup{{Start: 0, Width: 2}}, OutputWidth: 2}
 }
 
 func TestUpdateRowEvaluation(t *testing.T) {
@@ -89,7 +90,7 @@ func TestUpdateRowEvaluation(t *testing.T) {
 		second := action.Assignments[1].(plan.UpdateOutputExpr)
 		second.Group = 2
 		action.Assignments = append(action.Assignments, action.Assignments[0], second)
-		action.Groups = append(action.Groups, updateAssignmentGroup{Start: 2, Width: 2})
+		action.Groups = append(action.Groups, analyze.AssignmentGroup{Start: 2, Width: 2})
 		typ := project.Schema()[0].Usage.Type
 		old := []sqltype.Value{subqueryTestInteger(t, typ, 1), subqueryTestInteger(t, typ, 2), subqueryTestInteger(t, typ, 3), subqueryTestInteger(t, typ, 4)}
 		// Simulate a live outer tuple using the exact same context scratch.
@@ -109,7 +110,7 @@ func TestUpdateRowEvaluation(t *testing.T) {
 		old := []sqltype.Value{subqueryTestInteger(t, typ, 10), subqueryTestInteger(t, typ, 20)}
 		c := exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}, EvalFrame: exec.EvalFrame{Row: old}}
 		calls := [2]int{}
-		action := &boundUpdate{Assignments: []expr.Expr{
+		action := &analyze.UpdateBinding{Assignments: []expr.Expr{
 			queryProbe(typ.Usage(), func(c *exec.Context) (sqltype.Value, error) { calls[0]++; return c.Row[1], nil }),
 			queryProbe(typ.Usage(), func(c *exec.Context) (sqltype.Value, error) { calls[1]++; return c.Row[0], nil }),
 		}}

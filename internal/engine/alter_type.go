@@ -71,16 +71,16 @@ func (e *Engine) stageAlterIdentityTypes(scope *StatementScope, op *Operation, a
 	return stage, nil
 }
 
-func alterTypeNamespace(auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef) *queryNamespace {
-	columns := make([]queryColumn, len(original.Columns))
+func alterTypeNamespace(auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef) *analyze.QueryNamespace {
+	columns := make([]analyze.QueryColumn, len(original.Columns))
 	for i, column := range original.Columns {
-		columns[i] = queryColumn{Descriptor: column, Slot: i, Leaf: analyze.QueryTargetLeaf, Physical: i}
+		columns[i] = analyze.QueryColumn{Descriptor: column, Slot: i, Leaf: analyze.QueryTargetLeaf, Physical: i}
 	}
-	qualifier := queryQualifier{Name: original.Name(), Original: original.Name(), Schema: auth.Catalog.Get(original.Namespace()).Name(), Ref: ref, Columns: columns}
-	return &queryNamespace{Columns: columns, Qualifiers: []queryQualifier{qualifier}, Frame: original.Columns}
+	qualifier := analyze.QueryQualifier{Name: original.Name(), Original: original.Name(), Schema: auth.Catalog.Get(original.Namespace()).Name(), Ref: ref, Columns: columns}
+	return &analyze.QueryNamespace{Columns: columns, Qualifiers: []analyze.QueryQualifier{qualifier}, Frame: original.Columns}
 }
 
-func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef, action parser.AlterTableAction, usage sqltype.Usage, namespace *queryNamespace) (expr.Expr, []catalog.ExpressionDependency, error) {
+func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef, action parser.AlterTableAction, usage sqltype.Usage, namespace *analyze.QueryNamespace) (expr.Expr, []catalog.ExpressionDependency, error) {
 	if action.Using == nil {
 		source := original.Index[action.Column.Text]
 		return plan.ColumnExpr{Info: expr.Info{Usage: original.Columns[source].Usage, Property: expr.Properties{RowDependent: true}}, Origin: ref, Scope: 1, Frame: 1, Slot: source}.WithGeneration(original, source, 0), nil, nil
@@ -92,7 +92,7 @@ func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth Authorizat
 	binder.Target.Relation, binder.Target.Ref, binder.Params.NoParameters, binder.Query.Auth = original, ref, true, &auth
 	binder.Query.Namespace = namespace
 	binder.Query.Sources = []exec.Leaf{{Ref: ref, Relation: original}}
-	node, err := binder.Bind(action.Using, expressionPolicy{Context: analyze.ProjectionContext, Expected: usage.Type.Usage()})
+	node, err := binder.Bind(action.Using, analyze.ExpressionPolicy{Context: analyze.ProjectionContext, Expected: usage.Type.Usage()})
 	if err == nil && (binder.Prepared.RegclassConcat || binder.Consumer.CatalogSnapshot) {
 		err = e.captureCommentSnapshotLocked(scope)
 	}

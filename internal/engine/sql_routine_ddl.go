@@ -127,8 +127,8 @@ func (e *Engine) stageCreateFunctionLocked(op *Operation, auth AuthorizationView
 
 // Binding is deliberately producer-free. In particular this does not evaluate
 // constants/providers or take a data snapshot while validating CREATE.
-func (e *Engine) bindSQLRoutineLocked(op *Operation, auth AuthorizationView, d *catalog.Procedure, input sqltype.InputEnvironment, scope *StatementScope) (binding, sqltype.CoercionPlan, error) {
-	var admission *queryLockAdmission
+func (e *Engine) bindSQLRoutineLocked(op *Operation, auth AuthorizationView, d *catalog.Procedure, input sqltype.InputEnvironment, scope *StatementScope) (analyze.Binding, sqltype.CoercionPlan, error) {
+	var admission *analyze.LockAdmission
 	var expected *StatementDescription
 	if scope != nil {
 		admission = &scope.queryLockAdmission

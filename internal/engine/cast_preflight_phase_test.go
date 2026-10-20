@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -110,7 +111,7 @@ func TestCastCoercionSelectPreflightAuthorityIdentityCancellation(t *testing.T) 
 					restore = func() { e.catalog.state.SetEpoch(original) }
 				}
 			}
-			result, executeErr := scope.Execute(statement(t, "SELECT int4($1::text) FROM t"), 1, func(c context.Context, signature ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {
+			result, executeErr := scope.Execute(statement(t, "SELECT int4($1::text) FROM t"), 1, func(c context.Context, signature analyze.ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {
 				value, err := signature.Types[0].Type.Input(c, "42", -1)
 				if err != nil {
 					return err

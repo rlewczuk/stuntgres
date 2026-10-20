@@ -30,9 +30,9 @@ func jsonbSetContextualArrayCapture(t *testing.T, query, wantA, wantB string) {
 	engine := New()
 	b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	column := catalog.Column{Name: "k", Usage: b.Type(sqltype.Text).Usage()}
-	b.Query.Namespace = &queryNamespace{Columns: []queryColumn{{Descriptor: column, Slot: 0, Leaf: -1, Physical: -1}}, Frame: []catalog.Column{column}}
+	b.Query.Namespace = &analyze.QueryNamespace{Columns: []analyze.QueryColumn{{Descriptor: column, Slot: 0, Leaf: -1, Physical: -1}}, Frame: []catalog.Column{column}}
 	raw := statement(t, query).(*parser.Select).Targets[0]
-	node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+	node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}

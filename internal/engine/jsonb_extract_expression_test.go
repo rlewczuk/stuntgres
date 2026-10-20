@@ -47,7 +47,7 @@ func TestJSONBExtractInferenceAndLifecycle(t *testing.T) {
 	for _, q := range []string{"SELECT $1 -> 0", "SELECT $1 ->> 'a'", "SELECT $1 #> '{a}'", "SELECT $1 #>> '{a}'"} {
 		b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, q).(*parser.Select).Targets[0]
-		if _, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext}); err == nil || !strings.Contains(err.Error(), "operator is not unique") {
+		if _, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err == nil || !strings.Contains(err.Error(), "operator is not unique") {
 			t.Fatal(q, err)
 		}
 	}
@@ -113,7 +113,7 @@ func TestJSONBExtractStoredVariadicProvenance(t *testing.T) {
 			t.Run(q, func(t *testing.T) {
 				b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 				raw := statement(t, q).(*parser.Select).Targets[0]
-				node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+				node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -121,7 +121,7 @@ func TestJSONBExtractStoredVariadicProvenance(t *testing.T) {
 					t.Fatal(err)
 				}
 				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}, frame: b.FrameID()}
-				replaySQL, err := renderer.expressionSQL(ctx, view, raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
+				replaySQL, err := renderer.expressionSQL(ctx, view, raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {
 					t.Fatal(err)
 				}

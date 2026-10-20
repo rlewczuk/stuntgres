@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/sqltype"
 )
 
@@ -84,7 +85,7 @@ const (
 	protocolFunctionInput
 )
 
-func (s *StatementScope) protocolImport(input ProtocolInput, formats []int16, formal ParameterInfo, frame []sqltype.Value, env sqltype.InputEnvironment, log *ProtocolContext, kind protocolReceiveKind) error {
+func (s *StatementScope) protocolImport(input ProtocolInput, formats []int16, formal analyze.ParameterInfo, frame []sqltype.Value, env sqltype.InputEnvironment, log *ProtocolContext, kind protocolReceiveKind) error {
 	for i := range formal.Count {
 		n, err := input.Int32()
 		if err != nil {

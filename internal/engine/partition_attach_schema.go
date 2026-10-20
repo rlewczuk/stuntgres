@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -87,7 +88,7 @@ func partitionAttachSchema(ctxScope *StatementScope, view catalog.Read, parent, 
 			return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42804", Message: fmt.Sprintf(`table "%s" contains column "%s" not found in parent "%s"`, child.Name(), column.Name, parent.Name()), Detail: "The new partition may contain only the columns present in parent."}
 		}
 	}
-	in := createLikeInput{Source: parent, TargetSlots: make([]int, len(parent.Columns))}
+	in := analyze.LikeInput{Source: parent, TargetSlots: make([]int, len(parent.Columns))}
 	for i, column := range parent.Columns {
 		slot, ok := child.Index[column.Name]
 		if !ok {
@@ -136,7 +137,7 @@ func partitionAttachSchema(ctxScope *StatementScope, view catalog.Read, parent, 
 		if err != nil {
 			return nil, err
 		}
-		binder := expressionBinder{Consumer: consumerContext{CheckDefinitionEquality: true}}
+		binder := analyze.Binder{Consumer: analyze.ConsumerContext{CheckDefinitionEquality: true}}
 		if !binder.SameGroupExpression(mapped, actual.Expression) {
 			return nil, sqlError("42804", fmt.Sprintf(`child table "%s" has different definition for check constraint "%s"`, child.Name(), required.Name))
 		}

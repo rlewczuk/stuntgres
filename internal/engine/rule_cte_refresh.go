@@ -8,11 +8,11 @@ import (
 
 // Frozen action-owned modifiers are definitions to refresh, not protected
 // enclosing statement spools. One mapper reconnects declarations and all scans.
-func refreshRuleActionCTEs(auth AuthorizationView, b binding) (binding, error) {
+func refreshRuleActionCTEs(auth AuthorizationView, b analyze.Binding) (analyze.Binding, error) {
 	if len(b.CTEs) == 0 {
 		return b, nil
 	}
-	mapper := newRuleTreeMapper(auth.Catalog, nil, 0, nil, ruleTreeMapping{mutation: func(definition *plan.CTEDefinition) (binding, error) {
+	mapper := newRuleTreeMapper(auth.Catalog, nil, 0, nil, ruleTreeMapping{mutation: func(definition *plan.CTEDefinition) (analyze.Binding, error) {
 		mutation, _ := analyze.MutationBinding(definition)
 		body := *mutation
 		// Stored modifier recipes need a private execution workspace even when

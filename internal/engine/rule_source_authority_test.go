@@ -62,7 +62,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					original.Delete.Using = from
 					if event == "UPDATE" {
 						syntax = &parser.Update{}
-						original.Update = &boundUpdate{Assignments: []expr.Expr{ruleUnitInt(src, 1), ruleUnitInt(src, 10)}, From: from}
+						original.Update = &analyze.UpdateBinding{Assignments: []expr.Expr{ruleUnitInt(src, 1), ruleUnitInt(src, 10)}, From: from}
 					}
 					action := ruleUnitInsert(e, sink, 7, 8)
 					ref := lookupRef

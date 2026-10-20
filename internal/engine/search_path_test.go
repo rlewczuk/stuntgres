@@ -35,7 +35,7 @@ func TestSearchPathLookupKinds(t *testing.T) {
 	}
 	temp := auth.Catalog.Get(temporaryNamespace(auth)).Name()
 	for _, tc := range []struct {
-		kind lookupKind
+		kind analyze.LookupKind
 		want []string
 	}{{analyze.RelationLookup, []string{temp, "pg_catalog", "b", "a"}}, {analyze.TypeLookup, []string{temp, "pg_catalog", "b", "a"}}, {analyze.FunctionLookup, []string{"pg_catalog", "b", "a"}}, {analyze.OperatorLookup, []string{"pg_catalog", "b", "a"}}} {
 		path, err := e.lookupPath(auth, tc.kind)
@@ -146,7 +146,7 @@ func TestSearchPathMissingQualifiedNamespace(t *testing.T) {
 		t.Fatal(err)
 	}
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: "missing_path_ns", Pos: parser.Position{Character: 8}}, {Text: "int4"}}}
-	for _, kind := range []lookupKind{analyze.TypeLookup, analyze.FunctionLookup, analyze.OperatorLookup} {
+	for _, kind := range []analyze.LookupKind{analyze.TypeLookup, analyze.FunctionLookup, analyze.OperatorLookup} {
 		_, err := e.lookupNamespaces(auth, name, kind)
 		state(t, err, "3F000")
 	}
@@ -157,7 +157,7 @@ func TestSearchPathMissingQualifiedNamespace(t *testing.T) {
 }
 
 // Scalar unit binders use real catalog/session authorization like public SQL.
-func newTestExpressionBinder(t *testing.T, ctx context.Context, e *Engine, input sqltype.InputEnvironment, expected *StatementDescription) *expressionBinder {
+func newTestExpressionBinder(t *testing.T, ctx context.Context, e *Engine, input sqltype.InputEnvironment, expected *StatementDescription) *analyze.Binder {
 	t.Helper()
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)
@@ -196,7 +196,7 @@ func TestSearchPathExplicitTempPlacementAndForeignFiltering(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {
-		kind lookupKind
+		kind analyze.LookupKind
 		want []string
 	}{
 		{analyze.RelationLookup, []string{"b", "pg_catalog", temp, "a"}},

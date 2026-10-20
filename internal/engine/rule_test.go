@@ -52,7 +52,7 @@ func ruleUnitInt(d *catalog.Relation, n int64) expr.Expr {
 	return plan.LiteralExpr{Info: expr.Info{Usage: d.Columns[0].Usage, Pos: parser.Position{Offset: -1}}, Value: value}
 }
 func ruleUnitInsert(e *Engine, d *catalog.Relation, id, v int64) ruleAction {
-	return ruleAction{syntax: &parser.Insert{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}}, binding: binding{Relation: d, Ref: ruleUnitRef(e, d), Targets: []int{0, 1}, Expressions: [][]expr.Expr{{ruleUnitInt(d, id), ruleUnitInt(d, v)}}}}
+	return ruleAction{syntax: &parser.Insert{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}}, binding: analyze.Binding{Relation: d, Ref: ruleUnitRef(e, d), Targets: []int{0, 1}, Expressions: [][]expr.Expr{{ruleUnitInt(d, id), ruleUnitInt(d, v)}}}}
 }
 
 func TestRuleTemplateSubstitution(t *testing.T) {
@@ -105,7 +105,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		}
 		output := plan.ArithmeticExpr{Info: ruleColumnInfo(src.Columns[1]), Left: pseudoV, Right: ruleUnitInt(src, 10), Provider: provider}
 		projection := []expr.Expr{pseudo, output}
-		order, err := (*expressionBinder)(nil).FinishOrder(&plan.SingletonNode{}, []plan.SortKey{{Expression: output, Slot: -1, Cache: -1, TargetIdentity: 2}}, projection)
+		order, err := (*analyze.Binder)(nil).FinishOrder(&plan.SingletonNode{}, []plan.SortKey{{Expression: output, Slot: -1, Cache: -1, TargetIdentity: 2}}, projection)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -132,7 +132,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	})
 	t.Run("select_producer_ownership", func(t *testing.T) {
 		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		random, err := binder.Bind(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "random"}}}}, expressionPolicy{Context: analyze.ProjectionContext})
+		random, err := binder.Bind(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "random"}}}}, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -242,7 +242,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 			t.Fatal(err)
 		}
 		bind := func(index int) expr.Expr {
-			node, err := binder.Bind(statements[0].(*parser.Select).Targets[index], expressionPolicy{Context: analyze.ProjectionContext})
+			node, err := binder.Bind(statements[0].(*parser.Select).Targets[index], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -297,7 +297,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 	})
 	t.Run("event_source_identity", func(t *testing.T) {
 		f := viewWriteMechanics(t)
-		original := binding{Relation: f.base, Ref: f.baseRef, Storage: f.e.storage.Relations[f.base.Address()], Targets: []int{0}, UsedColumns: []int{0}, Update: &boundUpdate{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
+		original := analyze.Binding{Relation: f.base, Ref: f.baseRef, Storage: f.e.storage.Relations[f.base.Address()], Targets: []int{0}, UsedColumns: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
 		producer, err := makeRuleProducer(f.e.CatalogRead(), original, "UPDATE")
 		if err != nil {
 			t.Fatal(err)
@@ -314,7 +314,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		authority := f.authorization(t, op)
 		imported := producer.sources[0]
 		imported.Storage = nil
-		refreshed, err := refreshRuleSources(authority, binding{QuerySources: []exec.Leaf{imported}})
+		refreshed, err := refreshRuleSources(authority, analyze.Binding{QuerySources: []exec.Leaf{imported}})
 		if err != nil || refreshed.QuerySources[0].Storage != original.Storage || imported.Storage != nil {
 			t.Fatal("stored/imported source did not capture current physical storage immutably", err)
 		}
@@ -380,7 +380,7 @@ func TestRuleProgramAuthority(t *testing.T) {
 		project := viewOf(f.view).query.Root.(*plan.ProjectNode)
 		predicate := plan.LiteralExpr{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, true)}
 		project.Child = &plan.FilterNode{QuerySchema: plan.QuerySchema(f.base.Columns), Child: project.Child, Predicate: predicate}
-		original := binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &boundUpdate{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
+		original := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
 		mapped := original
 		if err := f.e.bindViewWrite(&mapped, auth, &parser.Update{}); err != nil {
 			t.Fatal(err)

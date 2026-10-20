@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -16,11 +17,11 @@ import (
 
 // Reuse the shared coercion traversal; only changed execution branches are
 // copied. In particular, imported-frame literals never replace analyzed nodes.
-func preflightUpdate(c *exec.Context, original *boundUpdate, sourceDemand ...func(*boundUpdate) (plan.Node, error)) (*boundUpdate, error) {
+func preflightUpdate(c *exec.Context, original *analyze.UpdateBinding, sourceDemand ...func(*analyze.UpdateBinding) (plan.Node, error)) (*analyze.UpdateBinding, error) {
 	return preflightUpdateWithPlanning(c, original, true, sourceDemand...)
 }
 
-func preflightUpdateWithPlanning(c *exec.Context, original *boundUpdate, planConstants bool, sourceDemand ...func(*boundUpdate) (plan.Node, error)) (*boundUpdate, error) {
+func preflightUpdateWithPlanning(c *exec.Context, original *analyze.UpdateBinding, planConstants bool, sourceDemand ...func(*analyze.UpdateBinding) (plan.Node, error)) (*analyze.UpdateBinding, error) {
 	result := original
 	var assignments []expr.Expr
 	targets, err := preflightArrayTargetsWithPlanning(c, original.ArrayTargets, planConstants)
@@ -175,7 +176,7 @@ func (e *Engine) latestUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate
 	return row, visibility.LiveVersion(row, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[ref.Address]), nil
 }
 
-func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding, source, from *exec.Source, parameters []sqltype.Value, schema string) (Result, error) {
+func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b analyze.Binding, source, from *exec.Source, parameters []sqltype.Value, schema string) (Result, error) {
 	defer source.Close()
 	source.Host = hostOf(s)
 	if b.Storage == nil || b.Storage != s.lockedStorage || b.Storage != source.View.Data().GenerationAt(b.Ref.Address) {
@@ -482,7 +483,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	return Result{Count: count}, nil
 }
 
-func (e *Engine) rowConstraintError(s *StatementScope, b binding, schema, column, check string, row []sqltype.Value) error {
+func (e *Engine) rowConstraintError(s *StatementScope, b analyze.Binding, schema, column, check string, row []sqltype.Value) error {
 	detail, err := e.rowConstraintDetail(s, &b, row)
 	if err != nil {
 		return err
@@ -494,7 +495,7 @@ func (e *Engine) rowConstraintError(s *StatementScope, b binding, schema, column
 }
 
 // Public UPDATE and admitted RI assignment share generation and local checks.
-func (e *Engine) validateMutationRow(s *StatementScope, b binding, schema string, row []sqltype.Value, eval *exec.Context) error {
+func (e *Engine) validateMutationRow(s *StatementScope, b analyze.Binding, schema string, row []sqltype.Value, eval *exec.Context) error {
 	generationEval := *eval
 	if err := evaluateGenerations(eval.Context, b.Relation, row, &generationEval); err != nil {
 		return err
@@ -525,14 +526,14 @@ func (e *Engine) validateMutationRow(s *StatementScope, b binding, schema string
 
 // Capture only immutable authority under metadata locks. Provider output runs
 // unlocked; disclosure uses the named target's supplied-column manifest.
-func (e *Engine) rowConstraintDetail(s *StatementScope, b *binding, row []sqltype.Value) (string, error) {
+func (e *Engine) rowConstraintDetail(s *StatementScope, b *analyze.Binding, row []sqltype.Value) (string, error) {
 	if s != nil && s.partitionInsert != nil && b != nil && b.Relation.Address() == s.partitionInsert.target.Address() {
 		row = s.partitionInsert.namedRow
 	}
 	return e.rowDiagnosticDetail(s, b, row, false)
 }
 
-func (e *Engine) rowDiagnosticDetail(s *StatementScope, b *binding, row []sqltype.Value, suppressEmpty bool) (string, error) {
+func (e *Engine) rowDiagnosticDetail(s *StatementScope, b *analyze.Binding, row []sqltype.Value, suppressEmpty bool) (string, error) {
 	e.mu.Lock()
 	err := s.validateLockedRelation(e)
 	if err == nil && s.foreignActionAuth != nil {

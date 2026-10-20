@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -84,7 +85,7 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 	if original, ok := oldRoles.Lookup("acl_unit_a"); !ok || original.Ref != a.Ref {
 		t.Fatal("rename mutated old role root")
 	}
-	expected := &StatementDescription{temporals: append([]temporalConstant(nil), b.Prepared.Temporals...), catalogOwner: e.catalog.owner(), catalogEpoch: e.CatalogRead().Epoch()}
+	expected := &StatementDescription{temporals: append([]analyze.TemporalConstant(nil), b.Prepared.Temporals...), catalogOwner: e.catalog.owner(), catalogEpoch: e.CatalogRead().Epoch()}
 	reused := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 	captured, err := reused.InputConstant("acl_unit_a=rw*/acl_unit_b", d.Usage(), position)
 	if err != nil || !sqltype.SameDatum(value, captured) {

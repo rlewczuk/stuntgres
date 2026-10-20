@@ -136,7 +136,7 @@ func TestStringCaseCollatedParameterInference(t *testing.T) {
 func TestStringCaseCollatedTypedParameterDiagnostic(t *testing.T) {
 	e := New()
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
-	expected := &StatementDescription{Parameters: ParameterInfo{Count: 1, Types: []sqltype.Usage{integer.Usage()}}}
+	expected := &StatementDescription{Parameters: analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{integer.Usage()}}}
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
 	established := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, binderOperation(b), nil)
 	established.Params.Parameters[1] = integer.Usage()
@@ -150,7 +150,7 @@ func TestStringCaseCollatedTypedParameterDiagnostic(t *testing.T) {
 			Pos:   parser.Position{Character: 17},
 		}},
 	}
-	for _, binder := range []*expressionBinder{b, established} {
+	for _, binder := range []*analyze.Binder{b, established} {
 		node, err := functions.BindString(binder, raw, true)
 		var diagnostic *sqlstate.Error
 		if node != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "42804" ||

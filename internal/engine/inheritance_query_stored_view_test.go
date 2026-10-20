@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -82,7 +83,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				raw := statement(t, "CREATE VIEW "+name+" AS "+query).(*parser.CreateView)
 				e.mu.Lock()
 				auth, bindErr := e.authorizationLocked(op)
-				var b binding
+				var b analyze.Binding
 				if bindErr == nil {
 					b, bindErr = describe(op.Context(), e.analysisHost(nil), raw, auth, ids.ObjectRef{}, sqltype.InputEnvironment{}, nil, nil)
 				}

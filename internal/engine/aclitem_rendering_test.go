@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -94,10 +95,10 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 			t.Fatal(err)
 		}
 		render := func(value sqltype.Value, target sqltype.Usage) (string, error) {
-			leafPath := viewLiteralPath{Node: 1}
+			leafPath := analyze.ViewLiteralPath{Node: 1}
 			renderer := viewRenderer{viewDefinition: &viewDefinition{
-				literals:   map[viewLiteralPath]plan.LiteralExpr{leafPath: {Info: expr.Info{Usage: value.Type().Usage()}, Value: value}},
-				castUsages: map[viewLiteralPath]sqltype.Usage{{}: target},
+				literals:   map[analyze.ViewLiteralPath]plan.LiteralExpr{leafPath: {Info: expr.Info{Usage: value.Type().Usage()}, Value: value}},
+				castUsages: map[analyze.ViewLiteralPath]sqltype.Usage{{}: target},
 			}}
 			ordinal := 0
 			kind := parser.StringValue
@@ -105,7 +106,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 				kind = parser.NullValue
 			}
 			raw := parser.CastExpr{Child: parser.LiteralExpr{Value: parser.Value{Kind: kind}}}
-			return renderer.expressionSQLAt(aclItemOutputContext(context.Background(), captured), view, raw, viewLiteralPath{}, &ordinal, pgRenderParent{})
+			return renderer.expressionSQLAt(aclItemOutputContext(context.Background(), captured), view, raw, analyze.ViewLiteralPath{}, &ordinal, pgRenderParent{})
 		}
 		for _, datum := range []sqltype.Value{value, sqltype.Null(value.Type()), arrayValue, sqltype.Null(array)} {
 			first, err := render(datum, datum.Type().Usage())

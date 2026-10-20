@@ -143,7 +143,7 @@ func newViewRenderer(v *viewDefinition) *viewRenderer {
 	return r
 }
 
-func (v *viewRenderer) freshLabel(ns viewNamespace, attribute int32, physical bool) string {
+func (v *viewRenderer) freshLabel(ns analyze.ViewNamespace, attribute int32, physical bool) string {
 	key := v.renderAliasKey(ns)
 	key.attribute, key.label, key.physical = attribute, true, physical
 	base := "__view_added_" + strconv.Itoa(int(key.node)) + "_" + strconv.Itoa(key.ordinal) + "_" + strconv.FormatInt(int64(attribute), 10)
@@ -169,10 +169,10 @@ func (v *viewRenderer) slotSQL(ctx context.Context, catalog catalog.Read, root p
 // Equivalent sibling queries need identical emitted RTE names for SQL99
 // replay. Normalize generated node IDs within the lexical frame, cache names
 // across siblings, and separate depths so correlations cannot be shadowed.
-func (v *viewRenderer) renderAliasKey(ns viewNamespace) viewRenderAlias {
+func (v *viewRenderer) renderAliasKey(ns analyze.ViewNamespace) viewRenderAlias {
 	return viewRenderAlias{depth: v.depth, node: ns.Node, ordinal: ns.Ordinal - v.renderFrames[ns.Frame].base[ns.Node]}
 }
-func (v *viewRenderer) namespaceAlias(ns viewNamespace) string {
+func (v *viewRenderer) namespaceAlias(ns analyze.ViewNamespace) string {
 	key := v.renderAliasKey(ns)
 	base := viewSourceAlias(key.ordinal)
 	switch ns.Node {
@@ -208,7 +208,7 @@ func (v *viewRenderer) allocateAlias(key viewRenderAlias, base string) string {
 
 // Apply every alias in actual emitted order, mapping frozen labels by slot.
 // This handles prefixes after compaction and whole-join aliases hiding operands.
-func (v *viewRenderer) aliasFrom(from viewRenderFrom, ns viewNamespace, name string) viewRenderFrom {
+func (v *viewRenderer) aliasFrom(from viewRenderFrom, ns analyze.ViewNamespace, name string) viewRenderFrom {
 	labels := make(map[int]string, len(ns.Columns))
 	for _, c := range ns.Columns {
 		labels[c.Slot] = c.Name
@@ -440,7 +440,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 		if root == nil {
 			return viewRenderFrom{}, fmt.Errorf("stuntgres: missing view source node")
 		}
-		frozen := make(map[int32]viewNamespaceColumn, len(ns.Columns))
+		frozen := make(map[int32]analyze.ViewNamespaceColumn, len(ns.Columns))
 		for _, c := range ns.Columns {
 			frozen[c.Attribute] = c
 		}
@@ -622,7 +622,7 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 			}
 		}
 		if n.On != nil {
-			on, err := v.expressionSQL(ctx, catalogView, n.On, viewLiteralPath{Clause: analyze.ViewJoinLiteral, Target: ordinal})
+			on, err := v.expressionSQL(ctx, catalogView, n.On, analyze.ViewLiteralPath{Clause: analyze.ViewJoinLiteral, Target: ordinal})
 			if err != nil {
 				return viewRenderFrom{}, err
 			}

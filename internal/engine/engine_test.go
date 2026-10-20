@@ -50,10 +50,10 @@ func testExecute(e *Engine, ctx context.Context, stmt parser.Statement, args []d
 	defer cleanup()
 	return testExecuteFrame(e, op, stmt, args)
 }
-func testDescribe(e *Engine, stmt parser.Statement) (ParameterInfo, error) {
+func testDescribe(e *Engine, stmt parser.Statement) (analyze.ParameterInfo, error) {
 	op, cleanup, err := testOperation(e, context.Background())
 	if err != nil {
-		return ParameterInfo{}, err
+		return analyze.ParameterInfo{}, err
 	}
 	defer cleanup()
 	description, err := e.Describe(op, stmt)
@@ -184,7 +184,7 @@ func testExecuteFrame(e *Engine, op *Operation, stmt parser.Statement, args []dr
 		}
 		raw[i] = v
 	}
-	return e.Execute(op, stmt, len(raw), func(ctx context.Context, p ParameterInfo, dst []sqltype.Value, input sqltype.InputEnvironment) error {
+	return e.Execute(op, stmt, len(raw), func(ctx context.Context, p analyze.ParameterInfo, dst []sqltype.Value, input sqltype.InputEnvironment) error {
 		for i, v := range raw {
 			if v == nil {
 				dst[i] = sqltype.Null(p.Types[i].Type)

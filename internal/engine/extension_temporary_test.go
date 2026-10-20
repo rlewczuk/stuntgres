@@ -328,13 +328,13 @@ func TestExtensionTemporaryLookup(t *testing.T) {
 	if err != nil || analyze.ProcedureInNamespaces(foreignAuth.Catalog, selected, "unaccent", catalog.UnaccentTextSignature) == nil {
 		t.Fatal("real foreign member lookup", selected, err)
 	}
-	for _, kind := range []lookupKind{analyze.RelationLookup, analyze.TypeLookup, analyze.FunctionLookup, analyze.OperatorLookup, analyze.CollationLookup, analyze.ConversionLookup} {
+	for _, kind := range []analyze.LookupKind{analyze.RelationLookup, analyze.TypeLookup, analyze.FunctionLookup, analyze.OperatorLookup, analyze.CollationLookup, analyze.ConversionLookup} {
 		selected, err := e.lookupNamespaces(foreignAuth, qualified, kind)
 		if err != nil || selected.Qualified != namespace.Address() {
 			t.Fatal("captured superuser namespace USAGE denied", kind, selected, err)
 		}
 	}
-	for _, kind := range []lookupKind{analyze.FunctionLookup, analyze.OperatorLookup, analyze.CollationLookup, analyze.ConversionLookup} {
+	for _, kind := range []analyze.LookupKind{analyze.FunctionLookup, analyze.OperatorLookup, analyze.CollationLookup, analyze.ConversionLookup} {
 		path, err := e.lookupPath(foreignAuth, kind)
 		if err != nil || slices.Contains(path, namespace.Address()) {
 			t.Fatal("general TEMP path isolation", kind, path, err)
@@ -349,7 +349,7 @@ func TestExtensionTemporaryLookup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, kind := range []lookupKind{analyze.InstalledFunctionLookup, analyze.RelationLookup, analyze.TypeLookup, analyze.FunctionLookup, analyze.OperatorLookup, analyze.CollationLookup, analyze.ConversionLookup} {
+	for _, kind := range []analyze.LookupKind{analyze.InstalledFunctionLookup, analyze.RelationLookup, analyze.TypeLookup, analyze.FunctionLookup, analyze.OperatorLookup, analyze.CollationLookup, analyze.ConversionLookup} {
 		_, err := e.lookupNamespaces(denied, qualified, kind)
 		extensionUnitError(t, err, "42501")
 	}

@@ -19,7 +19,7 @@ import (
 // The requested relation remains the SQL/ACL namespace. This execution-owned
 // rewrite carries physical authority separately; no dense slots are persisted.
 type viewWrite struct {
-	logical          binding
+	logical          analyze.Binding
 	layers           []viewWriteLayer
 	base             *catalog.Relation
 	ref              ids.ObjectRef
@@ -160,7 +160,7 @@ func sameViewRelation(a, b ids.ObjectRef) bool {
 	return a == b
 }
 
-func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.Statement, consumed ...ids.ObjectRef) error {
+func (e *Engine) bindViewWrite(b *analyze.Binding, auth AuthorizationView, stmt parser.Statement, consumed ...ids.ObjectRef) error {
 	if b.Relation == nil || b.Relation.RelationKind != catalog.ViewRelation {
 		return nil
 	}
@@ -415,7 +415,7 @@ func rewriteViewExpression(view catalog.Read, bound expr.Expr, recipe *catalog.R
 	return mapper(bound)
 }
 
-func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.Statement) error {
+func (e *Engine) lowerViewWrite(b *analyze.Binding, auth AuthorizationView, stmt parser.Statement) error {
 	w := viewWriteOf(b.ViewWrite)
 	logicalWidth, physicalWidth := len(w.logical.Relation.Columns), len(w.base.Columns)
 	graft := func(root plan.Node, mapper func(expr.Expr) (expr.Expr, bool, error)) (plan.Node, error) {

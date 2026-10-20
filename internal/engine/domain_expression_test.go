@@ -44,7 +44,7 @@ func TestDomainExpressionLogicalAndSignatureIdentity(t *testing.T) {
 	} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, "SELECT "+tc.expr+" FROM public.one").(*parser.Select).Targets[0]
-		node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(tc.expr, err)
 		}
@@ -126,7 +126,7 @@ func TestDomainStoredCastUsesCapturedRenamedNamespace(t *testing.T) {
 	domainUnitTable(t, e, op, "CREATE TABLE public.one(id integer)")
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	ast := statement(t, "SELECT 7::public.a FROM public.one").(*parser.Select)
-	node, err := b.Bind(ast.Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+	node, err := b.Bind(ast.Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,22 +136,22 @@ func TestDomainStoredCastUsesCapturedRenamedNamespace(t *testing.T) {
 	renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}, frame: b.FrameID()}
 	old := e.CatalogRead()
 	domainUnitPublish(t, e, domainUnitStage(t, e, op, "ALTER SCHEMA public RENAME TO moved"))
-	text, err := renderer.expressionSQL(context.Background(), e.CatalogRead(), ast.Targets[0], viewLiteralPath{Clause: analyze.ViewTargetLiteral})
+	text, err := renderer.expressionSQL(context.Background(), e.CatalogRead(), ast.Targets[0], analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil || text != `CAST(7 AS "moved"."a")` {
 		t.Fatal(text, err)
 	}
-	text, err = renderer.expressionSQL(context.Background(), old, ast.Targets[0], viewLiteralPath{Clause: analyze.ViewTargetLiteral})
+	text, err = renderer.expressionSQL(context.Background(), old, ast.Targets[0], analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil || text != `CAST(7 AS "public"."a")` {
 		t.Fatal("retained rendering authority", text, err)
 	}
 	// Use a coherent path that does not expose the domain's namespace, so
 	// canonical presentation must spell the current qualified identity.
 	renderer.presentation = viewPresentation{deparse: true, pretty: true, path: []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}}}
-	text, err = renderer.expressionSQL(context.Background(), e.CatalogRead(), ast.Targets[0], viewLiteralPath{Clause: analyze.ViewTargetLiteral})
+	text, err = renderer.expressionSQL(context.Background(), e.CatalogRead(), ast.Targets[0], analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil || text != "7::moved.a" {
 		t.Fatal("renamed domain canonical cast", text, err)
 	}
-	text, err = renderer.expressionSQL(context.Background(), old, ast.Targets[0], viewLiteralPath{Clause: analyze.ViewTargetLiteral})
+	text, err = renderer.expressionSQL(context.Background(), old, ast.Targets[0], analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil || text != "7::public.a" {
 		t.Fatal("retained domain canonical authority", text, err)
 	}
@@ -166,7 +166,7 @@ func TestDomainContextualLiteralTypmodEvaluation(t *testing.T) {
 	target := domainUnitType(t, e.CatalogRead(), "short").SQLType.Usage()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT 'abcd' FROM public.one").(*parser.Select).Targets[0]
-	node, err := b.Bind(raw, expressionPolicy{Context: analyze.AssignmentContext, Expected: target, Mode: sqltype.Assignment})
+	node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.AssignmentContext, Expected: target, Mode: sqltype.Assignment})
 	if err != nil {
 		t.Fatal("assignment typmod evaluated while binding", err)
 	}
@@ -177,7 +177,7 @@ func TestDomainContextualLiteralTypmodEvaluation(t *testing.T) {
 	_, err = node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background()}})
 	domainUnitDiagnostic(t, err, "22001", "value too long for type character varying(3)")
 	raw = statement(t, "SELECT 'abcd'::public.short FROM public.one").(*parser.Select).Targets[0]
-	node, err = b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+	node, err = b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestDomainQualifiedBuiltinNameModifierIdentity(t *testing.T) {
 	domainUnitTable(t, e, op, "CREATE TABLE public.one(id integer)")
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT 1::public.uuid(3) FROM public.one").(*parser.Select).Targets[0]
-	_, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+	_, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	domainUnitDiagnostic(t, err, "42601", `type modifier is not allowed for type "public.uuid"`)
 }
 
@@ -267,7 +267,7 @@ func TestDomainArrayBoundLiteralDiagnosticPosition(t *testing.T) {
 	domainUnitTable(t, e, op, "CREATE TABLE public.one(id integer)")
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT '[1:0]={}'::public.a FROM public.one").(*parser.Select).Targets[0]
-	_, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+	_, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	domainUnitDiagnostic(t, err, "2202E", "upper bound cannot be less than lower bound")
 	diagnostic, ok := err.(*sqlstate.Error)
 	if !ok || diagnostic.Position != "8" {
@@ -310,7 +310,7 @@ func TestDomainIntervalLiteralCastInputUsage(t *testing.T) {
 		for _, expression := range []string{"'" + tc.input + "'::public." + tc.name, "CAST('" + tc.input + "' AS public." + tc.name + ")"} {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			raw := statement(t, "SELECT "+expression+" FROM public.one").(*parser.Select).Targets[0]
-			node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+			node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(expression, err)
 			}

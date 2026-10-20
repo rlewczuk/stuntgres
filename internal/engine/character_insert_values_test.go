@@ -146,7 +146,7 @@ func TestCharacterInsertCastResolvedSourceDiagnostic(t *testing.T) {
 		t.Run(tc.cast, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			raw := statement(t, "/*é🙂*/ INSERT INTO dst VALUES(CAST('a' AS "+tc.cast+"))").(*parser.Insert).Rows[0][0]
-			node, err := b.Bind(raw, expressionPolicy{Context: analyze.AssignmentContext, Expected: integer.Usage(), Mode: sqltype.Assignment})
+			node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.AssignmentContext, Expected: integer.Usage(), Mode: sqltype.Assignment})
 			if node == nil || err == nil || node.ResultUsage().Type.ID() != tc.id || node.ResultUsage().Typmod != 6 {
 				t.Fatal("resolved source lost at assignment failure", node, err)
 			}

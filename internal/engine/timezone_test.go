@@ -29,7 +29,7 @@ func TestTimezoneBoundSessionSensitiveOperations(t *testing.T) {
 		"SELECT DATE '2004-10-19' IS DISTINCT FROM TIMESTAMPTZ '2004-10-19 04:00+00' FROM t",
 	} {
 		binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{TransactionStart: clock}, nil)
-		node, err := binder.Bind(castTarget(t, query), expressionPolicy{Context: analyze.ProjectionContext})
+		node, err := binder.Bind(castTarget(t, query), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(query, err)
 		}
@@ -63,13 +63,13 @@ func TestTimezonePreparedTemporalPayloads(t *testing.T) {
 		}
 		first := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{Zone: zone, TransactionStart: time.Date(2000, 7, 1, 0, 0, 0, 0, time.UTC)}, nil)
 		raw := castTarget(t, tc.query)
-		original, err := first.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		original, err := first.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(tc, err)
 		}
 		expected := &StatementDescription{temporals: first.Prepared.Temporals}
 		second := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{TransactionStart: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)}, expected)
-		replayed, err := second.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		replayed, err := second.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(tc, err)
 		}
@@ -107,7 +107,7 @@ func TestTimezoneStrictNullAndExpressionOperands(t *testing.T) {
 	} {
 		t.Run(tc.query, func(t *testing.T) {
 			binder := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-			node, err := binder.Bind(castTarget(t, tc.query), expressionPolicy{Context: analyze.ProjectionContext})
+			node, err := binder.Bind(castTarget(t, tc.query), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -130,6 +130,6 @@ func TestTimezoneStrictNullAndExpressionOperands(t *testing.T) {
 
 func TestTimezoneCastScopeRetainsCharacterExclusion(t *testing.T) {
 	binder := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	_, err := binder.Bind(castTarget(t, "SELECT CAST(1 AS varchar(2)) FROM t"), expressionPolicy{Context: analyze.ProjectionContext})
+	_, err := binder.Bind(castTarget(t, "SELECT CAST(1 AS varchar(2)) FROM t"), analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	state(t, err, "0A000")
 }

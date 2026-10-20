@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -11,7 +12,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) stageCreateSerials(stage *CatalogStage, table *catalog.Relation, declarations []createColumnDeclaration) error {
+func (e *Engine) stageCreateSerials(stage *CatalogStage, table *catalog.Relation, declarations []analyze.ColumnDeclaration) error {
 	for slot, declaration := range declarations {
 		if !declaration.Serial {
 			continue

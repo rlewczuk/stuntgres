@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -75,7 +76,7 @@ func TestUpdateReturningPreflight(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := e.Execute(op, ast, 1, func(ctx context.Context, p ParameterInfo, dst []sqltype.Value, input sqltype.InputEnvironment) error {
+	result, err := e.Execute(op, ast, 1, func(ctx context.Context, p analyze.ParameterInfo, dst []sqltype.Value, input sqltype.InputEnvironment) error {
 		dst[0] = sqltype.String(p.Types[0].Type, "bad")
 		return nil
 	})

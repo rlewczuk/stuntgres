@@ -15,17 +15,17 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func remapRuleBinding(view catalog.Read, b binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (binding, error) {
+func remapRuleBinding(view catalog.Read, b analyze.Binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (analyze.Binding, error) {
 	typ = analyze.RecordTypeMapper(typ, collation)
 	mapper := &viewQueryRemapper{catalog: view, ref: ref, typ: typ, collation: collation}
-	mapper.mutation = func(definition *plan.CTEDefinition) (binding, error) {
+	mapper.mutation = func(definition *plan.CTEDefinition) (analyze.Binding, error) {
 		mutation, _ := analyze.MutationBinding(definition)
 		return remapRuleBindingMapped(view, *mutation, ref, typ, collation, mapper)
 	}
 	return remapRuleBindingMapped(view, b, ref, typ, collation, mapper)
 }
 
-func remapRuleBindingMapped(view catalog.Read, b binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, mapper *viewQueryRemapper) (binding, error) {
+func remapRuleBindingMapped(view catalog.Read, b analyze.Binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper, mapper *viewQueryRemapper) (analyze.Binding, error) {
 	originalRef := b.Ref
 	mapExpr := func(expr expr.Expr) (expr.Expr, error) {
 		if expr == nil {
@@ -97,8 +97,8 @@ func remapRuleBindingMapped(view catalog.Read, b binding, ref func(ids.ObjectRef
 		}
 		return usage, err
 	}
-	var mapUpdate func(*boundUpdate) (*boundUpdate, error)
-	mapUpdate = func(update *boundUpdate) (*boundUpdate, error) {
+	var mapUpdate func(*analyze.UpdateBinding) (*analyze.UpdateBinding, error)
+	mapUpdate = func(update *analyze.UpdateBinding) (*analyze.UpdateBinding, error) {
 		if update == nil {
 			return nil, nil
 		}
@@ -122,7 +122,7 @@ func remapRuleBindingMapped(view catalog.Read, b binding, ref func(ids.ObjectRef
 		}
 		return &next, nil
 	}
-	mapReturning := func(returning *boundReturning) (*boundReturning, error) {
+	mapReturning := func(returning *analyze.Returning) (*analyze.Returning, error) {
 		if returning == nil {
 			return nil, nil
 		}
@@ -371,7 +371,7 @@ func remapRuleConstraintIdentities(view catalog.Read, d *catalog.Relation, mappi
 		}
 		r.references = references
 		r.actions = slices.Clone(r.actions)
-		conflict := func(b binding) binding {
+		conflict := func(b analyze.Binding) analyze.Binding {
 			if b.Insert.Conflict != nil {
 				if address, ok := mapping[b.Insert.Conflict.Constraint]; ok && address != b.Insert.Conflict.Constraint {
 					copy := *b.Insert.Conflict
@@ -387,7 +387,7 @@ func remapRuleConstraintIdentities(view catalog.Read, d *catalog.Relation, mappi
 				continue
 			}
 			mapper := newRuleTreeMapper(view, nil, 0, nil, ruleTreeMapping{
-				mutation: func(definition *plan.CTEDefinition) (binding, error) {
+				mutation: func(definition *plan.CTEDefinition) (analyze.Binding, error) {
 					mutation, _ := analyze.MutationBinding(definition)
 					return conflict(*mutation), nil
 				},

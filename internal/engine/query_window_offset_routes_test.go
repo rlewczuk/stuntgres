@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -21,11 +22,11 @@ func TestQueryWindowOffsetNestedComparison(t *testing.T) {
 			a, b, equal := project.Expressions[0], project.Expressions[1], project.Expressions[2]
 			// Independently bound child frames may pair, but their window defaults
 			// remain semantic inputs. The child window is the only differing node.
-			if (*expressionBinder)(nil).SameSubqueryTarget(a, b) || (*expressionBinder)(nil).SameQueryTarget(a, b) {
+			if (*analyze.Binder)(nil).SameSubqueryTarget(a, b) || (*analyze.Binder)(nil).SameQueryTarget(a, b) {
 				source.Close()
 				t.Fatal("nested window defaults treated as equivalent", fn, tail)
 			}
-			if !(*expressionBinder)(nil).SameSubqueryTarget(a, equal) || !(*expressionBinder)(nil).SameQueryTarget(a, equal) {
+			if !(*analyze.Binder)(nil).SameSubqueryTarget(a, equal) || !(*analyze.Binder)(nil).SameQueryTarget(a, equal) {
 				source.Close()
 				t.Fatal("equal nested window queries lost local equivalence", fn, tail)
 			}

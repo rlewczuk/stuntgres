@@ -24,14 +24,14 @@ func intaggUnitRecipes(t *testing.T) {
 			b.Clause.AggregateClause = "SELECT"
 			syntax := statement(t, "SELECT "+call).(*parser.Select)
 			raw := syntax.Targets[0]
-			node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+			node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
 			if err := b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 				t.Fatal(err)
 			}
-			path := viewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral}
+			path := analyze.ViewLiteralPath{Query: b.FrameID(), Clause: analyze.ViewTargetLiteral}
 			name := extension.IntaggRecipeFunction(raw)
 			ref, ok := b.Capture.RoutineRefs[path]
 			if !ok || ref.Address == (ids.ObjectAddress{}) || len(b.Capture.RoutineRefs) != 1 {
@@ -49,13 +49,13 @@ func intaggUnitRecipes(t *testing.T) {
 			}
 			renderer := newViewRenderer(definition)
 			renderer.frame = b.FrameID()
-			text, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
+			text, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 			if err != nil || !strings.HasPrefix(text, `"public"."`+name+`"(`) {
 				t.Fatal("unqualified bound recipe", text, err)
 			}
 			for _, badRef := range []ids.ObjectRef{{}, New().catalog.Domain.Ref(ref.Epoch, ref.Address), ref.Domain().Ref(ref.Epoch+1, ref.Address), ref.Domain().Ref(ref.Epoch, ext.Address())} {
 				bad := *definition
-				bad.routineRefs = map[viewLiteralPath]ids.ObjectRef{path: badRef}
+				bad.routineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: badRef}
 				if err := bad.validateLiterals(e.CatalogRead()); err == nil {
 					t.Fatal("forged frozen reference accepted", badRef)
 				}
@@ -66,7 +66,7 @@ func intaggUnitRecipes(t *testing.T) {
 				t.Fatal("raw-name fallback accepted")
 			}
 			extra := *definition
-			extra.routineRefs = map[viewLiteralPath]ids.ObjectRef{path: ref, {Query: b.FrameID(), Target: 99}: ref}
+			extra.routineRefs = map[analyze.ViewLiteralPath]ids.ObjectRef{path: ref, {Query: b.FrameID(), Target: 99}: ref}
 			if err := extra.validateLiterals(e.CatalogRead()); err == nil {
 				t.Fatal("unused frozen capture accepted")
 			}

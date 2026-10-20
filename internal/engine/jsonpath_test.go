@@ -24,7 +24,7 @@ func TestJSONPathDestinationParameterInference(t *testing.T) {
 		slot   int
 		target *sqltype.Descriptor
 	}{{1, integer}, {2, d}, {2, d}} {
-		n, err := b.Bind(parser.ParameterExpr{Number: tc.slot}, expressionPolicy{Context: analyze.AssignmentContext, Expected: tc.target.Usage(), Mode: sqltype.Assignment, Column: "p"})
+		n, err := b.Bind(parser.ParameterExpr{Number: tc.slot}, analyze.ExpressionPolicy{Context: analyze.AssignmentContext, Expected: tc.target.Usage(), Mode: sqltype.Assignment, Column: "p"})
 		if err != nil || n.ResultUsage().Type != tc.target {
 			t.Fatal(n, err)
 		}
@@ -35,7 +35,7 @@ func TestJSONPathDestinationParameterInference(t *testing.T) {
 	}
 	expected := &StatementDescription{Parameters: info}
 	held := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, expected)
-	n, err := held.Bind(parser.ParameterExpr{Number: 2}, expressionPolicy{Context: analyze.AssignmentContext, Expected: d.Usage(), Mode: sqltype.Assignment, Column: "p"})
+	n, err := held.Bind(parser.ParameterExpr{Number: 2}, analyze.ExpressionPolicy{Context: analyze.AssignmentContext, Expected: d.Usage(), Mode: sqltype.Assignment, Column: "p"})
 	if err != nil || n.ResultUsage().Type.ID() != 4072 {
 		t.Fatal("retained input contract", n, err)
 	}
@@ -45,7 +45,7 @@ func TestJSONPathDestinationParameterInference(t *testing.T) {
 		slot   int
 		target *sqltype.Descriptor
 	}{{1, d}, {2, integer}} {
-		if _, err := update.Bind(parser.ParameterExpr{Number: tc.slot}, expressionPolicy{Context: analyze.AssignmentContext, Expected: tc.target.Usage(), Mode: sqltype.Assignment, Column: "p"}); err != nil {
+		if _, err := update.Bind(parser.ParameterExpr{Number: tc.slot}, analyze.ExpressionPolicy{Context: analyze.AssignmentContext, Expected: tc.target.Usage(), Mode: sqltype.Assignment, Column: "p"}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -55,7 +55,7 @@ func TestJSONPathDestinationParameterInference(t *testing.T) {
 	}
 	cast := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	raw := parser.CastExpr{Child: parser.ParameterExpr{Number: 1}, TypeName: parser.TypeName{Name: "jsonpath"}, Syntax: parser.StandardCast}
-	node, err := cast.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+	node, err := cast.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil || node.ResultUsage().Type.ID() != 4072 {
 		t.Fatal(node, err)
 	}

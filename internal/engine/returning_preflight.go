@@ -1,11 +1,12 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 )
 
-func preflightReturning(c *exec.Context, output *boundReturning) (*boundReturning, error) {
+func preflightReturning(c *exec.Context, output *analyze.Returning) (*analyze.Returning, error) {
 	var expressions []expr.Expr
 	for i, bound := range output.Expressions {
 		// Plan genuine SQL constants before importing frame coercions and before

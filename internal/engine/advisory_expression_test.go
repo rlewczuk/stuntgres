@@ -34,7 +34,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			t.Run(name+"/"+arguments, func(t *testing.T) {
 				b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 				raw := statement(t, "SELECT "+name+"("+arguments+")").(*parser.Select).Targets[0]
-				bound, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+				bound, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -64,7 +64,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 					t.Fatal("symbolic tree", tree.String(), err)
 				}
 				reparsed := statement(t, "SELECT "+text).(*parser.Select).Targets[0]
-				rebound, err := b.Bind(reparsed, expressionPolicy{Context: analyze.ProjectionContext})
+				rebound, err := b.Bind(reparsed, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 				if err != nil || rebound.ResultUsage() != node.ResultUsage() || rebound.Properties().Volatility != expr.Volatile {
 					t.Fatal("deparse rebinding", rebound, err)
 				}
@@ -79,7 +79,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 	t.Run("inference widening and diagnostics", func(t *testing.T) {
 		for _, query := range []string{"SELECT pg_advisory_lock(1::smallint)", "SELECT pg_advisory_lock(1::integer)", "SELECT pg_advisory_lock('1')", "SELECT pg_advisory_lock($1)", "SELECT pg_advisory_lock(1::smallint,2)", "SELECT pg_advisory_lock('1','2')", "SELECT pg_advisory_lock($1,$2)"} {
 			b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-			bound, err := b.Bind(statement(t, query).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+			bound, err := b.Bind(statement(t, query).(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(query, err)
 			}
@@ -105,12 +105,12 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			{"SELECT pg_advisory_lock(" + strings.Repeat("1,", 100) + "1)", "54023", "cannot pass more than 100 arguments to a function", ""},
 		} {
 			b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-			_, err := b.Bind(statement(t, tc.query).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+			_, err := b.Bind(statement(t, tc.query).(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: tc.code, Message: tc.message, Hint: tc.hint, Position: "8"})
 		}
 		query := "SELECT pg_advisory_lock(" + strings.Repeat("1,", 100) + "missing_advisory_child)"
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-		_, err := b.Bind(statement(t, query).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+		_, err := b.Bind(statement(t, query).(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != "42703" || d.Message != "column \"missing_advisory_child\" does not exist" {
 			t.Fatal("child error must precede arity limit", err)
@@ -119,7 +119,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 	t.Run("strict folding and runtime sibling demand", func(t *testing.T) {
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, "SELECT pg_advisory_lock(NULL,CASE WHEN pg_try_advisory_lock(12) THEN 1 ELSE 0 END)").(*parser.Select).Targets[0]
-		bound, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		bound, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -139,11 +139,11 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 				t.Fatal("typed NULL VOID", v, err)
 			}
 		}
-		_, err = b.Bind(statement(t, "SELECT pg_advisory_lock(NULL,'bad'::integer)").(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+		_, err = b.Bind(statement(t, "SELECT pg_advisory_lock(NULL,'bad'::integer)").(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "22P02", Message: "invalid input syntax for type integer: \"bad\"", Position: "30"})
 		// Literal casts cook during binding. Separately supply an actual deferred
 		// coercion plan to exercise demanded simplification in both walkers.
-		bound, err = b.Bind(statement(t, "SELECT pg_advisory_lock(NULL,1)").(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+		bound, err = b.Bind(statement(t, "SELECT pg_advisory_lock(NULL,1)").(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -168,7 +168,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 	})
 	t.Run("lexical group aggregate remap and retained descriptors", func(t *testing.T) {
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-		bound, err := b.Bind(statement(t, "SELECT pg_try_advisory_lock(1,2)").(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+		bound, err := b.Bind(statement(t, "SELECT pg_try_advisory_lock(1,2)").(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -230,7 +230,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		owner := view.MustRelation(ref.Address)
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, "SELECT pg_try_advisory_lock(1,2)").(*parser.Select).Targets[0]
-		bound, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		bound, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -268,7 +268,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			t.Fatal(err)
 		}
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-		bound, err := b.Bind(rawStatement.(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+		bound, err := b.Bind(rawStatement.(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			_ = scope.Finish(err)
 			op.Done()
@@ -292,7 +292,7 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	bind := func(text string) expr.Expr {
 		t.Helper()
-		node, err := b.Bind(statement(t, "SELECT "+text).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+		node, err := b.Bind(statement(t, "SELECT "+text).(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -371,7 +371,7 @@ func TestAdvisorySessionCheckPrepareAllBeforeEvaluation(t *testing.T) {
 	var nodes [2]expr.Expr
 	for i, text := range []string{"pg_try_advisory_lock(3205)", "pg_try_advisory_lock(NULL::integer,1/0)"} {
 		var err error
-		nodes[i], err = b.Bind(statement(t, "SELECT "+text).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+		nodes[i], err = b.Bind(statement(t, "SELECT "+text).(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal("immutable CHECK child must remain analyzed until execution preparation", err)
 		}

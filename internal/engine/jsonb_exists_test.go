@@ -24,7 +24,7 @@ func TestJSONBExistsBinding(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 			pos := parser.Position{Offset: 10, Character: 11}
 			raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name, Pos: pos}}}, Pos: pos, Args: []parser.Expr{parser.ParameterExpr{Number: 1, Pos: pos}, parser.ParameterExpr{Number: 2, Pos: pos}}}
-			bound, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+			bound, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if name == "?|" {
 				d, ok := err.(*sqlstate.Error)
 				if !ok || d.Code != "42725" || d.Position != "11" || d.Message != "operator is not unique: unknown ?| unknown" || bound != nil {
@@ -118,7 +118,7 @@ func TestJSONBExistsOneSidedInference(t *testing.T) {
 		}
 		args[side] = parser.CastExpr{Child: args[side], TypeName: typeName, Syntax: parser.PostfixCast, Pos: pos}
 		raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "?|", Pos: pos}}}, Args: args, Pos: pos}
-		bound, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		bound, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil || bound == nil || b.Params.Parameters[1].Type.ID() != sqltype.JSONB || b.Params.Parameters[2].Type.ID() != 1009 {
 			t.Fatal(side, bound, err, b.Params.Parameters)
 		}

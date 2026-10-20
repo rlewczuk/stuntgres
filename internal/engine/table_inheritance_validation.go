@@ -17,7 +17,7 @@ func sameInheritedExpression(mapped, child expr.Expr, d *catalog.Relation, v cat
 	if analyze.SameGroupExpression(mapped, child) {
 		return true
 	}
-	identity := createLikeInput{Source: d}
+	identity := analyze.LikeInput{Source: d}
 	current, err := remapLikeExpression(&identity, child, d, v)
 	return err == nil && analyze.SameGroupExpression(mapped, current)
 }
@@ -73,7 +73,7 @@ func validateInheritance(v catalog.Read, d *catalog.Relation) error {
 	}
 	for _, parentAddress := range graph.Parents {
 		parent := v.MustRelation(parentAddress)
-		mapper := createLikeInput{Source: parent, TargetSlots: make([]int, len(parent.Columns))}
+		mapper := analyze.LikeInput{Source: parent, TargetSlots: make([]int, len(parent.Columns))}
 		for i, column := range parent.Columns {
 			target, exists := d.Index[column.Name]
 			if !exists || target < 0 || target >= len(d.Attributes) {
@@ -164,7 +164,7 @@ func validateInheritance(v catalog.Read, d *catalog.Relation) error {
 			if source < 0 {
 				return invalid()
 			}
-			mapper := createLikeInput{Source: parent, TargetSlots: make([]int, len(parent.Columns))}
+			mapper := analyze.LikeInput{Source: parent, TargetSlots: make([]int, len(parent.Columns))}
 			for i, c := range parent.Columns {
 				mapper.TargetSlots[i] = d.Index[c.Name]
 			}

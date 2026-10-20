@@ -17,7 +17,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) bindCreateGenerations(op *Operation, auth AuthorizationView, d *catalog.Relation, declarations []createColumnDeclaration, input sqltype.InputEnvironment) error {
+func (e *Engine) bindCreateGenerations(op *Operation, auth AuthorizationView, d *catalog.Relation, declarations []analyze.ColumnDeclaration, input sqltype.InputEnvironment) error {
 	for slot, declaration := range declarations {
 		if declaration.Generation != nil {
 			if d.ColumnMeta.Generations == nil {
@@ -47,18 +47,18 @@ func (e *Engine) bindCreateGenerations(op *Operation, auth AuthorizationView, d 
 	return nil
 }
 
-func (e *Engine) generationNamespace(auth AuthorizationView, d *catalog.Relation) queryNamespace {
+func (e *Engine) generationNamespace(auth AuthorizationView, d *catalog.Relation) analyze.QueryNamespace {
 	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
-	columns := make([]queryColumn, len(d.Columns))
+	columns := make([]analyze.QueryColumn, len(d.Columns))
 	for i, c := range d.Columns {
-		columns[i] = queryColumn{Descriptor: c, Slot: i, Leaf: 0, Physical: i}
+		columns[i] = analyze.QueryColumn{Descriptor: c, Slot: i, Leaf: 0, Physical: i}
 	}
-	qualifier := queryQualifier{Name: d.Name(), Original: d.Name(), Schema: auth.Catalog.Get(d.Namespace()).Name(), Ref: ref, Columns: columns}
-	return queryNamespace{Columns: columns, Qualifiers: []queryQualifier{qualifier}, Frame: d.Columns}
+	qualifier := analyze.QueryQualifier{Name: d.Name(), Original: d.Name(), Schema: auth.Catalog.Get(d.Namespace()).Name(), Ref: ref, Columns: columns}
+	return analyze.QueryNamespace{Columns: columns, Qualifiers: []analyze.QueryQualifier{qualifier}, Frame: d.Columns}
 }
 
 // CREATE and ALTER share binding, security, coercion and provider capture.
-func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalog.Relation, slot int, expression parser.Expr, input sqltype.InputEnvironment, ns *queryNamespace) (catalog.ColumnGeneration, error) {
+func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalog.Relation, slot int, expression parser.Expr, input sqltype.InputEnvironment, ns *analyze.QueryNamespace) (catalog.ColumnGeneration, error) {
 	b := newExpressionBinder(op.Context(), e, input, op, nil)
 	b.Target.GeneratedOwner = d
 	b.Params.NoParameters = true
@@ -73,7 +73,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 			return catalog.ColumnGeneration{}, err
 		}
 	}
-	node, err := b.Bind(expression, expressionPolicy{Context: analyze.ProjectionContext, Expected: column.Usage.Type.Usage()})
+	node, err := b.Bind(expression, analyze.ExpressionPolicy{Context: analyze.ProjectionContext, Expected: column.Usage.Type.Usage()})
 	if err != nil {
 		return catalog.ColumnGeneration{}, err
 	}

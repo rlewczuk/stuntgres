@@ -23,7 +23,7 @@ func TestBooleanCallPredicateBinding(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			call := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name, Pos: pos}}}, Args: []parser.Expr{parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 40}}}, Pos: pos}
 			raw := parser.LogicalExpr{Op: op, Left: parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: op == parser.LogicalOr}}, Right: call}
-			node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+			node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(name, err)
 			}
@@ -82,7 +82,7 @@ func TestBooleanCallPredicateSetRejection(t *testing.T) {
 		}
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		b.Clause.AggregateClause = "SELECT"
-		node, err := b.Bind(call, expressionPolicy{Context: analyze.ProjectionContext})
+		node, err := b.Bind(call, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil || !exec.SourceReturnsSet(node) {
 			t.Fatal("standalone set projection changed", node, err)
 		}

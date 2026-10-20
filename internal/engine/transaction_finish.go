@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
@@ -279,7 +280,7 @@ func (s *StatementScope) Finish(err error) error {
 	s.ticket = nil
 	s.viewCreationSlot.endStatement()
 	s.querySources = nil
-	s.queryLockAdmission = queryLockAdmission{}
+	s.queryLockAdmission = analyze.LockAdmission{}
 	s.queryLocks = nil
 	s.statementMutation = statementMutation{}
 	s.mutations = nil

@@ -133,7 +133,7 @@ func TestNumericSeriesExpressionHooks(t *testing.T) {
 	}
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	b.Clause.AggregateClause = "SELECT"
-	rebound, err := b.Bind(statements[0].(*parser.Select).Targets[0], expressionPolicy{Context: analyze.FunctionArgumentContext, Expected: b.Type(sqltype.Numeric).Usage()})
+	rebound, err := b.Bind(statements[0].(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.FunctionArgumentContext, Expected: b.Type(sqltype.Numeric).Usage()})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -11,7 +12,7 @@ import (
 
 // The named cursor owns its retained execution. Mutations borrow only a physical
 // occurrence and then remap its stable RowID into their fresh command view.
-func (s *StatementScope) positionedMutationRow(b binding) (mutationRowIdentity, error) {
+func (s *StatementScope) positionedMutationRow(b analyze.Binding) (mutationRowIdentity, error) {
 	c := s.op.session.cursors.entries[b.CurrentOf]
 	if c == nil || (!c.promoted && c.tx != s.txRef) {
 		return mutationRowIdentity{}, missingSQLCursor(b.CurrentOf)

@@ -130,7 +130,7 @@ func (e *Engine) rowSecurityInputLocked(scope *StatementScope, d *catalog.Relati
 
 // rowSecurityLayers collects the owner and security_invoker flag of each
 // view layer of an auto-updatable view write, outermost first.
-func rowSecurityLayers(view catalog.Read, b binding) []access.RowSecurityLayer {
+func rowSecurityLayers(view catalog.Read, b analyze.Binding) []access.RowSecurityLayer {
 	if b.ViewWrite == nil {
 		return nil
 	}
@@ -142,7 +142,7 @@ func rowSecurityLayers(view catalog.Read, b binding) []access.RowSecurityLayer {
 	return layers
 }
 
-func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b binding, stmt parser.Statement) error {
+func (e *Engine) configureRowSecurityLocked(scope *StatementScope, b analyze.Binding, stmt parser.Statement) error {
 	scope.rlsTargetDenied = false
 	scope.rlsProposal, scope.rlsMergeInsert, scope.rlsMergeUpdate = access.RLSUnrestricted, access.RLSUnrestricted, access.RLSUnrestricted
 	if b.Relation == nil {

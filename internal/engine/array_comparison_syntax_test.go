@@ -2,6 +2,7 @@ package engine
 
 import (
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -15,8 +16,8 @@ func TestArrayCompareVisitorsStoredSyntax(t *testing.T) {
 		Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "="}}},
 		Args: []parser.Expr{left, item}, Pos: position,
 	}
-	b := &expressionBinder{
-		Stored: storedSyntaxState{Syntax: map[storedExpressionSyntaxKey]parser.Expr{
+	b := &analyze.Binder{
+		Stored: analyze.StoredSyntaxState{Syntax: map[analyze.StoredExpressionSyntaxKey]parser.Expr{
 			{Frame: 1, Position: position}: lowered,
 		}},
 	}
@@ -53,7 +54,7 @@ func TestArrayCompareVisitorsStoredSyntax(t *testing.T) {
 	if again, changed := b.NormalizeInListExpression(call); changed || !reflect.DeepEqual(again, call) {
 		t.Fatal("canonical syntax was not stable", changed)
 	}
-	if _, changed := (&expressionBinder{}).NormalizeInListExpression(raw); changed {
+	if _, changed := (&analyze.Binder{}).NormalizeInListExpression(raw); changed {
 		t.Fatal("missing analysis template changed syntax")
 	}
 

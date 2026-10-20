@@ -18,14 +18,14 @@ import (
 func TestCompositeAlterFunctionalRetainedFields(t *testing.T) {
 	e, source, _ := typedUnitCatalog(t, false)
 	original, _ := e.CatalogRead().LookupType(source.RowType)
-	key := preparedCompositeKey{Kind: analyze.CompositeSelection}
-	capture := compositeOccurrence{Kind: analyze.CompositeSelection, Base: original.Usage(), Attributes: []int32{source.Attributes[1]}}
+	key := analyze.PreparedCompositeKey{Kind: analyze.CompositeSelection}
+	capture := analyze.CompositeOccurrence{Kind: analyze.CompositeSelection, Base: original.Usage(), Attributes: []int32{source.Attributes[1]}}
 	for _, members := range [][]sqltype.CompositeMember{{original.CompositeMember(0)}, {}, {{Attribute: 9, Name: "note", Usage: testUsage(e, sqltype.Text)}}} {
 		current, err := sqltype.Composite(original.ID(), original.Name(), original.SQLName(), original.AssociatedArray(), members)
 		if err != nil {
 			t.Fatal(err)
 		}
-		binder := expressionBinder{Host: e.analysisHost(nil)}
+		binder := analyze.Binder{Host: e.analysisHost(nil)}
 		base := plan.LiteralExpr{Info: expr.Info{Usage: current.Usage()}, Value: sqltype.Null(current)}
 		node := binder.RetainedCompositeField(base, key, capture, parser.Position{})
 		literal, ok := node.(plan.LiteralExpr)
@@ -37,7 +37,7 @@ func TestCompositeAlterFunctionalRetainedFields(t *testing.T) {
 			t.Fatal("original capture overwritten")
 		}
 	}
-	binder := expressionBinder{Host: e.analysisHost(nil)}
+	binder := analyze.Binder{Host: e.analysisHost(nil)}
 	base := plan.LiteralExpr{Info: expr.Info{Usage: original.Usage()}, Value: sqltype.Null(original)}
 	if field, ok := binder.RetainedCompositeField(base, key, capture, parser.Position{}).(plan.FieldExpr); !ok || field.Attribute != source.Attributes[1] {
 		t.Fatal("live identity lost")

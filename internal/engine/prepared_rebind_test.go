@@ -243,7 +243,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 		}
 		defer done()
 		ast := statement(t, "SELECT 'q'::mood,'(q,now)'::mixed_capture,'{now}'::timestamp[],TIMESTAMP 'now'")
-		bind := func(input sqltype.InputEnvironment, expected *StatementDescription) binding {
+		bind := func(input sqltype.InputEnvironment, expected *StatementDescription) analyze.Binding {
 			t.Helper()
 			engine.mu.Lock()
 			defer engine.mu.Unlock()
@@ -262,7 +262,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 			t.Fatal("missing logical and genuine temporal captures", first.Prepared.Temporals)
 		}
 		description := StatementDescription{Parameters: first.Parameters, Results: first.Query.Root.Schema(), temporals: first.Prepared.Temporals, catalogOwner: engine.catalog.owner(), catalogEpoch: engine.CatalogRead().Epoch()}
-		frozen := append([]temporalConstant(nil), first.Prepared.Temporals...)
+		frozen := append([]analyze.TemporalConstant(nil), first.Prepared.Temporals...)
 		run(t, engine, "ALTER TYPE mood RENAME VALUE 'q' TO 'end'")
 		description.refreshTemporals = true
 		fresh := bind(sqltype.InputEnvironment{TransactionStart: time.Date(2004, 8, 8, 12, 13, 14, 0, time.UTC)}, &description)
@@ -369,7 +369,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 	}
 	scope.Expected = &parameterDescription
 	importFailure := errors.New("unit importer failure")
-	_, err = scope.Execute(parameterAST, 1, func(context.Context, ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error {
+	_, err = scope.Execute(parameterAST, 1, func(context.Context, analyze.ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error {
 		return importFailure
 	})
 	err = scope.Finish(err)

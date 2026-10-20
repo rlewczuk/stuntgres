@@ -418,7 +418,7 @@ type viewQueryRemapper struct {
 	catalog        catalog.Read
 	referencesOnly bool
 	ctes           map[*plan.CTEDefinition]*plan.CTEDefinition
-	mutation       func(*plan.CTEDefinition) (binding, error)
+	mutation       func(*plan.CTEDefinition) (analyze.Binding, error)
 }
 
 func (m *viewQueryRemapper) nested(node plan.Node) (plan.Node, error) {

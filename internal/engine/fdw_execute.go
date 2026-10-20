@@ -149,7 +149,7 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 	return s.executeForeignRowMutation(m, b, state, &evaluation)
 }
 
-func (s *StatementScope) foreignInsertResult(m *foreignModification, b binding, rows [][]sqltype.Value, evaluation *exec.Context) (Result, error) {
+func (s *StatementScope) foreignInsertResult(m *foreignModification, b analyze.Binding, rows [][]sqltype.Value, evaluation *exec.Context) (Result, error) {
 	var output *exec.FinalRows
 	if b.Returning != nil {
 		output = exec.NewFinalRows(b.Returning.Schema, 0)
@@ -170,7 +170,7 @@ func (s *StatementScope) foreignInsertResult(m *foreignModification, b binding, 
 	}
 	return s.finishForeignResult(b, output, count)
 }
-func projectForeignReturning(b binding, output *exec.FinalRows, row, old []sqltype.Value, evaluation *exec.Context) error {
+func projectForeignReturning(b analyze.Binding, output *exec.FinalRows, row, old []sqltype.Value, evaluation *exec.Context) error {
 	if output == nil {
 		return nil
 	}
@@ -196,7 +196,7 @@ func projectForeignReturning(b binding, output *exec.FinalRows, row, old []sqlty
 	output.Count++
 	return nil
 }
-func (s *StatementScope) finishForeignResult(b binding, output *exec.FinalRows, count int64) (Result, error) {
+func (s *StatementScope) finishForeignResult(b analyze.Binding, output *exec.FinalRows, count int64) (Result, error) {
 	if output != nil && b.Returning.RegclassOutput && count != 0 {
 		if err := s.op.session.Engine().captureRegclassOutput(s.op, output); err != nil {
 			output.Close()
@@ -287,7 +287,7 @@ func foreignIdentityEqual(a, b catalog.ForeignRowIdentity) bool {
 	}
 	return true
 }
-func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b binding, state *exec.State, evaluation *exec.Context) (Result, error) {
+func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b analyze.Binding, state *exec.State, evaluation *exec.Context) (Result, error) {
 	ctx := s.op.Context()
 	rows, err := m.targetRows(ctx, s)
 	if err != nil {

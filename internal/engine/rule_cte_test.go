@@ -47,7 +47,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		action := ruleUnitInsert(e, sink, 1, 11)
 		src.Rules = rulesPayloadOf([]ruleDefinition{{Name: "redirect", event: "INSERT", instead: true, actions: []ruleAction{action}}})
 		defer func() { src.Rules = nil }()
-		parent := binding{CTEs: []*plan.CTEDefinition{definition}}
+		parent := analyze.Binding{CTEs: []*plan.CTEDefinition{definition}}
 		e.mu.Lock()
 		err := e.normalizeRuleCTEsLocked(nil, auth, &parser.Select{}, &parent)
 		e.mu.Unlock()
@@ -82,7 +82,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		provider := &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Frame: 2, Child: leaf, Expressions: []expr.Expr{ruleUnitInt(sink, 1), ruleUnitInt(sink, 11)}}}
 		local := &plan.CTEDefinition{Query: provider, Owner: 1}
 		scan := &plan.DerivedNode{QuerySchema: plan.QuerySchema(sink.Columns), Query: provider, CTE: local, ScanFrame: 1}
-		action := binding{CTEs: []*plan.CTEDefinition{local}, Query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Frame: 1, Child: scan, Expressions: provider.Root.(*plan.ProjectNode).Expressions, AnalysisExpressions: []expr.Expr{plan.SubqueryExpr{QueryPlan: provider, CTEEdge: true}}}}}
+		action := analyze.Binding{CTEs: []*plan.CTEDefinition{local}, Query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Frame: 1, Child: scan, Expressions: provider.Root.(*plan.ProjectNode).Expressions, AnalysisExpressions: []expr.Expr{plan.SubqueryExpr{QueryPlan: provider, CTEEdge: true}}}}}
 		parent := original.binding
 		parent.CTEs = []*plan.CTEDefinition{definition}
 		mapped, err := isolateRuleCTEFrames(auth.Catalog, parent, action, &parser.Insert{})
@@ -122,7 +122,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		oldColumn.Frame = 1
 		provider := &plan.Query{Root: &plan.ProjectNode{Expressions: []expr.Expr{newColumn, oldColumn}}}
 		local := &plan.CTEDefinition{Query: provider, Position: position}
-		body := binding{CTEs: []*plan.CTEDefinition{local}, Query: &plan.Query{Root: &plan.ProjectNode{AnalysisExpressions: []expr.Expr{plan.SubqueryExpr{Info: expr.Info{Pos: position}, QueryPlan: provider, CTEEdge: true}}}}}
+		body := analyze.Binding{CTEs: []*plan.CTEDefinition{local}, Query: &plan.Query{Root: &plan.ProjectNode{AnalysisExpressions: []expr.Expr{plan.SubqueryExpr{Info: expr.Info{Pos: position}, QueryPlan: provider, CTEEdge: true}}}}}
 		for _, action := range []parser.Statement{
 			&parser.Insert{With: []parser.CommonTableExpression{raw}},
 			&parser.Insert{Source: &parser.InsertSource{Select: &parser.Select{With: []parser.CommonTableExpression{raw}}}},
@@ -213,7 +213,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 	modifier := ruleUnitInsert(e, sink, 1, 10)
 	recipe := &analyze.InsertConflict{
 		Targets: modifier.binding.Targets, Keys: []analyze.ConflictKey{{Attribute: 1}},
-		Update:        &boundUpdate{Assignments: []expr.Expr{ruleUnitInt(sink, 11)}},
+		Update:        &analyze.UpdateBinding{Assignments: []expr.Expr{ruleUnitInt(sink, 11)}},
 		UpdateTargets: []int{1}, Width: 2,
 	}
 	modifier.binding.Insert.Conflict = recipe
@@ -227,7 +227,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 	}}
 	action.binding.CTEs = []*plan.CTEDefinition{definition}
 	action.binding.Rule.Template = true
-	compose := func() binding {
+	compose := func() analyze.Binding {
 		t.Helper()
 		result, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, action)
 		if err != nil {
@@ -241,7 +241,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 		}
 		return result
 	}
-	executable := func(b binding) (*plan.CTEDefinition, *analyze.InsertConflict) {
+	executable := func(b analyze.Binding) (*plan.CTEDefinition, *analyze.InsertConflict) {
 		t.Helper()
 		provider := b.CTEs[0]
 		tuple := ruleCTEsOf(b.Rule.CTEs)[provider]
@@ -297,7 +297,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 	nested := modifier.binding
 	nested.CTEs = []*plan.CTEDefinition{definition}
 	ancestor := &plan.CTEDefinition{Statement: modifier.syntax, Mutation: &nested, Schema: definition.Schema, Owner: 4}
-	refreshed, err := refreshRuleActionCTEs(auth, binding{CTEs: []*plan.CTEDefinition{ancestor}})
+	refreshed, err := refreshRuleActionCTEs(auth, analyze.Binding{CTEs: []*plan.CTEDefinition{ancestor}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -317,7 +317,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 }
 
 // cteMutationOf recovers a definition's binding for test assertions.
-func cteMutationOf(definition *plan.CTEDefinition) *binding {
+func cteMutationOf(definition *plan.CTEDefinition) *analyze.Binding {
 	mutation, _ := analyze.MutationBinding(definition)
 	return mutation
 }

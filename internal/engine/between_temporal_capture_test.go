@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -43,7 +44,7 @@ func TestBetweenMixedTemporalCaptureIdentity(t *testing.T) {
 			t.Fatal("mixed temporal dependencies changed", bound.QuerySources, bound.Parameters)
 		}
 		desc := StatementDescription{temporals: bound.Prepared.Temporals}
-		before := append([]temporalConstant(nil), desc.temporals...)
+		before := append([]analyze.TemporalConstant(nil), desc.temporals...)
 		counts := map[sqltype.ID]int{}
 		for _, capture := range before {
 			if capture.Offset != 7 || capture.Typmod != -1 {
@@ -86,7 +87,7 @@ func TestBetweenMixedTemporalCaptureIdentity(t *testing.T) {
 
 func TestBetweenTemporalCaptureContextKey(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
-	captures := []temporalConstant{
+	captures := []analyze.TemporalConstant{
 		{Offset: 7, TypeID: sqltype.Date, Typmod: -1, Scalar: 1},
 		{Offset: 7, TypeID: sqltype.Timestamp, Typmod: -1, Scalar: 86400000000},
 		{Offset: 7, TypeID: sqltype.Timestamp, Typmod: 3, Scalar: 86400123000},
@@ -95,7 +96,7 @@ func TestBetweenTemporalCaptureContextKey(t *testing.T) {
 	}
 	desc := StatementDescription{temporals: captures}
 	b.Expected = expectedOf(&desc)
-	before := append([]temporalConstant(nil), captures...)
+	before := append([]analyze.TemporalConstant(nil), captures...)
 	for _, expected := range captures {
 		usage := b.Type(expected.TypeID).Usage()
 		usage.Typmod = expected.Typmod
@@ -136,7 +137,7 @@ func TestBetweenTemporalCaptureContextKey(t *testing.T) {
 	if !reflect.DeepEqual(before, desc.temporals) || len(b.Prepared.Temporals) != 0 {
 		t.Fatal("capture contract mutated", desc.temporals, b.Prepared.Temporals)
 	}
-	b.Expected = expectedOf(&StatementDescription{temporals: []temporalConstant{captures[2], captures[4]}})
+	b.Expected = expectedOf(&StatementDescription{temporals: []analyze.TemporalConstant{captures[2], captures[4]}})
 	if got, found, err := b.CaptureAt(7); err != nil || !found || got != captures[2] {
 		t.Fatal("uniform frozen metadata rejected", got, found, err)
 	}

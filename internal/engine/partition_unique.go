@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
@@ -83,7 +84,7 @@ func partitionUniqueCoverage(table *catalog.Relation, index *catalog.IndexDefini
 // Mapping uses the same cooked-expression path as LIKE; inherited providers are
 // never resolved again by name. Sort presentation is not attachment identity.
 func mapPartitionIndex(ctx context.Context, view catalog.Read, source, child *catalog.Relation, old *catalog.IndexDefinition) (*catalog.IndexDefinition, error) {
-	in := createLikeInput{Source: source, TargetSlots: make([]int, len(source.Columns))}
+	in := analyze.LikeInput{Source: source, TargetSlots: make([]int, len(source.Columns))}
 	for i, column := range source.Columns {
 		slot, ok := child.Index[column.Name]
 		if !ok {

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -23,7 +24,7 @@ func settingColumns(typ *sqltype.Descriptor, names ...string) []catalog.Column {
 
 // describeSettingCall uses the same inference and literal binding as relations.
 type settingCallBinding struct {
-	parameters   ParameterInfo
+	parameters   analyze.ParameterInfo
 	arguments    []expr.Expr
 	routine      ids.ObjectRef
 	dependencies []catalog.ExpressionDependency

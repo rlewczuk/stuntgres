@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/visibility"
@@ -14,7 +15,7 @@ import (
 
 // Reuse the real binder, admission and view; only the existing evaluator seam
 // is replaced when a test must observe construction between two row payloads.
-func updateBoundSource(t *testing.T, e *Engine, s *Session, ctx context.Context, q string) (*Operation, *StatementScope, binding, *exec.Source) {
+func updateBoundSource(t *testing.T, e *Engine, s *Session, ctx context.Context, q string) (*Operation, *StatementScope, analyze.Binding, *exec.Source) {
 	t.Helper()
 	op, err := s.Acquire(ctx)
 	if err != nil {
@@ -35,7 +36,7 @@ func updateBoundSource(t *testing.T, e *Engine, s *Session, ctx context.Context,
 	}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
-	var b binding
+	var b analyze.Binding
 	var view *visibility.View
 	if err == nil {
 		b, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)

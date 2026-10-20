@@ -30,13 +30,13 @@ func routineNamespaceVisible(view catalog.Read, namespace ids.ObjectAddress) boo
 
 // Exact signatures use both existing catalog NameKeys and the immutable release
 // signature index. The first candidate masks all later identical signatures.
-func selectExactRoutine(view catalog.Read, path namespaceSelection, name string, signature catalog.ProcedureSignature) (catalog.RoutineIdentity, int) {
+func selectExactRoutine(view catalog.Read, path analyze.NamespaceSelection, name string, signature catalog.ProcedureSignature) (catalog.RoutineIdentity, int) {
 	for i := range path.Count() {
 		namespace := path.At(i)
 		if !routineNamespaceVisible(view, namespace) {
 			continue
 		}
-		if p := analyze.ProcedureInNamespaces(view, namespaceSelection{Qualified: namespace}, name, signature); p != nil {
+		if p := analyze.ProcedureInNamespaces(view, analyze.NamespaceSelection{Qualified: namespace}, name, signature); p != nil {
 			return catalog.RoutineIdentity{p.Address().ObjectID, p.Namespace().ObjectID, p.Name(), p.Signature}, 1
 		}
 		for _, d := range view.Descriptors() {
@@ -59,7 +59,7 @@ func selectExactRoutine(view catalog.Read, path namespaceSelection, name string,
 
 // Earlier schemas mask only identical signatures, not every same-named routine.
 // Bare-name selection stops after two candidates, the regproc ambiguity boundary.
-func selectRoutine(view catalog.Read, path namespaceSelection, name string, signature *catalog.ProcedureSignature) (catalog.RoutineIdentity, int) {
+func selectRoutine(view catalog.Read, path analyze.NamespaceSelection, name string, signature *catalog.ProcedureSignature) (catalog.RoutineIdentity, int) {
 	if signature != nil {
 		return selectExactRoutine(view, path, name, *signature)
 	}

@@ -77,7 +77,7 @@ func TestQueryWindowValueGraphAndMetadata(t *testing.T) {
 	if len(node.Calls) != 3 || node.Calls[1].Ordinal == nil || node.Calls[2].Ordinal == nil {
 		t.Fatal("value/ordinal identity", node.Calls)
 	}
-	binder := &expressionBinder{}
+	binder := &analyze.Binder{}
 	if binder.SameWindowCall(node.Calls[1], node.Calls[2]) {
 		t.Fatal("different ordinals collapsed")
 	}
@@ -125,18 +125,18 @@ func TestQueryWindowValueBindingUnwind(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 			b.Clause.AggregateClause, b.Query.Frame = "SELECT", 1
 			seed := statement(t, "SELECT row_number() OVER()").(*parser.Select).Targets[0]
-			if _, err := b.Bind(seed, expressionPolicy{Context: analyze.ProjectionContext}); err != nil {
+			if _, err := b.Bind(seed, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 				t.Fatal(err)
 			}
 			before := b.Grouping.WindowCalls[:len(b.Grouping.WindowCalls):len(b.Grouping.WindowCalls)]
 			b.Grouping.WindowCalls = before
 			values := append([]plan.WindowCall(nil), before...)
-			_, err := b.Bind(statement(t, tc.q).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+			_, err := b.Bind(statement(t, tc.q).(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			var d *sqlstate.Error
 			if !errors.As(err, &d) || d.Code != tc.code {
 				t.Fatal(err)
 			}
-			if len(b.Grouping.WindowCalls) != len(before) || cap(b.Grouping.WindowCalls) != cap(before) || &b.Grouping.WindowCalls[0] != &before[0] || !reflect.DeepEqual(values, b.Grouping.WindowCalls) || b.Grouping.ArgumentOwner != (argumentWindowOwner{}) {
+			if len(b.Grouping.WindowCalls) != len(before) || cap(b.Grouping.WindowCalls) != cap(before) || &b.Grouping.WindowCalls[0] != &before[0] || !reflect.DeepEqual(values, b.Grouping.WindowCalls) || b.Grouping.ArgumentOwner != (analyze.ArgumentWindowOwner{}) {
 				t.Fatal("failed call changed registration/owner", b.Grouping.WindowCalls, b.Grouping.ArgumentOwner)
 			}
 		})

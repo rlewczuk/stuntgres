@@ -43,7 +43,7 @@ func strictNullUnitFixture(t *testing.T) (*Engine, *Operation, *StatementScope) 
 	return e, op, scope
 }
 
-func strictNullUnitBind(t *testing.T, e *Engine, op *Operation, scope *StatementScope, text string) (expr.Expr, *expressionBinder, exec.Context) {
+func strictNullUnitBind(t *testing.T, e *Engine, op *Operation, scope *StatementScope, text string) (expr.Expr, *analyze.Binder, exec.Context) {
 	t.Helper()
 	raw := statement(t, "SELECT "+text).(*parser.Select).Targets[0]
 	ref := roleTableRef(t, e, "strict_null_rows")
@@ -57,7 +57,7 @@ func strictNullUnitBind(t *testing.T, e *Engine, op *Operation, scope *Statement
 	b.Query.Auth, b.Target.Ref = &auth, ref
 	b.Target.Relation = auth.Catalog.MustRelation(ref.Address)
 	b.Clause.AggregateClause = "SELECT"
-	node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+	node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal("actual provider binding", text, err)

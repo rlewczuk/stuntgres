@@ -135,14 +135,14 @@ func TestExpressionCompareNullOccurrenceTyping(t *testing.T) {
 		var err error
 		for _, raw := range s.Targets {
 			var node expr.Expr
-			node, err = b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+			node, err = b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				break
 			}
 			targets = append(targets, node)
 		}
 		if err == nil && s.Where != nil {
-			_, err = b.Bind(s.Where, expressionPolicy{Context: analyze.FilterContext, Expected: b.Type(sqltype.Bool).Usage()})
+			_, err = b.Bind(s.Where, analyze.ExpressionPolicy{Context: analyze.FilterContext, Expected: b.Type(sqltype.Bool).Usage()})
 		}
 		if err == nil {
 			for _, node := range targets {
@@ -151,7 +151,7 @@ func TestExpressionCompareNullOccurrenceTyping(t *testing.T) {
 				}
 			}
 		}
-		var info ParameterInfo
+		var info analyze.ParameterInfo
 		if err == nil {
 			info, err = b.Finish()
 		}
@@ -241,7 +241,7 @@ func TestExpressionCompareNullConstantAndParameterReuse(t *testing.T) {
 	ctx := context.Background()
 	for _, q := range []string{"SELECT NULL IS NULL FROM t", "SELECT TRUE IS NOT FALSE FROM t", "SELECT 1 IS DISTINCT FROM 2 FROM t"} {
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
-		node, err := b.Bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+		node, err := b.Bind(statement(t, q).(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -251,7 +251,7 @@ func TestExpressionCompareNullConstantAndParameterReuse(t *testing.T) {
 	}
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT $1 IS TRUE FROM t").(*parser.Select).Targets[0]
-	node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+	node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +277,7 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer done()
-	describe := func(q string) (binding, ids.ObjectRef) {
+	describe := func(q string) (analyze.Binding, ids.ObjectRef) {
 		t.Helper()
 		ast := statement(t, q)
 		e.mu.Lock()

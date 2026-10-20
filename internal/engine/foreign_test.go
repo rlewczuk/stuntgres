@@ -285,7 +285,7 @@ func TestFDWProcedureACLCOW(t *testing.T) {
 	for _, name := range []string{"handler", "validator"} {
 		t.Run(name, func(t *testing.T) {
 			base := e.CatalogRead()
-			selected, count := selectRoutine(base, namespaceSelection{Qualified: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}, name, nil)
+			selected, count := selectRoutine(base, analyze.NamespaceSelection{Qualified: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}, name, nil)
 			if count != 1 {
 				t.Fatal("registered procedure identity not unique", count)
 			}
@@ -478,7 +478,7 @@ func testFDWForeignMetadataPolicy(t *testing.T) {
 	like := &parser.TableLike{Options: []parser.LikeOption{{Name: "all", Including: true}}}
 	syntax := &parser.CreateTable{Elements: []parser.TableElement{{Like: like}, {Column: column}}}
 	got := foreignTableSyntax(syntax)
-	want := tableLikeMask(analyze.LikeAll) &^ (analyze.LikeIndexes | analyze.LikeIdentity | analyze.LikeStorage | analyze.LikeCompression)
+	want := analyze.LikeMask(analyze.LikeAll) &^ (analyze.LikeIndexes | analyze.LikeIdentity | analyze.LikeStorage | analyze.LikeCompression)
 	if got == syntax || got.Elements[0].Like == like || analyze.TableLikeOptions(got.Elements[0].Like.Options) != want || analyze.TableLikeOptions(like.Options) != analyze.LikeAll || got.Elements[1].Column != column {
 		t.Fatal("foreign LIKE changed syntax or copied physical properties")
 	}

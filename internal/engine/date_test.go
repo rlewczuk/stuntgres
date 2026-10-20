@@ -24,13 +24,13 @@ func TestDateCaptureFreezeRebindAndParameters(t *testing.T) {
 			if typed {
 				raw = parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "date"}, Text: tc.text, Pos: pos}
 			}
-			policy := expressionPolicy{Context: analyze.AssignmentContext, Expected: d.Usage(), Mode: sqltype.Assignment}
+			policy := analyze.ExpressionPolicy{Context: analyze.AssignmentContext, Expected: d.Usage(), Mode: sqltype.Assignment}
 			b := newTestExpressionBinder(t, ctx, e, first, nil)
 			if _, err := b.Bind(raw, policy); err != nil {
 				t.Fatal(err)
 			}
 			desc := StatementDescription{temporals: b.Prepared.Temporals}
-			before := append([]temporalConstant(nil), desc.temporals...)
+			before := append([]analyze.TemporalConstant(nil), desc.temporals...)
 			if len(before) != 1 || before[0].TypeID != sqltype.Date {
 				t.Fatal(before)
 			}
@@ -71,7 +71,7 @@ func TestDateCaptureFreezeRebindAndParameters(t *testing.T) {
 			}
 			foreign := parser.TypedLiteralExpr{TypeName: parser.TypeName{Name: "timestamp"}, Text: "now", Pos: pos}
 			b = newTestExpressionBinder(t, ctx, e, later, &desc)
-			if _, err = b.Bind(foreign, expressionPolicy{Context: analyze.ProjectionContext}); err == nil {
+			if _, err = b.Bind(foreign, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err == nil {
 				t.Fatal("DATE capture reconstructed as TIMESTAMP")
 			}
 		}

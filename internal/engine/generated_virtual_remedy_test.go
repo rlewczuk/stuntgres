@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -149,7 +150,7 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	consumer := *d
 	consumer.View = viewPayloadOf(definition)
 	w := &viewWrite{layers: []viewWriteLayer{{relation: &consumer}}}
-	b := binding{QuerySources: []exec.Leaf{{Ref: ref, Relation: d}}}
+	b := analyze.Binding{QuerySources: []exec.Leaf{{Ref: ref, Relation: d}}}
 	mapped, err := w.graftQuery(&b, view, project, func(expr expr.Expr) (expr.Expr, bool, error) { return expr, false, nil })
 	if err != nil {
 		t.Fatal(err)

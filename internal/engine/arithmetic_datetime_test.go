@@ -31,7 +31,7 @@ func TestDatetimeArithmeticBindingAndPhysicalVolatility(t *testing.T) {
 		e := New()
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, "SELECT "+tc.expression+" FROM t").(*parser.Select).Targets[0]
-		node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(tc, err)
 		}
@@ -57,7 +57,7 @@ func TestDatetimeArithmeticDependenceAndVolatileDominance(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	for _, expression := range []string{"$1::TIMESTAMPTZ+INTERVAL '0'", "INTERVAL '0'+$1::TIMESTAMPTZ"} {
-		node, err := b.Bind(statement(t, "SELECT "+expression+" FROM t").(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+		node, err := b.Bind(statement(t, "SELECT "+expression+" FROM t").(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Stable {
 			t.Fatal(node, err)
 		}
@@ -79,7 +79,7 @@ func TestDatetimeArithmeticDefaultRegistryRebind(t *testing.T) {
 	source, target := New(), New()
 	b := newTestExpressionBinder(t, ctx, source, sqltype.InputEnvironment{}, nil)
 	b.Consumer.DefaultConsumer = true
-	node, err := b.Bind(statement(t, "SELECT TIMESTAMPTZ '2005-04-02 12:00-07'+INTERVAL '1 day' FROM t").(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+	node, err := b.Bind(statement(t, "SELECT TIMESTAMPTZ '2005-04-02 12:00-07'+INTERVAL '1 day' FROM t").(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -101,7 +101,7 @@ func TestEnumPreparedParameterPrivateGeneration(t *testing.T) {
 	auth.Recapture(auth.Catalog)
 	b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, &description)
 	b.Query.Auth = &auth
-	node, failure := b.Bind(parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 8}}, expressionPolicy{Context: analyze.ProjectionContext, Expected: typ.Usage()})
+	node, failure := b.Bind(parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 8}}, analyze.ExpressionPolicy{Context: analyze.ProjectionContext, Expected: typ.Usage()})
 	e.mu.Unlock()
 	if err != nil || failure != nil {
 		t.Fatal(err, failure)
@@ -114,7 +114,7 @@ func TestEnumPreparedParameterPrivateGeneration(t *testing.T) {
 	e.mu.Lock()
 	b = newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, &stale)
 	b.Query.Auth = &auth
-	_, failure = b.Bind(parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 8}}, expressionPolicy{Context: analyze.ProjectionContext, Expected: typ.Usage()})
+	_, failure = b.Bind(parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 8}}, analyze.ExpressionPolicy{Context: analyze.ProjectionContext, Expected: typ.Usage()})
 	e.mu.Unlock()
 	if d, ok := failure.(*sqlstate.Error); !ok || d.Code != "0A000" || d.Message != "cached plan must not change parameter type" {
 		t.Fatal("private refresh bypassed lifetime fence", failure)

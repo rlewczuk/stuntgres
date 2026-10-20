@@ -87,7 +87,7 @@ func (r capturedRegObjectInput) ResolveRegcollation(ctx context.Context, input s
 	missing := func() (uint32, error) {
 		return 0, sqlError("42704", `collation "`+spelling()+`" for encoding "UTF8" does not exist`)
 	}
-	path := namespaceSelection{Path: r.path}
+	path := analyze.NamespaceSelection{Path: r.path}
 	if len(parts) == 2 {
 		namespace := r.auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: parts[0].Text})
 		if parts[0].Text == "pg_temp" {
@@ -106,7 +106,7 @@ func (r capturedRegObjectInput) ResolveRegcollation(ctx context.Context, input s
 		if err := r.auth.CanUse(r.auth.Ref(namespace)); err != nil {
 			return 0, err
 		}
-		path = namespaceSelection{Qualified: namespace}
+		path = analyze.NamespaceSelection{Qualified: namespace}
 	}
 	for i := range path.Count() {
 		address := r.auth.definitionLookup(ids.NameKey{ClassID: ids.CollationClassID, Namespace: path.At(i), Name: parts[len(parts)-1].Text})

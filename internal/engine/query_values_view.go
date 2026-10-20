@@ -68,7 +68,7 @@ func (v *viewRenderer) valuesSQL(ctx context.Context, catalogView catalog.Read, 
 	for i, row := range source.Rows {
 		cells := make([]string, 0, len(row))
 		for j, raw := range row {
-			text, err := v.expressionSQL(ctx, catalogView, raw, viewLiteralPath{Clause: analyze.ViewValuesCellLiteral, Source: occurrence, Row: i, Target: j})
+			text, err := v.expressionSQL(ctx, catalogView, raw, analyze.ViewLiteralPath{Clause: analyze.ViewValuesCellLiteral, Source: occurrence, Row: i, Target: j})
 			if err != nil {
 				return "", err
 			}
@@ -85,7 +85,7 @@ func (v *viewRenderer) valuesSQL(ctx context.Context, catalogView catalog.Read, 
 	if source.Order != nil {
 		keys := make([]string, len(source.Order.Keys))
 		for i, key := range source.Order.Keys {
-			part, err := v.expressionSQL(ctx, catalogView, key.Expr, viewLiteralPath{Clause: analyze.ViewValuesOrderLiteral, Source: occurrence, Target: i})
+			part, err := v.expressionSQL(ctx, catalogView, key.Expr, analyze.ViewLiteralPath{Clause: analyze.ViewValuesOrderLiteral, Source: occurrence, Target: i})
 			if err != nil {
 				return "", err
 			}
@@ -105,7 +105,7 @@ func (v *viewRenderer) valuesSQL(ctx context.Context, catalogView catalog.Read, 
 	if source.Bounds != nil {
 		for _, bound := range []struct {
 			raw    parser.Expr
-			clause viewLiteralClause
+			clause analyze.ViewLiteralClause
 			name   string
 		}{
 			{source.Bounds.Offset, analyze.ViewValuesOffsetLiteral, "OFFSET"},
@@ -114,7 +114,7 @@ func (v *viewRenderer) valuesSQL(ctx context.Context, catalogView catalog.Read, 
 			if bound.raw == nil {
 				continue
 			}
-			part, err := v.expressionSQL(ctx, catalogView, bound.raw, viewLiteralPath{Clause: bound.clause, Source: occurrence})
+			part, err := v.expressionSQL(ctx, catalogView, bound.raw, analyze.ViewLiteralPath{Clause: bound.clause, Source: occurrence})
 			if err != nil {
 				return "", err
 			}
@@ -129,9 +129,9 @@ func (v *viewRenderer) valuesSQL(ctx context.Context, catalogView catalog.Read, 
 }
 
 func (v *viewDefinition) validateValuesLiterals(catalog catalog.Read, source *parser.ValuesQuery, frame uint32, occurrence int, count, columns, composites, intaggCount *int) error {
-	validate := func(raw parser.Expr, clause viewLiteralClause, row, column int) error {
+	validate := func(raw parser.Expr, clause analyze.ViewLiteralClause, row, column int) error {
 		ordinal := 0
-		return v.validateLiteralTree(catalog, raw, viewLiteralPath{Query: frame, Clause: clause, Source: occurrence, Row: row, Target: column}, &ordinal, count, columns, composites, intaggCount)
+		return v.validateLiteralTree(catalog, raw, analyze.ViewLiteralPath{Query: frame, Clause: clause, Source: occurrence, Row: row, Target: column}, &ordinal, count, columns, composites, intaggCount)
 	}
 	for i, row := range source.Rows {
 		for j, raw := range row {

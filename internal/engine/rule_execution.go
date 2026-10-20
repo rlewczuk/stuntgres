@@ -2,6 +2,7 @@ package engine
 
 import (
 	"maps"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -26,7 +27,7 @@ type ruleCommandScratch struct {
 	returning  *insertReturningOutput
 	partition  *partitionInsertState
 	locks      *exec.LockContext
-	admission  queryLockAdmission
+	admission  analyze.LockAdmission
 	auth       *AuthorizationView
 	quotes     *exec.QuoteCaptureCandidate
 }
@@ -44,11 +45,11 @@ func (s *StatementScope) installRuleScratch(c ruleCommandScratch) {
 	s.quoteCaptures = c.quotes
 }
 
-func bindingRuleRelation(b binding) *catalog.Relation {
+func bindingRuleRelation(b analyze.Binding) *catalog.Relation {
 	return physicalBinding(b).Relation
 }
 
-func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Statement, b binding, auth AuthorizationView, parameters []sqltype.Value, candidate StatementDescription, quoteChanged bool) (Result, error) {
+func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Statement, b analyze.Binding, auth AuthorizationView, parameters []sqltype.Value, candidate StatementDescription, quoteChanged bool) (Result, error) {
 	program := ruleProgram{count: -1, returning: -1}
 	count, err := e.expandRulesLocked(scope, auth, stmt, b, nil, &program)
 	if err != nil {

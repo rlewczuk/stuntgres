@@ -408,15 +408,15 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 // requiredRef is the exact acquired DML/utility target; query source occurrences
 // have their own admission manifest. Binding validates namespace authority and
 // cannot retarget an acquired identity. CREATE supplies the zero reference.
-func describe(ctx context.Context, host analyzeHost, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected *StatementDescription, admission *queryLockAdmission, initial ...[]sqltype.Usage) (binding, error) {
+func describe(ctx context.Context, host analyze.Host, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected *StatementDescription, admission *analyze.LockAdmission, initial ...[]sqltype.Usage) (analyze.Binding, error) {
 	return describeWithRule(ctx, host, stmt, auth, requiredRef, input, expected, admission, nil, initial...)
 }
 
-func describeWithRule(ctx context.Context, host analyzeHost, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected *StatementDescription, admission *queryLockAdmission, rule *analyze.RuleNamespace, initial ...[]sqltype.Usage) (binding, error) {
+func describeWithRule(ctx context.Context, host analyze.Host, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected *StatementDescription, admission *analyze.LockAdmission, rule *analyze.RuleNamespace, initial ...[]sqltype.Usage) (analyze.Binding, error) {
 	return analyze.Describe(ctx, host, stmt, authorityOf(auth), requiredRef, input, expectedOf(expected), admission, rule, false, initial...)
 }
 
-func (e *Engine) describeScoped(scope *StatementScope, stmt parser.Statement, auth AuthorizationView, expected *StatementDescription) (binding, error) {
+func (e *Engine) describeScoped(scope *StatementScope, stmt parser.Statement, auth AuthorizationView, expected *StatementDescription) (analyze.Binding, error) {
 	return analyze.Describe(scope.op.Context(), e.analysisHost(scope.op), stmt, authorityOf(auth), scope.lockedRef, scope.input, expectedOf(expected), &scope.queryLockAdmission, nil, scope.sqlRoutine.scalar, scope.initialParameters)
 }
 
@@ -519,7 +519,7 @@ func notNullDetailError(schema, table, column, detail string) error {
 // FrameImporter fills one canonical frame and completes input CHECKs in lexical
 // order. It enters and returns without Engine.mu; SQL actual-expression import
 // owns only its binding/capture lock and evaluates outside it without replay.
-type FrameImporter func(context.Context, ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error
+type FrameImporter func(context.Context, analyze.ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error
 
 func (e *Engine) Execute(op *Operation, stmt parser.Statement, count int, importFrame FrameImporter) (result Result, err error) {
 	scope, err := e.StartStatement(op)

@@ -16,7 +16,7 @@ func TestRuleConflictInstantiation(t *testing.T) {
 	e, auth, src, sink := ruleUnitCatalog(t)
 	original := ruleUnitInsert(e, src, 1, 10).binding
 	action := ruleUnitInsert(e, sink, 1, 10)
-	recipe := &analyze.InsertConflict{Targets: action.binding.Targets, Keys: []analyze.ConflictKey{{Attribute: 1}}, Update: &boundUpdate{Assignments: []expr.Expr{ruleUnitInt(sink, 20)}}, UpdateTargets: []int{1}, Width: 2}
+	recipe := &analyze.InsertConflict{Targets: action.binding.Targets, Keys: []analyze.ConflictKey{{Attribute: 1}}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{ruleUnitInt(sink, 20)}}, UpdateTargets: []int{1}, Width: 2}
 	action.binding.Insert.Conflict = recipe
 	first, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, action)
 	if err != nil {
@@ -54,7 +54,7 @@ func TestRuleConflictAttributeRefresh(t *testing.T) {
 	target := plan.ColumnExpr{Info: ruleColumnInfo(sink.Columns[1]), Origin: ref, Scope: 1, Frame: 1, Slot: 1}
 	excluded := target
 	excluded.Slot = 3
-	b.Insert.Conflict = &analyze.InsertConflict{Targets: b.Targets, Reads: []int{0}, ActionReads: []int{1}, UpdateTargets: []int{1}, Width: 2, Update: &boundUpdate{Assignments: []expr.Expr{excluded}, Predicate: target}}
+	b.Insert.Conflict = &analyze.InsertConflict{Targets: b.Targets, Reads: []int{0}, ActionReads: []int{1}, UpdateTargets: []int{1}, Width: 2, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{excluded}, Predicate: target}}
 	current := *sink
 	current.Attributes = []int32{2, 1}
 	current.Columns = []catalog.Column{sink.Columns[1], sink.Columns[0]}
@@ -62,7 +62,7 @@ func TestRuleConflictAttributeRefresh(t *testing.T) {
 	catalog := catalog.CloneState(auth.Catalog.State())
 	catalog.SetDescriptor(sink.Address(), &current)
 	view := e.catalog.read(catalog)
-	check := func(next binding) {
+	check := func(next analyze.Binding) {
 		t.Helper()
 		if !slices.Equal(next.Targets, []int{1, 0}) || !slices.Equal(next.Insert.Conflict.Targets, []int{1, 0}) || !slices.Equal(next.Insert.Conflict.UpdateTargets, []int{0}) || !slices.Equal(next.Insert.Conflict.Reads, []int{1}) || !slices.Equal(next.Insert.Conflict.ActionReads, []int{0}) {
 			t.Fatal("conflict manifests did not follow stable attributes")
@@ -92,7 +92,7 @@ func TestRuleIndependentActionProducer(t *testing.T) {
 		t.Run(event, func(t *testing.T) {
 			original := ruleUnitInsert(e, src, 1, 10).binding
 			if event == "UPDATE" {
-				original.Update = &boundUpdate{Assignments: []expr.Expr{ruleUnitInt(src, 1), ruleUnitInt(src, 10)}}
+				original.Update = &analyze.UpdateBinding{Assignments: []expr.Expr{ruleUnitInt(src, 1), ruleUnitInt(src, 10)}}
 			}
 			action := ruleUnitInsert(e, sink, 7, 8)
 			composed, err := composeRuleAction(auth, original, event, ruleDefinition{}, action)

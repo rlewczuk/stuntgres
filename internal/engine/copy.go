@@ -319,7 +319,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	return int64(n), nil
 }
 
-func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b binding, auth AuthorizationView, err error) {
+func (e *Engine) bindCopyLocked(s *StatementScope, syntax *parser.Copy) (b analyze.Binding, auth AuthorizationView, err error) {
 	if err = s.refreshRelationGrantsLocked(e); err != nil {
 		return
 	}
@@ -381,7 +381,7 @@ func copyRelationKind(relation *catalog.Relation, from bool) error {
 	return nil
 }
 
-func (e *Engine) initCopyInputLocked(s *StatementScope, b *binding, auth AuthorizationView) error {
+func (e *Engine) initCopyInputLocked(s *StatementScope, b *analyze.Binding, auth AuthorizationView) error {
 	binder := newExpressionBinder(s.op.Context(), e, s.input, s.op, nil)
 	binder.Query.Auth = &auth
 	binder.Target.InsertTarget = b.Relation
@@ -436,7 +436,7 @@ func (e *Engine) initCopyInputLocked(s *StatementScope, b *binding, auth Authori
 	}
 	return nil
 }
-func (s *StatementScope) copyTableRows(b binding, auth AuthorizationView) (*exec.FinalRows, error) {
+func (s *StatementScope) copyTableRows(b analyze.Binding, auth AuthorizationView) (*exec.FinalRows, error) {
 	e := s.op.session.Engine()
 	e.mu.Lock()
 	view, err := s.acquireDataViewLocked(e, b.Ref)

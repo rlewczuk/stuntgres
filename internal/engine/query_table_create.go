@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -19,7 +20,7 @@ import (
 
 // Source analysis and parameter import precede this destination-only phase.
 // Engine.mu is held. A skipped destination never enters executor admission.
-func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, s *parser.CreateQueryTable, b binding) (*CatalogStage, *catalog.Relation, bool, error) {
+func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, s *parser.CreateQueryTable, b analyze.Binding) (*CatalogStage, *catalog.Relation, bool, error) {
 	ns, err := e.creationNamespace(auth, s.Name)
 	if err != nil {
 		if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "0A000" {
@@ -248,7 +249,7 @@ func (e *Engine) publishQueryTable(scope *StatementScope, stage *CatalogStage) e
 
 // The common SELECT pipeline has already planned and admitted this producer.
 // Engine.mu is held on entry; every outcome releases it. The caller owns discard.
-func (e *Engine) executeQueryTableLocked(scope *StatementScope, s *parser.CreateQueryTable, b binding, root plan.Node, parameters []sqltype.Value, stage *CatalogStage, d *catalog.Relation) (Result, error) {
+func (e *Engine) executeQueryTableLocked(scope *StatementScope, s *parser.CreateQueryTable, b analyze.Binding, root plan.Node, parameters []sqltype.Value, stage *CatalogStage, d *catalog.Relation) (Result, error) {
 	ctx := scope.op.Context()
 	source, err := e.captureQuerySourcesLocked(scope, b.QuerySources, s.Query.From == nil && s.Query.Values == nil)
 	e.mu.Unlock()

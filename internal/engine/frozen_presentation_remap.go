@@ -13,7 +13,7 @@ func remapFrozenPresentation(view catalog.Read, original *viewDefinition, mappin
 	typ = analyze.RecordTypeMapper(typ, collation)
 	definition := *original
 	if len(original.columns) != 0 {
-		definition.columns = make(map[viewLiteralPath]viewColumn, len(original.columns))
+		definition.columns = make(map[analyze.ViewLiteralPath]analyze.ViewColumn, len(original.columns))
 		for path, column := range original.columns {
 			if column.RuleSide != 0 {
 				column.RuleRef = ref(column.RuleRef)
@@ -22,19 +22,19 @@ func remapFrozenPresentation(view catalog.Read, original *viewDefinition, mappin
 		}
 	}
 	if len(original.routineRefs) != 0 {
-		definition.routineRefs = make(map[viewLiteralPath]ids.ObjectRef, len(original.routineRefs))
+		definition.routineRefs = make(map[analyze.ViewLiteralPath]ids.ObjectRef, len(original.routineRefs))
 		for path, old := range original.routineRefs {
 			definition.routineRefs[path] = ref(old)
 		}
 	}
 	if len(original.operatorRefs) != 0 {
-		definition.operatorRefs = make(map[viewLiteralPath]ids.ObjectRef, len(original.operatorRefs))
+		definition.operatorRefs = make(map[analyze.ViewLiteralPath]ids.ObjectRef, len(original.operatorRefs))
 		for path, old := range original.operatorRefs {
 			definition.operatorRefs[path] = ref(old)
 		}
 	}
 	if collation != nil && len(original.collations) != 0 {
-		definition.collations = make(map[viewLiteralPath]uint32, len(original.collations))
+		definition.collations = make(map[analyze.ViewLiteralPath]uint32, len(original.collations))
 		for path, id := range original.collations {
 			if target, ok := mapping[ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(id)}]; ok {
 				id = uint32(target.ObjectID)
@@ -47,7 +47,7 @@ func remapFrozenPresentation(view catalog.Read, original *viewDefinition, mappin
 		definition.sources[i].ref = ref(definition.sources[i].ref)
 	}
 	if len(original.literals) != 0 {
-		definition.literals = make(map[viewLiteralPath]plan.LiteralExpr, len(original.literals))
+		definition.literals = make(map[analyze.ViewLiteralPath]plan.LiteralExpr, len(original.literals))
 		for path, literal := range original.literals {
 			node, _, err := retagBoundTypes(view, literal, typ, collation)
 			if err != nil {
@@ -61,7 +61,7 @@ func remapFrozenPresentation(view catalog.Read, original *viewDefinition, mappin
 		}
 	}
 	if len(original.castUsages) != 0 {
-		definition.castUsages = make(map[viewLiteralPath]sqltype.Usage, len(original.castUsages))
+		definition.castUsages = make(map[analyze.ViewLiteralPath]sqltype.Usage, len(original.castUsages))
 		for path, usage := range original.castUsages {
 			usage.Type = typ(usage.Type)
 			if collation != nil {
@@ -75,7 +75,7 @@ func remapFrozenPresentation(view catalog.Read, original *viewDefinition, mappin
 		}
 	}
 	if len(original.composites) != 0 {
-		definition.composites = make(map[viewLiteralPath]compositeOccurrence, len(original.composites))
+		definition.composites = make(map[analyze.ViewLiteralPath]analyze.CompositeOccurrence, len(original.composites))
 		for path, captured := range original.composites {
 			captured.Base.Type = typ(captured.Base.Type)
 			if collation != nil {

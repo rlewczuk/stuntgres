@@ -3,13 +3,14 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/extension"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 )
 
-func (v *viewDefinition) intaggRecipeProcedure(catalog catalog.Read, path viewLiteralPath, name string) (*catalog.Procedure, error) {
+func (v *viewDefinition) intaggRecipeProcedure(catalog catalog.Read, path analyze.ViewLiteralPath, name string) (*catalog.Procedure, error) {
 	ref, exists := v.routineRefs[path]
 	consumer, _ := catalog.Relation(v.consumer)
 	if !exists || ref.Address.ClassID != ids.ProcedureClassID || ref.Address.SubID != 0 || !storedViewReferenceValid(catalog, consumer, ref) || ref.Epoch != catalog.Epoch() && (consumer == nil || viewOf(consumer) != v) {
@@ -25,7 +26,7 @@ func (v *viewDefinition) intaggRecipeProcedure(catalog catalog.Read, path viewLi
 	return proc, nil
 }
 
-func (v *viewRenderer) intaggRecipeName(catalog catalog.Read, path viewLiteralPath, name string) (string, error) {
+func (v *viewRenderer) intaggRecipeName(catalog catalog.Read, path analyze.ViewLiteralPath, name string) (string, error) {
 	proc, err := v.intaggRecipeProcedure(catalog, path, name)
 	if err != nil {
 		return "", err

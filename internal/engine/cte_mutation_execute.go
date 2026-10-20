@@ -21,7 +21,7 @@ type cteCommandExecution struct {
 }
 
 type preparedCTEProgram struct {
-	binding        binding
+	binding        analyze.Binding
 	auth           AuthorizationView
 	commands       []cteCommandExecution
 	main           preparedCommandExecution
@@ -33,7 +33,7 @@ type preparedCTEProgram struct {
 // This dispatch never binds, imports parameters, creates a scope or publishes.
 // The existing executors own their command semantics; one Finish owns the stage.
 // Engine.mu is held on entry and released on every return.
-func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parser.Statement, b binding, auth AuthorizationView, parameters []sqltype.Value, evaluation exec.Context, creationStage *CatalogStage, creationDescriptor *catalog.Relation) (result Result, failure error) {
+func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parser.Statement, b analyze.Binding, auth AuthorizationView, parameters []sqltype.Value, evaluation exec.Context, creationStage *CatalogStage, creationDescriptor *catalog.Relation) (result Result, failure error) {
 	if len(b.CTEs) == 0 {
 		return e.executeBoundCommandLocked(scope, statement, b, auth, parameters, evaluation, creationStage, creationDescriptor, nil)
 	}
@@ -47,7 +47,7 @@ func (e *Engine) executeCTECommandsLocked(scope *StatementScope, statement parse
 
 // Prepare the complete auxiliary/primary tree without executing any command.
 // Enter held; all outcomes release Engine.mu.
-func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parser.Statement, b binding, auth AuthorizationView, parameters []sqltype.Value, evaluation exec.Context, creationStage *CatalogStage, creationDescriptor *catalog.Relation, prepared *preparedCTEProgram) (Result, error) {
+func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parser.Statement, b analyze.Binding, auth AuthorizationView, parameters []sqltype.Value, evaluation exec.Context, creationStage *CatalogStage, creationDescriptor *catalog.Relation, prepared *preparedCTEProgram) (Result, error) {
 	if scope.ruleActionAuth == nil {
 		scope.routineAuth = auth
 	}

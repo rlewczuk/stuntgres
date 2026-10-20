@@ -133,14 +133,14 @@ func TestInsertSelectCommonTypes(t *testing.T) {
 	}
 }
 
-func insertSelectEvaluationFixture(t *testing.T, sql string) (binding, *exec.Source) {
+func insertSelectEvaluationFixture(t *testing.T, sql string) (analyze.Binding, *exec.Source) {
 	t.Helper()
 	e, q, source := queryCoreFixture(t, sql)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	e.mu.Lock()
 	relation := e.catalog.state.MustRelation(ref.Address)
 	e.mu.Unlock()
-	return binding{Query: q, Relation: relation, Ref: ref, Targets: []int{0}}, source
+	return analyze.Binding{Query: q, Relation: relation, Ref: ref, Targets: []int{0}}, source
 }
 func TestInsertSelectEagerFailureAndCancellation(t *testing.T) {
 	for _, phase := range []string{"late source", "rejected scan", "assignment", "before apply", "sorting"} {

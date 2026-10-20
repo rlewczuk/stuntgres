@@ -27,7 +27,7 @@ func viewFunctionFromAt(root plan.Node, ordinal int, selected bool) *plan.Functi
 	}
 	return viewFunctionFromAt(right, ordinal, selected)
 }
-func (v *viewRenderer) renderFunctionTableSQL(ctx context.Context, catalog catalog.Read, raw *parser.FunctionTable, ns viewNamespace) (viewRenderFrom, error) {
+func (v *viewRenderer) renderFunctionTableSQL(ctx context.Context, catalog catalog.Read, raw *parser.FunctionTable, ns analyze.ViewNamespace) (viewRenderFrom, error) {
 	root := viewFunctionFromAt(analyze.ViewFromRoot(v.query.Root), ns.Ordinal, ns.Node == analyze.ViewRegexpNamespace)
 	if root == nil {
 		return viewRenderFrom{}, fmt.Errorf("stuntgres: missing frozen string function source")
@@ -36,7 +36,7 @@ func (v *viewRenderer) renderFunctionTableSQL(ctx context.Context, catalog catal
 	texts := make([]string, len(calls))
 	hasDefinitions := false
 	for i, call := range calls {
-		path := viewLiteralPath{Clause: analyze.ViewFunctionLiteral, Target: root.ViewOrdinal + i}
+		path := analyze.ViewLiteralPath{Clause: analyze.ViewFunctionLiteral, Target: root.ViewOrdinal + i}
 		if root.RegexpNamespace {
 			path.Source, path.Target = root.ViewOrdinal, i
 		}

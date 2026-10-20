@@ -475,7 +475,7 @@ func TestQueryWindowReview3SignatureAnalysisNoRegistration(t *testing.T) {
 			b.Clause.AggregateClause = "SELECT"
 			e.mu.Lock()
 			defer e.mu.Unlock()
-			if _, err := b.Bind(seed, expressionPolicy{Context: analyze.ProjectionContext}); err != nil {
+			if _, err := b.Bind(seed, analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 				t.Fatal(err)
 			}
 			before := append([]plan.AggregateCall(nil), b.Grouping.Aggregates...)
@@ -490,7 +490,7 @@ func TestQueryWindowReview3SignatureAnalysisNoRegistration(t *testing.T) {
 			} else if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code {
 				t.Fatal(err)
 			}
-			if !reflect.DeepEqual(before, b.Grouping.Aggregates) || len(b.Grouping.WindowCalls) != 0 || b.Grouping.ArgumentOwner != (argumentWindowOwner{}) {
+			if !reflect.DeepEqual(before, b.Grouping.Aggregates) || len(b.Grouping.WindowCalls) != 0 || b.Grouping.ArgumentOwner != (analyze.ArgumentWindowOwner{}) {
 				t.Fatal("signature analysis altered ordinary/provider/window state", before, b.Grouping.Aggregates, b.Grouping.WindowCalls, b.Grouping.ArgumentOwner)
 			}
 		})
@@ -519,7 +519,7 @@ func TestQueryWindowReview4ArgumentOwnerRestoration(t *testing.T) {
 			e.mu.Lock()
 			defer e.mu.Unlock()
 			for _, sql := range []string{"SELECT count(*)", "SELECT row_number() OVER ()"} {
-				if _, err := b.Bind(statement(t, sql).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext}); err != nil {
+				if _, err := b.Bind(statement(t, sql).(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -535,7 +535,7 @@ func TestQueryWindowReview4ArgumentOwnerRestoration(t *testing.T) {
 			seedOccurrence := *windows[0].Expression
 			frame, clause := b.Query.Frame, b.Clause.AggregateClause
 			raw := statement(t, tc.sql).(*parser.Select).Targets[0]
-			_, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+			_, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != tc.code {
 				t.Fatal(err)
@@ -545,36 +545,36 @@ func TestQueryWindowReview4ArgumentOwnerRestoration(t *testing.T) {
 				t.Fatal("failed analysis replaced exact registration headers", len(b.Grouping.Aggregates), cap(b.Grouping.Aggregates), len(b.Grouping.WindowCalls), cap(b.Grouping.WindowCalls))
 			}
 			if !reflect.DeepEqual(aggregateValues, b.Grouping.Aggregates) || !reflect.DeepEqual(windowValues, b.Grouping.WindowCalls) ||
-				!reflect.DeepEqual(seedOccurrence, *b.Grouping.WindowCalls[0].Expression) || b.Grouping.ArgumentOwner != (argumentWindowOwner{}) ||
+				!reflect.DeepEqual(seedOccurrence, *b.Grouping.WindowCalls[0].Expression) || b.Grouping.ArgumentOwner != (analyze.ArgumentWindowOwner{}) ||
 				len(b.Query.Scopes) != 0 || b.Query.Frame != frame || b.Clause.AggregateClause != clause {
 				t.Fatal("failed analysis mutated seed entries, occurrence identities or scoped state", b.Grouping.ArgumentOwner, b.Grouping.Aggregates, b.Grouping.WindowCalls, b.Query.Scopes)
 			}
-			if _, err := b.Bind(statement(t, "SELECT count(1)").(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext}); err != nil {
+			if _, err := b.Bind(statement(t, "SELECT count(1)").(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 				t.Fatal(err)
 			}
 			if len(b.Grouping.Aggregates) != len(aggregates)+1 || &b.Grouping.Aggregates[0] == &aggregates[0] ||
-				!reflect.DeepEqual(aggregateValues, b.Grouping.Aggregates[:len(aggregates)]) || b.Grouping.ArgumentOwner != (argumentWindowOwner{}) ||
+				!reflect.DeepEqual(aggregateValues, b.Grouping.Aggregates[:len(aggregates)]) || b.Grouping.ArgumentOwner != (analyze.ArgumentWindowOwner{}) ||
 				b.Query.Frame != frame || b.Clause.AggregateClause != clause {
 				t.Fatal("successful distinct ordinary registration was not retained across bounded reallocation")
 			}
 			retainedAggregates := b.Grouping.Aggregates
-			if _, err := b.Bind(statement(t, "SELECT row_number() OVER ()").(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext}); err != nil {
+			if _, err := b.Bind(statement(t, "SELECT row_number() OVER ()").(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 				t.Fatal(err)
 			}
-			if len(b.Grouping.WindowCalls) != len(windows)+1 || b.Grouping.ArgumentOwner != (argumentWindowOwner{}) ||
+			if len(b.Grouping.WindowCalls) != len(windows)+1 || b.Grouping.ArgumentOwner != (analyze.ArgumentWindowOwner{}) ||
 				!reflect.DeepEqual(seedOccurrence, *b.Grouping.WindowCalls[0].Expression) || b.Query.Frame != frame || b.Clause.AggregateClause != clause {
 				t.Fatal("successful sibling retained failed owner or mutated seed", b.Grouping.ArgumentOwner, b.Grouping.WindowCalls)
 			}
 			retainedWindows := b.Grouping.WindowCalls
 			retainedAggregateValues := append([]plan.AggregateCall(nil), retainedAggregates...)
-			owner := argumentWindowOwner{Active: true, Window: true, Found: true, First: parser.Position{Character: 23}}
+			owner := analyze.ArgumentWindowOwner{Active: true, Window: true, Found: true, First: parser.Position{Character: 23}}
 			b.Grouping.ArgumentOwner = owner
 			leave := b.EnterQuery(false)
-			if b.Grouping.ArgumentOwner != (argumentWindowOwner{}) {
+			if b.Grouping.ArgumentOwner != (analyze.ArgumentWindowOwner{}) {
 				t.Fatal("lexical child inherited owner", b.Grouping.ArgumentOwner)
 			}
 			b.Clause.AggregateClause = "SELECT"
-			if _, err := b.Bind(statement(t, "SELECT row_number() OVER ()").(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext}); err != nil {
+			if _, err := b.Bind(statement(t, "SELECT row_number() OVER ()").(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext}); err != nil {
 				t.Fatal(err)
 			}
 			leave()

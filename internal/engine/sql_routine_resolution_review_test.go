@@ -25,7 +25,7 @@ func TestSQLRoutineUnknownCategorySelection(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, reverse := range []bool{false, true} {
-				candidates := make([]sqlCallable, 2)
+				candidates := make([]analyze.SQLCallable, 2)
 				for i := range candidates {
 					j := i
 					if reverse {
@@ -33,7 +33,7 @@ func TestSQLRoutineUnknownCategorySelection(t *testing.T) {
 					}
 					candidates[i].Inputs = []sqltype.Usage{types[tc.inputs[j][0]].Usage(), types[tc.inputs[j][1]].Usage()}
 				}
-				got := analyze.SelectSQLCallables(candidates, []comparisonOperand{{}, {}}, nil)
+				got := analyze.SelectSQLCallables(candidates, []analyze.ComparisonOperand{{}, {}}, nil)
 				if len(got) != tc.want {
 					t.Fatalf("reverse=%v: got %d candidates, want %d", reverse, len(got), tc.want)
 				}

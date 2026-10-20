@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func mapRuleBindingRecipes(b binding, mapper ruleTreeMapper) (binding, error) {
+func mapRuleBindingRecipes(b analyze.Binding, mapper ruleTreeMapper) (analyze.Binding, error) {
 	originalReturning := b.Returning
 	expression := func(value expr.Expr) (expr.Expr, error) { next, _, err := mapper.expression(value); return next, err }
 	list := func(values []expr.Expr) ([]expr.Expr, bool, error) {

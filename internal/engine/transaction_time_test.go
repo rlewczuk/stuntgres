@@ -18,7 +18,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func transactionTimeUnitLeaf(t *testing.T, b *expressionBinder, kind functions.TransactionTimeKind) functions.TransactionTime {
+func transactionTimeUnitLeaf(t *testing.T, b *analyze.Binder, kind functions.TransactionTimeKind) functions.TransactionTime {
 	t.Helper()
 	name := kind.Name()
 	bound, err := b.BindFunction(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}, Pos: parser.Position{Offset: 7, Character: 8}})
@@ -173,7 +173,7 @@ func TestTransactionTimeExpressionContracts(t *testing.T) {
 		parser.CastExpr{Child: parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "clock_timestamp"}}}}, TypeName: parser.TypeName{Name: "text"}},
 		parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "lower"}}}, Args: []parser.Expr{parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "timeofday"}}}}}},
 	} {
-		node, err := binder.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		node, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}

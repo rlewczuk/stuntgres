@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -281,7 +282,7 @@ func TestAlterTypeIdentityHeldExplicitSourceMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	scope.Expected = &held
-	_, executeErr := scope.Execute(ast, 1, func(ctx context.Context, p ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
+	_, executeErr := scope.Execute(ast, 1, func(ctx context.Context, p analyze.ParameterInfo, frame []sqltype.Value, input sqltype.InputEnvironment) error {
 		if p.Types[0] != original {
 			t.Fatal("identity input source changed", p.Types, original)
 		}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
@@ -180,7 +181,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 	}
 	for _, empty := range []*catalogChanges{nil, newCatalogChanges()} {
 		scope.owner.catalog = empty
-		probe := expressionBinder{}
+		probe := analyze.Binder{}
 		// Nil engine deliberately makes any unnecessary naming/path capture fail.
 		if allocations := testing.AllocsPerRun(100, func() {
 			captureEnumOperationSafety(op, &probe.Input)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"maps"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
@@ -27,7 +28,7 @@ func hashCaptureQuery(t *testing.T, e *Engine, op *Operation, q string) (*plan.Q
 	}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
-	var bound binding
+	var bound analyze.Binding
 	if err == nil {
 		bound, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 	}

@@ -257,7 +257,7 @@ func TestQuerySubqueryFrames(t *testing.T) {
 	if present, err := rows.Next(context.Background(), scratch); present || err != nil {
 		t.Fatal("grandparent query did not end", present, err)
 	}
-	binder := expressionBinder{Query: queryScopeState{Namespace: &queryNamespace{}, Frame: 7}, Clause: clauseState{AggregateClause: "RETURNING"}}
+	binder := analyze.Binder{Query: analyze.QueryScopeState{Namespace: &analyze.QueryNamespace{}, Frame: 7}, Clause: analyze.ClauseState{AggregateClause: "RETURNING"}}
 	original := binder.Query.Namespace
 	restore := binder.EnterQuery(false)
 	if binder.Query.Namespace != nil || binder.FrameID() == 7 || len(binder.Query.Scopes) != 1 {
@@ -294,7 +294,7 @@ func TestQuerySubqueryManifest(t *testing.T) {
 	}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
-	var bound binding
+	var bound analyze.Binding
 	if err == nil {
 		bound, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 	}
@@ -604,7 +604,7 @@ func TestQuerySubqueryAuthorization(t *testing.T) {
 	ast := statement(t, "SELECT EXISTS(SELECT c.v FROM c WHERE c.k=o.id) FROM o WHERE FALSE")
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
-	var bound binding
+	var bound analyze.Binding
 	if err == nil {
 		bound, err = describe(op.ctx, e.analysisHost(op), ast, auth, outer, sqltype.InputEnvironment{}, nil, nil)
 	}

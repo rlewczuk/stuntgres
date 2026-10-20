@@ -16,13 +16,13 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 		return nil, nil
 	}
 	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
-	columns := make([]queryColumn, len(d.Columns))
+	columns := make([]analyze.QueryColumn, len(d.Columns))
 	for i, c := range d.Columns {
-		columns[i] = queryColumn{Descriptor: c, Slot: i, Leaf: 0, Physical: i}
+		columns[i] = analyze.QueryColumn{Descriptor: c, Slot: i, Leaf: 0, Physical: i}
 	}
-	ns := queryNamespace{
+	ns := analyze.QueryNamespace{
 		Columns:    columns,
-		Qualifiers: []queryQualifier{{Name: d.Name(), Original: d.Name(), Schema: auth.Catalog.Get(d.Namespace()).Name(), Ref: ref, Columns: columns}},
+		Qualifiers: []analyze.QueryQualifier{{Name: d.Name(), Original: d.Name(), Schema: auth.Catalog.Get(d.Namespace()).Name(), Ref: ref, Columns: columns}},
 		Frame:      d.Columns,
 	}
 	b := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
@@ -42,12 +42,12 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	}
 	source := &plan.SourceNode{QuerySchema: d.Columns, Ref: ref, Occurrence: 0}
 	root := &plan.ProjectNode{Child: source, Expressions: []expr.Expr{node}, Frame: 1, QuerySchema: []catalog.Column{{Usage: node.ResultUsage()}}}
-	capture := binding{
+	capture := analyze.Binding{
 		Query:        &plan.Query{Root: root},
 		Dependencies: b.Dependencies,
 		QuerySources: b.Query.Sources,
 		Capture:      b.Capture,
-		Prepared: preparedCaptures{
+		Prepared: analyze.PreparedCaptures{
 			SequenceConstants: b.Prepared.SequenceConstants,
 			RegtypeConstants:  b.Prepared.RegtypeConstants,
 		},

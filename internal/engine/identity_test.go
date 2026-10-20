@@ -5,6 +5,7 @@ import (
 	"errors"
 	"maps"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -183,7 +184,7 @@ func TestIdentityDiscardedRuntimeConversionDemandBinding(t *testing.T) {
 			ref := roleTableRef(t, e, "i")
 			e.mu.Lock()
 			auth, err := e.authorizationLocked(op)
-			var bound binding
+			var bound analyze.Binding
 			if err == nil {
 				bound, err = describe(op.ctx, e.analysisHost(op), statement(t, `INSERT INTO i OVERRIDING USER VALUE `+tc.source), auth, ref, sqltype.InputEnvironment{}, nil, nil)
 			}

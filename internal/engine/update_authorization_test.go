@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
@@ -142,7 +143,7 @@ func TestUpdateCoreNotNullDetailColumnAuthority(t *testing.T) {
 						var result Result
 						var executionErr error
 						if prepared {
-							result, executionErr = scope.Execute(ast, 1, func(ctx context.Context, signature ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {
+							result, executionErr = scope.Execute(ast, 1, func(ctx context.Context, signature analyze.ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {
 								frame[0] = sqltype.Null(signature.Types[0].Type)
 								return nil
 							})

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/access"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -12,7 +13,7 @@ import (
 
 // Caller rights are checked on the original logical target. Each nested layer
 // then uses its current owner or the original invoker, never the outer owner.
-func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) error {
+func (v AuthorizationView) checkViewWrite(b analyze.Binding, stmt parser.Statement) error {
 	w := viewWriteOf(b.ViewWrite)
 	logical := w.logical
 	if err := v.checkBinding(logical, stmt); err != nil {
@@ -41,7 +42,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 		if !ok || !sameRelationRowShape(source, layer.source) {
 			return ids.ErrCatalogReplaced
 		}
-		physical := binding{Relation: source, Ref: layer.sourceRef}
+		physical := analyze.Binding{Relation: source, Ref: layer.sourceRef}
 		if mask == authorization.DeletePrivilege {
 			if err := authority.Check(access.Requirement{Object: layer.sourceRef, Privileges: mask}); err != nil {
 				return err
@@ -78,7 +79,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 					return ids.ErrCatalogReplaced
 				}
 			}
-			sourceBinding := binding{Ref: use, Relation: relation}
+			sourceBinding := analyze.Binding{Ref: use, Relation: relation}
 			if err := authority.checkColumns(sourceBinding, authorization.SelectPrivilege, indices); err != nil {
 				return err
 			}

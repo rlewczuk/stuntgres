@@ -550,7 +550,7 @@ func ruleDumpGroups(ctx context.Context, view catalog.Read, roles authorization.
 			if r.condition != nil {
 				renderer := newViewRenderer(r.conditionPresentation)
 				renderer.frame = r.conditionPresentation.query.Root.(*plan.ProjectNode).Frame
-				text, err := renderer.expressionSQL(ctx, view, r.conditionPresentation.syntax.Targets[0], viewLiteralPath{Clause: analyze.ViewTargetLiteral})
+				text, err := renderer.expressionSQL(ctx, view, r.conditionPresentation.syntax.Targets[0], analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 				if err != nil {
 					return nil, err
 				}

@@ -14,7 +14,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func uuidExtractEngineUnit(t *testing.T, b *expressionBinder, kind functions.UUIDExtractKind) functions.UUIDExtract {
+func uuidExtractEngineUnit(t *testing.T, b *analyze.Binder, kind functions.UUIDExtractKind) functions.UUIDExtract {
 	t.Helper()
 	d := b.Type(sqltype.UUID)
 	value, err := d.Input(context.Background(), "00000000-0000-7000-8000-000000000000", -1)

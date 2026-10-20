@@ -23,7 +23,7 @@ func TestStringCoreBinding(t *testing.T) {
 	bind := func(query string) expr.Expr {
 		t.Helper()
 		raw := statement(t, query).(*parser.Select).Targets[0]
-		node, err := binder.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		node, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(query, err)
 		}
@@ -126,7 +126,7 @@ func TestStringCoreMissingOperatorOwner(t *testing.T) {
 	} {
 		binder := newTestExpressionBinder(t, context.Background(), engine, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, tc.query).(*parser.Select).Targets[0]
-		_, err := binder.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		_, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		var got *sqlstate.Error
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42883", Message: tc.message, Position: tc.position, Hint: "No operator matches the given name and argument types. You might need to add explicit type casts."}
 		if !errors.As(err, &got) || *got != want {

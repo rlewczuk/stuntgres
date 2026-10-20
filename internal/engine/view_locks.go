@@ -3,6 +3,7 @@ package engine
 import (
 	"sort"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -216,7 +217,7 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, mod
 	return nil
 }
 
-func (s *StatementScope) acquireViewDefinitionReferences(b binding) error {
+func (s *StatementScope) acquireViewDefinitionReferences(b analyze.Binding) error {
 	var refs []ids.ObjectRef
 	seen := make(map[ids.ObjectRef]bool)
 	add := func(ref ids.ObjectRef) {

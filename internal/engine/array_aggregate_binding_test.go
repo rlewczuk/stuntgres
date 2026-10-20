@@ -23,7 +23,7 @@ func TestArrayAggregateBinding(t *testing.T) {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		b.Clause.AggregateClause = "SELECT"
 		raw := statement(t, q).(*parser.Select).Targets[0]
-		result, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		result, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(q, err)
 		}
@@ -55,7 +55,7 @@ func TestArrayAggregateBinding(t *testing.T) {
 		if !found {
 			t.Fatal("missing result-array dependency")
 		}
-		again, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		again, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil || again.(plan.AggregateExpr).Slot != result.(plan.AggregateExpr).Slot {
 			t.Fatal("identical aggregate failed state-slot sharing", err)
 		}
@@ -110,7 +110,7 @@ func TestArrayAggregateDomainBinding(t *testing.T) {
 		b.Clause.AggregateClause = "SELECT"
 		b.Params.Parameters[1] = tc.input.Usage()
 		raw := parser.AggregateExpr{Name: "array_agg", Args: []parser.Expr{parser.ParameterExpr{Number: 1}}}
-		result, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		result, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}

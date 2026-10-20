@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -303,7 +304,7 @@ type StatementScope struct {
 	ticket                *lock.Ticket
 	multiEvents           []lock.MultiEvent
 	querySources          []exec.Leaf
-	queryLockAdmission    queryLockAdmission
+	queryLockAdmission    analyze.LockAdmission
 	queryLocks            *exec.LockContext
 	txRef                 ids.TxRef
 	command               ids.CommandID
@@ -832,7 +833,9 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 		p := &protocolPortal{entry: sqlPreparedStatement{body: stmt}, tx: s.txRef}
 		s.protocol().simplePortal, s.protocol().bind = p, p
 		if count == 0 && importFrame == nil {
-			importFrame = func(context.Context, ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error { return nil }
+			importFrame = func(context.Context, analyze.ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error {
+				return nil
+			}
 		}
 	}
 	if !protocolPlannedStatement(stmt) {

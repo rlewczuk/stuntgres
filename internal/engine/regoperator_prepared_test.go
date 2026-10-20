@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -45,7 +46,7 @@ func regoperatorPreparedValues(t *testing.T, r Result, ids []sqltype.ID, texts [
 	return values
 }
 
-func regoperatorPreparedSnapshot(constants []regtypeConstant) []regtypeConstant {
+func regoperatorPreparedSnapshot(constants []analyze.RegtypeConstant) []analyze.RegtypeConstant {
 	saved := slices.Clone(constants)
 	for i := range saved {
 		saved[i].Qualified = slices.Clone(saved[i].Qualified)
@@ -111,7 +112,7 @@ func TestRegOperatorPreparedMixedIdentity(t *testing.T) {
 		op.Done()
 		t.Fatal(err)
 	}
-	shared := StatementDescription{regtypes: &regtypeAnalysis{constants: []regtypeConstant{
+	shared := StatementDescription{regtypes: &regtypeAnalysis{constants: []analyze.RegtypeConstant{
 		{Offset: 7, ID: 551},
 		{Offset: 7, Operator: sqltype.Regoper, ID: 551},
 		{Offset: 7, Operator: sqltype.Regoperator, ID: 551},

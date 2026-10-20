@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -114,7 +115,7 @@ func TestTimezoneReviewViewAtValidation(t *testing.T) {
 	for _, column := range []bool{false, true} {
 		bad := *definition
 		if column {
-			bad.columns = make(map[viewLiteralPath]viewColumn, len(definition.columns))
+			bad.columns = make(map[analyze.ViewLiteralPath]analyze.ViewColumn, len(definition.columns))
 			for path, slot := range definition.columns {
 				bad.columns[path] = slot
 			}
@@ -123,7 +124,7 @@ func TestTimezoneReviewViewAtValidation(t *testing.T) {
 				break
 			}
 		} else {
-			bad.literals = make(map[viewLiteralPath]plan.LiteralExpr, len(definition.literals))
+			bad.literals = make(map[analyze.ViewLiteralPath]plan.LiteralExpr, len(definition.literals))
 			for path, literal := range definition.literals {
 				bad.literals[path] = literal
 			}

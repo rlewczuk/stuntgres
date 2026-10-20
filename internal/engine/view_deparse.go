@@ -205,7 +205,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 	var targets []string
 	for i, expr := range s.Targets {
 		if _, star := expr.(parser.StarExpr); star {
-			for _, column := range v.stars[viewLiteralPath{Query: project.Frame, Clause: analyze.ViewTargetLiteral, Target: i}] {
+			for _, column := range v.stars[analyze.ViewLiteralPath{Query: project.Frame, Clause: analyze.ViewTargetLiteral, Target: i}] {
 				owner := v.frames[column.Frame]
 				if owner == nil {
 					return "", fmt.Errorf("stuntgres: missing frozen star frame")
@@ -219,14 +219,14 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 			continue
 		}
 		if expansion, ok := expr.(parser.FieldExpr); ok && expansion.Expansion {
-			fields, err := renderer.compositeExpansionSQL(ctx, catalogView, expansion, viewLiteralPath{Clause: analyze.ViewTargetLiteral, Target: i})
+			fields, err := renderer.compositeExpansionSQL(ctx, catalogView, expansion, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral, Target: i})
 			if err != nil {
 				return "", err
 			}
 			targets = append(targets, fields...)
 			continue
 		}
-		text, err := renderer.expressionSQL(ctx, catalogView, expr, viewLiteralPath{Clause: analyze.ViewTargetLiteral, Target: i})
+		text, err := renderer.expressionSQL(ctx, catalogView, expr, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral, Target: i})
 		if err != nil {
 			return "", err
 		}
@@ -276,7 +276,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 	if s.Distinct != nil && len(s.Distinct.On) != 0 {
 		keys := make([]string, len(s.Distinct.On))
 		for i, raw := range s.Distinct.On {
-			key, err := renderer.expressionSQL(ctx, catalogView, raw, viewLiteralPath{Clause: analyze.ViewDistinctOnLiteral, Target: i})
+			key, err := renderer.expressionSQL(ctx, catalogView, raw, analyze.ViewLiteralPath{Clause: analyze.ViewDistinctOnLiteral, Target: i})
 			if err != nil {
 				return "", err
 			}
@@ -296,7 +296,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 		}
 	}
 	if s.Where != nil {
-		part, err := renderer.expressionSQL(ctx, catalogView, s.Where, viewLiteralPath{Clause: analyze.ViewWhereLiteral})
+		part, err := renderer.expressionSQL(ctx, catalogView, s.Where, analyze.ViewLiteralPath{Clause: analyze.ViewWhereLiteral})
 		if err != nil {
 			return "", err
 		}
@@ -312,7 +312,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 					return "", err
 				}
 				if item.Kind == parser.GroupExpression {
-					text, err := renderer.expressionSQL(ctx, catalogView, item.Expr, viewLiteralPath{Clause: analyze.ViewGroupLiteral, Target: leaf})
+					text, err := renderer.expressionSQL(ctx, catalogView, item.Expr, analyze.ViewLiteralPath{Clause: analyze.ViewGroupLiteral, Target: leaf})
 					if err != nil {
 						return "", err
 					}
@@ -354,7 +354,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 		text += clause + "GROUP BY " + modifier + keys
 	}
 	if s.Having != nil {
-		part, err := renderer.expressionSQL(ctx, catalogView, s.Having, viewLiteralPath{Clause: analyze.ViewHavingLiteral})
+		part, err := renderer.expressionSQL(ctx, catalogView, s.Having, analyze.ViewLiteralPath{Clause: analyze.ViewHavingLiteral})
 		if err != nil {
 			return "", err
 		}
@@ -363,7 +363,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 	if len(s.Windows) > 0 {
 		definitions := make([]string, len(s.Windows))
 		for i, definition := range s.Windows {
-			path := viewLiteralPath{Query: renderer.frame, Clause: analyze.ViewWindowLiteral, Target: i}
+			path := analyze.ViewLiteralPath{Query: renderer.frame, Clause: analyze.ViewWindowLiteral, Target: i}
 			ordinal := 0
 			part, err := windowSpecSQL(definition.Spec, func(expr parser.Expr) (string, error) {
 				return renderer.expressionSQLAt(ctx, catalogView, expr, path, &ordinal, pgRenderParent{})
@@ -391,7 +391,7 @@ func (renderer *viewRenderer) selectQueryTailSQL(ctx context.Context, catalog ca
 	if s.Order != nil {
 		keys := make([]string, len(s.Order.Keys))
 		for i, key := range s.Order.Keys {
-			path := viewLiteralPath{Clause: analyze.ViewOrderLiteral, Target: i}
+			path := analyze.ViewLiteralPath{Clause: analyze.ViewOrderLiteral, Target: i}
 			var name string
 			var err error
 			if ordinal, ok := key.Expr.(parser.LiteralExpr); presentation.deparse && setOperand && s.Set == nil && ok && ordinal.Value.Kind == parser.IntegerValue {
@@ -425,7 +425,7 @@ func (renderer *viewRenderer) selectQueryTailSQL(ctx context.Context, catalog ca
 		}
 		for _, bound := range []struct {
 			expr   parser.Expr
-			clause viewLiteralClause
+			clause analyze.ViewLiteralClause
 			name   string
 		}{
 			{s.Bounds.Offset, analyze.ViewOffsetLiteral, "OFFSET"},
@@ -434,7 +434,7 @@ func (renderer *viewRenderer) selectQueryTailSQL(ctx context.Context, catalog ca
 			if bound.expr == nil {
 				continue
 			}
-			part, err := renderer.expressionSQL(ctx, catalog, bound.expr, viewLiteralPath{Clause: bound.clause})
+			part, err := renderer.expressionSQL(ctx, catalog, bound.expr, analyze.ViewLiteralPath{Clause: bound.clause})
 			if err != nil {
 				return "", err
 			}
@@ -475,7 +475,7 @@ func (renderer *viewRenderer) selectOutputSQL(ctx context.Context, catalog catal
 	}
 	ordinal := slot + 1
 	for target, raw := range project.Syntax.Targets {
-		path := viewLiteralPath{Query: project.Frame, Clause: analyze.ViewTargetLiteral, Target: target}
+		path := analyze.ViewLiteralPath{Query: project.Frame, Clause: analyze.ViewTargetLiteral, Target: target}
 		if _, star := raw.(parser.StarExpr); star {
 			columns := renderer.stars[path]
 			if slot < len(columns) {
@@ -541,7 +541,7 @@ func viewTargetsSQL(targets []string, presentation viewPresentation, distinct bo
 	return layout.String()
 }
 
-func (v *viewRenderer) expressionSQL(ctx context.Context, catalog catalog.Read, raw parser.Expr, path viewLiteralPath) (string, error) {
+func (v *viewRenderer) expressionSQL(ctx context.Context, catalog catalog.Read, raw parser.Expr, path analyze.ViewLiteralPath) (string, error) {
 	path.Query = v.frame
 	ordinal := 0
 	return v.expressionSQLAt(ctx, catalog, raw, path, &ordinal, pgRenderParent{})
@@ -549,7 +549,7 @@ func (v *viewRenderer) expressionSQL(ctx context.Context, catalog catalog.Read, 
 
 // Scalar alias names and non-expanding scalar stars retain the same analyzed
 // frame/slot authority as ordinary columns.
-func (v *viewRenderer) columnSQL(ctx context.Context, catalog catalog.Read, path viewLiteralPath) (string, error) {
+func (v *viewRenderer) columnSQL(ctx context.Context, catalog catalog.Read, path analyze.ViewLiteralPath) (string, error) {
 	column, ok := v.columns[path]
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing view column occurrence")
@@ -606,7 +606,7 @@ func (v *viewRenderer) columnSQL(ctx context.Context, catalog catalog.Read, path
 	return v.slotSQL(ctx, catalog, root, column.Slot)
 }
 
-func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.Read, raw parser.Expr, path viewLiteralPath, ordinal *int, parent pgRenderParent) (string, error) {
+func (v *viewRenderer) expressionSQLAt(ctx context.Context, catalogView catalog.Read, raw parser.Expr, path analyze.ViewLiteralPath, ordinal *int, parent pgRenderParent) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -1689,7 +1689,7 @@ func windowSpecSQL(spec parser.WindowSpec, child func(parser.Expr) (string, erro
 	return strings.Join(parts, " "), nil
 }
 
-func (v *viewRenderer) quantifiedFieldsSQL(ctx context.Context, catalog catalog.Read, path viewLiteralPath, fields []string) (string, error) {
+func (v *viewRenderer) quantifiedFieldsSQL(ctx context.Context, catalog catalog.Read, path analyze.ViewLiteralPath, fields []string) (string, error) {
 	for i, text := range fields {
 		key := path
 		key.Argument = i + 1

@@ -108,7 +108,7 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 	t.Run("transparent VALUES occurrence", func(t *testing.T) {
 		values := &plan.ValuesNode{}
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		q := queryQualifier{NullExtended: true, SourceRoot: &plan.ProjectNode{Child: values}}
+		q := analyze.QueryQualifier{NullExtended: true, SourceRoot: &plan.ProjectNode{Child: values}}
 		slot, err := b.WholeRowPresence(&q, 1)
 		if err != nil || slot != 1 || values.PresenceSlot != slot {
 			t.Fatal("presence did not belong to emitted VALUES occurrence", slot, err)
@@ -117,16 +117,16 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 	t.Run("scoped operand reuse preserves policy", func(t *testing.T) {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := parser.RowExpr{Fields: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.IntegerValue, Integer: 7}}}, Pos: parser.Position{Offset: 10, Character: 11}, Explicit: true}
-		cached, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		cached, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
-		b.Clause.FunctionProjection = functionProjectionScope{ArgumentPos: raw.Pos, ArgumentKind: analyze.ProjectionArgumentKind(raw), Operand: cached}
-		node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		b.Clause.FunctionProjection = analyze.FunctionProjectionScope{ArgumentPos: raw.Pos, ArgumentKind: analyze.ProjectionArgumentKind(raw), Operand: cached}
+		node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil || node.ResultUsage().Type != cached.ResultUsage().Type {
 			t.Fatal("operand was rebound", node, err)
 		}
-		node, err = b.Bind(raw, expressionPolicy{Context: analyze.FunctionArgumentContext, Expected: b.Type(sqltype.Bool).Usage(), Mode: sqltype.Implicit})
+		node, err = b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.FunctionArgumentContext, Expected: b.Type(sqltype.Bool).Usage(), Mode: sqltype.Implicit})
 		if err == nil || node == nil || node.ResultUsage().Type != cached.ResultUsage().Type {
 			t.Fatal("reuse bypassed coercion policy", node, err)
 		}
@@ -260,7 +260,7 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	if b.SameGroupExpression(left, right) {
 		t.Fatal("zero-width source occurrences conflated")
 	}
-	zero := compositeOccurrence{Kind: analyze.CompositeExpansion, Base: empty.Usage()}
+	zero := analyze.CompositeOccurrence{Kind: analyze.CompositeExpansion, Base: empty.Usage()}
 	if err := validateCompositeOccurrence(zero, view); err != nil {
 		t.Fatal("zero-width expansion lost authority", err)
 	}
@@ -268,7 +268,7 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	if err := validateCompositeOccurrence(zero, view); err == nil {
 		t.Fatal("missing capture kind admitted")
 	}
-	whole := compositeOccurrence{Kind: analyze.CompositeWholeRow, Base: mappedRow.Usage, Source: plan.WholeRowSource{Namespace: 1, Frame: 1}}
+	whole := analyze.CompositeOccurrence{Kind: analyze.CompositeWholeRow, Base: mappedRow.Usage, Source: plan.WholeRowSource{Namespace: 1, Frame: 1}}
 	if err := (&viewDefinition{}).validateCompositeSource(whole); err == nil {
 		t.Fatal("missing actual namespace source admitted")
 	}

@@ -10,7 +10,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (v *viewRenderer) wholeRowSQL(captured compositeOccurrence) (string, error) {
+func (v *viewRenderer) wholeRowSQL(captured analyze.CompositeOccurrence) (string, error) {
 	rendered, ok := v.wholeRows[captured.Source]
 	if !ok || rendered.sql == "" {
 		return "", fmt.Errorf("stuntgres: missing rendered whole-row occurrence")
@@ -18,12 +18,12 @@ func (v *viewRenderer) wholeRowSQL(captured compositeOccurrence) (string, error)
 	return rendered.sql, nil
 }
 
-func (v *viewRenderer) frozenCompositeFields(ctx context.Context, catalogView catalog.Read, captured compositeOccurrence, base string) ([]string, error) {
+func (v *viewRenderer) frozenCompositeFields(ctx context.Context, catalogView catalog.Read, captured analyze.CompositeOccurrence, base string) ([]string, error) {
 	shape := captured.Base.Type.BaseType()
 	fields := make([]string, len(captured.Attributes))
 	var exposed []string
 	var scalarRoot plan.Node
-	var scalarColumns []viewNamespaceColumn
+	var scalarColumns []analyze.ViewNamespaceColumn
 	if captured.Source.Namespace != 0 {
 		rendered, ok := v.wholeRows[captured.Source]
 		if !ok || rendered.sql == "" {
@@ -67,7 +67,7 @@ func (v *viewRenderer) frozenCompositeFields(ctx context.Context, catalogView ca
 	return fields, nil
 }
 
-func (v *viewRenderer) compositeExpansionSQL(ctx context.Context, catalog catalog.Read, raw parser.FieldExpr, path viewLiteralPath) ([]string, error) {
+func (v *viewRenderer) compositeExpansionSQL(ctx context.Context, catalog catalog.Read, raw parser.FieldExpr, path analyze.ViewLiteralPath) ([]string, error) {
 	path.Query = v.frame
 	path.Node = 0
 	captured, ok := v.composites[path]
@@ -82,7 +82,7 @@ func (v *viewRenderer) compositeExpansionSQL(ctx context.Context, catalog catalo
 	return v.frozenCompositeFields(ctx, catalog, captured, base)
 }
 
-func frozenDotBuiltinSQL(captured compositeOccurrence, base string) (string, error) {
+func frozenDotBuiltinSQL(captured analyze.CompositeOccurrence, base string) (string, error) {
 	name := ""
 	switch captured.Function {
 	case functions.CountNulls:

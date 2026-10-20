@@ -186,7 +186,7 @@ func finalizeRuleQuery(view catalog.Read, root plan.Node, alreadyFinalized ...ma
 					}
 					var result plan.Node
 					var failure error
-					binder := (*expressionBinder)(nil)
+					binder := (*analyze.Binder)(nil)
 					if distinct != nil {
 						result, failure = binder.FinishDistinctOn(base, order, on, distinct.Grouping, projection)
 					} else {

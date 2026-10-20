@@ -47,7 +47,7 @@ func TestBitwiseAggregateSlotsAndMetadata(t *testing.T) {
 		b.Params.Parameters[1] = usage
 		for _, name := range []string{"bit_and", "bit_or", "bit_xor", "bit_and"} {
 			raw := parser.AggregateExpr{Name: name, Args: []parser.Expr{parser.ParameterExpr{Number: 1}}, Pos: parser.Position{Character: 8}}
-			expr, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+			expr, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -201,7 +201,7 @@ func TestBitwiseAggregateValuesAnalysis(t *testing.T) {
 			if !analyze.ContainsValuesAggregateAnalysis(wrapped) {
 				t.Fatal("wrapped bitwise analysis omitted")
 			}
-			node, err := b.Bind(wrapped, expressionPolicy{Context: analyze.AssignmentContext, Expected: integer.Usage(), Mode: sqltype.Assignment, Column: "i"})
+			node, err := b.Bind(wrapped, analyze.ExpressionPolicy{Context: analyze.AssignmentContext, Expected: integer.Usage(), Mode: sqltype.Assignment, Column: "i"})
 			diagnostic, ok := err.(*sqlstate.Error)
 			if node != nil || !ok || *diagnostic != *want || len(b.Grouping.Aggregates) != 0 {
 				t.Fatal("VALUES precedence/registration rollback", phase, node, err, b.Grouping.Aggregates)

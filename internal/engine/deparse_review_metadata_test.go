@@ -29,7 +29,7 @@ func TestDeparseConstraintsReviewRawTemporalCapture(t *testing.T) {
 			raw := statement(t, "SELECT "+declaration+"(3) '"+text+"' FROM t").(*parser.Select).Targets[0].(parser.TypedLiteralExpr)
 			e := New()
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-			node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+			node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -59,7 +59,7 @@ func TestDeparseConstraintsReviewRawTemporalCapture(t *testing.T) {
 			description := StatementDescription{temporals: b.Prepared.Temporals}
 			raw.Text = "must not be reparsed"
 			again := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, &description)
-			rebound, err := again.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+			rebound, err := again.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -77,7 +77,7 @@ func TestDeparseConstraintsReviewUnknownNullProvenance(t *testing.T) {
 	for _, expression := range []string{"num_nulls(NULL)", "num_nulls(NULL::unknown)", "num_nonnulls(CAST(NULL AS pg_catalog.unknown))"} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, "SELECT "+expression+" FROM t").(*parser.Select).Targets[0]
-		node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(expression, err)
 		}
@@ -146,7 +146,7 @@ func TestDeparseConstraintsReviewUnknownNullConsumerBoundary(t *testing.T) {
 	for _, expression := range []string{"NULL::unknown=1", "CAST(NULL AS pg_catalog.unknown)=1", "NULL::unknown::integer IS NULL", "NULL::unknown::pg_node_tree IS NULL"} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, "SELECT "+expression+" FROM t").(*parser.Select).Targets[0]
-		node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(expression, err)
 		}
@@ -176,7 +176,7 @@ func TestDeparseConstraintsReviewUnknownNullConsumerBoundary(t *testing.T) {
 	} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, "SELECT "+tc.expression+" FROM t").(*parser.Select).Targets[0]
-		_, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		_, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		diagnostic, ok := err.(*sqlstate.Error)
 		if !ok || diagnostic.Code != tc.code || diagnostic.Message != tc.message {
 			t.Fatal(tc.expression, err)
@@ -203,7 +203,7 @@ func TestDeparseConstraintsReviewSignedConstantNormalization(t *testing.T) {
 	} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, "SELECT "+tc.expression+" FROM t").(*parser.Select).Targets[0]
-		node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(tc.expression, err)
 		}
@@ -225,7 +225,7 @@ func TestDeparseConstraintsReviewConcreteNullCountArgument(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT num_nulls(NULL::integer) FROM t").(*parser.Select).Targets[0]
-	node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+	node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,7 +251,7 @@ func TestDeparseConstraintsReviewTypedIntervalZoneProvider(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := statement(t, "SELECT TIMESTAMP '2026-10-08 00:00:00' AT TIME ZONE INTERVAL '02:00' HOUR TO MINUTE FROM t").(*parser.Select).Targets[0]
-	node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+	node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +277,7 @@ func TestDeparseConstraintsReviewViewLiteralCaptureCutover(t *testing.T) {
 	run(t, e, "INSERT INTO t VALUES(1)")
 	run(t, e, "CREATE VIEW v AS SELECT TIME(3) '04:05:06.1235' AS clock,+2147483648 AS number FROM t")
 	view := viewOf(e.CatalogRead().MustRelation(roleTableRef(t, e, "v").Address))
-	literal, ok := view.literals[viewLiteralPath{Query: view.query.Root.(*plan.ProjectNode).Frame, Clause: analyze.ViewTargetLiteral, Target: 0, Node: 0}]
+	literal, ok := view.literals[analyze.ViewLiteralPath{Query: view.query.Root.(*plan.ProjectNode).Frame, Clause: analyze.ViewTargetLiteral, Target: 0, Node: 0}]
 	if !ok || literal.Usage.Type.ID() != sqltype.Time || literal.Usage.Typmod != 3 {
 		t.Fatal(view.literals)
 	}
@@ -285,7 +285,7 @@ func TestDeparseConstraintsReviewViewLiteralCaptureCutover(t *testing.T) {
 	if err != nil || raw != 14706123500 {
 		t.Fatal(raw, err)
 	}
-	literal, ok = view.literals[viewLiteralPath{Query: view.query.Root.(*plan.ProjectNode).Frame, Clause: analyze.ViewTargetLiteral, Target: 1, Node: 1}]
+	literal, ok = view.literals[analyze.ViewLiteralPath{Query: view.query.Root.(*plan.ProjectNode).Frame, Clause: analyze.ViewTargetLiteral, Target: 1, Node: 1}]
 	if !ok || literal.Usage.Type.ID() != sqltype.Int8 {
 		t.Fatal(view.literals)
 	}

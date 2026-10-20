@@ -228,7 +228,7 @@ func TestVisibilityInquiryAuthorizationAndPathKinds(t *testing.T) {
 		t.Fatal(err)
 	}
 	temp := temporaryNamespace(auth)
-	for _, kind := range []lookupKind{analyze.CollationLookup, analyze.ConversionLookup} {
+	for _, kind := range []analyze.LookupKind{analyze.CollationLookup, analyze.ConversionLookup} {
 		path, err := e.lookupPath(auth, kind)
 		if err != nil {
 			e.mu.Unlock()

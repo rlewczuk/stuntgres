@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
@@ -34,7 +35,7 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 		}
 	}
 	assert("common", base)
-	coerced, err := b.CoerceConditional(comparisonOperand{Node: base}, b.Type(sqltype.VarChar).Usage(), "VALUES")
+	coerced, err := b.CoerceConditional(analyze.ComparisonOperand{Node: base}, b.Type(sqltype.VarChar).Usage(), "VALUES")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +83,7 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 	if err != nil || overridden.CollationConflict || overridden.CollationLeft.ID != 0 || overridden.CollationRight.ID != 0 || overridden.CollationConflictPos != (parser.Position{}) || overridden.Usage.Collation.ID != 950 {
 		t.Fatal(overridden, err)
 	}
-	b.Query.Namespace = &queryNamespace{}
+	b.Query.Namespace = &analyze.QueryNamespace{}
 	if _, err := b.BindOrder(order, []expr.Expr{plan.LiteralExpr{Info: overridden, Value: sqltype.Null(text)}}, []string{"n"}, "ORDER BY"); err != nil {
 		t.Fatal("explicit override did not restore ordinary ordering", err)
 	}

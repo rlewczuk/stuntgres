@@ -18,7 +18,7 @@ func TestMathBinding(t *testing.T) {
 	bind := func(query string) expr.Expr {
 		t.Helper()
 		raw := statement(t, query).(*parser.Select).Targets[0]
-		node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(query, err)
 		}
@@ -33,7 +33,7 @@ func TestMathBinding(t *testing.T) {
 	}
 	for _, query := range []string{"SELECT trunc(NULL)", "SELECT trunc('-0.5')", "SELECT trunc($1)"} {
 		raw := statement(t, query).(*parser.Select).Targets[0]
-		_, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		_, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42725" || diagnostic.Message != "function trunc(unknown) is not unique" {
 			t.Fatal("released unknown trunc category ambiguity", query, err)

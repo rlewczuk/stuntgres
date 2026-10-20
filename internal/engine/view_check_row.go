@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
@@ -10,7 +11,7 @@ import (
 
 // Called only for admitted, finalized rows, after base constraints/uniqueness.
 // A stack copy separates NEW from UPDATE FROM's OLD/source/RETURNING frame.
-func (e *Engine) checkViewRow(scope *StatementScope, b *binding, row []sqltype.Value, evaluation *exec.Context) error {
+func (e *Engine) checkViewRow(scope *StatementScope, b *analyze.Binding, row []sqltype.Value, evaluation *exec.Context) error {
 	if b.ViewWrite == nil || len(viewWriteOf(b.ViewWrite).checks) == 0 {
 		return nil
 	}

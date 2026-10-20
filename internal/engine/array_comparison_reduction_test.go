@@ -113,7 +113,7 @@ func TestArrayCompareBoundVisitors(t *testing.T) {
 	for _, q := range []string{"SELECT $1 IN(1,$2,3)", "SELECT $1=ANY($2)"} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, q).(*parser.Select).Targets[0]
-		original, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		original, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -128,7 +128,7 @@ func TestArrayCompareBoundVisitors(t *testing.T) {
 		}
 	}
 	for _, q := range []string{"SELECT 1 IN(1,2,NULL)", "SELECT 1=ANY('{1,NULL}'::INT[])"} {
-		original, err := b.Bind(statement(t, q).(*parser.Select).Targets[0], expressionPolicy{Context: analyze.ProjectionContext})
+		original, err := b.Bind(statement(t, q).(*parser.Select).Targets[0], analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}

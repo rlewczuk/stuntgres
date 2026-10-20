@@ -12,13 +12,13 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation) *expressionBinder {
+func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation) *analyze.Binder {
 	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), parent.Address())
-	columns := make([]queryColumn, len(parent.Columns))
+	columns := make([]analyze.QueryColumn, len(parent.Columns))
 	for i, c := range parent.Columns {
-		columns[i] = queryColumn{Descriptor: c, Slot: i, Leaf: 0, Physical: i}
+		columns[i] = analyze.QueryColumn{Descriptor: c, Slot: i, Leaf: 0, Physical: i}
 	}
-	namespace := queryNamespace{Columns: columns, Qualifiers: []queryQualifier{{Name: parent.Name(), Original: parent.Name(), Schema: auth.Catalog.Get(parent.Namespace()).Name(), Ref: ref, Columns: columns}}, Frame: parent.Columns}
+	namespace := analyze.QueryNamespace{Columns: columns, Qualifiers: []analyze.QueryQualifier{{Name: parent.Name(), Original: parent.Name(), Schema: auth.Catalog.Get(parent.Namespace()).Name(), Ref: ref, Columns: columns}}, Frame: parent.Columns}
 	binder := newExpressionBinder(op.Context(), e, input, op, nil)
 	binder.Consumer.IndexConsumer, binder.Params.NoParameters, binder.Query.Auth = true, true, &auth
 	binder.Query.Namespace = &namespace
@@ -33,7 +33,7 @@ func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnviron
 func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, raw parser.Expr, literals []plan.LiteralExpr) (*catalog.DerivedIndexKey, string, error) {
 	binder := e.indexExpressionBinder(op, input, auth, parent)
 	binder.Stored.CheckLiterals = literals
-	definition, err := binder.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+	definition, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		return nil, "", err
 	}

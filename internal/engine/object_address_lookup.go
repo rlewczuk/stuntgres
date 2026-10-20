@@ -124,22 +124,22 @@ func objectListLength(list string, n int, exact bool) error {
 	}
 	return sqlError("22023", fmt.Sprintf("%s list length must be %s %d", list, word, n))
 }
-func objectLookupPath(scope *StatementScope, names []string) (namespaceSelection, error) {
+func objectLookupPath(scope *StatementScope, names []string) (analyze.NamespaceSelection, error) {
 	if len(names) == 1 {
-		return namespaceSelection{Path: scope.inquiry.deparsePath}, nil
+		return analyze.NamespaceSelection{Path: scope.inquiry.deparsePath}, nil
 	}
 	if len(names) > 3 {
-		return namespaceSelection{}, sqlError("42601", "improper qualified name (too many dotted names): "+strings.Join(names, "."))
+		return analyze.NamespaceSelection{}, sqlError("42601", "improper qualified name (too many dotted names): "+strings.Join(names, "."))
 	}
 	if len(names) == 3 {
 		if names[0] != scope.op.session.databaseName {
-			return namespaceSelection{}, sqlError("0A000", "cross-database references are not implemented: "+strings.Join(names, "."))
+			return analyze.NamespaceSelection{}, sqlError("0A000", "cross-database references are not implemented: "+strings.Join(names, "."))
 		}
 		names = names[1:]
 	}
 	auth := scope.inquiry.deparseAuth
 	if auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: names[0]}) == (ids.ObjectAddress{}) && names[0] != "pg_temp" {
-		return namespaceSelection{}, sqlError("3F000", fmt.Sprintf("schema %q does not exist", names[0]))
+		return analyze.NamespaceSelection{}, sqlError("3F000", fmt.Sprintf("schema %q does not exist", names[0]))
 	}
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: names[0]}, {Text: names[1]}}}
 	return auth.engine.lookupNamespacesSnapshot(auth, name, analyze.FunctionLookup)

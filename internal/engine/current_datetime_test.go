@@ -26,7 +26,7 @@ func TestCurrentDateTimeBindingAndSymbolicConsumers(t *testing.T) {
 			raw.HasPrecision = true
 			raw.Precision = 3
 		}
-		bound, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		bound, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(raw, err)
 		}

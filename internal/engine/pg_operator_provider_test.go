@@ -147,7 +147,7 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 						args = []parser.Expr{column("l"), column("r")}
 					}
 					raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: candidate[2]}}}, Args: args}
-					bound, err = b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+					bound, err = b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 					executable = err == nil
 				}
 				if executable {

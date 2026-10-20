@@ -25,7 +25,7 @@ func TestPGNamespaceTemporarySuperuserAuthority(t *testing.T) {
 	}
 	check := func(auth AuthorizationView, allowed bool) {
 		t.Helper()
-		for _, kind := range []lookupKind{analyze.RelationLookup, analyze.TypeLookup, analyze.FunctionLookup, analyze.OperatorLookup, analyze.CollationLookup, analyze.ConversionLookup} {
+		for _, kind := range []analyze.LookupKind{analyze.RelationLookup, analyze.TypeLookup, analyze.FunctionLookup, analyze.OperatorLookup, analyze.CollationLookup, analyze.ConversionLookup} {
 			selected, err := e.lookupNamespacesSnapshot(auth, qualified, kind)
 			if allowed {
 				if err != nil || selected.Qualified != namespace {

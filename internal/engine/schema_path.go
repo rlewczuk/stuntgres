@@ -16,7 +16,7 @@ import (
 func (e *Engine) explicitPath(auth AuthorizationView) ([]ids.ObjectAddress, bool, error) {
 	return e.explicitPathFor(auth, analyze.RelationLookup)
 }
-func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]ids.ObjectAddress, bool, error) {
+func (e *Engine) explicitPathFor(auth AuthorizationView, kind analyze.LookupKind) ([]ids.ObjectAddress, bool, error) {
 	entries := e.settings.Definitions()["search_path"].BootValue().Path
 	if auth.settings != nil && !auth.materializedPopulation {
 		auth.settings.mu.Lock()
@@ -95,14 +95,14 @@ func (e *Engine) explicitPathFor(auth AuthorizationView, kind lookupKind) ([]ids
 func (e *Engine) referencePath(auth AuthorizationView) ([]ids.ObjectAddress, error) {
 	return e.lookupPath(auth, analyze.RelationLookup)
 }
-func (e *Engine) lookupPath(auth AuthorizationView, kind lookupKind) ([]ids.ObjectAddress, error) {
+func (e *Engine) lookupPath(auth AuthorizationView, kind analyze.LookupKind) ([]ids.ObjectAddress, error) {
 	path, _, err := e.explicitPathFor(auth, kind)
 	if err != nil {
 		return nil, err
 	}
 	return e.effectivePath(auth, path, kind), nil
 }
-func (e *Engine) effectivePath(auth AuthorizationView, path []ids.ObjectAddress, kind lookupKind) []ids.ObjectAddress {
+func (e *Engine) effectivePath(auth AuthorizationView, path []ids.ObjectAddress, kind analyze.LookupKind) []ids.ObjectAddress {
 	if kind == analyze.InstalledFunctionLookup || kind == analyze.FunctionLookup || kind == analyze.OperatorLookup || kind == analyze.CollationLookup || kind == analyze.ConversionLookup {
 		filtered := path[:0]
 		for _, a := range path {
@@ -141,21 +141,21 @@ func (e *Engine) effectivePath(auth AuthorizationView, path []ids.ObjectAddress,
 // lookupNamespaces is the shared qualified/unqualified namespace authority.
 // Relations retain missing-object diagnostics; other named providers diagnose
 // a missing explicit namespace before considering signatures or type names.
-func (e *Engine) lookupNamespaces(auth AuthorizationView, name parser.ObjectName, kind lookupKind) (namespaceSelection, error) {
+func (e *Engine) lookupNamespaces(auth AuthorizationView, name parser.ObjectName, kind analyze.LookupKind) (analyze.NamespaceSelection, error) {
 	if err := e.catalog.validateCatalogViewLocked(auth.Catalog); err != nil {
-		return namespaceSelection{}, err
+		return analyze.NamespaceSelection{}, err
 	}
 	return e.lookupNamespacesSnapshot(auth, name, kind)
 }
 
 // Immutable statement authority resolves names without consulting live epochs.
-func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.ObjectName, kind lookupKind) (namespaceSelection, error) {
+func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.ObjectName, kind analyze.LookupKind) (analyze.NamespaceSelection, error) {
 	if len(name.Parts) == 1 {
 		path, err := e.lookupPath(auth, kind)
-		return namespaceSelection{Path: path}, err
+		return analyze.NamespaceSelection{Path: path}, err
 	}
 	if len(name.Parts) != 2 {
-		return namespaceSelection{}, fmt.Errorf("stuntgres: invalid object name")
+		return analyze.NamespaceSelection{}, fmt.Errorf("stuntgres: invalid object name")
 	}
 	n := name.Parts[0]
 	a := auth.definitionLookup(ids.NameKey{ClassID: ids.NamespaceClassID, Name: n.Text})
@@ -164,9 +164,9 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 	}
 	if a == (ids.ObjectAddress{}) {
 		if kind != analyze.RelationLookup {
-			return namespaceSelection{}, expr.ErrorAt("3F000", fmt.Sprintf(`schema "%s" does not exist`, n.Text), n.Pos)
+			return analyze.NamespaceSelection{}, expr.ErrorAt("3F000", fmt.Sprintf(`schema "%s" does not exist`, n.Text), n.Pos)
 		}
-		return namespaceSelection{}, nil
+		return analyze.NamespaceSelection{}, nil
 	}
 	ns, _ := auth.definitionNamespace(a)
 	foreignTemporary := ns.Temporary != (ids.SessionToken{}) && !ns.TemporaryToast && !ownTemporaryNamespace(auth, ns)
@@ -176,19 +176,19 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 	}
 	if foreignTemporary && kind != analyze.InstalledFunctionLookup {
 		if kind == analyze.RelationLookup {
-			return namespaceSelection{}, sqlError("42501", fmt.Sprintf("permission denied for schema %s", ns.Name()))
+			return analyze.NamespaceSelection{}, sqlError("42501", fmt.Sprintf("permission denied for schema %s", ns.Name()))
 		}
-		return namespaceSelection{}, expr.ErrorAt("42501", fmt.Sprintf("permission denied for schema %s", ns.Name()), n.Pos)
+		return analyze.NamespaceSelection{}, expr.ErrorAt("42501", fmt.Sprintf("permission denied for schema %s", ns.Name()), n.Pos)
 	}
 	if err := auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), a)); err != nil {
 		if diagnostic, ok := err.(*sqlstate.Error); ok && n.Pos.Character > 0 {
 			copy := *diagnostic
 			copy.Position = strconv.Itoa(n.Pos.Character)
-			return namespaceSelection{}, &copy
+			return analyze.NamespaceSelection{}, &copy
 		}
-		return namespaceSelection{}, err
+		return analyze.NamespaceSelection{}, err
 	}
-	return namespaceSelection{Qualified: a}, nil
+	return analyze.NamespaceSelection{Qualified: a}, nil
 }
 
 func (e *Engine) creationNamespace(auth AuthorizationView, name parser.ObjectName) (ids.ObjectRef, error) {

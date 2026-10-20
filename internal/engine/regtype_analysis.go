@@ -11,7 +11,7 @@ import (
 )
 
 type regtypeAnalysis struct {
-	constants         []regtypeConstant
+	constants         []analyze.RegtypeConstant
 	path              sequence.Environment
 	role              authorization.PrincipalRef
 	database          string
@@ -20,7 +20,7 @@ type regtypeAnalysis struct {
 	invalidated       bool // A failed reanalysis must not revive these captures.
 }
 
-func (e *Engine) regtypeAnalysisLocked(auth AuthorizationView, constants []regtypeConstant) (*regtypeAnalysis, error) {
+func (e *Engine) regtypeAnalysisLocked(auth AuthorizationView, constants []analyze.RegtypeConstant) (*regtypeAnalysis, error) {
 	if len(constants) == 0 {
 		return nil, nil
 	}

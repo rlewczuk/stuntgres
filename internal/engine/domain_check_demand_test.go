@@ -36,7 +36,7 @@ func TestDomainCheckPreflightDemandInternal(t *testing.T) {
 		}
 		b := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 		b.Query.Auth = &auth
-		node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

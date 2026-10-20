@@ -17,7 +17,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func versionInformationUnitLeaf(t *testing.T, b *expressionBinder, kind functions.VersionInformationKind) functions.VersionInformation {
+func versionInformationUnitLeaf(t *testing.T, b *analyze.Binder, kind functions.VersionInformationKind) functions.VersionInformation {
 	t.Helper()
 	node, err := b.BindFunction(parser.FunctionExpr{
 		Name: parser.ObjectName{Parts: []parser.Identifier{{Text: kind.Name()}}},

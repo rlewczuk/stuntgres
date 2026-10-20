@@ -134,7 +134,7 @@ func TestExpressionScalarBehaviorAndSparseDiagnostics(t *testing.T) {
 		r.Rows.Close()
 	}
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	_, err := binder.Bind(parser.ParameterExpr{Number: 2147483647, Pos: parser.Position{Character: 8}}, expressionPolicy{Context: analyze.ProjectionContext})
+	_, err := binder.Bind(parser.ParameterExpr{Number: 2147483647, Pos: parser.Position{Character: 8}}, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +147,7 @@ func TestExpressionOccurrenceSensitiveFallback(t *testing.T) {
 	for _, id := range []sqltype.ID{sqltype.Int4, sqltype.Bool, sqltype.Text} {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 8}}
-		target, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		target, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -155,7 +155,7 @@ func TestExpressionOccurrenceSensitiveFallback(t *testing.T) {
 			t.Fatal("target inferred before context")
 		}
 		expected := b.Type(id).Usage()
-		later, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext, Expected: expected})
+		later, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext, Expected: expected})
 		if err != nil {
 			t.Fatal(err)
 		}

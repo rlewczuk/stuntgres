@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
@@ -56,7 +57,7 @@ func TestDeleteCoreExpressionPreflightAuthority(t *testing.T) {
 					op.session.RequestEnd(CleanClose)
 				}
 			}
-			result, executeErr := scope.Execute(statement(t, "DELETE FROM t WHERE int4($1::text)=i"), 1, func(c context.Context, signature ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {
+			result, executeErr := scope.Execute(statement(t, "DELETE FROM t WHERE int4($1::text)=i"), 1, func(c context.Context, signature analyze.ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {
 				value, err := signature.Types[0].Type.Input(c, "7", -1)
 				if err != nil {
 					return err
@@ -121,7 +122,7 @@ func TestDeleteCoreExpressionPreflightEmptyAndDecisive(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				result, executeErr := scope.Execute(statement(t, "DELETE FROM t WHERE "+predicate), 1, func(c context.Context, signature ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {
+				result, executeErr := scope.Execute(statement(t, "DELETE FROM t WHERE "+predicate), 1, func(c context.Context, signature analyze.ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {
 					value, err := signature.Types[0].Type.Input(c, "bad", -1)
 					frame[0] = value
 					return err
@@ -175,7 +176,7 @@ func TestDeleteCoreExpressionACLPrecedence(t *testing.T) {
 			if tc.arg != "" {
 				count = 1
 			}
-			result, executeErr := scope.Execute(statement(t, tc.query), count, func(c context.Context, signature ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {
+			result, executeErr := scope.Execute(statement(t, tc.query), count, func(c context.Context, signature analyze.ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {
 				value, err := signature.Types[0].Type.Input(c, tc.arg, -1)
 				frame[0] = value
 				return err

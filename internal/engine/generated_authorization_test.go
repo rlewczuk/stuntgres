@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -34,7 +35,7 @@ func generatedAuthorizationFixture(t *testing.T) (*Engine, *Operation, *Operatio
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(admin)
 	if err == nil {
-		err = e.bindCreateGenerations(admin, auth, d, []createColumnDeclaration{{}, {Generation: generation}}, sqltype.InputEnvironment{})
+		err = e.bindCreateGenerations(admin, auth, d, []analyze.ColumnDeclaration{{}, {Generation: generation}}, sqltype.InputEnvironment{})
 	}
 	if err == nil {
 		err = e.assignDefinitionOIDsLocked(d)
@@ -115,7 +116,7 @@ func TestGeneratedPartialColumnAuthorization(t *testing.T) {
 			// Private generation dependencies must not become caller SELECT demands.
 			e.mu.Lock()
 			auth, err := e.authorizationLocked(actor)
-			var bound binding
+			var bound analyze.Binding
 			if err == nil {
 				bound, err = describe(context.Background(), e.analysisHost(actor), tc.stmt, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 			}

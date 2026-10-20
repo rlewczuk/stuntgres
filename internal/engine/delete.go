@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -178,7 +179,7 @@ func (w *WriteStage) stageDeletionLocked(e *Engine, candidate visibility.DeleteC
 	return nil
 }
 
-func (s *StatementScope) executeDelete(b binding, view *visibility.View, inputs *exec.Source, parameters []sqltype.Value) (Result, error) {
+func (s *StatementScope) executeDelete(b analyze.Binding, view *visibility.View, inputs *exec.Source, parameters []sqltype.Value) (Result, error) {
 	source, err := s.captureMutationSource(s.op.Context(), view, b)
 	if err != nil {
 		if inputs != nil {
@@ -191,7 +192,7 @@ func (s *StatementScope) executeDelete(b binding, view *visibility.View, inputs 
 	return s.deleteSource(b, source, inputs, parameters)
 }
 
-func (s *StatementScope) deleteSource(b binding, source, inputs *exec.Source, parameters []sqltype.Value) (Result, error) {
+func (s *StatementScope) deleteSource(b analyze.Binding, source, inputs *exec.Source, parameters []sqltype.Value) (Result, error) {
 	if b.Storage == nil || b.Storage != s.lockedStorage || b.Storage != source.View.Data().GenerationAt(b.Ref.Address) {
 		if inputs != nil {
 			inputs.Close()

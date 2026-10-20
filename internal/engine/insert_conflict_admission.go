@@ -1,14 +1,15 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 )
 
-func bindingForConflict(ref ids.ObjectRef, parent *catalog.Relation, action *insertConflictState) binding {
-	return binding{Ref: ref, Relation: parent, Targets: action.Targets, Insert: insertBinding{Conflict: action.InsertConflict}, QuerySources: action.Sources, Returning: action.Returning}
+func bindingForConflict(ref ids.ObjectRef, parent *catalog.Relation, action *insertConflictState) analyze.Binding {
+	return analyze.Binding{Ref: ref, Relation: parent, Targets: action.Targets, Insert: analyze.InsertBinding{Conflict: action.InsertConflict}, QuerySources: action.Sources, Returning: action.Returning}
 }
 func (s *StatementScope) admitInsertRow(ref ids.ObjectRef, candidate *indexWriteCandidate, prefix indexWriteBatch, evaluation *exec.Context) (bool, error) {
 	action := s.insertConflict

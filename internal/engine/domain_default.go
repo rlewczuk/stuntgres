@@ -30,7 +30,7 @@ func (e *Engine) bindDomainDefault(ctx context.Context, op *Operation, auth Auth
 	} else {
 		b := newExpressionBinder(ctx, e, input, op, nil)
 		b.Query.Auth = &auth
-		b.Query.Namespace = &queryNamespace{}
+		b.Query.Namespace = &analyze.QueryNamespace{}
 		b.Params.NoParameters = true
 		node, err := b.BindDefault(raw, catalog.Column{Name: d.Name(), Usage: base})
 		if err != nil {
@@ -84,7 +84,7 @@ func omitColumnDefault(view catalog.Read, node expr.Expr, usage sqltype.Usage) b
 	return structuralNull(node) && typedef.TypeDefault(view, usage.Type) == nil && !node.Properties().RuntimeDomainConversion
 }
 
-func applyDefaultOrigin(o defaultOrigin, c *exec.Context) {
+func applyDefaultOrigin(o analyze.DefaultOrigin, c *exec.Context) {
 	c.QuoteOrigin = o.Quote
 	c.RoutineRecipe, c.RoutineGraft = true, false
 	c.RoutineChecks = nil
@@ -147,7 +147,7 @@ func validateDomainDefault(view catalog.Read, d *catalog.Type) error {
 	}
 	return nil
 }
-func bindingDefaultOrigin(b *binding, slot int) defaultOrigin {
+func bindingDefaultOrigin(b *analyze.Binding, slot int) analyze.DefaultOrigin {
 	if slot < len(b.Insert.DefaultOrigins) {
 		return b.Insert.DefaultOrigins[slot]
 	}
@@ -155,12 +155,12 @@ func bindingDefaultOrigin(b *binding, slot int) defaultOrigin {
 	attribute := physical.Relation.Attributes[slot]
 	definition := physical.Relation.ColumnMeta.Defaults[attribute]
 	if definition.Expression == nil {
-		return defaultOrigin{}
+		return analyze.DefaultOrigin{}
 	}
-	return defaultOrigin{Definition: definition, Consumer: physical.Relation, Quote: exec.QuoteOrigin{Owner: physical.Ref, Attribute: attribute, Definition: definition.OID}}
+	return analyze.DefaultOrigin{Definition: definition, Consumer: physical.Relation, Quote: exec.QuoteOrigin{Owner: physical.Ref, Attribute: attribute, Definition: definition.OID}}
 }
 
-func evalDefaultExpression(c *exec.Context, node expr.Expr, origin defaultOrigin) (sqltype.Value, error) {
+func evalDefaultExpression(c *exec.Context, node expr.Expr, origin analyze.DefaultOrigin) (sqltype.Value, error) {
 	quote, recipe, graft := c.QuoteOrigin, c.RoutineRecipe, c.RoutineGraft
 	checks, refs, consumer := c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer
 	applyDefaultOrigin(origin, c)
@@ -171,6 +171,6 @@ func evalDefaultExpression(c *exec.Context, node expr.Expr, origin defaultOrigin
 	return node.Eval(c)
 }
 
-func evalBindingDefault(b *binding, c *exec.Context, slot int, node expr.Expr) (sqltype.Value, error) {
+func evalBindingDefault(b *analyze.Binding, c *exec.Context, slot int, node expr.Expr) (sqltype.Value, error) {
 	return evalDefaultExpression(c, node, bindingDefaultOrigin(b, slot))
 }

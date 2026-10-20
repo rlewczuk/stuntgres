@@ -10,7 +10,7 @@ import (
 
 // Demand is derived from typed NEW references before substitution. The ordinary
 // stored projection planner also retains volatile outputs and clause caches.
-func ruleProducerOutputUses(original binding, rule ruleDefinition, action binding) []int {
+func ruleProducerOutputUses(original analyze.Binding, rule ruleDefinition, action analyze.Binding) []int {
 	uses := []int{}
 	inspect := func(bound expr.Expr) {
 		plan.WalkExpression(bound, func(node expr.Expr) {
@@ -300,7 +300,7 @@ func ruleQueryProducerDemand(root plan.Node, external func(func(expr.Expr)), tar
 // Mutation consumers live outside their FROM/USING query root. Pass those real
 // expressions into the same liveness pass, without inventing a project/provider
 // or moving their execution frontier into the source.
-func ruleMutationProducerDemand(b binding) (binding, error) {
+func ruleMutationProducerDemand(b analyze.Binding) (analyze.Binding, error) {
 	root := b.Delete.Using
 	if b.Update != nil {
 		root = b.Update.From
@@ -334,7 +334,7 @@ func ruleMutationProducerDemand(b binding) (binding, error) {
 		}
 	}, len(b.Relation.Columns))
 	if err != nil {
-		return binding{}, err
+		return analyze.Binding{}, err
 	}
 	if mapped != root {
 		if b.Update != nil {

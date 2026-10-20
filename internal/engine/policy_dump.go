@@ -33,7 +33,7 @@ func policyExpressionSQL(ctx context.Context, view catalog.Read, expression *pol
 		}
 	}
 	r.slots[source] = slots
-	return r.expressionSQL(ctx, view, expression.syntax, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
+	return r.expressionSQL(ctx, view, expression.syntax, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 }
 
 func policyDumpGroups(ctx context.Context, view catalog.Read, roles authorization.Read) ([]dumpPolicyGroup, error) {

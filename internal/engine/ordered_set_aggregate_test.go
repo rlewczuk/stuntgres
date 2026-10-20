@@ -648,7 +648,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 				}
 				raw.Args = []parser.Expr{parser.TypedLiteralExpr{TypeName: direct, Text: text, Pos: position}}
 			}
-			result, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+			result, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 			if err != nil {
 				t.Fatal(err)
 			}

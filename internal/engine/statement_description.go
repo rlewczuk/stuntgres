@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -8,15 +9,15 @@ import (
 )
 
 type StatementDescription struct {
-	Parameters ParameterInfo
+	Parameters analyze.ParameterInfo
 	Results    []catalog.Column
 	// Logical user identities belong to an owner/epoch, not merely a reused OID.
 	catalogOwner *catalog.Owner
 	catalogEpoch ids.CatalogEpoch
 	// Public signatures stay immutable. Invalidation refreshes temporal-now and
 	// specialized groups atomically, preserving native logical literal identity.
-	temporals        []temporalConstant
-	composites       map[preparedCompositeKey]compositeOccurrence
+	temporals        []analyze.TemporalConstant
+	composites       map[analyze.PreparedCompositeKey]analyze.CompositeOccurrence
 	sequences        *sequence.Analysis
 	regtypes         *regtypeAnalysis
 	analysis         *preparedAnalysis

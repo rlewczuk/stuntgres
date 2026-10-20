@@ -35,7 +35,7 @@ func TestDatetimeFormattingViewCastUsage(t *testing.T) {
 	if err := b.CaptureViewLiterals(raw, node, analyze.ViewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
-	key := viewLiteralPath{Clause: analyze.ViewTargetLiteral}
+	key := analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral}
 	renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}, frame: b.FrameID()}
 	catalog := e.CatalogRead()
 	for _, c := range []struct {
@@ -75,7 +75,7 @@ func TestDatetimeFormattingViewOIDCastReplay(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	raw := parser.CastExpr{Child: parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "42"}}, TypeName: parser.TypeName{Name: "oid"}}
-	node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+	node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestDatetimeFormattingViewOIDCastReplay(t *testing.T) {
 		{false, "CAST('42' AS OID)"}, {true, "'42'::oid"},
 	} {
 		renderer.presentation = viewPresentation{deparse: c.deparse, pretty: true}
-		got, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
+		got, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 		if err != nil || got != c.want {
 			t.Fatal("OID literal acquired duplicate cast", c, got, err)
 		}
@@ -113,7 +113,7 @@ func TestDatetimeFormattingCapturedLiteralGrouping(t *testing.T) {
 		e := New()
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 		raw := parser.CastExpr{Child: c.source, TypeName: parser.TypeName{Name: "text"}}
-		node, err := b.Bind(raw, expressionPolicy{Context: analyze.ProjectionContext})
+		node, err := b.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -121,7 +121,7 @@ func TestDatetimeFormattingCapturedLiteralGrouping(t *testing.T) {
 			t.Fatal(err)
 		}
 		renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}, frame: b.FrameID(), presentation: viewPresentation{deparse: true, pretty: true}}
-		got, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
+		got, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 		if err != nil || got != c.want {
 			t.Fatal("annotated versus genuinely bare literal", c, got, err)
 		}
@@ -141,7 +141,7 @@ func TestDatetimeFormattingCapturedLiteralGrouping(t *testing.T) {
 		t.Fatal(err)
 	}
 	renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.Capture.Literals, castUsages: b.Capture.CastUsages}, frame: b.FrameID(), presentation: viewPresentation{deparse: true, pretty: true}}
-	got, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, viewLiteralPath{Clause: analyze.ViewTargetLiteral})
+	got, err := renderer.expressionSQL(ctx, e.CatalogRead(), raw, analyze.ViewLiteralPath{Clause: analyze.ViewTargetLiteral})
 	if err != nil || got != "to_date('a'::text::text, 'YYYY'::text)" {
 		t.Fatal("function argument cast grouping", got, err)
 	}
