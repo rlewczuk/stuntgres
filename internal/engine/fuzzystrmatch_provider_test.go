@@ -209,7 +209,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	if err != nil || text != "{794575,794574,794750,794740,745750,745740,747500,747400}" || plannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
 		t.Fatal("immutable complete evaluation", text, err)
 	}
-	if n.ref.Address != ext.Members[0] || n.dictionary != nil || n.template != nil || value.Type() != n.Usage.Type || value.ArrayLen() != 8 {
+	if n.Ref.Address != ext.Members[0] || n.Dictionary != nil || n.Template != nil || value.Type() != n.Usage.Type || value.ArrayLen() != 8 {
 		t.Fatal("captured authority", n)
 	}
 	for i := range value.ArrayLen() {
@@ -218,16 +218,16 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 		}
 	}
 	refs, err := pgDependExpressionRefs(ctx.Context, e.CatalogRead(), n)
-	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.ref.Address}) {
+	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.Ref.Address}) {
 		t.Fatal("dependency", refs, err)
 	}
 	consumer := &catalog.Relation{ColumnMeta: catalog.ColumnMetadata{Generations: map[int32]catalog.ColumnGeneration{
-		1: {Expression: n, Dependencies: []ids.ObjectRef{n.ref}},
+		1: {Expression: n, Dependencies: []ids.ObjectRef{n.Ref}},
 	}}}
 	if err := validateGenerationProviders(e.CatalogRead(), consumer); err != nil {
 		t.Fatal("installed generation procedure dependency", err)
 	}
-	badRef := n.ref
+	badRef := n.Ref
 	badRef.Address.SubID = 1
 	invalid := *consumer
 	invalid.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{
@@ -237,9 +237,9 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 		t.Fatal("procedure subobject generation dependency admitted")
 	}
 	state := catalog.CloneState(e.catalog.state)
-	badProcedure := *n.procedure
+	badProcedure := *n.Procedure
 	badProcedure.Result = 25
-	state.SetDescriptor(n.ref.Address, &badProcedure)
+	state.SetDescriptor(n.Ref.Address, &badProcedure)
 	if err := validateGenerationProviders(e.catalog.read(state), consumer); err == nil {
 		t.Fatal("corrupt installed generation manifest admitted")
 	}
@@ -269,7 +269,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	foreignArray, _ := foreign.CatalogRead().LookupType(1009)
 	forged := n
 	forged.Usage.Type = foreignArray
-	if forged.validProvider() {
+	if validInstalledText(forged) {
 		t.Fatal("foreign array/argument generation admitted")
 	}
 	if _, err := forged.Eval(ctx); err == nil {
@@ -303,9 +303,9 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	}
 	sourceView := source.CatalogRead()
 	sourceArray, sourceText := oldValue.Type(), oldValue.ArrayElement(0).Type()
-	sourceProcedure := old.procedure
+	sourceProcedure := old.Procedure
 	procedureBefore := *sourceProcedure
-	sourceRef, sourceUsage := old.ref, old.ResultUsage()
+	sourceRef, sourceUsage := old.Ref, old.ResultUsage()
 	sourceDimensions := oldValue.ArrayDimensions()
 	target := New()
 	if _, err := target.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
@@ -337,7 +337,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	v, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 	ownedArray, _ := target.CatalogRead().LookupType(1009)
 	ownedText, _ := target.CatalogRead().LookupType(sqltype.Text)
-	if err != nil || v.Type() != ownedArray || v.ArrayElement(0).Type() != ownedText || n.procedure != target.catalog.state.Get(imported.Members[0]) || n.dictionary != nil || n.template != nil {
+	if err != nil || v.Type() != ownedArray || v.ArrayElement(0).Type() != ownedText || n.Procedure != target.catalog.state.Get(imported.Members[0]) || n.Dictionary != nil || n.Template != nil {
 		t.Fatal("remapped provider/generations", v, err)
 	}
 	// Foreign import can share immutable builtin TEXT/text[] descriptors.
@@ -345,10 +345,10 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	// between the two catalogs' immutable builtin descriptors.
 	currentSourceArray, _ := source.CatalogRead().LookupType(1009)
 	currentSourceText, _ := source.CatalogRead().LookupType(sqltype.Text)
-	if source.CatalogRead().State() != sourceView.State() || currentSourceArray != sourceArray || currentSourceText != sourceText || sourceArray.Element() != sourceText || oldValue.Type() != sourceArray || oldValue.ArrayElement(0).Type() != sourceText || old.procedure != sourceProcedure || source.catalog.state.Get(sourceRef.Address) != sourceProcedure || old.ref != sourceRef || old.ResultUsage() != sourceUsage || !reflect.DeepEqual(*sourceProcedure, procedureBefore) || !reflect.DeepEqual(oldValue.ArrayDimensions(), sourceDimensions) {
+	if source.CatalogRead().State() != sourceView.State() || currentSourceArray != sourceArray || currentSourceText != sourceText || sourceArray.Element() != sourceText || oldValue.Type() != sourceArray || oldValue.ArrayElement(0).Type() != sourceText || old.Procedure != sourceProcedure || source.catalog.state.Get(sourceRef.Address) != sourceProcedure || old.Ref != sourceRef || old.ResultUsage() != sourceUsage || !reflect.DeepEqual(*sourceProcedure, procedureBefore) || !reflect.DeepEqual(oldValue.ArrayDimensions(), sourceDimensions) {
 		t.Fatal("retained source changed")
 	}
-	if n.procedure == sourceProcedure || n.ref.Address != n.procedure.Address() || n.ref.Domain() != target.catalog.Domain || n.ref.Epoch != target.CatalogRead().Epoch() || ownedArray.Element() != ownedText {
+	if n.Procedure == sourceProcedure || n.Ref.Address != n.Procedure.Address() || n.Ref.Domain() != target.catalog.Domain || n.Ref.Epoch != target.CatalogRead().Epoch() || ownedArray.Element() != ownedText {
 		t.Fatal("remapped installed authority still belongs to source")
 	}
 	retainedText, err := sourceArray.Output(context.Background(), oldValue)

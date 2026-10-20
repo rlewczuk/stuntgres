@@ -87,17 +87,17 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			case plan.SQLRoutineExpr:
 				address = installed.Ref.Address
 			case installedFunctionExpression:
-				address = installed.ref.Address
+				address = installed.Ref.Address
 			case installedCryptoFunctionExpression:
-				address = installed.ref.Address
+				address = installed.Ref.Address
 			case installedUUIDOsspFunctionExpression:
-				address = installed.ref.Address
+				address = installed.Ref.Address
 			case installedMetaphoneFunctionExpression:
-				address = installed.ref.Address
+				address = installed.Ref.Address
 			case installedLevenshteinFunctionExpression:
-				address = installed.ref.Address
+				address = installed.Ref.Address
 			case installedSoundexFunctionExpression:
-				address = installed.ref.Address
+				address = installed.Ref.Address
 			case plan.UnnestExpr:
 				if installed.Procedure != nil {
 					address = installed.Ref.Address
@@ -217,16 +217,16 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 		if err != nil {
 			return node, false, err
 		}
-		descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
+		descriptor, _ := definitionDescriptorAt(view, reader, n.Ref.Address)
 		proc, ok := descriptor.(*catalog.Procedure)
 		if !ok || extension.FuzzystrmatchProviderOf(proc) != extension.StockFuzzystrmatch {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped Soundex function")
 		}
-		changed = changed || n.procedure != proc
-		n.procedure = proc
+		changed = changed || n.Procedure != proc
+		n.Procedure = proc
 		n.Soundex, err = n.Reconstruct(info, n.Args)
 		if err == nil {
-			err = n.validate(view)
+			err = validateInstalledSoundex(n, view)
 		}
 		rebound = n
 	case installedMetaphoneFunctionExpression:
@@ -234,16 +234,16 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 		if err != nil {
 			return node, false, err
 		}
-		descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
+		descriptor, _ := definitionDescriptorAt(view, reader, n.Ref.Address)
 		proc, ok := descriptor.(*catalog.Procedure)
 		if !ok || extension.FuzzystrmatchProviderOf(proc) != extension.StockFuzzystrmatch {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped Metaphone function")
 		}
-		changed = changed || n.procedure != proc
-		n.procedure = proc
+		changed = changed || n.Procedure != proc
+		n.Procedure = proc
 		n.Metaphone, err = n.Reconstruct(info, n.Args)
 		if err == nil {
-			err = n.validate(view)
+			err = validateInstalledMetaphone(n, view)
 		}
 		rebound = n
 	case installedLevenshteinFunctionExpression:
@@ -251,49 +251,49 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 		if err != nil {
 			return node, false, err
 		}
-		descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
+		descriptor, _ := definitionDescriptorAt(view, reader, n.Ref.Address)
 		proc, ok := descriptor.(*catalog.Procedure)
 		if !ok || extension.FuzzystrmatchProviderOf(proc) != extension.StockFuzzystrmatch {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped Levenshtein function")
 		}
-		changed = changed || n.procedure != proc
-		n.procedure = proc
+		changed = changed || n.Procedure != proc
+		n.Procedure = proc
 		n.Levenshtein, err = n.Reconstruct(info, n.Args)
 		if err == nil {
-			err = n.validate(view)
+			err = validateInstalledLevenshtein(n, view)
 		}
 		rebound = n
 	case installedUUIDOsspFunctionExpression:
-		descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
+		descriptor, _ := definitionDescriptorAt(view, reader, n.Ref.Address)
 		proc, ok := descriptor.(*catalog.Procedure)
 		if !ok || extension.UUIDOsspProviderOf(proc) != extension.StockUUIDOssp {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped uuid-ossp function")
 		}
-		changed = changed || n.procedure != proc
-		n.procedure = proc
+		changed = changed || n.Procedure != proc
+		n.Procedure = proc
 		n.Info = info
-		err = n.validate(view)
+		err = validateInstalledUUIDOssp(n, view)
 		rebound = n
 	case installedCryptoFunctionExpression:
 		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
 		}
-		descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
+		descriptor, _ := definitionDescriptorAt(view, reader, n.Ref.Address)
 		proc, ok := descriptor.(*catalog.Procedure)
 		if !ok || extension.PgcryptoProviderOf(proc) != extension.StockPgcrypto {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped crypto function")
 		}
-		changed = changed || n.procedure != proc
-		n.procedure = proc
+		changed = changed || n.Procedure != proc
+		n.Procedure = proc
 		n.Pgcrypto, err = n.Reconstruct(info, n.Args)
 		if err == nil {
-			err = n.validate(view)
+			err = validateInstalledCrypto(n, view)
 		}
 		rebound = n
 	case installedFunctionExpression:
 		n.Arg = child(n.Arg)
-		descriptor, _ := definitionDescriptorAt(view, reader, n.ref.Address)
+		descriptor, _ := definitionDescriptorAt(view, reader, n.Ref.Address)
 		proc, ok := descriptor.(*catalog.Procedure)
 		if !ok {
 			return nil, false, fmt.Errorf("stuntgres: missing remapped installed function")
@@ -312,10 +312,10 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 				return nil, false, fmt.Errorf("stuntgres: missing remapped installed template")
 			}
 		}
-		changed = changed || n.procedure != proc || n.dictionary != dict || n.template != tmpl
-		n.procedure, n.dictionary, n.template = proc, dict, tmpl
+		changed = changed || n.Procedure != proc || n.Dictionary != dict || n.Template != tmpl
+		n.Procedure, n.Dictionary, n.Template = proc, dict, tmpl
 		n.Info = info
-		if !n.validProvider() {
+		if !validInstalledText(n) {
 			return nil, false, fmt.Errorf("stuntgres: invalid remapped installed function")
 		}
 		rebound = n
@@ -562,7 +562,7 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 		n.Info = info
 		rebound = n
 	case extensionPathsExpression:
-		n.arg = child(n.arg)
+		n.Arg = child(n.Arg)
 		if err != nil {
 			return node, false, err
 		}
@@ -570,7 +570,7 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			return node, false, nil
 		}
 		n.Info = info
-		if err := n.validate(); err != nil {
+		if err := n.Validate(); err != nil {
 			return node, false, err
 		}
 		rebound = n

@@ -278,10 +278,10 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 		return true
 	case extensionPathsExpression:
 		o, ok := other.(extensionPathsExpression)
-		return ok && same(e.arg, o.arg)
+		return ok && same(e.Arg, o.Arg)
 	case installedSoundexFunctionExpression:
 		o, ok := other.(installedSoundexFunctionExpression)
-		if !ok || e.ref != o.ref || e.procedure.Revision() != o.procedure.Revision() || e.Function != o.Function || len(e.Args) != len(o.Args) {
+		if !ok || e.Ref != o.Ref || e.Procedure.Revision() != o.Procedure.Revision() || e.Function != o.Function || len(e.Args) != len(o.Args) {
 			return false
 		}
 		for i := range e.Args {
@@ -292,7 +292,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 		return true
 	case installedMetaphoneFunctionExpression:
 		o, ok := other.(installedMetaphoneFunctionExpression)
-		if !ok || e.ref != o.ref || e.procedure.Revision() != o.procedure.Revision() || e.Function != o.Function || len(e.Args) != len(o.Args) {
+		if !ok || e.Ref != o.Ref || e.Procedure.Revision() != o.Procedure.Revision() || e.Function != o.Function || len(e.Args) != len(o.Args) {
 			return false
 		}
 		for i := range e.Args {
@@ -303,7 +303,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 		return true
 	case installedLevenshteinFunctionExpression:
 		o, ok := other.(installedLevenshteinFunctionExpression)
-		if !ok || e.ref != o.ref || e.procedure.Revision() != o.procedure.Revision() || e.Function != o.Function || len(e.Args) != len(o.Args) {
+		if !ok || e.Ref != o.Ref || e.Procedure.Revision() != o.Procedure.Revision() || e.Function != o.Function || len(e.Args) != len(o.Args) {
 			return false
 		}
 		for i := range e.Args {
@@ -314,10 +314,10 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 		return true
 	case installedUUIDOsspFunctionExpression:
 		o, ok := other.(installedUUIDOsspFunctionExpression)
-		return ok && e.ref == o.ref && e.procedure == o.procedure && e.Name == o.Name
+		return ok && e.Ref == o.Ref && e.Procedure == o.Procedure && e.Name == o.Name
 	case installedCryptoFunctionExpression:
 		o, ok := other.(installedCryptoFunctionExpression)
-		if !ok || e.ref != o.ref || e.procedure.Revision() != o.procedure.Revision() || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
+		if !ok || e.Ref != o.Ref || e.Procedure.Revision() != o.Procedure.Revision() || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
 			return false
 		}
 		for i := range e.Args {
@@ -328,7 +328,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 		return true
 	case installedFunctionExpression:
 		o, ok := other.(installedFunctionExpression)
-		return ok && e.ref == o.ref && e.procedure.Revision() == o.procedure.Revision() && same(e.Arg, o.Arg)
+		return ok && e.Ref == o.Ref && e.Procedure.Revision() == o.Procedure.Revision() && same(e.Arg, o.Arg)
 	case expr.GroupIdentity:
 		// Function nodes compare their own identity; installed-routine
 		// wrappers that embed one keep their explicit cases above.
@@ -549,7 +549,7 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		stage(&e.Info)
 		bound = e
 	case extensionPathsExpression:
-		e.arg = rewrite(e.arg)
+		e.Arg = rewrite(e.Arg)
 		stage(&e.Info)
 		bound = e
 	case installedSoundexFunctionExpression:
@@ -707,7 +707,7 @@ func aggregateOccurrence(bound expr.Expr) *plan.AggregateExpr {
 			walk(arg)
 		}
 	case extensionPathsExpression:
-		walk(e.arg)
+		walk(e.Arg)
 	case installedSoundexFunctionExpression:
 		for _, arg := range e.Args {
 			walk(arg)

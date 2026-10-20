@@ -12,8 +12,8 @@ import (
 
 type installedSoundexFunctionExpression struct {
 	functions.Soundex
-	procedure *catalog.Procedure
-	ref       ids.ObjectRef
+	Procedure *catalog.Procedure
+	Ref       ids.ObjectRef
 }
 
 // Rebuild keeps the installed-routine identity; the promoted Rebuild would
@@ -27,7 +27,7 @@ func (e installedSoundexFunctionExpression) Rebuild(info expr.Info, children []e
 	return e, nil
 }
 
-func (n installedSoundexFunctionExpression) validate(v catalog.Read) error {
+func validateInstalledSoundex(n installedSoundexFunctionExpression, v catalog.Read) error {
 	for _, arg := range n.Args {
 		if arg == nil || arg.ResultUsage().Type == nil {
 			return fmt.Errorf("stuntgres: missing stored Soundex argument")
@@ -37,8 +37,8 @@ func (n installedSoundexFunctionExpression) validate(v catalog.Read) error {
 	if n.Function == "difference" {
 		result = 23
 	}
-	proc, ok := v.Procedure(n.ref.Address)
-	if !ok || proc != n.procedure || extension.FuzzystrmatchProviderOf(proc) != extension.StockFuzzystrmatch || proc.Name() != n.Function || proc.Signature != catalog.ProcedureSignature(functions.SoundexSignature(n.Function, len(n.Args))) || proc.Result != result {
+	proc, ok := v.Procedure(n.Ref.Address)
+	if !ok || proc != n.Procedure || extension.FuzzystrmatchProviderOf(proc) != extension.StockFuzzystrmatch || proc.Name() != n.Function || proc.Signature != catalog.ProcedureSignature(functions.SoundexSignature(n.Function, len(n.Args))) || proc.Result != result {
 		return fmt.Errorf("stuntgres: invalid stored Soundex identity")
 	}
 	if err := extension.StockFuzzystrmatch.ValidateProcedure(v, proc); err != nil {

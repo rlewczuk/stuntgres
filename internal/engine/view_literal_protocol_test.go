@@ -462,7 +462,7 @@ func TestViewLiteralProtocolInstalledWrapper(t *testing.T) {
 	inner := node.(functions.UUIDGeneration)
 	ref := ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 7}, Epoch: 1}
 	procedure := &catalog.Procedure{}
-	wrapper := installedUUIDOsspFunctionExpression{UUIDGeneration: inner, procedure: procedure, ref: ref}
+	wrapper := installedUUIDOsspFunctionExpression{UUIDGeneration: inner, Procedure: procedure, Ref: ref}
 	if _, ok := any(wrapper).(expr.Capturable); !ok {
 		t.Fatal("fixture lost promoted capture hook")
 	}
@@ -474,12 +474,12 @@ func TestViewLiteralProtocolInstalledWrapper(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, ok := mapped.(installedUUIDOsspFunctionExpression)
-	if !ok || got.ref != ref || got.procedure != procedure {
+	if !ok || got.Ref != ref || got.Procedure != procedure {
 		t.Fatal("capture/remap erased installed identity", mapped)
 	}
 	// This deliberately non-installed identity must still fail validation.
 	// A cutover to the promoted bare UUID node would wrongly lose this guard.
-	if err := got.validate(b.bindingCatalog()); err == nil {
+	if err := validateInstalledUUIDOssp(got, b.bindingCatalog()); err == nil {
 		t.Fatal("lost installed identity validation")
 	}
 	if len(b.capture.literals) != 0 || len(b.capture.castUsages) != 0 {

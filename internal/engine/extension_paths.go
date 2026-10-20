@@ -13,7 +13,7 @@ import (
 
 type extensionPathsExpression struct {
 	expr.Info
-	arg expr.Expr
+	Arg expr.Expr
 }
 
 func (b *expressionBinder) bindExtensionPaths(raw parser.FunctionExpr, arg expr.Expr) (expr.Expr, error) {
@@ -34,8 +34,8 @@ func (b *expressionBinder) bindExtensionPaths(raw parser.FunctionExpr, arg expr.
 	b.consumer.catalogSnapshot, b.prepared.regclassConcat = true, true
 	return extensionPathsExpression{info, arg}, nil
 }
-func (n extensionPathsExpression) validate() error {
-	if n.arg == nil || n.arg.ResultUsage().Type == nil || n.arg.ResultUsage().Type.ID() != sqltype.Name || n.Usage.Type == nil || n.Usage.Type.ID() != 2249 || !n.Usage.Type.IsComposite() || n.Usage.Type.CompositeLen() != 3 {
+func (n extensionPathsExpression) Validate() error {
+	if n.Arg == nil || n.Arg.ResultUsage().Type == nil || n.Arg.ResultUsage().Type.ID() != sqltype.Name || n.Usage.Type == nil || n.Usage.Type.ID() != 2249 || !n.Usage.Type.IsComposite() || n.Usage.Type.CompositeLen() != 3 {
 		return fmt.Errorf("stuntgres: invalid extension path signature")
 	}
 	for i, name := range [...]string{"source", "target", "path"} {
@@ -53,10 +53,10 @@ func (n extensionPathsExpression) open(c *EvalContext) ([]sqltype.Value, error) 
 	if err := evaluationContext(c); err != nil {
 		return nil, err
 	}
-	if err := n.validate(); err != nil {
+	if err := n.Validate(); err != nil {
 		return nil, err
 	}
-	value, err := n.arg.Eval(c)
+	value, err := n.Arg.Eval(c)
 	if err != nil {
 		return nil, err
 	}

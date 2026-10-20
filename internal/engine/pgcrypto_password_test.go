@@ -35,7 +35,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 		if n.ResultUsage().Type.ID() != sqltype.Text || n.Properties().Volatility != v.volatility || plannedVolatility(n) != v.volatility || generationImmutable(n) != (v.volatility == expr.Immutable) {
 			t.Fatal(v, n)
 		}
-		if err := n.validate(e.CatalogRead()); err != nil {
+		if err := validateInstalledCrypto(n, e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
 		if !closedPgcryptoDefault(n) {
@@ -60,9 +60,9 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 			}
 		}
 		foreign := n
-		proc := *n.procedure
+		proc := *n.Procedure
 		proc.Implementation = new(*extension.StockPgcrypto)
-		foreign.procedure = &proc
+		foreign.Procedure = &proc
 		if closedPgcryptoDefault(foreign) {
 			t.Fatal("foreign crypto DEFAULT provider admitted")
 		}

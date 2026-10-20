@@ -34,7 +34,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 	for i, name := range []string{"soundex", "difference"} {
 		t.Run(name, func(t *testing.T) {
 			n := soundexUnitExpression(t, e, name)
-			if n.ref.Address != ext.Members[8+i] || n.procedure != e.catalog.state.Get(n.ref.Address) || plannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
+			if n.Ref.Address != ext.Members[8+i] || n.Procedure != e.catalog.state.Get(n.Ref.Address) || plannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
 				t.Fatal("identity/properties", n)
 			}
 			value, err := n.Eval(ctx)
@@ -48,11 +48,11 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 			} else if score, err := value.Integer(); err != nil || score != 4 {
 				t.Fatal(score, err)
 			}
-			if err := n.validate(e.CatalogRead()); err != nil {
+			if err := validateInstalledSoundex(n, e.CatalogRead()); err != nil {
 				t.Fatal(err)
 			}
 			refs, err := pgDependExpressionRefs(ctx.Context, e.CatalogRead(), n)
-			if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.ref.Address}) {
+			if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.Ref.Address}) {
 				t.Fatal(refs, err)
 			}
 			var children []expr.Expr
@@ -67,11 +67,11 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 				t.Fatal("argument identity collapsed")
 			}
 			other := n
-			other.ref.Address = ext.Members[0]
+			other.Ref.Address = ext.Members[0]
 			if sameGroupExpression(n, other) {
 				t.Fatal("procedure identity collapsed")
 			}
-			consumer := &catalog.Relation{ColumnMeta: catalog.ColumnMetadata{Generations: map[int32]catalog.ColumnGeneration{1: {Kind: catalog.GenerationStored, Expression: n, Planned: n, Dependencies: []ids.ObjectRef{n.ref}}}}}
+			consumer := &catalog.Relation{ColumnMeta: catalog.ColumnMetadata{Generations: map[int32]catalog.ColumnGeneration{1: {Kind: catalog.GenerationStored, Expression: n, Planned: n, Dependencies: []ids.ObjectRef{n.Ref}}}}}
 			if err := validateGenerationProviders(e.CatalogRead(), consumer); err != nil {
 				t.Fatal(err)
 			}
@@ -88,21 +88,21 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 				func(p *catalog.Procedure) { p.Implementation = extension.StockPgcrypto },
 			} {
 				state := catalog.CloneState(e.catalog.state)
-				bad := *n.procedure
+				bad := *n.Procedure
 				mutate(&bad)
-				state.SetDescriptor(n.ref.Address, &bad)
+				state.SetDescriptor(n.Ref.Address, &bad)
 				forged := n
-				forged.procedure = &bad
-				if err := forged.validate(e.catalog.read(state)); err == nil {
+				forged.Procedure = &bad
+				if err := validateInstalledSoundex(forged, e.catalog.read(state)); err == nil {
 					t.Fatal("forged identity", bad)
 				}
 			}
 			for _, foreign := range []bool{false, true} {
 				stale := n
 				if foreign {
-					stale.ref = New().catalog.Domain.Ref(stale.ref.Epoch, stale.ref.Address)
+					stale.Ref = New().catalog.Domain.Ref(stale.Ref.Epoch, stale.Ref.Address)
 				} else {
-					stale.ref.Epoch++
+					stale.Ref.Epoch++
 				}
 				if _, err := (scalarRenderer{}).sql(ctx.Context, e.CatalogRead(), stale); err == nil {
 					t.Fatal("foreign/stale reference")
@@ -112,7 +112,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := retagged.(installedSoundexFunctionExpression).validate(e.CatalogRead()); err != nil {
+			if err := validateInstalledSoundex(retagged.(installedSoundexFunctionExpression), e.CatalogRead()); err != nil {
 				t.Fatal(err)
 			}
 			folded, _, err := simplifyConditional(ctx, n, false)
@@ -147,7 +147,7 @@ func TestSoundexExpressionRemap(t *testing.T) {
 				next.BindName(catalog.DescriptorNameKey(descriptor), destination)
 			}
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900020}
-			consumer := &catalog.Relation{ObjectAddress: address, ColumnMeta: catalog.ColumnMetadata{Defaults: map[int32]catalog.ColumnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.ref}}}, Generations: map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.ref}}}}}
+			consumer := &catalog.Relation{ObjectAddress: address, ColumnMeta: catalog.ColumnMetadata{Defaults: map[int32]catalog.ColumnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.Ref}}}, Generations: map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.Ref}}}}}
 			next.SetDescriptor(address, consumer)
 			next.SetEpoch(next.Epoch() + 1)
 			if err := e.reownCatalogExpressions(next, mapping, false); err != nil {
@@ -157,10 +157,10 @@ func TestSoundexExpressionRemap(t *testing.T) {
 			relocated := next.MustRelation(address)
 			for _, node := range []expr.Expr{relocated.ColumnMeta.Defaults[1].Expression, relocated.ColumnMeta.Generations[2].Expression, relocated.ColumnMeta.Generations[2].Planned} {
 				n := node.(installedSoundexFunctionExpression)
-				if n.ref.Address != mapping[call.ref.Address] || n.ref.Epoch != next.Epoch() || n.procedure != next.Get(n.ref.Address) {
-					t.Fatal("stale remapped authority", n.ref)
+				if n.Ref.Address != mapping[call.Ref.Address] || n.Ref.Epoch != next.Epoch() || n.Procedure != next.Get(n.Ref.Address) {
+					t.Fatal("stale remapped authority", n.Ref)
 				}
-				if err := n.validate(view); err != nil {
+				if err := validateInstalledSoundex(n, view); err != nil {
 					t.Fatal(err)
 				}
 				value, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
@@ -168,7 +168,7 @@ func TestSoundexExpressionRemap(t *testing.T) {
 					t.Fatal(value, err)
 				}
 			}
-			if call.ref.Epoch != before.Epoch() || call.procedure != before.Get(call.ref.Address) {
+			if call.Ref.Epoch != before.Epoch() || call.Procedure != before.Get(call.Ref.Address) {
 				t.Fatal("source mutated")
 			}
 		})
@@ -214,7 +214,7 @@ func TestSoundexExpressionProperties(t *testing.T) {
 			if got.Properties() != property || got.Args[0].Properties() != property {
 				t.Fatal("retag discarded dependence", property, got.Properties())
 			}
-			if err := got.validate(e.CatalogRead()); err != nil {
+			if err := validateInstalledSoundex(got, e.CatalogRead()); err != nil {
 				t.Fatal(err)
 			}
 		}

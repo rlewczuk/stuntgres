@@ -630,7 +630,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			}
 		}
 		if n, ok := bound.(extensionPathsExpression); ok && len(r.Args) == 1 {
-			return child(r.Args[0], n.arg)
+			return child(r.Args[0], n.Arg)
 		}
 		return protocol(expr.CaptureFunction, r.Args)
 	case parser.CallExpr:

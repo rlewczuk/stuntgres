@@ -15,8 +15,8 @@ import (
 
 type installedCryptoFunctionExpression struct {
 	functions.Pgcrypto
-	procedure *catalog.Procedure
-	ref       ids.ObjectRef
+	Procedure *catalog.Procedure
+	Ref       ids.ObjectRef
 }
 
 // Rebuild keeps the installed-routine identity; the promoted Rebuild would
@@ -40,14 +40,14 @@ func (c *EvalContext) FunctionPgcryptoEntropy(bytes []byte) error {
 
 func (c *EvalContext) FunctionPgcryptoFIPSMode() bool { return fips140.Enabled() }
 
-func (n installedCryptoFunctionExpression) validate(v catalog.Read) error {
+func validateInstalledCrypto(n installedCryptoFunctionExpression, v catalog.Read) error {
 	for _, arg := range n.Args {
 		if arg == nil || arg.ResultUsage().Type == nil {
 			return fmt.Errorf("stuntgres: missing stored crypto argument")
 		}
 	}
-	proc, ok := v.Procedure(n.ref.Address)
-	if !ok || proc != n.procedure || extension.PgcryptoProviderOf(proc) != extension.StockPgcrypto || proc.Name() != n.Plan.Name() || proc.Signature != cryptoExpressionSignature(n) {
+	proc, ok := v.Procedure(n.Ref.Address)
+	if !ok || proc != n.Procedure || extension.PgcryptoProviderOf(proc) != extension.StockPgcrypto || proc.Name() != n.Plan.Name() || proc.Signature != cryptoExpressionSignature(n) {
 		return fmt.Errorf("stuntgres: invalid stored crypto identity")
 	}
 	if err := extension.StockPgcrypto.ValidateProcedure(v, proc); err != nil {
@@ -103,11 +103,11 @@ func closedPgcryptoDefault(node expr.Expr) bool {
 	}
 	switch n := node.(type) {
 	case installedCryptoFunctionExpression:
-		if n.procedure == nil || extension.PgcryptoProviderOf(n.procedure) != extension.StockPgcrypto || n.ref.Address != n.procedure.Address() || n.ref.Epoch == 0 || n.Plan.Name() != n.procedure.Name() || n.Validate() != nil {
+		if n.Procedure == nil || extension.PgcryptoProviderOf(n.Procedure) != extension.StockPgcrypto || n.Ref.Address != n.Procedure.Address() || n.Ref.Epoch == 0 || n.Plan.Name() != n.Procedure.Name() || n.Validate() != nil {
 			return false
 		}
-		member, ok := functions.PgcryptoLookup(n.procedure.Name(), string(cryptoExpressionSignature(n)))
-		if !ok || string(n.procedure.Signature) != member.Signature || n.procedure.Result != member.Result || n.procedure.Volatility != member.Volatility || n.procedure.Strict != member.Strict {
+		member, ok := functions.PgcryptoLookup(n.Procedure.Name(), string(cryptoExpressionSignature(n)))
+		if !ok || string(n.Procedure.Signature) != member.Signature || n.Procedure.Result != member.Result || n.Procedure.Volatility != member.Volatility || n.Procedure.Strict != member.Strict {
 			return false
 		}
 	case plan.CoercionExpr, plan.CollationExpr, plan.RowExpr, plan.FieldExpr,

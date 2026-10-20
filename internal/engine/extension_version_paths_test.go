@@ -16,10 +16,10 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 	raw := parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "fuzzystrmatch"}}
 	node := catalogRelationsUnitBind(t, e, "pg_extension_update_paths", raw)
 	call := node.(extensionPathsExpression)
-	if err := call.validate(); err != nil {
+	if err := call.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if call.Properties().Volatility != expr.Stable || call.arg.ResultUsage().Type.ID() != sqltype.Name || !sourceReturnsSet(call) || !sourceAdmitted(call) {
+	if call.Properties().Volatility != expr.Stable || call.Arg.ResultUsage().Type.ID() != sqltype.Name || !sourceReturnsSet(call) || !sourceAdmitted(call) {
 		t.Fatal("typed SRF contract")
 	}
 	count := 0
@@ -78,7 +78,7 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 	// adopting another bound call's occurrence pointer.
 	nameType, _ := fresh.CatalogRead().LookupType(sqltype.Name)
 	textType, _ := fresh.CatalogRead().LookupType(sqltype.Text)
-	if next.validate() != nil || !sqltype.SameRecordUsage(next.ResultUsage(), destination.ResultUsage()) || next.ResultUsage().Type == call.ResultUsage().Type || next.arg.ResultUsage().Type != nameType {
+	if next.Validate() != nil || !sqltype.SameRecordUsage(next.ResultUsage(), destination.ResultUsage()) || next.ResultUsage().Type == call.ResultUsage().Type || next.Arg.ResultUsage().Type != nameType {
 		t.Fatal("path occurrence or destination argument provenance lost")
 	}
 	for i := range next.ResultUsage().Type.CompositeLen() {

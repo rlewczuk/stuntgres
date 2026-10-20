@@ -115,7 +115,7 @@ func TestExtensionDropRollbackIdentity(t *testing.T) {
 					t.Fatal("rollback reconstructed provider identity", a)
 				}
 			}
-			if restored.Get(bound.procedure.Address()) != bound.procedure || restored.Get(bound.dictionary.Address()) != bound.dictionary || restored.Get(bound.template.Address()) != bound.template {
+			if restored.Get(bound.Procedure.Address()) != bound.Procedure || restored.Get(bound.Dictionary.Address()) != bound.Dictionary || restored.Get(bound.Template.Address()) != bound.Template {
 				t.Fatal("bound callable no longer authentic")
 			}
 			value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})

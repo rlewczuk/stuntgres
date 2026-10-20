@@ -368,11 +368,11 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 		}
 		expression = e
 	case extensionPathsExpression:
-		arg, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
+		arg, did, failure := simplifyConditional(c, e.Arg, decisiveDefaults)
 		if failure != nil {
 			return nil, false, failure
 		}
-		e.arg = arg
+		e.Arg = arg
 		changed = changed || did
 		expression = e
 	case installedSoundexFunctionExpression:
@@ -591,7 +591,7 @@ func conditionalConstantInputs(node expr.Expr) bool {
 		}
 		return true
 	case installedUUIDOsspFunctionExpression:
-		return e.procedure != nil && e.procedure.Volatility == expr.Immutable
+		return e.Procedure != nil && e.Procedure.Volatility == expr.Immutable
 	case installedCryptoFunctionExpression:
 		for _, arg := range e.Args {
 			if !literal(arg) {
@@ -600,7 +600,7 @@ func conditionalConstantInputs(node expr.Expr) bool {
 		}
 		return true
 	case installedFunctionExpression:
-		return e.procedure != nil && e.procedure.Volatility == expr.Immutable && literal(e.Arg)
+		return e.Procedure != nil && e.Procedure.Volatility == expr.Immutable && literal(e.Arg)
 	case expr.Composite:
 		// Last, so the explicit engine wrappers above keep precedence.
 		return compositeConstantInputs(e)

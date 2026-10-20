@@ -165,11 +165,11 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 	if err != nil || text != "Hotel" || node.ResultUsage().Type.ID() != sqltype.Text || plannedVolatility(node) != expr.Stable {
 		t.Fatal("typed stable evaluation", text, err)
 	}
-	if n.procedure.Address() != ext.Members[1] || n.dictionary.Address() != ext.Members[5] || n.template.Address() != ext.Members[4] {
+	if n.Procedure.Address() != ext.Members[1] || n.Dictionary.Address() != ext.Members[5] || n.Template.Address() != ext.Members[4] {
 		t.Fatal("captured provider identity")
 	}
 	refs, err := pgDependExpressionRefs(context.Background(), e.CatalogRead(), node)
-	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.ref.Address}) {
+	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.Ref.Address}) {
 		t.Fatal("procedure dependency", refs, err)
 	}
 	n.Arg = plan.LiteralExpr{Info: expr.Info{Usage: node.ResultUsage()}, Value: sqltype.Null(node.ResultUsage().Type)}

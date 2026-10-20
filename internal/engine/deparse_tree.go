@@ -180,30 +180,30 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 			err = child(n.Otherwise)
 		}
 	case extensionPathsExpression:
-		if failure := n.validate(); failure != nil {
+		if failure := n.Validate(); failure != nil {
 			return failure
 		}
 		out.WriteString("ExtensionPaths")
-		err = child(n.arg)
+		err = child(n.Arg)
 	case installedSoundexFunctionExpression:
-		fmt.Fprintf(out, "InstalledSoundex %d %s", n.ref.Address.ObjectID, n.procedure.Signature)
+		fmt.Fprintf(out, "InstalledSoundex %d %s", n.Ref.Address.ObjectID, n.Procedure.Signature)
 		err = args(n.Args)
 	case installedMetaphoneFunctionExpression:
-		fmt.Fprintf(out, "InstalledMetaphone %d %s", n.ref.Address.ObjectID, n.procedure.Signature)
+		fmt.Fprintf(out, "InstalledMetaphone %d %s", n.Ref.Address.ObjectID, n.Procedure.Signature)
 		err = args(n.Args)
 	case installedLevenshteinFunctionExpression:
-		fmt.Fprintf(out, "InstalledLevenshtein %d %s", n.ref.Address.ObjectID, n.procedure.Signature)
+		fmt.Fprintf(out, "InstalledLevenshtein %d %s", n.Ref.Address.ObjectID, n.Procedure.Signature)
 		err = args(n.Args)
 	case installedUUIDOsspFunctionExpression:
-		fmt.Fprintf(out, "InstalledUUIDOssp %d", n.ref.Address.ObjectID)
+		fmt.Fprintf(out, "InstalledUUIDOssp %d", n.Ref.Address.ObjectID)
 	case installedCryptoFunctionExpression:
-		fmt.Fprintf(out, "InstalledCrypto %d %s", n.ref.Address.ObjectID, n.procedure.Signature)
+		fmt.Fprintf(out, "InstalledCrypto %d %s", n.Ref.Address.ObjectID, n.Procedure.Signature)
 		err = args(n.Args)
 	case plan.SQLRoutineExpr:
 		fmt.Fprintf(out, "SQLRoutine %d %s", n.Ref.Address.ObjectID, n.Procedure.Signature)
 		err = args(n.Args)
 	case installedFunctionExpression:
-		fmt.Fprintf(out, "InstalledFunction %d", n.ref.Address.ObjectID)
+		fmt.Fprintf(out, "InstalledFunction %d", n.Ref.Address.ObjectID)
 		err = args([]expr.Expr{n.Arg})
 	case expr.Renderable:
 		// Function nodes describe themselves; engine wrappers that embed one

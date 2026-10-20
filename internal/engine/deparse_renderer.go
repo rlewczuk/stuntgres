@@ -760,47 +760,47 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 		}
 		return function(r.identifier(namespace.Name())+"."+r.identifier(n.Procedure.Name()), n.Args, true)
 	case extensionPathsExpression:
-		args := [1]expr.Expr{n.arg}
+		args := [1]expr.Expr{n.Arg}
 		return function("pg_extension_update_paths", args[:], true)
 	case installedSoundexFunctionExpression:
-		namespace, ok := r.view.Namespace(n.procedure.Namespace())
+		namespace, ok := r.view.Namespace(n.Procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing Soundex function namespace")
 		}
-		return function(r.identifier(namespace.Name())+"."+r.identifier(n.procedure.Name()), n.Args, true)
+		return function(r.identifier(namespace.Name())+"."+r.identifier(n.Procedure.Name()), n.Args, true)
 	case installedMetaphoneFunctionExpression:
-		namespace, ok := r.view.Namespace(n.procedure.Namespace())
+		namespace, ok := r.view.Namespace(n.Procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing Metaphone function namespace")
 		}
-		return function(r.identifier(namespace.Name())+"."+r.identifier(n.procedure.Name()), n.Args, true)
+		return function(r.identifier(namespace.Name())+"."+r.identifier(n.Procedure.Name()), n.Args, true)
 	case installedLevenshteinFunctionExpression:
-		namespace, ok := r.view.Namespace(n.procedure.Namespace())
+		namespace, ok := r.view.Namespace(n.Procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing Levenshtein function namespace")
 		}
-		return function(r.identifier(namespace.Name())+"."+r.identifier(n.procedure.Name()), n.Args, true)
+		return function(r.identifier(namespace.Name())+"."+r.identifier(n.Procedure.Name()), n.Args, true)
 	case installedUUIDOsspFunctionExpression:
-		if err := n.validate(r.view); err != nil {
+		if err := validateInstalledUUIDOssp(n, r.view); err != nil {
 			return "", err
 		}
-		namespace, ok := r.view.Namespace(n.procedure.Namespace())
+		namespace, ok := r.view.Namespace(n.Procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing uuid-ossp function namespace")
 		}
-		return function(r.identifier(namespace.Name())+"."+r.identifier(n.procedure.Name()), nil, true)
+		return function(r.identifier(namespace.Name())+"."+r.identifier(n.Procedure.Name()), nil, true)
 	case installedCryptoFunctionExpression:
-		namespace, ok := r.view.Namespace(n.procedure.Namespace())
+		namespace, ok := r.view.Namespace(n.Procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing crypto function namespace")
 		}
-		return function(r.identifier(namespace.Name())+"."+r.identifier(n.procedure.Name()), n.Args, true)
+		return function(r.identifier(namespace.Name())+"."+r.identifier(n.Procedure.Name()), n.Args, true)
 	case installedFunctionExpression:
-		namespace, ok := r.view.Namespace(n.procedure.Namespace())
+		namespace, ok := r.view.Namespace(n.Procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing installed function namespace")
 		}
-		return function(r.identifier(namespace.Name())+"."+r.identifier(n.procedure.Name()), []expr.Expr{n.Arg}, true)
+		return function(r.identifier(namespace.Name())+"."+r.identifier(n.Procedure.Name()), []expr.Expr{n.Arg}, true)
 	case expr.Renderable:
 		// Function nodes describe themselves; engine wrappers that embed one
 		// keep their explicit cases above.

@@ -36,13 +36,13 @@ func TestInstalledFunctionRebuildKeepsWrapper(t *testing.T) {
 	}
 	procedure := &catalog.Procedure{}
 	ref := ids.ObjectRef{Address: ids.ObjectAddress{ObjectID: 7}}
-	node := installedSoundexFunctionExpression{Soundex: call, procedure: procedure, ref: ref}
+	node := installedSoundexFunctionExpression{Soundex: call, Procedure: procedure, Ref: ref}
 	rebuilt, err := node.Rebuild(info, []expr.Expr{literal("b")})
 	if err != nil {
 		t.Fatal(err)
 	}
 	got, ok := rebuilt.(installedSoundexFunctionExpression)
-	if !ok || got.procedure != procedure || got.ref != ref || textOf(got.Args[0]) != "b" {
+	if !ok || got.Procedure != procedure || got.Ref != ref || textOf(got.Args[0]) != "b" {
 		t.Fatalf("rebuilt %#v", rebuilt)
 	}
 	if textOf(node.Args[0]) != "a" {
@@ -97,7 +97,7 @@ func TestInstalledUUIDOsspRebuildKeepsWrapper(t *testing.T) {
 	}
 	procedure := &catalog.Procedure{}
 	ref := ids.ObjectRef{Address: ids.ObjectAddress{ObjectID: 7}}
-	node := installedUUIDOsspFunctionExpression{UUIDGeneration: call, procedure: procedure, ref: ref}
+	node := installedUUIDOsspFunctionExpression{UUIDGeneration: call, Procedure: procedure, Ref: ref}
 	next := info
 	next.Pos.Offset = 3
 	rebuilt, err := node.Rebuild(next, nil)
@@ -105,7 +105,7 @@ func TestInstalledUUIDOsspRebuildKeepsWrapper(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, ok := rebuilt.(installedUUIDOsspFunctionExpression)
-	if !ok || got.procedure != procedure || got.ref != ref || got.Pos.Offset != 3 || node.Pos.Offset != 0 {
+	if !ok || got.Procedure != procedure || got.Ref != ref || got.Pos.Offset != 3 || node.Pos.Offset != 0 {
 		t.Fatalf("rebuilt %#v", rebuilt)
 	}
 	if _, err := node.Rebuild(info, []expr.Expr{plan.LiteralExpr{}}); err == nil {

@@ -106,7 +106,7 @@ func boundExpressionChildren(node expr.Expr, walk func(expr.Expr)) {
 	case installedFunctionExpression:
 		walk(e.Arg)
 	case extensionPathsExpression:
-		walk(e.arg)
+		walk(e.Arg)
 	case plan.CaseExpr:
 		walk(e.Test)
 		for _, arm := range e.Arms {

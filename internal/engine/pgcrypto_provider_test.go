@@ -155,7 +155,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	n := node.(installedCryptoFunctionExpression)
-	if n.ref.Address != ext.Members[2] || plannedVolatility(n) != expr.Immutable || n.ResultUsage().Type.ID() != sqltype.Bytea {
+	if n.Ref.Address != ext.Members[2] || plannedVolatility(n) != expr.Immutable || n.ResultUsage().Type.ID() != sqltype.Bytea {
 		t.Fatal(n)
 	}
 	value, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
@@ -164,7 +164,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 		t.Fatal(bytes, err)
 	}
 	refs, err := pgDependExpressionRefs(context.Background(), e.CatalogRead(), n)
-	if err != nil || !slices.Contains(refs, n.ref.Address) {
+	if err != nil || !slices.Contains(refs, n.Ref.Address) {
 		t.Fatal(refs, err)
 	}
 	// Stored generation manifests retain the real installed routine provider,
@@ -172,7 +172,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	generated := &catalog.Relation{
 		ColumnMeta: catalog.ColumnMetadata{
 			Generations: map[int32]catalog.ColumnGeneration{
-				1: {Kind: catalog.GenerationStored, Expression: n, Planned: n, Dependencies: []ids.ObjectRef{n.ref}},
+				1: {Kind: catalog.GenerationStored, Expression: n, Planned: n, Dependencies: []ids.ObjectRef{n.Ref}},
 			},
 		},
 	}
@@ -182,7 +182,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	if err := validateGenerationPlan(e.CatalogRead(), generated, n); err != nil {
 		t.Fatal("installed generation plan rejected", err)
 	}
-	stale := n.ref
+	stale := n.Ref
 	stale.Epoch = 0
 	generated.ColumnMeta.Generations[1] = catalog.ColumnGeneration{Dependencies: []ids.ObjectRef{stale}}
 	if err := validateGenerationProviders(e.CatalogRead(), generated); err == nil {
@@ -206,11 +206,11 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := retagged.(installedCryptoFunctionExpression).validate(e.CatalogRead()); err != nil {
+	if err := validateInstalledCrypto(retagged.(installedCryptoFunctionExpression), e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	mapped := extension.RemapDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.Address(): {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*catalog.Procedure)
-	if extension.PgcryptoProviderOf(mapped) != extension.StockPgcrypto || mapped.Signature != n.procedure.Signature || mapped.Result != 17 || mapped.Address() == n.procedure.Address() {
+	mapped := extension.RemapDescriptor(n.Procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.Procedure.Address(): {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*catalog.Procedure)
+	if extension.PgcryptoProviderOf(mapped) != extension.StockPgcrypto || mapped.Signature != n.Procedure.Signature || mapped.Result != 17 || mapped.Address() == n.Procedure.Address() {
 		t.Fatal(mapped)
 	}
 	// A four-child call must retain IV/type children and its genuine installed
@@ -221,7 +221,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	aesCall := aesNode.(installedCryptoFunctionExpression)
-	if aesCall.ref.Address != ext.Members[9] || len(aesCall.Args) != 4 || cryptoExpressionSignature(aesCall) != "17,17,17,25" {
+	if aesCall.Ref.Address != ext.Members[9] || len(aesCall.Args) != 4 || cryptoExpressionSignature(aesCall) != "17,17,17,25" {
 		t.Fatal("four-child installed identity", aesCall)
 	}
 	children = nil
@@ -233,15 +233,15 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := retagged.(installedCryptoFunctionExpression).validate(e.CatalogRead()); err != nil {
+	if err := validateInstalledCrypto(retagged.(installedCryptoFunctionExpression), e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	aesRefs, err := pgDependExpressionRefs(context.Background(), e.CatalogRead(), aesCall)
-	if err != nil || !slices.Contains(aesRefs, aesCall.ref.Address) {
+	if err != nil || !slices.Contains(aesRefs, aesCall.Ref.Address) {
 		t.Fatal(aesRefs, err)
 	}
-	mappedAES := extension.RemapDescriptor(aesCall.procedure, map[ids.ObjectAddress]ids.ObjectAddress{aesCall.ref.Address: {ClassID: ids.ProcedureClassID, ObjectID: 999998}}).(*catalog.Procedure)
-	if extension.PgcryptoProviderOf(mappedAES) != extension.StockPgcrypto || mappedAES.Signature != "17,17,17,25" || mappedAES.Address() == aesCall.ref.Address {
+	mappedAES := extension.RemapDescriptor(aesCall.Procedure, map[ids.ObjectAddress]ids.ObjectAddress{aesCall.Ref.Address: {ClassID: ids.ProcedureClassID, ObjectID: 999998}}).(*catalog.Procedure)
+	if extension.PgcryptoProviderOf(mappedAES) != extension.StockPgcrypto || mappedAES.Signature != "17,17,17,25" || mappedAES.Address() == aesCall.Ref.Address {
 		t.Fatal(mappedAES)
 	}
 	for _, v := range []struct {
@@ -260,7 +260,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 		if call.ResultUsage().Type.ID() != v.result || plannedVolatility(call) != expr.Volatile || !closedPgcryptoDefault(call) {
 			t.Fatal("random/FIPS properties", call)
 		}
-		if err := call.validate(e.CatalogRead()); err != nil {
+		if err := validateInstalledCrypto(call, e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
 		var children []expr.Expr
@@ -273,7 +273,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 		actual := retagged.(installedCryptoFunctionExpression)
-		if err := actual.validate(e.CatalogRead()); err != nil {
+		if err := validateInstalledCrypto(actual, e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
 		if plannedVolatility(actual) != expr.Volatile || !closedPgcryptoDefault(actual) {
@@ -284,17 +284,17 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 			t.Fatal(rendered, err)
 		}
 		refs, err := pgDependExpressionRefs(context.Background(), e.CatalogRead(), actual)
-		if err != nil || !slices.Contains(refs, call.ref.Address) {
+		if err != nil || !slices.Contains(refs, call.Ref.Address) {
 			t.Fatal(refs, err)
 		}
 		malformed := actual
 		malformed.Args = nil
-		if v.name == "gen_random_bytes" && malformed.validate(e.CatalogRead()) == nil {
+		if v.name == "gen_random_bytes" && validateInstalledCrypto(malformed, e.CatalogRead()) == nil {
 			t.Fatal("missing count admitted")
 		}
 		if v.name != "gen_random_bytes" {
 			malformed.Args = n.Args[:1]
-			if malformed.validate(e.CatalogRead()) == nil {
+			if validateInstalledCrypto(malformed, e.CatalogRead()) == nil {
 				t.Fatal("extra zero-call argument admitted")
 			}
 		}

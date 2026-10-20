@@ -26,20 +26,20 @@ func TestUUIDOsspNamespaceExpressionIdentity(t *testing.T) {
 				t.Fatal(err)
 			}
 			n := node.(installedUUIDOsspFunctionExpression)
-			if n.Name != name || !slices.Contains(ext.Members, n.ref.Address) || n.procedure.Name() != name || n.ResultUsage().Type.ID() != sqltype.UUID || plannedVolatility(n) != expr.Immutable || !generationImmutable(n) || !closedUUIDDefault(n) {
+			if n.Name != name || !slices.Contains(ext.Members, n.Ref.Address) || n.Procedure.Name() != name || n.ResultUsage().Type.ID() != sqltype.UUID || plannedVolatility(n) != expr.Immutable || !generationImmutable(n) || !closedUUIDDefault(n) {
 				t.Fatal("constant shape/identity", n)
 			}
-			if carrier, err := routine.ExpressionRoutineDescriptor(n); err != nil || carrier != n.procedure {
+			if carrier, err := routine.ExpressionRoutineDescriptor(n); err != nil || carrier != n.Procedure {
 				t.Fatal("lost routine authority", carrier, err)
 			}
-			if err := n.validate(view); err != nil {
+			if err := validateInstalledUUIDOssp(n, view); err != nil {
 				t.Fatal(err)
 			}
 			if err := validateGenerationPlan(view, nil, n); err != nil {
 				t.Fatal(err)
 			}
 			refs, err := pgDependExpressionRefs(context.Background(), view, n)
-			if err != nil || !slices.Contains(refs, n.ref.Address) {
+			if err != nil || !slices.Contains(refs, n.Ref.Address) {
 				t.Fatal("missing installed dependency", refs, err)
 			}
 			retagged, _, err := retagBoundTypes(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
@@ -51,7 +51,7 @@ func TestUUIDOsspNamespaceExpressionIdentity(t *testing.T) {
 				t.Fatal(err)
 			}
 			got := rebuilt.(installedUUIDOsspFunctionExpression)
-			if got.Name != name || got.procedure != n.procedure || got.ref != n.ref || plannedVolatility(got) != expr.Immutable {
+			if got.Name != name || got.Procedure != n.Procedure || got.Ref != n.Ref || plannedVolatility(got) != expr.Immutable {
 				t.Fatal("rebuild/retag erased identity", got)
 			}
 			rendered, err := (scalarRenderer{}).sql(context.Background(), view, got)
@@ -59,7 +59,7 @@ func TestUUIDOsspNamespaceExpressionIdentity(t *testing.T) {
 				t.Fatal("symbolic constant", rendered, err)
 			}
 			foreign := n
-			foreign.ref.Epoch++
+			foreign.Ref.Epoch++
 			if _, err := (scalarRenderer{}).sql(context.Background(), view, foreign); err == nil {
 				t.Fatal("renderer accepted foreign-epoch constant")
 			}
@@ -67,20 +67,20 @@ func TestUUIDOsspNamespaceExpressionIdentity(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := grouped.(installedUUIDOsspFunctionExpression).validate(view); err != nil {
+			if err := validateInstalledUUIDOssp(grouped.(installedUUIDOsspFunctionExpression), view); err != nil {
 				t.Fatal("grouped constant", err)
 			}
 			for _, mutate := range []func(*installedUUIDOsspFunctionExpression){
 				func(x *installedUUIDOsspFunctionExpression) { x.Name = "uuidv4" },
 				func(x *installedUUIDOsspFunctionExpression) { x.Property.Volatility = expr.Volatile },
 				func(x *installedUUIDOsspFunctionExpression) { x.RoutineReference = nil },
-				func(x *installedUUIDOsspFunctionExpression) { x.ref.Epoch = 0 },
+				func(x *installedUUIDOsspFunctionExpression) { x.Ref.Epoch = 0 },
 				func(x *installedUUIDOsspFunctionExpression) { x.Usage.Type = nil },
-				func(x *installedUUIDOsspFunctionExpression) { copy := *x.procedure; x.procedure = &copy },
+				func(x *installedUUIDOsspFunctionExpression) { copy := *x.Procedure; x.Procedure = &copy },
 			} {
 				bad := n
 				mutate(&bad)
-				if err := bad.validate(view); err == nil {
+				if err := validateInstalledUUIDOssp(bad, view); err == nil {
 					t.Fatal("forged constant accepted", bad)
 				}
 			}

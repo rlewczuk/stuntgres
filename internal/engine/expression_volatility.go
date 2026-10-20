@@ -117,7 +117,7 @@ func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 	case plan.ConditionalExpr:
 		return session(children(n.Args...), n.Comparison.SessionDependent())
 	case extensionPathsExpression:
-		return merge(children(n.arg), expr.Stable)
+		return merge(children(n.Arg), expr.Stable)
 	case installedSoundexFunctionExpression:
 		return children(n.Args...)
 	case installedMetaphoneFunctionExpression:
@@ -125,11 +125,11 @@ func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 	case installedLevenshteinFunctionExpression:
 		return children(n.Args...)
 	case installedUUIDOsspFunctionExpression:
-		return n.procedure.Volatility
+		return n.Procedure.Volatility
 	case installedCryptoFunctionExpression:
-		return merge(n.procedure.Volatility, children(n.Args...))
+		return merge(n.Procedure.Volatility, children(n.Args...))
 	case installedFunctionExpression:
-		return merge(n.procedure.Volatility, children(n.Arg))
+		return merge(n.Procedure.Volatility, children(n.Arg))
 	case plan.CaseExpr:
 		v := children(n.Test, n.Otherwise)
 		for _, arm := range n.Arms {

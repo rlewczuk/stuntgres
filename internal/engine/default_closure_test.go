@@ -241,7 +241,7 @@ func TestConditionalDefaultClosurePolicyPrecedence(t *testing.T) {
 	conditionalDefaultClosureWant(t, badShape, false, false)
 	staged := installed
 	staged.Property.StageDependent = true
-	if !staged.validShape() {
+	if !validInstalledUUIDOsspShape(staged) {
 		t.Fatal("fixture must retain valid installed shape despite stage dependence")
 	}
 	conditionalDefaultClosureWant(t, staged, false, false)

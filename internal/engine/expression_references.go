@@ -68,17 +68,17 @@ func (r *pgDependRefs) expression(expr expr.Expr) {
 			r.add(n.Ref.Address)
 		}
 	case installedSoundexFunctionExpression:
-		r.add(n.ref.Address)
+		r.add(n.Ref.Address)
 	case installedMetaphoneFunctionExpression:
-		r.add(n.ref.Address)
+		r.add(n.Ref.Address)
 	case installedLevenshteinFunctionExpression:
-		r.add(n.ref.Address)
+		r.add(n.Ref.Address)
 	case installedUUIDOsspFunctionExpression:
-		r.add(n.ref.Address)
+		r.add(n.Ref.Address)
 	case installedCryptoFunctionExpression:
-		r.add(n.ref.Address)
+		r.add(n.Ref.Address)
 	case installedFunctionExpression:
-		r.add(n.ref.Address)
+		r.add(n.Ref.Address)
 	case plan.LiteralExpr:
 		if typ := n.ResultUsage().Type; typ != nil {
 			r.add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})

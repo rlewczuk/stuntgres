@@ -516,11 +516,11 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 		}
 		return e, args != nil, nil
 	case extensionPathsExpression:
-		arg, changed, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
+		arg, changed, err := preflightCoercionsWithPolicy(c, e.Arg, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
-		e.arg = arg
+		e.Arg = arg
 		return e, changed, nil
 	case plan.CaseExpr:
 		return simplifyConditional(c, expression, decisiveDefaults)

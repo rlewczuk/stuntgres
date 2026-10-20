@@ -30,10 +30,10 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	n := node.(installedUUIDOsspFunctionExpression)
-	if carrier, err := routine.ExpressionRoutineDescriptor(n); err != nil || carrier != n.procedure {
+	if carrier, err := routine.ExpressionRoutineDescriptor(n); err != nil || carrier != n.Procedure {
 		t.Fatal("missing common original routine carrier", carrier, err)
 	}
-	if n.ref.Address != ext.Members[0] || n.ResultUsage().Type.ID() != sqltype.UUID || plannedVolatility(n) != expr.Volatile || !n.validShape() || !closedUUIDDefault(n) || generationImmutable(n) {
+	if n.Ref.Address != ext.Members[0] || n.ResultUsage().Type.ID() != sqltype.UUID || plannedVolatility(n) != expr.Volatile || !validInstalledUUIDOsspShape(n) || !closedUUIDDefault(n) || generationImmutable(n) {
 		t.Fatal("installed UUID shape/properties", n)
 	}
 	if generationHasTableOID(n) {
@@ -44,7 +44,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	}
 	found := false
 	for _, d := range binder.dependencies {
-		if d.Ref == n.ref && d.Revision == n.procedure.Revision() {
+		if d.Ref == n.Ref && d.Revision == n.Procedure.Revision() {
 			found = true
 		}
 	}
@@ -57,14 +57,14 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 		t.Fatal("not a zero-child identity leaf")
 	}
 	refs, err := pgDependExpressionRefs(context.Background(), view, n)
-	if err != nil || !slices.Contains(refs, n.ref.Address) {
+	if err != nil || !slices.Contains(refs, n.Ref.Address) {
 		t.Fatal(refs, err)
 	}
 	retagged, _, err := retagBoundTypes(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := retagged.(installedUUIDOsspFunctionExpression).validate(view); err != nil {
+	if err := validateInstalledUUIDOssp(retagged.(installedUUIDOsspFunctionExpression), view); err != nil {
 		t.Fatal(err)
 	}
 	rendered, err := (scalarRenderer{}).sql(context.Background(), view, retagged)
@@ -76,11 +76,11 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := mapped.(installedUUIDOsspFunctionExpression)
-	if m.ref.Epoch != n.ref.Epoch+1 || m.procedure != n.procedure || m.Name != "uuidv4" || plannedVolatility(m) != expr.Volatile {
+	if m.Ref.Epoch != n.Ref.Epoch+1 || m.Procedure != n.Procedure || m.Name != "uuidv4" || plannedVolatility(m) != expr.Volatile {
 		t.Fatal("remap lost captured provider", m)
 	}
-	proc := extension.RemapDescriptor(n.procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.procedure.Address(): {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*catalog.Procedure)
-	if extension.UUIDOsspProviderOf(proc) != extension.StockUUIDOssp || proc.Signature != "" || proc.Result != 2950 || proc.Address() == n.procedure.Address() {
+	proc := extension.RemapDescriptor(n.Procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.Procedure.Address(): {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*catalog.Procedure)
+	if extension.UUIDOsspProviderOf(proc) != extension.StockUUIDOssp || proc.Signature != "" || proc.Result != 2950 || proc.Address() == n.Procedure.Address() {
 		t.Fatal(proc)
 	}
 	for _, mutate := range []func(*installedUUIDOsspFunctionExpression){
@@ -89,8 +89,8 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 		func(x *installedUUIDOsspFunctionExpression) {
 			x.RoutineReference = view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3432})
 		},
-		func(x *installedUUIDOsspFunctionExpression) { x.ref.Epoch = 0 },
-		func(x *installedUUIDOsspFunctionExpression) { copy := *x.procedure; x.procedure = &copy },
+		func(x *installedUUIDOsspFunctionExpression) { x.Ref.Epoch = 0 },
+		func(x *installedUUIDOsspFunctionExpression) { copy := *x.Procedure; x.Procedure = &copy },
 		func(x *installedUUIDOsspFunctionExpression) { x.Property.Volatility = expr.Immutable },
 		func(x *installedUUIDOsspFunctionExpression) { x.Property.RowDependent = true },
 		func(x *installedUUIDOsspFunctionExpression) { x.Property.ParameterDependent = true },
@@ -100,7 +100,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	} {
 		bad := n
 		mutate(&bad)
-		if err := bad.validate(view); err == nil {
+		if err := validateInstalledUUIDOssp(bad, view); err == nil {
 			t.Fatal("invalid stored identity accepted", bad)
 		}
 	}
@@ -159,13 +159,13 @@ func TestUUIDOsspGroupedExpressionIdentity(t *testing.T) {
 		t.Fatal("actual grouping rewrite", err)
 	}
 	n := grouped.(installedUUIDOsspFunctionExpression)
-	if !n.Properties().StageDependent || n.Properties().Volatility != expr.Volatile || n.procedure != node.(installedUUIDOsspFunctionExpression).procedure {
+	if !n.Properties().StageDependent || n.Properties().Volatility != expr.Volatile || n.Procedure != node.(installedUUIDOsspFunctionExpression).Procedure {
 		t.Fatal("grouping lost staged volatility/installed identity", n)
 	}
 	if closedUUIDDefault(grouped) {
 		t.Fatal("grouped execution leaf admitted as a closed DEFAULT")
 	}
-	if err := n.validate(view); err != nil {
+	if err := validateInstalledUUIDOssp(n, view); err != nil {
 		t.Fatal("legitimate grouped installed identity rejected", err)
 	}
 	for _, mutate := range []func(*installedUUIDOsspFunctionExpression){
@@ -177,7 +177,7 @@ func TestUUIDOsspGroupedExpressionIdentity(t *testing.T) {
 	} {
 		bad := n
 		mutate(&bad)
-		if err := bad.validate(view); err == nil || closedUUIDDefault(bad) {
+		if err := validateInstalledUUIDOssp(bad, view); err == nil || closedUUIDDefault(bad) {
 			t.Fatal("group stage masked invalid leaf properties or relaxed DEFAULT", bad)
 		}
 	}
@@ -194,7 +194,7 @@ func TestUUIDOsspGroupedExpressionIdentity(t *testing.T) {
 		t.Fatal("retagging remapped grouped leaf", err)
 	}
 	got := rebound.(installedUUIDOsspFunctionExpression)
-	if got.ref != n.ref || got.procedure != n.procedure || !got.Properties().StageDependent || plannedVolatility(got) != expr.Volatile || closedUUIDDefault(got) {
+	if got.Ref != n.Ref || got.Procedure != n.Procedure || !got.Properties().StageDependent || plannedVolatility(got) != expr.Volatile || closedUUIDDefault(got) {
 		t.Fatal("grouped remap lost identity/stage or relaxed DEFAULT", got)
 	}
 }
@@ -222,7 +222,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "uuid_generate_v4()")
 	n := node.(installedUUIDOsspFunctionExpression)
 	captured, err := routine.ExpressionRoutineDescriptor(node)
-	if err != nil || captured != n.procedure || captured.Address() != ext.Members[0] || captured.RoutineKind != catalog.FunctionRoutine || captured.Result != 2950 || captured.Signature != "" || !captured.Strict || captured.Volatility != expr.Volatile || len(captured.Body) != 0 || n.ref.Domain() != e.catalog.Domain {
+	if err != nil || captured != n.Procedure || captured.Address() != ext.Members[0] || captured.RoutineKind != catalog.FunctionRoutine || captured.Result != 2950 || captured.Signature != "" || !captured.Strict || captured.Volatility != expr.Volatile || len(captured.Body) != 0 || n.Ref.Domain() != e.catalog.Domain {
 		t.Fatal("genuine zero-arity original declaration", captured, err)
 	}
 	original := slices.Clone(binder.dependencies)
@@ -230,7 +230,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	for _, dep := range original {
 		if dep.Ref.Address.ClassID == ids.ProcedureClassID {
 			routines++
-			if dep.Ref != n.ref || dep.Revision != captured.Revision() {
+			if dep.Ref != n.Ref || dep.Revision != captured.Revision() {
 				t.Fatal("invented helper edge or incorrect original manifest", dep)
 			}
 		}
@@ -251,10 +251,10 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 			case "empty":
 				deps = []catalog.ExpressionDependency{}
 			case "missing":
-				deps = slices.DeleteFunc(deps, func(d catalog.ExpressionDependency) bool { return d.Ref.Address == n.ref.Address })
+				deps = slices.DeleteFunc(deps, func(d catalog.ExpressionDependency) bool { return d.Ref.Address == n.Ref.Address })
 			default:
 				for i := range deps {
-					if deps[i].Ref.Address != n.ref.Address {
+					if deps[i].Ref.Address != n.Ref.Address {
 						continue
 					}
 					switch mode {
@@ -284,7 +284,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		auth.Catalog = auth.Catalog.WithState(catalog.CloneState(auth.Catalog.State()))
 		bad := *captured
 		mutate(&bad)
-		auth.Catalog.State().SetDescriptor(n.ref.Address, &bad)
+		auth.Catalog.State().SetDescriptor(n.Ref.Address, &bad)
 		probe := evaluation
 		probe.routineAuthority = &auth
 		if routine.SameRoutineDeclaration(&bad, captured) || admitRoutineCall(&probe, node, true, false) == nil {
@@ -305,11 +305,11 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{
 		ext.Address(): {ClassID: ids.ExtensionClassID, ObjectID: 900000},
-		n.ref.Address: {ClassID: ids.ProcedureClassID, ObjectID: 900001},
+		n.Ref.Address: {ClassID: ids.ProcedureClassID, ObjectID: 900001},
 	}
-	next := mapping[n.ref.Address].ObjectID + 1
+	next := mapping[n.Ref.Address].ObjectID + 1
 	for _, address := range ext.Members {
-		if address != n.ref.Address {
+		if address != n.Ref.Address {
 			mapping[address] = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: next}
 			next++
 		}
@@ -342,7 +342,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		t.Fatal("retag must resolve selected remapped address", err)
 	}
 	current, err := routine.ExpressionRoutineDescriptor(relocated)
-	if err != nil || current != state.Get(mapping[n.ref.Address]) || !relocated.(installedUUIDOsspFunctionExpression).validShape() {
+	if err != nil || current != state.Get(mapping[n.Ref.Address]) || !validInstalledUUIDOsspShape(relocated.(installedUUIDOsspFunctionExpression)) {
 		t.Fatal("remapped common and installed carriers diverged", err)
 	}
 	auth := catalogAuthorization(e, view)
@@ -382,7 +382,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	if err := admitRoutineCall(&probe, foreignNode, true, false); err == nil {
 		t.Fatal("foreign same-OID retag acquired original authority")
 	}
-	if !reflect.DeepEqual(binder.dependencies, original) || expr.InfoOf(node).RoutineReference != captured || n.procedure != captured || n.ref.Address != ext.Members[0] {
+	if !reflect.DeepEqual(binder.dependencies, original) || expr.InfoOf(node).RoutineReference != captured || n.Procedure != captured || n.Ref.Address != ext.Members[0] {
 		t.Fatal("authority probes mutated original")
 	}
 	if err := admitRoutineCall(&evaluation, node, true, false); err != nil {

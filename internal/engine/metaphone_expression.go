@@ -11,8 +11,8 @@ import (
 
 type installedMetaphoneFunctionExpression struct {
 	functions.Metaphone
-	procedure *catalog.Procedure
-	ref       ids.ObjectRef
+	Procedure *catalog.Procedure
+	Ref       ids.ObjectRef
 }
 
 // Rebuild keeps the installed-routine identity; the promoted Rebuild would
@@ -26,14 +26,14 @@ func (e installedMetaphoneFunctionExpression) Rebuild(info expr.Info, children [
 	return e, nil
 }
 
-func (n installedMetaphoneFunctionExpression) validate(v catalog.Read) error {
+func validateInstalledMetaphone(n installedMetaphoneFunctionExpression, v catalog.Read) error {
 	for _, arg := range n.Args {
 		if arg == nil || arg.ResultUsage().Type == nil {
 			return fmt.Errorf("stuntgres: missing stored Metaphone argument")
 		}
 	}
-	proc, ok := v.Procedure(n.ref.Address)
-	if !ok || proc != n.procedure || extension.FuzzystrmatchProviderOf(proc) != extension.StockFuzzystrmatch || proc.Name() != n.Function || proc.Signature != catalog.ProcedureSignature(functions.MetaphoneSignature(n.Function, len(n.Args))) || proc.Result != 25 {
+	proc, ok := v.Procedure(n.Ref.Address)
+	if !ok || proc != n.Procedure || extension.FuzzystrmatchProviderOf(proc) != extension.StockFuzzystrmatch || proc.Name() != n.Function || proc.Signature != catalog.ProcedureSignature(functions.MetaphoneSignature(n.Function, len(n.Args))) || proc.Result != 25 {
 		return fmt.Errorf("stuntgres: invalid stored Metaphone identity")
 	}
 	if err := extension.StockFuzzystrmatch.ValidateProcedure(v, proc); err != nil {

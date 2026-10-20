@@ -177,13 +177,13 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	consumer := &catalog.Relation{
 		ObjectAddress: address,
 		ColumnMeta: catalog.ColumnMetadata{
-			Defaults: map[int32]catalog.ColumnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.ref}}},
+			Defaults: map[int32]catalog.ColumnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.Ref}}},
 			Generations: map[int32]catalog.ColumnGeneration{2: {
-				Kind: catalog.GenerationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.ref},
+				Kind: catalog.GenerationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.Ref},
 			}},
 		},
 		SQLIndex: &catalog.IndexDefinition{Keys: []catalog.IndexKey{{Derived: &catalog.DerivedIndexKey{
-			Definition: call, Execution: call, Dependencies: []ids.ObjectRef{call.ref},
+			Definition: call, Execution: call, Dependencies: []ids.ObjectRef{call.Ref},
 		}}}},
 	}
 	next.SetDescriptor(address, consumer)
@@ -195,10 +195,10 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	assertCall := func(node expr.Expr) {
 		t.Helper()
 		actual := node.(installedCryptoFunctionExpression)
-		if actual.ref.Address != mapping[call.ref.Address] || actual.ref.Epoch != next.Epoch() || actual.procedure != next.Get(actual.ref.Address) {
-			t.Fatal("stale relocated provider", actual.ref)
+		if actual.Ref.Address != mapping[call.Ref.Address] || actual.Ref.Epoch != next.Epoch() || actual.Procedure != next.Get(actual.Ref.Address) {
+			t.Fatal("stale relocated provider", actual.Ref)
 		}
-		if err := actual.validate(view); err != nil {
+		if err := validateInstalledCrypto(actual, view); err != nil {
 			t.Fatal(err)
 		}
 		value, err := actual.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
@@ -217,7 +217,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		relocated.ColumnMeta.Generations[2].Dependencies[0],
 		relocated.SQLIndex.Keys[0].Derived.Dependencies[0],
 	} {
-		if dependency.Address != mapping[call.ref.Address] || dependency.Epoch != next.Epoch() {
+		if dependency.Address != mapping[call.Ref.Address] || dependency.Epoch != next.Epoch() {
 			t.Fatal("stale consumer dependency", dependency)
 		}
 	}
@@ -237,7 +237,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		t.Fatal("relocated query", err)
 	}
 	assertCall(query.(*plan.ProjectNode).Expressions[0])
-	if consumer.ColumnMeta.Defaults[1].Dependencies[0] != call.ref || call.procedure != before.Get(call.ref.Address) {
+	if consumer.ColumnMeta.Defaults[1].Dependencies[0] != call.Ref || call.Procedure != before.Get(call.Ref.Address) {
 		t.Fatal("source consumer mutated")
 	}
 	for _, name := range []string{"gen_random_bytes", "gen_random_uuid", "fips_mode"} {
@@ -256,13 +256,13 @@ func TestPgcryptoControlRemap(t *testing.T) {
 			t.Fatal(name, err)
 		}
 		actual := query.(*plan.ProjectNode).Expressions[0].(installedCryptoFunctionExpression)
-		if actual.ref.Address != mapping[original.ref.Address] || actual.ref.Epoch != next.Epoch() || actual.procedure != next.Get(actual.ref.Address) || len(actual.Args) != len(original.Args) || actual.ResultUsage() != original.ResultUsage() || plannedVolatility(actual) != expr.Volatile || !closedPgcryptoDefault(actual) {
+		if actual.Ref.Address != mapping[original.Ref.Address] || actual.Ref.Epoch != next.Epoch() || actual.Procedure != next.Get(actual.Ref.Address) || len(actual.Args) != len(original.Args) || actual.ResultUsage() != original.ResultUsage() || plannedVolatility(actual) != expr.Volatile || !closedPgcryptoDefault(actual) {
 			t.Fatal("relocated random/FIPS recipe", name, actual)
 		}
-		if err := actual.validate(view); err != nil {
+		if err := validateInstalledCrypto(actual, view); err != nil {
 			t.Fatal(name, err)
 		}
-		if original.procedure != before.Get(original.ref.Address) || original.ref.Address == actual.ref.Address {
+		if original.Procedure != before.Get(original.Ref.Address) || original.Ref.Address == actual.Ref.Address {
 			t.Fatal("source random/FIPS identity changed")
 		}
 	}

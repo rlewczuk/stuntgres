@@ -232,11 +232,11 @@ func generationImmutable(node expr.Expr) bool {
 	case installedLevenshteinFunctionExpression:
 		return args(n.Args)
 	case installedUUIDOsspFunctionExpression:
-		return n.procedure != nil && n.procedure.Volatility == expr.Immutable
+		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable
 	case installedCryptoFunctionExpression:
-		return n.procedure != nil && n.procedure.Volatility == expr.Immutable && args(n.Args)
+		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable && args(n.Args)
 	case installedFunctionExpression:
-		return n.procedure != nil && n.procedure.Volatility == expr.Immutable && args([]expr.Expr{n.Arg})
+		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable && args([]expr.Expr{n.Arg})
 	case expr.Composite:
 		// Last, so the explicit engine wrappers above keep precedence. A
 		// provider is admitted by its own volatility and its children.
@@ -415,7 +415,7 @@ func generationHasTableOID(node expr.Expr) bool {
 		}
 		return false
 	case extensionPathsExpression:
-		return generationHasTableOID(n.arg)
+		return generationHasTableOID(n.Arg)
 	case installedSoundexFunctionExpression:
 		return args(n.Args)
 	case installedMetaphoneFunctionExpression:
@@ -760,10 +760,10 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 		}
 		return nil
 	case extensionPathsExpression:
-		if err := n.validate(); err != nil {
+		if err := n.Validate(); err != nil {
 			return err
 		}
-		return validateGenerationPlan(view, d, n.arg)
+		return validateGenerationPlan(view, d, n.Arg)
 	case installedSoundexFunctionExpression:
 		return args(n.Args)
 	case installedMetaphoneFunctionExpression:
@@ -771,7 +771,7 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 	case installedLevenshteinFunctionExpression:
 		return args(n.Args)
 	case installedUUIDOsspFunctionExpression:
-		return n.validate(view)
+		return validateInstalledUUIDOssp(n, view)
 	case installedCryptoFunctionExpression:
 		return args(n.Args)
 	case installedFunctionExpression:

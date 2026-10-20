@@ -739,7 +739,7 @@ func joinExpressionSides(node expr.Expr, leftWidth, rightWidth int) (uint8, erro
 	case plan.ConditionalExpr:
 		children = e.Args
 	case extensionPathsExpression:
-		return joinExpressionSides(e.arg, leftWidth, rightWidth)
+		return joinExpressionSides(e.Arg, leftWidth, rightWidth)
 	case installedSoundexFunctionExpression:
 		children = e.Args
 	case installedMetaphoneFunctionExpression:

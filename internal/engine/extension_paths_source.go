@@ -8,7 +8,7 @@ import (
 )
 
 func (e extensionPathsExpression) Children() []expr.Expr {
-	return []expr.Expr{e.arg}
+	return []expr.Expr{e.Arg}
 }
 
 func (e extensionPathsExpression) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
@@ -17,7 +17,7 @@ func (e extensionPathsExpression) Rebuild(info expr.Info, children []expr.Expr) 
 		return nil, err
 	}
 	rebuilt := next.(extensionPathsExpression)
-	if err := rebuilt.validate(); err != nil {
+	if err := rebuilt.Validate(); err != nil {
 		return nil, err
 	}
 	return rebuilt, nil
@@ -33,7 +33,7 @@ func (e extensionPathsExpression) Substitute(info expr.Info, children []expr.Exp
 		}
 	}
 	e.Info = info
-	e.arg = children[0]
+	e.Arg = children[0]
 	return e, nil
 }
 

@@ -44,10 +44,10 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 			t.Fatal(err)
 		}
 		unary := node.(installedMetaphoneFunctionExpression)
-		if unary.ref.Address != ext.Members[tc.member] {
-			t.Fatal("unary procedure identity", unary.ref)
+		if unary.Ref.Address != ext.Members[tc.member] {
+			t.Fatal("unary procedure identity", unary.Ref)
 		}
-		if err := unary.validate(e.CatalogRead()); err != nil {
+		if err := validateInstalledMetaphone(unary, e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
 		value, err := unary.Eval(ctx)
@@ -58,13 +58,13 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	}
 	value, err := n.Eval(ctx)
 	integer, readErr := value.Text()
-	if err != nil || readErr != nil || integer != "KM" || n.ref.Address != ext.Members[5] || value.Type() != n.ResultUsage().Type || plannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
-		t.Fatal(value, n.ref, err, readErr)
+	if err != nil || readErr != nil || integer != "KM" || n.Ref.Address != ext.Members[5] || value.Type() != n.ResultUsage().Type || plannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
+		t.Fatal(value, n.Ref, err, readErr)
 	}
-	if err := n.validate(e.CatalogRead()); err != nil {
+	if err := validateInstalledMetaphone(n, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	nonmember := *n.procedure
+	nonmember := *n.Procedure
 	nonmember.ObjectAddress = ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 999999}
 	foreignState := catalog.CloneState(e.catalog.state)
 	foreignState.SetDescriptor(nonmember.Address(), &nonmember)
@@ -72,7 +72,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 		t.Fatal("nonmember procedure authority admitted")
 	}
 	refs, err := pgDependExpressionRefs(ctx.Context, e.CatalogRead(), n)
-	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.ref.Address}) {
+	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.Ref.Address}) {
 		t.Fatal(refs, err)
 	}
 	var children []expr.Expr
@@ -86,7 +86,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	if sameGroupExpression(n, changed) {
 		t.Fatal("argument identity collapsed")
 	}
-	consumer := &catalog.Relation{ColumnMeta: catalog.ColumnMetadata{Generations: map[int32]catalog.ColumnGeneration{1: {Kind: catalog.GenerationStored, Expression: n, Planned: n, Dependencies: []ids.ObjectRef{n.ref}}}}}
+	consumer := &catalog.Relation{ColumnMeta: catalog.ColumnMetadata{Generations: map[int32]catalog.ColumnGeneration{1: {Kind: catalog.GenerationStored, Expression: n, Planned: n, Dependencies: []ids.ObjectRef{n.Ref}}}}}
 	if err := validateGenerationProviders(e.CatalogRead(), consumer); err != nil {
 		t.Fatal(err)
 	}
@@ -103,21 +103,21 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 		func(p *catalog.Procedure) { p.Implementation = extension.StockPgcrypto },
 	} {
 		state := catalog.CloneState(e.catalog.state)
-		bad := *n.procedure
+		bad := *n.Procedure
 		mutate(&bad)
-		state.SetDescriptor(n.ref.Address, &bad)
+		state.SetDescriptor(n.Ref.Address, &bad)
 		forged := n
-		forged.procedure = &bad
-		if err := forged.validate(e.catalog.read(state)); err == nil {
+		forged.Procedure = &bad
+		if err := validateInstalledMetaphone(forged, e.catalog.read(state)); err == nil {
 			t.Fatal("forged installed call admitted", bad)
 		}
 	}
 	for _, foreign := range []bool{false, true} {
 		stale := n
 		if foreign {
-			stale.ref = New().catalog.Domain.Ref(stale.ref.Epoch, stale.ref.Address)
+			stale.Ref = New().catalog.Domain.Ref(stale.Ref.Epoch, stale.Ref.Address)
 		} else {
-			stale.ref.Epoch = e.CatalogRead().Epoch() + 1
+			stale.Ref.Epoch = e.CatalogRead().Epoch() + 1
 		}
 		if _, err := (scalarRenderer{}).sql(ctx.Context, e.CatalogRead(), stale); err == nil {
 			t.Fatal("foreign/stale stored reference admitted")
@@ -127,7 +127,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := retagged.(installedMetaphoneFunctionExpression).validate(e.CatalogRead()); err != nil {
+	if err := validateInstalledMetaphone(retagged.(installedMetaphoneFunctionExpression), e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	folded, _, err := simplifyConditional(ctx, n, false)
@@ -195,7 +195,7 @@ func TestMetaphoneRemap(t *testing.T) {
 		next.BindName(catalog.DescriptorNameKey(descriptor), destination)
 	}
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900010}
-	consumer := &catalog.Relation{ObjectAddress: address, ColumnMeta: catalog.ColumnMetadata{Defaults: map[int32]catalog.ColumnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.ref}}}, Generations: map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.ref}}}}}
+	consumer := &catalog.Relation{ObjectAddress: address, ColumnMeta: catalog.ColumnMetadata{Defaults: map[int32]catalog.ColumnDefault{1: {Expression: call, Dependencies: []ids.ObjectRef{call.Ref}}}, Generations: map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: call, Planned: call, Dependencies: []ids.ObjectRef{call.Ref}}}}}
 	next.SetDescriptor(address, consumer)
 	next.SetEpoch(next.Epoch() + 1)
 	if err := e.reownCatalogExpressions(next, mapping, false); err != nil {
@@ -205,10 +205,10 @@ func TestMetaphoneRemap(t *testing.T) {
 	relocated := next.MustRelation(address)
 	for _, node := range []expr.Expr{relocated.ColumnMeta.Defaults[1].Expression, relocated.ColumnMeta.Generations[2].Expression, relocated.ColumnMeta.Generations[2].Planned} {
 		n := node.(installedMetaphoneFunctionExpression)
-		if n.ref.Address != mapping[call.ref.Address] || n.ref.Epoch != next.Epoch() || n.procedure != next.Get(n.ref.Address) {
-			t.Fatal("stale remapped authority", n.ref)
+		if n.Ref.Address != mapping[call.Ref.Address] || n.Ref.Epoch != next.Epoch() || n.Procedure != next.Get(n.Ref.Address) {
+			t.Fatal("stale remapped authority", n.Ref)
 		}
-		if err := n.validate(view); err != nil {
+		if err := validateInstalledMetaphone(n, view); err != nil {
 			t.Fatal(err)
 		}
 		value, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
@@ -217,7 +217,7 @@ func TestMetaphoneRemap(t *testing.T) {
 			t.Fatal(value, err, readErr)
 		}
 	}
-	if call.ref.Epoch != before.Epoch() || call.procedure != before.Get(call.ref.Address) || !reflect.DeepEqual(call.Args, metaphoneUnitExpression(t, e).Args) {
+	if call.Ref.Epoch != before.Epoch() || call.Procedure != before.Get(call.Ref.Address) || !reflect.DeepEqual(call.Args, metaphoneUnitExpression(t, e).Args) {
 		t.Fatal("source expression mutated")
 	}
 }
