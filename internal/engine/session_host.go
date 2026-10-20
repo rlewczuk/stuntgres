@@ -13,18 +13,12 @@ func engineOf(s *Session) *Engine {
 	return (*Engine)(h)
 }
 
-// sessionOfOwner returns the session behind a session.Host owner, or nil.
-func sessionOfOwner(owner ids.SessionOwner) *Session {
-	s, _ := owner.(*Session)
-	return s
+func (h *sessionHost) EndMaintenance(s *Session) error {
+	return (*Engine)(h).endTemporaryCollations(s)
 }
 
-func (h *sessionHost) EndMaintenance(owner ids.SessionOwner) error {
-	return (*Engine)(h).endTemporaryCollations(sessionOfOwner(owner))
-}
-
-func (h *sessionHost) Unregister(token ids.SessionToken, owner ids.SessionOwner) {
-	e, s := (*Engine)(h), sessionOfOwner(owner)
+func (h *sessionHost) Unregister(token ids.SessionToken, s *Session) {
+	e := (*Engine)(h)
 	e.sessionMu.Lock()
 	if e.sessions[token] == s {
 		delete(e.sessions, token)

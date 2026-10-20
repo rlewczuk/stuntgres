@@ -6,17 +6,17 @@ import "stuntgres/internal/engine/ids"
 // session. The root engine implements it; session code never names the
 // engine. Each method states the locks its caller may hold.
 type Host interface {
-	// EndMaintenance runs the engine's end-of-session maintenance for owner
+	// EndMaintenance runs the engine's end-of-session maintenance for s
 	// (TEMP collation namespaces). The session calls it after the
-	// Transaction resource callback has returned, without Session.mu and
+	// Transaction resource callback has returned, without Session.Mu and
 	// never from inside a SessionResource callback. It takes Engine.mu and
 	// may start and end a private maintenance session.
-	EndMaintenance(owner ids.SessionOwner) error
-	// Unregister removes owner from the engine's session registry if it is
+	EndMaintenance(s *Session) error
+	// Unregister removes s from the engine's session registry if it is
 	// still registered under token. The session calls it while holding
-	// Session.mu; it takes only Engine.sessionMu (lock order Session.mu,
+	// Session.Mu; it takes only Engine.sessionMu (lock order Session.Mu,
 	// then Engine.sessionMu) and never Engine.mu or the lock manager.
-	Unregister(token ids.SessionToken, owner ids.SessionOwner)
+	Unregister(token ids.SessionToken, s *Session)
 	// NewOperation allocates an operation of s with Session and Self set,
 	// together with the engine's per-operation analysis state (the Analysis
 	// slot). Session.Operation calls it, possibly while holding Session.Mu;
