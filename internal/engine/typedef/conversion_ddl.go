@@ -58,7 +58,7 @@ func StageCreateConversionLocked(h StageHost, auth Authority, s *parser.CreateCo
 	if procedure.Result != 23 {
 		return sqlError("42P17", "encoding conversion function "+functionName+" must return type integer")
 	}
-	if err = Check(h, auth, access.Requirement{Object: ObjectRef(h, auth, procedure.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
+	if err = check(h, auth, access.Requirement{Object: objectRef(h, auth, procedure.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
 		if d, ok := err.(*sqlstate.Error); ok && d.Code == "42501" {
 			return sqlError("42501", "permission denied for function "+functionName)
 		}
@@ -129,8 +129,8 @@ func StageAlterConversionLocked(h StageHost, auth Authority, s *parser.AlterConv
 			return sqlError("0A000", "cannot move objects into or out of temporary schemas")
 		}
 	}
-	ref := ObjectRef(h, auth, d.Address())
-	if err = Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
+	ref := objectRef(h, auth, d.Address())
+	if err = check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		return err
 	}
 	next := *d
@@ -172,15 +172,15 @@ func StageDropConversionLocked(h StageHost, auth Authority, s *parser.DropConver
 		if err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); s.IfExists && ok && (diagnostic.Code == "42704" || diagnostic.Code == "3F000") {
 				if diagnostic.Code == "3F000" {
-					Notice(h, "00000", diagnostic.Message+", skipping")
+					notice(h, "00000", diagnostic.Message+", skipping")
 				} else {
-					Notice(h, "00000", fmt.Sprintf(`conversion "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
+					notice(h, "00000", fmt.Sprintf(`conversion "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
 				}
 				continue
 			}
 			return err
 		}
-		if err = Check(h, auth, access.Requirement{Object: ObjectRef(h, auth, d.Address()), OwnerOnly: true}); err != nil {
+		if err = check(h, auth, access.Requirement{Object: objectRef(h, auth, d.Address()), OwnerOnly: true}); err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
 				return sqlError("42501", "must be owner of conversion "+catalog.ObjectNameText(name))
 			}

@@ -34,7 +34,7 @@ func StageAlterEnumLabelLocked(h StageHost, old *catalog.Type, alter *parser.Alt
 	}
 	if newIndex >= 0 {
 		if !alter.Rename && alter.IfNotExists {
-			Notice(h, "42710", fmt.Sprintf(`enum label "%s" already exists, skipping`, alter.Label.Text))
+			notice(h, "42710", fmt.Sprintf(`enum label "%s" already exists, skipping`, alter.Label.Text))
 			return EnumLabelEdit{Skipped: true}, nil
 		}
 		return EnumLabelEdit{}, sqlError("42710", fmt.Sprintf(`enum label "%s" already exists`, alter.Label.Text))
@@ -63,7 +63,7 @@ func StageAlterEnumLabelLocked(h StageHost, old *catalog.Type, alter *parser.Alt
 		if err != nil {
 			return EnumLabelEdit{}, err
 		}
-		order := EnumInsertionOrder(members, at)
+		order := enumInsertionOrder(members, at)
 		members = slices.Insert(members, at, sqltype.EnumMember{ID: member, Label: alter.Label.Text, SortOrder: order})
 		edit = EnumLabelEdit{Added: true, Member: member}
 	}

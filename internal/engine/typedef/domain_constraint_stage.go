@@ -52,7 +52,7 @@ func StageAlterDomainConstraintLocked(h StageHost, auth Authority, old *catalog.
 		if selected < 0 {
 			message := fmt.Sprintf("constraint %q of domain %q does not exist", raw.Constraint.Text, catalog.ObjectNameText(raw.Name))
 			if raw.Action == parser.DomainDropCheck && raw.IfExists {
-				Notice(h, "00000", message+", skipping")
+				notice(h, "00000", message+", skipping")
 				return DomainConstraintEdit{Skipped: true}, nil
 			}
 			err = sqlError("42704", message)

@@ -19,7 +19,7 @@ func StageDropCompositeLocked(h StageHost, auth Authority, s *parser.DropComposi
 		if err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42704" {
 				if s.IfExists {
-					Notice(h, "00000", fmt.Sprintf(`type "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
+					notice(h, "00000", fmt.Sprintf(`type "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
 					continue
 				}
 				return sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, catalog.ObjectNameText(name)))
@@ -29,8 +29,8 @@ func StageDropCompositeLocked(h StageHost, auth Authority, s *parser.DropComposi
 		if _, err := StandaloneComposite(view.Catalog, typ, nil); err != nil {
 			return expr.ErrorAt("0A000", "statement is unsupported", s.Pos)
 		}
-		ref := ObjectRef(h, auth, typ.Address())
-		if err := Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
+		ref := objectRef(h, auth, typ.Address())
+		if err := check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err
 		}
 		if !seen[ref.Address] {

@@ -6,7 +6,7 @@ import (
 
 // Members are an owned mutation copy. Renumber only when an interior midpoint
 // collapses in binary32; existing datum identities are never rewritten.
-func EnumInsertionOrder(members []sqltype.EnumMember, at int) float32 {
+func enumInsertionOrder(members []sqltype.EnumMember, at int) float32 {
 	if len(members) == 0 {
 		return 1
 	}

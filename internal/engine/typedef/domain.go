@@ -83,7 +83,7 @@ func StageCreateDomainLocked(h StageHost, auth Authority, s *parser.CreateDomain
 	if err != nil {
 		return err
 	}
-	ref := ObjectRef(h, auth, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())})
+	ref := objectRef(h, auth, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())})
 	h.AddDomainBase(view.Catalog.Get(ref.Address))
 	if err = view.CanUse(auth, ref); err != nil {
 		return err
@@ -151,7 +151,7 @@ func StageDropDomainLocked(h StageHost, auth Authority, s *parser.DropDomain) er
 		}
 		if len(found) != 1 {
 			if s.IfExists {
-				Notice(h, "00000", fmt.Sprintf(`type "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
+				notice(h, "00000", fmt.Sprintf(`type "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
 				continue
 			}
 			return sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, catalog.ObjectNameText(name)))
@@ -160,8 +160,8 @@ func StageDropDomainLocked(h StageHost, auth Authority, s *parser.DropDomain) er
 		if !target.SQLType.IsDomain() {
 			return sqlError("42809", fmt.Sprintf(`"%s" is not a domain`, catalog.ObjectNameText(name)))
 		}
-		ref := ObjectRef(h, auth, target.Address())
-		if err = Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
+		ref := objectRef(h, auth, target.Address())
+		if err = check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err
 		}
 		if seen[ref.Address] {

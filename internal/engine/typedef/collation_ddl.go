@@ -173,7 +173,7 @@ func StageCreateCollationLocked(h StageHost, auth Authority, s *parser.CreateCol
 			message = fmt.Sprintf(`collation "%s" for encoding "UTF8" already exists`, name)
 		}
 		if s.IfNotExists {
-			Notice(h, "42710", message+", skipping")
+			notice(h, "42710", message+", skipping")
 			return nil
 		}
 		return sqlError("42710", message)
@@ -219,8 +219,8 @@ func StageAlterCollationLocked(h StageHost, auth Authority, s *parser.AlterColla
 			return nil
 		}
 	}
-	ref := ObjectRef(h, auth, d.Address())
-	if err = Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
+	ref := objectRef(h, auth, d.Address())
+	if err = check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		return err
 	}
 	if d.Provider == "d" && s.Action == "refresh" {
@@ -237,10 +237,10 @@ func StageAlterCollationLocked(h StageHost, auth Authority, s *parser.AlterColla
 			return sqlError("XX000", "invalid collation version change")
 		}
 		if actual == nil || *actual == *d.Version {
-			Notice(h, "00000", "version has not changed")
+			notice(h, "00000", "version has not changed")
 			return nil
 		}
-		Notice(h, "00000", fmt.Sprintf("changing version from %s to %s", *d.Version, *actual))
+		notice(h, "00000", fmt.Sprintf("changing version from %s to %s", *d.Version, *actual))
 		next.Version = actual
 	case "rename":
 		if err = view.CheckCreate(auth, view.Owner.Domain.Ref(ref.Epoch, d.Namespace())); err != nil {
@@ -289,13 +289,13 @@ func StageDropCollationLocked(h StageHost, auth Authority, s *parser.DropCollati
 		d, err := findUtilityCollation(h, auth, name)
 		if err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); s.IfExists && ok && (diagnostic.Code == "42704" || diagnostic.Code == "3F000") {
-				Notice(h, "00000", fmt.Sprintf(`collation "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
+				notice(h, "00000", fmt.Sprintf(`collation "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
 				continue
 			}
 			return err
 		}
-		ref := ObjectRef(h, auth, d.Address())
-		if err = Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
+		ref := objectRef(h, auth, d.Address())
+		if err = check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err
 		}
 		if d.Seeded() {

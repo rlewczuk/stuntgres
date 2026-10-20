@@ -77,7 +77,7 @@ func StageCreateCompositeLocked(h StageHost, auth Authority, s *parser.CreateCom
 		if err != nil {
 			return err
 		}
-		ref := ObjectRef(h, auth, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
+		ref := objectRef(h, auth, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
 		if err := view.CanUse(auth, ref); err != nil {
 			return err
 		}
