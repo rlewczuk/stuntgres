@@ -61,8 +61,9 @@ logic on `Engine` (`sequence_prepared.go`), the function authority behind
 `functions.SequenceRuntime` (`sequence_runtime.go`), the `CatalogStage`
 sequence slot (`sequence_stage.go`), `copySequenceState` and
 `clearPersistentSequenceMemoryLocked`, regclass input and output, and the
-generic relation diagnostics `tableKind` and `relationDiagnosticKind`. Part B
-(17c, 17d) moves the handlers.
+generic relation diagnostic `relationDiagnosticKind`. 17d moves the
+handlers' decisions; their orchestration stays (the 17c plan in
+[ENGINE-SPLIT-sequence.md](../../../docs/ENGINE-SPLIT-sequence.md)).
 
 ## Testing
 

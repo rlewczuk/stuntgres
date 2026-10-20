@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `bbafa4c5e`. The later-wave plans
+Last verified against `master` at `9a68139e7`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -18,7 +18,7 @@ as another broad item (§8).
 - **Step 14 `routine`** — 14d, DDL handlers moved (item 47).
 - **Step 15 `typedef`** — 15c, refine (item 48; docs only).
 - **Step 16 `extension`** — 16d.1, staging (item 51a).
-- **Step 17 `sequence`** — 17c, refine (item 52; docs only).
+- **Step 17 `sequence`** — 17d, handler decisions (item 53).
 - **Postponed packages** — planning round (item 54; docs only).
 
 Steps 1, 2 and 4–13 and `access` (A1–B5) are done. Step 13 ended with 13e
@@ -26,6 +26,7 @@ Steps 1, 2 and 4–13 and `access` (A1–B5) are done. Step 13 ended with 13e
 with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
 16c (item 50) is done: 16d runs as 16d.1 and 16d.2 (items 51a, 51b).
 14c (item 46) is done: 14d (item 47) runs as one session.
+17c (item 52) is done: 17d moves the decisions in one session (item 53).
 
 ## Task tree
 
@@ -370,8 +371,8 @@ with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
   - [x] 17b — `sequence` created and clean set moved (`b9aacc67c`,
     `6a7aaae6a`, then the docs commit) *(racecheck/finalcheck skipped at user
     request)*
-  - [ ] 17c — Host refined (docs only)
-  - [ ] 17d — Handlers moved
+  - [x] 17c — Host refined (docs only; the docs commit)
+  - [ ] 17d — Handler decisions moved
 - [ ] **Postponed packages** ([ENGINE-SPLIT.md §6](ENGINE-SPLIT.md#postponed-packages);
   no prompt files yet): `index`, `partition`, `inheritance`, `table`,
   `view`, `fdw`, `dml`, `control`
@@ -656,8 +657,10 @@ in the prompt file's Status section.
       · needs 50
     - 51b. [ ] 16d.2 handlers — [extension](ENGINE-SPLIT-extension.md#16d2--handlers-linear-item-51b)
       · needs 51a
-52. [ ] Sequence 17c (refine, docs only) —
-    [sequence](ENGINE-SPLIT-sequence.md) 17c · needs 44, 31
+52. [x] Sequence 17c (refine, docs only) —
+    [sequence](ENGINE-SPLIT-sequence.md) 17c · needs 44, 31 · (the docs
+    commit) · measured at `1f606f52d`: decisions move as pure functions,
+    orchestration stays in the root; no `sequence.Host`; no aliases
 53. [ ] Sequence 17d — [sequence](ENGINE-SPLIT-sequence.md) 17d · needs 52
 
 ### Group G — next planning round

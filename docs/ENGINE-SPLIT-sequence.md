@@ -18,7 +18,9 @@ constraints, verification, documentation and report.
 ## Goal
 
 Sequence objects (options, limits, session memories, dump formatting, then
-DDL, identity and serial columns) become a feature package. The generator
+the decisions of DDL, identity and serial columns and prepared literals)
+become a feature package; the handlers' orchestration stays in the root
+(17c). The generator
 stays in `storage`; the sequence functions go to `functions`. Files whose
 names mislead are renamed first, so the feature's boundary is visible.
 
@@ -108,9 +110,192 @@ prepared-literal rules in `AGENTS.md` (private analysis cell, distinct plan
 stamp, namespace cache, whole-group reanalysis, no retarget after admission)
 must hold unchanged; list which handler enforces each. Wait for approval.
 
-### 17d — Move the handlers
+**17c refine (approved; measured at `1f606f52d`).** The `frontier` tool
+(`.cswd/tmp/PG18-ENGINE-SPLIT-EXEC-REFINE/`; output in
+`.cswd/tmp/PG18-ENGINE-SPLIT-SEQUENCE-REFINE/frontier-sequence.txt`), with
+`sequence.go`, `sequence_comment.go`, `sequence_prepared.go`,
+`sequence_stage.go`, `identity_alter.go`, `identity_drop_definition.go`,
+`serial.go`, `identity_control.go`, `sequence_control.go` and the identity
+staging of `identity.go` as the move set:
 
-Follow 17c. Remove the remaining aliases.
+- **Size.** The remaining 16 non-test `sequence*`, `identity*` and `serial*`
+  files hold about 2.2k lines (`serializable*` excluded).
+- **The handlers are orchestration.** Every handler holds `Engine.mu` and
+  drops it around a lock wait: CREATE and ALTER SEQUENCE inside
+  `ownedSequenceLocked` (OWNED BY), ALTER, DROP, COMMENT and identity
+  SET/TYPE/DROP around `StatementScope.acquireSequence`. After each wait
+  they refresh the authorization view and recheck the catalog epoch.
+- **Engine edges (OUT).** The set reaches 110 engine members (types,
+  functions, methods and fields): `AuthorizationView` (`Check`,
+  `CheckCreate`, `Roles`, `stagedTemporary`, `catalogAuthorityLocked`),
+  `CatalogStage` (`Create`, `Replace`, `creationACL`, `authorizeLocked`,
+  `dependencyPath`, `viewCascadeNames`), the journal install
+  (`catalogChangeLocked`, `privateCatalogLocked`), `allocateOIDLocked` and
+  `revisionLocked`, the scope fields `catalog`, `catalogAuthority`, `owner`,
+  `op`, `ticket` and `replacementRead`, the drop provider (`dropProvider`,
+  `preparedDrop`, `dropEffect` and their fields), `payloadOf` and
+  `operationReplayOrZero`.
+- **Outside uses (IN).** `acquireSequence` has 24 production callers in 20
+  files (schemas, domains, enums, extensions, inheritance, ownership,
+  DISCARD, CHECK, `pg_sequences`): it is the scope's object lock
+  acquisition, not sequence code. `sequenceEnvironmentLocked` also serves
+  ordinary prepared SQL (`prepared_rebind.go`) and regtype analysis
+  (`regtype_analysis.go`): it is the shared effective namespace comparator.
+  `relationDropOwner` is shared with `index_maintenance_locks.go`. Identity
+  and serial staging is reached only from table DDL (`schema.go`,
+  `partition_inherit.go`, `table_like.go`, `not_null.go`, `alter_type.go`,
+  `inheritance_alter_prepare.go`).
+- **A whole-handler host does not pay.** Moving the handlers whole would
+  need a `sequence.Host` of about 25 methods, several of which release and
+  retake `Engine.mu` around lock waits, plus new interfaces for
+  `AuthorizationView` and `CatalogStage`. DROP SEQUENCE and identity DROP
+  would still stay in the root: they are the shared drop machinery.
+
+Decisions:
+
+1. **Decisions move, orchestration stays** (§3 rule 4, as in 13c).
+   `sequence` gets pure functions over `catalog.Read`, catalog records and
+   parser syntax: descriptor construction, option and OWNED BY checks, the
+   plan-stamp rule, the prepared-literal validity decisions and the call
+   semantics. The root keeps `Engine.mu`, lock waits, authorization refresh,
+   OID and revision allocation, the journal and stage install, scope fields
+   and notices.
+2. **No `sequence.Host`.** Nothing that moves needs the scope or the engine.
+   `statementHost` keeps implementing `functions.SequenceRuntime`. Functions
+   that read or change a `SessionMemory` or a generator carry the `Locked`
+   suffix: the caller holds `Engine.mu`.
+3. **Imports.** 17d adds `functions` (`SequenceRequest`) and `session`
+   (`DependencyObservation`, for the stage slot); both are lower layers.
+   `sequence` still never imports `analyze`, `exec` or the engine.
+4. **Call order is unchanged**, so PostgreSQL's error precedence is too.
+   For example, identity options bind (`BindOptions`) before the TEMP
+   `logged`/`unlogged` 42P16 check, and CREATE SEQUENCE without IF NOT
+   EXISTS binds options before the namespace CREATE check.
+
+**Move set (17d; new names).**
+
+- **Relation construction** (`relation.go`): `Columns(read)` (was
+  `Engine.sequenceColumnsLocked`; the caller passes the live catalog read);
+  `NewRelation(spec)` replaces the three descriptor literals in CREATE
+  SEQUENCE, `stageIdentitySequence` and `stageCreateSerials` (columns,
+  index, attributes, high water 3, kind, options, `SequencePlanStamp` equal
+  to the revision; the caller still sets the ACL);
+  `InitialGenerator(options, restart, revision)`; and
+  `ReplacementGenerator(state, revision, restart)`, shared by ALTER SEQUENCE
+  and `stageIdentitySequenceOptionsLocked`.
+- **OWNED BY, ALTER and DROP checks** (`owned.go`, `alter.go`):
+  `ParseOwnedBy` (`none`, arity, 42601 with its hint) and `CheckOwnedBy`
+  (after the lock grant: 42809 not a table, 55000 owner, 55000 schema, 42703
+  column); `IdentityOwnershipError` (0A000); `TemporaryLoggedError` (42P16
+  with schema and table); `CheckSchemaMove` (0A000 TEMP schemas);
+  `NotSequenceError` (42809 with the DROP INDEX or DROP TABLE hint); and
+  `AlterEffects(old, next, raw, action)`, which decides the plan-stamp bump
+  (any option other than OWNED BY, or a name, schema, owner or persistence
+  change), the generator replacement and the session tail discard.
+- **Identity and serial options** (`identity.go`):
+  `IdentityTypeOption(id)` (smallint/integer/bigint check and the AS option;
+  identity creation and ALTER TYPE); `SplitIdentityOptions` (duplicate
+  `logged`/`unlogged`/`name` errors at their positions, persistence, the
+  explicit name) with a `CheckTemporary` step for the 42P16 at its position;
+  `CheckIdentitySetOptions` (XX000 and 42601 of ALTER ... SET);
+  `SerialOptions(id)` and `SerialDefault(namespace, name)` (the synthetic
+  `pg_catalog.nextval` default); and `CheckRestoreIdentityConfiguration`
+  (the whitelist part of `validateRestoreIdentityConfiguration`).
+- **Prepared literals** (`prepared.go`): an `Observation` record (catalog
+  domain, `catalog.Read`, session token, journal identity, effective path
+  and a definition-stamp function) and `NewAnalysis` (from
+  `sequenceAnalysisLocked`), `Analysis.Valid` (from
+  `sequenceAnalysisValidLocked`), `PinReplacement` (from
+  `pinSequenceReplacementLocked`) and `TemporaryEpochValid` (from
+  `temporarySequenceEpochValid` in `temporary_provenance.go`). The root
+  builds the observation in one helper.
+- **Calls** (`call.go`): `CallPrivileges(name)` (USAGE with SELECT, UPDATE or
+  only UPDATE), `ReadOnlyCallError(name)` (25006 for `nextval`/`setval`) and
+  `CallLocked(request, relation, generator, memory)`, the
+  currval/lastval/nextval/setval switch of `statementHost.Sequence`
+  (`DemandLocked`, `ObserveLocked`, `NextLocked`, `RecordLastLocked`, the
+  22003 setval bounds, `SetLocked`).
+- **Stage slot** (`stage.go`): `sequenceStage` becomes `sequence.Stage` with
+  exported methods (`Generator`, `StagedGenerators`, `SetGenerator`,
+  `DeleteGenerator`, `ResetGenerators`, `IdentityOriginal`,
+  `IdentityOriginalMap`, `CaptureIdentityOriginal`,
+  `ObserveIdentityDependencies`, `IdentityDependencyList`); nil reads keep
+  working. `CatalogStage.sequenceState()` stays in the root. About 25
+  production and 27 test call sites change mechanically.
+- **Control** (`control.go`): `CopyGenerators(view, generators)` (from
+  `copySequenceState`; the root passes the source engine's generators under
+  source synchronization) and `OwnTemporary(read, token)`, the retain
+  predicate of `clearPersistentSequenceMemoryLocked`.
+
+**Stays in the root.**
+
+- The orchestration of `executeSequenceDDL`, `dropSequences`,
+  `executeSequenceComment`, `ownedSequenceLocked`, `statementHost.Sequence`
+  and `clearPersistentSequenceMemoryLocked`.
+- `StatementScope.acquireSequence` (the scope's object lock; its name
+  misleads), `AuthorizationView.checkSequenceAny` and `relationDropOwner`
+  (shared with index maintenance).
+- `sequenceEnvironmentLocked`, `journalOf` and `preparedDefinitionStamp`:
+  the effective namespace comparator and the definition stamp of ordinary
+  prepared SQL, which sequence literals reuse.
+- Identity and serial staging on `CatalogStage` (`stageCreateIdentities`,
+  `stageIdentitySequence`, `stageIdentitySequenceOptionsLocked`,
+  `refreshIdentitySequenceLocked`, `identityCandidate`,
+  `alterIdentityTypeSequence`, `stageCreateSerials`): table DDL, for the
+  postponed `table` package.
+- The identity DROP flow (`preparedIdentityDrop`, `identityDropCapture`,
+  `dropIdentityDefinition`, `captureIdentityDropDefinitionLocked`,
+  `applyIdentityDropTombstone`): it reads and writes drop-provider internals
+  (`preparedDrop.observed`, `grants`, `discovery`, `effects`, `slots`).
+- `sequence_dependencies.go` (owned-sequence drop provider),
+  `truncate_sequence.go`, `pg_sequences.go`, `evalSerialSequence` (an exec
+  inquiry that reads the scope), `storedSequenceEpochValid` (stored
+  reference provenance) and `closedRegclassDefault` (default replay over
+  plan nodes).
+
+**Prepared-literal rules and their enforcers.** Each `AGENTS.md` clause, the
+code that enforces it today, and where that code is after 17d. The root call
+sites and their order do not change.
+
+| Rule | Enforced by |
+|---|---|
+| Private description analysis cell | `StatementDescription.sequences` (`statement_description.go`), non-nil only when the statement has literals; built in the describe path (`engine.go`) and republished at Execute (`execute.go`); held by `analyze.Expected.Sequences`. 17d: the record comes from `sequence.NewAnalysis`; the cell stays in the root |
+| Distinct relation plan stamp | `catalog.Relation.SequencePlanStamp`: set at creation (CREATE SEQUENCE, identity, serial; 17d: `NewRelation`), bumped by ALTER SEQUENCE (17d: `AlterEffects`), identity options, rename, ownership, ALTER SCHEMA, role grants and TRUNCATE RESTART IDENTITY; read by `preparedDefinitionStamp` (root), which adds the session memory's `SourceStamp` |
+| Physical-session effective namespace cache | `SessionMemory.CachedPath`/`StorePathLocked` (`sequence/memory.go`), keyed by `PathKey` and filled by `sequenceEnvironmentLocked` (root, shared) |
+| Whole-group reanalysis at Execute start | `execute.go`: the validity check (`sequenceAnalysisValidLocked`; 17d: `Analysis.Valid`) clears `candidate.sequences`, and the republish rebuilds the analysis from every `callerSequences` literal |
+| Immutable temporal, signature and result contracts | `checkStatementSignature` before the republish in `execute.go` (root, `analyze.CheckSignature`) |
+| RX on demand after once-only argument evaluation | `functions.SequenceCall.Eval` evaluates each argument once; `statementHost.Sequence` takes `RowExclusive` at call time (root) |
+| Grant-time opening keeps the in-flight OID; no retarget or replay | `SequenceCall.Eval` reads the OID from the datum and never resolves a name; `statementHost.Sequence` reopens the same address after the grant (XX000 `could not open relation`) |
+| Filtered, zero-row and strict NULL calls do not open | `SequenceCall.Eval` returns NULL before calling the runtime; nodes evaluate on demand |
+| Generator state and descriptor revision are not invalidation tokens | `preparedDefinitionStamp` reads `SequencePlanStamp`, not `ObjectRevision`; `Analysis` holds no generator; `nextval` and `setval` change no stamp |
+| Native replacement fenced except exact caller-owned live TEMP provenance | the epoch branch of `sequenceAnalysisValidLocked` (17d: `Analysis.Valid`), `pinSequenceReplacementLocked` (17d: `PinReplacement`), `temporarySequenceEpochValid` in `statementHost.Sequence` (17d: `TemporaryEpochValid`) and `storedSequenceEpochValid` for stored defaults (root) |
+
+### 17d — Move the decisions
+
+One session, in this order. No aliases are needed: every moved name is
+qualified at its call sites.
+
+1. **Seams first.** Write `sequence` unit tests for the new seams and see
+   them fail: `Analysis.Valid` and `PinReplacement` (session, journal,
+   namespace, path and stamp changes; replaced epoch with and without the
+   caller's live TEMP), `CallLocked` (memory and generator effects of each
+   function) and `NewRelation` (the descriptor shape).
+2. **Extract in place.** Turn each decision of the move set into a root
+   function with its final signature and adapt the callers, keeping the
+   call order and every message, SQLSTATE and position. The three
+   descriptor literals become one builder.
+3. **Stage slot.** Move `sequenceStage` to `sequence.Stage` (`movex`,
+   `meth2fn` for the exported methods) and adapt the call sites.
+4. **Move.** Move the decision set with `movex`; check with `go list` that
+   `sequence` imports only the packages of decision 3 and lower ones.
+5. **Docs.** Update the README (what it owns, what stays, Testing). Move the
+   `AGENTS.md` prepared-literal bullet into the README with the enforcer
+   table, leaving at most one line. Update ENGINE-SPLIT.md and
+   ENGINE-SPLIT-STATUS.md.
+
+Checks: the README's engine selectors, `RACE=1` for concurrent `nextval`
+and TEMP teardown, the reference selection in quick mode and once with
+`REFERENCE=1` at the end, `make quickcheck`, `make deps` and `make bench`.
 
 ## Invariants
 
@@ -123,6 +308,8 @@ Follow 17c. Remove the remaining aliases.
   unchanged.
 - Dump output for sequences, identity and serial columns stays
   byte-identical.
+- Part B keeps the handlers' call order: lock waits, authorization refresh
+  and error precedence are unchanged (17c decision 4).
 
 ## Targeted tests
 
@@ -146,8 +333,9 @@ Follow 17c. Remove the remaining aliases.
 ## Done when
 
 Part A: the misleading files are renamed and the clean set lives in
-`sequence`. Part B: sequence, identity and serial handlers live there too.
-The checks in §8.3 pass.
+`sequence`. Part B: the decisions of the sequence, identity and serial
+handlers and of prepared sequence literals live there too; their
+orchestration stays in the root (17c). The checks in §8.3 pass.
 
 ## Status
 
@@ -156,8 +344,11 @@ The checks in §8.3 pass.
   request)*
 - [x] 17b — `sequence` created and clean set moved (`b9aacc67c`, `6a7aaae6a`,
   then the docs commit) *(racecheck/finalcheck skipped at user request)*
-- [ ] 17c — Host refined (docs only; after 13d)
-- [ ] 17d — Handlers moved
+- [x] 17c — Host refined (docs only; the commit that records this text)
+  *(measured at `1f606f52d`; decisions move, orchestration stays, no
+  `sequence.Host`; quickcheck passed; racecheck/finalcheck skipped at user
+  request)*
+- [ ] 17d — Handler decisions moved
 
 Outstanding aliases: none (17b qualified every reference; no type aliases).
 
@@ -265,15 +456,23 @@ set referenced only `sqlError` and `commentLiteral` in the engine.
 
 ### Notes for later steps
 
-- 17d: `sequenceStage` (`sequence_stage.go`) is clean but refers to
-  `catalogDependencyObservation`; move it with the stage handlers, together
-  with `identityDropCapture`.
-- 17c/17d: the prepared-literal cache logic (`sequence_prepared.go`) can move
-  once `AuthorizationView` and the journal have lower-layer forms; the
-  records are already in `sequence`.
-- Later: `tableKind` still lives in `sequence.go` and
-  `relationDiagnosticKind` in `sequence_dependencies.go`; they belong to the
-  postponed `table` package (or a relation-diagnostics file).
+- 17d: `sequenceStage` (`sequence_stage.go`) now refers to
+  `session.DependencyObservation`, so it moves as `sequence.Stage` (17c).
+  `identityDropCapture` does not move: it belongs to the identity DROP flow,
+  which stays with the drop provider (17c correction).
+- 17d: the prepared-literal decisions move as pure functions over an
+  `Observation`; `sequenceEnvironmentLocked`, `journalOf` and
+  `preparedDefinitionStamp` stay, because ordinary prepared SQL and regtype
+  analysis share them (17c correction).
+- Later: `StatementScope.acquireSequence` is the scope's object lock
+  acquisition (24 callers, most not sequences); rename it when its owner is
+  next touched. `sequenceEnvironmentLocked` misleads the same way.
+- Later (postponed `table` package): identity and serial staging on
+  `CatalogStage`, the identity DROP flow and `relationDiagnosticKind`
+  (`sequence_dependencies.go`). `tableKind` already moved to `analyze`
+  (`1a329c118`).
+- Later: `closedRegclassDefault` (`serial.go`, used by `default_replay.go`)
+  walks plan nodes; it belongs next to `analyze.ClosedSequenceDefault`.
 - `catalogChanges.generators` is core journal state (13b keeps it), not a
   sequence slot.
 - `journalOf` stays in the engine; `sequence.JournalIdentity` moved in 17b.

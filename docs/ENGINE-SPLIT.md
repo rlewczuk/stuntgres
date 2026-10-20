@@ -1226,7 +1226,13 @@ Generic relation diagnostics (`tableKind`), the relation-name chooser and
 regclass input stayed in the engine: they are not sequence code.
 
 **Part B (17c, 17d)** after step 13: CREATE/ALTER/DROP SEQUENCE, identity
-columns, serial columns and sequence comments.
+columns, serial columns and sequence comments. Refined in 17c: their
+decisions move (descriptor construction, option and OWNED BY checks, the
+plan-stamp rule, prepared-literal validity, call semantics, the stage slot);
+`Engine.mu`, lock waits, authorization refresh, the journal and stage
+install, and the identity and serial staging on `CatalogStage` stay in the
+root, so no `sequence.Host` is needed. 17d is one session; details in the
+prompt file.
 
 **Stays elsewhere.** The generator (`storage.SequenceGenerator`) stays in
 `storage`; `nextval`/`currval`/`setval` move to `functions` in Tier C.
@@ -1309,6 +1315,8 @@ These packages get prompt files after the steps above. Each needs `session`
    value instead of capturing one view: the operator and CREATE FUNCTION
    helpers copy and recapture the view per helper, as `analyze.Host` takes
    an `analyze.Authority` per call.
+   Step 17 needs no feature host (17c): the sequence handlers' decisions
+   move as pure functions and their orchestration stays in the root.
 9. **Where `Eval` lives.** Step 10 keeps node types and `Eval` in `plan`,
    with engine state behind a node runtime capability; the alternative is to
    keep `Eval` for frame-reading nodes in `exec`. Settled in 10b: `Eval`
@@ -1365,7 +1373,7 @@ package-specific scope. This section holds the rules every session follows.
 | 14 | [`ENGINE-SPLIT-routine.md`](ENGINE-SPLIT-routine.md) | A: `PG18-ROUTINE-CORE` merged, 14b also the F3 aliases item of step 3; B: 13d | 14a done in place, 14b `routine` created and clean set moved (racecheck skipped at user request); 14c refined (`DDLHost` on a scope-free root `schemaHost`, authority as an opaque value, dumps wait for a dump seam); 14d planned |
 | 15 | [`ENGINE-SPLIT-typedef.md`](ENGINE-SPLIT-typedef.md) | A: 14b; B: 13d | 15a done in place, 15b `typedef` created and clean set moved (racecheck/finalcheck skipped at user request); 15c–15d planned |
 | 16 | [`ENGINE-SPLIT-extension.md`](ENGINE-SPLIT-extension.md) | A: 15b; B: 13d | 16a done in place, 16b `extension` created and clean set moved (racecheck/finalcheck skipped at user request); 16c refined (providers own staging behind `extension.Stage`, handler decisions behind `extension.Host`, one root adapter); 16d.1–16d.2 planned |
-| 17 | [`ENGINE-SPLIT-sequence.md`](ENGINE-SPLIT-sequence.md) | A: step 3 Tier C sequence calls; B: 13d | 17a done in place, 17b `sequence` created and clean set moved (racecheck/finalcheck skipped at user request); 17c–17d planned |
+| 17 | [`ENGINE-SPLIT-sequence.md`](ENGINE-SPLIT-sequence.md) | A: step 3 Tier C sequence calls; B: 13d | 17a done in place, 17b `sequence` created and clean set moved (racecheck/finalcheck skipped at user request); 17c refined (decisions move, orchestration stays; no `sequence.Host`); 17d planned |
 
 Tracks may run in parallel only on separate branches. Do not run two broad
 mechanical rewrites at the same time (F1, F2, 5b, 5d, any alias removal, and
