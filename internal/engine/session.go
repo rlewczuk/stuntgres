@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
 	"sync"
@@ -71,10 +72,10 @@ type resourceEntry struct {
 }
 type Session struct {
 	ids.SessionOwnerMarker
-	mu     sync.Mutex
-	cond   *sync.Cond
-	engine *Engine // Immutable after construction.
-	token  ids.SessionToken
+	mu    sync.Mutex
+	cond  *sync.Cond
+	host  session.Host // Immutable after construction; engineOf recovers the engine.
+	token ids.SessionToken
 	// Written before registry publication, never changed by identity switches.
 	countedAuthenticated   authorization.PrincipalRef
 	state                  sessionState
@@ -172,7 +173,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	if !role.Login {
 		return nil, roleLoginError(role.Name)
 	}
-	s := &Session{engine: e, token: e.catalog.Domain.Session(start.ID), countedAuthenticated: authenticated, state: initializing, completed: make(chan struct{}), leases: 1, removed: make(map[ResourceHandle]bool)}
+	s := &Session{host: (*sessionHost)(e), token: e.catalog.Domain.Session(start.ID), countedAuthenticated: authenticated, state: initializing, completed: make(chan struct{}), leases: 1, removed: make(map[ResourceHandle]bool)}
 	if private {
 		s.token = e.catalog.Domain.PrivateSession(s)
 	}
@@ -294,7 +295,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	}
 	return s, nil
 }
-func (s *Session) Engine() *Engine         { return s.engine }
+func (s *Session) Engine() *Engine         { return engineOf(s) }
 func (s *Session) Token() ids.SessionToken { return s.token }
 func (s *Session) operation(ctx context.Context, private bool) *Operation {
 	// Caller cancellation propagates through this child context. RequestEnd
@@ -302,7 +303,7 @@ func (s *Session) operation(ctx context.Context, private bool) *Operation {
 	combined, cancel := context.WithCancelCause(ctx)
 	op := &Operation{session: s, ctx: combined, commandContext: combined, sourceContext: ctx, cancel: cancel, private: private}
 	op.self = op
-	op.analysis = bindingHost{engine: s.engine, op: op}
+	op.analysis = bindingHost{engine: engineOf(s), op: op}
 	if s.operations == nil {
 		s.operations = make(map[*Operation]struct{})
 	}
@@ -516,7 +517,7 @@ func (s *Session) end() {
 		if kind == Transaction {
 			// The transaction callback has returned and released its admission
 			// lock. Maintenance never runs inside a SessionResource callback.
-			err = errors.Join(err, s.engine.endTemporaryCollations(s))
+			err = errors.Join(err, s.host.EndMaintenance(s))
 		}
 		s.mu.Lock()
 		s.removed[entry.handle] = true
@@ -525,11 +526,7 @@ func (s *Session) end() {
 		}
 	}
 	s.result = errors.Join(s.cleanupErrors...)
-	s.engine.sessionMu.Lock()
-	if s.engine.sessions[s.token] == s {
-		delete(s.engine.sessions, s.token)
-	}
-	s.engine.sessionMu.Unlock()
+	s.host.Unregister(s.token, s)
 	s.state = ended
 	close(s.completed)
 	s.mu.Unlock()

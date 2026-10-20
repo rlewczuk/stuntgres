@@ -397,7 +397,7 @@ func TestSessionTerminalElectionAndJoinedErrors(t *testing.T) {
 
 func TestSessionPrivateInitializationUnwind(t *testing.T) {
 	e := New()
-	s := &Session{engine: e, token: e.catalog.Domain.Session(1), state: initializing, completed: make(chan struct{}), leases: 1, removed: make(map[ResourceHandle]bool)}
+	s := &Session{host: (*sessionHost)(e), token: e.catalog.Domain.Session(1), state: initializing, completed: make(chan struct{}), leases: 1, removed: make(map[ResourceHandle]bool)}
 	s.cond = sync.NewCond(&s.mu)
 	op := s.operation(context.Background(), true)
 	calls := 0
