@@ -288,7 +288,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		if err := selectQuerySources(ctx, from); err != nil {
 			return Result{}, err
 		}
-		if b.viewWrite != nil || b.ruleTemplate {
+		if b.viewWrite != nil || b.rule.template {
 			from = freezeViewWriteSources(s, from, b.querySources)
 		}
 		defer from.close()

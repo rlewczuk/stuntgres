@@ -7,7 +7,7 @@ import (
 )
 
 func bindingForConflict(ref ids.ObjectRef, parent *catalog.Relation, action *boundInsertConflict) binding {
-	return binding{ref: ref, relation: parent, targets: action.targets, conflict: action, querySources: action.sources, returning: action.returning}
+	return binding{ref: ref, relation: parent, targets: action.targets, insert: insertBinding{conflict: action}, querySources: action.sources, returning: action.returning}
 }
 func (s *StatementScope) admitInsertRow(ref ids.ObjectRef, candidate *indexWriteCandidate, prefix indexWriteBatch, evaluation *EvalContext) (bool, error) {
 	action := s.insertConflict

@@ -191,8 +191,8 @@ func validateDomainDefault(view catalog.Read, d *catalog.Type) error {
 	return nil
 }
 func (b *binding) defaultOriginAt(slot int) defaultOrigin {
-	if slot < len(b.defaultOrigins) {
-		return b.defaultOrigins[slot]
+	if slot < len(b.insert.defaultOrigins) {
+		return b.insert.defaultOrigins[slot]
 	}
 	physical := b.physicalBinding()
 	attribute := physical.relation.Attributes[slot]

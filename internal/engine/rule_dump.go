@@ -39,7 +39,7 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 			if action.binding.update != nil {
 				from = action.binding.update.from
 			} else {
-				from = action.binding.deleteUsing
+				from = action.binding.delete.using
 			}
 			if from != nil && column.slot >= offset {
 				return ruleSourceColumnSQL(view, from, column.slot-offset, action, func(root LogicalNode, expr expr.Expr) (string, error) {
@@ -57,7 +57,7 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 		if err != nil {
 			return "", err
 		}
-		if conflict := action.binding.conflict; conflict != nil && conflict.update != nil &&
+		if conflict := action.binding.insert.conflict; conflict != nil && conflict.update != nil &&
 			column.scope == 1 && column.frame == 1 && column.slot >= conflict.width && column.slot < 2*conflict.width &&
 			a == action.binding.ref.Address {
 			return "EXCLUDED." + name, nil
@@ -375,7 +375,7 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 		}
 		if s.Conflict != nil {
 			sql.WriteString(" ON CONFLICT")
-			if constraint := b.conflict.constraint; constraint != (ids.ObjectAddress{}) {
+			if constraint := b.insert.conflict.constraint; constraint != (ids.ObjectAddress{}) {
 				if constraint.ClassID != 2606 || constraint.SubID != 0 {
 					return "", fmt.Errorf("stuntgres: invalid named rule constraint identity")
 				}
@@ -386,9 +386,9 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 					return "", fmt.Errorf("stuntgres: missing named rule constraint")
 				}
 				sql.WriteString(" ON CONSTRAINT " + catalog.QuoteIdentifier(canonicalName))
-			} else if len(b.conflict.keys) != 0 {
-				parts := make([]string, len(b.conflict.keys))
-				for i, key := range b.conflict.keys {
+			} else if len(b.insert.conflict.keys) != 0 {
+				parts := make([]string, len(b.insert.conflict.keys))
+				for i, key := range b.insert.conflict.keys {
 					if key.attribute != 0 {
 						parts[i], err = deparseAttribute(d, key.attribute)
 					} else {
@@ -407,27 +407,27 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 				}
 				sql.WriteString(" (" + strings.Join(parts, ", ") + ")")
 			}
-			if b.conflict.predicate != nil {
-				text, err := ruleExpressionSQL(ctx, view, b.conflict.predicate, action)
+			if b.insert.conflict.predicate != nil {
+				text, err := ruleExpressionSQL(ctx, view, b.insert.conflict.predicate, action)
 				if err != nil {
 					return "", err
 				}
 				sql.WriteString(" WHERE " + text)
 			}
-			if b.conflict.update == nil {
+			if b.insert.conflict.update == nil {
 				sql.WriteString(" DO NOTHING")
 			} else {
 				sql.WriteString(" DO UPDATE SET ")
-				for i, expr := range b.conflict.update.assignments {
+				for i, expr := range b.insert.conflict.update.assignments {
 					if i != 0 {
 						sql.WriteString(", ")
 					}
-					column, err := deparseAttribute(d, b.relation.Attributes[b.conflict.updateTargets[i]])
+					column, err := deparseAttribute(d, b.relation.Attributes[b.insert.conflict.updateTargets[i]])
 					if err != nil {
 						return "", err
 					}
-					if len(b.conflict.update.arrayTargets) > i {
-						column, err = ruleAssignmentSQL(ctx, view, column, b.conflict.update.arrayTargets[i], action)
+					if len(b.insert.conflict.update.arrayTargets) > i {
+						column, err = ruleAssignmentSQL(ctx, view, column, b.insert.conflict.update.arrayTargets[i], action)
 						if err != nil {
 							return "", err
 						}
@@ -438,8 +438,8 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 					}
 					sql.WriteString(column + " = " + text)
 				}
-				if b.conflict.update.predicate != nil {
-					text, err := ruleExpressionSQL(ctx, view, b.conflict.update.predicate, action)
+				if b.insert.conflict.update.predicate != nil {
+					text, err := ruleExpressionSQL(ctx, view, b.insert.conflict.update.predicate, action)
 					if err != nil {
 						return "", err
 					}
@@ -470,8 +470,8 @@ func ruleActionSQL(ctx context.Context, view catalog.Read, action ruleAction) (s
 		}
 	case *parser.Delete:
 		sql.WriteString("DELETE FROM " + name)
-		if b.deleteUsing != nil {
-			text, err := ruleFromSQL(ctx, view, b.deleteUsing, action)
+		if b.delete.using != nil {
+			text, err := ruleFromSQL(ctx, view, b.delete.using, action)
 			if err != nil {
 				return "", err
 			}

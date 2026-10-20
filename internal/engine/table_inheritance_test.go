@@ -78,7 +78,7 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 	auth.Catalog = view
 	auth.Recapture(auth.Catalog)
 	stage := e.BeginCatalogStage(view)
-	b := binding{createInheritance: []createInheritanceInput{{source: p}, {source: q}}, createLocalColumns: map[string]bool{"z": true}, createDeclarations: make([]createColumnDeclaration, 3)}
+	b := binding{create: createTableBinding{inheritance: []createInheritanceInput{{source: p}, {source: q}}, localColumns: map[string]bool{"z": true}, declarations: make([]createColumnDeclaration, 3)}}
 	if err := e.stageInheritance(op, auth, stage, child, b); err != nil {
 		t.Fatal(err)
 	}
@@ -182,11 +182,11 @@ func TestInheritanceMergeDefaultOverride(t *testing.T) {
 	for _, kind := range []string{"absent", "explicit", "copied"} {
 		override := kind == "explicit"
 		child := inheritanceUnitRelation(e, "c", 22002, "a")
-		b := binding{createInheritance: []createInheritanceInput{{source: p}, {source: q}}, createDeclarations: make([]createColumnDeclaration, 1), createLocalColumns: map[string]bool{"a": kind != "absent"}}
+		b := binding{create: createTableBinding{inheritance: []createInheritanceInput{{source: p}, {source: q}}, declarations: make([]createColumnDeclaration, 1), localColumns: map[string]bool{"a": kind != "absent"}}}
 		if override {
-			b.createDeclarations[0].defaultExpr = parser.LiteralExpr{}
+			b.create.declarations[0].defaultExpr = parser.LiteralExpr{}
 		}
-		b.createDeclarations[0].copiedDefault = kind == "copied"
+		b.create.declarations[0].copiedDefault = kind == "copied"
 		stage := e.BeginCatalogStage(view)
 		err := e.stageInheritance(op, auth, stage, child, b)
 		if !override {
@@ -232,14 +232,14 @@ func TestInheritanceMergeShapeDeclarations(t *testing.T) {
 		t.Fatal(err)
 	}
 	var names []string
-	for _, column := range bound.createColumns {
+	for _, column := range bound.create.columns {
 		names = append(names, column.Name)
 	}
-	if !reflect.DeepEqual(names, []string{"a", "x", "y", "z"}) || len(bound.createDeclarations) != 4 || !bound.createLocalColumns["a"] || bound.createLocalColumns["x"] || !bound.createLocalColumns["z"] || len(bound.createInheritance) != 2 {
-		t.Fatal(names, bound.createLocalColumns, bound.createDeclarations)
+	if !reflect.DeepEqual(names, []string{"a", "x", "y", "z"}) || len(bound.create.declarations) != 4 || !bound.create.localColumns["a"] || bound.create.localColumns["x"] || !bound.create.localColumns["z"] || len(bound.create.inheritance) != 2 {
+		t.Fatal(names, bound.create.localColumns, bound.create.declarations)
 	}
-	if bound.createColumns[1].Usage.Type.ID() != sqltype.Text || bound.createColumns[2].Usage.Type.ID() != sqltype.Bool || bound.createColumns[3].Usage.Type.ID() != sqltype.Int8 {
-		t.Fatal(bound.createColumns)
+	if bound.create.columns[1].Usage.Type.ID() != sqltype.Text || bound.create.columns[2].Usage.Type.ID() != sqltype.Bool || bound.create.columns[3].Usage.Type.ID() != sqltype.Int8 {
+		t.Fatal(bound.create.columns)
 	}
 	if p.Columns[1].Name != "x" || q.Columns[0].Name != "y" {
 		t.Fatal("source physical shape changed")
@@ -295,9 +295,9 @@ func TestInheritanceGenerationDeclarationProvenance(t *testing.T) {
 	auth.Recapture(auth.Catalog)
 	for _, explicit := range []bool{false, true} {
 		child := inheritanceUnitRelation(e, "c", 22001, "g")
-		b := binding{createInheritance: []createInheritanceInput{{source: parent}}, createLocalColumns: map[string]bool{"g": true}, createDeclarations: make([]createColumnDeclaration, 1)}
+		b := binding{create: createTableBinding{inheritance: []createInheritanceInput{{source: parent}}, localColumns: map[string]bool{"g": true}, declarations: make([]createColumnDeclaration, 1)}}
 		if explicit {
-			b.createDeclarations[0].generation = &parser.GenerationDefinition{Kind: "stored"}
+			b.create.declarations[0].generation = &parser.GenerationDefinition{Kind: "stored"}
 		}
 		if err := e.stageInheritance(op, auth, e.BeginCatalogStage(view), child, b); err != nil {
 			t.Fatal(err)

@@ -56,10 +56,10 @@ func TestRuleNamedConstraintDumpReanalysis(t *testing.T) {
 							}
 							b = *b.ctes[0].mutation
 						}
-						if b.conflict == nil {
+						if b.insert.conflict == nil {
 							t.Fatal("analyzed action lost its named conflict binding")
 						}
-						return b.conflict
+						return b.insert.conflict
 					}
 					original := conflict(stored)
 					frozen := *original

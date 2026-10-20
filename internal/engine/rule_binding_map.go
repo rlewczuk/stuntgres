@@ -63,7 +63,7 @@ func mapRuleBindingRecipes(b binding, mapper ruleTreeMapper) (binding, error) {
 	if rows != nil {
 		b.expressions = rows
 	}
-	b.defaults, _, err = list(b.defaults)
+	b.insert.defaults, _, err = list(b.insert.defaults)
 	if err != nil {
 		return b, err
 	}
@@ -71,7 +71,7 @@ func mapRuleBindingRecipes(b binding, mapper ruleTreeMapper) (binding, error) {
 	if err != nil {
 		return b, err
 	}
-	b.deleteUsing, err = mapper.query(b.deleteUsing)
+	b.delete.using, err = mapper.query(b.delete.using)
 	if err != nil {
 		return b, err
 	}
@@ -109,8 +109,8 @@ func mapRuleBindingRecipes(b binding, mapper ruleTreeMapper) (binding, error) {
 			b.returning = &returning
 		}
 	}
-	if b.conflict != nil {
-		conflict := *b.conflict
+	if b.insert.conflict != nil {
+		conflict := *b.insert.conflict
 		var keys []conflictKey
 		for i, key := range conflict.keys {
 			next, changed, err := mapper.expression(key.expression)
@@ -172,7 +172,7 @@ func mapRuleBindingRecipes(b binding, mapper ruleTreeMapper) (binding, error) {
 			}
 		}
 		if conflictChanged {
-			b.conflict = &conflict
+			b.insert.conflict = &conflict
 		}
 	}
 	var definitions []*cteDefinition

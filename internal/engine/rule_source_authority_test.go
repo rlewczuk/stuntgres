@@ -55,7 +55,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					}
 					from := &sourceNode{querySchema: querySchema(input.Columns), ref: inputRef}
 					var syntax parser.Statement = &parser.Delete{}
-					original.deleteUsing = from
+					original.delete.using = from
 					if event == "UPDATE" {
 						syntax = &parser.Update{}
 						original.update = &boundUpdate{assignments: []expr.Expr{ruleUnitInt(src, 1), ruleUnitInt(src, 10)}, from: from}

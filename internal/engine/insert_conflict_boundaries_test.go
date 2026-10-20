@@ -144,7 +144,7 @@ func TestInsertConflictACLCurrentManifest(t *testing.T) {
 	}
 	check("42501")
 	// Targetless DO NOTHING has no hidden selected-index SELECT manifest.
-	b.conflict.reads = nil
+	b.insert.conflict.reads = nil
 	check("")
 }
 

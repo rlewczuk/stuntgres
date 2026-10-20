@@ -11,12 +11,12 @@ func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.I
 	d := b.viewWrite.base
 	physical := binding{relation: d, ref: b.viewWrite.ref}
 	domainScheduling := e.bindInsertDefaults(&physical, auth, parser.OverrideNone)
-	b.defaults, b.defaultOrigins = physical.defaults, physical.defaultOrigins
-	if b.defaults == nil {
-		b.defaults = make([]expr.Expr, len(d.Columns))
+	b.insert.defaults, b.insert.defaultOrigins = physical.insert.defaults, physical.insert.defaultOrigins
+	if b.insert.defaults == nil {
+		b.insert.defaults = make([]expr.Expr, len(d.Columns))
 	}
-	b.identityDiscard = nil
-	b.insertProjection = nil
+	b.insert.identityDiscard = nil
+	b.insert.projection = nil
 	for i, output := range b.viewWrite.outputs {
 		direct, ok := viewDirectColumn(output)
 		if !ok {
@@ -24,20 +24,20 @@ func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.I
 		}
 		node, origin := columnDefault(auth.Catalog, b.viewWrite.logical.relation, i)
 		if origin.definition.Expression != nil {
-			if b.defaultOrigins == nil {
-				b.defaultOrigins = make([]defaultOrigin, len(d.Columns))
+			if b.insert.defaultOrigins == nil {
+				b.insert.defaultOrigins = make([]defaultOrigin, len(d.Columns))
 				for j := range d.Columns {
-					b.defaultOrigins[j] = physical.defaultOriginAt(j)
+					b.insert.defaultOrigins[j] = physical.defaultOriginAt(j)
 				}
 			}
-			b.defaults[direct.slot] = defaultDestination(node, d.Columns[direct.slot].Usage)
-			b.defaultOrigins[direct.slot] = origin
+			b.insert.defaults[direct.slot] = defaultDestination(node, d.Columns[direct.slot].Usage)
+			b.insert.defaultOrigins[direct.slot] = origin
 		}
 	}
 	if s.Override == parser.OverrideUser && len(d.ColumnMeta.Identities) != 0 {
-		b.identityDiscard = make([]bool, len(d.Columns))
+		b.insert.identityDiscard = make([]bool, len(d.Columns))
 		for i, attr := range d.Attributes {
-			_, b.identityDiscard[i] = d.ColumnMeta.Identities[attr]
+			_, b.insert.identityDiscard[i] = d.ColumnMeta.Identities[attr]
 		}
 	}
 	for i, slot := range b.targets {
@@ -63,15 +63,15 @@ func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.I
 				return identityInsertError(d.Columns[slot].Name)
 			}
 		}
-		discard := len(b.identityDiscard) != 0 && b.identityDiscard[slot]
+		discard := len(b.insert.identityDiscard) != 0 && b.insert.identityDiscard[slot]
 		partial := len(b.arrayTargets) != 0 && b.arrayTargets[i] != nil
 		if partial || supplied && !defaultUsed && !discard {
-			b.defaults[slot] = nil
+			b.insert.defaults[slot] = nil
 		}
 	}
 	needsProjection := len(d.ColumnMeta.Identities) != 0
 	if domainScheduling && !needsProjection {
-		for _, node := range b.defaults {
+		for _, node := range b.insert.defaults {
 			if node != nil {
 				needsProjection = true
 				break
@@ -79,12 +79,12 @@ func (e *Engine) lowerViewInsert(b *binding, auth AuthorizationView, s *parser.I
 		}
 	}
 	if needsProjection {
-		b.insertProjection = make([]int, len(d.Columns))
-		for i := range b.insertProjection {
-			b.insertProjection[i] = -1
+		b.insert.projection = make([]int, len(d.Columns))
+		for i := range b.insert.projection {
+			b.insert.projection[i] = -1
 		}
 		for i, slot := range b.targets {
-			b.insertProjection[slot] = i
+			b.insert.projection[slot] = i
 		}
 	}
 	return nil

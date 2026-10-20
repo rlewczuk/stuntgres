@@ -171,7 +171,7 @@ func remapRuleBindingMapped(view catalog.Read, b binding, ref func(ids.ObjectRef
 			return b, err
 		}
 	}
-	b.defaults, err = mapList(b.defaults)
+	b.insert.defaults, err = mapList(b.insert.defaults)
 	if err != nil {
 		return b, err
 	}
@@ -179,7 +179,7 @@ func remapRuleBindingMapped(view catalog.Read, b binding, ref func(ids.ObjectRef
 	if err != nil {
 		return b, err
 	}
-	b.deleteUsing, err = mapQuery(b.deleteUsing)
+	b.delete.using, err = mapQuery(b.delete.using)
 	if err != nil {
 		return b, err
 	}
@@ -195,12 +195,12 @@ func remapRuleBindingMapped(view catalog.Read, b binding, ref func(ids.ObjectRef
 	for i := range b.dependencies {
 		b.dependencies[i].Ref = ref(b.dependencies[i].Ref)
 	}
-	b.sequenceConstants = slices.Clone(b.sequenceConstants)
-	for i := range b.sequenceConstants {
-		b.sequenceConstants[i].ref = ref(b.sequenceConstants[i].ref)
+	b.prepared.sequenceConstants = slices.Clone(b.prepared.sequenceConstants)
+	for i := range b.prepared.sequenceConstants {
+		b.prepared.sequenceConstants[i].ref = ref(b.prepared.sequenceConstants[i].ref)
 	}
-	if b.conflict != nil {
-		next := *b.conflict.instantiate()
+	if b.insert.conflict != nil {
+		next := *b.insert.conflict.instantiate()
 		if next.constraint != (ids.ObjectAddress{}) {
 			constraintRef := originalRef
 			constraintRef.Address = next.constraint
@@ -241,7 +241,7 @@ func remapRuleBindingMapped(view catalog.Read, b binding, ref func(ids.ObjectRef
 		if err != nil {
 			return b, err
 		}
-		b.conflict = &next
+		b.insert.conflict = &next
 	}
 	b.ctes = slices.Clone(b.ctes)
 	for i, definition := range b.ctes {
@@ -251,7 +251,7 @@ func remapRuleBindingMapped(view catalog.Read, b binding, ref func(ids.ObjectRef
 		}
 		b.ctes[i] = mapped
 	}
-	b.ruleCTEs = nil
+	b.rule.ctes = nil
 	if current != nil {
 		b, err = refreshRuleBinding(view, b, current)
 		if err != nil {
@@ -366,11 +366,11 @@ func remapRuleConstraintIdentities(view catalog.Read, d *catalog.Relation, mappi
 		r.references = references
 		r.actions = slices.Clone(r.actions)
 		conflict := func(b binding) binding {
-			if b.conflict != nil {
-				if address, ok := mapping[b.conflict.constraint]; ok && address != b.conflict.constraint {
-					copy := *b.conflict
+			if b.insert.conflict != nil {
+				if address, ok := mapping[b.insert.conflict.constraint]; ok && address != b.insert.conflict.constraint {
+					copy := *b.insert.conflict
 					copy.constraint = address
-					b.conflict = &copy
+					b.insert.conflict = &copy
 				}
 			}
 			return b

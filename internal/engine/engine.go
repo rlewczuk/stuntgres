@@ -59,77 +59,42 @@ type Result struct {
 	RowSets    []RowResult
 	created    ids.ObjectRef // Exact ordinary CREATE TABLE outcome; zero for a no-op.
 }
+
+// binding is the bound form of one statement. The header holds what every
+// statement kind may use; kind payloads and capture groups are held by value
+// (see binding_groups.go), so copying a binding copies them too.
 type binding struct {
-	ruleTemplate          bool
-	insertSubquerySource  bool // Analyzed SELECT or VALUES with query clauses; normalization never changes source ownership.
-	relation              *catalog.Relation
-	storage               *storage.Relation
-	ref                   ids.ObjectRef
-	viewWrite             *viewWrite
-	targets               []int
-	arrayTargets          []*arrayAssignmentTarget
-	usedColumns           []int
-	query                 *BoundQuery
-	ctes                  []*cteDefinition
-	cteSelectBodies       bool
-	ruleCTEs              map[*cteDefinition]*ruleCTECommand
-	querySources          []queryLeaf
-	visibilitySnapshot    bool
-	subqueryDemand        bool
-	viewLiterals          map[viewLiteralPath]literalExpression
-	viewCastUsages        map[viewLiteralPath]sqltype.Usage
-	viewRoutineRefs       map[viewLiteralPath]ids.ObjectRef
-	viewOperatorRefs      map[viewLiteralPath]ids.ObjectRef
-	viewComposites        map[viewLiteralPath]compositeOccurrence
-	viewSimilarSubstrings map[viewLiteralPath]bool
-	viewPosixSubstrings   map[viewLiteralPath]bool
-	viewCollations        map[viewLiteralPath]uint32
-	viewColumns           map[viewLiteralPath]viewColumn
-	viewStars             map[viewLiteralPath][]viewColumn
-	viewNamespaces        []viewNamespace
-	commandQuery          bool
-	update                *boundUpdate
-	merge                 *boundMerge
-	deleteUsing           LogicalNode
-	deleteSourceWidth     int
-	currentOf             string
-	returning             *boundReturning
-	dependencies          []catalog.ExpressionDependency
-	parameters            ParameterInfo
-	expressions           [][]expr.Expr
-	insertRows            [][]parser.Expr
-	createColumns         []catalog.Column
-	createNotNull         []catalog.NotNullConstraint
-	createColumnIndex     map[string]int
-	createUniques         []createUniqueConstraint
-	createDeclarations    []createColumnDeclaration
-	createLikes           []createLikeInput
-	createOfType          *catalog.Type
-	createInheritance     []createInheritanceInput
-	createLocalColumns    map[string]bool
-	defaults              []expr.Expr
-	defaultOrigins        []defaultOrigin
-	identityDiscard       []bool
-	insertProjection      []int
-	conflict              *boundInsertConflict
-	temporals             []temporalConstant
-	composites            map[preparedCompositeKey]compositeOccurrence
-	predicate             expr.Expr
-	sequenceConstants     []sequenceConstant
-	regclassConcat        bool
-	regclassInput         sqltype.RegclassResolver
-	regtypeConstants      []regtypeConstant
-	regtypeInput          sqltype.RegtypeResolver
-	regroleInput          sqltype.RegroleResolver
-	operatorInput         sqltype.OperatorResolver
-	regprocInput          sqltype.RoutineResolver
-	regcollationInput     sqltype.RegcollationResolver
-	regnamespaceInput     sqltype.RegnamespaceResolver
-	regTSInput            sqltype.RegTSResolver
-	aclitemInput          sqltype.ACLItemResolver
-	ftsInput              sqltype.FTSInputNotices
-	typeDiagnosticName    func(sqltype.ID) string
-	enumMemberSafe        func(sqltype.ID, int64) bool
+	relation           *catalog.Relation
+	storage            *storage.Relation
+	ref                ids.ObjectRef
+	viewWrite          *viewWrite
+	targets            []int
+	arrayTargets       []*arrayAssignmentTarget
+	usedColumns        []int
+	query              *BoundQuery
+	ctes               []*cteDefinition
+	cteSelectBodies    bool
+	querySources       []queryLeaf
+	visibilitySnapshot bool
+	subqueryDemand     bool
+	commandQuery       bool
+	currentOf          string // UPDATE and DELETE WHERE CURRENT OF.
+	predicate          expr.Expr
+	returning          *boundReturning
+	dependencies       []catalog.ExpressionDependency
+	parameters         ParameterInfo
+	expressions        [][]expr.Expr
+	// Statement kind payloads.
+	update *boundUpdate
+	merge  *boundMerge
+	insert insertBinding
+	delete deleteBinding
+	create createTableBinding
+	// Capture groups shared with the expression binder.
+	capture   viewCapture
+	prepared  preparedCaptures
+	resolvers resolverInputs
+	rule      ruleBinding
 }
 
 func New() *Engine {
@@ -409,7 +374,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	}
 	// Literal lifetimes belong to the caller's raw SQL, including its CTEs.
 	// Stored rule/view recipes carry their own captures and invalidation events.
-	callerSequences, callerRegtypes := b.sequenceConstants, b.regtypeConstants
+	callerSequences, callerRegtypes := b.prepared.sequenceConstants, b.prepared.regtypeConstants
 	if b.viewWrite != nil {
 		if err := e.attachViewWriteSourcesLocked(scope, &b); err != nil {
 			return StatementDescription{}, err
@@ -474,7 +439,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 			return StatementDescription{}, err
 		}
 	}
-	return StatementDescription{Parameters: b.parameters, Results: results, catalogOwner: auth.Catalog.Owner(), catalogEpoch: auth.Catalog.Epoch(), temporals: b.temporals, composites: b.composites, sequences: cell, regtypes: regtypes, analysis: prepared, planOwner: op.session.token, planGeneration: op.session.discardPlansGeneration}, nil
+	return StatementDescription{Parameters: b.parameters, Results: results, catalogOwner: auth.Catalog.Owner(), catalogEpoch: auth.Catalog.Epoch(), temporals: b.prepared.temporals, composites: b.prepared.composites, sequences: cell, regtypes: regtypes, analysis: prepared, planOwner: op.session.token, planGeneration: op.session.discardPlansGeneration}, nil
 }
 func objectNameText(n parser.ObjectName) string {
 	parts := make([]string, len(n.Parts))
@@ -565,7 +530,7 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 		var inherited []createLikeConstraint
 		if s.OfType != nil {
 			var err error
-			columns, declarations, b.createOfType, err = e.bindTypedColumns(auth, s)
+			columns, declarations, b.create.ofType, err = e.bindTypedColumns(auth, s)
 			if err != nil {
 				return b, err
 			}
@@ -672,7 +637,7 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 					return b, err
 				}
 				offset := len(columns)
-				b.createLikes = append(b.createLikes, createLikeInput{ref: ref, source: source, sourceType: sourceType, offset: offset, options: tableLikeOptions(like.Options)})
+				b.create.likes = append(b.create.likes, createLikeInput{ref: ref, source: source, sourceType: sourceType, offset: offset, options: tableLikeOptions(like.Options)})
 				start := len(inherited)
 				for _, constraint := range source.Constraints.NotNull {
 					for i, attribute := range source.Attributes {
@@ -700,21 +665,21 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 		if len(columns) > 1600 {
 			return b, sqlError("54011", "tables can have at most 1600 columns")
 		}
-		b.createColumns = columns
+		b.create.columns = columns
 		var err error
-		b.createColumnIndex, err = bindCreateColumnIndex(columns)
+		b.create.columnIndex, err = bindCreateColumnIndex(columns)
 		if err != nil {
 			return b, err
 		}
-		b.createUniques, err = bindCreateUniques(s, b.createColumnIndex, b.createLikes, auth.Catalog)
+		b.create.uniques, err = bindCreateUniques(s, b.create.columnIndex, b.create.likes, auth.Catalog)
 		if err != nil {
 			return b, err
 		}
-		b.createNotNull, err = bindCreateNotNull(s, columns, declarations, inherited, b.createUniques, b.createColumnIndex)
+		b.create.notNull, err = bindCreateNotNull(s, columns, declarations, inherited, b.create.uniques, b.create.columnIndex)
 		if err != nil {
 			return b, err
 		}
-		b.createDeclarations = declarations
+		b.create.declarations = declarations
 	case *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
 		var err error
 		b, err = e.bindMutationCommand(binder, auth, requiredRef, stmt)
@@ -812,22 +777,27 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 	b.usedColumns, b.dependencies = binder.uses, binder.dependencies
 	b.visibilitySnapshot = binder.visibilitySnapshot
 	b.subqueryDemand = binder.subqueryDemand
-	b.sequenceConstants = binder.sequenceConstants
-	b.regclassConcat = binder.regclassConcat
-	b.regtypeConstants = binder.regtypeConstants
-	b.viewLiterals = binder.viewLiterals
-	b.viewCastUsages = binder.viewCastUsages
-	b.viewRoutineRefs = binder.viewRoutineRefs
-	b.viewOperatorRefs = binder.viewOperatorRefs
-	b.viewComposites = binder.viewComposites
-	b.viewSimilarSubstrings = binder.viewSimilarSubstrings
-	b.viewPosixSubstrings = binder.viewPosixSubstrings
-	b.viewCollations = binder.viewCollations
-	b.viewColumns, b.viewStars = binder.viewColumns, binder.viewStars
-	b.viewNamespaces = binder.viewNamespaces
+	b.capture = viewCapture{
+		literals:          binder.viewLiterals,
+		castUsages:        binder.viewCastUsages,
+		routineRefs:       binder.viewRoutineRefs,
+		operatorRefs:      binder.viewOperatorRefs,
+		composites:        binder.viewComposites,
+		similarSubstrings: binder.viewSimilarSubstrings,
+		posixSubstrings:   binder.viewPosixSubstrings,
+		collations:        binder.viewCollations,
+		columns:           binder.viewColumns,
+		stars:             binder.viewStars,
+		namespaces:        binder.viewNamespaces,
+	}
 	slices.SortFunc(binder.temporals, func(a, b temporalConstant) int { return a.offset - b.offset })
-	b.temporals = binder.temporals
-	b.composites = binder.composites
+	b.prepared = preparedCaptures{
+		temporals:         binder.temporals,
+		composites:        binder.composites,
+		sequenceConstants: binder.sequenceConstants,
+		regclassConcat:    binder.regclassConcat,
+		regtypeConstants:  binder.regtypeConstants,
+	}
 	if rule == nil && !parser.ModifyingStatement(stmt) {
 		if err := e.bindViewWrite(&b, auth, stmt); err != nil {
 			return b, err
@@ -854,17 +824,7 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 			}
 		}
 	}
-	b.regclassInput = binder.input.Regclass
-	b.regtypeInput = binder.input.Regtype
-	b.regroleInput = binder.input.Regrole
-	b.operatorInput = binder.input.Operator
-	b.regprocInput = binder.input.Regproc
-	b.regcollationInput, b.regnamespaceInput = binder.input.Regcollation, binder.input.Regnamespace
-	b.regTSInput = binder.input.RegTS
-	b.aclitemInput = binder.input.ACLItem
-	b.ftsInput = binder.input.FTS
-	b.typeDiagnosticName = binder.input.TypeDiagnosticName
-	b.enumMemberSafe = binder.input.EnumMemberSafe
+	b.resolvers = newResolverInputs(binder.input)
 	return b, nil
 }
 

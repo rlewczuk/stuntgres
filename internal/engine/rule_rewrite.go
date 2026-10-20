@@ -63,8 +63,8 @@ func makeRuleProducer(catalog catalog.Read, b binding, event string, outputUses 
 		for i, column := range d.Columns {
 			p.old[i] = literalExpression{Info: ruleColumnInfo(column), value: sqltype.Null(column.Usage.Type)}
 			p.new[i] = p.old[i]
-			if len(b.defaults) > i && b.defaults[i] != nil {
-				p.new[i] = b.defaults[i]
+			if len(b.insert.defaults) > i && b.insert.defaults[i] != nil {
+				p.new[i] = b.insert.defaults[i]
 			}
 		}
 		assign := func(output int, value expr.Expr) {
@@ -76,7 +76,7 @@ func makeRuleProducer(catalog catalog.Read, b binding, event string, outputUses 
 		}
 		if b.query != nil {
 			project := b.query.Root.(*projectNode)
-			if b.insertSubquerySource {
+			if b.insert.subquerySource {
 				if len(outputUses) != 0 {
 					var err error
 					project, err = storedProjectionDemand(project, outputUses[0])
@@ -132,7 +132,7 @@ func makeRuleProducer(catalog catalog.Read, b binding, event string, outputUses 
 				p.new[slot] = value
 			}
 		} else {
-			from = b.deleteUsing
+			from = b.delete.using
 			condition = b.predicate
 		}
 		mapper := func(bound expr.Expr) (expr.Expr, bool, error) {
@@ -358,7 +358,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 	auth.State.CurrentUser = original.relation.Owner
 	b := action.binding
 	dependenciesPrivate := false
-	b.conflict = b.conflict.instantiate()
+	b.insert.conflict = b.insert.conflict.instantiate()
 	b, err = refreshRuleActionCTEs(auth, b)
 	if err != nil {
 		return b, err
@@ -391,7 +391,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 			b.ctes = slices.Concat(original.ctes, b.ctes)
 		}
 		b.cteSelectBodies = b.cteSelectBodies || original.cteSelectBodies
-		b.ruleCTEs = original.ruleCTEs
+		b.rule.ctes = original.rule.ctes
 	}
 	actionFrame := uint32(1)
 	if b.query != nil {
@@ -402,7 +402,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 		producerFrame = original.query.Root.(*projectNode).frame
 	}
 	actionMax, producerMax := ruleBindingMaxFrame(b), ruleBindingMaxFrame(original)
-	if actionFrame != producerFrame || producerMax > 1 || original.insertSubquerySource {
+	if actionFrame != producerFrame || producerMax > 1 || original.insert.subquerySource {
 		frame := func(old uint32) uint32 {
 			if old == 0 {
 				return 0
@@ -413,7 +413,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 			return old + actionMax + 1
 		}
 		rootFrame := frame
-		if original.insertSubquerySource {
+		if original.insert.subquerySource {
 			// The derived SELECT owns a private lexical frame. Only its output
 			// Vars enter the action frame; inner columns must not be graft-shifted.
 			rootFrame = func(old uint32) uint32 {
@@ -476,7 +476,7 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 			if slot < 0 || slot >= len(recipes) {
 				return nil, false, ids.ErrCatalogReplaced
 			}
-			if column.frame == 2 && len(original.defaults) > slot && original.defaults[slot] != nil {
+			if column.frame == 2 && len(original.insert.defaults) > slot && original.insert.defaults[slot] != nil {
 				if err := loanRuleDefaultDependencies(catalog, original.relation, slot, &b.dependencies, &dependenciesPrivate); err != nil {
 					return nil, false, err
 				}
@@ -581,8 +581,8 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 		}
 		conditionSources = cb.querySources
 		b.dependencies = append(slices.Clone(b.dependencies), cb.dependencies...)
-		b.sequenceConstants = append(slices.Clone(b.sequenceConstants), cb.sequenceConstants...)
-		b.regtypeConstants = append(slices.Clone(b.regtypeConstants), cb.regtypeConstants...)
+		b.prepared.sequenceConstants = append(slices.Clone(b.prepared.sequenceConstants), cb.prepared.sequenceConstants...)
+		b.prepared.regtypeConstants = append(slices.Clone(b.prepared.regtypeConstants), cb.prepared.regtypeConstants...)
 	}
 	if condition != nil {
 		condition, _, err = mapper(condition)
@@ -690,11 +690,11 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 		if condition != nil {
 			b.predicate = viewWritePredicate([]expr.Expr{condition}, b.predicate)
 		}
-		b.deleteUsing, err = graft(b.deleteUsing)
+		b.delete.using, err = graft(b.delete.using)
 		if err != nil {
 			return b, err
 		}
-		b.deleteSourceWidth = len(b.deleteUsing.Schema())
+		b.delete.sourceWidth = len(b.delete.using.Schema())
 	}
 	var definitions []*cteDefinition
 	for i, definition := range b.ctes {
@@ -745,8 +745,8 @@ func (e *Engine) expandRulesLocked(scope *StatementScope, auth AuthorizationView
 	if err != nil {
 		return -1, err
 	}
-	if insert, ok := stmt.(*parser.Insert); ok && b.ruleTemplate {
-		b.defaults = nil
+	if insert, ok := stmt.(*parser.Insert); ok && b.rule.template {
+		b.insert.defaults = nil
 		e.bindInsertDefaults(&b, auth, insert.Override)
 	}
 	if current.RelationKind != catalog.ViewRelation {
@@ -931,8 +931,8 @@ func ruleResidual(auth AuthorizationView, b binding, event string, rules []ruleD
 			}
 			b.querySources = append(slices.Clone(b.querySources), cb.querySources...)
 			b.dependencies = append(slices.Clone(b.dependencies), cb.dependencies...)
-			b.sequenceConstants = append(slices.Clone(b.sequenceConstants), cb.sequenceConstants...)
-			b.regtypeConstants = append(slices.Clone(b.regtypeConstants), cb.regtypeConstants...)
+			b.prepared.sequenceConstants = append(slices.Clone(b.prepared.sequenceConstants), cb.prepared.sequenceConstants...)
+			b.prepared.regtypeConstants = append(slices.Clone(b.prepared.regtypeConstants), cb.prepared.regtypeConstants...)
 		}
 		tree := newRuleTreeMapper(catalog, nil, 0, b.ctes, ruleTreeMapping{finish: ruleQueryFinalizer(catalog), leaf: func(expr expr.Expr) (expr.Expr, bool, error) {
 			if column, ok := expr.(columnExpression); ok && column.scope == rulePseudoScope {
@@ -1059,8 +1059,8 @@ func refreshRuleBinding(catalog catalog.Read, b binding, current *catalog.Relati
 	if err != nil {
 		return b, err
 	}
-	if b.conflict != nil {
-		b.conflict, err = refreshRuleConflict(catalog, b, current, slots)
+	if b.insert.conflict != nil {
+		b.insert.conflict, err = refreshRuleConflict(catalog, b, current, slots)
 		if err != nil {
 			return b, err
 		}
@@ -1182,7 +1182,7 @@ func refreshRuleSources(auth AuthorizationView, b binding) (binding, error) {
 }
 
 func refreshRuleConflict(catalog catalog.Read, b binding, current *catalog.Relation, slots func([]int) ([]int, error)) (*boundInsertConflict, error) {
-	c := *b.conflict
+	c := *b.insert.conflict
 	var err error
 	c.targets, err = slots(c.targets)
 	if err != nil {
@@ -1226,11 +1226,11 @@ func refreshRuleConflict(catalog catalog.Read, b binding, current *catalog.Relat
 		return column, true, nil
 	}
 	mapper := newRuleTreeMapper(catalog, nil, 0, nil, ruleTreeMapping{leaf: leaf})
-	mapped, err := mapRuleBindingRecipes(binding{conflict: &c}, mapper)
+	mapped, err := mapRuleBindingRecipes(binding{insert: insertBinding{conflict: &c}}, mapper)
 	if err != nil {
 		return nil, err
 	}
-	c = *mapped.conflict
+	c = *mapped.insert.conflict
 	c.width = width
 	c.frame = nil
 	return &c, nil
@@ -1274,7 +1274,7 @@ func ruleBindingHasPseudo(b binding) bool {
 		}
 	}
 	expression(b.predicate)
-	query(b.deleteUsing)
+	query(b.delete.using)
 	targets(b.arrayTargets)
 	if b.update != nil {
 		query(b.update.from)
@@ -1289,17 +1289,17 @@ func ruleBindingHasPseudo(b binding) bool {
 			expression(expr)
 		}
 	}
-	if b.conflict != nil {
-		expression(b.conflict.predicate)
-		for _, key := range b.conflict.keys {
+	if b.insert.conflict != nil {
+		expression(b.insert.conflict.predicate)
+		for _, key := range b.insert.conflict.keys {
 			expression(key.expression)
 		}
-		if b.conflict.update != nil {
-			expression(b.conflict.update.predicate)
-			for _, expr := range b.conflict.update.assignments {
+		if b.insert.conflict.update != nil {
+			expression(b.insert.conflict.update.predicate)
+			for _, expr := range b.insert.conflict.update.assignments {
 				expression(expr)
 			}
-			targets(b.conflict.update.arrayTargets)
+			targets(b.insert.conflict.update.arrayTargets)
 		}
 	}
 	return found

@@ -202,7 +202,7 @@ func evaluateInsertValuesRow(read catalog.Read, b *binding, supplied []expr.Expr
 			if err != nil {
 				return insertValueError(read, err, b.relation.Columns[target], syntax[i], nil)
 			}
-			if len(b.identityDiscard) == 0 || !b.identityDiscard[target] {
+			if len(b.insert.identityDiscard) == 0 || !b.insert.identityDiscard[target] {
 				if len(b.arrayTargets) != 0 && b.arrayTargets[i] != nil {
 					value, err = b.arrayTargets[i].apply(evaluation, row[target], value)
 					if err != nil {
@@ -213,8 +213,8 @@ func evaluateInsertValuesRow(read catalog.Read, b *binding, supplied []expr.Expr
 			}
 		}
 	}
-	for target, source := range b.insertProjection {
-		discard := len(b.identityDiscard) != 0 && b.identityDiscard[target]
+	for target, source := range b.insert.projection {
+		discard := len(b.insert.identityDiscard) != 0 && b.insert.identityDiscard[target]
 		if source >= 0 && supplied[source] != nil && !discard {
 			if !sourceFirst {
 				if len(b.arrayTargets) != 0 && b.arrayTargets[source] != nil {
@@ -238,8 +238,8 @@ func evaluateInsertValuesRow(read catalog.Read, b *binding, supplied []expr.Expr
 			}
 			continue
 		}
-		if len(b.defaults) != 0 && b.defaults[target] != nil {
-			value, err := b.evalDefault(evaluation, target, b.defaults[target])
+		if len(b.insert.defaults) != 0 && b.insert.defaults[target] != nil {
+			value, err := b.evalDefault(evaluation, target, b.insert.defaults[target])
 			if err != nil {
 				return err
 			}

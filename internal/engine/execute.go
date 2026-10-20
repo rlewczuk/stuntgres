@@ -303,7 +303,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	// Preserve the raw caller's capture group before attaching stored recipes.
 	// Rewrite metadata must not become caller-owned native lifetime provenance.
-	callerSequences, callerRegtypes := b.sequenceConstants, b.regtypeConstants
+	callerSequences, callerRegtypes := b.prepared.sequenceConstants, b.prepared.regtypeConstants
 	if b.viewWrite != nil {
 		e.mu.Unlock()
 		if b.viewWrite.base.RelationKind != catalog.ViewRelation {
@@ -332,40 +332,40 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if b.regclassInput != nil {
-		scope.input.Regclass = b.regclassInput
+	if b.resolvers.regclass != nil {
+		scope.input.Regclass = b.resolvers.regclass
 	}
-	if b.regtypeInput != nil {
-		scope.input.Regtype = b.regtypeInput
+	if b.resolvers.regtype != nil {
+		scope.input.Regtype = b.resolvers.regtype
 	}
-	if b.regroleInput != nil {
-		scope.input.Regrole = b.regroleInput
+	if b.resolvers.regrole != nil {
+		scope.input.Regrole = b.resolvers.regrole
 	}
-	if b.operatorInput != nil {
-		scope.input.Operator = b.operatorInput
+	if b.resolvers.operator != nil {
+		scope.input.Operator = b.resolvers.operator
 	}
-	if b.regprocInput != nil {
-		scope.input.Regproc = b.regprocInput
+	if b.resolvers.regproc != nil {
+		scope.input.Regproc = b.resolvers.regproc
 	}
-	if b.regcollationInput != nil {
-		scope.input.Regcollation = b.regcollationInput
+	if b.resolvers.regcollation != nil {
+		scope.input.Regcollation = b.resolvers.regcollation
 	}
-	if b.regnamespaceInput != nil {
-		scope.input.Regnamespace = b.regnamespaceInput
+	if b.resolvers.regnamespace != nil {
+		scope.input.Regnamespace = b.resolvers.regnamespace
 	}
-	if b.regTSInput != nil {
-		scope.input.RegTS = b.regTSInput
+	if b.resolvers.regTS != nil {
+		scope.input.RegTS = b.resolvers.regTS
 	}
-	if b.aclitemInput != nil {
-		scope.input.ACLItem = b.aclitemInput
+	if b.resolvers.aclitem != nil {
+		scope.input.ACLItem = b.resolvers.aclitem
 	}
-	if b.ftsInput != nil {
-		scope.input.FTS = b.ftsInput
+	if b.resolvers.fts != nil {
+		scope.input.FTS = b.resolvers.fts
 	}
-	if b.typeDiagnosticName != nil {
-		scope.input.TypeDiagnosticName = b.typeDiagnosticName
+	if b.resolvers.typeDiagnosticName != nil {
+		scope.input.TypeDiagnosticName = b.resolvers.typeDiagnosticName
 	}
-	scope.input.EnumMemberSafe = b.enumMemberSafe
+	scope.input.EnumMemberSafe = b.resolvers.enumMemberSafe
 	if err := scope.captureFormalInputLocked(auth, b.parameters.Types); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -433,7 +433,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				scope.Expected.regtypes = regtypes
 			}
 			if replan {
-				scope.Expected.temporals = b.temporals
+				scope.Expected.temporals = b.prepared.temporals
 				if preparableBody(stmt) {
 					scope.Expected.analysis = prepared
 				}
@@ -505,7 +505,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			return Result{}, nil
 		}
 	}
-	if b.conflict != nil && b.conflict.update != nil {
+	if b.insert.conflict != nil && b.insert.conflict.update != nil {
 		if boundary := partitionWriteExtensionBoundary(stmt, b.physicalBinding().relation); boundary != nil {
 			// Hierarchies have no conflict-update executor. Complete analysis
 			// and target/source authority before rejecting that capability,

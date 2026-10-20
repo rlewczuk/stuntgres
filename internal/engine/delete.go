@@ -213,7 +213,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		if err := selectQuerySources(ctx, inputs); err != nil {
 			return Result{}, err
 		}
-		if b.viewWrite != nil || b.ruleTemplate {
+		if b.viewWrite != nil || b.rule.template {
 			inputs = freezeViewWriteSources(s, inputs, b.querySources)
 		}
 		defer inputs.close()
@@ -222,7 +222,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		inputs.scope = s
 		evaluation.query = state
 	}
-	if b.deleteUsing != nil {
+	if b.delete.using != nil {
 		return s.deleteUsingSource(b, source, &evaluation, positioned)
 	}
 	var count int64

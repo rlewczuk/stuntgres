@@ -52,7 +52,7 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		rewrite := parent.ruleCTEs[definition]
+		rewrite := parent.rule.ctes[definition]
 		if rewrite == nil || rewrite.definition != definition || rewrite.definition.statement != original.syntax || rewrite.definition.mutation != &original.binding || rewrite.command.syntax != action.syntax || rewrite.command.binding.ref != action.binding.ref || rewrite.mutation != -1 {
 			t.Fatal("normalization did not preserve the provider and select the executable target")
 		}
@@ -214,7 +214,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 		update:        &boundUpdate{assignments: []expr.Expr{ruleUnitInt(sink, 11)}},
 		updateTargets: []int{1}, width: 2,
 	}
-	modifier.binding.conflict = recipe
+	modifier.binding.insert.conflict = recipe
 	definition := &cteDefinition{statement: modifier.syntax, mutation: &modifier.binding, schema: querySchema(sink.Columns), owner: 3}
 	scan := &derivedNode{querySchema: definition.schema, cte: definition, scanFrame: 1}
 	action := ruleUnitInsert(e, sink, 1, 10)
@@ -224,7 +224,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 		expressions: []expr.Expr{ruleUnitInt(sink, 1), ruleUnitInt(sink, 10)},
 	}}
 	action.binding.ctes = []*cteDefinition{definition}
-	action.binding.ruleTemplate = true
+	action.binding.rule.template = true
 	compose := func() binding {
 		t.Helper()
 		result, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, action)
@@ -242,7 +242,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 	executable := func(b binding) (*cteDefinition, *boundInsertConflict) {
 		t.Helper()
 		provider := b.ctes[0]
-		tuple := b.ruleCTEs[provider]
+		tuple := b.rule.ctes[provider]
 		if tuple == nil || tuple.definition != provider || tuple.command.syntax != modifier.syntax || tuple.mutation != -1 {
 			t.Fatal("normalization lost the modifier's original provider/executable tuple")
 		}
@@ -263,10 +263,10 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 			visit(right)
 		}
 		visit(b.query.Root)
-		if !found || provider.statement != definition.statement || provider.mutation.conflict != tuple.command.binding.conflict {
+		if !found || provider.statement != definition.statement || provider.mutation.insert.conflict != tuple.command.binding.insert.conflict {
 			t.Fatal("composition/normalization disconnected modifier spool identity")
 		}
-		return provider, tuple.command.binding.conflict
+		return provider, tuple.command.binding.insert.conflict
 	}
 	first := compose()
 	firstDefinition, firstConflict := executable(first)
@@ -305,7 +305,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 	}
 	outer := refreshed.ctes[0]
 	inner := outer.mutation.ctes[0]
-	if outer == ancestor || inner == definition || outer.mutation.conflict == recipe || inner.mutation.conflict == recipe || outer.mutation.conflict == inner.mutation.conflict {
+	if outer == ancestor || inner == definition || outer.mutation.insert.conflict == recipe || inner.mutation.insert.conflict == recipe || outer.mutation.insert.conflict == inner.mutation.insert.conflict {
 		t.Fatal("recursive stored modifier ancestry retained shared workspace")
 	}
 	if outer.owner != ancestor.owner || inner.owner != definition.owner || nested.ctes[0] != definition || ancestor.mutation != &nested {
@@ -313,7 +313,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 	}
 	// Fresh ordinary bindings do not enter the stored modifier clone path.
 	ordinary, err := refreshRuleActionCTEs(auth, modifier.binding)
-	if err != nil || ordinary.conflict != recipe {
+	if err != nil || ordinary.insert.conflict != recipe {
 		t.Fatal("ordinary binding acquired an unnecessary workspace clone")
 	}
 }

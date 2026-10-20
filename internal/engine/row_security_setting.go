@@ -32,13 +32,13 @@ func checkRowSecurityBinding(scope *StatementScope, auth AuthorizationView, b bi
 	for _, definition := range b.ctes {
 		if definition.mutation != nil {
 			caller := auth
-			if rewrite := b.ruleCTEs[definition]; rewrite != nil {
+			if rewrite := b.rule.ctes[definition]; rewrite != nil {
 				caller = rewrite.caller
 			}
 			if err := checkRowSecurityBinding(scope, caller, *definition.mutation); err != nil {
 				return err
 			}
-			if rewrite := b.ruleCTEs[definition]; rewrite != nil {
+			if rewrite := b.rule.ctes[definition]; rewrite != nil {
 				if err := checkRowSecurityBinding(scope, rewrite.command.auth, rewrite.command.binding); err != nil {
 					return err
 				}

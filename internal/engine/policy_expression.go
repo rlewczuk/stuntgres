@@ -40,14 +40,26 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	source := &sourceNode{querySchema: d.Columns, ref: ref, occurrence: 0}
 	root := &projectNode{child: source, expressions: []expr.Expr{node}, frame: 1, querySchema: []catalog.Column{{Usage: node.ResultUsage()}}}
 	capture := binding{
-		query: &BoundQuery{Root: root}, dependencies: b.dependencies, querySources: b.querySources,
-		viewLiterals: b.viewLiterals, viewCastUsages: b.viewCastUsages, viewSimilarSubstrings: b.viewSimilarSubstrings,
-		viewRoutineRefs:     b.viewRoutineRefs,
-		viewOperatorRefs:    b.viewOperatorRefs,
-		viewPosixSubstrings: b.viewPosixSubstrings,
-		viewCollations:      b.viewCollations, viewColumns: b.viewColumns, viewStars: b.viewStars,
-		viewComposites: b.viewComposites,
-		viewNamespaces: b.viewNamespaces, sequenceConstants: b.sequenceConstants, regtypeConstants: b.regtypeConstants,
+		query:        &BoundQuery{Root: root},
+		dependencies: b.dependencies,
+		querySources: b.querySources,
+		capture: viewCapture{
+			literals:          b.viewLiterals,
+			castUsages:        b.viewCastUsages,
+			similarSubstrings: b.viewSimilarSubstrings,
+			routineRefs:       b.viewRoutineRefs,
+			operatorRefs:      b.viewOperatorRefs,
+			posixSubstrings:   b.viewPosixSubstrings,
+			collations:        b.viewCollations,
+			columns:           b.viewColumns,
+			stars:             b.viewStars,
+			composites:        b.viewComposites,
+			namespaces:        b.viewNamespaces,
+		},
+		prepared: preparedCaptures{
+			sequenceConstants: b.sequenceConstants,
+			regtypeConstants:  b.regtypeConstants,
+		},
 	}
 	frozen, err := e.freezeQueryPresentationLocked(auth, nil, capture, false, false, 0, "", false)
 	if err != nil {

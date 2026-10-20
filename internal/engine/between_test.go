@@ -115,7 +115,7 @@ func TestBetweenTemporalCaptureRebind(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal(err)
 			}
-			desc := StatementDescription{temporals: bound.temporals}
+			desc := StatementDescription{temporals: bound.prepared.temporals}
 			before := append([]temporalConstant(nil), desc.temporals...)
 			wantCaptures := 4
 			if form == "BETWEEN SYMMETRIC" || form == "NOT BETWEEN SYMMETRIC" {
@@ -141,9 +141,9 @@ func TestBetweenTemporalCaptureRebind(t *testing.T) {
 				value, evalErr := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 				truth, truthErr := value.Boolean()
 				want := form == "BETWEEN" || form == "BETWEEN SYMMETRIC"
-				if evalErr != nil || truthErr != nil || truth != want || !reflect.DeepEqual(desc.temporals, before) || len(rebound.temporals) != 0 {
+				if evalErr != nil || truthErr != nil || truth != want || !reflect.DeepEqual(desc.temporals, before) || len(rebound.prepared.temporals) != 0 {
 					e.mu.Unlock()
-					t.Fatal("frozen capture/result changed", value, evalErr, truthErr, desc.temporals, rebound.temporals)
+					t.Fatal("frozen capture/result changed", value, evalErr, truthErr, desc.temporals, rebound.prepared.temporals)
 				}
 			}
 			e.mu.Unlock()

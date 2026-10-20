@@ -210,9 +210,9 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 			return r, err
 		}
 		query := &parser.Select{Targets: []parser.Expr{normalizedCondition}}
-		b := binding{query: &BoundQuery{Root: &projectNode{querySchema: querySchema{{Name: "condition", Usage: r.condition.ResultUsage()}}, child: &singletonNode{}, expressions: []expr.Expr{r.condition}, frame: binder.frameID(), syntax: query}}, dependencies: binder.dependencies, querySources: binder.querySources, viewColumns: binder.viewColumns, viewLiterals: binder.viewLiterals, viewCastUsages: binder.viewCastUsages, viewComposites: binder.viewComposites, viewCollations: binder.viewCollations, viewNamespaces: binder.viewNamespaces, sequenceConstants: binder.sequenceConstants, regtypeConstants: binder.regtypeConstants}
-		b.viewRoutineRefs = binder.viewRoutineRefs
-		b.viewOperatorRefs = binder.viewOperatorRefs
+		b := binding{query: &BoundQuery{Root: &projectNode{querySchema: querySchema{{Name: "condition", Usage: r.condition.ResultUsage()}}, child: &singletonNode{}, expressions: []expr.Expr{r.condition}, frame: binder.frameID(), syntax: query}}, dependencies: binder.dependencies, querySources: binder.querySources, capture: viewCapture{columns: binder.viewColumns, literals: binder.viewLiterals, castUsages: binder.viewCastUsages, composites: binder.viewComposites, collations: binder.viewCollations, namespaces: binder.viewNamespaces}, prepared: preparedCaptures{sequenceConstants: binder.sequenceConstants, regtypeConstants: binder.regtypeConstants}}
+		b.capture.routineRefs = binder.viewRoutineRefs
+		b.capture.operatorRefs = binder.viewOperatorRefs
 		for i := range b.querySources {
 			b.querySources[i].frozenAttributes = slices.Clone(b.querySources[i].relation.Attributes)
 		}
@@ -255,7 +255,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 			return r, err
 		}
 		b = retainRuleCTEPresentation(auth.Catalog, b)
-		b.ruleTemplate = true
+		b.rule.template = true
 		if b.parameters.Count != 0 {
 			return r, sqlError("42P02", "there is no parameter $1")
 		}

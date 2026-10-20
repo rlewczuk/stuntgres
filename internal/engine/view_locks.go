@@ -236,7 +236,7 @@ func (s *StatementScope) acquireViewDefinitionReferences(b binding) error {
 	for _, dependency := range b.dependencies {
 		add(dependency.Ref)
 	}
-	for _, constant := range b.sequenceConstants {
+	for _, constant := range b.prepared.sequenceConstants {
 		if constant.represented {
 			add(constant.ref)
 		}

@@ -67,7 +67,7 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 		return d
 	}
 	c := &boundInsertConflict{targets: b.targets}
-	b.conflict = c
+	b.insert.conflict = c
 	if raw.Constraint.Text != "" {
 		for _, u := range b.relation.Constraints.Unique {
 			if u.Name == raw.Constraint.Text {

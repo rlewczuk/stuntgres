@@ -37,7 +37,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 	var query *BoundQuery
 	var err error
 	if sel := s.Source.Select; sel != nil {
-		out.insertSubquerySource = true
+		out.insert.subquerySource = true
 		binder.queryAuth = &auth
 		// INSERT's target is an error namespace entry, not a correlation
 		// source. Keep it hidden when entering the shared SELECT binder.
@@ -50,7 +50,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 		query, err = binder.bindSelect(sel, true)
 		out.querySources = binder.querySources
 	} else {
-		out.insertSubquerySource = s.Source.Values.Order != nil || s.Source.Values.Bounds != nil
+		out.insert.subquerySource = s.Source.Values.Order != nil || s.Source.Values.Bounds != nil
 		query, err = binder.bindValues(s.Source.Values, s.Override == parser.OverrideUser && len(out.relation.ColumnMeta.Identities) != 0)
 	}
 	if err != nil {
@@ -122,10 +122,10 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 	}
 	// Analysis and parameter inference above remain complete. Only unused pure
 	// USER identity projections lose runtime demand, before coercion preflight.
-	if len(out.identityDiscard) != 0 && (s.Source.Select != nil || len(s.Source.Values.Rows) == 1) {
+	if len(out.insert.identityDiscard) != 0 && (s.Source.Select != nil || len(s.Source.Values.Rows) == 1) {
 		for i, target := range out.targets {
 			expression := project.expressions[i]
-			if !out.identityDiscard[target] || expression.Properties().Volatility == expr.Volatile {
+			if !out.insert.identityDiscard[target] || expression.Properties().Volatility == expr.Volatile {
 				continue
 			}
 			var discard bool
@@ -137,24 +137,24 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 	}
 	// This binding owns the schedule; supplied query outputs, including NULL,
 	// never consume defaults. Filter once rather than masking every row.
-	if len(out.defaults) != 0 {
+	if len(out.insert.defaults) != 0 {
 		remaining := 0
-		for _, expression := range out.defaults {
+		for _, expression := range out.insert.defaults {
 			if expression != nil {
 				remaining++
 			}
 		}
 		for _, target := range out.targets {
-			if len(out.identityDiscard) != 0 && out.identityDiscard[target] {
+			if len(out.insert.identityDiscard) != 0 && out.insert.identityDiscard[target] {
 				continue
 			}
-			if out.defaults[target] != nil {
-				out.defaults[target] = nil
+			if out.insert.defaults[target] != nil {
+				out.insert.defaults[target] = nil
 				remaining--
 			}
 		}
 		if remaining == 0 {
-			out.defaults = nil
+			out.insert.defaults = nil
 		}
 	}
 	out.query, out.commandQuery = query, true
@@ -474,7 +474,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 			}
 			row[target] = value
 		}
-		for j, expression := range b.defaults {
+		for j, expression := range b.insert.defaults {
 			if expression != nil && (defaultSource == nil || defaultSource.rowDefaults()[j]) {
 				row[j], err = b.evalDefault(&evaluation, j, expression)
 				if err != nil {

@@ -136,7 +136,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		source := &projectNode{querySchema: querySchema(schema), child: &singletonNode{}, expressions: []expr.Expr{ruleUnitInt(src, 1), random}, frame: 2}
 		selectBinding := original
 		selectBinding.query, selectBinding.expressions = &BoundQuery{Root: source}, nil
-		selectBinding.insertSubquerySource = true
+		selectBinding.insert.subquerySource = true
 		producer, err := makeRuleProducer(auth.Catalog, selectBinding, "INSERT", []int{0})
 		if err != nil {
 			t.Fatal(err)
@@ -174,7 +174,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 			t.Fatal("producer lexical frame leaked into action frame or template changed")
 		}
 		valuesBinding := selectBinding
-		valuesBinding.insertSubquerySource = false
+		valuesBinding.insert.subquerySource = false
 		producer, err = makeRuleProducer(auth.Catalog, valuesBinding, "INSERT")
 		if err != nil {
 			t.Fatal(err)

@@ -44,7 +44,7 @@ func ruleBindingMaxFrame(b binding) uint32 {
 			visit(definition.query.Root)
 		}
 	}
-	for _, expr := range b.defaults {
+	for _, expr := range b.insert.defaults {
 		visitExpression(expr)
 	}
 	visitExpression(b.predicate)
@@ -53,14 +53,14 @@ func ruleBindingMaxFrame(b binding) uint32 {
 			visitExpression(expr)
 		}
 	}
-	if b.conflict != nil {
-		for _, key := range b.conflict.keys {
+	if b.insert.conflict != nil {
+		for _, key := range b.insert.conflict.keys {
 			visitExpression(key.expression)
 		}
-		visitExpression(b.conflict.predicate)
-		if b.conflict.update != nil {
-			visitExpression(b.conflict.update.predicate)
-			for _, expr := range b.conflict.update.assignments {
+		visitExpression(b.insert.conflict.predicate)
+		if b.insert.conflict.update != nil {
+			visitExpression(b.insert.conflict.update.predicate)
+			for _, expr := range b.insert.conflict.update.assignments {
 				visitExpression(expr)
 			}
 		}
@@ -80,7 +80,7 @@ func ruleBindingMaxFrame(b binding) uint32 {
 			visit(&projectNode{expressions: []expr.Expr{bound}})
 		}
 	}
-	visit(b.deleteUsing)
+	visit(b.delete.using)
 	return max
 }
 

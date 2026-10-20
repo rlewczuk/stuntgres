@@ -10,20 +10,20 @@ import (
 )
 
 func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Relation, b binding) error {
-	if len(b.createInheritance) == 0 {
+	if len(b.create.inheritance) == 0 {
 		return nil
 	}
 	graph := &catalog.TableInheritance{Columns: make(map[int32]catalog.InheritedColumn, len(d.Columns)), Checks: make(map[string]catalog.InheritedConstraint), NotNull: make(map[int32]catalog.InheritedConstraint)}
 	d.Inheritance = graph
 	for slot, c := range d.Columns {
-		declaration := b.createDeclarations[slot]
-		graph.Columns[d.Attributes[slot]] = catalog.InheritedColumn{Local: b.createLocalColumns[c.Name], ExplicitDefault: declaration.defaultExpr != nil || declaration.serial || declaration.copiedDefault, ExplicitGeneration: declaration.generation != nil || declaration.copiedGeneration}
+		declaration := b.create.declarations[slot]
+		graph.Columns[d.Attributes[slot]] = catalog.InheritedColumn{Local: b.create.localColumns[c.Name], ExplicitDefault: declaration.defaultExpr != nil || declaration.serial || declaration.copiedDefault, ExplicitGeneration: declaration.generation != nil || declaration.copiedGeneration}
 	}
 	for _, c := range d.Constraints.NotNull {
 		graph.NotNull[c.Attribute] = catalog.InheritedConstraint{Local: true}
 	}
 	var defaultConflicts, generationConflicts map[int32]bool
-	for _, in := range b.createInheritance {
+	for _, in := range b.create.inheritance {
 		graph.Parents = append(graph.Parents, in.source.Address())
 		stage.captureLikeSource(in.source)
 		mapper := createLikeInput{ref: in.ref, source: in.source, targetSlots: make([]int, len(in.source.Columns))}
@@ -54,7 +54,7 @@ func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *
 			target := d.Attributes[mapper.targetSlots[sourceSlot]]
 			// LIKE expressions arrive after inherited conflicts are checked; only a
 			// raw child DEFAULT (including serial) can resolve a parent conflict.
-			declaration := b.createDeclarations[mapper.targetSlots[sourceSlot]]
+			declaration := b.create.declarations[mapper.targetSlots[sourceSlot]]
 			if old, ok := in.source.ColumnMeta.Defaults[sourceAttribute]; ok && declaration.defaultExpr == nil && !declaration.serial {
 				if incumbent, ok := d.ColumnMeta.Defaults[target]; ok && !sameGroupExpression(incumbent.Expression, old.Expression) {
 					if defaultConflicts == nil {

@@ -220,7 +220,7 @@ func (c *copyCursor) split(defaultMarkers bool) error {
 		isDefault := defaultMarkers && c.options.hasDefault && string(raw) == c.options.def
 		if isDefault && len(c.fields) < len(c.binding.targets) {
 			target := c.binding.targets[len(c.fields)]
-			if len(c.binding.defaults) == 0 || c.binding.defaults[target] == nil {
+			if len(c.binding.insert.defaults) == 0 || c.binding.insert.defaults[target] == nil {
 				d := c.lineError("unexpected default marker in COPY data", "").(*sqlstate.Error)
 				d.Detail = fmt.Sprintf("Column \"%s\" has no default value.", c.binding.relation.Columns[target].Name)
 				return d

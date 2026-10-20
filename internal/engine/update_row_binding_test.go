@@ -63,7 +63,7 @@ func TestUpdateRowBinding(t *testing.T) {
 			op, scope, b, _, _ := updateFromBoundSources(t, e, owner, context.Background(), q)
 			defer op.Done()
 			defer scope.Finish(context.Canceled)
-			if b.typeDiagnosticName == nil || b.typeDiagnosticName(b.relation.Columns[0].Usage.Type.ID()) != "positive" {
+			if b.resolvers.typeDiagnosticName == nil || b.resolvers.typeDiagnosticName(b.relation.Columns[0].Usage.Type.ID()) != "positive" {
 				t.Fatal("assignment lost captured destination diagnostic naming")
 			}
 		})

@@ -53,8 +53,8 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 					t.Fatal("distinct mixed effect", k, admitted, err)
 				}
 				stage := scope.stage.rows[ref.Address]
-				if len(stage) != k || b.conflict.affected != k || len(b.conflict.affectedRows) != k || b.conflict.affectedRows[stage[k-1].Row] != k-1 {
-					t.Fatal("append order/identity lookup/count", k, len(stage), b.conflict.affected)
+				if len(stage) != k || b.insert.conflict.affected != k || len(b.insert.conflict.affectedRows) != k || b.insert.conflict.affectedRows[stage[k-1].Row] != k-1 {
+					t.Fatal("append order/identity lookup/count", k, len(stage), b.insert.conflict.affected)
 				}
 				if k == 1 {
 					pinned = stage[:1]
@@ -95,8 +95,8 @@ func TestInsertConflictUpdateDistinctStage(t *testing.T) {
 			if duplicate {
 				_, finishErr = scope.admitInsertRow(ref, &indexWriteCandidate{values: []sqltype.Value{integer(1), integer(1)}}, indexWriteBatch{}, &evaluation)
 				var d *sqlstate.Error
-				if !errors.As(finishErr, &d) || d.Code != "21000" || len(scope.stage.rows[ref.Address]) != size*2 || b.conflict.affected != size*2 {
-					t.Fatal("duplicate does not append or count", finishErr, b.conflict.affected)
+				if !errors.As(finishErr, &d) || d.Code != "21000" || len(scope.stage.rows[ref.Address]) != size*2 || b.insert.conflict.affected != size*2 {
+					t.Fatal("duplicate does not append or count", finishErr, b.insert.conflict.affected)
 				}
 			}
 			if err := scope.Finish(finishErr); err != finishErr {

@@ -15,7 +15,7 @@ import (
 // admission but before any physical data view or row-version acquisition.
 func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Statement, execution *preparedCommandExecution, parameters []sqltype.Value) (Result, error) {
 	b := execution.binding
-	if b.conflict != nil {
+	if b.insert.conflict != nil {
 		e.mu.Unlock()
 		return Result{}, sqlError("0A000", "ON CONFLICT on foreign tables is unsupported in embedded mode")
 	}
@@ -91,18 +91,18 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 			}
 			rows = batch.values
 		} else {
-			rows = make([][]sqltype.Value, 0, len(b.insertRows))
-			for i, raw := range b.insertRows {
+			rows = make([][]sqltype.Value, 0, len(b.insert.rows))
+			for i, raw := range b.insert.rows {
 				row := make([]sqltype.Value, len(b.relation.Columns))
 				for j, c := range b.relation.Columns {
 					row[j] = sqltype.Null(c.Usage.Type)
 				}
-				if len(b.insertProjection) != 0 {
-					if err := evaluateInsertValuesRow(execution.auth.Catalog, &b, execution.expressions[i], raw, row, len(b.insertRows) > 1, &evaluation); err != nil {
+				if len(b.insert.projection) != 0 {
+					if err := evaluateInsertValuesRow(execution.auth.Catalog, &b, execution.expressions[i], raw, row, len(b.insert.rows) > 1, &evaluation); err != nil {
 						return Result{}, err
 					}
 				} else {
-					for j, defaultExpr := range b.defaults {
+					for j, defaultExpr := range b.insert.defaults {
 						if defaultExpr == nil {
 							continue
 						}
@@ -174,7 +174,7 @@ func projectForeignReturning(b binding, output *finalRows, row, old []sqltype.Va
 	eval := *evaluation
 	eval.Scope, eval.Frame = 1, 1
 	eval.Row, eval.OldRow = row, old
-	if b.deleteUsing != nil || b.update != nil && b.update.from != nil {
+	if b.delete.using != nil || b.update != nil && b.update.from != nil {
 		// Keep the matched source suffix and query identity, replacing only
 		// the target prefix with the provider's actual NEW/returned tuple.
 		copy(evaluation.Row, row)
@@ -292,11 +292,11 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b bin
 	}
 	var from LogicalNode
 	predicate := b.predicate
-	sourceWidth := b.deleteSourceWidth
+	sourceWidth := b.delete.sourceWidth
 	if b.update != nil {
 		from, predicate, sourceWidth = b.update.from, b.update.predicate, b.update.sourceWidth
 	} else {
-		from = b.deleteUsing
+		from = b.delete.using
 	}
 	var stage indexedStage
 	var frame []sqltype.Value

@@ -96,7 +96,7 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 				sentinel := errors.New("late DELETE USING output failure")
 				switch phase {
 				case "source_rejected":
-					join := b.deleteUsing.(*joinNode)
+					join := b.delete.using.(*joinNode)
 					usage := join.predicate.ResultUsage()
 					join.predicate = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
 						calls++

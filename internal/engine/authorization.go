@@ -242,17 +242,17 @@ func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error 
 		if err := v.checkColumns(b, authorization.InsertPrivilege, b.targets); err != nil {
 			return err
 		}
-		if b.conflict != nil && len(b.conflict.reads) != 0 {
-			if err := v.checkColumns(b, authorization.SelectPrivilege, b.conflict.reads); err != nil {
+		if b.insert.conflict != nil && len(b.insert.conflict.reads) != 0 {
+			if err := v.checkColumns(b, authorization.SelectPrivilege, b.insert.conflict.reads); err != nil {
 				return err
 			}
 		}
-		if b.conflict != nil && b.conflict.update != nil {
-			if err := v.checkColumns(b, authorization.UpdatePrivilege, b.conflict.updateTargets); err != nil {
+		if b.insert.conflict != nil && b.insert.conflict.update != nil {
+			if err := v.checkColumns(b, authorization.UpdatePrivilege, b.insert.conflict.updateTargets); err != nil {
 				return err
 			}
-			if len(b.conflict.actionReads) != 0 {
-				if err := v.checkColumns(b, authorization.SelectPrivilege, b.conflict.actionReads); err != nil {
+			if len(b.insert.conflict.actionReads) != 0 {
+				if err := v.checkColumns(b, authorization.SelectPrivilege, b.insert.conflict.actionReads); err != nil {
 					return err
 				}
 			}

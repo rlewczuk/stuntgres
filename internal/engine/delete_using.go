@@ -18,17 +18,17 @@ type deleteUsingCandidate struct {
 // occurrence indexes are retained, before any target row arbitration can wait.
 func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evaluation *EvalContext, positioned mutationRowIdentity) (Result, error) {
 	ctx := evaluation.Context
-	evaluation.query.virtualReads = queryHasVirtualReads(b.deleteUsing) || boundHasVirtualReads(b.predicate)
+	evaluation.query.virtualReads = queryHasVirtualReads(b.delete.using) || boundHasVirtualReads(b.predicate)
 	if b.returning != nil {
 		for _, expression := range b.returning.expressions {
 			evaluation.query.virtualReads = evaluation.query.virtualReads || boundHasVirtualReads(expression)
 		}
 	}
-	stage, err := openQueryNode(ctx, evaluation.query, b.deleteUsing)
+	stage, err := openQueryNode(ctx, evaluation.query, b.delete.using)
 	if err != nil {
 		return Result{}, err
 	}
-	stage, err = settlePendingQueryMarks(ctx, evaluation.query, b.deleteUsing, stage)
+	stage, err = settlePendingQueryMarks(ctx, evaluation.query, b.delete.using, stage)
 	if err != nil {
 		return Result{}, err
 	}
@@ -40,7 +40,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 	sourceCount := stage.count()
 	targetCount := 0
 	if sourceCount != 0 {
-		frame = make([]sqltype.Value, len(b.relation.Columns)+b.deleteSourceWidth)
+		frame = make([]sqltype.Value, len(b.relation.Columns)+b.delete.sourceWidth)
 		targetCount = source.count()
 	}
 	var candidates []deleteUsingCandidate

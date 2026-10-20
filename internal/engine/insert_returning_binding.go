@@ -45,8 +45,8 @@ func (e *Engine) bindInsertReturning(b *binding, binder *expressionBinder, auth 
 	output.reads = reads
 	output.readRequired = readRequired
 	b.returning = output
-	if b.conflict != nil {
-		b.conflict.returning = output
+	if b.insert.conflict != nil {
+		b.insert.conflict.returning = output
 	}
 	return nil
 }

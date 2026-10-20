@@ -179,7 +179,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		selected[target] = true
 	}
 	binaryInput := options.format == copyFormatBinary && (s.protocolCommand || s.protocolSimple)
-	inputColumns := len(b.defaults)
+	inputColumns := len(b.insert.defaults)
 	if binaryInput {
 		inputColumns = len(b.relation.Columns)
 	}
@@ -192,15 +192,15 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 				return 0, err
 			}
 		}
-		if i >= len(b.defaults) {
+		if i >= len(b.insert.defaults) {
 			continue
 		}
-		expression := b.defaults[i]
+		expression := b.insert.defaults[i]
 		if expression == nil {
 			continue
 		}
 		if selected[i] && !options.hasDefault {
-			b.defaults[i] = nil
+			b.insert.defaults[i] = nil
 			continue
 		}
 		defaultEvaluation := evaluation
@@ -212,9 +212,9 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		if planErr = validateExpressionJoinExecution(&defaultEvaluation, folded, auth.Catalog); planErr != nil {
 			return 0, planErr
 		}
-		b.defaults[i] = folded
+		b.insert.defaults[i] = folded
 		if constant, ok := folded.(literalExpression); ok && constant.value.IsNull() && b.defaultOriginAt(i).definition.Expression == nil {
-			b.defaults[i] = nil
+			b.insert.defaults[i] = nil
 		}
 	}
 	if err = copyRelationKind(b.relation, true); err != nil {
@@ -383,7 +383,7 @@ func (e *Engine) initCopyInputLocked(s *StatementScope, b *binding, auth Authori
 	binder.queryAuth = &auth
 	binder.insertTarget = b.relation
 	e.bindInsertDefaults(b, auth, parser.OverrideSystem)
-	if err := binder.captureRetainedWriteInput(b.defaults, b.relation.ColumnMeta.Generations, b.relation.Constraints.Check); err != nil {
+	if err := binder.captureRetainedWriteInput(b.insert.defaults, b.relation.ColumnMeta.Generations, b.relation.Constraints.Check); err != nil {
 		return err
 	}
 	s.input = binder.input

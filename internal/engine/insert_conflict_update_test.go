@@ -44,13 +44,13 @@ func conflictUpdateAnalyzedScope(t *testing.T, e *Engine, s *Session, q string) 
 		t.Fatal(err)
 	}
 	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, statementScope: scope}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
-	if err := b.conflict.selectArbiters(&evaluation, b.relation, e.CatalogRead()); err != nil {
+	if err := b.insert.conflict.selectArbiters(&evaluation, b.relation, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
-	if err := b.conflict.preflightUpdate(&evaluation); err != nil {
+	if err := b.insert.conflict.preflightUpdate(&evaluation); err != nil {
 		t.Fatal(err)
 	}
-	scope.insertConflict = b.conflict
+	scope.insertConflict = b.insert.conflict
 	return op, scope, b
 }
 
@@ -60,7 +60,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(k INT UNIQUE,v INT)")
 	sessionSQL(t, s, "CREATE TABLE src(k INT,v INT)")
 	op, scope, b := conflictUpdateAnalyzedScope(t, e, s, "INSERT INTO t AS dst SELECT k,v FROM src ON CONFLICT(k) DO UPDATE SET v=dst.v+excluded.v WHERE excluded.k>0")
-	c := b.conflict
+	c := b.insert.conflict
 	if !reflect.DeepEqual(b.targets, []int{0, 1}) || !reflect.DeepEqual(c.updateTargets, []int{1}) || !reflect.DeepEqual(c.reads, []int{0}) || !reflect.DeepEqual(c.actionReads, []int{1, 0}) || len(c.sources) != 1 || !reflect.DeepEqual(c.sources[0].uses, []int{0, 1}) {
 		t.Fatal("distinct INSERT/UPDATE/action/source manifests", b.targets, c.updateTargets, c.reads, c.actionReads, c.sources)
 	}
@@ -134,23 +134,23 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc.name, err)
 		}
-		original := action.conflict.update
-		err = action.conflict.preflightUpdate(&evaluation)
+		original := action.insert.conflict.update
+		err = action.insert.conflict.preflightUpdate(&evaluation)
 		if tc.error {
 			var d *sqlstate.Error
-			if !errors.As(err, &d) || d.Code != "22012" || d.Message != "division by zero" || action.conflict.update != original {
+			if !errors.As(err, &d) || d.Code != "22012" || d.Message != "division by zero" || action.insert.conflict.update != original {
 				t.Fatal("immutable action planning error without plan mutation", tc.name, err)
 			}
 			continue
 		}
-		if err != nil || (tc.unchanged && action.conflict.update != original) {
+		if err != nil || (tc.unchanged && action.insert.conflict.update != original) {
 			t.Fatal("runtime-owned SET remains unevaluated and unchanged", tc.name, err)
 		}
 		if !tc.unchanged {
-			if action.conflict.update == original {
+			if action.insert.conflict.update == original {
 				t.Fatal("constant action requires private execution tree")
 			}
-			value, err := action.conflict.update.assignments[0].Eval(&evaluation)
+			value, err := action.insert.conflict.update.assignments[0].Eval(&evaluation)
 			if err != nil || testExport(value) != int64(3) {
 				t.Fatal(value, err)
 			}

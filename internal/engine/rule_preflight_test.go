@@ -208,7 +208,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		original.expressions = nil
 		original.targets = []int{1}
 		original.query = supplied
-		original.commandQuery, original.insertSubquerySource = true, true
+		original.commandQuery, original.insert.subquerySource = true, true
 		for _, shape := range []string{"demanded", "unused", "dead_case"} {
 			output := "q.n"
 			if shape == "unused" {
@@ -296,7 +296,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := binding{relation: &catalog.Relation{Columns: []catalog.Column{schema[0]}}, deleteUsing: source, predicate: predicate}
+		original := binding{relation: &catalog.Relation{Columns: []catalog.Column{schema[0]}}, delete: deleteBinding{using: source}, predicate: predicate}
 		private, err := ruleMutationProducerDemand(original)
 		if err != nil {
 			t.Fatal(err)
@@ -304,7 +304,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), planStaticOperators: true}}
 		// Match DELETE's established order: source preparation first, then
 		// predicate preparation. Liveness must not evaluate the predicate early.
-		prepared, err := preflightQuery(&evaluation, private.deleteUsing)
+		prepared, err := preflightQuery(&evaluation, private.delete.using)
 		if err != nil {
 			t.Fatalf("dead CASE revived source payload demand: %v", err)
 		}
@@ -333,7 +333,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		if !values[0].IsNull() {
 			t.Fatal("unused source did not retain a typed NULL payload slot")
 		}
-		if original.deleteUsing != source || source.query.Root != child {
+		if original.delete.using != source || source.query.Root != child {
 			t.Fatal("DELETE source template was mutated")
 		}
 		if _, ok := child.expressions[0].(arithmeticExpression); !ok {

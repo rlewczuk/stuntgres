@@ -425,7 +425,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 				// This binding flag owns nonquery catalog/role capture in
 				// executeBoundCommandLocked; expressionBinder.catalogSnapshot is
 				// analysis-only and is not a field of binding.
-				b.regclassConcat = true
+				b.prepared.regclassConcat = true
 			case functions.Binary:
 				node := n.(functions.Binary)
 				if !node.Plan.Immutable() {
@@ -440,7 +440,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 				}
 			case expr.SnapshotDemander:
 				_, catalogText, visibility := n.(expr.SnapshotDemander).SnapshotDemand(randomLiteralNull)
-				b.regclassConcat = b.regclassConcat || catalogText
+				b.prepared.regclassConcat = b.prepared.regclassConcat || catalogText
 				b.visibilitySnapshot = b.visibilitySnapshot || visibility
 			}
 			old, absent := false, false
@@ -576,8 +576,8 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 		}
 		b.returning = &r
 	}
-	if b.conflict != nil {
-		conflict := *b.conflict
+	if b.insert.conflict != nil {
+		conflict := *b.insert.conflict
 		conflict.targets = b.targets
 		conflict.keys = append([]conflictKey(nil), conflict.keys...)
 		for i, key := range conflict.keys {
@@ -608,7 +608,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 		if err != nil {
 			return err
 		}
-		b.conflict = &conflict
+		b.insert.conflict = &conflict
 	}
 	if insert, ok := stmt.(*parser.Insert); ok {
 		return e.lowerViewInsert(b, auth, insert)

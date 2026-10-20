@@ -78,11 +78,11 @@ func validateRuleActionCTEs(action parser.Statement, b binding) error {
 				inspectExpression(expr)
 			}
 		}
-		for _, expr := range body.defaults {
+		for _, expr := range body.insert.defaults {
 			inspectExpression(expr)
 		}
 		inspectExpression(body.predicate)
-		inspectQuery(body.deleteUsing)
+		inspectQuery(body.delete.using)
 		if body.update != nil {
 			inspectQuery(body.update.from)
 			inspectExpression(body.update.predicate)
@@ -96,20 +96,20 @@ func validateRuleActionCTEs(action parser.Statement, b binding) error {
 				inspectExpression(expr)
 			}
 		}
-		if body.conflict != nil {
-			for _, key := range body.conflict.keys {
+		if body.insert.conflict != nil {
+			for _, key := range body.insert.conflict.keys {
 				inspectExpression(key.expression)
 			}
-			inspectExpression(body.conflict.predicate)
-			if body.conflict.update != nil {
-				inspectTargets(body.conflict.update.arrayTargets)
-				inspectExpression(body.conflict.update.predicate)
-				for _, expr := range body.conflict.update.assignments {
+			inspectExpression(body.insert.conflict.predicate)
+			if body.insert.conflict.update != nil {
+				inspectTargets(body.insert.conflict.update.arrayTargets)
+				inspectExpression(body.insert.conflict.update.predicate)
+				for _, expr := range body.insert.conflict.update.assignments {
 					inspectExpression(expr)
 				}
 			}
-			if body.conflict.returning != nil && body.conflict.returning != body.returning {
-				for _, expr := range body.conflict.returning.expressions {
+			if body.insert.conflict.returning != nil && body.insert.conflict.returning != body.returning {
+				for _, expr := range body.insert.conflict.returning.expressions {
 					inspectExpression(expr)
 				}
 			}

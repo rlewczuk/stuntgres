@@ -166,8 +166,8 @@ func TestViewWriteDefaults(t *testing.T) {
 	if err := f.e.bindViewWrite(&b, f.authorization(t, op), &parser.Insert{Rows: [][]parser.Expr{{parser.DefaultExpr{}}}}); err != nil {
 		t.Fatal(err)
 	}
-	if len(b.defaults) != 3 || b.defaults[2] == nil || b.targets[0] != 1 {
-		t.Fatal("hidden omission/default lost", b.targets, b.defaults)
+	if len(b.insert.defaults) != 3 || b.insert.defaults[2] == nil || b.targets[0] != 1 {
+		t.Fatal("hidden omission/default lost", b.targets, b.insert.defaults)
 	}
 	// Conflict discovery consumes physical target authority, never the logical
 	// view address, even when DO NOTHING has no explicit inference keys.

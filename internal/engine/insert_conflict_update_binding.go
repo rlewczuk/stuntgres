@@ -10,7 +10,7 @@ func (e *Engine) bindInsertConflictUpdate(b *binding, binder *expressionBinder, 
 	if s.Conflict == nil || !s.Conflict.Update {
 		return nil
 	}
-	c := b.conflict
+	c := b.insert.conflict
 	c.width = len(b.relation.Columns)
 	binder.relation, binder.ref = b.relation, b.ref
 	binder.targetName, binder.targetAlias = b.relation.Name(), s.Alias.Text

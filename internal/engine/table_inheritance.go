@@ -91,7 +91,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 		localNames[c.Name] = true
 	}
 	var merged []catalog.Column
-	b.createLocalColumns = localNames
+	b.create.localColumns = localNames
 	index := make(map[string]int)
 	seen := make(map[ids.ObjectAddress]bool)
 	generated := make(map[string]bool)
@@ -135,7 +135,7 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 			return nil, nil, nil, sqlError("42P07", fmt.Sprintf(`relation "%s" would be inherited from more than once`, source.Name()))
 		}
 		seen[ref.Address] = true
-		b.createInheritance = append(b.createInheritance, createInheritanceInput{ref, source})
+		b.create.inheritance = append(b.create.inheritance, createInheritanceInput{ref, source})
 		for sourceSlot, c := range source.Columns {
 			definition, isGenerated := source.ColumnMeta.Generations[source.Attributes[sourceSlot]]
 			if slot, ok := index[c.Name]; ok {
@@ -205,14 +205,14 @@ func (e *Engine) describeInheritance(op *Operation, auth AuthorizationView, synt
 	for i := range likeConstraints {
 		likeConstraints[i].Attribute = int32(mapping[likeConstraints[i].Attribute-1] + 1)
 	}
-	for i := range b.createLikes {
-		in := &b.createLikes[i]
+	for i := range b.create.likes {
+		in := &b.create.likes[i]
 		in.targetSlots = make([]int, len(in.source.Columns))
 		for j := range in.targetSlots {
 			in.targetSlots[j] = mapping[in.offset+j]
 		}
 	}
-	for _, in := range b.createLikes {
+	for _, in := range b.create.likes {
 		if in.options&likeGenerated != 0 {
 			for i, attribute := range in.source.Attributes {
 				if _, exists := in.source.ColumnMeta.Generations[attribute]; exists {

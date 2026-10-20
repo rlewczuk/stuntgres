@@ -256,21 +256,21 @@ func TestPreparedRebindPublication(t *testing.T) {
 			return bound
 		}
 		first := bind(sqltype.InputEnvironment{TransactionStart: time.Date(2003, 7, 7, 4, 5, 6, 0, time.UTC)}, nil)
-		if len(first.temporals) != 4 {
-			t.Fatal("missing logical and genuine temporal captures", first.temporals)
+		if len(first.prepared.temporals) != 4 {
+			t.Fatal("missing logical and genuine temporal captures", first.prepared.temporals)
 		}
-		description := StatementDescription{Parameters: first.parameters, Results: first.query.Root.Schema(), temporals: first.temporals, catalogOwner: engine.catalog.owner(), catalogEpoch: engine.CatalogRead().Epoch()}
-		frozen := append([]temporalConstant(nil), first.temporals...)
+		description := StatementDescription{Parameters: first.parameters, Results: first.query.Root.Schema(), temporals: first.prepared.temporals, catalogOwner: engine.catalog.owner(), catalogEpoch: engine.CatalogRead().Epoch()}
+		frozen := append([]temporalConstant(nil), first.prepared.temporals...)
 		run(t, engine, "ALTER TYPE mood RENAME VALUE 'q' TO 'end'")
 		description.refreshTemporals = true
 		fresh := bind(sqltype.InputEnvironment{TransactionStart: time.Date(2004, 8, 8, 12, 13, 14, 0, time.UTC)}, &description)
-		if len(fresh.temporals) != len(frozen) {
-			t.Fatal("candidate lost captures", fresh.temporals)
+		if len(fresh.prepared.temporals) != len(frozen) {
+			t.Fatal("candidate lost captures", fresh.prepared.temporals)
 		}
 		for i, old := range frozen {
-			same := reflect.DeepEqual(old, fresh.temporals[i])
+			same := reflect.DeepEqual(old, fresh.prepared.temporals[i])
 			if same == refreshableTemporalCapture(old) {
-				t.Fatal("incorrect temporal/logical candidate boundary", i, old, fresh.temporals[i])
+				t.Fatal("incorrect temporal/logical candidate boundary", i, old, fresh.prepared.temporals[i])
 			}
 		}
 		if !reflect.DeepEqual(description.temporals, frozen) {

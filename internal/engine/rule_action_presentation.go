@@ -43,8 +43,8 @@ func (e *Engine) freezeRuleActionPresentationLocked(auth AuthorizationView, acti
 			expressions = append(expressions, b.update.predicate)
 		}
 	}
-	if b.deleteUsing != nil {
-		from = b.deleteUsing
+	if b.delete.using != nil {
+		from = b.delete.using
 	}
 	if b.predicate != nil {
 		expressions = append(expressions, b.predicate)
@@ -79,15 +79,15 @@ func (e *Engine) freezeRuleModifierPresentationsLocked(auth AuthorizationView, b
 			// modifier's own executable query and globally indexed source leaves.
 			metadata := *definition.mutation
 			metadata.dependencies = b.dependencies
-			metadata.viewLiterals, metadata.viewCastUsages = b.viewLiterals, b.viewCastUsages
-			metadata.viewRoutineRefs = b.viewRoutineRefs
-			metadata.viewOperatorRefs = b.viewOperatorRefs
-			metadata.viewComposites = b.viewComposites
-			metadata.viewSimilarSubstrings, metadata.viewPosixSubstrings = b.viewSimilarSubstrings, b.viewPosixSubstrings
-			metadata.viewCollations = b.viewCollations
-			metadata.viewColumns, metadata.viewStars = b.viewColumns, b.viewStars
-			metadata.viewNamespaces = b.viewNamespaces
-			metadata.sequenceConstants, metadata.regtypeConstants = b.sequenceConstants, b.regtypeConstants
+			metadata.capture.literals, metadata.capture.castUsages = b.capture.literals, b.capture.castUsages
+			metadata.capture.routineRefs = b.capture.routineRefs
+			metadata.capture.operatorRefs = b.capture.operatorRefs
+			metadata.capture.composites = b.capture.composites
+			metadata.capture.similarSubstrings, metadata.capture.posixSubstrings = b.capture.similarSubstrings, b.capture.posixSubstrings
+			metadata.capture.collations = b.capture.collations
+			metadata.capture.columns, metadata.capture.stars = b.capture.columns, b.capture.stars
+			metadata.capture.namespaces = b.capture.namespaces
+			metadata.prepared.sequenceConstants, metadata.prepared.regtypeConstants = b.prepared.sequenceConstants, b.prepared.regtypeConstants
 			presentation, err := e.freezeRuleActionPresentationLocked(auth, definition.statement, metadata)
 			if err != nil {
 				return err

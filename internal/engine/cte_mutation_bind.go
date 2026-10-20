@@ -97,12 +97,12 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 			binder.queryHidden = append(binder.queryHidden, target.qualifiers[0])
 			var sources queryNamespace
 			binder.deleteUsingSources = true
-			b.deleteUsing, sources, err = binder.bindFrom(s.Using)
+			b.delete.using, sources, err = binder.bindFrom(s.Using)
 			binder.deleteUsingSources = false
 			if err != nil {
 				return b, err
 			}
-			b.deleteSourceWidth = len(sources.frame)
+			b.delete.sourceWidth = len(sources.frame)
 			target, err = combineQueryNamespace(target, rebaseQueryNamespace(sources, len(b.relation.Columns)))
 			if err != nil {
 				return b, err
@@ -172,7 +172,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 	}
 	binder.querySources = b.querySources
 	if b.viewWrite != nil {
-		if err := binder.captureRetainedWriteInput(b.defaults, b.viewWrite.base.ColumnMeta.Generations, b.viewWrite.base.Constraints.Check); err != nil {
+		if err := binder.captureRetainedWriteInput(b.insert.defaults, b.viewWrite.base.ColumnMeta.Generations, b.viewWrite.base.Constraints.Check); err != nil {
 			return b, err
 		}
 	}

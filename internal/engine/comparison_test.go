@@ -167,7 +167,7 @@ func TestCompareOpsTemporalCaptureRebind(t *testing.T) {
 			e.mu.Unlock()
 			t.Fatal(err)
 		}
-		desc := StatementDescription{temporals: bound.temporals}
+		desc := StatementDescription{temporals: bound.prepared.temporals}
 		before := append([]temporalConstant(nil), desc.temporals...)
 		for range 2 {
 			rebound, err := e.describe(op.ctx, ast, auth, ref, later, op, &desc, nil)

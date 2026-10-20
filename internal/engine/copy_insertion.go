@@ -30,7 +30,7 @@ type copyInsertionState struct {
 
 func newCopyInsertionState(cursor copyInsertionCursor, b binding) *copyInsertionState {
 	state := &copyInsertionState{cursor: cursor}
-	for _, expression := range b.defaults {
+	for _, expression := range b.insert.defaults {
 		if plannedPhysicalVolatility(expression, true) == expr.Volatile {
 			state.single = true
 			break

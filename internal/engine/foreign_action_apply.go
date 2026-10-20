@@ -70,8 +70,8 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 		plan.defaults = make([]expr.Expr, len(plan.targets))
 		plan.defaultOrigins = make([]defaultOrigin, len(plan.targets))
 		for i, slot := range plan.targets {
-			if len(b.defaults) != 0 {
-				plan.defaults[i] = b.defaults[slot]
+			if len(b.insert.defaults) != 0 {
+				plan.defaults[i] = b.insert.defaults[slot]
 				plan.defaultOrigins[i] = b.defaultOriginAt(slot)
 			}
 		}

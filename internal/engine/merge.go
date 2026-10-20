@@ -209,13 +209,13 @@ func (e *Engine) bindMerge(out *binding, binder *expressionBinder, auth Authoriz
 			if err != nil {
 				return err
 			}
-			if len(arm.input.insertProjection) == 0 {
-				arm.input.insertProjection = make([]int, len(out.relation.Columns))
-				for j := range arm.input.insertProjection {
-					arm.input.insertProjection[j] = -1
+			if len(arm.input.insert.projection) == 0 {
+				arm.input.insert.projection = make([]int, len(out.relation.Columns))
+				for j := range arm.input.insert.projection {
+					arm.input.insert.projection[j] = -1
 				}
 				for j, target := range arm.input.targets {
-					arm.input.insertProjection[target] = j
+					arm.input.insert.projection[target] = j
 				}
 			}
 			merge.insertTargets = mergeTargetUnion(merge.insertTargets, arm.input.targets)
@@ -297,7 +297,7 @@ func preflightMerge(c *EvalContext, merge *boundMerge, catalog catalog.Read) err
 			continue
 		}
 		for j, expression := range arm.input.expressions[0] {
-			if len(arm.input.identityDiscard) != 0 && arm.input.identityDiscard[arm.input.targets[j]] {
+			if len(arm.input.insert.identityDiscard) != 0 && arm.input.insert.identityDiscard[arm.input.targets[j]] {
 				continue
 			}
 			folded, _, err := preflightCoercions(&owner, expression)
@@ -306,13 +306,13 @@ func preflightMerge(c *EvalContext, merge *boundMerge, catalog catalog.Read) err
 			}
 			arm.input.expressions[0][j] = folded
 		}
-		for j, expression := range arm.input.defaults {
+		for j, expression := range arm.input.insert.defaults {
 			if expression == nil {
 				continue
 			}
 			defaultOwner := owner
 			arm.input.defaultOriginAt(j).apply(&defaultOwner)
-			arm.input.defaults[j], _, err = preflightCoercionsWithPolicy(&defaultOwner, expression, true)
+			arm.input.insert.defaults[j], _, err = preflightCoercionsWithPolicy(&defaultOwner, expression, true)
 			if err != nil {
 				return err
 			}

@@ -71,30 +71,30 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	if err != nil {
 		return err
 	}
-	input.EnumMemberSafe = b.enumMemberSafe
-	for _, column := range b.createColumns {
+	input.EnumMemberSafe = b.resolvers.enumMemberSafe
+	for _, column := range b.create.columns {
 		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(column.Usage.Type.ID())})
-		if b.createOfType == nil {
+		if b.create.ofType == nil {
 			if err := auth.CanUse(ref); err != nil {
 				return err
 			}
 		}
 		stage.domainBases = append(stage.domainBases, auth.Catalog.Get(ref.Address))
 	}
-	d, err := e.newTableDescriptorLocked(ns, name, owner, b.createColumns, b.createColumnIndex)
+	d, err := e.newTableDescriptorLocked(ns, name, owner, b.create.columns, b.create.columnIndex)
 	if err != nil {
 		return err
 	}
-	if b.createOfType != nil {
-		d.OfType = b.createOfType.Address()
-		stage.domainBases = append(stage.domainBases, b.createOfType)
+	if b.create.ofType != nil {
+		d.OfType = b.create.ofType.Address()
+		stage.domainBases = append(stage.domainBases, b.create.ofType)
 	}
 	d.Security.ACL = stage.creationACL(owner, ns, authorization.DefaultTables)
 	if err := e.stageRowTypeLocked(stage, d); err != nil {
 		return err
 	}
 	d.OnCommit = s.OnCommit
-	d.Constraints.NotNull = b.createNotNull
+	d.Constraints.NotNull = b.create.notNull
 	if err := e.stageInheritance(op, auth, stage, d, b); err != nil {
 		return err
 	}
@@ -104,10 +104,10 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	if err := e.stageCreateIdentities(auth, stage, d, s); err != nil {
 		return err
 	}
-	if err := e.stageCreateSerials(stage, d, b.createDeclarations); err != nil {
+	if err := e.stageCreateSerials(stage, d, b.create.declarations); err != nil {
 		return err
 	}
-	if err := e.stageLikeColumns(op, auth, stage, d, b.createLikes); err != nil {
+	if err := e.stageLikeColumns(op, auth, stage, d, b.create.likes); err != nil {
 		return err
 	}
 	// All owned sequences and their defaults share the private CREATE candidate.
@@ -119,12 +119,12 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	binder := newExpressionBinder(op.Context(), e, input, op, nil)
 	binder.queryAuth = &auth
 	binder.defaultTemporary = auth.Catalog.MustNamespace(d.Namespace()).Temporary
-	for slot, declaration := range b.createDeclarations {
+	for slot, declaration := range b.create.declarations {
 		if declaration.defaultExpr != nil {
 			delete(d.ColumnMeta.Defaults, d.Attributes[slot])
 		}
 	}
-	defaults, err := bindCreateDefaults(binder, d.Columns, b.createDeclarations)
+	defaults, err := bindCreateDefaults(binder, d.Columns, b.create.declarations)
 	if err != nil {
 		return err
 	}
@@ -135,13 +135,13 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 			d.ColumnMeta.Defaults[attribute] = definition
 		}
 	}
-	if err := e.bindCreateGenerations(op, auth, d, b.createDeclarations, input); err != nil {
+	if err := e.bindCreateGenerations(op, auth, d, b.create.declarations, input); err != nil {
 		return err
 	}
 	if err := e.bindCreateChecks(op, auth, s, d, input, nil); err != nil {
 		return err
 	}
-	if err := e.stageLikeChecks(op, auth, d, b.createLikes); err != nil {
+	if err := e.stageLikeChecks(op, auth, d, b.create.likes); err != nil {
 		return err
 	}
 	if err := refreshGenerationChecks(d, auth.Catalog); err != nil {
@@ -181,13 +181,13 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 			}
 		}
 	}
-	if err := e.stageCreateUniques(op, stage, d, b.createUniques); err != nil {
+	if err := e.stageCreateUniques(op, stage, d, b.create.uniques); err != nil {
 		return err
 	}
 	if err := e.stageCreateExclusions(op, input, auth, stage, d, s); err != nil {
 		return err
 	}
-	if err := e.stageLikeIndexes(op, auth, stage, d, b.createLikes); err != nil {
+	if err := e.stageLikeIndexes(op, auth, stage, d, b.create.likes); err != nil {
 		return err
 	}
 	return e.stageCreateForeignKeys(auth, stage, d, s, foreignTargets)

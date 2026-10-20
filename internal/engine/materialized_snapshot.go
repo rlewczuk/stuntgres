@@ -326,16 +326,16 @@ func (e *Engine) importMaterializedSnapshotRow(ctx context.Context, op *Operatio
 	if err != nil {
 		return nil, err
 	}
-	if b.parameters.Count != 0 || len(b.querySources) != 0 || len(b.defaults) != 0 {
+	if b.parameters.Count != 0 || len(b.querySources) != 0 || len(b.insert.defaults) != 0 {
 		return nil, fmt.Errorf("stuntgres: invalid materialized view snapshot row binding")
 	}
 	environment := input
-	environment.Regclass, environment.Regtype = b.regclassInput, b.regtypeInput
-	environment.Regrole, environment.Operator, environment.Regproc = b.regroleInput, b.operatorInput, b.regprocInput
-	environment.Regcollation, environment.Regnamespace = b.regcollationInput, b.regnamespaceInput
-	environment.RegTS, environment.ACLItem = b.regTSInput, b.aclitemInput
-	environment.FTS = b.ftsInput
-	environment.TypeDiagnosticName, environment.EnumMemberSafe = b.typeDiagnosticName, b.enumMemberSafe
+	environment.Regclass, environment.Regtype = b.resolvers.regclass, b.resolvers.regtype
+	environment.Regrole, environment.Operator, environment.Regproc = b.resolvers.regrole, b.resolvers.operator, b.resolvers.regproc
+	environment.Regcollation, environment.Regnamespace = b.resolvers.regcollation, b.resolvers.regnamespace
+	environment.RegTS, environment.ACLItem = b.resolvers.regTS, b.resolvers.aclitem
+	environment.FTS = b.resolvers.fts
+	environment.TypeDiagnosticName, environment.EnumMemberSafe = b.resolvers.typeDiagnosticName, b.resolvers.enumMemberSafe
 	scope.routineDependencies = b.dependencies
 	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, statementScope: scope, Input: environment, Output: scope.output, catalog: auth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}, evalAdmission: evalAdmission{routineAuthority: &auth, routineRecipe: true, routineChecks: b.dependencies}}
 	evaluation.Input.DomainChecks = &evaluation

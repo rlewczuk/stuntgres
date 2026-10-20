@@ -53,7 +53,7 @@ func ruleProducerOutputUses(original binding, rule ruleDefinition, action bindin
 		}
 	}
 	expression(action.predicate)
-	query(action.deleteUsing)
+	query(action.delete.using)
 	targets(action.arrayTargets)
 	if action.update != nil {
 		query(action.update.from)
@@ -68,17 +68,17 @@ func ruleProducerOutputUses(original binding, rule ruleDefinition, action bindin
 			expression(expr)
 		}
 	}
-	if action.conflict != nil {
-		expression(action.conflict.predicate)
-		for _, key := range action.conflict.keys {
+	if action.insert.conflict != nil {
+		expression(action.insert.conflict.predicate)
+		for _, key := range action.insert.conflict.keys {
 			expression(key.expression)
 		}
-		if action.conflict.update != nil {
-			expression(action.conflict.update.predicate)
-			for _, expr := range action.conflict.update.assignments {
+		if action.insert.conflict.update != nil {
+			expression(action.insert.conflict.update.predicate)
+			for _, expr := range action.insert.conflict.update.assignments {
 				expression(expr)
 			}
-			targets(action.conflict.update.arrayTargets)
+			targets(action.insert.conflict.update.arrayTargets)
 		}
 	}
 	return uses
@@ -299,7 +299,7 @@ func ruleQueryProducerDemand(root LogicalNode, external func(func(expr.Expr)), t
 // expressions into the same liveness pass, without inventing a project/provider
 // or moving their execution frontier into the source.
 func ruleMutationProducerDemand(b binding) (binding, error) {
-	root := b.deleteUsing
+	root := b.delete.using
 	if b.update != nil {
 		root = b.update.from
 	}
@@ -340,7 +340,7 @@ func ruleMutationProducerDemand(b binding) (binding, error) {
 			copy.from = mapped
 			b.update = &copy
 		} else {
-			b.deleteUsing = mapped
+			b.delete.using = mapped
 		}
 	}
 	return b, nil

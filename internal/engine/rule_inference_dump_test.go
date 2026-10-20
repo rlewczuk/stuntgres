@@ -82,10 +82,10 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 						}
 						b = *b.ctes[0].mutation
 					}
-					if b.conflict == nil || len(b.conflict.keys) != 1 {
+					if b.insert.conflict == nil || len(b.insert.conflict.keys) != 1 {
 						t.Fatal("analyzed modifier lost its inference key")
 					}
-					return b.conflict
+					return b.insert.conflict
 				}
 				original := conflict(stored)
 				assertKey := func(c *boundInsertConflict, catalog catalog.Read) {

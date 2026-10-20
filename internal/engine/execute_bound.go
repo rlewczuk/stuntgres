@@ -46,7 +46,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	}
 	scope.routineAuth = routineAuth
 	scope.routineDependencies = b.dependencies
-	if inserting || b.merge != nil || b.update != nil || b.query != nil || (deleting && (b.deleteUsing != nil || b.predicate != nil || b.returning != nil)) || len(b.defaults) != 0 {
+	if inserting || b.merge != nil || b.update != nil || b.query != nil || (deleting && (b.delete.using != nil || b.predicate != nil || b.returning != nil)) || len(b.insert.defaults) != 0 {
 		// Planning-owned conversions precede executor ACLs, without retaining
 		// Engine.mu or acquiring a data view. Analysis/namespace checks remain
 		// earlier, and only this execution's imported frame is materialized.
@@ -60,18 +60,18 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 				return Result{}, err
 			}
 		}
-		if b.conflict != nil {
-			if b.conflict.predicate != nil {
-				b.conflict.predicate, err = normalizeConflictPredicate(&evaluation, b.conflict.predicate)
+		if b.insert.conflict != nil {
+			if b.insert.conflict.predicate != nil {
+				b.insert.conflict.predicate, err = normalizeConflictPredicate(&evaluation, b.insert.conflict.predicate)
 				if err != nil {
 					return Result{}, err
 				}
 			}
-			if err := b.conflict.selectArbiters(&evaluation, b.physicalBinding().relation, auth.Catalog); err != nil {
+			if err := b.insert.conflict.selectArbiters(&evaluation, b.physicalBinding().relation, auth.Catalog); err != nil {
 				return Result{}, err
 			}
-			scope.insertConflict = b.conflict
-			if err := b.conflict.preflightUpdate(&evaluation); err != nil {
+			scope.insertConflict = b.insert.conflict
+			if err := b.insert.conflict.preflightUpdate(&evaluation); err != nil {
 				return Result{}, err
 			}
 		}
@@ -90,12 +90,12 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			for i, row := range b.expressions {
 				var privateRow []expr.Expr
 				for j, expression := range row {
-					if len(b.expressions) == 1 && len(b.identityDiscard) != 0 && b.identityDiscard[b.targets[j]] {
+					if len(b.expressions) == 1 && len(b.insert.identityDiscard) != 0 && b.insert.identityDiscard[b.targets[j]] {
 						continue
 					}
 					folded, changed, foldErr := preflightCoercions(&evaluation, expression)
 					if foldErr != nil {
-						return Result{}, insertValueError(auth.Catalog, foldErr, destination.Columns[destinationTargets[j]], b.insertRows[i][j], nil)
+						return Result{}, insertValueError(auth.Catalog, foldErr, destination.Columns[destinationTargets[j]], b.insert.rows[i][j], nil)
 					}
 					if changed {
 						if privateRow == nil {
@@ -138,10 +138,10 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 				err = validateQueryJoinExecution(&evaluation, queryRoot, auth.Catalog, 0)
 			}
 		} else if deleting {
-			if b.deleteUsing != nil {
-				b.deleteUsing, err = preflightQuery(&evaluation, b.deleteUsing)
+			if b.delete.using != nil {
+				b.delete.using, err = preflightQuery(&evaluation, b.delete.using)
 				if err == nil {
-					err = validateQueryJoinExecution(&evaluation, b.deleteUsing, auth.Catalog, 0)
+					err = validateQueryJoinExecution(&evaluation, b.delete.using, auth.Catalog, 0)
 				}
 			}
 			if err == nil && b.predicate != nil {
@@ -188,7 +188,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		// Demand immutable conversions even for an empty query source, while
 		// keeping the stored definition and any runtime-only producer unfolded.
 		var privateDefaults []expr.Expr
-		for i, expression := range b.defaults {
+		for i, expression := range b.insert.defaults {
 			if expression == nil {
 				continue
 			}
@@ -203,13 +203,13 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			}
 			if changed {
 				if privateDefaults == nil {
-					privateDefaults = append([]expr.Expr(nil), b.defaults...)
+					privateDefaults = append([]expr.Expr(nil), b.insert.defaults...)
 				}
 				privateDefaults[i] = folded
 			}
 		}
 		if privateDefaults != nil {
-			b.defaults = privateDefaults
+			b.insert.defaults = privateDefaults
 		}
 		e.mu.Lock()
 		if err = ctx.Err(); err != nil {
@@ -364,7 +364,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if b.regclassConcat && b.query == nil {
+	if b.prepared.regclassConcat && b.query == nil {
 		if err = e.captureCommentSnapshotLocked(scope); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
@@ -374,7 +374,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		operation, modifying := catalog.ForeignInsert, true
 		switch stmt.(type) {
 		case *parser.Insert:
-			if b.conflict != nil {
+			if b.insert.conflict != nil {
 				e.mu.Unlock()
 				return Result{}, sqlError("0A000", "ON CONFLICT on foreign tables is unsupported in embedded mode")
 			}
@@ -548,7 +548,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			if err := selectQuerySources(ctx, source); err != nil {
 				return Result{}, err
 			}
-			if b.viewWrite != nil || b.ruleTemplate {
+			if b.viewWrite != nil || b.rule.template {
 				source = freezeViewWriteSources(scope, source, b.querySources)
 			}
 			b.query = &BoundQuery{Root: queryRoot}
@@ -586,16 +586,16 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			if err := selectQuerySources(ctx, evaluation.query.source); err != nil {
 				return Result{}, err
 			}
-			if b.viewWrite != nil || b.ruleTemplate {
+			if b.viewWrite != nil || b.rule.template {
 				evaluation.query.source = freezeViewWriteSources(scope, evaluation.query.source, b.querySources)
 			}
 			defer evaluation.query.source.close()
 		}
 		var rows indexWriteBatch
 		if scope.insertReturning == nil {
-			rows.values = make([][]sqltype.Value, 0, len(b.insertRows))
+			rows.values = make([][]sqltype.Value, 0, len(b.insert.rows))
 		}
-		for i, source := range b.insertRows {
+		for i, source := range b.insert.rows {
 			if err = ctx.Err(); err != nil {
 				return Result{}, err
 			}
@@ -603,8 +603,8 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			for j, c := range b.relation.Columns {
 				row[j] = sqltype.Null(c.Usage.Type)
 			}
-			if len(b.insertProjection) != 0 {
-				if err = evaluateInsertValuesRow(auth.Catalog, &b, expressions[i], source, row, len(b.insertRows) > 1, &evaluation); err != nil {
+			if len(b.insert.projection) != 0 {
+				if err = evaluateInsertValuesRow(auth.Catalog, &b, expressions[i], source, row, len(b.insert.rows) > 1, &evaluation); err != nil {
 					return Result{}, err
 				}
 				schema := auth.Catalog.Get(b.relation.Namespace()).Name()
@@ -624,14 +624,14 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 				}
 				continue
 			}
-			if len(b.defaults) != 0 {
+			if len(b.insert.defaults) != 0 {
 				supplied := b.expressions[i]
 				for j, target := range b.targets {
 					if j < len(supplied) && supplied[j] != nil && (len(b.arrayTargets) == 0 || b.arrayTargets[j] == nil) {
 						row[target] = sqltype.Value{}
 					}
 				}
-				for j, expression := range b.defaults {
+				for j, expression := range b.insert.defaults {
 					if expression != nil && row[j].Type() != nil {
 						row[j], err = b.evalDefault(&evaluation, j, expression)
 						if err != nil {
@@ -704,7 +704,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			view, viewErr = scope.acquireDataViewLocked(e, b.ref)
 		}
 		var inputs *querySource
-		if viewErr == nil && (b.deleteUsing != nil || b.subqueryDemand) {
+		if viewErr == nil && (b.delete.using != nil || b.subqueryDemand) {
 			inputs, viewErr = e.captureQuerySourcesLocked(scope, b.querySources, false)
 		} else if viewErr == nil && b.returning != nil {
 			viewErr = e.captureCommentSnapshotLocked(scope)
@@ -742,7 +742,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		if err := selectQuerySources(ctx, source); err != nil {
 			return Result{}, err
 		}
-		if b.ruleTemplate {
+		if b.rule.template {
 			source = freezeViewWriteSources(scope, source, b.querySources)
 		}
 		if scope.protocolBind != nil {

@@ -42,7 +42,7 @@ func TestBetweenMixedTemporalCaptureIdentity(t *testing.T) {
 			e.mu.Unlock()
 			t.Fatal("mixed temporal dependencies changed", bound.querySources, bound.parameters)
 		}
-		desc := StatementDescription{temporals: bound.temporals}
+		desc := StatementDescription{temporals: bound.prepared.temporals}
 		before := append([]temporalConstant(nil), desc.temporals...)
 		counts := map[sqltype.ID]int{}
 		for _, capture := range before {
@@ -75,9 +75,9 @@ func TestBetweenMixedTemporalCaptureIdentity(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal("rebind dependencies changed")
 			}
-			if !reflect.DeepEqual(desc.temporals, before) || len(rebound.temporals) != 0 {
+			if !reflect.DeepEqual(desc.temporals, before) || len(rebound.prepared.temporals) != 0 {
 				e.mu.Unlock()
-				t.Fatal("frozen captures replaced", desc.temporals, rebound.temporals)
+				t.Fatal("frozen captures replaced", desc.temporals, rebound.prepared.temporals)
 			}
 		}
 		e.mu.Unlock()

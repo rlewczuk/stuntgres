@@ -94,8 +94,8 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 			}
 			add(items)
 		}
-		if b.deleteUsing != nil {
-			items, err := pgDependQueryRefs(ctx, catalog, nil, &BoundQuery{Root: b.deleteUsing})
+		if b.delete.using != nil {
+			items, err := pgDependQueryRefs(ctx, catalog, nil, &BoundQuery{Root: b.delete.using})
 			if err != nil {
 				return err
 			}
@@ -108,19 +108,19 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 				}
 			}
 		}
-		if b.conflict != nil {
-			if b.conflict.constraint != (ids.ObjectAddress{}) {
-				add([]ids.ObjectAddress{b.conflict.constraint})
+		if b.insert.conflict != nil {
+			if b.insert.conflict.constraint != (ids.ObjectAddress{}) {
+				add([]ids.ObjectAddress{b.insert.conflict.constraint})
 			}
-			for _, key := range b.conflict.keys {
+			for _, key := range b.insert.conflict.keys {
 				if err := expr(key.expression); err != nil {
 					return err
 				}
 			}
-			if err := expr(b.conflict.predicate); err != nil {
+			if err := expr(b.insert.conflict.predicate); err != nil {
 				return err
 			}
-			if b.conflict.update != nil {
+			if b.insert.conflict.update != nil {
 				// PostgreSQL's EXCLUDED targetlist captures every live attribute
 				// at definition time, independently of executable ACL read demand.
 				for _, attribute := range b.relation.Attributes {
@@ -128,18 +128,18 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 					a.SubID = attribute
 					add([]ids.ObjectAddress{a})
 				}
-				if err := targets(b.conflict.update.arrayTargets); err != nil {
+				if err := targets(b.insert.conflict.update.arrayTargets); err != nil {
 					return err
 				}
-				for i, value := range b.conflict.update.assignments {
+				for i, value := range b.insert.conflict.update.assignments {
 					if err := expr(value); err != nil {
 						return err
 					}
 					a := b.ref.Address
-					a.SubID = b.relation.Attributes[b.conflict.updateTargets[i]]
+					a.SubID = b.relation.Attributes[b.insert.conflict.updateTargets[i]]
 					add([]ids.ObjectAddress{a})
 				}
-				if err := expr(b.conflict.update.predicate); err != nil {
+				if err := expr(b.insert.conflict.update.predicate); err != nil {
 					return err
 				}
 			}

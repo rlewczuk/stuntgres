@@ -129,14 +129,14 @@ func TestDefaultBoundOwnershipTemporalInputAndNoEvaluation(t *testing.T) {
 	b, err := e.describe(op.ctx, statement(t, `CREATE TABLE d(i INT DEFAULT 2147483648,t TIMESTAMP DEFAULT 'now',v TIME DEFAULT 'now')`), auth, ids.ObjectRef{}, sqltype.InputEnvironment{TransactionStart: a}, op, nil, nil)
 	var defaults map[int32]catalog.ColumnDefault
 	if err == nil {
-		defaults, err = bindCreateDefaults(newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{TransactionStart: a}, op, nil), b.createColumns, b.createDeclarations)
+		defaults, err = bindCreateDefaults(newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{TransactionStart: a}, op, nil), b.create.columns, b.create.declarations)
 	}
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal("CREATE evaluated deferred narrowing", err)
 	}
 	for i, d := range defaults {
-		if d.Expression.ResultUsage() != b.createColumns[i-1].Usage || d.Expression.Properties() != (expr.Properties{}) {
+		if d.Expression.ResultUsage() != b.create.columns[i-1].Usage || d.Expression.Properties() != (expr.Properties{}) {
 			t.Fatal(d)
 		}
 	}

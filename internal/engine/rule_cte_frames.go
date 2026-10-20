@@ -28,13 +28,13 @@ func isolateRuleCTEFrames(view catalog.Read, original, action binding, syntax pa
 			visit(&projectNode{expressions: []expr.Expr{action.update.predicate}})
 		}
 	}
-	visit(action.deleteUsing)
+	visit(action.delete.using)
 	for _, row := range action.expressions {
 		for _, bound := range row {
 			visit(&projectNode{expressions: []expr.Expr{bound}})
 		}
 	}
-	for _, bound := range action.defaults {
+	for _, bound := range action.insert.defaults {
 		visit(&projectNode{expressions: []expr.Expr{bound}})
 	}
 	if action.returning != nil {
@@ -43,12 +43,12 @@ func isolateRuleCTEFrames(view catalog.Read, original, action binding, syntax pa
 	if action.predicate != nil {
 		visit(&projectNode{expressions: []expr.Expr{action.predicate}})
 	}
-	if action.conflict != nil {
-		if action.conflict.predicate != nil {
-			visit(&projectNode{expressions: []expr.Expr{action.conflict.predicate}})
+	if action.insert.conflict != nil {
+		if action.insert.conflict.predicate != nil {
+			visit(&projectNode{expressions: []expr.Expr{action.insert.conflict.predicate}})
 		}
-		if action.conflict.update != nil {
-			visit(&projectNode{expressions: action.conflict.update.assignments})
+		if action.insert.conflict.update != nil {
+			visit(&projectNode{expressions: action.insert.conflict.update.assignments})
 		}
 	}
 	if !local {

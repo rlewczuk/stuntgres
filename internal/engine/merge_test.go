@@ -22,7 +22,7 @@ func TestMergeInsertBinding(t *testing.T) {
 		t.Fatal("authority manifests", b.targets, b.usedColumns, b.merge)
 	}
 	first, second := &b.merge.arms[0].input, &b.merge.arms[1].input
-	if !reflect.DeepEqual(first.targets, []int{1, 0}) || !reflect.DeepEqual(second.targets, []int{0}) || first.defaults != nil || len(second.defaults) != 3 || second.defaults[1] == nil {
+	if !reflect.DeepEqual(first.targets, []int{1, 0}) || !reflect.DeepEqual(second.targets, []int{0}) || first.insert.defaults != nil || len(second.insert.defaults) != 3 || second.insert.defaults[1] == nil {
 		t.Fatal("independent arm schedules", first, second)
 	}
 	data := target.view.Data()
@@ -155,7 +155,7 @@ func TestMergeInsertCancellation(t *testing.T) {
 			case "assignment":
 				b.merge.arms[0].input.expressions[0][0] = wrap(b.merge.arms[0].input.expressions[0][0])
 			case "default":
-				b.merge.arms[0].input.defaults[1] = wrap(b.merge.arms[0].input.defaults[1])
+				b.merge.arms[0].input.insert.defaults[1] = wrap(b.merge.arms[0].input.insert.defaults[1])
 			}
 			var result Result
 			var err error

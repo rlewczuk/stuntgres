@@ -58,7 +58,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 		if err := e.bindInsertSource(b, binder, auth, s); err != nil {
 			return err
 		}
-		return binder.captureRetainedWriteInput(b.defaults, nil, nil)
+		return binder.captureRetainedWriteInput(b.insert.defaults, nil, nil)
 	}
 	binder.aggregateClause = "INSERT VALUES"
 	binder.stringSingleInsert = len(s.Rows) == 1 && !binder.mergeInput
@@ -70,7 +70,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 		binder.regexpClause = "VALUES"
 	}
 	b.expressions = make([][]expr.Expr, len(s.Rows))
-	b.insertRows = s.Rows
+	b.insert.rows = s.Rows
 	width := -1
 	rowsExpanded := false
 	for rowIndex, written := range s.Rows {
@@ -85,10 +85,10 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 		row, expanded := list.raw, list.nodes
 		if len(list.expansions) != 0 {
 			if !rowsExpanded {
-				b.insertRows = append([][]parser.Expr(nil), s.Rows...)
+				b.insert.rows = append([][]parser.Expr(nil), s.Rows...)
 				rowsExpanded = true
 			}
-			b.insertRows[rowIndex] = row
+			b.insert.rows[rowIndex] = row
 		}
 		if width < 0 {
 			width = len(row)
@@ -208,25 +208,25 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 			b.expressions[rowIndex][j] = plan
 		}
 	}
-	if len(b.defaults) != 0 {
+	if len(b.insert.defaults) != 0 {
 		remaining := 0
-		for _, expression := range b.defaults {
+		for _, expression := range b.insert.defaults {
 			if expression != nil {
 				remaining++
 			}
 		}
 		for j, target := range b.targets {
 			if len(b.arrayTargets) != 0 && b.arrayTargets[j] != nil {
-				if b.defaults[target] != nil {
-					b.defaults[target] = nil
+				if b.insert.defaults[target] != nil {
+					b.insert.defaults[target] = nil
 					remaining--
 				}
 				continue
 			}
-			if len(b.identityDiscard) != 0 && b.identityDiscard[target] {
+			if len(b.insert.identityDiscard) != 0 && b.insert.identityDiscard[target] {
 				continue
 			}
-			if b.defaults[target] == nil {
+			if b.insert.defaults[target] == nil {
 				continue
 			}
 			consumed := false
@@ -237,12 +237,12 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 				}
 			}
 			if !consumed {
-				b.defaults[target] = nil
+				b.insert.defaults[target] = nil
 				remaining--
 			}
 		}
 		if remaining == 0 {
-			b.defaults = nil
+			b.insert.defaults = nil
 		}
 	}
 	if binder.stringSingleInsert {
@@ -250,16 +250,16 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 			return err
 		}
 	}
-	if len(b.relation.ColumnMeta.Identities) != 0 || domainScheduling && len(b.defaults) != 0 {
-		b.insertProjection = make([]int, len(b.relation.Columns))
-		for i := range b.insertProjection {
-			b.insertProjection[i] = -1
+	if len(b.relation.ColumnMeta.Identities) != 0 || domainScheduling && len(b.insert.defaults) != 0 {
+		b.insert.projection = make([]int, len(b.relation.Columns))
+		for i := range b.insert.projection {
+			b.insert.projection[i] = -1
 		}
 		for i, target := range b.targets {
-			b.insertProjection[target] = i
+			b.insert.projection[target] = i
 		}
 	}
-	return binder.captureRetainedWriteInput(b.defaults, nil, nil)
+	return binder.captureRetainedWriteInput(b.insert.defaults, nil, nil)
 }
 
 // INSERT, COPY and foreign actions share catalog-owned default/identity plans.
@@ -275,24 +275,24 @@ func (e *Engine) bindInsertDefaults(b *binding, auth AuthorizationView, override
 	if len(b.relation.ColumnMeta.Defaults) == 0 && len(b.relation.ColumnMeta.Identities) == 0 && !hasDomains && !hasTypeDefaults {
 		return hasDomainInput
 	}
-	b.defaults = make([]expr.Expr, len(b.relation.Columns))
+	b.insert.defaults = make([]expr.Expr, len(b.relation.Columns))
 	if hasTypeDefaults {
-		b.defaultOrigins = make([]defaultOrigin, len(b.relation.Columns))
+		b.insert.defaultOrigins = make([]defaultOrigin, len(b.relation.Columns))
 	}
 	for i, attribute := range b.relation.Attributes {
 		node, origin := columnDefault(auth.Catalog, b.relation, i)
-		b.defaults[i] = node
-		if b.defaultOrigins != nil {
-			b.defaultOrigins[i] = origin
+		b.insert.defaults[i] = node
+		if b.insert.defaultOrigins != nil {
+			b.insert.defaultOrigins[i] = origin
 		}
 		if identity, ok := b.relation.ColumnMeta.Identities[attribute]; ok {
-			b.defaults[i] = functions.SequenceCall{Info: expr.Info{Usage: b.relation.Columns[i].Usage, Property: expr.Properties{Volatility: expr.Volatile}}, Name: "nextval", Ref: e.catalog.Domain.Ref(auth.Catalog.Epoch(), identity.Sequence), Identity: true}
+			b.insert.defaults[i] = functions.SequenceCall{Info: expr.Info{Usage: b.relation.Columns[i].Usage, Property: expr.Properties{Volatility: expr.Volatile}}, Name: "nextval", Ref: e.catalog.Domain.Ref(auth.Catalog.Epoch(), identity.Sequence), Identity: true}
 		}
 	}
 	if override == parser.OverrideUser {
-		b.identityDiscard = make([]bool, len(b.relation.Columns))
+		b.insert.identityDiscard = make([]bool, len(b.relation.Columns))
 		for i, attribute := range b.relation.Attributes {
-			_, b.identityDiscard[i] = b.relation.ColumnMeta.Identities[attribute]
+			_, b.insert.identityDiscard[i] = b.relation.ColumnMeta.Identities[attribute]
 		}
 	}
 	return hasDomainInput || hasTypeDefaults

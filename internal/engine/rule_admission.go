@@ -17,7 +17,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 	expanded := false
 	for i := 0; i < len(commands); i++ {
 		for _, definition := range commands[i].binding.ctes {
-			rewrite := commands[i].binding.ruleCTEs[definition]
+			rewrite := commands[i].binding.rule.ctes[definition]
 			if rewrite == nil || seen[definition] {
 				continue
 			}
