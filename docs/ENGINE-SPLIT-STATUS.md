@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `d27607c9cce42cb3e8ba71e3776d1d42044fb7ab`. The later-wave plans
+Last verified against `master` at `35fa4bd9436cecbd4e8a53d77f6632a80471447b`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -19,8 +19,8 @@ as another broad item (§8).
   moved to `functions`.
 - **Step 9 `pgcatalog`** — 9c alias removal (item 18).
 - **Step 10 `plan`** — 10b node runtime (item 32).
-- **In-place untangling** — 12b binder field groups (item 21) and 13a
-  scope slots (item 22). Both are broad: one at a time.
+- **In-place untangling** — 13a scope slots (item 22; broad). 12b is done;
+  12c (item 39) still needs 10c (item 33).
 - **Step 15 `typedef`** — 15a (item 26); `routine` 14b is done.
 
 Steps 1, 2 and 4–8 and `access` are done.
@@ -257,7 +257,9 @@ Steps 1, 2 and 4–8 and `access` are done.
 - [ ] **Step 12 — `analyze`** ([prompt](ENGINE-SPLIT-analyze.md); 12a–12b
   need —; 12c needs 10c; 12d needs 11c)
   - [x] 12a — `binding` split per statement kind *(broad)* (`50c0912f5`)
-  - [ ] 12b — `expressionBinder` fields grouped *(broad)*
+  - [x] 12b — `expressionBinder` fields grouped *(broad)* (`b1dc47647`,
+    `7b8cd2e23`, `449bd93c3`, `807bccc88`, `fdd30aa67`, then the docs commit)
+    *(racecheck/finalcheck skipped at user request)*
   - [ ] 12c — Refined; host seam in place
   - [ ] 12d — `analyze` created and binding moved (several sessions)
     *(broad)*
@@ -394,8 +396,11 @@ in the prompt file's Status section.
 20. [x] Analyze 12a: `binding` split — [analyze](ENGINE-SPLIT-analyze.md)
     12a · needs — · **broad** (`50c0912f5`) · selected dual-mode proof and
     quickcheck passed; racecheck/finalcheck skipped at user request
-21. [ ] Analyze 12b: binder field groups —
-    [analyze](ENGINE-SPLIT-analyze.md) 12b · needs 20 · **broad**
+21. [x] Analyze 12b: binder field groups —
+    [analyze](ENGINE-SPLIT-analyze.md) 12b · needs 20 · **broad** (`b1dc47647`,
+    `7b8cd2e23`, `449bd93c3`, `807bccc88`, `fdd30aa67`, then the docs commit)
+    · selected dual-mode proof and quickcheck passed; racecheck/finalcheck
+    skipped at user request
 22. [ ] Session 13a: scope slots — [session](ENGINE-SPLIT-session.md) 13a ·
     needs — · **broad**
 23. [ ] Session 13b: operation, journal, stage and owner slots —

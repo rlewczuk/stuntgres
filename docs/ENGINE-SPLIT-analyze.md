@@ -185,6 +185,54 @@ live in `binding_groups.go`; `newResolverInputs` captures the resolvers.
    only when it removes the binder from the signature; record each move.
 4. The `functions.Binder` methods stay on `*expressionBinder`.
 
+**Result (done).** Ten value groups, declared in `binder_groups.go` (the
+two shared 12a types stay in `binding_groups.go`). Group fields drop only a
+leading group-name prefix (`targetName` → `target.name`, `queryNamespace` →
+`query.namespace`, `cteBindings` → `cte.bindings`, `groupingActive` →
+`grouping.active`, the 12a names for `capture`); all other names are kept.
+
+- Top level (6): `engine`, `ctx`, `op`, `expected`, `input` (host and
+  statement inputs until 12c) and `dependencies`. `dependencies` does not
+  travel with the prepared captures (`binding` keeps it in its header and
+  25+ readers outside describe use it), so `preparedCaptures` stays the
+  exact 12a type.
+- `target targetContext` (14): relation, ref, insert/delete/merge target
+  flags, rule namespace, generated owner, name/alias, RETURNING aliases and
+  `uses`, which is saved and restored with name/alias.
+- `params parameterState` (8), `consumer consumerContext` (12, including the
+  `visibilitySnapshot`/`catalogSnapshot` demands).
+- `capture viewCapture` and `prepared preparedCaptures`: the 12a types, so
+  `describeWithFormals` copies `binder.capture` and `binder.prepared` whole.
+  The policy expression capture listed all 11 `viewCapture` fields and now
+  copies the group too; the `rule_definition.go` capture and the policy
+  `prepared` copy are real subsets and stay field lists.
+- `stored storedSyntaxState` (5, binder-only): `checkLiterals`,
+  `storedExpressionSyntax` → `syntax` and the three view occurrence counters.
+  Deviation from step 1: they are not in `capture`, which would have made
+  `binding.capture` carry them.
+- `clause clauseState` (15, with the five `selected*` call slots added since
+  the inventory), `grouping groupingState` (8; `groupSubquery` is here, not
+  in query scope, because only aggregate and grouping-set binding uses it),
+  `query queryScopeState` (14), `cte cteState` (8).
+
+A type-checked tool rewrote 2,263 selectors and 17 composite literals in
+256 files (96 production, 160 test). Per-field use totals are identical before
+and after except the 27 field copies that became whole-group copies (11
+capture fields in describe and in the policy capture, 5 prepared fields in
+describe).
+
+Method moves (step 3), each touching one group and nothing else of the
+binder: `captureComposite` → `preparedCaptures`; `captureViewComposite`,
+`captureRoutineReference` → `viewCapture`; `noteFunctionSignature` →
+`clauseState`; `partitionContextPlural`, `partitionExpressionError` →
+`consumerContext`; `outerQualifiers`, `freezeViewColumns`,
+`partialIndexCandidate` → `queryScopeState`; `returningPseudo` →
+`targetContext`. `frameID` also qualifies but stays on the binder (129
+callers). `queryAliasVisible`, `queryQualifierNeedsLateral`,
+`wholeRowPresence` and `outerReturningScope` also touch only `query`; they
+can move with 12d's query area. No window definition lookup qualified: they
+all read other groups too.
+
 ### 12c — Refine, then host seam
 
 1. **Refine (docs only, first commit of the session):** after 10c and 11c,
@@ -292,7 +340,14 @@ in §8.3 pass.
   tests in quick and real 18.6 modes, and quickcheck passed; racecheck and
   finalcheck skipped at user request. Startup bench unchanged (5,100
   allocs/op).
-- [ ] 12b — `expressionBinder` fields grouped
+- [x] 12b — `expressionBinder` fields grouped (`b1dc47647`, `7b8cd2e23`,
+  `449bd93c3`, `807bccc88`, `fdd30aa67`, then the docs commit). No tests
+  moved or deleted; 160 engine test files adapted mechanically by the tool.
+  Targeted engine units, the selected reference tests in quick and real 18.6
+  modes (only the known `/postgres` oracle drift in DELETE RETURNING
+  boundaries and MERGE repeatable read failed, as on `master`) and
+  quickcheck passed; racecheck and finalcheck skipped at user request.
+  Startup bench unchanged (5,100 allocs/op).
 - [ ] 12c — Refined; host seam in place
 - [ ] 12d — `analyze` created and binding moved (sessions: binding types,
   expression core, query/FROM/CTE, aggregates/windows, DML targets)
@@ -302,15 +357,13 @@ Outstanding aliases: none yet.
 
 Notes for later steps:
 
-- 12b: the binder's `view*` maps, `viewNamespaces`, `temporals`,
-  `composites`, `sequenceConstants`, `regclassConcat` and `regtypeConstants`
-  map onto `viewCapture` and `preparedCaptures` with the 12a names
-  (`viewLiterals` → `literals`, ...). Once the binder holds the groups,
-  `describeWithFormals` copies `binder.capture` and `binder.prepared`
-  directly, and the subset copies in `rule_definition.go` and
-  `policy_expression.go` stay subsets (copying full groups could change
-  deparse). Item 19's literal tool plus this step's `bindsplit` (selector and
-  literal regrouping by field object) are the model for the rewrite.
+- 12c: the host seam replaces only `engine` and `op`; `ctx`, `expected`,
+  `input` and `dependencies` stay as statement inputs and output. The
+  groups need no host: no group type holds `*Engine` or `*Operation`.
+- 12d: `binder_groups.go` and `binding_groups.go` move together in the first
+  session (binding types). The `binderfields` tool (12b) and `bindsplit`
+  (12a) rewrite selectors and literals by field object and are the model for
+  export renames.
 
 - `access` B5 moves the binding walkers once 12d has moved `binding`.
 - Step 15 (`typedef`): the composite, enum and range binders move here, not
