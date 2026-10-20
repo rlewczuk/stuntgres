@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/plan"
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
@@ -29,7 +30,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	n := node.(installedUUIDOsspFunctionExpression)
+	n := node.(plan.InstalledUUIDOsspExpr)
 	if carrier, err := routine.ExpressionRoutineDescriptor(n); err != nil || carrier != n.Procedure {
 		t.Fatal("missing common original routine carrier", carrier, err)
 	}
@@ -64,7 +65,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := validateInstalledUUIDOssp(retagged.(installedUUIDOsspFunctionExpression), view); err != nil {
+	if err := validateInstalledUUIDOssp(retagged.(plan.InstalledUUIDOsspExpr), view); err != nil {
 		t.Fatal(err)
 	}
 	rendered, err := (scalarRenderer{}).sql(context.Background(), view, retagged)
@@ -75,7 +76,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m := mapped.(installedUUIDOsspFunctionExpression)
+	m := mapped.(plan.InstalledUUIDOsspExpr)
 	if m.Ref.Epoch != n.Ref.Epoch+1 || m.Procedure != n.Procedure || m.Name != "uuidv4" || plannedVolatility(m) != expr.Volatile {
 		t.Fatal("remap lost captured provider", m)
 	}
@@ -83,20 +84,20 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	if extension.UUIDOsspProviderOf(proc) != extension.StockUUIDOssp || proc.Signature != "" || proc.Result != 2950 || proc.Address() == n.Procedure.Address() {
 		t.Fatal(proc)
 	}
-	for _, mutate := range []func(*installedUUIDOsspFunctionExpression){
-		func(x *installedUUIDOsspFunctionExpression) { x.Name = "gen_random_uuid" },
-		func(x *installedUUIDOsspFunctionExpression) { x.RoutineReference = nil },
-		func(x *installedUUIDOsspFunctionExpression) {
+	for _, mutate := range []func(*plan.InstalledUUIDOsspExpr){
+		func(x *plan.InstalledUUIDOsspExpr) { x.Name = "gen_random_uuid" },
+		func(x *plan.InstalledUUIDOsspExpr) { x.RoutineReference = nil },
+		func(x *plan.InstalledUUIDOsspExpr) {
 			x.RoutineReference = view.MustProcedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 3432})
 		},
-		func(x *installedUUIDOsspFunctionExpression) { x.Ref.Epoch = 0 },
-		func(x *installedUUIDOsspFunctionExpression) { copy := *x.Procedure; x.Procedure = &copy },
-		func(x *installedUUIDOsspFunctionExpression) { x.Property.Volatility = expr.Immutable },
-		func(x *installedUUIDOsspFunctionExpression) { x.Property.RowDependent = true },
-		func(x *installedUUIDOsspFunctionExpression) { x.Property.ParameterDependent = true },
-		func(x *installedUUIDOsspFunctionExpression) { x.Property.DomainDependent = true },
-		func(x *installedUUIDOsspFunctionExpression) { x.Property.RuntimeDomainConversion = true },
-		func(x *installedUUIDOsspFunctionExpression) { x.Timestamp = x.Usage.Type },
+		func(x *plan.InstalledUUIDOsspExpr) { x.Ref.Epoch = 0 },
+		func(x *plan.InstalledUUIDOsspExpr) { copy := *x.Procedure; x.Procedure = &copy },
+		func(x *plan.InstalledUUIDOsspExpr) { x.Property.Volatility = expr.Immutable },
+		func(x *plan.InstalledUUIDOsspExpr) { x.Property.RowDependent = true },
+		func(x *plan.InstalledUUIDOsspExpr) { x.Property.ParameterDependent = true },
+		func(x *plan.InstalledUUIDOsspExpr) { x.Property.DomainDependent = true },
+		func(x *plan.InstalledUUIDOsspExpr) { x.Property.RuntimeDomainConversion = true },
+		func(x *plan.InstalledUUIDOsspExpr) { x.Timestamp = x.Usage.Type },
 	} {
 		bad := n
 		mutate(&bad)
@@ -158,8 +159,8 @@ func TestUUIDOsspGroupedExpressionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal("actual grouping rewrite", err)
 	}
-	n := grouped.(installedUUIDOsspFunctionExpression)
-	if !n.Properties().StageDependent || n.Properties().Volatility != expr.Volatile || n.Procedure != node.(installedUUIDOsspFunctionExpression).Procedure {
+	n := grouped.(plan.InstalledUUIDOsspExpr)
+	if !n.Properties().StageDependent || n.Properties().Volatility != expr.Volatile || n.Procedure != node.(plan.InstalledUUIDOsspExpr).Procedure {
 		t.Fatal("grouping lost staged volatility/installed identity", n)
 	}
 	if closedUUIDDefault(grouped) {
@@ -168,12 +169,12 @@ func TestUUIDOsspGroupedExpressionIdentity(t *testing.T) {
 	if err := validateInstalledUUIDOssp(n, view); err != nil {
 		t.Fatal("legitimate grouped installed identity rejected", err)
 	}
-	for _, mutate := range []func(*installedUUIDOsspFunctionExpression){
-		func(x *installedUUIDOsspFunctionExpression) { x.Property.RowDependent = true },
-		func(x *installedUUIDOsspFunctionExpression) { x.Property.ParameterDependent = true },
-		func(x *installedUUIDOsspFunctionExpression) { x.Property.DomainDependent = true },
-		func(x *installedUUIDOsspFunctionExpression) { x.Property.RuntimeDomainConversion = true },
-		func(x *installedUUIDOsspFunctionExpression) { x.Property.Volatility = expr.Stable },
+	for _, mutate := range []func(*plan.InstalledUUIDOsspExpr){
+		func(x *plan.InstalledUUIDOsspExpr) { x.Property.RowDependent = true },
+		func(x *plan.InstalledUUIDOsspExpr) { x.Property.ParameterDependent = true },
+		func(x *plan.InstalledUUIDOsspExpr) { x.Property.DomainDependent = true },
+		func(x *plan.InstalledUUIDOsspExpr) { x.Property.RuntimeDomainConversion = true },
+		func(x *plan.InstalledUUIDOsspExpr) { x.Property.Volatility = expr.Stable },
 	} {
 		bad := n
 		mutate(&bad)
@@ -193,7 +194,7 @@ func TestUUIDOsspGroupedExpressionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal("retagging remapped grouped leaf", err)
 	}
-	got := rebound.(installedUUIDOsspFunctionExpression)
+	got := rebound.(plan.InstalledUUIDOsspExpr)
 	if got.Ref != n.Ref || got.Procedure != n.Procedure || !got.Properties().StageDependent || plannedVolatility(got) != expr.Volatile || closedUUIDDefault(got) {
 		t.Fatal("grouped remap lost identity/stage or relaxed DEFAULT", got)
 	}
@@ -220,7 +221,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		result.Rows.Close()
 	}
 	node, binder, evaluation := strictNullUnitBind(t, e, op, scope, "uuid_generate_v4()")
-	n := node.(installedUUIDOsspFunctionExpression)
+	n := node.(plan.InstalledUUIDOsspExpr)
 	captured, err := routine.ExpressionRoutineDescriptor(node)
 	if err != nil || captured != n.Procedure || captured.Address() != ext.Members[0] || captured.RoutineKind != catalog.FunctionRoutine || captured.Result != 2950 || captured.Signature != "" || !captured.Strict || captured.Volatility != expr.Volatile || len(captured.Body) != 0 || n.Ref.Domain() != e.catalog.Domain {
 		t.Fatal("genuine zero-arity original declaration", captured, err)
@@ -342,7 +343,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		t.Fatal("retag must resolve selected remapped address", err)
 	}
 	current, err := routine.ExpressionRoutineDescriptor(relocated)
-	if err != nil || current != state.Get(mapping[n.Ref.Address]) || !validInstalledUUIDOsspShape(relocated.(installedUUIDOsspFunctionExpression)) {
+	if err != nil || current != state.Get(mapping[n.Ref.Address]) || !validInstalledUUIDOsspShape(relocated.(plan.InstalledUUIDOsspExpr)) {
 		t.Fatal("remapped common and installed carriers diverged", err)
 	}
 	auth := catalogAuthorization(e, view)

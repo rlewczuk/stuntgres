@@ -86,17 +86,17 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			switch installed := node.(type) {
 			case plan.SQLRoutineExpr:
 				address = installed.Ref.Address
-			case installedFunctionExpression:
+			case plan.InstalledTextExpr:
 				address = installed.Ref.Address
-			case installedCryptoFunctionExpression:
+			case plan.InstalledCryptoExpr:
 				address = installed.Ref.Address
-			case installedUUIDOsspFunctionExpression:
+			case plan.InstalledUUIDOsspExpr:
 				address = installed.Ref.Address
-			case installedMetaphoneFunctionExpression:
+			case plan.InstalledMetaphoneExpr:
 				address = installed.Ref.Address
-			case installedLevenshteinFunctionExpression:
+			case plan.InstalledLevenshteinExpr:
 				address = installed.Ref.Address
-			case installedSoundexFunctionExpression:
+			case plan.InstalledSoundexExpr:
 				address = installed.Ref.Address
 			case plan.UnnestExpr:
 				if installed.Procedure != nil {
@@ -212,7 +212,7 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			}
 		}
 		rebound = n
-	case installedSoundexFunctionExpression:
+	case plan.InstalledSoundexExpr:
 		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
@@ -229,7 +229,7 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			err = validateInstalledSoundex(n, view)
 		}
 		rebound = n
-	case installedMetaphoneFunctionExpression:
+	case plan.InstalledMetaphoneExpr:
 		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
@@ -246,7 +246,7 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			err = validateInstalledMetaphone(n, view)
 		}
 		rebound = n
-	case installedLevenshteinFunctionExpression:
+	case plan.InstalledLevenshteinExpr:
 		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
@@ -263,7 +263,7 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			err = validateInstalledLevenshtein(n, view)
 		}
 		rebound = n
-	case installedUUIDOsspFunctionExpression:
+	case plan.InstalledUUIDOsspExpr:
 		descriptor, _ := definitionDescriptorAt(view, reader, n.Ref.Address)
 		proc, ok := descriptor.(*catalog.Procedure)
 		if !ok || extension.UUIDOsspProviderOf(proc) != extension.StockUUIDOssp {
@@ -274,7 +274,7 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 		n.Info = info
 		err = validateInstalledUUIDOssp(n, view)
 		rebound = n
-	case installedCryptoFunctionExpression:
+	case plan.InstalledCryptoExpr:
 		n.Args = children(n.Args)
 		if err != nil {
 			return node, false, err
@@ -291,7 +291,7 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 			err = validateInstalledCrypto(n, view)
 		}
 		rebound = n
-	case installedFunctionExpression:
+	case plan.InstalledTextExpr:
 		n.Arg = child(n.Arg)
 		descriptor, _ := definitionDescriptorAt(view, reader, n.Ref.Address)
 		proc, ok := descriptor.(*catalog.Procedure)
@@ -561,7 +561,7 @@ func mapBoundExpressionReader(view catalog.Read, reader definitionReader, node e
 	case plan.CachedOrderExpr:
 		n.Info = info
 		rebound = n
-	case extensionPathsExpression:
+	case plan.ExtensionPathsExpr:
 		n.Arg = child(n.Arg)
 		if err != nil {
 			return node, false, err

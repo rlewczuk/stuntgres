@@ -738,19 +738,19 @@ func joinExpressionSides(node expr.Expr, leftWidth, rightWidth int) (uint8, erro
 		children = []expr.Expr{e.Child}
 	case plan.ConditionalExpr:
 		children = e.Args
-	case extensionPathsExpression:
+	case plan.ExtensionPathsExpr:
 		return joinExpressionSides(e.Arg, leftWidth, rightWidth)
-	case installedSoundexFunctionExpression:
+	case plan.InstalledSoundexExpr:
 		children = e.Args
-	case installedMetaphoneFunctionExpression:
+	case plan.InstalledMetaphoneExpr:
 		children = e.Args
-	case installedLevenshteinFunctionExpression:
+	case plan.InstalledLevenshteinExpr:
 		children = e.Args
-	case installedUUIDOsspFunctionExpression:
+	case plan.InstalledUUIDOsspExpr:
 		// No argument children.
-	case installedCryptoFunctionExpression:
+	case plan.InstalledCryptoExpr:
 		children = e.Args
-	case installedFunctionExpression:
+	case plan.InstalledTextExpr:
 		children = []expr.Expr{e.Arg}
 	case plan.CaseExpr:
 		if err := child(e.Test); err != nil {

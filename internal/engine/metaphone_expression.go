@@ -3,30 +3,12 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
-	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 )
 
-type installedMetaphoneFunctionExpression struct {
-	functions.Metaphone
-	Procedure *catalog.Procedure
-	Ref       ids.ObjectRef
-}
-
-// Rebuild keeps the installed-routine identity; the promoted Rebuild would
-// return the bare functions node.
-func (e installedMetaphoneFunctionExpression) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
-	node, err := e.Metaphone.Rebuild(info, children)
-	if err != nil {
-		return nil, err
-	}
-	e.Metaphone = node.(functions.Metaphone)
-	return e, nil
-}
-
-func validateInstalledMetaphone(n installedMetaphoneFunctionExpression, v catalog.Read) error {
+func validateInstalledMetaphone(n plan.InstalledMetaphoneExpr, v catalog.Read) error {
 	for _, arg := range n.Args {
 		if arg == nil || arg.ResultUsage().Type == nil {
 			return fmt.Errorf("stuntgres: missing stored Metaphone argument")

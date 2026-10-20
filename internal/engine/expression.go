@@ -379,7 +379,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 		return e, true, nil
 	case plan.DomainValueExpr:
 		return e, false, nil
-	case installedSoundexFunctionExpression:
+	case plan.InstalledSoundexExpr:
 		var args []expr.Expr
 		for i, arg := range e.Args {
 			next, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -401,7 +401,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			e.Soundex = next
 		}
 		return e, args != nil, nil
-	case installedMetaphoneFunctionExpression:
+	case plan.InstalledMetaphoneExpr:
 		var args []expr.Expr
 		for i, arg := range e.Args {
 			next, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -423,7 +423,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			e.Metaphone = next
 		}
 		return e, args != nil, nil
-	case installedLevenshteinFunctionExpression:
+	case plan.InstalledLevenshteinExpr:
 		var args []expr.Expr
 		for i, arg := range e.Args {
 			next, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -445,9 +445,9 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			e.Levenshtein = next
 		}
 		return e, args != nil, nil
-	case installedUUIDOsspFunctionExpression:
+	case plan.InstalledUUIDOsspExpr:
 		return e, false, nil
-	case installedCryptoFunctionExpression:
+	case plan.InstalledCryptoExpr:
 		var args []expr.Expr
 		for i, arg := range e.Args {
 			next, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -487,7 +487,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			e.Base, e.Value, e.Target = base, value, targets[0]
 		}
 		return e, changed, nil
-	case installedFunctionExpression:
+	case plan.InstalledTextExpr:
 		arg, changed, err := preflightCoercionsWithPolicy(c, e.Arg, decisiveDefaults)
 		if changed {
 			e.Arg = arg
@@ -515,7 +515,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			e.Args = args
 		}
 		return e, args != nil, nil
-	case extensionPathsExpression:
+	case plan.ExtensionPathsExpr:
 		arg, changed, err := preflightCoercionsWithPolicy(c, e.Arg, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
@@ -1465,7 +1465,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				return nil, err
 			}
 			switch inquiry := node.(type) {
-			case extensionPathsExpression:
+			case plan.ExtensionPathsExpr:
 				b.consumer.catalogSnapshot = true
 			case expr.SnapshotDemander:
 				demand, _, _ := inquiry.SnapshotDemand(bareInquiryLiteralNull)

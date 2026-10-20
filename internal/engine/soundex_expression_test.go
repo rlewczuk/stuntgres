@@ -14,7 +14,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func soundexUnitExpression(t *testing.T, e *Engine, name string) installedSoundexFunctionExpression {
+func soundexUnitExpression(t *testing.T, e *Engine, name string) plan.InstalledSoundexExpr {
 	t.Helper()
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	args := []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Ann"}}}
@@ -25,7 +25,7 @@ func soundexUnitExpression(t *testing.T, e *Engine, name string) installedSounde
 	if err != nil {
 		t.Fatal(err)
 	}
-	return node.(installedSoundexFunctionExpression)
+	return node.(plan.InstalledSoundexExpr)
 }
 
 func TestSoundexExpressionIdentity(t *testing.T) {
@@ -112,7 +112,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := validateInstalledSoundex(retagged.(installedSoundexFunctionExpression), e.CatalogRead()); err != nil {
+			if err := validateInstalledSoundex(retagged.(plan.InstalledSoundexExpr), e.CatalogRead()); err != nil {
 				t.Fatal(err)
 			}
 			folded, _, err := simplifyConditional(ctx, n, false)
@@ -156,7 +156,7 @@ func TestSoundexExpressionRemap(t *testing.T) {
 			view := e.catalog.read(next)
 			relocated := next.MustRelation(address)
 			for _, node := range []expr.Expr{relocated.ColumnMeta.Defaults[1].Expression, relocated.ColumnMeta.Generations[2].Expression, relocated.ColumnMeta.Generations[2].Planned} {
-				n := node.(installedSoundexFunctionExpression)
+				n := node.(plan.InstalledSoundexExpr)
 				if n.Ref.Address != mapping[call.Ref.Address] || n.Ref.Epoch != next.Epoch() || n.Procedure != next.Get(n.Ref.Address) {
 					t.Fatal("stale remapped authority", n.Ref)
 				}
@@ -184,7 +184,7 @@ func TestSoundexExpressionProperties(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		grouped := rewritten.(installedSoundexFunctionExpression)
+		grouped := rewritten.(plan.InstalledSoundexExpr)
 		if _, ok := grouped.Args[0].(plan.GroupExpr); !ok || !grouped.Properties().StageDependent {
 			t.Fatal("grouped child/stage lost", grouped)
 		}
@@ -210,7 +210,7 @@ func TestSoundexExpressionProperties(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got := retagged.(installedSoundexFunctionExpression)
+			got := retagged.(plan.InstalledSoundexExpr)
 			if got.Properties() != property || got.Args[0].Properties() != property {
 				t.Fatal("retag discarded dependence", property, got.Properties())
 			}

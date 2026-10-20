@@ -3,30 +3,12 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
-	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 )
 
-type installedLevenshteinFunctionExpression struct {
-	functions.Levenshtein
-	Procedure *catalog.Procedure
-	Ref       ids.ObjectRef
-}
-
-// Rebuild keeps the installed-routine identity; the promoted Rebuild would
-// return the bare functions node.
-func (e installedLevenshteinFunctionExpression) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
-	node, err := e.Levenshtein.Rebuild(info, children)
-	if err != nil {
-		return nil, err
-	}
-	e.Levenshtein = node.(functions.Levenshtein)
-	return e, nil
-}
-
-func validateInstalledLevenshtein(n installedLevenshteinFunctionExpression, v catalog.Read) error {
+func validateInstalledLevenshtein(n plan.InstalledLevenshteinExpr, v catalog.Read) error {
 	for _, arg := range n.Args {
 		if arg == nil || arg.ResultUsage().Type == nil {
 			return fmt.Errorf("stuntgres: missing stored Levenshtein argument")

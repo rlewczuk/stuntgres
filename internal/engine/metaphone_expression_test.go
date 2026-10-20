@@ -16,7 +16,7 @@ import (
 	"testing"
 )
 
-func metaphoneUnitExpression(t *testing.T, e *Engine) installedMetaphoneFunctionExpression {
+func metaphoneUnitExpression(t *testing.T, e *Engine) plan.InstalledMetaphoneExpr {
 	t.Helper()
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	args := []parser.Expr{
@@ -27,7 +27,7 @@ func metaphoneUnitExpression(t *testing.T, e *Engine) installedMetaphoneFunction
 	if err != nil {
 		t.Fatal(err)
 	}
-	return node.(installedMetaphoneFunctionExpression)
+	return node.(plan.InstalledMetaphoneExpr)
 }
 
 func TestMetaphoneExpressionIdentity(t *testing.T) {
@@ -43,7 +43,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		unary := node.(installedMetaphoneFunctionExpression)
+		unary := node.(plan.InstalledMetaphoneExpr)
 		if unary.Ref.Address != ext.Members[tc.member] {
 			t.Fatal("unary procedure identity", unary.Ref)
 		}
@@ -127,7 +127,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := validateInstalledMetaphone(retagged.(installedMetaphoneFunctionExpression), e.CatalogRead()); err != nil {
+	if err := validateInstalledMetaphone(retagged.(plan.InstalledMetaphoneExpr), e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	folded, _, err := simplifyConditional(ctx, n, false)
@@ -204,7 +204,7 @@ func TestMetaphoneRemap(t *testing.T) {
 	view := e.catalog.read(next)
 	relocated := next.MustRelation(address)
 	for _, node := range []expr.Expr{relocated.ColumnMeta.Defaults[1].Expression, relocated.ColumnMeta.Generations[2].Expression, relocated.ColumnMeta.Generations[2].Planned} {
-		n := node.(installedMetaphoneFunctionExpression)
+		n := node.(plan.InstalledMetaphoneExpr)
 		if n.Ref.Address != mapping[call.Ref.Address] || n.Ref.Epoch != next.Epoch() || n.Procedure != next.Get(n.Ref.Address) {
 			t.Fatal("stale remapped authority", n.Ref)
 		}

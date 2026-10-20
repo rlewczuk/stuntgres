@@ -26,7 +26,7 @@ func daitchUnitInstalled(t *testing.T) (*Engine, *catalog.Extension) {
 	return e, e.catalog.state.MustExtension(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
 }
 
-func daitchUnitExpression(t *testing.T, e *Engine, input string) installedFunctionExpression {
+func daitchUnitExpression(t *testing.T, e *Engine, input string) plan.InstalledTextExpr {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "daitch_mokotoff"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: input}}}}
@@ -34,7 +34,7 @@ func daitchUnitExpression(t *testing.T, e *Engine, input string) installedFuncti
 	if err != nil {
 		t.Fatal(err)
 	}
-	return node.(installedFunctionExpression)
+	return node.(plan.InstalledTextExpr)
 }
 
 func TestDaitchMokotoffProviderIdentity(t *testing.T) {
@@ -333,7 +333,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal("retag", changed, err)
 	}
-	n := mapped.(installedFunctionExpression)
+	n := mapped.(plan.InstalledTextExpr)
 	v, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 	ownedArray, _ := target.CatalogRead().LookupType(1009)
 	ownedText, _ := target.CatalogRead().LookupType(sqltype.Text)

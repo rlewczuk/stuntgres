@@ -36,12 +36,12 @@ func TestInstalledFunctionRebuildKeepsWrapper(t *testing.T) {
 	}
 	procedure := &catalog.Procedure{}
 	ref := ids.ObjectRef{Address: ids.ObjectAddress{ObjectID: 7}}
-	node := installedSoundexFunctionExpression{Soundex: call, Procedure: procedure, Ref: ref}
+	node := plan.InstalledSoundexExpr{Soundex: call, Procedure: procedure, Ref: ref}
 	rebuilt, err := node.Rebuild(info, []expr.Expr{literal("b")})
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, ok := rebuilt.(installedSoundexFunctionExpression)
+	got, ok := rebuilt.(plan.InstalledSoundexExpr)
 	if !ok || got.Procedure != procedure || got.Ref != ref || textOf(got.Args[0]) != "b" {
 		t.Fatalf("rebuilt %#v", rebuilt)
 	}
@@ -68,14 +68,14 @@ func TestWalkBoundExpressionVisitsCompositeChildren(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wrapper := installedSoundexFunctionExpression{Soundex: inner}
+	wrapper := plan.InstalledSoundexExpr{Soundex: inner}
 	outer, err := functions.NewSoundex(info, "soundex", []expr.Expr{wrapper})
 	if err != nil {
 		t.Fatal(err)
 	}
 	var visited []string
 	walkBoundExpression(outer, func(node expr.Expr) { visited = append(visited, fmt.Sprintf("%T", node)) })
-	want := []string{"functions.Soundex", "engine.installedSoundexFunctionExpression", "plan.LiteralExpr"}
+	want := []string{"functions.Soundex", "plan.InstalledSoundexExpr", "plan.LiteralExpr"}
 	if !reflect.DeepEqual(visited, want) {
 		t.Fatalf("walk visited %v, want %v", visited, want)
 	}
@@ -97,14 +97,14 @@ func TestInstalledUUIDOsspRebuildKeepsWrapper(t *testing.T) {
 	}
 	procedure := &catalog.Procedure{}
 	ref := ids.ObjectRef{Address: ids.ObjectAddress{ObjectID: 7}}
-	node := installedUUIDOsspFunctionExpression{UUIDGeneration: call, Procedure: procedure, Ref: ref}
+	node := plan.InstalledUUIDOsspExpr{UUIDGeneration: call, Procedure: procedure, Ref: ref}
 	next := info
 	next.Pos.Offset = 3
 	rebuilt, err := node.Rebuild(next, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, ok := rebuilt.(installedUUIDOsspFunctionExpression)
+	got, ok := rebuilt.(plan.InstalledUUIDOsspExpr)
 	if !ok || got.Procedure != procedure || got.Ref != ref || got.Pos.Offset != 3 || node.Pos.Offset != 0 {
 		t.Fatalf("rebuilt %#v", rebuilt)
 	}

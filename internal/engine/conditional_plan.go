@@ -367,7 +367,7 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 			e.Right, err = child(e.Right)
 		}
 		expression = e
-	case extensionPathsExpression:
+	case plan.ExtensionPathsExpr:
 		arg, did, failure := simplifyConditional(c, e.Arg, decisiveDefaults)
 		if failure != nil {
 			return nil, false, failure
@@ -375,7 +375,7 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 		e.Arg = arg
 		changed = changed || did
 		expression = e
-	case installedSoundexFunctionExpression:
+	case plan.InstalledSoundexExpr:
 		var args []expr.Expr
 		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
@@ -397,7 +397,7 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 			e.Soundex = next
 		}
 		expression = e
-	case installedMetaphoneFunctionExpression:
+	case plan.InstalledMetaphoneExpr:
 		var args []expr.Expr
 		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
@@ -419,7 +419,7 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 			e.Metaphone = next
 		}
 		expression = e
-	case installedLevenshteinFunctionExpression:
+	case plan.InstalledLevenshteinExpr:
 		var args []expr.Expr
 		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
@@ -441,9 +441,9 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 			e.Levenshtein = next
 		}
 		expression = e
-	case installedUUIDOsspFunctionExpression:
+	case plan.InstalledUUIDOsspExpr:
 		expression = e
-	case installedCryptoFunctionExpression:
+	case plan.InstalledCryptoExpr:
 		var args []expr.Expr
 		for i, old := range e.Args {
 			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
@@ -466,7 +466,7 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 			e.Pgcrypto = next
 		}
 		expression = e
-	case installedFunctionExpression:
+	case plan.InstalledTextExpr:
 		next, did, failure := simplifyConditional(c, e.Arg, decisiveDefaults)
 		if failure != nil {
 			return nil, false, failure
@@ -567,39 +567,39 @@ func conditionalConstantInputs(node expr.Expr) bool {
 			}
 		}
 		return true
-	case extensionPathsExpression:
+	case plan.ExtensionPathsExpr:
 		return false
-	case installedSoundexFunctionExpression:
+	case plan.InstalledSoundexExpr:
 		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case installedMetaphoneFunctionExpression:
+	case plan.InstalledMetaphoneExpr:
 		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case installedLevenshteinFunctionExpression:
+	case plan.InstalledLevenshteinExpr:
 		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case installedUUIDOsspFunctionExpression:
+	case plan.InstalledUUIDOsspExpr:
 		return e.Procedure != nil && e.Procedure.Volatility == expr.Immutable
-	case installedCryptoFunctionExpression:
+	case plan.InstalledCryptoExpr:
 		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false
 			}
 		}
 		return true
-	case installedFunctionExpression:
+	case plan.InstalledTextExpr:
 		return e.Procedure != nil && e.Procedure.Volatility == expr.Immutable && literal(e.Arg)
 	case expr.Composite:
 		// Last, so the explicit engine wrappers above keep precedence.

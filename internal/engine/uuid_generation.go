@@ -47,7 +47,7 @@ func closedUUIDDefault(node expr.Expr) bool {
 		return false
 	}
 	switch n := node.(type) {
-	case installedUUIDOsspFunctionExpression:
+	case plan.InstalledUUIDOsspExpr:
 		return validInstalledUUIDOsspShape(n)
 	case functions.UUIDGeneration:
 		for _, arg := range n.Args {

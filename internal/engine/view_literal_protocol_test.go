@@ -462,7 +462,7 @@ func TestViewLiteralProtocolInstalledWrapper(t *testing.T) {
 	inner := node.(functions.UUIDGeneration)
 	ref := ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: 7}, Epoch: 1}
 	procedure := &catalog.Procedure{}
-	wrapper := installedUUIDOsspFunctionExpression{UUIDGeneration: inner, Procedure: procedure, Ref: ref}
+	wrapper := plan.InstalledUUIDOsspExpr{UUIDGeneration: inner, Procedure: procedure, Ref: ref}
 	if _, ok := any(wrapper).(expr.Capturable); !ok {
 		t.Fatal("fixture lost promoted capture hook")
 	}
@@ -473,7 +473,7 @@ func TestViewLiteralProtocolInstalledWrapper(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, ok := mapped.(installedUUIDOsspFunctionExpression)
+	got, ok := mapped.(plan.InstalledUUIDOsspExpr)
 	if !ok || got.Ref != ref || got.Procedure != procedure {
 		t.Fatal("capture/remap erased installed identity", mapped)
 	}
@@ -485,10 +485,4 @@ func TestViewLiteralProtocolInstalledWrapper(t *testing.T) {
 	if len(b.capture.literals) != 0 || len(b.capture.castUsages) != 0 {
 		t.Fatal("leaf acquired captures")
 	}
-}
-
-// Test-only override of the promoted hook: production must choose the explicit
-// installed-wrapper branch before even asking for lower-layer capture metadata.
-func (installedUUIDOsspFunctionExpression) Capture(expr.CaptureKind) (expr.CaptureOperands, bool, error) {
-	panic("capture bypassed installed wrapper precedence")
 }

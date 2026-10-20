@@ -179,30 +179,30 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 		if err == nil {
 			err = child(n.Otherwise)
 		}
-	case extensionPathsExpression:
+	case plan.ExtensionPathsExpr:
 		if failure := n.Validate(); failure != nil {
 			return failure
 		}
 		out.WriteString("ExtensionPaths")
 		err = child(n.Arg)
-	case installedSoundexFunctionExpression:
+	case plan.InstalledSoundexExpr:
 		fmt.Fprintf(out, "InstalledSoundex %d %s", n.Ref.Address.ObjectID, n.Procedure.Signature)
 		err = args(n.Args)
-	case installedMetaphoneFunctionExpression:
+	case plan.InstalledMetaphoneExpr:
 		fmt.Fprintf(out, "InstalledMetaphone %d %s", n.Ref.Address.ObjectID, n.Procedure.Signature)
 		err = args(n.Args)
-	case installedLevenshteinFunctionExpression:
+	case plan.InstalledLevenshteinExpr:
 		fmt.Fprintf(out, "InstalledLevenshtein %d %s", n.Ref.Address.ObjectID, n.Procedure.Signature)
 		err = args(n.Args)
-	case installedUUIDOsspFunctionExpression:
+	case plan.InstalledUUIDOsspExpr:
 		fmt.Fprintf(out, "InstalledUUIDOssp %d", n.Ref.Address.ObjectID)
-	case installedCryptoFunctionExpression:
+	case plan.InstalledCryptoExpr:
 		fmt.Fprintf(out, "InstalledCrypto %d %s", n.Ref.Address.ObjectID, n.Procedure.Signature)
 		err = args(n.Args)
 	case plan.SQLRoutineExpr:
 		fmt.Fprintf(out, "SQLRoutine %d %s", n.Ref.Address.ObjectID, n.Procedure.Signature)
 		err = args(n.Args)
-	case installedFunctionExpression:
+	case plan.InstalledTextExpr:
 		fmt.Fprintf(out, "InstalledFunction %d", n.Ref.Address.ObjectID)
 		err = args([]expr.Expr{n.Arg})
 	case expr.Renderable:

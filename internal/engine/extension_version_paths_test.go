@@ -15,7 +15,7 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 	e := New()
 	raw := parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "fuzzystrmatch"}}
 	node := catalogRelationsUnitBind(t, e, "pg_extension_update_paths", raw)
-	call := node.(extensionPathsExpression)
+	call := node.(plan.ExtensionPathsExpr)
 	if err := call.Validate(); err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 		t.Fatal(err)
 	}
 	fresh := New()
-	destination := catalogRelationsUnitBind(t, fresh, "pg_extension_update_paths", raw).(extensionPathsExpression)
+	destination := catalogRelationsUnitBind(t, fresh, "pg_extension_update_paths", raw).(plan.ExtensionPathsExpr)
 	retagged, _, err := retagBoundTypes(fresh.CatalogRead(), call, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d.ID() == 2249 {
 			return destination.ResultUsage().Type
@@ -72,7 +72,7 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next := retagged.(extensionPathsExpression)
+	next := retagged.(plan.ExtensionPathsExpr)
 	// Anonymous RECORD descriptors belong to occurrences. The shared retagger
 	// reconstructs a new shape from destination-owned fields rather than
 	// adopting another bound call's occurrence pointer.

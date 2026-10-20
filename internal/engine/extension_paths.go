@@ -6,15 +6,11 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
-
-type extensionPathsExpression struct {
-	expr.Info
-	Arg expr.Expr
-}
 
 func (b *expressionBinder) bindExtensionPaths(raw parser.FunctionExpr, arg expr.Expr) (expr.Expr, error) {
 	shape, err := sqltype.RecordShape([]sqltype.CompositeMember{
@@ -32,24 +28,12 @@ func (b *expressionBinder) bindExtensionPaths(raw parser.FunctionExpr, arg expr.
 		return nil, err
 	}
 	b.consumer.catalogSnapshot, b.prepared.regclassConcat = true, true
-	return extensionPathsExpression{info, arg}, nil
+	return plan.ExtensionPathsExpr{Info: info, Arg: arg}, nil
 }
-func (n extensionPathsExpression) Validate() error {
-	if n.Arg == nil || n.Arg.ResultUsage().Type == nil || n.Arg.ResultUsage().Type.ID() != sqltype.Name || n.Usage.Type == nil || n.Usage.Type.ID() != 2249 || !n.Usage.Type.IsComposite() || n.Usage.Type.CompositeLen() != 3 {
-		return fmt.Errorf("stuntgres: invalid extension path signature")
-	}
-	for i, name := range [...]string{"source", "target", "path"} {
-		member := n.Usage.Type.CompositeMember(i)
-		if member.Attribute != int32(i+1) || member.Name != name || member.Usage.Type.ID() != sqltype.Text {
-			return fmt.Errorf("stuntgres: invalid extension path record")
-		}
-	}
-	return nil
-}
-func (n extensionPathsExpression) Eval(expr.Context) (sqltype.Value, error) {
-	return sqltype.Value{}, fmt.Errorf("stuntgres: extension path set used as scalar")
-}
-func (n extensionPathsExpression) open(c *EvalContext) ([]sqltype.Value, error) {
+
+// OpenExtensionPaths lists every ordered version pair of the named extension
+// with its update path (NULL when no path exists).
+func (c *EvalContext) OpenExtensionPaths(n plan.ExtensionPathsExpr) ([]sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return nil, err
 	}

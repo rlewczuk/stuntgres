@@ -16,7 +16,7 @@ import (
 	"testing"
 )
 
-func levenshteinUnitExpression(t *testing.T, e *Engine) installedLevenshteinFunctionExpression {
+func levenshteinUnitExpression(t *testing.T, e *Engine) plan.InstalledLevenshteinExpr {
 	t.Helper()
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	args := []parser.Expr{
@@ -30,7 +30,7 @@ func levenshteinUnitExpression(t *testing.T, e *Engine) installedLevenshteinFunc
 	if err != nil {
 		t.Fatal(err)
 	}
-	return node.(installedLevenshteinFunctionExpression)
+	return node.(plan.InstalledLevenshteinExpr)
 }
 
 func TestLevenshteinExpressionIdentity(t *testing.T) {
@@ -103,7 +103,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := validateInstalledLevenshtein(retagged.(installedLevenshteinFunctionExpression), e.CatalogRead()); err != nil {
+	if err := validateInstalledLevenshtein(retagged.(plan.InstalledLevenshteinExpr), e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	stored, err := (scalarRenderer{}).sql(ctx.Context, e.CatalogRead(), retagged)
@@ -184,7 +184,7 @@ func TestLevenshteinRemap(t *testing.T) {
 	view := e.catalog.read(next)
 	relocated := next.MustRelation(address)
 	for _, node := range []expr.Expr{relocated.ColumnMeta.Defaults[1].Expression, relocated.ColumnMeta.Generations[2].Expression, relocated.ColumnMeta.Generations[2].Planned} {
-		n := node.(installedLevenshteinFunctionExpression)
+		n := node.(plan.InstalledLevenshteinExpr)
 		if n.Ref.Address != mapping[call.Ref.Address] || n.Ref.Epoch != next.Epoch() || n.Procedure != next.Get(n.Ref.Address) {
 			t.Fatal("stale remapped authority", n.Ref)
 		}

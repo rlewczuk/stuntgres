@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/plan"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -108,35 +109,35 @@ func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 		}
 		c.RoutineReference = p
 		b.dependency(ref, p.Revision())
-		return installedUUIDOsspFunctionExpression{UUIDGeneration: c, Procedure: p, Ref: ref}, nil
+		return plan.InstalledUUIDOsspExpr{UUIDGeneration: c, Procedure: p, Ref: ref}, nil
 	case functions.Pgcrypto:
 		if extension.PgcryptoProviderOf(p) != extension.StockPgcrypto {
 			break
 		}
 		c.RoutineReference = p
 		b.dependency(ref, p.Revision())
-		return installedCryptoFunctionExpression{Pgcrypto: c, Procedure: p, Ref: ref}, nil
+		return plan.InstalledCryptoExpr{Pgcrypto: c, Procedure: p, Ref: ref}, nil
 	case functions.Levenshtein:
 		if extension.FuzzystrmatchProviderOf(p) != extension.StockFuzzystrmatch {
 			break
 		}
 		c.RoutineReference = p
 		b.dependencies = append(b.dependencies, appended)
-		return installedLevenshteinFunctionExpression{Levenshtein: c, Procedure: p, Ref: ref}, nil
+		return plan.InstalledLevenshteinExpr{Levenshtein: c, Procedure: p, Ref: ref}, nil
 	case functions.Metaphone:
 		if extension.FuzzystrmatchProviderOf(p) != extension.StockFuzzystrmatch {
 			break
 		}
 		c.RoutineReference = p
 		b.dependencies = append(b.dependencies, appended)
-		return installedMetaphoneFunctionExpression{Metaphone: c, Procedure: p, Ref: ref}, nil
+		return plan.InstalledMetaphoneExpr{Metaphone: c, Procedure: p, Ref: ref}, nil
 	case functions.Soundex:
 		if extension.FuzzystrmatchProviderOf(p) != extension.StockFuzzystrmatch {
 			break
 		}
 		c.RoutineReference = p
 		b.dependencies = append(b.dependencies, appended)
-		return installedSoundexFunctionExpression{Soundex: c, Procedure: p, Ref: ref}, nil
+		return plan.InstalledSoundexExpr{Soundex: c, Procedure: p, Ref: ref}, nil
 	case functions.InstalledText:
 		return r.attachText(c, ref)
 	case functions.IntaggEnumeration:
@@ -168,7 +169,7 @@ func (r installedExtensionRoutine) attachText(call functions.InstalledText, ref 
 	}
 	r.binder.dependency(ref, p.Revision())
 	call.RoutineReference = p
-	node := installedFunctionExpression{InstalledText: call, Procedure: p, Dictionary: dict, Template: tmpl, Ref: ref}
+	node := plan.InstalledTextExpr{InstalledText: call, Procedure: p, Dictionary: dict, Template: tmpl, Ref: ref}
 	if !validInstalledText(node) {
 		return nil, fmt.Errorf("stuntgres: invalid installed function binding")
 	}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/plan"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -31,7 +32,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		n := node.(installedCryptoFunctionExpression)
+		n := node.(plan.InstalledCryptoExpr)
 		if n.ResultUsage().Type.ID() != sqltype.Text || n.Properties().Volatility != v.volatility || plannedVolatility(n) != v.volatility || generationImmutable(n) != (v.volatility == expr.Immutable) {
 			t.Fatal(v, n)
 		}

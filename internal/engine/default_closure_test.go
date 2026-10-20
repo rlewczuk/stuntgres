@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -234,7 +235,7 @@ func TestConditionalDefaultClosurePolicyPrecedence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	installed := node.(installedUUIDOsspFunctionExpression)
+	installed := node.(plan.InstalledUUIDOsspExpr)
 	conditionalDefaultClosureWant(t, installed, false, true)
 	badShape := installed
 	badShape.RoutineReference = nil

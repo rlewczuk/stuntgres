@@ -159,7 +159,7 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	n := node.(installedFunctionExpression)
+	n := node.(plan.InstalledTextExpr)
 	value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 	text, _ := value.Text()
 	if err != nil || text != "Hotel" || node.ResultUsage().Type.ID() != sqltype.Text || plannedVolatility(node) != expr.Stable {

@@ -32,7 +32,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(procedure.Name()), n.Args)
-	case installedSoundexFunctionExpression:
+	case plan.InstalledSoundexExpr:
 		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
 			return "", fmt.Errorf("stuntgres: invalid stored Soundex reference")
 		}
@@ -45,7 +45,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), n.Args)
-	case installedMetaphoneFunctionExpression:
+	case plan.InstalledMetaphoneExpr:
 		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
 			return "", fmt.Errorf("stuntgres: invalid stored Metaphone reference")
 		}
@@ -58,7 +58,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), n.Args)
-	case installedLevenshteinFunctionExpression:
+	case plan.InstalledLevenshteinExpr:
 		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
 			return "", fmt.Errorf("stuntgres: invalid stored Levenshtein reference")
 		}
@@ -71,7 +71,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), n.Args)
-	case installedUUIDOsspFunctionExpression:
+	case plan.InstalledUUIDOsspExpr:
 		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
 			return "", fmt.Errorf("stuntgres: invalid stored uuid-ossp reference")
 		}
@@ -84,7 +84,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), nil)
-	case installedCryptoFunctionExpression:
+	case plan.InstalledCryptoExpr:
 		if !storedReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || r.descriptor(view, n.Ref.Address) != n.Procedure {
 			return "", fmt.Errorf("stuntgres: invalid stored crypto reference")
 		}
@@ -97,7 +97,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(n.Procedure.Name()), n.Args)
-	case installedFunctionExpression:
+	case plan.InstalledTextExpr:
 		proc, ok := r.descriptor(view, n.Ref.Address).(*catalog.Procedure)
 		if !ok || !storedReferenceEpochValid(view, r.retainedConsumer(), n.Ref) || n.Ref.Address.SubID != 0 || !validInstalledText(n) || proc.Name() != n.Procedure.Name() || proc.Signature != n.Procedure.Signature || proc.RoutineKind != n.Procedure.RoutineKind || proc.Result != n.Procedure.Result || proc.Strict != n.Procedure.Strict || proc.Volatility != n.Procedure.Volatility || extension.UnaccentProviderOf(proc) != extension.UnaccentProviderOf(n.Procedure) || extension.IntarrayProviderOf(proc) != extension.IntarrayProviderOf(n.Procedure) || extension.PgcryptoProviderOf(proc) != extension.PgcryptoProviderOf(n.Procedure) || extension.FuzzystrmatchProviderOf(proc) != extension.FuzzystrmatchProviderOf(n.Procedure) || proc.Dictionary != n.Procedure.Dictionary || proc.Extension != n.Procedure.Extension || proc.Namespace() != n.Procedure.Namespace() {
 			return "", fmt.Errorf("stuntgres: invalid stored installed function")
@@ -121,7 +121,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 		}
 		r.record(n.Ref)
 		return r.functionSQL(ctx, view, catalog.QuoteIdentifier(namespace.Name())+"."+catalog.QuoteIdentifier(proc.Name()), []expr.Expr{n.Arg})
-	case extensionPathsExpression:
+	case plan.ExtensionPathsExpr:
 		if r.commentSnapshot != nil {
 			*r.commentSnapshot = true
 		}

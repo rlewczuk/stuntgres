@@ -423,7 +423,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 			switch n.(type) {
 			case plan.SubqueryExpr:
 				b.subqueryDemand = true
-			case extensionPathsExpression:
+			case plan.ExtensionPathsExpr:
 				// This binding flag owns nonquery catalog/role capture in
 				// executeBoundCommandLocked; expressionBinder.catalogSnapshot is
 				// analysis-only and is not a field of binding.

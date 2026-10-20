@@ -759,28 +759,28 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 			return "", fmt.Errorf("stuntgres: missing SQL routine namespace")
 		}
 		return function(r.identifier(namespace.Name())+"."+r.identifier(n.Procedure.Name()), n.Args, true)
-	case extensionPathsExpression:
+	case plan.ExtensionPathsExpr:
 		args := [1]expr.Expr{n.Arg}
 		return function("pg_extension_update_paths", args[:], true)
-	case installedSoundexFunctionExpression:
+	case plan.InstalledSoundexExpr:
 		namespace, ok := r.view.Namespace(n.Procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing Soundex function namespace")
 		}
 		return function(r.identifier(namespace.Name())+"."+r.identifier(n.Procedure.Name()), n.Args, true)
-	case installedMetaphoneFunctionExpression:
+	case plan.InstalledMetaphoneExpr:
 		namespace, ok := r.view.Namespace(n.Procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing Metaphone function namespace")
 		}
 		return function(r.identifier(namespace.Name())+"."+r.identifier(n.Procedure.Name()), n.Args, true)
-	case installedLevenshteinFunctionExpression:
+	case plan.InstalledLevenshteinExpr:
 		namespace, ok := r.view.Namespace(n.Procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing Levenshtein function namespace")
 		}
 		return function(r.identifier(namespace.Name())+"."+r.identifier(n.Procedure.Name()), n.Args, true)
-	case installedUUIDOsspFunctionExpression:
+	case plan.InstalledUUIDOsspExpr:
 		if err := validateInstalledUUIDOssp(n, r.view); err != nil {
 			return "", err
 		}
@@ -789,13 +789,13 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 			return "", fmt.Errorf("stuntgres: missing uuid-ossp function namespace")
 		}
 		return function(r.identifier(namespace.Name())+"."+r.identifier(n.Procedure.Name()), nil, true)
-	case installedCryptoFunctionExpression:
+	case plan.InstalledCryptoExpr:
 		namespace, ok := r.view.Namespace(n.Procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing crypto function namespace")
 		}
 		return function(r.identifier(namespace.Name())+"."+r.identifier(n.Procedure.Name()), n.Args, true)
-	case installedFunctionExpression:
+	case plan.InstalledTextExpr:
 		namespace, ok := r.view.Namespace(n.Procedure.Namespace())
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing installed function namespace")

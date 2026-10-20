@@ -67,17 +67,17 @@ func (r *pgDependRefs) expression(expr expr.Expr) {
 		if n.Procedure != nil {
 			r.add(n.Ref.Address)
 		}
-	case installedSoundexFunctionExpression:
+	case plan.InstalledSoundexExpr:
 		r.add(n.Ref.Address)
-	case installedMetaphoneFunctionExpression:
+	case plan.InstalledMetaphoneExpr:
 		r.add(n.Ref.Address)
-	case installedLevenshteinFunctionExpression:
+	case plan.InstalledLevenshteinExpr:
 		r.add(n.Ref.Address)
-	case installedUUIDOsspFunctionExpression:
+	case plan.InstalledUUIDOsspExpr:
 		r.add(n.Ref.Address)
-	case installedCryptoFunctionExpression:
+	case plan.InstalledCryptoExpr:
 		r.add(n.Ref.Address)
-	case installedFunctionExpression:
+	case plan.InstalledTextExpr:
 		r.add(n.Ref.Address)
 	case plan.LiteralExpr:
 		if typ := n.ResultUsage().Type; typ != nil {

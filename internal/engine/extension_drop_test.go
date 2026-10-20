@@ -6,6 +6,7 @@ import (
 	"maps"
 	"slices"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/plan"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -72,7 +73,7 @@ func TestExtensionDropRollbackIdentity(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			bound := node.(installedFunctionExpression)
+			bound := node.(plan.InstalledTextExpr)
 			tx, err := e.Begin(op, TxOptions{})
 			if err != nil {
 				t.Fatal(err)

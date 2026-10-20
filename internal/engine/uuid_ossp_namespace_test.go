@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/plan"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -25,7 +26,7 @@ func TestUUIDOsspNamespaceExpressionIdentity(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			n := node.(installedUUIDOsspFunctionExpression)
+			n := node.(plan.InstalledUUIDOsspExpr)
 			if n.Name != name || !slices.Contains(ext.Members, n.Ref.Address) || n.Procedure.Name() != name || n.ResultUsage().Type.ID() != sqltype.UUID || plannedVolatility(n) != expr.Immutable || !generationImmutable(n) || !closedUUIDDefault(n) {
 				t.Fatal("constant shape/identity", n)
 			}
@@ -46,11 +47,11 @@ func TestUUIDOsspNamespaceExpressionIdentity(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			rebuilt, err := retagged.(installedUUIDOsspFunctionExpression).Rebuild(n.Info, nil)
+			rebuilt, err := retagged.(plan.InstalledUUIDOsspExpr).Rebuild(n.Info, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
-			got := rebuilt.(installedUUIDOsspFunctionExpression)
+			got := rebuilt.(plan.InstalledUUIDOsspExpr)
 			if got.Name != name || got.Procedure != n.Procedure || got.Ref != n.Ref || plannedVolatility(got) != expr.Immutable {
 				t.Fatal("rebuild/retag erased identity", got)
 			}
@@ -67,16 +68,16 @@ func TestUUIDOsspNamespaceExpressionIdentity(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := validateInstalledUUIDOssp(grouped.(installedUUIDOsspFunctionExpression), view); err != nil {
+			if err := validateInstalledUUIDOssp(grouped.(plan.InstalledUUIDOsspExpr), view); err != nil {
 				t.Fatal("grouped constant", err)
 			}
-			for _, mutate := range []func(*installedUUIDOsspFunctionExpression){
-				func(x *installedUUIDOsspFunctionExpression) { x.Name = "uuidv4" },
-				func(x *installedUUIDOsspFunctionExpression) { x.Property.Volatility = expr.Volatile },
-				func(x *installedUUIDOsspFunctionExpression) { x.RoutineReference = nil },
-				func(x *installedUUIDOsspFunctionExpression) { x.Ref.Epoch = 0 },
-				func(x *installedUUIDOsspFunctionExpression) { x.Usage.Type = nil },
-				func(x *installedUUIDOsspFunctionExpression) { copy := *x.Procedure; x.Procedure = &copy },
+			for _, mutate := range []func(*plan.InstalledUUIDOsspExpr){
+				func(x *plan.InstalledUUIDOsspExpr) { x.Name = "uuidv4" },
+				func(x *plan.InstalledUUIDOsspExpr) { x.Property.Volatility = expr.Volatile },
+				func(x *plan.InstalledUUIDOsspExpr) { x.RoutineReference = nil },
+				func(x *plan.InstalledUUIDOsspExpr) { x.Ref.Epoch = 0 },
+				func(x *plan.InstalledUUIDOsspExpr) { x.Usage.Type = nil },
+				func(x *plan.InstalledUUIDOsspExpr) { copy := *x.Procedure; x.Procedure = &copy },
 			} {
 				bad := n
 				mutate(&bad)

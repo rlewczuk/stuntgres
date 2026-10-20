@@ -225,11 +225,11 @@ func indexDefinitionSQL(ctx context.Context, view catalog.Read, index *catalog.R
 // Inquiry and original TYPE buffers share this rule; canonical Dump does not.
 func pgIndexFunctionExpression(node expr.Expr) bool {
 	switch n := node.(type) {
-	case installedUUIDOsspFunctionExpression:
+	case plan.InstalledUUIDOsspExpr:
 		return true
 	case plan.UnnestExpr:
 		return false
-	case extensionPathsExpression:
+	case plan.ExtensionPathsExpr:
 		return true
 	case plan.ConditionalExpr:
 		return true

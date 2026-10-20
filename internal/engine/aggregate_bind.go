@@ -276,11 +276,11 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			}
 		}
 		return true
-	case extensionPathsExpression:
-		o, ok := other.(extensionPathsExpression)
+	case plan.ExtensionPathsExpr:
+		o, ok := other.(plan.ExtensionPathsExpr)
 		return ok && same(e.Arg, o.Arg)
-	case installedSoundexFunctionExpression:
-		o, ok := other.(installedSoundexFunctionExpression)
+	case plan.InstalledSoundexExpr:
+		o, ok := other.(plan.InstalledSoundexExpr)
 		if !ok || e.Ref != o.Ref || e.Procedure.Revision() != o.Procedure.Revision() || e.Function != o.Function || len(e.Args) != len(o.Args) {
 			return false
 		}
@@ -290,8 +290,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			}
 		}
 		return true
-	case installedMetaphoneFunctionExpression:
-		o, ok := other.(installedMetaphoneFunctionExpression)
+	case plan.InstalledMetaphoneExpr:
+		o, ok := other.(plan.InstalledMetaphoneExpr)
 		if !ok || e.Ref != o.Ref || e.Procedure.Revision() != o.Procedure.Revision() || e.Function != o.Function || len(e.Args) != len(o.Args) {
 			return false
 		}
@@ -301,8 +301,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			}
 		}
 		return true
-	case installedLevenshteinFunctionExpression:
-		o, ok := other.(installedLevenshteinFunctionExpression)
+	case plan.InstalledLevenshteinExpr:
+		o, ok := other.(plan.InstalledLevenshteinExpr)
 		if !ok || e.Ref != o.Ref || e.Procedure.Revision() != o.Procedure.Revision() || e.Function != o.Function || len(e.Args) != len(o.Args) {
 			return false
 		}
@@ -312,11 +312,11 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			}
 		}
 		return true
-	case installedUUIDOsspFunctionExpression:
-		o, ok := other.(installedUUIDOsspFunctionExpression)
+	case plan.InstalledUUIDOsspExpr:
+		o, ok := other.(plan.InstalledUUIDOsspExpr)
 		return ok && e.Ref == o.Ref && e.Procedure == o.Procedure && e.Name == o.Name
-	case installedCryptoFunctionExpression:
-		o, ok := other.(installedCryptoFunctionExpression)
+	case plan.InstalledCryptoExpr:
+		o, ok := other.(plan.InstalledCryptoExpr)
 		if !ok || e.Ref != o.Ref || e.Procedure.Revision() != o.Procedure.Revision() || e.Plan != o.Plan || len(e.Args) != len(o.Args) {
 			return false
 		}
@@ -326,8 +326,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			}
 		}
 		return true
-	case installedFunctionExpression:
-		o, ok := other.(installedFunctionExpression)
+	case plan.InstalledTextExpr:
+		o, ok := other.(plan.InstalledTextExpr)
 		return ok && e.Ref == o.Ref && e.Procedure.Revision() == o.Procedure.Revision() && same(e.Arg, o.Arg)
 	case expr.GroupIdentity:
 		// Function nodes compare their own identity; installed-routine
@@ -548,11 +548,11 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		}
 		stage(&e.Info)
 		bound = e
-	case extensionPathsExpression:
+	case plan.ExtensionPathsExpr:
 		e.Arg = rewrite(e.Arg)
 		stage(&e.Info)
 		bound = e
-	case installedSoundexFunctionExpression:
+	case plan.InstalledSoundexExpr:
 		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
@@ -561,7 +561,7 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		stage(&info)
 		e.Info = info
 		bound = e
-	case installedMetaphoneFunctionExpression:
+	case plan.InstalledMetaphoneExpr:
 		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
@@ -570,7 +570,7 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		stage(&info)
 		e.Info = info
 		bound = e
-	case installedLevenshteinFunctionExpression:
+	case plan.InstalledLevenshteinExpr:
 		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
@@ -579,12 +579,12 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		stage(&info)
 		e.Info = info
 		bound = e
-	case installedUUIDOsspFunctionExpression:
+	case plan.InstalledUUIDOsspExpr:
 		info := expr.InfoOf(e)
 		stage(&info)
 		e.Info = info
 		bound = e
-	case installedCryptoFunctionExpression:
+	case plan.InstalledCryptoExpr:
 		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
@@ -593,7 +593,7 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		stage(&info)
 		e.Info = info
 		bound = e
-	case installedFunctionExpression:
+	case plan.InstalledTextExpr:
 		e.Arg = rewrite(e.Arg)
 		stage(&e.Info)
 		bound = e
@@ -706,27 +706,27 @@ func aggregateOccurrence(bound expr.Expr) *plan.AggregateExpr {
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case extensionPathsExpression:
+	case plan.ExtensionPathsExpr:
 		walk(e.Arg)
-	case installedSoundexFunctionExpression:
+	case plan.InstalledSoundexExpr:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case installedMetaphoneFunctionExpression:
+	case plan.InstalledMetaphoneExpr:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case installedLevenshteinFunctionExpression:
+	case plan.InstalledLevenshteinExpr:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case installedUUIDOsspFunctionExpression:
+	case plan.InstalledUUIDOsspExpr:
 		// Installed UUID generators and constants are zero-child leaves.
-	case installedCryptoFunctionExpression:
+	case plan.InstalledCryptoExpr:
 		for _, arg := range e.Args {
 			walk(arg)
 		}
-	case installedFunctionExpression:
+	case plan.InstalledTextExpr:
 		walk(e.Arg)
 	case expr.Composite:
 		// Function nodes list their children in evaluation order.

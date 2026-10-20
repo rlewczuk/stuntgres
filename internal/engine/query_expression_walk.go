@@ -101,11 +101,11 @@ func boundExpressionChildren(node expr.Expr, walk func(expr.Expr)) {
 		walk(e.Child)
 	case plan.ConditionalExpr:
 		args(e.Args)
-	case installedUUIDOsspFunctionExpression:
+	case plan.InstalledUUIDOsspExpr:
 		// No argument children.
-	case installedFunctionExpression:
+	case plan.InstalledTextExpr:
 		walk(e.Arg)
-	case extensionPathsExpression:
+	case plan.ExtensionPathsExpr:
 		walk(e.Arg)
 	case plan.CaseExpr:
 		walk(e.Test)

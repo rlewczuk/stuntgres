@@ -311,10 +311,10 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 	case plan.ConditionalExpr:
 		n.Args = args(n.Args)
 		next = n
-	case extensionPathsExpression:
+	case plan.ExtensionPathsExpr:
 		n.Arg = child(n.Arg)
 		next = n
-	case installedSoundexFunctionExpression:
+	case plan.InstalledSoundexExpr:
 		n.Args = args(n.Args)
 		if ref != nil {
 			n.Ref = ref(n.Ref)
@@ -323,7 +323,7 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 			n.Soundex, err = n.Reconstruct(n.Info, n.Args)
 		}
 		next = n
-	case installedMetaphoneFunctionExpression:
+	case plan.InstalledMetaphoneExpr:
 		n.Args = args(n.Args)
 		if ref != nil {
 			n.Ref = ref(n.Ref)
@@ -332,7 +332,7 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 			n.Metaphone, err = n.Reconstruct(n.Info, n.Args)
 		}
 		next = n
-	case installedLevenshteinFunctionExpression:
+	case plan.InstalledLevenshteinExpr:
 		n.Args = args(n.Args)
 		if ref != nil {
 			n.Ref = ref(n.Ref)
@@ -341,12 +341,12 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 			n.Levenshtein, err = n.Reconstruct(n.Info, n.Args)
 		}
 		next = n
-	case installedUUIDOsspFunctionExpression:
+	case plan.InstalledUUIDOsspExpr:
 		if ref != nil {
 			n.Ref = ref(n.Ref)
 		}
 		next = n
-	case installedCryptoFunctionExpression:
+	case plan.InstalledCryptoExpr:
 		n.Args = args(n.Args)
 		if ref != nil {
 			n.Ref = ref(n.Ref)
@@ -355,7 +355,7 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 			n.Pgcrypto, err = n.Reconstruct(n.Info, n.Args)
 		}
 		next = n
-	case installedFunctionExpression:
+	case plan.InstalledTextExpr:
 		n.Arg = child(n.Arg)
 		if ref != nil {
 			n.Ref = ref(n.Ref)

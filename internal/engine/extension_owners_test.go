@@ -172,7 +172,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	call := bound.(installedCryptoFunctionExpression)
+	call := bound.(plan.InstalledCryptoExpr)
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 900010}
 	consumer := &catalog.Relation{
 		ObjectAddress: address,
@@ -194,7 +194,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 	relocated := next.MustRelation(address)
 	assertCall := func(node expr.Expr) {
 		t.Helper()
-		actual := node.(installedCryptoFunctionExpression)
+		actual := node.(plan.InstalledCryptoExpr)
 		if actual.Ref.Address != mapping[call.Ref.Address] || actual.Ref.Epoch != next.Epoch() || actual.Procedure != next.Get(actual.Ref.Address) {
 			t.Fatal("stale relocated provider", actual.Ref)
 		}
@@ -249,13 +249,13 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(name, err)
 		}
-		original := node.(installedCryptoFunctionExpression)
+		original := node.(plan.InstalledCryptoExpr)
 		project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "value", Usage: original.ResultUsage()}}, Child: &plan.ValuesNode{}, Expressions: []expr.Expr{original}}
 		query, err := remapViewQuery(view, project, ref, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ })
 		if err != nil {
 			t.Fatal(name, err)
 		}
-		actual := query.(*plan.ProjectNode).Expressions[0].(installedCryptoFunctionExpression)
+		actual := query.(*plan.ProjectNode).Expressions[0].(plan.InstalledCryptoExpr)
 		if actual.Ref.Address != mapping[original.Ref.Address] || actual.Ref.Epoch != next.Epoch() || actual.Procedure != next.Get(actual.Ref.Address) || len(actual.Args) != len(original.Args) || actual.ResultUsage() != original.ResultUsage() || plannedVolatility(actual) != expr.Volatile || !closedPgcryptoDefault(actual) {
 			t.Fatal("relocated random/FIPS recipe", name, actual)
 		}

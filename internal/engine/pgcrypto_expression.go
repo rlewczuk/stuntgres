@@ -8,27 +8,9 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
-
-type installedCryptoFunctionExpression struct {
-	functions.Pgcrypto
-	Procedure *catalog.Procedure
-	Ref       ids.ObjectRef
-}
-
-// Rebuild keeps the installed-routine identity; the promoted Rebuild would
-// return the bare functions node.
-func (e installedCryptoFunctionExpression) Rebuild(info expr.Info, children []expr.Expr) (expr.Expr, error) {
-	node, err := e.Pgcrypto.Rebuild(info, children)
-	if err != nil {
-		return nil, err
-	}
-	e.Pgcrypto = node.(functions.Pgcrypto)
-	return e, nil
-}
 
 func (c *EvalContext) FunctionPgcryptoEntropy(bytes []byte) error {
 	if err := c.FunctionContext().Err(); err != nil {
@@ -40,7 +22,7 @@ func (c *EvalContext) FunctionPgcryptoEntropy(bytes []byte) error {
 
 func (c *EvalContext) FunctionPgcryptoFIPSMode() bool { return fips140.Enabled() }
 
-func validateInstalledCrypto(n installedCryptoFunctionExpression, v catalog.Read) error {
+func validateInstalledCrypto(n plan.InstalledCryptoExpr, v catalog.Read) error {
 	for _, arg := range n.Args {
 		if arg == nil || arg.ResultUsage().Type == nil {
 			return fmt.Errorf("stuntgres: missing stored crypto argument")
@@ -56,7 +38,7 @@ func validateInstalledCrypto(n installedCryptoFunctionExpression, v catalog.Read
 	return n.Validate()
 }
 
-func cryptoExpressionSignature(n installedCryptoFunctionExpression) catalog.ProcedureSignature {
+func cryptoExpressionSignature(n plan.InstalledCryptoExpr) catalog.ProcedureSignature {
 	if n.Plan.Name() == "gen_random_bytes" {
 		if len(n.Args) == 1 && n.Args[0].ResultUsage().Type.ID() == sqltype.Int4 {
 			return "23"
@@ -102,7 +84,7 @@ func closedPgcryptoDefault(node expr.Expr) bool {
 		return false
 	}
 	switch n := node.(type) {
-	case installedCryptoFunctionExpression:
+	case plan.InstalledCryptoExpr:
 		if n.Procedure == nil || extension.PgcryptoProviderOf(n.Procedure) != extension.StockPgcrypto || n.Ref.Address != n.Procedure.Address() || n.Ref.Epoch == 0 || n.Plan.Name() != n.Procedure.Name() || n.Validate() != nil {
 			return false
 		}

@@ -116,19 +116,19 @@ func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 		return session(children(n.Left, n.Right), n.Equality.SessionDependent())
 	case plan.ConditionalExpr:
 		return session(children(n.Args...), n.Comparison.SessionDependent())
-	case extensionPathsExpression:
+	case plan.ExtensionPathsExpr:
 		return merge(children(n.Arg), expr.Stable)
-	case installedSoundexFunctionExpression:
+	case plan.InstalledSoundexExpr:
 		return children(n.Args...)
-	case installedMetaphoneFunctionExpression:
+	case plan.InstalledMetaphoneExpr:
 		return children(n.Args...)
-	case installedLevenshteinFunctionExpression:
+	case plan.InstalledLevenshteinExpr:
 		return children(n.Args...)
-	case installedUUIDOsspFunctionExpression:
+	case plan.InstalledUUIDOsspExpr:
 		return n.Procedure.Volatility
-	case installedCryptoFunctionExpression:
+	case plan.InstalledCryptoExpr:
 		return merge(n.Procedure.Volatility, children(n.Args...))
-	case installedFunctionExpression:
+	case plan.InstalledTextExpr:
 		return merge(n.Procedure.Volatility, children(n.Arg))
 	case plan.CaseExpr:
 		v := children(n.Test, n.Otherwise)

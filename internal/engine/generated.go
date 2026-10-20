@@ -223,19 +223,19 @@ func generationImmutable(node expr.Expr) bool {
 		return true
 	case plan.UnnestExpr:
 		return false
-	case extensionPathsExpression:
+	case plan.ExtensionPathsExpr:
 		return false
-	case installedSoundexFunctionExpression:
+	case plan.InstalledSoundexExpr:
 		return args(n.Args)
-	case installedMetaphoneFunctionExpression:
+	case plan.InstalledMetaphoneExpr:
 		return args(n.Args)
-	case installedLevenshteinFunctionExpression:
+	case plan.InstalledLevenshteinExpr:
 		return args(n.Args)
-	case installedUUIDOsspFunctionExpression:
+	case plan.InstalledUUIDOsspExpr:
 		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable
-	case installedCryptoFunctionExpression:
+	case plan.InstalledCryptoExpr:
 		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable && args(n.Args)
-	case installedFunctionExpression:
+	case plan.InstalledTextExpr:
 		return n.Procedure != nil && n.Procedure.Volatility == expr.Immutable && args([]expr.Expr{n.Arg})
 	case expr.Composite:
 		// Last, so the explicit engine wrappers above keep precedence. A
@@ -414,19 +414,19 @@ func generationHasTableOID(node expr.Expr) bool {
 			}
 		}
 		return false
-	case extensionPathsExpression:
+	case plan.ExtensionPathsExpr:
 		return generationHasTableOID(n.Arg)
-	case installedSoundexFunctionExpression:
+	case plan.InstalledSoundexExpr:
 		return args(n.Args)
-	case installedMetaphoneFunctionExpression:
+	case plan.InstalledMetaphoneExpr:
 		return args(n.Args)
-	case installedLevenshteinFunctionExpression:
+	case plan.InstalledLevenshteinExpr:
 		return args(n.Args)
-	case installedUUIDOsspFunctionExpression:
+	case plan.InstalledUUIDOsspExpr:
 		return false
-	case installedCryptoFunctionExpression:
+	case plan.InstalledCryptoExpr:
 		return args(n.Args)
-	case installedFunctionExpression:
+	case plan.InstalledTextExpr:
 		return args([]expr.Expr{n.Arg})
 	case expr.Composite:
 		return args(n.Children())
@@ -759,22 +759,22 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 			}
 		}
 		return nil
-	case extensionPathsExpression:
+	case plan.ExtensionPathsExpr:
 		if err := n.Validate(); err != nil {
 			return err
 		}
 		return validateGenerationPlan(view, d, n.Arg)
-	case installedSoundexFunctionExpression:
+	case plan.InstalledSoundexExpr:
 		return args(n.Args)
-	case installedMetaphoneFunctionExpression:
+	case plan.InstalledMetaphoneExpr:
 		return args(n.Args)
-	case installedLevenshteinFunctionExpression:
+	case plan.InstalledLevenshteinExpr:
 		return args(n.Args)
-	case installedUUIDOsspFunctionExpression:
+	case plan.InstalledUUIDOsspExpr:
 		return validateInstalledUUIDOssp(n, view)
-	case installedCryptoFunctionExpression:
+	case plan.InstalledCryptoExpr:
 		return args(n.Args)
-	case installedFunctionExpression:
+	case plan.InstalledTextExpr:
 		return args([]expr.Expr{n.Arg})
 	case expr.Composite:
 		// Last, so the explicit engine wrappers above keep precedence.

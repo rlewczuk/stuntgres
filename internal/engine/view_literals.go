@@ -575,22 +575,22 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			}
 			return children(r.Args, n.Args)
 		}
-		if n, ok := bound.(installedSoundexFunctionExpression); ok {
+		if n, ok := bound.(plan.InstalledSoundexExpr); ok {
 			return children(r.Args, n.Args)
 		}
-		if n, ok := bound.(installedMetaphoneFunctionExpression); ok {
+		if n, ok := bound.(plan.InstalledMetaphoneExpr); ok {
 			return children(r.Args, n.Args)
 		}
-		if n, ok := bound.(installedLevenshteinFunctionExpression); ok {
+		if n, ok := bound.(plan.InstalledLevenshteinExpr); ok {
 			return children(r.Args, n.Args)
 		}
-		if n, ok := bound.(installedUUIDOsspFunctionExpression); ok {
+		if n, ok := bound.(plan.InstalledUUIDOsspExpr); ok {
 			return children(r.Args, n.Args)
 		}
-		if n, ok := bound.(installedCryptoFunctionExpression); ok {
+		if n, ok := bound.(plan.InstalledCryptoExpr); ok {
 			return children(r.Args, n.Args)
 		}
-		if n, ok := bound.(installedFunctionExpression); ok {
+		if n, ok := bound.(plan.InstalledTextExpr); ok {
 			return children(r.Args, []expr.Expr{n.Arg})
 		}
 		if n, ok := bound.(plan.FieldExpr); ok && len(r.Args) == 1 {
@@ -629,7 +629,7 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 				return children(r.Args, structure.Children())
 			}
 		}
-		if n, ok := bound.(extensionPathsExpression); ok && len(r.Args) == 1 {
+		if n, ok := bound.(plan.ExtensionPathsExpr); ok && len(r.Args) == 1 {
 			return child(r.Args[0], n.Arg)
 		}
 		return protocol(expr.CaptureFunction, r.Args)

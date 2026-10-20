@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -154,7 +155,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	n := node.(installedCryptoFunctionExpression)
+	n := node.(plan.InstalledCryptoExpr)
 	if n.Ref.Address != ext.Members[2] || plannedVolatility(n) != expr.Immutable || n.ResultUsage().Type.ID() != sqltype.Bytea {
 		t.Fatal(n)
 	}
@@ -206,7 +207,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := validateInstalledCrypto(retagged.(installedCryptoFunctionExpression), e.CatalogRead()); err != nil {
+	if err := validateInstalledCrypto(retagged.(plan.InstalledCryptoExpr), e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	mapped := extension.RemapDescriptor(n.Procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.Procedure.Address(): {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*catalog.Procedure)
@@ -220,7 +221,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	aesCall := aesNode.(installedCryptoFunctionExpression)
+	aesCall := aesNode.(plan.InstalledCryptoExpr)
 	if aesCall.Ref.Address != ext.Members[9] || len(aesCall.Args) != 4 || cryptoExpressionSignature(aesCall) != "17,17,17,25" {
 		t.Fatal("four-child installed identity", aesCall)
 	}
@@ -233,7 +234,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := validateInstalledCrypto(retagged.(installedCryptoFunctionExpression), e.CatalogRead()); err != nil {
+	if err := validateInstalledCrypto(retagged.(plan.InstalledCryptoExpr), e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
 	aesRefs, err := pgDependExpressionRefs(context.Background(), e.CatalogRead(), aesCall)
@@ -256,7 +257,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(v.name, err)
 		}
-		call := bound.(installedCryptoFunctionExpression)
+		call := bound.(plan.InstalledCryptoExpr)
 		if call.ResultUsage().Type.ID() != v.result || plannedVolatility(call) != expr.Volatile || !closedPgcryptoDefault(call) {
 			t.Fatal("random/FIPS properties", call)
 		}
@@ -272,7 +273,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		actual := retagged.(installedCryptoFunctionExpression)
+		actual := retagged.(plan.InstalledCryptoExpr)
 		if err := validateInstalledCrypto(actual, e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}

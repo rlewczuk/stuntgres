@@ -50,6 +50,11 @@ type Runtime interface {
 	// Executor nodes: each runs a query or routine body for the current frame.
 	EvalSubquery(SubqueryExpr) (sqltype.Value, error)
 	EvalSQLRoutine(SQLRoutineExpr) (sqltype.Value, error)
+
+	// Installed extension nodes: each checks its captured identity against the
+	// engine's extension providers or catalog.
+	EvalInstalledText(InstalledTextExpr) (sqltype.Value, error)
+	OpenExtensionPaths(ExtensionPathsExpr) ([]sqltype.Value, error)
 }
 
 // nodeRuntimeOf recovers the node runtime. A nil or foreign context yields the
