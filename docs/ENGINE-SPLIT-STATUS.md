@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `2b4b8d191`. The later-wave plans
+Last verified against `master` at `1645714d8`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,15 +15,17 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 13 `session`** — 13d.6, the move (item 44f; broad).
+- **Step 13 `session`** — 13e, aliases removed (item 45; broad).
+- **Step 14 `routine`** — 14c, refine (item 46; docs only).
+- **Step 15 `typedef`** — 15c, refine (item 48; docs only).
+- **Step 16 `extension`** — 16c, refine (item 50; docs only).
+- **Step 17 `sequence`** — 17c, refine (item 52; docs only).
+- **Postponed packages** — planning round (item 54; docs only).
 
 Steps 1, 2 and 4–12 and `access` (A1–B5) are done. Step 13's in-place
-untangling (13a, 13b) and its refine (13c) are done; 13d runs in six sessions
-(44a–44f), of which 44a (`session` created, journal moved), 44b
-(statement lease), 44c (engine edges), 44d (root payloads) and 44e (file
-splits and exports) are done. Step 16 Part A (16a, 16b) is done; 16c (item 50)
-waits for 13d (item 44). Step 17 Part A (17a, 17b) is done; 17c (item 52)
-waits for 13d (item 44).
+untangling (13a, 13b), its refine (13c) and the move (13d, in six sessions
+44a–44f) are done; 13e removes the aliases. Part A of steps 14–17 is done;
+with 13d done, Part B starts with the refines (items 46, 48, 50 and 52).
 
 ## Task tree
 
@@ -321,13 +323,14 @@ waits for 13d (item 44).
     request)*
   - [x] 13c — Refine (docs only; the commit that records this status)
     *(quickcheck passed; racecheck/finalcheck skipped at user request)*
-  - [ ] 13d — `session` created and moved (several sessions)
+  - [x] 13d — `session` created and moved (several sessions)
     - [x] 13d.1 — Journal, creates `session` *(broad)*
     - [x] 13d.2 — Statement lease and small cuts (in place)
     - [x] 13d.3 — Engine edges *(broad)*
     - [x] 13d.4 — Root payloads (in place)
     - [x] 13d.5 — File splits and exports *(broad)*
-    - [ ] 13d.6 — Move *(broad)*
+    - [x] 13d.6 — Move *(broad)* (`1770770a8`, `f4c4bd5de`, `71a7ad850`,
+      then the docs commit) *(racecheck/finalcheck skipped at user request)*
   - [ ] 13e — Aliases removed *(broad)*
 - [ ] **Step 14 — `routine`** ([prompt](ENGINE-SPLIT-routine.md); Part A
   needs `PG18-ROUTINE-CORE` merged, 14b also the F3 aliases item; Part B
@@ -587,7 +590,7 @@ in the prompt file's Status section.
     commit that records this status) · state moves, the scope and
     orchestration stay; quickcheck passed; racecheck/finalcheck skipped at
     user request
-44. [ ] Session 13d (several sessions) — [session](ENGINE-SPLIT-session.md)
+44. [x] Session 13d (several sessions) — [session](ENGINE-SPLIT-session.md)
     13d · needs 43 · **broad** · done when 44a–44f are ticked
     - 44a. [x] 13d.1 journal, creates `session` · needs 43 · **broad**
       (`548b81e54`, `353ec50ae`, `7cc803313`, `2eb0cefb3`, then the docs
@@ -614,7 +617,11 @@ in the prompt file's Status section.
       then the docs commit) · 15 moving-only files, 192 members exported ·
       selected unit/`RACE=1` and dual-mode proof and quickcheck passed;
       bench unchanged; racecheck/finalcheck skipped at user request
-    - 44f. [ ] 13d.6 move · needs 44e · **broad**
+    - 44f. [x] 13d.6 move · needs 44e · **broad** (`1770770a8`,
+      `f4c4bd5de`, `71a7ad850`, then the docs commit) · session state moved
+      with 21 type and 22 constant aliases; `Host.NewOperation` · selected
+      unit/`RACE=1` and dual-mode proof and quickcheck passed; bench
+      unchanged; racecheck/finalcheck skipped at user request
 45. [ ] Session 13e — [session](ENGINE-SPLIT-session.md) 13e · needs 44 ·
     **broad**
 

@@ -8,9 +8,9 @@ registry live in [`settings`](settings/README.md). `Engine.settings` holds one
 publication with the visibility tracking flag; parameter providers borrow a
 pointer to it, and descriptor validation and grant-name canonicalization use
 the same registry. ACL catalogs remain sparse. Search-path resolution stays in
-`schema_path.go`; runtime notice levels, threshold captures and emission stay
-in `notices.go`. Physical-session values, journals, timeout publication and
-their existing locks remain engine-owned. The engine, the root driver and
+`schema_path.go`. Runtime notice levels, threshold captures and emission,
+physical-session values, the journal, timeout publication and their locks
+live in [`session`](session/README.md). The engine, the root driver and
 `cmd/stuntgres` name `settings.` types directly; no aliases remain.
 
 ## System catalog producers

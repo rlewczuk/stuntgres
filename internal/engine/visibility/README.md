@@ -85,12 +85,13 @@ standard library. It never imports the root engine. Layering is in
   (`acquireSerializableSnapshot`) calls `SafeSnapshotWait` and
   `SafeSnapshotOutcome` and waits with `Engine.mu` released. That loop also
   drops and retakes `replacementMu` while its caller holds
-  `transactionOwner.Mu`; this package takes no part in that ordering.
+  `session.TransactionOwner.Mu`; this package takes no part in that ordering.
 
 ## What stays in the engine
 
-`transactionOwner` (the per-session state machine and its CHAIN and
-characteristic rules), savepoints, publication of the catalog journal (the
+The transaction owner's orchestration (the per-session state machine's
+transitions and its CHAIN and characteristic rules; the owner state itself
+is `session.TransactionOwner`), savepoints, publication of the catalog journal (the
 journal itself is `session.Journal`), prepared transactions (2PC),
 `StatementScope`, write staging and `mergeDeletions`.
 Also every entry point that combines visibility with the catalog, storage,

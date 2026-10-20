@@ -50,11 +50,11 @@ import this package directly.
 
 ## What stays in the engine
 
-Per-session storage and the SET LOCAL action stack (`session_settings.go`),
-SET/RESET/SHOW execution, `current_setting`/`set_config`, command admission,
-`sessionPresentation`, RESET ALL, timeout publication, notice levels and
-emission, and the `pg_settings` producer. They read `Session`, `Operation`
-or the transaction owner. Step 13 decides where the session store goes.
+SET/RESET/SHOW execution, `current_setting`/`set_config`,
+`sessionPresentation`, RESET ALL and the `pg_settings` producer. Per-session
+storage and the SET LOCAL action stack (`SettingsStore`), command admission,
+timeout publication and notice levels and emission live in
+[`session`](../session/README.md) (engine-split step 13d.6).
 
 ## Testing
 

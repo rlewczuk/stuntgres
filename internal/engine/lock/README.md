@@ -58,26 +58,27 @@ reaches it only through `Manager` methods; no method runs a caller callback
 under it. The order below was audited in engine-split step 4a.
 
 - `mu` is innermost. It may be taken while the engine holds `replacementMu`
-  (admission reservation) or a `transactionOwner.Mu` (savepoint checkpoint and
+  (admission reservation) or a `session.TransactionOwner.Mu` (savepoint checkpoint and
   restore, finish).
 - It is never taken while holding `Engine.mu`, `Session.Mu`,
-  `sessionSettings.Mu` or `Engine.sessionMu`. Callers release `Engine.mu`
+  `SettingsStore.Mu` or `Engine.sessionMu`. Callers release `Engine.mu`
   before calling the manager.
 - While `mu` is held, no other mutex is taken, no callback runs and nothing
   blocks. Unique-key comparers run outside it (`PinUniqueKey` releases `mu`
   around every comparison).
 
 For reference, the surrounding engine order takes `replacementMu` and
-`transactionOwner.Mu` before `Engine.mu`, and `Engine.mu` before `Session.Mu`,
-`sessionSettings.Mu` and `Engine.sessionMu`; `Session.Mu` comes before
+`TransactionOwner.Mu` before `Engine.mu`, and `Engine.mu` before `Session.Mu`,
+`SettingsStore.Mu` and `Engine.sessionMu`; `Session.Mu` comes before
 `Engine.sessionMu`. Session code reaches the engine only through
 `session.Host`: `Unregister` runs under `Session.Mu` and takes only
 `Engine.sessionMu`; `EndMaintenance` runs with no session lock held, outside
 every `SessionResource` callback, and may take `Engine.mu`.
-The session-layer mutexes are exported fields (`Session.Mu`,
-`transactionOwner.Mu` and `Admission`, `sessionSettings.Mu`, engine-split
-13d.5) so that they can move into `session`; their order and ownership are
-unchanged.
+The session-layer mutexes are exported fields of `session` types
+(`Session.Mu`, `TransactionOwner.Mu` and `Admission`, `SettingsStore.Mu`;
+exported in engine-split 13d.5, moved in 13d.6); their order and ownership
+are unchanged. `NewOperation`, the third `session.Host` method, only
+allocates and takes no lock.
 
 Ticket atomics (`AssignedPublicXID`, `OwnershipEnded`, `CompletionState`) are
 readable without `mu`; the engine updates them under `Engine.mu`, which is why

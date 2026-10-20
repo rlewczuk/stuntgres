@@ -887,8 +887,9 @@ input and output state over the role store, not function nodes, and stay
 with the engine's presentation code; `containsEmptyACL` (`acl_empty.go`)
 serves Dump and deparse.
 
-Physical-session RNG, UUID clock/entropy and SQL time ownership stay in the
-engine: `random.go`, the session generators behind the `exec.Context` clock
+Physical-session RNG, UUID clock/entropy and SQL time ownership stay outside
+`functions`: the state is `session.RandomState` and the UUID clock in
+`session` (`session/random.go`, `session/uuid_clock.go`); the engine keeps the session generators behind the `exec.Context` clock
 and sleep methods, and the closed DEFAULT admission of clock and sleep
 calls (`closedTransactionTimeDefault`). Function evaluation borrows the same owners only when demanded. Literal
 NULL folding and reached runtime argument effects remain distinct. Aggregate

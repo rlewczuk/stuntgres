@@ -662,6 +662,60 @@ place (for example `session_timeout_test.go`, `savepoints_test.go`,
 One scripted session (it may merge with 13d.5, as 12d.6 did): move the
 types of decision 1 with aliases.
 
+**13d.6 result** (measured at `1645714d8`; script and outputs in
+`.cswd/tmp/PG18-ENGINE-SPLIT-SESSION-MOVE/`, `c2.sh` replays the move). The
+15 moving-only files of 13d.5 moved into `session` (`session_settings.go` →
+`settings_store.go`, `session_timeout.go` → `timeout.go`,
+`session_advisory.go` → `advisory.go`, `session_authorization.go` →
+`authorization.go`, `transaction_owner.go` → `owner.go`; the others keep
+their names). frontier before the move reported exactly the predicted
+outbound edges: `sqlError` became a `session/errors.go` copy;
+`newSessionOperation` became `Host.NewOperation(*Session) *Operation`,
+implemented by `sessionHost` (`Session.Operation` calls it; a host-less test
+session gets a plain operation with a nil analysis slot, which
+`Engine.analysisHost` already treats as "allocate a fresh host"); the
+moving files' `catalogChanges` uses became `Journal`. The `Host` callbacks
+now take `*Session` (`sessionOfOwner` is gone).
+
+Names: types keep their names when exported and otherwise become
+`TransactionOwner`, `SettingsStore` (`Settings` is a `ResourceKind`
+constant), `AuthorizationState` (`Authorization` is one too),
+`SavepointMark`, `SettingsMark`, `NotificationAction`, `RandomState`,
+`NoticeLevel` and `State` (the session lifecycle). Non-type names the root
+reads were exported and the root names them qualified (`session.Live`,
+`Initializing`, `Ending`, `Ended`, `LevelNotice`, `LevelWarning`,
+`LevelError` (the whole level block is exported), `RoleRevisionHeadroom`,
+`PendingProtocolUserCancel`, `ValidateOperation` (was
+`validateSessionOperation`), and the test-only `TimeoutFatal` and
+`StatementTimeoutCause`; 65 root files). Names used only inside the package
+stay unexported (`messageLevel`, `settingOverride`, `sessionAdvisory`,
+`sessionTimeout(s)`, `protocolCopyInputContext`, `resourceEntry`,
+`roleSettingAction`, `uuidClock`, `resourceKinds`). `session_aliases.go`
+holds 21 new type aliases and 22 constant aliases (the `EndReason`,
+`ResourceKind`, `TxState` and `Isolation` constants), so the driver and
+`cmd/stuntgres` compile unchanged. Four functions had a local named
+`session` that would capture a qualified name; it became `sess`
+(`discardAllPreflight`, `executeRole`, `transactionAuthority`,
+`TestProtocolCopyInputContext`).
+
+`session` now imports `access`, `authorization`, `catalog`, `functions`,
+`ids`, `lock`, `settings`, `storage`, `visibility`, `parser`, `sqlstate` and
+`sqltype`: no `analyze`, no feature package, no root engine. Bench
+unchanged (about 850–950 µs/op under load on both sides, 5020–5021 allocs).
+
+Deviations: none in scope. `transactionSessionEnd` stays a root defined type
+over the owner (through the alias).
+
+Tests: moved with their code into `session/`: `TestNoticesFilter`
+(`notices_level_test.go`, split out of `notices_test.go`) and
+`TestSettingsLocalActions`, `TestSettingsLocalEndedCleanup`
+(`settings_store_test.go`, split out of `settings_local_test.go`). Adapted
+in place: `session_test.go` passes `AdvisorySession+1` as the unknown
+resource kind instead of the `resourceKinds` sentinel, and the qualified or
+aliased names across engine tests (for example
+`session_timeout_test.go`, `format_encoding_test.go`,
+`protocol_input_context_test.go`). None deleted.
+
 ### 13e — Remove the aliases (broad)
 
 Use the alias tool. Apply decision 6: the driver and `cmd/stuntgres` import
@@ -749,7 +803,7 @@ facade, the statement scope, dispatch and the root payloads of 13c decision
 - [x] 13c — Refine (docs only; the commit that records this text)
   *(measured at `3fbd7d241`; quickcheck passed; racecheck/finalcheck
   skipped at user request)*
-- [ ] 13d — `session` created and moved (sessions per the 13c plan)
+- [x] 13d — `session` created and moved (sessions per the 13c plan)
   - [x] 13d.1 — Journal (creates `session`) (`548b81e54`, `353ec50ae`,
     `7cc803313`, `2eb0cefb3`, then the docs commit) *(selected unit/`RACE=1`
     and dual-mode proof (47 `REFERENCE=1` tests: timeouts, COPY admission,
@@ -774,11 +828,21 @@ facade, the statement scope, dispatch and the root payloads of 13c decision
     `6aea40304`, `e07c17cae`, `eb5e6fe83`, then the docs commit)
     *(selected unit/`RACE=1` and dual-mode proof and quickcheck passed;
     bench unchanged; racecheck/finalcheck skipped at user request)*
-  - [ ] 13d.6 — Move
+  - [x] 13d.6 — Move (`1770770a8`, `f4c4bd5de`, `71a7ad850`, then the docs
+    commit) *(selected unit/`RACE=1` and dual-mode proof and quickcheck
+    passed; bench unchanged; racecheck/finalcheck skipped at user request)*
 - [ ] 13e — Aliases removed
 
-Outstanding aliases: `catalogChanges`, `catalogDependencyObservation` and
-`catalogStorageChange` (`session_aliases.go`, 13d.1).
+Outstanding aliases (`session_aliases.go`): `catalogChanges`,
+`catalogDependencyObservation` and `catalogStorageChange` (13d.1); 21 type
+aliases (`Session`, `Operation`, `EndReason`, `ResourceKind`,
+`ResourceHandle`, `SessionResource`, `SessionStart`, `TxState`, `TxOptions`,
+`Isolation`, `Notification`, `ProtocolCycle`, `StatementLease`,
+`transactionOwner`, `sessionSettings`, `savepointMark`, `settingsMark`,
+`notificationAction`, `sessionAuthorization`, `randomState`, `noticeLevel`)
+and 22 constant aliases (`CleanClose`…`Abandoned`, `Settings`…
+`AdvisorySession`, `TxIdle`…`TxAborted`, `DefaultIsolation`…`Serializable`)
+(13d.6).
 
 Notes for later steps:
 
@@ -824,6 +888,16 @@ Notes for later steps:
   `statementTimeoutCause` (the last three test-only). The root keeps
   `transactionSessionEnd` (a defined type over the owner: after the move it
   converts `*session` owner pointers and reads only exported fields).
+
+- 13d.6, for 13e: the alias file has type and constant aliases; `unalias`
+  handles type aliases, the constant block needs the same rewrite (engine
+  uses to `session.X`) and decision 6 for the driver and `cmd/stuntgres`
+  (`engine.CleanClose`, `engine.TxIdle`, isolation constants,
+  `engine.Session`, `engine.SessionStart`, `engine.TxOptions`,
+  `engine.ProtocolCycle`, `engine.ResourceKind`). Watch locals named
+  `session` in root code: the 13d.6 rewrite met four. Six pre-existing
+  positional `session.DependencyObservation` literals (13d.1) remain unkeyed
+  (vet reports them); `keylit` keys them if wanted.
 
 - Part B of the feature steps (14c–17d) and the postponed packages need 13d.
   After the 13c refine their handlers do not name `StatementScope` (it
