@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -23,7 +24,7 @@ func TestDateRangeAdapterEnvironmentDiagnostics(t *testing.T) {
 		{"[infinity,-infinity]", "22000", "range lower bound must be less than or equal to range upper bound"},
 	} {
 		importer := frameImporter([]driver.Value{tc.input})
-		err := importer(ctx, engine.ParameterInfo{Types: []sqltype.Usage{d.Usage()}}, make([]sqltype.Value, 1), sqltype.InputEnvironment{})
+		err := importer(ctx, analyze.ParameterInfo{Types: []sqltype.Usage{d.Usage()}}, make([]sqltype.Value, 1), sqltype.InputEnvironment{})
 		want := Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: tc.code, Message: tc.message, Context: `unnamed portal parameter $1 = '...'`}
 		var got *Error
 		if !errors.As(err, &got) || *got != want { t.Fatalf("got=%#v want=%#v err=%v", got, want, err) }

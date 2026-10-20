@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"reflect"
 	"stuntgres/internal/engine"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -74,7 +75,7 @@ func TestJSONPathAdapterSharedPortalDiagnostics(t *testing.T) {
 		{"\xff", "22021", "unnamed portal parameter $1"},
 	} {
 		importer := frameImporter([]driver.Value{tc.raw})
-		err := importer(context.Background(), engine.ParameterInfo{Types: []sqltype.Usage{d.Usage()}}, make([]sqltype.Value, 1), sqltype.InputEnvironment{})
+		err := importer(context.Background(), analyze.ParameterInfo{Types: []sqltype.Usage{d.Usage()}}, make([]sqltype.Value, 1), sqltype.InputEnvironment{})
 		diagnostic, ok := err.(*Error)
 		if !ok || diagnostic.Code != tc.code || diagnostic.Context != tc.context || diagnostic.Position != "" {
 			t.Fatal(err)
