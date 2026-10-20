@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `75fd0ec29a414f19db06d4e85c1f804736b6202e`. The later-wave plans
+Last verified against `master` at `5ec7672f07174d29744a497e85ad54a87c1d9e51`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -16,7 +16,8 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 as another broad item (§8).
 
 - **Step 17 `sequence`** — 17b (item 31); 17a is done.
-- **Step 10 `plan`** — 10b node runtime (item 32).
+- **Step 10 `plan`** — 10c `plan` created and moved (item 33; broad); 10b
+  is done.
 - **In-place untangling** — 13a scope slots (item 22; broad). 12b is done;
   12c (item 39) still needs 10c (item 33).
 - **Step 16 `extension`** — 16a (item 28); step 15 Part A (15a, 15b) is
@@ -246,7 +247,10 @@ Steps 1, 2 and 4–9 and `access` are done.
 - [ ] **Step 10 — `plan`** ([prompt](ENGINE-SPLIT-plan.md); needs 2, 3 F1, 5)
   - [x] 10a — `EvalContext` split in place *(broad)* (the commit that
     records this status) *(racecheck/finalcheck skipped at user request)*
-  - [ ] 10b — Opaque CTE mutation and node runtime, in place
+  - [x] 10b — Opaque CTE mutation and node runtime, in place
+    (`61c56b76b`, `55a5497bd`, `d046dec09`, `854c270a9`, `65b24c846`, docs:
+    the commit that records this status) *(racecheck/finalcheck skipped at
+    user request)*
   - [ ] 10c — `plan` created, IR and node types moved *(broad)*
   - [ ] 10d — Aliases removed *(broad)*
 - [ ] **Step 11 — `exec`** ([prompt](ENGINE-SPLIT-exec.md); needs 10c, 13a)
@@ -435,7 +439,9 @@ in the prompt file's Status section.
 
 ### Group E — core moves
 
-32. [ ] Plan 10b — [plan](ENGINE-SPLIT-plan.md) 10b · needs 19
+32. [x] Plan 10b — [plan](ENGINE-SPLIT-plan.md) 10b · needs 19 · selected
+    dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
+    user request; decision 9 settled with a measured evaluation cost
 33. [ ] Plan 10c — [plan](ENGINE-SPLIT-plan.md) 10c · needs 32 · **broad**
 34. [ ] Plan 10d — [plan](ENGINE-SPLIT-plan.md) 10d · needs 33 · **broad**
 35. [ ] Exec 11a (refine, docs only) — [exec](ENGINE-SPLIT-exec.md) 11a ·

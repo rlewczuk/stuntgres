@@ -499,6 +499,27 @@ outside the mutex, then perform real competing updates, ACL/role mutations,
 Reset/replacement or cancellation, retaining exact winner consumers/data.
 Public SQL/control proof stays in `reference/catalogs/extension_version_*`.
 
+### Expression node runtime
+
+Engine expression nodes never name `*EvalContext` in their `Eval` methods.
+`nodeRuntime` (`node_runtime.go`), implemented only by `*EvalContext`, is
+their capability: `BeginEvaluation` is the shared prologue (missing-context
+check, domain-check wiring while a domain value is active, then cancellation,
+in that order), `ApplyCoercion` and `RowAbsent` serve coercion and whole-row
+presence, `FrameValue` and `ParameterValue` are the plain column and parameter
+reads by scalar coordinates (no node copy on the hot path), and one `Eval*`
+method per remaining frame or executor node (full column, group, grouping,
+tableoid, RETURNING, MERGE action, cached order, window, domain VALUE, UPDATE
+output, subquery, SQL routine) holds that node's evaluation body. Statement-only nodes read the cancellation context and
+environments through `expr.Context`, at the same points as before. A
+data-modifying CTE carries its binding as the opaque `cteMutation`, recovered
+only through `mutationBinding`. The installed-function and extension-path
+nodes still recover `*EvalContext` until the extension package owns them.
+
+Run `make check RUN='^TestNodeRuntimePrologue$'` for the prologue seam; public
+evaluation proof is the existing query, CTE, RETURNING, MERGE, window,
+grouping, domain and generated-column reference selections.
+
 ### Relation lock timeout mechanics
 
 Relation-lock timeout units observe completion and lock state together in short

@@ -1234,8 +1234,11 @@ These packages get prompt files after the steps above. Each needs `session`
    package.
 9. **Where `Eval` lives.** Step 10 keeps node types and `Eval` in `plan`,
    with engine state behind a node runtime capability; the alternative is to
-   keep `Eval` for frame-reading nodes in `exec`. Settle in 10b against
-   `make bench`.
+   keep `Eval` for frame-reading nodes in `exec`. Settled in 10b: `Eval`
+   stays on the node types, frame and executor bodies live on `*EvalContext`
+   behind `nodeRuntime`. Startup allocations are unchanged; per-node
+   dispatch costs about +3–16% on expression-heavy scans, accepted by the
+   user (numbers in the plan prompt's 10b result).
 10. **Settings session store.** Whether `sessionSettings` (with its SET LOCAL
     stack) moves into `settings` or `session`. It reads session authorization
     and timeouts today, so step 8 leaves it for 13c.
@@ -1264,7 +1267,7 @@ package-specific scope. This section holds the rules every session follows.
 | A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | done (A1, B0–B4, names cleanup); B5 after 12d |
 | 8 | [`ENGINE-SPLIT-settings.md`](ENGINE-SPLIT-settings.md) | — | done (8a–8c; racecheck skipped at user request) |
 | 9 | [`ENGINE-SPLIT-pgcatalog.md`](ENGINE-SPLIT-pgcatalog.md) | 5, B4; 8b for 9b | done (9a in place, 9b package created and producers moved, 9c aliases removed; racecheck skipped at user request) |
-| 10 | [`ENGINE-SPLIT-plan.md`](ENGINE-SPLIT-plan.md) | 2, 3 F1, 5 | 10a done (racecheck/finalcheck skipped by user); 10b–10d planned |
+| 10 | [`ENGINE-SPLIT-plan.md`](ENGINE-SPLIT-plan.md) | 2, 3 F1, 5 | 10a and 10b done (racecheck/finalcheck skipped by user); 10c–10d planned |
 | 11 | [`ENGINE-SPLIT-exec.md`](ENGINE-SPLIT-exec.md) | 10c, 13a | planned (11a–11d) |
 | 12 | [`ENGINE-SPLIT-analyze.md`](ENGINE-SPLIT-analyze.md) | 12a–12b: —; 12c: 10c | 12a–12b done (racecheck/finalcheck skipped at user request); 12c–12e planned |
 | 13 | [`ENGINE-SPLIT-session.md`](ENGINE-SPLIT-session.md) | 13a–13b: —; 13c: 11c, 12d, 8b | planned (13a–13e) |

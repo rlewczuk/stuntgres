@@ -10,7 +10,8 @@ import (
 
 // Context is the evaluation runtime visible to expression nodes outside the
 // engine's own node set. The engine's *EvalContext is the only
-// implementation; engine nodes recover it and keep engine-private state there.
+// implementation; engine nodes recover its node runtime capability and keep
+// engine-private state behind it.
 //
 // Every method is a per-evaluation capability of the current statement. None
 // may be backed by package-level state. Evaluation always receives a non-nil

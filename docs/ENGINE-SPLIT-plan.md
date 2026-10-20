@@ -240,7 +240,9 @@ names `*EvalContext`. `EvalContext` is three documented groups. The checks in
 
 - [x] 10a — `EvalContext` split in place (the commit that records this
   status) *(racecheck/finalcheck skipped at user request)*
-- [ ] 10b — Opaque CTE mutation and node runtime, in place
+- [x] 10b — Opaque CTE mutation and node runtime, in place (`61c56b76b`,
+  `55a5497bd`, `d046dec09`, `854c270a9`, `65b24c846`, docs: the commit that
+  records this status) *(racecheck/finalcheck skipped at user request)*
 - [ ] 10c — `plan` created, IR and node types moved
 - [ ] 10d — Aliases removed
 
@@ -313,3 +315,97 @@ Notes for later steps:
   bodies. 10a's group record tells it which state is per-frame.
 - Step 12: the binder constructs most node types; after 10c it names
   `plan.` types.
+
+### 10b result
+
+Re-measured at `3745e9011`: 42 engine node `Eval` methods (the Tier C nodes
+had already moved to `functions`); `updateOutputExpression` (frame) and
+`sqlRoutineExpression` (frame and statement) are new since the inventory, and
+`rowExpression`/`fieldExpression` read frame state through `absent`.
+`cteDefinition.mutation` had 77 references (47 production, 30 test).
+
+- **CTE mutation.** `cteDefinition.mutation` is the engine-local marker
+  interface `cteMutation` (`cte_mutation_payload.go`), implemented by
+  `*binding`; `mutationBinding(d) (*binding, bool)` is the one checked
+  accessor. Plan-side code (`folded`, `outputSchema`) tests presence only.
+  Writers always store a non-nil `*binding`, so nil checks and identity
+  comparisons keep their meaning. 27 direct field references remain (nil
+  checks, writers, identity), all others go through the accessor.
+- **Node runtime.** `nodeRuntime` (`node_runtime.go`) embeds `expr.Context`
+  and is implemented only by `*EvalContext` (compile-time assertion):
+  `BeginEvaluation` (the unchanged `evaluationContext` prologue),
+  `ApplyCoercion`, `RowAbsent`, `FrameValue`, `ParameterValue`, and
+  `EvalColumn`, `EvalGroup`, `EvalGrouping`, `EvalTableOID`,
+  `EvalReturningColumn`, `EvalReturningWholeRow`, `EvalMergeAction`,
+  `EvalCachedOrder`, `EvalWindow`, `EvalDomainValue`, `EvalUpdateOutput`,
+  `EvalSubquery` and `EvalSQLRoutine`. `nodeRuntimeOf(ctx)` recovers it; a nil
+  or foreign context yields the prologue's missing-context error.
+  `beginEvaluation(ctx)` recovers it and runs the prologue.
+- **Statement-only nodes** (literal, array, subscript, scalar-array
+  comparison, row, field, CASE, conditional, logical, row comparison, LIKE,
+  comparison, arithmetic, bitwise, distinct, coercion, unnest/series/
+  subscripts `Eval` and `OpenSource`, assignment value, view qualification)
+  read `FunctionContext()`, `FunctionInput()` and `FunctionOutput()` at the
+  points where they read the fields before. Nodes that never ran the prologue
+  still do not. Their helpers take `expr.Context`: `evaluateArrayBounds`,
+  `rowComparisonExpression.compare`, `subqueryExpression.compare`,
+  `arrayAssignmentTarget.apply*`, `queryPredicateProofValue`. The binder-side
+  `arrayAssignmentTarget.diagnostic` became
+  `expressionBinder.arrayAssignmentDiagnostic`.
+- **Coercion** cannot use `FunctionInput()`: when the evaluation context
+  lacks the Regrole, Regcollation or Regnamespace input resolvers it borrows
+  them from the live statement scope, and it wires domain checks to the
+  context. `ApplyCoercion` holds that assembly verbatim and applies the plan.
+- **Frame and executor nodes** delegate to their `Eval*` method; the bodies
+  moved unchanged. Their dirty helpers became `*EvalContext` methods taking
+  the node: `columnCapturedGeneration`, `admitColumnVirtualGeneration`,
+  `subqueryMembership`, `subqueryHashMembership`, `subqueryJSONArray`,
+  `subqueryUpdateOutputs`; `RowAbsent` replaced `rowExpression.absent`, and
+  `frameRow` (the column frame walk) replaced `columnExpression.rowContext`.
+- **Left as they were:** `installedFunctionExpression` and
+  `extensionPathsExpression` still recover `*EvalContext` through
+  `evalContext` (extension step 16); Tier C lives in `functions`.
+
+The `reach` census (appendix tool) is clean for every node type, `cteDefinition`,
+`cteMutation`, `nodeRuntime` and `arrayAssignmentTarget`, except the two
+extension nodes. Among the plan IR only `functionFromNode.openCall` (a query
+opener) still names `*EvalContext`.
+
+**§7 decision 9 — settled: `Eval` stays on the node types (they move to
+`plan` in 10c), with engine state behind the node runtime.** The user
+accepted the measured cost. Per evaluated node the interface dispatch adds
+about 2.6 ns to the prologue (micro-benchmark: 2.3 ns before, 4.9 ns after).
+The first cut also copied 300-byte nodes through `EvalColumn` and
+`EvalParameter`; the scalar `FrameValue`/`ParameterValue` paths and
+`ApplyCoercion` removed most of that. Final throwaway evaluation benchmark
+(database/sql over `generate_series` and a 5,000-row table; eight
+alternating runs pinned to two CPUs, median/minimum vs `3745e9011`):
+arithmetic and comparisons +2.8%/+7.0%, CASE/COALESCE/GREATEST +7.2%/+8.5%,
+casts +5.8%/+3.9%, table scan with LIKE and row comparison +16.1%/+11.9%.
+Allocations per query are unchanged in all seven cases (also subquery,
+window and grouping sets). Moving the prologue into `expr.Context`, or
+returning the environments by pointer, gave no measurable gain and was
+dropped. `make bench`: 5,100 steady allocs/op before and after; ns/op
+1.19–2.92 ms before and 2.27–3.51 ms after on a heavily shared host, so
+not a startup comparison.
+
+Tests: new `TestNodeRuntimePrologue` (prologue seam: nil, typed-nil and
+foreign contexts, cancellation, domain-check wiring before input reads).
+Adapted: `alter_generation_virtual_test.go` (`columnCapturedGeneration`) and
+the CTE/rule tests that read the mutation binding (`rule_cte_test.go`,
+`rule_named_dependency_test.go`, `rule_named_dump_test.go`,
+`rule_inference_dump_test.go`, `cte_dml_atomicity_test.go`) through the
+test helper `cteMutationOf`. None moved or deleted.
+
+Notes for later steps:
+
+- 10c: convert `functionFromNode.openCall` to an engine function before the
+  move. The node runtime becomes `plan.Runtime`; its `Eval*` methods name
+  `plan` node types, so `*EvalContext` keeps the bodies. The node types are
+  copied by value through the runtime (about 300 bytes each); keep new hot
+  paths on scalar arguments like `FrameValue`.
+- Step 11: the `Eval*` bodies move with `EvalContext` into `exec`. A cheaper
+  per-node dispatch (batching, or compiling statement-only subtrees) is the
+  place to win back the 10b cost.
+- Step 16: the installed-function and extension-path nodes still recover
+  `*EvalContext`.
