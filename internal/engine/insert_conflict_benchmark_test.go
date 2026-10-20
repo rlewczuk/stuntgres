@@ -32,19 +32,19 @@ func BenchmarkInsertConflictCommittedOmissions(b *testing.B) {
 				f.e.mu.Lock()
 				f.e.storage.InstallIndexRootLocked(f.index.Address(), root)
 				f.e.mu.Unlock()
-				session, err := f.e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: f.parent.Owner})
+				sess, err := f.e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: f.parent.Owner})
 				if err != nil {
 					b.Fatal(err)
 				}
-				op, err := session.Acquire(context.Background())
+				op, err := sess.Acquire(context.Background())
 				if err != nil {
-					session.RequestEnd(CleanClose)
+					sess.RequestEnd(CleanClose)
 					b.Fatal(err)
 				}
 				defer func() {
 					op.Done()
-					session.RequestEnd(CleanClose)
-					if err := session.WaitEnd(context.Background()); err != nil {
+					sess.RequestEnd(CleanClose)
+					if err := sess.WaitEnd(context.Background()); err != nil {
 						b.Error(err)
 					}
 				}()

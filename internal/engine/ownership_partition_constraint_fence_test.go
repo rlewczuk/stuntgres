@@ -53,17 +53,17 @@ func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *
 		changes.Descriptors[catalog.CurrentDatabaseAddress] = &database
 		changes.Originals[catalog.CurrentDatabaseAddress] = committed
 	}
-	session, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: actor})
+	sess, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: actor})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		session.RequestEnd(CleanClose)
-		if err := session.WaitEnd(context.Background()); err != nil {
+		sess.RequestEnd(CleanClose)
+		if err := sess.WaitEnd(context.Background()); err != nil {
 			t.Error(err)
 		}
 	})
-	return e, session, root, committed, changes
+	return e, sess, root, committed, changes
 }
 
 func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {

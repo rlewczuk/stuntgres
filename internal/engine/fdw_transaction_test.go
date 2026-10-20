@@ -55,8 +55,8 @@ func TestFDWTransactionParticipants(t *testing.T) {
 	t.Run("ChainReadmission", fdwChainReadmission)
 	t.Run("HoldSettlement", fdwHoldSettlement)
 	e := New()
-	session := sessionStart(t, e, nil)
-	op := transactionOperation(t, session)
+	sess := sessionStart(t, e, nil)
+	op := transactionOperation(t, sess)
 	defer op.Done()
 	ref, err := e.Begin(op, TxOptions{})
 	if err != nil {
@@ -80,10 +80,10 @@ func TestFDWTransactionParticipants(t *testing.T) {
 		} else {
 			s.owner.Mu.Unlock()
 		}
-		if !session.Mu.TryLock() {
+		if !sess.Mu.TryLock() {
 			t.Error("transaction callback holds Session.mu")
 		} else {
-			session.Mu.Unlock()
+			sess.Mu.Unlock()
 		}
 		if !e.replacementMu.TryLock() {
 			t.Error("transaction callback holds replacement reservation")

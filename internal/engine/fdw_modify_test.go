@@ -216,8 +216,8 @@ func TestFDWModifyLifecycle(t *testing.T) {
 	t.Run("CopyInputVeto", fdwUnitCopyVeto)
 	for _, partial := range []bool{false, true} {
 		e := New()
-		session := sessionStart(t, e, nil)
-		op := transactionOperation(t, session)
+		sess := sessionStart(t, e, nil)
+		op := transactionOperation(t, sess)
 		ref, err := e.Begin(op, TxOptions{})
 		if err != nil {
 			t.Fatal(err)
@@ -241,10 +241,10 @@ func TestFDWModifyLifecycle(t *testing.T) {
 			} else {
 				s.owner.Mu.Unlock()
 			}
-			if !session.Mu.TryLock() {
+			if !sess.Mu.TryLock() {
 				t.Error("session locked")
 			} else {
-				session.Mu.Unlock()
+				sess.Mu.Unlock()
 			}
 			if !e.replacementMu.TryLock() {
 				t.Error("replacement reservation held")

@@ -96,14 +96,14 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState, 
 	if t.Next == ids.TxID(^uint64(0)) {
 		return errors.New("stuntgres: transaction identity exhausted")
 	}
-	session := op.Session
+	sess := op.Session
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	settings := session.Settings
+	settings := sess.Settings
 	settings.Mu.Lock()
 	defer settings.Mu.Unlock()
-	session.Mu.Lock()
-	defer session.Mu.Unlock()
+	sess.Mu.Lock()
+	defer sess.Mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {
 		return err
 	}
@@ -114,7 +114,7 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState, 
 	t.Next++
 	t.Ref = e.catalog.Domain.Tx(t.Session.SessionToken, t.Next, e.catalog.state.Epoch(), t, diagnostic)
 	t.State = state
-	payloadOf(session).notifications.busy = true
+	payloadOf(sess).notifications.busy = true
 	t.Isolation = isolationFromText(settings.Value("default_transaction_isolation"))
 	t.ReadOnly = settings.Value("default_transaction_read_only") == "on"
 	t.Deferrable = settings.Value("default_transaction_deferrable") == "on"
@@ -128,7 +128,7 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState, 
 	if t.RetainedMessage {
 		t.MessageBorn = true
 	}
-	session.BeginTimeoutLocked(t.Ref, state == TxActive, start)
+	sess.BeginTimeoutLocked(t.Ref, state == TxActive, start)
 	return nil
 }
 

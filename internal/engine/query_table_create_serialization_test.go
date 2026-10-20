@@ -34,10 +34,10 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 			}
 			queryCreatePublish(t, e, sourceStage)
 			sourceRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), sourceDescriptor.Address())
-			session := sessionStart(t, e, nil)
-			op := transactionOperation(t, session)
+			sess := sessionStart(t, e, nil)
+			op := transactionOperation(t, sess)
 			isolation := "serializable"
-			if _, err := e.applySetting(op, session.Settings, e.settings.Definitions()["default_transaction_isolation"], &isolation, false); err != nil {
+			if _, err := e.applySetting(op, sess.Settings, e.settings.Definitions()["default_transaction_isolation"], &isolation, false); err != nil {
 				t.Fatal(err)
 			}
 			scope, err := e.StartStatement(op)

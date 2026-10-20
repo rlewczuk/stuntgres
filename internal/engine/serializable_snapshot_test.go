@@ -15,8 +15,8 @@ import (
 
 func serializableUnitAcquisition(t *testing.T, e *Engine, parent context.Context, readOnly, deferrable bool) (*StatementScope, *visibility.SerializableTx) {
 	t.Helper()
-	session := sessionStart(t, e, nil)
-	op, err := session.Acquire(parent)
+	sess := sessionStart(t, e, nil)
+	op, err := sess.Acquire(parent)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +25,7 @@ func serializableUnitAcquisition(t *testing.T, e *Engine, parent context.Context
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &StatementScope{owner: session.Transactions, op: op, txRef: ref}, e.visibility.Serializable.Nodes[ref]
+	return &StatementScope{owner: sess.Transactions, op: op, txRef: ref}, e.visibility.Serializable.Nodes[ref]
 }
 func serializableUnitAwaitCandidate(t *testing.T, e *Engine, node *visibility.SerializableTx) {
 	t.Helper()
@@ -310,15 +310,15 @@ func TestSerializableSafeSnapshotTerminalSessionDrain(t *testing.T) {
 	scope, node := serializableUnitAcquisition(t, e, context.Background(), true, true)
 	join := serializableUnitCaptureWorker(t, scope)
 	serializableUnitAwaitCandidate(t, e, node)
-	session := scope.op.Session
-	session.RequestEnd(CleanClose)
+	sess := scope.op.Session
+	sess.RequestEnd(CleanClose)
 	if err := join(); err == nil {
 		t.Fatal("terminal capture succeeded")
 	}
 	scope.op.Done()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := session.WaitEnd(ctx); err != nil {
+	if err := sess.WaitEnd(ctx); err != nil {
 		t.Fatal(err)
 	}
 	e.endSerializable(writer.Ref, false)
@@ -399,17 +399,17 @@ func TestSerializableSafeSnapshotAttemptedWriterRemainsCandidate(t *testing.T) {
 func TestSerializableGoBirthDeferrableOverridePresence(t *testing.T) {
 	for _, override := range []bool{false, true} {
 		e := New()
-		session := sessionStart(t, e, nil)
-		sessionSQL(t, session, "SET default_transaction_deferrable=on")
-		op := transactionOperation(t, session)
+		sess := sessionStart(t, e, nil)
+		sessionSQL(t, sess, "SET default_transaction_deferrable=on")
+		op := transactionOperation(t, sess)
 		ref, err := e.Begin(op, TxOptions{Isolation: Serializable, ReadOnly: true, DeferrableSet: override, Deferrable: false})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if session.Transactions.Deferrable == override || !session.Transactions.EntryDeferrable {
+		if sess.Transactions.Deferrable == override || !sess.Transactions.EntryDeferrable {
 			t.Fatal("Go birth confused omitted and explicit deferrability overrides")
 		}
-		scope := &StatementScope{owner: session.Transactions, op: op, txRef: ref}
+		scope := &StatementScope{owner: sess.Transactions, op: op, txRef: ref}
 		scope.owner.Mu.Lock()
 		err = scope.acquireSerializableSnapshot()
 		scope.owner.Mu.Unlock()

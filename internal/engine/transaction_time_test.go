@@ -311,10 +311,10 @@ func TestTransactionTimeCommandOwnership(t *testing.T) {
 
 func TestTransactionTimeAdmissionWait(t *testing.T) {
 	e := New()
-	session := sessionStart(t, e, nil)
+	sess := sessionStart(t, e, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	session.Settings.Mu.Lock()
+	sess.Settings.Mu.Lock()
 	locked := true
 	type acquired struct {
 		op  *Operation
@@ -325,7 +325,7 @@ func TestTransactionTimeAdmissionWait(t *testing.T) {
 	defer func() {
 		cancel()
 		if locked {
-			session.Settings.Mu.Unlock()
+			sess.Settings.Mu.Unlock()
 		}
 		if !joined {
 			result := <-done
@@ -334,11 +334,11 @@ func TestTransactionTimeAdmissionWait(t *testing.T) {
 			}
 		}
 	}()
-	go func() { op, _, err := session.AcquireCommand(ctx); done <- acquired{op, err} }()
+	go func() { op, _, err := sess.AcquireCommand(ctx); done <- acquired{op, err} }()
 	for {
-		session.Mu.Lock()
-		registered := len(session.Operations) > 0
-		session.Mu.Unlock()
+		sess.Mu.Lock()
+		registered := len(sess.Operations) > 0
+		sess.Mu.Unlock()
 		if registered {
 			break
 		}
@@ -349,7 +349,7 @@ func TestTransactionTimeAdmissionWait(t *testing.T) {
 	}
 	separation := time.Now()
 	transactionTimeUnitAdvance(t, separation)
-	session.Settings.Mu.Unlock()
+	sess.Settings.Mu.Unlock()
 	locked = false
 	result := <-done
 	joined = true

@@ -22,10 +22,10 @@ import (
 func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 	e := New()
 	provider := &settingsDefaultProviderForTest{values: map[string]string{"application_name": "initial"}, calls: map[string]int{}}
-	session := sessionStart(t, e, provider)
+	sess := sessionStart(t, e, provider)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	op, err := session.Acquire(ctx)
+	op, err := sess.Acquire(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 	if err := scope.Finish(execErr); err != nil {
 		t.Fatal(err)
 	}
-	if !scope.completed || session.Transactions.State != TxIdle {
+	if !scope.completed || sess.Transactions.State != TxIdle {
 		t.Fatal("utility retained implicit transaction ownership")
 	}
 	actual, ok := result.Rows.(*exec.FinalRows)
@@ -51,11 +51,11 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 	}
 	cancel()
 	op.Done()
-	session.Settings.Mu.Lock()
-	session.Settings.Values["application_name"] = "changed"
-	session.Settings.Mu.Unlock()
-	session.RequestEnd(CleanClose)
-	if err := session.WaitEnd(context.Background()); err != nil {
+	sess.Settings.Mu.Lock()
+	sess.Settings.Values["application_name"] = "changed"
+	sess.Settings.Mu.Unlock()
+	sess.RequestEnd(CleanClose)
+	if err := sess.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	values := make([]sqltype.Value, 1)

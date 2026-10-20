@@ -118,15 +118,15 @@ func TestCommitTimePublication(t *testing.T) {
 		for _, mode := range []string{"success", "cancel_before", "cancel_after"} {
 			t.Run(route+"_"+mode, func(t *testing.T) {
 				e := NewWithSettings(nil, "", true)
-				session := sessionStart(t, e, nil)
+				sess := sessionStart(t, e, nil)
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
-				op, err := session.Acquire(ctx)
+				op, err := sess.Acquire(ctx)
 				if err != nil {
 					t.Fatal(err)
 				}
 				defer op.Done()
-				tx := session.Transactions
+				tx := sess.Transactions
 				tx.Mu.Lock()
 				err = e.beginLocked(op, tx, TxImplicit, time.Now())
 				tx.Mu.Unlock()

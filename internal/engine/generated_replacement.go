@@ -64,12 +64,12 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		return installedStage, err
 	}
 	if op == nil {
-		session, err := stage.StartSession(ctx, SessionStart{ID: 1, Authenticated: stage.roles.domain.Principal(10)})
+		sess, err := stage.StartSession(ctx, SessionStart{ID: 1, Authenticated: stage.roles.domain.Principal(10)})
 		if err != nil {
 			return installedStage, err
 		}
-		defer func() { session.RequestEnd(CleanClose); _ = session.WaitEnd(context.Background()) }()
-		op, err = session.Acquire(ctx)
+		defer func() { sess.RequestEnd(CleanClose); _ = sess.WaitEnd(context.Background()) }()
+		op, err = sess.Acquire(ctx)
 		if err != nil {
 			return installedStage, err
 		}

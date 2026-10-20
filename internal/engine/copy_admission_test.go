@@ -80,7 +80,7 @@ func TestCopyTextOwnerReservation(t *testing.T) {
 func copyOwnerReservation(t *testing.T, format copyFormat) {
 	for _, entry := range []string{"statement", "begin", "commit", "rollback"} {
 		t.Run(entry, func(t *testing.T) {
-			e, session, op, scope := copyUnitStart(t, true)
+			e, sess, op, scope := copyUnitStart(t, true)
 			reader := &copyUnitReader{entered: make(chan struct{}), release: make(chan struct{})}
 			syntax := copyUnitSyntax()
 			if format == copyFormatCSV {
@@ -121,7 +121,7 @@ func copyOwnerReservation(t *testing.T, format copyFormat) {
 			before := scope.txRef
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			waiter, err := session.Acquire(ctx)
+			waiter, err := sess.Acquire(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -164,9 +164,9 @@ func copyOwnerReservation(t *testing.T, format copyFormat) {
 			case <-time.After(5 * time.Second):
 				t.Fatal("reservation waiter could not cancel")
 			}
-			session.Transactions.Mu.Lock()
-			ref, command := session.Transactions.Ref, session.Transactions.Command
-			session.Transactions.Mu.Unlock()
+			sess.Transactions.Mu.Lock()
+			ref, command := sess.Transactions.Ref, sess.Transactions.Command
+			sess.Transactions.Mu.Unlock()
 			if ref != before || command != scope.command {
 				t.Fatal("waiter mutated reserved owner")
 			}
@@ -181,7 +181,7 @@ func copyOwnerReservation(t *testing.T, format copyFormat) {
 			if reserved {
 				t.Fatal("reservation leaked")
 			}
-			nextOp := transactionOperation(t, session)
+			nextOp := transactionOperation(t, sess)
 			next, err := e.StartStatement(nextOp)
 			if err != nil {
 				nextOp.Done()
@@ -251,7 +251,7 @@ func copyReplacement(t *testing.T, format copyFormat) {
 	}
 }
 func TestCopyTextTermination(t *testing.T) {
-	e, session, op, scope := copyUnitStart(t, false)
+	e, sess, op, scope := copyUnitStart(t, false)
 	reader := &copyUnitReader{entered: make(chan struct{}), release: make(chan struct{})}
 	done := make(chan error, 1)
 	go func() {
@@ -274,13 +274,13 @@ func TestCopyTextTermination(t *testing.T) {
 		close(reader.release)
 		t.Fatal("COPY failed before termination barrier", err)
 	}
-	session.RequestEnd(CleanClose)
+	sess.RequestEnd(CleanClose)
 	if op.Context().Err() == nil {
 		t.Fatal("termination could not cancel while I/O blocked")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := session.WaitEnd(ctx); !errors.Is(err, context.Canceled) {
+	if err := sess.WaitEnd(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatal("termination overtook leased COPY", err)
 	}
 	close(reader.release)
@@ -288,7 +288,7 @@ func TestCopyTextTermination(t *testing.T) {
 	if err := <-done; err == nil {
 		t.Fatal("terminated COPY succeeded")
 	}
-	if err := session.WaitEnd(context.Background()); err != nil {
+	if err := sess.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	deleteReplacementAdmissionEmpty(t, e)
@@ -383,7 +383,7 @@ func copyFinalCancellationVeto(t *testing.T, csv bool) {
 func TestCopyTextOwnerWaitCompletion(t *testing.T) {
 	for _, entry := range []string{"statement", "begin", "commit", "rollback"} {
 		t.Run(entry, func(t *testing.T) {
-			e, session, op, scope := copyUnitStart(t, true)
+			e, sess, op, scope := copyUnitStart(t, true)
 			reader := &copyUnitReader{entered: make(chan struct{}), release: make(chan struct{})}
 			done := make(chan error, 1)
 			go func() {
@@ -407,7 +407,7 @@ func TestCopyTextOwnerWaitCompletion(t *testing.T) {
 				t.Fatal("COPY did not enter I/O", err)
 			}
 			before := scope.txRef
-			waiter := transactionOperation(t, session)
+			waiter := transactionOperation(t, sess)
 			defer waiter.Done()
 			waiting := &copyWaitContext{Context: waiter.Ctx, entered: make(chan struct{})}
 			waiter.Ctx = waiting
@@ -435,9 +435,9 @@ func TestCopyTextOwnerWaitCompletion(t *testing.T) {
 			case err := <-finished:
 				t.Fatal("owner entry bypassed reserved COPY", entry, err)
 			}
-			session.Transactions.Mu.Lock()
-			ref, command := session.Transactions.Ref, session.Transactions.Command
-			session.Transactions.Mu.Unlock()
+			sess.Transactions.Mu.Lock()
+			ref, command := sess.Transactions.Ref, sess.Transactions.Command
+			sess.Transactions.Mu.Unlock()
 			if ref != before || command != scope.command {
 				t.Fatal("waiting command changed reserved owner")
 			}

@@ -40,17 +40,17 @@ func inheritanceAlterAdmissionScope(t *testing.T, e *Engine, role, sql string) *
 	if err != nil {
 		t.Fatal(err)
 	}
-	session, err := e.StartSession(ctx, SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: principal})
+	sess, err := e.StartSession(ctx, SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: principal})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		session.RequestEnd(CleanClose)
-		if err := session.WaitEnd(context.Background()); err != nil {
+		sess.RequestEnd(CleanClose)
+		if err := sess.WaitEnd(context.Background()); err != nil {
 			t.Error(err)
 		}
 	})
-	op, err := session.Acquire(ctx)
+	op, err := sess.Acquire(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}

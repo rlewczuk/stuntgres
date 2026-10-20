@@ -145,19 +145,19 @@ func TestSessionIdentityConfiguredResetRole(t *testing.T) {
 func TestSessionIdentityPhysicalNameAndTermination(t *testing.T) {
 	ctx := context.Background()
 	e := NewWithSettings(nil, "unit identity", false)
-	session, err := e.StartSession(ctx, SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
+	sess, err := e.StartSession(ctx, SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
 	if err != nil {
 		t.Fatal(err)
 	}
-	op, err := session.Acquire(ctx)
+	op, err := sess.Acquire(ctx)
 	if err != nil {
-		session.RequestEnd(CleanClose)
+		sess.RequestEnd(CleanClose)
 		t.Fatal(err)
 	}
 	defer func() {
 		op.Done()
-		session.RequestEnd(CleanClose)
-		if err := session.WaitEnd(ctx); err != nil {
+		sess.RequestEnd(CleanClose)
+		if err := sess.WaitEnd(ctx); err != nil {
 			t.Error(err)
 		}
 	}()
@@ -181,7 +181,7 @@ func TestSessionIdentityPhysicalNameAndTermination(t *testing.T) {
 	if !values[2].IsNull() || values[2].Type().ID() != sqltype.Text {
 		t.Fatal(values[2])
 	}
-	session.RequestEnd(Terminated)
+	sess.RequestEnd(Terminated)
 	if _, err := e.Execute(op, statement(t, "SELECT current_user"), 0, nil); err == nil {
 		t.Fatal("terminated identity operation admitted")
 	}

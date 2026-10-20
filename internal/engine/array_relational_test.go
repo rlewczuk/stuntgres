@@ -31,9 +31,9 @@ func arrayRelationalUnitCall(t *testing.T, name, input string, n int64) (functio
 	if err != nil {
 		t.Fatal(err)
 	}
-	session := &Session{}
-	session.ArrayRandom.SeedWords(1, 2)
-	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(&StatementScope{op: &Operation{Session: session}})}}
+	sess := &Session{}
+	sess.ArrayRandom.SeedWords(1, 2)
+	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(&StatementScope{op: &Operation{Session: sess}})}}
 	return node.(functions.ArrayRandom), c
 }
 func arrayRelationalUnitText(t *testing.T, v sqltype.Value) string {

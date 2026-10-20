@@ -114,24 +114,24 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	e.storage.InstallRelationLocked(tempAddress, &storage.Relation{Versions: []storage.RowVersion{{Values: tempValues}}})
 	e.mu.Unlock()
 	stage := e.restoreStage()
-	session, err := stage.StartSession(context.Background(), SessionStart{ID: 1})
+	sess, err := stage.StartSession(context.Background(), SessionStart{ID: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
-	op, err := session.Acquire(context.Background())
+	op, err := sess.Acquire(context.Background())
 	if err != nil {
-		session.RequestEnd(CleanClose)
-		_ = session.WaitEnd(context.Background())
+		sess.RequestEnd(CleanClose)
+		_ = sess.WaitEnd(context.Background())
 		t.Fatal(err)
 	}
 	gate := &generatedRepairSource{entered: make(chan struct{}), release: make(chan struct{})}
-	session.Random.Rand = *rand.New(gate)
-	session.Random.Initialized = true
-	f := &generatedRepairFixture{target: e, stage: stage, session: session, op: op, next: next, storage: map[ids.ObjectAddress]*storage.Relation{d.Address(): {Versions: []storage.RowVersion{{Values: source}}}}, sequences: map[ids.ObjectAddress]*storage.SequenceGenerator{{ClassID: ids.RelationClassID, ObjectID: 28000}: {Last: 77, Called: true}}, mapping: map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.Address()}, imported: d.Address(), temp: tempAddress, source: source, tempValues: tempValues, gate: gate}
+	sess.Random.Rand = *rand.New(gate)
+	sess.Random.Initialized = true
+	f := &generatedRepairFixture{target: e, stage: stage, session: sess, op: op, next: next, storage: map[ids.ObjectAddress]*storage.Relation{d.Address(): {Versions: []storage.RowVersion{{Values: source}}}}, sequences: map[ids.ObjectAddress]*storage.SequenceGenerator{{ClassID: ids.RelationClassID, ObjectID: 28000}: {Last: 77, Called: true}}, mapping: map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.Address()}, imported: d.Address(), temp: tempAddress, source: source, tempValues: tempValues, gate: gate}
 	t.Cleanup(func() {
 		op.Done()
-		session.RequestEnd(CleanClose)
-		if err := session.WaitEnd(context.Background()); err != nil {
+		sess.RequestEnd(CleanClose)
+		if err := sess.WaitEnd(context.Background()); err != nil {
 			t.Error(err)
 		}
 	})

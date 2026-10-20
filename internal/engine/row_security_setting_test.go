@@ -16,8 +16,8 @@ func TestRowSecuritySettingsCapture(t *testing.T) {
 	if err := settings.Initialize(context.Background(), e.settings.Definitions(), e.settings.Order(), nil); err != nil {
 		t.Fatal(err)
 	}
-	session := &Session{Settings: settings}
-	op := &Operation{Session: session}
+	sess := &Session{Settings: settings}
+	op := &Operation{Session: sess}
 	first := newStatementScope(op, &transactionOwner{}, time.Time{})
 	settings.Mu.Lock()
 	settings.Values["row_security"] = "off"

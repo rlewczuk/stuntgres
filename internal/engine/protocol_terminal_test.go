@@ -142,44 +142,44 @@ func TestProtocolEndRequestedWake(t *testing.T) {
 	for _, late := range []bool{false, true} {
 		t.Run(map[bool]string{false: "observed_before_request", true: "observed_after_request"}[late], func(t *testing.T) {
 			e := New()
-			session := sessionStart(t, e, nil)
-			op, err := session.Acquire(context.Background())
+			sess := sessionStart(t, e, nil)
+			op, err := sess.Acquire(context.Background())
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer op.Done()
 			var wake <-chan struct{}
 			if !late {
-				wake = session.EndRequested()
+				wake = sess.EndRequested()
 				select {
 				case <-wake:
 					t.Fatal("live session reported end request")
 				default:
 				}
 			}
-			session.RequestEnd(CleanClose)
+			sess.RequestEnd(CleanClose)
 			if late {
-				wake = session.EndRequested()
+				wake = sess.EndRequested()
 			}
 			select {
 			case <-wake:
 			default:
 				t.Fatal("end request did not wake observer while lease remained")
 			}
-			if err := session.Check(context.Background()); err == nil {
+			if err := sess.Check(context.Background()); err == nil {
 				t.Fatal("request wake preceded authoritative ending state")
 			}
 			select {
-			case <-session.Completed:
+			case <-sess.Completed:
 				t.Fatal("completion overtook outstanding operation lease")
 			default:
 			}
-			session.RequestEnd(CleanClose)
-			if session.EndRequested() != wake {
+			sess.RequestEnd(CleanClose)
+			if sess.EndRequested() != wake {
 				t.Fatal("late/repeated observation lost the request lifetime")
 			}
 			op.Done()
-			if err := session.WaitEnd(context.Background()); err != nil {
+			if err := sess.WaitEnd(context.Background()); err != nil {
 				t.Fatal(err)
 			}
 		})

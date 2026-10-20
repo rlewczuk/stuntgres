@@ -25,9 +25,9 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 	if raw.Category == parser.DiscardAll && s.owner.InBlock() {
 		return Result{}, sqlError("25001", "DISCARD ALL cannot run inside a transaction block")
 	}
-	session := s.op.Session
+	sess := s.op.Session
 	if raw.Category == parser.DiscardPlans || raw.Category == parser.DiscardAll {
-		if session.DiscardPlansGeneration == ^uint64(0) {
+		if sess.DiscardPlansGeneration == ^uint64(0) {
 			return Result{}, fmt.Errorf("stuntgres: discard plan generation exhausted")
 		}
 	}
@@ -51,9 +51,9 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 		return Result{}, err
 	}
 	if raw.Category == parser.DiscardAll {
-		e := engineOf(session)
+		e := engineOf(sess)
 		e.mu.Lock()
-		state := payloadOf(session).notifications.state
+		state := payloadOf(sess).notifications.state
 		history := state != nil && state.history
 		e.mu.Unlock()
 		if history {
@@ -68,35 +68,35 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 			return Result{}, err
 		}
 		e.mu.Lock()
-		session.Settings.Mu.Lock()
-		session.Mu.Lock()
-		e.resetAllSettingsLocked(session)
-		session.Mu.Unlock()
-		session.Settings.Mu.Unlock()
+		sess.Settings.Mu.Lock()
+		sess.Mu.Lock()
+		e.resetAllSettingsLocked(sess)
+		sess.Mu.Unlock()
+		sess.Settings.Mu.Unlock()
 		e.mu.Unlock()
 		if s.replacementRead {
 			e.replacementMu.RUnlock()
 			s.replacementRead = false
 		}
-		if err := disposeSQLCursors(s.op.Context(), payloadOf(session).cursors.clear()); err != nil {
+		if err := disposeSQLCursors(s.op.Context(), payloadOf(sess).cursors.clear()); err != nil {
 			return Result{}, err
 		}
-		clear(payloadOf(session).preparedSQL.entries)
+		clear(payloadOf(sess).preparedSQL.entries)
 		// The persistent ticket was validated before publication and cannot end
 		// while this operation lease is live. Manager callbacks run unlocked.
-		e.locks.DiscardAdvisoryHolds(session.Advisory.Ticket)
+		e.locks.DiscardAdvisoryHolds(sess.Advisory.Ticket)
 	}
 	if raw.Category == parser.DiscardPlans || raw.Category == parser.DiscardAll {
-		session.DiscardPlansGeneration++
-		e := engineOf(session)
+		sess.DiscardPlansGeneration++
+		e := engineOf(sess)
 		e.mu.Lock()
-		payloadOf(session).sqlRoutines = nil
+		payloadOf(sess).sqlRoutines = nil
 		e.mu.Unlock()
 	}
 	if raw.Category == parser.DiscardSequences || raw.Category == parser.DiscardAll {
-		e := engineOf(session)
+		e := engineOf(sess)
 		e.mu.Lock()
-		payloadOf(session).sequences.DiscardLocked(raw.Category == parser.DiscardAll)
+		payloadOf(sess).sequences.DiscardLocked(raw.Category == parser.DiscardAll)
 		e.mu.Unlock()
 	}
 	s.completed, s.sessionCompleted = true, true

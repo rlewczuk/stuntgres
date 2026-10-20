@@ -91,26 +91,26 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 				t.Fatal(err)
 			}
 			f.e.DiscardCatalogStage(setup)
-			session, err := f.e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: f.owner})
+			sess, err := f.e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: f.owner})
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer func() {
-				session.RequestEnd(CleanClose)
-				if err := session.WaitEnd(context.Background()); err != nil {
+				sess.RequestEnd(CleanClose)
+				if err := sess.WaitEnd(context.Background()); err != nil {
 					t.Error(err)
 				}
 			}()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			message := batchUnitStart(t, session, ctx)
+			message := batchUnitStart(t, sess, ctx)
 			defer message.end(context.Canceled)
 			oldCatalog, oldRoles := f.e.catalog.state, f.e.roles.published
 			relations := make(map[ids.ObjectAddress]*storage.Relation, len(f.e.storage.Relations))
 			for address, root := range f.e.storage.Relations {
 				relations[address] = root
 			}
-			sessionRevision := session.Authorization.Revision
+			sessionRevision := sess.Authorization.Revision
 			prefix := defaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader"})
 			if _, err := message.step(prefix); err != nil {
 				t.Fatal(err)
@@ -153,7 +153,7 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 				cancel()
 			}
 			current := f.e.catalog.state
-			if f.e.roles.published != oldRoles || current.Epoch() != oldCatalog.Epoch() || session.Authorization.Revision != sessionRevision {
+			if f.e.roles.published != oldRoles || current.Epoch() != oldCatalog.Epoch() || sess.Authorization.Revision != sessionRevision {
 				t.Fatal("intervening DB change altered unrelated authority")
 			}
 			finishErr := message.scope.Finish(nil)

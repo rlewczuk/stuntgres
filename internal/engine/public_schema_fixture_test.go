@@ -39,17 +39,17 @@ func withPublicSchemaUnitOwner(t *testing.T, e *Engine, owner string, body func(
 	if err != nil {
 		t.Fatal(err)
 	}
-	session, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login})
+	sess, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		session.RequestEnd(CleanClose)
-		if err := session.WaitEnd(context.Background()); err != nil {
+		sess.RequestEnd(CleanClose)
+		if err := sess.WaitEnd(context.Background()); err != nil {
 			t.Error("closing public schema fixture session:", err)
 		}
 	}()
-	admin, err := session.Acquire(context.Background())
+	admin, err := sess.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}

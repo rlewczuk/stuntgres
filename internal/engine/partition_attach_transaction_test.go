@@ -14,9 +14,9 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func partitionAttachUnitBegin(t *testing.T, e *Engine, session *Session, isolation Isolation) ids.TxRef {
+func partitionAttachUnitBegin(t *testing.T, e *Engine, sess *Session, isolation Isolation) ids.TxRef {
 	t.Helper()
-	op, err := session.Acquire(context.Background())
+	op, err := sess.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,8 +26,8 @@ func partitionAttachUnitBegin(t *testing.T, e *Engine, session *Session, isolati
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if session.TransactionState() != TxIdle {
-			op, err := session.Acquire(context.Background())
+		if sess.TransactionState() != TxIdle {
+			op, err := sess.Acquire(context.Background())
 			if err != nil {
 				t.Error(err)
 				return
