@@ -4,12 +4,10 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -17,33 +15,31 @@ import (
 )
 
 // Domain declarations use the same private catalog publication as schema DDL.
-func (e *Engine) stageCreateDomainLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateDomain, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
-	ns, err := e.creationNamespace(auth, s.Name)
+func stageCreateDomainLocked(h typedef.StageHost, auth typedef.Authority, s *parser.CreateDomain, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
+	ns, err := h.ExistingCreationNamespace(auth, s.Name)
 	if err != nil {
 		return err
 	}
-	trustedDestination := op != nil && operationReplayOrZero(op).tableDestination
-	if trustedDestination {
-		bootstrap, guardErr := auth.Roles.Descriptor(auth.State.Authenticated)
-		if guardErr != nil || !bootstrap.Superuser || e.importTargets == nil {
-			return fmt.Errorf("stuntgres: invalid trusted restore domain destination authority")
-		}
+	trustedDestination, err := h.TrustedRestoreDestination(auth, "domain destination")
+	if err != nil {
+		return err
 	}
-	if err = auth.CheckCreate(ns); err != nil {
+	view := h.AccessView(auth)
+	if err = view.CheckCreate(auth, ns); err != nil {
 		denied, ok := err.(*sqlstate.Error)
 		if !trustedDestination || !ok || denied.Code != "42501" {
 			return err
 		}
 	}
-	if err = access.CheckPersistentCreationNamespace(auth.Catalog, ns.Address); err != nil {
+	if err = access.CheckPersistentCreationNamespace(view.Catalog, ns.Address); err != nil {
 		return err
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
-	available, err := e.displaceAssociatedArrayLocked(stage, ns.Address, name)
+	available, err := h.DisplaceAssociatedArray(ns.Address, name)
 	if err != nil {
 		return err
 	}
-	if !available || typedef.RelationTypeNameOccupied(auth.Catalog, ns.Address, name) {
+	if !available || typedef.RelationTypeNameOccupied(view.Catalog, ns.Address, name) {
 		return sqlError("42710", fmt.Sprintf(`type "%s" already exists`, name))
 	}
 	var defaultRaw parser.Expr
@@ -77,31 +73,31 @@ func (e *Engine) stageCreateDomainLocked(op *session.Operation, auth Authorizati
 			seenNull, ownNotNull = true, c.NotNull
 		}
 	}
-	base, err := e.resolveAnnotationTypeMode(s.Base, op, false, true)
+	base, err := h.ResolveDomainBase(s.Base)
 	if err != nil {
 		return err
 	}
-	if replacement, ok := stage.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())}).(*catalog.Type); ok {
+	if replacement, ok := h.Stage().Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())}).(*catalog.Type); ok {
 		base.Type = replacement.SQLType
 	}
-	base, err = e.resolveColumnCollation(base, s.Collation, op)
+	base, err = h.ResolveColumnCollation(base, s.Collation)
 	if err != nil {
 		return err
 	}
-	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())})
-	stage.domainBases = append(stage.domainBases, auth.Catalog.Get(ref.Address))
-	if err = auth.CanUse(ref); err != nil {
+	ref := typedef.ObjectRef(h, auth, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())})
+	h.AddDomainBase(view.Catalog.Get(ref.Address))
+	if err = view.CanUse(auth, ref); err != nil {
 		return err
 	}
-	oid, err := e.catalog.allocateOIDLocked()
+	oid, err := h.AllocateOID()
 	if err != nil {
 		return err
 	}
-	revision, err := e.catalog.revisionLocked()
+	revision, err := h.Revision()
 	if err != nil {
 		return err
 	}
-	namespace := auth.Catalog.Get(ns.Address).Name()
+	namespace := view.Catalog.Get(ns.Address).Name()
 	declaration := catalog.DependencyIdentifier(namespace) + "." + catalog.DependencyIdentifier(name)
 	hasChecks := false
 	for _, constraint := range s.Constraints {
@@ -111,12 +107,12 @@ func (e *Engine) stageCreateDomainLocked(op *session.Operation, auth Authorizati
 	if err != nil {
 		return err
 	}
-	acl, synthetic := stage.creationTypeACL(auth.State.CurrentUser, ns.Address)
-	arrayOID, err := e.catalog.allocateOIDLocked()
+	acl, synthetic := h.CreationTypeACL(view.State.CurrentUser, ns.Address)
+	arrayOID, err := h.AllocateOID()
 	if err != nil {
 		return err
 	}
-	arrayName := associatedArrayName(stage, ns.Address, name)
+	arrayName := h.AssociatedArrayName(ns.Address, name)
 	var array *sqltype.Descriptor
 	if typ.BaseType().IsCube() || typ.BaseType().IsQueryInt() || sqltype.IsNetwork(typ.BaseType().ID()) || sqltype.IsOperatorAlias(typ.BaseType().ID()) || sqltype.IsRegTS(typ.BaseType().ID()) {
 		array = sqltype.LookupArray(sqltype.ID(arrayOID), arrayName, typ)
@@ -126,54 +122,55 @@ func (e *Engine) stageCreateDomainLocked(op *session.Operation, auth Authorizati
 			return err
 		}
 	}
-	domain := &catalog.Type{SQLType: typ, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.State.CurrentUser, ACL: acl, ACLSyntheticDefault: synthetic, Dimensions: int32(len(s.Base.ArrayBounds)), Array: array.ID()}
-	if err := e.bindDomainDefault(op.Context(), op, auth, stage, domain, defaultRaw, input, output); err != nil {
+	domain := &catalog.Type{SQLType: typ, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: view.State.CurrentUser, ACL: acl, ACLSyntheticDefault: synthetic, Dimensions: int32(len(s.Base.ArrayBounds)), Array: array.ID()}
+	if err := h.BindDomainDefault(auth, domain, defaultRaw, input, output); err != nil {
 		return err
 	}
-	if err := e.bindDomainChecks(op, auth, stage, domain, s.Constraints, input); err != nil {
+	if err := h.BindDomainChecks(auth, domain, s.Constraints, input); err != nil {
 		return err
 	}
-	if err = stage.Create(domain); err != nil {
+	if err = h.Stage().Create(domain); err != nil {
 		return err
 	}
-	return stage.Create(&catalog.Type{SQLType: array, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.State.CurrentUser, ACL: authorization.DefaultBaseline(auth.State.CurrentUser, authorization.DefaultTypes, false), ACLSyntheticDefault: true})
+	return h.Stage().Create(&catalog.Type{SQLType: array, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: view.State.CurrentUser, ACL: authorization.DefaultBaseline(view.State.CurrentUser, authorization.DefaultTypes, false), ACLSyntheticDefault: true})
 }
 
-func (e *Engine) stageDropDomainLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropDomain) error {
+func stageDropDomainLocked(h typedef.StageHost, auth typedef.Authority, s *parser.DropDomain) error {
+	view := h.AccessView(auth)
 	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
 	for _, name := range s.Names {
-		path, err := e.lookupNamespaces(auth, name, analyze.TypeLookup)
+		path, err := h.SearchNamespaces(auth, name, ids.TypeClassID)
 		if err != nil {
 			return err
 		}
 		var found []ids.ObjectAddress
-		for i := range path.Count() {
-			found = auth.Catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: path.At(i), Name: name.Parts[len(name.Parts)-1].Text})
+		for _, namespace := range path {
+			found = view.Catalog.Lookup(ids.NameKey{ClassID: ids.TypeClassID, Namespace: namespace, Name: name.Parts[len(name.Parts)-1].Text})
 			if len(found) != 0 {
 				break
 			}
 		}
 		if len(found) != 1 {
 			if s.IfExists {
-				schemaNotice(op, "00000", fmt.Sprintf(`type "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
+				typedef.Notice(h, "00000", fmt.Sprintf(`type "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
 				continue
 			}
 			return sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, catalog.ObjectNameText(name)))
 		}
-		target := auth.Catalog.MustType(found[0])
+		target := view.Catalog.MustType(found[0])
 		if !target.SQLType.IsDomain() {
 			return sqlError("42809", fmt.Sprintf(`"%s" is not a domain`, catalog.ObjectNameText(name)))
 		}
-		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), target.Address())
-		if err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
+		ref := typedef.ObjectRef(h, auth, target.Address())
+		if err = typedef.Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err
 		}
 		if seen[ref.Address] {
 			continue
 		}
 		seen[ref.Address] = true
-		stage.domainTargets = append(stage.domainTargets, ref.Address)
+		h.DropTarget(ref.Address)
 	}
-	stage.dependencyPath, _ = e.referencePath(auth)
+	h.RecordDependencyPath(auth)
 	return nil
 }

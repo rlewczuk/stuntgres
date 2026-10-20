@@ -6,43 +6,40 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) stageCreateEnumLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateEnum) error {
-	ns, err := e.creationNamespace(auth, s.Name)
+func stageCreateEnumLocked(h typedef.StageHost, auth typedef.Authority, s *parser.CreateEnum) error {
+	ns, err := h.ExistingCreationNamespace(auth, s.Name)
 	if err != nil {
 		return err
 	}
-	trustedDestination := op != nil && operationReplayOrZero(op).tableDestination
-	if trustedDestination {
-		bootstrap, guardErr := auth.Roles.Descriptor(auth.State.Authenticated)
-		if guardErr != nil || !bootstrap.Superuser || e.importTargets == nil {
-			return fmt.Errorf("stuntgres: invalid trusted restore enum destination authority")
-		}
+	trustedDestination, err := h.TrustedRestoreDestination(auth, "enum destination")
+	if err != nil {
+		return err
 	}
-	if err = auth.CheckCreate(ns); err != nil {
+	view := h.AccessView(auth)
+	if err = view.CheckCreate(auth, ns); err != nil {
 		denied, ok := err.(*sqlstate.Error)
 		if !trustedDestination || !ok || denied.Code != "42501" {
 			return err
 		}
 	}
-	if err = access.CheckPersistentCreationNamespace(auth.Catalog, ns.Address); err != nil {
+	if err = access.CheckPersistentCreationNamespace(view.Catalog, ns.Address); err != nil {
 		return err
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
-	available, err := e.displaceAssociatedArrayLocked(stage, ns.Address, name)
+	available, err := h.DisplaceAssociatedArray(ns.Address, name)
 	if err != nil {
 		return err
 	}
-	if !available || typedef.RelationTypeNameOccupied(auth.Catalog, ns.Address, name) {
+	if !available || typedef.RelationTypeNameOccupied(view.Catalog, ns.Address, name) {
 		return sqlError("42710", fmt.Sprintf(`type "%s" already exists`, name))
 	}
-	oid, err := e.catalog.allocateOIDLocked()
+	oid, err := h.AllocateOID()
 	if err != nil {
 		return err
 	}
@@ -63,32 +60,32 @@ func (e *Engine) stageCreateEnumLocked(op *session.Operation, auth Authorization
 			return diagnostic
 		}
 		seen[label.Text] = true
-		member, err := e.catalog.allocateEnumMemberLocked()
+		member, err := h.AllocateEnumMember()
 		if err != nil {
 			return err
 		}
 		members[i] = sqltype.EnumMember{ID: member, Label: label.Text, SortOrder: float32(i + 1)}
 	}
-	revision, err := e.catalog.revisionLocked()
+	revision, err := h.Revision()
 	if err != nil {
 		return err
 	}
-	namespace := auth.Catalog.Get(ns.Address).Name()
+	namespace := view.Catalog.Get(ns.Address).Name()
 	typ, err := sqltype.EnumWithMembers(sqltype.ID(oid), name, catalog.DependencyIdentifier(namespace)+"."+catalog.DependencyIdentifier(name), members)
 	if err != nil {
 		return err
 	}
-	acl, synthetic := stage.creationTypeACL(auth.State.CurrentUser, ns.Address)
-	arrayOID, err := e.catalog.allocateOIDLocked()
+	acl, synthetic := h.CreationTypeACL(view.State.CurrentUser, ns.Address)
+	arrayOID, err := h.AllocateOID()
 	if err != nil {
 		return err
 	}
-	array, err := sqltype.Array(sqltype.ID(arrayOID), associatedArrayName(stage, ns.Address, name), typ)
+	array, err := sqltype.Array(sqltype.ID(arrayOID), h.AssociatedArrayName(ns.Address, name), typ)
 	if err != nil {
 		return err
 	}
-	if err := stage.Create(&catalog.Type{SQLType: typ, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.State.CurrentUser, ACL: acl, ACLSyntheticDefault: synthetic, Array: array.ID()}); err != nil {
+	if err := h.Stage().Create(&catalog.Type{SQLType: typ, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: view.State.CurrentUser, ACL: acl, ACLSyntheticDefault: synthetic, Array: array.ID()}); err != nil {
 		return err
 	}
-	return stage.Create(&catalog.Type{SQLType: array, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.State.CurrentUser, ACL: authorization.DefaultBaseline(auth.State.CurrentUser, authorization.DefaultTypes, false), ACLSyntheticDefault: true})
+	return h.Stage().Create(&catalog.Type{SQLType: array, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: view.State.CurrentUser, ACL: authorization.DefaultBaseline(view.State.CurrentUser, authorization.DefaultTypes, false), ACLSyntheticDefault: true})
 }

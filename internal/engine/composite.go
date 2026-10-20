@@ -6,7 +6,6 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -14,36 +13,34 @@ import (
 
 // Declaration members, relation identity and reciprocal codecs publish in the
 // same existing catalog stage. This relation never owns physical storage.
-func (e *Engine) stageCreateCompositeLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateComposite) error {
-	ns, err := e.creationNamespace(auth, s.Name)
+func stageCreateCompositeLocked(h typedef.StageHost, auth typedef.Authority, s *parser.CreateComposite) error {
+	ns, err := h.ExistingCreationNamespace(auth, s.Name)
 	if err != nil {
 		return err
 	}
-	trustedDestination := op != nil && operationReplayOrZero(op).tableDestination
-	if trustedDestination {
-		bootstrap, guardErr := auth.Roles.Descriptor(auth.State.Authenticated)
-		if guardErr != nil || !bootstrap.Superuser || e.importTargets == nil {
-			return fmt.Errorf("stuntgres: invalid trusted restore composite destination authority")
-		}
+	trustedDestination, err := h.TrustedRestoreDestination(auth, "composite destination")
+	if err != nil {
+		return err
 	}
-	if err := auth.CheckCreate(ns); err != nil {
+	view := h.AccessView(auth)
+	if err := view.CheckCreate(auth, ns); err != nil {
 		denied, ok := err.(*sqlstate.Error)
 		if !trustedDestination || !ok || denied.Code != "42501" {
 			return err
 		}
 	}
-	if err := access.CheckPersistentCreationNamespace(auth.Catalog, ns.Address); err != nil {
+	if err := access.CheckPersistentCreationNamespace(view.Catalog, ns.Address); err != nil {
 		return err
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
-	available, err := e.displaceAssociatedArrayLocked(stage, ns.Address, name)
+	available, err := h.DisplaceAssociatedArray(ns.Address, name)
 	if err != nil {
 		return err
 	}
-	if !available || typedef.RelationTypeNameOccupied(auth.Catalog, ns.Address, name) {
+	if !available || typedef.RelationTypeNameOccupied(view.Catalog, ns.Address, name) {
 		return sqlError("42710", fmt.Sprintf(`type "%s" already exists`, name))
 	}
-	if stage.LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name}) != (ids.ObjectAddress{}) {
+	if h.Stage().LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name}) != (ids.ObjectAddress{}) {
 		return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
 	}
 	if len(s.Members) > 1600 {
@@ -52,7 +49,7 @@ func (e *Engine) stageCreateCompositeLocked(op *session.Operation, auth Authoriz
 	columns := make([]catalog.Column, len(s.Members))
 	index := make(map[string]int, len(columns))
 	for i, member := range s.Members {
-		if err := op.Context().Err(); err != nil {
+		if err := h.Context().Err(); err != nil {
 			return err
 		}
 		if _, exists := index[member.Name]; exists {
@@ -66,7 +63,7 @@ func (e *Engine) stageCreateCompositeLocked(op *session.Operation, auth Authoriz
 		// errors remain parser-owned and retain their exact original position.
 		raw := member.TypeName
 		raw.Pos = parser.Position{}
-		usage, err := e.resolveType(raw, op)
+		usage, err := h.ResolveType(raw)
 		if err != nil {
 			return err
 		}
@@ -77,24 +74,23 @@ func (e *Engine) stageCreateCompositeLocked(op *session.Operation, auth Authoriz
 			copy.Parts[0].Pos = parser.Position{}
 			collation = &copy
 		}
-		usage, err = e.resolveColumnCollation(usage, collation, op)
+		usage, err = h.ResolveColumnCollation(usage, collation)
 		if err != nil {
 			return err
 		}
-		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
-		if err := auth.CanUse(ref); err != nil {
+		ref := typedef.ObjectRef(h, auth, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
+		if err := view.CanUse(auth, ref); err != nil {
 			return err
 		}
-		stage.domainBases = append(stage.domainBases, auth.Catalog.Get(ref.Address))
+		h.AddDomainBase(view.Catalog.Get(ref.Address))
 		columns[i] = catalog.Column{Name: member.Name, Usage: usage, DeclaredDimensions: int16(len(raw.ArrayBounds)), Nullable: true, NullabilityKnown: true}
 	}
-	relation, err := e.newTableDescriptorLocked(ns.Address, name, auth.State.CurrentUser, columns, index)
+	relation, err := h.NewCompositeRelation(ns.Address, name, view.State.CurrentUser, columns, index)
 	if err != nil {
 		return err
 	}
-	relation.RelationKind = catalog.CompositeRelation
-	if err := e.stageRowTypeLocked(stage, relation); err != nil {
+	if err := h.StageRowType(relation); err != nil {
 		return err
 	}
-	return stage.Create(relation)
+	return h.Stage().Create(relation)
 }

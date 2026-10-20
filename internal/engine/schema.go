@@ -378,33 +378,34 @@ func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement,
 		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
 		return auth.Check(access.Requirement{Object: ref, OwnerOnly: true})
 	}
+	types := typedefHost(host)
 	switch s := stmt.(type) {
 	case *parser.CreateComposite:
-		if err = e.stageCreateCompositeLocked(op, auth, stage, s); err != nil {
+		if err = stageCreateCompositeLocked(types, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateCollation:
-		if err = e.stageCreateCollationLocked(op, auth, stage, s); err != nil {
+		if err = stageCreateCollationLocked(types, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.AlterCollation:
-		if err = e.stageAlterCollationLocked(op, auth, stage, s); err != nil {
+		if err = stageAlterCollationLocked(types, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.DropCollation:
-		if err = e.stageDropCollationLocked(op, auth, stage, s); err != nil {
+		if err = stageDropCollationLocked(types, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateConversion:
-		if err = e.stageCreateConversionLocked(op, auth, stage, s); err != nil {
+		if err = stageCreateConversionLocked(types, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.AlterConversion:
-		if err = e.stageAlterConversionLocked(op, auth, stage, s); err != nil {
+		if err = stageAlterConversionLocked(types, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.DropConversion:
-		if err = e.stageDropConversionLocked(op, auth, stage, s); err != nil {
+		if err = stageDropConversionLocked(types, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateFunction:
@@ -424,15 +425,15 @@ func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement,
 			return nil, err
 		}
 	case *parser.CreateDomain:
-		if err = e.stageCreateDomainLocked(op, auth, stage, s, input, output); err != nil {
+		if err = stageCreateDomainLocked(types, auth, s, input, output); err != nil {
 			return nil, err
 		}
 	case *parser.DropDomain:
-		if err = e.stageDropDomainLocked(op, auth, stage, s); err != nil {
+		if err = stageDropDomainLocked(types, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.DropComposite:
-		if err = e.stageDropCompositeLocked(op, auth, stage, s); err != nil {
+		if err = stageDropCompositeLocked(types, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateSchema:

@@ -12,11 +12,12 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func collationVersionWarning(op *session.Operation, d *catalog.Collation, view catalog.Read, actual *string) error {
+func collationVersionWarning(h typedef.StageHost, d *catalog.Collation, view catalog.Read, actual *string) error {
 	if d.Version == nil {
 		return nil
 	}
@@ -25,30 +26,29 @@ func collationVersionWarning(op *session.Operation, d *catalog.Collation, view c
 	}
 	if *d.Version != *actual {
 		ns := view.Get(d.Namespace()).Name()
-		op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: fmt.Sprintf(`collation "%s" has version mismatch`, d.Name()), Detail: fmt.Sprintf("The collation in the database was created using version %s, but the operating system provides version %s.", *d.Version, *actual), Hint: "Rebuild all objects affected by this collation and run ALTER COLLATION " + catalog.DependencyIdentifier(ns) + "." + catalog.DependencyIdentifier(d.Name()) + " REFRESH VERSION, or build PostgreSQL with the right library version."})
+		h.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: fmt.Sprintf(`collation "%s" has version mismatch`, d.Name()), Detail: fmt.Sprintf("The collation in the database was created using version %s, but the operating system provides version %s.", *d.Version, *actual), Hint: "Rebuild all objects affected by this collation and run ALTER COLLATION " + catalog.DependencyIdentifier(ns) + "." + catalog.DependencyIdentifier(d.Name()) + " REFRESH VERSION, or build PostgreSQL with the right library version."})
 	}
 	return nil
 }
 
-func (e *Engine) stageCreateCollationLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateCollation) error {
-	ns, err := e.collationCreationNamespaceLocked(&auth, stage, s.Name)
+func stageCreateCollationLocked(h typedef.StageHost, auth typedef.Authority, s *parser.CreateCollation) error {
+	ns, auth, err := h.CreationNamespace(auth, s.Name)
 	if err != nil {
 		return err
 	}
-	if op != nil && operationReplayOrZero(op).tableDestination {
-		bootstrap, guardErr := auth.Roles.Descriptor(auth.State.Authenticated)
-		if guardErr != nil || !bootstrap.Superuser || e.importTargets == nil {
-			return fmt.Errorf("stuntgres: invalid trusted restore collation authority")
-		}
+	trusted, err := h.TrustedRestoreDestination(auth, "collation")
+	if err != nil {
+		return err
 	}
-	if err = auth.CheckCreate(ns); err != nil {
+	view := h.AccessView(auth)
+	if err = view.CheckCreate(auth, ns); err != nil {
 		denied, ok := err.(*sqlstate.Error)
-		if op == nil || !operationReplayOrZero(op).tableDestination || !ok || denied.Code != "42501" {
+		if !trusted || !ok || denied.Code != "42501" {
 			return err
 		}
 	}
 	name := s.Name.Parts[len(s.Name.Parts)-1].Text
-	d := catalog.Collation{ObjectName: name, ObjectNamespace: ns.Address, Owner: auth.State.CurrentUser, Provider: "c", Deterministic: true, Encoding: 6}
+	d := catalog.Collation{ObjectName: name, ObjectNamespace: ns.Address, Owner: view.State.CurrentUser, Provider: "c", Deterministic: true, Encoding: 6}
 	from := s.From
 	options := make(map[string]*parser.CollationOption, len(s.Options))
 	for i := range s.Options {
@@ -77,7 +77,7 @@ func (e *Engine) stageCreateCollationLocked(op *session.Operation, auth Authoriz
 		}
 	}
 	if from != nil {
-		source, err := e.findUtilityCollation(auth, *from)
+		source, err := findUtilityCollation(h, auth, *from)
 		if err != nil {
 			return err
 		}
@@ -168,13 +168,13 @@ func (e *Engine) stageCreateCollationLocked(op *session.Operation, auth Authoriz
 		return sqlError("42P17", "ICU rules cannot be specified unless locale provider is ICU")
 	}
 	key := ids.NameKey{ClassID: ids.CollationClassID, Namespace: ns.Address, Name: name}
-	if old := stage.LookupName(key); old != (ids.ObjectAddress{}) {
+	if old := h.Stage().LookupName(key); old != (ids.ObjectAddress{}) {
 		message := fmt.Sprintf(`collation "%s" already exists`, name)
 		if d.Encoding != -1 {
 			message = fmt.Sprintf(`collation "%s" for encoding "UTF8" already exists`, name)
 		}
 		if s.IfNotExists {
-			schemaNotice(op, "42710", message+", skipping")
+			typedef.Notice(h, "42710", message+", skipping")
 			return nil
 		}
 		return sqlError("42710", message)
@@ -190,28 +190,29 @@ func (e *Engine) stageCreateCollationLocked(op *session.Operation, auth Authoriz
 	if d.Version == nil {
 		d.Version = actual
 	}
-	if err = collationVersionWarning(op, &d, auth.Catalog, actual); err != nil {
+	if err = collationVersionWarning(h, &d, view.Catalog, actual); err != nil {
 		return err
 	}
-	d.OID, err = e.catalog.allocateOIDLocked()
+	d.OID, err = h.AllocateOID()
 	if err != nil {
 		return err
 	}
-	d.ObjectRevision, err = e.catalog.revisionLocked()
+	d.ObjectRevision, err = h.Revision()
 	if err != nil {
 		return err
 	}
-	return stage.Create(&d)
+	return h.Stage().Create(&d)
 }
 
-func (e *Engine) stageAlterCollationLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.AlterCollation) error {
-	d, err := e.findUtilityCollation(auth, s.Name)
+func stageAlterCollationLocked(h typedef.StageHost, auth typedef.Authority, s *parser.AlterCollation) error {
+	d, err := findUtilityCollation(h, auth, s.Name)
 	if err != nil {
 		return err
 	}
+	view := h.AccessView(auth)
 	var ownerTarget authorization.PrincipalRef
 	if s.Action == "owner" {
-		ownerTarget, err = access.SchemaOwner(auth.View, s.Target.Text, s.OwnerIdentity)
+		ownerTarget, err = access.SchemaOwner(view, s.Target.Text, s.OwnerIdentity)
 		if err != nil {
 			return err
 		}
@@ -219,8 +220,8 @@ func (e *Engine) stageAlterCollationLocked(op *session.Operation, auth Authoriza
 			return nil
 		}
 	}
-	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
-	if err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
+	ref := typedef.ObjectRef(h, auth, d.Address())
+	if err = typedef.Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		return err
 	}
 	if d.Provider == "d" && s.Action == "refresh" {
@@ -237,26 +238,28 @@ func (e *Engine) stageAlterCollationLocked(op *session.Operation, auth Authoriza
 			return sqlError("XX000", "invalid collation version change")
 		}
 		if actual == nil || *actual == *d.Version {
-			schemaNotice(op, "00000", "version has not changed")
+			typedef.Notice(h, "00000", "version has not changed")
 			return nil
 		}
-		schemaNotice(op, "00000", fmt.Sprintf("changing version from %s to %s", *d.Version, *actual))
+		typedef.Notice(h, "00000", fmt.Sprintf("changing version from %s to %s", *d.Version, *actual))
 		next.Version = actual
 	case "rename":
-		if err = auth.CheckCreate(e.catalog.Domain.Ref(ref.Epoch, d.Namespace())); err != nil {
+		if err = view.CheckCreate(auth, view.Owner.Domain.Ref(ref.Epoch, d.Namespace())); err != nil {
 			return err
 		}
 		next.ObjectName = s.Target.Text
 	case "schema":
-		dest, err := e.collationCreationNamespaceLocked(&auth, stage, parser.ObjectName{Parts: []parser.Identifier{s.Target, {Text: d.Name()}}})
+		var dest ids.ObjectRef
+		dest, auth, err = h.CreationNamespace(auth, parser.ObjectName{Parts: []parser.Identifier{s.Target, {Text: d.Name()}}})
 		if err != nil {
 			return err
 		}
-		if err = auth.CheckCreate(dest); err != nil {
+		view = h.AccessView(auth)
+		if err = view.CheckCreate(auth, dest); err != nil {
 			return err
 		}
-		sourceNamespace := auth.Catalog.MustNamespace(d.Namespace())
-		targetNamespace := auth.Catalog.MustNamespace(dest.Address)
+		sourceNamespace := view.Catalog.MustNamespace(d.Namespace())
+		targetNamespace := view.Catalog.MustNamespace(dest.Address)
 		if d.Namespace() == dest.Address {
 			return nil
 		}
@@ -265,55 +268,55 @@ func (e *Engine) stageAlterCollationLocked(op *session.Operation, auth Authoriza
 		}
 		next.ObjectNamespace = dest.Address
 	case "owner":
-		if err = access.OwnershipEligibility(auth.View, auth, ownerTarget, d.Namespace()); err != nil {
+		if err = access.OwnershipEligibility(view, auth, ownerTarget, d.Namespace()); err != nil {
 			return err
 		}
 		next.Owner = ownerTarget
 	}
 	key := catalog.DescriptorNameKey(&next)
-	if a := stage.LookupName(key); a != (ids.ObjectAddress{}) && a != d.Address() {
-		return sqlError("42710", fmt.Sprintf(`collation "%s" already exists in schema "%s"`, next.Name(), auth.Catalog.Get(next.Namespace()).Name()))
+	if a := h.Stage().LookupName(key); a != (ids.ObjectAddress{}) && a != d.Address() {
+		return sqlError("42710", fmt.Sprintf(`collation "%s" already exists in schema "%s"`, next.Name(), view.Catalog.Get(next.Namespace()).Name()))
 	}
-	next.ObjectRevision, err = e.catalog.revisionLocked()
+	next.ObjectRevision, err = h.Revision()
 	if err != nil {
 		return err
 	}
-	return stage.Replace(&next)
+	return h.Stage().Replace(&next)
 }
 
-func (e *Engine) stageDropCollationLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropCollation) error {
+func stageDropCollationLocked(h typedef.StageHost, auth typedef.Authority, s *parser.DropCollation) error {
 	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
 	for _, name := range s.Names {
-		d, err := e.findUtilityCollation(auth, name)
+		d, err := findUtilityCollation(h, auth, name)
 		if err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); s.IfExists && ok && (diagnostic.Code == "42704" || diagnostic.Code == "3F000") {
-				schemaNotice(op, "00000", fmt.Sprintf(`collation "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
+				typedef.Notice(h, "00000", fmt.Sprintf(`collation "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
 				continue
 			}
 			return err
 		}
-		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
-		if err = auth.Check(access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
+		ref := typedef.ObjectRef(h, auth, d.Address())
+		if err = typedef.Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err
 		}
 		if d.Seeded() {
-			path, pathErr := e.referencePath(auth)
+			object, pathErr := h.DependencyObject(auth, d.Address())
 			if pathErr != nil {
 				return pathErr
 			}
-			return sqlError("2BP01", "cannot drop "+dependencyObject(auth.Catalog, d.Address(), path)+" because it is required by the database system")
+			return sqlError("2BP01", "cannot drop "+object+" because it is required by the database system")
 		}
 		if !seen[d.Address()] {
 			seen[d.Address()] = true
-			stage.domainTargets = append(stage.domainTargets, d.Address())
+			h.DropTarget(d.Address())
 		}
 	}
-	stage.dependencyPath, _ = e.referencePath(auth)
+	h.RecordDependencyPath(auth)
 	return nil
 }
 
-func (e *Engine) findUtilityCollation(auth AuthorizationView, name parser.ObjectName) (*catalog.Collation, error) {
-	d, err := e.findCollation(auth, name)
+func findUtilityCollation(h typedef.StageHost, auth typedef.Authority, name parser.ObjectName) (*catalog.Collation, error) {
+	d, err := h.FindCollation(auth, name)
 	if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42704" {
 		copy := *diagnostic
 		copy.Position = ""

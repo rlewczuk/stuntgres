@@ -28,7 +28,7 @@ func domainUnitStage(t *testing.T, e *Engine, op *session.Operation, q string) *
 		auth, err = e.authorizationLocked(op)
 		if err == nil {
 			stage = e.BeginCatalogStage(auth.Catalog)
-			err = e.stageCreateEnumLocked(op, auth, stage, enum)
+			err = stageCreateEnumLocked(typedefHost{e: e, op: op, stage: stage}, auth, enum)
 		}
 	} else {
 		stage, err = e.stageSchemaLocked(op, ast, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
@@ -215,7 +215,7 @@ func TestDomainBaseUsageAndOwnerAuthorizationInternal(t *testing.T) {
 		denied := statement(t, "CREATE DOMAIN public.denied AS public.a").(*parser.CreateDomain)
 		e.mu.Lock()
 		stage = e.BeginCatalogStage(auth.Catalog)
-		err := e.stageCreateDomainLocked(op, auth, stage, denied, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+		err := stageCreateDomainLocked(typedefHost{e: e, op: op, stage: stage}, auth, denied, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 		e.mu.Unlock()
 		domainUnitDiagnostic(t, err, "42501", "permission denied for type a")
 		if e.CatalogRead().State() != before || stage.DescriptorCount() != 0 {

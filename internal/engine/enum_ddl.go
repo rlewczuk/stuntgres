@@ -98,7 +98,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
 	if create, ok := stmt.(*parser.CreateEnum); ok {
-		if err := e.stageCreateEnumLocked(op, auth, stage, create); err != nil {
+		if err := stageCreateEnumLocked(typedefHost{e: e, op: op, stage: stage}, auth, create); err != nil {
 			return Result{}, err
 		}
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
