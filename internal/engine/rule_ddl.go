@@ -170,7 +170,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 		viewOf(&next).quoteRevision = next.Revision()
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, scope.op.session)
+	stage.authorizeLocked(auth, scope.op.Session)
 	for _, source := range sources {
 		stage.querySources = append(stage.querySources, source.Relation)
 	}

@@ -44,7 +44,7 @@ func (e *Engine) clearIndexBuildWait(index ids.ObjectAddress, owner ids.TxRef, k
 
 func (s *StatementScope) waitCompletion(owner *lock.Ticket, purpose lock.CompletionPurpose) error {
 	e := s.engine()
-	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext, CompletionPurpose: purpose}
+	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext, CompletionPurpose: purpose}
 	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.CompletionOf(owner), lock.TransactionCompletion, policy)
 	if request != nil {
 		if s.replacementRead {

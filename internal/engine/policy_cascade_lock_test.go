@@ -54,7 +54,7 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 							}
 							lockEmpty(t, e)
 						}()
-						scope = &StatementScope{op: op, owner: op.session.transactions, txRef: tx, ticket: op.session.transactions.ticket}
+						scope = &StatementScope{op: op, owner: op.Session.transactions, txRef: tx, ticket: op.Session.transactions.ticket}
 					}
 					stage := e.BeginCatalogStage(base)
 					defer e.DiscardCatalogStage(stage)

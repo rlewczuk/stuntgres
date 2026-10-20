@@ -64,7 +64,7 @@ func TestQueryJoinsStatementFrontierAndNoWidening(t *testing.T) {
 	auth, err := e.authorizationLocked(op)
 	var binding analyze.Binding
 	if err == nil {
-		binding, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
+		binding, err = describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 	}
 	var source *exec.Source
 	if err == nil {
@@ -92,10 +92,10 @@ func TestQueryJoinsStatementFrontierAndNoWidening(t *testing.T) {
 	sessionSQL(t, b, "INSERT INTO a VALUES(2)")
 	sessionSQL(t, b, "INSERT INTO b VALUES(2)")
 	transactionEnd(t, b, peer, true)
-	if err = exec.SelectQuerySources(op.ctx, source); err != nil {
+	if err = exec.SelectQuerySources(op.Ctx, source); err != nil {
 		t.Fatal(err)
 	}
-	rows, n, err := exec.Finalize(op.ctx, binding.Query.Root, source, nil)
+	rows, n, err := exec.Finalize(op.Ctx, binding.Query.Root, source, nil)
 	if err != nil || n != 1 {
 		t.Fatal(rows, n, err)
 	}
@@ -517,7 +517,7 @@ func TestQueryJoinsSelectedPrivateRoots(t *testing.T) {
 			auth, err := e.authorizationLocked(op)
 			var bound analyze.Binding
 			if err == nil {
-				bound, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
+				bound, err = describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 			}
 			var source *exec.Source
 			if err == nil {
@@ -525,7 +525,7 @@ func TestQueryJoinsSelectedPrivateRoots(t *testing.T) {
 			}
 			e.mu.Unlock()
 			if err == nil {
-				err = exec.SelectQuerySources(op.ctx, source)
+				err = exec.SelectQuerySources(op.Ctx, source)
 			}
 			if err != nil {
 				finish(err)

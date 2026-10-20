@@ -59,7 +59,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 		if !action.IfNotExists {
 			return fail(sqlError("42701", message))
 		}
-		op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42701", Message: message + ", skipping"})
+		op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42701", Message: message + ", skipping"})
 		return old, addedColumn{}, nil
 	}
 	if old.ColumnMeta.HighWater >= 1600 {
@@ -130,7 +130,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 		}
 		if !omitColumnDefault(auth.Catalog, node, usage) {
 			persisted := catalog.ColumnDefault{Expression: node}
-			if _, err := (scalarRenderer{definition: op.definition, aclOutput: capturedACLItemOutput{owner: auth.Owner, roles: auth.Roles}, dependencies: &persisted.Dependencies, commentSnapshot: &persisted.CatalogSnapshot, catalogAliasReferences: &persisted.CatalogAliasReferences}).sql(op.Context(), auth.Catalog, node); err != nil {
+			if _, err := (scalarRenderer{definition: op.Definition, aclOutput: capturedACLItemOutput{owner: auth.Owner, roles: auth.Roles}, dependencies: &persisted.Dependencies, commentSnapshot: &persisted.CatalogSnapshot, catalogAliasReferences: &persisted.CatalogAliasReferences}).sql(op.Context(), auth.Catalog, node); err != nil {
 				return fail(alterCookingError(err))
 			}
 			if next.ColumnMeta.Defaults == nil {

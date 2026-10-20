@@ -71,7 +71,7 @@ func (s *StatementScope) acquireExplicitLocks(stmt *parser.LockTable) error {
 	}
 	e := s.engine()
 	mode := explicitLockMode(stmt.Mode)
-	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, NoWait: stmt.Nowait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, NoWait: stmt.Nowait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
 	for _, target := range stmt.Targets {
 		e.mu.Lock()
 		auth, err := e.statementAuthorizationLocked(s.op, stmt)

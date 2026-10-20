@@ -22,23 +22,23 @@ func (s *Session) AcquireCommand(ctx context.Context) (*Operation, parser.Option
 	}
 	s.settings.mu.Lock()
 	standard := s.settings.typedValue("standard_conforming_strings").Boolean
-	op.nonstandardStrings = !standard
+	op.NonstandardStrings = !standard
 	timeout := s.settings.typedValue("statement_timeout").Number
-	op.lockTimeout = time.Duration(s.settings.typedValue("lock_timeout").Number) * time.Millisecond
-	op.parallelWorkers = int(s.settings.typedValue("max_parallel_workers_per_gather").Number)
+	op.LockTimeout = time.Duration(s.settings.typedValue("lock_timeout").Number) * time.Millisecond
+	op.ParallelWorkers = int(s.settings.typedValue("max_parallel_workers_per_gather").Number)
 	transactionTimeout := s.settings.typedValue("transaction_timeout").Number
-	op.noticeThreshold, _ = messageLevel(s.settings.value(settings.ClientMinMessages.Name))
-	op.commandAdmission = true
-	op.commandStart = start
+	op.NoticeThreshold, _ = messageLevel(s.settings.value(settings.ClientMinMessages.Name))
+	op.CommandAdmission = true
+	op.CommandStart = start
 	s.settings.mu.Unlock()
 	if timeout > 0 && (transactionTimeout == 0 || timeout < transactionTimeout) {
 		deadline := time.Now().Add(time.Duration(timeout) * time.Millisecond)
-		timed, cancel := context.WithDeadlineCause(op.ctx, deadline, statementTimeoutCause)
+		timed, cancel := context.WithDeadlineCause(op.Ctx, deadline, statementTimeoutCause)
 		s.mu.Lock()
-		op.statementDeadline, op.ctx, op.timerCancel = deadline, timed, cancel
+		op.StatementDeadline, op.Ctx, op.TimerCancel = deadline, timed, cancel
 		s.mu.Unlock()
 	}
-	return op, parser.Options{StandardConformingStrings: standard, Context: op.ctx, Notice: op.parseNotice}, nil
+	return op, parser.Options{StandardConformingStrings: standard, Context: op.Ctx, Notice: op.ParseNotice}, nil
 }
 
 // CommandError translates only cancellation from this command's own timer.
@@ -54,32 +54,32 @@ func (op *Operation) CommandError(err error) error {
 	return op.fatalError(err)
 }
 
-func (op *Operation) refreshStatementBudget() error {
-	if err := op.commandContext.Err(); err != nil {
+func (op *Operation) RefreshStatementBudget() error {
+	if err := op.CommandContext.Err(); err != nil {
 		return err
 	}
-	store := op.session.settings
+	store := op.Session.settings
 	store.mu.Lock()
 	timeout := store.typedValue("statement_timeout").Number
 	transactionTimeout := store.typedValue("transaction_timeout").Number
 	lockTimeout := store.typedValue("lock_timeout").Number
 	threshold, _ := messageLevel(store.value(settings.ClientMinMessages.Name))
 	store.mu.Unlock()
-	op.session.mu.Lock()
-	defer op.session.mu.Unlock()
-	if op.timerCancel != nil {
-		op.timerCancel()
-		op.timerCancel = nil
+	op.Session.mu.Lock()
+	defer op.Session.mu.Unlock()
+	if op.TimerCancel != nil {
+		op.TimerCancel()
+		op.TimerCancel = nil
 	}
-	op.ctx = op.commandContext
-	op.statementDeadline = time.Time{}
-	op.lockTimeout = time.Duration(lockTimeout) * time.Millisecond
-	op.noticeThreshold = threshold
-	op.sqlFinished = false
+	op.Ctx = op.CommandContext
+	op.StatementDeadline = time.Time{}
+	op.LockTimeout = time.Duration(lockTimeout) * time.Millisecond
+	op.NoticeThreshold = threshold
+	op.SQLFinished = false
 	if timeout > 0 && (transactionTimeout == 0 || timeout < transactionTimeout) {
 		deadline := time.Now().Add(time.Duration(timeout) * time.Millisecond)
-		op.ctx, op.timerCancel = context.WithDeadlineCause(op.commandContext, deadline, statementTimeoutCause)
-		op.statementDeadline = deadline
+		op.Ctx, op.TimerCancel = context.WithDeadlineCause(op.CommandContext, deadline, statementTimeoutCause)
+		op.StatementDeadline = deadline
 	}
 	return nil
 }

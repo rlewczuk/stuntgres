@@ -34,7 +34,7 @@ func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *Operat
 		root = current
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	selected := make(map[ids.ObjectAddress]bool, len(targets))
@@ -121,7 +121,7 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Op
 	}
 	root = targets[0]
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	selected := make(map[ids.ObjectAddress]bool, len(targets))

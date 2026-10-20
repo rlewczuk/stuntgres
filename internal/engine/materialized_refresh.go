@@ -52,7 +52,7 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 	if err != nil {
 		return err
 	}
-	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
 	mode := lock.AccessExclusive
 	if stmt.Concurrent.Character != 0 {
 		mode = lock.Exclusive
@@ -161,7 +161,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 		ownRows, ownDeletes = scope.columnProjectionRoots(d.Address())
 	}
 	stage := e.BeginCatalogStage(caller.Catalog)
-	stage.authorizeLocked(caller, scope.op.session)
+	stage.authorizeLocked(caller, scope.op.Session)
 	stage.querySources = scope.materializedOrZero().sources
 	stage.materialized().sourceView = scope.materializedOrZero().sourceView
 	stage.indexes().output = scope.output

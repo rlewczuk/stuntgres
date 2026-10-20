@@ -26,10 +26,10 @@ func (a *sessionAuthorization) EndSession(token ids.SessionToken, reason EndReas
 }
 
 func (op *Operation) RoleState() authorization.RoleState {
-	if op == nil || op.self != op || op.session == nil {
+	if op == nil || op.Self != op || op.Session == nil {
 		return authorization.RoleState{}
 	}
-	s := op.session
+	s := op.Session
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.authorization == nil {

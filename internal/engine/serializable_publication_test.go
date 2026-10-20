@@ -257,7 +257,7 @@ func TestSerializablePublicationRealChangedPredecessorRetry(t *testing.T) {
 					t.Error("stale/retried preparation changed committed state before final boundary")
 				}
 			}
-			op.ctx = barrier
+			op.Ctx = barrier
 			done := make(chan error, 1)
 			go func() {
 				done <- e.publishRows(op, node.Ref, a.transactions.writes, a.transactions.deletes, nil, nil, nil)

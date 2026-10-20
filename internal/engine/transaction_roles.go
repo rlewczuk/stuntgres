@@ -11,7 +11,7 @@ import (
 // admission prevents concurrent mutation of this session's transaction overlay.
 func (e *Engine) operationRolesLocked(op *Operation) *access.RoleRecord {
 	if op != nil {
-		return e.sessionRolesLocked(op.session)
+		return e.sessionRolesLocked(op.Session)
 	}
 	return e.roles.published
 }
@@ -26,7 +26,7 @@ func (e *Engine) sessionRolesLocked(session *Session) *access.RoleRecord {
 
 // The operation/session publication preflight has passed before this call.
 func (e *Engine) installOperationRolesLocked(op *Operation, next *access.RoleRecord) {
-	t := op.session.transactions
+	t := op.Session.transactions
 	if !t.retainsTransaction() {
 		e.roles.published = next
 		return
@@ -41,9 +41,9 @@ func (e *Engine) installOperationRolesLocked(op *Operation, next *access.RoleRec
 
 // Session.mu is held, and all revision checks have reserved rollback capacity.
 func (e *Engine) touchOperationIdentityLocked(op *Operation) {
-	t := op.session.transactions
+	t := op.Session.transactions
 	if (t.retainsTransaction() || t.state == TxActive) && !t.identityCaptured {
-		t.identityEntry = op.session.authorization.state
+		t.identityEntry = op.Session.authorization.state
 		t.identityCaptured = true
 	}
 }

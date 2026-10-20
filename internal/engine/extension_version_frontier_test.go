@@ -18,7 +18,7 @@ func extensionVersionAvailableFrontier(t *testing.T) {
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			capture := func() *StatementScope {
-				s := &StatementScope{op: op, owner: op.session.transactions}
+				s := &StatementScope{op: op, owner: op.Session.transactions}
 				e.mu.Lock()
 				err := e.captureCommentSnapshotLocked(s)
 				e.mu.Unlock()

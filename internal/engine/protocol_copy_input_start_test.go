@@ -27,14 +27,14 @@ func TestProtocolCopyInputStartOwnership(t *testing.T) {
 			cause := &sqlstate.Error{Code: "57014", Message: "canceling statement due to user request"}
 			veto := errors.New("CopyIn publication failed")
 			if tc.before {
-				op.cancel(cause)
+				op.Cancel(cause)
 			}
 			called := false
 			count, err := scope.CopyProtocol(copyUnitSyntax(), strings.NewReader(tc.input), nil, CopyProtocolHooks{Start: func(CopyProtocolMetadata) error {
 				called = true
 				// Cancel in the actual publication callback, before copyIO's
 				// resume check. No scheduler timing or socket speed is involved.
-				op.cancel(cause)
+				op.Cancel(cause)
 				if tc.failed {
 					return veto
 				}
@@ -55,7 +55,7 @@ func TestProtocolCopyInputStartOwnership(t *testing.T) {
 			} else if !errors.Is(err, context.Canceled) {
 				t.Fatal("ordinary or pre-start cancellation changed", err)
 			}
-			if op.copyInput.active.Load() || op.copyInput.decoding.Load() || op.copyInput.masked != nil || len(scope.stage.rows) != 0 {
+			if op.CopyInput.active.Load() || op.CopyInput.decoding.Load() || op.CopyInput.masked != nil || len(scope.stage.rows) != 0 {
 				t.Fatal("failed input leaked ownership or applied rows")
 			}
 			if finish := scope.Finish(err); finish == nil {

@@ -106,32 +106,32 @@ type Session struct {
 
 // Operation is pointer-owned; copying it is invalid. Done releases its lease once.
 type Operation struct {
-	self               *Operation
-	session            *Session
-	ctx                context.Context
-	copyInput          protocolCopyInputContext
-	commandContext     context.Context // Session-cancelable parent of per-statement budgets.
-	cancel             context.CancelCauseFunc
-	done               bool
+	Self               *Operation
+	Session            *Session
+	Ctx                context.Context
+	CopyInput          protocolCopyInputContext
+	CommandContext     context.Context // Session-cancelable parent of per-statement budgets.
+	Cancel             context.CancelCauseFunc
+	Released           bool
 	private            bool
-	notices            []sqlstate.Error
-	noticeThreshold    noticeLevel
-	timerCancel        context.CancelFunc
-	lockTimeout        time.Duration
-	parallelWorkers    int // Immutable prior-setting snapshot at command admission.
-	statementDeadline  time.Time
-	commandStart       time.Time
-	sourceContext      context.Context
-	commandAdmission   bool
+	Notices            []sqlstate.Error
+	NoticeThreshold    noticeLevel
+	TimerCancel        context.CancelFunc
+	LockTimeout        time.Duration
+	ParallelWorkers    int // Immutable prior-setting snapshot at command admission.
+	StatementDeadline  time.Time
+	CommandStart       time.Time
+	SourceContext      context.Context
+	CommandAdmission   bool
 	sqlActivity        bool
-	sqlFinished        bool // Session.mu: ERROR/completion fence, not transaction state
-	lease              *StatementLease
-	definition         catalog.DefinitionReader // Scoped once-only DDL cooking, restored before evaluation.
-	lockWait           lock.TimeoutSlot         // queued lock request's SQL-deadline projection
-	nonstandardStrings bool
-	discardRoleReset   authorization.RoleState // nonzero Authenticated only during DISCARD ALL publication
-	replaySlot         session.ReplaySlot      // Restore and materialized population only; see operationReplay.
-	analysis           session.AnalysisSlot    // Immutable after creation; see newSessionOperation.
+	SQLFinished        bool // Session.mu: ERROR/completion fence, not transaction state
+	Lease              *StatementLease
+	Definition         catalog.DefinitionReader // Scoped once-only DDL cooking, restored before evaluation.
+	LockWait           lock.TimeoutSlot         // queued lock request's SQL-deadline projection
+	NonstandardStrings bool
+	DiscardRoleReset   authorization.RoleState // nonzero Authenticated only during DISCARD ALL publication
+	ReplaySlot         session.ReplaySlot      // Restore and materialized population only; see operationReplay.
+	Analysis           session.AnalysisSlot    // Immutable after creation; see newSessionOperation.
 }
 
 func (s *Session) Token() ids.SessionToken { return s.token }
@@ -140,7 +140,7 @@ func (s *Session) operation(ctx context.Context, private bool) *Operation {
 	// cancels every admitted child under the same admission lock; Done removes it.
 	combined, cancel := context.WithCancelCause(ctx)
 	op := newSessionOperation(s)
-	op.ctx, op.commandContext, op.sourceContext, op.cancel, op.private = combined, combined, ctx, cancel, private
+	op.Ctx, op.CommandContext, op.SourceContext, op.Cancel, op.private = combined, combined, ctx, cancel, private
 	if s.operations == nil {
 		s.operations = make(map[*Operation]struct{})
 	}
@@ -174,30 +174,30 @@ func (s *Session) acquire(ctx context.Context, activity bool) (*Operation, error
 	return op, nil
 }
 func (op *Operation) Context() context.Context {
-	if op.copyInput.held() {
-		op.session.mu.Lock()
-		ctx := op.copyInput.effectiveLocked(op)
-		op.session.mu.Unlock()
+	if op.CopyInput.held() {
+		op.Session.mu.Lock()
+		ctx := op.CopyInput.effectiveLocked(op)
+		op.Session.mu.Unlock()
 		return ctx
 	}
-	return op.ctx
+	return op.Ctx
 }
 func (op *Operation) Done() {
-	if op == nil || op.self != op || op.session == nil {
+	if op == nil || op.Self != op || op.Session == nil {
 		return
 	}
-	s := op.session
+	s := op.Session
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if op.done {
+	if op.Released {
 		return
 	}
-	op.done = true
-	op.lockWait.Reset()
+	op.Released = true
+	op.LockWait.Reset()
 	delete(s.operations, op)
-	op.cancel(nil)
-	if op.timerCancel != nil {
-		op.timerCancel()
+	op.Cancel(nil)
+	if op.TimerCancel != nil {
+		op.TimerCancel()
 	}
 	s.leases--
 	if op.sqlActivity {
@@ -213,23 +213,23 @@ func (op *Operation) Done() {
 // in domain. A session's token carries its engine's domain, so session code
 // passes its own token's domain.
 func validateSessionOperation(domain *ids.Domain, op *Operation) error {
-	if op == nil || op.self != op || op.session == nil || op.session.token.Domain() != domain {
+	if op == nil || op.Self != op || op.Session == nil || op.Session.token.Domain() != domain {
 		return errors.New("stuntgres: foreign or missing operation")
 	}
-	s := op.session
+	s := op.Session
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if op.done || s.state != live {
+	if op.Released || s.state != live {
 		if s.timeouts.fatal != nil {
 			copy := *s.timeouts.fatal
 			return &copy
 		}
 		return errors.New("stuntgres: inactive operation")
 	}
-	if op.copyInput.held() {
-		return op.fatalErrorLocked(op.copyInput.effectiveLocked(op).Err())
+	if op.CopyInput.held() {
+		return op.FatalErrorLocked(op.CopyInput.effectiveLocked(op).Err())
 	}
-	return op.fatalErrorLocked(op.ctx.Err())
+	return op.FatalErrorLocked(op.Ctx.Err())
 }
 func nilResource(owner SessionResource) bool {
 	if owner == nil {
@@ -243,16 +243,16 @@ func nilResource(owner SessionResource) bool {
 	return false
 }
 func (op *Operation) Attach(kind ResourceKind, owner SessionResource) (ResourceHandle, error) {
-	if op == nil || op.self != op || op.session == nil || kind >= resourceKinds || nilResource(owner) {
+	if op == nil || op.Self != op || op.Session == nil || kind >= resourceKinds || nilResource(owner) {
 		return ResourceHandle{}, errors.New("stuntgres: invalid session attachment")
 	}
-	s := op.session
+	s := op.Session
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := op.ctx.Err(); err != nil {
+	if err := op.Ctx.Err(); err != nil {
 		return ResourceHandle{}, err
 	}
-	if op.done || (s.state != live && !(op.private && s.state == initializing)) || s.detaching {
+	if op.Released || (s.state != live && !(op.private && s.state == initializing)) || s.detaching {
 		return ResourceHandle{}, errors.New("stuntgres: inactive attachment lease")
 	}
 	if s.resources[kind] != nil {
@@ -335,9 +335,9 @@ func (s *Session) requestEndLocked(reason EndReason) {
 		cause = s.timeouts.fatal
 	}
 	for op := range s.operations {
-		op.cancel(cause)
-		if op.copyInput.cancel != nil {
-			op.copyInput.cancel(cause)
+		op.Cancel(cause)
+		if op.CopyInput.cancel != nil {
+			op.CopyInput.cancel(cause)
 		}
 	}
 	go s.end()

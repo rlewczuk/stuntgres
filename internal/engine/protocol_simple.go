@@ -62,7 +62,7 @@ func (s *StatementScope) beginProtocolSimplePortal() error {
 		return nil
 	}
 	s.protocol().simpleCreated = true
-	if payloadOf(s.op.session).preparedSQL.portals[""] == nil {
+	if payloadOf(s.op.Session).preparedSQL.portals[""] == nil {
 		return nil
 	}
 	// A non-retained transaction control gates without admitting an incarnation.

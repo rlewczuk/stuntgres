@@ -78,7 +78,7 @@ func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, au
 		return e.renameInheritanceConstraintLocked(scope, op, auth, raw, parent, kind)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	if backing != (ids.ObjectAddress{}) {
 		index, ok := auth.Catalog.Relation(backing)
 		if !ok {

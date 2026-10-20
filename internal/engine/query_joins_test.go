@@ -71,7 +71,7 @@ func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*Engine, 
 	auth, err := e.authorizationLocked(op)
 	var b analyze.Binding
 	if err == nil {
-		b, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
+		b, err = describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 	}
 	if err == nil {
 		// Standalone stages supply contexts, but still need live admission authority.
@@ -79,7 +79,7 @@ func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*Engine, 
 	}
 	e.mu.Unlock()
 	if err == nil {
-		err = exec.SelectQuerySources(op.ctx, source)
+		err = exec.SelectQuerySources(op.Ctx, source)
 	}
 	if err != nil {
 		scope.Finish(err)

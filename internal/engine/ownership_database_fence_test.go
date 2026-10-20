@@ -36,7 +36,7 @@ func TestRoleOwnershipDatabaseStagePredecessor(t *testing.T) {
 			}
 			stage := e.BeginCatalogStage(auth.Catalog)
 			defer e.DiscardCatalogStage(stage)
-			stage.authorizeLocked(auth, op.session)
+			stage.authorizeLocked(auth, op.Session)
 			changes := session.NewJournal()
 			authority := auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 			// Empty descriptor/removal sets are deliberate: storage-only TRUNCATE and

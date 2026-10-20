@@ -296,7 +296,7 @@ func TestQuerySubqueryManifest(t *testing.T) {
 	auth, err := e.authorizationLocked(op)
 	var bound analyze.Binding
 	if err == nil {
-		bound, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
+		bound, err = describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -606,7 +606,7 @@ func TestQuerySubqueryAuthorization(t *testing.T) {
 	auth, err := e.authorizationLocked(op)
 	var bound analyze.Binding
 	if err == nil {
-		bound, err = describe(op.ctx, e.analysisHost(op), ast, auth, outer, sqltype.InputEnvironment{}, nil, nil)
+		bound, err = describe(op.Ctx, e.analysisHost(op), ast, auth, outer, sqltype.InputEnvironment{}, nil, nil)
 	}
 	e.mu.Unlock()
 	if err != nil {

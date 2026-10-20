@@ -117,11 +117,11 @@ func copyCursorCapturedCancellation(t *testing.T, binaryInput bool) {
 					defaults: make([]bool, 1), omitted: make([]bool, 1),
 				}
 			}
-			op.copyInput.active.Store(true)
-			op.copyInput.decoding.Store(true)
-			defer op.stopCopyInput()
-			scheduled := &copyCursorCancelContext{Context: op.ctx, cancel: cancel, cause: tc.cause}
-			op.ctx = scheduled
+			op.CopyInput.active.Store(true)
+			op.CopyInput.decoding.Store(true)
+			defer op.StopCopyInput()
+			scheduled := &copyCursorCancelContext{Context: op.Ctx, cancel: cancel, cause: tc.cause}
+			op.Ctx = scheduled
 			present, err := cursor.Next(context.Background(), make([]sqltype.Value, 1))
 			if !scheduled.fired || present || err == nil {
 				t.Fatalf("scheduled cancellation fired=%v row=%v err=%v", scheduled.fired, present, err)
@@ -223,7 +223,7 @@ func TestProtocolCopyStartCancellationAuthority(t *testing.T) {
 			if reader.Len() != len(tc.input) {
 				t.Fatal("Start cancellation authority consumed input", reader.Len(), tc.name)
 			}
-			if op.copyInput.active.Load() || op.copyInput.decoding.Load() || op.copyInput.masked != nil {
+			if op.CopyInput.active.Load() || op.CopyInput.decoding.Load() || op.CopyInput.masked != nil {
 				t.Fatal("COPY input ownership escaped Start/decoder lifetime")
 			}
 			if context.Cause(source) != tc.cause || source.Err() != context.Canceled {

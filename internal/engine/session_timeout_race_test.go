@@ -17,7 +17,7 @@ func TestSessionTimeoutPendingGrantRace(t *testing.T) {
 			s, holder, ref, lock := timeoutPendingFixture(t, false)
 			op := timeoutPendingOperation(t, s)
 			scope := timeoutPendingScope(t, op)
-			op.lockTimeout = time.Hour
+			op.LockTimeout = time.Hour
 			returned, workerDone := make(chan error, 1), make(chan struct{})
 			go func() {
 				defer close(workerDone)
@@ -25,7 +25,7 @@ func TestSessionTimeoutPendingGrantRace(t *testing.T) {
 				returned <- err
 			}()
 			t.Cleanup(func() {
-				op.cancel(nil)
+				op.Cancel(nil)
 				select {
 				case <-workerDone:
 					if !scope.finished {
@@ -88,7 +88,7 @@ func TestSessionTimeoutPendingGrantRace(t *testing.T) {
 			} else {
 				timeoutPendingDiagnostic(t, op.CommandError(result), "25P04")
 			}
-			if op.lockWait.Request() != nil || op.lockWait.Failed() {
+			if op.LockWait.Request() != nil || op.LockWait.Failed() {
 				t.Error("race completion retained timeout projection")
 			}
 			op.Done()
@@ -113,9 +113,9 @@ func TestSessionTimeoutPendingImmediateProjection(t *testing.T) {
 	}
 	op := timeoutPendingOperation(t, holder)
 	for _, policy := range []lock.Policy{
-		{TimeoutSlot: &op.lockWait},
-		{TimeoutSlot: &op.lockWait, Timeout: time.Hour, StatementDeadline: time.Now().Add(time.Hour)},
-		{TimeoutSlot: &op.lockWait, NoWait: true, Timeout: time.Hour},
+		{TimeoutSlot: &op.LockWait},
+		{TimeoutSlot: &op.LockWait, Timeout: time.Hour, StatementDeadline: time.Now().Add(time.Hour)},
+		{TimeoutSlot: &op.LockWait, NoWait: true, Timeout: time.Hour},
 	} {
 		if allocations := testing.AllocsPerRun(100, func() {
 			request, err := manager.StartAcquire(op.Context(), ticket, resource, lock.AccessExclusive, policy)
@@ -125,12 +125,12 @@ func TestSessionTimeoutPendingImmediateProjection(t *testing.T) {
 		}); allocations != 0 {
 			t.Fatal("immediate timeout projection allocated", allocations)
 		}
-		if op.lockWait.Request() != nil || op.lockWait.Failed() {
+		if op.LockWait.Request() != nil || op.LockWait.Failed() {
 			t.Fatal("immediate grant published pending timeout")
 		}
 	}
 	blocked := timeoutPendingOperation(t, s)
-	policy := lock.Policy{TimeoutSlot: &blocked.lockWait, NoWait: true, Timeout: time.Hour}
+	policy := lock.Policy{TimeoutSlot: &blocked.LockWait, NoWait: true, Timeout: time.Hour}
 	if allocations := testing.AllocsPerRun(100, func() {
 		request, err := manager.StartAcquire(blocked.Context(), s.transactions.ticket, resource, lock.AccessShare, policy)
 		if request != nil || err != lock.ErrUnavailable {
@@ -139,27 +139,27 @@ func TestSessionTimeoutPendingImmediateProjection(t *testing.T) {
 	}); allocations != 0 {
 		t.Fatal("NOWAIT timeout projection allocated", allocations)
 	}
-	if blocked.lockWait.Request() != nil || blocked.lockWait.Failed() {
+	if blocked.LockWait.Request() != nil || blocked.LockWait.Failed() {
 		t.Fatal("NOWAIT published pending timeout")
 	}
-	request, err := manager.StartAcquire(blocked.Context(), s.transactions.ticket, resource, lock.AccessShare, lock.Policy{TimeoutSlot: &blocked.lockWait})
+	request, err := manager.StartAcquire(blocked.Context(), s.transactions.ticket, resource, lock.AccessShare, lock.Policy{TimeoutSlot: &blocked.LockWait})
 	if request == nil || err != nil {
 		t.Fatal("disabled timeout request", request, err)
 	}
-	if blocked.lockWait.Request() != nil || blocked.lockWait.Failed() {
+	if blocked.LockWait.Request() != nil || blocked.LockWait.Failed() {
 		t.Fatal("disabled timeout published pending projection")
 	}
 	result, done := make(chan error, 1), make(chan struct{})
 	go func() { defer close(done); result <- request.Wait() }()
 	t.Cleanup(func() {
-		blocked.cancel(nil)
+		blocked.Cancel(nil)
 		select {
 		case <-done:
 		case <-time.After(5 * time.Second):
 			t.Error("disabled request failed bounded join")
 		}
 	})
-	blocked.cancel(nil)
+	blocked.Cancel(nil)
 	if err := timeoutPendingReceive(t, result); err != context.Canceled {
 		t.Fatal("disabled timeout cancellation", err)
 	}

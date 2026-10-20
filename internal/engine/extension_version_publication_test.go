@@ -81,7 +81,7 @@ func TestExtensionVersionPublication(t *testing.T) {
 			defer closeWorker()
 			ctx, cancel := context.WithCancel(worker.Context())
 			defer cancel()
-			worker.ctx = ctx
+			worker.Ctx = ctx
 			type outcome struct {
 				err        error
 				panicValue any

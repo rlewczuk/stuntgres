@@ -222,7 +222,7 @@ func TestJSONArrayAggregateInsertReachedCancellation(t *testing.T) {
 		}
 		// Acquire owns a cancelCtx; instrument only the admitted operation so the
 		// actual execution retains this reached-frame context's Err observation.
-		op.ctx = probe
+		op.Ctx = probe
 		scope, err := e.StartStatement(op)
 		if err != nil {
 			done()

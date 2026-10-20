@@ -22,7 +22,7 @@ func (r capturedFTSInput) EmptyQuery(ctx context.Context, text string) {
 	if r.position > 0 {
 		n.Position = strconv.Itoa(r.position)
 	}
-	r.op.emitNotice(levelNotice, n)
+	r.op.EmitNotice(levelNotice, n)
 }
 func (r capturedFTSInput) FTSLiteral(position int) sqltype.FTSInputNotices {
 	r.position = position

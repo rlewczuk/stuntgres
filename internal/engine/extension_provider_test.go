@@ -304,7 +304,7 @@ func TestExtensionProviderPublication(t *testing.T) {
 			}
 			if reason == "cancel" {
 				ctx, cancel := context.WithCancel(op.Context())
-				op.ctx = ctx
+				op.Ctx = ctx
 				cancel()
 			}
 			e.mu.Lock()

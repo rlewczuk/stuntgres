@@ -227,7 +227,7 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	e.catalog.state = catalog.CloneState(e.catalog.state)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	owner := op.session.transactions
+	owner := op.Session.transactions
 	owner.sequenceCatalog = &base
 	owner.catalog = own
 	scope := &StatementScope{op: op, owner: owner}
@@ -258,7 +258,7 @@ func TestPGSequenceSnapshotOwnerLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			owner := op.session.transactions
+			owner := op.Session.transactions
 			scope := &StatementScope{op: op, owner: owner, txRef: ref}
 			base := e.catalog.state
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {

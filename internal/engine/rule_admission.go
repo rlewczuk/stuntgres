@@ -84,7 +84,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 			}
 			collectAuth.State.CurrentUser = invoker
 			var err error
-			queryRefs, err = e.queryTableRefsLocked(collectAuth, invoker, command.binding.QuerySources[start:end], queryRefs, scope.op.session.token, plan.RowMark{})
+			queryRefs, err = e.queryTableRefsLocked(collectAuth, invoker, command.binding.QuerySources[start:end], queryRefs, scope.op.Session.token, plan.RowMark{})
 			if err != nil {
 				e.mu.Unlock()
 				return nil, err
@@ -102,7 +102,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 		}
 	}
 	e.mu.Unlock()
-	policy := lock.Policy{TimeoutSlot: &scope.op.lockWait, Timeout: scope.op.lockTimeout, StatementDeadline: scope.op.statementDeadline, Source: scope.op.sourceContext}
+	policy := lock.Policy{TimeoutSlot: &scope.op.LockWait, Timeout: scope.op.LockTimeout, StatementDeadline: scope.op.StatementDeadline, Source: scope.op.SourceContext}
 	for _, requested := range requests {
 		request, err := e.locks.StartAcquire(scope.op.Context(), scope.ticket, lock.Resource{ObjectRef: requested.ref}, requested.mode, policy)
 		if request != nil {

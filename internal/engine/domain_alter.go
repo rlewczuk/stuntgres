@@ -89,7 +89,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.domainAlterState().Ctx = op.Context()
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	scope.routineAuth = auth
 	scope.domains.inputCatalog = auth.Catalog
 	stage.domainBases = append(stage.domainBases, old)

@@ -144,8 +144,8 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		defer e.mu.Unlock()
 		t.session.settings.mu.Lock()
 		defer t.session.settings.mu.Unlock()
-		s.op.session.mu.Lock()
-		defer s.op.session.mu.Unlock()
+		s.op.Session.mu.Lock()
+		defer s.op.Session.mu.Unlock()
 		if err := publicationOperationLocked(e, s.op); err != nil {
 			return Result{}, err
 		}

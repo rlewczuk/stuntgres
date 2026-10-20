@@ -26,7 +26,7 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 	roleExecute(t, e, admin, "CREATE ROLE body_lifetime_reader LOGIN")
 	reader, readerDone := roleOperation(t, e, "body_lifetime_reader")
 	defer readerDone()
-	input, _ := sessionPresentation(reader.session)
+	input, _ := sessionPresentation(reader.Session)
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(reader)
 	if err != nil {
@@ -292,7 +292,7 @@ func TestRoutineBodyEveryProviderOriginalLifetime(t *testing.T) {
 	reader, readerDone := roleOperation(t, e, "body_each_reader")
 	defer readerDone()
 	ref := roleTableRef(t, e, "public.body_inputs")
-	input, _ := sessionPresentation(reader.session)
+	input, _ := sessionPresentation(reader.Session)
 	// Expected callees are independently pinned to REL_18_0 declarations and
 	// SQL bodies, not obtained by walking the implementation's closure table.
 	cases := []struct {

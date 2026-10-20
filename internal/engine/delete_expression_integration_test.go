@@ -25,8 +25,8 @@ func TestDeleteCoreExpressionPreflightAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer done()
-			ctx := &castPreflightContext{Context: op.ctx, e: e, t: t, cancelAt: mode}
-			op.ctx = ctx
+			ctx := &castPreflightContext{Context: op.Ctx, e: e, t: t, cancelAt: mode}
+			op.Ctx = ctx
 			scope, err := e.StartStatement(op)
 			if err != nil {
 				t.Fatal(err)
@@ -40,9 +40,9 @@ func TestDeleteCoreExpressionPreflightAuthority(t *testing.T) {
 				}
 				switch mode {
 				case "authority":
-					op.session.mu.Lock()
-					op.session.authorization.state.CurrentUser = actor.Ref
-					op.session.mu.Unlock()
+					op.Session.mu.Lock()
+					op.Session.authorization.state.CurrentUser = actor.Ref
+					op.Session.mu.Unlock()
 				case "metadata":
 					address := scope.lockedRef.Address
 					original := e.catalog.state.Get(address)
@@ -54,7 +54,7 @@ func TestDeleteCoreExpressionPreflightAuthority(t *testing.T) {
 					e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
 					restore = func() { e.catalog.state.SetEpoch(original) }
 				case "teardown":
-					op.session.RequestEnd(CleanClose)
+					op.Session.RequestEnd(CleanClose)
 				}
 			}
 			result, executeErr := scope.Execute(statement(t, "DELETE FROM t WHERE int4($1::text)=i"), 1, func(c context.Context, signature analyze.ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {

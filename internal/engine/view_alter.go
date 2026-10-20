@@ -55,9 +55,9 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 	}
 	ref, err := e.resolveRelationReference(auth, s.Name, true)
 	if s.IfExists && renameMissing(err) {
-		scope.op.session.mu.Lock()
+		scope.op.Session.mu.Lock()
 		err = publicationOperationLocked(e, scope.op)
-		scope.op.session.mu.Unlock()
+		scope.op.Session.mu.Unlock()
 		if err == nil {
 			err = scope.op.Context().Err()
 		}
@@ -66,7 +66,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 		}
 		scope.completed = true
 		e.mu.Unlock()
-		scope.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, s.Name.Parts[len(s.Name.Parts)-1].Text)})
+		scope.op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, s.Name.Parts[len(s.Name.Parts)-1].Text)})
 		return Result{}, nil
 	}
 	if err != nil {
@@ -166,7 +166,7 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 		}
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, scope.op.session)
+	stage.authorizeLocked(auth, scope.op.Session)
 	if extension != nil {
 		stage.querySources = []catalog.Descriptor{extension}
 	}
@@ -266,7 +266,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	epoch := auth.Catalog.Epoch()
 	e.mu.Unlock()
 	sort.Slice(refs, func(i, j int) bool { return refs[i].Address.ObjectID < refs[j].Address.ObjectID })
-	policy := lock.Policy{TimeoutSlot: &scope.op.lockWait, Timeout: scope.op.lockTimeout, StatementDeadline: scope.op.statementDeadline, Source: scope.op.sourceContext}
+	policy := lock.Policy{TimeoutSlot: &scope.op.LockWait, Timeout: scope.op.LockTimeout, StatementDeadline: scope.op.StatementDeadline, Source: scope.op.SourceContext}
 	for _, ref := range refs {
 		request, err := e.locks.StartAcquire(scope.op.Context(), scope.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive, policy)
 		if request != nil {
@@ -306,7 +306,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 		}
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, scope.op.session)
+	stage.authorizeLocked(auth, scope.op.Session)
 	stage.dependencyPath, err = e.referencePath(auth)
 	if err != nil {
 		e.mu.Unlock()
@@ -355,7 +355,7 @@ func (e *Engine) executeDropView(scope *StatementScope, s *parser.DropView, coun
 	scope.completed = true
 	emitViewCascade(scope.op, append(stage.schemaCascadeNames, stage.viewCascadeNames...))
 	for _, notice := range notices {
-		scope.op.emitNotice(levelNotice, notice)
+		scope.op.EmitNotice(levelNotice, notice)
 	}
 	return Result{}, nil
 }

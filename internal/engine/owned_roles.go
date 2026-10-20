@@ -317,7 +317,7 @@ func (e *Engine) executeOwned(scope *StatementScope, stmt parser.Statement, coun
 			message = fmt.Sprintf("drop cascades to %d other objects", len(stage.viewCascadeNames))
 			detail = strings.Join(stage.viewCascadeNames, "\n")
 		}
-		scope.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
+		scope.op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
 	}
 	return result, err
 }

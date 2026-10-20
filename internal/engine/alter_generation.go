@@ -24,7 +24,7 @@ func (e *Engine) generationCandidate(scope *StatementScope, op *Operation, auth 
 	definition, generated := old.ColumnMeta.Generations[attribute]
 	if !generated {
 		if action.Action == parser.DropExpression && action.IfExists {
-			op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`column "%s" of relation "%s" is not a generated column, skipping`, name, old.Name())})
+			op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`column "%s" of relation "%s" is not a generated column, skipping`, name, old.Name())})
 			return old, 0, nil
 		}
 		return nil, 0, sqlError("55000", fmt.Sprintf(`column "%s" of relation "%s" is not a generated column`, name, old.Name()))

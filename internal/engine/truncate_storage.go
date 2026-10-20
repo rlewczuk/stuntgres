@@ -115,7 +115,7 @@ func (s *StatementScope) stageTruncate() error {
 	}
 	changes := s.owner.catalog.Clone()
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, s.op.session)
+	stage.authorizeLocked(auth, s.op.Session)
 	for _, selected := range s.truncateOrZero().relations {
 		ref := selected.ref
 		d, ok := auth.Catalog.Relation(ref.Address)
@@ -181,7 +181,7 @@ func (s *StatementScope) stageTruncate() error {
 		sequences, err = s.stageTruncateSequences(auth, stage)
 	}
 	if err == nil {
-		changes.AddFence(truncateGraphFence{base: auth.Catalog.State(), targets: s.truncateOrZero().selected, token: s.op.session.token, restart: s.truncateOrZero().restart, sequences: sequences})
+		changes.AddFence(truncateGraphFence{base: auth.Catalog.State(), targets: s.truncateOrZero().selected, token: s.op.Session.token, restart: s.truncateOrZero().restart, sequences: sequences})
 	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)

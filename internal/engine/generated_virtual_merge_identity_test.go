@@ -16,19 +16,19 @@ func TestGeneratedVirtualMergeSavedSourceIdentity(t *testing.T) {
 	defer op.Done()
 	defer target.Close()
 	defer inputs.Close()
-	if err := exec.SelectQuerySources(op.ctx, inputs); err != nil {
+	if err := exec.SelectQuerySources(op.Ctx, inputs); err != nil {
 		t.Fatal(err)
 	}
 	state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output, VirtualReads: mergeHasVirtualReads(b.Merge)}
 	if !state.VirtualReads {
 		t.Fatal("MERGE action did not establish virtual demand")
 	}
-	cursor, err := exec.OpenNode(op.ctx, state, b.Merge.Source)
+	cursor, err := exec.OpenNode(op.Ctx, state, b.Merge.Source)
 	if err != nil {
 		t.Fatal(err)
 	}
 	authority := inputs.Authority
-	rows, err := e.assembleMergeRows(op.ctx, scope, b, target, &cursor, state, "public", false)
+	rows, err := e.assembleMergeRows(op.Ctx, scope, b, target, &cursor, state, "public", false)
 	if err != nil || !cursor.Closed || rows == nil || len(rows.values) != 3 || len(scope.stage.rows) != 0 {
 		t.Fatal("saved source phase or publication fence", rows, err, cursor.Closed, scope.stage.rows)
 	}

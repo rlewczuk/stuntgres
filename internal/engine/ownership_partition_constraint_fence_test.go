@@ -143,7 +143,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 				var checkpoint *rangePartitionPhaseContext
 				if phase == "during-stage" {
 					checkpoint = &rangePartitionPhaseContext{Context: message.op.Context(), target: "(*Engine).ValidateCatalogStage", effect: replaceDatabase}
-					message.op.ctx = checkpoint
+					message.op.Ctx = checkpoint
 				}
 				syntax := &parser.AlterTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "root"}}}, Actions: []parser.AlterTableAction{{Action: parser.DropConstraint, Constraint: parser.Identifier{Text: "root_key"}, Mode: parser.DropRestrict}}}
 				_, executeErr := message.scope.Execute(syntax, 0, nil)

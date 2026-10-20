@@ -157,13 +157,13 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 		return Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
 	nextRoles := v.RoleRecord.Advance()
-	op.session.mu.Lock()
-	defer op.session.mu.Unlock()
+	op.Session.mu.Lock()
+	defer op.Session.mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
-	if op.session.transactions.retainsTransaction() {
-		changes := op.session.transactions.catalog.Clone()
+	if op.Session.transactions.retainsTransaction() {
+		changes := op.Session.transactions.catalog.Clone()
 		// Default utilities use the selected private DB authority, but their
 		// retained effects must fence its exact committed predecessor.
 		if err := e.catalogAuthorityPreflightLocked(v.catalogAuthorityLocked(ids.ObjectRef{}, nil), changes); err != nil {
@@ -172,7 +172,7 @@ func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView
 		for key, record := range updates {
 			e.defaultACLChangeLocked(changes, key, record)
 		}
-		op.session.transactions.catalog = changes
+		op.Session.transactions.catalog = changes
 	} else {
 		e.catalog.state = &candidate
 	}

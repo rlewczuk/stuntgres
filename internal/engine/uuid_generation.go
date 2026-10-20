@@ -6,9 +6,9 @@ import (
 
 func (h *statementHost) FunctionUUIDReady() error {
 	scope := h.scope()
-	if scope.op == nil || scope.op.session == nil {
+	if scope.op == nil || scope.op.Session == nil {
 		return fmt.Errorf("stuntgres: missing UUID session scope")
 	}
 	return nil
 }
-func (h *statementHost) FunctionUUIDTime() int64 { return h.op.session.uuid.now() }
+func (h *statementHost) FunctionUUIDTime() int64 { return h.op.Session.uuid.now() }

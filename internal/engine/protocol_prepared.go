@@ -26,14 +26,14 @@ func (s *StatementScope) ParseProtocol(name, source string, hints []uint32) (Pro
 	if err := s.active(); err != nil {
 		return ProtocolStatement{}, err
 	}
-	r := payloadOf(s.op.session).preparedSQL
+	r := payloadOf(s.op.Session).preparedSQL
 	if name == "" {
 		delete(r.entries, "")
 	}
-	s.op.session.settings.mu.Lock()
-	standard := s.op.session.settings.value("standard_conforming_strings") == "on"
-	s.op.session.settings.mu.Unlock()
-	statements, err := parser.ParseWithOptions(source, parser.Options{Context: s.op.Context(), StandardConformingStrings: standard, Notice: s.op.parseNotice})
+	s.op.Session.settings.mu.Lock()
+	standard := s.op.Session.settings.value("standard_conforming_strings") == "on"
+	s.op.Session.settings.mu.Unlock()
+	statements, err := parser.ParseWithOptions(source, parser.Options{Context: s.op.Context(), StandardConformingStrings: standard, Notice: s.op.ParseNotice})
 	if err != nil {
 		return ProtocolStatement{}, err
 	}
@@ -113,7 +113,7 @@ func (s *StatementScope) publishProtocolStatement(name string, entry *sqlPrepare
 	if err := s.sessionPublicationPreflight(); err != nil {
 		return err
 	}
-	r := payloadOf(s.op.session).preparedSQL
+	r := payloadOf(s.op.Session).preparedSQL
 	if name != "" && r.entries[name] != nil {
 		return sqlError("42P05", fmt.Sprintf("prepared statement \"%s\" already exists", name))
 	}
@@ -124,12 +124,12 @@ func (s *StatementScope) DescribeProtocolStatement(name string) (ProtocolStateme
 	if err := s.active(); err != nil {
 		return ProtocolStatement{}, err
 	}
-	entry := payloadOf(s.op.session).preparedSQL.entries[name]
+	entry := payloadOf(s.op.Session).preparedSQL.entries[name]
 	if entry == nil {
 		return ProtocolStatement{}, missingSQLPrepared(name)
 	}
 	description := entry.description
-	if s.op.session.TransactionState() == TxAborted {
+	if s.op.Session.TransactionState() == TxAborted {
 		if protocolHasRows(entry.body, description.Results) {
 			return ProtocolStatement{}, protocolAbortedError()
 		}
@@ -188,20 +188,20 @@ func (s *StatementScope) CloseProtocolStatement(name string) error {
 	if err := s.active(); err != nil {
 		return err
 	}
-	delete(payloadOf(s.op.session).preparedSQL.entries, name)
+	delete(payloadOf(s.op.Session).preparedSQL.entries, name)
 	return nil
 }
 func (s *StatementScope) InvalidateUnnamedProtocolStatement() error {
 	return s.CloseProtocolStatement("")
 }
 func (s *StatementScope) ProtocolStatementContext(name string) ProtocolContext {
-	if e := payloadOf(s.op.session).preparedSQL.entries[name]; e != nil {
+	if e := payloadOf(s.op.Session).preparedSQL.entries[name]; e != nil {
 		return ProtocolContext{Source: e.source}
 	}
 	return ProtocolContext{}
 }
 func (s *StatementScope) ProtocolPortalContext(name string) ProtocolContext {
-	if p := payloadOf(s.op.session).preparedSQL.portals[name]; p != nil {
+	if p := payloadOf(s.op.Session).preparedSQL.portals[name]; p != nil {
 		return p.context
 	}
 	return ProtocolContext{}

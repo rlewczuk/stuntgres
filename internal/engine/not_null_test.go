@@ -298,11 +298,11 @@ func notNullProviderPublicationFences(t *testing.T, q string) {
 				case "role":
 					run(t, e, "CREATE USER changed")
 				case "auth":
-					op.session.mu.Lock()
-					op.session.authorization.revision++
-					op.session.mu.Unlock()
+					op.Session.mu.Lock()
+					op.Session.authorization.revision++
+					op.Session.mu.Unlock()
 				case "end":
-					op.session.RequestEnd(CleanClose)
+					op.Session.RequestEnd(CleanClose)
 				}
 			}}
 			_, err = e.Execute(op, statement(t, q), 0, nil)

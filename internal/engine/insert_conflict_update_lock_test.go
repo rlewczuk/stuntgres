@@ -123,8 +123,8 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 		worker.mu.Lock()
 		var scope *StatementScope
 		for operation := range worker.operations {
-			if &operation.lockWait == request.Policy.TimeoutSlot {
-				scope = scopeOfLease(operation.lease)
+			if &operation.LockWait == request.Policy.TimeoutSlot {
+				scope = scopeOfLease(operation.Lease)
 			}
 		}
 		worker.mu.Unlock()

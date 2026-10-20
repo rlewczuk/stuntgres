@@ -277,9 +277,9 @@ func TestSessionTimeoutPendingOrderMechanics(t *testing.T) {
 			timeoutMechanicsSettings(s, time.Hour, 0, 0, false, now)
 			scope := &StatementScope{op: op, statementStart: now, transactionStart: now}
 			s.startProvisionalTimeout(&scope.lease, scope.op, scope.transactionStart)
-			timed, expireStatement := context.WithCancelCause(op.ctx)
+			timed, expireStatement := context.WithCancelCause(op.Ctx)
 			s.mu.Lock()
-			op.ctx = timed
+			op.Ctx = timed
 			s.beginTimeoutLocked(timeoutMechanicsRef(s, 1), true, now)
 			s.mu.Unlock()
 			if completed {

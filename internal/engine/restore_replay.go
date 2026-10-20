@@ -27,17 +27,17 @@ func (*restoreReplay) ReplaySlot() {}
 
 // operationReplay returns op's replay state, allocating it on first use.
 func operationReplay(op *Operation) *restoreReplay {
-	r, _ := op.replaySlot.(*restoreReplay)
+	r, _ := op.ReplaySlot.(*restoreReplay)
 	if r == nil {
 		r = new(restoreReplay)
-		op.replaySlot = r
+		op.ReplaySlot = r
 	}
 	return r
 }
 
 // operationReplayOrZero reads op's replay state; a nil slot reads as zero.
 func operationReplayOrZero(op *Operation) restoreReplay {
-	if r, _ := op.replaySlot.(*restoreReplay); r != nil {
+	if r, _ := op.ReplaySlot.(*restoreReplay); r != nil {
 		return *r
 	}
 	return restoreReplay{}

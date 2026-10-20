@@ -60,7 +60,7 @@ func (h *bindingHost) operationDefinition() catalog.DefinitionReader {
 	if h.op == nil {
 		return nil
 	}
-	return h.op.definition
+	return h.op.Definition
 }
 
 // view is the authorization view behind a, with the operation's definition

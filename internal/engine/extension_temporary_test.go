@@ -60,7 +60,7 @@ func extensionTemporaryInstalled(t *testing.T) (*Engine, *Operation, *Operation,
 	owner, closeOwner := extensionTemporaryOperation(t, e, "postgres")
 	installer, _ := extensionTemporaryOperation(t, e, "postgres")
 	roleExecute(t, e, owner, "CREATE TEMP TABLE ext_seed(id INT)")
-	namespace := e.catalog.state.MustNamespace(owner.session.temporaryNamespace)
+	namespace := e.catalog.state.MustNamespace(owner.Session.temporaryNamespace)
 	if err := extensionUnitExecute(t, e, installer, statement(t, "CREATE EXTENSION unaccent SCHEMA "+namespace.Name())); err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 		e := New()
 		owner, _ := extensionTemporaryOperation(t, e, "postgres")
 		roleExecute(t, e, owner, "CREATE TEMP TABLE own_seed(id INT)")
-		namespace := e.catalog.state.Get(owner.session.temporaryNamespace).Name()
+		namespace := e.catalog.state.Get(owner.Session.temporaryNamespace).Name()
 		before := e.catalog.state
 		err := extensionUnitExecute(t, e, owner, statement(t, "CREATE EXTENSION unaccent SCHEMA "+namespace))
 		var diagnostic *sqlstate.Error
@@ -166,7 +166,7 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 	}
 	roleExecute(t, e, installer, "CREATE VIEW public.ext_late AS SELECT v FROM public.ext_chain")
 	e.mu.Lock()
-	installed, err := e.installTemporarySessionStageLocked(owner.session, stage, []ids.ObjectAddress{ext.TargetNamespace}, indexes)
+	installed, err := e.installTemporarySessionStageLocked(owner.Session, stage, []ids.ObjectAddress{ext.TargetNamespace}, indexes)
 	e.mu.Unlock()
 	if err != nil || installed {
 		t.Fatal("late dependent bypassed whole-root fence", installed, err)
@@ -174,7 +174,7 @@ func TestExtensionTemporaryClosure(t *testing.T) {
 	if e.catalog.state.Get(survivor.Address()) != survivor || e.catalog.state.Get(ext.Address()) != ext {
 		t.Fatal("failed candidate published partially")
 	}
-	if err := e.endTemporarySession(owner.session); err != nil {
+	if err := e.endTemporarySession(owner.Session); err != nil {
 		t.Fatal(err)
 	}
 	extensionTemporaryGoneUnit(t, e, ext)
@@ -252,7 +252,7 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 		held := roleExecute(t, e, installer, "SELECT txt FROM public.ext_survivor")
 		peer, _ := extensionTemporaryOperation(t, e, "postgres")
 		roleExecute(t, e, peer, "CREATE TEMP TABLE peer_survives(id INT)")
-		peerNamespace := e.catalog.state.Get(peer.session.temporaryNamespace)
+		peerNamespace := e.catalog.state.Get(peer.Session.temporaryNamespace)
 		maximum := *survivor
 		maximum.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 		e.mu.Lock()
@@ -262,7 +262,7 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 		e.mu.Unlock()
 		closeOwner()
 		extensionTemporaryGoneUnit(t, e, ext)
-		if e.catalog.state.Get(peerNamespace.Address()) != peerNamespace || owner.session.temporaryNamespace != (ids.ObjectAddress{}) {
+		if e.catalog.state.Get(peerNamespace.Address()) != peerNamespace || owner.Session.temporaryNamespace != (ids.ObjectAddress{}) {
 			t.Fatal("physical retirement touched peer namespace or retained owner authority")
 		}
 		current := e.catalog.state.MustRelation(survivor.Address())
@@ -289,7 +289,7 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 		e.mu.Unlock()
 		t.Cleanup(func() { e.mu.Lock(); e.catalog.state = original; e.mu.Unlock() })
 		result := make(chan error, 1)
-		go func() { result <- e.endTemporarySession(owner.session) }()
+		go func() { result <- e.endTemporarySession(owner.Session) }()
 		select {
 		case err := <-result:
 			if err == nil || !strings.Contains(err.Error(), "extension") {
@@ -389,7 +389,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 					scope.Finish(context.Canceled)
 				}
 			})
-			namespace := target.catalog.state.Get(owner.session.temporaryNamespace).Name()
+			namespace := target.catalog.state.Get(owner.Session.temporaryNamespace).Name()
 			_, err = scope.Execute(statement(t, "CREATE EXTENSION unaccent SCHEMA "+namespace), 0, nil)
 			if err != nil {
 				scope.Finish(err)
@@ -430,7 +430,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 			t.Fatal(err)
 		}
 		caller, _ := extensionTemporaryOperation(t, target, actor.Name)
-		namespace := target.catalog.state.Get(owner.session.temporaryNamespace).Name()
+		namespace := target.catalog.state.Get(owner.Session.temporaryNamespace).Name()
 		if err := extensionUnitExecute(t, target, caller, statement(t, "CREATE EXTENSION unaccent SCHEMA "+namespace)); err != nil {
 			t.Fatal(err)
 		}
@@ -450,7 +450,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 		if target.roles.published != before {
 			t.Fatal("retained owner dependency changed roles")
 		}
-		if err := target.endTemporarySession(owner.session); err != nil {
+		if err := target.endTemporarySession(owner.Session); err != nil {
 			t.Fatal(err)
 		}
 		roleExecute(t, target, admin, "DROP ROLE "+actor.Name)
@@ -544,7 +544,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 		t.Fatal("changed procedure semantics substituted captured view lifetime")
 	}
 	foreignNamespace := *e.catalog.state.MustNamespace(ext.TargetNamespace)
-	foreignNamespace.Temporary = installer.session.token
+	foreignNamespace.Temporary = installer.Session.token
 	foreign := catalog.CloneState(e.catalog.state)
 	foreign.SetDescriptor(ext.TargetNamespace, &foreignNamespace)
 	if storedViewReferenceValid(e.catalog.read(foreign), retainedView, procedureRef) {
@@ -597,7 +597,7 @@ func TestExtensionTemporaryReplacement(t *testing.T) {
 	if err != nil || text != "Hotel" {
 		t.Fatal("retained provider execution", text, err)
 	}
-	if err := e.endTemporarySession(owner.session); err != nil {
+	if err := e.endTemporarySession(owner.Session); err != nil {
 		t.Fatal(err)
 	}
 	extensionTemporaryGoneUnit(t, e, ext)

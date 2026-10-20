@@ -32,7 +32,7 @@ func exprCollationStoredBinding(t *testing.T, e *Engine, owner *Session, q strin
 	auth, err := e.authorizationLocked(op)
 	var bound analyze.Binding
 	if err == nil {
-		bound, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
+		bound, err = describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 		scope.routineAuth, scope.routineDependencies = auth, bound.Dependencies
 	}
 	e.mu.Unlock()

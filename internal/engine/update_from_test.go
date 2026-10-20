@@ -59,7 +59,7 @@ func updateFromBoundSources(t *testing.T, e *Engine, session *Session, ctx conte
 	var b analyze.Binding
 	var view *visibility.View
 	if err == nil {
-		b, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
+		b, err = describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 		scope.routineAuth, scope.routineDependencies = auth, b.Dependencies
 	}
 	if err == nil {
@@ -70,7 +70,7 @@ func updateFromBoundSources(t *testing.T, e *Engine, session *Session, ctx conte
 	}
 	var refs []ids.ObjectRef
 	if err == nil {
-		refs, err = e.queryTableRefsLocked(auth, auth.State.CurrentUser, b.QuerySources, []ids.ObjectRef{b.Ref}, scope.op.session.token, plan.RowMark{})
+		refs, err = e.queryTableRefsLocked(auth, auth.State.CurrentUser, b.QuerySources, []ids.ObjectRef{b.Ref}, scope.op.Session.token, plan.RowMark{})
 	}
 	if err == nil {
 		_, err = scope.acquireDataViewsLocked(e, refs)
@@ -79,7 +79,7 @@ func updateFromBoundSources(t *testing.T, e *Engine, session *Session, ctx conte
 		view, err = scope.acquireDataViewLocked(e, b.Ref)
 	}
 	if err == nil {
-		source, err = captureQuerySource(op.ctx, view, b.Ref)
+		source, err = captureQuerySource(op.Ctx, view, b.Ref)
 	}
 	if err == nil {
 		from, err = e.captureQuerySourcesLocked(scope, b.QuerySources, false)
@@ -114,7 +114,7 @@ func TestUpdateFromFramesOriginsAndPhysicalTargets(t *testing.T) {
 		t.Fatal(metadata)
 	}
 	original := append([]storage.RowVersion(nil), target.Committed...)
-	r, err := e.executeUpdate(op.ctx, scope, b, target, from, nil, "public")
+	r, err := e.executeUpdate(op.Ctx, scope, b, target, from, nil, "public")
 	if err != nil || r.Count != 2 {
 		scope.Finish(err)
 		op.Done()
@@ -168,7 +168,7 @@ func TestUpdateFromLosingPairsDemandAndFailureCleanup(t *testing.T) {
 			})
 			out := b.Returning.Expressions[0]
 			b.Returning.Expressions[0] = queryProbe(out.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { outputs++; return out.Eval(c) })
-			r, err := e.executeUpdate(op.ctx, scope, b, target, from, nil, "public")
+			r, err := e.executeUpdate(op.Ctx, scope, b, target, from, nil, "public")
 			if calls != 6 || outputs != 2 {
 				t.Fatal("pair versus successful-target demand", calls, outputs)
 			}
@@ -223,7 +223,7 @@ func TestUpdateFromImmediateGrantFreezesSource(t *testing.T) {
 	sessionSQL(t, a, "UPDATE s SET n=999")
 	sessionSQL(t, a, "INSERT INTO t VALUES(1,30)")
 	sessionSQL(t, a, "INSERT INTO s VALUES(1,400)")
-	r, err := e.executeUpdate(op.ctx, scope, b, target, from, nil, "public")
+	r, err := e.executeUpdate(op.Ctx, scope, b, target, from, nil, "public")
 	if err != nil || r.Count != 2 {
 		t.Fatal(r, err)
 	}

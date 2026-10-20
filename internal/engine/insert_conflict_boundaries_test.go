@@ -152,7 +152,7 @@ func TestInsertConflictACLCurrentManifest(t *testing.T) {
 func TestInsertConflictClaimsPreserveAdvisoryCountsAndFinish(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
 	scope, ref := insertConflictUnitScope(t, f)
-	session := scope.op.session
+	session := scope.op.Session
 	key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 42}
 	for range 2 {
 		advisoryUnitGrant(t, session, scope.txRef, key, lock.AdvisoryShare)

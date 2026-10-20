@@ -123,10 +123,10 @@ func TestSettingsLocalTypedConsumersAbort(t *testing.T) {
 	if !options.StandardConformingStrings {
 		t.Fatal("next admission captured stale parser mode")
 	}
-	if _, ok := op.ctx.Deadline(); ok {
+	if _, ok := op.Ctx.Deadline(); ok {
 		t.Fatal("next admission captured stale timeout")
 	}
-	if op.noticeThreshold != levelNotice {
+	if op.NoticeThreshold != levelNotice {
 		t.Fatal("next admission captured stale notice threshold")
 	}
 	transactionEnd(t, s, ref, false)

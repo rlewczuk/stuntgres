@@ -31,8 +31,8 @@ func TestNoticesFilter(t *testing.T) {
 			}
 			level, _ := messageLevel(normalized)
 			for emitted := 0; emitted <= 9; emitted++ {
-				op := &Operation{noticeThreshold: level}
-				op.emitNotice(noticeLevel(emitted), witness)
+				op := &Operation{NoticeThreshold: level}
+				op.EmitNotice(noticeLevel(emitted), witness)
 				got := op.DetachNotices()
 				want := emitted < 9 && (emitted == 6 || emitted >= ranks[i])
 				if (len(got) == 1) != want {
@@ -205,8 +205,8 @@ func TestNoticesPublicationConflictCanceledBeforeSkip(t *testing.T) {
 	defer cleanup()
 	observed := make(chan struct{})
 	release := make(chan struct{})
-	wrapped := &noticeConflictContext{Context: op.ctx}
-	op.ctx = wrapped
+	wrapped := &noticeConflictContext{Context: op.Ctx}
+	op.Ctx = wrapped
 	var loser ids.ObjectAddress
 	var winner catalog.Read
 	e.catalog.Providers[ids.RelationClassID] = &publicationConflictProvider{

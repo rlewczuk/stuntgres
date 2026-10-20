@@ -155,7 +155,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	ownerOnly := false
 	rename, ifExists, tableRename := false, false, false
 	viewReplacement := false
-	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
 	switch v := stmt.(type) {
 	case *parser.CreateRule:
 		if !execute {
@@ -421,7 +421,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	var definitionStamp ids.DefinitionRevision
 	var materializedAlterAuthority *catalog.Relation
 	if err == nil && ref.Domain() != nil {
-		definitionStamp = preparedDefinitionStamp(auth.Catalog.Get(ref.Address), s.op.session)
+		definitionStamp = preparedDefinitionStamp(auth.Catalog.Get(ref.Address), s.op.Session)
 		if utility, ok := stmt.(*parser.AlterView); ok && utility.Materialized {
 			materializedAlterAuthority = auth.Catalog.MustRelation(ref.Address)
 		}
@@ -582,7 +582,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		}
 		return ids.ErrCatalogReplaced
 	}
-	if preparedDefinitionStamp(descriptor, s.op.session) != definitionStamp {
+	if preparedDefinitionStamp(descriptor, s.op.Session) != definitionStamp {
 		s.prepared.changedDuringAdmission = true
 	}
 	if source {

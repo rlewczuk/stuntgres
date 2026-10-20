@@ -177,14 +177,14 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	}
 	collectAuth.Recapture(scope.inheritance.catalog)
 	e.mu.Lock()
-	refs, err := e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, scope.querySources, nil, op.session.token, plan.RowMark{})
+	refs, err := e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, scope.querySources, nil, op.Session.token, plan.RowMark{})
 	var view *visibility.View
 	if err == nil {
 		view, err = scope.acquireDataViewsLocked(e, refs)
 	}
 	var source *exec.Source
 	if err == nil {
-		source, err = captureInheritanceQueryPrefix(scope.inheritance.catalog, view, leaf, op.session.token)
+		source, err = captureInheritanceQueryPrefix(scope.inheritance.catalog, view, leaf, op.Session.token)
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -227,7 +227,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	incomplete, err := failed.acquireDataViewsLocked(e, []ids.ObjectRef{ref})
 	var partial *exec.Source
 	if err == nil {
-		partial, err = captureInheritanceQueryPrefix(incomplete.Catalog(), incomplete, leaf, failOp.session.token)
+		partial, err = captureInheritanceQueryPrefix(incomplete.Catalog(), incomplete, leaf, failOp.Session.token)
 	}
 	e.mu.Unlock()
 	if err == nil || partial != nil || incomplete == nil || incomplete.Load() == nil {

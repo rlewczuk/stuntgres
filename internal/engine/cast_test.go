@@ -95,7 +95,7 @@ func TestCastExpressionReductionOriginsAndDependencies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bound, err := describe(op.ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+	bound, err := describe(op.Ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

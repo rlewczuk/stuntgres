@@ -118,7 +118,7 @@ func TestSavepointsAuthorityAndCompletion(t *testing.T) {
 			if late {
 				barrier.late = cancel
 			}
-			op.ctx = barrier
+			op.Ctx = barrier
 			done := make(chan error, 1)
 			go func() { _, err := scope.Execute(statement(t, "SAVEPOINT s"), 0, nil); done <- err }()
 			<-barrier.entered
@@ -190,7 +190,7 @@ func TestSavepointsOperationAuthority(t *testing.T) {
 	op := transactionOperation(t, a)
 	copyOp := *op
 	missing := *op
-	missing.self = &missing
+	missing.Self = &missing
 	done := transactionOperation(t, a)
 	done.Done()
 	foreign := transactionOperation(t, b)

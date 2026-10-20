@@ -12,11 +12,11 @@ func TestOperationAnalysisSlotHoldsItsHost(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cleanup()
-	h, _ := op.analysis.(*bindingHost)
+	h, _ := op.Analysis.(*bindingHost)
 	if h == nil || h.op != op || h.engine != e || e.analysisHost(op) != h {
-		t.Fatalf("analysis slot %#v is not the operation's own host", op.analysis)
+		t.Fatalf("analysis slot %#v is not the operation's own host", op.Analysis)
 	}
-	if literal := (&Operation{}); literal.analysis != nil {
+	if literal := (&Operation{}); literal.Analysis != nil {
 		t.Fatal("an operation literal has an analysis slot")
 	}
 }
@@ -28,8 +28,8 @@ func TestOperationReplaySlot(t *testing.T) {
 			t.Fatal("missing replay state does not read as zero")
 		}
 	})
-	if allocs != 0 || op.replaySlot != nil {
-		t.Fatalf("reading missing replay state allocated (%v allocs, slot %v)", allocs, op.replaySlot)
+	if allocs != 0 || op.ReplaySlot != nil {
+		t.Fatalf("reading missing replay state allocated (%v allocs, slot %v)", allocs, op.ReplaySlot)
 	}
 	r := operationReplay(op)
 	r.tableDestination = true

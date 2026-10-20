@@ -11,7 +11,7 @@ func (e *Engine) newStatementScope(op *Operation, t *transactionOwner, start tim
 	if t.retainedMessage && t.messageBorn && t.state == TxIdle {
 		s.transactionStart = time.Now().UTC().Truncate(time.Microsecond)
 	}
-	op.session.startProvisionalTimeout(&s.lease, op, s.transactionStart)
+	op.Session.startProvisionalTimeout(&s.lease, op, s.transactionStart)
 	return s
 }
 
@@ -59,7 +59,7 @@ func (s *StatementScope) NextStatement() (*StatementScope, error) {
 	if s == nil || s.self != s || !s.message || !s.finished || s.messageEnded || !s.ownsMessageScope() {
 		return nil, errors.New("stuntgres: inactive message admission")
 	}
-	if err := s.op.refreshStatementBudget(); err != nil {
+	if err := s.op.RefreshStatementBudget(); err != nil {
 		return nil, err
 	}
 	next := s.engine().newStatementScope(s.op, s.owner, s.statementStart)
@@ -104,21 +104,21 @@ func (s *StatementScope) FinishMessage(err error) error {
 	t.retainedMessage = false
 	finishNotificationBoundary(t)
 	t.mu.Unlock()
-	s.op.session.mu.Lock()
-	s.op.sqlFinished = true
-	s.op.session.mu.Unlock()
+	s.op.Session.mu.Lock()
+	s.op.SQLFinished = true
+	s.op.Session.mu.Unlock()
 	s.messageEnded = true
 	s.messageResult = err
 	t.admission.Unlock()
 	return err
 }
 func (s *StatementScope) ownsMessageScope() bool {
-	if s.op == nil || s.op.self != s.op || s.op.session == nil || s.owner != s.op.session.transactions {
+	if s.op == nil || s.op.Self != s.op || s.op.Session == nil || s.owner != s.op.Session.transactions {
 		return false
 	}
-	s.op.session.mu.Lock()
-	_, registered := s.op.session.operations[s.op]
-	owned := registered && !s.op.done && s.op.lease == &s.lease
-	s.op.session.mu.Unlock()
+	s.op.Session.mu.Lock()
+	_, registered := s.op.Session.operations[s.op]
+	owned := registered && !s.op.Released && s.op.Lease == &s.lease
+	s.op.Session.mu.Unlock()
 	return owned
 }

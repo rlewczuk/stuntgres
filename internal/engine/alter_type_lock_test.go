@@ -89,7 +89,7 @@ func TestAlterTypeCancellationDuringConversion(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cleanup()
-	op.ctx = &cancelAtErrCheck{Context: op.Context(), cancel: cancel, at: 25}
+	op.Ctx = &cancelAtErrCheck{Context: op.Context(), cancel: cancel, at: 25}
 	_, err = e.Execute(op, statement(t, "ALTER TABLE t ALTER c TYPE INT USING c::int"), 0, nil)
 	if !errors.Is(err, context.Canceled) || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage {
 		t.Fatal(err, "published partial rewrite")

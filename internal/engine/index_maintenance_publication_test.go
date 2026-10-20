@@ -184,9 +184,9 @@ func TestIndexMaintenanceFinalAuthorizationFence(t *testing.T) {
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
 			stage := indexMaintenanceStage(t, e, "t", "a")
-			op.session.mu.Lock()
-			stage.authSession, stage.authRevision = op.session, op.session.authorization.revision
-			op.session.mu.Unlock()
+			op.Session.mu.Lock()
+			stage.authSession, stage.authRevision = op.Session, op.Session.authorization.revision
+			op.Session.mu.Unlock()
 			e.mu.Lock()
 			stage.roleRevision = e.roles.published.Revision
 			e.mu.Unlock()

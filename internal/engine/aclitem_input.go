@@ -44,7 +44,7 @@ func (r capturedACLItemInput) WarnACLGrantor(ctx context.Context) {
 	if r.position > 0 {
 		warning.Position = strconv.Itoa(r.position)
 	}
-	r.op.emitNotice(levelWarning, warning)
+	r.op.EmitNotice(levelWarning, warning)
 }
 func (r capturedACLItemInput) ACLItemParameter(slot int, empty bool) sqltype.ACLItemResolver {
 	r.position = 0

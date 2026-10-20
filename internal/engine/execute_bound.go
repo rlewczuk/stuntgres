@@ -285,7 +285,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	}
 	if scope.Expected != nil && b.Parameters.Count == 0 && quoteCaptures.Private {
 		scope.Expected.quotes = quoteCaptures.Entries
-		scope.Expected.quoteGeneration = op.session.discardPlansGeneration
+		scope.Expected.quoteGeneration = op.Session.discardPlansGeneration
 	}
 	quoteCaptures.Sealed = true
 	scope.quoteCaptures = quoteCaptures
@@ -339,7 +339,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	}
 	switch stmt.(type) {
 	case *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
-		if err := checkTemporaryStorageAccess(auth.Catalog, b.Relation, op.session.token); err != nil {
+		if err := checkTemporaryStorageAccess(auth.Catalog, b.Relation, op.Session.token); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -444,7 +444,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		collectAuth := auth
 		collectAuth.Recapture(scope.inheritanceRead(auth.Catalog))
-		refs, err := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.QuerySources, []ids.ObjectRef{b.Ref}, scope.op.session.token, plan.RowMark{})
+		refs, err := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.QuerySources, []ids.ObjectRef{b.Ref}, scope.op.Session.token, plan.RowMark{})
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
@@ -492,7 +492,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		if len(b.QuerySources) != 0 || len(scope.inheritedTargets) != 0 {
 			collectAuth := auth
 			collectAuth.Recapture(scope.inheritanceRead(auth.Catalog))
-			refs, collectErr := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.QuerySources, scope.mutationTargetRefs(b.Ref), scope.op.session.token, plan.RowMark{})
+			refs, collectErr := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.QuerySources, scope.mutationTargetRefs(b.Ref), scope.op.Session.token, plan.RowMark{})
 			if collectErr != nil {
 				e.mu.Unlock()
 				return Result{}, collectErr
@@ -697,7 +697,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		if len(b.QuerySources) != 0 || len(scope.inheritedTargets) != 0 {
 			collectAuth := auth
 			collectAuth.Recapture(scope.inheritanceRead(auth.Catalog))
-			refs, err := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.QuerySources, scope.mutationTargetRefs(b.Ref), scope.op.session.token, plan.RowMark{})
+			refs, err := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.QuerySources, scope.mutationTargetRefs(b.Ref), scope.op.Session.token, plan.RowMark{})
 			if err != nil {
 				e.mu.Unlock()
 				return Result{}, err
@@ -755,7 +755,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			rows, count, err := finalizeSQLRoutineQuery(ctx, queryRoot, source, canonical)
 			return Result{Count: int64(count), Rows: rows}, err
 		}
-		rows, count, queryErr := exec.FinalizeSelect(ctx, queryRoot, source, canonical, op.parallelWorkers)
+		rows, count, queryErr := exec.FinalizeSelect(ctx, queryRoot, source, canonical, op.ParallelWorkers)
 		if queryErr != nil {
 			return Result{}, queryErr
 		}

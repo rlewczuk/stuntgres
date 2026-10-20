@@ -65,7 +65,7 @@ func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d settings.
 		}
 		if err != nil {
 			if notice != nil {
-				op.emitNotice(levelWarning, *notice)
+				op.EmitNotice(levelWarning, *notice)
 			}
 			return "", err
 		}
@@ -74,8 +74,8 @@ func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d settings.
 	defer e.mu.Unlock()
 	owner.mu.Lock()
 	defer owner.mu.Unlock()
-	op.session.mu.Lock()
-	defer op.session.mu.Unlock()
+	op.Session.mu.Lock()
+	defer op.Session.mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {
 		return "", err
 	}
@@ -94,10 +94,10 @@ func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d settings.
 		owner.typed[d.Name] = v
 	}
 	if d.Name == "transaction_timeout" || d.Name == "idle_in_transaction_session_timeout" || d.Name == "idle_session_timeout" {
-		op.session.publishTimeoutSettingsLocked(owner, d.Name == "transaction_timeout", time.Now())
+		op.Session.publishTimeoutSettingsLocked(owner, d.Name == "transaction_timeout", time.Now())
 	}
 	if notice != nil {
-		op.emitNotice(levelNotice, *notice)
+		op.EmitNotice(levelNotice, *notice)
 	}
 	return owner.value(d.Name), nil
 }
@@ -106,7 +106,7 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 	if count != 0 {
 		return Result{}, errors.New("stuntgres: settings expect zero arguments")
 	}
-	owner := op.session.settings
+	owner := op.Session.settings
 	var name string
 	var input *string
 	var all, write bool
@@ -115,12 +115,12 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 		name = s.Name.Text
 		write = true
 		if s.Local && implicit {
-			op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET LOCAL can only be used in transaction blocks"})
+			op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET LOCAL can only be used in transaction blocks"})
 		}
 		if atom := s.Interval; atom != nil {
 			precision := atom.Precision
 			if precision > 6 {
-				op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "22023", Message: "INTERVAL(" + strconv.FormatInt(int64(precision), 10) + ") precision reduced to maximum allowed, 6"})
+				op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "22023", Message: "INTERVAL(" + strconv.FormatInt(int64(precision), 10) + ") precision reduced to maximum allowed, 6"})
 				precision = 6
 			}
 			interval, err := sqltype.DecodeZoneInterval(atom.Text, atom.Qualifier, precision)
@@ -153,9 +153,9 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 	}
 	e.mu.Lock()
 	owner.mu.Lock()
-	op.session.mu.Lock()
+	op.Session.mu.Lock()
 	locked := true
-	unlock := func() { op.session.mu.Unlock(); owner.mu.Unlock(); e.mu.Unlock() }
+	unlock := func() { op.Session.mu.Unlock(); owner.mu.Unlock(); e.mu.Unlock() }
 	defer func() {
 		if locked {
 			unlock()
@@ -170,21 +170,21 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 	typ, _ := (e.catalog.read(e.catalog.state)).LookupType(sqltype.Text)
 	if all {
 		if write {
-			if err := op.ctx.Err(); err != nil {
+			if err := op.Ctx.Err(); err != nil {
 				return Result{}, err
 			}
-			e.resetAllSettingsLocked(op.session)
+			e.resetAllSettingsLocked(op.Session)
 			return Result{}, nil
 		}
 		rows := make([][]sqltype.Value, 0, len(e.settings.Order()))
 		for _, key := range e.settings.Order() {
-			if err := op.ctx.Err(); err != nil {
+			if err := op.Ctx.Err(); err != nil {
 				return Result{}, err
 			}
 			d := e.settings.Definitions()[key]
 			rows = append(rows, []sqltype.Value{sqltype.String(typ, settings.DisplayName(key)), sqltype.String(typ, owner.value(key)), sqltype.String(typ, d.Description)})
 		}
-		if err := op.ctx.Err(); err != nil {
+		if err := op.Ctx.Err(); err != nil {
 			return Result{}, err
 		}
 		return anonymousResult(settingColumns(typ, "name", "setting", "description"), rows, 0)
@@ -203,7 +203,7 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 		_, err = e.applySetting(op, owner, d, input, local)
 		return Result{}, err
 	}
-	if err := op.ctx.Err(); err != nil {
+	if err := op.Ctx.Err(); err != nil {
 		return Result{}, err
 	}
 	return anonymousResult(settingColumns(typ, settings.DisplayName(d.Name)), [][]sqltype.Value{{sqltype.String(typ, owner.value(d.Name))}}, 0)

@@ -59,7 +59,7 @@ func (e *Engine) preparedPublicationPreflightLocked(op *Operation, p *preparedPu
 // Engine.mu and the finishing Session.mu are held at final installation.
 func (e *Engine) preparedActorLocked(op *Operation, entry *preparedTransaction) error {
 	roles := e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)
-	current := op.session.authorization.state.CurrentUser
+	current := op.Session.authorization.state.CurrentUser
 	if err := roles.ValidatePrincipal(current); err != nil {
 		return err
 	}
@@ -101,11 +101,11 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 		return e.completePrepared(s.op, control.GID, control.Kind == parser.KindCommitPrepared)
 	}
 	if state == TxIdle {
-		s.op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
+		s.op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
 		return nil
 	}
 	if state == TxImplicit {
-		s.op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
+		s.op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
 	}
 	// Every admitted PREPARE, even failure, ends the whole incarnation.
 	s.controlOutcome = controlExecuted
@@ -135,7 +135,7 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 		auth, authErr := operationAuthorization(s.op)
 		err = authErr
 		if err == nil {
-			entry = &preparedTransaction{gid: control.GID, owner: auth.State.CurrentUser, ref: ref, prepared: time.Now().UTC().Truncate(time.Microsecond), database: s.op.session.databaseName, ticket: t.ticket, writes: t.writes, deletes: t.deletes, catalog: t.catalog, roots: t.roots, frontier: t.frontier, options: TxOptions{Isolation: t.isolation, ReadOnly: t.readOnly, Deferrable: t.deferrable}}
+			entry = &preparedTransaction{gid: control.GID, owner: auth.State.CurrentUser, ref: ref, prepared: time.Now().UTC().Truncate(time.Microsecond), database: s.op.Session.databaseName, ticket: t.ticket, writes: t.writes, deletes: t.deletes, catalog: t.catalog, roots: t.roots, frontier: t.frontier, options: TxOptions{Isolation: t.isolation, ReadOnly: t.readOnly, Deferrable: t.deferrable}}
 			e.mu.Lock()
 			if e.prepared == nil {
 				e.prepared = make(map[string]*preparedTransaction)
@@ -197,7 +197,7 @@ func (e *Engine) completePrepared(op *Operation, gid string, commit bool) error 
 		err = e.publishRowsPrepared(op, entry.ref, entry.writes, entry.deletes, entry.catalog, nil, &preparedPublication{entry: entry}, nil)
 	} else {
 		e.mu.Lock()
-		op.session.mu.Lock()
+		op.Session.mu.Lock()
 		err = publicationOperationLocked(e, op)
 		if err == nil {
 			err = e.preparedPublicationPreflightLocked(op, &preparedPublication{entry: entry})
@@ -206,7 +206,7 @@ func (e *Engine) completePrepared(op *Operation, gid string, commit bool) error 
 			delete(e.prepared, gid)
 			e.endSerializableLocked(entry.ref, false)
 		}
-		op.session.mu.Unlock()
+		op.Session.mu.Unlock()
 		e.mu.Unlock()
 	}
 	if err != nil {

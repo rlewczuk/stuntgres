@@ -128,11 +128,11 @@ func TestAlterDefaultLifecycleFences(t *testing.T) {
 				case "role":
 					run(t, e, "CREATE USER changed")
 				case "auth":
-					op.session.mu.Lock()
-					op.session.authorization.revision++
-					op.session.mu.Unlock()
+					op.Session.mu.Lock()
+					op.Session.authorization.revision++
+					op.Session.mu.Unlock()
 				case "end":
-					op.session.RequestEnd(CleanClose)
+					op.Session.RequestEnd(CleanClose)
 				}
 			}}
 			_, err = e.Execute(op, statement(t, "ALTER TABLE t ALTER a SET DEFAULT 7"), 0, nil)

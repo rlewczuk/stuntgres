@@ -88,10 +88,10 @@ func TestDefaultPrivilegesArrayAuthority(t *testing.T) {
 func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	f := newDefaultUnitFixture(t)
 	roleExecute(t, f.e, f.op, "CREATE TEMP TABLE default_authority_seed(v INT)")
-	f.schema = f.op.session.temporaryNamespace
+	f.schema = f.op.Session.temporaryNamespace
 	state := catalog.CloneState(f.e.catalog.state)
 	namespace := *state.MustNamespace(f.schema)
-	assertTemporaryNamespacePair(t, f.e, f.op.session.token, f.schema)
+	assertTemporaryNamespacePair(t, f.e, f.op.Session.token, f.schema)
 	namespace.ACL = authorization.ACLValue{Explicit: true}
 	state.SetDescriptor(f.schema, &namespace)
 	f.e.mu.Lock()
@@ -115,9 +115,9 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	defaultUnitDiagnostic(t, auth.Check(access.Requirement{Object: ref, OwnerOnly: true}), "42501", "must be owner of schema "+namespace.Name())
 	for _, token := range []ids.SessionToken{
 		{},
-		f.e.catalog.Domain.Session(f.op.session.token.ID() + 1),
-		New().catalog.Domain.Session(f.op.session.token.ID()),
-		f.e.catalog.Domain.PrivateSession(f.op.session),
+		f.e.catalog.Domain.Session(f.op.Session.token.ID() + 1),
+		New().catalog.Domain.Session(f.op.Session.token.ID()),
+		f.e.catalog.Domain.PrivateSession(f.op.Session),
 	} {
 		peer := auth
 		peer.session = &Session{token: token}
@@ -125,7 +125,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 	}
 	// Even an exact namespace token cannot elevate zero/foreign/private
 	// maintenance identities into a physical backend.
-	for _, token := range []ids.SessionToken{{}, New().catalog.Domain.Session(1), f.e.catalog.Domain.PrivateSession(f.op.session)} {
+	for _, token := range []ids.SessionToken{{}, New().catalog.Domain.Session(1), f.e.catalog.Domain.PrivateSession(f.op.Session)} {
 		candidate := catalog.CloneState(state)
 		invalidNamespace := namespace
 		invalidNamespace.Temporary = token

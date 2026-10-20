@@ -210,7 +210,7 @@ func TestPGGroupRoleRoot(t *testing.T) {
 	e.roles.published = old
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	scope := &StatementScope{op: op, owner: op.session.transactions}
+	scope := &StatementScope{op: op, owner: op.Session.transactions}
 	capture := func(s *StatementScope) {
 		t.Helper()
 		e.mu.Lock()
@@ -256,7 +256,7 @@ func TestPGGroupRoleRoot(t *testing.T) {
 		t.Fatal("nested source not opened")
 	}
 	pgGroupUnitMembers(t, pgGroupUnitRows(t, nested.NestedInputs.NestedInputs, d)[20000], 20001)
-	fresh := &StatementScope{op: op, owner: op.session.transactions}
+	fresh := &StatementScope{op: op, owner: op.Session.transactions}
 	capture(fresh)
 	pgGroupUnitMembers(t, pgGroupUnitRows(t, open(fresh, ref), d)[20000])
 	if scope.inquiry.commentRoles != e.roles.read(e.catalog.owner(), scope.inquiry.commentCatalog, old) || fresh.inquiry.commentRoles != e.roles.read(e.catalog.owner(), fresh.inquiry.commentCatalog, updated) {

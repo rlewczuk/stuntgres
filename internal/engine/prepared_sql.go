@@ -84,7 +84,7 @@ func (s *StatementScope) executePrepareSQL(raw *parser.PrepareSQL, count int) (R
 	if err != nil {
 		return Result{}, err
 	}
-	r := payloadOf(s.op.session).preparedSQL
+	r := payloadOf(s.op.Session).preparedSQL
 	if r.entries[raw.Name.Text] != nil {
 		return Result{}, sqlError("42P05", fmt.Sprintf("prepared statement \"%s\" already exists", raw.Name.Text))
 	}
@@ -102,7 +102,7 @@ func (s *StatementScope) executeDeallocateSQL(raw *parser.DeallocateSQL, count i
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	r := payloadOf(s.op.session).preparedSQL
+	r := payloadOf(s.op.Session).preparedSQL
 	if !raw.All && r.entries[raw.Name.Text] == nil {
 		return Result{}, missingSQLPrepared(raw.Name.Text)
 	}

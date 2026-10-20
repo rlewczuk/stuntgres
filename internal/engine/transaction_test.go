@@ -404,7 +404,7 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				if boundary == "cancel_after" {
 					barrier.late = cancel
 				}
-				op.ctx = barrier
+				op.Ctx = barrier
 				type commitResult struct {
 					outcome EndResult
 					err     error

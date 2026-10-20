@@ -252,7 +252,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	case *parser.PrepareSQL, *parser.DeallocateSQL, *parser.Discard:
 		return StatementDescription{}, nil
 	case *parser.ExecuteSQL:
-		if entry := payloadOf(op.session).preparedSQL.entries[s.Name.Text]; entry != nil {
+		if entry := payloadOf(op.Session).preparedSQL.entries[s.Name.Text]; entry != nil {
 			if !scope.rowSecurity && preparableBody(entry.body) {
 				// Reuse the named statement's analyzed identities without changing
 				// its session definition or executing its argument expressions.
@@ -273,7 +273,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		if s.Move {
 			return StatementDescription{}, nil
 		}
-		if cursor := payloadOf(op.session).cursors.entries[s.Name.Text]; cursor != nil {
+		if cursor := payloadOf(op.Session).cursors.entries[s.Name.Text]; cursor != nil {
 			return StatementDescription{Results: cursor.schema}, nil
 		}
 		return StatementDescription{}, nil
@@ -302,13 +302,13 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	case *parser.Show:
 		e.mu.Lock()
 		defer e.mu.Unlock()
-		op.session.settings.mu.Lock()
-		defer op.session.settings.mu.Unlock()
+		op.Session.settings.mu.Lock()
+		defer op.Session.settings.mu.Unlock()
 		typ, _ := (e.catalog.read(e.catalog.state)).LookupType(sqltype.Text)
 		if s.All {
 			return StatementDescription{Results: settingColumns(typ, "name", "setting", "description")}, nil
 		}
-		d, err := e.sessionSetting(op.session.settings, s.Name.Text, false)
+		d, err := e.sessionSetting(op.Session.settings, s.Name.Text, false)
 		if err != nil {
 			return StatementDescription{}, err
 		}
@@ -316,7 +316,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	case *parser.SettingCall:
 		e.mu.Lock()
 		defer e.mu.Unlock()
-		binding, err := e.describeSettingCall(op.ctx, s, &scope.input, op)
+		binding, err := e.describeSettingCall(op.Ctx, s, &scope.input, op)
 		typ, _ := (e.catalog.read(e.catalog.state)).LookupType(sqltype.Text)
 		columns := settingColumns(typ, s.Name)
 		columns[0].Nullable = true
@@ -402,7 +402,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 			return StatementDescription{}, err
 		}
 	}
-	return StatementDescription{Parameters: b.Parameters, Results: results, catalogOwner: auth.Catalog.Owner(), catalogEpoch: auth.Catalog.Epoch(), temporals: b.Prepared.Temporals, composites: b.Prepared.Composites, sequences: cell, regtypes: regtypes, analysis: prepared, planOwner: op.session.token, planGeneration: op.session.discardPlansGeneration}, nil
+	return StatementDescription{Parameters: b.Parameters, Results: results, catalogOwner: auth.Catalog.Owner(), catalogEpoch: auth.Catalog.Epoch(), temporals: b.Prepared.Temporals, composites: b.Prepared.Composites, sequences: cell, regtypes: regtypes, analysis: prepared, planOwner: op.Session.token, planGeneration: op.Session.discardPlansGeneration}, nil
 }
 
 // requiredRef is the exact acquired DML/utility target; query source occurrences

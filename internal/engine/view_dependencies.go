@@ -443,7 +443,7 @@ func emitViewCascade(op *Operation, details []string) {
 		message = fmt.Sprintf("drop cascades to %d other objects", len(details))
 		detail = strings.Join(details, "\n")
 	}
-	op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
+	op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
 }
 
 func validateViewDefinition(v catalog.Read, d *catalog.Relation) error {

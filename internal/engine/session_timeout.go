@@ -81,10 +81,10 @@ func (s *Session) expireTimeoutLocked(slot *sessionTimeout, generation uint64, t
 		// Released ProcessInterrupts handles already-pending statement ERROR
 		// before session FATAL. ERROR recovery will keep this budget stopped.
 		for op := range s.operations {
-			lease := op.lease
-			if lease != nil && !op.sqlFinished && (slot.lease == lease || (slot.ref != (ids.TxRef{}) && lease.TimeoutRef == slot.ref)) &&
-				(op.lockWait.Pending(now) || (!op.statementDeadline.IsZero() && !now.Before(op.statementDeadline)) ||
-					errors.Is(context.Cause(op.ctx), statementTimeoutCause)) {
+			lease := op.Lease
+			if lease != nil && !op.SQLFinished && (slot.lease == lease || (slot.ref != (ids.TxRef{}) && lease.TimeoutRef == slot.ref)) &&
+				(op.LockWait.Pending(now) || (!op.StatementDeadline.IsZero() && !now.Before(op.StatementDeadline)) ||
+					errors.Is(context.Cause(op.Ctx), statementTimeoutCause)) {
 				slot.stop()
 				return
 			}
@@ -164,7 +164,7 @@ func (s *Session) startProvisionalTimeout(lease *StatementLease, op *Operation, 
 	defer s.mu.Unlock()
 	lease.TimeoutRef = s.timeouts.authority
 	if op != nil {
-		op.lease = lease
+		op.Lease = lease
 	}
 	if s.state != live || s.timeouts.authority != (ids.TxRef{}) || s.timeouts.transactionLimit == 0 {
 		return
@@ -208,9 +208,9 @@ func (s *Session) finishScopeTimeout(lease *StatementLease, op *Operation, messa
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	slot := &s.timeouts.transaction
-	if op != nil && op.lease == lease {
-		op.sqlFinished = !message
-		op.lockWait.Reset()
+	if op != nil && op.Lease == lease {
+		op.SQLFinished = !message
+		op.LockWait.Reset()
 	}
 	if slot.lease == lease || (failed && slot.ref != (ids.TxRef{}) && (slot.ref == lease.TimeoutRef || slot.ref == txRef)) {
 		slot.stop()
@@ -240,21 +240,21 @@ func (op *Operation) fatalError(err error) error {
 	if err == nil || !(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
 		return err
 	}
-	if op.sourceContext.Err() != nil {
+	if op.SourceContext.Err() != nil {
 		return err
 	}
-	s := op.session
+	s := op.Session
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return op.fatalErrorLocked(err)
+	return op.FatalErrorLocked(err)
 }
 
 // Session.mu is already held by operation/publication validation.
-func (op *Operation) fatalErrorLocked(err error) error {
-	if err == nil || !(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) || op.sourceContext.Err() != nil {
+func (op *Operation) FatalErrorLocked(err error) error {
+	if err == nil || !(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) || op.SourceContext.Err() != nil {
 		return err
 	}
-	s := op.session
+	s := op.Session
 	if s.timeouts.fatal != nil {
 		copy := *s.timeouts.fatal
 		return &copy

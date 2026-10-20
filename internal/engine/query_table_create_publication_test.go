@@ -225,7 +225,7 @@ func TestQueryTableCreateInitialPublicationFailures(t *testing.T) {
 				e.mu.Lock()
 				auth, authErr := e.authorizationLocked(op)
 				if authErr == nil {
-					stage.authSession = op.session
+					stage.authSession = op.Session
 					stage.authRevision = auth.Revision
 					stage.roleRevision = e.roles.published.Revision
 				}

@@ -160,22 +160,22 @@ func TestObjectGrantRevisionExhaustionAndSessionFence(t *testing.T) {
 		t.Fatal(err, "revision exhaustion published")
 	}
 	e.roles.published = originalRoles
-	originalContext := op.ctx
+	originalContext := op.Ctx
 	ctx, cancel := context.WithCancel(originalContext)
 	cancel()
-	op.ctx = ctx
+	op.Ctx = ctx
 	err = applyObjectGrantUnit(e, op, objectGrantUnitRequest())
-	op.ctx = originalContext
+	op.Ctx = originalContext
 	if !errors.Is(err, context.Canceled) || e.catalog.state != before {
 		t.Fatal(err, "cancellation published")
 	}
-	op.session.mu.Lock()
-	delete(op.session.operations, op)
-	op.session.mu.Unlock()
+	op.Session.mu.Lock()
+	delete(op.Session.operations, op)
+	op.Session.mu.Unlock()
 	err = applyObjectGrantUnit(e, op, objectGrantUnitRequest())
-	op.session.mu.Lock()
-	op.session.operations[op] = struct{}{}
-	op.session.mu.Unlock()
+	op.Session.mu.Lock()
+	op.Session.operations[op] = struct{}{}
+	op.Session.mu.Unlock()
 	if err == nil || e.catalog.state != before {
 		t.Fatal(err, "invalid operation published")
 	}

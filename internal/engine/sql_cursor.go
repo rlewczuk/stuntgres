@@ -185,7 +185,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 	if !ok {
 		return Result{}, fmt.Errorf("stuntgres: cursor query lacks final projection")
 	}
-	r := payloadOf(s.op.session).cursors
+	r := payloadOf(s.op.Session).cursors
 	if r.ordinal == ^uint64(0) {
 		return Result{}, fmt.Errorf("stuntgres: cursor declaration counter exhausted")
 	}
@@ -252,7 +252,7 @@ func (c *sqlCursor) admit(s *StatementScope) {
 	s.routineAuth = c.routineAuth
 	s.inquiry.deparseAuth, s.inquiry.deparsePath = c.deparseAuth, c.deparsePath
 	s.inquiry.collationPath = c.collationPath
-	s.inquiry.deparseAuth.session, s.inquiry.deparseAuth.settings = s.op.session, s.op.session.settings
+	s.inquiry.deparseAuth.session, s.inquiry.deparseAuth.settings = s.op.Session, s.op.Session.settings
 	s.inquiry.visibilityCatalog = c.visibilityCatalog
 	s.inquiry.visibilityRelationPath, s.inquiry.visibilityOtherPath = c.visibilityRelationPath, c.visibilityOtherPath
 	c.authority.Host = hostOf(s)
@@ -264,8 +264,8 @@ func (s *StatementScope) sessionPublicationPreflight() error {
 	defer s.owner.mu.Unlock()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	s.op.session.mu.Lock()
-	defer s.op.session.mu.Unlock()
+	s.op.Session.mu.Lock()
+	defer s.op.Session.mu.Unlock()
 	if err := publicationOperationLocked(e, s.op); err != nil {
 		return err
 	}
@@ -292,7 +292,7 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	c := payloadOf(s.op.session).cursors.entries[fetch.Name.Text]
+	c := payloadOf(s.op.Session).cursors.entries[fetch.Name.Text]
 	if c == nil || (!c.promoted && c.tx != s.txRef) {
 		return Result{}, missingSQLCursor(fetch.Name.Text)
 	}
@@ -351,9 +351,9 @@ func (s *StatementScope) executeCloseCursor(close *parser.CloseCursor, count int
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	r := payloadOf(s.op.session).cursors
+	r := payloadOf(s.op.Session).cursors
 	c := r.entries[close.Name.Text]
-	if !close.All && c == nil && !protocolPortalExists(s.op.session, close.Name.Text) {
+	if !close.All && c == nil && !protocolPortalExists(s.op.Session, close.Name.Text) {
 		return Result{}, missingSQLCursor(close.Name.Text)
 	}
 	if err := s.sessionPublicationPreflight(); err != nil {
@@ -366,7 +366,7 @@ func (s *StatementScope) executeCloseCursor(close *parser.CloseCursor, count int
 	var cleanupErr error
 	if close.All {
 		cleanupErr = disposeSQLCursors(s.op.Context(), r.clear())
-		for name := range payloadOf(s.op.session).preparedSQL.portals {
+		for name := range payloadOf(s.op.Session).preparedSQL.portals {
 			if err := s.CloseProtocolPortal(name); cleanupErr == nil {
 				cleanupErr = err
 			}

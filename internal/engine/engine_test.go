@@ -329,7 +329,7 @@ func TestInsertImplicitShortStagedCancellation(t *testing.T) {
 			}
 			defer cleanup()
 			ctx := &cancelAtErrCheck{Context: op.Context(), cancel: cancel, at: tc.check}
-			op.ctx = ctx
+			op.Ctx = ctx
 			_, err = e.Execute(op, statement(t, "INSERT INTO t VALUES(1,'one'),(2,'two'),(3,'three')"), 0, nil)
 			if !errors.Is(err, context.Canceled) {
 				t.Fatalf("staged cancellation: %v", err)

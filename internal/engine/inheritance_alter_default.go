@@ -18,7 +18,7 @@ func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operat
 		return Result{}, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	for _, old := range targets {

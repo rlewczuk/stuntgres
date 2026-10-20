@@ -195,7 +195,7 @@ func (e *Engine) restoreNoInheritNotNull(op *Operation, raw *parser.Update, orig
 	next.Constraints.NotNull = slices.Clone(old.Constraints.NotNull)
 	next.Constraints.NotNull[index].NoInherit = true
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if err = stage.Replace(&next); err != nil {

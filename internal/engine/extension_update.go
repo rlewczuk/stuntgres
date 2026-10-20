@@ -115,7 +115,7 @@ func (e *Engine) stageExtensionUpdateLocked(scope *StatementScope, s *parser.Alt
 		return nil, err
 	}
 	if old.Version == version {
-		scope.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`version "%s" of extension "%s" is already installed`, version, old.Name())})
+		scope.op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`version "%s" of extension "%s" is already installed`, version, old.Name())})
 		return nil, nil
 	}
 	path := implementation.Versions().Path(old.Version, version)
@@ -153,7 +153,7 @@ func (e *Engine) stageExtensionUpdateLocked(scope *StatementScope, s *parser.Alt
 		return nil, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, scope.op.session)
+	stage.authorizeLocked(auth, scope.op.Session)
 	stage.extensionNamespace = ext.TargetNamespace
 	if err := stage.Replace(&ext); err != nil {
 		return nil, err

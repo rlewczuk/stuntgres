@@ -88,7 +88,7 @@ func fdwPrepareLateUnitDrop(t *testing.T, e *Engine, scope *StatementScope, quer
 		auth, err = e.authorizationLocked(scope.op)
 		if err == nil {
 			stage = e.BeginCatalogStage(auth.Catalog)
-			stage.authorizeLocked(auth, scope.op.session)
+			stage.authorizeLocked(auth, scope.op.Session)
 			_, roots, err = e.stageForeignLocked(scope, auth, stage, foreign)
 		}
 	} else {
@@ -447,7 +447,7 @@ func fdwEditLateUnitServer(t *testing.T, e *Engine, session *Session, address id
 			// server's wrapper still exists. The common overlay publisher then
 			// merges this valid removal/rewire with our earlier retirement.
 			stage = e.BeginCatalogStage(e.catalog.read(e.catalog.state))
-			stage.authorizeLocked(auth, scope.op.session)
+			stage.authorizeLocked(auth, scope.op.Session)
 			err = edit(stage, stage.Base.MustForeign(address))
 		}
 		e.mu.Unlock()

@@ -280,7 +280,7 @@ func TestRoleOwnershipManualUtilityDatabaseFence(t *testing.T) {
 					var checkpoint *rangePartitionPhaseContext
 					if phase == "before-statement-finish" {
 						checkpoint = &rangePartitionPhaseContext{Context: message.op.Context(), target: "(*StatementScope).Finish", effect: func() { ownershipManualReplaceDatabase(t, e, session, &before, private) }}
-						message.op.ctx = checkpoint
+						message.op.Ctx = checkpoint
 					}
 					finishErr := message.scope.Finish(nil)
 					if phase == "before-statement-finish" && !checkpoint.entered.Load() {
@@ -390,7 +390,7 @@ func TestRoleOwnershipSequenceOwnedCreationDatabaseFence(t *testing.T) {
 				ctx, cancel := context.WithTimeout(message.op.Context(), 5*time.Second)
 				defer cancel()
 				checkpoint := &rangePartitionPhaseContext{Context: ctx, target: "(*StatementScope).acquireSequence"}
-				message.op.ctx = checkpoint
+				message.op.Ctx = checkpoint
 				syntax := &parser.CreateSequence{Name: ownershipManualName("ownership_fence_creation", "new_owned_sequence"), Persistence: "logged", Options: []parser.SequenceOption{
 					{Name: "start", Value: 71}, {Name: "owned", Owned: ownershipManualName("ownership_fence_creation", "owned_table", "v")},
 				}}

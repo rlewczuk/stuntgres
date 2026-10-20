@@ -31,23 +31,23 @@ func pendingProtocolUserCancel(ctx context.Context) bool {
 // Caller holds Session.mu. The original operation context is never replaced.
 func (c *protocolCopyInputContext) effectiveLocked(op *Operation) context.Context {
 	if !c.held() {
-		return op.ctx
+		return op.Ctx
 	}
-	if c.masked == nil && pendingProtocolUserCancel(op.ctx) {
+	if c.masked == nil && pendingProtocolUserCancel(op.Ctx) {
 		// WithoutCancel hides the original cancelCtxKey as well as Done/Err.
 		// Re-project only the already captured absolute budget, never a fresh one.
-		c.masked, c.cancel = context.WithCancelCause(context.WithoutCancel(op.ctx))
-		if deadline, ok := op.ctx.Deadline(); ok {
+		c.masked, c.cancel = context.WithCancelCause(context.WithoutCancel(op.Ctx))
+		if deadline, ok := op.Ctx.Deadline(); ok {
 			cause := error(context.DeadlineExceeded)
-			if !op.statementDeadline.IsZero() && deadline.Equal(op.statementDeadline) {
+			if !op.StatementDeadline.IsZero() && deadline.Equal(op.StatementDeadline) {
 				cause = statementTimeoutCause
 			}
 			c.masked, c.timerCancel = context.WithDeadlineCause(c.masked, deadline, cause)
 		}
-		if op.done || op.session.state != live {
+		if op.Released || op.Session.state != live {
 			var cause error
-			if op.session.timeouts.fatal != nil {
-				cause = op.session.timeouts.fatal
+			if op.Session.timeouts.fatal != nil {
+				cause = op.Session.timeouts.fatal
 			}
 			c.cancel(cause)
 		}
@@ -55,16 +55,16 @@ func (c *protocolCopyInputContext) effectiveLocked(op *Operation) context.Contex
 	if c.masked != nil {
 		return c.masked
 	}
-	return op.ctx
+	return op.Ctx
 }
 
-func (op *Operation) stopCopyInput() {
-	op.session.mu.Lock()
-	op.copyInput.active.Store(false)
-	op.copyInput.decoding.Store(false)
-	cancel, timerCancel := op.copyInput.cancel, op.copyInput.timerCancel
-	op.copyInput.masked, op.copyInput.cancel, op.copyInput.timerCancel = nil, nil, nil
-	op.session.mu.Unlock()
+func (op *Operation) StopCopyInput() {
+	op.Session.mu.Lock()
+	op.CopyInput.active.Store(false)
+	op.CopyInput.decoding.Store(false)
+	cancel, timerCancel := op.CopyInput.cancel, op.CopyInput.timerCancel
+	op.CopyInput.masked, op.CopyInput.cancel, op.CopyInput.timerCancel = nil, nil, nil
+	op.Session.mu.Unlock()
 	if cancel != nil {
 		cancel(nil)
 	}
@@ -75,14 +75,14 @@ func (op *Operation) stopCopyInput() {
 
 // Successful conversion must observe pending cancellation before its row can
 // leave the input stage. Failed conversion returns its actual primary error.
-func (op *Operation) pendingCopyInputError() error {
-	if !op.copyInput.active.Load() {
+func (op *Operation) PendingCopyInputError() error {
+	if !op.CopyInput.active.Load() {
 		return nil
 	}
-	op.session.mu.Lock()
-	defer op.session.mu.Unlock()
-	if err := op.copyInput.effectiveLocked(op).Err(); err != nil {
+	op.Session.mu.Lock()
+	defer op.Session.mu.Unlock()
+	if err := op.CopyInput.effectiveLocked(op).Err(); err != nil {
 		return err
 	}
-	return op.ctx.Err()
+	return op.Ctx.Err()
 }

@@ -60,7 +60,7 @@ func TestDomainProgramPublicationCurrentAuthority(t *testing.T) {
 			if after != before {
 				t.Fatal("publication replayed volatile CHECK truth", before, after)
 			}
-			rows := sessionSQL(t, admin.session, "SELECT v FROM public.publication_rows")
+			rows := sessionSQL(t, admin.Session, "SELECT v FROM public.publication_rows")
 			var values [1]sqltype.Value
 			if more, err := rows.Rows.Next(context.Background(), values[:]); err != nil || more {
 				t.Fatal("denied private stage published", more, err)
@@ -70,7 +70,7 @@ func TestDomainProgramPublicationCurrentAuthority(t *testing.T) {
 				roleExecute(t, e, reader, "ROLLBACK")
 			}
 			roleExecute(t, e, admin, "GRANT EXECUTE ON FUNCTION pg_catalog.int4gt(integer,integer) TO publication_reader")
-			if result := sessionSQL(t, reader.session, "INSERT INTO public.publication_rows VALUES(1::integer)"); result.Count != 1 {
+			if result := sessionSQL(t, reader.Session, "INSERT INTO public.publication_rows VALUES(1::integer)"); result.Count != 1 {
 				t.Fatal("fresh regrant retry", result)
 			}
 			e.mu.Lock()

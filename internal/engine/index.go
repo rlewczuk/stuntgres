@@ -584,7 +584,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		if _, exists := auth.Catalog.LookupName(key); exists {
 			e.mu.Unlock()
 			if s.IfNotExists {
-				scope.op.existingRelationNotice(name)
+				scope.op.ExistingRelationNotice(name)
 				scope.completed = true
 				return Result{}, nil
 			}
@@ -630,7 +630,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		}
 		base := auth.Catalog
 		stage := e.BeginCatalogStage(base)
-		stage.authorizeLocked(auth, scope.op.session)
+		stage.authorizeLocked(auth, scope.op.Session)
 		stage.indexes().output = scope.output
 		err = stage.Create(d)
 		if err == nil && parent.Partition != nil {
@@ -676,7 +676,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 					return Result{}, authErr
 				}
 				if same && exists {
-					scope.op.existingRelationNotice(name)
+					scope.op.ExistingRelationNotice(name)
 					scope.completed = true
 					return Result{}, nil
 				}

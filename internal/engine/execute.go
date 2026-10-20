@@ -20,8 +20,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	captureEnumOperationSafety(op, &scope.input)
 	scope.input.LockedDomainInput, scope.input.DomainChecks = scope, scope
-	if !op.commandAdmission {
-		op.snapshotNoticeThreshold()
+	if !op.CommandAdmission {
+		op.SnapshotNoticeThreshold()
 	}
 	ctx := op.Context()
 	switch stmt.(type) {
@@ -64,7 +64,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				return Result{}, sqlError("25P01", "DECLARE CURSOR can only be used in transaction blocks")
 			}
 			name := declaration.Name.Text
-			if payloadOf(op.session).cursors.entries[name] != nil || protocolPortalExists(op.session, name) {
+			if payloadOf(op.Session).cursors.entries[name] != nil || protocolPortalExists(op.Session, name) {
 				return Result{}, sqlError("42P03", fmt.Sprintf("cursor %q already exists", name))
 			}
 		}
@@ -226,7 +226,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	var candidate StatementDescription
 	quoteCapturesChanged := false
 	valid := true
-	replan := scope.prepared.invalid || expected != nil && expected.planOwner == op.session.token && expected.planGeneration != op.session.discardPlansGeneration
+	replan := scope.prepared.invalid || expected != nil && expected.planOwner == op.Session.token && expected.planGeneration != op.Session.discardPlansGeneration
 	if expected != nil && expected.analysis != nil {
 		path, er := e.sequenceEnvironmentLocked(auth)
 		if er != nil {
@@ -251,7 +251,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if expected.Parameters.Count != 0 {
 			// Parameterized executions never borrow a retained quote group.
 			candidate.quotes = nil
-		} else if expected.quoteGeneration != op.session.discardPlansGeneration {
+		} else if expected.quoteGeneration != op.Session.discardPlansGeneration {
 			candidate.quotes = nil
 			quoteCapturesChanged = true
 		}
@@ -441,7 +441,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				if preparableBody(stmt) {
 					scope.Expected.analysis = prepared
 				}
-				scope.Expected.planGeneration = op.session.discardPlansGeneration
+				scope.Expected.planGeneration = op.Session.discardPlansGeneration
 			}
 		}
 	}

@@ -67,7 +67,7 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 				if !rows.Anonymous[0][14].IsNull() || !rows.Anonymous[0][15].IsNull() {
 					t.Fatal("invented file provenance")
 				}
-				scope := newStatementScope(&Operation{session: session}, &transactionOwner{}, time.Time{})
+				scope := newStatementScope(&Operation{Session: session}, &transactionOwner{}, time.Time{})
 				err = access.RowSecuritySettingGuard(scope.rowSecurity, roles, protected, reader)
 				var want error
 				if value == "off" {

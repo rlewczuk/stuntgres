@@ -51,7 +51,7 @@ func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall,
 }
 func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count int, importFrame FrameImporter, input sqltype.InputEnvironment, outputEnvironment sqltype.OutputEnvironment) (Result, error) {
 	e.mu.Lock()
-	binding, err := e.describeSettingCall(op.ctx, s, &input, op)
+	binding, err := e.describeSettingCall(op.Ctx, s, &input, op)
 	typ, typeOK := (e.catalog.read(e.catalog.state)).LookupType(sqltype.Text)
 	view := e.catalog.read(e.catalog.state)
 	auth, authErr := e.authorizationLocked(op)
@@ -71,7 +71,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 	}
 	frame := make([]sqltype.Value, count)
 	scope, _ := input.LockedDomainInput.(*StatementScope)
-	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.ctx, Parameters: frame, Input: input, Output: outputEnvironment, Host: hostOf(scope), Catalog: view}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineChecks: binding.dependencies, RoutineRecipe: true}}
+	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Ctx, Parameters: frame, Input: input, Output: outputEnvironment, Host: hostOf(scope), Catalog: view}, EvalAdmission: exec.EvalAdmission{RoutineAuthority: &auth, RoutineChecks: binding.dependencies, RoutineRecipe: true}}
 	if scope != nil {
 		scope.domains.inputCatalog = view
 	}
@@ -85,7 +85,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 		if importFrame == nil {
 			return Result{}, fmt.Errorf("stuntgres: missing parameter importer")
 		}
-		if err := importFrame(op.ctx, info, frame, input); err != nil {
+		if err := importFrame(op.Ctx, info, frame, input); err != nil {
 			return Result{}, err
 		}
 		for i, v := range frame {
@@ -149,16 +149,16 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 		e.mu.Unlock()
 		return Result{}, catalog.Conflict{}
 	}
-	owner := op.session.settings
+	owner := op.Session.settings
 	locked := true
-	unlock := func() { op.session.mu.Unlock(); owner.mu.Unlock(); e.mu.Unlock() }
+	unlock := func() { op.Session.mu.Unlock(); owner.mu.Unlock(); e.mu.Unlock() }
 	defer func() {
 		if locked {
 			unlock()
 		}
 	}()
 	owner.mu.Lock()
-	op.session.mu.Lock()
+	op.Session.mu.Lock()
 	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
@@ -178,7 +178,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 			}
 			output = sqltype.String(typ, owner.value(d.Name))
 		}
-		if err := op.ctx.Err(); err != nil {
+		if err := op.Ctx.Err(); err != nil {
 			return Result{}, err
 		}
 	} else {

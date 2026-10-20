@@ -80,7 +80,7 @@ func TestCopyBinaryLifecycle(t *testing.T) {
 					t.Fatal("binary COPY barrier deadline")
 				}
 				if setting == "caller_cancel" {
-					op.cancel(context.Canceled)
+					op.Cancel(context.Canceled)
 				}
 				select {
 				case <-op.Context().Done():
@@ -140,7 +140,7 @@ func TestCopyBinaryFinalCancellationVeto(t *testing.T) {
 		op.Done()
 		t.Fatal(count, err)
 	}
-	op.cancel(context.Canceled)
+	op.Cancel(context.Canceled)
 	err = scope.Finish(nil)
 	op.Done()
 	if !errors.Is(err, context.Canceled) {

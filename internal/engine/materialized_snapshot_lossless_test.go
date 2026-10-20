@@ -15,7 +15,7 @@ func TestMaterializedViewSnapshotLosslessCoercions(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	input, _ := sessionPresentation(op.session)
+	input, _ := sessionPresentation(op.Session)
 	input.ExactSnapshot = true
 	for _, id := range []sqltype.ID{sqltype.Timestamp, sqltype.Time, sqltype.Timestamptz} {
 		b := newExpressionBinder(context.Background(), e, input, op, nil)

@@ -207,7 +207,7 @@ func TestExpressionCompareNullDependenciesAndAuthorization(t *testing.T) {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	b, err := describe(op.ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+	b, err := describe(op.Ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -290,7 +290,7 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		b, err := describe(op.ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+		b, err := describe(op.Ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 		if err != nil {
 			t.Fatal(q, err)
 		}
@@ -339,7 +339,7 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 				t.Fatal(tc.expr, p, node.ResultUsage())
 			}
 			for i, row := range rows {
-				got, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: op.ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: row}})
+				got, err := node.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: op.Ctx}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: row}})
 				value, valueErr := got.Boolean()
 				if err != nil || valueErr != nil || got.IsNull() || value != tc.want[i] {
 					t.Fatal(tc.expr, i, got, err, valueErr)
@@ -382,7 +382,7 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 	for n, parameter := range []sqltype.Value{intValue(1), intValue(2), sqltype.Null(integer), intValue(1)} {
 		want := [][4]bool{{true, false, false, true}, {false, false, true, false}, {false, true, false, false}, {true, false, false, true}}[n]
 		for i, row := range rows {
-			got, err := filter.Predicate.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: op.ctx, Parameters: []sqltype.Value{parameter}}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: row}})
+			got, err := filter.Predicate.Eval(&exec.Context{EvalStatement: exec.EvalStatement{Context: op.Ctx, Parameters: []sqltype.Value{parameter}}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Row: row}})
 			value, valueErr := got.Boolean()
 			if err != nil || valueErr != nil || got.IsNull() || value != want[i] {
 				t.Fatal(n, i, got, err, valueErr)

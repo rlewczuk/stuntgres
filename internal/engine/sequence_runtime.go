@@ -19,7 +19,7 @@ func (h *statementHost) Sequence(request functions.SequenceRequest) (int64, erro
 	}
 	if request.Name == "lastval" {
 		e.mu.Lock()
-		ref = e.catalog.Domain.Ref(e.catalog.state.Epoch(), payloadOf(scope.op.session).sequences.Last())
+		ref = e.catalog.Domain.Ref(e.catalog.state.Epoch(), payloadOf(scope.op.Session).sequences.Last())
 		e.mu.Unlock()
 		if ref.Address == (ids.ObjectAddress{}) {
 			return 0, sqlError("55000", "lastval is not yet defined in this session")
@@ -31,7 +31,7 @@ func (h *statementHost) Sequence(request functions.SequenceRequest) (int64, erro
 		before.Catalog = e.privateCatalogLocked(scope.catalog)
 		before.Recapture(before.Catalog)
 	}
-	if beforeErr == nil && ref.Epoch != before.Catalog.Epoch() && request.Temporary == scope.op.session.token && temporarySequenceEpochValid(before.Catalog, ref, request.Temporary) {
+	if beforeErr == nil && ref.Epoch != before.Catalog.Epoch() && request.Temporary == scope.op.Session.token && temporarySequenceEpochValid(before.Catalog, ref, request.Temporary) {
 		ref.Epoch = before.Catalog.Epoch()
 	}
 	if beforeErr == nil && (ref.Domain() != e.catalog.Domain || ref.Epoch != before.Catalog.Epoch()) {
@@ -76,7 +76,7 @@ func (h *statementHost) Sequence(request functions.SequenceRequest) (int64, erro
 	if err = sequence.CheckKind(d); err != nil {
 		return 0, err
 	}
-	if ns, ok := auth.Catalog.Namespace(d.Namespace()); ok && ns.Temporary == scope.op.session.token {
+	if ns, ok := auth.Catalog.Namespace(d.Namespace()); ok && ns.Temporary == scope.op.Session.token {
 		scope.owner.accessedTemporary = true
 	}
 	mask := authorization.UsagePrivilege | authorization.SelectPrivilege
@@ -93,11 +93,11 @@ func (h *statementHost) Sequence(request functions.SequenceRequest) (int64, erro
 	}
 	if scope.owner.readOnly && (request.Name == "nextval" || request.Name == "setval") {
 		ns, _ := auth.Catalog.Namespace(d.Namespace())
-		if ns == nil || ns.Temporary != scope.op.session.token {
+		if ns == nil || ns.Temporary != scope.op.Session.token {
 			return 0, sqlError("25006", "cannot execute "+request.Name+"() in a read-only transaction")
 		}
 	}
-	session := scope.op.session
+	session := scope.op.Session
 	g := e.sequenceGeneratorLocked(scope, ref.Address)
 	if g == nil {
 		return 0, fmt.Errorf("stuntgres: sequence state missing")

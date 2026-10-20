@@ -186,7 +186,7 @@ func TestIdentityDiscardedRuntimeConversionDemandBinding(t *testing.T) {
 			auth, err := e.authorizationLocked(op)
 			var bound analyze.Binding
 			if err == nil {
-				bound, err = describe(op.ctx, e.analysisHost(op), statement(t, `INSERT INTO i OVERRIDING USER VALUE `+tc.source), auth, ref, sqltype.InputEnvironment{}, nil, nil)
+				bound, err = describe(op.Ctx, e.analysisHost(op), statement(t, `INSERT INTO i OVERRIDING USER VALUE `+tc.source), auth, ref, sqltype.InputEnvironment{}, nil, nil)
 			}
 			e.mu.Unlock()
 			if err != nil {
@@ -204,7 +204,7 @@ func TestIdentityDiscardedRuntimeConversionDemandBinding(t *testing.T) {
 				t.Fatal("discard lost assigned schema", project.Schema())
 			}
 			value := sqltype.String(bound.Parameters.Types[0].Type, "bad")
-			_, err = preflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: op.ctx, Parameters: []sqltype.Value{value}}}, bound.Query.Root)
+			_, err = preflightQuery(&exec.Context{EvalStatement: exec.EvalStatement{Context: op.Ctx, Parameters: []sqltype.Value{value}}}, bound.Query.Root)
 			if tc.fails {
 				state(t, err, "22P02")
 			} else if err != nil {

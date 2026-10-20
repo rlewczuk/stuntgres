@@ -86,7 +86,7 @@ func notNullCandidate(op *Operation, view catalog.Read, old *catalog.Relation, a
 			if !a.IfExists {
 				return nil, sqlError("42704", fmt.Sprintf(`constraint "%s" of relation "%s" does not exist`, a.Constraint.Text, old.Name()))
 			}
-			op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`constraint "%s" of relation "%s" does not exist, skipping`, a.Constraint.Text, old.Name())})
+			op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`constraint "%s" of relation "%s" does not exist, skipping`, a.Constraint.Text, old.Name())})
 			return old, nil
 		}
 	} else {
@@ -192,7 +192,7 @@ func notNullCandidate(op *Operation, view catalog.Read, old *catalog.Relation, a
 	name := a.Constraint.Text
 	if adding {
 		if name == "" {
-			name = generatedConstraintName(old.Name(), old.Columns[slot].Name, "not_null", constraintNames(view, old.Namespace(), old, op.definition))
+			name = generatedConstraintName(old.Name(), old.Columns[slot].Name, "not_null", constraintNames(view, old.Namespace(), old, op.Definition))
 		}
 		if relationConstraintNameExists(old, name) {
 			return nil, sqlError("42710", fmt.Sprintf(`constraint "%s" for relation "%s" already exists`, name, old.Name()))

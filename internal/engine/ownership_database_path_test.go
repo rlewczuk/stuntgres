@@ -35,7 +35,7 @@ func TestRoleOwnershipDatabasePreparedPathIdentity(t *testing.T) {
 	if err != nil || !slices.Contains(warm.Namespaces, address) {
 		t.Fatal("owner did not warm public namespace", warm, err)
 	}
-	key, _ := payloadOf(op.session).sequences.CachedPathKey()
+	key, _ := payloadOf(op.Session).sequences.CachedPathKey()
 	after := catalog.CloneState(before)
 	database := *after.MustDatabase(catalog.CurrentDatabaseAddress)
 	database.Owner = successor
@@ -47,7 +47,7 @@ func TestRoleOwnershipDatabasePreparedPathIdentity(t *testing.T) {
 	if err != nil || slices.Contains(revoked.Namespaces, address) {
 		t.Fatal("warm path retained former database-owner authority", revoked, err)
 	}
-	replacement, _ := payloadOf(op.session).sequences.CachedPathKey()
+	replacement, _ := payloadOf(op.Session).sequences.CachedPathKey()
 	if replacement.Database == key.Database || replacement.Roles != key.Roles || replacement.Epoch != key.Epoch || replacement.Namespace != key.Namespace || replacement.Authorization != key.Authorization {
 		t.Fatal("not a database-only path invalidation", key, replacement)
 	}

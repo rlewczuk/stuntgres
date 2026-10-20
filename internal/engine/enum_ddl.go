@@ -137,7 +137,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		}
 		if newIndex >= 0 {
 			if !alter.Rename && alter.IfNotExists {
-				op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42710", Message: fmt.Sprintf(`enum label "%s" already exists, skipping`, alter.Label.Text)})
+				op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42710", Message: fmt.Sprintf(`enum label "%s" already exists, skipping`, alter.Label.Text)})
 				return Result{}, nil
 			}
 			return Result{}, sqlError("42710", fmt.Sprintf(`enum label "%s" already exists`, alter.Label.Text))

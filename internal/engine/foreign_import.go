@@ -94,7 +94,7 @@ func (e *Engine) executeForeignImport(scope *StatementScope, s *parser.ForeignDD
 		request.Tables = append(request.Tables, table.Text)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, scope.op.session)
+	stage.authorizeLocked(auth, scope.op.Session)
 	stage.domainBases = append(stage.domainBases, server, wrapper, mapping, auth.Catalog.Get(wrapper.Handler), auth.Catalog.Get(ns.Address))
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)

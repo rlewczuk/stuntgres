@@ -48,7 +48,7 @@ func TestUpdateCoreMultiRelationCanceledFencedCommit(t *testing.T) {
 				}
 			} else {
 				barrier := &transactionBarrierContext{Context: op.Context(), entered: make(chan struct{}), release: make(chan struct{})}
-				op.ctx = barrier
+				op.Ctx = barrier
 				done := make(chan error, 1)
 				go func() { _, err := e.Commit(op, tx); done <- err }()
 				select {

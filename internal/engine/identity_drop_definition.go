@@ -48,7 +48,7 @@ func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *catalog.Rel
 		}
 		notice := sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message + ", skipping"}
 		if provider.prepared == nil {
-			provider.scope.op.emitNotice(levelNotice, notice)
+			provider.scope.op.EmitNotice(levelNotice, notice)
 		} else {
 			provider.prepared.recordEffect(dropEffect{missing: &notice})
 		}

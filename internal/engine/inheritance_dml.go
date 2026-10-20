@@ -47,7 +47,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			}
 		}
 		var pending []exec.Leaf
-		err := inheritanceQueryClosure(view, root, s.op.session.token, func(child *catalog.Relation) error {
+		err := inheritanceQueryClosure(view, root, s.op.Session.token, func(child *catalog.Relation) error {
 			if child.Address() == root.Address() {
 				return nil
 			}
@@ -69,7 +69,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			return nil
 		}
 		for _, target := range pending {
-			policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+			policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
 			request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: target.Ref}, lock.RowExclusive, policy)
 			if request != nil {
 				s.admissionWaited = true

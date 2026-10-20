@@ -26,7 +26,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 			defer e.DiscardCatalogStage(stage)
 			capture := func() *StatementScope {
 				t.Helper()
-				s := &StatementScope{op: op, owner: op.session.transactions}
+				s := &StatementScope{op: op, owner: op.Session.transactions}
 				e.mu.Lock()
 				err := e.captureCommentSnapshotLocked(s)
 				e.mu.Unlock()

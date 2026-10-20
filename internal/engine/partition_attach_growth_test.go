@@ -68,7 +68,7 @@ func partitionAttachUnitWorker(t *testing.T, scope *StatementScope, action func(
 	joined := false
 	go func() { done <- action() }()
 	t.Cleanup(func() {
-		scope.op.cancel(context.Canceled)
+		scope.op.Cancel(context.Canceled)
 		if !joined {
 			select {
 			case <-done:

@@ -40,7 +40,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 			reader, readerDone := roleOperation(t, e, "network_original_reader")
 			defer readerDone()
 			ref := roleTableRef(t, e, "public.network_inputs")
-			input, _ := sessionPresentation(reader.session)
+			input, _ := sessionPresentation(reader.Session)
 			raw := statement(t, "SELECT "+test.expression).(*parser.Select).Targets[0]
 			e.mu.Lock()
 			auth, err := e.authorizationLocked(reader)

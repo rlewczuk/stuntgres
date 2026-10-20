@@ -106,11 +106,11 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 			before, stores, roots, frontier := e.catalog.state, maps.Clone(e.storage.Relations), maps.Clone(e.storage.IndexRoots), e.visibility.CommitSeq()
 			var err error
 			if kind == "cancel_before" || kind == "cancel_after" {
-				barrier := &batchPublicationContext{Context: message.op.ctx, e: e, s: s, entered: make(chan struct{}), release: make(chan struct{})}
+				barrier := &batchPublicationContext{Context: message.op.Ctx, e: e, s: s, entered: make(chan struct{}), release: make(chan struct{})}
 				if kind == "cancel_after" {
 					barrier.late = cancel
 				}
-				message.op.ctx = barrier
+				message.op.Ctx = barrier
 				finished := make(chan error, 1)
 				joined := false
 				defer func() {

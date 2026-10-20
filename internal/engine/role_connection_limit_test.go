@@ -430,10 +430,10 @@ func TestRoleAttributesPasswordCancellationLifecycle(t *testing.T) {
 					if teardown {
 						s.RequestEnd(CleanClose)
 					} else {
-						op.cancel(nil)
+						op.Cancel(nil)
 					}
 				}
-				op.ctx = ctx
+				op.Ctx = ctx
 				_, err = scope.Execute(stmt, 0, nil)
 				err = scope.Finish(err)
 				if !errors.Is(err, context.Canceled) || ctx.checks.Load() < 128 || ctx.checks.Load() > 130 {
@@ -451,8 +451,8 @@ func TestRoleAttributesPasswordCancellationLifecycle(t *testing.T) {
 					if err != nil {
 						t.Fatal("same physical session did not recover", err)
 					}
-					probe := &cancelAtErrCheck{Context: recovery.Context(), at: 128, cancel: func() { recovery.cancel(nil) }}
-					recovery.ctx = probe
+					probe := &cancelAtErrCheck{Context: recovery.Context(), at: 128, cancel: func() { recovery.Cancel(nil) }}
+					recovery.Ctx = probe
 					short := passwordExpectedSecret("notempty", salt, 1)
 					short = strings.Replace(short, "$4096:", "$1:", 1)
 					_, err = e.Execute(recovery, roleAttributeAlter("cancel_owner", parser.RoleOptions{Present: parser.RolePassword, Password: short}), 0, nil)

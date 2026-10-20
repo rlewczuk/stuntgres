@@ -92,7 +92,7 @@ func partitionWriteExtensionBoundary(statement parser.Statement, d *catalog.Rela
 }
 
 func partitionDefaultReplayAllowed(e *Engine, op *Operation, auth AuthorizationView, statement *parser.AlterTableDefault) bool {
-	if e == nil || op == nil || op.self != op || !operationReplayOrZero(op).defaultReplay || op.session == nil || engineOf(op.session) != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() || statement == nil || statement.Action != parser.SetDefault || statement.Expression == nil {
+	if e == nil || op == nil || op.Self != op || !operationReplayOrZero(op).defaultReplay || op.Session == nil || engineOf(op.Session) != e || e.importTargets == nil || auth.engine != e || auth.session != op.Session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() || statement == nil || statement.Action != parser.SetDefault || statement.Expression == nil {
 		return false
 	}
 	if err := e.validateOperation(op); err != nil {
@@ -109,7 +109,7 @@ func (e *Engine) partitionParentAuthorization(op *Operation, auth AuthorizationV
 	if syntax == nil || syntax.PartitionOf == nil || op == nil || !operationReplayOrZero(op).tableDestination {
 		return auth, nil
 	}
-	if e == nil || op.self != op || op.session == nil || engineOf(op.session) != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() {
+	if e == nil || op.Self != op || op.Session == nil || engineOf(op.Session) != e || e.importTargets == nil || auth.engine != e || auth.session != op.Session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() {
 		return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore partition parent authority")
 	}
 	if err := e.validateOperation(op); err != nil {
@@ -145,7 +145,7 @@ func partitionKeyUsesAttribute(d *catalog.Relation, attribute int32) bool {
 
 func (s *StatementScope) acquirePartitionLock(ref ids.ObjectRef, mode lock.Mode) error {
 	e := s.engine()
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, mode, lock.Policy{Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext})
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, mode, lock.Policy{Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext})
 	if request != nil {
 		s.admissionWaited = true
 		if s.replacementRead {

@@ -146,7 +146,7 @@ func (e *Engine) executeForeignDDL(scope *StatementScope, s *parser.ForeignDDL, 
 		return Result{}, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	jobs, roots, err := e.stageForeignLocked(scope, auth, stage, s)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
@@ -408,10 +408,10 @@ func (e *Engine) stageForeignLocked(scope *StatementScope, auth AuthorizationVie
 	}
 	if s.Action == "alter" && class == ids.ForeignWrapperClassID {
 		if s.HandlerSet {
-			op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: "changing the foreign-data wrapper handler can change behavior of existing foreign tables"})
+			op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: "changing the foreign-data wrapper handler can change behavior of existing foreign tables"})
 		}
 		if s.ValidatorSet && next.Validator != (ids.ObjectAddress{}) {
-			op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: "changing the foreign-data wrapper validator can cause the options for dependent objects to become invalid"})
+			op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: "changing the foreign-data wrapper validator can cause the options for dependent objects to become invalid"})
 		}
 	}
 	return jobs, nil, nil

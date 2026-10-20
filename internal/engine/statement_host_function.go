@@ -9,10 +9,10 @@ import (
 
 func (h *statementHost) FunctionArrayRandomOwner() (expr.RandomOwner, error) {
 	scope := h.scope()
-	if scope.op == nil || scope.op.session == nil {
+	if scope.op == nil || scope.op.Session == nil {
 		return nil, fmt.Errorf("stuntgres: missing array random session scope")
 	}
-	return &scope.op.session.arrayRandom, nil
+	return &scope.op.Session.arrayRandom, nil
 }
 
 func (h *statementHost) FunctionBinaryConversion(source, destination int) (*sqltype.EncodingConversionHandler, error) {

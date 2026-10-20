@@ -23,13 +23,13 @@ const (
 // Context remains a separate check: an accepted Go commit canceled after
 // admission must retain its existing failed-end/discard disposition.
 func (e *Engine) transactionAuthority(op *Operation) error {
-	if op == nil || op.self != op || op.session == nil || op.session.token.Domain() != domainOf(e) {
+	if op == nil || op.Self != op || op.Session == nil || op.Session.token.Domain() != domainOf(e) {
 		return errors.New("stuntgres: foreign or missing operation")
 	}
-	session := op.session
+	session := op.Session
 	session.mu.Lock()
 	defer session.mu.Unlock()
-	if op.done || session.state != live {
+	if op.Released || session.state != live {
 		if session.timeouts.fatal != nil {
 			copy := *session.timeouts.fatal
 			return &copy
@@ -84,8 +84,8 @@ func (e *Engine) beginAdmitted(op *Operation, t *transactionOwner, start time.Ti
 func (e *Engine) endPreflight(op *Operation) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	op.session.mu.Lock()
-	defer op.session.mu.Unlock()
+	op.Session.mu.Lock()
+	defer op.Session.mu.Unlock()
 	return publicationOperationLocked(e, op)
 }
 
@@ -149,7 +149,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 			return EndResult{}, errors.New("stuntgres: transaction identity exhausted")
 		}
 		e.mu.Lock()
-		op.session.mu.Lock()
+		op.Session.mu.Lock()
 		err := publicationOperationLocked(e, op)
 		var diagnostic uint32
 		if err == nil {
@@ -160,7 +160,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 			next = e.catalog.Domain.Tx(t.session.token, t.next, e.catalog.state.Epoch(), t, diagnostic)
 			e.enrollSerializableLocked(next, isolation)
 		}
-		op.session.mu.Unlock()
+		op.Session.mu.Unlock()
 		e.mu.Unlock()
 		if err != nil {
 			return EndResult{}, err
@@ -178,7 +178,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 	var err error
 	committed := false
 	if commit && t.state != TxAborted {
-		if len(ownerExtensionOrZero(t).exclusionModes.events) != 0 || payloadOf(op.session).cursors.hasCurrentHold(ref) {
+		if len(ownerExtensionOrZero(t).exclusionModes.events) != 0 || payloadOf(op.Session).cursors.hasCurrentHold(ref) {
 			if scope == nil {
 				scope = newStatementScope(op, t, statementOperationStart(op))
 			}
@@ -321,8 +321,8 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 		}
 	}
 	e := s.engine()
-	if !s.op.commandAdmission {
-		s.op.snapshotNoticeThreshold()
+	if !s.op.CommandAdmission {
+		s.op.SnapshotNoticeThreshold()
 	}
 	t := s.owner
 	t.mu.Lock()
@@ -358,7 +358,7 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 		} else {
 			err = e.endPreflight(s.op)
 			if err == nil {
-				s.op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25001", Message: "there is already a transaction in progress"})
+				s.op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25001", Message: "there is already a transaction in progress"})
 			}
 		}
 	} else if state == TxIdle {
@@ -370,7 +370,7 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 			}
 			err = sqlError("25P01", word+" AND CHAIN can only be used in transaction blocks")
 		} else if err == nil {
-			s.op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
+			s.op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
 		}
 	} else {
 		if state == TxImplicit {
@@ -381,7 +381,7 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 				}
 				return Result{}, sqlError("25P01", word+" AND CHAIN can only be used in transaction blocks")
 			}
-			s.op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
+			s.op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
 		}
 		nextStart := s.statementStart
 		if s.message {

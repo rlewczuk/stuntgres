@@ -69,17 +69,17 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 		unique = false // COPY admission belongs to its genuine flush, not decode.
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Parameters: parameters, Input: input, Output: output, Host: hostOf(scope)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1, Query: query}}
-	copyInput := scope != nil && scope.op.copyInput.active.Load()
+	copyInput := scope != nil && scope.op.CopyInput.active.Load()
 	for consumed := 0; count < 0 || consumed < count; consumed++ {
 		if copyInput {
-			scope.op.copyInput.decoding.Store(true)
+			scope.op.CopyInput.decoding.Store(true)
 			ctx = scope.op.Context()
 		} else if err := ctx.Err(); err != nil {
 			return indexWriteBatch{}, err
 		}
 		present, err := cursor.Next(ctx, scratch)
 		if copyInput {
-			scope.op.copyInput.decoding.Store(false)
+			scope.op.CopyInput.decoding.Store(false)
 			ctx = scope.op.Context()
 			evaluation.Context = ctx
 		}

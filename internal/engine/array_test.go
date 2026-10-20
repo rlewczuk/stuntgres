@@ -324,7 +324,7 @@ func arrayComponentTemporary(t *testing.T, e *Engine, op *Operation, prototype *
 	if err != nil {
 		t.Fatal(err)
 	}
-	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: nsOID}, ObjectName: "pg_temp_array_component", ObjectRevision: revision, Owner: op.RoleState().CurrentUser, Temporary: op.session.token}
+	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: nsOID}, ObjectName: "pg_temp_array_component", ObjectRevision: revision, Owner: op.RoleState().CurrentUser, Temporary: op.Session.token}
 	table := *prototype
 	table.ObjectAddress = ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tableOID}
 	table.ObjectNamespace = ns.Address()
@@ -350,9 +350,9 @@ func arrayComponentTemporary(t *testing.T, e *Engine, op *Operation, prototype *
 	}
 	domainUnitPublish(t, e, stage)
 	e.mu.Lock()
-	op.session.mu.Lock()
-	op.session.temporaryNamespace = ns.Address()
-	op.session.mu.Unlock()
+	op.Session.mu.Lock()
+	op.Session.temporaryNamespace = ns.Address()
+	op.Session.mu.Unlock()
 	e.mu.Unlock()
 	return &table
 }

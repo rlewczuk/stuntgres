@@ -238,7 +238,7 @@ func TestSQLCursorHoldAuthority(t *testing.T) {
 				var first *exec.CursorExpressionData
 				c.root.Expressions[0] = queryProbe(original.ResultUsage(), func(ctx *exec.Context) (sqltype.Value, error) {
 					scope := scopeOf(ctx.LiveHost())
-					if scope == nil || scope.finished || scope.txRef != ref || scope.ticket != s.transactions.ticket || ctx.Context.Value(cursorUnitContextKey{}) != phase || scope.op.done {
+					if scope == nil || scope.finished || scope.txRef != ref || scope.ticket != s.transactions.ticket || ctx.Context.Value(cursorUnitContextKey{}) != phase || scope.op.Released {
 						return sqltype.Value{}, errors.New("producer borrows stale commit authority")
 					}
 					if !scope.owner.mu.TryLock() {

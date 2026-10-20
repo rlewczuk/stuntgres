@@ -101,7 +101,7 @@ func TestDefaultPrivilegesCancellation(t *testing.T) {
 	catalog, roles := f.e.catalog.state, f.e.roles.published
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	f.op.ctx = ctx
+	f.op.Ctx = ctx
 	err := f.apply(defaultUnitStatement("tables", "select", []string{"default_owner"}, []string{"default_schema"}, []string{"default_reader"}))
 	if !errors.Is(err, context.Canceled) || f.e.catalog.state != catalog || f.e.roles.published != roles {
 		t.Fatal("canceled utility publication", err)
@@ -117,12 +117,12 @@ func TestDefaultPrivilegesPublicationFence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.op.session.RequestEnd(CleanClose)
+	f.op.Session.RequestEnd(CleanClose)
 	// Isolate the terminal publication gate from the earlier cancellation gate:
 	// a fully staged candidate still cannot install into an ending physical owner.
-	f.op.session.mu.Lock()
-	f.op.ctx = context.Background()
-	f.op.session.mu.Unlock()
+	f.op.Session.mu.Lock()
+	f.op.Ctx = context.Background()
+	f.op.Session.mu.Unlock()
 	f.e.mu.Lock()
 	_, err = f.e.alterDefaultPrivilegesLocked(f.op, auth, defaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader"}))
 	f.e.mu.Unlock()

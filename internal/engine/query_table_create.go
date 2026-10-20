@@ -35,7 +35,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name}
 	if _, exists := auth.Catalog.LookupName(key); exists {
 		if s.IfNotExists {
-			op.existingRelationNotice(name)
+			op.ExistingRelationNotice(name)
 			return nil, nil, true, nil
 		}
 		return nil, nil, false, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
@@ -44,7 +44,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 		return nil, nil, false, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	available, err := e.displaceAssociatedArrayLocked(stage, ns.Address, name)
 	if err != nil {
 		return nil, nil, false, err

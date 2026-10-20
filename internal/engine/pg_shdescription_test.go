@@ -280,7 +280,7 @@ func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 	e.roles.published = old
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	scope := &StatementScope{op: op, owner: op.session.transactions}
+	scope := &StatementScope{op: op, owner: op.Session.transactions}
 	e.mu.Lock()
 	err := e.captureCommentSnapshotLocked(scope)
 	e.mu.Unlock()
@@ -323,7 +323,7 @@ func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 		t.Fatal("nested opening lost saved roles")
 	}
 	pgShDescriptionUnitInquiry(t, e, scope.inquiry.commentRoles, scope.inquiry.commentCatalog, 20000, new("old"))
-	fresh := &StatementScope{op: op, owner: op.session.transactions}
+	fresh := &StatementScope{op: op, owner: op.Session.transactions}
 	e.mu.Lock()
 	err = e.captureCommentSnapshotLocked(fresh)
 	e.mu.Unlock()

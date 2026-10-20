@@ -175,7 +175,7 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 	}
 	persistence := requestedViewPersistence(auth.Catalog, view, b.QuerySources)
 	if persistence == "temporary" && view.Persistence != "temporary" {
-		s.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`view "%s" will be a temporary view`, view.Name.Parts[len(view.Name.Parts)-1].Text)})
+		s.op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`view "%s" will be a temporary view`, view.Name.Parts[len(view.Name.Parts)-1].Text)})
 	}
 	projection, ok := b.Query.Root.(*plan.ProjectNode)
 	if !ok {
@@ -193,7 +193,7 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 	}
 	auth.Catalog = e.privateCatalogLocked(changes)
 	auth.Recapture(auth.Catalog)
-	if table, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == s.op.session.token {
+	if table, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == s.op.Session.token {
 		auth.stagedTemporary = table.Address()
 	}
 	if err := auth.CheckCreate(ns); err != nil && !operationReplayOrZero(s.op).tableDestination {
@@ -226,7 +226,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	if scope.viewCreationOrZero().changes != nil {
 		auth.Catalog = e.privateCatalogLocked(scope.viewCreationOrZero().changes)
 		auth.Recapture(auth.Catalog)
-		if table, ok := scope.viewCreationOrZero().changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
+		if table, ok := scope.viewCreationOrZero().changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.Session.token {
 			auth.stagedTemporary = table.Address()
 		}
 	}
@@ -333,7 +333,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	}
 	base := auth.Catalog
 	stage := e.BeginCatalogStage(base)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	defer e.DiscardCatalogStage(stage)
 	if old == nil {
 		available, displacementErr := e.displaceAssociatedArrayLocked(stage, ns.Address, name)

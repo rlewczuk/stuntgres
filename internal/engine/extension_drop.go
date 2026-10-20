@@ -29,7 +29,7 @@ func (e *Engine) executeDropExtension(scope *StatementScope, s *parser.DropExten
 			if !s.IfExists {
 				return fail(sqlError("42704", fmt.Sprintf(`extension "%s" does not exist`, name.Text)))
 			}
-			scope.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`extension "%s" does not exist, skipping`, name.Text)})
+			scope.op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`extension "%s" does not exist, skipping`, name.Text)})
 			continue
 		}
 		if seen[address] {
@@ -85,7 +85,7 @@ func (e *Engine) executeDropExtension(scope *StatementScope, s *parser.DropExten
 			message = fmt.Sprintf("drop cascades to %d other objects", len(stage.viewCascadeNames))
 			detail = strings.Join(stage.viewCascadeNames, "\n")
 		}
-		scope.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
+		scope.op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
 	}
 	return result, err
 }

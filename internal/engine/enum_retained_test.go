@@ -68,7 +68,7 @@ func TestEnumRetainedProducerEnvironment(t *testing.T) {
 			e.mu.Lock()
 			unsafeRoot := scope.owner.catalog
 			scope.owner.catalog = session.NewJournal()
-			b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, nil)
+			b := newExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, nil)
 			b.Query.Auth = &auth
 			var defaults []expr.Expr
 			var generations map[int32]catalog.ColumnGeneration

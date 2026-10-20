@@ -61,7 +61,7 @@ func (s *StatementScope) acquireUnique(ref ids.ObjectRef, bound *uniqueBoundKey,
 		return err
 	}
 	defer unpin()
-	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
 	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, resource, lock.UniqueClaim, policy)
 	if request != nil {
 		if s.replacementRead {

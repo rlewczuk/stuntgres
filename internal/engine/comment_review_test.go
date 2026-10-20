@@ -45,7 +45,7 @@ func TestCommentMixedOwnerRoundtrip(t *testing.T) {
 				}
 				canonical := commentDump(t, e)
 				identity := op.RoleState()
-				settings := op.session.settings
+				settings := op.Session.settings
 				rolesPublication := e.roles.published
 				if err := e.Reset(context.Background()); err != nil {
 					t.Fatal(err)
@@ -56,7 +56,7 @@ func TestCommentMixedOwnerRoundtrip(t *testing.T) {
 				if got := commentDump(t, e); got != canonical {
 					t.Fatal("mixed-owner canonical stream changed", got, canonical)
 				}
-				if op.RoleState() != identity || op.session.settings != settings || e.roles.published != rolesPublication {
+				if op.RoleState() != identity || op.Session.settings != settings || e.roles.published != rolesPublication {
 					t.Fatal("Restore changed live identity/settings/shared authority")
 				}
 				tableRole, _ := e.Roles().Lookup("table_owner")

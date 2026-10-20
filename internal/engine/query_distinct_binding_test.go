@@ -69,7 +69,7 @@ func TestQueryDistinctSecondOutputOccurrence(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal(err)
 			}
-			b, err := describe(op.ctx, e.analysisHost(op), ast, auth, source.Ref, sqltype.InputEnvironment{}, nil, nil)
+			b, err := describe(op.Ctx, e.analysisHost(op), ast, auth, source.Ref, sqltype.InputEnvironment{}, nil, nil)
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
@@ -126,7 +126,7 @@ func TestQueryDistinctInsertSourceDescriptorOwnership(t *testing.T) {
 					e.mu.Unlock()
 					t.Fatal(err)
 				}
-				b, err := describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
+				b, err := describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 				if err != nil {
 					e.mu.Unlock()
 					t.Fatal(err)
@@ -136,7 +136,7 @@ func TestQueryDistinctInsertSourceDescriptorOwnership(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				source, err := captureQuerySource(op.ctx, view, b.QuerySources[0].Ref)
+				source, err := captureQuerySource(op.Ctx, view, b.QuerySources[0].Ref)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -162,7 +162,7 @@ func TestQueryDistinctInsertSourceDescriptorOwnership(t *testing.T) {
 				original := expressions[0]
 				calls := 0
 				expressions[0] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) { calls++; return original.Eval(c) })
-				rows, err := evaluateInsertQuery(op.ctx, b, source, nil, "public", scope.input, scope.output, scope)
+				rows, err := evaluateInsertQuery(op.Ctx, b, source, nil, "public", scope.input, scope.output, scope)
 				if err != nil || len(rows.values) != 2 || calls != 4 || source.View != nil {
 					t.Fatal(rows, calls, err, source.View)
 				}

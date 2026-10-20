@@ -303,10 +303,10 @@ func (e *Engine) stageMessageCatalog(op *Operation, p *PreparedCatalogPublicatio
 	if p == nil || p.stage == nil || p.stage.owner != e || p.stage.lifecycle != catalogValidated {
 		return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
 	}
-	op.session.mu.Lock()
-	scope := scopeOfLease(op.lease)
-	op.session.mu.Unlock()
-	if scope == nil || scope.op != op || scope.owner != op.session.transactions || !scope.ownsMessageScope() || !scope.owner.retainsTransaction() {
+	op.Session.mu.Lock()
+	scope := scopeOfLease(op.Lease)
+	op.Session.mu.Unlock()
+	if scope == nil || scope.op != op || scope.owner != op.Session.transactions || !scope.ownsMessageScope() || !scope.owner.retainsTransaction() {
 		return ChangeSet{}, fmt.Errorf("stuntgres: missing message scope")
 	}
 	if token.Epoch != p.epoch {

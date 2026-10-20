@@ -186,7 +186,7 @@ func TestPartitionDetachLockFences(t *testing.T) {
 				partitionAttachUnitQueued(t, f.e, ref, worker.ticket, lock.AccessExclusive)
 				switch veto {
 				case "cancel":
-					op.cancel(context.Canceled)
+					op.Cancel(context.Canceled)
 				case "epoch":
 					if err := f.e.Reset(context.Background()); err != nil {
 						t.Fatal(err)

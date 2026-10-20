@@ -70,16 +70,16 @@ func parallelAdmissionAndTemporary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if op.parallelWorkers != 7 {
+	if op.ParallelWorkers != 7 {
 		op.Done()
-		t.Fatal("missing admission snapshot", op.parallelWorkers)
+		t.Fatal("missing admission snapshot", op.ParallelWorkers)
 	}
 	// The command consumes its immutable value, not live settings storage.
 	s.settings.mu.Lock()
 	s.settings.values["max_parallel_workers_per_gather"] = "2"
 	s.settings.typed["max_parallel_workers_per_gather"] = settings.Value{Text: "2", Number: 2}
 	s.settings.mu.Unlock()
-	if op.parallelWorkers != 7 {
+	if op.ParallelWorkers != 7 {
 		op.Done()
 		t.Fatal("admitted worker ceiling changed")
 	}
@@ -88,7 +88,7 @@ func parallelAdmissionAndTemporary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if next.parallelWorkers != 2 {
+	if next.ParallelWorkers != 2 {
 		next.Done()
 		t.Fatal("subsequent admission missed setting change")
 	}

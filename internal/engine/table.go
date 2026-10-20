@@ -99,7 +99,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 	for _, ref := range refs {
 		relation := auth.Catalog.Get(ref.Address)
 		namespace := auth.Catalog.MustNamespace(relation.Namespace())
-		if namespace.Temporary != op.session.token {
+		if namespace.Temporary != op.Session.token {
 			temporary = false
 			break
 		}
@@ -111,7 +111,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 	if len(refs) == 0 {
 		e.mu.Unlock()
 		for _, notice := range notices {
-			op.emitNotice(levelNotice, notice)
+			op.EmitNotice(levelNotice, notice)
 		}
 		return Result{}, nil
 	}
@@ -121,7 +121,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		changes = scope.owner.catalog.Clone()
 	}
 	stage := e.BeginCatalogStage(base)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	path, err := e.referencePath(auth)
 	if err != nil {
 		e.mu.Unlock()
@@ -160,7 +160,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		scope.owner.accessedTemporary = true
 		emitViewCascade(op, stage.viewCascadeNames)
 		for _, notice := range notices {
-			op.emitNotice(levelNotice, notice)
+			op.EmitNotice(levelNotice, notice)
 		}
 		return Result{}, nil
 	}
@@ -171,7 +171,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 	scope.completed = true
 	emitViewCascade(op, append(stage.schemaCascadeNames, stage.viewCascadeNames...))
 	for _, notice := range notices {
-		op.emitNotice(levelNotice, notice)
+		op.EmitNotice(levelNotice, notice)
 	}
 	return Result{}, nil
 }

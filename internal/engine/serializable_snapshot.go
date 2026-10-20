@@ -15,12 +15,12 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 	}
 	for {
 		e.mu.Lock()
-		s.op.session.mu.Lock()
+		s.op.Session.mu.Lock()
 		err := publicationOperationLocked(e, s.op)
 		if err == nil && (t.ref != s.txRef || t.ref.Epoch() != e.catalog.state.Epoch()) {
 			err = ids.ErrCatalogReplaced
 		}
-		s.op.session.mu.Unlock()
+		s.op.Session.mu.Unlock()
 		if err != nil {
 			e.mu.Unlock()
 			return err
@@ -55,13 +55,13 @@ func (s *StatementScope) acquireSerializableSnapshot() error {
 			s.replacementRead = true
 		}
 		e.mu.Lock()
-		s.op.session.mu.Lock()
+		s.op.Session.mu.Lock()
 		err = publicationOperationLocked(e, s.op)
 		live, safe := node.SafeSnapshotOutcome()
 		if err == nil && (t.ref != s.txRef || t.ref.Epoch() != e.catalog.state.Epoch() || !live) {
 			err = ids.ErrCatalogReplaced
 		}
-		s.op.session.mu.Unlock()
+		s.op.Session.mu.Unlock()
 		if err != nil {
 			node.AbandonSafeSnapshotLocked()
 			t.roots = nil

@@ -50,9 +50,9 @@ func usingIndexNotNullCandidate(op *Operation, view catalog.Read, reader catalog
 	if !captured.syntax.Primary {
 		return parent, nil
 	}
-	previous := op.definition
-	op.definition = reader
-	defer func() { op.definition = previous }()
+	previous := op.Definition
+	op.Definition = reader
+	defer func() { op.Definition = previous }()
 	next := parent
 	for _, attribute := range captured.attributes {
 		slot := next.IndexForAttribute(attribute)

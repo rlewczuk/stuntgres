@@ -110,7 +110,7 @@ func TestPGRolesRoleRoot(t *testing.T) {
 	e.roles.published = old
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	scope := &StatementScope{op: op, owner: op.session.transactions}
+	scope := &StatementScope{op: op, owner: op.Session.transactions}
 	e.mu.Lock()
 	err := e.captureCommentSnapshotLocked(scope)
 	e.mu.Unlock()
@@ -163,7 +163,7 @@ func TestPGRolesRoleRoot(t *testing.T) {
 	if flag {
 		t.Fatal("nested provider resampled roles")
 	}
-	fresh := &StatementScope{op: op, owner: op.session.transactions}
+	fresh := &StatementScope{op: op, owner: op.Session.transactions}
 	e.mu.Lock()
 	err = e.captureCommentSnapshotLocked(fresh)
 	e.mu.Unlock()
@@ -213,7 +213,7 @@ func TestPGRolesCancellation(t *testing.T) {
 	e.catalog.state.SetDescriptor(unknown.Address(), &unknown)
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	scope := &StatementScope{op: op, owner: op.session.transactions}
+	scope := &StatementScope{op: op, owner: op.Session.transactions}
 	e.mu.Lock()
 	source, err := e.openRelationSourceLocked(scope, e.catalog.Domain.Ref(e.catalog.state.Epoch(), unknown.Address()), e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
 	if err == nil || source != nil {

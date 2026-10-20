@@ -110,7 +110,7 @@ func TestDeparseConstraintsPersistedFamilies(t *testing.T) {
 				if pretty {
 					want = tc.pretty
 				}
-				got, err := (pgRenderer{view: view, relation: d, pretty: pretty, path: scope.inquiry.deparsePath, output: scope.output, nonstandardStrings: op.nonstandardStrings}).sql(context.Background(), node, pgRenderParent{})
+				got, err := (pgRenderer{view: view, relation: d, pretty: pretty, path: scope.inquiry.deparsePath, output: scope.output, nonstandardStrings: op.NonstandardStrings}).sql(context.Background(), node, pgRenderParent{})
 				if err != nil || got != want {
 					t.Fatalf("pretty=%t got %q, %v; want %q", pretty, got, err, want)
 				}

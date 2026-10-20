@@ -150,7 +150,7 @@ func TestCubeProviderConflicts(t *testing.T) {
 			stage := e.BeginCatalogStage(auth.Catalog)
 			defer e.DiscardCatalogStage(stage)
 			namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
-			stage.authorizeLocked(auth, op.session)
+			stage.authorizeLocked(auth, op.Session)
 			stage.extensionNamespace = namespace
 			extOID, err := e.catalog.allocateOIDLocked()
 			if err != nil {

@@ -73,9 +73,9 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 			return fail(err)
 		}
 	} else if _, present := old.ColumnMeta.Defaults[attr]; !present {
-		op.session.mu.Lock()
+		op.Session.mu.Lock()
 		err = publicationOperationLocked(e, op)
-		op.session.mu.Unlock()
+		op.Session.mu.Unlock()
 		if err == nil {
 			err = op.Context().Err()
 		}
@@ -121,7 +121,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 		next.ColumnMeta.Defaults[attr] = definition
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if original == nil {

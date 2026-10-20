@@ -167,7 +167,7 @@ func TestUpdateCoreDeleteCandidateIdentity(t *testing.T) {
 			if len(store.Versions) != 3 || store.Versions[2].Row != row || store.Generation <= oldGeneration || store.Ends == oldEnds {
 				t.Fatal("DELETE compacted or failed to advance guard")
 			}
-			result, err := e.executeUpdate(op.ctx, scope, b, source, nil, nil, "public")
+			result, err := e.executeUpdate(op.Ctx, scope, b, source, nil, nil, "public")
 			if err != nil || result.Count != 1 {
 				t.Fatal(result, err)
 			}
@@ -291,7 +291,7 @@ func TestUpdateCoreDeletePublication(t *testing.T) {
 				}
 			case "canceled_final_publication":
 				barrier := &transactionBarrierContext{Context: op.Context(), entered: make(chan struct{}), release: make(chan struct{})}
-				op.ctx = barrier
+				op.Ctx = barrier
 				done := make(chan error, 1)
 				go func() { _, err := e.Commit(op, tx); done <- err }()
 				select {
@@ -440,7 +440,7 @@ func TestUpdateCoreDeletePrivateCandidateIdentity(t *testing.T) {
 	if source.Count() != 2 || source.RawIndex(1) != len(source.Committed) || source.VersionAt(source.RawIndex(1)).Born != 0 {
 		t.Fatal("private head not canonical substituted raw occurrence")
 	}
-	result, err := e.executeUpdate(op.ctx, scope, b, source, nil, nil, "public")
+	result, err := e.executeUpdate(op.Ctx, scope, b, source, nil, nil, "public")
 	if err != nil || result.Count != 1 {
 		t.Fatal(result, err)
 	}

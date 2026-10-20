@@ -107,9 +107,9 @@ func TestFormatEncodingCurrentRoleAndResetAll(t *testing.T) {
 	if !ok {
 		t.Fatal("real ordinary role missing")
 	}
-	op.session.mu.Lock()
-	op.session.authorization.state.CurrentUser = reader.Ref
-	op.session.mu.Unlock()
+	op.Session.mu.Lock()
+	op.Session.authorization.state.CurrentUser = reader.Ref
+	op.Session.mu.Unlock()
 	if op.RoleState().SessionUser == reader.Ref {
 		t.Fatal("fixture lost superuser session identity")
 	}
@@ -117,13 +117,13 @@ func TestFormatEncodingCurrentRoleAndResetAll(t *testing.T) {
 	if err := settingAccess(messages, op); !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != `permission denied to set parameter "lc_messages"` {
 		t.Fatal("current ordinary role admitted", err)
 	}
-	if op.session.settings.value("lc_messages") != "POSIX" {
+	if op.Session.settings.value("lc_messages") != "POSIX" {
 		t.Fatal("access check mutated setting")
 	}
 	if _, err := e.executeSetting(op, &parser.Reset{All: true}, 0, false); err != nil {
 		t.Fatal("all-reset incorrectly reused individual permission", err)
 	}
-	if op.session.settings.value("lc_messages") != "C" {
+	if op.Session.settings.value("lc_messages") != "C" {
 		t.Fatal("all-reset retained privileged override")
 	}
 }
@@ -177,7 +177,7 @@ func TestFormatEncodingValidationNotices(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	for _, threshold := range []noticeLevel{levelWarning, levelError} {
-		op.noticeThreshold = threshold
+		op.NoticeThreshold = threshold
 		_, err := e.executeSetting(op, &parser.Set{Name: parser.Identifier{Text: "lc_time"}, Local: true, Values: []string{"é🙂"}}, 0, true)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "22023" {
@@ -191,7 +191,7 @@ func TestFormatEncodingValidationNotices(t *testing.T) {
 		} else if len(notices) != 2 || notices[0].Code != "25P01" || notices[0].Message != "SET LOCAL can only be used in transaction blocks" || notices[1].Code != "22023" || notices[1].Severity != "WARNING" || notices[1].Message != `locale name "é🙂" contains non-ASCII characters` {
 			t.Fatal("failed validation lost or reordered actual warnings", notices)
 		}
-		if op.session.settings.value("lc_time") != "C" {
+		if op.Session.settings.value("lc_time") != "C" {
 			t.Fatal("failed locale validation published candidate")
 		}
 		if len(op.DetachNotices()) != 0 {

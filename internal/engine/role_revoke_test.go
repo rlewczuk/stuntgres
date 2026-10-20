@@ -146,13 +146,13 @@ func TestObjectRevokePublicationFence(t *testing.T) {
 				saturated.Revision = ^uint64(0)
 				e.roles.published = &saturated
 			} else {
-				op.session.mu.Lock()
-				delete(op.session.operations, op)
-				op.session.mu.Unlock()
+				op.Session.mu.Lock()
+				delete(op.Session.operations, op)
+				op.Session.mu.Unlock()
 				defer func() {
-					op.session.mu.Lock()
-					op.session.operations[op] = struct{}{}
-					op.session.mu.Unlock()
+					op.Session.mu.Lock()
+					op.Session.operations[op] = struct{}{}
+					op.Session.mu.Unlock()
 				}()
 			}
 			before, roles := e.catalog.state, e.roles.published
@@ -166,23 +166,23 @@ func TestObjectRevokePublicationFence(t *testing.T) {
 
 func TestObjectRevokeCancellationPublication(t *testing.T) {
 	e, op, _, _, _, _ := objectRevokeUnitFixture(t)
-	originalContext := op.ctx
+	originalContext := op.Ctx
 	ctx, cancel := context.WithCancel(originalContext)
 	counter := &cancelAtErrCheck{Context: ctx, cancel: cancel, at: 1 << 30}
-	op.ctx = counter
+	op.Ctx = counter
 	if err := applyObjectGrantUnit(e, op, objectRevokeUnitRequest()); err != nil {
 		t.Fatal("calibrating revoke checkpoints", err)
 	}
-	op.ctx = originalContext
+	op.Ctx = originalContext
 	cancel()
 	for at := int32(1); at <= counter.checks.Load(); at++ {
 		e, op, _, _, _, _ := objectRevokeUnitFixture(t)
 		before, roles := e.catalog.state, e.roles.published
-		originalContext := op.ctx
+		originalContext := op.Ctx
 		ctx, cancel := context.WithCancel(originalContext)
-		op.ctx = &cancelAtErrCheck{Context: ctx, cancel: cancel, at: at}
+		op.Ctx = &cancelAtErrCheck{Context: ctx, cancel: cancel, at: at}
 		err := applyObjectGrantUnit(e, op, objectRevokeUnitRequest())
-		op.ctx = originalContext
+		op.Ctx = originalContext
 		cancel()
 		if !errors.Is(err, context.Canceled) || e.catalog.state != before || e.roles.published != roles {
 			t.Fatal("canceled staged revoke published", at, err)

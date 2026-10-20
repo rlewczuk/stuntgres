@@ -134,14 +134,14 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	}
 	collectAuth.Recapture(scope.inheritance.catalog)
 	e.mu.Lock()
-	refs, err := e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, scope.querySources, nil, op.session.token, plan.RowMark{})
+	refs, err := e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, scope.querySources, nil, op.Session.token, plan.RowMark{})
 	var view *visibility.View
 	if err == nil {
 		view, err = scope.acquireDataViewsLocked(e, refs)
 	}
 	var source *exec.Source
 	if err == nil {
-		source, err = captureInheritanceQueryPrefix(scope.inheritance.catalog, view, parent, op.session.token)
+		source, err = captureInheritanceQueryPrefix(scope.inheritance.catalog, view, parent, op.Session.token)
 	}
 	e.mu.Unlock()
 	if err != nil {

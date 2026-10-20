@@ -152,7 +152,7 @@ func TestNotificationPublicationRoots(t *testing.T) {
 			replacement.ready = replacement.ready.append([]Notification{{PID: 999, Channel: "unit", Payload: "before"}})
 			ctx := &notificationRootContext{Context: context.Background(), engine: e, resource: &payloadOf(r).notifications, replacement: &replacement}
 			op := transactionOperation(t, s)
-			op.ctx = ctx
+			op.Ctx = ctx
 			var changes *catalogChanges
 			if catalog {
 				changes = session.NewJournal()

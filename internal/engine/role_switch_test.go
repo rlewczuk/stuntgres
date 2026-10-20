@@ -305,7 +305,7 @@ func TestRoleSwitchCanceledJournalPublication(t *testing.T) {
 	ctx, cancel := context.WithCancel(op.Context())
 	defer cancel()
 	boundary := &identityRolePublicationContext{Context: ctx, session: s, cancel: cancel}
-	op.ctx = boundary
+	op.Ctx = boundary
 	_, err = e.executeRole(op, &parser.RoleSelection{Name: "switch_b", Local: true}, 0, false)
 	if !boundary.observed || !errors.Is(err, context.Canceled) || op.RoleState() != before || s.settings.roleAction != action || s.authorization.revision != revision {
 		t.Fatal("canceled publication", err)
@@ -336,21 +336,21 @@ func TestRoleSwitchPrincipalValidation(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	for _, target := range []authorization.PrincipalRef{foreign.Ref, stale.Ref} {
-		op.session.mu.Lock()
-		op.session.authorization.state.ResetRole = target
-		before := op.session.authorization.state
-		revision := op.session.authorization.revision
-		op.session.mu.Unlock()
+		op.Session.mu.Lock()
+		op.Session.authorization.state.ResetRole = target
+		before := op.Session.authorization.state
+		revision := op.Session.authorization.revision
+		op.Session.mu.Unlock()
 		if _, err := e.Execute(op, statement(t, "RESET ROLE"), 0, nil); err == nil {
 			t.Fatal("invalid cached reset", target)
 		}
-		if op.RoleState() != before || op.session.authorization.revision != revision {
+		if op.RoleState() != before || op.Session.authorization.revision != revision {
 			t.Fatal("invalid reset published")
 		}
 	}
-	op.session.mu.Lock()
-	op.session.authorization.state.ResetRole = authorization.PrincipalRef{}
-	op.session.mu.Unlock()
+	op.Session.mu.Lock()
+	op.Session.authorization.state.ResetRole = authorization.PrincipalRef{}
+	op.Session.mu.Unlock()
 }
 
 func TestRoleSwitchFinishConsumers(t *testing.T) {

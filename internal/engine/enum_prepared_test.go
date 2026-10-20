@@ -99,7 +99,7 @@ func TestEnumPreparedParameterPrivateGeneration(t *testing.T) {
 	auth, err := e.authorizationLocked(op)
 	auth.Catalog = e.stageRead(stage)
 	auth.Recapture(auth.Catalog)
-	b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, &description)
+	b := newExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, &description)
 	b.Query.Auth = &auth
 	node, failure := b.Bind(parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 8}}, analyze.ExpressionPolicy{Context: analyze.ProjectionContext, Expected: typ.Usage()})
 	e.mu.Unlock()
@@ -112,7 +112,7 @@ func TestEnumPreparedParameterPrivateGeneration(t *testing.T) {
 	stale := description
 	stale.catalogEpoch++
 	e.mu.Lock()
-	b = newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, &stale)
+	b = newExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, &stale)
 	b.Query.Auth = &auth
 	_, failure = b.Bind(parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 8}}, analyze.ExpressionPolicy{Context: analyze.ProjectionContext, Expected: typ.Usage()})
 	e.mu.Unlock()

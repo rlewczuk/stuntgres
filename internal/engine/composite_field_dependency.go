@@ -161,7 +161,7 @@ func (provider *dropProvider) compositeFieldNotice(message string) {
 	if provider.prepared != nil {
 		provider.prepared.recordEffect(dropEffect{missing: &notice})
 	} else if provider.scope != nil {
-		provider.scope.op.emitNotice(levelNotice, notice)
+		provider.scope.op.EmitNotice(levelNotice, notice)
 	}
 }
 

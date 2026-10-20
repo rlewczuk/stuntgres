@@ -103,7 +103,7 @@ func TestRowLockControls(t *testing.T) {
 			t.Fatal(err)
 		}
 		ctx := &deleteAdmissionContext{Context: op.Context(), engine: e}
-		op.ctx = ctx
+		op.Ctx = ctx
 		result, err := scope.Execute(stmt, 0, nil)
 		if err != nil {
 			t.Fatal(err)

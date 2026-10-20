@@ -123,7 +123,7 @@ func TestPartitionDetachUniqueReplayPublication(t *testing.T) {
 					t.Fatal("private staging published before Finish")
 				}
 				if cancel {
-					op.cancel(context.Canceled)
+					op.Cancel(context.Canceled)
 				}
 				err = scope.Finish(nil)
 				op.Done()

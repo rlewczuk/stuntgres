@@ -60,7 +60,7 @@ func (s *StatementScope) selectPreparedAnalysis(stmt parser.Statement) error {
 		return nil
 	}
 	valid := e.preparedAnalysisValidLocked(auth, s.Expected.analysis, s.prepared.path)
-	s.prepared.invalid = !valid || s.Expected.planOwner == s.op.session.token && s.Expected.planGeneration != s.op.session.discardPlansGeneration
+	s.prepared.invalid = !valid || s.Expected.planOwner == s.op.Session.token && s.Expected.planGeneration != s.op.Session.discardPlansGeneration
 	if !s.prepared.invalid {
 		s.prepared.reuse = s.Expected.analysis
 	}
@@ -104,7 +104,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 	if b.ViewWrite != nil {
 		target = viewWriteOf(b.ViewWrite).logical.Ref
 	}
-	cell := &preparedAnalysis{domain: e.catalog.Domain, epoch: s.prepared.epoch, session: s.op.session.token, private: s.prepared.private, path: s.prepared.path, namespace: s.prepared.namespace, target: target, needsReanalysis: s.prepared.changedDuringAdmission}
+	cell := &preparedAnalysis{domain: e.catalog.Domain, epoch: s.prepared.epoch, session: s.op.Session.token, private: s.prepared.private, path: s.prepared.path, namespace: s.prepared.namespace, target: target, needsReanalysis: s.prepared.changedDuringAdmission}
 	seen := make(map[ids.ObjectRef]bool)
 	var visit func(ids.ObjectRef) error
 	visit = func(ref ids.ObjectRef) error {

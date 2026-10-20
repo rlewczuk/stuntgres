@@ -29,9 +29,9 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 		return fail(ids.ErrCatalogReplaced)
 	}
 	if ifExists && renameMissing(err) {
-		op.session.mu.Lock()
+		op.Session.mu.Lock()
 		err = publicationOperationLocked(e, op)
-		op.session.mu.Unlock()
+		op.Session.mu.Unlock()
 		if err == nil {
 			err = op.Context().Err()
 		}
@@ -40,7 +40,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 		}
 		scope.completed = true
 		e.mu.Unlock()
-		op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, name.Parts[len(name.Parts)-1].Text)})
+		op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, name.Parts[len(name.Parts)-1].Text)})
 		return Result{}, nil
 	}
 	if err != nil {
@@ -102,7 +102,7 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 		}
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	if !columnRename && old.SQLIndex != nil && old.SQLIndex.Constraint != nil {
 		if err = stageBackingIndexRename(stage, &next); err != nil {
 			e.mu.Unlock()

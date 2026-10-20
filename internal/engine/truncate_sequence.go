@@ -115,7 +115,7 @@ func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *C
 		}
 		stage.sequence.setGenerator(d.Address(), &storage.SequenceGenerator{Last: d.Sequence.Start, Generation: rev})
 	}
-	session := s.op.session
+	session := s.op.Session
 	for _, sequence := range s.truncateOrZero().sequences {
 		a := sequence.ref.Address
 		// Reset itself discards the initiating backend's old unused tail,

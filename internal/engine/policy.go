@@ -81,7 +81,7 @@ func policyPreflight(op *Operation, auth AuthorizationView, stmt parser.Statemen
 	}
 	_, warn, err := resolvePolicyRoles(auth, roles)
 	if err == nil && warn && notices {
-		op.emitNotice(levelWarning, sqlstate.Error{
+		op.EmitNotice(levelWarning, sqlstate.Error{
 			Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "22023",
 			Message: "ignoring specified roles other than PUBLIC",
 			Hint:    "All roles are members of the PUBLIC role.",

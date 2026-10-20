@@ -30,7 +30,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	}
 	auth.Catalog = e.privateCatalogLocked(changes)
 	auth.Recapture(auth.Catalog)
-	if table, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
+	if table, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.Session.token {
 		auth.stagedTemporary = table.Address()
 	}
 	if operationReplayOrZero(op).tableDestination {
@@ -76,7 +76,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	if _, exists := auth.Catalog.LookupName(key); exists {
 		e.mu.Unlock()
 		if s.IfNotExists {
-			op.existingRelationNotice(key.Name)
+			op.ExistingRelationNotice(key.Name)
 			return Result{}, nil
 		}
 		return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, key.Name))
@@ -88,7 +88,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	base := auth.Catalog
 	stage := e.BeginCatalogStage(base)
 	defer e.DiscardCatalogStage(stage)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	var partition *pendingPartitionDefinition
 	if s.PartitionBy != nil || s.PartitionOf != nil {
 		partition, err = e.schemaPartitionTableLocked(scope, auth, stage, s, ns.Address)
@@ -171,7 +171,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 				return Result{}, creationError(accessErr, s.Name)
 			}
 			if same && exists {
-				op.existingRelationNotice(key.Name)
+				op.ExistingRelationNotice(key.Name)
 				return Result{}, nil
 			}
 		}
@@ -234,12 +234,12 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 		return err
 	}
 	e.mu.Lock()
-	scope.op.session.mu.Lock()
+	scope.op.Session.mu.Lock()
 	err = publicationOperationLocked(e, scope.op)
 	if err == nil && scope.txRef.Epoch() != e.catalog.state.Epoch() {
 		err = ids.ErrCatalogReplaced
 	}
-	if err == nil && stage.authSession != nil && (stage.authSession != scope.op.session || scope.op.session.authorization.revision != stage.authRevision || e.operationRolesLocked(scope.op).Revision != stage.roleRevision) {
+	if err == nil && stage.authSession != nil && (stage.authSession != scope.op.Session || scope.op.Session.authorization.revision != stage.authRevision || e.operationRolesLocked(scope.op).Revision != stage.roleRevision) {
 		err = fmt.Errorf("stuntgres: authorization changed before publication")
 	}
 	if err == nil {
@@ -252,7 +252,7 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 		scope.catalog = changes
 		stage.lifecycle = catalogPublished
 	}
-	scope.op.session.mu.Unlock()
+	scope.op.Session.mu.Unlock()
 	e.mu.Unlock()
 	return err
 }

@@ -37,7 +37,7 @@ func (s *StatementScope) Finish(err error) error {
 	// ERROR recovery stops the budget before rollback/root cleanup. Restoring
 	// a positive setting below is not an explicit assignment and cannot rearm it.
 	if err != nil {
-		s.op.session.finishScopeTimeout(&s.lease, s.op, s.message, s.txRef, true)
+		s.op.Session.finishScopeTimeout(&s.lease, s.op, s.message, s.txRef, true)
 	}
 	if s.controlOutcome == controlExecuted || (s.controlOutcome == controlDescribed && err == nil) {
 		// A control has no stage/view. In particular, do not advance or recheck
@@ -54,7 +54,7 @@ func (s *StatementScope) Finish(err error) error {
 		// the new incarnation installed by CHAIN after its linearization.
 		s.finished = true
 		s.result = err
-		s.op.session.finishScopeTimeout(&s.lease, s.op, s.message, s.txRef, err != nil)
+		s.op.Session.finishScopeTimeout(&s.lease, s.op, s.message, s.txRef, err != nil)
 		s.releaseCopyReservation()
 		if !s.message {
 			s.owner.admission.Unlock()
@@ -137,7 +137,7 @@ func (s *StatementScope) Finish(err error) error {
 					notificationActions = append(notificationActions, s.notificationActions...)
 				}
 				notificationEvents := appendNotificationEvents(t.notificationEvents, s.notificationEvents)
-				session := s.op.session
+				session := s.op.Session
 			privateForeignFence:
 				e.mu.Lock()
 				session.mu.Lock()
@@ -209,7 +209,7 @@ func (s *StatementScope) Finish(err error) error {
 		}
 	}
 	if err != nil {
-		s.op.session.finishScopeTimeout(&s.lease, s.op, s.message, s.txRef, true)
+		s.op.Session.finishScopeTimeout(&s.lease, s.op, s.message, s.txRef, true)
 	}
 	var diagnostic *sqlstate.Error
 	admittedFailure := s.worked || errors.As(err, &diagnostic) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
@@ -285,7 +285,7 @@ func (s *StatementScope) Finish(err error) error {
 	s.activeMutation = 0
 	s.cteInvocation = nil
 	s.finished = true
-	s.op.session.finishScopeTimeout(&s.lease, s.op, s.message, s.txRef, err != nil)
+	s.op.Session.finishScopeTimeout(&s.lease, s.op, s.message, s.txRef, err != nil)
 	s.result = err
 	finishNotificationBoundary(t)
 	t.mu.Unlock()

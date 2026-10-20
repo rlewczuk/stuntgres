@@ -19,7 +19,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 		return nil, nil, nil, ids.ErrCatalogReplaced
 	}
 	base := e.privateCatalogLocked(c)
-	if c == nil && op.session.temporaryNamespace == (ids.ObjectAddress{}) {
+	if c == nil && op.Session.temporaryNamespace == (ids.ObjectAddress{}) {
 		e.mu.Unlock()
 		return writes, deletes, c, nil
 	}
@@ -30,7 +30,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 			continue
 		}
 		ns := base.MustNamespace(table.Namespace())
-		if ns.Temporary != op.session.token {
+		if ns.Temporary != op.Session.token {
 			continue
 		}
 		if table.OnCommit == parser.OnCommitDrop {
@@ -71,10 +71,10 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 	if len(dropped) != 0 {
 		stage := e.BeginCatalogStage(base)
 		defer e.DiscardCatalogStage(stage)
-		input, output := sessionPresentation(op.session)
+		input, output := sessionPresentation(op.Session)
 		evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: op.Context(), Input: input, Output: output, Catalog: base}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 		project := func(old, replacement *catalog.Relation) error {
-			owner := op.session.transactions
+			owner := op.Session.transactions
 			snapshot, exists := owner.roots[old.Address()]
 			rows, deleted, _, err := stagePrivateColumnShape(&evaluation, stage, next, old, replacement, nextWrites[old.Address()], nextDeletes[old.Address()], snapshot, exists, stableIsolation(owner.isolation))
 			if err != nil {

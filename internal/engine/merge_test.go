@@ -30,7 +30,7 @@ func TestMergeInsertBinding(t *testing.T) {
 	if inputs.View.Data() != data || len(data.Committed) != 2 {
 		t.Fatal("target/source did not share frontier")
 	}
-	r, err := e.executeMerge(op.ctx, scope, b, target, inputs, nil, "public")
+	r, err := e.executeMerge(op.Ctx, scope, b, target, inputs, nil, "public")
 	if err != nil || r.Count != 2 || r.Rows != nil || len(scope.stage.rows[b.Ref.Address]) != 2 {
 		t.Fatal("completed producer", r, err, scope.stage.rows)
 	}
@@ -90,7 +90,7 @@ func TestMergeInsertPublication(t *testing.T) {
 				cursor.closeError = cleanup
 			}
 			state := &exec.State{Source: inputs, Input: scope.input, Output: scope.output}
-			rows, err := e.assembleMergeRows(op.ctx, scope, b, target, cursor, state, "public", false)
+			rows, err := e.assembleMergeRows(op.Ctx, scope, b, target, cursor, state, "public", false)
 			if cursor.closed != 1 || len(scope.stage.rows) != 0 {
 				t.Fatal("producer published or did not close exactly once", cursor.closed, scope.stage.rows)
 			}

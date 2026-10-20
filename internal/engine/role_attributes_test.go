@@ -272,8 +272,8 @@ func TestRoleAttributesPublicationAndSnapshots(t *testing.T) {
 			next := fixture.roles.nextPrincipal
 			ctx, cancel := context.WithCancel(actor.Context())
 			defer cancel()
-			fence := &identityRolePublicationContext{Context: ctx, session: actor.session, cancel: cancel}
-			actor.ctx = fence
+			fence := &identityRolePublicationContext{Context: ctx, session: actor.Session, cancel: cancel}
+			actor.Ctx = fence
 			var stmt parser.Statement = roleAttributeAlter("cancel_target", parser.RoleOptions{Present: parser.RoleLogin, Login: true})
 			if create {
 				stmt = &parser.CreateRole{Name: parser.Identifier{Text: "cancel_created"}}

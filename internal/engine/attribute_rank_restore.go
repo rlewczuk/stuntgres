@@ -33,7 +33,7 @@ func (e *Engine) restoreAttributeRank(op *Operation, raw *parser.Update) error {
 		return sqlError("42501", "permission denied for table pg_attribute")
 	}
 	e.mu.Lock()
-	if e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() {
+	if e.importTargets == nil || auth.engine != e || auth.session != op.Session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() {
 		e.mu.Unlock()
 		return fmt.Errorf("stuntgres: invalid trusted restore attribute rank authority")
 	}
@@ -74,7 +74,7 @@ func (e *Engine) restoreAttributeRank(op *Operation, raw *parser.Update) error {
 	next.Columns = slices.Clone(old.Columns)
 	next.Columns[slot].DeclaredDimensions = rank
 	staged := e.BeginCatalogStage(auth.Catalog)
-	staged.authorizeLocked(auth, op.session)
+	staged.authorizeLocked(auth, op.Session)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(staged)
 	if err = staged.Replace(&next); err != nil {

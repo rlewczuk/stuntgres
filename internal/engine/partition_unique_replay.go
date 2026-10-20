@@ -165,7 +165,7 @@ func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *O
 		return Result{}, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	stage.indexes().output = scope.output
 	for _, descriptor := range origin.descriptors {
 		stage.domainBases = append(stage.domainBases, descriptor)

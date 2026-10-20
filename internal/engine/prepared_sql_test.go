@@ -22,7 +22,7 @@ func TestPreparedParameterFormalSeed(t *testing.T) {
 	wide := testUsage(e, sqltype.Int8)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, nil)
+	b := newExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, nil)
 	seed := []sqltype.Usage{integer, text}
 	b.SeedParameters(seed)
 	node, err := b.Bind(parser.ParameterExpr{Number: 1, Pos: parser.Position{Character: 17}}, analyze.ExpressionPolicy{Context: analyze.FunctionArgumentContext, Expected: wide, Mode: sqltype.Assignment})
@@ -41,7 +41,7 @@ func TestPreparedParameterFormalSeed(t *testing.T) {
 		t.Fatal("mutated formal contract")
 	}
 	for _, number := range []int{2, 2147483647} {
-		b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, nil)
+		b := newExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, nil)
 		if _, err := b.Bind(parser.ParameterExpr{Number: number}, analyze.ExpressionPolicy{Context: analyze.ProjectionContext, Expected: integer}); err != nil {
 			t.Fatal(err)
 		}
@@ -54,7 +54,7 @@ func TestPreparedParameterFormalSeed(t *testing.T) {
 			t.Fatal("sparse index allocated intermediate slots")
 		}
 	}
-	b = newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, nil)
+	b = newExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, nil)
 	b.SeedParameters([]sqltype.Usage{{}})
 	if _, err := b.Finish(); err == nil {
 		t.Fatal("unused unknown declaration resolved")

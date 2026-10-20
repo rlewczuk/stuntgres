@@ -179,7 +179,7 @@ func TestCommitTimePublication(t *testing.T) {
 					barrier.checks.Store(1)
 				} else {
 					// With no indexes, both row paths have one final operation preflight.
-					op.ctx = barrier
+					op.Ctx = barrier
 					barrier.checks.Store(2)
 				}
 				if mode == "cancel_after" {

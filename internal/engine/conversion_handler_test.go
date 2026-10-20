@@ -53,7 +53,7 @@ func TestConversionHandlerEmptyProbePrecedence(t *testing.T) {
 	e.DiscardCatalogStage(stage)
 	before := e.CatalogRead()
 	ctx, cancel := context.WithCancel(context.Background())
-	canceled, err := op.session.Acquire(ctx)
+	canceled, err := op.Session.Acquire(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}

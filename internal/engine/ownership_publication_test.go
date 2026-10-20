@@ -63,7 +63,7 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				stage.authorizeLocked(auth, op.session)
+				stage.authorizeLocked(auth, op.Session)
 			}
 			if done != nil {
 				defer done()

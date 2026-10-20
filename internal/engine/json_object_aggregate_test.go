@@ -274,7 +274,7 @@ func TestJSONObjectAggregateInsertReachedCancellation(t *testing.T) {
 			cancel()
 			t.Fatal(err)
 		}
-		op.ctx = probe
+		op.Ctx = probe
 		scope, err := e.StartStatement(op)
 		if err != nil {
 			done()

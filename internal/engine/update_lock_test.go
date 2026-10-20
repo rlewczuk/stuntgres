@@ -100,7 +100,7 @@ func TestUpdateCoreImmediateGrantRecheck(t *testing.T) {
 			}
 			// The peer has committed and released the row before acquisition,
 			// but this complete executor still starts from its captured old view.
-			r, err := e.executeUpdate(op.ctx, scope, bound, source, nil, nil, "public")
+			r, err := e.executeUpdate(op.Ctx, scope, bound, source, nil, nil, "public")
 			want := int64(1)
 			if predicateChanged {
 				want = 0

@@ -115,7 +115,7 @@ func TestTimezoneSourceScopeRetainsClockAndSettings(t *testing.T) {
 	session := sessionStart(t, e, nil)
 	op := transactionOperation(t, session)
 	defer op.Done()
-	op.commandStart = time.Date(2024, 3, 10, 6, 59, 59, 0, time.UTC)
+	op.CommandStart = time.Date(2024, 3, 10, 6, 59, 59, 0, time.UTC)
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		t.Fatal(err)
@@ -125,7 +125,7 @@ func TestTimezoneSourceScopeRetainsClockAndSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer scope.Finish(nil)
-	op.commandStart = op.commandStart.Add(time.Second)
+	op.CommandStart = op.CommandStart.Add(time.Second)
 	session.settings.mu.Lock()
 	session.settings.typed["timezone_abbreviations"] = settings.Value{Text: "India", TimezoneAbbreviations: sqltype.TimezoneAbbreviationsIndia}
 	session.settings.mu.Unlock()

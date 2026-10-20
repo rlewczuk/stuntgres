@@ -27,9 +27,9 @@ func TestUpdateReturningCancellation(t *testing.T) {
 			base, cancel := context.WithCancel(op.Context())
 			defer cancel()
 			if wins {
-				op.ctx = &deleteCancelAfterCheck{Context: base, cancel: cancel, at: 2}
+				op.Ctx = &deleteCancelAfterCheck{Context: base, cancel: cancel, at: 2}
 			} else {
-				op.ctx = &cancelAtErrCheck{Context: base, cancel: cancel, at: 2}
+				op.Ctx = &cancelAtErrCheck{Context: base, cancel: cancel, at: 2}
 			}
 			err = scope.Finish(nil)
 			if wins {

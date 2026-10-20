@@ -18,7 +18,7 @@ func TestDriverBatchCurrentBudgetOriginalContext(t *testing.T) {
 	source := context.WithValue(context.Background(), batchContextKey{}, "caller")
 	m := batchUnitStart(t, s, source)
 	defer m.end(context.Canceled)
-	oldDeadline, oldCancel, command, stamp := m.op.statementDeadline, m.op.timerCancel, m.op.commandContext, m.scope.statementStart
+	oldDeadline, oldCancel, command, stamp := m.op.StatementDeadline, m.op.TimerCancel, m.op.CommandContext, m.scope.statementStart
 	if oldCancel == nil || oldDeadline.IsZero() {
 		t.Fatal("missing selected initial statement budget")
 	}
@@ -26,7 +26,7 @@ func TestDriverBatchCurrentBudgetOriginalContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	oldCancel()
-	if !errors.Is(m.op.ctx.Err(), context.Canceled) || command.Err() != nil {
+	if !errors.Is(m.op.Ctx.Err(), context.Canceled) || command.Err() != nil {
 		t.Fatal("statement timer canceled original command authority")
 	}
 	next, err := m.scope.NextStatement()
@@ -34,7 +34,7 @@ func TestDriverBatchCurrentBudgetOriginalContext(t *testing.T) {
 		t.Fatal("old timer leaked into suffix", err)
 	}
 	m.scope = next
-	if m.op.commandContext != command || m.op.sourceContext != source || m.op.ctx.Value(batchContextKey{}) != "caller" || !m.op.statementDeadline.After(oldDeadline) || m.scope.statementStart != stamp || m.op.ctx.Err() != nil || m.op.lockTimeout != 2*time.Hour {
+	if m.op.CommandContext != command || m.op.SourceContext != source || m.op.Ctx.Value(batchContextKey{}) != "caller" || !m.op.StatementDeadline.After(oldDeadline) || m.scope.statementStart != stamp || m.op.Ctx.Err() != nil || m.op.LockTimeout != 2*time.Hour {
 		t.Fatal("suffix budget/source/timestamp not refreshed")
 	}
 	if _, err = m.step(statement(t, "SET lock_timeout='3h'")); err != nil {
@@ -45,7 +45,7 @@ func TestDriverBatchCurrentBudgetOriginalContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.scope = next
-	if m.op.lockTimeout != 3*time.Hour || m.op.commandContext != command || m.op.sqlFinished {
+	if m.op.LockTimeout != 3*time.Hour || m.op.CommandContext != command || m.op.SQLFinished {
 		t.Fatal("current lock setting or SQL activity stale")
 	}
 	if _, err = m.step(statement(t, "SET statement_timeout=0")); err != nil {
@@ -56,7 +56,7 @@ func TestDriverBatchCurrentBudgetOriginalContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.scope = next
-	if m.op.timerCancel != nil || !m.op.statementDeadline.IsZero() || m.op.ctx != command {
+	if m.op.TimerCancel != nil || !m.op.StatementDeadline.IsZero() || m.op.Ctx != command {
 		t.Fatal("disabled timer retained preceding deadline")
 	}
 	if err = m.end(nil); err != nil {
@@ -81,7 +81,7 @@ func TestDriverBatchFreshSegmentBudgetAndNoIdle(t *testing.T) {
 	deadline := s.timeouts.transaction.deadline
 	idle := !s.timeouts.idle.deadline.IsZero()
 	s.mu.Unlock()
-	if deadline.IsZero() || idle || m.op.sqlFinished {
+	if deadline.IsZero() || idle || m.op.SQLFinished {
 		t.Fatal("retained prefix armed idle or lost transaction budget")
 	}
 	if _, err = m.step(statement(t, "COMMIT")); err != nil {
@@ -96,7 +96,7 @@ func TestDriverBatchFreshSegmentBudgetAndNoIdle(t *testing.T) {
 	later := s.timeouts.transaction.deadline
 	idle = !s.timeouts.idle.deadline.IsZero()
 	s.mu.Unlock()
-	if s.transactions.ref == ref || !s.transactions.start.After(start) || !later.After(deadline) || m.scope.statementStart != stamp || m.scope.transactionStart != s.transactions.start || idle || m.op.sqlFinished {
+	if s.transactions.ref == ref || !s.transactions.start.After(start) || !later.After(deadline) || m.scope.statementStart != stamp || m.scope.transactionStart != s.transactions.start || idle || m.op.SQLFinished {
 		t.Fatal("fresh segment reused prior birth/budget or message admission ended")
 	}
 	if err = m.end(nil); err != nil {

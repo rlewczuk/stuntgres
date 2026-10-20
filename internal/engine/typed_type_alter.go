@@ -49,7 +49,7 @@ func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
 	defer e.DiscardCatalogStage(stage)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	stage.dependencyPath = path
 	stage.domainBases = append(stage.domainBases, typ)
 	stage.typedState().Source = typ.Address()

@@ -85,13 +85,13 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 			return Result{}, err
 		}
 	}
-	n, notices, err := authorization.AttributeCandidate(op.Context(), v.Roles, v.State, actor, d, create, op.notices, op.noticeThreshold <= levelNotice, op.noticeThreshold <= levelWarning)
-	op.notices = notices
+	n, notices, err := authorization.AttributeCandidate(op.Context(), v.Roles, v.State, actor, d, create, op.Notices, op.NoticeThreshold <= levelNotice, op.NoticeThreshold <= levelWarning)
+	op.Notices = notices
 	if err != nil {
 		return Result{}, err
 	}
-	op.session.mu.Lock()
-	defer op.session.mu.Unlock()
+	op.Session.mu.Lock()
+	defer op.Session.mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}

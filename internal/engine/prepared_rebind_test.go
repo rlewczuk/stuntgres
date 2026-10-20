@@ -251,7 +251,7 @@ func TestPreparedRebindPublication(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			bound, err := describe(op.ctx, engine.analysisHost(op), ast, auth, ids.ObjectRef{}, input, expected, nil)
+			bound, err := describe(op.Ctx, engine.analysisHost(op), ast, auth, ids.ObjectRef{}, input, expected, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

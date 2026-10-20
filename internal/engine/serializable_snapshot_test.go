@@ -50,7 +50,7 @@ func serializableUnitCaptureWorker(t *testing.T, scope *StatementScope) func() e
 	joined := false
 	t.Cleanup(func() {
 		if !joined {
-			scope.op.session.RequestEnd(CleanClose)
+			scope.op.Session.RequestEnd(CleanClose)
 			select {
 			case <-done:
 			case <-time.After(5 * time.Second):
@@ -310,7 +310,7 @@ func TestSerializableSafeSnapshotTerminalSessionDrain(t *testing.T) {
 	scope, node := serializableUnitAcquisition(t, e, context.Background(), true, true)
 	join := serializableUnitCaptureWorker(t, scope)
 	serializableUnitAwaitCandidate(t, e, node)
-	session := scope.op.session
+	session := scope.op.Session
 	session.RequestEnd(CleanClose)
 	if err := join(); err == nil {
 		t.Fatal("terminal capture succeeded")

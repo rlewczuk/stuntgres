@@ -174,7 +174,7 @@ func stageOwnership(stage *CatalogStage, d catalog.Descriptor, target authorizat
 }
 func (e *Engine) ownershipStage(auth AuthorizationView, op *Operation) *CatalogStage {
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	return stage
 }
 func (e *Engine) publishOwnership(scope *StatementScope, stage *CatalogStage) (Result, error) {
@@ -212,7 +212,7 @@ func (e *Engine) executeRelationOwnership(scope *StatementScope, name parser.Obj
 	if ifExists && renameMissing(err) {
 		e.mu.Unlock()
 		scope.completed = true
-		scope.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, name.Parts[len(name.Parts)-1].Text)})
+		scope.op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, name.Parts[len(name.Parts)-1].Text)})
 		return Result{}, scope.op.Context().Err()
 	}
 	if err != nil {

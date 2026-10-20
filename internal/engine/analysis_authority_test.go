@@ -62,7 +62,7 @@ func TestBindingAuthorityOverlaysOperationDefinition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := authorizationOf(fresh); got.State.CurrentUser != current.State.CurrentUser || got.Catalog.Epoch() != current.Catalog.Epoch() || got.definition != op.definition {
+	if got := authorizationOf(fresh); got.State.CurrentUser != current.State.CurrentUser || got.Catalog.Epoch() != current.Catalog.Epoch() || got.definition != op.Definition {
 		t.Fatalf("fresh binding authority = %+v, want the operation's current authority", got.State)
 	}
 
@@ -70,7 +70,7 @@ func TestBindingAuthorityOverlaysOperationDefinition(t *testing.T) {
 	base := current
 	base.definition = own
 	raw := analyze.Authority(&base)
-	op.definition = nil
+	op.Definition = nil
 	if got, _ := host.BindingAuthority(raw); got != raw {
 		t.Fatal("without an operation definition the stored authority is not returned as it is")
 	}
@@ -81,8 +81,8 @@ func TestBindingAuthorityOverlaysOperationDefinition(t *testing.T) {
 		t.Fatalf("BindingDefinition(nil) = %v, want none", got)
 	}
 
-	op.definition = opReader
-	defer func() { op.definition = nil }()
+	op.Definition = opReader
+	defer func() { op.Definition = nil }()
 	overlay, err := host.BindingAuthority(raw)
 	if err != nil || overlay == raw {
 		t.Fatal("a set operation definition does not overlay the stored authority", err)

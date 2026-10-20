@@ -26,10 +26,10 @@ func TestProtocolCopyInputContext(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer op.Done()
-		original, originalSource := op.ctx, op.sourceContext
-		op.copyInput.active.Store(true)
-		op.copyInput.decoding.Store(true)
-		defer op.stopCopyInput()
+		original, originalSource := op.Ctx, op.SourceContext
+		op.CopyInput.active.Store(true)
+		op.CopyInput.decoding.Store(true)
+		defer op.StopCopyInput()
 		before := op.Context()
 		cause := &sqlstate.Error{Code: "57014", Message: "canceling statement due to user request"}
 		cancel(cause)
@@ -62,15 +62,15 @@ func TestProtocolCopyInputContext(t *testing.T) {
 		if err != nil || integer != 1 {
 			t.Fatal("pending SQL cancellation changed the converted value", integer, err)
 		}
-		if err := op.pendingCopyInputError(); err != context.Canceled {
+		if err := op.PendingCopyInputError(); err != context.Canceled {
 			t.Fatal("successful conversion lost pending cancellation", err)
 		}
-		op.copyInput.decoding.Store(false)
+		op.CopyInput.decoding.Store(false)
 		if !errors.Is(e.validateOperation(op), context.Canceled) || op.Context().Err() != context.Canceled {
 			t.Fatal("input cancellation hold escaped decoder into assembly")
 		}
-		op.stopCopyInput()
-		if op.ctx != original || op.sourceContext != originalSource || !errors.Is(e.validateOperation(op), context.Canceled) || cause.Context != "" {
+		op.StopCopyInput()
+		if op.Ctx != original || op.SourceContext != originalSource || !errors.Is(e.validateOperation(op), context.Canceled) || cause.Context != "" {
 			t.Fatal("input hold changed source authority or leaked past its lifetime")
 		}
 	})
@@ -84,9 +84,9 @@ func TestProtocolCopyInputContext(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer op.Done()
-		op.copyInput.active.Store(true)
-		op.copyInput.decoding.Store(true)
-		defer op.stopCopyInput()
+		op.CopyInput.active.Store(true)
+		op.CopyInput.decoding.Store(true)
+		defer op.StopCopyInput()
 		cause := &sqlstate.Error{Code: "57014", Message: "canceling statement due to user request"}
 		cancel(cause)
 		input := op.Context()
@@ -96,7 +96,7 @@ func TestProtocolCopyInputContext(t *testing.T) {
 		default:
 			t.Fatal("session ending did not cancel held input before lease drain")
 		}
-		if input.Err() != context.Canceled || context.Cause(op.ctx) != cause || session.Check(context.Background()) == nil {
+		if input.Err() != context.Canceled || context.Cause(op.Ctx) != cause || session.Check(context.Background()) == nil {
 			t.Fatal("terminal input cancellation changed original cause or hid ending")
 		}
 	})
@@ -110,8 +110,8 @@ func TestProtocolCopyInputContext(t *testing.T) {
 				cancel(nil)
 				t.Fatal(err)
 			}
-			op.copyInput.active.Store(true)
-			op.copyInput.decoding.Store(true)
+			op.CopyInput.active.Store(true)
+			op.CopyInput.decoding.Store(true)
 			cancel(cause)
 			input := op.Context()
 			_, err = testUsage(e, sqltype.Int4).Type.InputWithEnvironment(input, "bad", -1, sqltype.InputEnvironment{})
@@ -127,7 +127,7 @@ func TestProtocolCopyInputContext(t *testing.T) {
 			} else if mapped != context.Canceled {
 				t.Error("ordinary Go cancellation changed identity during input", mapped)
 			}
-			op.stopCopyInput()
+			op.StopCopyInput()
 			op.Done()
 			cancel(nil)
 		}
@@ -173,7 +173,7 @@ func TestProtocolCopyStartCancellation(t *testing.T) {
 				if count != 0 || !errors.As(err, &diagnostic) || *diagnostic != want {
 					t.Fatalf("COPY start cancellation = count %d, error %#v (%v), want %#v; finish %v", count, diagnostic, err, want, finishErr)
 				}
-				if op.copyInput.active.Load() || op.copyInput.decoding.Load() || cause.Context != "" {
+				if op.CopyInput.active.Load() || op.CopyInput.decoding.Load() || cause.Context != "" {
 					t.Fatal("COPY input hold or owned diagnostic escaped its invocation")
 				}
 			})

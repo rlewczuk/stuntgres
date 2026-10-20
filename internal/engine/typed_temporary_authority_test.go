@@ -25,7 +25,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 					before := e.CatalogRead()
 					oldType := before.MustType(observed)
 					oldBacking := before.Get(source.OwningRelation)
-					roles, sessionRevision := e.roles.published.Revision, reader.session.authorization.revision
+					roles, sessionRevision := e.roles.published.Revision, reader.Session.authorization.revision
 					explicit := mode == "explicit_temporary"
 					if explicit {
 						roleExecute(t, e, reader, "BEGIN")
@@ -76,7 +76,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 					}
 					current := e.CatalogRead()
 					changed := current.MustType(observed)
-					if current.State() != winner || current.Epoch() != before.Epoch() || changed.SQLType != oldType.SQLType || current.Get(source.OwningRelation) != oldBacking || e.roles.published.Revision != roles || reader.session.authorization.revision != sessionRevision || reflect.DeepEqual(changed.ACL, oldType.ACL) {
+					if current.State() != winner || current.Epoch() != before.Epoch() || changed.SQLType != oldType.SQLType || current.Get(source.OwningRelation) != oldBacking || e.roles.published.Revision != roles || reader.Session.authorization.revision != sessionRevision || reflect.DeepEqual(changed.ACL, oldType.ACL) {
 						t.Error("rejected CREATE did not retain descriptor-only ACL winner atomically")
 					}
 					for _, d := range current.Descriptors() {
@@ -92,7 +92,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 						}
 					}
 					if explicit {
-						if reader.session.transactions.state != TxAborted || reader.session.transactions.catalog != nil {
+						if reader.Session.transactions.state != TxAborted || reader.Session.transactions.catalog != nil {
 							t.Error("failed admitted statement did not follow existing abort/overlay cleanup")
 						}
 						roleExecute(t, e, reader, "ROLLBACK")
@@ -144,7 +144,7 @@ func TestTypedPublicationTemporaryAuthorityExpiresAtFinish(t *testing.T) {
 	roleExecute(t, e, reader, "BEGIN")
 	defer roleExecute(t, e, reader, "ROLLBACK")
 	roleExecute(t, e, reader, "CREATE TEMP TABLE late OF pair")
-	private := reader.session.transactions.catalog
+	private := reader.Session.transactions.catalog
 	var relation *catalog.Relation
 	for _, d := range private.Descriptors {
 		if table, ok := d.(*catalog.Relation); ok && table.Name() == "late" {

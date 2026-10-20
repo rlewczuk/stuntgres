@@ -72,8 +72,8 @@ func truncateOtherTemporary(catalog catalog.Read, relation *catalog.Relation, to
 // their own ACL, even when an earlier inheritance expansion already selected them.
 func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 	e := s.engine()
-	if !s.op.commandAdmission {
-		s.op.snapshotNoticeThreshold()
+	if !s.op.CommandAdmission {
+		s.op.SnapshotNoticeThreshold()
 	}
 	selected := make(map[ids.ObjectAddress]int)
 	s.truncate().selected = selected
@@ -96,12 +96,12 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 					err = ids.ErrCatalogReplaced
 				} else {
 					if !privilege {
-						otherTemporary, err = truncateOtherTemporary(auth.Catalog, before, s.op.session.token)
+						otherTemporary, err = truncateOtherTemporary(auth.Catalog, before, s.op.Session.token)
 					}
 					if err == nil && !otherTemporary {
 						err = checkTruncate(auth, ref, before, privilege && !cascade, only)
 						if err == nil && privilege {
-							err = checkTemporaryStorageAccess(auth.Catalog, before, s.op.session.token)
+							err = checkTemporaryStorageAccess(auth.Catalog, before, s.op.Session.token)
 						}
 						if err == nil {
 							store = e.privateStorageLocked(s.owner.catalog, ref.Address)
@@ -123,7 +123,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 				return err
 			}
 		}
-		policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+		policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
 		request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive, policy)
 		waited := request != nil
 		if waited {
@@ -152,14 +152,14 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 				err = e.truncateNameCurrent(auth, *name)
 			}
 			if err == nil && !privilege {
-				otherTemporary, err = truncateOtherTemporary(auth.Catalog, d, s.op.session.token)
+				otherTemporary, err = truncateOtherTemporary(auth.Catalog, d, s.op.Session.token)
 				if err == nil && otherTemporary {
 					err = ids.ErrCatalogReplaced
 				}
 			}
 			if err == nil && cascade {
 				// Records are detached to the adapter later; this invokes no user callback.
-				s.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf("truncate cascades to table %q", d.Name())})
+				s.op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf("truncate cascades to table %q", d.Name())})
 			}
 			if err == nil {
 				err = checkTruncate(auth, ref, d, privilege, only)
@@ -168,7 +168,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 				err = s.relationCursorPreflight(auth.Catalog, ref.Address, "TRUNCATE")
 			}
 			if err == nil {
-				if namespace, ok := auth.Catalog.Namespace(d.Namespace()); ok && namespace.Temporary == s.op.session.token {
+				if namespace, ok := auth.Catalog.Namespace(d.Namespace()); ok && namespace.Temporary == s.op.Session.token {
 					s.owner.accessedTemporary = true
 				}
 				if index := selected[ref.Address]; index == 0 {

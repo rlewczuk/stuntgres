@@ -90,7 +90,7 @@ func TestInsertSelectStaleEpoch(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal(err)
 			}
-			b, err := describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
+			b, err := describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 			if err != nil {
 				e.mu.Unlock()
 				t.Fatal(err)
@@ -101,7 +101,7 @@ func TestInsertSelectStaleEpoch(t *testing.T) {
 				t.Fatal(err)
 			}
 			e.mu.Unlock()
-			source, err := captureQuerySource(op.ctx, view, b.QuerySources[0].Ref)
+			source, err := captureQuerySource(op.Ctx, view, b.QuerySources[0].Ref)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -123,7 +123,7 @@ func TestInsertSelectStaleEpoch(t *testing.T) {
 				}
 				return original.Eval(c)
 			})
-			rows, err := evaluateInsertQuery(op.ctx, b, source, nil, "public", scope.input, scope.output, scope)
+			rows, err := evaluateInsertQuery(op.Ctx, b, source, nil, "public", scope.input, scope.output, scope)
 			if err != nil || len(rows.values) != 2 || calls != 2 || source.View != nil {
 				t.Fatal(rows, err, calls, source.View)
 			}

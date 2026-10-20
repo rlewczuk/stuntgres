@@ -121,7 +121,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		if err = e.captureCommentSnapshotLocked(s); err == nil {
 			collectAuth := s.inquiry.deparseAuth
 			collectAuth.Recapture(catalogView)
-			physical, err = e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, leaves, nil, s.op.session.token, plan.RowMark{})
+			physical, err = e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, leaves, nil, s.op.Session.token, plan.RowMark{})
 		}
 		if err == nil {
 			var view *visibility.View
@@ -168,7 +168,7 @@ func (s *StatementScope) acquireBoundViewRelations(refs []ids.ObjectRef) error {
 func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, modes map[ids.ObjectRef]lock.Mode) error {
 	e := s.engine()
 	sort.Slice(refs, func(i, j int) bool { return refs[i].Address.ObjectID < refs[j].Address.ObjectID })
-	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
 	for _, ref := range refs {
 		e.mu.Lock()
 		d, _ := e.privateCatalogLocked(s.owner.catalog).Relation(ref.Address)
@@ -206,7 +206,7 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, mod
 		e.mu.Lock()
 		current, exists := e.privateCatalogLocked(s.owner.catalog).Find(ref.Address)
 		valid := ref.Domain() == e.catalog.Domain && ref.Epoch == e.catalog.state.Epoch() && exists
-		if valid && d != nil && preparedDefinitionStamp(current, s.op.session) != preparedDefinitionStamp(d, s.op.session) {
+		if valid && d != nil && preparedDefinitionStamp(current, s.op.Session) != preparedDefinitionStamp(d, s.op.Session) {
 			s.prepared.changedDuringAdmission = true
 		}
 		e.mu.Unlock()

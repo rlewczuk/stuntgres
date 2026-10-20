@@ -139,10 +139,10 @@ func TestTemporaryRelationRetainedProvenance(t *testing.T) {
 		t.Fatal("future incarnation accepted")
 	}
 	foreign := *advanced.MustNamespace(table.Namespace())
-	foreign.Temporary = e.catalog.Domain.Session(op.session.token.ID() + 1)
+	foreign.Temporary = e.catalog.Domain.Session(op.Session.token.ID() + 1)
 	consumer := *table
 	consumer.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20002}
-	advanced.SetDescriptor(consumer.Namespace(), &catalog.Namespace{ObjectAddress: consumer.Namespace(), Temporary: op.session.token})
+	advanced.SetDescriptor(consumer.Namespace(), &catalog.Namespace{ObjectAddress: consumer.Namespace(), Temporary: op.Session.token})
 	advanced.SetDescriptor(table.Namespace(), &foreign)
 	if storedReferenceEpochValid(retained, &consumer, old) {
 		t.Fatal("peer provenance accepted")
@@ -167,7 +167,7 @@ func TestTemporaryTableCanceledPublication(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(op.Context())
 	cancel()
-	op.ctx = ctx
+	op.Ctx = ctx
 	original := e.catalog.state
 	writes := map[ids.ObjectAddress][]storage.RowVersion{table.Address(): {{Row: 1, Version: 1, Values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}}
 	err = e.publishRows(op, scope.txRef, writes, nil, c, nil, nil)
@@ -194,7 +194,7 @@ func TestTemporaryTableStagedNamespaceAuthority(t *testing.T) {
 	if err != nil || ref.Address != table.Namespace() || temporaryNamespace(auth) != table.Namespace() {
 		t.Fatal("owned stage namespace unresolved", err)
 	}
-	if op.session.temporaryNamespace != (ids.ObjectAddress{}) || op.session.transactions.catalog != nil {
+	if op.Session.temporaryNamespace != (ids.ObjectAddress{}) || op.Session.transactions.catalog != nil {
 		t.Fatal("stage namespace published before CREATE success")
 	}
 	auth.stagedTemporary = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}

@@ -23,7 +23,7 @@ func schemaReserved(name string) error {
 	return nil
 }
 func schemaNotice(op *Operation, code, message string) {
-	op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: code, Message: message})
+	op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: code, Message: message})
 }
 
 // Non-table creation and namespace moves retain their TEMP capability boundary.
@@ -50,7 +50,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 	_, stagedExists := stage.NameBinding(key)
 	if baseExists || stagedExists {
 		if s.IfNotExists {
-			op.existingRelationNotice(name)
+			op.ExistingRelationNotice(name)
 			return nil
 		}
 		return sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
@@ -178,7 +178,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 			}
 			d.Columns[i].Usage = usage
 			if warning != nil {
-				op.emitNotice(levelWarning, *warning)
+				op.EmitNotice(levelWarning, *warning)
 			}
 		}
 	}
@@ -316,8 +316,8 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	if err == nil {
 		for _, descriptor := range stage.Descriptors() {
-			if ns, ok := descriptor.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == op.session.token {
-				op.session.temporaryNamespace = ns.Address()
+			if ns, ok := descriptor.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == op.Session.token {
+				op.Session.temporaryNamespace = ns.Address()
 			}
 		}
 		if cascade {
@@ -329,7 +329,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 					message = fmt.Sprintf("drop cascades to %d other objects", len(details))
 					detail = strings.Join(details, "\n")
 				}
-				op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
+				op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message, Detail: detail})
 			}
 		}
 	}
@@ -351,7 +351,7 @@ func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input s
 		return nil, err
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	databaseGate := func() error {
 		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), catalog.CurrentDatabaseAddress)
 		rights, err := auth.Effective(ref, false)

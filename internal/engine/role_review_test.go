@@ -575,7 +575,7 @@ func TestRoleCatalogPublicationAuthorityFenceAndRecovery(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("catalog publication did not release lifecycle/authority locks")
 		}
-		if found := e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "fenced_role"}); len(found) != 0 || op.session.TransactionState() != TxIdle {
+		if found := e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "fenced_role"}); len(found) != 0 || op.Session.TransactionState() != TxIdle {
 			t.Fatal("failed publication leaked table or transaction", found)
 		}
 		roleIdentity(t, e, op, "publisher")
@@ -599,10 +599,10 @@ func TestRoleUtilityInstallCompletion(t *testing.T) {
 			if query == "RESET SESSION AUTHORIZATION" {
 				roleExecute(t, e, op, "SET SESSION AUTHORIZATION selected")
 			}
-			ctx, cancel := context.WithCancel(op.ctx)
+			ctx, cancel := context.WithCancel(op.Ctx)
 			defer cancel()
-			original := op.ctx
-			op.ctx = ctx
+			original := op.Ctx
+			op.Ctx = ctx
 			scope, err := e.StartStatement(op)
 			if err != nil {
 				t.Fatal(err)
@@ -614,8 +614,8 @@ func TestRoleUtilityInstallCompletion(t *testing.T) {
 			}
 			cancel() // Successful utility installation cannot be retracted by Finish.
 			err = scope.Finish(nil)
-			op.ctx = original
-			if err != nil || op.session.TransactionState() != TxIdle {
+			op.Ctx = original
+			if err != nil || op.Session.TransactionState() != TxIdle {
 				t.Fatal("post-install cancellation retracted success", err)
 			}
 			switch query {

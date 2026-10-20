@@ -775,9 +775,9 @@ func partitionConstraintAttachStage(t *testing.T, e *Engine, op *Operation) *Cat
 	child := base.MustRelation(roleTableRef(t, e, "child_idx").Address)
 	stage.indexes().parents = map[ids.ObjectAddress]*catalog.Relation{parent.SQLIndex.Parent: base.MustRelation(parent.SQLIndex.Parent), child.SQLIndex.Parent: base.MustRelation(child.SQLIndex.Parent)}
 	stage.domainBases = []catalog.Descriptor{parent, child}
-	op.session.mu.Lock()
-	stage.authSession, stage.authRevision = op.session, op.session.authorization.revision
-	op.session.mu.Unlock()
+	op.Session.mu.Lock()
+	stage.authSession, stage.authRevision = op.Session, op.Session.authorization.revision
+	op.Session.mu.Unlock()
 	e.mu.Lock()
 	stage.roleRevision = e.roles.published.Revision
 	err := e.stagePartitionIndexAttach(op, stage, parent, child)
@@ -1174,9 +1174,9 @@ func partitionConstraintDropPublicationStage(t *testing.T, key bool) (*Engine, *
 		stage.domainBases = append(stage.domainBases, index)
 		stage.indexes().parents[index.SQLIndex.Parent] = base.MustRelation(index.SQLIndex.Parent)
 	}
-	op.session.mu.Lock()
-	stage.authSession, stage.authRevision = op.session, op.session.authorization.revision
-	op.session.mu.Unlock()
+	op.Session.mu.Lock()
+	stage.authSession, stage.authRevision = op.Session, op.Session.authorization.revision
+	op.Session.mu.Unlock()
 	e.mu.Lock()
 	stage.roleRevision = e.roles.published.Revision
 	e.mu.Unlock()

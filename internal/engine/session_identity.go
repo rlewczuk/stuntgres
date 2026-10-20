@@ -74,7 +74,7 @@ func (s *StatementScope) captureIdentityLocked(auth AuthorizationView) error {
 		return err
 	}
 	session, sessionExists := auth.Roles.Find(auth.State.SessionUser)
-	s.identity = exec.IdentitySnapshot{Database: sqltype.String(name, s.op.session.databaseName), System: sqltype.Null(text), CurrentPrincipal: auth.State.CurrentUser}
+	s.identity = exec.IdentitySnapshot{Database: sqltype.String(name, s.op.Session.databaseName), System: sqltype.Null(text), CurrentPrincipal: auth.State.CurrentUser}
 	if sessionExists {
 		s.identity.Session = sqltype.String(name, session.Name)
 	} else {

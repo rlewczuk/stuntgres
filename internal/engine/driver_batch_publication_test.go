@@ -65,11 +65,11 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 			state, frontier := e.catalog.state, e.visibility.CommitSeq()
 			switch boundary {
 			case "cancel_before", "cancel_after":
-				barrier := &batchPublicationContext{Context: m.op.ctx, e: e, s: s, entered: make(chan struct{}), release: make(chan struct{})}
+				barrier := &batchPublicationContext{Context: m.op.Ctx, e: e, s: s, entered: make(chan struct{}), release: make(chan struct{})}
 				if boundary == "cancel_after" {
 					barrier.late = cancel
 				}
-				m.op.ctx = barrier
+				m.op.Ctx = barrier
 				var release sync.Once
 				unblock := func() { release.Do(func() { close(barrier.release) }) }
 				done := make(chan struct{})

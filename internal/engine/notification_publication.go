@@ -25,13 +25,13 @@ func notificationEffects(op *Operation, ref ids.TxRef, phase *preparedPublicatio
 	if phase != nil && !phase.preparing {
 		return nil, nil, nil
 	}
-	if op == nil || op.self != op || op.session == nil || op.session.transactions == nil ||
-		txOwnerOf(ref) != op.session.transactions {
+	if op == nil || op.Self != op || op.Session == nil || op.Session.transactions == nil ||
+		txOwnerOf(ref) != op.Session.transactions {
 		return nil, nil, errors.New("stuntgres: foreign notification transaction")
 	}
 	// The caller holds this session's transaction admission. Validate against
 	// that owner, never against an owner reached through an untrusted old ref.
-	owner := op.session.transactions
+	owner := op.Session.transactions
 	if err := owner.validate(ref); err != nil {
 		return nil, nil, err
 	}

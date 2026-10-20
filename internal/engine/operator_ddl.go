@@ -198,7 +198,7 @@ func operatorOptionsSyntax(op *Operation, options []parser.OperatorOption, alter
 			if alter {
 				return sqlError("42601", message)
 			}
-			op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "42601", Message: message})
+			op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "42601", Message: message})
 		}
 	}
 	return nil

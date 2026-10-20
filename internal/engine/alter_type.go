@@ -59,7 +59,7 @@ func (e *Engine) stageAlterIdentityTypes(scope *StatementScope, op *Operation, a
 					stage = scope.inheritance.alter.stage
 				} else {
 					stage = e.BeginCatalogStage(auth.Catalog)
-					stage.authorizeLocked(auth, op.session)
+					stage.authorizeLocked(auth, op.Session)
 				}
 			}
 			if err := e.alterIdentityTypeSequence(scope, stage, original, attribute, identity.Sequence, prepared[index].usage); err != nil {

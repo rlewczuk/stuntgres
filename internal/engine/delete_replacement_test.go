@@ -66,7 +66,7 @@ func TestDeleteCoreReplacementImmediateAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	probe := &deleteAdmissionContext{Context: op.Context(), engine: e}
-	op.ctx = probe
+	op.Ctx = probe
 	result, err := scope.Execute(stmt, 0, nil)
 	if err != nil || result.Count != 2 || result.Rows != nil || !scope.replacementRead {
 		t.Fatal("immediate DELETE failed", result, err)

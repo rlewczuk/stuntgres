@@ -45,7 +45,7 @@ func TestPreparedSQLActualNoSnapshotDemand(t *testing.T) {
 			}
 			formal := analyze.ParameterInfo{Count: 1, Types: []sqltype.Usage{testUsage(e, tc.formal)}}
 			frame := make([]sqltype.Value, 1)
-			err = scope.sqlExecuteImporter(&parser.ExecuteSQL{Name: parser.Identifier{Text: "p"}, Arguments: []parser.Expr{tc.actual}}, false)(op.ctx, formal, frame, scope.input)
+			err = scope.sqlExecuteImporter(&parser.ExecuteSQL{Name: parser.Identifier{Text: "p"}, Arguments: []parser.Expr{tc.actual}}, false)(op.Ctx, formal, frame, scope.input)
 			if !e.mu.TryLock() {
 				t.Fatal("SQL actual importer retained engine mutex")
 			}

@@ -176,7 +176,7 @@ func stagePreparedUsingIndex(op *Operation, stage *CatalogStage, parent *catalog
 		return nil, ids.ErrCatalogReplaced
 	}
 	if prepared.notice.Code != "" {
-		op.emitNotice(levelNotice, prepared.notice)
+		op.EmitNotice(levelNotice, prepared.notice)
 	}
 	if prepared.err != nil {
 		return nil, prepared.err

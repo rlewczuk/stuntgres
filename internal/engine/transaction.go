@@ -96,7 +96,7 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState, 
 	if t.next == ids.TxID(^uint64(0)) {
 		return errors.New("stuntgres: transaction identity exhausted")
 	}
-	session := op.session
+	session := op.Session
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	settings := session.settings
@@ -140,7 +140,7 @@ func (e *Engine) Begin(op *Operation, options TxOptions) (ids.TxRef, error) {
 	if err := e.transactionAdmission(op); err != nil {
 		return ids.TxRef{}, err
 	}
-	t := op.session.transactions
+	t := op.Session.transactions
 	if err := t.acquireAdmission(op.Context(), op); err != nil {
 		return ids.TxRef{}, err
 	}
@@ -165,7 +165,7 @@ func (e *Engine) Rollback(op *Operation, ref ids.TxRef) (EndResult, error) {
 	if err := e.transactionAdmission(op); err != nil {
 		return EndResult{}, err
 	}
-	t := op.session.transactions
+	t := op.Session.transactions
 	if err := t.acquireAdmission(op.Context(), op); err != nil {
 		return EndResult{}, err
 	}
@@ -182,7 +182,7 @@ func (e *Engine) Commit(op *Operation, ref ids.TxRef) (EndResult, error) {
 	if admissionErr != nil && !errors.Is(admissionErr, context.Canceled) && !errors.Is(admissionErr, context.DeadlineExceeded) {
 		return EndResult{}, admissionErr
 	}
-	t := op.session.transactions
+	t := op.Session.transactions
 	if err := t.acquireAdmission(op.Context(), op); err != nil {
 		return EndResult{}, err
 	}
@@ -287,7 +287,7 @@ func (e *Engine) StartStatement(op *Operation) (*StatementScope, error) {
 	if err := e.transactionAdmission(op); err != nil {
 		return nil, err
 	}
-	t := op.session.transactions
+	t := op.Session.transactions
 	if err := t.acquireAdmission(op.Context(), op); err != nil {
 		return nil, err
 	}
@@ -306,8 +306,8 @@ func newStatementScope(op *Operation, owner *transactionOwner, start time.Time) 
 	s.lease.Statement = s
 	s.stage.scope = s
 	s.stage.self = &s.stage
-	s.input, s.output = sessionPresentation(op.session)
-	settings := op.session.settings
+	s.input, s.output = sessionPresentation(op.Session)
+	settings := op.Session.settings
 	settings.mu.Lock()
 	s.rowSecurity = settings.value("row_security") == "on"
 	settings.mu.Unlock()
@@ -315,8 +315,8 @@ func newStatementScope(op *Operation, owner *transactionOwner, start time.Time) 
 }
 
 func statementOperationStart(op *Operation) time.Time {
-	if op != nil && !op.commandStart.IsZero() {
-		return op.commandStart
+	if op != nil && !op.CommandStart.IsZero() {
+		return op.CommandStart
 	}
 	return time.Now().UTC().Truncate(time.Microsecond)
 }
@@ -719,7 +719,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 				return Result{}, importErr
 			}
 		}
-		entry := payloadOf(s.op.session).preparedSQL.entries[execute.Name.Text]
+		entry := payloadOf(s.op.Session).preparedSQL.entries[execute.Name.Text]
 		if entry == nil {
 			// Establish the ordinary failed-command transaction boundary too.
 			if err := s.gate(stmt); err != nil {

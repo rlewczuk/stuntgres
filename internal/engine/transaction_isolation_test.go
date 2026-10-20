@@ -183,7 +183,7 @@ func TestTransactionIsolationStatementTimeout(t *testing.T) {
 	})
 	request := timeoutPendingRequest(t, e, op)
 	rowLockQueued(t, e, b.transactions.ticket, lock.ForNoKeyUpdate)
-	timeoutPendingPublish(t, e, request, op.statementDeadline)
+	timeoutPendingPublish(t, e, request, op.StatementDeadline)
 	select {
 	case err := <-done:
 		waitsDiagnostic(t, err, "57014", "canceling statement due to statement timeout")

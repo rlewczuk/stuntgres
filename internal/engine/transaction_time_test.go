@@ -229,7 +229,7 @@ func TestTransactionTimeCommandOwnership(t *testing.T) {
 	op := transactionOperation(t, session)
 	defer op.Done()
 	fixed := time.Date(2000, 1, 1, 12, 0, 0, 123456000, time.UTC)
-	op.commandStart = fixed
+	op.CommandStart = fixed
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		t.Fatal(err)
@@ -247,7 +247,7 @@ func TestTransactionTimeCommandOwnership(t *testing.T) {
 	if !session.transactions.start.IsZero() {
 		t.Error("ended transaction retained clock")
 	}
-	op.commandStart = time.Time{}
+	op.CommandStart = time.Time{}
 	scope, err = e.StartStatement(op)
 	if err != nil {
 		t.Fatal(err)
@@ -265,10 +265,10 @@ func TestTransactionTimeCommandOwnership(t *testing.T) {
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal(err)
 	}
-	if !second.After(first) || !op.commandStart.IsZero() {
+	if !second.After(first) || !op.CommandStart.IsZero() {
 		t.Error("generic operation latched statement clock", first, second)
 	}
-	op.commandStart = fixed
+	op.CommandStart = fixed
 	scope, err = e.StartStatement(op)
 	if err != nil {
 		t.Fatal(err)
@@ -280,7 +280,7 @@ func TestTransactionTimeCommandOwnership(t *testing.T) {
 	if !session.transactions.start.Equal(fixed) {
 		t.Error("SQL BEGIN discarded command clock")
 	}
-	op.commandStart = fixed.Add(time.Second)
+	op.CommandStart = fixed.Add(time.Second)
 	scope, err = e.StartStatement(op)
 	if err != nil {
 		t.Fatal(err)
@@ -303,7 +303,7 @@ func TestTransactionTimeCommandOwnership(t *testing.T) {
 	if err := scope.Finish(err); err != nil {
 		t.Fatal(err)
 	}
-	if !session.transactions.start.Equal(op.commandStart) {
+	if !session.transactions.start.Equal(op.CommandStart) {
 		t.Error("CHAIN discarded command clock")
 	}
 	transactionEnd(t, session, session.transactions.ref, false)
@@ -357,8 +357,8 @@ func TestTransactionTimeAdmissionWait(t *testing.T) {
 		t.Fatal(result.err)
 	}
 	defer result.op.Done()
-	if !result.op.commandStart.Before(separation) || result.op.commandStart.Nanosecond()%1000 != 0 {
-		t.Error("command sampled after settings wait", result.op.commandStart, separation)
+	if !result.op.CommandStart.Before(separation) || result.op.CommandStart.Nanosecond()%1000 != 0 {
+		t.Error("command sampled after settings wait", result.op.CommandStart, separation)
 	}
 	scope, err := e.StartStatement(result.op)
 	if err != nil {
@@ -368,7 +368,7 @@ func TestTransactionTimeAdmissionWait(t *testing.T) {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	if !scope.input.TransactionStart.Equal(result.op.commandStart) || !scope.statementStart.Equal(result.op.commandStart) {
+	if !scope.input.TransactionStart.Equal(result.op.CommandStart) || !scope.statementStart.Equal(result.op.CommandStart) {
 		t.Error("sample not transferred to implicit birth")
 	}
 	if err := scope.Finish(nil); err != nil {

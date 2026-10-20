@@ -222,8 +222,8 @@ func TestPGNamespaceTemporaryViewCreationAuthority(t *testing.T) {
 	roleExecute(t, e, op, "CREATE ROLE namespace_view_creator")
 	roleExecute(t, e, op, "SET ROLE namespace_view_creator")
 	roleExecute(t, e, op, "CREATE TEMP VIEW owned_temp AS SELECT 1 AS v")
-	namespace := op.session.temporaryNamespace
-	assertTemporaryNamespacePair(t, e, op.session.token, namespace)
+	namespace := op.Session.temporaryNamespace
+	assertTemporaryNamespacePair(t, e, op.Session.token, namespace)
 	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "owned_temp"})
 	view, ok := e.catalog.state.Relation(address)
 	if !ok || view.Owner != e.Roles().LookupRef("namespace_view_creator") || view.Namespace() != namespace || view.RelationKind != catalog.ViewRelation || view.View == nil {
@@ -231,5 +231,5 @@ func TestPGNamespaceTemporaryViewCreationAuthority(t *testing.T) {
 	}
 	roleExecute(t, e, op, "SELECT v FROM owned_temp")
 	roleExecute(t, e, op, "DROP VIEW owned_temp")
-	assertTemporaryNamespacePair(t, e, op.session.token, namespace)
+	assertTemporaryNamespacePair(t, e, op.Session.token, namespace)
 }

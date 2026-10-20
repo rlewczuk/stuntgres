@@ -29,7 +29,7 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 	}
 	roleExecute(t, e, installer, "CREATE TEMP TABLE ext_peer_keep(id INT)")
 	roleExecute(t, e, installer, "INSERT INTO ext_peer_keep VALUES(77)")
-	peerNamespace := e.catalog.state.Get(installer.session.temporaryNamespace)
+	peerNamespace := e.catalog.state.Get(installer.Session.temporaryNamespace)
 	peerTable := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: peerNamespace.Address(), Name: "ext_peer_keep"})
 	peerDescriptor, peerStore := e.catalog.state.Get(peerTable), e.storage.Relations[peerTable]
 	store := e.storage.Relations[survivor.Address()]
@@ -121,7 +121,7 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 	}
 	e.catalog.Providers[ids.RelationClassID] = provider
 	endCtx, cancelEnd := context.WithTimeout(context.Background(), 5*time.Second)
-	endErr := owner.session.WaitEnd(endCtx)
+	endErr := owner.Session.WaitEnd(endCtx)
 	cancelEnd()
 	if endErr != nil {
 		t.Error("actual stale retirement failed instead of recapturing", endErr)
@@ -142,7 +142,7 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 	if e.catalog.state.Get(peerNamespace.Address()) != peerNamespace || e.catalog.state.Get(peerTable) != peerDescriptor || e.storage.Relations[peerTable] != peerStore {
 		t.Fatal("retirement changed independent peer TEMP")
 	}
-	if owner.session.temporaryNamespace != (ids.ObjectAddress{}) {
+	if owner.Session.temporaryNamespace != (ids.ObjectAddress{}) {
 		t.Fatal("dead physical owner retained namespace authority")
 	}
 	values := make([]sqltype.Value, 1)
@@ -187,7 +187,7 @@ func extensionTemporarySaturatedEnd(t *testing.T) {
 	roleExecute(t, e, owner, `CREATE COLLATION pg_temp.ext_maximum FROM pg_catalog."C"`)
 	roleExecute(t, e, installer, "CREATE TEMP TABLE ext_max_peer(id INT)")
 	roleExecute(t, e, installer, "INSERT INTO ext_max_peer VALUES(77)")
-	peerNamespace := e.catalog.state.Get(installer.session.temporaryNamespace)
+	peerNamespace := e.catalog.state.Get(installer.Session.temporaryNamespace)
 	peerTable := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: peerNamespace.Address(), Name: "ext_max_peer"})
 	peerDescriptor, peerStore := e.catalog.state.Get(peerTable), e.storage.Relations[peerTable]
 	store := e.storage.Relations[survivor.Address()]
@@ -209,7 +209,7 @@ func extensionTemporarySaturatedEnd(t *testing.T) {
 		t.Fatal("saturated mixed owner close worker did not join within5s")
 	}
 	endCtx, cancelEnd := context.WithTimeout(context.Background(), 5*time.Second)
-	endErr := owner.session.WaitEnd(endCtx)
+	endErr := owner.Session.WaitEnd(endCtx)
 	cancelEnd()
 	if endErr != nil {
 		t.Error("mixed terminal saturation failed", endErr)

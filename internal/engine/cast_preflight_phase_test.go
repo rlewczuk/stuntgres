@@ -64,8 +64,8 @@ func TestCastCoercionSelectPreflightAuthorityIdentityCancellation(t *testing.T) 
 			defer done()
 			// Acquire wraps caller cancellation; expose deterministic Err
 			// checkpoints directly while retaining the operation lifecycle.
-			ctx.Context = op.ctx
-			op.ctx = ctx
+			ctx.Context = op.Ctx
+			op.Ctx = ctx
 			scope, err := e.StartStatement(op)
 			if err != nil {
 				t.Fatal(err)
@@ -89,11 +89,11 @@ func TestCastCoercionSelectPreflightAuthorityIdentityCancellation(t *testing.T) 
 				}
 				switch mode {
 				case "authority":
-					op.session.mu.Lock()
-					op.session.authorization.state.CurrentUser = actor.Ref
-					op.session.mu.Unlock()
+					op.Session.mu.Lock()
+					op.Session.authorization.state.CurrentUser = actor.Ref
+					op.Session.mu.Unlock()
 				case "teardown":
-					op.session.RequestEnd(CleanClose)
+					op.Session.RequestEnd(CleanClose)
 				case "descriptor":
 					leaf := scope.querySources[0]
 					address := leaf.Ref.Address

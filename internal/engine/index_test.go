@@ -177,7 +177,7 @@ func TestBtreeIndexEmptyNullRepeatedAndCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer cleanup()
-	op.ctx = &cancelAtErrCheck{Context: op.Context(), cancel: cancel, at: 25}
+	op.Ctx = &cancelAtErrCheck{Context: op.Context(), cancel: cancel, at: 25}
 	_, err = e.Execute(op, statement(t, "CREATE INDEX canceled ON build(n)"), 0, nil)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal(err)

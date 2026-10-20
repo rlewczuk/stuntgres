@@ -51,7 +51,7 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
 	if selection, ok := stmt.(*parser.RoleSelection); ok && selection.Local && implicit {
-		op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET LOCAL can only be used in transaction blocks"})
+		op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET LOCAL can only be used in transaction blocks"})
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -96,7 +96,7 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 				return Result{}, sqlError("42501", fmt.Sprintf("permission denied to set role \"%s\"", s.Name))
 			}
 		}
-		session := op.session
+		session := op.Session
 		settings := session.settings
 		settings.mu.Lock()
 		defer settings.mu.Unlock()
@@ -128,7 +128,7 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 		if !auth.Superuser && target != auth.Ref {
 			return Result{}, sqlError("42501", fmt.Sprintf("permission denied to set session authorization \"%s\"", s.Name))
 		}
-		session := op.session
+		session := op.Session
 		settings := session.settings
 		settings.mu.Lock()
 		defer settings.mu.Unlock()
@@ -333,13 +333,13 @@ func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.D
 		return Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
 	n := v.RoleRecord.Root.Retire(targets)
-	op.session.mu.Lock()
-	defer op.session.mu.Unlock()
+	op.Session.mu.Lock()
+	defer op.Session.mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
 	e.installOperationRolesLocked(op, &access.RoleRecord{Root: n, Revision: v.RoleRecord.Revision + 1})
-	if t := op.session.transactions; t.retainsTransaction() {
+	if t := op.Session.transactions; t.retainsTransaction() {
 		// installOperationRolesLocked cloned the same catalog owner; no saved
 		// candidate shares this mutable set. Standalone publication needs none.
 		if t.catalog.RetiredRoles == nil {

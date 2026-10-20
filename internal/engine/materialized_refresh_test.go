@@ -158,12 +158,12 @@ func TestMaterializedRefreshPublicationFences(t *testing.T) {
 			case "role", "authorization":
 				op, done := roleOperation(t, e, "postgres")
 				defer done()
-				stage.authSession = op.session
-				stage.authRevision, stage.roleRevision = op.session.authorization.revision, e.roles.published.Revision
+				stage.authSession = op.Session
+				stage.authRevision, stage.roleRevision = op.Session.authorization.revision, e.roles.published.Revision
 				if phase == "role" {
 					e.roles.published.Revision++
 				} else {
-					op.session.authorization.revision++
+					op.Session.authorization.revision++
 				}
 			case "foreign_descriptor":
 				copy := *stage.Get(d.Address()).(*catalog.Relation)

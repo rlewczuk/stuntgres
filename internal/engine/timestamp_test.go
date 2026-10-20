@@ -140,7 +140,7 @@ func TestTimestampTransactionStartAndEndpointCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	after := time.Now().UTC()
-	start := op.session.transactions.start
+	start := op.Session.transactions.start
 	if start.Before(before.Truncate(time.Microsecond)) || start.After(after) || start.Location() != time.UTC || start.Nanosecond()%1000 != 0 {
 		t.Fatal("transaction start must be quantized UTC within BEGIN bounds", start, before, after)
 	}
@@ -164,7 +164,7 @@ func TestTimestampTransactionStartAndEndpointCapture(t *testing.T) {
 	if _, err = e.Rollback(op, tx); err != nil {
 		t.Fatal(err)
 	}
-	if !op.session.transactions.start.IsZero() {
+	if !op.Session.transactions.start.IsZero() {
 		t.Fatal("transaction clock retained after clear")
 	}
 	ast := statement(t, "INSERT INTO t VALUES(TIMESTAMP(0) '294276-12-31 23:59:59.999999')")
@@ -284,7 +284,7 @@ func TestTimestampSQLTransactionControlClock(t *testing.T) {
 			if _, err = e.Execute(op, statement(t, "BEGIN"), 0, nil); err != nil {
 				t.Fatal(err)
 			}
-			owner := op.session.transactions
+			owner := op.Session.transactions
 			if owner.start.Before(before.Truncate(time.Microsecond)) || owner.start.After(time.Now().UTC()) || owner.start.Location() != time.UTC || owner.start.Nanosecond()%1000 != 0 {
 				t.Fatal("SQL BEGIN must capture a quantized UTC transaction start within bounds", owner.start)
 			}

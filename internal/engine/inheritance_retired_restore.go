@@ -367,7 +367,7 @@ func (e *Engine) restoreRetiredConstraint(op *Operation, raw *parser.Update, aut
 		next.Inheritance.NotNull[fact.attributes[0]] = provenance
 	}
 	staged := e.BeginCatalogStage(auth.Catalog)
-	staged.authorizeLocked(auth, op.session)
+	staged.authorizeLocked(auth, op.Session)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(staged)
 	if err := staged.Replace(&next); err != nil {

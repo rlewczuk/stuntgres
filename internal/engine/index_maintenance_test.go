@@ -184,7 +184,7 @@ func TestIndexMaintenanceBuildCancellation(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer cleanup()
-			op.ctx = &cancelAtErrCheck{Context: op.Context(), cancel: cancel, at: int32(at)}
+			op.Ctx = &cancelAtErrCheck{Context: op.Context(), cancel: cancel, at: int32(at)}
 			_, err = e.Execute(op, statement(t, "REINDEX TABLE t"), 0, nil)
 			if !errors.Is(err, context.Canceled) {
 				t.Fatal("real build did not honor cancellation", err)

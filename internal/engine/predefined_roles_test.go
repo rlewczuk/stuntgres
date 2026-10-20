@@ -115,8 +115,8 @@ func TestPredefinedRoleAllocation(t *testing.T) {
 	before, allocator := canceled.roles.published, canceled.roles.nextPrincipal
 	ctx, cancel := context.WithCancel(actor.Context())
 	defer cancel()
-	fence := &identityRolePublicationContext{Context: ctx, session: actor.session, cancel: cancel}
-	actor.ctx = fence
+	fence := &identityRolePublicationContext{Context: ctx, session: actor.Session, cancel: cancel}
+	actor.Ctx = fence
 	_, err = canceled.executeRoleAttributes(&StatementScope{op: actor}, &parser.CreateRole{Name: parser.Identifier{Text: "canceled"}}, 0)
 	if !fence.observed || !errors.Is(err, context.Canceled) || canceled.roles.published != before || canceled.roles.nextPrincipal != allocator {
 		t.Fatal("publication cancellation", err, fence.observed)

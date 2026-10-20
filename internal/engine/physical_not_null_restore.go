@@ -301,7 +301,7 @@ func (e *Engine) restorePhysicalNotNull(op *Operation, raw *parser.Delete, pair 
 	}
 	next.Constraints.PhysicalNotNull[fact.attribute] = catalog.PhysicalNotNullProof{Cause: cause, Usage: fact.usage, Support: pair.primary}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	if err = stage.Replace(&next); err != nil {

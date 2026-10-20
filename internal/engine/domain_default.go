@@ -20,7 +20,7 @@ func (e *Engine) bindDomainDefault(ctx context.Context, op *Operation, auth Auth
 	base := d.SQLType.DomainBase()
 	var reader catalog.DefinitionReader
 	if op != nil {
-		reader = op.definition
+		reader = op.Definition
 	}
 	if raw == nil {
 		if parent, ok := catalog.DescriptorAt(auth.Catalog, reader, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())}); ok {
@@ -54,7 +54,7 @@ func (e *Engine) bindDomainDefault(ctx context.Context, op *Operation, auth Auth
 				return err
 			}
 		}
-		text, err := (pgRenderer{view: auth.Catalog, path: path, output: output, nonstandardStrings: op != nil && op.nonstandardStrings}).sql(ctx, node, pgRenderParent{})
+		text, err := (pgRenderer{view: auth.Catalog, path: path, output: output, nonstandardStrings: op != nil && op.NonstandardStrings}).sql(ctx, node, pgRenderParent{})
 		if err != nil {
 			return err
 		}

@@ -28,7 +28,7 @@ type rowPublication struct {
 
 func (e *Engine) publishWrites(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, scope *StatementScope) error {
 	owner := txOwnerOf(ref)
-	if op == nil || op.self != op || op.session == nil || op.session.transactions == nil || owner == nil || ref.Domain() != domainOf(e) || ref.Session() != op.session.token || owner != op.session.transactions || ref.ID() == 0 || ref != owner.ref {
+	if op == nil || op.Self != op || op.Session == nil || op.Session.transactions == nil || owner == nil || ref.Domain() != domainOf(e) || ref.Session() != op.Session.token || owner != op.Session.transactions || ref.ID() == 0 || ref != owner.ref {
 		return errors.New("stuntgres: foreign or stale publication transaction")
 	}
 	if owner.state != TxActive && owner.state != TxImplicit {
@@ -87,10 +87,10 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 	remoteSettled := false
 	if len(writes) == 0 && len(deletes) == 0 && c == nil {
 		for {
-			notifications := e.prepareNotificationPublication(op.session, actions, events)
+			notifications := e.prepareNotificationPublication(op.Session, actions, events)
 		emptyFence:
 			e.mu.Lock()
-			op.session.mu.Lock()
+			op.Session.mu.Lock()
 			err := publicationOperationLocked(e, op)
 			if err == nil && ref.Epoch() != e.catalog.state.Epoch() {
 				err = ids.ErrCatalogReplaced
@@ -108,12 +108,12 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				err = e.visibility.SerializablePrecommitLocked(ref)
 			}
 			if err != nil {
-				op.session.mu.Unlock()
+				op.Session.mu.Unlock()
 				e.mu.Unlock()
 				return err
 			}
 			if !e.notificationPublicationUnchangedLocked(notifications) {
-				op.session.mu.Unlock()
+				op.Session.mu.Unlock()
 				e.mu.Unlock()
 				if remoteSettled {
 					return catalog.Conflict{}
@@ -121,7 +121,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				continue
 			}
 			if phase == nil && !remoteSettled && foreignPending(txOwnerOf(ref)) {
-				op.session.mu.Unlock()
+				op.Session.mu.Unlock()
 				e.mu.Unlock()
 				if scope != nil {
 					if err := scope.finishForeignStatements(nil); err != nil {
@@ -144,17 +144,17 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				e.finishPreparedLocked(phase)
 				e.finishDiscardRoleResetLocked(op)
 			}
-			op.session.mu.Unlock()
+			op.Session.mu.Unlock()
 			e.mu.Unlock()
 			return nil
 		}
 	}
-	input, output := sessionPresentation(op.session)
+	input, output := sessionPresentation(op.Session)
 	if scope != nil {
 		input, output = scope.input, scope.output
 	}
 	for {
-		notifications := e.prepareNotificationPublication(op.session, actions, events)
+		notifications := e.prepareNotificationPublication(op.Session, actions, events)
 		var nextCatalog *catalog.State
 		var err error
 		if c != nil {
@@ -347,7 +347,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			}
 		}
 	publicationFence:
-		session := op.session
+		session := op.Session
 		e.mu.Lock()
 		session.mu.Lock()
 		err = publicationOperationLocked(e, op)
@@ -513,18 +513,18 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 
 // Caller holds Session.mu; row/catalog publication additionally holds Engine.mu.
 func publicationOperationLocked(e *Engine, op *Operation) error {
-	if op == nil || op.self != op || op.session == nil || op.session.token.Domain() != domainOf(e) {
+	if op == nil || op.Self != op || op.Session == nil || op.Session.token.Domain() != domainOf(e) {
 		return errors.New("stuntgres: foreign or missing operation")
 	}
-	if op.done || op.session.state != live {
-		if op.session.timeouts.fatal != nil {
-			copy := *op.session.timeouts.fatal
+	if op.Released || op.Session.state != live {
+		if op.Session.timeouts.fatal != nil {
+			copy := *op.Session.timeouts.fatal
 			return &copy
 		}
 		return errors.New("stuntgres: inactive operation")
 	}
-	if _, ok := op.session.operations[op]; !ok {
+	if _, ok := op.Session.operations[op]; !ok {
 		return errors.New("stuntgres: inactive operation")
 	}
-	return op.fatalErrorLocked(op.ctx.Err())
+	return op.FatalErrorLocked(op.Ctx.Err())
 }

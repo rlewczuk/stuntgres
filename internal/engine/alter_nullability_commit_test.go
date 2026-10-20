@@ -28,7 +28,7 @@ func TestAlterNullabilityCombinedCommitBoundary(t *testing.T) {
 	op := transactionOperation(t, s)
 	ctx, cancel := context.WithCancel(op.Context())
 	counter := &cancelAtErrCheck{Context: ctx, cancel: cancel, at: 1 << 30}
-	op.ctx = counter
+	op.Ctx = counter
 	if result, err := e.Commit(op, tx); err != nil || !result.Committed {
 		t.Fatal(result, err)
 	}
@@ -40,7 +40,7 @@ func TestAlterNullabilityCombinedCommitBoundary(t *testing.T) {
 		before := captureSequenceDeletePublication(e, s, ref.Address)
 		op := transactionOperation(t, s)
 		ctx, cancel := context.WithCancel(op.Context())
-		op.ctx = &cancelAtErrCheck{Context: ctx, cancel: cancel, at: at}
+		op.Ctx = &cancelAtErrCheck{Context: ctx, cancel: cancel, at: at}
 		result, err := e.Commit(op, tx)
 		op.Done()
 		cancel()

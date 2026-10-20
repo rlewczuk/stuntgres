@@ -527,7 +527,7 @@ func TestTransactionControlsMissingOperationAuthority(t *testing.T) {
 	ref, ticket, command := a.transactions.ref, a.transactions.ticket, a.transactions.command
 	op := transactionOperation(t, a)
 	nonmember := *op
-	nonmember.self = &nonmember
+	nonmember.Self = &nonmember
 	assertError := func(err error) {
 		t.Helper()
 		if err == nil || err.Error() != "stuntgres: inactive operation" {

@@ -94,7 +94,7 @@ func (e *Engine) stageForeignTableLocked(scope *StatementScope, auth Authorizati
 	key := ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: s.Name.Parts[len(s.Name.Parts)-1].Text}
 	if stage.LookupName(key) != (ids.ObjectAddress{}) {
 		if s.IfNotExists {
-			scope.op.existingRelationNotice(key.Name)
+			scope.op.ExistingRelationNotice(key.Name)
 			return nil, nil, nil
 		}
 		return nil, nil, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, key.Name))
@@ -211,7 +211,7 @@ func (e *Engine) executeForeignTableAlter(scope *StatementScope, s *parser.Forei
 		return Result{}, ids.ErrCatalogReplaced
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, scope.op.session)
+	stage.authorizeLocked(auth, scope.op.Session)
 	stage.domainBases = append(stage.domainBases, server, wrapper)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)

@@ -94,8 +94,8 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		if err != nil {
 			return nil, err
 		}
-		op.session.mu.Lock()
-		defer op.session.mu.Unlock()
+		op.Session.mu.Lock()
+		defer op.Session.mu.Unlock()
 		if err := publicationOperationLocked(e, op); err != nil {
 			return nil, err
 		}
@@ -177,7 +177,7 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		updated = &n
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	if err := stage.Replace(updated); err != nil {
 		return nil, err
 	}

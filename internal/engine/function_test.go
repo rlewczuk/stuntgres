@@ -144,7 +144,7 @@ func TestNullCountDependenciesAndAuthorization(t *testing.T) {
 		t.Fatal(err)
 	}
 	ast := statement(t, "SELECT num_nulls(num_nonnulls(v),f),num_nonnulls(v) FROM secret").(*parser.Select)
-	bound, err := describe(op.ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+	bound, err := describe(op.Ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

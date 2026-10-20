@@ -142,7 +142,7 @@ func TestUpdateCoreLateEvaluatorFailure(t *testing.T) {
 		scope.Finish(err)
 		t.Fatal(err)
 	}
-	bound, err := describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
+	bound, err := describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 	if err != nil {
 		e.mu.Unlock()
 		scope.Finish(err)
@@ -168,7 +168,7 @@ func TestUpdateCoreLateEvaluatorFailure(t *testing.T) {
 		}
 		return sqltype.Integer(c.Row[0].Type(), 9)
 	})
-	r, err := e.executeUpdate(op.ctx, scope, bound, source, nil, nil, "public")
+	r, err := e.executeUpdate(op.Ctx, scope, bound, source, nil, nil, "public")
 	if err != sentinel || r.Count != 0 || calls != 2 {
 		scope.Finish(err)
 		t.Fatal(r, err, calls)

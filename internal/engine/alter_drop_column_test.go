@@ -293,7 +293,7 @@ func TestAlterDropColumnTransformCancellationAndRevisionExhaustion(t *testing.T)
 	}
 	defer cleanup()
 	counting := &cancelAtErrCheck{Context: op.Context(), cancel: cancel, at: 12}
-	op.ctx = counting
+	op.Ctx = counting
 	_, err = e.Execute(op, statement(t, "ALTER TABLE t DROP b"), 0, nil)
 	if !errors.Is(err, context.Canceled) || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != original {
 		t.Fatal(err)

@@ -28,7 +28,7 @@ func (h *statementHost) DeparseInquiry(c *exec.Context, signature functions.Depa
 		}
 	}
 	renderer := pgRenderer{view: view, pretty: pretty, path: scope.inquiry.deparsePath,
-		output: scope.output, nonstandardStrings: scope.op.nonstandardStrings}
+		output: scope.output, nonstandardStrings: scope.op.NonstandardStrings}
 	index := 1
 	if signature != functions.DeparseExpr && signature != functions.DeparseExprPretty {
 		index = 0
@@ -234,7 +234,7 @@ func deparseRelation(c *exec.Context, signature functions.DeparseSignature, valu
 				return sqltype.Value{}, err
 			}
 		}
-		text, err = viewOf(relation).selectSQL(c.Context, catalog, viewPresentation{deparse: true, pretty: pretty, wrap: wrap, path: scope.inquiry.deparsePath, columns: relation.Columns, output: scope.output, nonstandardStrings: scope.op.nonstandardStrings})
+		text, err = viewOf(relation).selectSQL(c.Context, catalog, viewPresentation{deparse: true, pretty: pretty, wrap: wrap, path: scope.inquiry.deparsePath, columns: relation.Columns, output: scope.output, nonstandardStrings: scope.op.NonstandardStrings})
 		text += ";"
 	}
 	if err != nil {

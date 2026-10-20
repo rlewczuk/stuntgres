@@ -126,7 +126,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	} else if err = copyRelationKind(b.Relation, false); err != nil {
 		return 0, err
 	}
-	if err := checkTemporaryStorageAccess(auth.Catalog, b.Relation, s.op.session.token); err != nil {
+	if err := checkTemporaryStorageAccess(auth.Catalog, b.Relation, s.op.Session.token); err != nil {
 		return 0, err
 	}
 	options, err = parseCopyOptions(syntax)
@@ -274,18 +274,18 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	}
 	rows, err := func() (indexWriteBatch, error) {
 		if s.protocolOrZero().command || s.protocolOrZero().simple {
-			s.op.copyInput.active.Store(true)
+			s.op.CopyInput.active.Store(true)
 			// CopyInResponse permits immediate frontend cancellation. Install
 			// the first-record hold before its external start hook can send it.
-			s.op.copyInput.decoding.Store(true)
-			defer s.op.stopCopyInput()
+			s.op.CopyInput.decoding.Store(true)
+			defer s.op.StopCopyInput()
 		}
 		if err := s.startProtocolCopy(hooks, true, options, len(b.Targets)); err != nil {
 			return indexWriteBatch{}, err
 		}
 		rows, err := assembleInsertRows(s.op.Context(), b, cursor, -1, schema, s.input, s.output, s, len(unique.keys) != 0 || unique.checked, nil, nil)
 		if err == nil {
-			err = s.op.pendingCopyInputError()
+			err = s.op.PendingCopyInputError()
 		}
 		if err != nil {
 			err = cursor.diagnostic(err)

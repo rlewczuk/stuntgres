@@ -33,7 +33,7 @@ func (h *sessionHost) Unregister(token ids.SessionToken, owner ids.SessionOwner)
 }
 
 // engine returns the engine that runs the statement.
-func (s *StatementScope) engine() *Engine { return engineOf(s.op.session) }
+func (s *StatementScope) engine() *Engine { return engineOf(s.op.Session) }
 
 // operationAllocation places an operation and its binding host in one
 // allocation.
@@ -47,10 +47,10 @@ type operationAllocation struct {
 // op.self and the analysis slot. When Operation moves to session (13d.6),
 // this becomes the Host's NewOperation.
 func newSessionOperation(s *Session) *Operation {
-	a := &operationAllocation{op: Operation{session: s}}
+	a := &operationAllocation{op: Operation{Session: s}}
 	op := &a.op
-	op.self = op
+	op.Self = op
 	a.analysis = bindingHost{engine: engineOf(s), op: op}
-	op.analysis = &a.analysis
+	op.Analysis = &a.analysis
 	return op
 }

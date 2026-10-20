@@ -108,10 +108,10 @@ func (e *Engine) stageCreateFunctionLocked(op *Operation, auth AuthorizationView
 	if operationReplayOrZero(op).sqlBodies {
 		return nil
 	}
-	previous := op.definition
-	op.definition = stageDefinitionReader{stage}
-	defer func() { op.definition = previous }()
-	auth.definition = op.definition
+	previous := op.Definition
+	op.Definition = stageDefinitionReader{stage}
+	defer func() { op.Definition = previous }()
+	auth.definition = op.Definition
 	_, _, err = e.bindSQLRoutineLocked(op, auth, d, input, nil)
 	var diagnostic *sqlstate.Error
 	if errors.As(err, &diagnostic) && diagnostic.Code == "42P02" {

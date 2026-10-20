@@ -136,7 +136,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 			}
 		}
 		var pending []exec.Leaf
-		err := inheritanceQueryLeaves(view, roots, s.op.session.token, func(leaf exec.Leaf) error {
+		err := inheritanceQueryLeaves(view, roots, s.op.Session.token, func(leaf exec.Leaf) error {
 			if leaf.Relation.RelationKind != catalog.TableRelation {
 				return nil
 			}
@@ -189,7 +189,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 			if grants[leaf.Ref] != 0 {
 				mode = lock.RowShare
 			}
-			policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+			policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
 			request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: leaf.Ref}, mode, policy)
 			if request != nil {
 				s.admissionWaited = true

@@ -62,7 +62,7 @@ func TestRangePartitionPublicationCancelAtMultiLeafApply(t *testing.T) {
 	// Acquire wraps its input with WithCancel; observe the actual operation
 	// context so the real family checkpoints reach this callback.
 	ctx.Context = op.Context()
-	op.ctx = ctx
+	op.Ctx = ctx
 	_, err = e.Execute(op, statement(t, "INSERT INTO root VALUES(2,21),(12,22)"), 0, nil)
 	op.Done()
 	if !ctx.entered.Load() || !errors.Is(err, context.Canceled) {
@@ -90,7 +90,7 @@ func TestRangePartitionPublicationResetDuringBoundDemand(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx.Context = op.Context()
-	op.ctx = ctx
+	op.Ctx = ctx
 	_, err = e.Execute(op, statement(t, "CREATE TABLE leaf PARTITION OF root FOR VALUES FROM(0) TO(10)"), 0, nil)
 	op.Done()
 	if !ctx.entered.Load() || resetErr != nil || err == nil {

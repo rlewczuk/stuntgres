@@ -256,14 +256,14 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			e.mu.Lock()
 			catalog := scope.inheritanceRead(e.privateCatalogLocked(scope.owner.catalog))
 			collectAuth.Recapture(catalog)
-			refs, captureErr := e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, scope.querySources, nil, op.session.token, plan.RowMark{})
+			refs, captureErr := e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, scope.querySources, nil, op.Session.token, plan.RowMark{})
 			var snapshot *visibility.View
 			if captureErr == nil {
 				snapshot, captureErr = scope.acquireDataViewsLocked(e, refs)
 			}
 			var source *exec.Source
 			if captureErr == nil {
-				source, captureErr = captureInheritanceQueryPrefix(catalog, snapshot, exec.Leaf{Ref: parentRef, Relation: parent, Storage: parentStorage, Only: viewOf(view).sources[0].only}, op.session.token)
+				source, captureErr = captureInheritanceQueryPrefix(catalog, snapshot, exec.Leaf{Ref: parentRef, Relation: parent, Storage: parentStorage, Only: viewOf(view).sources[0].only}, op.Session.token)
 			}
 			validBase := catalog.Get(parent.Address()) == parent && e.privateStorageLocked(scope.owner.catalog, parent.Address()) == parentStorage
 			e.mu.Unlock()
@@ -311,7 +311,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			if err = peer.gate(&parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
-			request, err := e.locks.StartAcquire(peerCtx, peer.ticket, lock.Resource{ObjectRef: parentRef}, lock.Exclusive, lock.Policy{TimeoutSlot: &peerOp.lockWait})
+			request, err := e.locks.StartAcquire(peerCtx, peer.ticket, lock.Resource{ObjectRef: parentRef}, lock.Exclusive, lock.Policy{TimeoutSlot: &peerOp.LockWait})
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -30,7 +30,7 @@ func hashCaptureQuery(t *testing.T, e *Engine, op *Operation, q string) (*plan.Q
 	auth, err := e.authorizationLocked(op)
 	var bound analyze.Binding
 	if err == nil {
-		bound, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
+		bound, err = describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 	}
 	var source *exec.Source
 	if err == nil {
@@ -40,7 +40,7 @@ func hashCaptureQuery(t *testing.T, e *Engine, op *Operation, q string) (*plan.Q
 	}
 	e.mu.Unlock()
 	if err == nil {
-		err = exec.SelectQuerySources(op.ctx, source)
+		err = exec.SelectQuerySources(op.Ctx, source)
 	}
 	if err != nil {
 		scope.Finish(err)

@@ -39,7 +39,7 @@ func updateBoundSource(t *testing.T, e *Engine, s *Session, ctx context.Context,
 	var b analyze.Binding
 	var view *visibility.View
 	if err == nil {
-		b, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
+		b, err = describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 		scope.routineAuth, scope.routineDependencies = auth, b.Dependencies
 	}
 	if err == nil {

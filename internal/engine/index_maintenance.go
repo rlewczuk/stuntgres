@@ -34,19 +34,19 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	}
 	_, reindex := stmt.(*parser.Reindex)
 	if len(g.targets) == 0 || reindex && len(g.indexes) == 0 {
-		scope.op.session.mu.Lock()
+		scope.op.Session.mu.Lock()
 		err := publicationOperationLocked(e, scope.op)
-		scope.op.session.mu.Unlock()
+		scope.op.Session.mu.Unlock()
 		e.mu.Unlock()
 		if err != nil {
 			return Result{}, err
 		}
 		scope.completed = true
 		if reindex {
-			scope.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`table "%s" has no indexes to reindex`, g.descriptors[g.targets[0].Address].Name())})
+			scope.op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`table "%s" has no indexes to reindex`, g.descriptors[g.targets[0].Address].Name())})
 		}
 		for _, notice := range g.notices {
-			scope.op.emitNotice(levelNotice, notice)
+			scope.op.EmitNotice(levelNotice, notice)
 		}
 		return Result{}, nil
 	}
@@ -54,7 +54,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 		return e.renameRelationLocked(scope, scope.op, auth, s.Name, "", s.Target.Text, s.IfExists, false, false, false, count)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, scope.op.session)
+	stage.authorizeLocked(auth, scope.op.Session)
 	stage.indexes().output = scope.output
 	stage.indexes().parents = make(map[ids.ObjectAddress]*catalog.Relation, len(g.parents))
 	for _, ref := range g.parents {
@@ -133,7 +133,7 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	}
 	scope.completed = true
 	for _, notice := range g.notices {
-		scope.op.emitNotice(levelNotice, notice)
+		scope.op.EmitNotice(levelNotice, notice)
 	}
 	return Result{}, nil
 }

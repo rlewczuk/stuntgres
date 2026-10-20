@@ -90,7 +90,7 @@ func (r capturedRegtypeInput) resolveTypeName(ctx context.Context, text string) 
 			if r.portal != "" {
 				notice.Context += "\n" + r.portal
 			}
-			op.emitNotice(levelNotice, notice)
+			op.EmitNotice(levelNotice, notice)
 		}
 	})
 	if err != nil {
@@ -227,7 +227,7 @@ func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw par
 				warning.Position = strconv.Itoa(r.position.Character)
 			}
 			warning.Context = r.portal
-			op.emitNotice(levelWarning, *warning)
+			op.EmitNotice(levelWarning, *warning)
 		}
 	}
 	if r.resolved != nil {

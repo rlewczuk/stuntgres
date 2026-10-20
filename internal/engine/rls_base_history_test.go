@@ -49,7 +49,7 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 	}
 	auth.Catalog = e.privateCatalogLocked(scope.owner.catalog)
 	auth.Recapture(auth.Catalog)
-	b, err := describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
+	b, err := describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)
@@ -103,11 +103,11 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 			if source.Committed != nil || source.Own != nil || source.Visible != nil || source.HashIndexes != nil || source.PartialMask != nil {
 				t.Fatal("denied target captured physical prefixes or live selection")
 			}
-			selected, err := exec.SelectQuerySource(op.ctx, source, data.FrontierAt(address), committedEnd, privateEnd)
+			selected, err := exec.SelectQuerySource(op.Ctx, source, data.FrontierAt(address), committedEnd, privateEnd)
 			if err != nil || selected != source || source.Visible != nil || source.Committed != nil || source.Own != nil {
 				t.Fatal("hidden history revived denied target", err)
 			}
-			stage, err := exec.OpenNode(op.ctx, &exec.State{Source: source}, b.Query.Root.(*plan.ProjectNode).Child)
+			stage, err := exec.OpenNode(op.Ctx, &exec.State{Source: source}, b.Query.Root.(*plan.ProjectNode).Child)
 			// The underlying fixture source has id and allowed; the outer
 			// projection narrows its output, not the owned base-source schema.
 			if err != nil || stage.Source != source || len(stage.Columns) != 2 {
@@ -121,7 +121,7 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 			t.Fatal("denied close changed shared roots/generation")
 		}
 	}
-	ordinary, err := captureQuerySource(op.ctx, view, leaf.Ref)
+	ordinary, err := captureQuerySource(op.Ctx, view, leaf.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}

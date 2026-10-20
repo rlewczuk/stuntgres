@@ -168,7 +168,7 @@ func TestLogicalDependenciesMetadataAndAuthorization(t *testing.T) {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	bound, err := describe(op.ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+	bound, err := describe(op.Ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

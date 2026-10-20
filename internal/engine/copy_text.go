@@ -273,12 +273,12 @@ func (c *copyCursor) header() error {
 	return nil
 }
 func (c *copyCursor) Next(ctx context.Context, dst []sqltype.Value) (bool, error) {
-	wireInput := c.scope.op.copyInput.active.Load()
+	wireInput := c.scope.op.CopyInput.active.Load()
 	if wireInput {
 		ctx = c.scope.op.Context()
 	}
 	if err := ctx.Err(); err != nil {
-		if c.scope.op.copyInput.held() && pendingProtocolUserCancel(ctx) {
+		if c.scope.op.CopyInput.held() && pendingProtocolUserCancel(ctx) {
 			// User cancellation may arrive after Context selected its live
 			// standard context. Refresh only the admitted decoder's view;
 			// its owner retains deadlines, terminal and source authority.
@@ -347,7 +347,7 @@ func (c *copyCursor) Next(ctx context.Context, dst []sqltype.Value) (bool, error
 		}
 		c.column = ""
 	}
-	if err := c.scope.op.pendingCopyInputError(); err != nil {
+	if err := c.scope.op.PendingCopyInputError(); err != nil {
 		return false, c.diagnostic(err)
 	}
 	return true, nil
@@ -402,7 +402,7 @@ func (s *StatementScope) copyCommandError(err error) error {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		cancellation := context.Cause(s.op.Context())
 		if cancellation == nil {
-			cancellation = context.Cause(s.op.ctx)
+			cancellation = context.Cause(s.op.Ctx)
 		}
 		var cause *sqlstate.Error
 		if errors.As(cancellation, &cause) && cause != nil && (cause.Code == "57014" || cause.Severity == "FATAL") {

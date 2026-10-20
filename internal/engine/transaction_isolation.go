@@ -95,7 +95,7 @@ func (e *Engine) applyCurrentCharacteristic(op *Operation, d settings.Definition
 	if err != nil {
 		return "", err
 	}
-	t := op.session.transactions
+	t := op.Session.transactions
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if err := e.endPreflight(op); err != nil {
@@ -132,8 +132,8 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 		return Result{}, errors.New("stuntgres: transaction characteristics take no arguments")
 	}
 	e, t := s.engine(), s.owner
-	if !s.op.commandAdmission {
-		s.op.snapshotNoticeThreshold()
+	if !s.op.CommandAdmission {
+		s.op.SnapshotNoticeThreshold()
 	}
 	if stmt.Session {
 		for _, mode := range stmt.Modes {
@@ -169,7 +169,7 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 		return Result{}, err
 	}
 	if !t.inBlock() {
-		s.op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET TRANSACTION can only be used in transaction blocks"})
+		s.op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET TRANSACTION can only be used in transaction blocks"})
 	}
 	err := assignModes(t, stmt.Modes)
 	if err == nil {
@@ -209,7 +209,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 	if t.snapshotSet && !needsProjection(t.roots) {
 		return nil
 	}
-	session := s.op.session
+	session := s.op.Session
 	e.mu.Lock()
 	session.mu.Lock()
 	check := func() error {

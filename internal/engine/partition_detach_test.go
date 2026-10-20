@@ -166,13 +166,13 @@ func TestPartitionDetachPublication(t *testing.T) {
 				f.e.mu.Lock()
 				auth, err := f.e.authorizationLocked(op)
 				if err == nil {
-					stage.authorizeLocked(auth, op.session)
+					stage.authorizeLocked(auth, op.Session)
 				}
 				f.e.mu.Unlock()
 				if err != nil {
 					t.Fatal(err)
 				}
-				authority = op.session
+				authority = op.Session
 			}
 			prepared, err := f.e.ValidateCatalogStage(ctx, stage)
 			if err != nil {

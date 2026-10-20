@@ -23,9 +23,9 @@ func TestEnumInvalidLabelPreflightNoReservation(t *testing.T) {
 	if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, resource, lock.TypeExclusive); err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(op.ctx, time.Second)
+	ctx, cancel := context.WithTimeout(op.Ctx, time.Second)
 	defer cancel()
-	op.ctx = ctx
+	op.Ctx = ctx
 	for _, rename := range []bool{false, true} {
 		scope, err := e.StartStatement(op)
 		if err != nil {

@@ -266,7 +266,7 @@ func (p *dropProvider) applyForeignKeyDependents(edges []domainDependency) error
 func (p *dropProvider) missingColumnNotice(column, relation string) {
 	notice := sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`column "%s" of relation "%s" does not exist, skipping`, column, relation)}
 	if p.prepared == nil {
-		p.scope.op.emitNotice(levelNotice, notice)
+		p.scope.op.EmitNotice(levelNotice, notice)
 		return
 	}
 	p.prepared.recordEffect(dropEffect{missing: &notice})
@@ -496,7 +496,7 @@ func (scope *StatementScope) prepareDropDefinitionProvider(auth AuthorizationVie
 	if err := scope.op.Context().Err(); err != nil {
 		return nil, err
 	}
-	if scope.finished || auth.engine != e || auth.session != scope.op.session || auth.Catalog.Owner() != e.catalog.owner() || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.Catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() || old == nil || old.Address() != ref.Address || ref.Address.SubID != 0 || !scope.holdsColumnDropGrant(ref) {
+	if scope.finished || auth.engine != e || auth.session != scope.op.Session || auth.Catalog.Owner() != e.catalog.owner() || ref.Domain() != e.catalog.Domain || ref.Epoch != auth.Catalog.Epoch() || ref.Epoch != scope.txRef.Epoch() || old == nil || old.Address() != ref.Address || ref.Address.SubID != 0 || !scope.holdsColumnDropGrant(ref) {
 		return nil, ids.ErrCatalogReplaced
 	}
 	if _, present := auth.Catalog.Relation(ref.Address); !present {
@@ -612,7 +612,7 @@ func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *
 		case effect.notice != "":
 			stage.viewCascadeNames = append(stage.viewCascadeNames, effect.notice)
 		case effect.missing != nil:
-			scope.op.emitNotice(levelNotice, *effect.missing)
+			scope.op.EmitNotice(levelNotice, *effect.missing)
 		case effect.rowType != (ids.ObjectAddress{}):
 			stage.domainTargets = append(stage.domainTargets, effect.rowType)
 		case len(effect.identityRoots) != 0:

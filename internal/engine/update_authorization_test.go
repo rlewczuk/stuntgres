@@ -159,7 +159,7 @@ func TestUpdateCoreNotNullDetailColumnAuthority(t *testing.T) {
 						}
 						nullCountUnitDiagnostic(t, executionErr, sqlstate.Error{Code: "23502", Message: `null value in column "n" of relation "t" violates not-null constraint`, Detail: detail, Schema: "public", Table: "t", Column: "n"})
 						if explicit {
-							if op.session.TransactionState() != TxAborted || len(op.session.transactions.writes) != 0 {
+							if op.Session.TransactionState() != TxAborted || len(op.Session.transactions.writes) != 0 {
 								t.Fatal("prior private UPDATE survived failed block")
 							}
 							roleError(t, e, op, "UPDATE t SET n=3", "25P02", "current transaction is aborted, commands ignored until end of transaction block", "")

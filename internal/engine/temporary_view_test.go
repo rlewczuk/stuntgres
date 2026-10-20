@@ -57,7 +57,7 @@ func TestTemporaryViewCatalogPublication(t *testing.T) {
 	if _, err := e.ValidateCatalogStage(op.Context(), stage); err != nil {
 		t.Fatal(err)
 	}
-	if e.catalog.state != before || op.session.temporaryNamespace != (ids.ObjectAddress{}) || e.catalog.state.Get(view.Address()) != nil {
+	if e.catalog.state != before || op.Session.temporaryNamespace != (ids.ObjectAddress{}) || e.catalog.state.Get(view.Address()) != nil {
 		t.Fatal("private namespace/view escaped validation")
 	}
 	candidate := changes.Clone()
@@ -151,10 +151,10 @@ func TestTemporaryViewCancellationAtomicity(t *testing.T) {
 	before := e.catalog.state
 	ctx, cancel := context.WithCancel(op.Context())
 	cancel()
-	op.ctx = ctx
+	op.Ctx = ctx
 	err = e.publishRows(op, scope.txRef, nil, nil, changes, nil, nil)
 	scope.Finish(err)
-	if !errors.Is(err, context.Canceled) || e.catalog.state != before || e.catalog.state.Get(view.Address()) != nil || op.session.temporaryNamespace != (ids.ObjectAddress{}) || e.storage.Relations[view.Address()] != nil {
+	if !errors.Is(err, context.Canceled) || e.catalog.state != before || e.catalog.state.Get(view.Address()) != nil || op.Session.temporaryNamespace != (ids.ObjectAddress{}) || e.storage.Relations[view.Address()] != nil {
 		t.Fatal("canceled publication leaked TEMP artifacts", err)
 	}
 }
@@ -252,7 +252,7 @@ func TestTemporaryViewDescribeNoEffects(t *testing.T) {
 	raw := &parser.CreateView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unpublished"}}}, Persistence: "temporary", Query: viewOf(view).syntax}
 	description, err := e.describeOperation(scope, raw)
 	scope.Finish(err)
-	if err != nil || description.Parameters.Count != 0 || len(description.Results) != 0 || e.catalog.state != before || op.session.temporaryNamespace != (ids.ObjectAddress{}) || raw.Persistence != "temporary" || stage.Base.Get(view.Address()) != nil {
+	if err != nil || description.Parameters.Count != 0 || len(description.Results) != 0 || e.catalog.state != before || op.Session.temporaryNamespace != (ids.ObjectAddress{}) || raw.Persistence != "temporary" || stage.Base.Get(view.Address()) != nil {
 		t.Fatal("utility Describe analyzed/published TEMP", description, err)
 	}
 }

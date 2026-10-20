@@ -69,7 +69,7 @@ func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
 				// The existing real-context seam cancels at that final check,
 				// after row/end/catalog/generator candidates are prepared.
 				cancellation = &cancelAtErrCheck{Context: base, cancel: cancel, at: 4}
-				op.ctx = cancellation
+				op.Ctx = cancellation
 			}
 			result, err := e.Commit(op, ref)
 			op.Done()

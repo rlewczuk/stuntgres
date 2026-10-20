@@ -219,7 +219,7 @@ func TestSQLCursorNestedLiveAuthority(t *testing.T) {
 			expected, calls := "first", 0
 			expressions[1] = queryProbe(original.ResultUsage(), func(c *exec.Context) (sqltype.Value, error) {
 				scope := scopeOf(c.LiveHost())
-				if scope == nil || scope.finished || scope.op.done || c.Context.Value(cursorUnitContextKey{}) != expected {
+				if scope == nil || scope.finished || scope.op.Released || c.Context.Value(cursorUnitContextKey{}) != expected {
 					t.Fatalf("nested %s borrows old admission: scope=%p context=%v expected=%s", route, scope, c.Context.Value(cursorUnitContextKey{}), expected)
 				}
 				calls++
@@ -371,7 +371,7 @@ func TestSQLCursorCompletedPublicationBoundary(t *testing.T) {
 			t.Fatalf("%s did not reach completed boundary: result=%+v completed=%v error=%v", query, result, scope.completed, err)
 		}
 		cancel()
-		if !errors.Is(op.ctx.Err(), context.Canceled) {
+		if !errors.Is(op.Ctx.Err(), context.Canceled) {
 			t.Fatal("boundary context was not canceled")
 		}
 		if err := scope.Finish(nil); err != nil {
@@ -469,7 +469,7 @@ func TestSQLCursorMetadataInstall(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer op.Done()
-		op.commandStart = instant
+		op.CommandStart = instant
 		result, err := engineOf(s).Execute(op, statement(t, query), 0, nil)
 		if err != nil {
 			t.Fatal(err)

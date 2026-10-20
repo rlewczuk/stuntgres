@@ -252,7 +252,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 	e.mu.Lock()
 	current := e.privateCatalogLocked(scope.owner.catalog)
 	stage = e.BeginCatalogStage(current)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	state.stage = stage
 	e.mu.Unlock()
 	for index, old := range state.targets {

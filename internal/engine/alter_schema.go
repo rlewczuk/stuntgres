@@ -23,9 +23,9 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		return fail(ids.ErrCatalogReplaced)
 	}
 	if s.IfExists && renameMissing(err) {
-		op.session.mu.Lock()
+		op.Session.mu.Lock()
 		err = publicationOperationLocked(e, op)
-		op.session.mu.Unlock()
+		op.Session.mu.Unlock()
 		if err == nil {
 			err = op.Context().Err()
 		}
@@ -34,7 +34,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		}
 		scope.completed = true
 		e.mu.Unlock()
-		op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, s.Name.Parts[len(s.Name.Parts)-1].Text)})
+		op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, s.Name.Parts[len(s.Name.Parts)-1].Text)})
 		return Result{}, nil
 	}
 	if err != nil {
@@ -61,9 +61,9 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		return fail(sqlError("0A000", "cannot move objects into or out of temporary schemas"))
 	}
 	if destination.Address == old.Namespace() {
-		op.session.mu.Lock()
+		op.Session.mu.Lock()
 		err = publicationOperationLocked(e, op)
-		op.session.mu.Unlock()
+		op.Session.mu.Unlock()
 		if err == nil {
 			err = op.Context().Err()
 		}
@@ -173,7 +173,7 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		}
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)
 	for i := range next {

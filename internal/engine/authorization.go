@@ -172,10 +172,10 @@ func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Stateme
 // operationAuthorization returns op's current authorization view. It takes
 // Engine.mu, then Session.mu inside authorizationLocked.
 func operationAuthorization(op *Operation) (AuthorizationView, error) {
-	if op == nil || op.self != op || op.session == nil {
+	if op == nil || op.Self != op || op.Session == nil {
 		return AuthorizationView{}, fmt.Errorf("stuntgres: foreign or missing operation")
 	}
-	e := engineOf(op.session)
+	e := engineOf(op.Session)
 	if err := e.validateOperation(op); err != nil {
 		return AuthorizationView{}, err
 	}
@@ -186,7 +186,7 @@ func operationAuthorization(op *Operation) (AuthorizationView, error) {
 
 // Lock order is Engine.mu then Session.mu. Views retain only immutable values.
 func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
-	s := op.session
+	s := op.Session
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	a := s.authorization
@@ -215,7 +215,7 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 		}
 		identity.CurrentUser = operationReplayOrZero(op).materializedOwner
 	}
-	authorization := AuthorizationView{View: access.View{Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.operationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.catalog.state.Get(catalog.CurrentDatabaseAddress), State: identity, SessionRoleState: a.state, Revision: a.revision}, engine: e, definition: op.definition, settings: s.settings, session: s, materializedPopulation: operationReplayOrZero(op).materializedPopulation}
+	authorization := AuthorizationView{View: access.View{Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.operationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.catalog.state.Get(catalog.CurrentDatabaseAddress), State: identity, SessionRoleState: a.state, Revision: a.revision}, engine: e, definition: op.Definition, settings: s.settings, session: s, materializedPopulation: operationReplayOrZero(op).materializedPopulation}
 	if _, exists := r.Find(identity.CurrentUser); !exists {
 		authorization.MissingCurrent = identity.CurrentUser
 	}

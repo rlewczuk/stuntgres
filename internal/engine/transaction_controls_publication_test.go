@@ -120,7 +120,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				if boundary == "cancel_after" {
 					barrier.late = cancel
 				}
-				op.ctx = barrier
+				op.Ctx = barrier
 				// Classification checks exact authority before prospective birth;
 				// arm the shared barrier at the final publisher, not reservation.
 				barrier.checks.Store(-1)

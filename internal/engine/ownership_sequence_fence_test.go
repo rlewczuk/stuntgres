@@ -227,7 +227,7 @@ func TestRoleOwnershipSequenceDatabaseFence(t *testing.T) {
 					// Finish's operation check holds no engine lock. The independent
 					// native catalog stage has no session authorization callback.
 					checkpoint = &rangePartitionPhaseContext{Context: message.op.Context(), target: "(*StatementScope).Finish", effect: replaceDatabase}
-					message.op.ctx = checkpoint
+					message.op.Ctx = checkpoint
 				}
 				finishErr := message.scope.Finish(nil)
 				if phase == "before-statement-finish" && !checkpoint.entered.Load() {

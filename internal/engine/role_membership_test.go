@@ -201,7 +201,7 @@ func TestMembershipCancelledCandidate(t *testing.T) {
 	if err != context.Canceled || refs != nil || !reflect.DeepEqual(e.roles.published, old) {
 		t.Fatal(fmt.Sprint(refs), err)
 	}
-	op.ctx = ctx
+	op.Ctx = ctx
 	_, err = e.Execute(op, statement(t, "GRANT r TO m"), 0, nil)
 	if err != context.Canceled || e.roles.published != old || len(fixtureEdges(e.roles.published)) != 3 {
 		t.Fatal("cancelled membership published", err)

@@ -20,15 +20,15 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
 	if scope.lockedRef.Domain() == nil {
-		op.session.mu.Lock()
+		op.Session.mu.Lock()
 		err := publicationOperationLocked(e, op)
-		op.session.mu.Unlock()
+		op.Session.mu.Unlock()
 		e.mu.Unlock()
 		if err != nil {
 			return Result{}, err
 		}
 		scope.completed = true
-		op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, raw.Name.Parts[len(raw.Name.Parts)-1].Text)})
+		op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, raw.Name.Parts[len(raw.Name.Parts)-1].Text)})
 		return Result{}, nil
 	}
 	parent := scope.lockedDescriptor.(*catalog.Relation)
@@ -108,7 +108,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 	catalog = auth.Catalog
 	child = catalog.MustRelation(candidate.Address)
 	stage := e.BeginCatalogStage(catalog)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	stage.indexes().output = scope.output
 	for address := range scope.partitionRelations {
 		stage.domainBases = append(stage.domainBases, catalog.Get(address))

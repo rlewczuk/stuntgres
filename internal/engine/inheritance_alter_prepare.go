@@ -71,8 +71,8 @@ func (e *Engine) prepareInheritanceNode(scope *StatementScope, op *Operation, au
 	prepared.phaseZeroOnly = state.only && !inheritancePureDefinitionPreparation(actions)
 	reader := state.definition
 	reader.observations = &inheritanceDefinitionObservations{}
-	previousDefinition := op.definition
-	defer func() { op.definition = previousDefinition }()
+	previousDefinition := op.Definition
+	defer func() { op.Definition = previousDefinition }()
 	next := old
 	var additions []addedColumn
 	var prior *preparedDrop
@@ -102,12 +102,12 @@ phases:
 				reader.appendDescriptor(next)
 				continue
 			}
-			op.definition = reader
+			op.Definition = reader
 			auth.definition = reader
 			step := inheritancePreparedAction{old: next}
 			beforeReader := reader
-			previousNotices := op.notices
-			op.notices = nil
+			previousNotices := op.Notices
+			op.Notices = nil
 			var err error
 			switch action.Action {
 			case parser.DropColumn:
@@ -136,7 +136,7 @@ phases:
 				err = fmt.Errorf("stuntgres: unexpected prefix definition provider")
 			}
 			step.notices = op.DetachNotices()
-			op.notices = previousNotices
+			op.Notices = previousNotices
 			if err == nil && action.Action == parser.AddNotNull {
 				err = scope.inheritanceOnlyCreatedConstraint(step.old, next)
 			}
@@ -157,7 +157,7 @@ phases:
 			scope.recordInheritanceAlterAction(step.old, next, action)
 		}
 		if phase == 0 {
-			op.definition = reader
+			op.Definition = reader
 			auth.definition = reader
 			var err error
 			prepared.afterDropOld = next
@@ -235,7 +235,7 @@ phases:
 			if len(raw) > 1 {
 				slices.SortFunc(raw, func(a, b *parser.CheckConstraint) int { return a.Pos.Offset - b.Pos.Offset })
 			}
-			op.definition = reader
+			op.Definition = reader
 			auth.definition = reader
 			var err error
 			prepared.checks, err = e.prepareAddedChecks(scope, op, auth, next, raw)
@@ -300,7 +300,7 @@ func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStag
 		return nil, addedColumn{}, true, ids.ErrCatalogReplaced
 	}
 	if len(step.notices) != 0 {
-		scope.op.notices = append(scope.op.notices, step.notices...)
+		scope.op.Notices = append(scope.op.Notices, step.notices...)
 	}
 	if step.err != nil {
 		return nil, addedColumn{}, true, step.err

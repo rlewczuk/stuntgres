@@ -175,7 +175,7 @@ func TestNotNullCancellationDuringScanAndRevisionExhaustion(t *testing.T) {
 	}
 	defer done()
 	defer cancel()
-	op.ctx = &cancelAtErrCheck{Context: op.Context(), cancel: cancel, at: 25}
+	op.Ctx = &cancelAtErrCheck{Context: op.Context(), cancel: cancel, at: 25}
 	_, err = e.Execute(op, statement(t, "ALTER TABLE t ALTER a SET NOT NULL"), 0, nil)
 	if !errors.Is(err, context.Canceled) || e.catalog.state.Get(ref.Address) != old || e.storage.Relations[ref.Address] != storage {
 		t.Fatal(err)

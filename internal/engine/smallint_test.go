@@ -25,7 +25,7 @@ func TestSmallintStagedCancellation(t *testing.T) {
 			t.Fatal(err)
 		}
 		ctx := &cancelAtErrCheck{Context: op.Context(), cancel: cancel, at: at}
-		op.ctx = ctx
+		op.Ctx = ctx
 		_, err = e.Execute(op, statement(t, "INSERT INTO t VALUES(1,'one'),(2,'two'),(3,'three')"), 0, nil)
 		cleanup()
 		cancel()

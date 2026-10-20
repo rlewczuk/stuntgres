@@ -35,7 +35,7 @@ func grantWarning(op *Operation, relation, column string, requested, available a
 	} else {
 		message += fmt.Sprintf(` for column "%s" of relation "%s"`, column, relation)
 	}
-	op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: code, Message: message})
+	op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: code, Message: message})
 }
 
 func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parser.ObjectGrant) ([]catalog.Descriptor, error) {
@@ -273,7 +273,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			targetMask = classMask
 		} else if relation.RelationKind == catalog.SequenceRelation && s.Kind == "" {
 			if targetMask & ^classMask != 0 {
-				op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "0LP01", Message: fmt.Sprintf(`sequence "%s" only supports USAGE, SELECT, and UPDATE privileges`, relation.Name())})
+				op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "0LP01", Message: fmt.Sprintf(`sequence "%s" only supports USAGE, SELECT, and UPDATE privileges`, relation.Name())})
 			}
 			targetMask &= classMask
 		} else if targetMask & ^classMask != 0 {
@@ -338,7 +338,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 			mask := masks[i]
 			if len(item.Columns) != 0 && relation.RelationKind == catalog.SequenceRelation {
 				if mask & ^authorization.SelectPrivilege != 0 {
-					op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "0LP01", Message: fmt.Sprintf(`sequence "%s" only supports SELECT column privileges`, relation.Name())})
+					op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "0LP01", Message: fmt.Sprintf(`sequence "%s" only supports SELECT column privileges`, relation.Name())})
 				}
 				mask &= authorization.SelectPrivilege
 			}
@@ -439,13 +439,13 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 		return Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
 	roles := v.RoleRecord.Advance()
-	op.session.mu.Lock()
-	defer op.session.mu.Unlock()
+	op.Session.mu.Lock()
+	defer op.Session.mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
-	if op.session.transactions.retainsTransaction() {
-		changes := op.session.transactions.catalog.Clone()
+	if op.Session.transactions.retainsTransaction() {
+		changes := op.Session.transactions.catalog.Clone()
 		// Completed grant utilities retain their consulted DB predecessor in
 		// the candidate, not a scope authority with a pre-advance role revision.
 		if err := e.catalogAuthorityPreflightLocked(v.catalogAuthorityLocked(ids.ObjectRef{}, nil), changes); err != nil {
@@ -454,7 +454,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 		for address, change := range changed {
 			e.catalogChangeLocked(changes, address, change.descriptor)
 		}
-		op.session.transactions.catalog = changes
+		op.Session.transactions.catalog = changes
 	} else {
 		e.catalog.state = candidate
 	}

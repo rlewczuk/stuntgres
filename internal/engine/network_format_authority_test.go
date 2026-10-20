@@ -29,7 +29,7 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 			defer finish()
 			roleExecute(t, e, admin, "CREATE TABLE nf_unit(ip inet,net cidr)")
 			ref := roleTableRef(t, e, "public.nf_unit")
-			input, _ := sessionPresentation(admin.session)
+			input, _ := sessionPresentation(admin.Session)
 			raw := statement(t, "SELECT "+tc.expr).(*parser.Select).Targets[0]
 			e.mu.Lock()
 			auth, err := e.authorizationLocked(admin)

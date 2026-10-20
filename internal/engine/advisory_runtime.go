@@ -12,10 +12,10 @@ import (
 
 func (h *statementHost) Advisory(c *exec.Context, action functions.AdvisoryAction, mode functions.AdvisoryMode, lifetime functions.AdvisoryLifetime, first, second int64, pair bool, result *sqltype.Descriptor) (sqltype.Value, error) {
 	s := h.scope()
-	if s.op == nil || s.op.session == nil || s.op.session.advisory.ticket == nil {
+	if s.op == nil || s.op.Session == nil || s.op.Session.advisory.ticket == nil {
 		return sqltype.Value{}, errors.New("stuntgres: missing advisory session scope")
 	}
-	ticket := s.op.session.advisory.ticket
+	ticket := s.op.Session.advisory.ticket
 	if action == functions.AdvisoryUnlockAll {
 		if err := s.engine().locks.UnlockAdvisoryAll(ticket); err != nil {
 			return sqltype.Value{}, err
@@ -40,7 +40,7 @@ func (h *statementHost) Advisory(c *exec.Context, action functions.AdvisoryActio
 			if mode == functions.AdvisoryShare {
 				message = "you don't own a lock of type ShareLock"
 			}
-			s.op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: message})
+			s.op.EmitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "01000", Message: message})
 		}
 		return sqltype.Boolean(result, unlocked), nil
 	}

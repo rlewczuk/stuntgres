@@ -31,7 +31,7 @@ func (v AuthorizationView) checkSequenceAny(ref ids.ObjectRef, mask authorizatio
 }
 func (s *StatementScope) acquireSequence(ref ids.ObjectRef, mode lock.Mode, reserveReplacement bool) error {
 	e := s.engine()
-	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
+	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext}
 	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, mode, policy)
 	if request != nil {
 		if s.replacementRead {
@@ -144,7 +144,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		}
 		auth.Catalog = e.privateCatalogLocked(changes)
 		auth.Recapture(auth.Catalog)
-		if table, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
+		if table, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.Session.token {
 			auth.stagedTemporary = table.Address()
 		}
 		if err = auth.CheckCreate(ns); err != nil && !operationReplayOrZero(op).tableDestination {
@@ -156,7 +156,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		if nsd, ok := auth.Catalog.Namespace(ns.Address); ok && nsd.Temporary == op.session.token {
+		if nsd, ok := auth.Catalog.Namespace(ns.Address); ok && nsd.Temporary == op.Session.token {
 			scope.owner.accessedTemporary = true
 		}
 		name := s.Name.Parts[len(s.Name.Parts)-1].Text
@@ -164,7 +164,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		if _, ok := auth.Catalog.LookupName(key); ok {
 			e.mu.Unlock()
 			if s.IfNotExists {
-				op.existingRelationNotice(name)
+				op.ExistingRelationNotice(name)
 				return Result{}, nil
 			}
 			return Result{}, sqlError("42P07", fmt.Sprintf(`relation "%s" already exists`, name))
@@ -224,7 +224,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			e.mu.Unlock()
 			if s.IfExists {
 				if d, ok := err.(*sqlstate.Error); ok && d.Code == "42P01" {
-					op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, catalog.ObjectNameText(s.Name))})
+					op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, catalog.ObjectNameText(s.Name))})
 					return Result{}, nil
 				}
 			}
@@ -354,7 +354,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			// against that same private catalog, without publishing on rejection.
 			auth.Catalog = e.privateCatalogLocked(changes)
 			auth.Recapture(auth.Catalog)
-			if table, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
+			if table, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.Session.token {
 				auth.stagedTemporary = table.Address()
 			}
 			if err = auth.CheckCreate(ns); err != nil {
@@ -392,7 +392,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			changes.Generators[d.Address()] = &replacement
 		}
 		if s.Action == "" || persistenceChanged {
-			if m := payloadOf(op.session).sequences.Memory(d.Address()); m != nil {
+			if m := payloadOf(op.Session).sequences.Memory(d.Address()); m != nil {
 				m.DiscardTailLocked()
 			}
 		}
@@ -416,7 +416,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 		ref, er := e.resolveRelationReference(auth, name, false)
 		if er != nil {
 			if d, ok := er.(*sqlstate.Error); s.IfExists && ok && d.Code == "42P01" {
-				scope.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`sequence "%s" does not exist, skipping`, catalog.ObjectNameText(name))})
+				scope.op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`sequence "%s" does not exist, skipping`, catalog.ObjectNameText(name))})
 				continue
 			}
 			e.mu.Unlock()
@@ -463,7 +463,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	}
 	// Every stored-expression owner shares one private dependency closure.
 	checkStage := e.BeginCatalogStage(auth.Catalog)
-	checkStage.authorizeLocked(auth, scope.op.session)
+	checkStage.authorizeLocked(auth, scope.op.Session)
 	defer e.DiscardCatalogStage(checkStage)
 	checkStage.dependencyPath, err = e.referencePath(auth)
 	if err != nil {

@@ -38,7 +38,7 @@ func (*bindingHost) AnalysisSlot() {}
 // copied operations get a fresh host.
 func (e *Engine) analysisHost(op *Operation) *bindingHost {
 	if op != nil {
-		if h, _ := op.analysis.(*bindingHost); h != nil && h.op == op && h.engine == e {
+		if h, _ := op.Analysis.(*bindingHost); h != nil && h.op == op && h.engine == e {
 			return h
 		}
 	}
@@ -249,18 +249,18 @@ func (h *bindingHost) PlanOwner() (ids.SessionToken, uint64, bool) {
 	if h.op == nil {
 		return ids.SessionToken{}, 0, false
 	}
-	return h.op.session.token, h.op.session.discardPlansGeneration, true
+	return h.op.Session.token, h.op.Session.discardPlansGeneration, true
 }
 
 func (h *bindingHost) EmitWarning(diagnostic sqlstate.Error) {
 	if h.op != nil {
-		h.op.emitNotice(levelWarning, diagnostic)
+		h.op.EmitNotice(levelWarning, diagnostic)
 	}
 }
 
 func (h *bindingHost) EmitNotice(diagnostic sqlstate.Error) {
 	if h.op != nil {
-		h.op.emitNotice(levelNotice, diagnostic)
+		h.op.EmitNotice(levelNotice, diagnostic)
 	}
 }
 

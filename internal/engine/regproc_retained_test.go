@@ -162,10 +162,10 @@ func TestRoutineMixedOperatorCompoundCapture(t *testing.T) {
 			cells[i].Offset = 7
 		}
 		expected := StatementDescription{regtypes: &regtypeAnalysis{constants: cells}}
-		b := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, &expected)
+		b := newExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, &expected)
 		b.Query.Auth = &auth
 		pos := parser.Position{Offset: 7, Character: 8}
-		fresh := newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{}, op, nil)
+		fresh := newExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{}, op, nil)
 		fresh.Query.Auth = &auth
 		freshValue, err := fresh.RoutineConstant(`("abs(integer)","public.#=#(routine_types.secret,integer)",integer)`, c.Value.Type().Usage(), pos)
 		if err != nil || !sqltype.SameDatum(freshValue, c.Value) || len(fresh.Prepared.RegtypeConstants) != 1 {

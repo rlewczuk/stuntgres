@@ -19,7 +19,7 @@ func TestPGSequenceSnapshotTerminalRelease(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			owner := op.session.transactions
+			owner := op.Session.transactions
 			scope := &StatementScope{op: op, owner: owner, txRef: ref}
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
 				t.Fatal(err)
@@ -44,8 +44,8 @@ func TestPGSequenceSnapshotTerminalRelease(t *testing.T) {
 				}
 			case "session_end":
 				op.Done()
-				op.session.RequestEnd(CleanClose)
-				if err := op.session.WaitEnd(context.Background()); err != nil {
+				op.Session.RequestEnd(CleanClose)
+				if err := op.Session.WaitEnd(context.Background()); err != nil {
 					t.Fatal(err)
 				}
 			}

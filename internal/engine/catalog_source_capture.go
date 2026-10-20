@@ -34,10 +34,10 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	unlockBefore := false
 	switch oid {
 	case pgcatalog.SettingsOID:
-		runtime.settings = scope.op.session.settings
+		runtime.settings = scope.op.Session.settings
 		unlockBefore = true
 	case pgcatalog.CursorsOID:
-		runtime.cursors = payloadOf(scope.op.session).cursors
+		runtime.cursors = payloadOf(scope.op.Session).cursors
 		unlockBefore = true
 	case 12081, 12085:
 		in.Catalog = scope.inquiry.commentCatalog
@@ -50,7 +50,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		unlockBefore = true
 	case pgcatalog.TablePrivilegesOID, pgcatalog.DataTypePrivilegesOID:
 		in.Catalog, in.Roles = scope.inquiry.commentCatalog, scope.inquiry.deparseAuth.Roles
-		runtime.auth, runtime.database = scope.inquiry.deparseAuth, scope.op.session.databaseName
+		runtime.auth, runtime.database = scope.inquiry.deparseAuth, scope.op.Session.databaseName
 		runtime.temporary = catalogSourceTemporaryOwner(scope.inquiry.deparseAuth)
 	case ids.ForeignWrapperClassID, ids.ForeignServerClassID, ids.ForeignMappingClassID, ids.ForeignTableClassID, pgcatalog.UserMappingsOID:
 		auth, err := e.authorizationLocked(scope.op)
@@ -91,7 +91,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 			runtime.auth, in.Roles = auth, auth.Roles
 		}
 		if oid == 12006 {
-			runtime.presentation = viewPresentation{deparse: true, path: scope.inquiry.deparsePath, output: scope.output, nonstandardStrings: scope.op.nonstandardStrings}
+			runtime.presentation = viewPresentation{deparse: true, path: scope.inquiry.deparsePath, output: scope.output, nonstandardStrings: scope.op.NonstandardStrings}
 		}
 	}
 	in.Runtime = runtime

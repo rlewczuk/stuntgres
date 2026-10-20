@@ -29,32 +29,32 @@ func messageLevel(value string) (noticeLevel, bool) {
 	rank, ok := settings.MessageLevelRank(value)
 	return noticeLevel(rank), ok
 }
-func (op *Operation) snapshotNoticeThreshold() {
-	s := op.session.settings
+func (op *Operation) SnapshotNoticeThreshold() {
+	s := op.Session.settings
 	s.mu.Lock()
 	value, ok := s.values[settings.ClientMinMessages.Name]
 	if !ok {
 		value = s.defaults[settings.ClientMinMessages.Name]
 	}
 	s.mu.Unlock()
-	op.noticeThreshold, _ = messageLevel(value)
+	op.NoticeThreshold, _ = messageLevel(value)
 }
-func (op *Operation) emitNotice(level noticeLevel, diagnostic sqlstate.Error) {
-	if level >= levelError || (level != levelInfo && level < op.noticeThreshold) {
+func (op *Operation) EmitNotice(level noticeLevel, diagnostic sqlstate.Error) {
+	if level >= levelError || (level != levelInfo && level < op.NoticeThreshold) {
 		return
 	}
-	op.notices = append(op.notices, diagnostic)
+	op.Notices = append(op.Notices, diagnostic)
 }
 
 // DetachNotices transfers owned records to the adapter, without invoking user code.
 func (op *Operation) DetachNotices() []sqlstate.Error {
-	notices := op.notices
-	op.notices = nil
+	notices := op.Notices
+	op.Notices = nil
 	return notices
 }
-func (op *Operation) parseNotice(diagnostic sqlstate.Error) {
-	op.emitNotice(levelNotice, diagnostic)
+func (op *Operation) ParseNotice(diagnostic sqlstate.Error) {
+	op.EmitNotice(levelNotice, diagnostic)
 }
-func (op *Operation) existingRelationNotice(name string) {
-	op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42P07", Message: fmt.Sprintf(`relation "%s" already exists, skipping`, name)})
+func (op *Operation) ExistingRelationNotice(name string) {
+	op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42P07", Message: fmt.Sprintf(`relation "%s" already exists, skipping`, name)})
 }

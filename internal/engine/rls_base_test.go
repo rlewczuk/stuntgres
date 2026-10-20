@@ -94,7 +94,7 @@ func TestRLSBaseDecision(t *testing.T) {
 			e.mu.Unlock()
 			t.Fatal(err)
 		}
-		b, err := describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
+		b, err := describe(op.Ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 		if err != nil {
 			e.mu.Unlock()
 			t.Fatal(err)
@@ -114,14 +114,14 @@ func TestRLSBaseDecision(t *testing.T) {
 		if source.View == nil || !source.RlsDenied || len(source.Committed) != 0 || len(source.Own) != 0 || source.HashIndexes != nil || source.PartialMask != nil {
 			t.Fatal("denied source lost ownership or captured physical rows/indexes")
 		}
-		stage, err := exec.OpenNode(op.ctx, &exec.State{Source: source}, b.Query.Root.(*plan.ProjectNode).Child)
+		stage, err := exec.OpenNode(op.Ctx, &exec.State{Source: source}, b.Query.Root.(*plan.ProjectNode).Child)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if stage.Source != source {
 			t.Fatal("denied input lost its owned source")
 		}
-		selected, err := exec.SelectQuerySource(op.ctx, source, 0, nil, nil)
+		selected, err := exec.SelectQuerySource(op.Ctx, source, 0, nil, nil)
 		if err != nil || selected != source || selected.Visible != nil {
 			t.Fatal("live selection revived denied input", err)
 		}

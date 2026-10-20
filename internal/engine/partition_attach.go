@@ -22,15 +22,15 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
 	if scope.lockedRef.Domain() == nil {
-		op.session.mu.Lock()
+		op.Session.mu.Lock()
 		err := publicationOperationLocked(e, op)
-		op.session.mu.Unlock()
+		op.Session.mu.Unlock()
 		e.mu.Unlock()
 		if err != nil {
 			return Result{}, err
 		}
 		scope.completed = true
-		op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, raw.Name.Parts[len(raw.Name.Parts)-1].Text)})
+		op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`relation "%s" does not exist, skipping`, raw.Name.Parts[len(raw.Name.Parts)-1].Text)})
 		return Result{}, nil
 	}
 	parent := scope.lockedDescriptor.(*catalog.Relation)
@@ -48,7 +48,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 		return fail(err)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	bound, err := preparePartitionBounds(parent, raw.Bound)
 	if err != nil {
 		e.DiscardCatalogStage(stage)
@@ -146,7 +146,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	child = auth.Catalog.MustRelation(candidate.Address)
 	e.DiscardCatalogStage(pending.stage)
 	stage = e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	stage.indexes().output = scope.output
 	pending.stage, pending.auth, pending.child = stage, auth, child
 	for address := range scope.partitionRelations {
@@ -251,7 +251,7 @@ func (e *Engine) partitionAttachAuthorization(op *Operation, auth AuthorizationV
 	if !operationReplayOrZero(op).partitionAttach {
 		return auth, nil
 	}
-	if op.self != op || op.session == nil || engineOf(op.session) != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state {
+	if op.Self != op || op.Session == nil || engineOf(op.Session) != e || e.importTargets == nil || auth.engine != e || auth.session != op.Session || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state {
 		return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore partition attachment authority")
 	}
 	if err := e.validateOperation(op); err != nil {

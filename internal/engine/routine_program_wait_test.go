@@ -50,7 +50,7 @@ func TestRoutineProgramOriginalCallsAfterUniqueWait(t *testing.T) {
 				holder := sessionStart(t, e, nil)
 				ref := transactionBegin(t, holder)
 				sessionSQL(t, holder, "INSERT INTO public.programme_target VALUES(7,1)")
-				done, cancel := uniqueAsyncUnit(t, reader.session, "INSERT INTO public.programme_target VALUES(7,1)")
+				done, cancel := uniqueAsyncUnit(t, reader.Session, "INSERT INTO public.programme_target VALUES(7,1)")
 				lockPending(t, e, 1)
 				sequence := catalogRef(t, e, e.CatalogRead(), "programme_steps")
 				e.mu.Lock()
@@ -116,7 +116,7 @@ func TestRoutineProgramOriginalCallsAfterUniqueWait(t *testing.T) {
 				}
 				rows.Rows.Close()
 				roleExecute(t, e, admin, "GRANT EXECUTE ON FUNCTION "+target+" TO PUBLIC")
-				if result := sessionSQL(t, reader.session, "INSERT INTO public.programme_target VALUES(7,1)"); result.Count != 1 {
+				if result := sessionSQL(t, reader.Session, "INSERT INTO public.programme_target VALUES(7,1)"); result.Count != 1 {
 					t.Fatal("fresh regrant retry", result)
 				}
 				e.mu.Lock()
@@ -178,9 +178,9 @@ func TestRoutineProgramOriginalCallsAfterSecondUniqueWait(t *testing.T) {
 			}()
 			sessionSQL(t, firstHolder, "INSERT INTO public.second_wait_rows VALUES(7,8,1)")
 			sessionSQL(t, secondHolder, "INSERT INTO public.second_wait_rows VALUES(6,9,1)")
-			done, cancel := uniqueAsyncUnit(t, reader.session, "INSERT INTO public.second_wait_rows VALUES(7,9,1)")
+			done, cancel := uniqueAsyncUnit(t, reader.Session, "INSERT INTO public.second_wait_rows VALUES(7,9,1)")
 			defer cancel()
-			routinePendingUniqueIndex(t, e, firstIndex, reader.session)
+			routinePendingUniqueIndex(t, e, firstIndex, reader.Session)
 			sequence := catalogRef(t, e, e.CatalogRead(), "second_wait_steps")
 			e.mu.Lock()
 			generator := e.storage.Sequences[sequence.Address]
@@ -194,7 +194,7 @@ func TestRoutineProgramOriginalCallsAfterSecondUniqueWait(t *testing.T) {
 			roleExecute(t, e, admin, "CREATE SEQUENCE public.second_wait_catalog_drift")
 			transactionEnd(t, firstHolder, firstTx, false)
 			firstOpen = false
-			routinePendingUniqueIndex(t, e, secondIndex, reader.session)
+			routinePendingUniqueIndex(t, e, secondIndex, reader.Session)
 			roleExecute(t, e, admin, "REVOKE EXECUTE ON FUNCTION pg_catalog.json_array_length(json) FROM PUBLIC")
 			transactionEnd(t, secondHolder, secondTx, false)
 			secondOpen = false
@@ -221,7 +221,7 @@ func TestRoutineProgramOriginalCallsAfterSecondUniqueWait(t *testing.T) {
 			}
 			rows.Rows.Close()
 			roleExecute(t, e, admin, "GRANT EXECUTE ON FUNCTION pg_catalog.json_array_length(json) TO PUBLIC")
-			if result := sessionSQL(t, reader.session, "INSERT INTO public.second_wait_rows VALUES(7,9,1)"); result.Count != 1 {
+			if result := sessionSQL(t, reader.Session, "INSERT INTO public.second_wait_rows VALUES(7,9,1)"); result.Count != 1 {
 				t.Fatal("fresh second-wait regrant retry", result)
 			}
 			e.mu.Lock()

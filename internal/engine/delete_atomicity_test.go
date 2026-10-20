@@ -59,7 +59,7 @@ func TestDeleteCoreAtomicity(t *testing.T) {
 			sentinel := errors.New("late predicate failure")
 			ctx, cancel := context.WithCancel(scope.op.Context())
 			defer cancel()
-			scope.op.ctx = ctx
+			scope.op.Ctx = ctx
 			calls := 0
 			b.Predicate = queryProbe(boolean.Usage(), func(c *exec.Context) (sqltype.Value, error) {
 				calls++
@@ -131,9 +131,9 @@ func TestDeleteCorePublicationCancellation(t *testing.T) {
 			base, cancel := context.WithCancel(op.Context())
 			defer cancel()
 			if wins {
-				op.ctx = &deleteCancelAfterCheck{Context: base, cancel: cancel, at: 2}
+				op.Ctx = &deleteCancelAfterCheck{Context: base, cancel: cancel, at: 2}
 			} else {
-				op.ctx = &cancelAtErrCheck{Context: base, cancel: cancel, at: 2}
+				op.Ctx = &cancelAtErrCheck{Context: base, cancel: cancel, at: 2}
 			}
 			err = scope.Finish(nil)
 			if wins {
@@ -355,7 +355,7 @@ func TestDeleteCoreDeletedScanCancellation(t *testing.T) {
 	base, cancel := context.WithCancel(scope.op.Context())
 	defer cancel()
 	ctx := &cancelAtErrCheck{Context: base, cancel: cancel, at: 2}
-	scope.op.ctx = ctx
+	scope.op.Ctx = ctx
 	root := e.storage.Relations[scope.lockedRef.Address].Ends
 	target := scope.lockedRef // Finish retires admission; retain the exact witness.
 	frontier := e.visibility.CommitSeq()

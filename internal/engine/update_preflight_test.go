@@ -37,7 +37,7 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		b, err := describe(op.ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
+		b, err := describe(op.Ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -152,8 +152,8 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer done()
-			ctx.Context = op.ctx
-			op.ctx = ctx
+			ctx.Context = op.Ctx
+			op.Ctx = ctx
 			scope, err := e.StartStatement(op)
 			if err != nil {
 				t.Fatal(err)
@@ -172,9 +172,9 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 				}
 				switch mode {
 				case "authority":
-					op.session.mu.Lock()
-					op.session.authorization.state.CurrentUser = actor.Ref
-					op.session.mu.Unlock()
+					op.Session.mu.Lock()
+					op.Session.authorization.state.CurrentUser = actor.Ref
+					op.Session.mu.Unlock()
 				case "storage":
 					address := scope.lockedRef.Address
 					original := e.storage.Relations[address]
@@ -210,7 +210,7 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 				case "deadline":
 					ctx.Context = deadline
 				case "teardown":
-					op.session.RequestEnd(CleanClose)
+					op.Session.RequestEnd(CleanClose)
 				}
 			}
 			result, executeErr := scope.Execute(statement(t, "UPDATE t SET i=int4($1::text) WHERE i IS NOT NULL"), 1, func(c context.Context, signature analyze.ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {

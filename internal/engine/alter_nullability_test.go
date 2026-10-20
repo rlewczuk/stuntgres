@@ -91,7 +91,7 @@ func TestAlterNullabilityCancellationBoundaries(t *testing.T) {
 				t.Fatal(err)
 			}
 			counter := &cancelAtErrCheck{Context: op.Context(), cancel: cancel, at: 1 << 30}
-			op.ctx = counter
+			op.Ctx = counter
 			if _, err = calibration.Execute(op, statement(t, q), 0, nil); err != nil {
 				t.Fatal(err)
 			}
@@ -115,7 +115,7 @@ func TestAlterNullabilityCancellationBoundaries(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				op.ctx = &cancelAtErrCheck{Context: op.Context(), cancel: cancel, at: at}
+				op.Ctx = &cancelAtErrCheck{Context: op.Context(), cancel: cancel, at: at}
 				_, err = e.Execute(op, statement(t, q), 0, nil)
 				done()
 				cancel()

@@ -124,7 +124,7 @@ func TestUniqueIndexCurrentACLAfterWait(t *testing.T) {
 			holder := sessionStart(t, e, nil)
 			transactionBegin(t, holder)
 			sessionSQL(t, holder, "INSERT INTO public.ui_t VALUES(7)")
-			done, _ := uniqueAsyncUnit(t, owner.session, "INSERT INTO public.ui_t VALUES(7)")
+			done, _ := uniqueAsyncUnit(t, owner.Session, "INSERT INTO public.ui_t VALUES(7)")
 			lockPending(t, e, 1)
 			grant(!initiallyVisible)
 			sessionSQL(t, holder, "COMMIT")

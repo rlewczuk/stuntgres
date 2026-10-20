@@ -128,10 +128,10 @@ func TestDefaultBoundOwnershipTemporalInputAndNoEvaluation(t *testing.T) {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	b, err := describe(op.ctx, e.analysisHost(op), statement(t, `CREATE TABLE d(i INT DEFAULT 2147483648,t TIMESTAMP DEFAULT 'now',v TIME DEFAULT 'now')`), auth, ids.ObjectRef{}, sqltype.InputEnvironment{TransactionStart: a}, nil, nil)
+	b, err := describe(op.Ctx, e.analysisHost(op), statement(t, `CREATE TABLE d(i INT DEFAULT 2147483648,t TIMESTAMP DEFAULT 'now',v TIME DEFAULT 'now')`), auth, ids.ObjectRef{}, sqltype.InputEnvironment{TransactionStart: a}, nil, nil)
 	var defaults map[int32]catalog.ColumnDefault
 	if err == nil {
-		defaults, err = bindCreateDefaults(newExpressionBinder(op.ctx, e, sqltype.InputEnvironment{TransactionStart: a}, op, nil), b.Create.Columns, b.Create.Declarations)
+		defaults, err = bindCreateDefaults(newExpressionBinder(op.Ctx, e, sqltype.InputEnvironment{TransactionStart: a}, op, nil), b.Create.Columns, b.Create.Declarations)
 	}
 	e.mu.Unlock()
 	if err != nil {

@@ -134,7 +134,7 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 		return fail(err)
 	}
 	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.session)
+	stage.authorizeLocked(auth, op.Session)
 	for _, p := range next.Security.Policies {
 		for _, expression := range []*policyExpression{policyExpressionOf(p.Using), policyExpressionOf(p.Check)} {
 			if expression == nil {
@@ -171,9 +171,9 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 // success observes final cancellation/session/epoch fences before its notice.
 func (e *Engine) finishPolicyNoticeLocked(scope *StatementScope, message string) (Result, error) {
 	op := scope.op
-	op.session.mu.Lock()
+	op.Session.mu.Lock()
 	err := publicationOperationLocked(e, op)
-	op.session.mu.Unlock()
+	op.Session.mu.Unlock()
 	if err == nil {
 		err = op.Context().Err()
 	}
@@ -182,6 +182,6 @@ func (e *Engine) finishPolicyNoticeLocked(scope *StatementScope, message string)
 		return Result{}, err
 	}
 	scope.completed = true
-	op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message})
+	op.EmitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: message})
 	return Result{}, nil
 }

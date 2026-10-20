@@ -193,7 +193,7 @@ func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, 
 			if raw.Pos.Character > 0 {
 				warning.Position = strconv.Itoa(raw.Pos.Character)
 			}
-			op.emitNotice(levelWarning, *warning)
+			op.EmitNotice(levelWarning, *warning)
 		}
 	}
 	if len(raw.ArrayBounds) > 0 {

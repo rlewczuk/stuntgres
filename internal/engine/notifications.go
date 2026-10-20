@@ -98,11 +98,11 @@ func (n *sessionNotifications) EndSession(token ids.SessionToken, _ EndReason) e
 // session, waiting until one arrives or op's context ends. The listener is root
 // state guarded by Engine.mu, so polling lives on the engine.
 func (e *Engine) WaitForNotification(op *Operation) (Notification, error) {
-	if op == nil || op.self != op || op.session == nil || engineOf(op.session) != e {
+	if op == nil || op.Self != op || op.Session == nil || engineOf(op.Session) != e {
 		return Notification{}, errors.New("stuntgres: foreign notification operation")
 	}
 	for {
-		event, available, wake, err := e.pollNotification(op.session, op.Context().Err)
+		event, available, wake, err := e.pollNotification(op.Session, op.Context().Err)
 		if err != nil || available {
 			return event, err
 		}
@@ -218,13 +218,13 @@ func (s *StatementScope) executeNotification(stmt parser.Statement, count int) (
 		if len(raw.Payload) >= 8000 {
 			return Result{}, sqlError("22023", "payload string too long")
 		}
-		s.notificationEvents = append(s.notificationEvents, Notification{PID: uint64(s.op.session.token.ID()), Channel: raw.Channel.Text, Payload: raw.Payload})
+		s.notificationEvents = append(s.notificationEvents, Notification{PID: uint64(s.op.Session.token.ID()), Channel: raw.Channel.Text, Payload: raw.Payload})
 	case *parser.Listen:
 		s.notificationActions = append(s.notificationActions, notificationAction{channel: raw.Channel.Text, listen: true})
 	case *parser.Unlisten:
 		e := s.engine()
 		e.mu.Lock()
-		state := payloadOf(s.op.session).notifications.state
+		state := payloadOf(s.op.Session).notifications.state
 		history := state != nil && state.history
 		e.mu.Unlock()
 		if history || len(s.owner.notificationActions) != 0 || len(s.notificationActions) != 0 {

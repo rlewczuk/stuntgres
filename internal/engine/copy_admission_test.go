@@ -126,8 +126,8 @@ func copyOwnerReservation(t *testing.T, format copyFormat) {
 				t.Fatal(err)
 			}
 			defer waiter.Done()
-			waiting := &copyWaitContext{Context: waiter.ctx, entered: make(chan struct{})}
-			waiter.ctx = waiting
+			waiting := &copyWaitContext{Context: waiter.Ctx, entered: make(chan struct{})}
+			waiter.Ctx = waiting
 			started := make(chan struct{})
 			finished := make(chan error, 1)
 			go func() {
@@ -357,7 +357,7 @@ func copyFinalCancellationVeto(t *testing.T, csv bool) {
 	if err != nil || result != 1 {
 		t.Fatal(result, err)
 	}
-	op.cancel(context.Canceled)
+	op.Cancel(context.Canceled)
 	if err = scope.Finish(nil); err == nil {
 		t.Fatal("canceled final publication succeeded")
 	}
@@ -409,8 +409,8 @@ func TestCopyTextOwnerWaitCompletion(t *testing.T) {
 			before := scope.txRef
 			waiter := transactionOperation(t, session)
 			defer waiter.Done()
-			waiting := &copyWaitContext{Context: waiter.ctx, entered: make(chan struct{})}
-			waiter.ctx = waiting
+			waiting := &copyWaitContext{Context: waiter.Ctx, entered: make(chan struct{})}
+			waiter.Ctx = waiting
 			finished := make(chan error, 1)
 			go func() {
 				var err error

@@ -24,7 +24,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 	if raw.Category == parser.DiscardAll && s.owner.inBlock() {
 		return Result{}, sqlError("25001", "DISCARD ALL cannot run inside a transaction block")
 	}
-	session := s.op.session
+	session := s.op.Session
 	if raw.Category == parser.DiscardPlans || raw.Category == parser.DiscardAll {
 		if session.discardPlansGeneration == ^uint64(0) {
 			return Result{}, fmt.Errorf("stuntgres: discard plan generation exhausted")
@@ -58,8 +58,8 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 		if history {
 			s.notificationActions = append(s.notificationActions, notificationAction{all: true})
 		}
-		s.op.discardRoleReset = reset
-		defer func() { s.op.discardRoleReset = authorization.RoleState{} }()
+		s.op.DiscardRoleReset = reset
+		defer func() { s.op.DiscardRoleReset = authorization.RoleState{} }()
 		// Commit the validated TEMP closure with the normal combined publisher.
 		// Admission and replacement authority stay held until Finish. After this
 		// succeeds, no fallible owner operation or context check remains.
@@ -103,7 +103,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 }
 
 func (s *StatementScope) discardAllPreflight() (authorization.RoleState, error) {
-	session, e := s.op.session, s.engine()
+	session, e := s.op.Session, s.engine()
 	ticket := session.advisory.ticket
 	if !e.locks.ValidSession(ticket, session.token) {
 		return authorization.RoleState{}, fmt.Errorf("stuntgres: invalid advisory session")
@@ -140,14 +140,14 @@ func (s *StatementScope) discardAllPreflight() (authorization.RoleState, error) 
 // The combined publisher calls these under Engine -> session locks, closing the
 // gap between role-identity validation and irreversible TEMP publication.
 func (e *Engine) discardResetPreflightLocked(op *Operation) error {
-	if op.discardRoleReset.Authenticated == (authorization.PrincipalRef{}) {
+	if op.DiscardRoleReset.Authenticated == (authorization.PrincipalRef{}) {
 		return nil
 	}
-	if err := roleRevisionHeadroom(op.session.authorization, 3); err != nil {
+	if err := roleRevisionHeadroom(op.Session.authorization, 3); err != nil {
 		return err
 	}
 	roles := e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)
-	for _, principal := range []authorization.PrincipalRef{op.discardRoleReset.Authenticated, op.discardRoleReset.CurrentUser} {
+	for _, principal := range []authorization.PrincipalRef{op.DiscardRoleReset.Authenticated, op.DiscardRoleReset.CurrentUser} {
 		if _, err := roles.Descriptor(principal); err != nil {
 			return err
 		}
@@ -156,9 +156,9 @@ func (e *Engine) discardResetPreflightLocked(op *Operation) error {
 }
 
 func (e *Engine) finishDiscardRoleResetLocked(op *Operation) {
-	if op.discardRoleReset.Authenticated != (authorization.PrincipalRef{}) {
-		op.session.authorization.state = op.discardRoleReset
-		op.session.authorization.revision++
+	if op.DiscardRoleReset.Authenticated != (authorization.PrincipalRef{}) {
+		op.Session.authorization.state = op.DiscardRoleReset
+		op.Session.authorization.revision++
 	}
 }
 
@@ -187,7 +187,7 @@ func (e *Engine) resetAllSettingsLocked(session *Session) {
 }
 
 func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
-	e, session := s.engine(), s.op.session
+	e, session := s.engine(), s.op.Session
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(s.op)
 	if err != nil {
@@ -284,7 +284,7 @@ func (s *StatementScope) discardTemporaryCursorPreflight(stage *CatalogStage, ad
 }
 
 func (s *StatementScope) relationCursorPreflight(catalog catalog.Read, address ids.ObjectAddress, command string) error {
-	session := s.op.session
+	session := s.op.Session
 	for _, cursor := range payloadOf(session).cursors.entries {
 		if cursor.tx != s.txRef || cursor.root == nil || cursor.position == cursorFailed {
 			continue

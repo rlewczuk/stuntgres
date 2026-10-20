@@ -135,11 +135,11 @@ func TestQueryTableCreateSnapshotAdmission(t *testing.T) {
 					t.Error("utility changed writer/source/publication state or did not abort its owner")
 				}
 				reader.op.Done()
-				transactionEnd(t, reader.op.session, node.Ref, false)
+				transactionEnd(t, reader.op.Session, node.Ref, false)
 				if reader.owner.state != TxIdle || len(reader.owner.roots) != 0 || !node.Ended {
 					t.Fatal("rollback did not retire the rejected owner")
 				}
-				preparedUnitStatement(t, e, reader.op.session, &parser.Select{Targets: []parser.Expr{literal(1)}})
+				preparedUnitStatement(t, e, reader.op.Session, &parser.Select{Targets: []parser.Expr{literal(1)}})
 				// A real ordinary SELECT still waits on exactly this writer and
 				// resumes only after its actual rollback. Utility rejection must
 				// not disable the existing safe-snapshot owner generally.
@@ -197,7 +197,7 @@ func TestQueryTableCreateSnapshotAdmission(t *testing.T) {
 					t.Fatal("snapshot control or writer rollback changed committed source state")
 				}
 				control.op.Done()
-				transactionEnd(t, control.op.session, controlNode.Ref, false)
+				transactionEnd(t, control.op.Session, controlNode.Ref, false)
 			})
 		}
 	}
