@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -321,7 +322,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 			}
 			return missing("42883", noun+" "+sig+" does not exist")
 		}
-		actual := ObjectRoutineKind(p.ID)
+		actual := routine.ObjectRoutineKind(p.ID)
 		if kind == "aggregate" && actual != "aggregate" {
 			return missing("42809", "function "+sig+" is not an aggregate")
 		}

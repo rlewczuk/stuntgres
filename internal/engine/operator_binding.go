@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -97,7 +98,7 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 					continue
 				}
 				available = true
-				if !OperatorSeeded(d) {
+				if !routine.OperatorSeeded(d) {
 					custom = true
 					break
 				}
@@ -123,7 +124,7 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 			}
 			seen[key] = true
 			candidates = append(candidates, d)
-			custom = custom || !OperatorSeeded(d)
+			custom = custom || !routine.OperatorSeeded(d)
 		}
 	}
 	return operatorCandidateSet{catalog: auth.Catalog, descriptors: candidates, hasCustom: custom, available: len(candidates) != 0}, nil
@@ -144,8 +145,8 @@ func (b *expressionBinder) selectCatalogOperator(set operatorCandidateSet, raw p
 		return nil, functions.OperatorError(err, diagnosticLeft, right, raw)
 	}
 	d := candidates[selected]
-	if d.Function == 0 && !OperatorSeeded(d) {
-		message := OperatorInputName(set.catalog, d.Left, d.Right, raw.Name)
+	if d.Function == 0 && !routine.OperatorSeeded(d) {
+		message := routine.OperatorInputName(set.catalog, d.Left, d.Right, raw.Name)
 		diagnostic := sqlError("42883", "operator is only a shell: "+message).(*sqlstate.Error)
 		if raw.Pos.Character > 0 {
 			diagnostic.Position = strconv.Itoa(raw.Pos.Character)
@@ -156,7 +157,7 @@ func (b *expressionBinder) selectCatalogOperator(set operatorCandidateSet, raw p
 }
 
 func requireBuiltinComparison(d *catalog.Operator, pos parser.Position) error {
-	if !OperatorSeeded(d) {
+	if !routine.OperatorSeeded(d) {
 		return expr.ErrorAt("0A000", "custom operators are unsupported in this comparison context", pos)
 	}
 	return nil
@@ -234,7 +235,7 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 			return nil, err
 		}
 	}
-	if OperatorSeeded(d) {
+	if routine.OperatorSeeded(d) {
 		// Seed metadata is not an invocation descriptor. Dispatch the selected
 		// builtin through its existing real expression provider, reusing the
 		// operands already bound and coerced by catalog resolution.
@@ -285,7 +286,7 @@ func (b *expressionBinder) bindSelectedOperatorRoutine(d *catalog.Procedure, arg
 	var err error
 	if d.Builtin != nil && d.Builtin.Providers&functions.OperatorRoutineProvider != 0 {
 		found := false
-		for key, declaration := range OperatorRoutines() {
+		for key, declaration := range routine.OperatorRoutines() {
 			if declaration != d.Builtin {
 				continue
 			}
@@ -315,7 +316,7 @@ func (b *expressionBinder) bindSelectedOperatorRoutine(d *catalog.Procedure, arg
 	if err != nil {
 		return nil, err
 	}
-	actual, err := ExpressionRoutineDescriptor(node)
+	actual, err := routine.ExpressionRoutineDescriptor(node)
 	if err != nil {
 		return nil, err
 	}

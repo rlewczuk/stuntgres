@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 )
@@ -279,11 +280,11 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				}
 				continue
 			case *catalog.Operator:
-				if err := (OperatorProvider{}).Validate(catalogView, t); err != nil {
+				if err := (routine.OperatorProvider{}).Validate(catalogView, t); err != nil {
 					e.mu.Unlock()
 					return err
 				}
-				if !OperatorSeeded(t) {
+				if !routine.OperatorSeeded(t) {
 					operators = append(operators, t)
 				}
 				continue
@@ -853,7 +854,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 		}
 		id := d.Address().ObjectID
 		viewDependencies[dumpEventKey{oid: id}] = nil
-		for _, dependency := range OperatorDependencyAddresses(catalogView, d) {
+		for _, dependency := range routine.OperatorDependencyAddresses(catalogView, d) {
 			if dependency.ClassID == ids.NamespaceClassID {
 				continue
 			}

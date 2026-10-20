@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
 
@@ -13,7 +14,7 @@ func (b *expressionBinder) builtinOperatorRoutineInfo(info expr.Info, name strin
 	if name == "!=" {
 		name = "<>"
 	}
-	declaration := OperatorRoutine(name, ids.OID(left), ids.OID(right))
+	declaration := routine.OperatorRoutine(name, ids.OID(left), ids.OID(right))
 	if declaration == nil {
 		return expr.Info{}, fmt.Errorf("stuntgres: missing successful operator routine association for %s (%d,%d)", name, left, right)
 	}
@@ -28,7 +29,7 @@ func (b *expressionBinder) comparisonRoutineDeclaration(name string, left, right
 		name = "<>"
 	}
 	formal := sqltype.EqualitySignature{Left: comparisonFormalID(left.BaseType()), Right: comparisonFormalID(right.BaseType())}
-	declaration := OperatorRoutine(name, ids.OID(formal.Left), ids.OID(formal.Right))
+	declaration := routine.OperatorRoutine(name, ids.OID(formal.Left), ids.OID(formal.Right))
 	if declaration == nil {
 		return nil, sqltype.EqualitySignature{}, fmt.Errorf("stuntgres: missing successful comparison routine association for %s (%d,%d)", name, formal.Left, formal.Right)
 	}

@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -201,7 +202,7 @@ func queryRoutineCarriersChanged(view catalog.Read, node LogicalNode) bool {
 	changed := false
 	queryExpressions(node, func(expression expr.Expr) {
 		walkBoundExpression(expression, func(expression expr.Expr) {
-			captured, err := ExpressionRoutineDescriptor(expression)
+			captured, err := routine.ExpressionRoutineDescriptor(expression)
 			if err != nil || captured != nil && view.Get(captured.Address()) != captured {
 				changed = true
 			}

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -65,7 +66,7 @@ func (b *expressionBinder) groupingRoutineReference(usage sqltype.Usage) (ids.Ob
 	base := usage.Type.BaseType()
 	var declaration *catalog.BuiltinRoutineDeclaration
 	if base.IsArray() {
-		declaration = OperatorRoutine("=", 2277, 2277)
+		declaration = routine.OperatorRoutine("=", 2277, 2277)
 	} else {
 		var err error
 		declaration, _, err = b.comparisonRoutineDeclaration("=", base, base)

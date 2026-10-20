@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -125,7 +126,7 @@ func validateExpressionJoinExecution(c *EvalContext, expression expr.Expr, catal
 	if expression == nil {
 		return nil
 	}
-	recipe, err := ExpressionRecipeDescriptor(expression)
+	recipe, err := routine.ExpressionRecipeDescriptor(expression)
 	if err != nil {
 		return err
 	}

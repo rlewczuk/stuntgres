@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
 
@@ -48,7 +49,7 @@ func operatorDumpDeclaration(ctx context.Context, view catalog.Read, roles autho
 	if err := ctx.Err(); err != nil {
 		return dumpDomain{}, err
 	}
-	if err := (OperatorProvider{}).Validate(view, d); err != nil {
+	if err := (routine.OperatorProvider{}).Validate(view, d); err != nil {
 		return dumpDomain{}, err
 	}
 	if d.Function == 0 {
@@ -61,7 +62,7 @@ func operatorDumpDeclaration(ctx context.Context, view catalog.Read, roles autho
 // both declarations. Shell targets must instead be created by a forward link.
 func operatorDumpDeferredLink(view catalog.Read, source *catalog.Operator, kind int, id ids.OID) bool {
 	peer, _ := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
-	if peer == nil || peer.Function == 0 || OperatorSeeded(peer) {
+	if peer == nil || peer.Function == 0 || routine.OperatorSeeded(peer) {
 		return false
 	}
 	reciprocal := peer.Commutator
@@ -88,11 +89,11 @@ func operatorDumpDefined(ctx context.Context, view catalog.Read, roles authoriza
 		}
 		options = append(options, key+" = "+text)
 	}
-	routine, err := operatorRoutineSQLName(view, d.Function)
+	function, err := operatorRoutineSQLName(view, d.Function)
 	if err != nil {
 		return dumpDomain{}, err
 	}
-	options = append(options, "FUNCTION = "+routine)
+	options = append(options, "FUNCTION = "+function)
 	for i, id := range [...]ids.OID{d.Commutator, d.Negator} {
 		if id == 0 {
 			continue
@@ -166,21 +167,21 @@ func operatorShellGenerator(view catalog.Read, shell *catalog.Operator) *catalog
 	return selected
 }
 func orphanOperatorShellDump(ctx context.Context, view catalog.Read, roles authorization.Read, shell *catalog.Operator) (dumpDomain, error) {
-	var routine *catalog.Procedure
+	var implementation *catalog.Procedure
 	negator := false
-	for key, declaration := range OperatorRoutines() {
+	for key, declaration := range routine.OperatorRoutines() {
 		comm := shell.Left != 0 && key.Left == shell.Right && key.Right == shell.Left
 		neg := key.Left == shell.Left && key.Right == shell.Right && declaration.Result == ids.OID(sqltype.Bool)
 		if !comm && !neg {
 			continue
 		}
 		candidate, _ := view.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.Identity.ID})
-		if candidate != nil && (routine == nil || candidate.Address().ObjectID < routine.Address().ObjectID) {
-			routine = candidate
+		if candidate != nil && (implementation == nil || candidate.Address().ObjectID < implementation.Address().ObjectID) {
+			implementation = candidate
 			negator = !comm
 		}
 	}
-	if routine == nil {
+	if implementation == nil {
 		return dumpDomain{}, fmt.Errorf("stuntgres: cannot serialize orphan operator shell %s: no compatible real implementation provider", operatorSQLName(view, shell))
 	}
 	name := "#~#"
@@ -212,7 +213,7 @@ func orphanOperatorShellDump(ctx context.Context, view catalog.Read, roles autho
 	if negator {
 		generator.Left, generator.Right = shell.Left, shell.Right
 	}
-	generator.Function, generator.Result = routine.Address().ObjectID, routine.Result
+	generator.Function, generator.Result = implementation.Address().ObjectID, implementation.Result
 	generator.Commutator, generator.Negator = 0, 0
 	if negator {
 		generator.Negator = shell.Address().ObjectID
@@ -245,7 +246,7 @@ func operatorDumpEvents(view catalog.Read, operators []*catalog.Operator, graph 
 		declaration := dumpEventKey{oid: source.Address().ObjectID}
 		for kind, id := range [...]ids.OID{source.Commutator, source.Negator} {
 			peer, _ := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: id})
-			if peer == nil || peer.Function == 0 || OperatorSeeded(peer) {
+			if peer == nil || peer.Function == 0 || routine.OperatorSeeded(peer) {
 				continue
 			}
 			target := dumpEventKey{oid: id}

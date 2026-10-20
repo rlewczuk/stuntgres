@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -70,7 +71,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				if ref != call.ref || ref == (ids.ObjectRef{}) {
 					t.Fatal("aggregate lost original compact authority")
 				}
-				if carrier, err := ExpressionRoutineDescriptor(node); err != nil || carrier != nil {
+				if carrier, err := routine.ExpressionRoutineDescriptor(node); err != nil || carrier != nil {
 					t.Fatal("aggregate acquired scalar admission carrier", err)
 				}
 			} else {
@@ -79,7 +80,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					t.Fatal("lost genuine set carrier")
 				}
 				captured, ref = enum.procedure, enum.ref
-				carrier, err := ExpressionRoutineDescriptor(node)
+				carrier, err := routine.ExpressionRoutineDescriptor(node)
 				if err != nil || carrier != captured || !procedureReturnsSet(captured) || strictScalarRoutine(captured) {
 					t.Fatal("enum selected declaration/set classification", err)
 				}
@@ -195,7 +196,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				bad := *captured
 				mutate(&bad)
 				auth.Catalog.State().SetDescriptor(ref.Address, &bad)
-				if _, err := ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured); err == nil {
+				if _, err := routine.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured); err == nil {
 					t.Fatal("incompatible provider/kind declaration accepted")
 				}
 				if !aggregate {
@@ -254,7 +255,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 						t.Fatal("literal enum rendering", err)
 					}
 					rebound, _, reboundEvaluation := strictNullUnitBind(t, e, op, scope, text)
-					reboundDescriptor, err := ExpressionRoutineDescriptor(rebound)
+					reboundDescriptor, err := routine.ExpressionRoutineDescriptor(rebound)
 					if err != nil || reboundDescriptor != captured {
 						t.Fatal("literal render/rebind changed selected declaration", err)
 					}
@@ -294,7 +295,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					if err != nil {
 						t.Fatal("remapped selected-ref retag", err)
 					}
-					current, err := ExpressionRoutineDescriptor(relocated)
+					current, err := routine.ExpressionRoutineDescriptor(relocated)
 					if err != nil || current != state.Get(mapping[ref.Address]) {
 						t.Fatal("retag resolved stale captured address", err)
 					}

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -52,7 +53,7 @@ func TestTIDRoutineAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal("actual TID operator selection", err)
 			}
-			outer, err := ExpressionRoutineDescriptor(node)
+			outer, err := routine.ExpressionRoutineDescriptor(node)
 			if err != nil || outer == nil || outer.Builtin == nil {
 				t.Fatal("missing selected declaration", outer, err)
 			}

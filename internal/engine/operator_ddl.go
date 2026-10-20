@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -64,7 +65,7 @@ func (e *Engine) findUtilityOperator(op *Operation, auth AuthorizationView, s pa
 			return d, nil
 		}
 	}
-	return nil, sqlError("42883", "operator does not exist: "+OperatorInputName(auth.Catalog, left, right, s.Name))
+	return nil, sqlError("42883", "operator does not exist: "+routine.OperatorInputName(auth.Catalog, left, right, s.Name))
 }
 func (e *Engine) operatorRoutine(auth AuthorizationView, name parser.ObjectName, inputs []ids.OID) (*catalog.Procedure, error) {
 	path, err := e.lookupNamespaces(auth, name, functionLookup)
@@ -110,7 +111,7 @@ func (e *Engine) operatorEstimator(auth AuthorizationView, name parser.ObjectNam
 	if join {
 		four := catalog.ProcedureSignature("2281,26,2281,21")
 		alternate, other := selectRoutine(auth.Catalog, path, n, &four)
-		identity, count, err = OperatorEstimatorVariant(name, identity, count, alternate, other)
+		identity, count, err = routine.OperatorEstimatorVariant(name, identity, count, alternate, other)
 		if err != nil {
 			return 0, err
 		}
@@ -123,7 +124,7 @@ func (e *Engine) operatorEstimator(auth AuthorizationView, name parser.ObjectNam
 		_, err := e.operatorRoutine(auth, name, inputs)
 		return 0, err
 	}
-	result := ReleasedOperatorEstimatorResult(identity.ID)
+	result := routine.ReleasedOperatorEstimatorResult(identity.ID)
 	if d, ok := auth.Catalog.Procedure(ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: identity.ID}); ok {
 		if d.RoutineKind != catalog.FunctionRoutine {
 			return 0, sqlError("42809", objectNameText(name)+" is not a function")
@@ -141,7 +142,7 @@ func (e *Engine) operatorEstimator(auth AuthorizationView, name parser.ObjectNam
 			superuser = actor.Superuser
 		}
 	}
-	if err := ValidateOperatorEstimatorMetadata(name, join, result, builtin, superuser); err != nil {
+	if err := routine.ValidateOperatorEstimatorMetadata(name, join, result, builtin, superuser); err != nil {
 		return 0, err
 	}
 	return identity.ID, nil
@@ -150,9 +151,9 @@ func operatorOptionsSyntax(op *Operation, options []parser.OperatorOption, alter
 	for _, raw := range options {
 		o := raw
 		if alter {
-			o = OperatorAlterOption(o)
+			o = routine.OperatorAlterOption(o)
 			if o.HasValue {
-				if _, err := OperatorOptionName(o); err != nil {
+				if _, err := routine.OperatorOptionName(o); err != nil {
 					return err
 				}
 			}
@@ -162,7 +163,7 @@ func operatorOptionsSyntax(op *Operation, options []parser.OperatorOption, alter
 			if alter {
 				return sqlError("42601", fmt.Sprintf(`operator attribute "%s" cannot be changed`, o.Name))
 			}
-			typ, err := OperatorOptionType(o)
+			typ, err := routine.OperatorOptionType(o)
 			if err != nil {
 				return err
 			}
@@ -173,18 +174,18 @@ func operatorOptionsSyntax(op *Operation, options []parser.OperatorOption, alter
 			if alter {
 				return sqlError("42601", fmt.Sprintf(`operator attribute "%s" cannot be changed`, o.Name))
 			}
-			if _, err := OperatorOptionName(o); err != nil {
+			if _, err := routine.OperatorOptionName(o); err != nil {
 				return err
 			}
 		case "restrict", "join", "commutator", "negator":
 			if alter && !o.HasValue && (o.Name == "restrict" || o.Name == "join") {
 				continue
 			}
-			if _, err := OperatorOptionName(o); err != nil {
+			if _, err := routine.OperatorOptionName(o); err != nil {
 				return err
 			}
 		case "hashes", "merges":
-			if _, err := OperatorBoolean(o); err != nil {
+			if _, err := routine.OperatorBoolean(o); err != nil {
 				return err
 			}
 		case "sort1", "sort2", "ltcmp", "gtcmp":
@@ -210,21 +211,21 @@ func (e *Engine) collectOperatorOptions(auth AuthorizationView, d *catalog.Opera
 	for i := range options {
 		value := options[i]
 		if alter {
-			value = OperatorAlterOption(value)
+			value = routine.OperatorAlterOption(value)
 		}
 		o := &value
 		var err error
 		switch o.Name {
 		case "commutator":
-			comm, err = OperatorOptionName(*o)
+			comm, err = routine.OperatorOptionName(*o)
 		case "negator":
-			neg, err = OperatorOptionName(*o)
+			neg, err = routine.OperatorOptionName(*o)
 		case "restrict":
 			restriction = &options[i]
 		case "join":
 			join = &options[i]
 		case "hashes", "merges":
-			enabled, err := OperatorBoolean(*o)
+			enabled, err := routine.OperatorBoolean(*o)
 			if err != nil {
 				return comm, neg, err
 			}
@@ -246,12 +247,12 @@ func (e *Engine) collectOperatorOptions(auth AuthorizationView, d *catalog.Opera
 		}
 		value := *o
 		if alter {
-			value = OperatorAlterOption(value)
+			value = routine.OperatorAlterOption(value)
 		}
 		var name parser.ObjectName
 		if !alter || value.HasValue {
 			var err error
-			name, err = OperatorOptionName(value)
+			name, err = routine.OperatorOptionName(value)
 			if err != nil {
 				return comm, neg, err
 			}
@@ -289,7 +290,7 @@ func (e *Engine) resolveOperatorLink(auth AuthorizationView, stage *CatalogStage
 		return nil, nil
 	}
 	symbol := name.Parts[len(name.Parts)-1].Text
-	if !ValidOperatorName(symbol) {
+	if !routine.ValidOperatorName(symbol) {
 		return nil, sqlError("42602", fmt.Sprintf(`"%s" is not a valid operator name`, symbol))
 	}
 	left, right := d.Right, d.Left
@@ -318,11 +319,11 @@ func (e *Engine) resolveOperatorLink(auth AuthorizationView, stage *CatalogStage
 		}
 	}
 	if peer != nil && !allowShell && peer.Function == 0 {
-		return nil, sqlError("42883", "operator is only a shell: "+OperatorInputName(auth.Catalog, left, right, name))
+		return nil, sqlError("42883", "operator is only a shell: "+routine.OperatorInputName(auth.Catalog, left, right, name))
 	}
 	if peer == nil {
 		if !allowShell {
-			return nil, sqlError("42883", "operator does not exist: "+OperatorInputName(auth.Catalog, left, right, name))
+			return nil, sqlError("42883", "operator does not exist: "+routine.OperatorInputName(auth.Catalog, left, right, name))
 		}
 		ns, err := e.collationCreationNamespaceLocked(&auth, stage, name)
 		if err != nil {
@@ -422,13 +423,13 @@ func (e *Engine) stageCreateOperatorLocked(op *Operation, auth AuthorizationView
 	for _, o := range s.Options {
 		switch o.Name {
 		case "leftarg":
-			left, err = OperatorOptionType(o)
+			left, err = routine.OperatorOptionType(o)
 			hasLeft = true
 		case "rightarg":
-			right, err = OperatorOptionType(o)
+			right, err = routine.OperatorOptionType(o)
 			hasRight = true
 		case "function", "procedure":
-			function, err = OperatorOptionName(o)
+			function, err = routine.OperatorOptionName(o)
 		}
 		if err != nil {
 			return err
@@ -466,25 +467,25 @@ func (e *Engine) stageCreateOperatorLocked(op *Operation, auth AuthorizationView
 	if l != 0 {
 		inputs = []ids.OID{l, r}
 	}
-	routine, err := e.operatorRoutine(auth, function, inputs)
+	implementation, err := e.operatorRoutine(auth, function, inputs)
 	if err != nil {
 		return err
 	}
-	if err = auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: routine.Result})); err != nil {
+	if err = auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: implementation.Result})); err != nil {
 		return err
 	}
 	symbol := s.Name.Parts[len(s.Name.Parts)-1].Text
-	next := catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID}, ObjectNamespace: ns.Address, ObjectName: symbol, Left: l, Right: r, Owner: auth.State.CurrentUser, Result: routine.Result, Function: routine.Address().ObjectID}
+	next := catalog.Operator{ObjectAddress: ids.ObjectAddress{ClassID: ids.OperatorClassID}, ObjectNamespace: ns.Address, ObjectName: symbol, Left: l, Right: r, Owner: auth.State.CurrentUser, Result: implementation.Result, Function: implementation.Address().ObjectID}
 	// DefineOperator resolves surviving estimators before OperatorCreate checks
 	// the name, parameter combinations, and only then duplicate/shell ownership.
 	comm, neg, err := e.collectOperatorOptions(auth, &next, s.Options, false)
 	if err != nil {
 		return err
 	}
-	if !ValidOperatorName(symbol) {
+	if !routine.ValidOperatorName(symbol) {
 		return sqlError("42602", fmt.Sprintf(`"%s" is not a valid operator name`, symbol))
 	}
-	if err = ValidateOperatorOptions(&next, comm, neg); err != nil {
+	if err = routine.ValidateOperatorOptions(&next, comm, neg); err != nil {
 		return err
 	}
 	old, _ := auth.Catalog.Operator(auth.Catalog.NameAddress(catalog.DescriptorNameKey(&next)))
@@ -565,7 +566,7 @@ func (e *Engine) stageAlterOperatorLocked(op *Operation, auth AuthorizationView,
 	if err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), OwnerOnly: true}); err != nil {
 		return err
 	}
-	if OperatorSeeded(d) {
+	if routine.OperatorSeeded(d) {
 		return sqlError("0A000", "altering built-in operators is unsupported")
 	}
 	switch s.Action {
@@ -603,19 +604,19 @@ func (e *Engine) stageAlterOperatorLocked(op *Operation, auth AuthorizationView,
 		if negator != nil && negator.Address() == next.Address() {
 			return sqlError("42P13", "operator cannot be its own negator")
 		}
-		if err = CheckOperatorLinkReplacement(d, commutator, false); err != nil {
+		if err = routine.CheckOperatorLinkReplacement(d, commutator, false); err != nil {
 			return err
 		}
-		if err = CheckOperatorLinkReplacement(d, negator, true); err != nil {
+		if err = routine.CheckOperatorLinkReplacement(d, negator, true); err != nil {
 			return err
 		}
 		if d.Merge && !next.Merge {
-			return OperatorOptionError("merges")
+			return routine.OperatorOptionError("merges")
 		}
 		if d.Hash && !next.Hash {
-			return OperatorOptionError("hashes")
+			return routine.OperatorOptionError("hashes")
 		}
-		if err = ValidateOperatorOptions(&next, comm, neg); err != nil {
+		if err = routine.ValidateOperatorOptions(&next, comm, neg); err != nil {
 			return err
 		}
 		if err = e.stageResolvedOperatorLink(stage, &next, commutator, false); err != nil {
@@ -655,7 +656,7 @@ func (e *Engine) stageDropOperatorLocked(op *Operation, auth AuthorizationView, 
 				return err
 			}
 		}
-		if OperatorSeeded(d) {
+		if routine.OperatorSeeded(d) {
 			path, _ := e.referencePath(auth)
 			return sqlError("2BP01", "cannot drop "+dependencyObject(auth.Catalog, d.Address(), path)+" because it is required by the database system")
 		}

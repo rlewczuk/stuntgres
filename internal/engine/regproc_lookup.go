@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 )
 
 type routineKey struct {
@@ -19,7 +20,7 @@ var routineByOID, routinesByName, routineBySignature = indexBuiltinRoutines()
 var builtinRoutineIdentityDefaults = map[ids.OID]uint8{2096: 1}
 
 func routineIdentityDefaults(id ids.OID) uint8 {
-	if declaration := BuiltinRoutine(id); declaration != nil {
+	if declaration := routine.BuiltinRoutine(id); declaration != nil {
 		return declaration.Defaults
 	}
 	return builtinRoutineIdentityDefaults[id]

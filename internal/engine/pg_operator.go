@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
 
@@ -40,7 +41,7 @@ func capturePGOperator(in catalogSourceInput) ([][]sqltype.Value, error) {
 		if !ok {
 			continue
 		}
-		if OperatorSeeded(d) && d.Function == 0 {
+		if routine.OperatorSeeded(d) && d.Function == 0 {
 			continue
 		}
 		definitions = append(definitions, d)

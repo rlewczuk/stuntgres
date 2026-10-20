@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -167,7 +168,7 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 	if err := e.RegisterCatalogProvider(catalog.DatabaseProvider{}); err != nil {
 		return nil, err
 	}
-	if err := e.RegisterCatalogProvider(OperatorProvider{}); err != nil {
+	if err := e.RegisterCatalogProvider(routine.OperatorProvider{}); err != nil {
 		return nil, err
 	}
 	if err := e.RegisterCatalogProvider(parameterProvider{&e.settings}); err != nil {

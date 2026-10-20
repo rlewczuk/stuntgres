@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
 
@@ -164,7 +165,7 @@ func identifyAddress(view catalog.Read, roles authorization.Read, path []ids.Obj
 			return r, nil
 		}
 		r.found = true
-		r.kind = ObjectRoutineKind(p.ID)
+		r.kind = routine.ObjectRoutineKind(p.ID)
 		ns, _ := objectNamespace(view, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: p.Namespace})
 		r.schema = pgIdentifier(ns)
 		r.names = []string{ns, p.Name}

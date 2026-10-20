@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
 
@@ -20,7 +21,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 			return "", fmt.Errorf("stuntgres: invalid stored SQL routine reference")
 		}
 		procedure, ok := r.descriptor(view, n.ref.Address).(*catalog.Procedure)
-		if !ok || !SameRoutineDeclaration(procedure, n.procedure) {
+		if !ok || !routine.SameRoutineDeclaration(procedure, n.procedure) {
 			return "", fmt.Errorf("stuntgres: invalid stored SQL routine declaration")
 		}
 		namespace, ok := r.descriptor(view, procedure.Namespace()).(*catalog.Namespace)

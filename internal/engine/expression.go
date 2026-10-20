@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -424,7 +425,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 	if err := evaluationContext(c); err != nil {
 		return nil, false, err
 	}
-	recipe, err := ExpressionRecipeDescriptor(expression)
+	recipe, err := routine.ExpressionRecipeDescriptor(expression)
 	if err != nil {
 		return nil, false, err
 	}

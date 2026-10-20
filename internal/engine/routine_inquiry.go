@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/routine"
 )
 
 // All SQL query/cursor evaluation borrowing queryAuthority is serialized by the
@@ -27,7 +28,7 @@ func admitInquiryBody(c *EvalContext, node expr.Info) error {
 		return nil
 	} // Legitimate standalone internal provider fixtures.
 	local := *c
-	recipe, err := ExpressionRecipeDescriptor(node)
+	recipe, err := routine.ExpressionRecipeDescriptor(node)
 	if err != nil {
 		return err
 	}
@@ -36,7 +37,7 @@ func admitInquiryBody(c *EvalContext, node expr.Info) error {
 			return err
 		}
 	}
-	outer, err := ExpressionRoutineDescriptor(node)
+	outer, err := routine.ExpressionRoutineDescriptor(node)
 	if err != nil || outer == nil {
 		return err
 	}

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -203,7 +204,7 @@ func loanRuleDefaultDependencies(view catalog.Read, parent *catalog.Relation, sl
 		if failure != nil || captured == nil {
 			return
 		}
-		current, err := ValidateStoredRoutineDescriptor(view, captured)
+		current, err := routine.ValidateStoredRoutineDescriptor(view, captured)
 		if err != nil {
 			failure = err
 			return
@@ -245,16 +246,16 @@ func loanRuleDefaultDependencies(view catalog.Read, parent *catalog.Relation, sl
 				record(arm.routine)
 			}
 		}
-		captured, err := ExpressionRoutineDescriptor(node)
+		captured, err := routine.ExpressionRoutineDescriptor(node)
 		if err != nil {
 			failure = err
 			return
 		}
 		record(captured)
 		if captured != nil {
-			failure = WalkRoutineBody(captured, node, func(body *catalog.Procedure) error {
+			failure = routine.WalkRoutineBody(captured, node, func(body *catalog.Procedure) error {
 				current, ok := view.Procedure(body.Address())
-				if !ok || !SameRoutineDeclaration(current, body) {
+				if !ok || !routine.SameRoutineDeclaration(current, body) {
 					return fmt.Errorf("stuntgres: stale rule DEFAULT SQL body declaration")
 				}
 				// record still requires the original validated source DEFAULT ref.

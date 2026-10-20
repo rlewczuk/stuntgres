@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -88,7 +89,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			if call.Args[jsonIndex].ResultUsage().Type.ID() != sqltype.JSON || tc.anonymous != call.ResultUsage().Type.IsDeferredRecord() {
 				t.Fatal("SQL-order JSON/base and physical result usages", call)
 			}
-			captured, err := ExpressionRoutineDescriptor(call)
+			captured, err := routine.ExpressionRoutineDescriptor(call)
 			if err != nil || captured == nil || captured.Builtin == nil {
 				t.Fatal("missing genuine selected declaration", captured, err)
 			}

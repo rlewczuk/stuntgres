@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -75,8 +76,8 @@ func TestPGOperatorProviderAgreement(t *testing.T) {
 		}
 		want[id] = row
 	}
-	production := map[ids.OID]OperatorMetadata{}
-	for _, fact := range SupportedOperatorMetadata {
+	production := map[ids.OID]routine.OperatorMetadata{}
+	for _, fact := range routine.SupportedOperatorMetadata {
 		if _, exists := production[fact.OID]; exists {
 			t.Fatal("duplicate production OID", fact.OID)
 		}

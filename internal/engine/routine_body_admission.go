@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -86,7 +87,7 @@ func bodyRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies 
 		return nil, err
 	}
 	current, ok := descriptor.(*catalog.Procedure)
-	if !ok || !SameRoutineDeclaration(current, edge.Routine) {
+	if !ok || !routine.SameRoutineDeclaration(current, edge.Routine) {
 		return nil, fmt.Errorf("stuntgres: stale SQL body declaration")
 	}
 	if revision != 0 && current.Revision() != revision {
@@ -100,7 +101,7 @@ func validateInquiryBodyLifetime(c *EvalContext, node expr.Expr, outer *catalog.
 	if err != nil || auth.engine == nil {
 		return err
 	}
-	return WalkRoutineBody(outer, node, func(body *catalog.Procedure) error {
+	return routine.WalkRoutineBody(outer, node, func(body *catalog.Procedure) error {
 		_, err := bodyRoutineDescriptor(c, auth, dependencies, catalog.RoutineBodyEdge{Routine: body})
 		return err
 	})
@@ -109,8 +110,8 @@ func validateInquiryBodyLifetime(c *EvalContext, node expr.Expr, outer *catalog.
 func bodyEdgeDemanded(node expr.Expr, outer *catalog.Procedure, edge catalog.RoutineBodyEdge) bool {
 	switch edge.Demand {
 	case catalog.BodyBooleanText, catalog.BodyNetworkText:
-		argument := PolymorphicBodyArgument(node, outer.Address().ObjectID)
-		return BodyCastMatches(edge, argument) && !randomLiteralNull(argument)
+		argument := routine.PolymorphicBodyArgument(node, outer.Address().ObjectID)
+		return routine.BodyCastMatches(edge, argument) && !randomLiteralNull(argument)
 	case catalog.BodyLeftDuration, catalog.BodyRightDuration:
 		overlap, ok := node.(functions.DatetimeOverlaps)
 		if !ok {
@@ -161,7 +162,7 @@ func admitRoutineBody(c *EvalContext, node expr.Expr, outer *catalog.Procedure, 
 }
 
 func admitOverlapsPair(c *EvalContext, e functions.DatetimeOverlaps, pair int) error {
-	outer, err := ExpressionRoutineDescriptor(e)
+	outer, err := routine.ExpressionRoutineDescriptor(e)
 	if err != nil || outer == nil {
 		return err
 	}

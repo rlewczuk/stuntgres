@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
 
@@ -34,7 +35,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			if !ok || len(carrier.args) != tc.arity || !sourceAdmitted(carrier) || !binder.queryHasTargetSet {
 				t.Fatal("original SRF arity/source/project carrier", node)
 			}
-			captured, err := ExpressionRoutineDescriptor(node)
+			captured, err := routine.ExpressionRoutineDescriptor(node)
 			if err != nil || captured == nil || captured.Builtin == nil {
 				t.Fatal("missing genuine selected declaration", captured, err)
 			}
@@ -144,7 +145,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("render original carrier", err)
 			}
 			rebound, _, reboundEvaluation := strictNullUnitBind(t, e, op, scope, text)
-			reboundDescriptor, err := ExpressionRoutineDescriptor(rebound)
+			reboundDescriptor, err := routine.ExpressionRoutineDescriptor(rebound)
 			if err != nil || reboundDescriptor != captured || len(rebound.(seriesExpression).args) != tc.arity {
 				t.Fatal("render/rebind lost original full-IN declaration", reboundDescriptor, err)
 			}

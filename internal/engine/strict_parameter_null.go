@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
 
@@ -30,7 +31,7 @@ func foldStrictParameterNull(c *EvalContext, node expr.Expr) (expr.Expr, bool, e
 		// making the whole NULL-aware or multi-comparison expression strict.
 		return node, false, nil
 	}
-	selected, err := ExpressionRoutineDescriptor(node)
+	selected, err := routine.ExpressionRoutineDescriptor(node)
 	if err != nil {
 		return nil, false, err
 	}

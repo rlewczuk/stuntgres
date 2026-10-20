@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -100,8 +101,8 @@ func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parse
 			if err := op.Context().Err(); err != nil {
 				return nil, err
 			}
-			if routine, ok := descriptor.(*catalog.Procedure); ok {
-				if routine.Namespace() == addr && GrantRoutineKindMatches(s.Kind, routine.RoutineKind) {
+			if procedure, ok := descriptor.(*catalog.Procedure); ok {
+				if procedure.Namespace() == addr && routine.GrantRoutineKindMatches(s.Kind, procedure.RoutineKind) {
 					targets = append(targets, descriptor)
 				}
 				continue

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
 
@@ -76,7 +77,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 					}
 				}
 			}
-			captured, err := ExpressionRoutineDescriptor(call)
+			captured, err := routine.ExpressionRoutineDescriptor(call)
 			if err != nil || captured == nil || captured.Builtin == nil {
 				t.Fatal("missing selected original declaration", captured, err)
 			}
@@ -156,7 +157,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("actual ACL carrier retag", err)
 			}
 			mapped := remapped.(functions.ACLValue)
-			mappedDescriptor, err := ExpressionRoutineDescriptor(mapped)
+			mappedDescriptor, err := routine.ExpressionRoutineDescriptor(mapped)
 			if err != nil || mappedDescriptor == captured || mappedDescriptor != foreign.catalog.Get(address) || mapped.Kind != call.Kind || mapped.Named != call.Named || mapped.Namespace != call.Namespace || mapped.SourcePosition() != call.SourcePosition() || mapped.Properties() != call.Properties() {
 				t.Fatal("retag lost selected carrier contract", mapped, err)
 			}

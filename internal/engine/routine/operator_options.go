@@ -1,4 +1,4 @@
-package engine
+package routine
 
 // Option parsing and validation shared by CREATE OPERATOR and ALTER OPERATOR.
 // These helpers read no engine state; staging lives in operator_ddl.go.

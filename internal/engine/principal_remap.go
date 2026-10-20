@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 )
 
 // remapPreparedCatalog consumes an unpublished private candidate under the target
@@ -165,7 +166,7 @@ func (e *Engine) remapPreparedCatalog(state *catalog.State, source, targetSnapsh
 		case *catalog.Operator:
 			n := *d
 			var err error
-			n.Owner, err = seedOwner(d.Owner, OperatorSeeded(d))
+			n.Owner, err = seedOwner(d.Owner, routine.OperatorSeeded(d))
 			if err != nil {
 				return nil, err
 			}

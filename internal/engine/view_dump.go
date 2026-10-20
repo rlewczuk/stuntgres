@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 )
 
 // Standalone sequences are emitted before this graph. An identity sequence is
@@ -31,7 +32,7 @@ func dumpPredecessor(view catalog.Read, address, consumer ids.ObjectAddress) (id
 		return extension.Address().ObjectID, nil
 	}
 	if operator, ok := object.(*catalog.Operator); ok {
-		if OperatorSeeded(operator) {
+		if routine.OperatorSeeded(operator) {
 			return 0, nil
 		}
 		if operator.Function != 0 {

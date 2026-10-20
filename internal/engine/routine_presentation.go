@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 )
 
@@ -28,7 +29,7 @@ func (b *expressionBinder) captureSQLRoutineReference(path viewLiteralPath, n sq
 	if n.ref != b.engine.catalog.Domain.Ref(read.Epoch(), n.procedure.Address()) {
 		return fmt.Errorf("stuntgres: invalid frozen SQL routine reference")
 	}
-	if _, err := ValidateStoredRoutineDescriptor(read, n.procedure); err != nil {
+	if _, err := routine.ValidateStoredRoutineDescriptor(read, n.procedure); err != nil {
 		return err
 	}
 	return b.captureRoutineReference(path, n.ref)
@@ -44,7 +45,7 @@ func (v *viewDefinition) sqlRoutineRecipeProcedure(read catalog.Read, path viewL
 	if !ok || d.SQL == nil || len(raw.Name.Parts) != 2 || raw.Name.Parts[1].Text != d.Name() || len(raw.Args) != len(d.SQL.Inputs) {
 		return nil, fmt.Errorf("stuntgres: mismatched frozen SQL routine procedure")
 	}
-	if _, err := ValidateStoredRoutineDescriptor(read, d); err != nil {
+	if _, err := routine.ValidateStoredRoutineDescriptor(read, d); err != nil {
 		return nil, err
 	}
 	for _, dependency := range v.dependencies {

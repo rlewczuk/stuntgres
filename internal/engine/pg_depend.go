@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
 
@@ -42,7 +43,7 @@ func pgDependPinned(view catalog.Read, reader definitionReader, address ids.Obje
 	case *catalog.Procedure:
 		return d.Seeded()
 	case *catalog.Operator:
-		return OperatorSeeded(d)
+		return routine.OperatorSeeded(d)
 	case *catalog.Relation:
 		return d.RelationKind == catalog.CatalogRelation
 	}
@@ -83,8 +84,8 @@ func collectPGDepend(ctx context.Context, view catalog.Read, runtime catalogSour
 		}
 		switch d := descriptor.(type) {
 		case *catalog.Operator:
-			if !OperatorSeeded(d) {
-				for _, address := range OperatorDependencyAddresses(view, d) {
+			if !routine.OperatorSeeded(d) {
+				for _, address := range routine.OperatorDependencyAddresses(view, d) {
 					add(d.Address(), address, 'n')
 				}
 			}

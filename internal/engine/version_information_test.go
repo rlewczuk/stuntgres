@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -45,7 +46,7 @@ func TestVersionInformationBinding(t *testing.T) {
 		if leaf.ResultUsage() != b.typ(sqltype.Text).Usage() || leaf.Property != (expr.Properties{Volatility: tc.volatility}) || leaf.RoutineReference == nil || leaf.RoutineReference.RoutineOID() != uint32(tc.oid) {
 			t.Fatalf("incorrect binding: %#v", leaf)
 		}
-		declaration, err := LookupBuiltinRoutineDeclaration(functions.CatalogRoutineProvider, tc.kind.Name(), nil)
+		declaration, err := routine.LookupBuiltinRoutineDeclaration(functions.CatalogRoutineProvider, tc.kind.Name(), nil)
 		if err != nil {
 			t.Fatal(err)
 		}

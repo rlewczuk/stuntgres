@@ -12,11 +12,12 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
 
 func (b *expressionBinder) builtinRoutineInfo(info expr.Info, provider functions.RoutineProvider, name string, inputs ...sqltype.ID) (expr.Info, error) {
-	declaration, err := LookupBuiltinRoutineDeclaration(provider, name, inputs)
+	declaration, err := routine.LookupBuiltinRoutineDeclaration(provider, name, inputs)
 	if err != nil {
 		return expr.Info{}, err
 	}
@@ -24,7 +25,7 @@ func (b *expressionBinder) builtinRoutineInfo(info expr.Info, provider functions
 }
 
 func (b *expressionBinder) builtinRoutineReference(provider functions.RoutineProvider, name string, inputs ...sqltype.ID) (ids.ObjectRef, error) {
-	declaration, err := LookupBuiltinRoutineDeclaration(provider, name, inputs)
+	declaration, err := routine.LookupBuiltinRoutineDeclaration(provider, name, inputs)
 	if err != nil {
 		return ids.ObjectRef{}, err
 	}
@@ -60,13 +61,13 @@ func (b *expressionBinder) captureBuiltinRoutineDeclaration(declaration *catalog
 // ACL. Optional polymorphic casts are selected from the real argument, not all
 // possible casts and not ordinary I/O helper identities.
 func (b *expressionBinder) capturePolymorphicBody(node expr.Expr) error {
-	outer, err := ExpressionRoutineDescriptor(node)
+	outer, err := routine.ExpressionRoutineDescriptor(node)
 	if err != nil || outer == nil {
 		return err
 	}
-	argument := PolymorphicBodyArgument(node, outer.Address().ObjectID)
+	argument := routine.PolymorphicBodyArgument(node, outer.Address().ObjectID)
 	for _, edge := range outer.Body {
-		if BodyCastMatches(edge, argument) {
+		if routine.BodyCastMatches(edge, argument) {
 			if _, _, err := b.captureBuiltinRoutineDeclaration(edge.Routine.Builtin); err != nil {
 				return err
 			}

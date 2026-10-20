@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -35,7 +36,7 @@ func ownershipRoot(view catalog.Read, d catalog.Descriptor) bool {
 	case *catalog.Conversion:
 		return !t.Seeded() && t.Owner != (authorization.PrincipalRef{})
 	case *catalog.Operator:
-		return !OperatorSeeded(t)
+		return !routine.OperatorSeeded(t)
 	case *catalog.Procedure:
 		return !t.Seeded() && t.Foreign == nil
 	case *catalog.Database, *catalog.Extension, *catalog.TSDictionary:

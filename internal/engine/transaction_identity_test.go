@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -274,7 +275,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 		if err := validateGenerationPlan(e.CatalogRead(), nil, n); err != nil {
 			t.Fatal("original provider", err)
 		}
-		captured, err := ExpressionRoutineDescriptor(n)
+		captured, err := routine.ExpressionRoutineDescriptor(n)
 		if err != nil || captured == nil {
 			t.Fatal("missing captured original routine", err)
 		}

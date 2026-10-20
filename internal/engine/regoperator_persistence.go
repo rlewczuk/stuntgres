@@ -5,6 +5,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
 
@@ -59,7 +60,7 @@ func operatorLiteralSQL(view catalog.Read, value sqltype.Value) (string, error) 
 		return "", err
 	}
 	d, known := view.Operator(ids.ObjectAddress{ClassID: ids.OperatorClassID, ObjectID: ids.OID(id)})
-	if !known || OperatorSeeded(d) {
+	if !known || routine.OperatorSeeded(d) {
 		return "'" + strconv.FormatUint(uint64(id), 10) + "'::" + value.Type().BaseType().Name(), nil
 	}
 	text := operatorSpelling(view, nil, collectOperatorGroups(view), ids.OID(id), sqltype.Regoperator)

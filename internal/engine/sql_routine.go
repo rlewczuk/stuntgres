@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
 
@@ -121,7 +122,7 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(parent.op)
 	if err == nil {
-		_, err = ValidateRoutineDescriptor(auth.Catalog, auth.Roles, d)
+		_, err = routine.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, d)
 		if err == nil {
 			err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), Privileges: authorization.ExecutePrivilege})
 		}

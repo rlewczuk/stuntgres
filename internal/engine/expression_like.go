@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -102,8 +103,8 @@ func (b *expressionBinder) coercionInfo(info expr.Info, child expr.Expr) (expr.I
 // Some successful coercion seams deliberately retain their own collation
 // handling. They still select the same actual function-method identity.
 func (b *expressionBinder) coercionRoutineInfo(info expr.Info, child expr.Expr) (expr.Info, error) {
-	if id := EmbeddedCastOID(child.ResultUsage().Type, info.Usage.Type); id != 0 {
-		return b.selectedBuiltinRoutineInfo(info, BuiltinRoutine(id))
+	if id := routine.EmbeddedCastOID(child.ResultUsage().Type, info.Usage.Type); id != 0 {
+		return b.selectedBuiltinRoutineInfo(info, routine.BuiltinRoutine(id))
 	}
 	return info, nil
 }

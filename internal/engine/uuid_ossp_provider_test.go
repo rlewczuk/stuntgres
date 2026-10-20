@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 )
 
@@ -76,7 +77,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 			p.Implementation = &uuidOsspProvider{control: catalog.ExtensionControl{Version: "1.1"}}
 		},
 		func(p *catalog.Procedure) { p.RoutineKind = catalog.ProcedureRoutine },
-		func(p *catalog.Procedure) { p.Builtin = BuiltinRoutine(3432) },
+		func(p *catalog.Procedure) { p.Builtin = routine.BuiltinRoutine(3432) },
 		func(p *catalog.Procedure) { p.Implementation = stockPgcrypto },
 		func(p *catalog.Procedure) { p.Implementation = stockFuzzystrmatch },
 		func(p *catalog.Procedure) { p.Implementation = stockUnaccent },
