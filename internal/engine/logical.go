@@ -84,8 +84,7 @@ type logicalExpression struct {
 }
 
 func (e logicalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
-	if err := evaluationContext(c); err != nil {
+	if _, err := beginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
 	if e.Usage.Type == nil || e.Usage.Type.ID() != sqltype.Bool || e.left == nil ||
@@ -103,7 +102,7 @@ func (e logicalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 			return sqltype.Boolean(e.Usage.Type, e.op == parser.LogicalOr), nil
 		}
 	}
-	v, err := e.left.Eval(c)
+	v, err := e.left.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -118,7 +117,7 @@ func (e logicalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		return sqltype.Boolean(e.Usage.Type, a == False), nil
 	}
 	// Evaluation order for nondecisive operands remains private.
-	v, err = e.right.Eval(c)
+	v, err = e.right.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}

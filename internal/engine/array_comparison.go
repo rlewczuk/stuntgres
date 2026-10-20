@@ -23,18 +23,17 @@ type scalarArrayComparisonExpression struct {
 }
 
 func (n scalarArrayComparisonExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
-	if err := evaluationContext(c); err != nil {
+	if _, err := beginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
-	left, err := n.left.Eval(c)
+	left, err := n.left.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	var array sqltype.Value
 	count := len(n.items)
 	if n.array != nil {
-		array, err = n.array.Eval(c)
+		array, err = n.array.Eval(ctx)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -46,14 +45,14 @@ func (n scalarArrayComparisonExpression) Eval(ctx expr.Context) (sqltype.Value, 
 	unknown := false
 	decisive := false
 	for i := range count {
-		if err := c.Context.Err(); err != nil {
+		if err := ctx.FunctionContext().Err(); err != nil {
 			return sqltype.Value{}, err
 		}
 		var right sqltype.Value
 		if n.array != nil {
 			right = array.ArrayElement(i)
 		} else {
-			right, err = n.items[i].Eval(c)
+			right, err = n.items[i].Eval(ctx)
 			if err != nil {
 				return sqltype.Value{}, err
 			}
@@ -63,7 +62,7 @@ func (n scalarArrayComparisonExpression) Eval(ctx expr.Context) (sqltype.Value, 
 		if decisive {
 			continue
 		}
-		value, err := n.predicate.Evaluate(c.Context, left, right, c.Input)
+		value, err := n.predicate.Evaluate(ctx.FunctionContext(), left, right, ctx.FunctionInput())
 		if err != nil {
 			return sqltype.Value{}, err
 		}

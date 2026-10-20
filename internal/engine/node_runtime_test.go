@@ -1,0 +1,42 @@
+package engine
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/sqltype"
+)
+
+// foreignContext satisfies expr.Context without the engine node runtime.
+type foreignContext struct{ expr.Context }
+
+func TestNodeRuntimePrologue(t *testing.T) {
+	for name, ctx := range map[string]expr.Context{
+		"nil":     nil,
+		"typed":   (*EvalContext)(nil),
+		"foreign": foreignContext{},
+	} {
+		if _, err := beginEvaluation(ctx); err == nil || err.Error() != "stuntgres: missing expression context" {
+			t.Fatalf("%s context: got %v", name, err)
+		}
+	}
+
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	c := &EvalContext{evalStatement: evalStatement{Context: canceled}}
+	if _, err := beginEvaluation(c); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled context: got %v", err)
+	}
+
+	// The prologue wires domain checks before nodes read their input.
+	c = &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+	c.domainValueActive = true
+	if _, err := beginEvaluation(c); err != nil {
+		t.Fatal(err)
+	}
+	if c.FunctionInput().DomainChecks != sqltype.DomainCheckEvaluator(c) {
+		t.Fatal("domain checks are not wired to the evaluation context")
+	}
+}

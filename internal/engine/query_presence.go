@@ -51,7 +51,7 @@ unwrap:
 	return *slot, nil
 }
 
-func (n rowExpression) absent(c *EvalContext) (bool, error) {
+func (c *EvalContext) RowAbsent(n rowExpression) (bool, error) {
 	if n.presenceSlot == 0 && n.wholeNames == nil {
 		return false, nil
 	}

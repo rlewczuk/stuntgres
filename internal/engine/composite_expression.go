@@ -37,14 +37,14 @@ type rowExpression struct {
 }
 
 func (n rowExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
-	if err := evaluationContext(c); err != nil {
+	runtime, err := beginEvaluation(ctx)
+	if err != nil {
 		return sqltype.Value{}, err
 	}
 	if n.returningNull {
 		return sqltype.Null(n.Usage.Type), nil
 	}
-	absent, err := n.absent(c)
+	absent, err := runtime.RowAbsent(n)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -64,7 +64,7 @@ func (n rowExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 				continue
 			}
 		}
-		v, err := child.Eval(c)
+		v, err := child.Eval(ctx)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -137,20 +137,23 @@ type fieldExpression struct {
 }
 
 func (n fieldExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
 	// Analysis/preflight still visits every constructor child. Runtime demand
 	// may bypass its allocation and unused volatile children.
 	if row, ok := n.base.(rowExpression); ok {
-		absent, err := row.absent(c)
+		runtime, err := nodeRuntimeOf(ctx)
+		if err != nil {
+			return sqltype.Value{}, err
+		}
+		absent, err := runtime.RowAbsent(row)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 		if absent {
 			return sqltype.Null(n.Usage.Type), nil
 		}
-		return row.fields[n.index].Eval(c)
+		return row.fields[n.index].Eval(ctx)
 	}
-	value, err := n.base.Eval(c)
+	value, err := n.base.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}

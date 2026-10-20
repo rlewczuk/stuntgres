@@ -17,8 +17,7 @@ type subscriptsExpression struct {
 }
 
 func (e subscriptsExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
-	if err := evaluationContext(c); err != nil {
+	if _, err := beginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
 	return sqltype.Value{}, fmt.Errorf("stuntgres: unlifted generate_subscripts set call")

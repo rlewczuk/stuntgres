@@ -17,8 +17,7 @@ func (e seriesExpression) SameSourceOccurrence(other expr.Expr) bool {
 }
 
 func (e seriesExpression) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
-	c := evalContext(ctx)
-	if err := evaluationContext(c); err != nil {
+	if _, err := beginEvaluation(ctx); err != nil {
 		return expr.SourceCursor{}, err
 	}
 	if len(e.args) != 2 && len(e.args) != 3 {
@@ -27,13 +26,13 @@ func (e seriesExpression) OpenSource(ctx expr.Context) (expr.SourceCursor, error
 	if e.Usage.Type.ID() == sqltype.Numeric {
 		var values [3]sqltype.Value
 		for i, arg := range e.args {
-			value, err := arg.Eval(c)
+			value, err := arg.Eval(ctx)
 			if err != nil {
 				return expr.SourceCursor{}, err
 			}
 			values[i] = value
 		}
-		cursor, err := sqltype.OpenNumericSeries(c.Context, values[0], values[1], values[2:len(e.args)]...)
+		cursor, err := sqltype.OpenNumericSeries(ctx.FunctionContext(), values[0], values[1], values[2:len(e.args)]...)
 		if err != nil {
 			return expr.SourceCursor{}, err
 		}
@@ -46,7 +45,7 @@ func (e seriesExpression) OpenSource(ctx expr.Context) (expr.SourceCursor, error
 	values[2] = 1
 	null := false
 	for i, arg := range e.args {
-		v, err := arg.Eval(c)
+		v, err := arg.Eval(ctx)
 		if err != nil {
 			return expr.SourceCursor{}, err
 		}

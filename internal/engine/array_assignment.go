@@ -69,7 +69,7 @@ func (t *arrayAssignmentTarget) column(original catalog.Column) catalog.Column {
 	original.Usage = t.destination
 	return original
 }
-func (t *arrayAssignmentTarget) diagnostic(b *expressionBinder, err error, source *sqltype.Descriptor) error {
+func (b *expressionBinder) arrayAssignmentDiagnostic(t *arrayAssignmentTarget, err error, source *sqltype.Descriptor) error {
 	if err == nil {
 		return nil
 	}
@@ -93,20 +93,20 @@ func (t *arrayAssignmentTarget) diagnostic(b *expressionBinder, err error, sourc
 	return &copy
 }
 
-func (t *arrayAssignmentTarget) apply(c *EvalContext, current, rhs sqltype.Value) (sqltype.Value, error) {
-	return t.applyPath(c, current, nil, rhs)
+func (t *arrayAssignmentTarget) apply(ctx expr.Context, current, rhs sqltype.Value) (sqltype.Value, error) {
+	return t.applyPath(ctx, current, nil, rhs)
 }
 
-func (t *arrayAssignmentTarget) applyExpression(c *EvalContext, current sqltype.Value, rhs expr.Expr) (sqltype.Value, error) {
-	return t.applyPath(c, current, rhs, sqltype.Value{})
+func (t *arrayAssignmentTarget) applyExpression(ctx expr.Context, current sqltype.Value, rhs expr.Expr) (sqltype.Value, error) {
+	return t.applyPath(ctx, current, rhs, sqltype.Value{})
 }
 
-func (t *arrayAssignmentTarget) applyPath(c *EvalContext, current sqltype.Value, expression expr.Expr, rhs sqltype.Value) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
+func (t *arrayAssignmentTarget) applyPath(ctx expr.Context, current sqltype.Value, expression expr.Expr, rhs sqltype.Value) (sqltype.Value, error) {
+	if _, err := beginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
 	var storage [6]sqltype.ArraySubscriptValue
-	bounds, err := evaluateArrayBounds(c, t.node.subscripts, t.node.slice, storage[:len(t.node.subscripts)])
+	bounds, err := evaluateArrayBounds(ctx, t.node.subscripts, t.node.slice, storage[:len(t.node.subscripts)])
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -127,24 +127,24 @@ func (t *arrayAssignmentTarget) applyPath(c *EvalContext, current sqltype.Value,
 				previous = current.CompositeField(index)
 			}
 		} else if t.node.slice {
-			previous, err = sqltype.ArraySlice(c.Context, current, bounds)
+			previous, err = sqltype.ArraySlice(ctx.FunctionContext(), current, bounds)
 		} else {
-			previous, err = sqltype.ArrayFetch(c.Context, current, bounds)
+			previous, err = sqltype.ArrayFetch(ctx.FunctionContext(), current, bounds)
 		}
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		rhs, err = t.next.applyPath(c, previous, expression, rhs)
+		rhs, err = t.next.applyPath(ctx, previous, expression, rhs)
 	} else if expression != nil {
-		rhs, err = expression.Eval(c)
+		rhs, err = expression.Eval(ctx)
 	}
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return t.applyBounds(c, current, rhs, bounds)
+	return t.applyBounds(ctx, current, rhs, bounds)
 }
 
-func (t *arrayAssignmentTarget) applyBounds(c *EvalContext, current, rhs sqltype.Value, bounds []sqltype.ArraySubscriptValue) (sqltype.Value, error) {
+func (t *arrayAssignmentTarget) applyBounds(ctx expr.Context, current, rhs sqltype.Value, bounds []sqltype.ArraySubscriptValue) (sqltype.Value, error) {
 	var result sqltype.Value
 	var err error
 	if t.attribute != 0 {
@@ -165,17 +165,17 @@ func (t *arrayAssignmentTarget) applyBounds(c *EvalContext, current, rhs sqltype
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		return t.reapply.Apply(c.Context, result, c.Input, c.Output)
+		return t.reapply.Apply(ctx.FunctionContext(), result, ctx.FunctionInput(), ctx.FunctionOutput())
 	}
 	if t.node.slice {
-		result, err = sqltype.ArraySetSlice(c.Context, current, bounds, rhs)
+		result, err = sqltype.ArraySetSlice(ctx.FunctionContext(), current, bounds, rhs)
 	} else {
-		result, err = sqltype.ArraySetElement(c.Context, current, bounds, rhs)
+		result, err = sqltype.ArraySetElement(ctx.FunctionContext(), current, bounds, rhs)
 	}
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return t.reapply.Apply(c.Context, result, c.Input, c.Output)
+	return t.reapply.Apply(ctx.FunctionContext(), result, ctx.FunctionInput(), ctx.FunctionOutput())
 }
 
 func preflightArrayTargets(c *EvalContext, targets []*arrayAssignmentTarget) ([]*arrayAssignmentTarget, error) {

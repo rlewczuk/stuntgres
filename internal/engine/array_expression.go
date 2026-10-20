@@ -21,22 +21,21 @@ type arrayExpression struct {
 }
 
 func (n arrayExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
-	if err := evaluationContext(c); err != nil {
+	if _, err := beginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
 	values := make([]sqltype.Value, len(n.elements))
 	for i, child := range n.elements {
-		if err := c.Context.Err(); err != nil {
+		if err := ctx.FunctionContext().Err(); err != nil {
 			return sqltype.Value{}, err
 		}
-		v, err := child.Eval(c)
+		v, err := child.Eval(ctx)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 		values[i] = v
 	}
-	return sqltype.ConstructArray(c.Context, n.Usage.Type, values, n.multidimensional)
+	return sqltype.ConstructArray(ctx.FunctionContext(), n.Usage.Type, values, n.multidimensional)
 }
 
 // target is supplied only by explicit array casts, never ordinary assignment.
@@ -166,11 +165,10 @@ type subscriptExpression struct {
 }
 
 func (n subscriptExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
-	if err := evaluationContext(c); err != nil {
+	if _, err := beginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
-	value, err := n.base.Eval(c)
+	value, err := n.base.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -178,19 +176,19 @@ func (n subscriptExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		return sqltype.Null(n.Usage.Type), nil
 	}
 	var storage [6]sqltype.ArraySubscriptValue
-	bounds, err := evaluateArrayBounds(c, n.subscripts, n.slice, storage[:len(n.subscripts)])
+	bounds, err := evaluateArrayBounds(ctx, n.subscripts, n.slice, storage[:len(n.subscripts)])
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	if n.slice {
-		return sqltype.ArraySlice(c.Context, value, bounds)
+		return sqltype.ArraySlice(ctx.FunctionContext(), value, bounds)
 	}
-	return sqltype.ArrayFetch(c.Context, value, bounds)
+	return sqltype.ArrayFetch(ctx.FunctionContext(), value, bounds)
 }
 
 // Executor ordering is upper bounds in dimension order, then lower bounds.
 // Analysis and diagnostic positions still follow lexical occurrences.
-func evaluateArrayBounds(c *EvalContext, subs []boundArraySubscript, slice bool, bounds []sqltype.ArraySubscriptValue) ([]sqltype.ArraySubscriptValue, error) {
+func evaluateArrayBounds(ctx expr.Context, subs []boundArraySubscript, slice bool, bounds []sqltype.ArraySubscriptValue) ([]sqltype.ArraySubscriptValue, error) {
 	for i, s := range subs {
 		bounds[i] = sqltype.ArraySubscriptValue{}
 		if slice && !s.slice {
@@ -206,7 +204,7 @@ func evaluateArrayBounds(c *EvalContext, subs []boundArraySubscript, slice bool,
 			if node == nil {
 				continue
 			}
-			v, err := node.Eval(c)
+			v, err := node.Eval(ctx)
 			if err != nil {
 				return nil, err
 			}

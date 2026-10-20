@@ -144,7 +144,7 @@ func (c *EvalContext) WholeRowNullPresence(node expr.Expr) (handled, absent bool
 	if row.Usage.Type == nil || !row.Usage.Type.Concrete() || !row.Usage.Type.BaseType().IsComposite() || len(row.fields) != row.Usage.Type.BaseType().CompositeLen() {
 		return true, false, fmt.Errorf("stuntgres: invalid null-count argument type")
 	}
-	absent, err = row.absent(c)
+	absent, err = c.RowAbsent(row)
 	return true, absent, err
 }
 func (c *EvalContext) FunctionJSONOutput() sqltype.OutputEnvironment {
@@ -201,8 +201,7 @@ type literalExpression struct {
 }
 
 func (e literalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
-	if err := evaluationContext(c); err != nil {
+	if _, err := beginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
 	if e.Usage.Type == nil || !e.Usage.Type.Concrete() || e.value.Type() != e.Usage.Type ||
@@ -341,36 +340,16 @@ func (e collationExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 }
 
 func (e coercionExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
-	v, err := e.child.Eval(c)
+	v, err := e.child.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	output := c.Output
-	output.Regclass = c.liveScope()
-	output.Regtype = c.liveScope()
-	output.Regrole = c.liveScope()
-	output.Regcollation = c.liveScope()
-	output.Regnamespace = c.liveScope()
-	output.Regproc = c.liveScope()
-	output.Operator = c.liveScope()
-	output.RegTS = c.liveScope()
-	output.ACLItem = c.liveScope()
-	input := c.Input
-	if input.Regrole == nil {
-		if scope := c.liveScope(); scope != nil {
-			input.Regrole = scope.input.Regrole
-		}
+	runtime, err := nodeRuntimeOf(ctx)
+	if err != nil {
+		return sqltype.Value{}, err
 	}
-	if input.Regcollation == nil || input.Regnamespace == nil {
-		if scope := c.liveScope(); scope != nil {
-			input.Regcollation, input.Regnamespace = scope.input.Regcollation, scope.input.Regnamespace
-		}
-	}
-	if sqltype.ContainsDomainConstraints(e.Usage.Type) {
-		input.DomainChecks = c
-	}
-	return e.plan.Apply(c.Context, v, input, output)
+	input, output := runtime.CoercionEnvironments(sqltype.ContainsDomainConstraints(e.Usage.Type))
+	return e.plan.Apply(ctx.FunctionContext(), v, input, output)
 }
 func coercionProperties(child expr.Expr, plan sqltype.CoercionPlan) expr.Properties {
 	properties := child.Properties()
@@ -390,16 +369,15 @@ type comparisonExpression struct {
 }
 
 func (e comparisonExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
-	a, err := e.left.Eval(c)
+	a, err := e.left.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	b, err := e.right.Eval(c)
+	b, err := e.right.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.predicate.Evaluate(c.Context, a, b, c.Input)
+	return e.predicate.Evaluate(ctx.FunctionContext(), a, b, ctx.FunctionInput())
 }
 
 // preflightCoercions materializes immutable conversions from the imported
@@ -2968,19 +2946,18 @@ func arithmeticSetConstantNull(original, current arithmeticExpression) bool {
 }
 
 func (e arithmeticExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
-	a, err := e.left.Eval(c)
+	a, err := e.left.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	if e.right == nil {
-		return e.provider.Unary(c.Context, a, c.Input)
+		return e.provider.Unary(ctx.FunctionContext(), a, ctx.FunctionInput())
 	}
-	v, err := e.right.Eval(c)
+	v, err := e.right.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.provider.Binary(c.Context, a, v, c.Input)
+	return e.provider.Binary(ctx.FunctionContext(), a, v, ctx.FunctionInput())
 }
 func arithmeticName(name string) bool {
 	return name == "+" || name == "-" || name == "*" || name == "/" || name == "%" || name == "^"

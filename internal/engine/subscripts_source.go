@@ -15,8 +15,7 @@ func (e subscriptsExpression) SameSourceOccurrence(other expr.Expr) bool {
 }
 
 func (e subscriptsExpression) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
-	c := evalContext(ctx)
-	if err := evaluationContext(c); err != nil {
+	if _, err := beginEvaluation(ctx); err != nil {
 		return expr.SourceCursor{}, err
 	}
 	if len(e.args) != 2 && len(e.args) != 3 {
@@ -25,7 +24,7 @@ func (e subscriptsExpression) OpenSource(ctx expr.Context) (expr.SourceCursor, e
 	var values [3]sqltype.Value
 	null := false
 	for i, arg := range e.args {
-		value, err := arg.Eval(c)
+		value, err := arg.Eval(ctx)
 		if err != nil {
 			return expr.SourceCursor{}, err
 		}

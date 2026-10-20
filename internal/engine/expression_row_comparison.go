@@ -23,11 +23,10 @@ type rowComparisonExpression struct {
 }
 
 func (e rowComparisonExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
-	if err := evaluationContext(c); err != nil {
+	if _, err := beginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.compare(c, nil)
+	return e.compare(ctx, nil)
 }
 
 func (b *expressionBinder) bindRowComparison(raw parser.OperatorExpr, operator sqltype.ComparisonOperator, left, right parser.RowExpr) (expr.Expr, error) {
@@ -237,27 +236,27 @@ func rowSubqueryComparison(raw parser.OperatorExpr) (parser.SubqueryExpr, bool) 
 
 // A saved subquery tuple supplies left values. Local rows pass nil so each
 // reached pair evaluates left then right before deciding whether to continue.
-func (e rowComparisonExpression) compare(c *EvalContext, left []sqltype.Value) (sqltype.Value, error) {
+func (e rowComparisonExpression) compare(ctx expr.Context, left []sqltype.Value) (sqltype.Value, error) {
 	unknown := false
 	for i, comparison := range e.comparisons {
 		var valueLeft sqltype.Value
 		if left == nil {
 			var err error
-			valueLeft, err = comparison.left.Eval(c)
+			valueLeft, err = comparison.left.Eval(ctx)
 			if err != nil {
 				return sqltype.Value{}, err
 			}
 		} else {
 			valueLeft = left[i]
 		}
-		right, err := comparison.right.Eval(c)
+		right, err := comparison.right.Eval(ctx)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 		if e.distinct() {
 			distinct := valueLeft.IsNull() != right.IsNull()
 			if !valueLeft.IsNull() && !right.IsNull() {
-				value, err := comparison.predicate.Evaluate(c.Context, valueLeft, right, c.Input)
+				value, err := comparison.predicate.Evaluate(ctx.FunctionContext(), valueLeft, right, ctx.FunctionInput())
 				if err != nil {
 					return sqltype.Value{}, err
 				}
@@ -273,13 +272,13 @@ func (e rowComparisonExpression) compare(c *EvalContext, left []sqltype.Value) (
 			continue
 		}
 		if len(e.comparisons) == 1 {
-			return comparison.predicate.Evaluate(c.Context, valueLeft, right, c.Input)
+			return comparison.predicate.Evaluate(ctx.FunctionContext(), valueLeft, right, ctx.FunctionInput())
 		}
 		if len(e.ordering) != 0 {
 			if valueLeft.IsNull() || right.IsNull() {
 				return sqltype.Null(e.Usage.Type), nil
 			}
-			sign, err := e.ordering[i].Compare(c.Context, valueLeft, right, c.Input)
+			sign, err := e.ordering[i].Compare(ctx.FunctionContext(), valueLeft, right, ctx.FunctionInput())
 			if err != nil {
 				return sqltype.Value{}, err
 			}
@@ -292,7 +291,7 @@ func (e rowComparisonExpression) compare(c *EvalContext, left []sqltype.Value) (
 			}
 			return sqltype.Boolean(e.Usage.Type, truth), nil
 		}
-		value, err := comparison.predicate.Evaluate(c.Context, valueLeft, right, c.Input)
+		value, err := comparison.predicate.Evaluate(ctx.FunctionContext(), valueLeft, right, ctx.FunctionInput())
 		if err != nil {
 			return sqltype.Value{}, err
 		}

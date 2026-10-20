@@ -20,16 +20,15 @@ type likeExpression struct {
 }
 
 func (e likeExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
-	a, err := e.left.Eval(c)
+	a, err := e.left.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	b, err := e.right.Eval(c)
+	b, err := e.right.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.provider.Evaluate(c.Context, a, b)
+	return e.provider.Evaluate(ctx.FunctionContext(), a, b)
 }
 
 func likeName(name string) bool {

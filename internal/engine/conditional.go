@@ -27,8 +27,7 @@ type caseExpression struct {
 }
 
 func (e caseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
-	if err := evaluationContext(c); err != nil {
+	if _, err := beginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
 	if e.Usage.Type == nil || !e.Usage.Type.Concrete() || e.otherwise == nil {
@@ -37,24 +36,24 @@ func (e caseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	var test sqltype.Value
 	var err error
 	if e.test != nil {
-		test, err = e.test.Eval(c)
+		test, err = e.test.Eval(ctx)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 	}
 	for _, arm := range e.arms {
-		condition, err := arm.condition.Eval(c)
+		condition, err := arm.condition.Eval(ctx)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
 		match := false
 		if e.test != nil {
-			view, err := arm.testPlan.Apply(c.Context, test, c.Input, c.Output)
+			view, err := arm.testPlan.Apply(ctx.FunctionContext(), test, ctx.FunctionInput(), ctx.FunctionOutput())
 			if err != nil {
 				return sqltype.Value{}, err
 			}
 			if !view.IsNull() && !condition.IsNull() {
-				equal, err := arm.equality.EqualValues(c.Context, view, condition, c.Input)
+				equal, err := arm.equality.EqualValues(ctx.FunctionContext(), view, condition, ctx.FunctionInput())
 				if err != nil {
 					return sqltype.Value{}, err
 				}
@@ -67,10 +66,10 @@ func (e caseExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 			}
 		}
 		if match {
-			return arm.result.Eval(c)
+			return arm.result.Eval(ctx)
 		}
 	}
-	return e.otherwise.Eval(c)
+	return e.otherwise.Eval(ctx)
 }
 
 type conditionalExpression struct {
@@ -82,8 +81,7 @@ type conditionalExpression struct {
 }
 
 func (e conditionalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
-	if err := evaluationContext(c); err != nil {
+	if _, err := beginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
 	if e.Usage.Type == nil || !e.Usage.Type.Concrete() || len(e.args) == 0 || e.kind > parser.Least || e.kind == parser.NullIf && len(e.args) != 2 {
@@ -93,11 +91,11 @@ func (e conditionalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 		return sqltype.Value{}, err
 	}
 	if e.kind == parser.NullIf {
-		left, err := e.args[0].Eval(c)
+		left, err := e.args[0].Eval(ctx)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		right, err := e.args[1].Eval(c)
+		right, err := e.args[1].Eval(ctx)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -105,7 +103,7 @@ func (e conditionalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 			return sqltype.Value{}, fmt.Errorf("stuntgres: invalid NULLIF operand value")
 		}
 		if !left.IsNull() && !right.IsNull() {
-			equal, err := e.comparison.EqualValues(c.Context, left, right, c.Input)
+			equal, err := e.comparison.EqualValues(ctx.FunctionContext(), left, right, ctx.FunctionInput())
 			if err != nil {
 				return sqltype.Value{}, err
 			}
@@ -117,7 +115,7 @@ func (e conditionalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 	}
 	best := sqltype.Null(e.Usage.Type)
 	for _, arg := range e.args {
-		value, err := arg.Eval(c)
+		value, err := arg.Eval(ctx)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -134,7 +132,7 @@ func (e conditionalExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
 			best = value
 			continue
 		}
-		sign, err := e.comparison.Compare(c.Context, value, best, c.Input)
+		sign, err := e.comparison.Compare(ctx.FunctionContext(), value, best, ctx.FunctionInput())
 		if err != nil {
 			return sqltype.Value{}, err
 		}

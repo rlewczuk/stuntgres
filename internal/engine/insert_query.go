@@ -92,7 +92,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 		}
 		assigned, err := binder.assignOutput(expr, target)
 		if err != nil && partial != nil {
-			err = partial.diagnostic(binder, err, expr.ResultUsage().Type)
+			err = binder.arrayAssignmentDiagnostic(partial, err, expr.ResultUsage().Type)
 		}
 		if err != nil {
 			if d, ok := err.(*sqlstate.Error); ok && d.Code == "42804" && s.Source.Select != nil && partial == nil {

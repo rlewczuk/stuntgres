@@ -16,11 +16,10 @@ func (e unnestExpression) SameSourceOccurrence(other expr.Expr) bool {
 }
 
 func (e unnestExpression) OpenSource(ctx expr.Context) (expr.SourceCursor, error) {
-	c := evalContext(ctx)
-	if err := evaluationContext(c); err != nil {
+	if _, err := beginEvaluation(ctx); err != nil {
 		return expr.SourceCursor{}, err
 	}
-	value, err := e.args[0].Eval(c)
+	value, err := e.args[0].Eval(ctx)
 	if err != nil {
 		return expr.SourceCursor{}, err
 	}
@@ -33,7 +32,7 @@ func (e unnestExpression) OpenSource(ctx expr.Context) (expr.SourceCursor, error
 			Exhausted: value.IsNull() || value.ArrayLen() == 0, Advance: nextArraySource,
 		}), nil
 	}
-	cursor, err := sqltype.OpenMultirange(c.Context, e.args[0].ResultUsage(), e.ResultUsage(), value)
+	cursor, err := sqltype.OpenMultirange(ctx.FunctionContext(), e.args[0].ResultUsage(), e.ResultUsage(), value)
 	if err != nil {
 		return expr.SourceCursor{}, err
 	}

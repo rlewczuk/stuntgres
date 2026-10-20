@@ -98,12 +98,12 @@ type projectNode struct {
 
 // Only a physical literal or this execution's imported parameter is row-free.
 // Never evaluate arbitrary expressions, rows, stages or subqueries as a proof.
-func queryPredicateProofValue(c *EvalContext, expr expr.Expr) (sqltype.Value, bool, error) {
+func queryPredicateProofValue(ctx expr.Context, expr expr.Expr) (sqltype.Value, bool, error) {
 	switch expression := expr.(type) {
 	case literalExpression:
 		return expression.value, true, nil
 	case parameterExpression:
-		value, err := expression.Eval(c)
+		value, err := expression.Eval(ctx)
 		return value, true, err
 	default:
 		return sqltype.Value{}, false, nil

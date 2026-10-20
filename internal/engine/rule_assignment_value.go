@@ -14,13 +14,12 @@ type assignmentValueExpression struct {
 }
 
 func (e assignmentValueExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
-	if err := evaluationContext(c); err != nil {
+	if _, err := beginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
-	base, err := e.base.Eval(c)
+	base, err := e.base.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	return e.target.applyExpression(c, base, e.value)
+	return e.target.applyExpression(ctx, base, e.value)
 }

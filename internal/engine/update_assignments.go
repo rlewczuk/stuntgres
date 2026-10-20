@@ -102,7 +102,7 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 			plan, err := sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Assignment)
 			if err != nil {
 				if target != nil {
-					return target.diagnostic(binder, err, source.ResultUsage().Type)
+					return binder.arrayAssignmentDiagnostic(target, err, source.ResultUsage().Type)
 				}
 				var d *sqlstate.Error
 				if errors.As(err, &d) && d.Code == "42804" {

@@ -14,11 +14,10 @@ type viewQualificationExpression struct {
 }
 
 func (e viewQualificationExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
-	if err := evaluationContext(c); err != nil {
+	if _, err := beginEvaluation(ctx); err != nil {
 		return sqltype.Value{}, err
 	}
-	value, known, err := queryPredicateProofValue(c, e.user)
+	value, known, err := queryPredicateProofValue(ctx, e.user)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -30,11 +29,11 @@ func (e viewQualificationExpression) Eval(ctx expr.Context) (sqltype.Value, erro
 		if truth != True {
 			// A proven empty user input cannot expose a row or demand a
 			// retained qualification. Preserve its original FALSE/NULL value.
-			return value, c.Context.Err()
+			return value, ctx.FunctionContext().Err()
 		}
 	}
 	for i := len(e.predicates) - 1; i >= 0; i-- {
-		value, err := e.predicates[i].Eval(c)
+		value, err := e.predicates[i].Eval(ctx)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -47,12 +46,12 @@ func (e viewQualificationExpression) Eval(ctx expr.Context) (sqltype.Value, erro
 		}
 	}
 	if known {
-		return value, c.Context.Err()
+		return value, ctx.FunctionContext().Err()
 	}
 	if e.user == nil {
-		return sqltype.Boolean(e.Usage.Type, true), c.Context.Err()
+		return sqltype.Boolean(e.Usage.Type, true), ctx.FunctionContext().Err()
 	}
-	return e.user.Eval(c)
+	return e.user.Eval(ctx)
 }
 func mapViewQualification(e viewQualificationExpression, mapper func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, bool, error) {
 	changed := false

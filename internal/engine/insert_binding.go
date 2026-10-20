@@ -196,7 +196,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 					if plan != nil {
 						source = plan.ResultUsage().Type
 					}
-					return partial.diagnostic(binder, err, source)
+					return binder.arrayAssignmentDiagnostic(partial, err, source)
 				}
 				if plan == nil && containsValuesAggregateAnalysis(v) {
 					return err

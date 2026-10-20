@@ -67,18 +67,17 @@ type distinctExpression struct {
 }
 
 func (e distinctExpression) Eval(ctx expr.Context) (sqltype.Value, error) {
-	c := evalContext(ctx)
-	a, err := e.left.Eval(c)
+	a, err := e.left.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	b, err := e.right.Eval(c)
+	b, err := e.right.Eval(ctx)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	distinct := a.IsNull() != b.IsNull()
 	if !a.IsNull() && !b.IsNull() {
-		equal, err := e.equality.Evaluate(c.Context, a, b, c.Input)
+		equal, err := e.equality.Evaluate(ctx.FunctionContext(), a, b, ctx.FunctionInput())
 		if err != nil {
 			return sqltype.Value{}, err
 		}
