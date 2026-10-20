@@ -105,7 +105,7 @@ func TestTruncateIndexes(t *testing.T) {
 	retained := e.storage.IndexRoots[index.Address]
 	tx := transactionBegin(t, s)
 	scope := truncateUnitStage(t, e, s, "p")
-	candidate := scope.catalog.indexesOrZero().uniqueRoots[index.Address]
+	candidate := journalIndexesOrZero(scope.catalog).uniqueRoots[index.Address]
 	if candidate == nil || len(candidate.Entries) != 0 || len(retained.Entries) != 2 || e.storage.IndexRoots[index.Address] != retained {
 		t.Fatal("private index root not rebuilt independently")
 	}

@@ -83,7 +83,7 @@ func TestPartialIndexUniqueTypePrivateRootOwnership(t *testing.T) {
 	if err := prepareAlterIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: f.auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, changes, f.auth.Catalog, f.parent, &baseline, nil, false); err != nil {
 		t.Fatal(err)
 	}
-	root := changes.indexesOrZero().uniqueRoots[next.Address()]
+	root := journalIndexesOrZero(changes).uniqueRoots[next.Address()]
 	if root == nil || root == f.roots[next.Address()] {
 		t.Fatal("private baseline borrowed committed root")
 	}
@@ -92,11 +92,11 @@ func TestPartialIndexUniqueTypePrivateRootOwnership(t *testing.T) {
 		t.Fatal("private TYPE membership", root)
 	}
 	cloned := cloneCatalogChanges(changes)
-	if cloned.indexesOrZero().uniqueRoots[next.Address()] != root {
+	if journalIndexesOrZero(cloned).uniqueRoots[next.Address()] != root {
 		t.Fatal("savepoint clone lost immutable baseline")
 	}
-	delete(cloned.indexesOrZero().uniqueRoots, next.Address())
-	if changes.indexesOrZero().uniqueRoots[next.Address()] != root {
+	delete(journalIndexesOrZero(cloned).uniqueRoots, next.Address())
+	if journalIndexesOrZero(changes).uniqueRoots[next.Address()] != root {
 		t.Fatal("savepoint map aliases private owner")
 	}
 	validated := map[string]*alterIndexBuild{next.Name(): {index: &next, root: root, store: &baseline}}
@@ -104,7 +104,7 @@ func TestPartialIndexUniqueTypePrivateRootOwnership(t *testing.T) {
 	if err := prepareAlterIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: f.auth.Catalog}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, other, f.auth.Catalog, f.parent, &baseline, validated, false); err != nil {
 		t.Fatal(err)
 	}
-	if other.indexesOrZero().uniqueRoots[next.Address()] != root {
+	if journalIndexesOrZero(other).uniqueRoots[next.Address()] != root {
 		t.Fatal("validated immutable baseline not reused")
 	}
 	f.unchanged(t)

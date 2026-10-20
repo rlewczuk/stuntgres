@@ -69,12 +69,12 @@ func (e *Engine) stageStorageLocked(s *CatalogStage, a ids.ObjectAddress) *stora
 	return e.storage.Relations[a]
 }
 func (e *Engine) catalogReadPreflightLocked(c *catalogChanges) error {
-	for _, fence := range c.domain.ValidationFences() {
+	for _, fence := range domainJournalOf(c.domain).ValidationFences() {
 		if !fence.Current(e.catalog.read(e.catalog.state), e.storage.Relations) {
 			return catalog.Conflict{}
 		}
 	}
-	for address, root := range c.domain.CommittedIndexRoots() {
+	for address, root := range domainJournalOf(c.domain).CommittedIndexRoots() {
 		if e.storage.IndexRoots[address] != root {
 			return catalog.Conflict{}
 		}
@@ -202,10 +202,10 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 		if err := observe(a, d); err != nil {
 			return err
 		}
-		if c.indexesOrZero().rebuilds == nil {
-			c.indexes().rebuilds = map[ids.ObjectAddress]*catalog.Relation{}
+		if journalIndexesOrZero(c).rebuilds == nil {
+			journalIndexes(c).rebuilds = map[ids.ObjectAddress]*catalog.Relation{}
 		}
-		c.indexes().rebuilds[a] = d
+		journalIndexes(c).rebuilds[a] = d
 	}
 	for k, a := range s.Touched() {
 		if current.NameAddress(k) != a {

@@ -37,11 +37,11 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 			use.Versions = use.Storage.Versions[:len(use.Storage.Versions):len(use.Storage.Versions)]
 			use.Ends, use.Generation = use.Storage.Ends, use.Storage.Generation
 		}
-		journal := changes.domainWritable()
+		journal := domainWritable(changes)
 		journal.Validations = append(journal.Validations, committed)
 	}
 	if len(stage.domainAlter.AlteredIndexRoots()) != 0 {
-		journal := changes.domainWritable()
+		journal := domainWritable(changes)
 		journal.IndexRoots = maps.Clone(journal.IndexRoots)
 		if journal.IndexRoots == nil {
 			journal.IndexRoots = make(map[ids.ObjectAddress]*storage.IndexRoot)
@@ -59,7 +59,7 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 func (e *Engine) domainStageIndexRootLocked(stage *CatalogStage, address ids.ObjectAddress) *storage.IndexRoot {
 	if stage.authSession != nil && stage.authSession.transactions.retainsTransaction() {
 		if changes := stage.authSession.transactions.catalog; changes != nil {
-			if root := changes.indexesOrZero().uniqueRoots[address]; root != nil {
+			if root := journalIndexesOrZero(changes).uniqueRoots[address]; root != nil {
 				return root
 			}
 		}

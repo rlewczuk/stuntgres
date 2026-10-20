@@ -29,14 +29,14 @@ type catalogChanges struct {
 	dependencies     []catalogDependencyObservation
 	cachedBase       *catalog.State
 	cached           catalog.Read
-	enum             *typedef.EnumJournal
+	enum             session.EnumSlot
 	rolesBase        *access.RoleRecord
 	roles            *access.RoleRecord
 	retiredRoles     map[authorization.PrincipalRef]struct{}
 	fences           []session.Fence // Feature commit preconditions, in recording order.
-	domain           *typedef.DomainJournal
+	domain           session.DomainSlot
 	domainChanged    bool
-	indexesSlot      *indexJournal
+	indexesSlot      session.IndexSlot
 }
 
 func newCatalogChanges() *catalogChanges {
@@ -48,7 +48,9 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 		return n
 	}
 	cloneDefaultChanges(c, n)
-	n.enum = c.enum.Clone()
+	if c.enum != nil {
+		n.enum = c.enum.Clone()
+	}
 	for a, d := range c.originals {
 		n.originals[a] = d
 	}
@@ -64,7 +66,9 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 	for a, shape := range c.storage {
 		n.storage[a] = shape
 	}
-	n.indexesSlot = c.indexesSlot.clone()
+	if c.indexesSlot != nil {
+		n.indexesSlot = c.indexesSlot.Clone()
+	}
 	n.dependencies = append(n.dependencies, c.dependencies...)
 	n.rolesBase, n.roles = c.rolesBase, c.roles
 	if len(c.retiredRoles) != 0 {
@@ -75,7 +79,9 @@ func cloneCatalogChanges(c *catalogChanges) *catalogChanges {
 	}
 	n.domainChanged = c.domainChanged
 	n.fences = append(n.fences, c.fences...)
-	n.domain = c.domain.Clone()
+	if c.domain != nil {
+		n.domain = c.domain.Clone()
+	}
 	return n
 }
 
@@ -137,7 +143,7 @@ func (e *Engine) catalogChangeLocked(c *catalogChanges, a ids.ObjectAddress, d c
 	}
 	c.descriptors[a] = d
 	if d == nil {
-		c.indexesSlot.forget(a)
+		indexJournalOf(c.indexesSlot).forget(a)
 	}
 	c.cachedBase = nil
 	c.cached = catalog.Read{}

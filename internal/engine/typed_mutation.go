@@ -254,7 +254,7 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		if _, _, err := transportIndexLayouts(&evaluation, stage, transported, next, store, replacement, nil, nil); err != nil {
 			return err
 		}
-		for address, candidate := range transported.indexesOrZero().candidates {
+		for address, candidate := range journalIndexesOrZero(transported).candidates {
 			if stage.indexesOrZero().candidates == nil {
 				stage.indexes().candidates = make(map[ids.ObjectAddress]indexRootCandidate)
 			}

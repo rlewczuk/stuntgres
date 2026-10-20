@@ -386,7 +386,7 @@ func (e *Engine) prepareTemporarySessionIndexes(stage *CatalogStage) (*temporary
 				return nil, ids.ErrCatalogReplaced
 			}
 			shape, ok := stage.rowShapes[index.SQLIndex.Parent]
-			candidate, produced := changes.indexesOrZero().candidates[address]
+			candidate, produced := journalIndexesOrZero(changes).candidates[address]
 			if !ok || !produced || !candidate.matchesIndex(index, shape.replacement) {
 				return nil, ids.ErrCatalogReplaced
 			}

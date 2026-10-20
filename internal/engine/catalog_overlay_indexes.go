@@ -51,7 +51,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 			continue
 		}
 		if !index.SQLIndex.Ready {
-			c.indexesSlot.forget(a)
+			indexJournalOf(c.indexesSlot).forget(a)
 			continue
 		}
 		// Virtual indexes own ancestry/validity metadata, never heap captures or
@@ -70,7 +70,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 			return catalog.Conflict{}
 		}
 		if _, produced := stageIndexes.candidates[a]; produced {
-			candidate, exists := c.indexesOrZero().candidates[a]
+			candidate, exists := journalIndexesOrZero(c).candidates[a]
 			if !exists || !candidate.matchesIndex(index, store) {
 				e.mu.Unlock()
 				return catalog.Conflict{}
@@ -78,7 +78,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 			continue
 		}
 		if _, transported := stageIndexes.layouts[a]; transported {
-			if candidate, exists := c.indexesOrZero().candidates[a]; exists && candidate.matchesIndex(index, store) && stageIndexes.rebuilds[a] == nil {
+			if candidate, exists := journalIndexesOrZero(c).candidates[a]; exists && candidate.matchesIndex(index, store) && stageIndexes.rebuilds[a] == nil {
 				continue
 			}
 		}

@@ -104,8 +104,8 @@ func transportIndexLayouts(evaluation *exec.Context, stage *CatalogStage, change
 			return nil, false, ids.ErrCatalogReplaced
 		}
 		root := e.storage.IndexRoots[address]
-		if private := changes.indexesOrZero().uniqueRoots[address]; private != nil {
-			candidate, pinned := changes.indexesOrZero().candidates[address]
+		if private := journalIndexesOrZero(changes).uniqueRoots[address]; private != nil {
+			candidate, pinned := journalIndexesOrZero(changes).candidates[address]
 			if pinned {
 				for edge := &lineage; edge != nil; edge = edge.previous {
 					if candidate.matchesIndex(edge.source, sourceStore) {
@@ -296,7 +296,7 @@ func transportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, ch
 			return err
 		}
 		if !index.SQLIndex.Ready || !index.SQLIndex.Live || parent.RelationKind == catalog.PartitionedRelation {
-			changes.indexesSlot.forget(index.Address())
+			indexJournalOf(changes.indexesSlot).forget(index.Address())
 			continue
 		}
 		var root *storage.IndexRoot
@@ -317,7 +317,7 @@ func transportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, ch
 			if stage.indexesOrZero().candidates == nil {
 				stage.indexes().candidates = make(map[ids.ObjectAddress]indexRootCandidate)
 			}
-			stage.indexes().candidates[index.Address()] = changes.indexesOrZero().candidates[index.Address()]
+			stage.indexes().candidates[index.Address()] = journalIndexesOrZero(changes).candidates[index.Address()]
 		}
 	}
 	return ctx.Err()

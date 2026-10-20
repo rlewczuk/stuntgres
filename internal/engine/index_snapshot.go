@@ -47,7 +47,7 @@ func (e *Engine) captureIndexSnapshotParents(ctx context.Context, view catalog.R
 	}
 	actualRoot := func(address ids.ObjectAddress) *storage.IndexRoot {
 		if private != nil {
-			if root := private.indexesOrZero().uniqueRoots[address]; root != nil {
+			if root := journalIndexesOrZero(private).uniqueRoots[address]; root != nil {
 				return root
 			}
 		}

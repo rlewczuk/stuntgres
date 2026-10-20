@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 )
 
@@ -16,19 +17,19 @@ type indexJournal struct {
 }
 
 // indexes returns the indexes slot, allocating it on first use.
-func (c *catalogChanges) indexes() *indexJournal {
+func journalIndexes(c *catalogChanges) *indexJournal {
 	if c.indexesSlot == nil {
-		c.indexesSlot = new(indexJournal)
+		c.indexesSlot = indexSlotOf(new(indexJournal))
 	}
-	return c.indexesSlot
+	return indexJournalOf(c.indexesSlot)
 }
 
 // indexesOrZero reads the indexes slot; a nil slot reads as zero.
-func (c *catalogChanges) indexesOrZero() indexJournal {
+func journalIndexesOrZero(c *catalogChanges) indexJournal {
 	if c.indexesSlot == nil {
 		return indexJournal{}
 	}
-	return *c.indexesSlot
+	return *indexJournalOf(c.indexesSlot)
 }
 
 // clone copies the slot for a new journal. The journal is copy-on-write and
@@ -72,4 +73,25 @@ func (j *indexJournal) forget(address ids.ObjectAddress) {
 // pending reports whether the slot holds index work to publish.
 func (j *indexJournal) pending() bool {
 	return j != nil && (len(j.uniqueRoots) != 0 || len(j.candidates) != 0 || len(j.rebuilds) != 0)
+}
+
+var _ session.IndexSlot = (*indexJournal)(nil)
+
+func (*indexJournal) IndexSlot() {}
+
+// Clone implements session.IndexSlot.
+func (j *indexJournal) Clone() session.IndexSlot { return indexSlotOf(j.clone()) }
+
+// indexJournalOf returns the index journal in s, or nil.
+func indexJournalOf(s session.IndexSlot) *indexJournal {
+	j, _ := s.(*indexJournal)
+	return j
+}
+
+// indexSlotOf stores j; a nil journal stays a nil slot.
+func indexSlotOf(j *indexJournal) session.IndexSlot {
+	if j == nil {
+		return nil
+	}
+	return j
 }

@@ -304,20 +304,20 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 		}
 	}
 	for address, candidate := range stage.indexesOrZero().candidates {
-		if changes.indexesOrZero().candidates == nil {
-			changes.indexes().candidates = make(map[ids.ObjectAddress]indexRootCandidate)
+		if journalIndexesOrZero(changes).candidates == nil {
+			journalIndexes(changes).candidates = make(map[ids.ObjectAddress]indexRootCandidate)
 		}
-		if changes.indexesOrZero().uniqueRoots == nil {
-			changes.indexes().uniqueRoots = make(map[ids.ObjectAddress]*storage.IndexRoot)
+		if journalIndexesOrZero(changes).uniqueRoots == nil {
+			journalIndexes(changes).uniqueRoots = make(map[ids.ObjectAddress]*storage.IndexRoot)
 		}
-		changes.indexes().candidates[address], changes.indexes().uniqueRoots[address] = candidate, candidate.root
+		journalIndexes(changes).candidates[address], journalIndexes(changes).uniqueRoots[address] = candidate, candidate.root
 	}
 	for a := range stage.Removals() {
 		e.catalogChangeLocked(changes, a, nil)
 		delete(changes.generators, a)
 		delete(changes.storage, a)
-		changes.indexesSlot.forget(a)
-		delete(changes.indexesOrZero().rebuilds, a)
+		indexJournalOf(changes.indexesSlot).forget(a)
+		delete(journalIndexesOrZero(changes).rebuilds, a)
 	}
 	for a, g := range stage.sequence.stagedGenerators() {
 		changes.generators[a] = g

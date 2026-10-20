@@ -339,7 +339,7 @@ func TestUsingIndexPrivateOverlay(t *testing.T) {
 		if _, exists := s.transactions.catalog.storage[parent.Address()]; exists {
 			t.Fatal("metadata attachment registered an index rebuild shape")
 		}
-		if s.transactions.catalog.indexesOrZero().uniqueRoots[index.Address()] != nil || e.storage.IndexRoots[index.Address()] != root || e.storage.Relations[parent.Address()] != store || len(parent.Constraints.Unique) != 0 {
+		if journalIndexesOrZero(s.transactions.catalog).uniqueRoots[index.Address()] != nil || e.storage.IndexRoots[index.Address()] != root || e.storage.Relations[parent.Address()] != store || len(parent.Constraints.Unique) != 0 {
 			t.Fatal("metadata attachment copied a private baseline or leaked")
 		}
 		if !transactionEnd(t, s, tx, true).Committed {
@@ -355,7 +355,7 @@ func TestUsingIndexPrivateOverlay(t *testing.T) {
 	tx := transactionBegin(t, s)
 	usingIndexUnitExecute(t, e, s, &parser.AlterTable{Name: primaryKeyUnitName("t"), Actions: []parser.AlterTableAction{{Action: parser.AlterColumnType, Column: parser.Identifier{Text: "a"}, TypeName: parser.TypeName{Name: "bigint"}}}})
 	earlier := s.transactions.catalog
-	privateRoot := earlier.indexesOrZero().uniqueRoots[index.Address()]
+	privateRoot := journalIndexesOrZero(earlier).uniqueRoots[index.Address()]
 	privateStore := earlier.storage[parent.Address()].replacement
 	if privateRoot == nil || privateRoot == committedRoot || privateStore == nil {
 		t.Fatal("real prior TYPE roots absent")
@@ -363,7 +363,7 @@ func TestUsingIndexPrivateOverlay(t *testing.T) {
 	usingIndexUnitExecute(t, e, s, &parser.SavepointControl{Kind: parser.CreateSavepoint, Name: parser.Identifier{Text: "before"}})
 	usingIndexUnitExecute(t, e, s, usingIndexUnitAlter(true))
 	attached := s.transactions.catalog
-	if attached == earlier || attached.indexesOrZero().uniqueRoots[index.Address()] != privateRoot || attached.storage[parent.Address()].replacement != privateStore || earlier.descriptors[index.Address()].(*catalog.Relation).SQLIndex.Constraint != nil || attached.originals[parent.Address()] != parent || attached.originals[index.Address()] != index || e.catalog.state.Get(parent.Address()) != parent || e.catalog.state.Get(index.Address()) != index {
+	if attached == earlier || journalIndexesOrZero(attached).uniqueRoots[index.Address()] != privateRoot || attached.storage[parent.Address()].replacement != privateStore || earlier.descriptors[index.Address()].(*catalog.Relation).SQLIndex.Constraint != nil || attached.originals[parent.Address()] != parent || attached.originals[index.Address()] != index || e.catalog.state.Get(parent.Address()) != parent || e.catalog.state.Get(index.Address()) != index {
 		t.Fatal("private attachment copied roots, changed originals or leaked")
 	}
 	usingIndexUnitExecute(t, e, s, &parser.SavepointControl{Kind: parser.CreateSavepoint, Name: parser.Identifier{Text: "attached"}})

@@ -4,8 +4,17 @@ import (
 	"maps"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 )
+
+var (
+	_ session.DomainSlot = (*DomainJournal)(nil)
+	_ session.EnumSlot   = (*EnumJournal)(nil)
+)
+
+func (*DomainJournal) DomainSlot() {}
+func (*EnumJournal) EnumSlot()     {}
 
 // DomainJournal holds the committed-predecessor fences of ALTER DOMAIN.
 type DomainJournal struct {
@@ -20,8 +29,9 @@ type EnumJournal struct {
 	Unsafe  map[int64]bool
 }
 
-// Clone copies the slot for a savepoint or statement candidate.
-func (d *DomainJournal) Clone() *DomainJournal {
+// Clone copies the slot for a savepoint or statement candidate. A nil
+// journal clones to a nil slot.
+func (d *DomainJournal) Clone() session.DomainSlot {
 	if d == nil {
 		return nil
 	}
@@ -47,8 +57,9 @@ func (d *DomainJournal) CommittedIndexRoots() map[ids.ObjectAddress]*storage.Ind
 	return d.IndexRoots
 }
 
-// Clone copies the slot for a savepoint or statement candidate.
-func (j *EnumJournal) Clone() *EnumJournal {
+// Clone copies the slot for a savepoint or statement candidate. A nil
+// journal clones to a nil slot.
+func (j *EnumJournal) Clone() session.EnumSlot {
 	if j == nil {
 		return nil
 	}

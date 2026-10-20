@@ -218,7 +218,7 @@ func preparedBoundaryCapture(e *Engine, entry *preparedTransaction) preparedBoun
 				frozen := *generator
 				catalogue.generators[address] = &frozen
 			}
-			catalogue.indexes().uniqueRoots = maps.Clone(prepared.catalog.indexesOrZero().uniqueRoots)
+			journalIndexes(&catalogue).uniqueRoots = maps.Clone(journalIndexesOrZero(prepared.catalog).uniqueRoots)
 			catalogue.dependencies = slices.Clone(prepared.catalog.dependencies)
 			value.catalog = &catalogue
 		}

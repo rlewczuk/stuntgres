@@ -87,8 +87,8 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.Obje
 	r.index = index
 	if index != (ids.ObjectAddress{}) {
 		r.root = e.storage.IndexRoots[index]
-		if changes != nil && changes.indexesOrZero().uniqueRoots[index] != nil {
-			r.root = changes.indexesOrZero().uniqueRoots[index]
+		if changes != nil && journalIndexesOrZero(changes).uniqueRoots[index] != nil {
+			r.root = journalIndexesOrZero(changes).uniqueRoots[index]
 		}
 		if r.root == nil {
 			return foreignKeyRows{}, fmt.Errorf("stuntgres: ready foreign-key index root is missing")
@@ -425,8 +425,8 @@ func (s *StatementScope) refreshForeignKeyRows(ref ids.ObjectRef, rows *foreignK
 	}
 	rows.committed, rows.ends, rows.frontier = storage.Versions, storage.Ends, e.visibility.CommitSeq()
 	rows.root = e.storage.IndexRoots[rows.index]
-	if changes != nil && changes.indexesOrZero().uniqueRoots[rows.index] != nil {
-		rows.root = changes.indexesOrZero().uniqueRoots[rows.index]
+	if changes != nil && journalIndexesOrZero(changes).uniqueRoots[rows.index] != nil {
+		rows.root = journalIndexesOrZero(changes).uniqueRoots[rows.index]
 	}
 	if rows.root == nil {
 		return fmt.Errorf("stuntgres: ready foreign-key index root is missing")

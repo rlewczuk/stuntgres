@@ -102,7 +102,7 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 		}
 		scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 		if len(scope.owner.savepoints) == 0 {
-			journal := changes.enumWritable()
+			journal := enumWritable(changes)
 			if journal.Created == nil {
 				journal.Created = make(map[ids.ObjectAddress]bool)
 			}
@@ -167,8 +167,8 @@ func (e *Engine) executeEnumDDL(scope *StatementScope, stmt parser.Statement, co
 			}
 			order := typedef.EnumInsertionOrder(members, at)
 			members = slices.Insert(members, at, sqltype.EnumMember{ID: member, Label: alter.Label.Text, SortOrder: order})
-			if !changes.enum.CreatedTypes()[ref.Address] || len(scope.owner.savepoints) != 0 {
-				journal := changes.enumWritable()
+			if !enumJournalOf(changes.enum).CreatedTypes()[ref.Address] || len(scope.owner.savepoints) != 0 {
+				journal := enumWritable(changes)
 				if journal.Unsafe == nil {
 					journal.Unsafe = make(map[int64]bool)
 				}

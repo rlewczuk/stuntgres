@@ -439,7 +439,7 @@ retry:
 		namespace, _ := current.Namespace(parent.Namespace())
 		root := e.storage.IndexRoots[index.Address()]
 		if changes := s.owner.catalog; changes != nil {
-			if private := changes.indexesOrZero().uniqueRoots[index.Address()]; private != nil {
+			if private := journalIndexesOrZero(changes).uniqueRoots[index.Address()]; private != nil {
 				root = private
 			}
 		}
