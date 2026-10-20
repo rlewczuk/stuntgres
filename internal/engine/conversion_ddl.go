@@ -116,13 +116,6 @@ func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationVi
 	return stage.Create(&catalog.Conversion{OID: oid, ObjectName: object, ObjectNamespace: namespace.Address, ObjectRevision: revision, Owner: auth.State.CurrentUser, Source: source, Destination: destination, Handler: procedure.Address(), DefaultConversion: s.Default})
 }
 
-func conversionProbeResult(name string, consumed int) error {
-	if consumed != 0 {
-		return sqlError("42P17", "encoding conversion function "+name+" returned incorrect result for empty input")
-	}
-	return nil
-}
-
 func (e *Engine) stageAlterConversionLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.AlterConversion) error {
 	d, err := e.findUtilityConversion(auth, s.Name)
 	if err != nil {
