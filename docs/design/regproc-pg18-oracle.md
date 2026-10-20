@@ -213,7 +213,7 @@ therefore could not fix the earlier planning failure and has been removed.
 Source admission now walks retained view expressions and nested stored sources
 through the existing binder's coherent catalog authority, before its complete
 input environment is published. Reads and writes share
-`captureRetainedExpressionInput`, `captureElementInput` and diagnostic-input
+`analyze.CaptureRetainedExpressionInput`, `captureElementInput` and diagnostic-input
 owners, retaining all catalog alias/ACL/naming authority without evaluating
 branches, rebinding frozen identities, acquiring relation locks or adding
 live-resolution fallbacks. Completed root native/pinned checks confirm this

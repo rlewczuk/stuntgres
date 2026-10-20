@@ -70,7 +70,8 @@ Imports of the move set: `authorization`, `catalog`, `expr`, `functions`,
   validator for builtin, SQL, foreign and conversion routines (uses
   `routine` and `typedef` lookups). A candidate for `routine` Part B (14c).
 - `procedure_lookup.go` (`procedureInNamespaces`, used by conversion,
-  foreign, operator DDL and regproc) and `namespace_children.go`
+  foreign, operator DDL and regproc; now `analyze.ProcedureInNamespaces`,
+  12d.3b) and `namespace_children.go`
   (`namespaceChildren`, schema/DISCARD/TEMP retirement).
 - `database_grant.go` (was `extension_database.go`): database GRANT and
   `initializeDatabase`.
@@ -80,7 +81,8 @@ Imports of the move set: `authorization`, `catalog`, `expr`, `functions`,
   `plan.InstalledUUIDOsspExpr`, the three fuzzystrmatch wrappers and
   `plan.ExtensionPathsExpr`); their provider validators,
   `closedPgcryptoDefault` and `cryptoExpressionSignature` stay in the engine
-  with the binder; `EvalContext.FunctionPgcrypto*` with step 11; the intagg
+  with the binder (`validInstalledText`, `closedPgcryptoDefault` and
+  `cryptoExpressionSignature` moved to `analyze` in 12d.3b); `EvalContext.FunctionPgcrypto*` with step 11; the intagg
   binder methods and `bindExtensionPaths` with step 12; the intagg view
   recipe methods with the postponed `view` package.
 

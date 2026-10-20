@@ -45,8 +45,8 @@ lines; `serializable*` is not sequence code). Clean declarations:
   `regclassSpellingAt` (regclass presentation, not sequence code: leave for
   the presentation owner);
 - `sequence_dependencies.go`: `relationDiagnosticKind`;
-- `serial.go`: `closedRegclassDefault`, `closedSequenceDefault`,
-  `serialTypeName`;
+- `serial.go`: `closedRegclassDefault`, `closedSequenceDefault` (now
+  `analyze.ClosedSequenceDefault`, 12d.3b), `serialTypeName`;
 - `identity.go`: `generatedRelationName`, `identityInsertError`,
   `identitySequenceDropError`, `ownedSequenceName`; `identity_control.go`:
   `identityDumpDivergent`, `sequenceNumericSQL`;

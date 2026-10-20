@@ -55,7 +55,9 @@ It imports only `catalog`, `expr`, `functions`, `ids`, `lock`, `parser`,
 - **Copy-on-change mappers** (`expression_map.go`): `MapRow`,
   `MapRowAnalysis` (with composite expansions), `MapRowComparisonExpansions`
   and `MapScalarArrayChildren`, shared by binding, preflight, retag and view
-  remapping; `NullLiteral` (`literal_null.go`).
+  remapping; `MapSubscript` (`expression_subscript_map.go`); `NullLiteral`
+  (`literal_null.go`); `SQLJSONSource` (`expression_sqljson_source.go`)
+  strips a JSON FORMAT input coercion.
 
 ## Node runtime
 
@@ -109,8 +111,8 @@ the `Eval*` bodies, `OpenNode` and the node openers (including
 engine keeps the binder that constructs the nodes; the central switches
 that list node types (deparse, remap, retag, conditional planning, join
 legality, aggregate binding, defaults); the installed-node validators
-(`validInstalledText`, `validateInstalled*`, `closedPgcryptoDefault`) and
-`bindExtensionPaths`. The engine names the types here directly; no aliases
+(`validateInstalled*`; `ValidInstalledText` and `ClosedPgcryptoDefault` are in
+`analyze`) and `bindExtensionPaths`. The engine names the types here directly; no aliases
 remain.
 
 ## Testing

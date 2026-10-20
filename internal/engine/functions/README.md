@@ -850,8 +850,9 @@ extension routines keep their wrapper nodes in `plan` (for example
 identity; the engine validates that identity, and manifest validation lives
 in `extension`. Registered bind code
 reaches them only through `InstalledRoutine`. UUID, pgcrypto and genuine SQL routine DEFAULT admission
-(`closedUUIDDefault`, `closedPgcryptoDefault`, `closedSQLRoutineDefault`) stay
-with the engine's DEFAULT binder and stored-expression validator. Registered
+(`ClosedUUIDDefault`, `ClosedPgcryptoDefault`, `ClosedSQLRoutineDefault`) is in
+`analyze`, shared by the DEFAULT binder and the engine's stored-expression
+validator. Registered
 function nodes replay through `expr.Rendering` (`Replay` in the `expr` README);
 engine SQL routine wrappers retain their checked descriptor/reference instead.
 The SQL/JSON constructor's query form and RETURNING conversion stay in

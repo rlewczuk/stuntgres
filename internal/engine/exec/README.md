@@ -112,7 +112,7 @@ portals; rule execution; `statementHost` with the capability bodies,
 (`routineAdmissionAuthority`, `selectExpressionRecipe`, the domain-check
 preparation, `deparseRelation`, `identifyObjectValues`,
 `expressionPrincipal`, `evalSerialSequence`, `validateSelectedDomainRows`,
-`validInstalledText`, ...).
+`analyze.ValidInstalledText`, ...).
 
 The engine, the root driver and `cmd/stuntgres` name these types directly
 (`exec.Context`, `exec.Source`, `exec.RowResult`, ...); no aliases remain.

@@ -126,7 +126,11 @@ standard library, and never the engine or its sibling `functions`. The lower
   procedure names). It is not a catalog generation, an execution route or a
   permission cache, and a reader is never persisted. The engine implements it
   over a catalog stage, inheritance preparation and prepared drops.
-  `DescriptorAt` reads through a reader or the catalog.
+  `DescriptorAt` reads through a reader or the catalog, and
+  `definition_reads.go` adds the typed reads (`DefinitionTypeAt`,
+  `DefinitionArrayAt`, `DefinitionNamespaceAt`, `DefinitionRelationAt`,
+  `DefinitionLookupAt`, `DefinitionProceduresNamedAt`,
+  `IndexedDefinitionProcedures`) that the binder and engine DDL share.
 - **reg\* alias references** (`alias_references.go`): `AliasAddress` and the
   walkers `WalkAliasReferences(At)` and `WalkAliasDependencies(At)` visit the
   existing objects a reg* value names, for dependency recording and replay.

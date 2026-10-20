@@ -9,12 +9,13 @@ holds the clean analysis helpers that the binder and engine code share
 (coercion and collation derivation, input error positions, the held
 signature check), and since 12d.4 the statement's row-lock admission, the
 query namespace types and the query helpers the binder shares with the
-engine. The expression binder itself, its field groups and the `analyzeHost` seam still live in the
+engine, and since 12d.3b the DEFAULT closure predicates, the retained-input
+walk and the rule namespace. The expression binder itself, its field groups and the `analyzeHost` seam still live in the
 engine; they move here in step 12d.6. Since 12d.2 the binder names no engine
 type for its authority, prepared inputs or captured inputs. The package sits at layer L8 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports `plan`, `exec`, `catalog`, `storage`, `expr`, `functions`, `ids`,
-`lock`, `pgcatalog`, the Part A content of `sequence` and `typedef` (§3 rule 6),
+`lock`, `pgcatalog`, the Part A content of `sequence`, `typedef` and `extension` (§3 rule 6),
 `parser`, `sqlstate`, `sqltype` and the standard library, and never the
 engine or `session`. See
 [ENGINE-SPLIT-analyze.md](../../../docs/ENGINE-SPLIT-analyze.md) (step 12).
@@ -110,6 +111,19 @@ engine or `session`. See
   recovery of a data-modifying CTE's binding), subquery demand and the
   EXISTS presence rewrite; the set-returning lowering helpers that query
   preflight shares; and column-name hints and query diagnostics.
+- **Shared expression helpers** (`default_closure.go`, `retained_input.go`,
+  `operator_names.go`, `procedure_lookup.go`, `rule_namespace.go`): the closed
+  DEFAULT predicates (`ClosedPgcryptoDefault`, `ClosedSequenceDefault`,
+  `ClosedTransactionTimeDefault`, `ClosedUUIDDefault`, `ClosedSQLRoutineDefault`
+  with `SQLRoutineDefaultClosure`) and the installed-call shape checks they use
+  (`CryptoExpressionSignature`, `ValidInstalledUUIDOsspShape`,
+  `ValidInstalledText`); `NeedsTypeDiagnosticInput` and
+  `CaptureRetainedExpressionInput`, the catalog input a retained expression
+  needs; `ArrayMembershipName`, `BindExtremaComparison`,
+  `ValidateRegroleStoredLiteral` and `ProcedureInNamespaces`; and
+  `RuleNamespace` with `RulePseudoScope`, the OLD/NEW frame of rule binding.
+  The binder and engine DDL, preflight, retag, rendering and execution
+  preparation call them; they reach no engine state.
 
 ## Invariants
 

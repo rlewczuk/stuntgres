@@ -196,7 +196,7 @@ binder's `SequenceArgument`/`SequenceTemporary` keep regclass input,
 prepared sequence-literal capture and DEFAULT TEMP validation here; the node
 caches no session, scope or owner. Catalog-identity consumers keep explicit
 `functions.SequenceCall` cases: stored DEFAULT SQL and replay eligibility,
-`validateCookedDefaultTemporary`, `closedSequenceDefault`, dependency references,
+`validateCookedDefaultTemporary`, `analyze.ClosedSequenceDefault`, dependency references,
 view `Ref` remapping, COPY's nextval volatility and the identity DEFAULT
 constructor in `BindInsertDefaults`.
 
@@ -519,8 +519,8 @@ the `exec` types directly, with no aliases. A data-modifying
 CTE carries its binding as the opaque `plan.CTEMutation`, recovered only
 through `analyze.MutationBinding`. The installed extension routine nodes and the
 `pg_extension_update_paths` node live in `plan` too; their provider
-validators (`validInstalledText`, `validateInstalled*`) stay here, and
-`exec` reaches `validInstalledText` through the preparation value.
+validators (`validateInstalled*`) stay here; `exec` reaches
+`analyze.ValidInstalledText` through the preparation value.
 
 Run `make check RUN='^TestNodeRuntimePrologue$'` for the prologue seam; public
 evaluation proof is the existing query, CTE, RETURNING, MERGE, window,

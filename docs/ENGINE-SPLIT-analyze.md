@@ -914,6 +914,71 @@ group fields stay for 12d.6.
   subpackage imports the root. `AGENTS.md`: 100 lines before and after.
   racecheck/finalcheck skipped at user request.
 
+#### 12d.3b result
+
+Built at `f049d2fe8`. Scope: the area-3b list above, re-measured with
+`frontier` (all of its binder-side edges were already host calls or binder
+files except nine helpers; the rest of the list's engine edges came from
+engine declarations in mixed files). Tools and scripts:
+`.cswd/tmp/PG18-ENGINE-SPLIT-ANALYZE-EXPRESSION-REST/` (`c1.sh`–`c3.sh`,
+`c3-docs.py`, the `c2-*.spec`/`c3-*.spec` rows), with the 12d.3 `movedecl`,
+`mvpkg.sh` and `verify.sh` and the 12d.4 `frontier`. Every area-3b file is
+now wholly binder or wholly engine.
+
+- **Split** (`8186d9690`): engine halves to `array_assignment_preflight.go`
+  (assignment-target preflight), `array_rendering.go` (`scalarRenderer`
+  array and subscript SQL), `bitwise_preflight.go`, `collation_display.go`,
+  `domain_input_scope.go` (`DecodeLockedDomainInput`, `domainScope`),
+  `enum_diagnostic_capture.go` (the engine's type-diagnostic and enum
+  capture), `statement_host_extension.go` (`OpenExtensionPaths`),
+  `regclass_capture.go` (regclass resolution and capture) and
+  `view_literal_validation.go` (`viewDefinition.validate*`); binder halves to
+  `default_bind.go` (`bindDefault`), `definition_reader_bind.go`,
+  `schema_path_bind.go` (`builtinVisible`), `rule_column_bind.go`,
+  `intagg_reference_bind.go` and `sql_routine_reference_bind.go`.
+  `default.go`, `definition_reader.go`, `schema_path.go`,
+  `rule_definition.go`, `intagg_presentation.go` and
+  `routine_presentation.go` are now engine files; `bindCreateDefaults` stays
+  with them (DDL that drives a binder). `selectedBitwiseName` had no callers
+  and was removed.
+- **Mappers to `plan`** (`f18840612`): `MapSubscript` and `SQLJSONSource`.
+- **Shared helpers down** (`e1f80935c`), qualified at their callers with no
+  aliases (245 references in 84 files, 30 of them tests): `catalog`
+  `DefinitionTypeAt`, `DefinitionArrayAt`, `DefinitionNamespaceAt`,
+  `DefinitionRelationAt`, `DefinitionLookupAt`,
+  `DefinitionProceduresNamedAt` and `IndexedDefinitionProcedures`
+  (`definition_reads.go`); `analyze` `ClosedPgcryptoDefault`,
+  `ClosedSequenceDefault`, `ClosedTransactionTimeDefault`,
+  `ClosedUUIDDefault`, `ClosedSQLRoutineDefault`, `SQLRoutineDefaultClosure`,
+  `CryptoExpressionSignature`, `ValidInstalledUUIDOsspShape` and
+  `ValidInstalledText` (`default_closure.go`), `NeedsTypeDiagnosticInput` and
+  `CaptureRetainedExpressionInput` (`retained_input.go`),
+  `ArrayMembershipName`, `BindExtremaComparison` and
+  `ValidateRegroleStoredLiteral` (`operator_names.go`),
+  `ProcedureInNamespaces` (`procedure_lookup.go`) and `RuleNamespace` (fields
+  `Relation`, `Ref`, `Event`) with `RulePseudoScope` (`rule_namespace.go`).
+  `sql_routine_default.go`, `extension_expression.go` and
+  `procedure_lookup.go` became empty and were removed. `analyze` now also
+  imports the Part A `extension` (decision 4).
+- **Frontier after.** The area-3b binder files reach in the engine only
+  binder files, the host, the aliases and `sqlError` (12d.6 switches it to
+  the identical `analyze` copy). Engine code reaches area-3b declarations
+  only through binder methods (exported in 12d.6, see the notes).
+- **Tests.** None new: no new seam (pure moves). Adapted mechanically by
+  `movex`: qualified calls in 30 engine test files. No test moved or deleted.
+- **Verification.** `make build`, `go vet` (identical to the base), gofmt and
+  the targeted engine selection after every commit; `make quickcheck`
+  passed on `e1f80935c` (48 GB memory cap). A broad `REFERENCE=1` selection
+  was stopped at user request after ten packages (only the known `/postgres`
+  drift had failed: `TestReferenceDeleteReturningBoundaries`, the four MERGE
+  repeatable-read tests, `TestReferenceTemporaryTableDiagnostics`, the
+  PostgreSQL-only `TestReferenceSerialDefaultProvider(PublicationHold|DropFirst)`);
+  the session's narrow reference run follows 12d.6. `make bench`, branch and
+  master: 851–938 µs/op (one 1,274 µs warm-up) against 828–889 µs/op, 5,014
+  allocs/op and about 1.64 MB/op on both. `make deps`: module paths only; no
+  engine subpackage imports the root. `AGENTS.md`: 100 lines before and
+  after. racecheck/finalcheck skipped at user request.
+
 ### 12e — Remove the aliases (broad)
 
 Use the alias tool; audit locals named `analyze`.
@@ -1017,7 +1082,10 @@ in §8.3 pass.
     `4f491dace`, `ff9c86427`, `2ba59b6ba`, then the docs commit; see the
     12d.3 result). Selected dual-mode proof and quickcheck passed;
     racecheck and finalcheck skipped at user request.
-  - [ ] 12d.3b — area 3b (unlisted expression files) preparation
+  - [x] 12d.3b — area 3b (unlisted expression files) preparation
+    (`8186d9690`, `f18840612`, `e1f80935c`, then the docs commit; see the
+    12d.3b result). quickcheck passed; racecheck and finalcheck skipped at
+    user request.
   - [x] 12d.4 — query, FROM and CTE preparation (`d350f8a03`, `c6475646c`,
     `20e14024e`, `ee4b1ac07`, `36bdb885a`, `792c18427`, `86957752b`, then
     the docs commit; see the 12d.4 result). Selected dual-mode proof and quickcheck
@@ -1045,11 +1113,13 @@ Notes for later steps:
   files still name root types and helpers that `reach` counts as clean.
   Re-run `frontier` for each area. Known: `scalarRenderer` and
   `capturedACLItemOutput` (`bindCreateDefaults`, `default.go`),
-  `ruleNamespace` (binder field and `Describe` parameter;
-  `queryLockAdmission` moved in 12d.4), and pure root helpers
+  `ruleNamespace` (binder field and `Describe` parameter; now
+  `analyze.RuleNamespace`, 12d.3b; `queryLockAdmission` moved in 12d.4), and
+  pure root helpers
   (`definition*At`, `statementCatalogType`, `refreshableTemporalCapture`,
   `checkExpectedLifetime`/`checkSignature`, `regtypeInputError`). 12d.3
-  moved all of these except `definitionTypeAt` and `definitionArrayAt`.
+  moved all of these except `definitionTypeAt` and `definitionArrayAt`,
+  which 12d.3b moved to `catalog`.
 - 12d.6: `bindingAuthorityView`, `authorityOf`, `authorizationOf` and
   `expectedOf` stay in the root (`checkExpectedLifetime` became
   `analyze.Expected.CheckLifetime` in 12d.3). Only the host
@@ -1085,8 +1155,21 @@ Notes for later steps:
   the `analyze` copies that 12d.5 added), `mapBoundExpression`
   (`expression_retag.go`; the query-mapper calls in `query_cte_fold.go` and
   `RebaseFunctionCorrelation`), `pgType`, and
-  `captureRetainedExpressionInput` (`enum_diagnostics.go`, also called by
-  the engine's `view_retained_input.go`).
+  `captureRetainedExpressionInput` (now
+  `analyze.CaptureRetainedExpressionInput`, 12d.3b).
+- 12d.6, from 12d.3b: engine code that drives binders it builds, outside
+  the statement-kind binders: `Engine.bindRuleDefinitionLocked`
+  (`rule_definition.go`: sets `target.ruleNamespace`, `params.noParameters`,
+  `query.auth`/`frame`/`nextQueryFrame` and `clause.aggregateClause`, calls
+  `bind`, `normalizeStoredExpression`, `captureViewLiterals` and `FrameID`,
+  reads `dependencies`, `query.sources`, `capture` and `prepared`) and
+  `bindCreateDefaults` (`default.go`). Binder methods from area-3b files
+  that engine files call: `bindBoolean`, `bindDefault`,
+  `captureRetainedWriteInput`, `captureTypeDiagnosticInput`,
+  `diagnosticTypeName`, `captureViewLiterals`, `definitionReader`. Binder-file
+  declarations only root tests read: `sqlCallable` (and its fields),
+  `appendSQLCallable`, `sqlCallableShape`, `selectSQLCallables`,
+  `sequenceInputError`, `targetUsage`.
 - 12d.6, from 12d.4: binder files call the helpers moved in 12d.3–12d.5 as
   `analyze.X`; strip that qualifier when the files move (`mv.sh` in the
   12d.4 tmp directory does it with `sed`). The binder group fields the

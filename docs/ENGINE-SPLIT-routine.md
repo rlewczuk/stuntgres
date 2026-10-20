@@ -87,7 +87,8 @@ Engine declarations the clean set still uses (14b exports or moves them):
   clean declarations, among them `sqlRoutineExpression` and its node
   methods, `sqlCallable`, `selectSQLCallables`, `appendSQLCallable`,
   `validateSQLRoutineResult`, `sqlRoutineDefaultClosure`,
-  `closedSQLRoutineDefault` and the dump directives; the DDL, resolution and
+  `closedSQLRoutineDefault` (both in `analyze` since 12d.3b) and the dump
+  directives; the DDL, resolution and
   scope code reaches `Engine`, `expressionBinder` or `StatementScope`. The
   call-resolution and invocation parts belong to steps 12 and 11; the DDL
   and its dump are Part B (14c).

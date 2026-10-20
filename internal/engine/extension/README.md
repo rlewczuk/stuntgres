@@ -64,8 +64,8 @@ standard library, and never the engine, `routine` or `typedef`. See
 The installers and staging (`*_stage.go`, `extension_install.go`,
 `extension_update.go`, `extension_drop.go`, `extension_owner_import.go`;
 Part B); `procedureProvider` (builtin, SQL, foreign and conversion routine
-validation, a `routine` candidate); `procedureInNamespaces`,
-`namespaceChildren` and `database_grant.go`; the installed expression
+validation, a `routine` candidate); `namespaceChildren` and
+`database_grant.go` (`procedureInNamespaces` is `analyze.ProcedureInNamespaces`); the installed expression
 wrappers and the `pg_extension_update_paths` node, which move with `plan`;
 the intagg binder and view recipe methods.
 

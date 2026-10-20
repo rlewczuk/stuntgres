@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `2dcb67687`. The later-wave plans
+Last verified against `master` at `f049d2fe8`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,11 +15,11 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 12 `analyze`** — 12d.3b, the expression files no area listed
-  (item 40h). 12a–12c, the 12d refine, 12d.1 (binding types), 12d.2
-  (binder seam cuts), 12d.3 (expression core), 12d.4 (query, FROM and
-  CTE) and 12d.5 (aggregates, windows and DML targets) are done; 12d.6
-  (item 40g) **broad** follows 12d.3b.
+- **Step 12 `analyze`** — 12d.6, the binder move (item 40g) **broad**.
+  12a–12c, the 12d refine, 12d.1 (binding types), 12d.2 (binder seam
+  cuts), 12d.3 (expression core), 12d.3b (the expression files no area
+  listed), 12d.4 (query, FROM and CTE) and 12d.5 (aggregates, windows and
+  DML targets) are done.
 
 Steps 1, 2 and 4–11 and `access` are done. Step 13's in-place untangling (13a,
 13b) is done; 13c (item 43) waits for 12d (item 40: 40g, 40h). Step 16
@@ -549,8 +549,11 @@ in the prompt file's Status section.
       then the docs commit) · selected dual-mode proof and quickcheck passed;
       racecheck/finalcheck skipped at user request
     - 40g. [ ] 12d.6 binder moved · needs 40d, 40e, 40f, 40h · **broad**
-    - 40h. [ ] 12d.3b unlisted expression files preparation (area 3b in the
-      analyze prompt) · needs 40c
+    - 40h. [x] 12d.3b unlisted expression files preparation (area 3b in the
+      analyze prompt) · needs 40c (`8186d9690`, `f18840612`, `e1f80935c`,
+      then the docs commit) · quickcheck passed; broad reference run
+      stopped at user request (known drift only); racecheck/finalcheck
+      skipped at user request
 41. [ ] Analyze 12e — [analyze](ENGINE-SPLIT-analyze.md) 12e · needs 40 ·
     **broad**
 42. [ ] Access B5: binding walkers —

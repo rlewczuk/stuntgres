@@ -111,7 +111,8 @@ Step 9b moved `conversion_descriptions.go`, `builtinCollationVersion` and
   mutation, postponed `table`/`inheritance` packages); `literalExpression`,
   `coercionExpression` and `EvalContext` (step 10); `definitionReader` (now
   `catalog.DefinitionReader`, 12d.2),
-  `definitionDescriptorAt`, `definitionArrayAt` and the reg*/aclitem/regrole
+  `definitionDescriptorAt`, `definitionArrayAt` (now `catalog.DescriptorAt`
+  and `catalog.DefinitionArrayAt`) and the reg*/aclitem/regrole
   output and persistence formatters (`catalogLiteralWithACLAt`,
   `catalogTypeDeclarationAt`); `chooseAssociatedArrayName`,
   `compositeMembers` (`row_type.go`); `restoreScalar` (`control.go`);
