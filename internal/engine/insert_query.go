@@ -116,7 +116,7 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 		}
 		candidate := indexWriteCandidate{values: row}
 		if scope != nil && scope.partitionInsert != nil {
-			if err := scope.op.session.Engine().validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
+			if err := scope.engine().validateInsertRow(scope, b, schema, row, &evaluation); err != nil {
 				return indexWriteBatch{}, err
 			}
 			if copyInsert != nil {
@@ -168,7 +168,7 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 				if scope == nil {
 					return indexWriteBatch{}, fmt.Errorf("stuntgres: NOT NULL disclosure requires statement authority")
 				}
-				return indexWriteBatch{}, scope.op.session.Engine().rowConstraintError(scope, b, schema, c.Name, "", row)
+				return indexWriteBatch{}, scope.engine().rowConstraintError(scope, b, schema, c.Name, "", row)
 			}
 		}
 		if len(b.Relation.Constraints.Check) != 0 {
@@ -180,7 +180,7 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 				if scope == nil {
 					return indexWriteBatch{}, fmt.Errorf("stuntgres: CHECK disclosure requires statement authority")
 				}
-				return indexWriteBatch{}, scope.op.session.Engine().rowConstraintError(scope, b, schema, "", constraint.Name, row)
+				return indexWriteBatch{}, scope.engine().rowConstraintError(scope, b, schema, "", constraint.Name, row)
 			}
 		}
 		if unique || scope != nil && scope.insertReturning != nil {
@@ -196,7 +196,7 @@ func assembleInsertRows(ctx context.Context, b analyze.Binding, cursor exec.RowC
 			}
 		}
 		if b.ViewWrite != nil {
-			if err := scope.op.session.Engine().checkViewRow(scope, &b, row, &evaluation); err != nil {
+			if err := scope.engine().checkViewRow(scope, &b, row, &evaluation); err != nil {
 				return indexWriteBatch{}, err
 			}
 		}

@@ -16,7 +16,7 @@ import (
 func deleteProbeScope(t *testing.T, s *Session) (*StatementScope, analyze.Binding, *exec.Source) {
 	t.Helper()
 	op := transactionOperation(t, s)
-	scope, err := s.Engine().StartStatement(op)
+	scope, err := engineOf(s).StartStatement(op)
 	if err != nil {
 		t.Fatal(err)
 	}

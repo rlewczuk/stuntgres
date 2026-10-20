@@ -65,7 +65,7 @@ func (s *StatementScope) NextStatement() (*StatementScope, error) {
 	if err := s.op.refreshStatementBudget(); err != nil {
 		return nil, err
 	}
-	next := s.op.session.Engine().newStatementScope(s.op, s.owner, s.statementStart)
+	next := s.engine().newStatementScope(s.op, s.owner, s.statementStart)
 	next.message = true
 	if s.protocolOrZero().simple {
 		next.protocol().simple = true
@@ -90,7 +90,7 @@ func (s *StatementScope) FinishMessage(err error) error {
 	state, ref := t.state, t.ref
 	t.mu.Unlock()
 	if err != nil && (state == TxImplicit || state == TxActive) && s.finished {
-		failed := s.op.session.Engine().newStatementScope(s.op, t, s.statementStart)
+		failed := s.engine().newStatementScope(s.op, t, s.statementStart)
 		failed.message = true
 		_ = failed.Finish(err)
 		t.mu.Lock()
@@ -98,7 +98,7 @@ func (s *StatementScope) FinishMessage(err error) error {
 		t.mu.Unlock()
 	}
 	if state == TxImplicit {
-		_, endErr := s.op.session.Engine().endAdmitted(s.op, t, ref, err == nil, false, true, s.statementStart, s)
+		_, endErr := s.engine().endAdmitted(s.op, t, ref, err == nil, false, true, s.statementStart, s)
 		if err == nil {
 			err = endErr
 		}

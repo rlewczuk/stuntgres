@@ -98,20 +98,20 @@ func (d *database) provision(ctx context.Context, name string, users accounts, r
 		if _, exists := d.engine.Roles().Lookup(username); exists {
 			return fmt.Errorf("account %q collides with a predefined role", username)
 		}
-		if err := bootstrapExecute(ctx, boot, "CREATE ROLE "+quoteIdentifier(username)+" LOGIN SUPERUSER"); err != nil {
+		if err := bootstrapExecute(ctx, d.engine, boot, "CREATE ROLE "+quoteIdentifier(username)+" LOGIN SUPERUSER"); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 func quoteIdentifier(name string) string { return `"` + strings.ReplaceAll(name, `"`, `""`) + `"` }
-func bootstrapExecute(ctx context.Context, session *engine.Session, source string) (err error) {
+func bootstrapExecute(ctx context.Context, e *engine.Engine, session *engine.Session, source string) (err error) {
 	op, options, err := session.AcquireCommand(ctx)
 	if err != nil {
 		return err
 	}
 	defer op.Done()
-	scope, err := session.Engine().StartStatement(op)
+	scope, err := e.StartStatement(op)
 	if err != nil {
 		return op.CommandError(err)
 	}

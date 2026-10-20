@@ -30,7 +30,7 @@ func (v AuthorizationView) checkSequenceAny(ref ids.ObjectRef, mask authorizatio
 	return sqlError("42501", fmt.Sprintf("permission denied for sequence %s", d.Name()))
 }
 func (s *StatementScope) acquireSequence(ref ids.ObjectRef, mode lock.Mode, reserveReplacement bool) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
 	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, mode, policy)
 	if request != nil {

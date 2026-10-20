@@ -104,7 +104,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		}
 		return s.copyOutput(rows, options, destination)
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	s.input.LockedDomainInput = s
 	e.mu.Lock()
 	b, auth, bindErr := e.bindCopyLocked(s, syntax)
@@ -437,7 +437,7 @@ func (e *Engine) initCopyInputLocked(s *StatementScope, b *analyze.Binding, auth
 	return nil
 }
 func (s *StatementScope) copyTableRows(b analyze.Binding, auth AuthorizationView) (*exec.FinalRows, error) {
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	view, err := s.acquireDataViewLocked(e, b.Ref)
 	if err == nil {

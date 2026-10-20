@@ -210,7 +210,7 @@ func deleteReplacementReject(t *testing.T, scope *StatementScope, done <-chan de
 		t.Fatal(err)
 	}
 	scope.op.Done()
-	manager := scope.op.session.Engine().locks
+	manager := scope.engine().locks
 	lockState := manager.Inspect(ticket)
 	resources := len(lockState.Journals[ticket])
 	_, registered := lockState.Owners[ticket.Ref()]

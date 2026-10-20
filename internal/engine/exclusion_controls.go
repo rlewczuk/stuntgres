@@ -20,7 +20,7 @@ func (s *StatementScope) checkExclusionEvents(all bool, selected map[ids.OID]boo
 		return nil
 	}
 	remaining := make([]exclusionEvent, 0, len(s.indexesOrZero().exclusionModes.events))
-	e := s.op.session.Engine()
+	e := s.engine()
 	for _, event := range s.indexesOrZero().exclusionModes.events {
 		e.mu.Lock()
 		view := e.privateCatalogLocked(s.owner.catalog)
@@ -86,7 +86,7 @@ func (s *StatementScope) executeSetConstraints(raw *parser.SetConstraints, count
 	if !s.owner.inBlock() {
 		s.op.emitNotice(levelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "SET CONSTRAINTS can only be used in transaction blocks"})
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	auth, err := operationAuthorization(s.op)
 	if err != nil {
 		return Result{}, err

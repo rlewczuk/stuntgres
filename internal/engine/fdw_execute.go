@@ -157,7 +157,7 @@ func (s *StatementScope) foreignInsertResult(m *foreignModification, b analyze.B
 	}
 	rowByRow := b.Returning != nil || b.ViewWrite != nil && len(viewWriteOf(b.ViewWrite).checks) != 0
 	count, err := m.insertRows(s.op.Context(), s, rows, rowByRow, func(row []sqltype.Value) error {
-		if err := s.op.session.Engine().checkViewRow(s, &b, row, evaluation); err != nil {
+		if err := s.engine().checkViewRow(s, &b, row, evaluation); err != nil {
 			return err
 		}
 		return projectForeignReturning(b, output, row, nil, evaluation)
@@ -198,7 +198,7 @@ func projectForeignReturning(b analyze.Binding, output *exec.FinalRows, row, old
 }
 func (s *StatementScope) finishForeignResult(b analyze.Binding, output *exec.FinalRows, count int64) (Result, error) {
 	if output != nil && b.Returning.RegclassOutput && count != 0 {
-		if err := s.op.session.Engine().captureRegclassOutput(s.op, output); err != nil {
+		if err := s.engine().captureRegclassOutput(s.op, output); err != nil {
 			output.Close()
 			return Result{}, err
 		}
@@ -408,7 +408,7 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b ana
 				return Result{}, err
 			}
 			if b.Update != nil {
-				if err := s.op.session.Engine().checkViewRow(s, &b, actual, evaluation); err != nil {
+				if err := s.engine().checkViewRow(s, &b, actual, evaluation); err != nil {
 					return Result{}, err
 				}
 			}

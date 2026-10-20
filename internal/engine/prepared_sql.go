@@ -57,7 +57,7 @@ func (s *StatementScope) executePrepareSQL(raw *parser.PrepareSQL, count int) (R
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	// Declarations enter the sole analyzer as a formal input seed. Typmods on
 	// declarations are not input constraints; real destinations still own theirs.
 	types := make([]sqltype.Usage, len(raw.Types))
@@ -134,7 +134,7 @@ func (s *StatementScope) sqlExecuteImporter(raw *parser.ExecuteSQL, utilityInput
 			}
 			input = s.input
 		}
-		e := s.op.session.Engine()
+		e := s.engine()
 		e.mu.Lock()
 		locked := true
 		defer func() {

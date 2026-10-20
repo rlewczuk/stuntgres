@@ -6,7 +6,7 @@ import "stuntgres/internal/sqltype"
 // invocation. The caller holds Engine.mu; the captured readers own immutable
 // catalog/role authority and actual codec input later runs without that mutex.
 func (s *StatementScope) captureFormalInputLocked(auth AuthorizationView, types []sqltype.Usage) (err error) {
-	e, op := s.op.session.Engine(), s.op
+	e, op := s.engine(), s.op
 	for _, usage := range types {
 		if sqltype.IsFTS(usage.Type.BaseType().ID()) && s.input.FTS == nil {
 			s.input.FTS = capturedFTSInput{op: op}
@@ -64,7 +64,7 @@ func (s *StatementScope) prepareProtocolUtilityInput(types []sqltype.Usage) erro
 	if len(types) == 0 {
 		return nil
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(s.op)
 	if err == nil {

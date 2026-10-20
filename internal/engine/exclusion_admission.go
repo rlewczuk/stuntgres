@@ -139,7 +139,7 @@ func (s *StatementScope) exclusionCandidateLocked(e *Engine, proposal *indexWrit
 	return row, nil
 }
 func (s *StatementScope) publishExclusionCandidate(ref ids.ObjectRef, binding *uniqueWriteBinding, bound *uniqueBoundKey, proposal *indexWriteCandidate, excluded []storage.RowVersion, precheck bool, purpose indexProbePurpose) (storage.RowVersion, error) {
-	e := s.op.session.Engine()
+	e := s.engine()
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: e.catalog.read(binding.catalog)}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	if binding.typeName != nil {
 		evaluation.Input.TypeDiagnosticName = binding.typeName
@@ -207,7 +207,7 @@ func (s *StatementScope) publishExclusionCandidate(ref ids.ObjectRef, binding *u
 	return row, nil
 }
 func (s *StatementScope) discardExclusionCandidate(ref ids.ObjectRef, proposal *indexWriteCandidate) {
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if proposal.exclusion == nil {
@@ -274,7 +274,7 @@ type exclusionScan struct {
 }
 
 func (s *StatementScope) captureExclusionScan(ref ids.ObjectRef, binding *uniqueWriteBinding, index *catalog.Relation) (exclusionScan, error) {
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	view := e.privateCatalogLocked(s.owner.catalog)
@@ -307,7 +307,7 @@ func (s *StatementScope) captureExclusionScan(ref ids.ObjectRef, binding *unique
 	return exclusionScan{generation: e.exclusionGeneration, root: root, pending: maps.Clone(e.exclusionPending), auth: auth, view: view, schema: ns.Name(), parent: binding.parent.Address(), store: store, storeGeneration: store.Generation, versions: store.Versions, ends: store.Ends}, nil
 }
 func (s *StatementScope) exclusionScanCurrent(scan exclusionScan, index ids.ObjectAddress) bool {
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	root := e.storage.IndexRoots[index]
@@ -468,7 +468,7 @@ func (s *StatementScope) probeExclusionRow(ref ids.ObjectRef, binding *uniqueWri
 	}
 	if !c.Deferrable {
 		// Existing exact-key grants serialize nondeferrable equal admissions.
-		p := s.op.session.Engine()
+		p := s.engine()
 		p.mu.Lock()
 		projection := p.exclusionPending[s.ticket]
 		var keys []sqltype.Value

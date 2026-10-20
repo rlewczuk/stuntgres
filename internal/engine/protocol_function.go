@@ -30,7 +30,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 	if c := t.protocolCycle; c != nil {
 		c.active = c.executed
 	}
-	err := s.admitTransactionLocked(s.op.session.Engine())
+	err := s.admitTransactionLocked(s.engine())
 	t.mu.Unlock()
 	if err != nil {
 		return ProtocolField{}, err
@@ -44,7 +44,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 		return ProtocolField{}, err
 	}
 	oid := uint32(rawOID)
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(s.op)
 	if err != nil {

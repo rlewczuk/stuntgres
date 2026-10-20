@@ -35,7 +35,7 @@ func TestSessionTimeoutPendingGrantRace(t *testing.T) {
 					t.Error("racing request failed bounded join")
 				}
 			})
-			timeoutPendingRequest(t, s.Engine(), op)
+			timeoutPendingRequest(t, engineOf(s), op)
 			peer := timeoutPendingOperation(t, holder)
 			peerRef := holder.transactions.ref
 			start, callbacksDone := make(chan struct{}), make(chan struct{})
@@ -54,7 +54,7 @@ func TestSessionTimeoutPendingGrantRace(t *testing.T) {
 			go func() {
 				defer callbacks.Done()
 				<-start
-				_, err := holder.Engine().Rollback(peer, peerRef)
+				_, err := engineOf(holder).Rollback(peer, peerRef)
 				released <- err
 			}()
 			go func() { callbacks.Wait(); close(callbacksDone) }()
@@ -101,7 +101,7 @@ func TestSessionTimeoutPendingGrantRace(t *testing.T) {
 
 func TestSessionTimeoutPendingImmediateProjection(t *testing.T) {
 	s, holder, _, _ := timeoutPendingFixture(t, false)
-	manager := s.Engine().locks
+	manager := engineOf(s).locks
 	ticket := holder.transactions.ticket
 	var resource lock.Resource
 	for ref := range manager.Inspect().Journals[ticket] {

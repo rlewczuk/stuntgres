@@ -101,7 +101,7 @@ func (s *StatementScope) materializeHeldCursors() error {
 func (s *StatementScope) authorizeSQLCursor(c *sqlCursor) error {
 	// A live portal continues its initialized executor. Current catalog identity
 	// and original lifetimes still fence it; ACL edits do not reinitialize it.
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(s.op)
 	if err == nil {
@@ -235,7 +235,7 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 // Live producer output retains DECLARE interpretation. Exported output instead
 // uses the ordinary current-catalog capture seam at each stored FETCH.
 func (s *StatementScope) captureSQLCursorOutput(rows *exec.FinalRows, catalog catalog.Read) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(s.op)
 	var path []ids.ObjectAddress
@@ -289,7 +289,7 @@ func (s *StatementScope) fetchHeldCursor(c *sqlCursor, fetch *parser.FetchCursor
 		return Result{}, err
 	}
 	if rows != nil {
-		if err = s.op.session.Engine().captureRegclassOutput(s.op, rows); err != nil {
+		if err = s.engine().captureRegclassOutput(s.op, rows); err != nil {
 			return Result{}, err
 		}
 	}

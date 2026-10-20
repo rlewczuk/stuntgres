@@ -95,7 +95,7 @@ func admitInheritanceDropClosure(scope *StatementScope, view catalog.Read, roots
 		if private {
 			return view, nil
 		}
-		current := scope.op.session.Engine().CatalogRead()
+		current := scope.engine().CatalogRead()
 		if current.Epoch() != view.Epoch() {
 			return view, ids.ErrCatalogReplaced
 		}

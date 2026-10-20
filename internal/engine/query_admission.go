@@ -89,7 +89,7 @@ func (s *StatementScope) validateQuerySources(leaves []exec.Leaf) error {
 				return ids.ErrCatalogReplaced
 			}
 		}
-		e := s.op.session.Engine()
+		e := s.engine()
 		catalog := e.privateCatalogLocked(s.owner.catalog)
 		for _, leaf := range leaves {
 			if _, err := currentQuerySourceLocked(e, catalog, s.owner.catalog, leaf); err != nil {
@@ -139,7 +139,7 @@ func (s *StatementScope) commentEngine() *Engine {
 	if s.inquiry.commentCatalog.Owner() == nil {
 		return nil
 	}
-	return s.op.session.Engine()
+	return s.engine()
 }
 
 // captureCommentSnapshotLocked shares one immutable catalog/role pair across

@@ -20,7 +20,7 @@ func notificationUnitUtility(t *testing.T, s *Session, stmt parser.Statement) {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	scope, err := s.Engine().StartStatement(op)
+	scope, err := engineOf(s).StartStatement(op)
 	if err != nil {
 		t.Fatal(err)
 	}

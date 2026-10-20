@@ -39,7 +39,7 @@ func TestSessionPhysicalIdentityMechanics(t *testing.T) {
 	if a.session.Token().ID() == 0 || a.session.Token() == b.session.Token() {
 		t.Fatal("physical sessions must have distinct positive identities")
 	}
-	if a.session.Engine() != b.session.Engine() || a.session.Engine() == otherDSN.session.Engine() || a.session.Engine() == otherDriver.session.Engine() {
+	if a.engine != b.engine || a.engine == otherDSN.engine || a.engine == otherDriver.engine {
 		t.Fatal("engine ownership must follow exact DSN and driver identity")
 	}
 	token := a.session.Token()
@@ -53,7 +53,7 @@ func TestSessionPhysicalIdentityMechanics(t *testing.T) {
 		t.Fatal(err)
 	}
 	fresh := adapterMechanicsConn(t, d, "")
-	if fresh.session.Token().ID() <= token.ID() || fresh.session.Engine() != b.session.Engine() {
+	if fresh.session.Token().ID() <= token.ID() || fresh.engine != b.engine {
 		t.Fatal("replacement reused identity or lost engine ownership")
 	}
 }

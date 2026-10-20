@@ -77,7 +77,7 @@ func (s *StatementScope) writeAuthorizationLocked(e *Engine) (AuthorizationView,
 }
 
 func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *foreignKeyJob, writable bool) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	required := lock.RowShare | lock.RowExclusive
 	if writable {
 		required = lock.RowExclusive
@@ -127,7 +127,7 @@ func (s *StatementScope) admitForeignAction(ref ids.ObjectRef, job *foreignKeyJo
 // Locate the latest live physical row after the row grant, including this
 // statement's replacements. Stable snapshots use the ordinary conflict seam.
 func (s *StatementScope) foreignActionRow(ref ids.ObjectRef, candidate storage.RowVersion) (storage.RowVersion, bool, error) {
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err := s.validateForeignActionLocked(e, ref); err != nil {
@@ -159,7 +159,7 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 			s.multiEvents = nil
 		}
 	}()
-	e := s.op.session.Engine()
+	e := s.engine()
 	if !e.locks.Holds(s.ticket, lock.Resource{ObjectRef: ref, Row: old.Row}, lock.ForUpdate) {
 		return errors.New("stuntgres: internal action deletion requires its row grant")
 	}
@@ -225,7 +225,7 @@ func (s *StatementScope) captureForeignActionRows(ref ids.ObjectRef) (foreignKey
 	if err != nil {
 		return rows, foreignKeyRows{}, err
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	var retained foreignKeyRows

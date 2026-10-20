@@ -13,6 +13,7 @@ import (
 )
 
 type conn struct {
+	engine           *engine.Engine // The engine that hosts session; immutable.
 	session          *engine.Session
 	cleanup          runtime.Cleanup
 	closed           atomic.Bool
@@ -107,7 +108,7 @@ func (c *conn) BeginTx(ctx context.Context, options driver.TxOptions) (driver.Tx
 		return nil, c.terminalError(err)
 	}
 	defer op.Done()
-	ref, err := c.session.Engine().Begin(op, engine.TxOptions{Isolation: level, ReadOnly: options.ReadOnly})
+	ref, err := c.engine.Begin(op, engine.TxOptions{Isolation: level, ReadOnly: options.ReadOnly})
 	if err != nil {
 		return nil, c.terminalError(op.CommandError(err))
 	}
@@ -160,7 +161,7 @@ func (c *conn) request(ctx context.Context, query string, ast parser.Statement, 
 		return
 	}
 	defer op.Done()
-	scope, err := c.session.Engine().StartStatement(op)
+	scope, err := c.engine.StartStatement(op)
 	if err != nil {
 		err = c.terminalError(op.CommandError(err))
 		return

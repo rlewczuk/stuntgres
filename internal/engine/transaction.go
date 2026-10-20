@@ -133,18 +133,18 @@ func (t *transactionOwner) EndSession(token ids.SessionToken, _ EndReason) error
 		t.mu.Unlock()
 		return errors.New("stuntgres: foreign transaction session")
 	}
-	t.session.Engine().endSerializable(t.ref, false)
+	engineOf(t.session).endSerializable(t.ref, false)
 	t.session.settings.finishTransaction(false)
 	t.clear()
 	t.session.retireTransactionTimeout()
 	ticket := t.ticket
 	t.ticket = nil
 	t.mu.Unlock()
-	t.session.Engine().endLockOwner(ticket)
+	engineOf(t.session).endLockOwner(ticket)
 	cleanupErr := t.drainCursorCleanup(context.Background(), nil)
 	// Collation-bearing namespaces are retained for lawful runner teardown after
 	// this callback releases admission. Other TEMP cleanup retains its owner path.
-	if err := t.session.Engine().endTemporarySession(t.session); cleanupErr == nil {
+	if err := engineOf(t.session).endTemporarySession(t.session); cleanupErr == nil {
 		cleanupErr = err
 	}
 	return cleanupErr
@@ -227,7 +227,7 @@ func (e *Engine) Begin(op *Operation, options TxOptions) (ids.TxRef, error) {
 }
 
 func (t *transactionOwner) validate(ref ids.TxRef) error {
-	if ref.Domain() != domainOf(t.session.Engine()) || ref.Session() != t.session.token || ref.ID() == 0 || txOwnerOf(ref) != t {
+	if ref.Domain() != domainOf(engineOf(t.session)) || ref.Session() != t.session.token || ref.ID() == 0 || txOwnerOf(ref) != t {
 		return errors.New("stuntgres: foreign or missing transaction reference")
 	}
 	if t.state == TxIdle || ref != t.ref {
@@ -437,7 +437,7 @@ func (s *StatementScope) active() error {
 	if s == nil || s.self != s || s.finished {
 		return errors.New("stuntgres: inactive statement scope")
 	}
-	return s.op.session.Engine().validateOperation(s.op)
+	return s.engine().validateOperation(s.op)
 }
 
 func (s *StatementScope) gate(stmt parser.Statement) error {
@@ -455,11 +455,11 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 		s.owner.mu.Lock()
 		defer s.owner.mu.Unlock()
 		if s.message {
-			if err := s.admitTransactionLocked(s.op.session.Engine()); err != nil {
+			if err := s.admitTransactionLocked(s.engine()); err != nil {
 				return err
 			}
 		}
-		if err := s.op.session.Engine().endPreflight(s.op); err != nil {
+		if err := s.engine().endPreflight(s.op); err != nil {
 			return err
 		}
 		if (control.Kind == parser.KindStart || control.Kind == parser.KindCommitPrepared || control.Kind == parser.KindRollbackPrepared) && s.owner.state == TxAborted {
@@ -468,7 +468,7 @@ func (s *StatementScope) gate(stmt parser.Statement) error {
 		return nil
 	}
 	t := s.owner
-	e := s.op.session.Engine()
+	e := s.engine()
 	// Admission serializes this session, so the idle classification stays valid
 	// while reserving replacement admission outside transaction synchronization.
 	t.mu.Lock()
@@ -523,7 +523,7 @@ func (s *StatementScope) ResolutionCatalog() catalog.Read {
 	if err := s.active(); err != nil {
 		panic(err)
 	}
-	return s.op.session.Engine().CatalogRead()
+	return s.engine().CatalogRead()
 }
 
 func (s *StatementScope) Writes() *WriteStage { return &s.stage }
@@ -562,7 +562,7 @@ retry:
 		return err
 	}
 	s.owner.mu.Lock()
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	admission := e.privateCatalogLocked(s.owner.catalog).State()
 	if binding := s.uniqueBinding; binding != nil && binding.catalog != admission {
@@ -684,30 +684,30 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 	case *parser.Listen, *parser.Unlisten, *parser.Notify:
 		return StatementDescription{}, nil
 	case *parser.AlterTableAllInTablespace:
-		return s.op.session.Engine().describeOperation(s, stmt)
+		return s.engine().describeOperation(s, stmt)
 	case *parser.ForeignDDL:
-		return s.op.session.Engine().describeOperation(s, stmt)
+		return s.engine().describeOperation(s, stmt)
 	case *parser.CreateTablespace:
-		return s.op.session.Engine().describeOperation(s, stmt)
+		return s.engine().describeOperation(s, stmt)
 	case *parser.Truncate:
-		return s.op.session.Engine().describeOperation(s, stmt)
+		return s.engine().describeOperation(s, stmt)
 	case *parser.RefreshMaterializedView:
-		return s.op.session.Engine().describeOperation(s, stmt)
+		return s.engine().describeOperation(s, stmt)
 	case *parser.FetchCursor, *parser.CloseCursor, *parser.PrepareSQL, *parser.ExecuteSQL, *parser.DeallocateSQL, *parser.Discard:
-		return s.op.session.Engine().describeOperation(s, stmt)
+		return s.engine().describeOperation(s, stmt)
 	case *parser.AlterDomain:
 		// This narrow utility has no parameter/result signature. Preparation
 		// must remain quiet; Execute owns read-only-first and explicit-block
 		// rejection, without resolving or changing a domain during analysis.
-		return s.op.session.Engine().describeOperation(s, stmt)
+		return s.engine().describeOperation(s, stmt)
 	case *parser.CreateFunction, *parser.CreateOperator, *parser.AlterOperator, *parser.DropOperator, *parser.CreateConversion, *parser.AlterConversion, *parser.DropConversion:
 		// These utilities have no result signature. Admission, read-only
 		// precedence and the explicit-transaction boundary belong to Execute.
-		return s.op.session.Engine().describeOperation(s, stmt)
+		return s.engine().describeOperation(s, stmt)
 	case *parser.ObjectGrant:
 		// Analysis is effect-free even inside an explicit transaction. Execute
 		// retains read-only-first rejection and the non-database utility boundary.
-		return s.op.session.Engine().describeOperation(s, stmt)
+		return s.engine().describeOperation(s, stmt)
 	}
 	_, queryCreation := stmt.(*parser.CreateQueryTable)
 	if queryCreation {
@@ -720,11 +720,11 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 	}
 	switch stmt.(type) {
 	case *parser.CreateRule, *parser.AlterRule, *parser.DropRule:
-		return s.op.session.Engine().describeOperation(s, stmt)
+		return s.engine().describeOperation(s, stmt)
 	case *parser.CreateTable, *parser.DropTable, *parser.CreateView, *parser.CreatePolicy, *parser.AlterPolicy, *parser.DropPolicy, *parser.AlterTableOf, *parser.AlterTableAttachPartition, *parser.AlterTableDetachPartition, *parser.AlterComposite, *parser.DropComposite:
 		// Definition utilities have no result signature. Resolve ownership, read-only
 		// precedence and persistent-DDL exclusions only when actually executing.
-		return s.op.session.Engine().describeOperation(s, stmt)
+		return s.engine().describeOperation(s, stmt)
 	}
 	indexBuild := earlyIndexUtility(stmt)
 	if !queryCreation && s.owner.state == TxActive && explicitUtility(stmt) && !indexBuild {
@@ -736,7 +736,7 @@ func (s *StatementScope) Describe(stmt parser.Statement) (StatementDescription, 
 	if err := s.acquireRelation(stmt, false); err != nil {
 		return StatementDescription{}, err
 	}
-	return s.op.session.Engine().describeOperation(s, stmt)
+	return s.engine().describeOperation(s, stmt)
 }
 
 func (s *StatementScope) Execute(stmt parser.Statement, count int, importFrame FrameImporter) (result Result, err error) {
@@ -908,7 +908,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 		if err := s.executionEligibility(stmt); err != nil {
 			return Result{}, err
 		}
-		return s.op.session.Engine().executeStatement(s, stmt, count, importFrame)
+		return s.engine().executeStatement(s, stmt, count, importFrame)
 	}
 	indexBuild := earlyIndexUtility(stmt)
 	_, refreshing := stmt.(*parser.RefreshMaterializedView)
@@ -935,7 +935,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 	if modifyingTag(stmt) != "" {
 		index, concurrent := stmt.(*parser.CreateIndex)
 		if !concurrent || index.Concurrent.Character == 0 {
-			e := s.op.session.Engine()
+			e := s.engine()
 			e.mu.Lock()
 			err := e.visibilityWriteLocked(s.txRef)
 			e.mu.Unlock()
@@ -944,7 +944,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 			}
 		}
 	}
-	return s.op.session.Engine().executeStatement(s, stmt, count, importFrame)
+	return s.engine().executeStatement(s, stmt, count, importFrame)
 }
 
 // Prepare only vector headers/capacity. Tail writes follow the final preflight.

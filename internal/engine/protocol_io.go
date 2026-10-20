@@ -11,7 +11,7 @@ func (s *StatementScope) ProtocolOutput(write func() error) (err error) {
 	}
 	err = s.protocolTerminalIO(write)
 	if err == nil {
-		err = s.op.session.Engine().validateOperation(s.op)
+		err = s.engine().validateOperation(s.op)
 	}
 	return err
 }
@@ -27,7 +27,7 @@ func (s *StatementScope) protocolTerminalIO(call func() error) error {
 	if !borrowed {
 		t.copyLease, t.copyDone = &s.lease, make(chan struct{})
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	fenced := s.replacementRead
 	if fenced {
 		e.replacementMu.RUnlock()

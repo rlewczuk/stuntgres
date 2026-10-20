@@ -150,7 +150,7 @@ func (s *StatementScope) deleteUsingSource(b analyze.Binding, source *exec.Sourc
 		}
 	}
 	if rows != nil && b.Returning.RegclassOutput && count != 0 {
-		if err := s.op.session.Engine().captureRegclassOutput(s.op, rows); err != nil {
+		if err := s.engine().captureRegclassOutput(s.op, rows); err != nil {
 			return Result{}, err
 		}
 	}

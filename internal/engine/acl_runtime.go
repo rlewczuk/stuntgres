@@ -16,12 +16,12 @@ import (
 
 func (h *statementHost) ACLAuthority() *sqltype.ACLAuthority {
 	scope := h.scope()
-	return &scope.op.session.Engine().roles.aclAuthority
+	return &scope.engine().roles.aclAuthority
 }
 
 func (h *statementHost) ObjectACL(c *exec.Context, address ids.ObjectAddress, result *sqltype.Descriptor) (sqltype.Value, error) {
 	scope := h.scope()
-	e := scope.op.session.Engine()
+	e := scope.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	auth, err := aclInquiryAuthorizationLocked(c, scope, e)
@@ -37,7 +37,7 @@ func (h *statementHost) ObjectACL(c *exec.Context, address ids.ObjectAddress, re
 
 func (h *statementHost) RoleMembership(c *exec.Context, actor *functions.AccessRole, target functions.AccessRole, privilege string) (bool, error) {
 	scope := h.scope()
-	e := scope.op.session.Engine()
+	e := scope.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	auth, err := aclInquiryAuthorizationLocked(c, scope, e)
@@ -63,7 +63,7 @@ func (h *statementHost) RoleMembership(c *exec.Context, actor *functions.AccessR
 
 func (h *statementHost) RowSecurityActive(c *exec.Context, relation functions.AccessRelation) (bool, error) {
 	scope := h.scope()
-	e := scope.op.session.Engine()
+	e := scope.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	auth, err := aclInquiryAuthorizationLocked(c, scope, e)

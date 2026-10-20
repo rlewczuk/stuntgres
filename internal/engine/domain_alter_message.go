@@ -71,7 +71,7 @@ func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes
 	if stage.domainAlter.AlterContext() == nil {
 		return nil
 	}
-	e := scope.op.session.Engine()
+	e := scope.engine()
 	e.mu.Lock()
 	next := e.privateCatalogLocked(changes).State()
 	e.mu.Unlock()

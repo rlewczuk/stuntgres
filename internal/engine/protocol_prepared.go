@@ -49,7 +49,7 @@ func (s *StatementScope) ParseProtocol(name, source string, hints []uint32) (Pro
 	}
 	if body == nil {
 		s.owner.mu.Lock()
-		err = s.admitTransactionLocked(s.op.session.Engine())
+		err = s.admitTransactionLocked(s.engine())
 		s.owner.mu.Unlock()
 		if err != nil {
 			return ProtocolStatement{}, err
@@ -63,7 +63,7 @@ func (s *StatementScope) ParseProtocol(name, source string, hints []uint32) (Pro
 		return ProtocolStatement{Description: description, ParameterOIDs: slices.Clone(hints), Context: ProtocolContext{Source: source}, Empty: true}, nil
 	}
 	types := make([]sqltype.Usage, len(hints))
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(s.op)
 	if err == nil {
@@ -168,7 +168,7 @@ func (s *StatementScope) describeProtocolBody(body parser.Statement) (StatementD
 	if !copyBody && !executeBody {
 		return s.Describe(body)
 	}
-	description := StatementDescription{catalogOwner: s.op.session.Engine().catalog.owner(), catalogEpoch: s.txRef.Epoch()}
+	description := StatementDescription{catalogOwner: s.engine().catalog.owner(), catalogEpoch: s.txRef.Epoch()}
 	if executeBody {
 		var err error
 		description, err = s.Describe(body)

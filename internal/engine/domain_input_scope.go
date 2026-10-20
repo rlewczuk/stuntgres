@@ -19,7 +19,7 @@ func (s *StatementScope) DecodeLockedDomainInput(ctx context.Context, typ *sqlty
 	if !ok || scopeOf(eval.Host) != s || eval.Catalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing captured domain input authority")
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	providers := typedef.CaptureDomainInputProviders(eval.Catalog, typ)
 	e.mu.Unlock()
 	value, err := typ.InputWithEnvironment(ctx, text, typmod, input)

@@ -55,7 +55,7 @@ func (h *statementHost) TouchForeignScan(ctx context.Context, source *exec.Forei
 }
 func (s *StatementScope) foreignUnlocked() {
 	if s.replacementRead {
-		s.op.session.Engine().replacementMu.RUnlock()
+		s.engine().replacementMu.RUnlock()
 		s.replacementRead = false
 	}
 }

@@ -74,7 +74,7 @@ func deleteUsingAsync(t *testing.T, s *Session, ctx context.Context, query strin
 		var result Result
 		if err == nil {
 			defer op.Done()
-			result, err = s.Engine().Execute(op, ast, 0, nil)
+			result, err = engineOf(s).Execute(op, ast, 0, nil)
 		}
 		done <- deleteOutcome{result: result, err: err}
 	}()

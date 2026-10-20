@@ -69,7 +69,7 @@ func (r foreignKeyRows) previous(id ids.RowID) (storage.RowVersion, bool) {
 }
 
 func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.ObjectAddress) (foreignKeyRows, error) {
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
@@ -111,7 +111,7 @@ func (s *StatementScope) captureForeignKeyRows(ref ids.ObjectRef, index ids.Obje
 }
 
 func (s *StatementScope) foreignKeyGrant(ref ids.ObjectRef, row ids.RowID, mode lock.Mode, stored *storage.Relation) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
 	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref, Row: row}, mode, policy)
 	if request != nil {
@@ -151,7 +151,7 @@ func (s *StatementScope) acquireForeignKeyCreation(raw *parser.CreateTable) erro
 	if len(declarations) == 0 {
 		return nil
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	auth, err := operationAuthorization(s.op)
 	if err != nil {
 		return err
@@ -244,7 +244,7 @@ func (s *StatementScope) checkForeignKeys() error {
 	if len(s.stage.rows) == 0 && len(s.stage.deletes) == 0 {
 		return nil
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	jobs := s.foreignActionsOrZero().jobs
 	if len(jobs) == 0 {
 		return nil
@@ -409,7 +409,7 @@ func (s *StatementScope) foreignKeyParentExists(ref ids.ObjectRef, job foreignKe
 }
 
 func (s *StatementScope) refreshForeignKeyRows(ref ids.ObjectRef, rows *foreignKeyRows) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {

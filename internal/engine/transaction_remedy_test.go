@@ -212,7 +212,7 @@ func benchmarkTransactionSQL(b *testing.B, s *Session, query string) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	result, err := s.Engine().Execute(op, stmt[0], 0, nil)
+	result, err := engineOf(s).Execute(op, stmt[0], 0, nil)
 	op.Done()
 	if err != nil {
 		b.Fatal(err)

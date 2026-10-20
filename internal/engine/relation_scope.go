@@ -70,7 +70,7 @@ func (s *StatementScope) acquireRelation(stmt parser.Statement, execute bool) (e
 			err = s.acquireViewSources()
 		}
 		if err == nil && s.admissionWaited {
-			e := s.op.session.Engine()
+			e := s.engine()
 			e.mu.Lock()
 			auth, authErr := e.statementAuthorizationLocked(s.op, stmt)
 			err = authErr
@@ -314,7 +314,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 	default:
 		return nil
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	if s.txRef.Epoch() != e.catalog.state.Epoch() {
 		e.mu.Unlock()
@@ -782,7 +782,7 @@ func (s *StatementScope) checkPartitionCreationNamespaceLocked(auth Authorizatio
 	if creation.Persistence == "temporary" {
 		return nil
 	}
-	ns, deferredTemp, err := s.op.session.Engine().creationNamespaceDestination(auth, creation.Name, false)
+	ns, deferredTemp, err := s.engine().creationNamespaceDestination(auth, creation.Name, false)
 	if err == nil && !deferredTemp && !s.op.replayOrZero().tableDestination {
 		err = auth.CheckCreate(ns)
 	}

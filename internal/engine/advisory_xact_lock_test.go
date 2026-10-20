@@ -19,7 +19,7 @@ func advisoryXactUnitTicket(s *Session, xact bool) *lock.Ticket {
 }
 func advisoryXactUnitAcquire(t *testing.T, s *Session, key lock.Resource, mode lock.Mode, xact, nowait bool) (*lock.Request, error) {
 	t.Helper()
-	return s.Engine().locks.StartAcquire(context.Background(), advisoryXactUnitTicket(s, xact), key, mode, lock.Policy{Provenance: s.transactions.ref, NoWait: nowait})
+	return engineOf(s).locks.StartAcquire(context.Background(), advisoryXactUnitTicket(s, xact), key, mode, lock.Policy{Provenance: s.transactions.ref, NoWait: nowait})
 }
 func advisoryXactUnitGrant(t *testing.T, s *Session, key lock.Resource, mode lock.Mode, xact bool) {
 	t.Helper()
@@ -29,7 +29,7 @@ func advisoryXactUnitGrant(t *testing.T, s *Session, key lock.Resource, mode loc
 	}
 }
 func advisoryXactUnitHold(s *Session, key lock.Resource) lock.Hold {
-	m := s.Engine().locks
+	m := engineOf(s).locks
 	lockState := m.Inspect()
 	if e := lockState.Resources[key]; e != nil {
 		return e.Holders[s.transactions.ticket]

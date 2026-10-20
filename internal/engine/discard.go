@@ -50,7 +50,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 		return Result{}, err
 	}
 	if raw.Category == parser.DiscardAll {
-		e := session.Engine()
+		e := engineOf(session)
 		e.mu.Lock()
 		state := session.notifications.state
 		history := state != nil && state.history
@@ -87,13 +87,13 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 	}
 	if raw.Category == parser.DiscardPlans || raw.Category == parser.DiscardAll {
 		session.discardPlansGeneration++
-		e := session.Engine()
+		e := engineOf(session)
 		e.mu.Lock()
 		session.sqlRoutines = nil
 		e.mu.Unlock()
 	}
 	if raw.Category == parser.DiscardSequences || raw.Category == parser.DiscardAll {
-		e := session.Engine()
+		e := engineOf(session)
 		e.mu.Lock()
 		session.sequences.DiscardLocked(raw.Category == parser.DiscardAll)
 		e.mu.Unlock()
@@ -103,7 +103,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 }
 
 func (s *StatementScope) discardAllPreflight() (authorization.RoleState, error) {
-	session, e := s.op.session, s.op.session.Engine()
+	session, e := s.op.session, s.engine()
 	ticket := session.advisory.ticket
 	if !e.locks.ValidSession(ticket, session.token) {
 		return authorization.RoleState{}, fmt.Errorf("stuntgres: invalid advisory session")
@@ -187,7 +187,7 @@ func (e *Engine) resetAllSettingsLocked(session *Session) {
 }
 
 func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
-	e, session := s.op.session.Engine(), s.op.session
+	e, session := s.engine(), s.op.session
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(s.op)
 	if err != nil {

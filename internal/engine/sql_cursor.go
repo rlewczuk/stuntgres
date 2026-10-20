@@ -259,7 +259,7 @@ func (c *sqlCursor) admit(s *StatementScope) {
 	s.foreignTables().cursor = c
 }
 func (s *StatementScope) sessionPublicationPreflight() error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	s.owner.mu.Lock()
 	defer s.owner.mu.Unlock()
 	e.mu.Lock()
@@ -360,7 +360,7 @@ func (s *StatementScope) executeCloseCursor(close *parser.CloseCursor, count int
 		return Result{}, err
 	}
 	if s.replacementRead {
-		s.op.session.Engine().replacementMu.RUnlock()
+		s.engine().replacementMu.RUnlock()
 		s.replacementRead = false
 	}
 	var cleanupErr error

@@ -24,7 +24,7 @@ func advisoryUnitScopeWait(t *testing.T, s *Session, key lock.Resource, lifetime
 		cancel()
 		t.Fatal(err)
 	}
-	scope, err := s.Engine().StartStatement(op)
+	scope, err := engineOf(s).StartStatement(op)
 	if err != nil {
 		op.Done()
 		cancel()
@@ -54,7 +54,7 @@ func advisoryUnitScopeWait(t *testing.T, s *Session, key lock.Resource, lifetime
 			t.Error("advisory scope worker failed to join")
 		}
 	})
-	lockPending(t, s.Engine(), 1)
+	lockPending(t, engineOf(s), 1)
 	return ticket, provenance, done
 }
 func advisoryUnitScopeResult(t *testing.T, done <-chan advisoryScopeOutcome, want error) {

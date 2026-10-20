@@ -9,7 +9,7 @@ import (
 
 func (h *statementHost) TransactionAge(xid uint32) (int32, error) {
 	scope := h.scope()
-	e := scope.op.session.Engine()
+	e := scope.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if scope.txRef.Epoch() != e.catalog.state.Epoch() {
@@ -20,12 +20,12 @@ func (h *statementHost) TransactionAge(xid uint32) (int32, error) {
 
 func (h *statementHost) MultiTransactionAge(xid uint32) (int32, error) {
 	scope := h.scope()
-	return scope.op.session.Engine().locks.MultiAge(scope.ticket, xid)
+	return scope.engine().locks.MultiAge(scope.ticket, xid)
 }
 
 func (h *statementHost) CurrentTransactionID(assign bool) (uint64, error) {
 	scope := h.scope()
-	e := scope.op.session.Engine()
+	e := scope.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if scope.txRef.Epoch() != e.catalog.state.Epoch() {
@@ -41,7 +41,7 @@ func (h *statementHost) CurrentTransactionID(assign bool) (uint64, error) {
 
 func (h *statementHost) TransactionStatus(full uint64) (string, bool, error) {
 	scope := h.scope()
-	e := scope.op.session.Engine()
+	e := scope.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if scope.txRef.Epoch() != e.catalog.state.Epoch() {
@@ -52,7 +52,7 @@ func (h *statementHost) TransactionStatus(full uint64) (string, bool, error) {
 
 func (h *statementHost) TransactionMembers(xid uint32, result *sqltype.Descriptor) ([]sqltype.Value, error) {
 	scope := h.scope()
-	members, err := scope.op.session.Engine().locks.MultiXactMembers(scope.ticket, xid)
+	members, err := scope.engine().locks.MultiXactMembers(scope.ticket, xid)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func commitTimestampDisabled() error {
 
 func (h *statementHost) CommitTimestamp(xid uint32) (time.Time, uint32, bool, error) {
 	scope := h.scope()
-	e := scope.op.session.Engine()
+	e := scope.engine()
 	e.mu.Lock()
 	if !e.visibility.TracksCommitTimestamps() {
 		e.mu.Unlock()
@@ -91,7 +91,7 @@ func (h *statementHost) CommitTimestamp(xid uint32) (time.Time, uint32, bool, er
 
 func (h *statementHost) LastCommittedTransaction() (uint32, time.Time, uint32, bool, error) {
 	scope := h.scope()
-	e := scope.op.session.Engine()
+	e := scope.engine()
 	e.mu.Lock()
 	if !e.visibility.TracksCommitTimestamps() {
 		e.mu.Unlock()

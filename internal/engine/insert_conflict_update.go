@@ -19,7 +19,7 @@ import (
 func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate *indexWriteCandidate, proposalEvaluation *exec.Context) error {
 	proposal := candidate.values
 	c := s.insertConflict
-	e := s.op.session.Engine()
+	e := s.engine()
 	manager := e.locks
 	manager.BeginUniqueDelta(s.ticket)
 	defer manager.EndUniqueDelta(s.ticket)

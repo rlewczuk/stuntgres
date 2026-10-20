@@ -43,7 +43,7 @@ func (t *transactionOwner) syncCharacteristics() {
 	settings.currentReadOnly = t.readOnly
 	settings.currentDeferrable = t.deferrable
 	settings.mu.Unlock()
-	e := t.session.Engine()
+	e := engineOf(t.session)
 	e.mu.Lock()
 	if !t.snapshotSet && (t.state == TxActive || t.state == TxImplicit) {
 		e.enrollSerializableLocked(t.ref, t.isolation)
@@ -131,7 +131,7 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 	if count != 0 {
 		return Result{}, errors.New("stuntgres: transaction characteristics take no arguments")
 	}
-	e, t := s.op.session.Engine(), s.owner
+	e, t := s.engine(), s.owner
 	if !s.op.commandAdmission {
 		s.op.snapshotNoticeThreshold()
 	}
@@ -189,7 +189,7 @@ func (s *StatementScope) snapshotPhase(stmt parser.Statement) error {
 // Fastpath has no SQL AST but obtains the same transaction snapshot before
 // reading its function identity or invoking argument/result codecs.
 func (s *StatementScope) snapshotDataPhase() error {
-	t, e := s.owner, s.op.session.Engine()
+	t, e := s.owner, s.engine()
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if err := s.acquireSerializableSnapshot(); err != nil {

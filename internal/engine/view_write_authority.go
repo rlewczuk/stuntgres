@@ -105,7 +105,7 @@ func (v AuthorizationView) CheckViewWrite(b analyze.Binding, stmt parser.Stateme
 // Called unlocked after logical analysis, before private preflight/capture. The
 // same lock ticket/journal owns the real RX grant and all lifecycle source locks.
 func (s *StatementScope) acquireViewWriteTarget(w *viewWrite) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
 	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: w.ref}, lock.RowExclusive, policy)
 	if request != nil {

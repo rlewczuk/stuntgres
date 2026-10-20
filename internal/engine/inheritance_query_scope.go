@@ -102,7 +102,7 @@ func inheritanceQueryLeaves(view catalog.Read, roots []exec.Leaf, token ids.Sess
 // Previously admitted identities must survive; a same-name replacement is never
 // a substitute. No manager wait is performed under Engine.mu.
 func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock.Mode) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	roots := s.querySources
 	if s.materializedOrZero().refresh {
 		e.mu.Lock()

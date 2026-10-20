@@ -155,7 +155,7 @@ func preparePartitionBounds(parent *catalog.Relation, raw parser.PartitionBound)
 // Its caller evaluates the returned tree only after this method releases mu;
 // transient sequence calls retain their ordinary RX/grant-time admission.
 func (p *pendingPartitionDefinition) bindPartitionDatum(scope *StatementScope, datum parser.PartitionDatum, key catalog.PartitionKeyEntry) (expr.Expr, error) {
-	e := scope.op.session.Engine()
+	e := scope.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	auth, err := e.authorizationLocked(scope.op)

@@ -10,7 +10,7 @@ func (h *statementHost) CurrentSchemas(implicit bool, result *sqltype.Descriptor
 	scope := h.scope()
 	results := scope.inquiry.searchPathResults
 	if scope.inquiry.searchPathResults[0].Type() == nil || scope.foreignActionAuth != nil || scope.ruleActionAuth != nil {
-		engine := scope.op.session.Engine()
+		engine := scope.engine()
 		engine.mu.Lock()
 		defer engine.mu.Unlock()
 		auth, explicit, err := scope.schemaInquiryPathLocked(engine)
@@ -40,7 +40,7 @@ func (h *statementHost) CurrentSchemas(implicit bool, result *sqltype.Descriptor
 
 func (h *statementHost) MyTempNamespace() (uint32, error) {
 	scope := h.scope()
-	engine := scope.op.session.Engine()
+	engine := scope.engine()
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
 	auth, err := scope.namespaceAuthorizationLocked(engine)
@@ -52,7 +52,7 @@ func (h *statementHost) MyTempNamespace() (uint32, error) {
 
 func (h *statementHost) OtherTempNamespace(oid uint32) (bool, error) {
 	scope := h.scope()
-	engine := scope.op.session.Engine()
+	engine := scope.engine()
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
 	auth, err := scope.namespaceAuthorizationLocked(engine)

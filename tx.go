@@ -31,10 +31,10 @@ func (t *tx) end(commit bool) error {
 	}
 	defer op.Done()
 	if !commit {
-		_, err = t.conn.session.Engine().Rollback(op, t.ref)
+		_, err = t.conn.engine.Rollback(op, t.ref)
 		return t.conn.terminalError(op.CommandError(err))
 	}
-	result, err := t.conn.session.Engine().Commit(op, t.ref)
+	result, err := t.conn.engine.Commit(op, t.ref)
 	if err != nil {
 		return t.conn.terminalError(op.CommandError(err))
 	}

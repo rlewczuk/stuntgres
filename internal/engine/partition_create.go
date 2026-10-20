@@ -240,7 +240,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 	if err := p.stage.Replace(&parent); err != nil {
 		return err
 	}
-	e := scope.op.session.Engine()
+	e := scope.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	for _, index := range partitionIndexDeclarationOrder(p.stage.Base, p.parent) {

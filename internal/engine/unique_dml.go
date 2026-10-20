@@ -16,7 +16,7 @@ import (
 // Admission owns private overlays for this statement; committed immutable roots
 // are recaptured only after each key grant, including after peer outcome waits.
 func (s *StatementScope) uniqueParent(ref ids.ObjectRef) (*catalog.Relation, catalog.Read, error) {
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || ref.Epoch != s.txRef.Epoch() {
@@ -189,7 +189,7 @@ retry:
 		return nil, err
 	}
 	if b.checked {
-		e := s.op.session.Engine()
+		e := s.engine()
 		e.mu.Lock()
 		if e.privateCatalogLocked(s.owner.catalog).State() != view.State() {
 			e.mu.Unlock()
@@ -249,7 +249,7 @@ func (s *StatementScope) claimUniqueRow(ref ids.ObjectRef, row storage.RowVersio
 		return err
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Host: hostOf(s), Input: s.input, Output: s.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
-	evaluation.Catalog = s.op.session.Engine().catalog.read(binding.catalog)
+	evaluation.Catalog = s.engine().catalog.read(binding.catalog)
 	if binding.typeName != nil {
 		evaluation.Input.TypeDiagnosticName = binding.typeName
 	}
@@ -355,7 +355,7 @@ retry:
 	if len(row) != len(parent.Columns) {
 		return uniqueConflict{}, errors.New("stuntgres: invalid staged row width")
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	ctx := s.op.Context()
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: ctx, Host: hostOf(s), Input: s.input, Output: s.output}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}
 	evaluation.Catalog = e.catalog.read(binding.catalog)

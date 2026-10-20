@@ -25,7 +25,7 @@ func (a *sessionAdvisory) EndSession(token ids.SessionToken, _ EndReason) error 
 }
 
 func (s *StatementScope) acquireAdvisory(ctx context.Context, ref lock.Resource, mode lock.Mode, lifetime functions.AdvisoryLifetime, try bool) (bool, error) {
-	e := s.op.session.Engine()
+	e := s.engine()
 	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, NoWait: try, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext, Provenance: s.txRef}
 	ticket := s.op.session.advisory.ticket
 	if lifetime == functions.AdvisoryTransaction {

@@ -31,3 +31,6 @@ func (h *sessionHost) Unregister(token ids.SessionToken, owner ids.SessionOwner)
 	}
 	e.sessionMu.Unlock()
 }
+
+// engine returns the engine that runs the statement.
+func (s *StatementScope) engine() *Engine { return engineOf(s.op.session) }

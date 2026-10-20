@@ -25,7 +25,7 @@ func (t *transactionOwner) retainsTransaction() bool {
 }
 
 func (e *Engine) StartProtocolCommand(op *Operation, cycle *ProtocolCycle) (*StatementScope, error) {
-	if op == nil || cycle == nil || cycle.owner != op.session.transactions || op.session.Engine() != e {
+	if op == nil || cycle == nil || cycle.owner != op.session.transactions || engineOf(op.session) != e {
 		return nil, errors.New("stuntgres: foreign protocol cycle")
 	}
 	s, err := e.StartStatement(op)
@@ -59,7 +59,7 @@ func (s *StatementScope) ProtocolSimpleQuery(statements int) {
 }
 
 func (e *Engine) SyncProtocolCycle(op *Operation, cycle *ProtocolCycle) error {
-	if op == nil || cycle == nil || cycle.owner != op.session.transactions || op.session.Engine() != e {
+	if op == nil || cycle == nil || cycle.owner != op.session.transactions || engineOf(op.session) != e {
 		return errors.New("stuntgres: foreign protocol cycle")
 	}
 	s, err := e.StartStatement(op)

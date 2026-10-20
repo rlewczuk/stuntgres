@@ -542,7 +542,7 @@ func (scope *StatementScope) finishInheritanceAlterCandidate(old, next *catalog.
 	if !state.descendant && next.Inheritance != nil {
 		graph = cloneInheritance(next.Inheritance)
 	}
-	view := scope.op.session.Engine().stageRead(state.stage)
+	view := scope.engine().stageRead(state.stage)
 	for i, attribute := range next.Attributes {
 		provenance, exists := graph.Columns[attribute]
 		if !exists {

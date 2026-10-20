@@ -16,7 +16,7 @@ func (t *transactionOwner) acquireAdmission(ctx context.Context, op *Operation) 
 		t.admission.Lock()
 		if t.copyLease == nil {
 			if waited && op != nil {
-				if err := t.session.Engine().validateOperation(op); err != nil {
+				if err := engineOf(t.session).validateOperation(op); err != nil {
 					t.admission.Unlock()
 					return err
 				}
@@ -59,7 +59,7 @@ func (s *StatementScope) copyIO(call func() (int, error)) (n int, err error) {
 	if err = s.active(); err != nil {
 		return 0, err
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	fenced := s.replacementRead
 	if fenced {
 		e.replacementMu.RUnlock()

@@ -32,7 +32,7 @@ func partitionAttachUnitRange(t *testing.T, parent *catalog.Relation, lower, upp
 
 func partitionAttachUnitGrant(t *testing.T, scope *StatementScope, ref ids.ObjectRef, mode lock.Mode) {
 	t.Helper()
-	request, err := scope.op.session.Engine().locks.StartAcquire(scope.op.Context(), scope.ticket, lock.Resource{ObjectRef: ref}, mode, lock.Policy{NoWait: true})
+	request, err := scope.engine().locks.StartAcquire(scope.op.Context(), scope.ticket, lock.Resource{ObjectRef: ref}, mode, lock.Policy{NoWait: true})
 	if err != nil || request != nil {
 		t.Fatal("expected immediate real manager grant", request, err)
 	}

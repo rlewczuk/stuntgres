@@ -33,7 +33,7 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 		return value, err
 	}
 	defer parent.leaveSQLRoutine()
-	e := parent.op.session.Engine()
+	e := parent.engine()
 	restore := parent.activateSQLRoutine(d.SQL.Inputs)
 	defer func() { err = restore(err) }()
 	parent.sqlRoutine.result = resultUsage

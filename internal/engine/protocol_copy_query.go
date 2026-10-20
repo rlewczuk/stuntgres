@@ -18,12 +18,12 @@ func (s *StatementScope) prepareCopyQueryRows(query *parser.Select) (exec.RowRes
 	s.setProtocolBind(nil)
 	defer func() { s.Expected = expected; s.setProtocolBind(binding) }()
 	if !(s.protocolOrZero().command || s.protocolOrZero().simple) || !protocolPlainSelect(query) {
-		result, err := s.op.session.Engine().executeStatement(s, query, 0, nil)
+		result, err := s.engine().executeStatement(s, query, 0, nil)
 		return result.Rows, err
 	}
 	capture := protocolPortal{}
 	s.protocol().bind = &capture
-	_, err := s.op.session.Engine().executeStatement(s, query, 0, func(context.Context, analyze.ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error {
+	_, err := s.engine().executeStatement(s, query, 0, func(context.Context, analyze.ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error {
 		return nil
 	})
 	if err != nil {

@@ -587,7 +587,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *catalogChanges
 	if len(s.stage.rows) == 0 {
 		return nil
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	if s.txRef.Epoch() != e.catalog.state.Epoch() {
 		e.mu.Unlock()

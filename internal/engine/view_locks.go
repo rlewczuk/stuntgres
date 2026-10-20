@@ -19,7 +19,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 			err = s.acquireInheritanceSources(grants)
 		}
 	}()
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	catalogView := e.privateCatalogLocked(s.owner.catalog)
 	d, _ := catalogView.Relation(s.lockedRef.Address)
@@ -166,7 +166,7 @@ func (s *StatementScope) acquireBoundViewRelations(refs []ids.ObjectRef) error {
 }
 
 func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, modes map[ids.ObjectRef]lock.Mode) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	sort.Slice(refs, func(i, j int) bool { return refs[i].Address.ObjectID < refs[j].Address.ObjectID })
 	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
 	for _, ref := range refs {

@@ -11,9 +11,9 @@ import (
 func notificationAwaitWait(t *testing.T, s *Session, ctx context.Context) {
 	t.Helper()
 	for ctx.Err() == nil {
-		s.Engine().mu.Lock()
+		engineOf(s).mu.Lock()
 		waiting := s.notifications.wake != nil
-		s.Engine().mu.Unlock()
+		engineOf(s).mu.Unlock()
 		if waiting {
 			return
 		}

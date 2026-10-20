@@ -58,7 +58,7 @@ func (e *Engine) endStatementVisibility(ref ids.TxRef, stable bool) {
 }
 
 func (s *StatementScope) waitOlderIndexSnapshots(xmin uint64, index ids.ObjectAddress) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	if s.txRef.Epoch() != e.catalog.state.Epoch() {
 		e.mu.Unlock()

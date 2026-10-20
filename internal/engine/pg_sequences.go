@@ -98,7 +98,7 @@ func (h *statementHost) CompletePGSequence(ctx context.Context, ref ids.ObjectRe
 	if err := s.acquireSequence(ref, lock.RowExclusive, true); err != nil {
 		return err
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err := ctx.Err(); err != nil {

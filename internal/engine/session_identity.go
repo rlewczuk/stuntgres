@@ -42,7 +42,7 @@ func (h *statementHost) IdentityValue(c *exec.Context, kind functions.IdentityKi
 		if s.foreignActionAuth == nil && s.ruleActionAuth == nil && s.inquiry.currentSchemaResult.Type() != nil {
 			return s.inquiry.currentSchemaResult, nil
 		}
-		engine := s.op.session.Engine()
+		engine := s.engine()
 		engine.mu.Lock()
 		defer engine.mu.Unlock()
 		auth, path, err := s.schemaInquiryPathLocked(engine)

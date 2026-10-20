@@ -92,7 +92,7 @@ func partitionWriteExtensionBoundary(statement parser.Statement, d *catalog.Rela
 }
 
 func partitionDefaultReplayAllowed(e *Engine, op *Operation, auth AuthorizationView, statement *parser.AlterTableDefault) bool {
-	if e == nil || op == nil || op.self != op || !op.replayOrZero().defaultReplay || op.session == nil || op.session.Engine() != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() || statement == nil || statement.Action != parser.SetDefault || statement.Expression == nil {
+	if e == nil || op == nil || op.self != op || !op.replayOrZero().defaultReplay || op.session == nil || engineOf(op.session) != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() || statement == nil || statement.Action != parser.SetDefault || statement.Expression == nil {
 		return false
 	}
 	if err := e.validateOperation(op); err != nil {
@@ -109,7 +109,7 @@ func (e *Engine) partitionParentAuthorization(op *Operation, auth AuthorizationV
 	if syntax == nil || syntax.PartitionOf == nil || op == nil || !op.replayOrZero().tableDestination {
 		return auth, nil
 	}
-	if e == nil || op.self != op || op.session == nil || op.session.Engine() != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() {
+	if e == nil || op.self != op || op.session == nil || engineOf(op.session) != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() {
 		return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore partition parent authority")
 	}
 	if err := e.validateOperation(op); err != nil {
@@ -144,7 +144,7 @@ func partitionKeyUsesAttribute(d *catalog.Relation, attribute int32) bool {
 }
 
 func (s *StatementScope) acquirePartitionLock(ref ids.ObjectRef, mode lock.Mode) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref}, mode, lock.Policy{Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext})
 	if request != nil {
 		s.admissionWaited = true
@@ -186,7 +186,7 @@ func (s *StatementScope) observePartitionRelationLocked(e *Engine, ref ids.Objec
 // DEFAULT writer must not hold leaf RX while waiting for its parent's AS:
 // a creator owns parent AX before requesting DEFAULT AX.
 func (s *StatementScope) acquirePartitionAncestors(ref ids.ObjectRef) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	catalog := e.privateCatalogLocked(s.owner.catalog)
 	d, ok := catalog.Relation(ref.Address)
@@ -216,7 +216,7 @@ func (s *StatementScope) acquirePartitionAncestors(ref ids.ObjectRef) error {
 // Discover the topology once after the parent grant. Descendant waits must not
 // broaden an already admitted SELECT to newly attached branches.
 func (s *StatementScope) acquirePartitionDescendants(ref ids.ObjectRef, mode lock.Mode) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	catalog := e.privateCatalogLocked(s.owner.catalog)
 	d, ok := catalog.Relation(ref.Address)
@@ -249,7 +249,7 @@ func (s *StatementScope) acquirePartitionDescendants(ref ids.ObjectRef, mode loc
 }
 
 func (s *StatementScope) acquirePartitionDefinitionDefault(parent ids.ObjectRef) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	catalog := e.privateCatalogLocked(s.owner.catalog)
 	d, ok := catalog.Relation(parent.Address)

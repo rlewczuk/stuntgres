@@ -71,7 +71,7 @@ func truncateOtherTemporary(catalog catalog.Read, relation *catalog.Relation, to
 // Explicit targets are opened in user order. Named occurrences always check
 // their own ACL, even when an earlier inheritance expansion already selected them.
 func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	if !s.op.commandAdmission {
 		s.op.snapshotNoticeThreshold()
 	}

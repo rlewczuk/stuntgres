@@ -9,7 +9,7 @@ import (
 // Engine.mu and the implicit replacement fence; terminal session cancellation
 // can therefore drain this operation and replacement can fence its candidate.
 func (s *StatementScope) acquireSerializableSnapshot() error {
-	t, e := s.owner, s.op.session.Engine()
+	t, e := s.owner, s.engine()
 	if t.snapshotSet || t.isolation != Serializable {
 		return nil
 	}

@@ -295,7 +295,6 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	}
 	return s, nil
 }
-func (s *Session) Engine() *Engine         { return engineOf(s) }
 func (s *Session) Token() ids.SessionToken { return s.token }
 func (s *Session) operation(ctx context.Context, private bool) *Operation {
 	// Caller cancellation propagates through this child context. RequestEnd

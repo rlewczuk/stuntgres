@@ -53,7 +53,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 		plan.domainChecks = plan.domainChecks || sqltype.ContainsDomainConstraints(job.child.Columns[slot].Usage.Type)
 	}
 	if plan.domainChecks {
-		e := s.op.session.Engine()
+		e := s.engine()
 		e.mu.Lock()
 		name, err := e.captureTypeDiagnosticName(auth)
 		e.mu.Unlock()
@@ -68,7 +68,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 	}
 	if action == parser.ForeignKeySetDefault {
 		b := analyze.Binding{Relation: job.child}
-		e := s.op.session.Engine()
+		e := s.engine()
 		analyze.BindInsertDefaults(e.catalog.owner(), &b, auth.Catalog, parser.OverrideNone)
 		plan.defaults = make([]expr.Expr, len(plan.targets))
 		plan.defaultOrigins = make([]analyze.DefaultOrigin, len(plan.targets))
@@ -146,7 +146,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 }
 
 func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreignKeyJob, event foreignActionTransition, action parser.ForeignKeyAction) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), job.child.Address())
 	if err := s.admitForeignAction(ref, job, action != parser.ForeignKeyRestrict); err != nil {
 		return err

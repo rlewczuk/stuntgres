@@ -12,7 +12,7 @@ import (
 
 func (h *statementHost) Sequence(request functions.SequenceRequest) (int64, error) {
 	scope := h.scope()
-	e := scope.op.session.Engine()
+	e := scope.engine()
 	ref := request.Ref
 	if request.Name != "lastval" && ref.Domain() == nil {
 		ref = e.catalog.Domain.Ref(scope.txRef.Epoch(), ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: request.OID})

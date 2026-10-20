@@ -146,7 +146,7 @@ func (s *StatementScope) validatePartitionInsert(b analyze.Binding, row []sqltyp
 	leafBinding.Relation, leafBinding.Ref = destination, ref
 	schema := state.catalog.Get(destination.Namespace()).Name()
 	physicalRow := state.rowFor(destination, row)
-	if err := s.op.session.Engine().validatePhysicalInsertRow(s, leafBinding, &b, schema, physicalRow, evaluation); err != nil {
+	if err := s.engine().validatePhysicalInsertRow(s, leafBinding, &b, schema, physicalRow, evaluation); err != nil {
 		return err
 	}
 	if state.target.Partition == nil {
@@ -170,7 +170,7 @@ func (s *StatementScope) validateTargetPartitionConstraint(b analyze.Binding, ro
 		if !accepts {
 			err := sqlError("23514", fmt.Sprintf(`new row for relation "%s" violates partition constraint`, state.target.Name())).(*sqlstate.Error)
 			err.Schema, err.Table = state.catalog.Get(state.target.Namespace()).Name(), state.target.Name()
-			detail, detailErr := s.op.session.Engine().rowConstraintDetail(s, &b, row)
+			detail, detailErr := s.engine().rowConstraintDetail(s, &b, row)
 			if detailErr != nil {
 				return detailErr
 			}

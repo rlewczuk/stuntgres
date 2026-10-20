@@ -127,7 +127,7 @@ func indexWrongKind(d *catalog.Relation, drop bool) error {
 }
 
 func (s *StatementScope) acquireIndexMaintenance(stmt parser.Statement) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	var names []parser.ObjectName
 	var ifExists, drop bool
 	switch v := stmt.(type) {

@@ -91,7 +91,7 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer op.Done()
-		scope, err := s.Engine().StartStatement(op)
+		scope, err := engineOf(s).StartStatement(op)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -120,7 +120,7 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		result, err := s.Engine().Commit(op, s.transactions.ref)
+		result, err := engineOf(s).Commit(op, s.transactions.ref)
 		if err != nil || !result.Committed {
 			op.Done()
 			t.Fatal(result, err)

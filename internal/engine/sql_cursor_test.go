@@ -22,7 +22,7 @@ func cursorUnitExecute(t *testing.T, s *Session, ctx context.Context, q string) 
 		return Result{}, err
 	}
 	defer op.Done()
-	return s.Engine().Execute(op, statement(t, q), 0, nil)
+	return engineOf(s).Execute(op, statement(t, q), 0, nil)
 }
 func cursorUnitError(t *testing.T, s *Session, q, code, message string) {
 	t.Helper()
@@ -143,7 +143,7 @@ func TestSQLCursorSavepointOrdinalAndStaleIncarnation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = s.Engine().Rollback(op, old)
+	_, err = engineOf(s).Rollback(op, old)
 	op.Done()
 	if err == nil || s.cursors.entries["parent"] == nil {
 		t.Fatal("stale Tx closes new cursor", err)
@@ -276,7 +276,7 @@ func TestSQLCursorQuietPreparedDescriptionAndCounter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	description, err := s.Engine().Describe(op, statement(t, "DECLARE c NO SCROLL CURSOR FOR SELECT $1::INT AS i"))
+	description, err := engineOf(s).Describe(op, statement(t, "DECLARE c NO SCROLL CURSOR FOR SELECT $1::INT AS i"))
 	op.Done()
 	if err != nil || description.Parameters.Count != 1 || len(description.Results) != 0 || len(s.cursors.entries) != 0 {
 		t.Fatal(description, err)
@@ -297,7 +297,7 @@ func TestSQLCursorOwnedParametersAndDeclarationSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := testExecuteFrame(s.Engine(), op, statement(t, "DECLARE c NO SCROLL CURSOR FOR SELECT i,$1::TEXT AS marker FROM unit_rows ORDER BY i"), []driver.NamedValue{{Ordinal: 1, Value: marker}})
+	result, err := testExecuteFrame(engineOf(s), op, statement(t, "DECLARE c NO SCROLL CURSOR FOR SELECT i,$1::TEXT AS marker FROM unit_rows ORDER BY i"), []driver.NamedValue{{Ordinal: 1, Value: marker}})
 	op.Done()
 	if err != nil || result.Count != 0 || result.Rows != nil {
 		t.Fatal(result, err)
@@ -336,7 +336,7 @@ func TestSQLCursorForeignRegistryAndEmptyAuthority(t *testing.T) {
 	s := cursorUnitSetup(t)
 	sessionSQL(t, s, "DECLARE c NO SCROLL CURSOR FOR SELECT i FROM unit_rows")
 	cursor := s.cursors.entries["c"]
-	foreign := s.Engine().catalog.Domain.Session(s.token.ID() + 1)
+	foreign := engineOf(s).catalog.Domain.Session(s.token.ID() + 1)
 	if err := s.cursors.EndSession(foreign, CleanClose); err == nil || s.cursors.entries["c"] != cursor {
 		t.Fatal("foreign cleanup consumed cursor", err)
 	}
@@ -358,7 +358,7 @@ func TestSQLCursorCompletedPublicationBoundary(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer op.Done()
-		scope, err := s.Engine().StartStatement(op)
+		scope, err := engineOf(s).StartStatement(op)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -470,7 +470,7 @@ func TestSQLCursorMetadataInstall(t *testing.T) {
 		}
 		defer op.Done()
 		op.commandStart = instant
-		result, err := s.Engine().Execute(op, statement(t, query), 0, nil)
+		result, err := engineOf(s).Execute(op, statement(t, query), 0, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -487,7 +487,7 @@ func TestSQLCursorMetadataInstall(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = s.Engine().Describe(op, statement(t, source))
+	_, err = engineOf(s).Describe(op, statement(t, source))
 	op.Done()
 	if err != nil || len(s.cursors.entries) != 0 {
 		t.Fatal("Describe installs declaration metadata", err)
@@ -541,7 +541,7 @@ func TestSQLCursorMetadataInstall(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancel()
-	result, err := s.Engine().Execute(op, statement(t, "DECLARE canceled NO SCROLL CURSOR FOR SELECT 1"), 0, nil)
+	result, err := engineOf(s).Execute(op, statement(t, "DECLARE canceled NO SCROLL CURSOR FOR SELECT 1"), 0, nil)
 	op.Done()
 	if !errors.Is(err, context.Canceled) || result.Rows != nil || len(s.cursors.entries) != 0 {
 		t.Fatal("canceled declaration publishes metadata", result, err)

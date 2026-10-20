@@ -204,7 +204,7 @@ func operationAuthorization(op *Operation) (AuthorizationView, error) {
 	if op == nil || op.self != op || op.session == nil {
 		return AuthorizationView{}, fmt.Errorf("stuntgres: foreign or missing operation")
 	}
-	e := op.session.Engine()
+	e := engineOf(op.session)
 	if err := e.validateOperation(op); err != nil {
 		return AuthorizationView{}, err
 	}

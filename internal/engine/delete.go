@@ -47,7 +47,7 @@ func (s *StatementScope) acquireRow(candidate visibility.DeleteCandidate) error 
 	if s.ticket == nil || s.ticket.Ref() != s.txRef || txOwnerOf(s.txRef) != s.owner || s.txRef.Session() != s.op.session.token || candidate.Storage == nil || candidate.Storage != s.mutationStorage(candidate.Ref) || candidate.Row == 0 || candidate.Version == 0 || candidate.Ordinal < 0 {
 		return errors.New("stuntgres: invalid row acquisition authority")
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
 	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: candidate.Ref, Row: candidate.Row}, lock.ForUpdate, policy)
 	if err != nil {
@@ -94,7 +94,7 @@ func (w *WriteStage) Delete(candidate visibility.DeleteCandidate) (deleted bool,
 	if err := s.active(); err != nil {
 		return false, err
 	}
-	if !s.op.session.Engine().locks.Holds(s.ticket, lock.Resource{ObjectRef: candidate.Ref, Row: candidate.Row}, lock.ForUpdate) {
+	if !s.engine().locks.Holds(s.ticket, lock.Resource{ObjectRef: candidate.Ref, Row: candidate.Row}, lock.ForUpdate) {
 		return false, errors.New("stuntgres: deletion requires its row grant")
 	}
 	s.owner.mu.Lock()
@@ -102,7 +102,7 @@ func (w *WriteStage) Delete(candidate visibility.DeleteCandidate) (deleted bool,
 	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted || s.owner.ref != s.txRef {
 		return false, errors.New("stuntgres: inactive write stage")
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if candidate.Ref.Domain() != e.catalog.Domain || candidate.Ref.Address.SubID != 0 || candidate.Row == 0 || candidate.Version == 0 {
@@ -320,7 +320,7 @@ func (s *StatementScope) deleteSource(b analyze.Binding, source, inputs *exec.So
 		}
 	}
 	if rows != nil && b.Returning.RegclassOutput && count != 0 {
-		if err := s.op.session.Engine().captureRegclassOutput(s.op, rows); err != nil {
+		if err := s.engine().captureRegclassOutput(s.op, rows); err != nil {
 			return Result{}, err
 		}
 	}
@@ -336,7 +336,7 @@ func (s *StatementScope) deleteSource(b analyze.Binding, source, inputs *exec.So
 
 // Row arbitration freezes identity, not a stale ordinal or pre-wait predicate.
 func (s *StatementScope) latestDeleteRow(candidate visibility.DeleteCandidate) (storage.RowVersion, bool, error) {
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if err := s.validateLockedRelation(e); err != nil {

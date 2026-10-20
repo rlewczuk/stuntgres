@@ -34,7 +34,7 @@ func materializedRefreshAccess(auth AuthorizationView, ref ids.ObjectRef) error 
 }
 
 func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterializedView) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(s.op)
 	var ref ids.ObjectRef

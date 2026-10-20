@@ -96,7 +96,7 @@ func (s *StatementScope) stageTruncate() error {
 	if err != nil {
 		return err
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(s.op)
 	if err != nil {

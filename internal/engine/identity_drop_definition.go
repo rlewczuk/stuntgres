@@ -164,7 +164,7 @@ func (scope *StatementScope) consumeIdentityDropDefinition(stage *CatalogStage, 
 	if prepared == nil || prepared.old != old || prepared.ref != ref || prepared.drop == nil {
 		return nil, ids.ErrCatalogReplaced
 	}
-	e := scope.op.session.Engine()
+	e := scope.engine()
 	if prepared.sequence.Address != (ids.ObjectAddress{}) {
 		e.mu.Lock()
 		unchanged := e.catalog.state.Get(prepared.sequence.Address) == prepared.original

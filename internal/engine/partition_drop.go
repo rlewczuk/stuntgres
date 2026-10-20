@@ -54,7 +54,7 @@ func (provider *dropProvider) removePartitionHierarchyLocked(relation *catalog.R
 }
 
 func (s *StatementScope) acquirePartitionDropLocks(ref ids.ObjectRef) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	catalog := e.privateCatalogLocked(s.owner.catalog)
 	relation, ok := catalog.Relation(ref.Address)

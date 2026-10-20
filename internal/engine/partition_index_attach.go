@@ -277,7 +277,7 @@ func (s *StatementScope) partitionIndexTransaction(stmt parser.Statement) bool {
 	if !ok {
 		return false
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	auth, err := e.statementAuthorizationLocked(s.op, stmt)

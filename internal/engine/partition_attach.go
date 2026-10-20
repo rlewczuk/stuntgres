@@ -251,7 +251,7 @@ func (e *Engine) partitionAttachAuthorization(op *Operation, auth AuthorizationV
 	if !op.replayOrZero().partitionAttach {
 		return auth, nil
 	}
-	if op.self != op || op.session == nil || op.session.Engine() != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state {
+	if op.self != op || op.session == nil || engineOf(op.session) != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state {
 		return AuthorizationView{}, fmt.Errorf("stuntgres: invalid trusted restore partition attachment authority")
 	}
 	if err := e.validateOperation(op); err != nil {

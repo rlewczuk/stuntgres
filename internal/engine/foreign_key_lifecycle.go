@@ -294,7 +294,7 @@ func (e *Engine) rebuildAlterForeignKeysLocked(stage *CatalogStage, parent *cata
 
 func (s *StatementScope) acquireForeignKeyTypeProviders(view catalog.Read, address ids.ObjectAddress) error {
 	var refs []ids.ObjectRef
-	e := s.op.session.Engine()
+	e := s.engine()
 	for _, descriptor := range view.Descriptors() {
 		child, ok := descriptor.(*catalog.Relation)
 		if !ok {
@@ -336,7 +336,7 @@ func (s *StatementScope) validateAlterForeignKeys(view catalog.Read, address ids
 	}
 	auth.Catalog = view
 	auth.Recapture(auth.Catalog)
-	e := s.op.session.Engine()
+	e := s.engine()
 	for _, descriptor := range view.Descriptors() {
 		child, ok := descriptor.(*catalog.Relation)
 		if !ok {

@@ -42,7 +42,7 @@ func (s *StatementScope) Finish(err error) error {
 	if s.controlOutcome == controlExecuted || (s.controlOutcome == controlDescribed && err == nil) {
 		// A control has no stage/view. In particular, do not advance or recheck
 		if s.replacementRead {
-			s.op.session.Engine().replacementMu.RUnlock()
+			s.engine().replacementMu.RUnlock()
 			s.replacementRead = false
 		}
 		if cleanupErr := s.owner.drainCursorCleanup(s.op.Context(), s); err == nil {
@@ -62,7 +62,7 @@ func (s *StatementScope) Finish(err error) error {
 		return err
 	}
 	t := s.owner
-	e := s.op.session.Engine()
+	e := s.engine()
 	published := false
 	t.mu.Lock()
 	// Parsing can fail before classification; admitted failures still abort

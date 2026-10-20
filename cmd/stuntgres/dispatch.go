@@ -139,14 +139,14 @@ func (c *client) run() {
 				e = admitErr
 			} else {
 				if e != nil {
-					scope, se := c.session.Engine().StartProtocolCommand(op, c.cycle)
+					scope, se := c.db.engine.StartProtocolCommand(op, c.cycle)
 					if se == nil {
 						e = scope.Finish(e)
 					} else {
 						e = se
 					}
 				}
-				syncErr := c.session.Engine().SyncProtocolCycle(op, c.cycle)
+				syncErr := c.db.engine.SyncProtocolCycle(op, c.cycle)
 				e = op.CommandError(errors.Join(e, syncErr))
 				op.Done()
 			}
@@ -205,7 +205,7 @@ func (c *client) rejectCommand(err error) error {
 		return e
 	}
 	defer op.Done()
-	scope, e := c.session.Engine().StartStatement(op)
+	scope, e := c.db.engine.StartStatement(op)
 	if e != nil {
 		return op.CommandError(e)
 	}

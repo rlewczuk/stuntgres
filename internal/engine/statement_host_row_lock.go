@@ -24,7 +24,7 @@ func (h *statementHost) AcquireQueryRow(leaf exec.Leaf, row ids.RowID, mark plan
 	if s.ticket == nil || s.ticket.Ref() != s.txRef || txOwnerOf(s.txRef) != s.owner || s.txRef.Session() != s.op.session.token || row == 0 || leaf.Storage == nil {
 		return false, fmt.Errorf("stuntgres: invalid query row acquisition authority")
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	// Conditional requests reuse the manager's atomic immediate-grant branch:
 	// no journal request or timer exists on an unavailable NOWAIT/SKIP probe.
 	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, NoWait: mark.Wait != parser.RowLockBlock, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
@@ -64,7 +64,7 @@ func (h *statementHost) AcquireQueryRow(leaf exec.Leaf, row ids.RowID, mark plan
 // physical row event after releasing it.
 func (h *statementHost) LatestQueryRow(leaf exec.Leaf, candidate storage.RowVersion, hint int, mode lock.Mode) (result storage.RowVersion, present bool, err error) {
 	s := h.scope()
-	e := s.op.session.Engine()
+	e := s.engine()
 	var physical storage.RowVersion
 	defer func() {
 		if err != nil || !present {

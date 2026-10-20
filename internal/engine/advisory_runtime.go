@@ -17,7 +17,7 @@ func (h *statementHost) Advisory(c *exec.Context, action functions.AdvisoryActio
 	}
 	ticket := s.op.session.advisory.ticket
 	if action == functions.AdvisoryUnlockAll {
-		if err := s.op.session.Engine().locks.UnlockAdvisoryAll(ticket); err != nil {
+		if err := s.engine().locks.UnlockAdvisoryAll(ticket); err != nil {
 			return sqltype.Value{}, err
 		}
 		return sqltype.VoidValue(result), nil
@@ -31,7 +31,7 @@ func (h *statementHost) Advisory(c *exec.Context, action functions.AdvisoryActio
 		lockMode = lock.AdvisoryShare
 	}
 	if action == functions.AdvisoryUnlock {
-		unlocked, err := s.op.session.Engine().locks.UnlockAdvisory(ticket, ref, lockMode)
+		unlocked, err := s.engine().locks.UnlockAdvisory(ticket, ref, lockMode)
 		if err != nil {
 			return sqltype.Value{}, err
 		}

@@ -153,7 +153,7 @@ func requestedViewPersistence(catalog catalog.Read, view *parser.CreateView, sou
 // Analyze once after admitting all body sources, before selecting the CREATE
 // destination. Keep inferred persistence and private namespace off the held AST.
 func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	auth, err := e.statementAuthorizationLocked(s.op, view)

@@ -17,11 +17,11 @@ func TestUpdateCurrentOfIdentity(t *testing.T) {
 	cursorUnitBatch(t, s, "FETCH FORWARD 2 FROM c", [][]driver.Value{{int64(99)}, {int64(99)}})
 	c := s.cursors.entries["c"]
 	source, index, root := c.currentSource, c.currentIndex, c.root
-	ref := catalogRef(t, s.Engine(), s.Engine().CatalogRead(), "unit_rows")
+	ref := catalogRef(t, engineOf(s), engineOf(s).CatalogRead(), "unit_rows")
 	identity := cursorOccurrenceVersion(source, index, 0, c.locks)
-	s.Engine().mu.Lock()
-	want := s.Engine().storage.Relations[ref.Address].Versions[1].Row
-	s.Engine().mu.Unlock()
+	engineOf(s).mu.Lock()
+	want := engineOf(s).storage.Relations[ref.Address].Versions[1].Row
+	engineOf(s).mu.Unlock()
 	if identity.Row != want {
 		t.Fatal("wrong original RowID", identity.Row, want)
 	}
@@ -53,7 +53,7 @@ func TestUpdateCurrentOfPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	scope, err := s.Engine().StartStatement(op)
+	scope, err := engineOf(s).StartStatement(op)
 	if err != nil {
 		op.Done()
 		t.Fatal(err)

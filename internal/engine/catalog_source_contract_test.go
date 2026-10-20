@@ -215,7 +215,7 @@ func TestCatalogSourceInputProvenance(t *testing.T) {
 func TestCatalogSourceRuntimeCapture(t *testing.T) {
 	t.Run("cursor_and_settings_dispatch", func(t *testing.T) {
 		s := cursorUnitSetup(t)
-		e := s.Engine()
+		e := engineOf(s)
 		sessionSQL(t, s, "DECLARE producer_runtime CURSOR FOR SELECT i FROM unit_rows")
 		sessionSQL(t, s, "SET row_security = on")
 		cursor := s.cursors.entries["producer_runtime"]

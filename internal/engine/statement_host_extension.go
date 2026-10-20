@@ -15,7 +15,7 @@ func (h *statementHost) OpenExtensionPaths(c *exec.Context, n plan.ExtensionPath
 	if scope.inquiry.commentCatalog.State() == nil {
 		return nil, fmt.Errorf("stuntgres: missing extension paths snapshot")
 	}
-	implementation := scope.op.session.Engine().catalog.Extensions[name]
+	implementation := scope.engine().catalog.Extensions[name]
 	if implementation == nil {
 		return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`extension "%s" is not available`, name), Hint: "The extension must first be installed on the system where PostgreSQL is running."}
 	}

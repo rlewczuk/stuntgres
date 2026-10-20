@@ -13,7 +13,7 @@ type foreignTruncateGroup struct {
 }
 
 func (s *StatementScope) prepareForeignTruncate() ([]foreignTruncateGroup, error) {
-	e := s.op.session.Engine()
+	e := s.engine()
 	var groups []foreignTruncateGroup
 	for _, selected := range s.truncateOrZero().relations {
 		if selected.relation.RelationKind != catalog.ForeignRelation {

@@ -17,7 +17,7 @@ func (s *StatementScope) AcquireDataView(ref ids.ObjectRef) (*visibility.View, e
 	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted {
 		return nil, errors.New("stuntgres: inactive data view scope")
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return s.acquireDataViewLocked(e, ref)

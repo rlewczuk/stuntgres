@@ -53,7 +53,7 @@ func mergeUpdatePendingExecute(t *testing.T, s *Session, q string) <-chan delete
 		op, err := s.Acquire(ctx)
 		var result Result
 		if err == nil {
-			result, err = s.Engine().Execute(op, ast, 0, nil)
+			result, err = engineOf(s).Execute(op, ast, 0, nil)
 			op.Done()
 		}
 		done <- deleteOutcome{result, err}

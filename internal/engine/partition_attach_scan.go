@@ -53,12 +53,12 @@ func (s *StatementScope) partitionAttachFrontier(catalogView catalog.Read, paren
 			}
 			childView := view
 			if lockChildren {
-				ref := s.op.session.Engine().catalog.Domain.Ref(view.Epoch(), address)
+				ref := s.engine().catalog.Domain.Ref(view.Epoch(), address)
 				if err := s.acquirePartitionLock(ref, lock.AccessExclusive); err != nil {
 					return err
 				}
 				var err error
-				childView, child, err = s.op.session.Engine().partitionAttachRelation(s, ref)
+				childView, child, err = s.engine().partitionAttachRelation(s, ref)
 				if err != nil {
 					return err
 				}

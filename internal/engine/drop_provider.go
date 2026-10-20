@@ -465,7 +465,7 @@ func (scope *StatementScope) holdsColumnDropGrant(ref ids.ObjectRef) bool {
 	if scope.ticket == nil || scope.ticket.Ref() != scope.txRef {
 		return false
 	}
-	return scope.op.session.Engine().locks.Holds(scope.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive)
+	return scope.engine().locks.Holds(scope.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive)
 }
 
 // prepareColumnDrop records the actual ordinary provider effects without owning
@@ -492,7 +492,7 @@ func (scope *StatementScope) prepareDropDefinitionProvider(auth AuthorizationVie
 	if err := scope.active(); err != nil {
 		return nil, err
 	}
-	e := scope.op.session.Engine()
+	e := scope.engine()
 	if err := scope.op.Context().Err(); err != nil {
 		return nil, err
 	}
@@ -558,7 +558,7 @@ func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *
 	if err := scope.op.Context().Err(); err != nil {
 		return nil, err
 	}
-	if prepared == nil || prepared.old != old || prepared.ref != ref || prepared.next == nil || stage == nil || stage.owner != scope.op.session.Engine() || stage.lifecycle != catalogOpen || stage.invalid != nil || !scope.holdsColumnDropGrant(ref) {
+	if prepared == nil || prepared.old != old || prepared.ref != ref || prepared.next == nil || stage == nil || stage.owner != scope.engine() || stage.lifecycle != catalogOpen || stage.invalid != nil || !scope.holdsColumnDropGrant(ref) {
 		return nil, ids.ErrCatalogReplaced
 	}
 	if _, consumed := scope.dropsOrZero().consumedColumns[prepared]; consumed {

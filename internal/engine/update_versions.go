@@ -101,7 +101,7 @@ func (w *WriteStage) replaceRows(ref ids.ObjectRef, old []storage.RowVersion, ba
 			return errors.New("stuntgres: missing writable internal action admission")
 		}
 		var small [8]ids.RowID
-		if s.op.session.Engine().locks.MissingRowGrant(s.ticket, ref, versionRows(small[:0], old)) >= 0 {
+		if s.engine().locks.MissingRowGrant(s.ticket, ref, versionRows(small[:0], old)) >= 0 {
 			return errors.New("stuntgres: internal action replacement requires its row grant")
 		}
 	}
@@ -145,7 +145,7 @@ retry:
 		return err
 	}
 	s.owner.mu.Lock()
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	admission := e.privateCatalogLocked(s.owner.catalog).State()
 	if binding := s.uniqueBinding; binding != nil && binding.catalog != admission {

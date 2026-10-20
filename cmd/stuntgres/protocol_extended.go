@@ -13,7 +13,7 @@ func (c *client) rejectProtocolCommand(ctx context.Context, err error) error {
 		return e
 	}
 	defer op.Done()
-	scope, e := c.session.Engine().StartProtocolCommand(op, c.cycle)
+	scope, e := c.db.engine.StartProtocolCommand(op, c.cycle)
 	if e != nil {
 		return op.CommandError(e)
 	}
@@ -35,7 +35,7 @@ func (c *client) extendedCommand(ctx context.Context, message frontendMessage) (
 		return c.writeSQLError(ctx, "", err)
 	}
 	defer op.Done()
-	scope, err := c.session.Engine().StartProtocolCommand(op, c.cycle)
+	scope, err := c.db.engine.StartProtocolCommand(op, c.cycle)
 	if err != nil {
 		c.protocolState = protocolRecovery
 		return c.writeSQLError(ctx, "", op.CommandError(err))
@@ -228,7 +228,7 @@ func (c *client) functionCommand(ctx context.Context, input *protocolInput) erro
 		return c.readyBoundary()
 	}
 	defer op.Done()
-	scope, err := c.session.Engine().StartStatement(op)
+	scope, err := c.db.engine.StartStatement(op)
 	var field engine.ProtocolField
 	if err == nil {
 		field, err = scope.CallProtocolFunction(input)

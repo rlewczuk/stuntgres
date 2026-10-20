@@ -176,7 +176,7 @@ func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Op
 // sole stage from the returned authentic authorization/catalog without a gap;
 // every error returns unlocked. AX waits always run outside Engine.mu.
 func (scope *StatementScope) acquireInheritanceDefinitions(root *catalog.Relation, recurse bool) ([]*catalog.Relation, AuthorizationView, error) {
-	e := scope.op.session.Engine()
+	e := scope.engine()
 	epoch := scope.lockedRef.Epoch
 	captured := map[ids.ObjectAddress]*catalog.Relation{root.Address(): root}
 	fail := func(err error) ([]*catalog.Relation, AuthorizationView, error) {

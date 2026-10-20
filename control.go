@@ -30,7 +30,7 @@ func withEngine(ctx context.Context, db *sql.DB, fn func(*engine.Engine) error) 
 		if err := native.check(ctx); err != nil {
 			return err
 		}
-		e = native.session.Engine()
+		e = native.engine
 		return nil
 	})
 	closeErr := c.Close()

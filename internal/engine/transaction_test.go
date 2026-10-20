@@ -29,7 +29,7 @@ func transactionBegin(t *testing.T, s *Session) ids.TxRef {
 	t.Helper()
 	op := transactionOperation(t, s)
 	defer op.Done()
-	ref, err := s.Engine().Begin(op, TxOptions{})
+	ref, err := engineOf(s).Begin(op, TxOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,9 +42,9 @@ func transactionEnd(t *testing.T, s *Session, ref ids.TxRef, commit bool) EndRes
 	var r EndResult
 	var err error
 	if commit {
-		r, err = s.Engine().Commit(op, ref)
+		r, err = engineOf(s).Commit(op, ref)
 	} else {
-		r, err = s.Engine().Rollback(op, ref)
+		r, err = engineOf(s).Rollback(op, ref)
 	}
 	if err != nil {
 		t.Fatal(err)

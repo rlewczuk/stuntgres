@@ -128,7 +128,7 @@ func (s *Session) PollProtocolNotification() (Notification, bool, <-chan struct{
 }
 
 func (s *Session) pollNotification(check func() error) (Notification, bool, <-chan struct{}, error) {
-	e, n := s.Engine(), &s.notifications
+	e, n := engineOf(s), &s.notifications
 	for {
 		if check != nil {
 			if err := check(); err != nil {
@@ -226,7 +226,7 @@ func (s *StatementScope) executeNotification(stmt parser.Statement, count int) (
 	case *parser.Listen:
 		s.notificationActions = append(s.notificationActions, notificationAction{channel: raw.Channel.Text, listen: true})
 	case *parser.Unlisten:
-		e := s.op.session.Engine()
+		e := s.engine()
 		e.mu.Lock()
 		state := s.op.session.notifications.state
 		history := state != nil && state.history
@@ -245,7 +245,7 @@ func (t *transactionOwner) finishNotificationBoundary() {
 	if t.state != TxIdle || t.retainsTransaction() {
 		return
 	}
-	e, n := t.session.Engine(), &t.session.notifications
+	e, n := engineOf(t.session), &t.session.notifications
 	if !n.used.Load() {
 		return
 	}

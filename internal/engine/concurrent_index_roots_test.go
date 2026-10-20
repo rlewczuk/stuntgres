@@ -61,7 +61,7 @@ func concurrentUnitError(t *testing.T, s *Session, query, code string) error {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	result, err := s.Engine().Execute(op, statement(t, query), 0, nil)
+	result, err := engineOf(s).Execute(op, statement(t, query), 0, nil)
 	if result.Rows != nil {
 		result.Rows.Close()
 	}

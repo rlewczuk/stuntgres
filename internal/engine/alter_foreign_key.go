@@ -44,7 +44,7 @@ func (s *StatementScope) acquireAlterForeignKeys(raw *parser.AlterTable) error {
 	if count == 0 {
 		return nil
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	auth, err := operationAuthorization(s.op)
 	if err != nil {
 		return err
@@ -180,7 +180,7 @@ func (s *StatementScope) validateAddedForeignKeys(view catalog.Read, child *cata
 	}
 	auth.Catalog = view
 	auth.Recapture(auth.Catalog)
-	e := s.op.session.Engine()
+	e := s.engine()
 	for _, f := range child.Constraints.ForeignKeys {
 		if f.NotValid || !slices.Contains(added, f.OID) {
 			continue

@@ -274,7 +274,7 @@ func (s *StatementScope) existingUniqueOutput(bound *uniqueBoundKey, row storage
 	if purpose == indexProbeRevalidation && row.Born == 0 {
 		return false, nil, ids.ErrCatalogReplaced
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	current := e.privateCatalogLocked(s.owner.catalog)
 	currentIndex, ok := current.Relation(index.Address())

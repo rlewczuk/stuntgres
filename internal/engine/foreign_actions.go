@@ -16,7 +16,7 @@ func sameForeignKeyDefinition(a, b catalog.ForeignKeyConstraint) bool {
 }
 
 func (s *StatementScope) prepareForeignActions() ([]foreignKeyJob, AuthorizationView, error) {
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(s.op)
 	if err != nil {
@@ -195,7 +195,7 @@ func (s *StatementScope) settleForeignActions() error {
 		return nil
 	}
 	s.foreignActions().jobs = jobs
-	e := s.op.session.Engine()
+	e := s.engine()
 	// Borrow the initiating predecessor/successor images before any action merge.
 	for a, rows := range s.stage.rows {
 		ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), a)

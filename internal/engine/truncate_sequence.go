@@ -31,7 +31,7 @@ func truncateOwnsSequence(d *catalog.Relation, selected map[ids.ObjectAddress]in
 // Table closure and its privilege checks finish before any owned-sequence AX.
 // Capture under metadata authority, wait without it, then revalidate exactly.
 func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	auth, err := e.statementAuthorizationLocked(s.op, stmt)
 	if err == nil {
@@ -76,7 +76,7 @@ func (s *StatementScope) acquireTruncateSequences(stmt *parser.Truncate) error {
 // as table/index roots. Rollback discards these bindings, not counter mutations
 // made on the original generator before reset.
 func (s *StatementScope) stageTruncateSequences(auth AuthorizationView, stage *CatalogStage) (map[ids.ObjectAddress]*storage.SequenceGenerator, error) {
-	e := s.op.session.Engine()
+	e := s.engine()
 	var observed map[ids.ObjectAddress]*storage.SequenceGenerator
 	if len(s.truncateOrZero().sequences) != 0 {
 		observed = make(map[ids.ObjectAddress]*storage.SequenceGenerator, len(s.truncateOrZero().sequences))

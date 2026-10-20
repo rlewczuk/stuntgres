@@ -101,7 +101,7 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input Protoc
 	}
 	if entry.body == nil {
 		s.owner.mu.Lock()
-		err = s.admitTransactionLocked(s.op.session.Engine())
+		err = s.admitTransactionLocked(s.engine())
 		s.owner.mu.Unlock()
 		if err != nil {
 			return out, err
@@ -188,7 +188,7 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input Protoc
 		}
 		if count != 0 {
 			formal := analyze.ParameterInfo{Count: int(count), Types: make([]sqltype.Usage, int(count))}
-			e := s.op.session.Engine()
+			e := s.engine()
 			e.mu.Lock()
 			auth, lookupErr := e.authorizationLocked(s.op)
 			if lookupErr == nil {
@@ -427,7 +427,7 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 		if !catalogReady {
 			// Stored typed rows remain immutable. This destination captures
 			// current catalog presentation once, never the old Rows formatter.
-			e := s.op.session.Engine()
+			e := s.engine()
 			e.mu.Lock()
 			auth, captureErr := e.authorizationLocked(s.op)
 			e.mu.Unlock()

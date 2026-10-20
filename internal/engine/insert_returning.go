@@ -49,7 +49,7 @@ func (s *StatementScope) projectInsertReturning(row, old []sqltype.Value, c *exe
 func (s *StatementScope) finishInsertReturning() (Result, error) {
 	output := s.insertReturning
 	if output.binding.Returning.RegclassOutput && output.rows.Count != 0 {
-		if err := s.op.session.Engine().captureRegclassOutput(s.op, output.rows); err != nil {
+		if err := s.engine().captureRegclassOutput(s.op, output.rows); err != nil {
 			return Result{}, err
 		}
 	}
@@ -114,7 +114,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 	*candidate = batch.candidate(0)
 	s.owner.mu.Lock()
 	defer s.owner.mu.Unlock()
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if !s.worked || s.owner.state == TxIdle || s.owner.state == TxAborted {
@@ -200,7 +200,7 @@ func (s *StatementScope) admitInsertProducer(b analyze.Binding, candidate *index
 		return s.admitInsertRow(b.Ref, candidate, prefix, c)
 	}
 	if s.insertConflict == nil || s.insertConflict.Update == nil {
-		if err := s.op.session.Engine().checkViewRow(s, &b, row, c); err != nil {
+		if err := s.engine().checkViewRow(s, &b, row, c); err != nil {
 			return false, err
 		}
 	}

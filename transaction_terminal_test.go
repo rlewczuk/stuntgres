@@ -37,7 +37,7 @@ func transactionMechanicalConnection(t *testing.T) *conn {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	if _, err := c.session.Engine().Begin(op, engine.TxOptions{}); err != nil {
+	if _, err := c.engine.Begin(op, engine.TxOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	return c

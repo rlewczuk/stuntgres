@@ -86,7 +86,7 @@ func (t *transactionOwner) captureSavepoint(name string) savepointMark {
 		// still retained by a result opened before rollback.
 		writes[a] = rows[:len(rows):len(rows)]
 	}
-	e := t.session.Engine()
+	e := engineOf(t.session)
 	e.mu.Lock()
 	projection := e.exclusionPending[t.ticket]
 	e.mu.Unlock()
@@ -105,7 +105,7 @@ func (t *transactionOwner) restoreSavepoint(mark savepointMark, settings setting
 	t.isolation, t.readOnly = mark.isolation, mark.readOnly
 	t.deferrable = mark.deferrable
 	t.syncCharacteristics()
-	e := t.session.Engine()
+	e := engineOf(t.session)
 	e.mu.Lock()
 	t.exclusionModes = mark.exclusionModes
 	if mark.exclusionProjection == nil {
@@ -128,7 +128,7 @@ func (t *transactionOwner) truncateSavepoints(n int) {
 
 // Called owner-first. Preparation intentionally performs no name lookup.
 func (s *StatementScope) gateSavepoint(control *parser.SavepointControl) error {
-	t, e := s.owner, s.op.session.Engine()
+	t, e := s.owner, s.engine()
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if s.message {
@@ -154,7 +154,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 			return Result{}, err
 		}
 	}
-	t, e := s.owner, s.op.session.Engine()
+	t, e := s.owner, s.engine()
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.state == TxIdle || t.state == TxImplicit {

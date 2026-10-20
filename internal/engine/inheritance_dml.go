@@ -27,7 +27,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 	if only {
 		return nil
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	for {
 		e.mu.Lock()
 		view := e.privateCatalogLocked(s.owner.catalog)

@@ -20,7 +20,7 @@ func (s *StatementScope) finishForeignOwner(owner *exec.ForeignScanOwner, primar
 		return primary
 	}
 	if s.replacementRead {
-		s.op.session.Engine().replacementMu.RUnlock()
+		s.engine().replacementMu.RUnlock()
 		s.replacementRead = false
 	}
 	cleanup := owner.Finish(s.op.Context())

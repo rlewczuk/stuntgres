@@ -69,7 +69,7 @@ func (s *StatementScope) acquireExplicitLocks(stmt *parser.LockTable) error {
 	if !active {
 		return sqlError("25P01", "LOCK TABLE can only be used in transaction blocks")
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	mode := explicitLockMode(stmt.Mode)
 	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, NoWait: stmt.Nowait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
 	for _, target := range stmt.Targets {
@@ -102,7 +102,7 @@ func (s *StatementScope) acquireExplicitRelation(stmt *parser.LockTable, ref ids
 			return nil
 		}
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	inspect := func() (*catalog.Relation, error) {
 		if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || s.txRef.Epoch() != e.catalog.state.Epoch() {
 			return nil, ids.ErrCatalogReplaced

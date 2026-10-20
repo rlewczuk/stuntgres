@@ -447,7 +447,7 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, rela
 		historical := validCheckTraversal(descriptor)
 		requiredNotNull := newAlterRowValidator(descriptor, schema).notNull
 		if scope := scopeOf(eval.Host); scope != nil {
-			stage := scope.op.session.Engine()
+			stage := scope.engine()
 			stage.mu.Lock()
 			err := stage.captureCheckCommentSnapshotLocked(scope, historical)
 			if err == nil {

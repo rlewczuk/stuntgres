@@ -70,7 +70,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relatio
 			entries[index.Address()] = append(entries[index.Address()], exclusionEntry{row: row, keys: keys, admitted: true})
 		}
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if view.Epoch() != e.catalog.state.Epoch() {

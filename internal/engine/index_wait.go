@@ -43,7 +43,7 @@ func (e *Engine) clearIndexBuildWait(index ids.ObjectAddress, owner ids.TxRef, k
 }
 
 func (s *StatementScope) waitCompletion(owner *lock.Ticket, purpose lock.CompletionPurpose) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext, CompletionPurpose: purpose}
 	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.CompletionOf(owner), lock.TransactionCompletion, policy)
 	if request != nil {
@@ -60,7 +60,7 @@ func (s *StatementScope) waitCompletion(owner *lock.Ticket, purpose lock.Complet
 }
 
 func (s *StatementScope) waitIndexWriters(index ids.ObjectAddress) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	owners, err := e.locks.IndexWriters(s.ticket, s.lockedRef)
 	if err != nil {
 		return err

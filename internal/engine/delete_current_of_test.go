@@ -22,11 +22,11 @@ func TestDeleteCurrentOfIdentity(t *testing.T) {
 	if c.authority.Host != nil || c.currentSource == nil || c.position != cursorOn {
 		t.Fatal("FETCH retained admission or lost physical occurrence", c)
 	}
-	ref := catalogRef(t, s.Engine(), s.Engine().CatalogRead(), "unit_rows")
+	ref := catalogRef(t, engineOf(s), engineOf(s).CatalogRead(), "unit_rows")
 	row := cursorOccurrenceVersion(c.currentSource, c.currentIndex, 0, c.locks)
-	s.Engine().mu.Lock()
-	want := s.Engine().storage.Relations[ref.Address].Versions[1].Row
-	s.Engine().mu.Unlock()
+	engineOf(s).mu.Lock()
+	want := engineOf(s).storage.Relations[ref.Address].Versions[1].Row
+	engineOf(s).mu.Unlock()
 	if row.Row != want {
 		t.Fatal("last returned occurrence is not physical row2", row.Row, want)
 	}
@@ -108,7 +108,7 @@ func TestDeleteCurrentOfPublication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	scope, err := s.Engine().StartStatement(op)
+	scope, err := engineOf(s).StartStatement(op)
 	if err != nil {
 		op.Done()
 		t.Fatal(err)
@@ -297,9 +297,9 @@ func TestDeleteCurrentOfJoinIdentityRetention(t *testing.T) {
 			}
 			leaf := c.locks.Leaves[occurrence]
 			row := cursorOccurrenceVersion(c.currentSource, c.currentIndex, occurrence, c.locks)
-			s.Engine().mu.Lock()
-			want := s.Engine().storage.Relations[leaf.Leaf.Ref.Address].Versions[1].Row
-			s.Engine().mu.Unlock()
+			engineOf(s).mu.Lock()
+			want := engineOf(s).storage.Relations[leaf.Leaf.Ref.Address].Versions[1].Row
+			engineOf(s).mu.Unlock()
 			if row.Row != want {
 				t.Fatal("retained lineage lost last-FETCH physical identity", row.Row, want)
 			}

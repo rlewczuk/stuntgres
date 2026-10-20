@@ -89,7 +89,7 @@ func (e *Engine) finishPreparedLocked(p *preparedPublication) {
 }
 
 func (s *StatementScope) executePrepared(control *parser.TransactionControl, state TxState, ref ids.TxRef) error {
-	e, t := s.op.session.Engine(), s.owner
+	e, t := s.engine(), s.owner
 	if control.Kind != parser.KindPrepareTransaction {
 		if state != TxIdle {
 			word := "COMMIT"

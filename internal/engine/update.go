@@ -113,7 +113,7 @@ func (s *StatementScope) acquireUpdateRow(ref ids.ObjectRef, row ids.RowID) erro
 	return s.acquireUpdateRowMode(ref, row, lock.ForNoKeyUpdate)
 }
 func (s *StatementScope) acquireUpdateRowMode(ref ids.ObjectRef, row ids.RowID, mode lock.Mode) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
 	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: ref, Row: row}, mode, policy)
 	if request != nil {

@@ -51,7 +51,7 @@ func timeoutMechanicsSettings(s *Session, transaction, idleTransaction, idleSess
 }
 
 func timeoutMechanicsRef(s *Session, id ids.TxID) ids.TxRef {
-	return s.Engine().catalog.Domain.Tx(s.Token(), id, 0, s.transactions, 0)
+	return engineOf(s).catalog.Domain.Tx(s.Token(), id, 0, s.transactions, 0)
 }
 
 func TestSessionTimeoutGenerationMechanics(t *testing.T) {
@@ -355,7 +355,7 @@ func TestSessionTimeoutNoBirthFinishMechanics(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer op.Done()
-			scope, err := s.Engine().StartStatement(op)
+			scope, err := engineOf(s).StartStatement(op)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -465,7 +465,7 @@ func TestSessionTimeoutResetAllMechanics(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	ref, err := s.Engine().Begin(op, TxOptions{})
+	ref, err := engineOf(s).Begin(op, TxOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -477,7 +477,7 @@ func TestSessionTimeoutResetAllMechanics(t *testing.T) {
 	s.mu.Unlock()
 
 	// Invoke the existing batch mutation seam, not a SQL parser/response test.
-	if _, err := s.Engine().executeSetting(op, &parser.Reset{All: true}, 0, false); err != nil {
+	if _, err := engineOf(s).executeSetting(op, &parser.Reset{All: true}, 0, false); err != nil {
 		t.Fatal(err)
 	}
 	s.mu.Lock()
@@ -500,7 +500,7 @@ func TestSessionTimeoutResetAllMechanics(t *testing.T) {
 		}
 	}
 	s.settings.mu.Unlock()
-	if _, err := s.Engine().Rollback(op, ref); err != nil {
+	if _, err := engineOf(s).Rollback(op, ref); err != nil {
 		t.Fatal(err)
 	}
 	s.mu.Lock()

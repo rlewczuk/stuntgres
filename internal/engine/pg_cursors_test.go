@@ -15,7 +15,7 @@ import (
 
 func TestPGCursorsSource(t *testing.T) {
 	s := cursorUnitSetup(t)
-	e := s.Engine()
+	e := engineOf(s)
 	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.CursorsOID})
 	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
 	empty, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{cursors: s.cursors}}, capturePGCursors)

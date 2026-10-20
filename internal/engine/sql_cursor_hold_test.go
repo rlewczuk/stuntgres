@@ -44,7 +44,7 @@ func TestSQLCursorHoldOwner(t *testing.T) {
 		t.Fatal("close mutates detached batches")
 	}
 	sessionSQL(t, s, "DECLARE fenced CURSOR WITH HOLD FOR SELECT 7")
-	if err := s.Engine().Reset(context.Background()); err != nil {
+	if err := engineOf(s).Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	result, err := cursorUnitExecute(t, s, context.Background(), "FETCH ALL FROM fenced")
@@ -245,10 +245,10 @@ func TestSQLCursorHoldAuthority(t *testing.T) {
 						return sqltype.Value{}, errors.New("projection holds transaction mutex")
 					}
 					scope.owner.mu.Unlock()
-					if !s.Engine().mu.TryLock() {
+					if !engineOf(s).mu.TryLock() {
 						return sqltype.Value{}, errors.New("projection holds engine mutex")
 					}
-					s.Engine().mu.Unlock()
+					engineOf(s).mu.Unlock()
 					if !s.mu.TryLock() {
 						return sqltype.Value{}, errors.New("projection holds session mutex")
 					}
@@ -278,7 +278,7 @@ func TestSQLCursorHoldAuthority(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					result, err := s.Engine().Commit(op, ref)
+					result, err := engineOf(s).Commit(op, ref)
 					op.Done()
 					if err != nil || !result.Committed {
 						t.Fatal(result, err)

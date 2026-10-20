@@ -24,7 +24,7 @@ func uniqueAsyncUnit(t *testing.T, s *Session, query string) (<-chan deleteOutco
 		op, _, err := s.AcquireCommand(ctx)
 		var result Result
 		if err == nil {
-			result, err = s.Engine().Execute(op, ast, 0, nil)
+			result, err = engineOf(s).Execute(op, ast, 0, nil)
 			err = op.CommandError(err)
 			op.Done()
 		}

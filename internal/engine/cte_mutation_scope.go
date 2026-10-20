@@ -128,7 +128,7 @@ func (s *StatementScope) acquireCTEMutations(statement parser.Statement, execute
 	if err := s.acquireViewSources(); err != nil {
 		return err
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	auth, err := e.statementAuthorizationLocked(s.op, statement)

@@ -41,7 +41,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	if op == nil {
 		stage = e.restoreStage()
 	} else {
-		stage = op.session.Engine()
+		stage = engineOf(op.session)
 	}
 	candidate := catalog.CloneState(next)
 	stage.mu.Lock()

@@ -344,7 +344,7 @@ func (s *StatementScope) acquireDefinitionProviders(stage *CatalogStage) error {
 		}
 		return 0
 	})
-	e := s.op.session.Engine()
+	e := s.engine()
 	for _, ref := range refs {
 		mode := lock.AccessShare
 		for _, descriptor := range stage.Descriptors() {

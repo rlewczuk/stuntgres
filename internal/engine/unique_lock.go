@@ -55,7 +55,7 @@ func uniqueKeyHash(ctx context.Context, ordering indexOrdering, grouping []sqlty
 }
 
 func (s *StatementScope) acquireUnique(ref ids.ObjectRef, bound *uniqueBoundKey, key []sqltype.Value) error {
-	e := s.op.session.Engine()
+	e := s.engine()
 	resource, unpin, err := e.pinUniqueKey(s.op.Context(), s.ticket, ref, bound.ordering, bound.grouping, key)
 	if err != nil {
 		return err

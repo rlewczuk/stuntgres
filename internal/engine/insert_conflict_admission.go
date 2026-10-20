@@ -24,7 +24,7 @@ func (s *StatementScope) admitInsertRow(ref ids.ObjectRef, candidate *indexWrite
 
 func (s *StatementScope) admitInsertConflictRow(ref ids.ObjectRef, candidate *indexWriteCandidate, prefix indexWriteBatch, purpose indexProbePurpose) (bool, error) {
 	action := s.insertConflict
-	manager := s.op.session.Engine().locks
+	manager := s.engine().locks
 	if action.statementKeys == nil {
 		action.statementKeys = manager.CheckpointUnique(s.ticket, nil)
 	}
@@ -83,7 +83,7 @@ func (w *WriteStage) applyInsertValidated(ref ids.ObjectRef, rows indexWriteBatc
 }
 func (s *StatementScope) revalidateConflictRows(ref ids.ObjectRef, rows indexWriteBatch) (indexWriteBatch, error) {
 	prior := s.uniqueBinding
-	s.op.session.Engine().locks.RestoreUnique(s.ticket, s.insertConflict.statementKeys)
+	s.engine().locks.RestoreUnique(s.ticket, s.insertConflict.statementKeys)
 	s.uniqueBinding = nil
 	binding, err := s.bindUniqueWrite(ref)
 	if err != nil {
@@ -97,7 +97,7 @@ func (s *StatementScope) revalidateConflictRows(ref ids.ObjectRef, rows indexWri
 		}
 	}
 	evaluation := exec.Context{EvalStatement: exec.EvalStatement{Context: s.op.Context(), Input: s.input, Output: s.output}}
-	if err := s.insertConflict.selectArbiters(&evaluation, binding.parent, s.op.session.Engine().catalog.read(binding.catalog)); err != nil {
+	if err := s.insertConflict.selectArbiters(&evaluation, binding.parent, s.engine().catalog.read(binding.catalog)); err != nil {
 		return indexWriteBatch{}, err
 	}
 	accepted := rows.prefix(0)

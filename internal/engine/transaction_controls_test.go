@@ -16,7 +16,7 @@ func controlsExecute(t *testing.T, s *Session, q string) error {
 	t.Helper()
 	op := transactionOperation(t, s)
 	defer op.Done()
-	r, err := s.Engine().Execute(op, statement(t, q), 0, nil)
+	r, err := engineOf(s).Execute(op, statement(t, q), 0, nil)
 	if r.Rows != nil {
 		r.Rows.Close()
 	}
@@ -29,7 +29,7 @@ func controlsDescribe(t *testing.T, s *Session, q string) error {
 	t.Helper()
 	op := transactionOperation(t, s)
 	defer op.Done()
-	d, err := s.Engine().Describe(op, statement(t, q))
+	d, err := engineOf(s).Describe(op, statement(t, q))
 	if err == nil && (d.Parameters.Count != 0 || len(d.Results) != 0) {
 		t.Fatal(d)
 	}
@@ -45,7 +45,7 @@ func controlsAbort(t *testing.T, s *Session) {
 	t.Helper()
 	op := transactionOperation(t, s)
 	defer op.Done()
-	_, err := s.Engine().Execute(op, statement(t, "INSERT INTO t VALUES(NULL)"), 0, nil)
+	_, err := engineOf(s).Execute(op, statement(t, "INSERT INTO t VALUES(NULL)"), 0, nil)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "23502" {
 		t.Fatal(err)

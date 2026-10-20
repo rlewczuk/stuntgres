@@ -320,7 +320,7 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 			return Result{}, err
 		}
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	if !s.op.commandAdmission {
 		s.op.snapshotNoticeThreshold()
 	}

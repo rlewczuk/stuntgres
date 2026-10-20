@@ -58,7 +58,7 @@ func partitionCheckReplayActions(raw *parser.AlterTable) bool {
 
 // Callers hold Engine.mu, as do the existing hierarchy admission guards.
 func partitionConstraintReplayImport(e *Engine, op *Operation, auth AuthorizationView) bool {
-	if e == nil || op == nil || op.self != op || op.session == nil || op.session.Engine() != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() {
+	if e == nil || op == nil || op.self != op || op.session == nil || engineOf(op.session) != e || e.importTargets == nil || auth.engine != e || auth.session != op.session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() {
 		return false
 	}
 	if err := e.validateOperation(op); err != nil {

@@ -113,7 +113,7 @@ func (c *Connector) Connect(ctx context.Context) (driver.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	native := &conn{session: session, noticeHandler: c.noticeHandler}
+	native := &conn{engine: c.engine, session: session, noticeHandler: c.noticeHandler}
 	native.cleanup = runtime.AddCleanup(native, cleanupSession, cleanupCapsule{session})
 	return native, nil
 }

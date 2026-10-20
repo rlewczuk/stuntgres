@@ -22,7 +22,7 @@ func batchUnitStart(t *testing.T, s *Session, ctx context.Context) *batchUnitMes
 	if err != nil {
 		t.Fatal(err)
 	}
-	scope, err := s.Engine().StartStatement(op)
+	scope, err := engineOf(s).StartStatement(op)
 	if err != nil {
 		op.Done()
 		t.Fatal(err)

@@ -48,7 +48,7 @@ func roleSwitchUnitSession(t *testing.T) (*Engine, *Session) {
 }
 func roleSwitchAssert(t *testing.T, s *Session, before authorization.RoleState, name string) {
 	t.Helper()
-	role, ok := s.Engine().Roles().Lookup(name)
+	role, ok := engineOf(s).Roles().Lookup(name)
 	if !ok {
 		t.Fatal(name)
 	}
@@ -67,7 +67,7 @@ func roleSwitchUnitExec(t *testing.T, s *Session, q string) error {
 		return err
 	}
 	defer op.Done()
-	_, err = s.Engine().Execute(op, statement(t, q), 0, nil)
+	_, err = engineOf(s).Execute(op, statement(t, q), 0, nil)
 	return err
 }
 

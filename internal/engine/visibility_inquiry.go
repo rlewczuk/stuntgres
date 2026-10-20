@@ -39,7 +39,7 @@ func (h *statementHost) VisibilityInquiry(kind functions.VisibilityInquiryKind, 
 		return sqltype.Value{}, err
 	}
 	if kind == functions.ImportSystemCollationsInquiry {
-		engine := scope.op.session.Engine()
+		engine := scope.engine()
 		engine.mu.Lock()
 		defer engine.mu.Unlock()
 		auth, err := scope.namespaceAuthorizationLocked(engine)

@@ -19,7 +19,7 @@ func exclusionCommitWorker(t *testing.T, s *Session, ref ids.TxRef) <-chan error
 		defer close(finished)
 		op, _, err := s.AcquireCommand(ctx)
 		if err == nil {
-			_, err = s.Engine().Commit(op, ref)
+			_, err = engineOf(s).Commit(op, ref)
 			err = op.CommandError(err)
 			op.Done()
 		}

@@ -68,7 +68,7 @@ func (s *StatementScope) revalidateIndexRows(ref ids.ObjectRef, old []storage.Ro
 		}
 	}
 	if prior != nil {
-		e := s.op.session.Engine()
+		e := s.engine()
 		e.mu.Lock()
 		auth, captureErr := s.writeAuthorizationLocked(e)
 		if captureErr == nil && s.foreignActionAuth == nil {
@@ -152,7 +152,7 @@ func (s *StatementScope) readmitProgramsAfterWait() error {
 	if len(s.domains.preparedChecks) == 0 && len(s.routinePrograms) == 0 && len(s.indexBindings) == 0 {
 		return nil
 	}
-	e := s.op.session.Engine()
+	e := s.engine()
 	e.mu.Lock()
 	err := s.validateLockedRelation(e)
 	var auth AuthorizationView

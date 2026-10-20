@@ -18,7 +18,7 @@ func cteDMLUnitScope(t *testing.T, session *Session, ctx context.Context) (*Stat
 	if err != nil {
 		t.Fatal(err)
 	}
-	scope, err := session.Engine().StartStatement(op)
+	scope, err := engineOf(session).StartStatement(op)
 	if err != nil {
 		op.Done()
 		t.Fatal(err)
