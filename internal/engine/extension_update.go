@@ -8,7 +8,6 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -34,15 +33,27 @@ func (e *Engine) stageExtensionUpdateLocked(scope *StatementScope, s *parser.Alt
 	if err != nil {
 		return nil, err
 	}
-	address := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: s.Name.Text})
-	old, exists := auth.Catalog.Extension(address)
+	staged, err := stageExtensionUpdate(&extensionHost{engine: e, op: scope.op, auth: auth}, auth, auth.View, s)
+	if err != nil || staged == nil {
+		return nil, err
+	}
+	return stageOf(staged)
+}
+
+// stageExtensionUpdate stages ALTER EXTENSION UPDATE: the owner check, the
+// target version and its update path, the trust and CREATE checks, then the
+// replaced extension row and the update actions along the path. It returns
+// nil without error when the target version is already installed.
+func stageExtensionUpdate(host extension.Host, auth extension.Authority, view access.View, s *parser.AlterExtensionUpdate) (extension.Stage, error) {
+	address := view.Catalog.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: s.Name.Text})
+	old, exists := view.Catalog.Extension(address)
 	if !exists {
 		return nil, sqlError("42704", fmt.Sprintf(`extension "%s" does not exist`, s.Name.Text))
 	}
-	if err := auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(auth.Catalog.Epoch(), address), OwnerOnly: true, OwnerNoun: "extension"}); err != nil {
+	if err := auth.Check(access.Requirement{Object: view.Owner.Domain.Ref(view.Catalog.Epoch(), address), OwnerOnly: true, OwnerNoun: "extension"}); err != nil {
 		return nil, err
 	}
-	implementation := e.catalog.Extensions[old.Name()]
+	implementation := view.Owner.Extensions[old.Name()]
 	if implementation == nil {
 		return nil, fmt.Errorf("stuntgres: installed extension has no implementation")
 	}
@@ -57,14 +68,14 @@ func (e *Engine) stageExtensionUpdateLocked(scope *StatementScope, s *parser.Alt
 		return nil, err
 	}
 	if old.Version == version {
-		scope.op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`version "%s" of extension "%s" is already installed`, version, old.Name())})
+		host.Notice(sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`version "%s" of extension "%s" is already installed`, version, old.Name())})
 		return nil, nil
 	}
 	path := implementation.Versions().Path(old.Version, version)
 	if path == nil {
 		return nil, sqlError("22023", fmt.Sprintf(`extension "%s" has no update path from version "%s" to version "%s"`, old.Name(), old.Version, version))
 	}
-	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
+	actor, err := view.Roles.Descriptor(view.State.CurrentUser)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +84,7 @@ func (e *Engine) stageExtensionUpdateLocked(scope *StatementScope, s *parser.Alt
 		if !control.Trusted {
 			return nil, sqlError("42501", fmt.Sprintf(`permission denied to update extension "%s"`, old.Name()))
 		}
-		rights, err := auth.Effective(e.catalog.Domain.Ref(auth.Catalog.Epoch(), catalog.CurrentDatabaseAddress), false)
+		rights, err := auth.Effective(view.Owner.Domain.Ref(view.Catalog.Epoch(), catalog.CurrentDatabaseAddress), false)
 		if err != nil {
 			return nil, err
 		}
@@ -83,24 +94,22 @@ func (e *Engine) stageExtensionUpdateLocked(scope *StatementScope, s *parser.Alt
 	}
 	owner := actor.Ref
 	if control.Superuser && !actor.Superuser {
-		owner = e.roles.domain.Principal(10)
+		owner = host.BootstrapSuperuser()
 	}
 	ext := *old
 	// The selected stock transition creates one new member. Reserve that slot
 	// while detaching, so the typed action needs no second slice allocation.
 	ext.Members = make([]ids.ObjectAddress, len(old.Members), len(old.Members)+1)
 	copy(ext.Members, old.Members)
-	ext.ObjectRevision, err = e.catalog.revisionLocked()
+	ext.ObjectRevision, err = host.Revision()
 	if err != nil {
 		return nil, err
 	}
-	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, scope.op.Session)
-	stage.extensionNamespace = ext.TargetNamespace
+	stage := host.BeginStage(ext.TargetNamespace)
 	if err := stage.Replace(&ext); err != nil {
 		return nil, err
 	}
-	if err := extension.StagePath(scope.op.Context(), &extensionHost{engine: e, auth: auth, stage: stage}, implementation, &ext, owner, path); err != nil {
+	if err := extension.StagePath(host.Context(), stage, implementation, &ext, owner, path); err != nil {
 		return nil, err
 	}
 	return stage, nil

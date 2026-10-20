@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
@@ -20,32 +21,54 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *session.Operatio
 	if e.importTargets == nil {
 		return fmt.Errorf("stuntgres: invalid extension owner import authority")
 	}
-	seen := map[ids.ObjectAddress]bool{}
 	candidate := catalog.CloneState(e.catalog.state)
 	roles := e.roles.read(e.catalog.owner(), e.catalog.read(candidate), e.roles.published)
+	ownersChanged, err := importExtensionOwnerRecords(ctx, candidate, roles, records)
+	if err != nil {
+		return err
+	}
+	if !ownersChanged {
+		return nil
+	}
+	// Ownership changes replace provider generations even when all SQL types are
+	// unchanged. Refresh stored CHECK/view/policy/default captures through the
+	// ordinary catalog expression remapper, not its type-only rename fast path.
+	if err := e.reownCatalogExpressions(candidate, nil, false); err != nil {
+		return err
+	}
+	e.catalog.state = candidate
+	return nil
+}
+
+// importExtensionOwnerRecords applies Restore's extension owner records to
+// candidate, a private clone. Each record must name an installed extension
+// once, with its version, schema and installation owner; each member must
+// belong to it. It reports whether any member owner changed.
+func importExtensionOwnerRecords(ctx context.Context, candidate *catalog.State, roles authorization.Read, records []extension.OwnerRecord) (bool, error) {
+	seen := map[ids.ObjectAddress]bool{}
 	ownersChanged := false
 	for _, record := range records {
 		if err := ctx.Err(); err != nil {
-			return err
+			return false, err
 		}
 		a := candidate.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: record.Name})
 		ext, ok := candidate.Extension(a)
 		if !ok || seen[a] || ext.Version != record.Version {
-			return fmt.Errorf("stuntgres: invalid extension owner import target")
+			return false, fmt.Errorf("stuntgres: invalid extension owner import target")
 		}
 		seen[a] = true
 		ns, ok := candidate.Namespace(ext.TargetNamespace)
 		if !ok || ns.Name() != record.Schema {
-			return fmt.Errorf("stuntgres: mismatching extension owner namespace")
+			return false, fmt.Errorf("stuntgres: mismatching extension owner namespace")
 		}
 		owner, ok := roles.Lookup(record.Owner)
 		if !ok || owner.Ref != ext.Owner {
-			return fmt.Errorf("stuntgres: mismatching extension installation owner")
+			return false, fmt.Errorf("stuntgres: mismatching extension installation owner")
 		}
 		for _, member := range record.Members {
 			owner, ok := roles.Lookup(member.Owner)
 			if !ok {
-				return fmt.Errorf("stuntgres: extension member owner %q does not exist", member.Owner)
+				return false, fmt.Errorf("stuntgres: extension member owner %q does not exist", member.Owner)
 			}
 			class := ids.ProcedureClassID
 			if member.Kind == "dictionary" {
@@ -58,14 +81,14 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *session.Operatio
 			if member.Kind == "procedure" && (record.Name == "intarray" && member.Name == "bqarr_out" || record.Name == "cube" && member.Name == "cube_out") {
 				base, ok := candidate.Type(ext.Members[0])
 				if !ok || record.Name == "intarray" && !base.SQLType.IsQueryInt() || record.Name == "cube" && !base.SQLType.IsCube() {
-					return fmt.Errorf("stuntgres: missing installed owner type")
+					return false, fmt.Errorf("stuntgres: missing installed owner type")
 				}
 				signature = string(extension.QueryIntSignature(base.SQLType.ID()))
 			}
 			a := candidate.NameAddress(ids.NameKey{ClassID: class, Namespace: ext.TargetNamespace, Name: member.Name, Signature: signature})
 			d := candidate.Get(a)
 			if d == nil || extension.Membership(d) != ext.Address() {
-				return fmt.Errorf("stuntgres: invalid extension ownership member")
+				return false, fmt.Errorf("stuntgres: invalid extension ownership member")
 			}
 			switch d := d.(type) {
 			case *catalog.Type:
@@ -76,7 +99,7 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *session.Operatio
 					arrayAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(d.Array)}
 					array, ok := candidate.Type(arrayAddress)
 					if !ok || !array.SQLType.IsArray() || array.SQLType.Element() != d.SQLType {
-						return fmt.Errorf("stuntgres: invalid owned intarray array")
+						return false, fmt.Errorf("stuntgres: invalid owned intarray array")
 					}
 					mapped := *array
 					mapped.Owner = owner.Ref
@@ -98,19 +121,9 @@ func (e *Engine) importExtensionOwners(ctx context.Context, op *session.Operatio
 					ownersChanged = true
 				}
 			default:
-				return fmt.Errorf("stuntgres: ownerless extension metadata member")
+				return false, fmt.Errorf("stuntgres: ownerless extension metadata member")
 			}
 		}
 	}
-	if !ownersChanged {
-		return nil
-	}
-	// Ownership changes replace provider generations even when all SQL types are
-	// unchanged. Refresh stored CHECK/view/policy/default captures through the
-	// ordinary catalog expression remapper, not its type-only rename fast path.
-	if err := e.reownCatalogExpressions(candidate, nil, false); err != nil {
-		return err
-	}
-	e.catalog.state = candidate
-	return nil
+	return ownersChanged, nil
 }

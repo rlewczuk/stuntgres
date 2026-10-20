@@ -2,12 +2,12 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -87,20 +87,32 @@ func (e *Engine) publishExtensionStage(scope *StatementScope, stage *CatalogStag
 }
 
 func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExtension) (*CatalogStage, error) {
-	op := scope.op
-	auth, err := e.authorizationLocked(op)
+	auth, err := e.authorizationLocked(scope.op)
 	if err != nil {
 		return nil, err
 	}
+	staged, err := stageExtensionCreate(&extensionHost{engine: e, op: scope.op, auth: auth}, auth, auth.View, s)
+	if err != nil || staged == nil {
+		return nil, err
+	}
+	return stageOf(staged)
+}
+
+// stageExtensionCreate stages CREATE EXTENSION: the existence and option
+// checks, the version path, the target namespace, the trust and CREATE
+// checks, then the extension row, the provider's base members and the update
+// actions along the path. It returns nil without error for a skipped IF NOT
+// EXISTS.
+func stageExtensionCreate(host extension.Host, auth extension.Authority, view access.View, s *parser.CreateExtension) (extension.Stage, error) {
 	key := ids.NameKey{ClassID: ids.ExtensionClassID, Name: s.Name.Text}
-	if auth.Catalog.NameAddress(key) != (ids.ObjectAddress{}) {
+	if view.Catalog.NameAddress(key) != (ids.ObjectAddress{}) {
 		if s.IfNotExists {
-			op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42710", Message: fmt.Sprintf(`extension "%s" already exists, skipping`, s.Name.Text)})
+			host.Notice(sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "42710", Message: fmt.Sprintf(`extension "%s" already exists, skipping`, s.Name.Text)})
 			return nil, nil
 		}
 		return nil, sqlError("42710", fmt.Sprintf(`extension "%s" already exists`, s.Name.Text))
 	}
-	implementation, ok := e.catalog.Extensions[s.Name.Text]
+	implementation, ok := view.Owner.Extensions[s.Name.Text]
 	installer, installable := implementation.(extension.Installer)
 	if !ok || !installable {
 		return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: fmt.Sprintf(`extension "%s" is not available`, s.Name.Text)}
@@ -133,12 +145,12 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	}
 	var namespace ids.ObjectAddress
 	if schema != nil {
-		namespace = auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: schema.Text})
+		namespace = view.Catalog.NameAddress(ids.NameKey{ClassID: ids.NamespaceClassID, Name: schema.Text})
 		if namespace == (ids.ObjectAddress{}) {
 			return nil, sqlError("3F000", fmt.Sprintf(`schema "%s" does not exist`, schema.Text))
 		}
 	} else {
-		path, _, pathErr := e.explicitPath(auth)
+		path, pathErr := host.CreationPath()
 		if pathErr != nil {
 			return nil, pathErr
 		}
@@ -147,15 +159,15 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 		}
 		namespace = path[0]
 	}
-	actor, err := auth.Roles.Descriptor(auth.State.CurrentUser)
+	actor, err := view.Roles.Descriptor(view.State.CurrentUser)
 	if err != nil {
 		return nil, err
 	}
-	if !actor.Superuser && !operationReplayOrZero(op).tableDestination {
+	if !actor.Superuser && !host.ReplayingTableDestination() {
 		if !registration.Trusted {
 			return nil, sqlError("42501", fmt.Sprintf(`permission denied to create extension "%s"`, s.Name.Text))
 		}
-		rights, err := auth.Effective(e.catalog.Domain.Ref(auth.Catalog.Epoch(), catalog.CurrentDatabaseAddress), false)
+		rights, err := auth.Effective(view.Owner.Domain.Ref(view.Catalog.Epoch(), catalog.CurrentDatabaseAddress), false)
 		if err != nil {
 			return nil, err
 		}
@@ -165,28 +177,25 @@ func (e *Engine) stageExtensionLocked(scope *StatementScope, s *parser.CreateExt
 	}
 	memberOwner := actor.Ref
 	if registration.Superuser && !actor.Superuser {
-		memberOwner = e.roles.domain.Principal(10)
+		memberOwner = host.BootstrapSuperuser()
 	}
-	oid, err := e.catalog.allocateOIDLocked()
+	oid, err := host.AllocateOID()
 	if err != nil {
 		return nil, err
 	}
-	rev, err := e.catalog.revisionLocked()
+	rev, err := host.Revision()
 	if err != nil {
 		return nil, err
 	}
 	ext := &catalog.Extension{ObjectAddress: ids.ObjectAddress{ClassID: ids.ExtensionClassID, ObjectID: oid}, ObjectRevision: rev, ObjectName: s.Name.Text, Version: path[0], TargetNamespace: namespace, Owner: actor.Ref}
-	stage := e.BeginCatalogStage(auth.Catalog)
-	stage.authorizeLocked(auth, op.Session)
-	stage.extensionNamespace = namespace
+	stage := host.BeginStage(namespace)
 	if err := stage.Create(ext); err != nil {
 		return nil, err
 	}
-	host := &extensionHost{engine: e, auth: auth, stage: stage}
-	if err := installer.Stage(host, ext, memberOwner); err != nil {
+	if err := installer.Stage(stage, ext, memberOwner); err != nil {
 		return nil, err
 	}
-	if err := extension.StagePath(op.Context(), host, implementation, ext, memberOwner, path); err != nil {
+	if err := extension.StagePath(host.Context(), stage, implementation, ext, memberOwner, path); err != nil {
 		return nil, err
 	}
 	return stage, nil
