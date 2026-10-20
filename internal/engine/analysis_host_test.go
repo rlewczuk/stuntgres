@@ -1,0 +1,56 @@
+package engine
+
+import (
+	"context"
+	"testing"
+
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/sqlstate"
+	"stuntgres/internal/sqltype"
+)
+
+// A binder built without an operation keeps the nil-operation semantics it
+// had before the host seam: no definition reader, no plan owner, no Restore
+// replay and no notices.
+func TestAnalysisHostWithoutOperation(t *testing.T) {
+	e := New()
+	host := e.analysisHost(nil)
+	if d := host.Definition(); d != nil {
+		t.Fatalf("Definition() = %#v, want nil", d)
+	}
+	if owner, generation, ok := host.PlanOwner(); ok || owner != (ids.SessionToken{}) || generation != 0 {
+		t.Fatalf("PlanOwner() = %v, %d, %v; want zero, 0, false", owner, generation, ok)
+	}
+	if host.ReplayInsertAuthority() {
+		t.Fatal("ReplayInsertAuthority() = true without an operation")
+	}
+	host.EmitWarning(sqlstate.Error{Code: "01000", Message: "dropped"})
+	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
+	got, ok := b.host.(*bindingHost)
+	if !ok || got.engine != e || got.op != nil {
+		t.Fatalf("binder host = %#v, want the engine and no operation", b.host)
+	}
+}
+
+func TestAnalysisHostWithOperation(t *testing.T) {
+	e := New()
+	op, cleanup, err := testOperation(e, context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cleanup()
+	host := e.analysisHost(op)
+	owner, generation, ok := host.PlanOwner()
+	if !ok || owner != op.session.token || generation != op.session.discardPlansGeneration {
+		t.Fatalf("PlanOwner() = %v, %d, %v; want the session's token and generation", owner, generation, ok)
+	}
+	warning := sqlstate.Error{Code: "01000", Message: "kept"}
+	host.EmitWarning(warning)
+	if notices := op.DetachNotices(); len(notices) != 1 || notices[0].Message != "kept" {
+		t.Fatalf("notices = %#v, want the warning", notices)
+	}
+	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
+	if got, ok := b.host.(*bindingHost); !ok || got.engine != e || got.op != op {
+		t.Fatalf("binder host = %#v, want the engine and the operation", b.host)
+	}
+}

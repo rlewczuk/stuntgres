@@ -925,6 +925,7 @@ type expressionPolicy struct {
 // and op with a host seam); dependencies is the statement's dependency
 // manifest. Everything else lives in the value groups of binder_groups.go.
 type expressionBinder struct {
+	host         analyzeHost
 	engine       *Engine
 	ctx          context.Context
 	op           *Operation
@@ -946,7 +947,7 @@ type expressionBinder struct {
 
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
 	captureEnumOperationSafety(op, &input)
-	b := &expressionBinder{engine: e, ctx: ctx, params: parameterState{parameters: make(map[int]sqltype.Usage)}, input: input, op: op, expected: expected}
+	b := &expressionBinder{host: e.analysisHost(op), engine: e, ctx: ctx, params: parameterState{parameters: make(map[int]sqltype.Usage)}, input: input, op: op, expected: expected}
 	if expected != nil {
 		b.seedParameters(expected.Parameters.Types)
 		if expected.refreshTemporals {
