@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `11715935b`. The later-wave plans
+Last verified against `master` at `12d7ef8b9`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -17,9 +17,8 @@ as another broad item (§8).
 
 - **Step 11 `exec`** — 11c `exec` created and executor moved (item 37)
   **broad**; 11a and 11b are done.
-- **Step 12 `analyze`** — 12c refine, then host seam (item 39); 12b and 10c
-  are done.
 
+Step 12's 12a–12c are done; 12d (item 40) waits for 11c (item 37).
 Steps 1, 2 and 4–10 and `access` are done. Step 13's in-place untangling (13a,
 13b) is done; 13c (item 43) waits for 11c (item 37) and 12d (item 40). Step 16
 Part A (16a, 16b) is done; 16c (item 50) waits for 13d (item 44). Step 17 Part
@@ -272,7 +271,9 @@ A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
   - [x] 12b — `expressionBinder` fields grouped *(broad)* (`b1dc47647`,
     `7b8cd2e23`, `449bd93c3`, `807bccc88`, `fdd30aa67`, then the docs commit)
     *(racecheck/finalcheck skipped at user request)*
-  - [ ] 12c — Refined; host seam in place
+  - [x] 12c — Refined; host seam in place (refine `4c5fdc26c`; `fcd02ccd9`,
+    `befafa13a`, `30378dd42`, `9aed67fdb`, `bc537ad6e`, then the docs commit)
+    *(racecheck/finalcheck skipped at user request)*
   - [ ] 12d — `analyze` created and binding moved (several sessions)
     *(broad)*
   - [ ] 12e — Aliases removed *(broad)*
@@ -486,8 +487,11 @@ in the prompt file's Status section.
     request; preparation callbacks use one stateless value, not the host
 37. [ ] Exec 11c — [exec](ENGINE-SPLIT-exec.md) 11c · needs 36 · **broad**
 38. [ ] Exec 11d — [exec](ENGINE-SPLIT-exec.md) 11d · needs 37 · **broad**
-39. [ ] Analyze 12c (refine, then host seam) —
-    [analyze](ENGINE-SPLIT-analyze.md) 12c · needs 21, 33
+39. [x] Analyze 12c (refine, then host seam) —
+    [analyze](ENGINE-SPLIT-analyze.md) 12c · needs 21, 33 · (refine
+    `4c5fdc26c`; `fcd02ccd9` … `bc537ad6e`, then the docs commit) · selected
+    dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
+    user request
 40. [ ] Analyze 12d (several sessions) — [analyze](ENGINE-SPLIT-analyze.md)
     12d · needs 39, 37 · **broad**
 41. [ ] Analyze 12e — [analyze](ENGINE-SPLIT-analyze.md) 12e · needs 40 ·

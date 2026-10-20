@@ -270,7 +270,8 @@ all read other groups too.
   `indexExpressionBinder` use the engine only to call each other and a few
   services. They are ported in place to functions that reach the services
   through the binder's host; `bindInsertDefaults` takes the `*catalog.Owner`
-  instead (its only engine use).
+  instead (its only engine use). `indexExpressionBinder` stays an engine
+  constructor behind the host (see the 12c result).
 - **Indirect paths, left for 12d.** `AuthorizationView` (it holds `engine` and
   `session`; the binder keeps `query.auth` and passes it to every resolution
   service); the captured resolver inputs (`capturedRegtypeInput`,
@@ -293,7 +294,7 @@ all read other groups too.
   decision 8, like 11b's preparation value). A nil `op` keeps today's nil-op
   semantics. Every host method is called with `Engine.mu` held and never
   takes or releases it.
-- **`analyzeHost` methods (35).**
+- **`analyzeHost` methods (35 planned, 37 built; see the 12c result).**
 
   | Group | Methods | Today |
   |---|---|---|
@@ -317,6 +318,37 @@ all read other groups too.
   the INSERT source, conflict and RETURNING binders, `bindTypedColumns`,
   `describeInheritance`, `indexExpressionBinder`), split out of their mixed
   DML and DDL files.
+
+**12c result (done).** Built at `12d7ef8b9`. The binder reaches engine,
+session and operation state only through `analyzeHost`
+(`analysis_host.go`); `expressionBinder` has no `engine` or `op` field.
+
+- **Host methods (37).** The 35 of the refine plus two found while porting:
+  `EmitNotice` (`describeInheritance` emits NOTICE-level merge messages) and
+  `IndexExpressionBinder`. The latter is a deviation: the ON CONFLICT
+  inference binder was built from `shared.op.Context()`, which follows COPY
+  input and can differ from the binder's `ctx`, so `indexExpressionBinder`
+  stays an engine constructor (it also serves index DDL) and the host builds
+  it under the operation's current context.
+- **Adapter.** `bindingHost{engine, op}`. A session operation carries its own
+  host value (`Operation.analysis`, set once at creation) and the engine one
+  for binding without an operation (`Engine.analysis`; the builtin domain
+  CHECK seeds at startup), so `Engine.analysisHost(op)` returns a pointer and
+  binding allocates no host; a copied operation gets a fresh host. A nil operation keeps the old nil-op behavior: no definition
+  reader, notices dropped, no plan owner (`PlanOwner` not ok) and no Restore
+  replay.
+- **Entry points.** `describe`, `describeWithRule` and `describeWithFormals`
+  are functions taking `(ctx, host, ...)`; the operation parameter is gone.
+  `describeScoped` stays an engine method. `newExpressionBinder(ctx, e,
+  input, op, expected)` is the root wrapper over `newHostedBinder(ctx, host,
+  input, expected)`; enum-safety capture now writes into the binder's own
+  input (passing a parameter's address to a host method made it escape).
+- **Ported in place.** `bindMutationCommand`, `bindInsertInput`,
+  `bindInsertReturning`, `bindInsertConflict`, `bindInsertConflictUpdate`,
+  `bindInsertSource`, `bindMerge`, `bindUpdate`, `bindUpdateAssignments`,
+  `prepareUpdateAssignments`, `bindUpdateAssignmentSource` are functions
+  using the binder's host; `bindTypedColumns` and `describeInheritance` take
+  the host; `bindInsertDefaults` takes the `*catalog.Owner`.
 
 ### 12d — Move, area by area (broad; several sessions)
 
@@ -417,7 +449,22 @@ in §8.3 pass.
   boundaries and MERGE repeatable read failed, as on `master`) and
   quickcheck passed; racecheck and finalcheck skipped at user request.
   Startup bench unchanged (5,100 allocs/op).
-- [ ] 12c — Refined; host seam in place
+- [x] 12c — Refined; host seam in place (refine `4c5fdc26c`; `fcd02ccd9`,
+  `befafa13a`, `30378dd42`, `9aed67fdb`, `bc537ad6e`, then the docs commit).
+  Added `analysis_host_test.go` (nil-op semantics, host reuse, constructor
+  wiring). Adapted mechanically, no assertion changed: 55 engine test files
+  call `describe(ctx, e.analysisHost(op), ...)`; 21 read the binder's
+  operation or engine through the test helpers `binderOperation` and
+  `binderEngine`; five binder literals key `host` instead of `engine`;
+  `enum_retained_test.go` keeps its deliberate nil engine as `(*Engine)(nil)`.
+  No test moved or deleted. Targeted engine units, the selected reference
+  tests in quick and real 18.6 modes (only the known `/postgres` oracle drift
+  in DELETE RETURNING boundaries and MERGE repeatable read failed, as on
+  `master`), quickcheck and `make deps` passed; racecheck and finalcheck
+  skipped at user request. Startup bench: 855–1,221 µs/op and 5,014
+  allocs/op after (master 870–1,116 µs/op, 5,014 allocs; timing is noisy on
+  both); a throwaway probe of four statements showed identical allocations
+  per execution before and after.
 - [ ] 12d — `analyze` created and binding moved (sessions: binding types,
   expression core, query/FROM/CTE, aggregates/windows, DML targets)
 - [ ] 12e — Aliases removed
@@ -429,6 +476,18 @@ Notes for later steps:
 - 12c: the host seam replaces only `engine` and `op`; `ctx`, `expected`,
   `input` and `dependencies` stay as statement inputs and output. The
   groups need no host: no group type holds `*Engine` or `*Operation`.
+- 12d: host signatures still name engine types that `analyze` cannot import
+  as they are: `AuthorizationView` (nearly every method), `definitionReader`,
+  `namespaceSelection`, `lookupKind`, `capturedOperatorInput`,
+  `capturedRegtypeInput`. The first 12d session
+  settles the authority representation; the captured inputs can be returned
+  as their `sqltype` interfaces where the binder only stores them.
+- 12d: `newHostedBinder` is the analyze-side constructor; the root keeps
+  `newExpressionBinder` and `Engine.analysisHost`. `IndexExpressionBinder`
+  returns an `*expressionBinder`, so the root must name the moved type.
+- 12d area 5: the statement-kind binders ported here sit in mixed files
+  (`update*.go`, `merge.go`, `insert_*.go`, `typed_table.go`,
+  `table_inheritance.go`); split their binder halves out first.
 - 12d: `binder_groups.go` and `binding_groups.go` move together in the first
   session (binding types). The `binderfields` tool (12b) and `bindsplit`
   (12a) rewrite selectors and literals by field object and are the model for

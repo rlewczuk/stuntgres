@@ -1068,9 +1068,13 @@ the type features (composite, enum and range binding).
   clause, grouping and window, query scope and CTE state, reusing the 12a
   capture types.
   Done; the final layout is in the prompt file.
-- **12c — refine, then host seam** (pattern 4): cut `expressionBinder.engine`
-  (42 uses in 18 files) and `op` (35 uses in 12 files) into an
-  `analyzeHost` interface. Decide whether constant evaluation imports `exec`.
+- **12c — refine, then host seam** (pattern 4). Done: an `analyzeHost`
+  interface (37 methods), implemented by the root adapter `bindingHost`
+  (engine and operation), replaces `expressionBinder.engine` and `op`;
+  `describe` takes the host and the binder-side statement-kind binders became
+  functions on it. `analyze` imports `exec` only for scope-free constant
+  folding; domain literal input goes through the host and preflight stays in
+  the engine.
 
 **Stays in the engine** until their features move: rule rewriting, view and
 policy capture consumers, materialized snapshots, and statement dispatch.
@@ -1250,7 +1254,9 @@ These packages get prompt files after the steps above. Each needs `session`
    with one compile-time assertion per consumer. Interfaces stay per
    consumer, so none becomes a service locator; lock contracts and nil-scope
    handling live in one place; the public `StatementScope` gains no host
-   methods.
+   methods. Two scope-free exceptions: 11b's stateless `execPreparation`
+   value, and 12c's `bindingHost` over the engine and operation, because
+   binders also run without a scope (DDL, defaults, checks, bootstrap).
 9. **Where `Eval` lives.** Step 10 keeps node types and `Eval` in `plan`,
    with engine state behind a node runtime capability; the alternative is to
    keep `Eval` for frame-reading nodes in `exec`. Settled in 10b: `Eval`
@@ -1290,7 +1296,7 @@ package-specific scope. This section holds the rules every session follows.
 | 9 | [`ENGINE-SPLIT-pgcatalog.md`](ENGINE-SPLIT-pgcatalog.md) | 5, B4; 8b for 9b | done (9a in place, 9b package created and producers moved, 9c aliases removed; racecheck skipped at user request) |
 | 10 | [`ENGINE-SPLIT-plan.md`](ENGINE-SPLIT-plan.md) | 2, 3 F1, 5 | done (10a–10d): `plan` created, IR, node types and installed extension nodes moved, aliases removed (racecheck/finalcheck skipped by user) |
 | 11 | [`ENGINE-SPLIT-exec.md`](ENGINE-SPLIT-exec.md) | 10c, 13a | 11a refined (host list, move set, decisions 8 and 11); 11b host seam in place (racecheck/finalcheck skipped at user request); 11c–11d planned |
-| 12 | [`ENGINE-SPLIT-analyze.md`](ENGINE-SPLIT-analyze.md) | 12a–12b: —; 12c: 10c | 12a–12b done (racecheck/finalcheck skipped at user request); 12c–12e planned |
+| 12 | [`ENGINE-SPLIT-analyze.md`](ENGINE-SPLIT-analyze.md) | 12a–12b: —; 12c: 10c | 12a–12c done (12c: analyze host seam; racecheck/finalcheck skipped at user request); 12d–12e planned |
 | 13 | [`ENGINE-SPLIT-session.md`](ENGINE-SPLIT-session.md) | 13a–13b: —; 13c: 11c, 12d, 8b | 13a and 13b done (statement scope slots; operation, journal, stage and owner slots; racecheck/finalcheck skipped at user request); 13c–13e planned |
 | 14 | [`ENGINE-SPLIT-routine.md`](ENGINE-SPLIT-routine.md) | A: `PG18-ROUTINE-CORE` merged, 14b also the F3 aliases item of step 3; B: 13d | 14a done in place, 14b `routine` created and clean set moved (racecheck skipped at user request); 14c–14d planned |
 | 15 | [`ENGINE-SPLIT-typedef.md`](ENGINE-SPLIT-typedef.md) | A: 14b; B: 13d | 15a done in place, 15b `typedef` created and clean set moved (racecheck/finalcheck skipped at user request); 15c–15d planned |
