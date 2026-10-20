@@ -74,7 +74,7 @@ func (s *StatementScope) prepareProtocolUtilityInput(types []sqltype.Usage) erro
 		err = e.captureEnumOperationInput(auth, &s.input)
 	}
 	if err == nil {
-		s.domainInputCatalog = auth.Catalog
+		s.domains.inputCatalog = auth.Catalog
 	}
 	e.mu.Unlock()
 	if err == nil {

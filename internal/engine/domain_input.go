@@ -88,3 +88,19 @@ func (b *expressionBinder) decodeLiteralInput(text string, typ *sqltype.Descript
 	input.DomainChecks = &eval
 	return owner.DecodeLockedDomainInput(b.ctx, typ, text, typmod, input)
 }
+
+// domainScope is the statement's domain group: the lazily built domain check
+// evaluation context, the prepared check programs and the input catalog.
+// Every statement execution sets the input catalog, so it is a value group
+// rather than a pointer slot.
+type domainScope struct {
+	evaluation     *EvalContext
+	preparedChecks map[*catalog.Type]domainCheckProgram
+	inputCatalog   catalog.Read
+}
+
+// endAdmission drops the prepared checks and the evaluation context borrowed
+// from the statement's admission. The input catalog stays.
+func (d *domainScope) endAdmission() {
+	d.preparedChecks, d.evaluation = nil, nil
+}

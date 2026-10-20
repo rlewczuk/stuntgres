@@ -22,7 +22,7 @@ type domainCheckPhase struct {
 }
 
 func (s *StatementScope) readmitPreparedPrograms(auth AuthorizationView) error {
-	for _, programme := range s.domainPreparedChecks {
+	for _, programme := range s.domains.preparedChecks {
 		for i := range programme.phases {
 			if err := programme.phases[i].admission.readmit(auth); err != nil {
 				return err

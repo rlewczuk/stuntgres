@@ -107,7 +107,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	b, auth, bindErr := e.bindCopyLocked(s, syntax)
 	e.mu.Unlock()
 	s.input.DomainChecks = s
-	s.domainInputCatalog = auth.Catalog
+	s.domains.inputCatalog = auth.Catalog
 	if bindErr != nil {
 		return 0, bindErr
 	}

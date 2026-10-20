@@ -314,10 +314,7 @@ type StatementScope struct {
 	admissionWaited       bool
 	implicit              bool
 	input                 sqltype.InputEnvironment
-	domainEvaluation      *EvalContext
-	domainPreparedChecks  map[*catalog.Type]domainCheckProgram
 	routinePrograms       []commandRoutineProgram // Consumed command graphs; same admission lease as queryAuthority.
-	domainInputCatalog    catalog.Read
 	statementStart        time.Time
 	transactionStart      time.Time
 	timeoutRef            ids.TxRef // admission projection for preparse ERROR timer retirement
@@ -344,6 +341,7 @@ type StatementScope struct {
 	indexesSlot           *indexScope
 	partitionsSlot        *partitionScope
 	foreignTablesSlot     *foreignTableScope
+	domains               domainScope
 }
 
 type WriteStage struct {

@@ -26,7 +26,7 @@ func evaluatePartitionRecipe(evaluation *EvalContext, owner *catalog.Relation, k
 	scope := local.liveScope()
 	if scope != nil {
 		local.domainPhase = typedef.DomainCheckIdentity{Transaction: scope.txRef, Command: scope.command}
-		local.preparedDomainChecks = scope.domainPreparedChecks
+		local.preparedDomainChecks = scope.domains.preparedChecks
 	}
 	auth, _, err := local.routineAdmissionAuthority()
 	if err != nil {

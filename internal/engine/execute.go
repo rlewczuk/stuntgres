@@ -449,7 +449,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	}
 	canonical := make([]sqltype.Value, count)
 	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: canonical, statementScope: scope, catalog: auth.Catalog, Input: scope.input, Output: scope.output}}
-	scope.domainInputCatalog = auth.Catalog
+	scope.domains.inputCatalog = auth.Catalog
 	scope.routineAuth = auth
 	scope.routineDependencies = b.dependencies
 	for _, usage := range b.parameters.Types {

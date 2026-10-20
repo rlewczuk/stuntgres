@@ -71,7 +71,7 @@ func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 		sqlRoutine: s.sqlRoutine, inquiry: s.inquiry,
 		protocol: s.protocolSlot,
 		view:     s.view, partitionView: s.partitionsOrZero().validationView, ownWrites: s.ownWrites, ownDeletes: s.ownDeletes,
-		domainEvaluation: s.domainEvaluation, domainInputCatalog: s.domainInputCatalog, foreignOwner: s.foreignTablesOrZero().owner, foreignCursor: s.foreignTablesOrZero().cursor,
+		domainEvaluation: s.domains.evaluation, domainInputCatalog: s.domains.inputCatalog, foreignOwner: s.foreignTablesOrZero().owner, foreignCursor: s.foreignTablesOrZero().cursor,
 		presentation: s.presentationSlot, identity: s.identity,
 	}
 }
@@ -88,7 +88,7 @@ func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
 	s.view = c.view
 	s.setPartitionValidationView(c.partitionView)
 	s.ownWrites, s.ownDeletes = c.ownWrites, c.ownDeletes
-	s.domainEvaluation, s.domainInputCatalog = c.domainEvaluation, c.domainInputCatalog
+	s.domains.evaluation, s.domains.inputCatalog = c.domainEvaluation, c.domainInputCatalog
 	s.setForeignLexical(c.foreignOwner, c.foreignCursor)
 	s.presentationSlot, s.identity = c.presentation, c.identity
 }

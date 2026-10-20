@@ -70,7 +70,7 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 	scope, _ := input.LockedDomainInput.(*StatementScope)
 	evaluation := EvalContext{evalStatement: evalStatement{Context: op.ctx, Parameters: frame, Input: input, Output: outputEnvironment, statementScope: scope, catalog: view}, evalAdmission: evalAdmission{routineAuthority: &auth, routineChecks: binding.dependencies, routineRecipe: true}}
 	if scope != nil {
-		scope.domainInputCatalog = view
+		scope.domains.inputCatalog = view
 	}
 	for _, usage := range info.Types {
 		if sqltype.ContainsDomainConstraints(usage.Type) {

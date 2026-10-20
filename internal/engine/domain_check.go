@@ -186,7 +186,7 @@ func (c *EvalContext) prepareDomainChecks(d *catalog.Type) error {
 func (c *EvalContext) prepareOwnDomainChecks(d *catalog.Type) error {
 	scope := c.liveScope()
 	if scope != nil {
-		c.preparedDomainChecks = scope.domainPreparedChecks
+		c.preparedDomainChecks = scope.domains.preparedChecks
 		c.domainPhase = typedef.DomainCheckIdentity{Transaction: scope.txRef, Command: scope.command}
 	}
 	if len(d.DomainChecks) == 0 {
@@ -248,7 +248,7 @@ func (c *EvalContext) prepareOwnDomainChecks(d *catalog.Type) error {
 	}
 	c.preparedDomainChecks[d] = programme
 	if scope != nil {
-		scope.domainPreparedChecks = c.preparedDomainChecks
+		scope.domains.preparedChecks = c.preparedDomainChecks
 	}
 	return nil
 }
@@ -258,8 +258,8 @@ func (c *EvalContext) domainCatalog() catalog.Read {
 		return c.catalog
 	}
 	if scope := c.liveScope(); scope != nil {
-		if scope.domainInputCatalog.State() != nil {
-			return scope.domainInputCatalog
+		if scope.domains.inputCatalog.State() != nil {
+			return scope.domains.inputCatalog
 		}
 		return scope.ResolutionCatalog()
 	}
@@ -333,14 +333,14 @@ func (c *EvalContext) evaluateOwnDomainChecks(view catalog.Read, target, d *cata
 // COPY owns a public transport cursor, rather than an expression node. Its live
 // statement evaluator is allocated only when a checked input is actually used.
 func (s *StatementScope) CheckDomain(ctx context.Context, target *sqltype.Descriptor, value sqltype.Value) error {
-	if s.domainEvaluation == nil {
-		catalog := s.domainInputCatalog
+	if s.domains.evaluation == nil {
+		catalog := s.domains.inputCatalog
 		if catalog.State() == nil {
 			catalog = s.ResolutionCatalog()
 		}
-		s.domainEvaluation = &EvalContext{evalStatement: evalStatement{Context: ctx, statementScope: s, catalog: catalog, Input: s.input, Output: s.output}}
+		s.domains.evaluation = &EvalContext{evalStatement: evalStatement{Context: ctx, statementScope: s, catalog: catalog, Input: s.input, Output: s.output}}
 	}
-	return s.domainEvaluation.CheckDomain(ctx, target, value)
+	return s.domains.evaluation.CheckDomain(ctx, target, value)
 }
 
 func domainNullInputExpression(target sqltype.Usage) expr.Expr {

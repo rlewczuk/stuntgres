@@ -148,7 +148,7 @@ func (b *uniqueWriteBinding) readmitPrograms(auth AuthorizationView) error {
 // for this fresh coherent authority capture. All checks after unlock are pure
 // graph admission: no provider, CHECK truth, codec or output replay.
 func (s *StatementScope) readmitProgramsAfterWait() error {
-	if len(s.domainPreparedChecks) == 0 && len(s.routinePrograms) == 0 && len(s.indexBindings) == 0 {
+	if len(s.domains.preparedChecks) == 0 && len(s.routinePrograms) == 0 && len(s.indexBindings) == 0 {
 		return nil
 	}
 	e := s.op.session.Engine()

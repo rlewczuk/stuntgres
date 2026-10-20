@@ -49,9 +49,8 @@ func (e *Engine) holdPrecommit(op *Operation, owner *transactionOwner, start tim
 		scope.routineAuth = AuthorizationView{}
 		scope.routineDependencies = nil
 		scope.routinePrograms = nil
-		scope.domainPreparedChecks = nil
+		scope.domains.endAdmission()
 		scope.partitionsSlot.dropPrograms()
-		scope.domainEvaluation = nil
 		scope.finished = true
 	}()
 	return scope.materializeHeldCursors()
