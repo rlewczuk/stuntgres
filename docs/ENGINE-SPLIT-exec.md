@@ -99,6 +99,9 @@ Done; see "11a result" in Status.
 
 ### 11b — Host seam in place
 
+Done; see "11b result" in Status (one deviation: the preparation callbacks).
+The plan below is kept as the record.
+
 The engine-local `execHost` interface (the "11a result" lists every method)
 is implemented by `statementHost`, a defined type over `StatementScope`
 (`(*statementHost)(scope)` is a free conversion). `liveHost()` returns an
@@ -268,7 +271,10 @@ names no `exec.Context` internals: DML executors open their inputs through
 ## Status
 
 - [x] 11a — Refined (docs only; the commit that records this status)
-- [ ] 11b — Host seam in place
+- [x] 11b — Host seam in place (`220b72d76`, `f93b0f837`, `b82df3645`,
+  `f205fff26`, `53c9ff63e`, `6071a1cc4`, `0a3e5e602`, `ccb197d87`,
+  `e2d780fc6`, then the docs commit) *(racecheck/finalcheck skipped at user
+  request)*
 - [ ] 11c — `exec` created and executor moved
 - [ ] 11d — Aliases removed
 
@@ -386,10 +392,102 @@ Notes for later steps:
 - Step 12 (12c): preflight, the join legality checks and the binder methods
   in the query files stay in the engine after step 11; they take an
   `exec.Context`. Decide in 12c whether they move to `analyze` (which then
-  imports `exec`) or stay. `PreflightCoercions` on the host is the only
-  runtime call into them.
+  imports `exec`) or stay. `PreflightCoercions` on the preparation value
+  (11b result) is the only runtime call into them.
 - `access` B5: the binding walkers (`checkBinding`, `checkQuerySources`,
   `checkViewRowMarks*`) read lock modes and query leaves; they follow step 12.
 - Step 13: the authority slot is cleared by SQL cursors, protocol portals,
   routine scopes and transaction finish; when they move, they clear
   `exec.Authority.Host`.
+
+### 11b result
+
+Built at `11715935b` (master did not move during the session). The runtime
+now reaches statement, session and engine state only through `execHost`
+(`statement_host.go`), implemented by `statementHost`, a defined type over
+`StatementScope`; or through `execPreparation` (below).
+
+- **Host methods (57).** Environment: `Context`, `Environments`,
+  `StatementStart`, plus `CTEInvocation` (not in the 11a list:
+  `queryState.inheritCTEs` read `scope.cteInvocation`; the result is the
+  runtime's own `cteInvocation`). Presentation: the nine `sqltype` formatter
+  interfaces (12 methods, `presentationFormatters`). Row locks:
+  `AcquireQueryRow`, `LatestQueryRow`, `QueryLocks`. Foreign owner:
+  `ReleaseReplacementRead` (the existing `foreignUnlocked`),
+  `TouchForeignScan`, `EnlistForeign` (forwards to `enlistForeign`, which
+  DML keeps calling). Sequences: `CompletePGSequence`. Capabilities: 35
+  bodies; `SequenceAuthority`, `CheckTransactionInquiryContext` and
+  `RequireTransactionIdentityScope` are only prologue and nil check, so they
+  stay forwarder-side. A capability method takes the context only when its
+  body uses it (12 do). `EvalSQLRoutine` calls `InvokeSQLRoutine`, keeping
+  its own precedence (statement host first, then the query source's).
+- **Nil handling.** `hostOf` returns an untyped nil for a nil scope and is
+  the only way a scope becomes a host; `scopeOf` is the checked conversion
+  back. `presentation()` falls back to `detachedPresentation`, which owns the
+  missing-snapshot messages; the `StatementScope` formatters return its
+  results in their missing branches.
+- **Deviation: preparation callbacks are not host methods.** Domain checks
+  also run in contexts built without a scope (generated, index-expression,
+  index-predicate and partition admission, temporary commit, concurrent
+  refresh), so a nil-able host cannot carry them. `execPreparation`
+  (`exec_preparation.go`: `PreflightCoercions`, `CheckDomain`) is one
+  stateless package value, `enginePreparation{}`; `openJoinNode` and
+  `EvalContext.CheckDomain` (after its `ctx.Err()` check) always call it.
+  Decided with the user in the 11b planning session.
+- **Back-pointers.** `querySource.host`, `queryAuthority.host`,
+  `evalStatement.host`, `pgSequencesSource.host`; `liveScope()` is deleted.
+  Engine code that still needs the scope behind a record uses
+  `scopeOf(x.liveHost())` (15 production sites, all staying code:
+  `deparseRelation`, `identifyObjectValues`, `expressionPrincipal`,
+  `admitInquiryBody`, `routineAdmissionAuthority`, the domain-check helpers,
+  `evalSerialSequence`, the SQL routine runner, `regtype_input.go`, ...).
+- **Admission slots.** `evalAdmission.routineAuthority` and
+  `routineProgram` are `admissionAuthority`/`admissionProgram` marker
+  interfaces (`admission_slots.go`), read through `routineAuthorityView()`
+  and `routineAdmissionProgram()`; writes store non-nil pointers or copy
+  another slot.
+- **Size.** `EvalContext` grows by 24 bytes (1,648 → 1,672): the host and
+  the two slots are interface words.
+
+Tests: added `statement_host_test.go` (untyped nil from `hostOf` and
+`liveHost`, `scopeOf` round trip, detached-presentation messages through
+every route). Adapted mechanically, no assertion changed: the engine tests
+that built `statementScope`/`scope` literals or read `authority.scope`
+(`sql_cursor*_test.go`, `delete/update_current_of_test.go`,
+`discard_test.go`, `session_test.go`, `partition_routine_authority_test.go`,
+`serial_sequence_test.go`, `query_parallel_test.go`,
+`query_outer_joins_recheck_test.go`, `transaction_time_test.go`, ...), the
+`*_routine_authority_test.go` files that dereference the admission slot, and
+`pg_locks_test.go` (`AcquireQueryRow`). No test moved or was deleted.
+
+Verification: `make build` and targeted `make check` selections after each
+commit, with `RACE=1` on the row-lock, cursor, foreign-scan, CTE and
+detach selections; `make quickcheck` passed after commit 6 and on the final
+code. `REFERENCE=1` passed for `^TestReferenceQuery` (joins, subqueries,
+CTEs, set operations, DISTINCT, LIMIT/FETCH, windows) and for row locks,
+query locks, SQL cursors, `pg_cursors`, isolation, foreign tables,
+`pg_sequences`, domains, reg* types, aggregates, grouping sets, CTE DML,
+commit time, transaction identity, advisory locks and routines, except six
+`/postgres` leaves of `TestReferenceQueryFromValuesPhysicalReplacement`,
+which fail the same way on master (oracle drift; stuntgres leaves pass).
+`make bench`: 839–877 µs/op and 5,014 allocs/op after (two noisy warm-up
+runs at 0.98–1.27 ms), against 843–893 µs/op and 5,014 allocs on master;
+under the 1 ms target. A throwaway scan probe (filter, join, 5,000-row
+output with regclass, window, `FOR UPDATE`, `statement_timestamp()`) showed
+identical allocations per query before and after. `make deps`: module
+paths only. racecheck/finalcheck skipped at user request.
+
+Notes for 11c:
+
+- `exec` declares `Host` (with `presentationFormatters`) and `Preparation`.
+  The preparation value needs one install point the engine calls from
+  `init()` (for example `exec.InstallPreparation(enginePreparation{})`),
+  since `exec` cannot name engine code; a forgotten install must fail loudly.
+- `detachedPresentation` has no engine dependencies and moves to `exec`;
+  the `StatementScope` formatters then call the exported value.
+- The admission-slot marker methods must be exported once the interfaces
+  live in `exec` (the engine types implement them).
+- Capability host methods take `*EvalContext`; after the move they take
+  `*exec.Context`, and the engine helpers they call become functions
+  (`meth2fn`), as the 11c plan already says.
+

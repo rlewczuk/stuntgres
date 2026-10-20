@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `d76cc93a1`. The later-wave plans
+Last verified against `master` at `11715935b`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,7 +15,8 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 11 `exec`** — 11b host seam (item 36); 11a is done.
+- **Step 11 `exec`** — 11c `exec` created and executor moved (item 37)
+  **broad**; 11a and 11b are done.
 - **Step 12 `analyze`** — 12c refine, then host seam (item 39); 12b and 10c
   are done.
 
@@ -259,7 +260,10 @@ A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
 - [ ] **Step 11 — `exec`** ([prompt](ENGINE-SPLIT-exec.md); needs 10c, 13a)
   - [x] 11a — Refined (docs only; host list, move set, §7 decisions 8 and
     11; the commit that records this status)
-  - [ ] 11b — Host seam in place
+  - [x] 11b — Host seam in place (`220b72d76`, `f93b0f837`, `b82df3645`,
+    `f205fff26`, `53c9ff63e`, `6071a1cc4`, `0a3e5e602`, `ccb197d87`,
+    `e2d780fc6`, then the docs commit) *(racecheck/finalcheck skipped at user
+    request)*
   - [ ] 11c — `exec` created and executor moved *(broad)*
   - [ ] 11d — Aliases removed *(broad)*
 - [ ] **Step 12 — `analyze`** ([prompt](ENGINE-SPLIT-analyze.md); 12a–12b
@@ -476,7 +480,10 @@ in the prompt file's Status section.
 35. [x] Exec 11a (refine, docs only) — [exec](ENGINE-SPLIT-exec.md) 11a ·
     needs 33, 22 · (docs: the commit that records this status) · docs-only;
     quickcheck passed; racecheck/finalcheck skipped at user request
-36. [ ] Exec 11b — [exec](ENGINE-SPLIT-exec.md) 11b · needs 35
+36. [x] Exec 11b — [exec](ENGINE-SPLIT-exec.md) 11b · needs 35 ·
+    (`220b72d76` … `e2d780fc6`, then the docs commit) · selected dual-mode
+    proof and quickcheck passed; racecheck/finalcheck skipped at user
+    request; preparation callbacks use one stateless value, not the host
 37. [ ] Exec 11c — [exec](ENGINE-SPLIT-exec.md) 11c · needs 36 · **broad**
 38. [ ] Exec 11d — [exec](ENGINE-SPLIT-exec.md) 11d · needs 37 · **broad**
 39. [ ] Analyze 12c (refine, then host seam) —
