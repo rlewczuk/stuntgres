@@ -517,7 +517,7 @@ openers, row-lock arbitration and the cursors. The engine implements
 `exec.Host` on `statementHost` and installs `enginePreparation`; it names
 the `exec` types directly, with no aliases. A data-modifying
 CTE carries its binding as the opaque `plan.CTEMutation`, recovered only
-through `mutationBinding`. The installed extension routine nodes and the
+through `analyze.MutationBinding`. The installed extension routine nodes and the
 `pg_extension_update_paths` node live in `plan` too; their provider
 validators (`validInstalledText`, `validateInstalled*`) stay here, and
 `exec` reaches `validInstalledText` through the preparation value.

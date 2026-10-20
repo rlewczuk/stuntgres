@@ -7,12 +7,14 @@ the binding authority, the held description's inputs, name-lookup kinds and
 selections, and the retargeting of captured identifier inputs. It also
 holds the clean analysis helpers that the binder and engine code share
 (coercion and collation derivation, input error positions, the held
-signature check). The expression binder itself, its field groups and the `analyzeHost` seam still live in the
+signature check), and since 12d.4 the statement's row-lock admission, the
+query namespace types and the query helpers the binder shares with the
+engine. The expression binder itself, its field groups and the `analyzeHost` seam still live in the
 engine; they move here in step 12d.6. Since 12d.2 the binder names no engine
 type for its authority, prepared inputs or captured inputs. The package sits at layer L8 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
 It imports `plan`, `exec`, `catalog`, `storage`, `expr`, `functions`, `ids`,
-`pgcatalog`, the Part A content of `sequence` and `typedef` (§3 rule 6),
+`lock`, `pgcatalog`, the Part A content of `sequence` and `typedef` (§3 rule 6),
 `parser`, `sqlstate`, `sqltype` and the standard library, and never the
 engine or `session`. See
 [ENGINE-SPLIT-analyze.md](../../../docs/ENGINE-SPLIT-analyze.md) (step 12).
@@ -86,6 +88,28 @@ engine or `session`. See
   (`InputErrorAt`, `RegtypeInputError`), `RecordTypeMapper`, the OVERLAPS
   inline cost model and `OperatorSignature`. Engine DDL, retag, remap and
   preflight code call them too; they read only their arguments.
+- **Row-lock admission** (`lock_admission.go`): `LockAdmission`, computed
+  by `NewLockAdmission` from a statement's syntax before binding (the row
+  marks of each SELECT level, the locked table occurrences as
+  `PreparedSource`s, forward CTE references, data-modifying CTE targets as
+  `MutationTarget`s), and the row-lock clause helpers (`RowLockClause`,
+  `RowLockMode`, `RowLockDiagnostic`, `RowLockTargets`, `RootRowMarks`,
+  `FirstSetRowClause`, `FutureCTEError`). The engine holds one per statement
+  scope and passes it to `describe`; the binder reads it per query level.
+- **Query namespaces** (`namespace.go`): `QueryNamespace`, `QueryQualifier`
+  and `QueryColumn`, what a FROM item makes visible. Engine consumers outside
+  queries (checks, defaults, generated columns, index, partition and policy
+  expressions) build one for their relation. `QueryTargetLeaf` marks a DML
+  target column.
+- **View namespace kinds** (`view_namespace.go`): the `View*Namespace` node
+  kinds stored in `ViewNamespace.Node`, `FrozenNamespaceNode` and
+  `ViewFromRoot`, which view rendering also uses.
+- **Query helpers** (`query_walk.go`, `query_sets.go`,
+  `query_diagnostics.go`): plan and expression walks over query frames,
+  recursive worktable slots, CTE volatility, `MutationBinding` (the checked
+  recovery of a data-modifying CTE's binding), subquery demand and the
+  EXISTS presence rewrite; the set-returning lowering helpers that query
+  preflight shares; and column-name hints and query diagnostics.
 
 ## Invariants
 
@@ -120,7 +144,11 @@ statement-kind binders; the authority adapters (`analysis_authority.go`:
 `StatementDescription` wrappers of `CheckSignature`), the retag walker the
 host lends the binder (`MapBoundExpression`), preflight
 (`expression_preflight.go`) and the captured input
-resolvers with their retarget methods (`captured_input_target.go`); rule rewriting (`rule_*.go`) and its CTE commands;
+resolvers with their retarget methods (`captured_input_target.go`); stored
+view definitions, which the binder reads only through the host's
+`StoredViewVolatile` and `CaptureRetainedViewInput`
+(`query_cte_volatility.go`, `view_retained_input.go`); query set preflight
+(`preflightQuerySet`, `query_set_preflight.go`); rule rewriting (`rule_*.go`) and its CTE commands;
 view-write lowering (`viewWrite`); the ON CONFLICT execution state
 (`insertConflictState`: selected arbiters, unique-key checkpoints, the
 affected count, the EXCLUDED frame and the write overlay, built per command
@@ -138,10 +166,10 @@ and `TestExpectedCheckLifetimeFencesCatalogTypes` the held lifetime check.
 The binding types are otherwise built by the engine's binder, so their tests
 stay in the engine. The seams have engine unit tests: slots, binding
 authorities, held inputs, captured input retargeting and the host's rule
-check and expression mapping:
+check, expression mapping and stored-view reads:
 
 ```sh
-make check RUN='^(TestInsertConflictCloneOwnsTheClauseHeader|TestExpectedCheckLifetimeFencesCatalogTypes|TestBindingSlotsKeepNilAbsent|TestViewWriteSlotReportsBaseRelation|TestAnalysisHostReportsRelationRules|TestAnalysisHostMapsBoundExpressions|TestBindingAuthorityOverlaysOperationDefinition|TestExpectedOfCopiesHeldInputs|TestCapturedInputsRetargetOnlyTheirSinks)$'
+make check RUN='^(TestInsertConflictCloneOwnsTheClauseHeader|TestExpectedCheckLifetimeFencesCatalogTypes|TestBindingSlotsKeepNilAbsent|TestViewWriteSlotReportsBaseRelation|TestAnalysisHostReportsRelationRules|TestAnalysisHostMapsBoundExpressions|TestBindingAuthorityOverlaysOperationDefinition|TestExpectedOfCopiesHeldInputs|TestCapturedInputsRetargetOnlyTheirSinks|TestAnalysisHostReadsStoredViews)$'
 ```
 
 ON CONFLICT execution state over the clause: `TestRuleConflictInstantiation`,
@@ -153,4 +181,11 @@ selection of step 12, in quick mode and with `REFERENCE=1`:
 
 ```sh
 make check RUN='^TestReference(InsertConflict|InsertSelect|InsertReturning|Update|Delete|Merge|Inheritance|TableLike|TypedTable|Rule|View|Prepared|CTEDML|Polic|DumpRound|Restore)'
+```
+
+The query, FROM and CTE binding that uses the lock admission, the
+namespaces and the query helpers:
+
+```sh
+make check RUN='^TestReference(Query|RowLock|PartialIndex|GeneratedVirtual|CompositeExpr)'
 ```

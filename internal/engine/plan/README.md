@@ -99,7 +99,7 @@ their whole `Eval` to the runtime.
   `FrameValue`.
 - **Opaque CTE mutation.** `CTEDefinition.Mutation` is a `CTEMutation`
   payload that plan code only tests for presence; the engine recovers the
-  analyzed statement through its `mutationBinding`.
+  analyzed statement through `analyze.MutationBinding`.
 
 ## What stays outside
 

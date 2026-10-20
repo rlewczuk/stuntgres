@@ -827,6 +827,93 @@ Built at `372246284`, in parallel with 12d.3. Tools:
   imports the root. `AGENTS.md`: 100 lines before and after.
   racecheck/finalcheck skipped at user request.
 
+#### 12d.4 result
+
+Built at `372246284` in parallel with 12d.3 and 12d.5, then replayed onto
+`3225376b4` (after 12d.5) and `2dcb67687` (after 12d.3) with `replay.sh`,
+which re-creates each commit by re-running its tools and edits. Tools
+and scripts: `.cswd/tmp/PG18-ENGINE-SPLIT-ANALYZE-QUERY-PREP/` (`mv.sh`
+gathers a staging file `analyzemv_<stage>.go`, checks that its frontier has
+no outbound engine reference, exports the inbound members in place with
+`expspec`/`movex`, moves the file into `analyze` with aliases for its types
+and qualified functions, strips the package's own qualifier, then runs
+`goimports`, `keylit` and `gofmt`), with the 11c `frontier`, `expspec` and
+`movespec`, the 10c `movex`/`movedecl` and the 10d `keylit`. Scope decided
+at planning: engine helpers that area 4 shares with the other areas stay
+for 12d.6, members the root's tests read are exported too, and the binder
+group fields stay for 12d.6.
+
+- **Split files** (`d350f8a03`): `preflightQuerySet` (execution-time) moved
+  to `query_set_preflight.go`, `cteStoredViewVolatile` to
+  `query_cte_volatility.go`, `captureValuesViewLiteral` to
+  `query_values_bind.go`; the `queryScopeState` methods
+  `freezeViewColumns` (from `view.go`) and `partialIndexCandidate` (with
+  `partialPredicateImpliedBy`/`Atom`, from the index predicate files) to
+  binder files. `query_cte_view.go` and `query_values_view.go` are wholly
+  view rendering; `query_join_legality.go` is execution-time and stays.
+- **Row-lock admission** (`c6475646c`): `analyze/lock_admission.go`
+  (`LockAdmission`, `NewLockAdmission`, `PreparedSource`, `MutationTarget`,
+  `RowLockClause`, `RowLockDiagnostic`, `RowLockMode`, `RowLockTargets`,
+  `RootRowMarks`, `FirstSetRowClause`, `FutureCTEError`); the closure had no
+  engine reference. Aliases `queryLockAdmission`, `preparedSource`,
+  `admittedMutationTarget`. `analyze` now imports `lock`.
+- **Stored views** (`20e14024e`): host methods `StoredViewVolatile` and
+  `CaptureRetainedViewInput` replace the binder's reads of `viewDefinition`;
+  `captureRetainedDefinitionInput` moved to `view_retained_input.go`. The
+  `View*Namespace` node kinds, `FrozenNamespaceNode` and `ViewFromRoot`
+  moved to `analyze/view_namespace.go`.
+- **Query namespaces** (`ee4b1ac07`): `QueryColumn`, `QueryQualifier`,
+  `QueryNamespace` (fields exported) and `QueryTargetLeaf` in
+  `analyze/namespace.go`; 703 references. Aliases
+  `queryColumn`, `queryQualifier`, `queryNamespace`. The rebase, combine and
+  USING helpers stay with the binder.
+- **Shared helpers** (`36bdb885a`): `analyze/query_walk.go`,
+  `query_sets.go` and `query_diagnostics.go` (see the README). Four engine
+  files became empty and were removed (`query_rewrite.go`, `query_cycle.go`,
+  `query_name_hint.go`, `cte_mutation_payload.go`). `SetOrderCollationError`
+  uses the `analyze` `sqlError` that 12d.5 added. The `sourceOutName` wrapper
+  is gone (callers use `expr.SourceOutName`). This also settles the area-4
+  edges 12d.5 deferred: `queryLockAdmission`, `mutationBinding`,
+  `queryDemandProperties`, `query_name_hint.go` and `query_rewrite.go`.
+- **Exports in place** (`792c18427`): 18 binder methods the root's tests or
+  rule finalization call (`BindSelect`, `BindFrom`, `FrameID`,
+  `FinishOrder`, `FinishDistinctOn`, `ScheduleQueryProjection`,
+  `LowerQuerySets`, ...), `queryScopeState.PartialIndexCandidate`,
+  `PartialPredicateImpliedBy`, `PushCTEOccurrence`,
+  `RebaseFunctionCorrelation` and `QueryTargetComparison` with the members
+  its test reads; 395 references in 103 files. Members read only by the
+  statement-kind binders and `Describe` (`assignOutput`,
+  `bindCTEDefinitions`, `foldCTERestrictions`, `activateCTESources`,
+  `combineQueryNamespace`, `rebaseQueryNamespace`) stay unexported: they
+  move with the binder.
+- **Host walker** (`86957752b`): `MapQuerySetStage` uses the host's
+  `MapBoundExpression` (added by 12d.3), which is the same call shape.
+- **Frontier after.** Area-4 declarations reach in the engine only host
+  methods, the aliases, and the shared helpers left for 12d.6: `sqlError`
+  and `insertError` (`analyze` has its own), `mapBoundExpression` (CTE
+  restriction folding and `RebaseFunctionCorrelation` pass a query mapper,
+  which the host's `MapBoundExpression` does not take) and `pgType`.
+- **Tests.** New: `TestAnalysisHostReadsStoredViews`. Adapted mechanically:
+  renames and qualifications in 85 engine test files (`json_elements_expression_test.go`
+  calls `expr.SourceOutName`). No test moved or deleted.
+- **Verification.** `make build` and `go vet` (identical to the base) after
+  every commit; targeted engine selections (CTE, recursive, SEARCH/CYCLE,
+  set operations, subqueries, DISTINCT ON, row marks and lock admission,
+  prepared rebind, views, rules, policies, partial indexes, string-set
+  lowering, target comparison); `make quickcheck` passed before the replays
+  and on the final branch (48 GB memory cap). `REFERENCE=1` for the query, row-lock,
+  partial index, generated, composite, view, rule, prepared, CTE, policy,
+  INSERT SELECT, UPDATE FROM, MERGE and DELETE tests, before the replays and
+  on the final branch: only the known `/postgres` drift failed
+  (`TestReferenceDeleteReturningBoundaries`, the four MERGE repeatable-read
+  tests, `TestReferenceCompositeExpr(Correlated)Returning`,
+  `TestReferenceQueryFromValuesPhysicalReplacement`); no `/stuntgres`
+  subtest failed. `make bench`, branch and master interleaved under other
+  sessions' load: 833–1,246 µs/op against 829–1,155 µs/op, 5,014 allocs/op
+  and about 1.64 MB/op on both. `make deps`: module paths only; no engine
+  subpackage imports the root. `AGENTS.md`: 100 lines before and after.
+  racecheck/finalcheck skipped at user request.
+
 ### 12e — Remove the aliases (broad)
 
 Use the alias tool; audit locals named `analyze`.
@@ -931,7 +1018,10 @@ in §8.3 pass.
     12d.3 result). Selected dual-mode proof and quickcheck passed;
     racecheck and finalcheck skipped at user request.
   - [ ] 12d.3b — area 3b (unlisted expression files) preparation
-  - [ ] 12d.4 — query, FROM and CTE preparation
+  - [x] 12d.4 — query, FROM and CTE preparation (`d350f8a03`, `c6475646c`,
+    `20e14024e`, `ee4b1ac07`, `36bdb885a`, `792c18427`, `86957752b`, then
+    the docs commit; see the 12d.4 result). Selected dual-mode proof and quickcheck
+    passed; racecheck and finalcheck skipped at user request.
   - [x] 12d.5 — aggregates, windows and DML targets preparation
     (`949747b68`, `804df42f5`, `1a329c118`, `a73ebbc83`, `363efc88e`, then
     the docs commit; see the 12d.5 result). Selected dual-mode proof and
@@ -939,10 +1029,12 @@ in §8.3 pass.
   - [ ] 12d.6 — binder moved
 - [ ] 12e — Aliases removed
 
-Outstanding aliases: the aliases in `internal/engine/analyze_aliases.go`:
+Outstanding aliases: the 42 aliases in `internal/engine/analyze_aliases.go`:
 the binding types (12d.1), including `ParameterInfo`, which the driver
-names as `engine.ParameterInfo`, and `lookupKind` and `namespaceSelection`
-(12d.2). 12d.5 removed `insertConflictSlot` and added none.
+names as `engine.ParameterInfo`; `lookupKind` and `namespaceSelection`
+(12d.2); `queryLockAdmission`, `preparedSource`, `admittedMutationTarget`,
+`queryColumn`, `queryQualifier` and `queryNamespace` (12d.4). 12d.5 removed
+`insertConflictSlot`.
 
 Notes for later steps:
 
@@ -953,8 +1045,8 @@ Notes for later steps:
   files still name root types and helpers that `reach` counts as clean.
   Re-run `frontier` for each area. Known: `scalarRenderer` and
   `capturedACLItemOutput` (`bindCreateDefaults`, `default.go`),
-  `queryLockAdmission` and `ruleNamespace` (binder fields and the
-  `Describe` parameters), and pure root helpers
+  `ruleNamespace` (binder field and `Describe` parameter;
+  `queryLockAdmission` moved in 12d.4), and pure root helpers
   (`definition*At`, `statementCatalogType`, `refreshableTemporalCapture`,
   `checkExpectedLifetime`/`checkSignature`, `regtypeInputError`). 12d.3
   moved all of these except `definitionTypeAt` and `definitionArrayAt`.
@@ -988,6 +1080,27 @@ Notes for later steps:
   `partition_attach_schema.go` and `query_join_legality.go`, and
   `IndexExpressionBinder` users); export them in one pass with `expspec`.
   Only free functions were exported in the area sessions.
+- 12d.6, from 12d.4: area-4 binder files still reach these shared engine
+  helpers, left for the move: `sqlError` and `insertError` (they resolve to
+  the `analyze` copies that 12d.5 added), `mapBoundExpression`
+  (`expression_retag.go`; the query-mapper calls in `query_cte_fold.go` and
+  `RebaseFunctionCorrelation`), `pgType`, and
+  `captureRetainedExpressionInput` (`enum_diagnostics.go`, also called by
+  the engine's `view_retained_input.go`).
+- 12d.6, from 12d.4: binder files call the helpers moved in 12d.3–12d.5 as
+  `analyze.X`; strip that qualifier when the files move (`mv.sh` in the
+  12d.4 tmp directory does it with `sed`). The binder group fields the
+  engine sets or reads (`expressionBinder.query`: 86 production and 160 test
+  reads; `.cte`; `queryBindingScope.clause` in one test) need exported names
+  then. `assignOutput`, `bindCTEDefinitions`, `foldCTERestrictions`,
+  `activateCTESources`, `combineQueryNamespace` and `rebaseQueryNamespace`
+  are read only by the statement-kind binders and `Describe`, which move with
+  the binder. Unlike 12d.5, 12d.4 also exported the area-4 binder methods
+  that rule finalization and the engine tests call.
+- 12d.5 (DML targets): split `boundInsertConflict` into the bound clause,
+  which moves to `analyze`, and its per-execution state (arbiters, catalog
+  checkpoints, `insertWriteOverlay`), which stays in the engine; then
+  `InsertConflictSlot` can shrink to the runtime half.
 - 12e: remove `analyze_aliases.go` with the `unalias` tool and settle §7
   decision 11 for `ParameterInfo` (the driver's `value.go` names it).
   Comments in engine files still name the old type names through the
