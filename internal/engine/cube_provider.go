@@ -44,7 +44,7 @@ func (p *cubeProvider) ValidateExtension(v catalog.Read, ext *catalog.Extension)
 	if !ok || array.SQLType == nil || !array.SQLType.IsArray() || array.SQLType.Concrete() || array.SQLType.Element() != base.SQLType || array.Namespace() != base.Namespace() || array.Owner != base.Owner || array.Extension != (ids.ObjectAddress{}) {
 		return invalid()
 	}
-	if err := (typeProvider{}).Validate(v, array); err != nil {
+	if err := validateRegisteredType(v, array); err != nil {
 		return err
 	}
 	for i, address := range ext.Members[1:] {
