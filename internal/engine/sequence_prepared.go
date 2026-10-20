@@ -12,7 +12,7 @@ import (
 type sequenceAnalysis struct {
 	constants []sequenceConstant
 	path      sequenceEnvironment
-	private   *catalogChanges
+	private   journalIdentity
 	session   ids.SessionToken
 	// Namespace callbacks invalidate analysis even when the effective path is equal.
 	namespace uint64
@@ -28,9 +28,22 @@ type sequencePathKey struct {
 	namespace            uint64
 	epoch                ids.CatalogEpoch
 	temp, prefix         ids.ObjectAddress
-	private              *catalogChanges
+	private              journalIdentity
 	database             catalog.Descriptor
 }
+
+// journalIdentity is a session's private catalog journal, kept only for
+// identity comparison so these cache records name no journal type.
+type journalIdentity any
+
+// journalOf returns the identity of a private catalog journal; nil stays nil.
+func journalOf(c *catalogChanges) journalIdentity {
+	if c == nil {
+		return nil
+	}
+	return c
+}
+
 type sequencePathCache struct {
 	valid       bool
 	key         sequencePathKey
@@ -40,7 +53,7 @@ type sequencePathCache struct {
 func (e *Engine) sequenceEnvironmentLocked(auth AuthorizationView) (sequenceEnvironment, error) {
 	key := sequencePathKey{role: auth.State.CurrentUser, authorization: auth.Revision, roles: auth.RoleRecord.Revision, namespace: auth.Catalog.State().NamespaceGeneration(), epoch: auth.Catalog.Epoch(), temp: temporaryNamespace(auth), prefix: auth.pathPrefix, database: auth.Catalog.Get(catalog.CurrentDatabaseAddress)}
 	if auth.session != nil && auth.session.transactions != nil {
-		key.private = auth.session.transactions.catalog
+		key.private = journalOf(auth.session.transactions.catalog)
 	}
 	if auth.settings != nil {
 		auth.settings.mu.Lock()
@@ -76,7 +89,7 @@ func (e *Engine) sequenceAnalysisLocked(auth AuthorizationView, constants []sequ
 	if err != nil {
 		return sequenceAnalysis{}, err
 	}
-	return sequenceAnalysis{constants: constants, path: path, private: auth.session.transactions.catalog, session: auth.session.token, namespace: auth.Catalog.State().NamespaceGeneration()}, nil
+	return sequenceAnalysis{constants: constants, path: path, private: journalOf(auth.session.transactions.catalog), session: auth.session.token, namespace: auth.Catalog.State().NamespaceGeneration()}, nil
 }
 func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *sequenceAnalysis) (bool, error) {
 	if analysis == nil || len(analysis.constants) == 0 {
@@ -86,7 +99,7 @@ func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *s
 	if err != nil {
 		return false, err
 	}
-	changed := analysis.session != auth.session.token || analysis.private != auth.session.transactions.catalog || analysis.namespace != auth.Catalog.State().NamespaceGeneration() || !sameSequenceEnvironment(path, analysis.path)
+	changed := analysis.session != auth.session.token || analysis.private != journalOf(auth.session.transactions.catalog) || analysis.namespace != auth.Catalog.State().NamespaceGeneration() || !sameSequenceEnvironment(path, analysis.path)
 	for _, constant := range analysis.constants {
 		ref := constant.ref
 		if ref.Domain() != e.catalog.Domain {
