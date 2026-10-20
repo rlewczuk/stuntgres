@@ -162,8 +162,8 @@ func newEngine(providers []catalog.Provider, definitions []settings.Definition, 
 			return nil, err
 		}
 	}
-	for _, class := range []ids.OID{ids.ExtensionClassID, ids.ProcedureClassID, ids.TSTemplateClassID, ids.TSDictionaryClassID} {
-		if err := e.RegisterCatalogProvider(extensionCatalogProvider{class}); err != nil {
+	for _, p := range []catalog.Provider{extensionCatalogProvider{ids.ExtensionClassID}, procedureProvider{}, extensionCatalogProvider{ids.TSTemplateClassID}, extensionCatalogProvider{ids.TSDictionaryClassID}} {
+		if err := e.RegisterCatalogProvider(p); err != nil {
 			return nil, err
 		}
 	}

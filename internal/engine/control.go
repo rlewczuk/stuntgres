@@ -293,7 +293,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 				continue
 			case *catalog.Procedure:
 				if t.SQL != nil {
-					if err := (extensionCatalogProvider{ids.ProcedureClassID}).Validate(catalogView, t); err != nil {
+					if err := (procedureProvider{}).Validate(catalogView, t); err != nil {
 						e.mu.Unlock()
 						return err
 					}
@@ -301,7 +301,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					continue
 				}
 				if t.Foreign != nil {
-					if err := (extensionCatalogProvider{ids.ProcedureClassID}).Validate(catalogView, t); err != nil {
+					if err := (procedureProvider{}).Validate(catalogView, t); err != nil {
 						e.mu.Unlock()
 						return err
 					}
@@ -312,7 +312,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					continue
 				}
 				if t.Builtin != nil {
-					if err := (extensionCatalogProvider{ids.ProcedureClassID}).Validate(catalogView, t); err != nil {
+					if err := (procedureProvider{}).Validate(catalogView, t); err != nil {
 						e.mu.Unlock()
 						return err
 					}
@@ -323,7 +323,7 @@ func (e *Engine) Dump(ctx context.Context, dst io.Writer) error {
 					continue
 				}
 				if t.Conversion.Name() != "" {
-					if err := (extensionCatalogProvider{ids.ProcedureClassID}).Validate(catalogView, t); err != nil {
+					if err := (procedureProvider{}).Validate(catalogView, t); err != nil {
 						e.mu.Unlock()
 						return err
 					}

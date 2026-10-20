@@ -61,10 +61,10 @@ func storedReferenceEpochValid(view catalog.Read, consumer *catalog.Relation, re
 		if target.Builtin != nil {
 			// Only the genuine immutable release declaration can bridge a
 			// retained TEMP recipe; ACL authority is recaptured separately.
-			return pgDependPinned(view, nil, ref.Address) && (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, target) == nil
+			return pgDependPinned(view, nil, ref.Address) && (procedureProvider{}).Validate(view, target) == nil
 		}
 		ns, ok := view.Namespace(target.Namespace())
-		return ok && ns.Temporary == namespace.Temporary && (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, target) == nil
+		return ok && ns.Temporary == namespace.Temporary && (procedureProvider{}).Validate(view, target) == nil
 	}
 	return false
 }

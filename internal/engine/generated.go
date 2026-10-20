@@ -598,7 +598,7 @@ func validateGenerationProviders(view catalog.Read, d *catalog.Relation) error {
 				if !ok || ref.Address.SubID != 0 {
 					return fmt.Errorf("stuntgres: invalid generation procedure")
 				}
-				if err := (extensionCatalogProvider{ids.ProcedureClassID}).Validate(view, procedure); err != nil {
+				if err := (procedureProvider{}).Validate(view, procedure); err != nil {
 					return err
 				}
 			}
