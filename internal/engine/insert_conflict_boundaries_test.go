@@ -115,7 +115,7 @@ func TestInsertConflictACLCurrentManifest(t *testing.T) {
 		auth, err := f.e.authorizationLocked(reader)
 		f.e.mu.Unlock()
 		if err == nil {
-			err = auth.checkBinding(b, &parser.Insert{})
+			err = analyze.CheckBinding(auth, b, &parser.Insert{})
 		}
 		if want == "" {
 			if err != nil {

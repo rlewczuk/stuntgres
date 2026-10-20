@@ -75,14 +75,14 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 	// Empty suppression has no executor. Nonempty actions retain caller ACL
 	// obligations, after every original/action row-security rewrite guard.
 	if len(program.commands) != 0 {
-		if err := auth.checkBinding(b, stmt); err != nil {
+		if err := analyze.CheckBinding(auth, b, stmt); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}
 	}
 	for i := range program.commands {
 		command := &program.commands[i]
-		if err := command.auth.checkBinding(command.binding, command.syntax); err != nil {
+		if err := analyze.CheckBinding(command.auth, command.binding, command.syntax); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}

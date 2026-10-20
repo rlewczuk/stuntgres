@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"slices"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -456,7 +457,7 @@ retry:
 			return uniqueConflict{}, ids.ErrCatalogReplaced
 		}
 		if check := s.insertConflict; check != nil {
-			if err := auth.checkBinding(bindingForConflict(ref, parent, check), &parser.Insert{}); err != nil {
+			if err := analyze.CheckBinding(auth, bindingForConflict(ref, parent, check), &parser.Insert{}); err != nil {
 				return uniqueConflict{}, err
 			}
 		}

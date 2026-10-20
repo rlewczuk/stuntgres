@@ -108,7 +108,7 @@ func (s *StatementScope) authorizeSQLCursor(c *sqlCursor) error {
 		err = s.validateLockedRelation(e)
 	}
 	if err == nil && !s.protocolOrZero().resume {
-		err = auth.checkQuerySources(c.leaves)
+		err = analyze.CheckQuerySources(auth, c.leaves)
 	}
 	if err == nil {
 		err = s.captureIdentityLocked(auth)

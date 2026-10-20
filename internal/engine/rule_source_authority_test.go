@@ -106,11 +106,11 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 							t.Fatal("retained producer lost caller/effective source authority")
 						}
 					}
-					if err := auth.checkQuerySources(sources); err != nil {
+					if err := analyze.CheckQuerySources(auth, sources); err != nil {
 						t.Fatal("canonical source authorization rejected resolved principals", err)
 					}
 					input.Security.ACL = authorization.ACLValue{Explicit: true}
-					err = auth.checkQuerySources(sources)
+					err = analyze.CheckQuerySources(auth, sources)
 					if dependent && !effective {
 						if err == nil || !strings.Contains(err.Error(), "permission denied for table input") {
 							t.Fatal("canonical caller-source control did not deny revoked input", err)

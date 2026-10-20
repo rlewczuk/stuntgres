@@ -137,7 +137,7 @@ func TestGeneratedPartialColumnAuthorization(t *testing.T) {
 			}
 			check := func(authority AuthorizationView, denied bool) {
 				t.Helper()
-				err := authority.checkBinding(bound, tc.stmt)
+				err := analyze.CheckBinding(authority, bound, tc.stmt)
 				if !denied {
 					if err != nil {
 						t.Fatal("permitted binding denied", err)

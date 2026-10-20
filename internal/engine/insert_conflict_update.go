@@ -2,6 +2,7 @@ package engine
 
 import (
 	"errors"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
@@ -226,7 +227,7 @@ func (e *Engine) latestConflictUpdateRow(s *StatementScope, ref ids.ObjectRef, c
 	}
 	auth.Catalog = catalog
 	auth.Recapture(auth.Catalog)
-	if err := auth.checkBinding(bindingForConflict(ref, parent, s.insertConflict), &parser.Insert{}); err != nil {
+	if err := analyze.CheckBinding(auth, bindingForConflict(ref, parent, s.insertConflict), &parser.Insert{}); err != nil {
 		return storage.RowVersion{}, nil, "", false, err
 	}
 	namespace, ok := catalog.Namespace(parent.Namespace())

@@ -16,7 +16,7 @@ import (
 func (v AuthorizationView) CheckViewWrite(b analyze.Binding, stmt parser.Statement) error {
 	w := viewWriteOf(b.ViewWrite)
 	logical := w.logical
-	if err := v.checkBinding(logical, stmt); err != nil {
+	if err := analyze.CheckBinding(v, logical, stmt); err != nil {
 		return err
 	}
 	invoker := v.State.CurrentUser

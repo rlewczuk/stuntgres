@@ -617,7 +617,7 @@ func TestQuerySubqueryAuthorization(t *testing.T) {
 		e.mu.Lock()
 		current, err := e.authorizationLocked(op)
 		if err == nil {
-			err = current.checkBinding(bound, ast)
+			err = analyze.CheckBinding(current, bound, ast)
 		}
 		e.mu.Unlock()
 		var diagnostic *sqlstate.Error

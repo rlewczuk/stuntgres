@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -84,7 +85,7 @@ func TestArrayAggregateColumnACL(t *testing.T) {
 				t.Helper()
 				current := catalogAuthorization(e, e.CatalogRead())
 				current.State.CurrentUser = reader
-				err := current.checkQuerySources(b.Query.Sources)
+				err := analyze.CheckQuerySources(current, b.Query.Sources)
 				if !denied {
 					if err != nil {
 						t.Fatal(err)

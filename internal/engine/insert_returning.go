@@ -150,7 +150,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 	if b.ViewWrite == nil && s.partitionInsert == nil {
 		b.Ref, b.Relation = ref, parent
 	}
-	if err = auth.checkBinding(b, &parser.Insert{}); err != nil {
+	if err = analyze.CheckBinding(auth, b, &parser.Insert{}); err != nil {
 		return false, false, err
 	}
 	var version storage.RowVersion

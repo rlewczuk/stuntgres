@@ -7,7 +7,6 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -75,6 +74,9 @@ func (op *Operation) RoleState() authorization.RoleState {
 	return s.authorization.state
 }
 
+// The binding walkers in analyze check through the view's entry points.
+var _ analyze.Privileges = AuthorizationView{}
+
 // AuthorizationView is statement-level authority. It embeds the captured
 // access.View and adds the session and statement inputs: the engine (for
 // identity checks and pass-throughs), the session settings and the path
@@ -109,8 +111,8 @@ func (v AuthorizationView) CheckColumns(ref ids.ObjectRef, relation *catalog.Rel
 
 // WithCurrentUser returns the view running as principal, which also moves the
 // $user entry of its reference path. The principal is validated after the
-// switch, as every source and view layer check does.
-func (v AuthorizationView) WithCurrentUser(principal authorization.PrincipalRef) (AuthorizationView, error) {
+// switch, as the query source walker always did.
+func (v AuthorizationView) WithCurrentUser(principal authorization.PrincipalRef) (analyze.Privileges, error) {
 	v.State.CurrentUser = principal
 	return v, v.Roles.ValidatePrincipal(principal)
 }
@@ -245,127 +247,6 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 		authorization.MissingCurrent = identity.CurrentUser
 	}
 	return authorization, nil
-}
-func (v AuthorizationView) checkBinding(b analyze.Binding, stmt parser.Statement) error {
-	if b.ViewWrite != nil {
-		return v.CheckViewWrite(b, stmt)
-	}
-	switch stmt.(type) {
-	case *parser.Select, *parser.DeclareCursor, *parser.CreateQueryTable:
-		return v.checkQuerySources(b.QuerySources)
-	}
-	if b.Relation == nil {
-		return nil
-	}
-	switch stmt.(type) {
-	case *parser.Insert:
-		if err := v.CheckColumns(b.Ref, b.Relation, authorization.InsertPrivilege, b.Targets); err != nil {
-			return err
-		}
-		if b.Insert.Conflict != nil && len(b.Insert.Conflict.Reads) != 0 {
-			if err := v.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.Insert.Conflict.Reads); err != nil {
-				return err
-			}
-		}
-		if b.Insert.Conflict != nil && b.Insert.Conflict.Update != nil {
-			if err := v.CheckColumns(b.Ref, b.Relation, authorization.UpdatePrivilege, b.Insert.Conflict.UpdateTargets); err != nil {
-				return err
-			}
-			if len(b.Insert.Conflict.ActionReads) != 0 {
-				if err := v.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.Insert.Conflict.ActionReads); err != nil {
-					return err
-				}
-			}
-		}
-		if b.Returning != nil && (b.Returning.ReadRequired || len(b.Returning.Reads) != 0) {
-			if err := v.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.Returning.Reads); err != nil {
-				return err
-			}
-		}
-		return v.checkQuerySources(b.QuerySources)
-	case *parser.Merge:
-		if b.Merge.HasDelete {
-			if err := v.Check(access.Requirement{Object: b.Ref, Privileges: authorization.DeletePrivilege}); err != nil {
-				return err
-			}
-		}
-		if b.Merge.HasInsert {
-			if err := v.CheckColumns(b.Ref, b.Relation, authorization.InsertPrivilege, b.Merge.InsertTargets); err != nil {
-				return err
-			}
-		}
-		if len(b.Merge.UpdateTargets) != 0 {
-			if err := v.CheckColumns(b.Ref, b.Relation, authorization.UpdatePrivilege, b.Merge.UpdateTargets); err != nil {
-				return err
-			}
-		}
-		if b.Merge.HasNothing || len(b.UsedColumns) != 0 || b.Returning != nil && b.Returning.ReadRequired {
-			if err := v.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.UsedColumns); err != nil {
-				return err
-			}
-		}
-		return v.checkQuerySources(b.QuerySources)
-	case *parser.Delete:
-		if err := v.Check(access.Requirement{Object: b.Ref, Privileges: authorization.DeletePrivilege}); err != nil {
-			return err
-		}
-		if len(b.UsedColumns) != 0 {
-			if err := v.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.UsedColumns); err != nil {
-				return err
-			}
-		}
-		return v.checkQuerySources(b.QuerySources)
-	case *parser.Update:
-		if err := v.CheckColumns(b.Ref, b.Relation, authorization.UpdatePrivilege, b.Targets); err != nil {
-			return err
-		}
-		if len(b.UsedColumns) != 0 {
-			if err := v.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.UsedColumns); err != nil {
-				return err
-			}
-		}
-		return v.checkQuerySources(b.QuerySources)
-	default:
-		return v.CheckColumns(b.Ref, b.Relation, authorization.SelectPrivilege, b.UsedColumns)
-	}
-}
-
-func (v AuthorizationView) checkQuerySources(sources []exec.Leaf) error {
-	for _, source := range sources {
-		if source.AnalysisOnly {
-			continue
-		}
-		sourceAuth := v
-		if source.Principal != (authorization.PrincipalRef{}) {
-			var err error
-			if sourceAuth, err = v.WithCurrentUser(source.Principal); err != nil {
-				return err
-			}
-		}
-		if err := sourceAuth.CheckColumns(source.Ref, source.Relation, authorization.SelectPrivilege, source.Uses); err != nil {
-			return err
-		}
-	}
-	for _, source := range sources {
-		sourceAuth := v
-		if source.Principal != (authorization.PrincipalRef{}) {
-			var err error
-			if sourceAuth, err = v.WithCurrentUser(source.Principal); err != nil {
-				return err
-			}
-		}
-		if exec.EffectiveQueryRowMark(source.Relation, source.Mark).Mode != 0 {
-			if err := sourceAuth.CheckColumns(source.Ref, source.Relation, authorization.UpdatePrivilege, nil); err != nil {
-				return err
-			}
-		}
-		if source.Relation.RelationKind == catalog.ViewRelation {
-			if err := sourceAuth.CheckViewRowMarks(source.Relation, source.Mark); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 // SetObjectACL publishes an owned immutable ACL payload for internal features.

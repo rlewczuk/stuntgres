@@ -29,7 +29,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 			}
 			seen[definition] = true
 			mutation, _ := analyze.MutationBinding(definition)
-			if err := rewrite.caller.checkBinding(*mutation, definition.Statement); err != nil {
+			if err := analyze.CheckBinding(rewrite.caller, *mutation, definition.Statement); err != nil {
 				e.mu.Unlock()
 				return nil, err
 			}
@@ -156,7 +156,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 	}
 	for i := range commands {
 		current := commands[i].auth
-		if err := current.checkBinding(commands[i].binding, commands[i].syntax); err != nil {
+		if err := analyze.CheckBinding(current, commands[i].binding, commands[i].syntax); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}

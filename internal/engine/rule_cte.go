@@ -107,7 +107,7 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 			continue
 		}
 		mutation, _ := analyze.MutationBinding(definition)
-		if err := rewrite.caller.checkBinding(*mutation, definition.Statement); err != nil {
+		if err := analyze.CheckBinding(rewrite.caller, *mutation, definition.Statement); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}
@@ -144,7 +144,7 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 		caller := fresh
 		caller.State.CurrentUser = rewrite.caller.State.CurrentUser
 		mutation, _ := analyze.MutationBinding(rewrite.definition)
-		if err := caller.checkBinding(*mutation, rewrite.definition.Statement); err != nil {
+		if err := analyze.CheckBinding(caller, *mutation, rewrite.definition.Statement); err != nil {
 			e.mu.Unlock()
 			return nil, err
 		}

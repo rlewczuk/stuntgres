@@ -514,7 +514,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			// Hierarchies have no conflict-update executor. Complete analysis
 			// and target/source authority before rejecting that capability,
 			// without demanding arbiters, defaults or routed row effects.
-			if err := auth.checkBinding(b, stmt); err != nil {
+			if err := analyze.CheckBinding(auth, b, stmt); err != nil {
 				e.mu.Unlock()
 				return Result{}, err
 			}

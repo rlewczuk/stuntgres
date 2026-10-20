@@ -279,7 +279,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if err = auth.checkBinding(b, stmt); err != nil {
+	if err = analyze.CheckBinding(auth, b, stmt); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
