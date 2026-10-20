@@ -155,7 +155,7 @@ func (e *Engine) alterIdentityTypeSequence(scope *StatementScope, stage *Catalog
 	}
 	// AS discards this backend's tail even if a later table pass rolls back.
 	// currval/lastval and unseen peer caches are physical-session authorities.
-	if memory := scope.op.session.sequences.Memory(address); memory != nil {
+	if memory := payloadOf(scope.op.session).sequences.Memory(address); memory != nil {
 		memory.DiscardTailLocked()
 	}
 	return nil

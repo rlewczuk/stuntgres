@@ -64,7 +64,7 @@ type notificationState struct {
 	ready    notificationFIFO
 }
 
-// Embedded in Session: unused sessions have no queue, map, channel or registry
+// Held in the session payload: unused sessions have no queue, map, channel or registry
 // allocation. Except for the monotonic used hint, all mutable fields below,
 // including busy, belong exclusively to Engine.mu. Busy is relevant only to
 // registered recipients; unused owners need no extra idle-boundary lock.
@@ -128,7 +128,7 @@ func (s *Session) PollProtocolNotification() (Notification, bool, <-chan struct{
 }
 
 func (s *Session) pollNotification(check func() error) (Notification, bool, <-chan struct{}, error) {
-	e, n := engineOf(s), &s.notifications
+	e, n := engineOf(s), &payloadOf(s).notifications
 	for {
 		if check != nil {
 			if err := check(); err != nil {
@@ -228,7 +228,7 @@ func (s *StatementScope) executeNotification(stmt parser.Statement, count int) (
 	case *parser.Unlisten:
 		e := s.engine()
 		e.mu.Lock()
-		state := s.op.session.notifications.state
+		state := payloadOf(s.op.session).notifications.state
 		history := state != nil && state.history
 		e.mu.Unlock()
 		if history || len(s.owner.notificationActions) != 0 || len(s.notificationActions) != 0 {
@@ -245,7 +245,7 @@ func finishNotificationBoundary(t *transactionOwner) {
 	if t.state != TxIdle || t.retainsTransaction() {
 		return
 	}
-	e, n := engineOf(t.session), &t.session.notifications
+	e, n := engineOf(t.session), &payloadOf(t.session).notifications
 	if !n.used.Load() {
 		return
 	}

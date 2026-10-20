@@ -442,13 +442,13 @@ func testFDWCursorCleanupOwner(t *testing.T) {
 	source := &exec.ForeignQuerySource{Executions: []*exec.ForeignExecution{{Scan: scan}}}
 	owner.Add(source)
 	cursor := &sqlCursor{ordinal: 1, foreignOwner: owner}
-	s.cursors.entries = map[string]*sqlCursor{"child": cursor}
+	payloadOf(s).cursors.entries = map[string]*sqlCursor{"child": cursor}
 	e.replacementMu.RLock()
 	e.mu.Lock()
 	s.settings.mu.Lock()
 	s.mu.Lock()
 	txn.mu.Lock()
-	txn.cursorCleanup = append(txn.cursorCleanup, s.cursors.rollback(0)...)
+	txn.cursorCleanup = append(txn.cursorCleanup, payloadOf(s).cursors.rollback(0)...)
 	premature := scan.ends
 	txn.mu.Unlock()
 	s.mu.Unlock()
@@ -461,7 +461,7 @@ func testFDWCursorCleanupOwner(t *testing.T) {
 	if err := drainCursorCleanup(txn, context.Background(), nil); !errors.Is(err, failure) {
 		t.Fatal("cleanup outcome was swallowed", err)
 	}
-	if len(blocked) != 0 || scan.ends != 1 || len(s.cursors.entries) != 0 || len(txn.cursorCleanup) != 0 || !source.LifetimeClosed || cursor.foreignOwner != nil {
+	if len(blocked) != 0 || scan.ends != 1 || len(payloadOf(s).cursors.entries) != 0 || len(txn.cursorCleanup) != 0 || !source.LifetimeClosed || cursor.foreignOwner != nil {
 		t.Fatal("owner/lock boundary", blocked, scan.ends)
 	}
 	if err := cursor.dispose(context.Background()); !errors.Is(err, failure) || scan.ends != 1 {

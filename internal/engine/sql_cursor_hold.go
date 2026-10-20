@@ -28,7 +28,7 @@ func (r *cursorRegistry) hasCurrentHold(ref ids.TxRef) bool {
 // Admission is already held; the transaction/engine/session mutexes are not.
 // Ordinary commits avoid scope allocation and presentation capture entirely.
 func (e *Engine) holdPrecommit(op *Operation, owner *transactionOwner, start time.Time, settlement *StatementScope) error {
-	if !op.session.cursors.hasCurrentHold(owner.ref) {
+	if !payloadOf(op.session).cursors.hasCurrentHold(owner.ref) {
 		return nil
 	}
 	if start.IsZero() {
@@ -59,7 +59,7 @@ func (e *Engine) holdPrecommit(op *Operation, owner *transactionOwner, start tim
 }
 
 func (s *StatementScope) materializeHeldCursors() error {
-	r := s.op.session.cursors
+	r := payloadOf(s.op.session).cursors
 	if !r.hasCurrentHold(s.txRef) {
 		return nil
 	}

@@ -13,7 +13,7 @@ import (
 // The named cursor owns its retained execution. Mutations borrow only a physical
 // occurrence and then remap its stable RowID into their fresh command view.
 func (s *StatementScope) positionedMutationRow(b analyze.Binding) (mutationRowIdentity, error) {
-	c := s.op.session.cursors.entries[b.CurrentOf]
+	c := payloadOf(s.op.session).cursors.entries[b.CurrentOf]
 	if c == nil || (!c.promoted && c.tx != s.txRef) {
 		return mutationRowIdentity{}, missingSQLCursor(b.CurrentOf)
 	}

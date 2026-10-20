@@ -93,11 +93,11 @@ func captureSavepoint(t *transactionOwner, name string) savepointMark {
 	t.session.mu.Lock()
 	identity := t.session.authorization.state
 	t.session.mu.Unlock()
-	return savepointMark{name: name, foreignID: t.foreign.markNext, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, deferrable: t.deferrable, locks: e.locks.Checkpoint(t.ticket), cursors: t.session.cursors.ordinal, exclusionModes: t.exclusionModes, exclusionProjection: projection, identity: identity, notificationActions: t.notificationActions[:len(t.notificationActions):len(t.notificationActions)], notificationEvents: t.notificationEvents[:len(t.notificationEvents):len(t.notificationEvents)]}
+	return savepointMark{name: name, foreignID: t.foreign.markNext, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, deferrable: t.deferrable, locks: e.locks.Checkpoint(t.ticket), cursors: payloadOf(t.session).cursors.ordinal, exclusionModes: t.exclusionModes, exclusionProjection: projection, identity: identity, notificationActions: t.notificationActions[:len(t.notificationActions):len(t.notificationActions)], notificationEvents: t.notificationEvents[:len(t.notificationEvents):len(t.notificationEvents)]}
 }
 
 func restoreSavepoint(t *transactionOwner, mark savepointMark, settings settingsMark) {
-	t.cursorCleanup = append(t.cursorCleanup, t.session.cursors.rollback(mark.cursors)...)
+	t.cursorCleanup = append(t.cursorCleanup, payloadOf(t.session).cursors.rollback(mark.cursors)...)
 	retireProtocolPortalsAfter(t, mark.cursors)
 	t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
 	t.notificationActions, t.notificationEvents = mark.notificationActions, mark.notificationEvents
@@ -238,7 +238,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		case parser.CreateSavepoint:
 			t.savepoints = append(stack, mark)
 		case parser.RollbackSavepoint:
-			t.cursorCleanup = append(t.cursorCleanup, t.session.cursors.rollback(mark.cursors)...)
+			t.cursorCleanup = append(t.cursorCleanup, payloadOf(t.session).cursors.rollback(mark.cursors)...)
 			retireProtocolPortalsAfter(t, mark.cursors)
 			t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
 			t.notificationActions, t.notificationEvents = mark.notificationActions, mark.notificationEvents

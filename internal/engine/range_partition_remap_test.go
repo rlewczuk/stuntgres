@@ -63,7 +63,7 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 		}
 	}
 	tempDemand(1)
-	tempGenerator, tempMemory := e.storage.Sequences[tempAddress], op.session.sequences.Memory(tempAddress)
+	tempGenerator, tempMemory := e.storage.Sequences[tempAddress], payloadOf(op.session).sequences.Memory(tempAddress)
 	roleExecute(t, e, op, "CREATE TEMP TABLE retained_table(k INT,payload INT DEFAULT nextval('retained_temp'),g INT GENERATED ALWAYS AS(payload+1) STORED,CONSTRAINT retained_positive CHECK(payload>0))")
 	roleExecute(t, e, op, "CREATE UNIQUE INDEX retained_table_key ON retained_table(k) WHERE payload>0")
 	roleExecute(t, e, op, "CREATE INDEX retained_table_expression ON retained_table((k+0)) WHERE payload>0")
@@ -98,7 +98,7 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 	if err != nil || !changes.Replacement || e.CatalogRead().Epoch() != retained.Epoch()+1 {
 		t.Fatal(changes, err)
 	}
-	if op.session.token != tempToken || op.session.temporaryNamespace != tempNamespace || e.catalog.state.Get(tempAddress) != tempDescriptor || e.catalog.state.Get(tempNamespace) != tempNamespaceDescriptor || e.storage.Sequences[tempAddress] != tempGenerator || op.session.sequences.Memory(tempAddress) != tempMemory || *tempGenerator != tempGeneratorState || *tempMemory != tempMemoryState {
+	if op.session.token != tempToken || op.session.temporaryNamespace != tempNamespace || e.catalog.state.Get(tempAddress) != tempDescriptor || e.catalog.state.Get(tempNamespace) != tempNamespaceDescriptor || e.storage.Sequences[tempAddress] != tempGenerator || payloadOf(op.session).sequences.Memory(tempAddress) != tempMemory || *tempGenerator != tempGeneratorState || *tempMemory != tempMemoryState {
 		t.Fatal("hierarchy self remap changed exact live TEMP identity/cache")
 	}
 	tempDemand(3)

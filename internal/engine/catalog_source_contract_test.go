@@ -218,7 +218,7 @@ func TestCatalogSourceRuntimeCapture(t *testing.T) {
 		e := engineOf(s)
 		sessionSQL(t, s, "DECLARE producer_runtime CURSOR FOR SELECT i FROM unit_rows")
 		sessionSQL(t, s, "SET row_security = on")
-		cursor := s.cursors.entries["producer_runtime"]
+		cursor := payloadOf(s).cursors.entries["producer_runtime"]
 		op := transactionOperation(t, s)
 		defer op.Done()
 		scope, err := e.StartStatement(op)

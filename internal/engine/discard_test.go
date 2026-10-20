@@ -48,40 +48,40 @@ func TestDiscardOwnerPrecision(t *testing.T) {
 			e := New()
 			a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
 			address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90001}
-			memory := a.sequences.DemandLocked(address)
+			memory := payloadOf(a).sequences.DemandLocked(address)
 			memory.SetLocked(7, true)
-			b.sequences.DemandLocked(address).SetLocked(8, true)
-			a.sequences.RecordLastLocked(address)
-			b.sequences.RecordLastLocked(address)
+			payloadOf(b).sequences.DemandLocked(address).SetLocked(8, true)
+			payloadOf(a).sequences.RecordLastLocked(address)
+			payloadOf(b).sequences.RecordLastLocked(address)
 			entry := &sqlPreparedStatement{body: &parser.Select{}}
-			a.preparedSQL.entries["p"], b.preparedSQL.entries["p"] = entry, entry
+			payloadOf(a).preparedSQL.entries["p"], payloadOf(b).preparedSQL.entries["p"] = entry, entry
 			var tx ids.TxRef
 			if category != parser.DiscardAll {
 				tx = transactionBegin(t, a)
 			}
 			cursor := &sqlCursor{root: &plan.ProjectNode{}, authority: &exec.Authority{}}
 			cursor.tx = tx
-			a.cursors.entries["c"] = cursor
+			payloadOf(a).cursors.entries["c"] = cursor
 			resources, serial, ticket, catalog, roles := a.resources, a.serial, a.advisory.ticket, e.catalog.state, e.roles.published
 			discardUnitApply(t, a, category)
 			if a.resources != resources || a.serial != serial || a.advisory.ticket != ticket || !a.IsLive() {
 				t.Fatal("DISCARD detached or retired physical owners")
 			}
-			if e.catalog.state != catalog || e.roles.published != roles || b.preparedSQL.entries["p"] != entry || !currvalIs(b.sequences.Memory(address), 8) || b.sequences.Last() != address || b.discardPlansGeneration != 0 {
+			if e.catalog.state != catalog || e.roles.published != roles || payloadOf(b).preparedSQL.entries["p"] != entry || !currvalIs(payloadOf(b).sequences.Memory(address), 8) || payloadOf(b).sequences.Last() != address || b.discardPlansGeneration != 0 {
 				t.Fatal("DISCARD changed shared/peer state")
 			}
 			if category == parser.DiscardAll {
-				if len(a.preparedSQL.entries) != 0 || len(a.cursors.entries) != 0 || cursor.root != nil || cursor.authority.Host != nil {
+				if len(payloadOf(a).preparedSQL.entries) != 0 || len(payloadOf(a).cursors.entries) != 0 || cursor.root != nil || cursor.authority.Host != nil {
 					t.Fatal("ALL did not dispose actual registries")
 				}
-			} else if a.preparedSQL.entries["p"] != entry || a.cursors.entries["c"] != cursor || cursor.root == nil {
+			} else if payloadOf(a).preparedSQL.entries["p"] != entry || payloadOf(a).cursors.entries["c"] != cursor || cursor.root == nil {
 				t.Fatal("subset deallocated definitions/cursors")
 			}
 			if category == parser.DiscardPlans {
-				if a.sequences.Memory(address) != memory || a.sequences.Last() != address {
+				if payloadOf(a).sequences.Memory(address) != memory || payloadOf(a).sequences.Last() != address {
 					t.Fatal("PLANS lost sequence memory")
 				}
-			} else if a.sequences.Len() != 0 || a.sequences.Last() != (ids.ObjectAddress{}) {
+			} else if payloadOf(a).sequences.Len() != 0 || payloadOf(a).sequences.Last() != (ids.ObjectAddress{}) {
 				t.Fatal("sequence memories retained")
 			}
 			if category != parser.DiscardAll {
@@ -97,7 +97,7 @@ func TestDiscardPublicationBoundary(t *testing.T) {
 			t.Run(map[bool]string{true: "cancel-before", false: "cancel-after"}[before], func(t *testing.T) {
 				s := sessionStart(t, New(), nil)
 				address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 90001}
-				s.sequences.DemandLocked(address).SetLocked(7, true)
+				payloadOf(s).sequences.DemandLocked(address).SetLocked(7, true)
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				op, scope := discardUnitScope(t, s, ctx, category)
@@ -107,7 +107,7 @@ func TestDiscardPublicationBoundary(t *testing.T) {
 				}
 				result, err := scope.executeDiscard(&parser.Discard{Category: category}, 0)
 				if before {
-					if !errors.Is(err, context.Canceled) || scope.completed || s.discardPlansGeneration != 0 || s.sequences.Memory(address) == nil {
+					if !errors.Is(err, context.Canceled) || scope.completed || s.discardPlansGeneration != 0 || payloadOf(s).sequences.Memory(address) == nil {
 						t.Fatal("canceled preflight installed effects", err)
 					}
 					if err := scope.Finish(err); !errors.Is(err, context.Canceled) {
@@ -276,10 +276,10 @@ func TestDiscardCaptureGeneration(t *testing.T) {
 		t.Fatal("failed group published captures", err)
 	}
 	s.discardPlansGeneration = ^uint64(0)
-	s.preparedSQL.entries["p"] = &sqlPreparedStatement{body: ast, description: d}
+	payloadOf(s).preparedSQL.entries["p"] = &sqlPreparedStatement{body: ast, description: d}
 	op, scope := discardUnitScope(t, s, context.Background(), parser.DiscardAll)
 	_, err = scope.executeDiscard(&parser.Discard{Category: parser.DiscardAll}, 0)
-	if err == nil || s.preparedSQL.entries["p"] == nil || scope.completed {
+	if err == nil || payloadOf(s).preparedSQL.entries["p"] == nil || scope.completed {
 		t.Fatal("generation exhaustion installed effects", err)
 	}
 	scope.Finish(err)
@@ -460,7 +460,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 				rows := sessionSQL(t, s, "FETCH ALL FROM c")
 				rows.Rows.Close()
 			}
-			cursor := s.cursors.entries["c"]
+			cursor := payloadOf(s).cursors.entries["c"]
 			if cursor.root == nil || len(cursor.leaves) == 0 {
 				t.Fatal("missing actual retained source manifest")
 			}

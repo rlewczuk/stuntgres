@@ -106,7 +106,7 @@ func TestSerialControlsTemporaryCollision(t *testing.T) {
 			if leaf.Ref.Address != temp {
 				t.Fatal("fixture lacks actual persistent sequence collision", leaf.Ref.Address, temp)
 			}
-			definition, generator, memory := dest.catalog.state.Get(temp), dest.storage.Sequences[temp], b.sequences.Memory(temp)
+			definition, generator, memory := dest.catalog.state.Get(temp), dest.storage.Sequences[temp], payloadOf(b).sequences.Memory(temp)
 			if mode == "Restore" {
 				var dump bytes.Buffer
 				if err := source.Dump(context.Background(), &dump); err != nil {
@@ -118,7 +118,7 @@ func TestSerialControlsTemporaryCollision(t *testing.T) {
 			} else if _, err := dest.ReplaceCatalog(context.Background(), source, source.CatalogRead()); err != nil {
 				t.Fatal(err)
 			}
-			if dest.catalog.state.Get(temp) != definition || dest.storage.Sequences[temp] != generator || b.sequences.Memory(temp) != memory {
+			if dest.catalog.state.Get(temp) != definition || dest.storage.Sequences[temp] != generator || payloadOf(b).sequences.Memory(temp) != memory {
 				t.Fatal("retained TEMP changed")
 			}
 			d := dest.catalog.state.MustRelation(roleTableRef(t, dest, "portable.t").Address)

@@ -26,7 +26,7 @@ func (s *StatementScope) ParseProtocol(name, source string, hints []uint32) (Pro
 	if err := s.active(); err != nil {
 		return ProtocolStatement{}, err
 	}
-	r := s.op.session.preparedSQL
+	r := payloadOf(s.op.session).preparedSQL
 	if name == "" {
 		delete(r.entries, "")
 	}
@@ -113,7 +113,7 @@ func (s *StatementScope) publishProtocolStatement(name string, entry *sqlPrepare
 	if err := s.sessionPublicationPreflight(); err != nil {
 		return err
 	}
-	r := s.op.session.preparedSQL
+	r := payloadOf(s.op.session).preparedSQL
 	if name != "" && r.entries[name] != nil {
 		return sqlError("42P05", fmt.Sprintf("prepared statement \"%s\" already exists", name))
 	}
@@ -124,7 +124,7 @@ func (s *StatementScope) DescribeProtocolStatement(name string) (ProtocolStateme
 	if err := s.active(); err != nil {
 		return ProtocolStatement{}, err
 	}
-	entry := s.op.session.preparedSQL.entries[name]
+	entry := payloadOf(s.op.session).preparedSQL.entries[name]
 	if entry == nil {
 		return ProtocolStatement{}, missingSQLPrepared(name)
 	}
@@ -188,20 +188,20 @@ func (s *StatementScope) CloseProtocolStatement(name string) error {
 	if err := s.active(); err != nil {
 		return err
 	}
-	delete(s.op.session.preparedSQL.entries, name)
+	delete(payloadOf(s.op.session).preparedSQL.entries, name)
 	return nil
 }
 func (s *StatementScope) InvalidateUnnamedProtocolStatement() error {
 	return s.CloseProtocolStatement("")
 }
 func (s *StatementScope) ProtocolStatementContext(name string) ProtocolContext {
-	if e := s.op.session.preparedSQL.entries[name]; e != nil {
+	if e := payloadOf(s.op.session).preparedSQL.entries[name]; e != nil {
 		return ProtocolContext{Source: e.source}
 	}
 	return ProtocolContext{}
 }
 func (s *StatementScope) ProtocolPortalContext(name string) ProtocolContext {
-	if p := s.op.session.preparedSQL.portals[name]; p != nil {
+	if p := payloadOf(s.op.session).preparedSQL.portals[name]; p != nil {
 		return p.context
 	}
 	return ProtocolContext{}
@@ -230,7 +230,7 @@ func protocolParameterOIDs(formal analyze.ParameterInfo) []uint32 {
 }
 
 func protocolPortalExists(session *Session, name string) bool {
-	p := session.preparedSQL.portals[name]
+	p := payloadOf(session).preparedSQL.portals[name]
 	return p != nil && !p.retired
 }
 

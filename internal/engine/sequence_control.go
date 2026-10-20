@@ -30,8 +30,8 @@ func (e *Engine) clearPersistentSequenceMemoryLocked() {
 	e.sessionMu.Lock()
 	defer e.sessionMu.Unlock()
 	for _, s := range e.sessions {
-		s.sqlRoutines = nil
-		s.sequences.RetainLocked(func(a ids.ObjectAddress) bool {
+		payloadOf(s).sqlRoutines = nil
+		payloadOf(s).sequences.RetainLocked(func(a ids.ObjectAddress) bool {
 			r, ok := e.catalog.state.Relation(a)
 			if !ok {
 				return false

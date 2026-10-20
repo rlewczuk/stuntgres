@@ -54,7 +54,7 @@ func TestProtocolSimpleDisposalFence(t *testing.T) {
 	scope.replacementRead = true
 	rows := exec.NewFinalRows(nil, 0)
 	calls := 0
-	session.preparedSQL.portals = map[string]*protocolPortal{"": {tx: ref, rows: protocolDisposalProbe{RowResult: rows, close: func() error {
+	payloadOf(session).preparedSQL.portals = map[string]*protocolPortal{"": {tx: ref, rows: protocolDisposalProbe{RowResult: rows, close: func() error {
 		calls++
 		if !owner.admission.TryLock() {
 			t.Error("disposal held admission")

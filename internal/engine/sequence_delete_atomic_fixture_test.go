@@ -45,7 +45,7 @@ func captureSequenceDeletePublication(e *Engine, s *Session, table ids.ObjectAdd
 		generators:      make(map[ids.ObjectAddress]*storage.SequenceGenerator),
 		generatorValues: make(map[ids.ObjectAddress]storage.SequenceGenerator),
 		store:           e.storage.Relations[table], frontier: e.visibility.CommitSeq(),
-		temporary: s.temporaryNamespace, last: s.sequences.Last(),
+		temporary: s.temporaryNamespace, last: payloadOf(s).sequences.Last(),
 		memory: make(map[ids.ObjectAddress]*sequence.Memory), memoryValues: make(map[ids.ObjectAddress]sequence.Memory),
 	}
 	for a, d := range e.catalog.state.Descriptors() {
@@ -60,7 +60,7 @@ func captureSequenceDeletePublication(e *Engine, s *Session, table ids.ObjectAdd
 	for a, g := range e.storage.Sequences {
 		p.generators[a], p.generatorValues[a] = g, *g
 	}
-	for a, m := range s.sequences.All() {
+	for a, m := range payloadOf(s).sequences.All() {
 		p.memory[a], p.memoryValues[a] = m, *m
 	}
 	p.root, p.ends = p.store.Versions, p.store.Ends
@@ -101,11 +101,11 @@ func (p sequenceDeletePublicationSnapshot) assertUnchanged(t *testing.T, e *Engi
 	if p.ends != nil && !reflect.DeepEqual(p.ends.Rows, p.endValues) {
 		t.Fatal("changed committed deletion entries")
 	}
-	if s.temporaryNamespace != p.temporary || s.sequences.Last() != p.last || s.sequences.Len() != len(p.memory) {
+	if s.temporaryNamespace != p.temporary || payloadOf(s).sequences.Last() != p.last || payloadOf(s).sequences.Len() != len(p.memory) {
 		t.Fatal("failed combined publication changed session temporary handle or sequence memory container")
 	}
 	for a, m := range p.memory {
-		if s.sequences.Memory(a) != m || *m != p.memoryValues[a] {
+		if payloadOf(s).sequences.Memory(a) != m || *m != p.memoryValues[a] {
 			t.Fatal("changed session sequence memory", a)
 		}
 	}

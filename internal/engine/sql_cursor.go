@@ -185,7 +185,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 	if !ok {
 		return Result{}, fmt.Errorf("stuntgres: cursor query lacks final projection")
 	}
-	r := s.op.session.cursors
+	r := payloadOf(s.op.session).cursors
 	if r.ordinal == ^uint64(0) {
 		return Result{}, fmt.Errorf("stuntgres: cursor declaration counter exhausted")
 	}
@@ -292,7 +292,7 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	c := s.op.session.cursors.entries[fetch.Name.Text]
+	c := payloadOf(s.op.session).cursors.entries[fetch.Name.Text]
 	if c == nil || (!c.promoted && c.tx != s.txRef) {
 		return Result{}, missingSQLCursor(fetch.Name.Text)
 	}
@@ -351,7 +351,7 @@ func (s *StatementScope) executeCloseCursor(close *parser.CloseCursor, count int
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
-	r := s.op.session.cursors
+	r := payloadOf(s.op.session).cursors
 	c := r.entries[close.Name.Text]
 	if !close.All && c == nil && !protocolPortalExists(s.op.session, close.Name.Text) {
 		return Result{}, missingSQLCursor(close.Name.Text)
@@ -366,7 +366,7 @@ func (s *StatementScope) executeCloseCursor(close *parser.CloseCursor, count int
 	var cleanupErr error
 	if close.All {
 		cleanupErr = disposeSQLCursors(s.op.Context(), r.clear())
-		for name := range s.op.session.preparedSQL.portals {
+		for name := range payloadOf(s.op.session).preparedSQL.portals {
 			if err := s.CloseProtocolPortal(name); cleanupErr == nil {
 				cleanupErr = err
 			}

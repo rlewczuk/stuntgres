@@ -64,7 +64,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				return Result{}, sqlError("25P01", "DECLARE CURSOR can only be used in transaction blocks")
 			}
 			name := declaration.Name.Text
-			if op.session.cursors.entries[name] != nil || protocolPortalExists(op.session, name) {
+			if payloadOf(op.session).cursors.entries[name] != nil || protocolPortalExists(op.session, name) {
 				return Result{}, sqlError("42P03", fmt.Sprintf("cursor %q already exists", name))
 			}
 		}

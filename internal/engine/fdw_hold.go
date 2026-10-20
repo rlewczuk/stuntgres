@@ -12,7 +12,7 @@ func (s *StatementScope) discardForeignHoldPromotions(primary error) error {
 		return primary
 	}
 	s.foreignUnlocked()
-	registry := s.op.session.cursors
+	registry := payloadOf(s.op.session).cursors
 	for _, promoted := range promotions {
 		for name, current := range registry.entries {
 			if current != promoted {

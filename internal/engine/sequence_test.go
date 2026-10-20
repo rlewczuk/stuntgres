@@ -284,6 +284,6 @@ func currvalValue(m *sequence.Memory) int64 {
 
 // cachedSequencePathIs reports whether the session caches exactly key.
 func cachedSequencePathIs(s *Session, key sequence.PathKey) bool {
-	cached, ok := s.sequences.CachedPathKey()
+	cached, ok := payloadOf(s).sequences.CachedPathKey()
 	return ok && cached == key
 }

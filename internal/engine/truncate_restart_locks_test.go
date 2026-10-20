@@ -262,7 +262,7 @@ func TestTruncateRestartControlFence(t *testing.T) {
 				} else {
 					transactionEnd(t, holder, tx, false)
 				}
-				if holder.sequences.Memory(ps.Address) != nil || waiter.sequences.Memory(ps.Address) != nil {
+				if payloadOf(holder).sequences.Memory(ps.Address) != nil || payloadOf(waiter).sequences.Memory(ps.Address) != nil {
 					t.Fatal("persistent replacement retained retired sequence observation/source event")
 				}
 				if len(oldStore.Versions) != 2 || oldGenerator.Last != 2 || oldStore.TruncateLineage != nil {
@@ -293,7 +293,7 @@ func TestTruncateRestartControlFence(t *testing.T) {
 			tx := transactionBegin(t, s)
 			truncateUnitExecute(t, e, s, truncateRestartUnitAST("local_t"))
 			transactionEnd(t, s, tx, false)
-			memory := s.sequences.Memory(ref.Address)
+			memory := payloadOf(s).sequences.Memory(ref.Address)
 			if memory == nil || memory.SourceStamp() == 0 || currvalValid(memory) {
 				t.Fatal("missing zero-valid local analysis event")
 			}
@@ -305,7 +305,7 @@ func TestTruncateRestartControlFence(t *testing.T) {
 			} else if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE replacement(id INT);")); err != nil {
 				t.Fatal(err)
 			}
-			if s.sequences.Memory(ref.Address) != memory || memory.SourceStamp() != stamp || currvalValid(memory) {
+			if payloadOf(s).sequences.Memory(ref.Address) != memory || memory.SourceStamp() != stamp || currvalValid(memory) {
 				t.Fatal("exact caller-owned live TEMP event lost across control replacement")
 			}
 			result, err := sequencePreparedExecute(e, s, ast, &description)
@@ -321,7 +321,7 @@ func TestTruncateRestartControlFence(t *testing.T) {
 			if err := s.WaitEnd(context.Background()); err != nil {
 				t.Fatal(err)
 			}
-			if s.sequences.Len() != 0 {
+			if payloadOf(s).sequences.Len() != 0 {
 				t.Fatal("physical end retained source events")
 			}
 			lockEmpty(t, e)

@@ -77,7 +77,7 @@ func (p *protocolPortal) releaseExecutor(ctx context.Context) error {
 	return err
 }
 func (s *StatementScope) BindProtocolPortal(name, statement string, input ProtocolInput) (out ProtocolContext, err error) {
-	entry := s.op.session.preparedSQL.entries[statement]
+	entry := payloadOf(s.op.session).preparedSQL.entries[statement]
 	if entry == nil {
 		return out, missingSQLPrepared(statement)
 	}
@@ -107,7 +107,7 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input Protoc
 			return out, err
 		}
 	}
-	r := s.op.session.preparedSQL
+	r := payloadOf(s.op.session).preparedSQL
 	if old := r.portals[name]; old != nil && !old.retired {
 		if name != "" {
 			return out, sqlError("42P03", fmt.Sprintf("cursor \"%s\" already exists", name))
@@ -116,10 +116,10 @@ func (s *StatementScope) BindProtocolPortal(name, statement string, input Protoc
 			return out, err
 		}
 	}
-	if s.op.session.cursors.entries[name] != nil {
+	if payloadOf(s.op.session).cursors.entries[name] != nil {
 		return out, sqlError("42P03", fmt.Sprintf("cursor \"%s\" already exists", name))
 	}
-	births := s.op.session.cursors
+	births := payloadOf(s.op.session).cursors
 	if births.ordinal == ^uint64(0) {
 		return out, fmt.Errorf("stuntgres: portal creation counter exhausted")
 	}
@@ -233,7 +233,7 @@ func (s *StatementScope) DescribeProtocolPortal(name string) (ProtocolPortalDesc
 	if err := s.active(); err != nil {
 		return ProtocolPortalDescription{}, err
 	}
-	p := s.op.session.preparedSQL.portals[name]
+	p := payloadOf(s.op.session).preparedSQL.portals[name]
 	if p == nil || p.retired {
 		return ProtocolPortalDescription{}, missingProtocolPortal(name)
 	}
@@ -243,16 +243,16 @@ func (s *StatementScope) DescribeProtocolPortal(name string) (ProtocolPortalDesc
 	return ProtocolPortalDescription{Columns: p.columns, Formats: p.formats, Context: p.context, Empty: p.entry.body == nil, HasRows: protocolHasRows(p.entry.body, p.columns)}, nil
 }
 func (s *StatementScope) CloseProtocolPortal(name string) error {
-	r := s.op.session.preparedSQL
+	r := payloadOf(s.op.session).preparedSQL
 	if p := r.portals[name]; p != nil {
 		return s.protocolSimpleIO(func() error {
 			delete(r.portals, name)
 			return p.close(s.op.Context())
 		})
 	}
-	if c := s.op.session.cursors.entries[name]; c != nil {
+	if c := payloadOf(s.op.session).cursors.entries[name]; c != nil {
 		return s.protocolSimpleIO(func() error {
-			delete(s.op.session.cursors.entries, name)
+			delete(payloadOf(s.op.session).cursors.entries, name)
 			return c.dispose(s.op.Context())
 		})
 	}
@@ -266,10 +266,10 @@ func protocolAbortedError() error {
 // Savepoint publication only removes visibility; callbacks and producer
 // disposal belong to the existing unlocked terminal cleanup path.
 func retireProtocolPortalsAfter(t *transactionOwner, frontier uint64) {
-	if t.session.preparedSQL == nil {
+	if payloadOf(t.session).preparedSQL == nil {
 		return
 	}
-	for _, p := range t.session.preparedSQL.portals {
+	for _, p := range payloadOf(t.session).preparedSQL.portals {
 		if p.tx == t.ref && p.born > frontier {
 			p.retired = true
 		}
@@ -321,7 +321,7 @@ func (s *StatementScope) installProtocolProducer(root plan.Node, source *exec.So
 }
 
 func (s *StatementScope) ExecuteProtocolPortal(name string, maxRows uint32, sink func([]ProtocolField) error, source io.Reader, destination io.Writer, hooks CopyProtocolHooks) (out ProtocolExecution, err error) {
-	p := s.op.session.preparedSQL.portals[name]
+	p := payloadOf(s.op.session).preparedSQL.portals[name]
 	if p == nil || p.retired {
 		return out, missingProtocolPortal(name)
 	}

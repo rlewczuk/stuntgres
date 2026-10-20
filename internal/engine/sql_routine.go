@@ -50,7 +50,7 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 		e.mu.Unlock()
 		return value, err
 	}
-	if retained, ok := parent.op.session.sqlRoutines[d.Address()]; ok && retained.definition == d.SQL {
+	if retained, ok := payloadOf(parent.op.session).sqlRoutines[d.Address()]; ok && retained.definition == d.SQL {
 		description := retained.description
 		child.Expected = &description
 	}
@@ -98,10 +98,10 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 		}
 	}
 	e.mu.Lock()
-	if parent.op.session.sqlRoutines == nil {
-		parent.op.session.sqlRoutines = make(map[ids.ObjectAddress]sqlRoutineAnalysis)
+	if payloadOf(parent.op.session).sqlRoutines == nil {
+		payloadOf(parent.op.session).sqlRoutines = make(map[ids.ObjectAddress]sqlRoutineAnalysis)
 	}
-	parent.op.session.sqlRoutines[d.Address()] = sqlRoutineAnalysis{d.SQL, *child.Expected}
+	payloadOf(parent.op.session).sqlRoutines[d.Address()] = sqlRoutineAnalysis{d.SQL, *child.Expected}
 	e.mu.Unlock()
 	return value, nil
 }

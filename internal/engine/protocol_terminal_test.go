@@ -65,7 +65,7 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 		}
 		return rows.Close()
 	}}
-	session.preparedSQL.portals = map[string]*protocolPortal{"p": p}
+	payloadOf(session).preparedSQL.portals = map[string]*protocolPortal{"p": p}
 	e.replacementMu.RLock()
 	scope.replacementRead = true
 	_, err = scope.ExecuteProtocolPortal("p", 0, func(fields []ProtocolField) error {
@@ -78,7 +78,7 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 	if !errors.Is(err, primary) || disposals != 1 || !rows.Closed {
 		t.Fatal("failed executor lost primary or retained resources", err, disposals)
 	}
-	if p.retired || session.preparedSQL.portals["p"] != p || p.context.Source != "retained source" || len(p.columns) != 1 || p.rows != nil || p.producer != nil || p.row != nil || p.scratch != nil {
+	if p.retired || payloadOf(session).preparedSQL.portals["p"] != p || p.context.Source != "retained source" || len(p.columns) != 1 || p.rows != nil || p.producer != nil || p.row != nil || p.scratch != nil {
 		t.Fatal("failed resource release removed identity or retained executor buffers")
 	}
 	// Restoring a frontier that includes this owner keeps its identity, without
@@ -86,13 +86,13 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 	scope.owner.mu.Lock()
 	retireProtocolPortalsAfter(scope.owner, 1)
 	scope.owner.mu.Unlock()
-	if err := drainCursorCleanup(scope.owner, op.Context(), scope); err != nil || session.preparedSQL.portals["p"] != p || disposals != 1 {
+	if err := drainCursorCleanup(scope.owner, op.Context(), scope); err != nil || payloadOf(session).preparedSQL.portals["p"] != p || disposals != 1 {
 		t.Fatal("older failed identity did not survive frontier", err, disposals)
 	}
 	scope.owner.mu.Lock()
 	retireProtocolPortalsAfter(scope.owner, 0)
 	scope.owner.mu.Unlock()
-	if err := drainCursorCleanup(scope.owner, op.Context(), scope); err != nil || session.preparedSQL.portals["p"] != nil || disposals != 1 {
+	if err := drainCursorCleanup(scope.owner, op.Context(), scope); err != nil || payloadOf(session).preparedSQL.portals["p"] != nil || disposals != 1 {
 		t.Fatal("retirement leaked identity or repeated executor disposal", err, disposals)
 	}
 }

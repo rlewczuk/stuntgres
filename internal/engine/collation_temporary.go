@@ -61,7 +61,7 @@ func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 			}
 		}
 		if len(namespaces) == 0 {
-			source.sequences.ForgetLocked()
+			payloadOf(source).sequences.ForgetLocked()
 			source.temporaryNamespace = ids.ObjectAddress{}
 			e.mu.Unlock()
 			return nil
@@ -93,7 +93,7 @@ func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 			return attemptErr
 		}
 		e.mu.Lock()
-		source.sequences.ForgetLocked()
+		payloadOf(source).sequences.ForgetLocked()
 		source.temporaryNamespace = ids.ObjectAddress{}
 		e.mu.Unlock()
 		return nil

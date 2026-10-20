@@ -61,7 +61,7 @@ func (e *Engine) prepareNotificationPublication(sender *Session, actions []notif
 	e.mu.Lock()
 	p.count = len(e.notifications)
 	p.captured = make([]notificationCapture, 0, p.count+1)
-	own := &sender.notifications
+	own := &payloadOf(sender).notifications
 	ownFound := false
 	for _, n := range e.notifications {
 		p.captured = append(p.captured, notificationCapture{resource: n, original: n.state, busy: n.busy, ended: n.ended})

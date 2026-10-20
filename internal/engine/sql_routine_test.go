@@ -138,7 +138,7 @@ func TestSQLRoutineBodyAnalysisRetention(t *testing.T) {
 	}
 	sqlRoutineUnitInteger(t, execute("SELECT routine_unit_read()"), 4)
 	var retained *preparedAnalysis
-	for _, entry := range op.session.sqlRoutines {
+	for _, entry := range payloadOf(op.session).sqlRoutines {
 		retained = entry.description.analysis
 	}
 	if retained == nil {
@@ -146,13 +146,13 @@ func TestSQLRoutineBodyAnalysisRetention(t *testing.T) {
 	}
 	execute("UPDATE routine_unit_data SET x=9")
 	sqlRoutineUnitInteger(t, execute("SELECT routine_unit_read()"), 9)
-	for _, entry := range op.session.sqlRoutines {
+	for _, entry := range payloadOf(op.session).sqlRoutines {
 		if entry.description.analysis != retained {
 			t.Fatal("unchanged body identity reanalyzed")
 		}
 	}
 	execute("DISCARD PLANS")
-	if len(op.session.sqlRoutines) != 0 {
+	if len(payloadOf(op.session).sqlRoutines) != 0 {
 		t.Fatal("DISCARD retained routine body analyses")
 	}
 	sqlRoutineUnitInteger(t, execute("SELECT routine_unit_read()"), 9)

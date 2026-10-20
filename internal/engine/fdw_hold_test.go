@@ -36,7 +36,7 @@ func fdwHoldSettlement(t *testing.T) {
 	if s.finished || len(s.foreignTablesOrZero().statements) != 1 || &s.foreignTables().statements[0] != &marks[0] || s.foreignTablesOrZero().statements[0] != participant || len(remote.calls) != 0 || e.visibility.CommitSeq() != frontier {
 		t.Fatal("borrowed HOLD scope settled, copied, or lost the current statement marks", remote.calls)
 	}
-	if len(s.foreignTablesOrZero().holdPromotions) != 1 || s.foreignTablesOrZero().holdPromotions[0] != session.cursors.entries["hold_owned"] || !s.foreignTablesOrZero().holdPromotions[0].promoted {
+	if len(s.foreignTablesOrZero().holdPromotions) != 1 || s.foreignTablesOrZero().holdPromotions[0] != payloadOf(session).cursors.entries["hold_owned"] || !s.foreignTablesOrZero().holdPromotions[0].promoted {
 		t.Fatal("completion did not retain exact tentative promotion ownership")
 	}
 	remote.check = func() {
@@ -65,7 +65,7 @@ func fdwHoldSettlement(t *testing.T) {
 	if err := s.discardForeignHoldPromotions(nil); err != nil {
 		t.Fatal(err)
 	}
-	if session.cursors.entries["hold_owned"] != nil || len(s.foreignTablesOrZero().holdPromotions) != 0 {
+	if payloadOf(session).cursors.entries["hold_owned"] != nil || len(s.foreignTablesOrZero().holdPromotions) != 0 {
 		t.Fatal("unpublished completion retained a fresh HOLD promotion")
 	}
 }

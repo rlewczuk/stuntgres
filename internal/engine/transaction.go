@@ -91,11 +91,11 @@ type transactionOwner struct {
 func clearTransaction(t *transactionOwner) {
 	t.foreign.cleanup = append(t.foreign.cleanup, t.foreign.participants...)
 	t.foreign.participants = nil
-	if t.session.cursors != nil {
-		t.cursorCleanup = append(t.cursorCleanup, t.session.cursors.endTransaction(t.ref)...)
+	if payloadOf(t.session).cursors != nil {
+		t.cursorCleanup = append(t.cursorCleanup, payloadOf(t.session).cursors.endTransaction(t.ref)...)
 	}
-	if t.session.preparedSQL != nil {
-		for _, p := range t.session.preparedSQL.portals {
+	if payloadOf(t.session).preparedSQL != nil {
+		for _, p := range payloadOf(t.session).preparedSQL.portals {
 			if p.tx == t.ref {
 				p.retired = true
 			}
@@ -190,7 +190,7 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState, 
 	t.next++
 	t.ref = e.catalog.Domain.Tx(t.session.token, t.next, e.catalog.state.Epoch(), t, diagnostic)
 	t.state = state
-	session.notifications.busy = true
+	payloadOf(session).notifications.busy = true
 	t.isolation = isolationFromText(settings.value("default_transaction_isolation"))
 	t.readOnly = settings.value("default_transaction_read_only") == "on"
 	t.deferrable = settings.value("default_transaction_deferrable") == "on"
@@ -805,7 +805,7 @@ func (s *StatementScope) execute(stmt parser.Statement, count int, importFrame F
 				return Result{}, importErr
 			}
 		}
-		entry := s.op.session.preparedSQL.entries[execute.Name.Text]
+		entry := payloadOf(s.op.session).preparedSQL.entries[execute.Name.Text]
 		if entry == nil {
 			// Establish the ordinary failed-command transaction boundary too.
 			if err := s.gate(stmt); err != nil {
@@ -1007,12 +1007,12 @@ func drainCursorCleanup(t *transactionOwner, ctx context.Context, scope *Stateme
 	if failure := rollbackForeign(ctx, participants); err == nil {
 		err = failure
 	}
-	if t.session.preparedSQL == nil {
+	if payloadOf(t.session).preparedSQL == nil {
 		return err
 	}
-	for name, p := range t.session.preparedSQL.portals {
+	for name, p := range payloadOf(t.session).preparedSQL.portals {
 		if p.retired {
-			delete(t.session.preparedSQL.portals, name)
+			delete(payloadOf(t.session).preparedSQL.portals, name)
 			var failure error
 			if wire {
 				failure = scope.protocolTerminalIO(func() error { return p.close(ctx) })

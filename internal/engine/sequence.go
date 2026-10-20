@@ -392,7 +392,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			changes.Generators[d.Address()] = &replacement
 		}
 		if s.Action == "" || persistenceChanged {
-			if m := op.session.sequences.Memory(d.Address()); m != nil {
+			if m := payloadOf(op.session).sequences.Memory(d.Address()); m != nil {
 				m.DiscardTailLocked()
 			}
 		}

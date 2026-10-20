@@ -191,7 +191,7 @@ func (s *StatementScope) Finish(err error) error {
 	if t.state == TxImplicit && err != nil && len(t.foreign.participants) != 0 {
 		t.mu.Unlock()
 		s.foreignUnlocked()
-		_ = disposeSQLCursors(s.op.Context(), t.session.cursors.endTransaction(t.ref))
+		_ = disposeSQLCursors(s.op.Context(), payloadOf(t.session).cursors.endTransaction(t.ref))
 		t.mu.Lock()
 	}
 	if len(s.foreignTablesOrZero().statements) != 0 {
@@ -223,7 +223,7 @@ func (s *StatementScope) Finish(err error) error {
 		t.session.retireTransactionTimeout()
 	} else if err != nil && admittedFailure && (t.state == TxActive || t.state == TxAborted) {
 		if errors.Is(err, ids.ErrCatalogReplaced) {
-			t.cursorCleanup = append(t.cursorCleanup, t.session.cursors.clear()...)
+			t.cursorCleanup = append(t.cursorCleanup, payloadOf(t.session).cursors.clear()...)
 			t.truncateSavepoints(0)
 		}
 		if len(t.savepoints) != 0 {
@@ -259,7 +259,7 @@ func (s *StatementScope) Finish(err error) error {
 			t.notificationEvents = nil
 			endedTicket = t.ticket
 			t.ticket = nil
-			t.cursorCleanup = append(t.cursorCleanup, t.session.cursors.endTransaction(t.ref)...)
+			t.cursorCleanup = append(t.cursorCleanup, payloadOf(t.session).cursors.endTransaction(t.ref)...)
 		}
 	}
 	e.endStatementVisibility(s.txRef, t.state != TxIdle && stableIsolation(t.isolation))

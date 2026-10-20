@@ -46,10 +46,10 @@ func TestAlterSchemaIdentityAndCache(t *testing.T) {
 	sequenceScalar(t, s, "SELECT nextval('s1.q1')", 10)
 	generator := e.storage.Sequences[addresses[1]]
 	generatorValue := *generator
-	memory := s.sequences.Memory(addresses[1])
+	memory := payloadOf(s).sequences.Memory(addresses[1])
 	memoryValue := *memory
 	sequenceScalar(t, peer, "SELECT nextval('s1.q1')", 17)
-	peerMemory := peer.sequences.Memory(addresses[1])
+	peerMemory := payloadOf(peer).sequences.Memory(addresses[1])
 	peerValue := *peerMemory
 	generatorValue = *generator
 	free := NameAddressForTempMove(t, e, source, "free")
@@ -74,10 +74,10 @@ func TestAlterSchemaIdentityAndCache(t *testing.T) {
 			t.Fatal("move changed nonnamespace definition", before[i], after)
 		}
 	}
-	if e.storage.Relations[addresses[0]] != storage || e.storage.Sequences[addresses[1]] != generator || *generator != generatorValue || s.sequences.Memory(addresses[1]) != memory || *memory != memoryValue || e.catalog.state.Get(free) != freeDescriptor {
+	if e.storage.Relations[addresses[0]] != storage || e.storage.Sequences[addresses[1]] != generator || *generator != generatorValue || payloadOf(s).sequences.Memory(addresses[1]) != memory || *memory != memoryValue || e.catalog.state.Get(free) != freeDescriptor {
 		t.Fatal("move replaced data/generator/cache/independent sequence")
 	}
-	if peer.sequences.Memory(addresses[1]) != peerMemory || *peerMemory != peerValue {
+	if payloadOf(peer).sequences.Memory(addresses[1]) != peerMemory || *peerMemory != peerValue {
 		t.Fatal("move replaced peer cache")
 	}
 	sequenceScalar(t, peer, "SELECT nextval('s2.q1')", 18)

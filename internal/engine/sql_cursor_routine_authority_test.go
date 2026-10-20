@@ -22,7 +22,7 @@ func TestSQLCursorRoutineAuthorityLifetime(t *testing.T) {
 				t.Run(mutation, func(t *testing.T) {
 					s := cursorUnitSetup(t)
 					sessionSQL(t, s, "DECLARE c NO SCROLL CURSOR WITH HOLD FOR SELECT abs(i) FROM unit_rows")
-					c := s.cursors.entries["c"]
+					c := payloadOf(s).cursors.entries["c"]
 					root, catalog, actor := c.root, c.routineAuth.Catalog.State(), c.routineAuth.State.CurrentUser
 					if c.routineAuth.engine != engineOf(s) || catalog == nil || c.authority.Host != nil {
 						t.Fatal("DECLARE did not detach its original routine authority")

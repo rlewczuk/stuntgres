@@ -103,7 +103,7 @@ func TestSequenceTemporarySelfReplacement(t *testing.T) {
 		}
 	}
 	held(1)
-	generator, memory := e.storage.Sequences[address], s.sequences.Memory(address)
+	generator, memory := e.storage.Sequences[address], payloadOf(s).sequences.Memory(address)
 	generatorState, memoryState := *generator, *memory
 	before := captureTemporaryProjectionCatalog(e)
 	sequenceRows := sessionSQL(t, s, "SELECT last_value,is_called FROM local_s")
@@ -112,7 +112,7 @@ func TestSequenceTemporarySelfReplacement(t *testing.T) {
 		if _, err := e.ReplaceCatalog(context.Background(), e, e.CatalogRead()); err != nil {
 			t.Fatal("repeated self replacement", err)
 		}
-		if s.token != token || s.temporaryNamespace != namespace || e.catalog.state.Get(address) != descriptor || e.catalog.state.Get(namespace) != nsDescriptor || e.storage.Sequences[address] != generator || s.sequences.Memory(address) != memory || *generator != generatorState || *memory != memoryState {
+		if s.token != token || s.temporaryNamespace != namespace || e.catalog.state.Get(address) != descriptor || e.catalog.state.Get(namespace) != nsDescriptor || e.storage.Sequences[address] != generator || payloadOf(s).sequences.Memory(address) != memory || *generator != generatorState || *memory != memoryState {
 			t.Fatal("self replacement changed exact live TEMP authority/cache")
 		}
 		if e.catalog.state.DescriptorCount() != len(before.descriptors) || e.catalog.state.NameCount() != len(before.names) || len(e.storage.Sequences) != 1 {
@@ -170,9 +170,9 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	namespace, token := b.temporaryNamespace, b.token
 	sourceNamespace := a.temporaryNamespace
 	descriptor, nsDescriptor := dest.catalog.state.Get(address), dest.catalog.state.Get(namespace)
-	generator, memory := dest.storage.Sequences[address], b.sequences.Memory(address)
+	generator, memory := dest.storage.Sequences[address], payloadOf(b).sequences.Memory(address)
 	generatorState, memoryState := *generator, *memory
-	sourceGenerator, sourceMemory := source.storage.Sequences[sourceTemp], a.sequences.Memory(sourceTemp)
+	sourceGenerator, sourceMemory := source.storage.Sequences[sourceTemp], payloadOf(a).sequences.Memory(sourceTemp)
 	sourceGeneratorState, sourceMemoryState := *sourceGenerator, *sourceMemory
 	sourceGenerators := make(map[ids.ObjectAddress]*storage.SequenceGenerator)
 	sourceStates := make(map[ids.ObjectAddress]storage.SequenceGenerator)
@@ -197,7 +197,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 	if _, err := dest.ReplaceCatalog(context.Background(), source, sourceBefore.view); err != nil {
 		t.Fatal(err)
 	}
-	if b.token != token || b.temporaryNamespace != namespace || dest.catalog.state.Get(address) != descriptor || dest.catalog.state.Get(namespace) != nsDescriptor || dest.storage.Sequences[address] != generator || b.sequences.Memory(address) != memory || *generator != generatorState || *memory != memoryState {
+	if b.token != token || b.temporaryNamespace != namespace || dest.catalog.state.Get(address) != descriptor || dest.catalog.state.Get(namespace) != nsDescriptor || dest.storage.Sequences[address] != generator || payloadOf(b).sequences.Memory(address) != memory || *generator != generatorState || *memory != memoryState {
 		t.Fatal("foreign replacement changed destination TEMP identity/cache")
 	}
 	var tempNamespaces, tempRelations int
@@ -271,7 +271,7 @@ func TestSequenceTemporaryForeignReplacement(t *testing.T) {
 		}
 	}
 	destBefore.unchanged(t)
-	if source.catalog.state != sourceBefore.view.State() || source.storage.Sequences[sourceTemp] != sourceGenerator || a.sequences.Memory(sourceTemp) != sourceMemory || *sourceGenerator != sourceGeneratorState || *sourceMemory != sourceMemoryState {
+	if source.catalog.state != sourceBefore.view.State() || source.storage.Sequences[sourceTemp] != sourceGenerator || payloadOf(a).sequences.Memory(sourceTemp) != sourceMemory || *sourceGenerator != sourceGeneratorState || *sourceMemory != sourceMemoryState {
 		t.Fatal("destination import changed source live authority")
 	}
 	r, err := sequencePreparedExecute(dest, b, ast, &description)

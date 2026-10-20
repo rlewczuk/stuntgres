@@ -17,7 +17,7 @@ import (
 func TestDeleteCurrentOfIdentity(t *testing.T) {
 	s := cursorUnitSetup(t)
 	sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT 99 AS projected FROM unit_rows ORDER BY i FOR UPDATE")
-	c := s.cursors.entries["c"]
+	c := payloadOf(s).cursors.entries["c"]
 	cursorUnitBatch(t, s, "FETCH FORWARD 2 FROM c", [][]driver.Value{{int64(99)}, {int64(99)}})
 	if c.authority.Host != nil || c.currentSource == nil || c.position != cursorOn {
 		t.Fatal("FETCH retained admission or lost physical occurrence", c)
@@ -74,7 +74,7 @@ func TestDeleteCurrentOfOccurrenceVersions(t *testing.T) {
 func TestDeleteCurrentOfEligibility(t *testing.T) {
 	s := cursorUnitSetup(t)
 	sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT i FROM (SELECT i FROM unit_rows) d")
-	c := s.cursors.entries["c"]
+	c := payloadOf(s).cursors.entries["c"]
 	scan := cursorSimpleScan(c.root, c.source)
 	if scan == nil || scan.View == nil || scan.Ref.Address != c.locks.Leaves[0].Leaf.Ref.Address {
 		t.Fatal("transparent derived query loses physical scan")
@@ -101,7 +101,7 @@ func TestDeleteCurrentOfPublication(t *testing.T) {
 	cursorUnitBatch(t, s, "FETCH FORWARD 1 FROM c", [][]driver.Value{{int64(1)}})
 	sessionSQL(t, s, "INSERT INTO unit_rows VALUES(4)")
 	sessionSQL(t, s, "SAVEPOINT recover")
-	cursor := s.cursors.entries["c"]
+	cursor := payloadOf(s).cursors.entries["c"]
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	op, err := s.Acquire(ctx)
@@ -134,7 +134,7 @@ func TestDeleteCurrentOfPublication(t *testing.T) {
 		t.Fatal("canceled Finish published private deletion", err)
 	}
 	sessionSQL(t, s, "ROLLBACK TO recover")
-	if s.cursors.entries["c"] != cursor || cursor.position != cursorOn || cursor.authority.Host != nil {
+	if payloadOf(s).cursors.entries["c"] != cursor || cursor.position != cursorOn || cursor.authority.Host != nil {
 		t.Fatal("mutation cancellation failed healthy cursor")
 	}
 	transactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 1, 2, 3, 4)
@@ -151,7 +151,7 @@ func TestDeleteCurrentOfArbitration(t *testing.T) {
 	sessionSQL(t, worker, "BEGIN")
 	sessionSQL(t, worker, "DECLARE c CURSOR FOR SELECT 99 FROM t")
 	cursorUnitBatch(t, worker, "FETCH FORWARD 1 FROM c", [][]driver.Value{{int64(99)}})
-	cursor := worker.cursors.entries["c"]
+	cursor := payloadOf(worker).cursors.entries["c"]
 	identity := cursorOccurrenceVersion(cursor.currentSource, cursor.currentIndex, 0, cursor.locks)
 	tx := transactionBegin(t, holder)
 	deleteCount(t, holder, "DELETE FROM t WHERE v=7", 2)
@@ -189,14 +189,14 @@ func TestDeleteCurrentOfLifetime(t *testing.T) {
 	s := cursorUnitSetup(t)
 	sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT FROM unit_rows FOR UPDATE")
 	cursorUnitBatch(t, s, "FETCH FORWARD 1 FROM c", [][]driver.Value{{}})
-	old := s.cursors.entries["c"]
+	old := payloadOf(s).cursors.entries["c"]
 	if old.currentSource == nil {
 		t.Fatal("zero-width result lost identity")
 	}
 	sessionSQL(t, s, "SAVEPOINT keep")
 	deleteCount(t, s, "DELETE FROM unit_rows WHERE CURRENT OF c", 1)
 	sessionSQL(t, s, "ROLLBACK TO keep")
-	if s.cursors.entries["c"] != old || old.currentSource == nil {
+	if payloadOf(s).cursors.entries["c"] != old || old.currentSource == nil {
 		t.Fatal("rollback rewinds or discards older current identity")
 	}
 	sessionSQL(t, s, "CLOSE c")
@@ -204,12 +204,12 @@ func TestDeleteCurrentOfLifetime(t *testing.T) {
 		t.Fatal("dispose retains execution authority")
 	}
 	sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT i FROM unit_rows")
-	fresh := s.cursors.entries["c"]
+	fresh := payloadOf(s).cursors.entries["c"]
 	if fresh == old || fresh.currentSource != nil || fresh.position != cursorBefore {
 		t.Fatal("name incarnation inherited current identity")
 	}
 	sessionSQL(t, s, "ROLLBACK")
-	if len(s.cursors.entries) != 0 || fresh.currentSource != nil {
+	if len(payloadOf(s).cursors.entries) != 0 || fresh.currentSource != nil {
 		t.Fatal("transaction end retained cursor")
 	}
 }
@@ -237,7 +237,7 @@ func TestDeleteCurrentOfJoinIdentityRetention(t *testing.T) {
 			}
 			sessionSQL(t, s, "BEGIN")
 			sessionSQL(t, s, "DECLARE c CURSOR FOR "+tc.query)
-			c := s.cursors.entries["c"]
+			c := payloadOf(s).cursors.entries["c"]
 			if c.locks == nil || c.locks.RowMarked() != tc.marked || c.state.Locking != tc.marked {
 				t.Fatal("identity manifest changed semantic rowmark requirement")
 			}

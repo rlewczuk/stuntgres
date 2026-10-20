@@ -43,7 +43,7 @@ func TestProtocolPortalProducer(t *testing.T) {
 	newPortal := &protocolPortal{tx: owner.ref, born: 2, rows: newRows}
 	foreign := &protocolPortal{tx: owner.ref, born: 3, rows: foreignRows}
 	foreign.tx = withTxID(foreign.tx, foreign.tx.ID()+1)
-	session.preparedSQL.portals = map[string]*protocolPortal{"old": p, "new": newPortal, "foreign": foreign}
+	payloadOf(session).preparedSQL.portals = map[string]*protocolPortal{"old": p, "new": newPortal, "foreign": foreign}
 	owner.mu.Lock()
 	retireProtocolPortalsAfter(owner, 1)
 	owner.mu.Unlock()

@@ -39,14 +39,14 @@ func TestAlterTypeACLAndOwnedSequenceIdentity(t *testing.T) {
 	sequence := e.catalog.state.Get(sequenceRef.Address)
 	s := sessionStart(t, e, nil)
 	sequenceScalar(t, s, "SELECT nextval('q')", 10)
-	generator, memory := e.storage.Sequences[sequenceRef.Address], s.sequences.Memory(sequenceRef.Address)
+	generator, memory := e.storage.Sequences[sequenceRef.Address], payloadOf(s).sequences.Memory(sequenceRef.Address)
 	generatorValue, memoryValue := *generator, *memory
 	run(t, e, "ALTER TABLE t ALTER c TYPE BIGINT USING c+1")
 	after := e.catalog.state.MustRelation(tableRef.Address)
 	if after.Address() != before.Address() || after.Owner != before.Owner || !reflect.DeepEqual(after.Attributes, before.Attributes) || !reflect.DeepEqual(after.Security.ACL, before.Security.ACL) || !reflect.DeepEqual(after.Security.ColumnACL, before.Security.ColumnACL) {
 		t.Fatal("TYPE changed ACL/attribute/owner identity", before, after)
 	}
-	if e.catalog.state.Get(sequenceRef.Address) != sequence || e.storage.Sequences[sequenceRef.Address] != generator || *generator != generatorValue || s.sequences.Memory(sequenceRef.Address) != memory || *memory != memoryValue {
+	if e.catalog.state.Get(sequenceRef.Address) != sequence || e.storage.Sequences[sequenceRef.Address] != generator || *generator != generatorValue || payloadOf(s).sequences.Memory(sequenceRef.Address) != memory || *memory != memoryValue {
 		t.Fatal("TYPE changed owned sequence identity/generator/cache")
 	}
 	sequenceScalar(t, s, "SELECT nextval('q')", 11)

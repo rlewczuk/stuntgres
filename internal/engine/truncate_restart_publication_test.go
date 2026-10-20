@@ -206,7 +206,7 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 			t.Fatal(got)
 		}
 		scope.op.Done()
-		if e.storage.Relations[p.Address] != oldP || e.storage.Relations[q.Address] != oldQ || e.storage.Sequences[ps.Address] != oldPS || e.storage.Sequences[qs.Address] != oldQS || e.catalog.state.Get(ps.Address) != oldPD || e.catalog.state.Get(qs.Address) != oldQD || oldPS.Last != 2 || oldQS.Last != 44 || s.sequences.Memory(ps.Address).SourceStamp() != 0 || s.sequences.Memory(qs.Address).SourceStamp() != 0 {
+		if e.storage.Relations[p.Address] != oldP || e.storage.Relations[q.Address] != oldQ || e.storage.Sequences[ps.Address] != oldPS || e.storage.Sequences[qs.Address] != oldQS || e.catalog.state.Get(ps.Address) != oldPD || e.catalog.state.Get(qs.Address) != oldQD || oldPS.Last != 2 || oldQS.Last != 44 || payloadOf(s).sequences.Memory(ps.Address).SourceStamp() != 0 || payloadOf(s).sequences.Memory(qs.Address).SourceStamp() != 0 {
 			t.Fatal("partial exhausted reset escaped")
 		}
 		lockEmpty(t, e)

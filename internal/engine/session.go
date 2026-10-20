@@ -9,7 +9,6 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
@@ -92,20 +91,16 @@ type Session struct {
 	result                 error
 	settings               *sessionSettings
 	transactions           *transactionOwner
-	notifications          sessionNotifications
 	advisory               sessionAdvisory
-	cursors                *cursorRegistry
-	preparedSQL            *sqlPreparedRegistry
 	authorization          *sessionAuthorization
-	sequences              sequence.SessionMemory
 	discardPlansGeneration uint64 // serialized by physical-owner statement admission
-	sqlRoutines            map[ids.ObjectAddress]sqlRoutineAnalysis
 	temporaryNamespace     ids.ObjectAddress
 	random                 randomState
 	arrayRandom            randomState // independent of random()/setseed()
 	uuid                   uuidClock
 	databaseName           string
 	timeouts               sessionTimeouts
+	payload                session.PayloadSlot // Root payload; set before publication, never changed. See payloadOf.
 }
 
 // Operation is pointer-owned; copying it is invalid. Done releases its lease once.
@@ -173,7 +168,10 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	if !role.Login {
 		return nil, roleLoginError(role.Name)
 	}
-	s := &Session{host: (*sessionHost)(e), token: e.catalog.Domain.Session(start.ID), countedAuthenticated: authenticated, state: initializing, completed: make(chan struct{}), leases: 1, removed: make(map[ResourceHandle]bool)}
+	// One allocation holds the session and its root payload.
+	allocation := &sessionAllocation{session: Session{host: (*sessionHost)(e), token: e.catalog.Domain.Session(start.ID), countedAuthenticated: authenticated, state: initializing, completed: make(chan struct{}), leases: 1, removed: make(map[ResourceHandle]bool)}}
+	s, payload := &allocation.session, &allocation.payload
+	s.payload = payload
 	if private {
 		s.token = e.catalog.Domain.PrivateSession(s)
 	}
@@ -213,8 +211,8 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 		}
 	}
 	if err == nil {
-		s.notifications.engine, s.notifications.token = e, s.token
-		_, err = op.Attach(Notifications, &s.notifications)
+		payload.notifications.engine, payload.notifications.token = e, s.token
+		_, err = op.Attach(Notifications, &payload.notifications)
 	}
 	if err == nil {
 		var ticket *lock.Ticket
@@ -236,14 +234,14 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 		cursors := &cursorRegistry{entries: make(map[string]*sqlCursor), token: s.token}
 		_, err = op.Attach(Cursors, cursors)
 		if err == nil {
-			s.cursors = cursors
+			payload.cursors = cursors
 		}
 	}
 	if err == nil {
 		prepared := &sqlPreparedRegistry{entries: make(map[string]*sqlPreparedStatement), token: s.token}
 		_, err = op.Attach(PreparedSQL, prepared)
 		if err == nil {
-			s.preparedSQL = prepared
+			payload.preparedSQL = prepared
 		}
 	}
 	e.mu.Lock()

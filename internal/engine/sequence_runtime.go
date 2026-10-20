@@ -19,7 +19,7 @@ func (h *statementHost) Sequence(request functions.SequenceRequest) (int64, erro
 	}
 	if request.Name == "lastval" {
 		e.mu.Lock()
-		ref = e.catalog.Domain.Ref(e.catalog.state.Epoch(), scope.op.session.sequences.Last())
+		ref = e.catalog.Domain.Ref(e.catalog.state.Epoch(), payloadOf(scope.op.session).sequences.Last())
 		e.mu.Unlock()
 		if ref.Address == (ids.ObjectAddress{}) {
 			return 0, sqlError("55000", "lastval is not yet defined in this session")
@@ -102,7 +102,7 @@ func (h *statementHost) Sequence(request functions.SequenceRequest) (int64, erro
 	if g == nil {
 		return 0, fmt.Errorf("stuntgres: sequence state missing")
 	}
-	m := session.sequences.DemandLocked(ref.Address)
+	m := payloadOf(session).sequences.DemandLocked(ref.Address)
 	m.ObserveLocked(g.Generation)
 	var result int64
 	switch request.Name {
@@ -121,7 +121,7 @@ func (h *statementHost) Sequence(request functions.SequenceRequest) (int64, erro
 		if err != nil {
 			return 0, err
 		}
-		session.sequences.RecordLastLocked(d.Address())
+		payloadOf(session).sequences.RecordLastLocked(d.Address())
 	case "setval":
 		result, err = request.Value.Integer()
 		if err != nil {

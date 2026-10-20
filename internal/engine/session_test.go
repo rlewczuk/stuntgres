@@ -220,7 +220,7 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 	if _, err = e.Execute(op, statement(t, "DECLARE terminal NO SCROLL CURSOR FOR SELECT 1"), 0, nil); err != nil {
 		t.Fatal(err)
 	}
-	cursor := s.cursors.entries["terminal"]
+	cursor := payloadOf(s).cursors.entries["terminal"]
 	var order []ResourceKind
 	var mu sync.Mutex
 	for _, kind := range []ResourceKind{Temporary, PreparedSQL} {
@@ -229,7 +229,7 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 			if s.TransactionState() != TxIdle {
 				t.Error("transaction cleanup did not precede resources")
 			}
-			if len(s.cursors.entries) != 0 || cursor.source != nil || cursor.authority.Host != nil {
+			if len(payloadOf(s).cursors.entries) != 0 || cursor.source != nil || cursor.authority.Host != nil {
 				t.Error("named execution cleanup did not precede resources")
 			}
 			mu.Lock()

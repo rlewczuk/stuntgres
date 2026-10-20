@@ -252,7 +252,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	case *parser.PrepareSQL, *parser.DeallocateSQL, *parser.Discard:
 		return StatementDescription{}, nil
 	case *parser.ExecuteSQL:
-		if entry := op.session.preparedSQL.entries[s.Name.Text]; entry != nil {
+		if entry := payloadOf(op.session).preparedSQL.entries[s.Name.Text]; entry != nil {
 			if !scope.rowSecurity && preparableBody(entry.body) {
 				// Reuse the named statement's analyzed identities without changing
 				// its session definition or executing its argument expressions.
@@ -273,7 +273,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 		if s.Move {
 			return StatementDescription{}, nil
 		}
-		if cursor := op.session.cursors.entries[s.Name.Text]; cursor != nil {
+		if cursor := payloadOf(op.session).cursors.entries[s.Name.Text]; cursor != nil {
 			return StatementDescription{Results: cursor.schema}, nil
 		}
 		return StatementDescription{}, nil

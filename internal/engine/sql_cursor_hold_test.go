@@ -16,7 +16,7 @@ import (
 func TestSQLCursorHoldOwner(t *testing.T) {
 	s := cursorUnitSetup(t)
 	sessionSQL(t, s, "DECLARE h NO SCROLL CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
-	c := s.cursors.entries["h"]
+	c := payloadOf(s).cursors.entries["h"]
 	pin, cell, epoch := c.source.View, c.authority, c.epoch
 	first := cursorUnitBatch(t, s, "FETCH 1 FROM h", [][]driver.Value{{int64(1)}})
 	sessionSQL(t, s, "COMMIT")
@@ -29,7 +29,7 @@ func TestSQLCursorHoldOwner(t *testing.T) {
 	sessionSQL(t, s, "BEGIN")
 	sessionSQL(t, s, "DECLARE fresh CURSOR WITH HOLD FOR SELECT 9")
 	sessionSQL(t, s, "ROLLBACK")
-	if s.cursors.entries["h"] != c || s.cursors.entries["fresh"] != nil {
+	if payloadOf(s).cursors.entries["h"] != c || payloadOf(s).cursors.entries["fresh"] != nil {
 		t.Fatal("later rollback crosses exported ownership")
 	}
 	second := cursorUnitBatch(t, s, "FETCH 1 FROM h", [][]driver.Value{{int64(2)}})
@@ -52,7 +52,7 @@ func TestSQLCursorHoldOwner(t *testing.T) {
 		t.Fatal("export loses original epoch fence", result, err)
 	}
 	s.RequestEnd(CleanClose)
-	if err := s.WaitEnd(context.Background()); err != nil || len(s.cursors.entries) != 0 {
+	if err := s.WaitEnd(context.Background()); err != nil || len(payloadOf(s).cursors.entries) != 0 {
 		t.Fatal("physical end retains store", err)
 	}
 	if !reflect.DeepEqual(tuples(second), [][]driver.Value{{int64(2)}}) {
@@ -65,7 +65,7 @@ func TestSQLCursorHoldDemand(t *testing.T) {
 		t.Run(fmt.Sprint(fetched), func(t *testing.T) {
 			s := cursorUnitSetup(t)
 			sessionSQL(t, s, "DECLARE h CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
-			c := s.cursors.entries["h"]
+			c := payloadOf(s).cursors.entries["h"]
 			original := c.root.Expressions[0]
 			calls := 0
 			c.root.Expressions[0] = queryProbe(original.ResultUsage(), func(ctx *exec.Context) (sqltype.Value, error) {
@@ -103,7 +103,7 @@ func TestSQLCursorHoldDemand(t *testing.T) {
 		sessionSQL(t, s, "DECLARE z CURSOR WITH HOLD FOR SELECT FROM unit_rows")
 		sessionSQL(t, s, "DECLARE e CURSOR WITH HOLD FOR SELECT i FROM unit_rows WHERE FALSE")
 		sessionSQL(t, s, "COMMIT")
-		z := s.cursors.entries["z"]
+		z := payloadOf(s).cursors.entries["z"]
 		if z.count != 3 || len(z.schema) != 0 || len(z.values) != 0 {
 			t.Fatal("zero-width cardinality lost", z)
 		}
@@ -118,7 +118,7 @@ func TestSQLCursorHoldDemand(t *testing.T) {
 	t.Run("move_position_drain", func(t *testing.T) {
 		s := cursorUnitSetup(t)
 		sessionSQL(t, s, "DECLARE h NO SCROLL CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
-		c := s.cursors.entries["h"]
+		c := payloadOf(s).cursors.entries["h"]
 		move := sessionSQL(t, s, "MOVE 2 FROM h")
 		if move.Rows != nil || move.Count != 2 || c.stage.Position != 2 || c.ordinalPosition != 2 {
 			t.Fatal("live MOVE and producer drain position diverge", move, c)
@@ -136,7 +136,7 @@ func TestSQLCursorScrollHoldOwner(t *testing.T) {
 		t.Run(fmt.Sprint(fetched), func(t *testing.T) {
 			s := cursorUnitSetup(t)
 			sessionSQL(t, s, "DECLARE h SCROLL CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
-			c := s.cursors.entries["h"]
+			c := payloadOf(s).cursors.entries["h"]
 			pin, cell := c.source.View, c.authority
 			original, calls := c.root.Expressions[0], 0
 			c.root.Expressions[0] = queryProbe(original.ResultUsage(), func(ctx *exec.Context) (sqltype.Value, error) {
@@ -185,7 +185,7 @@ func TestSQLCursorScrollHoldOwner(t *testing.T) {
 		s := cursorUnitSetup(t)
 		sessionSQL(t, s, "DECLARE e SCROLL CURSOR WITH HOLD FOR SELECT i FROM unit_rows WHERE FALSE")
 		cursorUnitBatch(t, s, "FETCH ALL FROM e", [][]driver.Value{})
-		c := s.cursors.entries["e"]
+		c := payloadOf(s).cursors.entries["e"]
 		sessionSQL(t, s, "COMMIT")
 		if !c.promoted || c.count != 0 || c.ordinalPosition != 0 || !c.atEnd || c.position != cursorAfter {
 			t.Fatal("empty SCROLL export loses attempted EOF", c)
@@ -204,7 +204,7 @@ func TestSQLCursorScrollHoldOwner(t *testing.T) {
 			t.Run(fmt.Sprint(fetched), func(t *testing.T) {
 				s := cursorUnitSetup(t)
 				sessionSQL(t, s, "DECLARE h SCROLL CURSOR WITH HOLD FOR SELECT i FROM (SELECT i FROM unit_rows ORDER BY i OFFSET 0) AS ordered")
-				c := s.cursors.entries["h"]
+				c := payloadOf(s).cursors.entries["h"]
 				original, calls := c.root.Expressions[0], 0
 				c.root.Expressions[0] = queryProbe(original.ResultUsage(), func(ctx *exec.Context) (sqltype.Value, error) {
 					calls++
@@ -231,7 +231,7 @@ func TestSQLCursorHoldAuthority(t *testing.T) {
 			t.Run(fmt.Sprintf("native=%t/prior=%t", native, before), func(t *testing.T) {
 				s := cursorUnitSetup(t)
 				sessionSQL(t, s, "DECLARE h CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
-				c, ref := s.cursors.entries["h"], s.transactions.ref
+				c, ref := payloadOf(s).cursors.entries["h"], s.transactions.ref
 				cell := c.authority
 				original := c.root.Expressions[0]
 				phase, calls := "fetch", 0

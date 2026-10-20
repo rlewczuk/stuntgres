@@ -52,7 +52,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 	if raw.Category == parser.DiscardAll {
 		e := engineOf(session)
 		e.mu.Lock()
-		state := session.notifications.state
+		state := payloadOf(session).notifications.state
 		history := state != nil && state.history
 		e.mu.Unlock()
 		if history {
@@ -77,10 +77,10 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 			e.replacementMu.RUnlock()
 			s.replacementRead = false
 		}
-		if err := disposeSQLCursors(s.op.Context(), session.cursors.clear()); err != nil {
+		if err := disposeSQLCursors(s.op.Context(), payloadOf(session).cursors.clear()); err != nil {
 			return Result{}, err
 		}
-		clear(session.preparedSQL.entries)
+		clear(payloadOf(session).preparedSQL.entries)
 		// The persistent ticket was validated before publication and cannot end
 		// while this operation lease is live. Manager callbacks run unlocked.
 		e.locks.DiscardAdvisoryHolds(session.advisory.ticket)
@@ -89,13 +89,13 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 		session.discardPlansGeneration++
 		e := engineOf(session)
 		e.mu.Lock()
-		session.sqlRoutines = nil
+		payloadOf(session).sqlRoutines = nil
 		e.mu.Unlock()
 	}
 	if raw.Category == parser.DiscardSequences || raw.Category == parser.DiscardAll {
 		e := engineOf(session)
 		e.mu.Lock()
-		session.sequences.DiscardLocked(raw.Category == parser.DiscardAll)
+		payloadOf(session).sequences.DiscardLocked(raw.Category == parser.DiscardAll)
 		e.mu.Unlock()
 	}
 	s.completed, s.sessionCompleted = true, true
@@ -285,7 +285,7 @@ func (s *StatementScope) discardTemporaryCursorPreflight(stage *CatalogStage, ad
 
 func (s *StatementScope) relationCursorPreflight(catalog catalog.Read, address ids.ObjectAddress, command string) error {
 	session := s.op.session
-	for _, cursor := range session.cursors.entries {
+	for _, cursor := range payloadOf(session).cursors.entries {
 		if cursor.tx != s.txRef || cursor.root == nil || cursor.position == cursorFailed {
 			continue
 		}

@@ -91,7 +91,7 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 			if temp != owner {
 				t.Fatal("fixture lacks owner-table collision", temp, owner)
 			}
-			definition, generator, memory := dest.catalog.state.Get(temp), dest.storage.Sequences[temp], b.sequences.Memory(temp)
+			definition, generator, memory := dest.catalog.state.Get(temp), dest.storage.Sequences[temp], payloadOf(b).sequences.Memory(temp)
 			generatorState, memoryState := *generator, *memory
 			// Force the required relationship using observed object identities,
 			// independently of how many embedded definitions consume OIDs.
@@ -144,7 +144,7 @@ func TestIdentityControlsOwnerCollisionPredecessors(t *testing.T) {
 			if err := dest.Restore(context.Background(), bytes.NewReader(again.Bytes())); err != nil {
 				t.Fatal("second remapped dump cannot restore", err)
 			}
-			if dest.catalog.state.Get(temp) != definition || dest.storage.Sequences[temp] != generator || b.sequences.Memory(temp) != memory || *generator != generatorState || *memory != memoryState {
+			if dest.catalog.state.Get(temp) != definition || dest.storage.Sequences[temp] != generator || payloadOf(b).sequences.Memory(temp) != memory || *generator != generatorState || *memory != memoryState {
 				t.Fatal("retained TEMP state changed")
 			}
 			sequenceScalar(t, b, `SELECT last_value FROM portable.v`, 1)

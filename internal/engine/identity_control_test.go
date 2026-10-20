@@ -34,7 +34,7 @@ func TestIdentityControlsTemporaryCollision(t *testing.T) {
 			if !originalSequence.Sequence.Identity || originalSequence.Sequence.Owned != originalOwned {
 				t.Fatal("source identity lacks reciprocal ownership")
 			}
-			tempDefinition, tempGenerator, tempMemory := dest.catalog.state.Get(tempRef), dest.storage.Sequences[tempRef], b.sequences.Memory(tempRef)
+			tempDefinition, tempGenerator, tempMemory := dest.catalog.state.Get(tempRef), dest.storage.Sequences[tempRef], payloadOf(b).sequences.Memory(tempRef)
 			generatorState, memoryState := *tempGenerator, *tempMemory
 			if mode == "Restore" {
 				var dump bytes.Buffer
@@ -49,7 +49,7 @@ func TestIdentityControlsTemporaryCollision(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if dest.catalog.state.Get(tempRef) != tempDefinition || dest.storage.Sequences[tempRef] != tempGenerator || b.sequences.Memory(tempRef) != tempMemory || *tempGenerator != generatorState || *tempMemory != memoryState {
+			if dest.catalog.state.Get(tempRef) != tempDefinition || dest.storage.Sequences[tempRef] != tempGenerator || payloadOf(b).sequences.Memory(tempRef) != tempMemory || *tempGenerator != generatorState || *tempMemory != memoryState {
 				t.Fatal("retained TEMP authority changed")
 			}
 			ref := roleTableRef(t, dest, "portable.i").Address

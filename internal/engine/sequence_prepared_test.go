@@ -80,7 +80,7 @@ func TestSequencePreparedAuthority(t *testing.T) {
 		cell := d.sequences
 		constant := &cell.Constants[0]
 		path := &cell.Path.Namespaces[0]
-		key, _ := s.sequences.CachedPathKey()
+		key, _ := payloadOf(s).sequences.CachedPathKey()
 		ref := cell.Constants[0].Ref
 		stamp := e.catalog.state.MustRelation(ref.Address).SequencePlanStamp
 		sessionSQL(t, s, "CREATE SEQUENCE a.s START 100")
