@@ -155,7 +155,8 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 					if err := change.Create(&replacement); err != nil {
 						t.Fatal(err)
 					}
-					change.sequenceState().generators = map[ids.ObjectAddress]*storage.SequenceGenerator{replacement.Address(): {Last: replacement.Sequence.Start, Generation: replacement.Revision()}}
+					change.sequenceState().ResetGenerators(1)
+					change.sequenceState().SetGenerator(replacement.Address(), &storage.SequenceGenerator{Last: replacement.Sequence.Start, Generation: replacement.Revision()})
 					queryCreatePublish(t, e, change)
 					if replacement.Address() == provider.Address() {
 						t.Fatal("recreated provider reused old identity")

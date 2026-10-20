@@ -52,7 +52,7 @@ func TestIdentityAddCandidatePrivateBeforeGuards(t *testing.T) {
 				sequence := stage.Get(identity.Sequence).(*catalog.Relation)
 				want := ref.Address
 				want.SubID = 1
-				if sequence.Sequence.Owned != want || !sequence.Sequence.Identity || stage.sequence.generator(identity.Sequence) == nil {
+				if sequence.Sequence.Owned != want || !sequence.Sequence.Identity || stage.sequence.Generator(identity.Sequence) == nil {
 					t.Fatal("staged link is not reciprocal")
 				}
 				if identity.Mode != parser.IdentityAlways {
@@ -62,12 +62,12 @@ func TestIdentityAddCandidatePrivateBeforeGuards(t *testing.T) {
 			if e.catalog.state != state || e.storage.Relations[ref.Address] != storage || !reflect.DeepEqual(old.ColumnMeta.Identities, identities) || !reflect.DeepEqual(old.Columns, columns) {
 				t.Fatal("candidate changed published metadata or row backing")
 			}
-			for address := range stage.sequence.stagedGenerators() {
+			for address := range stage.sequence.StagedGenerators() {
 				if e.catalog.state.Get(address) != nil || e.storage.Sequences[address] != nil {
 					t.Fatal("private generator published")
 				}
 			}
-			if tc.name == "existing_guard" && len(stage.sequence.stagedGenerators()) != 1 {
+			if tc.name == "existing_guard" && len(stage.sequence.StagedGenerators()) != 1 {
 				t.Fatal("sequence before-command was not privately staged")
 			}
 		})
@@ -123,7 +123,7 @@ func TestIdentityModeConflictCandidateUnchanged(t *testing.T) {
 	if !errors.As(err, &diagnostic) || *diagnostic != want {
 		t.Fatal(err)
 	}
-	if next != old || old.ColumnMeta.Identities[1] != identity || stage.DescriptorCount() != 0 || len(stage.sequence.stagedGenerators()) != 0 || e.catalog.state != base.State() {
+	if next != old || old.ColumnMeta.Identities[1] != identity || stage.DescriptorCount() != 0 || len(stage.sequence.StagedGenerators()) != 0 || e.catalog.state != base.State() {
 		t.Fatal("mode conflict changed candidate or published metadata")
 	}
 }

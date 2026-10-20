@@ -320,7 +320,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *session
 		indexJournalOf(changes.Indexes).forget(a)
 		delete(journalIndexesOrZero(changes).rebuilds, a)
 	}
-	for a, g := range stage.sequence.stagedGenerators() {
+	for a, g := range stage.sequence.StagedGenerators() {
 		changes.Generators[a] = g
 	}
 }

@@ -457,7 +457,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	if err != nil {
 		return Result{}, err
 	}
-	if !hasForeignKeys && len(transformations) == 0 && next == old && (stage == nil || stage.DescriptorCount() == 0 && stage.RemovalCount() == 0 && len(stage.sequence.stagedGenerators()) == 0) {
+	if !hasForeignKeys && len(transformations) == 0 && next == old && (stage == nil || stage.DescriptorCount() == 0 && stage.RemovalCount() == 0 && len(stage.sequence.StagedGenerators()) == 0) {
 		if err := validateAlterTablespaceMove(destination); err != nil {
 			return Result{}, err
 		}
@@ -484,7 +484,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 				continue
 			}
 			original := grantCatalog.Get(address)
-			if captured, identity := stage.sequence.identityOriginal(address); identity {
+			if captured, identity := stage.sequence.IdentityOriginal(address); identity {
 				original = captured
 			}
 			if e.catalog.state.Get(address) != original {
@@ -492,7 +492,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 				return Result{}, catalog.Conflict{}
 			}
 			e.catalogChangeLocked(changes, address, descriptor)
-			changes.Generators[address] = stage.sequence.generator(address)
+			changes.Generators[address] = stage.sequence.Generator(address)
 		}
 		for address, removal := range stage.Removals() {
 			sequence, ok := removal.Descriptor.(*catalog.Relation)
@@ -500,7 +500,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 				continue
 			}
 			original := grantCatalog.Get(address)
-			if captured, identity := stage.sequence.identityOriginal(address); identity {
+			if captured, identity := stage.sequence.IdentityOriginal(address); identity {
 				original = captured
 			}
 			if e.catalog.state.Get(address) != original {
@@ -799,7 +799,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		dependencyTargets = append(dependencyTargets, target)
 	}
 	for a := range stage.Removals() {
-		if _, identity := stage.sequence.identityOriginal(a); identity {
+		if _, identity := stage.sequence.IdentityOriginal(a); identity {
 			continue
 		}
 		dependencyTargets = append(dependencyTargets, a)
@@ -807,7 +807,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	if len(dependencyTargets) != 0 {
 		changes.Dependencies = append(changes.Dependencies, session.DependencyObservation{grantCatalog, dependencyTargets})
 	}
-	changes.Dependencies = append(changes.Dependencies, stage.sequence.identityDependencyList()...)
+	changes.Dependencies = append(changes.Dependencies, stage.sequence.IdentityDependencyList()...)
 	if scope.inheritance.alter == nil {
 		if _, err := e.ValidateCatalogStage(op.Context(), stage); err != nil {
 			return Result{}, err
@@ -835,7 +835,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	}
 	for a, d := range stage.Descriptors() {
 		original := grantCatalog.Get(a)
-		if captured, identity := stage.sequence.identityOriginal(a); identity {
+		if captured, identity := stage.sequence.IdentityOriginal(a); identity {
 			original = captured
 		}
 		if e.catalog.state.Get(a) != original {
@@ -846,7 +846,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 	}
 	for a := range stage.Removals() {
 		original := grantCatalog.Get(a)
-		if captured, identity := stage.sequence.identityOriginal(a); identity {
+		if captured, identity := stage.sequence.IdentityOriginal(a); identity {
 			original = captured
 		}
 		if e.catalog.state.Get(a) != original {
@@ -856,7 +856,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 		e.catalogChangeLocked(changes, a, nil)
 		delete(changes.Generators, a)
 	}
-	for a, generator := range stage.sequence.stagedGenerators() {
+	for a, generator := range stage.sequence.StagedGenerators() {
 		if _, removed := stage.Removal(a); !removed {
 			changes.Generators[a] = generator
 		}
@@ -901,7 +901,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, 
 			return Result{}, err
 		}
 	}
-	if generators := stage.sequence.stagedGenerators(); len(generators) != 0 {
+	if generators := stage.sequence.StagedGenerators(); len(generators) != 0 {
 		e.mu.Lock()
 		for address, generator := range generators {
 			if memory := payloadOf(op.Session).sequences.Memory(address); memory != nil {

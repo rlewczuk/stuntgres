@@ -98,7 +98,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 	if !ok {
 		return ids.ErrCatalogReplaced
 	}
-	generator := stage.sequence.generator(address)
+	generator := stage.sequence.Generator(address)
 	if generator == nil {
 		generator = e.sequenceGeneratorLocked(scope, address)
 	}
@@ -122,7 +122,7 @@ func (e *Engine) stageIdentitySequenceOptionsLocked(scope *StatementScope, stage
 	} else if err := stage.Replace(&changed); err != nil {
 		return err
 	}
-	stage.sequenceState().setGenerator(address, sequence.ReplacementGenerator(*generator, revision, restart))
+	stage.sequenceState().SetGenerator(address, sequence.ReplacementGenerator(*generator, revision, restart))
 	return nil
 }
 
@@ -164,7 +164,7 @@ func (e *Engine) refreshIdentitySequenceLocked(scope *StatementScope, stage *Cat
 	if _, err := sequence.IdentityDefinition(descriptor, table, attribute); err != nil {
 		return err
 	}
-	stage.sequenceState().captureIdentityOriginal(address, e.catalog.state.Get(address))
+	stage.sequenceState().CaptureIdentityOriginal(address, e.catalog.state.Get(address))
 	stage.Base = fresh.Catalog
 	return nil
 }

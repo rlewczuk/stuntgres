@@ -349,7 +349,7 @@ type CatalogStage struct {
 	catalog.Candidate
 	rowShapes           map[ids.ObjectAddress]catalogRowShape
 	partitionReads      []partitionReadFence
-	sequence            *sequenceStage
+	sequence            *sequence.Stage
 	typed               *typedef.TypedStage
 	lifecycle           catalogLifecycle
 	invalid             error
@@ -978,7 +978,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 		}
 		next.SetOperatorNames(operators.Index)
 		next.SetProcedureNames(procedures.Index)
-		if err := catalogDependencyPreflight(current, next, s.sequence.identityDependencyList(), s.sequence.identityOriginalMap()); err != nil {
+		if err := catalogDependencyPreflight(current, next, s.sequence.IdentityDependencyList(), s.sequence.IdentityOriginalMap()); err != nil {
 			return ChangeSet{}, err
 		}
 		buildStores := indexStores
@@ -1153,7 +1153,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			err = ids.ErrCatalogReplaced
 		}
 		if err == nil {
-			err = catalogDependencyPreflight(e.catalog.state, next, s.sequence.identityDependencyList(), s.sequence.identityOriginalMap())
+			err = catalogDependencyPreflight(e.catalog.state, next, s.sequence.IdentityDependencyList(), s.sequence.IdentityOriginalMap())
 		}
 		if err == nil {
 			err = s.validateRoleCandidate(e.roles.published)
@@ -1263,7 +1263,7 @@ func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p 
 			for a := range s.Removals() {
 				e.storage.RemoveSequenceLocked(a)
 			}
-			for a, generator := range s.sequence.stagedGenerators() {
+			for a, generator := range s.sequence.StagedGenerators() {
 				e.storage.InstallSequenceLocked(a, generator)
 			}
 			e.catalog.nextRevision = nextRevision

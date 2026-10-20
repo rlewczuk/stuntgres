@@ -42,7 +42,7 @@ func (e *Engine) stageCreateSerials(stage *CatalogStage, table *catalog.Relation
 		if err := stage.Create(d); err != nil {
 			return err
 		}
-		stage.sequenceState().setGenerator(address, sequence.InitialGenerator(options, nil, revision))
+		stage.sequenceState().SetGenerator(address, sequence.InitialGenerator(options, nil, revision))
 		// Route synthetic syntax through the same closed default binder as Restore.
 		namespace, _ := read.Descriptor(table.Namespace())
 		declarations[slot].DefaultExpr = sequence.SerialDefault(namespace.Name(), name)

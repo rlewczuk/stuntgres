@@ -149,7 +149,8 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 			case "GeneratorBinding":
 				stage := e.BeginCatalogStage(e.CatalogRead())
 				replacement := *oldPS
-				stage.sequenceState().generators = map[ids.ObjectAddress]*storage.SequenceGenerator{ps.Address: &replacement}
+				stage.sequenceState().ResetGenerators(1)
+				stage.sequenceState().SetGenerator(ps.Address, &replacement)
 				truncateUnitPublish(t, e, stage)
 			case "Storage":
 				base := e.CatalogRead()
