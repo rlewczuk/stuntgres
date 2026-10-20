@@ -294,7 +294,7 @@ func TestQuerySubqueryManifest(t *testing.T) {
 	auth, err := e.authorizationLocked(op)
 	var bound binding
 	if err == nil {
-		bound, err = e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
+		bound, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -365,7 +365,7 @@ func TestQuerySubqueryAggregateOwnership(t *testing.T) {
 		binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		sql := "SELECT count((SELECT count(a.k))) FROM a"
 		e.mu.Lock()
-		auth, err := e.authorizationLocked(binder.op)
+		auth, err := e.authorizationLocked(binderOperation(binder))
 		binder.query.auth = &auth
 		if err == nil {
 			_, err = binder.bindSelect(statement(t, sql).(*parser.Select), false)
@@ -461,7 +461,7 @@ func TestQuerySubqueryDMLFrameRestoration(t *testing.T) {
 			b.target.relation = e.CatalogRead().MustRelation(b.target.ref.Address)
 			b.target.name = "target"
 			e.mu.Lock()
-			auth, authErr := e.authorizationLocked(b.op)
+			auth, authErr := e.authorizationLocked(binderOperation(b))
 			e.mu.Unlock()
 			if authErr != nil {
 				t.Fatal(authErr)
@@ -604,7 +604,7 @@ func TestQuerySubqueryAuthorization(t *testing.T) {
 	auth, err := e.authorizationLocked(op)
 	var bound binding
 	if err == nil {
-		bound, err = e.describe(op.ctx, ast, auth, outer, sqltype.InputEnvironment{}, op, nil, nil)
+		bound, err = describe(op.ctx, e.analysisHost(op), ast, auth, outer, sqltype.InputEnvironment{}, nil, nil)
 	}
 	e.mu.Unlock()
 	if err != nil {

@@ -67,7 +67,7 @@ func TestQueryDistinctSecondOutputOccurrence(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal(err)
 			}
-			b, err := e.describe(op.ctx, ast, auth, source.ref, sqltype.InputEnvironment{}, op, nil, nil)
+			b, err := describe(op.ctx, e.analysisHost(op), ast, auth, source.ref, sqltype.InputEnvironment{}, nil, nil)
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
@@ -124,7 +124,7 @@ func TestQueryDistinctInsertSourceDescriptorOwnership(t *testing.T) {
 					e.mu.Unlock()
 					t.Fatal(err)
 				}
-				b, err := e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
+				b, err := describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 				if err != nil {
 					e.mu.Unlock()
 					t.Fatal(err)

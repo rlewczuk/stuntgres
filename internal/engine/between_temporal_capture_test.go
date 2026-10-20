@@ -33,7 +33,7 @@ func TestBetweenMixedTemporalCaptureIdentity(t *testing.T) {
 			e.mu.Unlock()
 			t.Fatal(err)
 		}
-		bound, err := e.describe(op.ctx, ast, auth, ref, first, op, nil, nil)
+		bound, err := describe(op.ctx, e.analysisHost(op), ast, auth, ref, first, nil, nil)
 		if err != nil {
 			e.mu.Unlock()
 			t.Fatal(err)
@@ -66,7 +66,7 @@ func TestBetweenMixedTemporalCaptureIdentity(t *testing.T) {
 			t.Fatal("independent temporal contexts lost", before)
 		}
 		for range 3 {
-			rebound, err := e.describe(op.ctx, ast, auth, ref, later, op, &desc, nil)
+			rebound, err := describe(op.ctx, e.analysisHost(op), ast, auth, ref, later, &desc, nil)
 			if err != nil {
 				e.mu.Unlock()
 				t.Fatal(form, err)

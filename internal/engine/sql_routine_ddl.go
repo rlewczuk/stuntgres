@@ -132,7 +132,7 @@ func (e *Engine) bindSQLRoutineLocked(op *Operation, auth AuthorizationView, d *
 		admission = &scope.queryLockAdmission
 		expected = scope.Expected
 	}
-	b, err := e.describeWithFormals(op.Context(), d.SQL.Query, auth, ids.ObjectRef{}, input, op, expected, admission, nil, true, d.SQL.Inputs)
+	b, err := describeWithFormals(op.Context(), e.analysisHost(op), d.SQL.Query, auth, ids.ObjectRef{}, input, expected, admission, nil, true, d.SQL.Inputs)
 	if err != nil {
 		return b, sqltype.CoercionPlan{}, sqlRoutineContext(err, d.Name(), false)
 	}

@@ -68,7 +68,7 @@ func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage 
 		auth.Catalog = e.stageRead(stage)
 		auth.Recapture(auth.Catalog)
 	}
-	b, err := e.describe(op.Context(), s, auth, ids.ObjectRef{}, input, op, nil, nil)
+	b, err := describe(op.Context(), e.analysisHost(op), s, auth, ids.ObjectRef{}, input, nil, nil)
 	if err != nil {
 		return err
 	}

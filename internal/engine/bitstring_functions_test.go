@@ -90,7 +90,7 @@ func TestBitStringFunctionsBindingAndReownership(t *testing.T) {
 			}
 			// Ordinary and SQL-special position orders are intentionally different.
 			if tc.name == "position" {
-				view := b.engine.CatalogRead()
+				view := binderEngine(b).CatalogRead()
 				binary.Syntax = parser.OrdinaryFunctionSyntax
 				ordinary, err := (scalarRenderer{}).scalarFunctionSQL(context.Background(), view, binary)
 				binary.Syntax = parser.SQLFunctionSyntax

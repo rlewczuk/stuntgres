@@ -245,7 +245,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 		if err != nil {
 			return r, creationError(err, targetName)
 		}
-		b, err := e.describeWithRule(scope.op.Context(), action, auth, target, scope.input, scope.op, nil, nil, ns)
+		b, err := describeWithRule(scope.op.Context(), e.analysisHost(scope.op), action, auth, target, scope.input, nil, nil, ns)
 		if err != nil {
 			return r, err
 		}

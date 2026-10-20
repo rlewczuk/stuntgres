@@ -30,7 +30,7 @@ func materializedUnitStage(t *testing.T, e *Engine) (*Operation, func(), *Catalo
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	b, err := e.describe(context.Background(), s, auth, ids.ObjectRef{}, input, op, nil, nil)
+	b, err := describe(context.Background(), e.analysisHost(op), s, auth, ids.ObjectRef{}, input, nil, nil)
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)

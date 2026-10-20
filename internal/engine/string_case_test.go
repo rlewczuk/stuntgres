@@ -135,7 +135,7 @@ func TestStringCaseCollatedTypedParameterDiagnostic(t *testing.T) {
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	expected := &StatementDescription{Parameters: ParameterInfo{Count: 1, Types: []sqltype.Usage{integer.Usage()}}}
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, expected)
-	established := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, b.op, nil)
+	established := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, binderOperation(b), nil)
 	established.params.parameters[1] = integer.Usage()
 	e.mu.Lock()
 	defer e.mu.Unlock()

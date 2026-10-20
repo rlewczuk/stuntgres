@@ -280,7 +280,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 			t.Fatal("missing captured original routine", err)
 		}
 		e.mu.Lock()
-		auth, err := e.authorizationLocked(b.op)
+		auth, err := e.authorizationLocked(binderOperation(b))
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)

@@ -38,7 +38,7 @@ func conflictUpdateAnalyzedScope(t *testing.T, e *Engine, s *Session, q string) 
 	auth, err := e.authorizationLocked(op)
 	var b binding
 	if err == nil {
-		b, err = e.describe(op.Context(), stmt, auth, ref, scope.input, op, nil, nil)
+		b, err = describe(op.Context(), e.analysisHost(op), stmt, auth, ref, scope.input, nil, nil)
 	}
 	e.mu.Unlock()
 	if err != nil {
@@ -96,7 +96,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 		if err != nil {
 			return binding{}, err
 		}
-		bound, err := e.describe(op.Context(), statements[0], auth, b.ref, scope.input, op, nil, nil)
+		bound, err := describe(op.Context(), e.analysisHost(op), statements[0], auth, b.ref, scope.input, nil, nil)
 		if err == nil {
 			scope.routineAuth, scope.routineDependencies = auth, bound.dependencies
 		}

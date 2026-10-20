@@ -45,7 +45,7 @@ func insertReturningAnalyzedScope(t *testing.T, e *Engine, s *Session, query str
 	auth, err := e.authorizationLocked(op)
 	var b binding
 	if err == nil {
-		b, err = e.describe(op.Context(), stmt, auth, ref, scope.input, op, nil, nil)
+		b, err = describe(op.Context(), e.analysisHost(op), stmt, auth, ref, scope.input, nil, nil)
 	}
 	e.mu.Unlock()
 	if err != nil {

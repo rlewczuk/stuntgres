@@ -457,21 +457,21 @@ func objectNameText(n parser.ObjectName) string {
 // requiredRef is the exact acquired DML/utility target; query source occurrences
 // have their own admission manifest. Binding validates namespace authority and
 // cannot retarget an acquired identity. CREATE supplies the zero reference.
-func (e *Engine) describe(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription, admission *queryLockAdmission, initial ...[]sqltype.Usage) (binding, error) {
-	return e.describeWithRule(ctx, stmt, auth, requiredRef, input, op, expected, admission, nil, initial...)
+func describe(ctx context.Context, host analyzeHost, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected *StatementDescription, admission *queryLockAdmission, initial ...[]sqltype.Usage) (binding, error) {
+	return describeWithRule(ctx, host, stmt, auth, requiredRef, input, expected, admission, nil, initial...)
 }
 
-func (e *Engine) describeWithRule(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription, admission *queryLockAdmission, rule *ruleNamespace, initial ...[]sqltype.Usage) (binding, error) {
-	return e.describeWithFormals(ctx, stmt, auth, requiredRef, input, op, expected, admission, rule, false, initial...)
+func describeWithRule(ctx context.Context, host analyzeHost, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected *StatementDescription, admission *queryLockAdmission, rule *ruleNamespace, initial ...[]sqltype.Usage) (binding, error) {
+	return describeWithFormals(ctx, host, stmt, auth, requiredRef, input, expected, admission, rule, false, initial...)
 }
 
 func (e *Engine) describeScoped(scope *StatementScope, stmt parser.Statement, auth AuthorizationView, expected *StatementDescription) (binding, error) {
-	return e.describeWithFormals(scope.op.Context(), stmt, auth, scope.lockedRef, scope.input, scope.op, expected, &scope.queryLockAdmission, nil, scope.sqlRoutine.scalar, scope.initialParameters)
+	return describeWithFormals(scope.op.Context(), e.analysisHost(scope.op), stmt, auth, scope.lockedRef, scope.input, expected, &scope.queryLockAdmission, nil, scope.sqlRoutine.scalar, scope.initialParameters)
 }
 
-func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription, admission *queryLockAdmission, rule *ruleNamespace, closed bool, initial ...[]sqltype.Usage) (binding, error) {
+func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Statement, auth AuthorizationView, requiredRef ids.ObjectRef, input sqltype.InputEnvironment, expected *StatementDescription, admission *queryLockAdmission, rule *ruleNamespace, closed bool, initial ...[]sqltype.Usage) (binding, error) {
 	b := binding{}
-	binder := newExpressionBinder(ctx, e, input, op, expected)
+	binder := newHostedBinder(ctx, host, input, expected)
 	binder.target.ruleNamespace = rule
 	binder.params.noParameters = rule != nil
 	binder.params.closedRoutineFormals = closed
@@ -480,7 +480,7 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 	}
 	binder.query.lockAdmission = admission
 	binder.query.auth = &auth
-	if err := e.captureEnumOperationInput(auth, &binder.input); err != nil {
+	if err := host.CaptureEnumOperationInput(auth, &binder.input); err != nil {
 		return b, err
 	}
 	if binder.query.lockAdmission == nil {
@@ -535,7 +535,7 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 		var inherited []createLikeConstraint
 		if s.OfType != nil {
 			var err error
-			columns, declarations, b.create.ofType, err = bindTypedColumns(binder.host, auth, s)
+			columns, declarations, b.create.ofType, err = bindTypedColumns(host, auth, s)
 			if err != nil {
 				return b, err
 			}
@@ -577,11 +577,11 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 				if lowered := sequence.SerialTypeName(typeName); lowered != "" {
 					typeName.Name = lowered
 				}
-				u, err := e.resolveTableColumnType(typeName, op)
+				u, err := host.ResolveTableColumnType(typeName)
 				if err != nil {
 					return b, err
 				}
-				u, err = e.resolveColumnCollation(u, c.Collation, op)
+				u, err = host.ResolveColumnCollation(u, c.Collation)
 				if err != nil {
 					return b, err
 				}
@@ -596,7 +596,7 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 				columns = append(columns, catalog.Column{Name: c.Name, Usage: u, DeclaredDimensions: int16(len(typeName.ArrayBounds)), Nullable: true, NullabilityKnown: true})
 			} else {
 				like := element.Like
-				ref, err := e.resolveReference(auth, like.Name)
+				ref, err := host.ResolveReference(auth, like.Name)
 				if err != nil {
 					if diagnostic, ok := err.(*sqlstate.Error); ok {
 						copy := *diagnostic
@@ -629,7 +629,7 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 				}
 				var sourceType *catalog.Type
 				if source.RelationKind == catalog.CompositeRelation {
-					typeRef := e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
+					typeRef := host.CatalogOwner().Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(source.RowType)})
 					var ok bool
 					sourceType, ok = auth.Catalog.Type(typeRef.Address)
 					if !ok || sourceType.OwningRelation != source.Address() || sourceType.SQLType.ID() != source.RowType {
@@ -663,7 +663,7 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 			}
 		}
 		var mergeErr error
-		columns, declarations, inherited, mergeErr = describeInheritance(binder.host, auth, s, &b, columns, declarations, inherited)
+		columns, declarations, inherited, mergeErr = describeInheritance(host, auth, s, &b, columns, declarations, inherited)
 		if mergeErr != nil {
 			return b, mergeErr
 		}
@@ -786,7 +786,7 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 	slices.SortFunc(binder.prepared.temporals, func(a, b temporalConstant) int { return a.offset - b.offset })
 	b.prepared = binder.prepared
 	if rule == nil && !parser.ModifyingStatement(stmt) {
-		if err := e.bindViewWrite(&b, auth, stmt); err != nil {
+		if err := host.BindViewWrite(&b, auth, stmt); err != nil {
 			return b, err
 		}
 	}

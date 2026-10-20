@@ -203,7 +203,7 @@ func TestStringNumericBaseMD5InternalCharAdmission(t *testing.T) {
 		}
 		_, err = b.bind(cast, expressionPolicy{context: projectionContext})
 		state(t, err, "0A000")
-		_, err = e.resolveType(cast.TypeName, b.op)
+		_, err = e.resolveType(cast.TypeName, binderOperation(b))
 		state(t, err, "0A000")
 	}
 	for _, established := range []bool{false, true} {

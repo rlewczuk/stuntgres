@@ -205,7 +205,7 @@ func TestExpressionCompareNullDependenciesAndAuthorization(t *testing.T) {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	b, err := e.describe(op.ctx, ast, auth, ref, sqltype.InputEnvironment{}, op, nil, nil)
+	b, err := describe(op.ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -288,7 +288,7 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		b, err := e.describe(op.ctx, ast, auth, ref, sqltype.InputEnvironment{}, op, nil, nil)
+		b, err := describe(op.ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 		if err != nil {
 			t.Fatal(q, err)
 		}

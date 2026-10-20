@@ -61,7 +61,7 @@ func TestJSONBPathQueryArrayDeclaration(t *testing.T) {
 		}
 	}
 	e.mu.Lock()
-	auth, err := e.authorizationLocked(b.op)
+	auth, err := e.authorizationLocked(binderOperation(b))
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

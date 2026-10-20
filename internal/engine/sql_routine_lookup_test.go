@@ -98,7 +98,7 @@ func TestSQLRoutineStagedLookup(t *testing.T) {
 		t.Fatal("staged discovery mutated captured index/root")
 	}
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	b.op.definition = reader
+	binderOperation(b).definition = reader
 	for _, query := range []string{"SELECT abs(1)", "SELECT sum(1)", "SELECT int4(1)"} {
 		raw := statement(t, query).(*parser.Select).Targets[0]
 		var handled bool

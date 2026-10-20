@@ -323,7 +323,7 @@ func (e *Engine) importMaterializedSnapshotRow(ctx context.Context, op *Operatio
 		defer func() { op.replay().domainReplay = nil }()
 	}
 	e.mu.Lock()
-	b, err := e.describe(ctx, s, auth, e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), input, op, nil, nil)
+	b, err := describe(ctx, e.analysisHost(op), s, auth, e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address()), input, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		return nil, err

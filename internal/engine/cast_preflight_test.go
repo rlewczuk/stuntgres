@@ -372,7 +372,7 @@ func TestCastExpressionEqualityBoundDiagnosticOwnership(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = e.describe(op.ctx, ast, auth, ref, sqltype.InputEnvironment{}, op, nil, nil)
+		_, err = describe(op.ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42883" || diagnostic.Message != tc.message || diagnostic.Hint != tc.hint || diagnostic.Position != tc.position {
 			t.Fatal(tc.query, diagnostic, err)

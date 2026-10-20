@@ -148,7 +148,7 @@ func TestCTEDMLLateFailureIdentity(t *testing.T) {
 			}
 			var bound binding
 			if err == nil {
-				bound, err = e.describe(ctx, ast, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
+				bound, err = describe(ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 			}
 			e.mu.Unlock()
 			if err != nil {

@@ -202,7 +202,7 @@ func TestQuerySetCoercionFrames(t *testing.T) {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	b, err := e.describe(op.ctx, ast, auth, ids.ObjectRef{}, sqltype.InputEnvironment{}, op, nil, nil)
+	b, err := describe(op.ctx, e.analysisHost(op), ast, auth, ids.ObjectRef{}, sqltype.InputEnvironment{}, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -398,7 +398,7 @@ func TestQuerySetAssignmentSchemaOwnership(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal(err)
 			}
-			bound, err := e.describe(op.ctx, ast, auth, ref, sqltype.InputEnvironment{}, op, nil, nil)
+			bound, err := describe(op.ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)

@@ -47,7 +47,7 @@ func TestCompareOpsBindingPropertiesAndOccurrences(t *testing.T) {
 			e.mu.Unlock()
 			t.Fatal(err)
 		}
-		bound, err := e.describe(op.ctx, ast, auth, ref, sqltype.InputEnvironment{}, op, nil, nil)
+		bound, err := describe(op.ctx, e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 		e.mu.Unlock()
 		if err != nil {
 			t.Fatal(tc.q, err)
@@ -163,7 +163,7 @@ func TestCompareOpsTemporalCaptureRebind(t *testing.T) {
 			e.mu.Unlock()
 			t.Fatal(err)
 		}
-		bound, err := e.describe(op.ctx, ast, auth, ref, first, op, nil, nil)
+		bound, err := describe(op.ctx, e.analysisHost(op), ast, auth, ref, first, nil, nil)
 		if err != nil {
 			e.mu.Unlock()
 			t.Fatal(err)
@@ -171,7 +171,7 @@ func TestCompareOpsTemporalCaptureRebind(t *testing.T) {
 		desc := StatementDescription{temporals: bound.prepared.temporals}
 		before := append([]temporalConstant(nil), desc.temporals...)
 		for range 2 {
-			rebound, err := e.describe(op.ctx, ast, auth, ref, later, op, &desc, nil)
+			rebound, err := describe(op.ctx, e.analysisHost(op), ast, auth, ref, later, &desc, nil)
 			if err != nil {
 				e.mu.Unlock()
 				t.Fatal(err)

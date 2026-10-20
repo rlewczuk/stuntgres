@@ -57,7 +57,7 @@ func updateFromBoundSources(t *testing.T, e *Engine, session *Session, ctx conte
 	var b binding
 	var view *visibility.View
 	if err == nil {
-		b, err = e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
+		b, err = describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 		scope.routineAuth, scope.routineDependencies = auth, b.dependencies
 	}
 	if err == nil {

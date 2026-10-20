@@ -926,9 +926,7 @@ type expressionPolicy struct {
 // manifest. Everything else lives in the value groups of binder_groups.go.
 type expressionBinder struct {
 	host         analyzeHost
-	engine       *Engine
 	ctx          context.Context
-	op           *Operation
 	expected     *StatementDescription
 	input        sqltype.InputEnvironment
 	dependencies []catalog.ExpressionDependency
@@ -945,9 +943,15 @@ type expressionBinder struct {
 	cte      cteState
 }
 
+// newExpressionBinder is the root construction point: it binds through the
+// engine's host for op.
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
-	captureEnumOperationSafety(op, &input)
-	b := &expressionBinder{host: e.analysisHost(op), engine: e, ctx: ctx, params: parameterState{parameters: make(map[int]sqltype.Usage)}, input: input, op: op, expected: expected}
+	return newHostedBinder(ctx, e.analysisHost(op), input, expected)
+}
+
+func newHostedBinder(ctx context.Context, host analyzeHost, input sqltype.InputEnvironment, expected *StatementDescription) *expressionBinder {
+	host.CaptureEnumOperationSafety(&input)
+	b := &expressionBinder{host: host, ctx: ctx, params: parameterState{parameters: make(map[int]sqltype.Usage)}, input: input, expected: expected}
 	if expected != nil {
 		b.seedParameters(expected.Parameters.Types)
 		if expected.refreshTemporals {

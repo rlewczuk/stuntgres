@@ -13,7 +13,7 @@ import (
 
 func searchUnitDefinition(t *testing.T, breadth bool, usage sqltype.Usage, distinct bool) (*expressionBinder, *plan.CTEDefinition) {
 	t.Helper()
-	b := &expressionBinder{host: New().analysisHost(nil), engine: New(), ctx: context.Background()}
+	b := &expressionBinder{host: New().analysisHost(nil), ctx: context.Background()}
 	d := &plan.CTEDefinition{UserWidth: 1, Schema: plan.QuerySchema{{Name: "n", Usage: usage}}, Search: &plan.SearchRecipe{Syntax: &parser.SearchClause{Breadth: breadth, Keys: []parser.Identifier{{Text: "n"}}, Sequence: parser.Identifier{Text: "seq"}}}}
 	if err := b.bindSearchShape(d); err != nil {
 		t.Fatal(err)
@@ -241,7 +241,7 @@ func TestQuerySearchCancellation(t *testing.T) {
 	}
 }
 func TestQuerySearchSignature(t *testing.T) {
-	binder := &expressionBinder{host: New().analysisHost(nil), engine: New(), ctx: context.Background()}
+	binder := &expressionBinder{host: New().analysisHost(nil), ctx: context.Background()}
 	small := binder.typ(sqltype.Int4)
 	big := binder.typ(sqltype.Int8)
 	for _, breadth := range []bool{true, false} {

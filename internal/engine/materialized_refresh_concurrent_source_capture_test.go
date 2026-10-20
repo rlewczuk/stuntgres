@@ -28,7 +28,7 @@ func concurrentSourceOuter(t *testing.T, e *Engine) *catalog.Relation {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	bound, err := e.describe(context.Background(), stmt, auth, ids.ObjectRef{}, input, op, nil, nil)
+	bound, err := describe(context.Background(), e.analysisHost(op), stmt, auth, ids.ObjectRef{}, input, nil, nil)
 	if err != nil {
 		e.mu.Unlock()
 		t.Fatal(err)

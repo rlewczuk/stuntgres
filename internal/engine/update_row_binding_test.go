@@ -30,7 +30,7 @@ func updateRowTestBinding(t *testing.T, q string) (*Engine, binding) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	bound, err := e.describe(op.Context(), ast, auth, ref, sqltype.InputEnvironment{}, op, nil, nil)
+	bound, err := describe(op.Context(), e.analysisHost(op), ast, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

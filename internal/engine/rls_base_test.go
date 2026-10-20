@@ -93,7 +93,7 @@ func TestRLSBaseDecision(t *testing.T) {
 			e.mu.Unlock()
 			t.Fatal(err)
 		}
-		b, err := e.describe(op.ctx, ast, auth, scope.lockedRef, scope.input, op, nil, &scope.queryLockAdmission)
+		b, err := describe(op.ctx, e.analysisHost(op), ast, auth, scope.lockedRef, scope.input, nil, &scope.queryLockAdmission)
 		if err != nil {
 			e.mu.Unlock()
 			t.Fatal(err)

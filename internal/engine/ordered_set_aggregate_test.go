@@ -586,7 +586,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 			e.mu.Lock()
-			auth, err := e.authorizationLocked(b.op)
+			auth, err := e.authorizationLocked(binderOperation(b))
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)

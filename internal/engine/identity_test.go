@@ -184,7 +184,7 @@ func TestIdentityDiscardedRuntimeConversionDemandBinding(t *testing.T) {
 			auth, err := e.authorizationLocked(op)
 			var bound binding
 			if err == nil {
-				bound, err = e.describe(op.ctx, statement(t, `INSERT INTO i OVERRIDING USER VALUE `+tc.source), auth, ref, sqltype.InputEnvironment{}, op, nil, nil)
+				bound, err = describe(op.ctx, e.analysisHost(op), statement(t, `INSERT INTO i OVERRIDING USER VALUE `+tc.source), auth, ref, sqltype.InputEnvironment{}, nil, nil)
 			}
 			e.mu.Unlock()
 			if err != nil {

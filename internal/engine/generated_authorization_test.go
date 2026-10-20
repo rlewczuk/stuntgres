@@ -117,7 +117,7 @@ func TestGeneratedPartialColumnAuthorization(t *testing.T) {
 			auth, err := e.authorizationLocked(actor)
 			var bound binding
 			if err == nil {
-				bound, err = e.describe(context.Background(), tc.stmt, auth, ref, sqltype.InputEnvironment{}, actor, nil, nil)
+				bound, err = describe(context.Background(), e.analysisHost(actor), tc.stmt, auth, ref, sqltype.InputEnvironment{}, nil, nil)
 			}
 			e.mu.Unlock()
 			if err != nil {

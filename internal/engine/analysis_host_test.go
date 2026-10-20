@@ -54,3 +54,8 @@ func TestAnalysisHostWithOperation(t *testing.T) {
 		t.Fatalf("binder host = %#v, want the engine and the operation", b.host)
 	}
 }
+
+// binderOperation and binderEngine read a binder's host state in tests.
+func binderOperation(b *expressionBinder) *Operation { return b.host.(*bindingHost).op }
+
+func binderEngine(b *expressionBinder) *Engine { return b.host.(*bindingHost).engine }

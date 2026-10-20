@@ -227,7 +227,7 @@ func TestInheritanceMergeShapeDeclarations(t *testing.T) {
 		{Column: &parser.Column{Name: "a", TypeName: parser.TypeName{Name: "integer"}}},
 	}}
 	e.mu.Lock()
-	bound, err := e.describe(op.Context(), syntax, auth, ids.ObjectRef{}, sqltype.InputEnvironment{}, op, nil, nil)
+	bound, err := describe(op.Context(), e.analysisHost(op), syntax, auth, ids.ObjectRef{}, sqltype.InputEnvironment{}, nil, nil)
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

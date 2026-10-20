@@ -223,7 +223,7 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 	if err != nil {
 		return err
 	}
-	b, err := e.describe(s.op.Context(), view, auth, ids.ObjectRef{}, s.input, s.op, nil, &s.queryLockAdmission)
+	b, err := describe(s.op.Context(), e.analysisHost(s.op), view, auth, ids.ObjectRef{}, s.input, nil, &s.queryLockAdmission)
 	if err != nil {
 		return err
 	}

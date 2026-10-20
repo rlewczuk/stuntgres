@@ -183,7 +183,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 		// Nil engine deliberately makes any unnecessary naming/path capture fail.
 		if allocations := testing.AllocsPerRun(100, func() {
 			captureEnumOperationSafety(op, &probe.input)
-			if err := probe.engine.captureEnumOperationInput(auth, &probe.input); err != nil || probe.input.TypeDiagnosticName != nil || probe.input.EnumMemberSafe != nil {
+			if err := (*Engine)(nil).captureEnumOperationInput(auth, &probe.input); err != nil || probe.input.TypeDiagnosticName != nil || probe.input.EnumMemberSafe != nil {
 				panic("empty provenance acquired an environment")
 			}
 		}); allocations != 0 {

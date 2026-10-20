@@ -24,7 +24,7 @@ func TestCompositeAlterFunctionalRetainedFields(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		binder := expressionBinder{host: e.analysisHost(nil), engine: e}
+		binder := expressionBinder{host: e.analysisHost(nil)}
 		base := plan.LiteralExpr{Info: expr.Info{Usage: current.Usage()}, Value: sqltype.Null(current)}
 		node := binder.retainedCompositeField(base, key, capture, parser.Position{})
 		literal, ok := node.(plan.LiteralExpr)
@@ -36,7 +36,7 @@ func TestCompositeAlterFunctionalRetainedFields(t *testing.T) {
 			t.Fatal("original capture overwritten")
 		}
 	}
-	binder := expressionBinder{host: e.analysisHost(nil), engine: e}
+	binder := expressionBinder{host: e.analysisHost(nil)}
 	base := plan.LiteralExpr{Info: expr.Info{Usage: original.Usage()}, Value: sqltype.Null(original)}
 	if field, ok := binder.retainedCompositeField(base, key, capture, parser.Position{}).(plan.FieldExpr); !ok || field.Attribute != source.Attributes[1] {
 		t.Fatal("live identity lost")

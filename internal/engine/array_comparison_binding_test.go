@@ -59,7 +59,7 @@ func TestArrayCompareBinding(t *testing.T) {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, tc.q).(*parser.Select)
 		e.mu.Lock()
-		auth, err := e.authorizationLocked(b.op)
+		auth, err := e.authorizationLocked(binderOperation(b))
 		b.query.auth = &auth
 		if err == nil {
 			_, err = b.bindSelect(raw, false)
@@ -81,7 +81,7 @@ func TestArrayCompareBinding(t *testing.T) {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		raw := statement(t, tc.q).(*parser.Select)
 		e.mu.Lock()
-		auth, err := e.authorizationLocked(b.op)
+		auth, err := e.authorizationLocked(binderOperation(b))
 		b.query.auth = &auth
 		if err == nil {
 			_, err = b.bindSelect(raw, false)

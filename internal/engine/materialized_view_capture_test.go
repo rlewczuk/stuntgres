@@ -37,7 +37,7 @@ func TestMaterializedViewDefinitionCapture(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal(err)
 			}
-			b, err := e.describe(context.Background(), s, auth, ids.ObjectRef{}, input, op, nil, nil)
+			b, err := describe(context.Background(), e.analysisHost(op), s, auth, ids.ObjectRef{}, input, nil, nil)
 			if err != nil {
 				e.mu.Unlock()
 				t.Fatal(err)
@@ -72,7 +72,7 @@ func TestMaterializedViewDefinitionCapture(t *testing.T) {
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	_, err = e.describe(context.Background(), statements[0], auth, ids.ObjectRef{}, input, op, nil, nil)
+	_, err = describe(context.Background(), e.analysisHost(op), statements[0], auth, ids.ObjectRef{}, input, nil, nil)
 	e.mu.Unlock()
 	diagnostic, ok := err.(*sqlstate.Error)
 	if !ok || diagnostic.Code != "0A000" || diagnostic.Message != "materialized views may not be defined using bound parameters" {
