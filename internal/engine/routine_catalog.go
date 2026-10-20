@@ -7,7 +7,6 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -83,45 +82,4 @@ func lookupBuiltinRoutineDeclaration(provider functions.RoutineProvider, name st
 		return nil, fmt.Errorf("stuntgres: missing successful routine association for %s", name)
 	}
 	return declaration, nil
-}
-
-func (b *expressionBinder) builtinRoutineInfo(info expr.Info, provider functions.RoutineProvider, name string, inputs ...sqltype.ID) (expr.Info, error) {
-	declaration, err := lookupBuiltinRoutineDeclaration(provider, name, inputs)
-	if err != nil {
-		return expr.Info{}, err
-	}
-	return b.selectedBuiltinRoutineInfo(info, declaration)
-}
-
-func (b *expressionBinder) builtinRoutineReference(provider functions.RoutineProvider, name string, inputs ...sqltype.ID) (ids.ObjectRef, error) {
-	declaration, err := lookupBuiltinRoutineDeclaration(provider, name, inputs)
-	if err != nil {
-		return ids.ObjectRef{}, err
-	}
-	_, ref, err := b.captureBuiltinRoutineDeclaration(declaration)
-	return ref, err
-}
-
-func (b *expressionBinder) selectedBuiltinRoutineInfo(info expr.Info, declaration *catalog.BuiltinRoutineDeclaration) (expr.Info, error) {
-	d, _, err := b.captureBuiltinRoutineDeclaration(declaration)
-	if err != nil {
-		return expr.Info{}, err
-	}
-	info.RoutineReference = d
-	return info, nil
-}
-
-func (b *expressionBinder) captureBuiltinRoutineDeclaration(declaration *catalog.BuiltinRoutineDeclaration) (*catalog.Procedure, ids.ObjectRef, error) {
-	view := b.bindingCatalog()
-	address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: declaration.Identity.ID}
-	d, ok := view.Procedure(address)
-	if !ok || d.Builtin != declaration {
-		return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: missing owned builtin routine declaration for %s", declaration.Identity.Name)
-	}
-	ref := view.Owner().Domain.Ref(view.Epoch(), address)
-	b.dependency(ref, d.Revision())
-	if err := b.captureRoutineBody(d); err != nil {
-		return nil, ids.ObjectRef{}, err
-	}
-	return d, ref, nil
 }

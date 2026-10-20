@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
@@ -106,40 +105,6 @@ func bodyCastMatches(edge catalog.RoutineBodyEdge, argument expr.Expr) bool {
 	}
 	id := argument.ResultUsage().Type.BaseType().ID()
 	return edge.Demand == catalog.BodyBooleanText && id == sqltype.Bool || edge.Demand == catalog.BodyNetworkText && (id == sqltype.Inet || id == sqltype.Cidr)
-}
-
-// Capture at binding, before descriptors can be remapped or published with a new
-// ACL. Optional polymorphic casts are selected from the real argument, not all
-// possible casts and not ordinary I/O helper identities.
-func (b *expressionBinder) capturePolymorphicBody(node expr.Expr) error {
-	outer, err := expressionRoutineDescriptor(node)
-	if err != nil || outer == nil {
-		return err
-	}
-	argument := polymorphicBodyArgument(node, outer.Address().ObjectID)
-	for _, edge := range outer.Body {
-		if bodyCastMatches(edge, argument) {
-			if _, _, err := b.captureBuiltinRoutineDeclaration(edge.Routine.Builtin); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func (b *expressionBinder) captureRoutineBody(outer *catalog.Procedure) error {
-	for _, edge := range outer.Body {
-		if edge.Demand == catalog.BodyBooleanText || edge.Demand == catalog.BodyNetworkText {
-			continue
-		}
-		if edge.Routine == nil || edge.Routine.Builtin == nil {
-			return fmt.Errorf("stuntgres: invalid SQL body declaration")
-		}
-		if _, _, err := b.captureBuiltinRoutineDeclaration(edge.Routine.Builtin); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // Lifetime capture is conservative even where strict NULL later removes actual
