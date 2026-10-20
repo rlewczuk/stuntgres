@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -23,7 +24,7 @@ func operatorUnitName(schema, name string) parser.ObjectName {
 func operatorUnitDefinition(name, function string) *parser.CreateOperator {
 	return &parser.CreateOperator{Name: operatorUnitName("public", name), Options: []parser.OperatorOption{{Name: "leftarg", HasValue: true, Kind: parser.OperatorOptionTypeArgument, Type: parser.TypeName{Name: "int4"}}, {Name: "rightarg", HasValue: true, Kind: parser.OperatorOptionTypeArgument, Type: parser.TypeName{Name: "int4"}}, {Name: "function", HasValue: true, Kind: parser.OperatorOptionTypeArgument, Type: parser.TypeName{Name: function}}}}
 }
-func operatorUnitStage(t *testing.T, e *Engine, op *Operation, auth AuthorizationView, s *parser.CreateOperator) *CatalogStage {
+func operatorUnitStage(t *testing.T, e *Engine, op *session.Operation, auth AuthorizationView, s *parser.CreateOperator) *CatalogStage {
 	t.Helper()
 	stage := e.BeginCatalogStage(auth.Catalog)
 	e.mu.Lock()

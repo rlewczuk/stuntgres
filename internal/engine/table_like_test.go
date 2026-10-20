@@ -10,12 +10,13 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func tableLikeBuild(t *testing.T, e *Engine, op *Operation, query string) (*CatalogStage, *catalog.Relation, error) {
+func tableLikeBuild(t *testing.T, e *Engine, op *session.Operation, query string) (*CatalogStage, *catalog.Relation, error) {
 	t.Helper()
 	syntax := statement(t, query).(*parser.CreateTable)
 	e.mu.Lock()

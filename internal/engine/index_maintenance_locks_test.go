@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -14,7 +15,7 @@ import (
 
 // All waits are observed through the actual manager queue. Register cancellation
 // and joining after session cleanup so workers finish before their sessions end.
-func indexMaintenanceAsync(t *testing.T, e *Engine, s *Session, q string) (context.CancelFunc, func() error) {
+func indexMaintenanceAsync(t *testing.T, e *Engine, s *session.Session, q string) (context.CancelFunc, func() error) {
 	t.Helper()
 	stmt := statement(t, q)
 	ctx, cancel := context.WithCancel(context.Background())

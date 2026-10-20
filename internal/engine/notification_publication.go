@@ -5,6 +5,7 @@ import (
 	"maps"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 )
 
 type notificationCapture struct {
@@ -19,7 +20,7 @@ type notificationPublication struct {
 	count    int
 }
 
-func notificationEffects(op *Operation, ref ids.TxRef, phase *preparedPublication, scope *StatementScope) ([]notificationAction, []Notification, error) {
+func notificationEffects(op *session.Operation, ref ids.TxRef, phase *preparedPublication, scope *StatementScope) ([]session.NotificationAction, []session.Notification, error) {
 	// PREPARE rejects notification effects. Completion owns only the detached
 	// entry: even checking its old attachment would read a reusable live owner.
 	if phase != nil && !phase.preparing {
@@ -53,7 +54,7 @@ func notificationEffects(op *Operation, ref ids.TxRef, phase *preparedPublicatio
 // Capture under Engine.mu, prepare independent immutable replacements unlocked,
 // then validate exact roots/membership in the existing row/catalog publisher.
 // There is no secondary notification commit authority or counter to exhaust.
-func (e *Engine) prepareNotificationPublication(sender *Session, actions []notificationAction, events []Notification) *notificationPublication {
+func (e *Engine) prepareNotificationPublication(sender *session.Session, actions []session.NotificationAction, events []session.Notification) *notificationPublication {
 	if len(actions) == 0 && len(events) == 0 {
 		return nil
 	}

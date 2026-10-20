@@ -6,13 +6,14 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 // Output presentation is captured once before returning Rows. The internal
 // datum stays an OID, and retained Rows never consult later catalog authority.
-func (e *Engine) captureRegclassOutput(op *Operation, rows *exec.FinalRows) error {
+func (e *Engine) captureRegclassOutput(op *session.Operation, rows *exec.FinalRows) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	auth, err := e.authorizationLocked(op)

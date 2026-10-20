@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 )
 
@@ -159,7 +160,7 @@ func TestPartitionDetachPublication(t *testing.T) {
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			var authority *Session
+			var authority *session.Session
 			if veto == "authority" {
 				op, done := roleOperation(t, f.e, "postgres")
 				defer done()

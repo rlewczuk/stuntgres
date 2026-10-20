@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -31,7 +32,7 @@ func (e *Engine) findUtilityConversion(auth AuthorizationView, name parser.Objec
 
 // Rebuilding captured owners is the existing trusted native Restore boundary,
 // not a general permission bypass for user DDL or arbitrary callers.
-func (e *Engine) conversionCheckCreate(op *Operation, auth AuthorizationView, namespace ids.ObjectRef) error {
+func (e *Engine) conversionCheckCreate(op *session.Operation, auth AuthorizationView, namespace ids.ObjectRef) error {
 	err := auth.CheckCreate(namespace)
 	if err == nil {
 		return nil
@@ -47,7 +48,7 @@ func (e *Engine) conversionCheckCreate(op *Operation, auth AuthorizationView, na
 	return nil
 }
 
-func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateConversion) error {
+func (e *Engine) stageCreateConversionLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateConversion) error {
 	namespace, err := e.collationCreationNamespaceLocked(&auth, stage, s.Name)
 	if err != nil {
 		return err
@@ -118,7 +119,7 @@ func (e *Engine) stageCreateConversionLocked(op *Operation, auth AuthorizationVi
 	return stage.Create(&catalog.Conversion{OID: oid, ObjectName: object, ObjectNamespace: namespace.Address, ObjectRevision: revision, Owner: auth.State.CurrentUser, Source: source, Destination: destination, Handler: procedure.Address(), DefaultConversion: s.Default})
 }
 
-func (e *Engine) stageAlterConversionLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.AlterConversion) error {
+func (e *Engine) stageAlterConversionLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.AlterConversion) error {
 	d, err := e.findUtilityConversion(auth, s.Name)
 	if err != nil {
 		return err
@@ -184,7 +185,7 @@ func (e *Engine) stageAlterConversionLocked(op *Operation, auth AuthorizationVie
 	return stage.Replace(&next)
 }
 
-func (e *Engine) stageDropConversionLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropConversion) error {
+func (e *Engine) stageDropConversionLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropConversion) error {
 	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
 	for _, name := range s.Names {
 		d, err := e.findUtilityConversion(auth, name)

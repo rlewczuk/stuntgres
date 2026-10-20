@@ -12,7 +12,7 @@ import (
 
 // The relation admission owner has already checked ownership and acquired AX.
 // Only detached generation maps enter the shared ALTER candidate pipeline.
-func (e *Engine) generationCandidate(scope *StatementScope, op *Operation, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction) (*catalog.Relation, int32, error) {
+func (e *Engine) generationCandidate(scope *StatementScope, op *session.Operation, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction) (*catalog.Relation, int32, error) {
 	name := action.Column.Text
 	if catalog.IsSystemColumn(name) {
 		return nil, 0, sqlError("0A000", fmt.Sprintf(`cannot alter system column "%s"`, name))

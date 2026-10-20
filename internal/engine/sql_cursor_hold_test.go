@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 )
 
@@ -51,7 +52,7 @@ func TestSQLCursorHoldOwner(t *testing.T) {
 	if !errors.Is(err, ids.ErrCatalogReplaced) || result.Rows != nil {
 		t.Fatal("export loses original epoch fence", result, err)
 	}
-	s.RequestEnd(CleanClose)
+	s.RequestEnd(session.CleanClose)
 	if err := s.WaitEnd(context.Background()); err != nil || len(payloadOf(s).cursors.entries) != 0 {
 		t.Fatal("physical end retains store", err)
 	}

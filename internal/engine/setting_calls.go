@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -31,7 +32,7 @@ type settingCallBinding struct {
 }
 
 // The caller holds e.mu over descriptor lookup and binding.
-func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall, input *sqltype.InputEnvironment, op *Operation) (settingCallBinding, error) {
+func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall, input *sqltype.InputEnvironment, op *session.Operation) (settingCallBinding, error) {
 	if !(s.Name == "current_setting" && len(s.Args) == 1 || s.Name == "set_config" && len(s.Args) == 3) {
 		return settingCallBinding{}, sqlError("0A000", "unsupported setting function signature")
 	}
@@ -49,7 +50,7 @@ func (e *Engine) describeSettingCall(ctx context.Context, s *parser.SettingCall,
 	input.TypeDiagnosticName = binder.Input.TypeDiagnosticName
 	return settingCallBinding{parameters: info, arguments: bound, routine: routine, dependencies: binder.Dependencies}, err
 }
-func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count int, importFrame FrameImporter, input sqltype.InputEnvironment, outputEnvironment sqltype.OutputEnvironment) (Result, error) {
+func (e *Engine) executeSettingCall(op *session.Operation, s *parser.SettingCall, count int, importFrame FrameImporter, input sqltype.InputEnvironment, outputEnvironment sqltype.OutputEnvironment) (Result, error) {
 	e.mu.Lock()
 	binding, err := e.describeSettingCall(op.Ctx, s, &input, op)
 	typ, typeOK := (e.catalog.read(e.catalog.state)).LookupType(sqltype.Text)

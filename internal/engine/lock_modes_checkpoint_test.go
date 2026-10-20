@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"testing"
 )
 
@@ -75,7 +76,7 @@ func TestLockModesRevokedOwner(t *testing.T) {
 	if err := e.SetObjectACL(context.Background(), ref, authorization.ACLValue{Explicit: true}); err != nil {
 		t.Fatal(err)
 	}
-	tx, err := e.Begin(op, TxOptions{})
+	tx, err := e.Begin(op, session.TxOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +86,7 @@ func TestLockModesRevokedOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
-	tx, err = e.Begin(op, TxOptions{})
+	tx, err = e.Begin(op, session.TxOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

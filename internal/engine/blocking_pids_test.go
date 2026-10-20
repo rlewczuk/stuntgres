@@ -12,11 +12,12 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func blockingUnitOwner(t *testing.T, e *Engine) (*Session, *lock.Ticket) {
+func blockingUnitOwner(t *testing.T, e *Engine) (*session.Session, *lock.Ticket) {
 	t.Helper()
 	s := sessionStart(t, e, nil)
 	transactionBegin(t, s)
@@ -231,12 +232,12 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 	t.Run("full_width_target_and_blocker_identity", func(t *testing.T) {
 		e := New()
 		low, lt := blockingUnitOwner(t, e)
-		high, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(uint64(1)<<32) + math.MaxInt32})
+		high, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(uint64(1)<<32) + math.MaxInt32})
 		if err != nil {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() {
-			high.RequestEnd(CleanClose)
+			high.RequestEnd(session.CleanClose)
 			if err := high.WaitEnd(context.Background()); err != nil {
 				t.Error(err)
 			}

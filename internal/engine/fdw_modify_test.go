@@ -12,6 +12,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -218,7 +219,7 @@ func TestFDWModifyLifecycle(t *testing.T) {
 		e := New()
 		sess := sessionStart(t, e, nil)
 		op := transactionOperation(t, sess)
-		ref, err := e.Begin(op, TxOptions{})
+		ref, err := e.Begin(op, session.TxOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}

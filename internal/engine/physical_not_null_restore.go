@@ -6,6 +6,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -24,7 +25,7 @@ type restoredPhysicalNotNullFact struct {
 	usage     sqltype.Usage
 }
 type restoredPhysicalNotNull struct {
-	op             *Operation
+	op             *session.Operation
 	authority      AuthorizationView
 	ref            ids.ObjectRef
 	current        *catalog.Relation
@@ -59,7 +60,7 @@ func physicalNotNullFollowing(statements []parser.Statement, position int) []phy
 	return repairs
 }
 
-func (e *Engine) preparePhysicalNotNullConstructor(op *Operation, raw *parser.AlterTable, repairs []physicalNotNullRepair, created map[ids.ObjectAddress]ids.ObjectRef) (*physicalNotNullConstructor, error) {
+func (e *Engine) preparePhysicalNotNullConstructor(op *session.Operation, raw *parser.AlterTable, repairs []physicalNotNullRepair, created map[ids.ObjectAddress]ids.ObjectRef) (*physicalNotNullConstructor, error) {
 	if len(repairs) == 0 {
 		return nil, nil
 	}
@@ -132,7 +133,7 @@ func (e *Engine) preparePhysicalNotNullConstructor(op *Operation, raw *parser.Al
 }
 
 // Capture actual normal constructor results, not a generated-name prediction.
-func (e *Engine) capturePhysicalNotNullConstructor(op *Operation, constructor *physicalNotNullConstructor, indexes map[ids.ObjectAddress]*catalog.Relation) (*restoredPhysicalNotNull, error) {
+func (e *Engine) capturePhysicalNotNullConstructor(op *session.Operation, constructor *physicalNotNullConstructor, indexes map[ids.ObjectAddress]*catalog.Relation) (*restoredPhysicalNotNull, error) {
 	auth, err := operationAuthorization(op)
 	if err != nil {
 		return nil, err
@@ -216,7 +217,7 @@ func (pair *restoredPhysicalNotNull) admits(stmt parser.Statement) bool {
 
 // The selected NN and its outbound dependency projection disappear together in
 // the sole private stage. The surviving physical flag is not a synthetic NN row.
-func (e *Engine) restorePhysicalNotNull(op *Operation, raw *parser.Delete, pair *restoredPhysicalNotNull) error {
+func (e *Engine) restorePhysicalNotNull(op *session.Operation, raw *parser.Delete, pair *restoredPhysicalNotNull) error {
 	repair, valid := restorePhysicalNotNullSyntax(raw)
 	reject := func() error { return sqlError("0A000", restorePhysicalNotNullBoundary) }
 	if !valid || pair == nil || pair.op != op || pair.position >= len(pair.repairs) || !samePhysicalRepair(repair, pair.repairs[pair.position]) {

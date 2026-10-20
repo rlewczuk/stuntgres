@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -22,7 +23,7 @@ type partitionUniqueReplay struct {
 
 // This origin belongs to one private-import operation and one captured definition,
 // target and subtree, after its intended plain tree is already attached.
-func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTable) error {
+func (e *Engine) beginPartitionUniqueReplay(op *session.Operation, raw *parser.AlterTable) error {
 	if op == nil {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition unique operation")
 	}
@@ -125,7 +126,7 @@ func (e *Engine) beginPartitionUniqueReplay(op *Operation, raw *parser.AlterTabl
 	return nil
 }
 
-func partitionUniqueReplayAllowed(op *Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) bool {
+func partitionUniqueReplayAllowed(op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) bool {
 	if op == nil || raw == nil || operationReplayOrZero(op).partitionUnique == nil || !partitionConstraintReplayImport(auth.engine, op, auth) {
 		return false
 	}
@@ -148,7 +149,7 @@ func partitionUniqueReplayAllowed(op *Operation, auth AuthorizationView, raw *pa
 
 // Consume Engine.mu like the canonical ALTER executor. The existing binder,
 // recursive virtual-index producer, validator and Finish overlay own all effects.
-func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) (Result, error) {
+func (e *Engine) executePartitionUniqueReplayLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) (Result, error) {
 	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), table.Address())
 	origin := operationReplayOrZero(op).partitionUnique
 	e.mu.Unlock()

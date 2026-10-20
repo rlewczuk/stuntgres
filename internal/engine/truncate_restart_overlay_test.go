@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -149,7 +150,7 @@ func TestTruncateRestartCache(t *testing.T) {
 				t.Fatal("source stamp authority not caller-local")
 			}
 			for _, test := range []struct {
-				s             *Session
+				s             *session.Session
 				ast           parser.Statement
 				description   *StatementDescription
 				first, second int64

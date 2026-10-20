@@ -13,7 +13,7 @@ import (
 
 // Internal setup uses actual statement/transaction owners, not public SQL or a
 // replacement publisher. Assertions below concern retained roots and leases.
-func notificationUnitUtility(t *testing.T, s *Session, stmt parser.Statement) {
+func notificationUnitUtility(t *testing.T, s *session.Session, stmt parser.Statement) {
 	t.Helper()
 	op, err := s.AcquireActivity(context.Background())
 	if err != nil {
@@ -29,7 +29,7 @@ func notificationUnitUtility(t *testing.T, s *Session, stmt parser.Statement) {
 		t.Fatal(err)
 	}
 }
-func notificationUnitReceive(t *testing.T, s *Session) Notification {
+func notificationUnitReceive(t *testing.T, s *session.Session) session.Notification {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -44,10 +44,10 @@ func notificationUnitReceive(t *testing.T, s *Session) Notification {
 	}
 	return event
 }
-func notificationUnitListen(t *testing.T, s *Session) {
+func notificationUnitListen(t *testing.T, s *session.Session) {
 	notificationUnitUtility(t, s, &parser.Listen{Channel: parser.Identifier{Text: "unit"}})
 }
-func notificationUnitNotify(t *testing.T, s *Session, payload string) {
+func notificationUnitNotify(t *testing.T, s *session.Session, payload string) {
 	notificationUnitUtility(t, s, &parser.Notify{Channel: parser.Identifier{Text: "unit"}, Payload: payload})
 }
 
@@ -63,7 +63,7 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 				receiver, sender := sessionStart(t, e, nil), sessionStart(t, e, nil)
 				notificationUnitListen(t, receiver)
 				ref := transactionBegin(t, sender)
-				sender.Transactions.NotificationEvents = []Notification{{PID: uint64(sender.SessionToken.ID()), Channel: "unit", Payload: "published"}}
+				sender.Transactions.NotificationEvents = []session.Notification{{PID: uint64(sender.SessionToken.ID()), Channel: "unit", Payload: "published"}}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				op, err := sender.AcquireActivity(ctx)
@@ -71,7 +71,7 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer op.Done()
-				var changes *catalogChanges
+				var changes *session.Journal
 				if catalog {
 					changes = session.NewJournal()
 				}
@@ -147,13 +147,13 @@ func TestNotificationPublicationRoots(t *testing.T) {
 			r, s := sessionStart(t, e, nil), sessionStart(t, e, nil)
 			notificationUnitListen(t, r)
 			ref := transactionBegin(t, s)
-			s.Transactions.NotificationEvents = []Notification{{PID: uint64(s.SessionToken.ID()), Channel: "unit", Payload: "after"}}
+			s.Transactions.NotificationEvents = []session.Notification{{PID: uint64(s.SessionToken.ID()), Channel: "unit", Payload: "after"}}
 			replacement := *payloadOf(r).notifications.state
-			replacement.ready = replacement.ready.append([]Notification{{PID: 999, Channel: "unit", Payload: "before"}})
+			replacement.ready = replacement.ready.append([]session.Notification{{PID: 999, Channel: "unit", Payload: "before"}})
 			ctx := &notificationRootContext{Context: context.Background(), engine: e, resource: &payloadOf(r).notifications, replacement: &replacement}
 			op := transactionOperation(t, s)
 			op.Ctx = ctx
-			var changes *catalogChanges
+			var changes *session.Journal
 			if catalog {
 				changes = session.NewJournal()
 			}
@@ -179,7 +179,7 @@ func TestNotificationPublicationRoots(t *testing.T) {
 	e := New()
 	r, s := sessionStart(t, e, nil), sessionStart(t, e, nil)
 	notificationUnitListen(t, r)
-	event := []Notification{{PID: uint64(s.SessionToken.ID()), Channel: "unit", Payload: "candidate"}}
+	event := []session.Notification{{PID: uint64(s.SessionToken.ID()), Channel: "unit", Payload: "candidate"}}
 	for _, change := range []string{"busy", "dequeue", "registration", "retire"} {
 		t.Run(change, func(t *testing.T) {
 			candidate := e.prepareNotificationPublication(s, nil, event)
@@ -217,21 +217,21 @@ func TestNotificationSavepointRoots(t *testing.T) {
 	owner := s.Transactions
 	owner.Mu.Lock()
 	defer owner.Mu.Unlock()
-	parent := Notification{PID: uint64(s.SessionToken.ID()), Channel: "unit", Payload: "parent"}
-	owner.NotificationActions = make([]notificationAction, 1, 8)
-	owner.NotificationActions[0] = notificationAction{Channel: "unit", Listen: true}
-	owner.NotificationEvents = make([]Notification, 1, 8)
+	parent := session.Notification{PID: uint64(s.SessionToken.ID()), Channel: "unit", Payload: "parent"}
+	owner.NotificationActions = make([]session.NotificationAction, 1, 8)
+	owner.NotificationActions[0] = session.NotificationAction{Channel: "unit", Listen: true}
+	owner.NotificationEvents = make([]session.Notification, 1, 8)
 	owner.NotificationEvents[0] = parent
 	mark := captureSavepoint(owner, "root")
 	if cap(mark.NotificationActions) != len(mark.NotificationActions) || cap(mark.NotificationEvents) != len(mark.NotificationEvents) {
 		t.Fatal("savepoint retained mutable append capacity")
 	}
-	child := Notification{PID: parent.PID, Channel: "unit", Payload: "child"}
-	owner.NotificationEvents = appendNotificationEvents(owner.NotificationEvents, []Notification{parent, child})
-	owner.NotificationActions = append(owner.NotificationActions, notificationAction{All: true})
+	child := session.Notification{PID: parent.PID, Channel: "unit", Payload: "child"}
+	owner.NotificationEvents = appendNotificationEvents(owner.NotificationEvents, []session.Notification{parent, child})
+	owner.NotificationActions = append(owner.NotificationActions, session.NotificationAction{All: true})
 	restoreSavepoint(owner, mark, mark.Settings.Clone())
-	owner.NotificationEvents = appendNotificationEvents(owner.NotificationEvents, []Notification{parent, child})
-	if !reflect.DeepEqual(owner.NotificationEvents, []Notification{parent, child}) || len(owner.NotificationActions) != 1 {
+	owner.NotificationEvents = appendNotificationEvents(owner.NotificationEvents, []session.Notification{parent, child})
+	if !reflect.DeepEqual(owner.NotificationEvents, []session.Notification{parent, child}) || len(owner.NotificationActions) != 1 {
 		t.Fatal("rollback roots/dedup ancestry corrupted")
 	}
 	if len(mark.NotificationEvents) != 1 || mark.NotificationEvents[0] != parent {
@@ -241,12 +241,12 @@ func TestNotificationSavepointRoots(t *testing.T) {
 
 func TestNotificationIdentityAndAssignment(t *testing.T) {
 	e := New()
-	s, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(1)<<48 | 17})
+	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(1)<<48 | 17})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		s.RequestEnd(CleanClose)
+		s.RequestEnd(session.CleanClose)
 		if err := s.WaitEnd(context.Background()); err != nil {
 			t.Error(err)
 		}
@@ -343,7 +343,7 @@ func TestNotificationPreparedOriginProgress(t *testing.T) {
 			}
 			// A committed positive sentinel checks absence without a timeout.
 			notificationUnitNotify(t, finisher, "before-origin-end")
-			for _, recipient := range []*Session{receiver, finisher} {
+			for _, recipient := range []*session.Session{receiver, finisher} {
 				if got := notificationUnitReceive(t, recipient); got.Payload != "before-origin-end" || got.PID != uint64(finisher.SessionToken.ID()) {
 					t.Fatal("detached completion published live-origin effects", got)
 				}
@@ -357,7 +357,7 @@ func TestNotificationPreparedOriginProgress(t *testing.T) {
 			}
 			transactionEnd(t, origin, live, false)
 			notificationUnitNotify(t, finisher, "after-origin-rollback")
-			for _, recipient := range []*Session{receiver, finisher} {
+			for _, recipient := range []*session.Session{receiver, finisher} {
 				if got := notificationUnitReceive(t, recipient); got.Payload != "after-origin-rollback" {
 					t.Fatal("origin rollback leaked an event", got)
 				}

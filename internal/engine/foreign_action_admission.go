@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
@@ -173,7 +174,7 @@ func (w *WriteStage) deleteForeignAction(ref ids.ObjectRef, old storage.RowVersi
 	if !s.foreignActionsOrZero().admissions[ref.Address].writable {
 		return errors.New("stuntgres: read-only internal action admission")
 	}
-	if !s.worked || s.owner.State == TxIdle || s.owner.State == TxAborted {
+	if !s.worked || s.owner.State == session.TxIdle || s.owner.State == session.TxAborted {
 		return errors.New("stuntgres: inactive internal action stage")
 	}
 	if uniqueRowDeleted(old.Row, s.ownDeletes[ref.Address], w.deletes[ref.Address]) {

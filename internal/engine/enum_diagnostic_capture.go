@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
@@ -34,7 +35,7 @@ func (e *Engine) captureTypeDiagnosticName(auth AuthorizationView) (func(sqltype
 // standalone binders borrow the same immutable root; candidate mutations clone
 // it. Inputs are never retained across admissions, so an existing callback is
 // already the current scope's capture and can be shared without another closure.
-func captureEnumOperationSafety(op *Operation, input *sqltype.InputEnvironment) {
+func captureEnumOperationSafety(op *session.Operation, input *sqltype.InputEnvironment) {
 	if input.EnumMemberSafe != nil || op == nil || op.Session == nil || op.Session.Transactions == nil || op.Session.Transactions.Catalog == nil {
 		return
 	}
@@ -52,7 +53,7 @@ func (e *Engine) captureEnumOperationInput(auth AuthorizationView, input *sqltyp
 	return err
 }
 
-func (e *Engine) captureTypeDiagnosticInput(auth AuthorizationView, op *Operation, input *sqltype.InputEnvironment, typ *sqltype.Descriptor) error {
+func (e *Engine) captureTypeDiagnosticInput(auth AuthorizationView, op *session.Operation, input *sqltype.InputEnvironment, typ *sqltype.Descriptor) error {
 	if sqltype.IsFTS(typ.BaseType().ID()) && input.FTS == nil {
 		input.FTS = capturedFTSInput{op: op}
 	}

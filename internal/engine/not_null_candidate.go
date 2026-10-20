@@ -18,7 +18,7 @@ const (
 	notNullValidation
 )
 
-func notNullCandidate(op *Operation, view catalog.Read, old *catalog.Relation, a parser.AlterTableAction, recursion notNullRecursion) (*catalog.Relation, error) {
+func notNullCandidate(op *session.Operation, view catalog.Read, old *catalog.Relation, a parser.AlterTableAction, recursion notNullRecursion) (*catalog.Relation, error) {
 	slot, index := -1, -1
 	if a.Action == parser.DropConstraint {
 		for i, c := range old.Constraints.NotNull {

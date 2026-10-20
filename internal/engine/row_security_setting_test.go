@@ -8,28 +8,29 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/session"
 )
 
 func TestRowSecuritySettingsCapture(t *testing.T) {
 	e := New()
-	settings := &sessionSettings{Defaults: make(map[string]string), Values: make(map[string]string)}
+	settings := &session.SettingsStore{Defaults: make(map[string]string), Values: make(map[string]string)}
 	if err := settings.Initialize(context.Background(), e.settings.Definitions(), e.settings.Order(), nil); err != nil {
 		t.Fatal(err)
 	}
-	sess := &Session{Settings: settings}
-	op := &Operation{Session: sess}
-	first := newStatementScope(op, &transactionOwner{}, time.Time{})
+	sess := &session.Session{Settings: settings}
+	op := &session.Operation{Session: sess}
+	first := newStatementScope(op, &session.TransactionOwner{}, time.Time{})
 	settings.Mu.Lock()
 	settings.Values["row_security"] = "off"
 	settings.Mu.Unlock()
-	second := newStatementScope(op, &transactionOwner{}, time.Time{})
+	second := newStatementScope(op, &session.TransactionOwner{}, time.Time{})
 	if !first.rowSecurity || second.rowSecurity {
 		t.Fatal("statement did not retain/recapture setting", first.rowSecurity, second.rowSecurity)
 	}
 	settings.Mu.Lock()
 	delete(settings.Values, "row_security")
 	settings.Mu.Unlock()
-	third := newStatementScope(op, &transactionOwner{}, time.Time{})
+	third := newStatementScope(op, &session.TransactionOwner{}, time.Time{})
 	if !third.rowSecurity || second.rowSecurity {
 		t.Fatal("restored default changed prior scope")
 	}
@@ -38,7 +39,7 @@ func TestRowSecuritySettingsCapture(t *testing.T) {
 func TestRowSecuritySettingProvenance(t *testing.T) {
 	e := New()
 	provider := &settingsDefaultProviderForTest{values: map[string]string{"row_security": "off"}, calls: map[string]int{}}
-	settings := &sessionSettings{Defaults: make(map[string]string), Values: make(map[string]string)}
+	settings := &session.SettingsStore{Defaults: make(map[string]string), Values: make(map[string]string)}
 	if err := settings.Initialize(context.Background(), e.settings.Definitions(), e.settings.Order(), provider); err != nil {
 		t.Fatal(err)
 	}

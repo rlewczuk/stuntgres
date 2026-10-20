@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 )
 
@@ -76,7 +77,7 @@ func TestUpdateCoreMultiRelationCanceledFencedCommit(t *testing.T) {
 			if held != 0 {
 				t.Fatal("old row journal retained", held)
 			}
-			if a.TransactionState() != TxIdle {
+			if a.TransactionState() != session.TxIdle {
 				transactionEnd(t, a, tx, false)
 			}
 			lockEmpty(t, e)

@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -14,7 +15,7 @@ import (
 
 type defaultUnitFixture struct {
 	e                     *Engine
-	op                    *Operation
+	op                    *session.Operation
 	owner, reader, member authorization.PrincipalRef
 	schema                ids.ObjectAddress
 }

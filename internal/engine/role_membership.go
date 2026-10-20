@@ -8,7 +8,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func (e *Engine) membershipLocked(op *Operation, v AuthorizationView, s *parser.RoleMembership) (Result, error) {
+func (e *Engine) membershipLocked(op *session.Operation, v AuthorizationView, s *parser.RoleMembership) (Result, error) {
 	n, changed, notices, err := authorization.MembershipCandidate(op.Context(), v.Roles, v.State, s, op.Notices, op.NoticeThreshold <= session.LevelNotice, op.NoticeThreshold <= session.LevelWarning)
 	op.Notices = notices
 	if err != nil {

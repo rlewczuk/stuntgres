@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -21,7 +22,7 @@ func TestPGNamespaceCopyStoragePrecedence(t *testing.T) {
 	e, owner, peer, foreign, _, persistent := namespaceTemporaryStorageFixture(t)
 	name := e.CatalogRead().MustNamespace(foreign.Namespace()).Name()
 	sessionSQL(t, peer, "CREATE ROLE storage_copy_reader")
-	deny := func(actor *Session, query, code, message string) {
+	deny := func(actor *session.Session, query, code, message string) {
 		t.Helper()
 		op, err := actor.Acquire(context.Background())
 		if err != nil {

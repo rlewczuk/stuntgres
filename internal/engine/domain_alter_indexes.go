@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 )
 
@@ -27,7 +28,7 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 			sourceRoots[address] = e.domainStageIndexRootLocked(stage, address)
 		}
 	}
-	var private *catalogChanges
+	var private *session.Journal
 	if stage.authSession != nil && stage.authSession.Transactions.RetainsTransaction() {
 		private = stage.authSession.Transactions.Catalog
 	}

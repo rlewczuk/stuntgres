@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 )
 
 // lockObservedDeadlineContext starts a real caller deadline only after the
@@ -59,7 +60,7 @@ func (c *lockObservedDeadlineContext) arm(timeout time.Duration) {
 	c.mu.Unlock()
 }
 
-func lockLifecycleAsync(t *testing.T, e *Engine, s *Session, ctx context.Context, q string, prepare bool) <-chan error {
+func lockLifecycleAsync(t *testing.T, e *Engine, s *session.Session, ctx context.Context, q string, prepare bool) <-chan error {
 	t.Helper()
 	ctx, cancel := context.WithCancel(ctx)
 	done := lockAsync(e, s, ctx, q, prepare)
@@ -82,7 +83,7 @@ func lockLifecycleAsync(t *testing.T, e *Engine, s *Session, ctx context.Context
 	return result
 }
 
-func lockObservedRequest(t *testing.T, e *Engine, s *Session, resource lock.Resource, mode lock.Mode) {
+func lockObservedRequest(t *testing.T, e *Engine, s *session.Session, resource lock.Resource, mode lock.Mode) {
 	t.Helper()
 	state := e.locks.Inspect()
 	entry := state.Resources[resource]
@@ -125,11 +126,11 @@ func TestRelationLockWaitingDeadlineAndEnd(t *testing.T) {
 					lockAwait(t, done, context.DeadlineExceeded)
 					lockPending(t, e, 0)
 					if explicit {
-						if b.TransactionState() != TxAborted {
+						if b.TransactionState() != session.TxAborted {
 							t.Fatal("not aborted")
 						}
 						transactionEnd(t, b, rb, false)
-					} else if b.TransactionState() != TxIdle {
+					} else if b.TransactionState() != session.TxIdle {
 						t.Fatal("implicit did not recover")
 					}
 					transactionEnd(t, a, ra, false)
@@ -150,7 +151,7 @@ func TestRelationLockWaitingDeadlineAndEnd(t *testing.T) {
 		done := lockLifecycleAsync(t, e, b, context.Background(), "SELECT v FROM t", false)
 		lockPending(t, e, 1)
 		lockObservedRequest(t, e, b, lock.Resource{ObjectRef: roleTableRef(t, e, "t")}, lock.AccessShare)
-		b.RequestEnd(CleanClose)
+		b.RequestEnd(session.CleanClose)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := b.WaitEnd(ctx); err != nil {

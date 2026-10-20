@@ -26,7 +26,7 @@ type capturedRegtypeInput struct {
 	database  string
 	temporary ids.ObjectAddress
 	token     ids.SessionToken
-	op        *Operation
+	op        *session.Operation
 	authority *exec.Authority
 	position  parser.Position
 	portal    string
@@ -34,7 +34,7 @@ type capturedRegtypeInput struct {
 	resolved  *[]catalog.ExpressionDependency
 }
 
-func (e *Engine) captureRegtypeInput(auth AuthorizationView, op *Operation) (capturedRegtypeInput, error) {
+func (e *Engine) captureRegtypeInput(auth AuthorizationView, op *session.Operation) (capturedRegtypeInput, error) {
 	path, err := e.lookupPath(auth, analyze.TypeLookup)
 	if err != nil {
 		return capturedRegtypeInput{}, err
@@ -103,7 +103,7 @@ func (r capturedRegtypeInput) resolveTypeName(ctx context.Context, text string) 
 // Object-address lists and SQL routine declarations already have positioned
 // type syntax. Reuse captured identity lookup without reparsing text or
 // admitting a use provider.
-func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw parser.TypeName, op *Operation) (uint32, error) {
+func (r capturedRegtypeInput) resolveParsedTypeName(ctx context.Context, raw parser.TypeName, op *session.Operation) (uint32, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}

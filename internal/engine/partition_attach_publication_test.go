@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -67,7 +68,7 @@ func partitionAttachUnitStage(t *testing.T, e *Engine, view catalog.Read, parent
 	return stage
 }
 
-func partitionAttachUnitScope(t *testing.T, e *Engine, session *Session) (*StatementScope, *Operation) {
+func partitionAttachUnitScope(t *testing.T, e *Engine, session *session.Session) (*StatementScope, *session.Operation) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	op, err := session.Acquire(ctx)

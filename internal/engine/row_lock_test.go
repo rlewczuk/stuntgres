@@ -9,12 +9,13 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 )
 
 var rowLockTestClauses = []string{"FOR KEY SHARE", "FOR SHARE", "FOR NO KEY UPDATE", "FOR UPDATE"}
 var rowLockTestConflicts = [4][4]bool{{false, false, false, true}, {false, false, true, true}, {false, true, true, true}, {true, true, true, true}}
 
-func rowLockEngineFixture(t *testing.T) (*Engine, *Session, *Session, *Session) {
+func rowLockEngineFixture(t *testing.T) (*Engine, *session.Session, *session.Session, *session.Session) {
 	t.Helper()
 	e := New()
 	a := sessionStart(t, e, nil)
@@ -225,7 +226,7 @@ func TestRowLockCancellation(t *testing.T) {
 			cancel()
 			deleteAwait(t, done, 0, context.Canceled)
 			if explicit {
-				if b.TransactionState() != TxAborted {
+				if b.TransactionState() != session.TxAborted {
 					t.Fatal("explicit cancellation did not abort")
 				}
 				sessionSQL(t, b, "ROLLBACK")

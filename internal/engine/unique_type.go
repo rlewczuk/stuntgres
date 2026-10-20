@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
@@ -256,7 +257,7 @@ func validateAlterIndexBuilds(evaluation *exec.Context, auth AuthorizationView, 
 
 // A genuine DDL build is reusable even with an own overlay: derive the baseline
 // from produced entries, and carry exact private pins rather than invoking SQL.
-func prepareAlterIndexRoots(evaluation *exec.Context, changes *catalogChanges, source catalog.Read, parent *catalog.Relation, baseline *storage.Relation, validated map[string]*alterIndexBuild, metadataOnly bool) error {
+func prepareAlterIndexRoots(evaluation *exec.Context, changes *session.Journal, source catalog.Read, parent *catalog.Relation, baseline *storage.Relation, validated map[string]*alterIndexBuild, metadataOnly bool) error {
 	if parent.Partition != nil {
 		return nil
 	}

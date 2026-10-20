@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -65,22 +66,22 @@ func TestPreparedSQLSessionOwner(t *testing.T) {
 	e := New()
 	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
 	r := payloadOf(a).preparedSQL
-	if r == nil || a.Resources[PreparedSQL] == nil || a.Resources[PreparedSQL].Owner != r || r.token != a.SessionToken {
+	if r == nil || a.Resources[session.PreparedSQL] == nil || a.Resources[session.PreparedSQL].Owner != r || r.token != a.SessionToken {
 		t.Fatal("missing attached session owner")
 	}
 	entry := &sqlPreparedStatement{body: &parser.Select{}}
 	r.entries["p"] = entry
-	if err := r.EndSession(b.SessionToken, CleanClose); err == nil || r.entries["p"] != entry {
+	if err := r.EndSession(b.SessionToken, session.CleanClose); err == nil || r.entries["p"] != entry {
 		t.Fatal("foreign end mutated registry", err)
 	}
-	if err := r.EndSession(a.SessionToken, InitFailure); err != nil || len(r.entries) != 0 {
+	if err := r.EndSession(a.SessionToken, session.InitFailure); err != nil || len(r.entries) != 0 {
 		t.Fatal("end did not clear definitions", err)
 	}
-	if a.Resources[PreparedSQL].Owner != r {
+	if a.Resources[session.PreparedSQL].Owner != r {
 		t.Fatal("clearing detached owner")
 	}
 	r.entries["p"] = entry
-	a.RequestEnd(CleanClose)
+	a.RequestEnd(session.CleanClose)
 	if err := a.WaitEnd(context.Background()); err != nil || len(r.entries) != 0 {
 		t.Fatal("physical cleanup retained definition", err)
 	}

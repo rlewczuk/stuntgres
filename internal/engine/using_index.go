@@ -156,7 +156,7 @@ func usingIndexCatalogDuplicate(parent *catalog.Relation, name string) error {
 
 // Runtime effects follow action order, but remain immutable statement candidates.
 // Row nullability is validated by the existing final effective-row ALTER scan.
-func (e *Engine) stageUsingIndex(op *Operation, stage *CatalogStage, parent *catalog.Relation, captured usingIndexAttachment) (*catalog.Relation, error) {
+func (e *Engine) stageUsingIndex(op *session.Operation, stage *CatalogStage, parent *catalog.Relation, captured usingIndexAttachment) (*catalog.Relation, error) {
 	prepared, err := e.prepareUsingIndexMetadata(op, e.stageRead(stage), stageDefinitionReader{stage}, parent, captured)
 	if err != nil {
 		return nil, err
@@ -164,7 +164,7 @@ func (e *Engine) stageUsingIndex(op *Operation, stage *CatalogStage, parent *cat
 	return stagePreparedUsingIndex(op, stage, parent, prepared)
 }
 
-func stagePreparedUsingIndex(op *Operation, stage *CatalogStage, parent *catalog.Relation, prepared *usingIndexPreparation) (*catalog.Relation, error) {
+func stagePreparedUsingIndex(op *session.Operation, stage *CatalogStage, parent *catalog.Relation, prepared *usingIndexPreparation) (*catalog.Relation, error) {
 	if prepared == nil || prepared.parent != parent {
 		return nil, ids.ErrCatalogReplaced
 	}

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
@@ -28,7 +29,7 @@ func (e *Engine) namedType(auth AuthorizationView, name parser.ObjectName) (*cat
 	return nil, expr.ErrorAt("42704", fmt.Sprintf(`type "%s" does not exist`, catalog.ObjectNameText(name)), name.Parts[0].Pos)
 }
 
-func (e *Engine) alterTableOfLocked(scope *StatementScope, op *Operation, auth AuthorizationView, s *parser.AlterTableOf, count int) (Result, error) {
+func (e *Engine) alterTableOfLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, s *parser.AlterTableOf, count int) (Result, error) {
 	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))

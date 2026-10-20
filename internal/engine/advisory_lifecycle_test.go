@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/session"
 	"testing"
 	"time"
 
@@ -16,7 +17,7 @@ import (
 
 type advisoryScopeOutcome struct{ err, finish error }
 
-func advisoryUnitScopeWait(t *testing.T, s *Session, key lock.Resource, lifetime functions.AdvisoryLifetime) (*lock.Ticket, ids.TxRef, <-chan advisoryScopeOutcome) {
+func advisoryUnitScopeWait(t *testing.T, s *session.Session, key lock.Resource, lifetime functions.AdvisoryLifetime) (*lock.Ticket, ids.TxRef, <-chan advisoryScopeOutcome) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	op, err := s.Acquire(ctx)
@@ -171,7 +172,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 			if grantBeforeFence {
 				wantExclusive = 1
 			}
-			if liveSource || journal != 0 || !persistentLive || count.Shared != 1 || count.Exclusive != wantExclusive || b.TransactionState() != TxIdle {
+			if liveSource || journal != 0 || !persistentLive || count.Shared != 1 || count.Exclusive != wantExclusive || b.TransactionState() != session.TxIdle {
 				t.Fatal("fence crossed physical lifetime or lost actual grant", liveSource, journal, persistentLive, count, b.TransactionState())
 			}
 			c, rc := advisoryUnitOwner(t, e)
@@ -197,12 +198,12 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 		transactionEnd(t, b, rb, false)
 		observed := make(chan bool, 1)
 		// Inject a cleanup observer in place of the now-installed SQL-name owner.
-		if err := b.Detach(b.Resources[PreparedSQL].Handle, CleanClose); err != nil {
+		if err := b.Detach(b.Resources[session.PreparedSQL].Handle, session.CleanClose); err != nil {
 			t.Fatal(err)
 		}
 		op := transactionOperation(t, b)
-		_, err := op.Attach(PreparedSQL, &sessionOwner{fn: func(_ ids.SessionToken, _ EndReason) error {
-			observed <- b.TransactionState() == TxIdle && advisoryUnitHold(b, key).Shared == 1
+		_, err := op.Attach(session.PreparedSQL, &sessionOwner{fn: func(_ ids.SessionToken, _ session.EndReason) error {
+			observed <- b.TransactionState() == session.TxIdle && advisoryUnitHold(b, key).Shared == 1
 			return nil
 		}})
 		op.Done()
@@ -210,7 +211,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 			t.Fatal(err)
 		}
 		ticket, _, done := advisoryUnitScopeWait(t, b, key, functions.AdvisorySession)
-		b.RequestEnd(CleanClose)
+		b.RequestEnd(session.CleanClose)
 		advisoryUnitScopeResult(t, done, context.Canceled)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -232,7 +233,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 		if persistentLive || sourceLive || journal != 0 || advisoryUnitHold(b, key) != (lock.Hold{}) || advisoryUnitHold(a, key).Shared != 1 {
 			t.Fatal("physical cleanup scope", persistentLive, sourceLive, journal)
 		}
-		if err = b.Advisory.EndSession(b.SessionToken, CleanClose); err != nil {
+		if err = b.Advisory.EndSession(b.SessionToken, session.CleanClose); err != nil {
 			t.Fatal("idempotent physical cleanup", err)
 		}
 	})

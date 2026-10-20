@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -67,7 +68,7 @@ type ownershipManualSnapshot struct {
 	rows            map[ids.ObjectAddress][]storage.RowVersion
 }
 
-func ownershipManualCapture(e *Engine, session *Session, sequence ids.ObjectRef) ownershipManualSnapshot {
+func ownershipManualCapture(e *Engine, session *session.Session, sequence ids.ObjectRef) ownershipManualSnapshot {
 	snapshot := ownershipManualSnapshot{
 		roots: indexMaintenanceCapture(e), roles: e.roles.published, revision: session.Authorization.Revision,
 		generators: make(map[ids.ObjectAddress]*storage.SequenceGenerator), generatorValues: make(map[ids.ObjectAddress]storage.SequenceGenerator),
@@ -88,7 +89,7 @@ func ownershipManualCapture(e *Engine, session *Session, sequence ids.ObjectRef)
 	return snapshot
 }
 
-func ownershipManualStart(t *testing.T, e *Engine, session *Session, sequence ids.ObjectRef, changes *catalogChanges) (*batchUnitMessage, AuthorizationView, ownershipManualSnapshot) {
+func ownershipManualStart(t *testing.T, e *Engine, session *session.Session, sequence ids.ObjectRef, changes *session.Journal) (*batchUnitMessage, AuthorizationView, ownershipManualSnapshot) {
 	t.Helper()
 	message := batchUnitStart(t, session, context.Background())
 	t.Cleanup(func() { message.end(context.Canceled) })
@@ -122,7 +123,7 @@ func ownershipManualStart(t *testing.T, e *Engine, session *Session, sequence id
 	return message, auth, ownershipManualCapture(e, session, sequence)
 }
 
-func ownershipManualReplaceDatabase(t *testing.T, e *Engine, session *Session, before *ownershipManualSnapshot, private bool) {
+func ownershipManualReplaceDatabase(t *testing.T, e *Engine, session *session.Session, before *ownershipManualSnapshot, private bool) {
 	t.Helper()
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	database := *e.catalog.state.MustDatabase(catalog.CurrentDatabaseAddress)
@@ -163,7 +164,7 @@ func ownershipManualReplaceDatabase(t *testing.T, e *Engine, session *Session, b
 	before.roots = indexMaintenanceCapture(e)
 }
 
-func ownershipManualRetainedUnchanged(t *testing.T, e *Engine, session *Session, sequence ids.ObjectRef, auth AuthorizationView, committed catalog.Descriptor, old *catalog.Relation, retainedACL authorization.ACLValue, retainedOptions catalog.SequenceOptions, before ownershipManualSnapshot, dropped bool) {
+func ownershipManualRetainedUnchanged(t *testing.T, e *Engine, session *session.Session, sequence ids.ObjectRef, auth AuthorizationView, committed catalog.Descriptor, old *catalog.Relation, retainedACL authorization.ACLValue, retainedOptions catalog.SequenceOptions, before ownershipManualSnapshot, dropped bool) {
 	t.Helper()
 	if e.roles.published != before.roles || session.Authorization.Revision != before.revision || e.catalog.state.Epoch() != auth.Catalog.Epoch() || auth.DatabasePredecessor != committed || auth.Catalog.Get(sequence.Address) != old || old.Owner != auth.Roles.LookupRef("pg_database_owner") || old.Comment != "retained sequence comment" || !reflect.DeepEqual(old.Security.ACL, retainedACL) || *old.Sequence != retainedOptions {
 		t.Fatal("manual utility mutated retained sequence/ACL/paired authority")

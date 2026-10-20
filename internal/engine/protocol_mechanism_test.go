@@ -7,6 +7,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -60,10 +61,10 @@ func TestProtocolPreparedRegistry(t *testing.T) {
 	if p.entry.body != entry.body || p.context.Source != "original" {
 		t.Fatal("definition removal lost retained portal recipe")
 	}
-	if err := r.EndSession(b.SessionToken, CleanClose); err == nil || p.retired {
+	if err := r.EndSession(b.SessionToken, session.CleanClose); err == nil || p.retired {
 		t.Fatal("foreign retirement modified registry", err)
 	}
-	if err := r.EndSession(a.SessionToken, CleanClose); err != nil || !p.retired || len(r.portals) != 0 {
+	if err := r.EndSession(a.SessionToken, session.CleanClose); err != nil || !p.retired || len(r.portals) != 0 {
 		t.Fatal("owned retirement retained portal", err)
 	}
 	if protocolHasRows(&parser.Select{}, nil) != true || protocolHasRows(&parser.CreateTable{}, nil) {
@@ -240,7 +241,7 @@ func TestProtocolNotificationPoll(t *testing.T) {
 		t.Fatal("idle poll acquired SQL activity lease")
 	}
 	e.mu.Lock()
-	payloadOf(s).notifications.state = &notificationState{ready: notificationFIFO{}.append([]Notification{{PID: 42, Channel: "c", Payload: "first"}, {PID: 42, Channel: "c", Payload: "second"}})}
+	payloadOf(s).notifications.state = &notificationState{ready: notificationFIFO{}.append([]session.Notification{{PID: 42, Channel: "c", Payload: "first"}, {PID: 42, Channel: "c", Payload: "second"}})}
 	payloadOf(s).notifications.signalLocked()
 	e.mu.Unlock()
 	select {
@@ -258,7 +259,7 @@ func TestProtocolNotificationPoll(t *testing.T) {
 	if err != nil || available || wake == nil {
 		t.Fatal("drained queue lacked new wake", err)
 	}
-	if err = payloadOf(s).notifications.EndSession(s.SessionToken, CleanClose); err != nil {
+	if err = payloadOf(s).notifications.EndSession(s.SessionToken, session.CleanClose); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -285,7 +286,7 @@ func TestProtocolFunctionInvocation(t *testing.T) {
 	}
 	// Foreign/missing physical authority never consumes even the OID field.
 	s.Transactions.Mu.Lock()
-	s.Transactions.State = TxAborted
+	s.Transactions.State = session.TxAborted
 	s.Transactions.Mu.Unlock()
 	input := &protocolUnitInput{}
 	_, err = scope.CallProtocolFunction(input)

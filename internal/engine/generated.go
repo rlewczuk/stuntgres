@@ -11,13 +11,14 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) bindCreateGenerations(op *Operation, auth AuthorizationView, d *catalog.Relation, declarations []analyze.ColumnDeclaration, input sqltype.InputEnvironment) error {
+func (e *Engine) bindCreateGenerations(op *session.Operation, auth AuthorizationView, d *catalog.Relation, declarations []analyze.ColumnDeclaration, input sqltype.InputEnvironment) error {
 	for slot, declaration := range declarations {
 		if declaration.Generation != nil {
 			if d.ColumnMeta.Generations == nil {
@@ -58,7 +59,7 @@ func (e *Engine) generationNamespace(auth AuthorizationView, d *catalog.Relation
 }
 
 // CREATE and ALTER share binding, security, coercion and provider capture.
-func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalog.Relation, slot int, expression parser.Expr, input sqltype.InputEnvironment, ns *analyze.QueryNamespace) (catalog.ColumnGeneration, error) {
+func (e *Engine) bindGeneration(op *session.Operation, auth AuthorizationView, d *catalog.Relation, slot int, expression parser.Expr, input sqltype.InputEnvironment, ns *analyze.QueryNamespace) (catalog.ColumnGeneration, error) {
 	b := newExpressionBinder(op.Context(), e, input, op, nil)
 	b.Target.GeneratedOwner = d
 	b.Params.NoParameters = true

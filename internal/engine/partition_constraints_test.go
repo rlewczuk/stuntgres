@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -344,7 +345,7 @@ func TestPartitionConstraintsDumpPriorityLifecycle(t *testing.T) {
 	if f.e.stageRead(stage).State().DumpPriority(source) != 10 {
 		t.Fatal("stage lost source priority")
 	}
-	changes := &catalogChanges{Descriptors: map[ids.ObjectAddress]catalog.Descriptor{source: nil}}
+	changes := &session.Journal{Descriptors: map[ids.ObjectAddress]catalog.Descriptor{source: nil}}
 	private := f.e.privateCatalogLocked(changes)
 	if _, exists := private.State().LookupDumpPriority(source); exists {
 		t.Fatal("private removal retained obsolete priority")
@@ -766,7 +767,7 @@ func TestPartitionConstraintsBareIndexNonreuse(t *testing.T) {
 	}
 }
 
-func partitionConstraintAttachStage(t *testing.T, e *Engine, op *Operation) *CatalogStage {
+func partitionConstraintAttachStage(t *testing.T, e *Engine, op *session.Operation) *CatalogStage {
 	t.Helper()
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)

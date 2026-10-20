@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -17,7 +18,7 @@ import (
 
 // The phase witness is an actual completion request owned by the builder, not
 // worker start, a timing delay, or descriptor visibility standing in for a queue.
-func concurrentUnitCompletion(t *testing.T, e *Engine, owner *lock.Ticket, builder *Session) *lock.Request {
+func concurrentUnitCompletion(t *testing.T, e *Engine, owner *lock.Ticket, builder *session.Session) *lock.Request {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -54,7 +55,7 @@ func concurrentUnitIndex(t *testing.T, e *Engine, name string, ready, valid bool
 	return index, e.storage.IndexRoots[address]
 }
 
-func concurrentUnitError(t *testing.T, s *Session, query, code string) error {
+func concurrentUnitError(t *testing.T, s *session.Session, query, code string) error {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {

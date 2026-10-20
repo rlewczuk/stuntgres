@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -18,7 +19,7 @@ import (
 
 // This fixture binds the real INSERT plan and starts its private output owner;
 // the tests replace only the producer/projection seam that they observe.
-func insertReturningAnalyzedScope(t *testing.T, e *Engine, s *Session, query string) (*Operation, *StatementScope, analyze.Binding) {
+func insertReturningAnalyzedScope(t *testing.T, e *Engine, s *session.Session, query string) (*session.Operation, *StatementScope, analyze.Binding) {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {

@@ -9,11 +9,12 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
-func deleteProbeScope(t *testing.T, s *Session) (*StatementScope, analyze.Binding, *exec.Source) {
+func deleteProbeScope(t *testing.T, s *session.Session) (*StatementScope, analyze.Binding, *exec.Source) {
 	t.Helper()
 	op := transactionOperation(t, s)
 	scope, err := engineOf(s).StartStatement(op)
@@ -176,7 +177,7 @@ func TestDeleteCoreExplicitFailure(t *testing.T) {
 	if err = scope.Finish(err); err != sentinel {
 		t.Fatal(err)
 	}
-	if a.TransactionState() != TxAborted || a.Transactions.Writes != nil || a.Transactions.Deletes != nil || a.Transactions.Ticket != nil {
+	if a.TransactionState() != session.TxAborted || a.Transactions.Writes != nil || a.Transactions.Deletes != nil || a.Transactions.Ticket != nil {
 		t.Fatal("failure did not discard earlier commands")
 	}
 	op := transactionOperation(t, a)

@@ -20,7 +20,7 @@ import (
 	"unicode/utf8"
 )
 
-func (e *Engine) bindCreateChecks(op *Operation, auth AuthorizationView, syntax *parser.CreateTable, d *catalog.Relation, input sqltype.InputEnvironment, inherited map[string]catalog.CheckConstraint) error {
+func (e *Engine) bindCreateChecks(op *session.Operation, auth AuthorizationView, syntax *parser.CreateTable, d *catalog.Relation, input sqltype.InputEnvironment, inherited map[string]catalog.CheckConstraint) error {
 	var raw []*parser.CheckConstraint
 	for _, element := range syntax.Elements {
 		if element.Check != nil {
@@ -37,7 +37,7 @@ func (e *Engine) bindCreateChecks(op *Operation, auth AuthorizationView, syntax 
 	return e.bindColumnChecks(op, auth, raw, d, input, false, inherited)
 }
 
-func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*parser.CheckConstraint, d *catalog.Relation, input sqltype.InputEnvironment, altering bool, inherited map[string]catalog.CheckConstraint) error {
+func (e *Engine) bindColumnChecks(op *session.Operation, auth AuthorizationView, raw []*parser.CheckConstraint, d *catalog.Relation, input sqltype.InputEnvironment, altering bool, inherited map[string]catalog.CheckConstraint) error {
 	if len(raw) == 0 {
 		return nil
 	}

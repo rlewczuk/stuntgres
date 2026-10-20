@@ -10,12 +10,13 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
-func namespaceTemporaryStorageFixture(t *testing.T) (*Engine, *Session, *Session, *catalog.Relation, *catalog.Relation, *catalog.Relation) {
+func namespaceTemporaryStorageFixture(t *testing.T) (*Engine, *session.Session, *session.Session, *catalog.Relation, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	owner, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
@@ -41,7 +42,7 @@ func namespaceTemporaryStorageFixture(t *testing.T) (*Engine, *Session, *Session
 	return e, owner, peer, lookup(namespace, "storage_foreign"), lookup(namespace, "storage_chain"), lookup(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, "storage_parent")
 }
 
-func namespaceCapturedAuthorization(t *testing.T, s *Session) AuthorizationView {
+func namespaceCapturedAuthorization(t *testing.T, s *session.Session) AuthorizationView {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -217,7 +218,7 @@ func TestPGNamespaceOwnAndPersistentStorageTargets(t *testing.T) {
 	sessionSQL(t, owner, "CREATE TEMP TABLE storage_positive(v INT)")
 	sessionSQL(t, peer, "CREATE TABLE public.storage_positive(v INT)")
 	for _, tc := range []struct {
-		session *Session
+		session *session.Session
 		table   string
 	}{{owner, "pg_temp.storage_positive"}, {peer, "public.storage_positive"}} {
 		for _, query := range []string{"INSERT INTO " + tc.table + " VALUES(1)", "UPDATE " + tc.table + " SET v=2", "DELETE FROM " + tc.table} {

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -59,7 +60,7 @@ func TestCheckReview2OrderOrdinalInvariants(t *testing.T) {
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 }
 
-func checkReview2OrderNativeRestrict(t *testing.T, e *Engine, a *Session, detail string) {
+func checkReview2OrderNativeRestrict(t *testing.T, e *Engine, a *session.Session, detail string) {
 	t.Helper()
 	op, err := a.Acquire(context.Background())
 	if err != nil {

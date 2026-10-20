@@ -8,11 +8,12 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func fdwLateUnitSetup(t *testing.T, edge string) (*Engine, *Session, *Session, string, string, ids.ObjectAddress) {
+func fdwLateUnitSetup(t *testing.T, edge string) (*Engine, *session.Session, *session.Session, string, string, ids.ObjectAddress) {
 	t.Helper()
 	e := New()
 	if edge == "procedure_wrapper" || edge == "validator_wrapper" || edge == "transitive_procedure_mapping" {
@@ -406,7 +407,7 @@ func TestFDWLateDependencyOwnRewire(t *testing.T) {
 	}
 }
 
-func fdwApplyLateUnitStage(t *testing.T, e *Engine, session *Session, prepare func(*StatementScope) (*PreparedCatalogPublication, error)) error {
+func fdwApplyLateUnitStage(t *testing.T, e *Engine, session *session.Session, prepare func(*StatementScope) (*PreparedCatalogPublication, error)) error {
 	t.Helper()
 	op, err := session.Acquire(context.Background())
 	if err != nil {
@@ -436,7 +437,7 @@ func fdwApplyLateUnitStage(t *testing.T, e *Engine, session *Session, prepare fu
 	return err
 }
 
-func fdwEditLateUnitServer(t *testing.T, e *Engine, session *Session, address ids.ObjectAddress, edit func(*CatalogStage, *catalog.ForeignObject) error) error {
+func fdwEditLateUnitServer(t *testing.T, e *Engine, session *session.Session, address ids.ObjectAddress, edit func(*CatalogStage, *catalog.ForeignObject) error) error {
 	t.Helper()
 	return fdwApplyLateUnitStage(t, e, session, func(scope *StatementScope) (*PreparedCatalogPublication, error) {
 		e.mu.Lock()

@@ -11,12 +11,13 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 )
 
 // This worker executes the real command and Finish; its owner cancels and joins
 // before session cleanup, even when an assertion terminates the subtest.
-func updateDeleteAsync(t *testing.T, e *Engine, s *Session, parent context.Context, q string) func() (Result, error) {
+func updateDeleteAsync(t *testing.T, e *Engine, s *session.Session, parent context.Context, q string) func() (Result, error) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	type outcome struct {
@@ -53,7 +54,7 @@ func updateDeleteAsync(t *testing.T, e *Engine, s *Session, parent context.Conte
 	})
 	return await
 }
-func updateDeleteExecute(t *testing.T, e *Engine, s *Session, q string, n int64) {
+func updateDeleteExecute(t *testing.T, e *Engine, s *session.Session, q string, n int64) {
 	t.Helper()
 	result, err := updateDeleteAsync(t, e, s, context.Background(), q)()
 	if err != nil || result.Count != n || result.Rows != nil {
@@ -219,7 +220,7 @@ func TestUpdateCoreDeleteCancellation(t *testing.T) {
 			if !errors.Is(err, context.Canceled) || result.Count != 0 || result.Rows != nil {
 				t.Fatal(result, err)
 			}
-			if owner.TransactionState() != TxAborted || len(owner.Transactions.Writes) != 0 || len(owner.Transactions.Deletes) != 0 {
+			if owner.TransactionState() != session.TxAborted || len(owner.Transactions.Writes) != 0 || len(owner.Transactions.Deletes) != 0 {
 				t.Fatal("mixed private work survived abort")
 			}
 			lockState := e.locks.Inspect(ticket)
@@ -318,7 +319,7 @@ func TestUpdateCoreDeletePublication(t *testing.T) {
 			if held != 0 {
 				t.Fatal("old journal survived")
 			}
-			if owner.TransactionState() != TxIdle {
+			if owner.TransactionState() != session.TxIdle {
 				transactionEnd(t, owner, tx, false)
 			}
 			lockEmpty(t, e)
@@ -489,7 +490,7 @@ func TestUpdateCoreDeleteFailedReplacement(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if err == nil || e.catalog.state.Epoch() != epoch || e.visibility.CommitSeq() != frontier || e.storage.Relations[ref.Address] != store || store.Ends != ends || &store.Versions[0] != &root[0] || owner.TransactionState() != TxActive || owner.Transactions.Ticket != ticket || owner.Transactions.Deletes[ref.Address] != deletes || &owner.Transactions.Writes[ref.Address][0] != &writes[0] {
+			if err == nil || e.catalog.state.Epoch() != epoch || e.visibility.CommitSeq() != frontier || e.storage.Relations[ref.Address] != store || store.Ends != ends || &store.Versions[0] != &root[0] || owner.TransactionState() != session.TxActive || owner.Transactions.Ticket != ticket || owner.Transactions.Deletes[ref.Address] != deletes || &owner.Transactions.Writes[ref.Address][0] != &writes[0] {
 				t.Fatal("failed replacement changed mixed authority", err)
 			}
 			transactionRows(t, owner, "SELECT v FROM t", 11)

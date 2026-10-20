@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -14,7 +15,7 @@ import (
 	"time"
 )
 
-func foreignActionLockFixture(t *testing.T, definition string) (*Engine, *Session, *Session, *Session, ids.ObjectRef, ids.RowID) {
+func foreignActionLockFixture(t *testing.T, definition string) (*Engine, *session.Session, *session.Session, *session.Session, ids.ObjectRef, ids.RowID) {
 	t.Helper()
 	e := New()
 	a, b, c := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)
@@ -330,12 +331,12 @@ func TestForeignActionsDiagnosticsOwner(t *testing.T) {
 }
 
 func TestForeignActionsLocksSnapshot(t *testing.T) {
-	for _, isolation := range []Isolation{RepeatableRead, Serializable} {
-		t.Run(map[Isolation]string{RepeatableRead: "repeatable", Serializable: "serializable"}[isolation], func(t *testing.T) {
+	for _, isolation := range []session.Isolation{session.RepeatableRead, session.Serializable} {
+		t.Run(map[session.Isolation]string{session.RepeatableRead: "repeatable", session.Serializable: "serializable"}[isolation], func(t *testing.T) {
 			e, holder, waiter, creator, child, _ := foreignActionLockFixture(t, "REFERENCES p ON DELETE CASCADE")
 			sessionSQL(t, creator, "INSERT INTO p VALUES(2)")
 			op := transactionOperation(t, waiter)
-			ref, err := e.Begin(op, TxOptions{Isolation: isolation})
+			ref, err := e.Begin(op, session.TxOptions{Isolation: isolation})
 			op.Done()
 			if err != nil {
 				t.Fatal(err)

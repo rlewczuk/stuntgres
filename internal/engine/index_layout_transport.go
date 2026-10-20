@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 )
 
@@ -71,7 +72,7 @@ func indexLayoutSlotsUnchanged(index, oldParent, parent *catalog.Relation) bool 
 
 // A layout projection preserves surviving cells and exact row/version order.
 // Both baseline entries and private row outputs therefore travel without SQL.
-func transportIndexLayouts(evaluation *exec.Context, stage *CatalogStage, changes *catalogChanges, parent *catalog.Relation, sourceStore, targetStore *storage.Relation, sourceWrites, writes []storage.RowVersion) ([]storage.RowVersion, bool, error) {
+func transportIndexLayouts(evaluation *exec.Context, stage *CatalogStage, changes *session.Journal, parent *catalog.Relation, sourceStore, targetStore *storage.Relation, sourceWrites, writes []storage.RowVersion) ([]storage.RowVersion, bool, error) {
 	if len(stage.indexesOrZero().layouts) == 0 {
 		return writes, false, nil
 	}
@@ -267,7 +268,7 @@ func transportIndexLayouts(evaluation *exec.Context, stage *CatalogStage, change
 
 // Preserve exact committed descriptor predecessors while empty roots are built
 // unlocked; the normal catalog preflight owns the publication veto.
-func (e *Engine) fenceEmptyIndexStorageLocked(snapshot *catalog.State, changes *catalogChanges, address ids.ObjectAddress) {
+func (e *Engine) fenceEmptyIndexStorageLocked(snapshot *catalog.State, changes *session.Journal, address ids.ObjectAddress) {
 	for _, descriptor := range snapshot.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || index.SQLIndex.Parent != address {
@@ -282,7 +283,7 @@ func (e *Engine) fenceEmptyIndexStorageLocked(snapshot *catalog.State, changes *
 // A real whole-storage deletion has no SQL index inputs. Rebind its empty
 // physical artifacts to the new incarnation rather than retaining old pins or
 // evaluating declarations during publication.
-func transportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, changes *catalogChanges, stage *CatalogStage, address ids.ObjectAddress, store *storage.Relation) error {
+func transportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, changes *session.Journal, stage *CatalogStage, address ids.ObjectAddress, store *storage.Relation) error {
 	parent, ok := snapshot.Relation(address)
 	if !ok || store == nil || len(store.Versions) != 0 {
 		return ids.ErrCatalogReplaced

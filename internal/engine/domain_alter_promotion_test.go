@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 )
 
 func domainAlterMessagePromotion(t *testing.T) {
@@ -22,7 +23,7 @@ func domainAlterMessagePromotion(t *testing.T) {
 				t.Fatal(err)
 			}
 			ref, ticket, start := s.Transactions.Ref, s.Transactions.Ticket, s.Transactions.Start
-			if ref == (ids.TxRef{}) || ticket == nil || s.Transactions.State != TxImplicit {
+			if ref == (ids.TxRef{}) || ticket == nil || s.Transactions.State != session.TxImplicit {
 				t.Fatal("retained prefix did not acquire actual transaction ownership")
 			}
 			for _, q := range []string{"ALTER DOMAIN public.d ADD CONSTRAINT counted CHECK(nextval('public.calls')>0) NOT VALID", "ALTER DOMAIN public.d VALIDATE CONSTRAINT counted", "BEGIN", "SAVEPOINT keep_prefix"} {
@@ -30,7 +31,7 @@ func domainAlterMessagePromotion(t *testing.T) {
 					t.Fatal(q, err)
 				}
 			}
-			if s.Transactions.Ref != ref || s.Transactions.Ticket != ticket || s.Transactions.Start != start || s.Transactions.State != TxActive || len(domainJournalOf(s.Transactions.Catalog.Domain).ValidationFences()) != 1 {
+			if s.Transactions.Ref != ref || s.Transactions.Ticket != ticket || s.Transactions.Start != start || s.Transactions.State != session.TxActive || len(domainJournalOf(s.Transactions.Catalog.Domain).ValidationFences()) != 1 {
 				t.Fatal("promotion lost original ownership/observation")
 			}
 			observation := domainJournalOf(s.Transactions.Catalog.Domain).ValidationFences()[0]

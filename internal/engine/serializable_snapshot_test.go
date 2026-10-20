@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 )
@@ -21,7 +22,7 @@ func serializableUnitAcquisition(t *testing.T, e *Engine, parent context.Context
 		t.Fatal(err)
 	}
 	t.Cleanup(op.Done)
-	ref, err := e.Begin(op, TxOptions{Isolation: Serializable, ReadOnly: readOnly, Deferrable: deferrable, DeferrableSet: true})
+	ref, err := e.Begin(op, session.TxOptions{Isolation: session.Serializable, ReadOnly: readOnly, Deferrable: deferrable, DeferrableSet: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +51,7 @@ func serializableUnitCaptureWorker(t *testing.T, scope *StatementScope) func() e
 	joined := false
 	t.Cleanup(func() {
 		if !joined {
-			scope.op.Session.RequestEnd(CleanClose)
+			scope.op.Session.RequestEnd(session.CleanClose)
 			select {
 			case <-done:
 			case <-time.After(5 * time.Second):
@@ -311,7 +312,7 @@ func TestSerializableSafeSnapshotTerminalSessionDrain(t *testing.T) {
 	join := serializableUnitCaptureWorker(t, scope)
 	serializableUnitAwaitCandidate(t, e, node)
 	sess := scope.op.Session
-	sess.RequestEnd(CleanClose)
+	sess.RequestEnd(session.CleanClose)
 	if err := join(); err == nil {
 		t.Fatal("terminal capture succeeded")
 	}
@@ -402,7 +403,7 @@ func TestSerializableGoBirthDeferrableOverridePresence(t *testing.T) {
 		sess := sessionStart(t, e, nil)
 		sessionSQL(t, sess, "SET default_transaction_deferrable=on")
 		op := transactionOperation(t, sess)
-		ref, err := e.Begin(op, TxOptions{Isolation: Serializable, ReadOnly: true, DeferrableSet: override, Deferrable: false})
+		ref, err := e.Begin(op, session.TxOptions{Isolation: session.Serializable, ReadOnly: true, DeferrableSet: override, Deferrable: false})
 		if err != nil {
 			t.Fatal(err)
 		}

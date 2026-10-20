@@ -8,11 +8,12 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/session"
 	"sync"
 	"testing"
 )
 
-func sequenceScalar(t *testing.T, s *Session, q string, want int64) {
+func sequenceScalar(t *testing.T, s *session.Session, q string, want int64) {
 	t.Helper()
 	r := sessionSQL(t, s, q)
 	defer r.Rows.Close()
@@ -29,7 +30,7 @@ func TestSequenceAllocationConcurrentSessions(t *testing.T) {
 			sessionSQL(t, owner, "CREATE SEQUENCE s CACHE "+cache)
 			const clients = 8
 			const each = 40
-			sessions := make([]*Session, clients)
+			sessions := make([]*session.Session, clients)
 			for i := range sessions {
 				sessions[i] = sessionStart(t, e, nil)
 			}
@@ -38,7 +39,7 @@ func TestSequenceAllocationConcurrentSessions(t *testing.T) {
 			var wg sync.WaitGroup
 			for _, s := range sessions {
 				wg.Add(1)
-				go func(s *Session) {
+				go func(s *session.Session) {
 					defer wg.Done()
 					for range each {
 						op, err := s.Acquire(context.Background())
@@ -211,7 +212,7 @@ func TestSequenceRestartLifecycleMatrix(t *testing.T) {
 				controlsAbort(t, a)
 				controlsRequire(t, a, "COMMIT")
 			case "physical end":
-				a.RequestEnd(CleanClose)
+				a.RequestEnd(session.CleanClose)
 				if err := a.WaitEnd(context.Background()); err != nil {
 					t.Fatal(err)
 				}
@@ -234,7 +235,7 @@ func TestSequenceRestartLifecycleMatrix(t *testing.T) {
 			} else {
 				lockAwait(t, queued, nil)
 				sequenceScalar(t, b, "SELECT currval('s')", want)
-				if a.TransactionState() == TxActive {
+				if a.TransactionState() == session.TxActive {
 					controlsRequire(t, a, "ROLLBACK")
 				}
 			}
@@ -283,7 +284,7 @@ func currvalValue(m *sequence.Memory) int64 {
 }
 
 // cachedSequencePathIs reports whether the session caches exactly key.
-func cachedSequencePathIs(s *Session, key sequence.PathKey) bool {
+func cachedSequencePathIs(s *session.Session, key sequence.PathKey) bool {
 	cached, ok := payloadOf(s).sequences.CachedPathKey()
 	return ok && cached == key
 }

@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -228,7 +229,7 @@ func TestConcurrentIndexU6CompletionTerminalArbitration(t *testing.T) {
 					}
 				}
 			}
-			if a.TransactionState() != TxIdle {
+			if a.TransactionState() != session.TxIdle {
 				transactionEnd(t, a, ta, false)
 			}
 			transactionEnd(t, b, tb, false)

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -146,7 +147,7 @@ func TestPGDBRoleSettingSessionDefaultsExcluded(t *testing.T) {
 		t.Fatal("different registered defaults not established")
 	}
 	pgDBRoleSettingUnitCapture(t, e, e.CatalogRead())
-	for _, s := range []*Session{a, b} {
+	for _, s := range []*session.Session{a, b} {
 		for _, q := range []string{"SET application_name='override'", "SET dbrole18.mode='override'", "SET dbrole18.placeholder='custom'", "BEGIN", "SET LOCAL application_name='local'", "ROLLBACK", "RESET ALL"} {
 			sessionSQL(t, s, q)
 			pgDBRoleSettingUnitCapture(t, e, e.CatalogRead())

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -15,7 +16,7 @@ import (
 
 // Use the ordinary admitted statement/binding path, including its occurrence
 // manifest and current attribute capabilities, rather than synthetic view roots.
-func exprCollationStoredBinding(t *testing.T, e *Engine, owner *Session, q string) (analyze.Binding, *StatementScope) {
+func exprCollationStoredBinding(t *testing.T, e *Engine, owner *session.Session, q string) (analyze.Binding, *StatementScope) {
 	t.Helper()
 	op := transactionOperation(t, owner)
 	t.Cleanup(op.Done)

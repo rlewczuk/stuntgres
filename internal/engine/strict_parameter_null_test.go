@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -16,7 +17,7 @@ import (
 // Bind actual supported providers under genuine catalog/statement authority.
 // SQL creates incidental state; assertions exercise private planning and original
 // typed frames, not public SQL response witnesses or synthetic probe providers.
-func strictNullUnitFixture(t *testing.T) (*Engine, *Operation, *StatementScope) {
+func strictNullUnitFixture(t *testing.T) (*Engine, *session.Operation, *StatementScope) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -43,7 +44,7 @@ func strictNullUnitFixture(t *testing.T) (*Engine, *Operation, *StatementScope) 
 	return e, op, scope
 }
 
-func strictNullUnitBind(t *testing.T, e *Engine, op *Operation, scope *StatementScope, text string) (expr.Expr, *analyze.Binder, exec.Context) {
+func strictNullUnitBind(t *testing.T, e *Engine, op *session.Operation, scope *StatementScope, text string) (expr.Expr, *analyze.Binder, exec.Context) {
 	t.Helper()
 	raw := statement(t, "SELECT "+text).(*parser.Select).Targets[0]
 	ref := roleTableRef(t, e, "strict_null_rows")

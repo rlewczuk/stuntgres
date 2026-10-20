@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -16,7 +17,7 @@ import (
 )
 
 // These fixtures exercise private staging/publication, never SQL execution.
-func domainUnitStage(t *testing.T, e *Engine, op *Operation, q string) *CatalogStage {
+func domainUnitStage(t *testing.T, e *Engine, op *session.Operation, q string) *CatalogStage {
 	t.Helper()
 	ast := statement(t, q)
 	e.mu.Lock()

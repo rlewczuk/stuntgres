@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -157,7 +158,7 @@ func TestDriverBatchOwnerCounterExhaustion(t *testing.T) {
 			if end := m.end(err); end != err {
 				t.Fatal("counter primary replaced", end)
 			}
-			if e.visibility.CommitSeq() != frontier || s.TransactionState() != TxIdle || s.Transactions.Ticket != nil || s.Transactions.RetainedMessage {
+			if e.visibility.CommitSeq() != frontier || s.TransactionState() != session.TxIdle || s.Transactions.Ticket != nil || s.Transactions.RetainedMessage {
 				t.Fatal("counter failure published or retained admission")
 			}
 			if counter == "tx" && s.Transactions.Next != ids.TxID(^uint64(0)) || counter == "diagnostic" && e.visibility.DiagnosticTx() != ^uint32(0) {

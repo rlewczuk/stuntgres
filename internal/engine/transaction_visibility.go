@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 )
@@ -14,7 +15,7 @@ func (s *StatementScope) AcquireDataView(ref ids.ObjectRef) (*visibility.View, e
 	}
 	s.owner.Mu.Lock()
 	defer s.owner.Mu.Unlock()
-	if !s.worked || s.owner.State == TxIdle || s.owner.State == TxAborted {
+	if !s.worked || s.owner.State == session.TxIdle || s.owner.State == session.TxAborted {
 		return nil, errors.New("stuntgres: inactive data view scope")
 	}
 	e := s.engine()
@@ -104,7 +105,7 @@ func (s *StatementScope) captureDataViewsLocked(e *Engine, refs []ids.ObjectRef,
 		stored := e.privateStorageLocked(s.owner.Catalog, ref.Address)
 		versions, ends := stored.Versions, stored.Ends
 		needsBirthFilter := false
-		var rewrite catalogStorageChange
+		var rewrite session.StorageChange
 		if s.owner.Catalog != nil {
 			rewrite = s.owner.Catalog.Storage[ref.Address]
 		}

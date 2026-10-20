@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
 )
@@ -49,7 +50,7 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 			ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
 			roles := e.Roles()
 			protected := &catalog.Relation{ObjectName: "provider_target", Owner: reader, Security: catalog.RelationSecurity{RLSEnabled: true, RLSForced: true}}
-			check := func(sess *Session, value, reset, provenance string) {
+			check := func(sess *session.Session, value, reset, provenance string) {
 				t.Helper()
 				if got, ok := sess.Setting("row_security"); !ok || got != value {
 					t.Fatal("effective setting", got, ok, value)
@@ -67,7 +68,7 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 				if !rows.Anonymous[0][14].IsNull() || !rows.Anonymous[0][15].IsNull() {
 					t.Fatal("invented file provenance")
 				}
-				scope := newStatementScope(&Operation{Session: sess}, &transactionOwner{}, time.Time{})
+				scope := newStatementScope(&session.Operation{Session: sess}, &session.TransactionOwner{}, time.Time{})
 				err = access.RowSecuritySettingGuard(scope.rowSecurity, roles, protected, reader)
 				var want error
 				if value == "off" {

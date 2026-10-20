@@ -22,7 +22,7 @@ type typedRelationMutation struct {
 	checks     []catalog.CheckConstraint
 }
 
-func (e *Engine) typedMutation(scope *StatementScope, op *Operation, auth AuthorizationView, stage *CatalogStage, old *catalog.Relation, actions []typedef.TypedColumnAction) (typedRelationMutation, error) {
+func (e *Engine) typedMutation(scope *StatementScope, op *session.Operation, auth AuthorizationView, stage *CatalogStage, old *catalog.Relation, actions []typedef.TypedColumnAction) (typedRelationMutation, error) {
 	mutation := typedRelationMutation{old: old, next: old}
 	ref := e.catalog.Domain.Ref(stage.Base.Epoch(), old.Address())
 	raw := make([]parser.AlterTableAction, len(actions))

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -44,7 +45,7 @@ func TestTransactionIsolationRetainedResults(t *testing.T) {
 				waitsDiagnostic(t, err, "40001", "could not serialize access due to concurrent update")
 				sessionSQL(t, a, "ROLLBACK")
 			case "physical":
-				a.RequestEnd(CleanClose)
+				a.RequestEnd(session.CleanClose)
 				if err := a.WaitEnd(ctx); err != nil {
 					t.Fatal(err)
 				}
@@ -110,12 +111,12 @@ func TestTransactionIsolationSavedShapeFence(t *testing.T) {
 func TestTransactionIsolationAbortCharacteristics(t *testing.T) {
 	for _, baseline := range []struct {
 		mode      string
-		isolation Isolation
+		isolation session.Isolation
 		readOnly  bool
 	}{
-		{"READ COMMITTED READ WRITE", ReadCommitted, false},
-		{"REPEATABLE READ READ ONLY", RepeatableRead, true},
-		{"READ UNCOMMITTED READ ONLY", ReadUncommitted, true},
+		{"READ COMMITTED READ WRITE", session.ReadCommitted, false},
+		{"REPEATABLE READ READ ONLY", session.RepeatableRead, true},
+		{"READ UNCOMMITTED READ ONLY", session.ReadUncommitted, true},
 	} {
 		for _, end := range []string{"COMMIT AND CHAIN", "ROLLBACK AND CHAIN"} {
 			t.Run(baseline.mode+"/"+end, func(t *testing.T) {
@@ -141,7 +142,7 @@ func TestTransactionIsolationAbortCharacteristics(t *testing.T) {
 				owner.Mu.Lock()
 				state, isolation, readOnly := owner.State, owner.Isolation, owner.ReadOnly
 				owner.Mu.Unlock()
-				if state != TxAborted || isolation != baseline.isolation || readOnly != baseline.readOnly {
+				if state != session.TxAborted || isolation != baseline.isolation || readOnly != baseline.readOnly {
 					t.Fatal(state, isolation, readOnly)
 				}
 				a.Settings.Mu.Lock()
@@ -157,7 +158,7 @@ func TestTransactionIsolationAbortCharacteristics(t *testing.T) {
 				owner.Mu.Lock()
 				state, isolation, readOnly = owner.State, owner.Isolation, owner.ReadOnly
 				owner.Mu.Unlock()
-				if state != TxActive || isolation != baseline.isolation || readOnly != baseline.readOnly {
+				if state != session.TxActive || isolation != baseline.isolation || readOnly != baseline.readOnly {
 					t.Fatal(state, isolation, readOnly)
 				}
 				sessionSQL(t, a, "ROLLBACK")

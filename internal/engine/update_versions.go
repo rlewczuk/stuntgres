@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 )
@@ -158,7 +159,7 @@ retry:
 	}
 	defer s.owner.Mu.Unlock()
 	defer e.mu.Unlock()
-	if !s.worked || s.owner.State == TxIdle || s.owner.State == TxAborted {
+	if !s.worked || s.owner.State == session.TxIdle || s.owner.State == session.TxAborted {
 		return errors.New("stuntgres: inactive write stage")
 	}
 	if ref.Domain() != e.catalog.Domain {

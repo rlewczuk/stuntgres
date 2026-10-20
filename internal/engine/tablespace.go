@@ -5,6 +5,7 @@ import (
 	"path"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -42,7 +43,7 @@ func tablespaceName(name string, existing bool) error {
 	return nil
 }
 
-func (e *Engine) executeCreateTablespace(op *Operation, stmt *parser.CreateTablespace, count int) (Result, error) {
+func (e *Engine) executeCreateTablespace(op *session.Operation, stmt *parser.CreateTablespace, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

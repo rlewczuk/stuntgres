@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -554,7 +555,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		}
 	}
 	s.owner.Mu.Lock()
-	implicit := s.owner.State == TxImplicit
+	implicit := s.owner.State == session.TxImplicit
 	txref := s.owner.Ref
 	s.owner.Mu.Unlock()
 	if implicit && !ownerOnly && !s.replacementRead {

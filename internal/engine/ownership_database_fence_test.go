@@ -91,12 +91,12 @@ func TestRoleOwnershipDefaultMessageDatabaseFence(t *testing.T) {
 				t.Fatal(err)
 			}
 			f.e.DiscardCatalogStage(setup)
-			sess, err := f.e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: f.owner})
+			sess, err := f.e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: f.owner})
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer func() {
-				sess.RequestEnd(CleanClose)
+				sess.RequestEnd(session.CleanClose)
 				if err := sess.WaitEnd(context.Background()); err != nil {
 					t.Error(err)
 				}

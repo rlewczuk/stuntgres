@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 )
 
@@ -66,7 +67,7 @@ func cteDMLPendingBoundary(t *testing.T, replacement bool) {
 		case <-time.After(5 * time.Second):
 			t.Error("CTE pending worker did not retire")
 		}
-		if holder.TransactionState() != TxIdle {
+		if holder.TransactionState() != session.TxIdle {
 			transactionEnd(t, holder, tx, false)
 		}
 	})

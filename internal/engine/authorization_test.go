@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -136,7 +137,7 @@ func TestAuthorizationImportRemapsACLAndDependencies(t *testing.T) {
 	defer doneB()
 	for _, pair := range []struct {
 		e  *Engine
-		op *Operation
+		op *session.Operation
 	}{{source, a}, {target, b}} {
 		roleExecute(t, pair.e, pair.op, "CREATE USER owner")
 		roleExecute(t, pair.e, pair.op, "CREATE USER reader")
@@ -267,7 +268,7 @@ func TestAuthorizationExhaustionAndCancellationDoNotPublish(t *testing.T) {
 	}
 	e.roles.nextPrincipal = authorization.LastPredefinedRoleID + 1
 	ctx, cancel := context.WithCancel(context.Background())
-	s, err := e.StartSession(ctx, SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
+	s, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,7 +283,7 @@ func TestAuthorizationExhaustionAndCancellationDoNotPublish(t *testing.T) {
 		}
 	}
 	canceled.Done()
-	s.RequestEnd(CleanClose)
+	s.RequestEnd(session.CleanClose)
 	_ = s.WaitEnd(context.Background())
 	if e.roles.published != before {
 		t.Fatal("canceled role publication")
@@ -388,14 +389,14 @@ func TestAuthorizationInitializationFencesDeletedPrincipal(t *testing.T) {
 	role, _ := e.Roles().Lookup("pending")
 	gate := &roleInitGate{entered: make(chan struct{}), release: make(chan struct{})}
 	type outcome struct {
-		session *Session
+		session *session.Session
 		err     error
 	}
 	result := make(chan outcome, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() {
-		s, err := e.StartSession(ctx, SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: role.Ref, Defaults: gate})
+		s, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: role.Ref, Defaults: gate})
 		result <- outcome{s, err}
 	}()
 	released, finished := false, false

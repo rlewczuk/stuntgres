@@ -5,12 +5,13 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func preparedUnitControl(t *testing.T, e *Engine, s *Session, kind parser.TransactionControlKind, gid string) error {
+func preparedUnitControl(t *testing.T, e *Engine, s *session.Session, kind parser.TransactionControlKind, gid string) error {
 	t.Helper()
 	op := transactionOperation(t, s)
 	defer op.Done()
@@ -30,7 +31,7 @@ func TestPreparedTransactionMoveAndClaim(t *testing.T) {
 	e := New()
 	origin, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
 	op := transactionOperation(t, origin)
-	ref, err := e.Begin(op, TxOptions{})
+	ref, err := e.Begin(op, session.TxOptions{})
 	op.Done()
 	if err != nil {
 		t.Fatal(err)
@@ -40,7 +41,7 @@ func TestPreparedTransactionMoveAndClaim(t *testing.T) {
 		t.Fatal(err)
 	}
 	entry := e.prepared["move"]
-	if entry == nil || entry.ticket != ticket || entry.ref != ref || origin.Transactions.Ticket != nil || origin.TransactionState() != TxIdle {
+	if entry == nil || entry.ticket != ticket || entry.ref != ref || origin.Transactions.Ticket != nil || origin.TransactionState() != session.TxIdle {
 		t.Fatal("ownership was not transferred once")
 	}
 	if err := origin.Transactions.Validate(ref); err == nil {
@@ -64,7 +65,7 @@ func TestPreparedTransactionMoveAndClaim(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || entry.claimed || e.prepared["move"] != entry || e.locks.TransactionTicket(ref) != ticket {
 		t.Fatal(err, "cancellation consumed entry or ticket")
 	}
-	origin.RequestEnd(CleanClose)
+	origin.RequestEnd(session.CleanClose)
 	if err := origin.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +90,7 @@ func TestPreparedTransactionFailureEndsStickyFootprint(t *testing.T) {
 	e := New()
 	s := sessionStart(t, e, nil)
 	op := transactionOperation(t, s)
-	_, err := e.Begin(op, TxOptions{})
+	_, err := e.Begin(op, session.TxOptions{})
 	op.Done()
 	if err != nil {
 		t.Fatal(err)
@@ -97,7 +98,7 @@ func TestPreparedTransactionFailureEndsStickyFootprint(t *testing.T) {
 	s.Transactions.AccessedTemporary = true
 	err = preparedUnitControl(t, e, s, parser.KindPrepareTransaction, "temp")
 	var diagnostic *sqlstate.Error
-	if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || s.TransactionState() != TxIdle || s.Transactions.AccessedTemporary || s.Transactions.Ticket != nil || len(e.prepared) != 0 {
+	if !errors.As(err, &diagnostic) || diagnostic.Code != "0A000" || s.TransactionState() != session.TxIdle || s.Transactions.AccessedTemporary || s.Transactions.Ticket != nil || len(e.prepared) != 0 {
 		t.Fatal(err, "failed prepare did not dispose entire owner")
 	}
 }

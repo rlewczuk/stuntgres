@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -18,7 +19,7 @@ type restoredInheritedOwner struct {
 // A genuine named owner directive followed immediately by the bootstrap context
 // carries the captured role identity. CREATE/OWNER must be the next exact pair;
 // no input can retarget an existing relation or choose an unrelated owner.
-func (e *Engine) captureInheritedOwner(op *Operation, created ids.ObjectRef, owner authorization.PrincipalRef) (restoredInheritedOwner, error) {
+func (e *Engine) captureInheritedOwner(op *session.Operation, created ids.ObjectRef, owner authorization.PrincipalRef) (restoredInheritedOwner, error) {
 	if err := op.Context().Err(); err != nil {
 		return restoredInheritedOwner{}, err
 	}
@@ -57,7 +58,7 @@ func (e *Engine) captureInheritedOwner(op *Operation, created ids.ObjectRef, own
 	return restoredInheritedOwner{created, owner, actor.Ref}, nil
 }
 
-func (e *Engine) restoreInheritedOwner(op *Operation, raw *parser.AlterOwner, pair restoredInheritedOwner) error {
+func (e *Engine) restoreInheritedOwner(op *session.Operation, raw *parser.AlterOwner, pair restoredInheritedOwner) error {
 	if err := op.Context().Err(); err != nil {
 		return err
 	}

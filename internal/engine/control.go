@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/session"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -1727,11 +1728,11 @@ func (e *Engine) Restore(ctx context.Context, src io.Reader) error {
 		return err
 	}
 	// The isolated role snapshot retains exact target identities for final remapping.
-	sess, err := stage.StartSession(ctx, SessionStart{ID: 1, Authenticated: stage.roles.domain.Principal(10)})
+	sess, err := stage.StartSession(ctx, session.SessionStart{ID: 1, Authenticated: stage.roles.domain.Principal(10)})
 	if err != nil {
 		return err
 	}
-	defer func() { sess.RequestEnd(CleanClose); _ = sess.WaitEnd(context.Background()) }()
+	defer func() { sess.RequestEnd(session.CleanClose); _ = sess.WaitEnd(context.Background()) }()
 	op, err := sess.Acquire(ctx)
 	if err != nil {
 		return err

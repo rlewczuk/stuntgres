@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -12,7 +13,7 @@ import (
 
 // Prepare descriptor-owned actions only at an outer successful commit. The
 // transaction/savepoint roots remain untouched until the ordinary final install.
-func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *catalogChanges) (map[ids.ObjectAddress][]storage.RowVersion, map[ids.ObjectAddress]*visibility.PrivateDeletes, *catalogChanges, error) {
+func (e *Engine) prepareTemporaryCommit(op *session.Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *session.Journal) (map[ids.ObjectAddress][]storage.RowVersion, map[ids.ObjectAddress]*visibility.PrivateDeletes, *session.Journal, error) {
 	e.mu.Lock()
 	if ref.Epoch() != e.catalog.state.Epoch() {
 		e.mu.Unlock()
@@ -52,7 +53,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 		shape, exists := next.Storage[a]
 		if !exists {
 			store := e.storage.Relations[a]
-			shape = catalogStorageChange{Original: store, Root: store.Versions, Ends: store.Ends, Generation: store.Generation}
+			shape = session.StorageChange{Original: store, Root: store.Versions, Ends: store.Ends, Generation: store.Generation}
 		}
 		shape.Replacement = &storage.Relation{}
 		shape.Truncated = false

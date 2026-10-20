@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -13,7 +14,7 @@ import (
 
 // SQL only constructs the ordinary internal catalog fixture. Assertions exercise
 // real binders, frozen presentation, provider validation and publication directly.
-func policyUnitFixture(t *testing.T) (*Engine, *Operation, func(), *catalog.Relation) {
+func policyUnitFixture(t *testing.T) (*Engine, *session.Operation, func(), *catalog.Relation) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -23,7 +24,7 @@ func policyUnitFixture(t *testing.T) (*Engine, *Operation, func(), *catalog.Rela
 	d, _ := e.CatalogRead().Descriptor(ref.Address)
 	return e, op, done, d.(*catalog.Relation)
 }
-func policyUnitBind(t *testing.T, e *Engine, op *Operation, d *catalog.Relation, condition string) (*policyExpression, error) {
+func policyUnitBind(t *testing.T, e *Engine, op *session.Operation, d *catalog.Relation, condition string) (*policyExpression, error) {
 	t.Helper()
 	raw := statement(t, "CREATE POLICY p ON t USING("+condition+")").(*parser.CreatePolicy)
 	e.mu.Lock()

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -60,7 +61,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.e.mu.Lock()
-	predicate, err := f.e.bindIndexPredicate(&Operation{Ctx: ctx}, sqltype.InputEnvironment{}, AuthorizationView{View: access.View{Catalog: capture}}, f.parent, raw[0].(*parser.CreateIndex).Predicate)
+	predicate, err := f.e.bindIndexPredicate(&session.Operation{Ctx: ctx}, sqltype.InputEnvironment{}, AuthorizationView{View: access.View{Catalog: capture}}, f.parent, raw[0].(*parser.CreateIndex).Predicate)
 	f.e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
@@ -108,7 +109,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.e.mu.Lock()
-	predicate, err := f.e.bindIndexPredicate(&Operation{Ctx: ctx}, sqltype.InputEnvironment{}, AuthorizationView{View: access.View{Catalog: capture}}, f.parent, raw[0].(*parser.CreateIndex).Predicate)
+	predicate, err := f.e.bindIndexPredicate(&session.Operation{Ctx: ctx}, sqltype.InputEnvironment{}, AuthorizationView{View: access.View{Catalog: capture}}, f.parent, raw[0].(*parser.CreateIndex).Predicate)
 	f.e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)

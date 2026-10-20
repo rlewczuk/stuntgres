@@ -7,12 +7,13 @@ import (
 	"strings"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
 )
 
-func truncateRestartUnitAsyncSQL(t *testing.T, e *Engine, s *Session, q string) (<-chan error, context.CancelFunc) {
+func truncateRestartUnitAsyncSQL(t *testing.T, e *Engine, s *session.Session, q string) (<-chan error, context.CancelFunc) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	done, finished := make(chan error, 1), make(chan struct{})
@@ -208,7 +209,7 @@ func TestTruncateRestartLocks(t *testing.T) {
 			t.Fatal("missing ownership cycle edges", expected)
 		}
 		if victim == 1 {
-			if holder.TransactionState() != TxAborted {
+			if holder.TransactionState() != session.TxAborted {
 				t.Fatal("OWNED BY victim did not abort")
 			}
 			if e.storage.Sequences[ps.Address] == oldGenerator || e.storage.Sequences[ps.Address].Last != 1 || e.storage.Sequences[ps.Address].Called || e.storage.Relations[p.Address] == oldStore || len(e.storage.Relations[p.Address].Versions) != 0 {
@@ -317,7 +318,7 @@ func TestTruncateRestartControlFence(t *testing.T) {
 			if len(got) != 1 || len(got[0]) != 1 || got[0][0] != int64(1) {
 				t.Fatal("live TEMP prepared provenance failed", got)
 			}
-			s.RequestEnd(CleanClose)
+			s.RequestEnd(session.CleanClose)
 			if err := s.WaitEnd(context.Background()); err != nil {
 				t.Fatal(err)
 			}

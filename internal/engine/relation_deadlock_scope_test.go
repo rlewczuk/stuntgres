@@ -7,12 +7,13 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
 )
 
-func deadlockCommand(t *testing.T, e *Engine, s *Session, q string, prepare bool) func() error {
+func deadlockCommand(t *testing.T, e *Engine, s *session.Session, q string, prepare bool) func() error {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	done := waitsCommandAsync(e, s, ctx, q, prepare)
@@ -85,7 +86,7 @@ func TestRelationDeadlockDiagnosticsPreparation(t *testing.T) {
 				if err := first(); err != nil {
 					t.Fatal("survivor must complete before victim explicit rollback", err)
 				}
-				if b.TransactionState() != TxAborted {
+				if b.TransactionState() != session.TxAborted {
 					t.Fatal("victim not aborted")
 				}
 				if got := b.Settings.Values["application_name"]; got != originalName || b.Settings.Actions != nil {

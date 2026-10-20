@@ -5,10 +5,11 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/visibility"
 )
 
-func (e *Engine) serializableEligibleLocked(ref ids.ObjectRef, changes *catalogChanges) bool {
+func (e *Engine) serializableEligibleLocked(ref ids.ObjectRef, changes *session.Journal) bool {
 	d, ok := e.privateCatalogLocked(changes).Relation(ref.Address)
 	if !ok || d.RelationKind != catalog.TableRelation {
 		return false
@@ -59,7 +60,7 @@ func (e *Engine) serializableWriteLocked(s *StatementScope, ref ids.ObjectRef, e
 
 // Rollback restores surviving identity evidence only, never graph edges,
 // predicates, doom or attempted-write history. Engine.mu and owner.mu held.
-func (e *Engine) reconcileSerializableWritesLocked(t *transactionOwner) {
+func (e *Engine) reconcileSerializableWritesLocked(t *session.TransactionOwner) {
 	e.visibility.ReconcileSerializableWritesLocked(t.Ref, func(address ids.ObjectAddress, event visibility.SerializableWrite) bool {
 		if event.Rewrite {
 			return t.Catalog != nil && t.Catalog.Storage[address].Rewritten

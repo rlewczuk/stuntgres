@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 )
@@ -63,7 +64,7 @@ func (b *alterIndexBuild) baselineRoot(ctx context.Context, index *catalog.Relat
 	return newLogicalIndexRoot(index.SQLIndex, entries), nil
 }
 
-func retainIndexBuild(changes *catalogChanges, index *catalog.Relation, baseline *storage.Relation, root *storage.IndexRoot) {
+func retainIndexBuild(changes *session.Journal, index *catalog.Relation, baseline *storage.Relation, root *storage.IndexRoot) {
 	if journalIndexesOrZero(changes).uniqueRoots == nil {
 		journalIndexes(changes).uniqueRoots = make(map[ids.ObjectAddress]*storage.IndexRoot)
 	}

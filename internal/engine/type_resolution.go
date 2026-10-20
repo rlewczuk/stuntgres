@@ -17,7 +17,7 @@ import (
 )
 
 // Called only by the existing binder against its current coherent catalog.
-func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage, error) {
+func (e *Engine) resolveType(raw parser.TypeName, op *session.Operation) (sqltype.Usage, error) {
 	u, err := e.resolveAnnotationType(raw, op, false)
 	if err != nil {
 		return sqltype.Usage{}, err
@@ -40,7 +40,7 @@ func (e *Engine) resolveType(raw parser.TypeName, op *Operation) (sqltype.Usage,
 // Query-derived schemas can store builtin CHAR without admitting raw declarations.
 // Only the isolated Restore caller reconstructs those private declarations;
 // transaction identifiers and regclass use ordinary public type admission.
-func (e *Engine) resolveTableColumnType(raw parser.TypeName, op *Operation) (sqltype.Usage, error) {
+func (e *Engine) resolveTableColumnType(raw parser.TypeName, op *session.Operation) (sqltype.Usage, error) {
 	u, err := e.resolveType(raw, op)
 	privateScalar := sqltype.ID(0)
 	if err != nil && len(raw.Modifiers) == 0 && len(raw.ArrayBounds) == 0 && (raw.Schema == nil || raw.Schema.Text == "pg_catalog") {
@@ -73,21 +73,21 @@ func (e *Engine) resolveTableColumnType(raw parser.TypeName, op *Operation) (sql
 	return typ.Usage(), nil
 }
 
-func (e *Engine) resolveAnnotationType(raw parser.TypeName, op *Operation, unknownNull bool) (sqltype.Usage, error) {
+func (e *Engine) resolveAnnotationType(raw parser.TypeName, op *session.Operation, unknownNull bool) (sqltype.Usage, error) {
 	return e.resolveAnnotationTypeMode(raw, op, unknownNull, false)
 }
 
-func (e *Engine) resolveAnnotationTypeMode(raw parser.TypeName, op *Operation, unknownNull, domainBase bool) (sqltype.Usage, error) {
+func (e *Engine) resolveAnnotationTypeMode(raw parser.TypeName, op *session.Operation, unknownNull, domainBase bool) (sqltype.Usage, error) {
 	return e.resolveAnnotationTypeInput(raw, op, unknownNull, domainBase, false, false, false)
 }
 
 // String roles admit internal CHAR without admitting it as a column or a
 // general cast target. Lookup, permissions and modifier checks stay type-owned.
-func (e *Engine) resolveStringAnnotationType(raw parser.TypeName, op *Operation, unknownNull bool) (sqltype.Usage, error) {
+func (e *Engine) resolveStringAnnotationType(raw parser.TypeName, op *session.Operation, unknownNull bool) (sqltype.Usage, error) {
 	return e.resolveAnnotationTypeInput(raw, op, unknownNull, false, true, false, false)
 }
 
-func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *Operation, unknownNull, domainBase, stringInput, jsonReturning, thresholdArrayInput bool) (sqltype.Usage, error) {
+func (e *Engine) resolveAnnotationTypeInput(raw parser.TypeName, op *session.Operation, unknownNull, domainBase, stringInput, jsonReturning, thresholdArrayInput bool) (sqltype.Usage, error) {
 	name := raw.Name
 	if !raw.Quoted && raw.Schema == nil {
 		name = typedef.CanonicalDeclarationTypeName(name)

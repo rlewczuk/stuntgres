@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -117,7 +118,7 @@ func (w *WriteStage) appendAcceptedInsert(ref ids.ObjectRef, candidate *indexWri
 	e := s.engine()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if !s.worked || s.owner.State == TxIdle || s.owner.State == TxAborted {
+	if !s.worked || s.owner.State == session.TxIdle || s.owner.State == session.TxAborted {
 		return false, false, errors.New("stuntgres: inactive write stage")
 	}
 	if ref.Domain() != e.catalog.Domain {

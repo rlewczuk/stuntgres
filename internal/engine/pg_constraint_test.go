@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -85,7 +86,7 @@ func pgConstraintUnitBootstrap(t *testing.T, view catalog.Read, row []sqltype.Va
 
 // Exercise the real private CREATE binder and publication boundary, not SQL
 // execution. Public SQL routes are covered independently in reference/catalogs.
-func pgConstraintUnitTableStage(t *testing.T, e *Engine, op *Operation, q string) *CatalogStage {
+func pgConstraintUnitTableStage(t *testing.T, e *Engine, op *session.Operation, q string) *CatalogStage {
 	t.Helper()
 	syntax := statement(t, q).(*parser.CreateTable)
 	e.mu.Lock()

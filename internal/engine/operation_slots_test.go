@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/session"
 	"testing"
 )
 
@@ -16,13 +17,13 @@ func TestOperationAnalysisSlotHoldsItsHost(t *testing.T) {
 	if h == nil || h.op != op || h.engine != e || e.analysisHost(op) != h {
 		t.Fatalf("analysis slot %#v is not the operation's own host", op.Analysis)
 	}
-	if literal := (&Operation{}); literal.Analysis != nil {
+	if literal := (&session.Operation{}); literal.Analysis != nil {
 		t.Fatal("an operation literal has an analysis slot")
 	}
 }
 
 func TestOperationReplaySlot(t *testing.T) {
-	op := &Operation{}
+	op := &session.Operation{}
 	allocs := testing.AllocsPerRun(10, func() {
 		if operationReplayOrZero(op).tableDestination {
 			t.Fatal("missing replay state does not read as zero")

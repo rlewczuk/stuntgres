@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -37,7 +38,7 @@ func TestNotNullAXWaitCancellationAndEnd(t *testing.T) {
 				done := lockAsync(e, b, ctx, q, false)
 				lockPending(t, e, 1)
 				if ending {
-					b.RequestEnd(CleanClose)
+					b.RequestEnd(session.CleanClose)
 				} else {
 					cancel()
 				}

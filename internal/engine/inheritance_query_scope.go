@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -203,7 +204,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 				return err
 			}
 			s.owner.Mu.Lock()
-			implicit := s.owner.State == TxImplicit
+			implicit := s.owner.State == session.TxImplicit
 			s.owner.Mu.Unlock()
 			if implicit && !s.replacementRead {
 				e.replacementMu.RLock()

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -77,7 +78,7 @@ func sqlRoutineReplayDirective(data string, stmt parser.Statement) bool {
 	return start >= 0 && len(data)-start >= len(sqlRoutineRestoreDirective) && data[start:start+len(sqlRoutineRestoreDirective)] == sqlRoutineRestoreDirective
 }
 
-func (e *Engine) validateRestoredSQLRoutines(ctx context.Context, op *Operation) error {
+func (e *Engine) validateRestoredSQLRoutines(ctx context.Context, op *session.Operation) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	auth, err := e.authorizationLocked(op)

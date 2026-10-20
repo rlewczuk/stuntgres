@@ -5,6 +5,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -89,7 +90,7 @@ func (e *Engine) captureRestoredNotNulls(created ids.ObjectRef, raw *parser.Crea
 	}
 }
 
-func (e *Engine) pairRestoredNotNull(op *Operation, raw *parser.AlterTable, origins map[ids.OID]restoredNotNull) (restoredNotNull, error) {
+func (e *Engine) pairRestoredNotNull(op *session.Operation, raw *parser.AlterTable, origins map[ids.OID]restoredNotNull) (restoredNotNull, error) {
 	if !raw.Only || raw.IfExists || len(raw.Name.Parts) != 2 || len(raw.Actions) != 1 || raw.Actions[0].Action != parser.SetNotNull {
 		return restoredNotNull{}, sqlError("0A000", restoreNoInheritBoundary)
 	}
@@ -123,7 +124,7 @@ func (e *Engine) pairRestoredNotNull(op *Operation, raw *parser.AlterTable, orig
 
 // Unlike public UPDATE, this interpreter can only run inside isolated Restore,
 // after an imported explicit validated local NN and its immediately paired SET.
-func (e *Engine) restoreNoInheritNotNull(op *Operation, raw *parser.Update, origin restoredNotNull) error {
+func (e *Engine) restoreNoInheritNotNull(op *session.Operation, raw *parser.Update, origin restoredNotNull) error {
 	name, column, label, err := restoreNoInheritSyntax(raw)
 	if err != nil {
 		return err

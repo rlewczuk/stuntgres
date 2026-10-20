@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -306,7 +307,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 }
 
 // These are valid catalog-provider component fixtures, not public TEMP-table SQL.
-func arrayComponentTemporary(t *testing.T, e *Engine, op *Operation, prototype *catalog.Relation) *catalog.Relation {
+func arrayComponentTemporary(t *testing.T, e *Engine, op *session.Operation, prototype *catalog.Relation) *catalog.Relation {
 	t.Helper()
 	e.mu.Lock()
 	nsOID, err := e.catalog.allocateOIDLocked()

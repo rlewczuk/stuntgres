@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -71,7 +72,7 @@ func TestViewCheckDeclaration(t *testing.T) {
 	}
 }
 
-func viewCheckUnitBinding(t *testing.T, f viewWriteFixture, scope *StatementScope, op *Operation) analyze.Binding {
+func viewCheckUnitBinding(t *testing.T, f viewWriteFixture, scope *StatementScope, op *session.Operation) analyze.Binding {
 	t.Helper()
 	b := analyze.Binding{Relation: f.view, Ref: f.viewRef, Targets: []int{0}, Update: &analyze.UpdateBinding{Assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
 	if err := f.e.bindViewWrite(&b, f.authorization(t, op), &parser.Update{}); err != nil {

@@ -17,7 +17,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) resolveOperatorArgument(op *Operation, auth AuthorizationView, raw parser.TypeName) (ids.OID, error) {
+func (e *Engine) resolveOperatorArgument(op *session.Operation, auth AuthorizationView, raw parser.TypeName) (ids.OID, error) {
 	input, err := e.captureRegtypeInput(auth, op)
 	if err != nil {
 		return 0, err
@@ -33,7 +33,7 @@ func (e *Engine) checkOperatorArgumentUsage(auth AuthorizationView, id ids.OID) 
 	return auth.CanUse(e.catalog.Domain.Ref(auth.Catalog.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: id}))
 }
 
-func (e *Engine) operatorArgument(op *Operation, auth AuthorizationView, raw parser.TypeName) (ids.OID, error) {
+func (e *Engine) operatorArgument(op *session.Operation, auth AuthorizationView, raw parser.TypeName) (ids.OID, error) {
 	if raw.Name == "" || strings.EqualFold(raw.Name, "none") && raw.Schema == nil && !raw.Quoted {
 		return 0, nil
 	}
@@ -46,7 +46,7 @@ func (e *Engine) operatorArgument(op *Operation, auth AuthorizationView, raw par
 	}
 	return id, e.checkOperatorArgumentUsage(auth, id)
 }
-func (e *Engine) findUtilityOperator(op *Operation, auth AuthorizationView, s parser.OperatorSignature) (*catalog.Operator, error) {
+func (e *Engine) findUtilityOperator(op *session.Operation, auth AuthorizationView, s parser.OperatorSignature) (*catalog.Operator, error) {
 	left, err := e.operatorArgument(op, auth, s.Left)
 	if err != nil {
 		return nil, err
@@ -149,7 +149,7 @@ func (e *Engine) operatorEstimator(auth AuthorizationView, name parser.ObjectNam
 	}
 	return identity.ID, nil
 }
-func operatorOptionsSyntax(op *Operation, options []parser.OperatorOption, alter bool) error {
+func operatorOptionsSyntax(op *session.Operation, options []parser.OperatorOption, alter bool) error {
 	for _, raw := range options {
 		o := raw
 		if alter {
@@ -408,7 +408,7 @@ func (e *Engine) stageResolvedOperatorLink(stage *CatalogStage, d, peer *catalog
 	return stageOperatorDescriptor(stage, &next)
 }
 
-func (e *Engine) stageCreateOperatorLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateOperator) error {
+func (e *Engine) stageCreateOperatorLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateOperator) error {
 	ns, err := e.collationCreationNamespaceLocked(&auth, stage, s.Name)
 	if err != nil {
 		return err
@@ -539,7 +539,7 @@ func (e *Engine) stageCreateOperatorLocked(op *Operation, auth AuthorizationView
 	}
 	return stageOperatorDescriptor(stage, &next)
 }
-func (e *Engine) stageAlterOperatorLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.AlterOperator) error {
+func (e *Engine) stageAlterOperatorLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.AlterOperator) error {
 	d, err := e.findUtilityOperator(op, auth, s.Signature)
 	if err != nil {
 		return err
@@ -634,7 +634,7 @@ func (e *Engine) stageAlterOperatorLocked(op *Operation, auth AuthorizationView,
 	}
 	return stage.Replace(&next)
 }
-func (e *Engine) stageDropOperatorLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropOperator) error {
+func (e *Engine) stageDropOperatorLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropOperator) error {
 	seen := make(map[ids.ObjectAddress]bool, len(s.Signatures))
 	for _, sig := range s.Signatures {
 		d, err := e.findUtilityOperator(op, auth, sig)

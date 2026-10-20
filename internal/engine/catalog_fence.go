@@ -14,7 +14,7 @@ type catalogFence interface {
 	session.Fence
 	// currentLocked reports whether the fence still holds. Caller holds
 	// Engine.mu.
-	currentLocked(e *Engine, c *catalogChanges) error
+	currentLocked(e *Engine, c *session.Journal) error
 }
 
 // The fence kinds fix where catalogPreflightLocked checks a fence. The kinds
@@ -31,7 +31,7 @@ const (
 
 // catalogFencesCurrentLocked checks the fences of each kind in turn, each kind
 // in recording order. Caller holds Engine.mu.
-func (e *Engine) catalogFencesCurrentLocked(c *catalogChanges, kinds ...session.FenceKind) error {
+func (e *Engine) catalogFencesCurrentLocked(c *session.Journal, kinds ...session.FenceKind) error {
 	for _, kind := range kinds {
 		for _, f := range c.Fences {
 			if f.Kind() != kind {

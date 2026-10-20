@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -20,7 +21,7 @@ func inheritanceEntryOwner(actions []parser.AlterTableAction) bool {
 // Acquiring an ancestor grant freezes edges below that ancestor. Reconcile
 // after every wait, including the first-child marker's exact publication copy.
 // No stage, statement view, row evaluation or publication exists in this phase.
-func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTable, preparatory bool) error {
+func (e *Engine) admitInheritanceAlter(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, preparatory bool) error {
 	state := scope.inheritance.alter
 	if !preparatory && len(state.targets) == 1 {
 		return nil

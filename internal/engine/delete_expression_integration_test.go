@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -54,7 +55,7 @@ func TestDeleteCoreExpressionPreflightAuthority(t *testing.T) {
 					e.catalog.state.SetEpoch(e.catalog.state.Epoch() + 1)
 					restore = func() { e.catalog.state.SetEpoch(original) }
 				case "teardown":
-					op.Session.RequestEnd(CleanClose)
+					op.Session.RequestEnd(session.CleanClose)
 				}
 			}
 			result, executeErr := scope.Execute(statement(t, "DELETE FROM t WHERE int4($1::text)=i"), 1, func(c context.Context, signature analyze.ParameterInfo, frame []sqltype.Value, environment sqltype.InputEnvironment) error {

@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -15,7 +16,7 @@ type partitionUsingIndexReplay struct {
 
 // Capture the existing physical schema/index origin on the private import lease.
 // The ordinary USING INDEX binder owns eligibility, allocation and publication.
-func (e *Engine) beginPartitionUsingIndexReplay(op *Operation, raw *parser.AlterTable) error {
+func (e *Engine) beginPartitionUsingIndexReplay(op *session.Operation, raw *parser.AlterTable) error {
 	if op == nil {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition index operation")
 	}
@@ -51,7 +52,7 @@ func (e *Engine) beginPartitionUsingIndexReplay(op *Operation, raw *parser.Alter
 	return nil
 }
 
-func partitionUsingIndexReplayAllowed(op *Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) bool {
+func partitionUsingIndexReplayAllowed(op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, table *catalog.Relation) bool {
 	if op == nil || raw == nil || operationReplayOrZero(op).partitionUsingIndex == nil {
 		return false
 	}

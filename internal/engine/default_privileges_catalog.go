@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 )
 
 func (s *CatalogStage) creationACL(owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
@@ -24,7 +25,7 @@ func (s *CatalogStage) creationTypeACL(owner authorization.PrincipalRef, schema 
 	acl := s.creationACL(owner, schema, authorization.DefaultTypes)
 	return acl, authorization.MatchesDefaultBaseline(acl, owner, authorization.DefaultTypes, false)
 }
-func (e *Engine) defaultACLChangeLocked(c *catalogChanges, key catalog.DefaultACLKey, record *catalog.DefaultACLRecord) {
+func (e *Engine) defaultACLChangeLocked(c *session.Journal, key catalog.DefaultACLKey, record *catalog.DefaultACLRecord) {
 	if c.DefaultOriginals == nil {
 		c.DefaultOriginals = make(map[catalog.DefaultACLKey]*catalog.DefaultACLRecord)
 		c.DefaultACLs = make(map[catalog.DefaultACLKey]*catalog.DefaultACLRecord)
@@ -36,7 +37,7 @@ func (e *Engine) defaultACLChangeLocked(c *catalogChanges, key catalog.DefaultAC
 	c.CachedBase = nil
 	c.Cached = catalog.Read{}
 }
-func (e *Engine) stageDefaultChangesLocked(s *CatalogStage, c *catalogChanges) {
+func (e *Engine) stageDefaultChangesLocked(s *CatalogStage, c *session.Journal) {
 	for key, record := range s.DefaultReads() {
 		if _, private := c.DefaultACLs[key]; private {
 			continue
@@ -76,7 +77,7 @@ func (s *CatalogStage) removeSchemaDefaults(schema ids.ObjectAddress) {
 		s.SetDefaultACL(key, nil)
 	}
 }
-func (e *Engine) creationACLChangesLocked(c *catalogChanges, view catalog.Read, owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
+func (e *Engine) creationACLChangesLocked(c *session.Journal, view catalog.Read, owner authorization.PrincipalRef, schema ids.ObjectAddress, class authorization.DefaultACLClass) authorization.ACLValue {
 	for _, namespace := range []ids.ObjectAddress{{}, schema} {
 		key := catalog.DefaultACLKey{Creator: owner, Schema: namespace, Class: class}
 		if _, private := c.DefaultACLs[key]; !private {

@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -25,7 +26,7 @@ func (e *Engine) executeCreateFunction(scope *StatementScope, s *parser.CreateFu
 	return result, err
 }
 
-func (e *Engine) stageCreateFunctionLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateFunction, input sqltype.InputEnvironment) error {
+func (e *Engine) stageCreateFunctionLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateFunction, input sqltype.InputEnvironment) error {
 	if s.Language.Text != "sql" {
 		return expr.ErrorAt("0A000", "only LANGUAGE SQL functions are supported", s.Language.Pos)
 	}
@@ -127,7 +128,7 @@ func (e *Engine) stageCreateFunctionLocked(op *Operation, auth AuthorizationView
 
 // Binding is deliberately producer-free. In particular this does not evaluate
 // constants/providers or take a data snapshot while validating CREATE.
-func (e *Engine) bindSQLRoutineLocked(op *Operation, auth AuthorizationView, d *catalog.Procedure, input sqltype.InputEnvironment, scope *StatementScope) (analyze.Binding, sqltype.CoercionPlan, error) {
+func (e *Engine) bindSQLRoutineLocked(op *session.Operation, auth AuthorizationView, d *catalog.Procedure, input sqltype.InputEnvironment, scope *StatementScope) (analyze.Binding, sqltype.CoercionPlan, error) {
 	var admission *analyze.LockAdmission
 	var expected *StatementDescription
 	if scope != nil {

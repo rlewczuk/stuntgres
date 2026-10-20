@@ -17,6 +17,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -66,7 +67,7 @@ func preparedBoundaryUpdate(t *testing.T, entry *preparedTransaction, parent ids
 
 // All roots in these tests come from admitted statements, not fabricated registry
 // entries. The existing expression executor supplies an outside-metadata barrier.
-func preparedBoundaryFixture(t *testing.T) (*Engine, *Session, *preparedTransaction, ids.ObjectAddress) {
+func preparedBoundaryFixture(t *testing.T) (*Engine, *session.Session, *preparedTransaction, ids.ObjectAddress) {
 	t.Helper()
 	e := New()
 	origin := sessionStart(t, e, nil)
@@ -93,7 +94,7 @@ func preparedBoundaryFixture(t *testing.T) (*Engine, *Session, *preparedTransact
 	}
 	preparedUnitStatement(t, e, origin, &parser.CreateIndex{Name: parser.Identifier{Text: "prepared_boundary_index"}, Table: name, Method: "btree", Keys: []parser.IndexKey{{Expression: key}}})
 	op := transactionOperation(t, origin)
-	_, err := e.Begin(op, TxOptions{Isolation: Serializable})
+	_, err := e.Begin(op, session.TxOptions{Isolation: session.Serializable})
 	op.Done()
 	if err != nil {
 		t.Fatal(err)
@@ -292,7 +293,7 @@ func (expression *preparedBoundaryExpression) Eval(ctx expr.Context) (sqltype.Va
 	return value, err
 }
 
-func preparedBoundaryBarrier(t *testing.T, e *Engine, origin, finisher *Session, entry *preparedTransaction) (<-chan struct{}, chan<- struct{}) {
+func preparedBoundaryBarrier(t *testing.T, e *Engine, origin, finisher *session.Session, entry *preparedTransaction) (<-chan struct{}, chan<- struct{}) {
 	t.Helper()
 	arrived, release := make(chan struct{}), make(chan struct{})
 	for _, descriptor := range entry.catalog.Cached.Descriptors() {
@@ -469,13 +470,13 @@ func preparedBoundaryPublished(t *testing.T, e *Engine, entry *preparedTransacti
 func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 	e := New()
 	serializableUnitRelation(t, e)
-	owners := []*Session{sessionStart(t, e, nil), sessionStart(t, e, nil)}
+	owners := []*session.Session{sessionStart(t, e, nil), sessionStart(t, e, nil)}
 	refs := make([]ids.TxRef, 2)
 	tickets := make([]*lock.Ticket, 2)
 	for i, owner := range owners {
 		op := transactionOperation(t, owner)
 		var err error
-		refs[i], err = e.Begin(op, TxOptions{Isolation: Serializable})
+		refs[i], err = e.Begin(op, session.TxOptions{Isolation: session.Serializable})
 		op.Done()
 		if err != nil {
 			t.Fatal(err)
@@ -511,7 +512,7 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 		}
 	})
 	for i, owner := range owners {
-		go func(i int, owner *Session) {
+		go func(i int, owner *session.Session) {
 			op, err := owner.Acquire(ctx)
 			if err != nil {
 				outcomes <- outcome{i, err}
@@ -549,7 +550,7 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 		t.Fatal("wrong registry winner")
 	}
 	for i, owner := range owners {
-		if owner.TransactionState() != TxIdle || owner.Transactions.Ticket != nil || owner.Transactions.Catalog != nil || len(owner.Transactions.Writes) != 0 || len(owner.Transactions.Deletes) != 0 || len(owner.Transactions.Roots) != 0 {
+		if owner.TransactionState() != session.TxIdle || owner.Transactions.Ticket != nil || owner.Transactions.Catalog != nil || len(owner.Transactions.Writes) != 0 || len(owner.Transactions.Deletes) != 0 || len(owner.Transactions.Roots) != 0 {
 			t.Fatal("whole transaction did not detach/end", i)
 		}
 		owner.Settings.Mu.Lock()

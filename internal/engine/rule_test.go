@@ -17,6 +17,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -431,7 +432,7 @@ func TestRuleProgramAtomicStage(t *testing.T) {
 	e, _, src, sink := ruleUnitCatalog(t)
 	start := time.Unix(10, 0)
 	expected := &StatementDescription{}
-	s := &StatementScope{op: &Operation{}, statementStart: start, Expected: expected}
+	s := &StatementScope{op: &session.Operation{}, statementStart: start, Expected: expected}
 	s.lockedRef, s.lockedDescriptor = ruleUnitRef(e, src), src
 	s.self = s
 	s.stage.self = &s.stage

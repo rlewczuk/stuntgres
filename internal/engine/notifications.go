@@ -7,13 +7,14 @@ import (
 	"sync/atomic"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
 // Each immutable link belongs to one recipient; event storage is shared by all
 // recipients of a publication. Back lists are newest-first, front lists FIFO.
 type notificationLink struct {
-	batch []Notification
+	batch []session.Notification
 	next  *notificationLink
 }
 type notificationFIFO struct {
@@ -21,7 +22,7 @@ type notificationFIFO struct {
 	offset      int
 }
 
-func (q notificationFIFO) append(batch []Notification) notificationFIFO {
+func (q notificationFIFO) append(batch []session.Notification) notificationFIFO {
 	if len(batch) != 0 {
 		q.back = &notificationLink{batch: batch, next: q.back}
 	}
@@ -76,7 +77,7 @@ func (n *sessionNotifications) signalLocked() {
 		n.wake = nil
 	}
 }
-func (n *sessionNotifications) EndSession(token ids.SessionToken, _ EndReason) error {
+func (n *sessionNotifications) EndSession(token ids.SessionToken, _ session.EndReason) error {
 	if token != n.token {
 		return errors.New("stuntgres: foreign notification session")
 	}
@@ -97,9 +98,9 @@ func (n *sessionNotifications) EndSession(token ids.SessionToken, _ EndReason) e
 // WaitForNotification consumes the next client-ready notification of op's
 // session, waiting until one arrives or op's context ends. The listener is root
 // state guarded by Engine.mu, so polling lives on the engine.
-func (e *Engine) WaitForNotification(op *Operation) (Notification, error) {
+func (e *Engine) WaitForNotification(op *session.Operation) (session.Notification, error) {
 	if op == nil || op.Self != op || op.Session == nil || engineOf(op.Session) != e {
-		return Notification{}, errors.New("stuntgres: foreign notification operation")
+		return session.Notification{}, errors.New("stuntgres: foreign notification operation")
 	}
 	for {
 		event, available, wake, err := e.pollNotification(op.Session, op.Context().Err)
@@ -116,19 +117,19 @@ func (e *Engine) WaitForNotification(op *Operation) (Notification, error) {
 // PollProtocolNotification observes s's queue and registers its wake atomically.
 // It owns no operation/activity lease: idle timeout and retirement stay live.
 // The serialized wire dispatcher supplies its separate TxIdle delivery gate.
-func (e *Engine) PollProtocolNotification(s *Session) (Notification, bool, <-chan struct{}, error) {
+func (e *Engine) PollProtocolNotification(s *session.Session) (session.Notification, bool, <-chan struct{}, error) {
 	if s == nil || engineOf(s) != e {
-		return Notification{}, false, nil, errors.New("stuntgres: foreign notification session")
+		return session.Notification{}, false, nil, errors.New("stuntgres: foreign notification session")
 	}
 	return e.pollNotification(s, func() error { return s.Check(context.Background()) })
 }
 
-func (e *Engine) pollNotification(s *Session, check func() error) (Notification, bool, <-chan struct{}, error) {
+func (e *Engine) pollNotification(s *session.Session, check func() error) (session.Notification, bool, <-chan struct{}, error) {
 	n := &payloadOf(s).notifications
 	for {
 		if check != nil {
 			if err := check(); err != nil {
-				return Notification{}, false, nil, err
+				return session.Notification{}, false, nil, err
 			}
 		}
 		e.mu.Lock()
@@ -136,10 +137,10 @@ func (e *Engine) pollNotification(s *Session, check func() error) (Notification,
 			e.mu.Unlock()
 			if check != nil {
 				if err := check(); err != nil {
-					return Notification{}, false, nil, err
+					return session.Notification{}, false, nil, err
 				}
 			}
-			return Notification{}, false, nil, errors.New("stuntgres: notification session ended")
+			return session.Notification{}, false, nil, errors.New("stuntgres: notification session ended")
 		}
 		original := n.state
 		var queue notificationFIFO
@@ -165,7 +166,7 @@ func (e *Engine) pollNotification(s *Session, check func() error) (Notification,
 			if check != nil {
 				if err := check(); err != nil {
 					e.mu.Unlock()
-					return Notification{}, false, nil, err
+					return session.Notification{}, false, nil, err
 				}
 			}
 			n.state = &next
@@ -187,11 +188,11 @@ func (e *Engine) pollNotification(s *Session, check func() error) (Notification,
 			wake = n.wake
 		}
 		e.mu.Unlock()
-		return Notification{}, false, wake, nil
+		return session.Notification{}, false, wake, nil
 	}
 }
 
-func appendNotificationEvents(base, added []Notification) []Notification {
+func appendNotificationEvents(base, added []session.Notification) []session.Notification {
 	if len(base) == 0 && len(added) <= 1 {
 		return added
 	}
@@ -218,9 +219,9 @@ func (s *StatementScope) executeNotification(stmt parser.Statement, count int) (
 		if len(raw.Payload) >= 8000 {
 			return Result{}, sqlError("22023", "payload string too long")
 		}
-		s.notificationEvents = append(s.notificationEvents, Notification{PID: uint64(s.op.Session.SessionToken.ID()), Channel: raw.Channel.Text, Payload: raw.Payload})
+		s.notificationEvents = append(s.notificationEvents, session.Notification{PID: uint64(s.op.Session.SessionToken.ID()), Channel: raw.Channel.Text, Payload: raw.Payload})
 	case *parser.Listen:
-		s.notificationActions = append(s.notificationActions, notificationAction{Channel: raw.Channel.Text, Listen: true})
+		s.notificationActions = append(s.notificationActions, session.NotificationAction{Channel: raw.Channel.Text, Listen: true})
 	case *parser.Unlisten:
 		e := s.engine()
 		e.mu.Lock()
@@ -228,7 +229,7 @@ func (s *StatementScope) executeNotification(stmt parser.Statement, count int) (
 		history := state != nil && state.history
 		e.mu.Unlock()
 		if history || len(s.owner.NotificationActions) != 0 || len(s.notificationActions) != 0 {
-			s.notificationActions = append(s.notificationActions, notificationAction{Channel: raw.Channel.Text, All: raw.All})
+			s.notificationActions = append(s.notificationActions, session.NotificationAction{Channel: raw.Channel.Text, All: raw.All})
 		}
 	}
 	return Result{}, nil
@@ -237,8 +238,8 @@ func (s *StatementScope) executeNotification(stmt parser.Statement, count int) (
 // Called owner-first only at the outer idle/message boundary. Abort drops local
 // effects but must still release committed peer events. CHAIN and intermediate
 // COMMIT segments deliberately leave busy true and do not scan.
-func finishNotificationBoundary(t *transactionOwner) {
-	if t.State != TxIdle || t.RetainsTransaction() {
+func finishNotificationBoundary(t *session.TransactionOwner) {
+	if t.State != session.TxIdle || t.RetainsTransaction() {
 		return
 	}
 	e, n := engineOf(t.Session), &payloadOf(t.Session).notifications
@@ -269,7 +270,7 @@ func finishNotificationBoundary(t *transactionOwner) {
 		return
 	}
 }
-func filterNotificationBatch(batch []Notification, channels map[string]struct{}) []Notification {
+func filterNotificationBatch(batch []session.Notification, channels map[string]struct{}) []session.Notification {
 	count := 0
 	for _, event := range batch {
 		if _, ok := channels[event.Channel]; ok {
@@ -282,7 +283,7 @@ func filterNotificationBatch(batch []Notification, channels map[string]struct{})
 	if count == 0 {
 		return nil
 	}
-	filtered := make([]Notification, 0, count)
+	filtered := make([]session.Notification, 0, count)
 	for _, event := range batch {
 		if _, ok := channels[event.Channel]; ok {
 			filtered = append(filtered, event)

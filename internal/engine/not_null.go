@@ -33,7 +33,7 @@ func alterTableLookupKind(d *catalog.Relation) error {
 
 // The strictest captured ALTER grant protects the incarnation until Finish.
 // The caller holds Engine.mu. Every return releases it before callbacks/scanning.
-func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth AuthorizationView, s *parser.AlterTable, count int) (Result, error) {
+func (e *Engine) alterTableLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, s *parser.AlterTable, count int) (Result, error) {
 	scope.routineAuth = auth
 	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
 	if count != 0 {
@@ -161,13 +161,13 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	if store == nil {
 		return fail(fmt.Errorf("stuntgres: relation storage is missing"))
 	}
-	var shape catalogStorageChange
+	var shape session.StorageChange
 	exists := false
 	if changes != nil {
 		shape, exists = changes.Storage[ref.Address]
 	}
 	if !exists {
-		shape = catalogStorageChange{Original: original, Root: original.Versions, Ends: original.Ends, Generation: original.Generation, Replacement: store, Relation: old}
+		shape = session.StorageChange{Original: original, Root: original.Versions, Ends: original.Ends, Generation: original.Generation, Replacement: store, Relation: old}
 	}
 	versions, ends, frontier := store.Versions, store.Ends, e.visibility.CommitSeq()
 	snapshot, snapshotExists := scope.owner.Roots[ref.Address]
@@ -805,7 +805,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 		dependencyTargets = append(dependencyTargets, a)
 	}
 	if len(dependencyTargets) != 0 {
-		changes.Dependencies = append(changes.Dependencies, catalogDependencyObservation{grantCatalog, dependencyTargets})
+		changes.Dependencies = append(changes.Dependencies, session.DependencyObservation{grantCatalog, dependencyTargets})
 	}
 	changes.Dependencies = append(changes.Dependencies, stage.sequence.identityDependencyList()...)
 	if scope.inheritance.alter == nil {
@@ -817,7 +817,7 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	// changes. Include dependent holder stores as well as the directly altered row.
 	for address, rebound := range stage.rowShapes {
 		consumer := stage.Get(address).(*catalog.Relation)
-		changes.Storage[address] = catalogStorageChange{Original: rebound.original, Root: rebound.original.Versions, Ends: rebound.observedEnds, Generation: rebound.generation, Replacement: rebound.replacement, Relation: consumer}
+		changes.Storage[address] = session.StorageChange{Original: rebound.original, Root: rebound.original.Versions, Ends: rebound.observedEnds, Generation: rebound.generation, Replacement: rebound.replacement, Relation: consumer}
 	}
 	// Keep the pre-callback originals; Reset cannot restamp captured authority.
 	e.mu.Lock()

@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -157,7 +158,7 @@ func TestProtocolEndRequestedWake(t *testing.T) {
 				default:
 				}
 			}
-			sess.RequestEnd(CleanClose)
+			sess.RequestEnd(session.CleanClose)
 			if late {
 				wake = sess.EndRequested()
 			}
@@ -174,7 +175,7 @@ func TestProtocolEndRequestedWake(t *testing.T) {
 				t.Fatal("completion overtook outstanding operation lease")
 			default:
 			}
-			sess.RequestEnd(CleanClose)
+			sess.RequestEnd(session.CleanClose)
 			if sess.EndRequested() != wake {
 				t.Fatal("late/repeated observation lost the request lifetime")
 			}

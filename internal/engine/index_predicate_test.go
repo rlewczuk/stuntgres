@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -365,7 +366,7 @@ func TestPartialIndexImplication(t *testing.T) {
 
 func partialMaskFixture(t *testing.T) (partialIndexFixture, *StatementScope, exec.Leaf, *visibility.View) {
 	f := newPartialIndexFixture(t)
-	scope := &StatementScope{owner: &transactionOwner{Isolation: ReadCommitted}}
+	scope := &StatementScope{owner: &session.TransactionOwner{Isolation: session.ReadCommitted}}
 	leaf := exec.Leaf{Ref: f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address()), Relation: f.parent, Storage: f.store, PartialCandidate: f.index}
 	data := &visibility.Data{Catalog: f.e.CatalogRead(), Frontier: f.e.visibility.CommitSeq(), Committed: map[ids.ObjectAddress][]storage.RowVersion{f.parent.Address(): f.store.Versions}, SingleGeneration: f.store}
 	view := visibility.NewView(data)
@@ -428,7 +429,7 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 			inherited := plan.RowMark{}
 			switch name {
 			case "private catalog":
-				scope.owner.Catalog = &catalogChanges{}
+				scope.owner.Catalog = &session.Journal{}
 			case "own insert":
 				data.Own = map[ids.ObjectAddress][]storage.RowVersion{a: {f.store.Versions[1]}}
 			case "own update":
@@ -439,7 +440,7 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 			case "own delete":
 				data.Deleted = map[ids.ObjectAddress]*visibility.PrivateDeletes{a: {}}
 			case "historical":
-				scope.owner.Isolation = RepeatableRead
+				scope.owner.Isolation = session.RepeatableRead
 			case "frontier":
 				f.e.visibility.AdvanceCommitSeqLocked()
 			case "rewrite":

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -145,18 +146,18 @@ func TestSessionIdentityConfiguredResetRole(t *testing.T) {
 func TestSessionIdentityPhysicalNameAndTermination(t *testing.T) {
 	ctx := context.Background()
 	e := NewWithSettings(nil, "unit identity", false)
-	sess, err := e.StartSession(ctx, SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
+	sess, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
 	if err != nil {
 		t.Fatal(err)
 	}
 	op, err := sess.Acquire(ctx)
 	if err != nil {
-		sess.RequestEnd(CleanClose)
+		sess.RequestEnd(session.CleanClose)
 		t.Fatal(err)
 	}
 	defer func() {
 		op.Done()
-		sess.RequestEnd(CleanClose)
+		sess.RequestEnd(session.CleanClose)
 		if err := sess.WaitEnd(ctx); err != nil {
 			t.Error(err)
 		}
@@ -181,7 +182,7 @@ func TestSessionIdentityPhysicalNameAndTermination(t *testing.T) {
 	if !values[2].IsNull() || values[2].Type().ID() != sqltype.Text {
 		t.Fatal(values[2])
 	}
-	sess.RequestEnd(Terminated)
+	sess.RequestEnd(session.Terminated)
 	if _, err := e.Execute(op, statement(t, "SELECT current_user"), 0, nil); err == nil {
 		t.Fatal("terminated identity operation admitted")
 	}
@@ -229,7 +230,7 @@ func TestSessionIdentityNameArithmeticSignatures(t *testing.T) {
 // Context.Err observation under Session.mu is the final publication fence.
 type identityRolePublicationContext struct {
 	context.Context
-	session  *Session
+	session  *session.Session
 	cancel   context.CancelFunc
 	observed bool
 }

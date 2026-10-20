@@ -13,6 +13,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 )
@@ -125,7 +126,7 @@ func TestRestoreConstraintHistorySyntax(t *testing.T) {
 	}
 }
 
-func retiredImportFixture(t *testing.T) (*Engine, *Operation, *restoredHistoryAuthority) {
+func retiredImportFixture(t *testing.T) (*Engine, *session.Operation, *restoredHistoryAuthority) {
 	t.Helper()
 	source := New()
 	ownershipUnitExec(t, source, "CREATE ROLE history_reader LOGIN")
@@ -172,7 +173,7 @@ func retiredResourceCounts(e *Engine) [7]int {
 	counts[6] = lockState.KeyBuckets
 	return counts
 }
-func retiredReject(t *testing.T, e *Engine, op *Operation, q string, a *restoredHistoryAuthority) {
+func retiredReject(t *testing.T, e *Engine, op *session.Operation, q string, a *restoredHistoryAuthority) {
 	t.Helper()
 	before := e.catalog.state
 	stores := maps.Clone(e.storage.Relations)

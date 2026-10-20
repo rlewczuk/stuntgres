@@ -9,12 +9,13 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
-func ruleNamedDependencyFixture(t *testing.T, modifier, inferred bool) (*Engine, *Session, *catalog.Relation, *catalog.Relation) {
+func ruleNamedDependencyFixture(t *testing.T, modifier, inferred bool) (*Engine, *session.Session, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	s := sessionStart(t, e, nil)

@@ -27,8 +27,8 @@ func TestEnumProvenanceSavepoints(t *testing.T) {
 	if enumJournalOf(outer.Enum).UnsafeMembers()[10] || !enumJournalOf(outer.Enum).CreatedTypes()[address] {
 		t.Fatal("provenance clone mutated mark")
 	}
-	owner := &transactionOwner{Catalog: outer}
-	mark := savepointMark{Catalog: owner.Catalog}
+	owner := &session.TransactionOwner{Catalog: outer}
+	mark := session.SavepointMark{Catalog: owner.Catalog}
 	owner.Catalog = child
 	// RELEASE retains child roots; ROLLBACK restores the exact marked root.
 	if typedef.EnumSafety(enumJournalOf(owner.Catalog.Enum).UnsafeMembers())(45000, 10) {

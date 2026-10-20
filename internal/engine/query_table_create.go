@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -20,7 +21,7 @@ import (
 
 // Source analysis and parameter import precede this destination-only phase.
 // Engine.mu is held. A skipped destination never enters executor admission.
-func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, s *parser.CreateQueryTable, b analyze.Binding) (*CatalogStage, *catalog.Relation, bool, error) {
+func (e *Engine) prepareQueryTableLocked(op *session.Operation, auth AuthorizationView, s *parser.CreateQueryTable, b analyze.Binding) (*CatalogStage, *catalog.Relation, bool, error) {
 	ns, err := e.creationNamespace(auth, s.Name)
 	if err != nil {
 		if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "0A000" {

@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
-func executeUsingDescription(e *Engine, op *Operation, ast parser.Statement, description *StatementDescription) (Result, error) {
+func executeUsingDescription(e *Engine, op *session.Operation, ast parser.Statement, description *StatementDescription) (Result, error) {
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		return Result{}, err

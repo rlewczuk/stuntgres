@@ -27,18 +27,18 @@ type rowPublication struct {
 	singleSlot         int
 }
 
-func (e *Engine) publishWrites(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, scope *StatementScope) error {
+func (e *Engine) publishWrites(op *session.Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, scope *StatementScope) error {
 	owner := txOwnerOf(ref)
 	if op == nil || op.Self != op || op.Session == nil || op.Session.Transactions == nil || owner == nil || ref.Domain() != domainOf(e) || ref.Session() != op.Session.SessionToken || owner != op.Session.Transactions || ref.ID() == 0 || ref != owner.Ref {
 		return errors.New("stuntgres: foreign or stale publication transaction")
 	}
-	if owner.State != TxActive && owner.State != TxImplicit {
+	if owner.State != session.TxActive && owner.State != session.TxImplicit {
 		return errors.New("stuntgres: inactive publication transaction")
 	}
 	return e.publishRows(op, ref, writes, deletes, owner.Catalog, nil, scope)
 }
 
-func (e *Engine) publishRows(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *catalogChanges, authority *catalogAuthority, scope *StatementScope) error {
+func (e *Engine) publishRows(op *session.Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *session.Journal, authority *catalogAuthority, scope *StatementScope) error {
 	var err error
 	writes, deletes, c, err = e.prepareTemporaryCommit(op, ref, writes, deletes, c)
 	if err != nil {
@@ -49,7 +49,7 @@ func (e *Engine) publishRows(op *Operation, ref ids.TxRef, writes map[ids.Object
 
 // A reserved empty container is not a write. PREPARE is the explicit exception:
 // even an otherwise empty prepared transaction needs a retained public identity.
-func publicationNeedsXID(writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *catalogChanges, phase *preparedPublication) bool {
+func publicationNeedsXID(writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *session.Journal, phase *preparedPublication) bool {
 	if phase != nil && phase.preparing {
 		return true
 	}
@@ -71,7 +71,7 @@ func publicationNeedsXID(writes map[ids.ObjectAddress][]storage.RowVersion, dele
 	return false
 }
 
-func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *catalogChanges, authority *catalogAuthority, phase *preparedPublication, scope *StatementScope) error {
+func (e *Engine) publishRowsPrepared(op *session.Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, c *session.Journal, authority *catalogAuthority, phase *preparedPublication, scope *StatementScope) error {
 	materialize := phase == nil || !phase.preparing
 	actions, events, err := notificationEffects(op, ref, phase, scope)
 	if err != nil {
@@ -513,7 +513,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 }
 
 // Caller holds Session.mu; row/catalog publication additionally holds Engine.mu.
-func publicationOperationLocked(e *Engine, op *Operation) error {
+func publicationOperationLocked(e *Engine, op *session.Operation) error {
 	if op == nil || op.Self != op || op.Session == nil || op.Session.SessionToken.Domain() != domainOf(e) {
 		return errors.New("stuntgres: foreign or missing operation")
 	}

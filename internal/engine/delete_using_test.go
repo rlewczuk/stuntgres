@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
@@ -164,7 +165,7 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 					t.Fatal("orphan command view")
 				}
 				if explicit {
-					if writer.TransactionState() != TxAborted || writer.Transactions.Writes != nil || writer.Transactions.Deletes != nil {
+					if writer.TransactionState() != session.TxAborted || writer.Transactions.Writes != nil || writer.Transactions.Deletes != nil {
 						t.Fatal("private work survived abort")
 					}
 					transactionEnd(t, writer, tx, false)

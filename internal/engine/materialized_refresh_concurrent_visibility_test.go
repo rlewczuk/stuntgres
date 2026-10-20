@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"testing"
@@ -91,7 +92,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			original := e.storage.Relations[d.Address()]
 			original.Ends = &storage.DeletionRoot{}
 			scope := refreshUnitScope(t, e, context.Background())
-			scope.owner.Isolation = RepeatableRead
+			scope.owner.Isolation = session.RepeatableRead
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
 				t.Fatal(err)
 			}
@@ -130,7 +131,7 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			materializedConcurrentUnitIndex(t, e, d, "unit_u", "i", "")
 			d = e.catalog.state.MustRelation(d.Address())
 			scope := refreshUnitScope(t, e, context.Background())
-			scope.owner.Isolation = RepeatableRead
+			scope.owner.Isolation = session.RepeatableRead
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
 				t.Fatal(err)
 			}

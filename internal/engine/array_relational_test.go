@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -31,9 +32,9 @@ func arrayRelationalUnitCall(t *testing.T, name, input string, n int64) (functio
 	if err != nil {
 		t.Fatal(err)
 	}
-	sess := &Session{}
+	sess := &session.Session{}
 	sess.ArrayRandom.SeedWords(1, 2)
-	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(&StatementScope{op: &Operation{Session: sess}})}}
+	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(&StatementScope{op: &session.Operation{Session: sess}})}}
 	return node.(functions.ArrayRandom), c
 }
 func arrayRelationalUnitText(t *testing.T, v sqltype.Value) string {
@@ -523,7 +524,7 @@ func TestArrayRelationalReownership(t *testing.T) {
 type arrayRelationalLoopContext struct {
 	context.Context
 	cancel context.CancelFunc
-	owner  *randomState
+	owner  *session.RandomState
 	calls  int
 }
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -78,7 +79,7 @@ func TestAlterDefaultLifecycleFences(t *testing.T) {
 				done := lockAsync(e, b, ctx, q, false)
 				lockPending(t, e, 1)
 				if ending {
-					b.RequestEnd(CleanClose)
+					b.RequestEnd(session.CleanClose)
 				} else {
 					cancel()
 				}
@@ -132,7 +133,7 @@ func TestAlterDefaultLifecycleFences(t *testing.T) {
 					op.Session.Authorization.Revision++
 					op.Session.Mu.Unlock()
 				case "end":
-					op.Session.RequestEnd(CleanClose)
+					op.Session.RequestEnd(session.CleanClose)
 				}
 			}}
 			_, err = e.Execute(op, statement(t, "ALTER TABLE t ALTER a SET DEFAULT 7"), 0, nil)

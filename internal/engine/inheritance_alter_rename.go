@@ -6,12 +6,13 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
 // Metadata-only graph evolution shares the same one-stage atomic publication
 // contract as shape ALTER, without running a physical row rewrite.
-func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *Operation, auth AuthorizationView, root *catalog.Relation, column, destination string, only bool) (Result, error) {
+func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, root *catalog.Relation, column, destination string, only bool) (Result, error) {
 	candidate, err := renameColumnCandidate(root, column, destination)
 	if err != nil {
 		e.mu.Unlock()
@@ -79,7 +80,7 @@ func (e *Engine) renameInheritanceColumnLocked(scope *StatementScope, op *Operat
 	return Result{}, err
 }
 
-func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTableRenameConstraint, root *catalog.Relation, kind byte) (Result, error) {
+func (e *Engine) renameInheritanceConstraintLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTableRenameConstraint, root *catalog.Relation, kind byte) (Result, error) {
 	name := raw.Constraint.Text
 	inherited := false
 	noInherit := false

@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/session"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -13,7 +14,7 @@ import (
 )
 
 // These are actual private binding/freezing/staging calls, not SQL execution.
-func intaggUnitTemporaryView(t *testing.T, e *Engine, op *Operation, namespace *catalog.Namespace, name, call string) *catalog.Relation {
+func intaggUnitTemporaryView(t *testing.T, e *Engine, op *session.Operation, namespace *catalog.Namespace, name, call string) *catalog.Relation {
 	t.Helper()
 	raw := statement(t, "CREATE TEMP VIEW "+name+" AS SELECT "+namespace.Name()+"."+call+" AS v").(*parser.CreateView)
 	stage, consumer, err := func() (*CatalogStage, *catalog.Relation, error) {

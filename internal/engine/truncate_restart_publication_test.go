@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"testing"
@@ -17,7 +18,7 @@ func truncateRestartUnitAST(names ...string) *parser.Truncate {
 	return s
 }
 
-func truncateRestartUnitFixture(t *testing.T) (*Engine, *Session, ids.ObjectRef, ids.ObjectRef, ids.ObjectRef, ids.ObjectRef) {
+func truncateRestartUnitFixture(t *testing.T) (*Engine, *session.Session, ids.ObjectRef, ids.ObjectRef, ids.ObjectRef, ids.ObjectRef) {
 	t.Helper()
 	e := New()
 	s := sessionStart(t, e, nil)
@@ -27,7 +28,7 @@ func truncateRestartUnitFixture(t *testing.T) (*Engine, *Session, ids.ObjectRef,
 	return e, s, roleTableRef(t, e, "p"), roleTableRef(t, e, "q"), roleTableRef(t, e, "p_id_seq"), roleTableRef(t, e, "q_id_seq")
 }
 
-func truncateRestartUnitStage(t *testing.T, e *Engine, s *Session, names ...string) *StatementScope {
+func truncateRestartUnitStage(t *testing.T, e *Engine, s *session.Session, names ...string) *StatementScope {
 	t.Helper()
 	scope, _ := truncateUnitScope(t, e, s, context.Background())
 	if _, err := scope.Execute(truncateRestartUnitAST(names...), 0, nil); err != nil {

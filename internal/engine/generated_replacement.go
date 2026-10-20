@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 )
@@ -14,7 +15,7 @@ import (
 // A nonnil installedStage identifies the owner of the supplied map containers
 // after repair; later container writes must use that store's locked methods.
 // When no repair is needed, it returns nil and leaves the containers detached.
-func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, mapping map[ids.ObjectAddress]ids.ObjectAddress, op *Operation, indexes *indexSnapshot) (installedStage *Engine, result error) {
+func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, mapping map[ids.ObjectAddress]ids.ObjectAddress, op *session.Operation, indexes *indexSnapshot) (installedStage *Engine, result error) {
 	needed := indexes.needsOwnerRepair() || hasHashPartition(next)
 	for source, target := range mapping {
 		if source == target {
@@ -64,11 +65,11 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		return installedStage, err
 	}
 	if op == nil {
-		sess, err := stage.StartSession(ctx, SessionStart{ID: 1, Authenticated: stage.roles.domain.Principal(10)})
+		sess, err := stage.StartSession(ctx, session.SessionStart{ID: 1, Authenticated: stage.roles.domain.Principal(10)})
 		if err != nil {
 			return installedStage, err
 		}
-		defer func() { sess.RequestEnd(CleanClose); _ = sess.WaitEnd(context.Background()) }()
+		defer func() { sess.RequestEnd(session.CleanClose); _ = sess.WaitEnd(context.Background()) }()
 		op, err = sess.Acquire(ctx)
 		if err != nil {
 			return installedStage, err

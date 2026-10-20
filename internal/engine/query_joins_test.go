@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -55,7 +56,7 @@ func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*Engine, 
 	}
 	t.Cleanup(release)
 	if explicit {
-		if _, err = e.Begin(op, TxOptions{}); err != nil {
+		if _, err = e.Begin(op, session.TxOptions{}); err != nil {
 			t.Fatal(err)
 		}
 	}

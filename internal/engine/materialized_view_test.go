@@ -11,13 +11,14 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 // Exercise the private binder/stager directly, not SQL execution wrappers.
-func materializedUnitStage(t *testing.T, e *Engine) (*Operation, func(), *CatalogStage, *catalog.Relation) {
+func materializedUnitStage(t *testing.T, e *Engine) (*session.Operation, func(), *CatalogStage, *catalog.Relation) {
 	t.Helper()
 	op, done := roleOperation(t, e, "postgres")
 	statements, err := parser.Parse("CREATE MATERIALIZED VIEW public.unit_mv AS SELECT 1::int AS i WITH NO DATA")

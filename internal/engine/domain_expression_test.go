@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -275,7 +276,7 @@ func TestDomainArrayBoundLiteralDiagnosticPosition(t *testing.T) {
 	}
 }
 
-func domainUnitBindSelect(t *testing.T, e *Engine, op *Operation, q string) *plan.Query {
+func domainUnitBindSelect(t *testing.T, e *Engine, op *session.Operation, q string) *plan.Query {
 	t.Helper()
 	raw := statement(t, q).(*parser.Select)
 	e.mu.Lock()

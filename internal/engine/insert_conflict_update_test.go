@@ -8,13 +8,14 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func conflictUpdateAnalyzedScope(t *testing.T, e *Engine, s *Session, q string) (*Operation, *StatementScope, analyze.Binding) {
+func conflictUpdateAnalyzedScope(t *testing.T, e *Engine, s *session.Session, q string) (*session.Operation, *StatementScope, analyze.Binding) {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {

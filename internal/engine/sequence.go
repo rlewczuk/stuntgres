@@ -65,7 +65,7 @@ func (e *Engine) sequenceColumnsLocked() []catalog.Column {
 
 // Caller holds Engine.mu. Drop it for manager admission and restore it on every
 // return; the dependency lock belongs to the statement's transaction ticket.
-func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationView, changes *catalogChanges, d *catalog.Relation, raw parser.ObjectName) (ids.ObjectAddress, error) {
+func (e *Engine) ownedSequenceLocked(scope *StatementScope, auth *AuthorizationView, changes *session.Journal, d *catalog.Relation, raw parser.ObjectName) (ids.ObjectAddress, error) {
 	if len(raw.Parts) == 1 && raw.Parts[0].Text == "none" {
 		return ids.ObjectAddress{}, nil
 	}
@@ -539,7 +539,7 @@ func (e *Engine) dropSequences(scope *StatementScope, s *parser.DropSequence) (R
 	for address := range checkStage.Removals() {
 		targets = append(targets, address)
 	}
-	changes.Dependencies = append(changes.Dependencies, catalogDependencyObservation{Base: auth.Catalog.State(), Targets: targets})
+	changes.Dependencies = append(changes.Dependencies, session.DependencyObservation{Base: auth.Catalog.State(), Targets: targets})
 	scope.catalogAuthority = auth.catalogAuthorityLocked(ids.ObjectRef{}, nil)
 	scope.catalog = changes
 	emitViewCascade(scope.op, cascade)

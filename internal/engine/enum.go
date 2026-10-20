@@ -5,13 +5,14 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) stageCreateEnumLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateEnum) error {
+func (e *Engine) stageCreateEnumLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateEnum) error {
 	ns, err := e.creationNamespace(auth, s.Name)
 	if err != nil {
 		return err

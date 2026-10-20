@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 )
 
@@ -65,11 +66,11 @@ func TestControlTransactionsEndMatrix(t *testing.T) {
 							t.Fatal("replacement/end mutated identity/private writes/frontier")
 						}
 						if chain {
-							if a.TransactionState() != TxActive || a.Transactions.Ref.Epoch() != e.CatalogRead().Epoch() || a.Transactions.Ref.ID() <= old.ID() {
+							if a.TransactionState() != session.TxActive || a.Transactions.Ref.Epoch() != e.CatalogRead().Epoch() || a.Transactions.Ref.ID() <= old.ID() {
 								t.Fatal("rollback chain not current")
 							}
 							controlsRequire(t, a, "ROLLBACK")
-						} else if a.TransactionState() != TxIdle || a.Transactions.Ref != (ids.TxRef{}) || a.Transactions.Ticket != nil {
+						} else if a.TransactionState() != session.TxIdle || a.Transactions.Ref != (ids.TxRef{}) || a.Transactions.Ticket != nil {
 							t.Fatal("end retained owner/installed commit chain")
 						}
 						lockEmpty(t, e)

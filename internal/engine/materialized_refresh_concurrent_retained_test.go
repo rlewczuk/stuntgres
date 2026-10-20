@@ -40,7 +40,7 @@ func TestMaterializedRefreshConcurrentRetainedProvenance(t *testing.T) {
 	d := concurrentUnitRelation(t, e)
 	private := &storage.Relation{}
 	changes := session.NewJournal()
-	changes.Storage[d.Address()] = catalogStorageChange{Replacement: private, Relation: d}
+	changes.Storage[d.Address()] = session.StorageChange{Replacement: private, Relation: d}
 	stage := &CatalogStage{materializedSlot: &materializedStage{replacement: &materializedReplacement{original: d, descriptor: d, predecessor: private, storage: &storage.Relation{}, concurrent: true}}}
 	e.mu.Lock()
 	e.stageCatalogChangesLocked(stage, changes)

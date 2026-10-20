@@ -5,10 +5,11 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/session"
 )
 
 // journalOf returns the identity of a private catalog journal; nil stays nil.
-func journalOf(c *catalogChanges) sequence.JournalIdentity {
+func journalOf(c *session.Journal) sequence.JournalIdentity {
 	if c == nil {
 		return nil
 	}

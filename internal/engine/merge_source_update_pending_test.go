@@ -2,6 +2,7 @@ package engine
 
 import (
 	"errors"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -144,7 +145,7 @@ func TestMergeSourceUpdatePending(t *testing.T) {
 	}
 }
 
-func mergeSourceRepeatableReadFollowup(t *testing.T, e *Engine, s *Session, oldBag bool) {
+func mergeSourceRepeatableReadFollowup(t *testing.T, e *Engine, s *session.Session, oldBag bool) {
 	t.Helper()
 	q := "MERGE INTO t USING (SELECT 9 AS id WHERE FALSE) src ON t.id=src.id WHEN NOT MATCHED BY SOURCE AND t.id=1"
 	sessionSQL(t, s, "SAVEPOINT followup")

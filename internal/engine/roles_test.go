@@ -9,13 +9,14 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func roleExecute(t *testing.T, e *Engine, op *Operation, sql string) Result {
+func roleExecute(t *testing.T, e *Engine, op *session.Operation, sql string) Result {
 	t.Helper()
 	r, err := e.Execute(op, statement(t, sql), 0, nil)
 	if err != nil {
@@ -30,11 +31,11 @@ func roleExecute(t *testing.T, e *Engine, op *Operation, sql string) Result {
 	}
 	return r
 }
-func roleError(t *testing.T, e *Engine, op *Operation, sql, code, message, detail string) {
+func roleError(t *testing.T, e *Engine, op *session.Operation, sql, code, message, detail string) {
 	t.Helper()
 	roleErrorPosition(t, e, op, sql, code, message, detail, "")
 }
-func roleErrorPosition(t *testing.T, e *Engine, op *Operation, sql, code, message, detail, position string) {
+func roleErrorPosition(t *testing.T, e *Engine, op *session.Operation, sql, code, message, detail, position string) {
 	t.Helper()
 	_, err := e.Execute(op, statement(t, sql), 0, nil)
 	var d *sqlstate.Error
@@ -46,13 +47,13 @@ func roleErrorPosition(t *testing.T, e *Engine, op *Operation, sql, code, messag
 		t.Fatalf("%s: %#v want %#v", sql, d, want)
 	}
 }
-func roleOperation(t *testing.T, e *Engine, name string) (*Operation, func()) {
+func roleOperation(t *testing.T, e *Engine, name string) (*session.Operation, func()) {
 	t.Helper()
 	ref, err := e.ResolveLogin(name)
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: ref})
+	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: ref})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,13 +63,13 @@ func roleOperation(t *testing.T, e *Engine, name string) (*Operation, func()) {
 	}
 	return op, func() {
 		op.Done()
-		s.RequestEnd(CleanClose)
+		s.RequestEnd(session.CleanClose)
 		if err := s.WaitEnd(context.Background()); err != nil {
 			t.Error(err)
 		}
 	}
 }
-func roleIdentity(t *testing.T, e *Engine, op *Operation, want string) {
+func roleIdentity(t *testing.T, e *Engine, op *session.Operation, want string) {
 	t.Helper()
 	r := roleExecute(t, e, op, "SELECT session_user,current_user")
 	values := tuples(r)
@@ -176,11 +177,11 @@ func TestRoleSessionAuthorizationAndStaleIdentity(t *testing.T) {
 	if _, err := e.Execute(a, statement(t, "SELECT current_user"), 0, nil); err == nil {
 		t.Fatal("stale session adopted recreated role")
 	}
-	if _, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: New().roles.domain.Principal(10)}); err == nil {
+	if _, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: New().roles.domain.Principal(10)}); err == nil {
 		t.Fatal("foreign initialization")
 	}
 	nolog, _ := e.Roles().Lookup("nolog")
-	if _, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: nolog.Ref}); err == nil {
+	if _, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: nolog.Ref}); err == nil {
 		t.Fatal("NOLOGIN admission")
 	}
 }

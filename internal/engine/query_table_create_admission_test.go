@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -32,7 +33,7 @@ func TestQueryTableCreateSnapshotAdmission(t *testing.T) {
 				}
 				preparedUnitStatement(t, e, writer, &parser.Insert{Name: source, Rows: [][]parser.Expr{{literal(0)}}})
 				writerOp := transactionOperation(t, writer)
-				writerRef, err := e.Begin(writerOp, TxOptions{Isolation: Serializable})
+				writerRef, err := e.Begin(writerOp, session.TxOptions{Isolation: session.Serializable})
 				writerOp.Done()
 				if err != nil {
 					t.Fatal(err)
@@ -131,12 +132,12 @@ func TestQueryTableCreateSnapshotAdmission(t *testing.T) {
 				if waiting || node.Captured || node.Ready != nil || len(node.Possible) != 0 || reader.owner.SnapshotSet || len(reader.owner.Roots) != 0 {
 					t.Error("rejected utility acquired candidate/root/snapshot evidence")
 				}
-				if reader.owner.State != TxAborted || writerNode.Ended || writerNode.Committed || !reflect.DeepEqual(beforeWrites, writer.Transactions.Writes[relation.Address]) || e.catalog.state != beforeCatalog || e.storage.Relations[relation.Address] != beforeStorage || e.visibility.CommitSeq() != beforeFrontier || e.storage.RowFrontier() != beforeRows || e.storage.VersionFrontier() != beforeVersions {
+				if reader.owner.State != session.TxAborted || writerNode.Ended || writerNode.Committed || !reflect.DeepEqual(beforeWrites, writer.Transactions.Writes[relation.Address]) || e.catalog.state != beforeCatalog || e.storage.Relations[relation.Address] != beforeStorage || e.visibility.CommitSeq() != beforeFrontier || e.storage.RowFrontier() != beforeRows || e.storage.VersionFrontier() != beforeVersions {
 					t.Error("utility changed writer/source/publication state or did not abort its owner")
 				}
 				reader.op.Done()
 				transactionEnd(t, reader.op.Session, node.Ref, false)
-				if reader.owner.State != TxIdle || len(reader.owner.Roots) != 0 || !node.Ended {
+				if reader.owner.State != session.TxIdle || len(reader.owner.Roots) != 0 || !node.Ended {
 					t.Fatal("rollback did not retire the rejected owner")
 				}
 				preparedUnitStatement(t, e, reader.op.Session, &parser.Select{Targets: []parser.Expr{literal(1)}})

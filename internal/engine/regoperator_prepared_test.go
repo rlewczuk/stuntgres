@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -55,7 +56,7 @@ func regoperatorPreparedSnapshot(constants []analyze.RegtypeConstant) []analyze.
 	return saved
 }
 
-func regoperatorPreparedCellValid(t *testing.T, e *Engine, s *Session, cell *regtypeAnalysis) bool {
+func regoperatorPreparedCellValid(t *testing.T, e *Engine, s *session.Session, cell *regtypeAnalysis) bool {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {

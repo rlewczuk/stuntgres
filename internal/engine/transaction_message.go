@@ -2,13 +2,14 @@ package engine
 
 import (
 	"errors"
+	"stuntgres/internal/engine/session"
 	"time"
 )
 
-func (e *Engine) newStatementScope(op *Operation, t *transactionOwner, start time.Time) *StatementScope {
+func (e *Engine) newStatementScope(op *session.Operation, t *session.TransactionOwner, start time.Time) *StatementScope {
 	s := newStatementScope(op, t, start)
 	s.transactionStart, s.message = start, t.RetainedMessage
-	if t.RetainedMessage && t.MessageBorn && t.State == TxIdle {
+	if t.RetainedMessage && t.MessageBorn && t.State == session.TxIdle {
 		s.transactionStart = time.Now().UTC().Truncate(time.Microsecond)
 	}
 	op.Session.StartProvisionalTimeout(&s.lease, op, s.transactionStart)
@@ -19,12 +20,12 @@ func (e *Engine) newStatementScope(op *Operation, t *transactionOwner, start tim
 // control first in a new segment, uses the ordinary incarnation and lock ticket.
 func (s *StatementScope) admitTransactionLocked(e *Engine) error {
 	t := s.owner
-	if t.State == TxIdle {
-		if err := e.beginLocked(s.op, t, TxImplicit, s.transactionStart); err != nil {
+	if t.State == session.TxIdle {
+		if err := e.beginLocked(s.op, t, session.TxImplicit, s.transactionStart); err != nil {
 			return err
 		}
 	}
-	if t.Ticket == nil && t.State != TxAborted {
+	if t.Ticket == nil && t.State != session.TxAborted {
 		ref := t.Ref
 		t.Mu.Unlock()
 		ticket, err := e.registerTransactionLocks(ref)
@@ -51,7 +52,7 @@ func (s *StatementScope) RetainMessage() error {
 	s.message = true
 	s.owner.Mu.Lock()
 	s.owner.RetainedMessage = true
-	s.owner.MessageBorn = s.owner.State != TxIdle
+	s.owner.MessageBorn = s.owner.State != session.TxIdle
 	s.owner.Mu.Unlock()
 	return nil
 }
@@ -86,7 +87,7 @@ func (s *StatementScope) FinishMessage(err error) error {
 	t.Mu.Lock()
 	state, ref := t.State, t.Ref
 	t.Mu.Unlock()
-	if err != nil && (state == TxImplicit || state == TxActive) && s.finished {
+	if err != nil && (state == session.TxImplicit || state == session.TxActive) && s.finished {
 		failed := s.engine().newStatementScope(s.op, t, s.statementStart)
 		failed.message = true
 		_ = failed.Finish(err)
@@ -94,7 +95,7 @@ func (s *StatementScope) FinishMessage(err error) error {
 		state, ref = t.State, t.Ref
 		t.Mu.Unlock()
 	}
-	if state == TxImplicit {
+	if state == session.TxImplicit {
 		_, endErr := s.engine().endAdmitted(s.op, t, ref, err == nil, false, true, s.statementStart, s)
 		if err == nil {
 			err = endErr

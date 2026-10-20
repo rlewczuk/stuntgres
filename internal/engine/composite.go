@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -12,7 +13,7 @@ import (
 
 // Declaration members, relation identity and reciprocal codecs publish in the
 // same existing catalog stage. This relation never owns physical storage.
-func (e *Engine) stageCreateCompositeLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateComposite) error {
+func (e *Engine) stageCreateCompositeLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateComposite) error {
 	ns, err := e.creationNamespace(auth, s.Name)
 	if err != nil {
 		return err

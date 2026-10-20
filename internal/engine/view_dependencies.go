@@ -435,7 +435,7 @@ func (provider *dropProvider) viewDependents(targets []ids.ObjectAddress, mode p
 	return nil
 }
 
-func emitViewCascade(op *Operation, details []string) {
+func emitViewCascade(op *session.Operation, details []string) {
 	if len(details) == 0 {
 		return
 	}

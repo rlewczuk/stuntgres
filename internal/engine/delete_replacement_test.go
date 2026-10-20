@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -155,7 +156,7 @@ func deleteReplacementQueued(t *testing.T, e *Engine, resource lock.Resource, ho
 	}
 }
 
-func deleteReplacementScope(t *testing.T, e *Engine, s *Session) (*StatementScope, *lock.Ticket, <-chan deleteOutcome) {
+func deleteReplacementScope(t *testing.T, e *Engine, s *session.Session) (*StatementScope, *lock.Ticket, <-chan deleteOutcome) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -271,7 +272,7 @@ func TestDeleteCoreReplacementWaitingPhases(t *testing.T) {
 				} else if err := e.Restore(context.Background(), strings.NewReader("CREATE TABLE t(v INT);INSERT INTO t VALUES(1),(2),(2),(91)")); err != nil {
 					t.Fatal(err)
 				}
-				if holder.TransactionState() != TxActive || e.CatalogRead().Epoch() != ref.Epoch+1 {
+				if holder.TransactionState() != session.TxActive || e.CatalogRead().Epoch() != ref.Epoch+1 {
 					t.Fatal("replacement did not complete with old holder active")
 				}
 				deleteReplacementReject(t, scope, done)
@@ -280,11 +281,11 @@ func TestDeleteCoreReplacementWaitingPhases(t *testing.T) {
 					t.Fatal("queued request not fenced or private deletion published")
 				}
 				if explicit {
-					if waiter.TransactionState() != TxAborted {
+					if waiter.TransactionState() != session.TxAborted {
 						t.Fatal("explicit stale DELETE did not abort")
 					}
 					transactionEnd(t, waiter, wr, false)
-				} else if waiter.TransactionState() != TxIdle {
+				} else if waiter.TransactionState() != session.TxIdle {
 					t.Fatal("implicit stale DELETE did not clear transaction")
 				}
 				lockEmpty(t, e)
@@ -396,7 +397,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	e.replacementMu.Unlock()
 	writerHeld = false
 	deleteReplacementReject(t, scope, done)
-	if epoch != ref.Epoch+1 || oldStorage.Ends != nil || waiter.TransactionState() != TxIdle {
+	if epoch != ref.Epoch+1 || oldStorage.Ends != nil || waiter.TransactionState() != session.TxIdle {
 		t.Fatal("stale granted DELETE published or retained implicit work")
 	}
 	lockEmpty(t, e)

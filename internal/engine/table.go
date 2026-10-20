@@ -13,7 +13,7 @@ import (
 
 // Called with e.mu held; every return releases it. Preflight the whole group
 // and its stable-column AUTO sequence dependencies before publication.
-func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth AuthorizationView, s *parser.DropTable, count int) (Result, error) {
+func (e *Engine) dropTableLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, s *parser.DropTable, count int) (Result, error) {
 	if count != 0 {
 		e.mu.Unlock()
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
@@ -105,7 +105,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 			break
 		}
 	}
-	if !temporary && scope.owner.State == TxActive {
+	if !temporary && scope.owner.State == session.TxActive {
 		e.mu.Unlock()
 		return Result{}, sqlError("0A000", "statement is unsupported in an explicit transaction")
 	}
@@ -117,7 +117,7 @@ func (e *Engine) dropTableLocked(scope *StatementScope, op *Operation, auth Auth
 		return Result{}, nil
 	}
 	base := auth.Catalog
-	var changes *catalogChanges
+	var changes *session.Journal
 	if temporary {
 		changes = scope.owner.Catalog.Clone()
 	}

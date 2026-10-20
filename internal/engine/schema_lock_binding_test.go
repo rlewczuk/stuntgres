@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 )
 
@@ -142,7 +143,7 @@ func TestSchemaLockedBindingShadowCreation(t *testing.T) {
 			earlyHeld = false
 			transactionRows(t, setup, "SELECT id FROM early.t", 9)
 			transactionRows(t, setup, "SELECT id FROM late.t", 7)
-			if waiter.TransactionState() != TxIdle {
+			if waiter.TransactionState() != session.TxIdle {
 				t.Fatal("waiter did not finish implicit transaction")
 			}
 			lockEmpty(t, e)

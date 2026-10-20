@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 )
 
 // foreignTransaction is the transaction owner's FDW state, held in the owner's
@@ -198,7 +199,7 @@ func rollbackForeign(ctx context.Context, participants []*foreignParticipant) er
 	}
 	return first
 }
-func commitForeign(t *transactionOwner, ctx context.Context, ref ids.TxRef) error {
+func commitForeign(t *session.TransactionOwner, ctx context.Context, ref ids.TxRef) error {
 	t.Mu.Lock()
 	err := t.Validate(ref)
 	participants := ownerExtensionOrZero(t).foreign.participants // Admission excludes enrollment/disposal.
@@ -219,7 +220,7 @@ func commitForeign(t *transactionOwner, ctx context.Context, ref ids.TxRef) erro
 	}
 	return nil
 }
-func foreignPending(t *transactionOwner) bool {
+func foreignPending(t *session.TransactionOwner) bool {
 	for _, p := range ownerExtensionOrZero(t).foreign.participants {
 		if !p.closed {
 			return true
@@ -229,7 +230,7 @@ func foreignPending(t *transactionOwner) bool {
 }
 func foreignMarkName(id uint64) string { return fmt.Sprintf("stuntgres_sql_%d", id) }
 
-func foreignSavepoint(t *transactionOwner, ctx context.Context, kind int, id uint64) error {
+func foreignSavepoint(t *session.TransactionOwner, ctx context.Context, kind int, id uint64) error {
 	for _, p := range ownerExtensionOrZero(t).foreign.participants {
 		if p.closed {
 			return errors.New("stuntgres: foreign transaction is already disposed")

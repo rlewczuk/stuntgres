@@ -26,7 +26,7 @@ import (
 // plan owner and no Restore replay, as before the seam.
 type bindingHost struct {
 	engine *Engine
-	op     *Operation
+	op     *session.Operation
 }
 
 var _ analyze.Host = (*bindingHost)(nil)
@@ -37,7 +37,7 @@ func (*bindingHost) AnalysisSlot() {}
 // its own host, allocated with it (sessionHost.NewOperation), and the engine one for
 // binding without an operation (bootstrap), so binding allocates no host;
 // copied operations get a fresh host.
-func (e *Engine) analysisHost(op *Operation) *bindingHost {
+func (e *Engine) analysisHost(op *session.Operation) *bindingHost {
 	if op != nil {
 		if h, _ := op.Analysis.(*bindingHost); h != nil && h.op == op && h.engine == e {
 			return h
@@ -316,6 +316,6 @@ func (h *bindingHost) BindViewWrite(b *analyze.Binding, auth analyze.Authority, 
 
 // newExpressionBinder is the root construction point: it binds through the
 // engine's host for op.
-func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *analyze.Binder {
+func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *session.Operation, expected *StatementDescription) *analyze.Binder {
 	return analyze.NewBinder(ctx, e.analysisHost(op), input, expectedOf(expected))
 }

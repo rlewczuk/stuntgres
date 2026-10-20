@@ -16,10 +16,10 @@ import (
 )
 
 type sessionOwner struct {
-	fn func(ids.SessionToken, EndReason) error
+	fn func(ids.SessionToken, session.EndReason) error
 }
 
-func (o *sessionOwner) EndSession(t ids.SessionToken, r EndReason) error { return o.fn(t, r) }
+func (o *sessionOwner) EndSession(t ids.SessionToken, r session.EndReason) error { return o.fn(t, r) }
 
 type defaultProvider struct {
 	value string
@@ -32,21 +32,21 @@ func (p *defaultProvider) SessionDefault(_ context.Context, d settings.Definitio
 	}
 	return p.value, true, p.err
 }
-func sessionStart(t *testing.T, e *Engine, p settings.SessionDefaultProvider) *Session {
+func sessionStart(t *testing.T, e *Engine, p settings.SessionDefaultProvider) *session.Session {
 	t.Helper()
-	s, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: p})
+	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: p})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		s.RequestEnd(CleanClose)
+		s.RequestEnd(session.CleanClose)
 		if err := s.WaitEnd(context.Background()); err != nil {
 			t.Error(err)
 		}
 	})
 	return s
 }
-func sessionSQL(t *testing.T, s *Session, q string) Result {
+func sessionSQL(t *testing.T, s *session.Session, q string) Result {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -66,7 +66,7 @@ func sessionSQL(t *testing.T, s *Session, q string) Result {
 	}
 	return r
 }
-func sessionValue(t *testing.T, s *Session, want string) {
+func sessionValue(t *testing.T, s *session.Session, want string) {
 	t.Helper()
 	r := sessionSQL(t, s, "SHOW application_name")
 	if r.Count != 0 || !reflect.DeepEqual(r.Rows.Schema(), []catalog.Column{{Name: "application_name", Usage: testUsage(engineOf(s), sqltype.Text), NullabilityKnown: true}}) || !reflect.DeepEqual(tuples(r), [][]driver.Value{{want}}) {
@@ -132,7 +132,7 @@ func TestSessionEffectiveDefaultsAndControls(t *testing.T) {
 			t.Fatal(got)
 		}
 	}
-	a.RequestEnd(CleanClose)
+	a.RequestEnd(session.CleanClose)
 	if err := a.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestSessionEffectiveDefaultsAndControls(t *testing.T) {
 		t.Fatal("snapshot lost")
 	}
 	failure := errors.New("provider failed")
-	if s, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: &defaultProvider{err: failure}}); s != nil || !errors.Is(err, failure) {
+	if s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: &defaultProvider{err: failure}}); s != nil || !errors.Is(err, failure) {
 		t.Fatalf("init %v %v", s, err)
 	}
 	e.sessionMu.Lock()
@@ -152,7 +152,7 @@ func TestSessionEffectiveDefaultsAndControls(t *testing.T) {
 }
 func TestSessionDetachEndInterleaving(t *testing.T) {
 	e := New()
-	s, err := e.StartSession(context.Background(), SessionStart{ID: 1})
+	s, err := e.StartSession(context.Background(), session.SessionStart{ID: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +160,7 @@ func TestSessionDetachEndInterleaving(t *testing.T) {
 	failure := errors.New("detach failure")
 	calls := 0
 	op, _ := s.Acquire(context.Background())
-	h, err := op.Attach(Temporary, &sessionOwner{fn: func(token ids.SessionToken, r EndReason) error {
+	h, err := op.Attach(session.Temporary, &sessionOwner{fn: func(token ids.SessionToken, r session.EndReason) error {
 		calls++
 		if token != s.Token() {
 			t.Error("token")
@@ -172,19 +172,19 @@ func TestSessionDetachEndInterleaving(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = s.Detach(h, CleanClose); err == nil {
+	if err = s.Detach(h, session.CleanClose); err == nil {
 		t.Fatal("active detach")
 	}
 	op.Done()
 	op.Done()
 	result := make(chan error, 1)
-	go func() { result <- s.Detach(h, CleanClose) }()
+	go func() { result <- s.Detach(h, session.CleanClose) }()
 	<-entered
 	if _, err = s.Acquire(context.Background()); err == nil {
 		t.Fatal("acquire during detach")
 	}
-	s.RequestEnd(Terminated)
-	s.RequestEnd(Abandoned)
+	s.RequestEnd(session.Terminated)
+	s.RequestEnd(session.Abandoned)
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	if err = s.WaitEnd(canceled); !errors.Is(err, context.Canceled) {
@@ -197,37 +197,37 @@ func TestSessionDetachEndInterleaving(t *testing.T) {
 	if err = s.WaitEnd(context.Background()); !errors.Is(err, failure) {
 		t.Fatal(err)
 	}
-	if calls != 1 || s.Reason != Terminated {
+	if calls != 1 || s.Reason != session.Terminated {
 		t.Fatalf("calls/reason %d %d", calls, s.Reason)
 	}
-	if err = s.Detach(h, CleanClose); err != nil {
+	if err = s.Detach(h, session.CleanClose); err != nil {
 		t.Fatal(err)
 	}
 }
 func TestSessionTransferDrainAndOrder(t *testing.T) {
 	e := New()
-	s, err := e.StartSession(context.Background(), SessionStart{ID: 1})
+	s, err := e.StartSession(context.Background(), session.SessionStart{ID: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Replace the production SQL-name owner only in this callback-order unit.
-	if err = s.Detach(s.Resources[PreparedSQL].Handle, CleanClose); err != nil {
+	if err = s.Detach(s.Resources[session.PreparedSQL].Handle, session.CleanClose); err != nil {
 		t.Fatal(err)
 	}
 	op, _ := s.Acquire(context.Background())
-	if _, err = e.Begin(op, TxOptions{}); err != nil {
+	if _, err = e.Begin(op, session.TxOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = e.Execute(op, statement(t, "DECLARE terminal NO SCROLL CURSOR FOR SELECT 1"), 0, nil); err != nil {
 		t.Fatal(err)
 	}
 	cursor := payloadOf(s).cursors.entries["terminal"]
-	var order []ResourceKind
+	var order []session.ResourceKind
 	var mu sync.Mutex
-	for _, kind := range []ResourceKind{Temporary, PreparedSQL} {
+	for _, kind := range []session.ResourceKind{session.Temporary, session.PreparedSQL} {
 		k := kind
-		owner := &sessionOwner{fn: func(_ ids.SessionToken, _ EndReason) error {
-			if s.TransactionState() != TxIdle {
+		owner := &sessionOwner{fn: func(_ ids.SessionToken, _ session.EndReason) error {
+			if s.TransactionState() != session.TxIdle {
 				t.Error("transaction cleanup did not precede resources")
 			}
 			if len(payloadOf(s).cursors.entries) != 0 || cursor.source != nil || cursor.authority.Host != nil {
@@ -246,12 +246,12 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 		}
 	}
 	var typedNil *sessionOwner
-	for _, owner := range []SessionResource{nil, typedNil} {
-		if _, err = op.Attach(Settings, owner); err == nil {
+	for _, owner := range []session.SessionResource{nil, typedNil} {
+		if _, err = op.Attach(session.Settings, owner); err == nil {
 			t.Fatal("invalid owner")
 		}
 	}
-	if _, err = op.Attach(AdvisorySession+1, &sessionOwner{fn: func(ids.SessionToken, EndReason) error { return nil }}); err == nil {
+	if _, err = op.Attach(session.AdvisorySession+1, &sessionOwner{fn: func(ids.SessionToken, session.EndReason) error { return nil }}); err == nil {
 		t.Fatal("unknown kind")
 	}
 	copyOp := *op
@@ -259,7 +259,7 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 	if _, err = e.Describe(&copyOp, statement(t, "SHOW application_name")); err == nil {
 		t.Fatal("copied lease")
 	}
-	s.RequestEnd(CleanClose)
+	s.RequestEnd(session.CleanClose)
 	<-op.Context().Done()
 	mu.Lock()
 	n := len(order)
@@ -268,13 +268,16 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 		t.Fatal("cleanup before drain")
 	}
 	op.Done()
-	if _, err = op.Attach(Settings, &sessionOwner{fn: func(ids.SessionToken, EndReason) error { t.Error("rejected attachment transferred"); return nil }}); err == nil {
+	if _, err = op.Attach(session.Settings, &sessionOwner{fn: func(ids.SessionToken, session.EndReason) error {
+		t.Error("rejected attachment transferred")
+		return nil
+	}}); err == nil {
 		t.Fatal("ending attach")
 	}
 	if err = s.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(order, []ResourceKind{PreparedSQL, Temporary}) {
+	if !reflect.DeepEqual(order, []session.ResourceKind{session.PreparedSQL, session.Temporary}) {
 		t.Fatal(order)
 	}
 	lockState := e.locks.Inspect()
@@ -297,27 +300,27 @@ func TestSessionCancellationAndStaleHandles(t *testing.T) {
 	s := sessionStart(t, e, nil)
 	op, _ := s.Acquire(context.Background())
 	count := 0
-	owner := &sessionOwner{fn: func(ids.SessionToken, EndReason) error { count++; return nil }}
-	h, err := op.Attach(Temporary, owner)
+	owner := &sessionOwner{fn: func(ids.SessionToken, session.EndReason) error { count++; return nil }}
+	h, err := op.Attach(session.Temporary, owner)
 	if err != nil {
 		t.Fatal(err)
 	}
 	op.Done()
-	if err = s.Detach(h, CleanClose); err != nil {
+	if err = s.Detach(h, session.CleanClose); err != nil {
 		t.Fatal(err)
 	}
 	op, _ = s.Acquire(context.Background())
-	newHandle, err := op.Attach(Temporary, owner)
+	newHandle, err := op.Attach(session.Temporary, owner)
 	if err != nil || newHandle == h {
 		t.Fatal(newHandle, err)
 	}
 	op.Done()
-	if err = s.Detach(h, CleanClose); err != nil || count != 1 {
+	if err = s.Detach(h, session.CleanClose); err != nil || count != 1 {
 		t.Fatal(err, count)
 	}
 	foreign := h
 	foreign.Session = withSessionDomain(foreign.Session, New().catalog.Domain)
-	if err = s.Detach(foreign, CleanClose); err == nil {
+	if err = s.Detach(foreign, session.CleanClose); err == nil {
 		t.Fatal("foreign detach")
 	}
 	sessionSQL(t, s, "SET application_name TO safe")
@@ -335,14 +338,14 @@ func TestSessionCancellationAndStaleHandles(t *testing.T) {
 	if _, err = s.Acquire(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if err = s.Detach(s.Resources[PreparedSQL].Handle, CleanClose); err != nil {
+	if err = s.Detach(s.Resources[session.PreparedSQL].Handle, session.CleanClose); err != nil {
 		t.Fatal(err)
 	}
 	s.Mu.Lock()
 	s.Serial = ^uint64(0)
 	s.Mu.Unlock()
 	op, _ = s.Acquire(context.Background())
-	if _, err = op.Attach(PreparedSQL, owner); err == nil {
+	if _, err = op.Attach(session.PreparedSQL, owner); err == nil {
 		t.Fatal("serial wrap")
 	}
 	op.Done()
@@ -350,23 +353,23 @@ func TestSessionCancellationAndStaleHandles(t *testing.T) {
 
 func TestSessionTerminalElectionAndJoinedErrors(t *testing.T) {
 	e := New()
-	s, err := e.StartSession(context.Background(), SessionStart{ID: 1})
+	s, err := e.StartSession(context.Background(), session.SessionStart{ID: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
 	// This unit injects cleanup errors rather than exercising SQL definitions.
-	if err = s.Detach(s.Resources[PreparedSQL].Handle, CleanClose); err != nil {
+	if err = s.Detach(s.Resources[session.PreparedSQL].Handle, session.CleanClose); err != nil {
 		t.Fatal(err)
 	}
 	op, _ := s.Acquire(context.Background())
 	first, second := errors.New("first cleanup"), errors.New("second cleanup")
 	calls := 0
-	for _, kind := range []ResourceKind{Temporary, PreparedSQL} {
+	for _, kind := range []session.ResourceKind{session.Temporary, session.PreparedSQL} {
 		failure := first
-		if kind == PreparedSQL {
+		if kind == session.PreparedSQL {
 			failure = second
 		}
-		if _, err = op.Attach(kind, &sessionOwner{fn: func(token ids.SessionToken, reason EndReason) error {
+		if _, err = op.Attach(kind, &sessionOwner{fn: func(token ids.SessionToken, reason session.EndReason) error {
 			calls++
 			if token != s.Token() || reason != s.Reason {
 				t.Error("terminal ownership/reason")
@@ -378,7 +381,7 @@ func TestSessionTerminalElectionAndJoinedErrors(t *testing.T) {
 	}
 	start := make(chan struct{})
 	var wg sync.WaitGroup
-	for _, reason := range []EndReason{CleanClose, Terminated, Abandoned} {
+	for _, reason := range []session.EndReason{session.CleanClose, session.Terminated, session.Abandoned} {
 		wg.Add(1)
 		go func() { defer wg.Done(); <-start; s.RequestEnd(reason) }()
 	}
@@ -398,14 +401,14 @@ func TestSessionTerminalElectionAndJoinedErrors(t *testing.T) {
 
 func TestSessionPrivateInitializationUnwind(t *testing.T) {
 	e := New()
-	s := &Session{Host: (*sessionHost)(e), SessionToken: e.catalog.Domain.Session(1), State: session.Initializing, Completed: make(chan struct{}), Leases: 1, Removed: make(map[ResourceHandle]bool)}
+	s := &session.Session{Host: (*sessionHost)(e), SessionToken: e.catalog.Domain.Session(1), State: session.Initializing, Completed: make(chan struct{}), Leases: 1, Removed: make(map[session.ResourceHandle]bool)}
 	s.Cond = sync.NewCond(&s.Mu)
 	op := s.Operation(context.Background(), true)
 	calls := 0
-	for _, kind := range []ResourceKind{Settings, Authorization} {
-		if _, err := op.Attach(kind, &sessionOwner{fn: func(_ ids.SessionToken, reason EndReason) error {
+	for _, kind := range []session.ResourceKind{session.Settings, session.Authorization} {
+		if _, err := op.Attach(kind, &sessionOwner{fn: func(_ ids.SessionToken, reason session.EndReason) error {
 			calls++
-			if reason != InitFailure {
+			if reason != session.InitFailure {
 				t.Error(reason)
 			}
 			return nil
@@ -416,7 +419,7 @@ func TestSessionPrivateInitializationUnwind(t *testing.T) {
 	if _, err := s.Acquire(context.Background()); err == nil {
 		t.Fatal("initializing public lease")
 	}
-	s.RequestEnd(InitFailure)
+	s.RequestEnd(session.InitFailure)
 	if calls != 0 {
 		t.Fatal("private lease not drained")
 	}
@@ -440,13 +443,13 @@ func TestSessionProviderNormalizationAndInitializationCancellation(t *testing.T)
 	sessionValue(t, s, `\xc3\xa9`)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if session, err := e.StartSession(ctx, SessionStart{ID: 0}); session != nil || !errors.Is(err, context.Canceled) {
+	if session, err := e.StartSession(ctx, session.SessionStart{ID: 0}); session != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal(session, err)
 	}
-	if session, err := e.StartSession(context.Background(), SessionStart{ID: 0}); session != nil || err == nil {
+	if session, err := e.StartSession(context.Background(), session.SessionStart{ID: 0}); session != nil || err == nil {
 		t.Fatal(session, err)
 	}
-	if session, err := e.StartSession(context.Background(), SessionStart{ID: s.Token().ID()}); session != nil || err == nil {
+	if session, err := e.StartSession(context.Background(), session.SessionStart{ID: s.Token().ID()}); session != nil || err == nil {
 		t.Fatal("duplicate initialization", session, err)
 	}
 	sessionValue(t, s, `\xc3\xa9`)

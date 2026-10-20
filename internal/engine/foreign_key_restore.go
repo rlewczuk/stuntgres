@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -30,7 +31,7 @@ type restoredForeignKeys struct {
 
 // Pending declarations live only inside the isolated Restore invocation. Capture
 // the declaring principal and namespace identities, not the later owner directive.
-func (e *Engine) captureRestoredForeignKeys(op *Operation, raw []parser.ForeignKeyConstraint) (restoredForeignKeys, error) {
+func (e *Engine) captureRestoredForeignKeys(op *session.Operation, raw []parser.ForeignKeyConstraint) (restoredForeignKeys, error) {
 	auth, err := operationAuthorization(op)
 	if err != nil {
 		return restoredForeignKeys{}, err
@@ -85,7 +86,7 @@ func stripRestoreForeignKeys(raw *parser.CreateTable) {
 	raw.Elements = elements
 }
 
-func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *Operation, pending []restoredForeignKeys) error {
+func (e *Engine) bindRestoredForeignKeys(ctx context.Context, op *session.Operation, pending []restoredForeignKeys) error {
 	if len(pending) == 0 {
 		return nil
 	}

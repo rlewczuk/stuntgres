@@ -8,11 +8,12 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation) *analyze.Binder {
+func (e *Engine) indexExpressionBinder(op *session.Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation) *analyze.Binder {
 	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), parent.Address())
 	columns := make([]analyze.QueryColumn, len(parent.Columns))
 	for i, c := range parent.Columns {
@@ -30,7 +31,7 @@ func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnviron
 // used by the enclosing CREATE or TYPE owner.
 // Ordering admission belongs to the caller's final selected class/collation,
 // not an expression-only default comparator.
-func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, raw parser.Expr, literals []plan.LiteralExpr) (*catalog.DerivedIndexKey, string, error) {
+func (e *Engine) bindIndexExpression(op *session.Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, raw parser.Expr, literals []plan.LiteralExpr) (*catalog.DerivedIndexKey, string, error) {
 	binder := e.indexExpressionBinder(op, input, auth, parent)
 	binder.Stored.CheckLiterals = literals
 	definition, err := binder.Bind(raw, analyze.ExpressionPolicy{Context: analyze.ProjectionContext})

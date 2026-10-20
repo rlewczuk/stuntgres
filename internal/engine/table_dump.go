@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/engine/visibility"
@@ -176,7 +177,7 @@ func (t *dumpRelation) rowReplayReferences(ctx context.Context, catalog catalog.
 
 // Replay uses the ordinary binder/publication path, then admits the same
 // validated captured-reference and selected regclass definitions Dump defers.
-func (e *Engine) validateRestoredDefault(op *Operation, s *parser.AlterTableDefault) error {
+func (e *Engine) validateRestoredDefault(op *session.Operation, s *parser.AlterTableDefault) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	auth, err := e.authorizationLocked(op)

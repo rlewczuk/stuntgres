@@ -6,13 +6,14 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
 func TestInsertConflictUpdateIdentity(t *testing.T) {
-	for _, isolation := range []Isolation{ReadCommitted, ReadUncommitted, RepeatableRead, Serializable} {
+	for _, isolation := range []session.Isolation{session.ReadCommitted, session.ReadUncommitted, session.RepeatableRead, session.Serializable} {
 		e := New()
 		s := sessionStart(t, e, nil)
 		observer := sessionStart(t, e, nil)
@@ -218,7 +219,7 @@ func TestInsertConflictUpdateMixedStage(t *testing.T) {
 		op.Done()
 		cancel()
 		if cancelFinish {
-			if !errors.Is(err, context.Canceled) || s.TransactionState() != TxAborted {
+			if !errors.Is(err, context.Canceled) || s.TransactionState() != session.TxAborted {
 				t.Fatal("Finish cancellation veto", err, s.TransactionState())
 			}
 			transactionEnd(t, s, tx, false)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -18,7 +19,7 @@ func TestSettingsLocalNormalizerPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			var e *Engine
-			var s *Session
+			var s *session.Session
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			// Attach the witness before publication; defaults cannot trigger it.

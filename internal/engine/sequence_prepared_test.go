@@ -9,13 +9,14 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
 )
 
-func sequencePreparedDescription(t *testing.T, e *Engine, s *Session, query string) (parser.Statement, StatementDescription) {
+func sequencePreparedDescription(t *testing.T, e *Engine, s *session.Session, query string) (parser.Statement, StatementDescription) {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -29,7 +30,7 @@ func sequencePreparedDescription(t *testing.T, e *Engine, s *Session, query stri
 	}
 	return ast, d
 }
-func sequencePreparedExecute(e *Engine, s *Session, ast parser.Statement, d *StatementDescription) (Result, error) {
+func sequencePreparedExecute(e *Engine, s *session.Session, ast parser.Statement, d *StatementDescription) (Result, error) {
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		return Result{}, err
@@ -408,7 +409,7 @@ func TestSequencePreparedReplacementProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {
-		s           *Session
+		s           *session.Session
 		ast         parser.Statement
 		description *StatementDescription
 	}{{b, temporary, &td}, {a, persistent, &pd}} {

@@ -588,7 +588,7 @@ type viewCreationScope struct {
 	namespace   ids.ObjectRef
 	persistence string
 	binding     analyze.Binding
-	changes     *catalogChanges
+	changes     *session.Journal
 	active      []ids.ObjectAddress
 }
 

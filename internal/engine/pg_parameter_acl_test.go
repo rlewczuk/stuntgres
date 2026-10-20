@@ -13,12 +13,13 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func pgParameterACLUnitFixture(t *testing.T) (*Engine, *Operation, authorization.PrincipalRef) {
+func pgParameterACLUnitFixture(t *testing.T) (*Engine, *session.Operation, authorization.PrincipalRef) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")

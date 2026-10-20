@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -176,7 +177,7 @@ func TestInheritanceProspectiveRetirement(t *testing.T) {
 			inheritanceLifecycleInstall(e, q, p, c)
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
-			tx, err := e.Begin(op, TxOptions{})
+			tx, err := e.Begin(op, session.TxOptions{})
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -167,7 +168,7 @@ func TestInheritanceGraphOnCommitPhysicalActions(t *testing.T) {
 			e.mu.Lock()
 			e.catalogChangeLocked(changes, child.Address(), &child)
 			childStore := &storage.Relation{}
-			changes.Storage[child.Address()] = catalogStorageChange{Replacement: childStore, Relation: &child}
+			changes.Storage[child.Address()] = session.StorageChange{Replacement: childStore, Relation: &child}
 			e.mu.Unlock()
 			one, err := sqltype.Integer(parent.Columns[0].Usage.Type, 1)
 			if err != nil {

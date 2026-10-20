@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -29,7 +30,7 @@ type sqlPreparedStatement struct {
 	parameterOIDs []uint32 // Empty protocol statements preserve unvalidated hints.
 }
 
-func (r *sqlPreparedRegistry) EndSession(token ids.SessionToken, _ EndReason) error {
+func (r *sqlPreparedRegistry) EndSession(token ids.SessionToken, _ session.EndReason) error {
 	if token != r.token {
 		return fmt.Errorf("stuntgres: foreign SQL prepared attachment")
 	}

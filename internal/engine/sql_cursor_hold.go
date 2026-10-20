@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -27,7 +28,7 @@ func (r *cursorRegistry) hasCurrentHold(ref ids.TxRef) bool {
 
 // Admission is already held; the transaction/engine/session mutexes are not.
 // Ordinary commits avoid scope allocation and presentation capture entirely.
-func (e *Engine) holdPrecommit(op *Operation, owner *transactionOwner, start time.Time, settlement *StatementScope) error {
+func (e *Engine) holdPrecommit(op *session.Operation, owner *session.TransactionOwner, start time.Time, settlement *StatementScope) error {
 	if !payloadOf(op.Session).cursors.hasCurrentHold(owner.Ref) {
 		return nil
 	}

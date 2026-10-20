@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 )
 
@@ -25,7 +26,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	roleExecute(t, e, admin, "CREATE ROLE partition_original_reader LOGIN")
 	reader, readerDone := roleOperation(t, e, "partition_original_reader")
 	defer readerDone()
-	capture := func(op *Operation) AuthorizationView {
+	capture := func(op *session.Operation) AuthorizationView {
 		t.Helper()
 		e.mu.Lock()
 		auth, err := e.authorizationLocked(op)

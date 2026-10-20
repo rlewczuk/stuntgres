@@ -27,7 +27,7 @@ type dropProvider struct {
 	prepared       *preparedDrop
 	ctx            context.Context
 	scope          *StatementScope
-	changes        *catalogChanges
+	changes        *session.Journal
 	project        func(*catalog.Relation, *catalog.Relation) error
 	identitySource *catalog.Relation // Actual grant-time identity provider only.
 }
@@ -73,7 +73,7 @@ type definitionIndexLayoutReader interface {
 	indexLayout(ids.ObjectAddress) (indexLayoutLineage, bool)
 }
 
-func stageDropProvider(ctx context.Context, stage *CatalogStage, scope *StatementScope, changes *catalogChanges, project func(*catalog.Relation, *catalog.Relation) error) *dropProvider {
+func stageDropProvider(ctx context.Context, stage *CatalogStage, scope *StatementScope, changes *session.Journal, project func(*catalog.Relation, *catalog.Relation) error) *dropProvider {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -332,7 +332,7 @@ func (p *dropProvider) observeIdentityDependencies(roots []ids.ObjectAddress) {
 		}
 	}
 	if p.stage != nil {
-		p.stage.sequenceState().observeIdentityDependencies(catalogDependencyObservation{p.stage.Base.State(), targets})
+		p.stage.sequenceState().observeIdentityDependencies(session.DependencyObservation{p.stage.Base.State(), targets})
 		return
 	}
 	p.prepared.recordEffect(dropEffect{identityRoots: targets})
@@ -552,7 +552,7 @@ func (scope *StatementScope) validateColumnDropObservationsLocked(prepared *prep
 
 // consumePreparedDrop applies the exact immutable provider effects to the sole
 // command stage. Neither dependency analysis nor metadata cooking runs again.
-func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *preparedDrop, old *catalog.Relation, ref ids.ObjectRef, changes *catalogChanges) (*catalog.Relation, error) {
+func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *preparedDrop, old *catalog.Relation, ref ids.ObjectRef, changes *session.Journal) (*catalog.Relation, error) {
 	if err := scope.active(); err != nil {
 		return nil, err
 	}
@@ -621,7 +621,7 @@ func (scope *StatementScope) consumePreparedDrop(stage *CatalogStage, prepared *
 			if state == nil {
 				state = prepared.base.State()
 			}
-			stage.sequenceState().observeIdentityDependencies(catalogDependencyObservation{state, effect.identityRoots})
+			stage.sequenceState().observeIdentityDependencies(session.DependencyObservation{state, effect.identityRoots})
 		case effect.layout != nil:
 			provider.recordIndexLayout(effect.index, *effect.layout)
 		}

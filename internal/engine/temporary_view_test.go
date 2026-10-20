@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -13,7 +14,7 @@ import (
 
 // Bind a real query against genuine private TEMP descriptors, then exercise the
 // catalog-stage functions directly. No public SQL execution is duplicated here.
-func temporaryViewCandidate(t *testing.T, action parser.OnCommitAction, query string) (*Engine, *Operation, *catalogChanges, *catalog.Relation, *CatalogStage, *catalog.Relation) {
+func temporaryViewCandidate(t *testing.T, action parser.OnCommitAction, query string) (*Engine, *session.Operation, *session.Journal, *catalog.Relation, *CatalogStage, *catalog.Relation) {
 	t.Helper()
 	e, op, changes, table := temporaryCatalogCandidate(t, action)
 	raw := statement(t, query).(*parser.CreateView)

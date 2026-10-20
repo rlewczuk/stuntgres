@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -31,7 +32,7 @@ func validateExclusions(view catalog.Read, parent *catalog.Relation, names map[s
 
 // Caller uses the installed catalog stage and index binder; no alternate type,
 // expression, predicate or method provider is introduced by EXCLUDE.
-func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw *parser.ExclusionConstraint, recurse bool) error {
+func (e *Engine) stageExclusion(op *session.Operation, input sqltype.InputEnvironment, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw *parser.ExclusionConstraint, recurse bool) error {
 	s := raw.Index
 	if len(s.Keys) == 0 || len(s.Keys) != len(raw.Operators) {
 		return fmt.Errorf("stuntgres: invalid exclusion declaration")
@@ -185,7 +186,7 @@ func (e *Engine) stageExclusion(op *Operation, input sqltype.InputEnvironment, a
 	return nil
 }
 
-func (e *Engine) stageCreateExclusions(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, s *parser.CreateTable) error {
+func (e *Engine) stageCreateExclusions(op *session.Operation, input sqltype.InputEnvironment, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, s *parser.CreateTable) error {
 	for _, element := range s.Elements {
 		if element.Exclusion != nil {
 			if err := e.stageExclusion(op, input, auth, stage, parent, element.Exclusion, true); err != nil {

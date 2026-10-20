@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -86,7 +87,7 @@ func TestRelationDeadlockHardCycles(t *testing.T) {
 			if kind == "three" {
 				n = 3
 			}
-			sessions := make([]*Session, n)
+			sessions := make([]*session.Session, n)
 			tickets := make([]*lock.Ticket, n)
 			resources := make([]lock.Resource, n)
 			for i := range n {
@@ -163,7 +164,7 @@ func TestRelationDeadlockSoftQueues(t *testing.T) {
 	c := sessionStart(t, e, nil)
 	sessionSQL(t, a, "CREATE TABLE t1(v INT)")
 	sessionSQL(t, a, "CREATE TABLE t2(v INT)")
-	for _, s := range []*Session{a, b, c} {
+	for _, s := range []*session.Session{a, b, c} {
 		transactionBegin(t, s)
 		ticket := s.Transactions.Ticket
 		t.Cleanup(func() { e.endLockOwner(ticket) })

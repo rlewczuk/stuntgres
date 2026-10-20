@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
@@ -99,7 +100,7 @@ func (w *WriteStage) Delete(candidate visibility.DeleteCandidate) (deleted bool,
 	}
 	s.owner.Mu.Lock()
 	defer s.owner.Mu.Unlock()
-	if !s.worked || s.owner.State == TxIdle || s.owner.State == TxAborted || s.owner.Ref != s.txRef {
+	if !s.worked || s.owner.State == session.TxIdle || s.owner.State == session.TxAborted || s.owner.Ref != s.txRef {
 		return false, errors.New("stuntgres: inactive write stage")
 	}
 	e := s.engine()

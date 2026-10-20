@@ -7,11 +7,12 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func (e *Engine) alterDefaultPrivilegesLocked(op *Operation, v AuthorizationView, s *parser.AlterDefaultPrivileges) (Result, error) {
+func (e *Engine) alterDefaultPrivilegesLocked(op *session.Operation, v AuthorizationView, s *parser.AlterDefaultPrivileges) (Result, error) {
 	var creators []parser.RoleSpec
 	var schemas []parser.Identifier
 	for _, option := range s.Options {

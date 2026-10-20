@@ -11,13 +11,14 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func alterConstraintOperation(t *testing.T, s *Session) *Operation {
+func alterConstraintOperation(t *testing.T, s *session.Session) *session.Operation {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -26,7 +27,7 @@ func alterConstraintOperation(t *testing.T, s *Session) *Operation {
 	t.Cleanup(op.Done)
 	return op
 }
-func alterConstraintExecuteScope(t *testing.T, e *Engine, s *Session, q string) (*StatementScope, error) {
+func alterConstraintExecuteScope(t *testing.T, e *Engine, s *session.Session, q string) (*StatementScope, error) {
 	t.Helper()
 	op := alterConstraintOperation(t, s)
 	scope, err := e.StartStatement(op)

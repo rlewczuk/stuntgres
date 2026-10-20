@@ -13,13 +13,14 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 // Publish every incidental definition before retaining statement admission.
 // Both engines use the same allocation order for equal-OID foreign probes.
-func jsonRecordRoutineUnitFixture(t *testing.T) (*Engine, *Operation, *StatementScope) {
+func jsonRecordRoutineUnitFixture(t *testing.T) (*Engine, *session.Operation, *StatementScope) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")

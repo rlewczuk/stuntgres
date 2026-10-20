@@ -47,7 +47,7 @@ func (e *Engine) initialRole(ctx context.Context, authenticated authorization.Pr
 func roleDiagnostic(code, message, detail string) error {
 	return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message, Detail: detail}
 }
-func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, implicit bool) (Result, error) {
+func (e *Engine) executeRole(op *session.Operation, stmt parser.Statement, count int, implicit bool) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
@@ -264,7 +264,7 @@ func dependencyDescription(auth AuthorizationView, dep access.RoleDependency) st
 	}
 	return prefix + kind + name
 }
-func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.DropRole) (Result, error) {
+func (e *Engine) dropRolesLocked(op *session.Operation, v AuthorizationView, s *parser.DropRole) (Result, error) {
 	targets := make(map[authorization.PrincipalRef]authorization.RoleDescriptor, len(s.Names))
 	ordered := make([]authorization.PrincipalRef, 0, len(s.Names))
 	for _, name := range s.Names {

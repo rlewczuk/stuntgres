@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -317,7 +318,7 @@ func TestTransactionTimeAdmissionWait(t *testing.T) {
 	sess.Settings.Mu.Lock()
 	locked := true
 	type acquired struct {
-		op  *Operation
+		op  *session.Operation
 		err error
 	}
 	done := make(chan acquired, 1)

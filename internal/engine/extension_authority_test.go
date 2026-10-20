@@ -8,13 +8,14 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func extensionUnitExecute(t *testing.T, e *Engine, op *Operation, stmt parser.Statement) error {
+func extensionUnitExecute(t *testing.T, e *Engine, op *session.Operation, stmt parser.Statement) error {
 	t.Helper()
 	scope, err := e.StartStatement(op)
 	if err != nil {

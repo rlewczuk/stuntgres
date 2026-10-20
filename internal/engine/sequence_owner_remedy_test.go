@@ -5,11 +5,12 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
-func sequenceOwnerCommand(t *testing.T, e *Engine, op *Operation, q string, prepared bool) error {
+func sequenceOwnerCommand(t *testing.T, e *Engine, op *session.Operation, q string, prepared bool) error {
 	t.Helper()
 	ss := statement(t, q)
 	if !prepared {

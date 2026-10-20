@@ -18,7 +18,7 @@ import (
 
 // This fixture reuses the real partition/key/storage construction, then drives
 // the actual early-return handler rather than publishing a hand-built drop stage.
-func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *Session, ids.ObjectRef, catalog.Descriptor, *catalogChanges) {
+func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *session.Session, ids.ObjectRef, catalog.Descriptor, *session.Journal) {
 	t.Helper()
 	e, unused := partitionConstraintDropPublicationStage(t, true)
 	e.DiscardCatalogStage(unused)
@@ -43,7 +43,7 @@ func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *
 	ownershipUnitPublish(t, e, setup)
 	e.DiscardCatalogStage(setup)
 	committed := e.catalog.state.Get(catalog.CurrentDatabaseAddress)
-	var changes *catalogChanges
+	var changes *session.Journal
 	if private {
 		// Honest predecessor plus a different selected private descriptor. This
 		// tests catalog authority, not SQL admission for transactional DB OWNER.
@@ -53,12 +53,12 @@ func ownershipPartitionConstraintFixture(t *testing.T, private bool) (*Engine, *
 		changes.Descriptors[catalog.CurrentDatabaseAddress] = &database
 		changes.Originals[catalog.CurrentDatabaseAddress] = committed
 	}
-	sess, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: actor})
+	sess, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: actor})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		sess.RequestEnd(CleanClose)
+		sess.RequestEnd(session.CleanClose)
 		if err := sess.WaitEnd(context.Background()); err != nil {
 			t.Error(err)
 		}

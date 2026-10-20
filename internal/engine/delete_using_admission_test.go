@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -64,7 +65,7 @@ func deleteUsingJoin(t *testing.T, cancel context.CancelFunc, done <-chan delete
 	}
 }
 
-func deleteUsingAsync(t *testing.T, s *Session, ctx context.Context, query string) <-chan deleteOutcome {
+func deleteUsingAsync(t *testing.T, s *session.Session, ctx context.Context, query string) <-chan deleteOutcome {
 	t.Helper()
 	ast := statement(t, query)
 	done := make(chan deleteOutcome, 1)

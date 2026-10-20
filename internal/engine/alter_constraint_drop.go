@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -37,7 +38,7 @@ func droppedConstraint(parent *catalog.Relation, action parser.AlterTableAction)
 // Remove retains the original reference/name observations and locks the engine;
 // neither retirement nor dependency traversal publishes the private candidate.
 // Each action classifies its own dependencies before any later backing removal.
-func (e *Engine) stageDroppedConstraintIndexes(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, old, next *catalog.Relation, actions []parser.AlterTableAction, changes *catalogChanges) (*catalog.Relation, *CatalogStage, error) {
+func (e *Engine) stageDroppedConstraintIndexes(scope *StatementScope, auth AuthorizationView, stage *CatalogStage, old, next *catalog.Relation, actions []parser.AlterTableAction, changes *session.Journal) (*catalog.Relation, *CatalogStage, error) {
 	if !hasDroppedConstraintIndexes(old, actions) {
 		return next, stage, nil
 	}

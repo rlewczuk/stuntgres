@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -61,7 +62,7 @@ func (e *Engine) lookupIndexClass(auth AuthorizationView, raw parser.ObjectName,
 	return sqltype.IndexClass{}, sqlError("42704", fmt.Sprintf(`operator class "%s" does not exist for access method "%s"`, catalog.ObjectNameText(raw), method))
 }
 
-func (e *Engine) bindIndexKey(op *Operation, auth AuthorizationView, u sqltype.Usage, raw parser.IndexKey, method catalog.IndexMethod) (catalog.IndexKey, error) {
+func (e *Engine) bindIndexKey(op *session.Operation, auth AuthorizationView, u sqltype.Usage, raw parser.IndexKey, method catalog.IndexMethod) (catalog.IndexKey, error) {
 	key := catalog.IndexKey{Desc: raw.Desc, NullsFirst: raw.Nulls == parser.NullsFirst || raw.Nulls == parser.NullsDefault && raw.Desc}
 	if raw.Collation != nil {
 		id, err := e.lookupCollation(*raw.Collation, op)
@@ -121,7 +122,7 @@ func indexDefaultClassError(name string, method catalog.IndexMethod) error {
 // Validate released system attribute identity without manufacturing an owned
 // storage descriptor or comparator. Final system prohibition stays after all
 // attributes, so a later ordinary missing column can still win.
-func (e *Engine) validateSystemIndexKey(op *Operation, auth AuthorizationView, raw parser.IndexKey, method catalog.IndexMethod) error {
+func (e *Engine) validateSystemIndexKey(op *session.Operation, auth AuthorizationView, raw parser.IndexKey, method catalog.IndexMethod) error {
 	id, name := sqltype.SystemAttributeType(raw.Column.Text)
 	if raw.Collation != nil {
 		_, err := e.lookupCollation(*raw.Collation, op)
@@ -222,7 +223,7 @@ func validateIndexMethod(s *parser.CreateIndex) error {
 	}
 }
 
-func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, s *parser.CreateIndex) (*catalog.IndexDefinition, []catalog.Column, []int32, map[string]int, error) {
+func (e *Engine) bindIndexAttributes(op *session.Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, s *parser.CreateIndex) (*catalog.IndexDefinition, []catalog.Column, []int32, map[string]int, error) {
 	total := len(s.Keys) + len(s.Include)
 	d := &catalog.IndexDefinition{Method: catalog.BtreeMethod, Parent: parent.Address(), Keys: make([]catalog.IndexKey, len(s.Keys)), Include: make([]int32, len(s.Include)), Ready: true, Valid: true, Live: true}
 	if s.Method == "hash" {

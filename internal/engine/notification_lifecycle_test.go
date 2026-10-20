@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"runtime"
+	"stuntgres/internal/engine/session"
 	"testing"
 	"time"
 )
 
-func notificationAwaitWait(t *testing.T, s *Session, ctx context.Context) {
+func notificationAwaitWait(t *testing.T, s *session.Session, ctx context.Context) {
 	t.Helper()
 	for ctx.Err() == nil {
 		engineOf(s).mu.Lock()
@@ -23,8 +24,8 @@ func notificationAwaitWait(t *testing.T, s *Session, ctx context.Context) {
 }
 
 func TestNotificationSessionLifecycle(t *testing.T) {
-	for _, reason := range []EndReason{CleanClose, InitFailure, InvalidConnection, Terminated, Abandoned} {
-		t.Run(map[EndReason]string{CleanClose: "close", InitFailure: "init", InvalidConnection: "invalid", Terminated: "terminated", Abandoned: "abandoned"}[reason], func(t *testing.T) {
+	for _, reason := range []session.EndReason{session.CleanClose, session.InitFailure, session.InvalidConnection, session.Terminated, session.Abandoned} {
+		t.Run(map[session.EndReason]string{session.CleanClose: "close", session.InitFailure: "init", session.InvalidConnection: "invalid", session.Terminated: "terminated", session.Abandoned: "abandoned"}[reason], func(t *testing.T) {
 			e := New()
 			receiver, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
 			notificationUnitListen(t, receiver)
@@ -82,7 +83,7 @@ func TestNotificationSessionLifecycle(t *testing.T) {
 		notificationUnitListen(t, s)
 		// Duplicate identity fails after normal resource attachment; initialized
 		// resources must unwind without retiring the existing exact token owner.
-		if duplicate, err := e.StartSession(context.Background(), SessionStart{ID: s.SessionToken.ID()}); duplicate != nil || err == nil {
+		if duplicate, err := e.StartSession(context.Background(), session.SessionStart{ID: s.SessionToken.ID()}); duplicate != nil || err == nil {
 			t.Fatal("duplicate initialization succeeded")
 		}
 		notificationUnitNotify(t, s, "still-owned")
@@ -90,12 +91,12 @@ func TestNotificationSessionLifecycle(t *testing.T) {
 			t.Fatal(got)
 		}
 		s.Mu.Lock()
-		handle := s.Resources[Notifications].Handle
+		handle := s.Resources[session.Notifications].Handle
 		s.Mu.Unlock()
-		if err := s.Detach(handle, CleanClose); err != nil {
+		if err := s.Detach(handle, session.CleanClose); err != nil {
 			t.Fatal(err)
 		}
-		if err := s.Detach(handle, CleanClose); err != nil {
+		if err := s.Detach(handle, session.CleanClose); err != nil {
 			t.Fatal("repeat detach", err)
 		}
 		e.mu.Lock()
@@ -104,7 +105,7 @@ func TestNotificationSessionLifecycle(t *testing.T) {
 		if !retired {
 			t.Fatal("detach retained queue/registration")
 		}
-		s.RequestEnd(CleanClose)
+		s.RequestEnd(session.CleanClose)
 		if err := s.WaitEnd(context.Background()); err != nil {
 			t.Fatal("end repeated detached resource", err)
 		}
@@ -125,7 +126,7 @@ func TestNotificationReceiveOwnership(t *testing.T) {
 	cancel()
 	got, err := engineOf(receiver).WaitForNotification(op)
 	op.Done()
-	if !errors.Is(err, context.Canceled) || got != (Notification{}) || payloadOf(receiver).notifications.state != original {
+	if !errors.Is(err, context.Canceled) || got != (session.Notification{}) || payloadOf(receiver).notifications.state != original {
 		t.Fatal("cancellation consumed ready data", got, err)
 	}
 	if got := notificationUnitReceive(t, receiver); got.Payload != "retained" {
@@ -141,7 +142,7 @@ func TestNotificationReceiveOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	type outcome struct {
-		event Notification
+		event session.Notification
 		err   error
 	}
 	out := make(chan outcome, 2)
@@ -203,7 +204,7 @@ func TestNotificationBatchOwnership(t *testing.T) {
 	notificationUnitListen(t, a)
 	notificationUnitListen(t, b)
 	ref := transactionBegin(t, sender)
-	sender.Transactions.NotificationEvents = []Notification{
+	sender.Transactions.NotificationEvents = []session.Notification{
 		{PID: uint64(sender.SessionToken.ID()), Channel: "unit", Payload: "first"},
 		{PID: uint64(sender.SessionToken.ID()), Channel: "unit", Payload: "second"},
 	}
@@ -218,11 +219,11 @@ func TestNotificationBatchOwnership(t *testing.T) {
 	if got := notificationUnitReceive(t, a); got.Payload != "first" {
 		t.Fatal(got)
 	}
-	a.RequestEnd(CleanClose)
+	a.RequestEnd(session.CleanClose)
 	if err := a.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	sender.RequestEnd(CleanClose)
+	sender.RequestEnd(session.CleanClose)
 	if err := sender.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}

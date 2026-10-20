@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 )
 
 func TestRelationLockWaitsLifecycle(t *testing.T) {
@@ -155,7 +156,7 @@ func TestRelationLockWaitsNowaitAbort(t *testing.T) {
 	err = op.CommandError(err)
 	op.Done()
 	waitsDiagnostic(t, err, "55P03", `could not obtain lock on relation "t"`)
-	if b.TransactionState() != TxAborted {
+	if b.TransactionState() != session.TxAborted {
 		t.Fatal("NOWAIT did not abort explicit transaction")
 	}
 	rc := transactionBegin(t, c)

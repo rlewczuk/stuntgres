@@ -5,6 +5,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -129,7 +130,7 @@ func (s *StatementScope) DescribeProtocolStatement(name string) (ProtocolStateme
 		return ProtocolStatement{}, missingSQLPrepared(name)
 	}
 	description := entry.description
-	if s.op.Session.TransactionState() == TxAborted {
+	if s.op.Session.TransactionState() == session.TxAborted {
 		if protocolHasRows(entry.body, description.Results) {
 			return ProtocolStatement{}, protocolAbortedError()
 		}
@@ -229,7 +230,7 @@ func protocolParameterOIDs(formal analyze.ParameterInfo) []uint32 {
 	return ids
 }
 
-func protocolPortalExists(session *Session, name string) bool {
+func protocolPortalExists(session *session.Session, name string) bool {
 	p := payloadOf(session).preparedSQL.portals[name]
 	return p != nil && !p.retired
 }

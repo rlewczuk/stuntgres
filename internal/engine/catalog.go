@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/session"
 	"unicode/utf8"
 
 	"stuntgres/internal/engine/access"
@@ -352,7 +353,7 @@ type CatalogStage struct {
 	typed               *typedef.TypedStage
 	lifecycle           catalogLifecycle
 	invalid             error
-	authSession         *Session
+	authSession         *session.Session
 	authRevision        uint64
 	roleRevision        uint64
 	extensionNamespace  ids.ObjectAddress
@@ -408,7 +409,7 @@ func (e *Engine) BeginCatalogStage(base catalog.Read) *CatalogStage {
 
 // Retain selected private authority separately from the committed predecessor
 // already captured by authorizationLocked; building a stage needs no live read.
-func (s *CatalogStage) authorizeLocked(auth AuthorizationView, session *Session) {
+func (s *CatalogStage) authorizeLocked(auth AuthorizationView, session *session.Session) {
 	s.authSession, s.authRevision, s.roleRevision = session, auth.Revision, auth.RoleRecord.Revision
 	s.databaseAuthority = auth.Catalog.Get(catalog.CurrentDatabaseAddress)
 	s.databasePredecessor = auth.DatabasePredecessor
@@ -718,11 +719,11 @@ func (e *Engine) ValidateCatalogStage(ctx context.Context, s *CatalogStage) (*Pr
 func (e *Engine) PublishCatalog(p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
 	return e.publishCatalog(nil, nil, p, token)
 }
-func (e *Engine) publishCatalogOperation(op *Operation, scope *StatementScope, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
+func (e *Engine) publishCatalogOperation(op *session.Operation, scope *StatementScope, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
 	if op != nil && op.Session.Transactions.RetainsTransaction() {
 		return e.stageMessageCatalog(op, p, token)
 	}
-	if scope != nil && scope.owner.State == TxActive {
+	if scope != nil && scope.owner.State == session.TxActive {
 		if scope.op == nil || scope.op != op || p == nil || p.stage == nil || p.stage.owner != e || p.stage.lifecycle != catalogValidated {
 			return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
 		}
@@ -736,7 +737,7 @@ func (e *Engine) publishCatalogOperation(op *Operation, scope *StatementScope, p
 	}
 	return e.publishCatalog(op, scope, p, token)
 }
-func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
+func (e *Engine) publishCatalog(op *session.Operation, scope *StatementScope, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
 	if p == nil || p.stage == nil || p.stage.owner != e || p.stage.lifecycle != catalogValidated {
 		return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
 	}
@@ -1302,7 +1303,7 @@ func (e *Engine) ReplaceCatalog(ctx context.Context, source *Engine, replacement
 }
 
 // Restore retains its genuine private operation through owner-cell validation.
-func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement catalog.Read, restoreOp *Operation) (ChangeSet, error) {
+func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement catalog.Read, restoreOp *session.Operation) (ChangeSet, error) {
 	var installed ids.CatalogEpoch
 	defer func() {
 		if installed != 0 {

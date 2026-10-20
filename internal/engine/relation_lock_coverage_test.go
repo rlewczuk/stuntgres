@@ -3,11 +3,12 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/session"
 	"testing"
 	"time"
 )
 
-func lockUtility(t *testing.T, s *Session) {
+func lockUtility(t *testing.T, s *session.Session) {
 	t.Helper()
 	r := sessionSQL(t, s, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 	if r.Count != 0 || r.Rows != nil {
@@ -17,7 +18,7 @@ func lockUtility(t *testing.T, s *Session) {
 
 // Unlike public start channels, lockPending observes the real manager queue.
 // Cancellation and joining are registered after session cleanup, so they run first.
-func lockUtilityAsync(t *testing.T, e *Engine, s *Session, prepare bool) func() {
+func lockUtilityAsync(t *testing.T, e *Engine, s *session.Session, prepare bool) func() {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	done := make(chan error, 1)
@@ -115,7 +116,7 @@ func TestRelationLockHolderPhysicalEnd(t *testing.T) {
 	rb := transactionBegin(t, b)
 	await := lockUtilityAsync(t, e, b, false)
 	lockPending(t, e, 1)
-	a.RequestEnd(CleanClose)
+	a.RequestEnd(session.CleanClose)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := a.WaitEnd(ctx); err != nil {

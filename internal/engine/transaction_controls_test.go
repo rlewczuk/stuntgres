@@ -9,10 +9,11 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
 
-func controlsExecute(t *testing.T, s *Session, q string) error {
+func controlsExecute(t *testing.T, s *session.Session, q string) error {
 	t.Helper()
 	op := transactionOperation(t, s)
 	defer op.Done()
@@ -25,7 +26,7 @@ func controlsExecute(t *testing.T, s *Session, q string) error {
 	}
 	return err
 }
-func controlsDescribe(t *testing.T, s *Session, q string) error {
+func controlsDescribe(t *testing.T, s *session.Session, q string) error {
 	t.Helper()
 	op := transactionOperation(t, s)
 	defer op.Done()
@@ -35,13 +36,13 @@ func controlsDescribe(t *testing.T, s *Session, q string) error {
 	}
 	return err
 }
-func controlsRequire(t *testing.T, s *Session, q string) {
+func controlsRequire(t *testing.T, s *session.Session, q string) {
 	t.Helper()
 	if err := controlsExecute(t, s, q); err != nil {
 		t.Fatal(q, err)
 	}
 }
-func controlsAbort(t *testing.T, s *Session) {
+func controlsAbort(t *testing.T, s *session.Session) {
 	t.Helper()
 	op := transactionOperation(t, s)
 	defer op.Done()
@@ -74,7 +75,7 @@ func TestTransactionControlsChainIdentity(t *testing.T) {
 				controlsRequire(t, a, q)
 				next := a.Transactions.Ref
 				fresh := a.Transactions.Ticket
-				if next.ID() == 0 || next.ID() <= old.ID() || next.Epoch() != e.CatalogRead().Epoch() || fresh == nil || fresh == ticket || fresh.Ref() != next || a.TransactionState() != TxActive || a.Transactions.Command != 0 || a.Transactions.Writes != nil || len(e.locks.Inspect(fresh).Journals[fresh]) != 0 {
+				if next.ID() == 0 || next.ID() <= old.ID() || next.Epoch() != e.CatalogRead().Epoch() || fresh == nil || fresh == ticket || fresh.Ref() != next || a.TransactionState() != session.TxActive || a.Transactions.Command != 0 || a.Transactions.Writes != nil || len(e.locks.Inspect(fresh).Journals[fresh]) != 0 {
 					t.Fatal("chain did not create independent empty authority", next, a.Transactions)
 				}
 				lockState := e.locks.Inspect()
@@ -129,11 +130,11 @@ func TestTransactionControlsCountersAndReferences(t *testing.T) {
 				t.Fatal("pre-admission context error", err)
 			}
 			if a.Transactions.Ref != ref || a.Transactions.Ticket != ticket ||
-				a.Transactions.Command != command || a.TransactionState() != TxActive {
+				a.Transactions.Command != command || a.TransactionState() != session.TxActive {
 				t.Fatal("pre-canceled entry changed genuine transaction")
 			}
 		}
-		_, err = e.Begin(op, TxOptions{})
+		_, err = e.Begin(op, session.TxOptions{})
 		assertCanceled(err)
 		_, err = e.Rollback(op, ref)
 		assertCanceled(err)
@@ -154,7 +155,7 @@ func TestTransactionControlsCountersAndReferences(t *testing.T) {
 		if !errors.Is(err, context.Canceled) || errors.As(err, &diagnostic) || result.Committed {
 			t.Fatal("canceled native Commit outcome", result, err)
 		}
-		if a.TransactionState() != TxIdle || a.Transactions.Ref.ID() != 0 ||
+		if a.TransactionState() != session.TxIdle || a.Transactions.Ref.ID() != 0 ||
 			a.Transactions.Ticket != nil || a.Transactions.Writes != nil || e.visibility.CommitSeq() != frontier {
 			t.Fatal("canceled native Commit retained work/holds or published")
 		}
@@ -219,7 +220,7 @@ func TestTransactionControlsCountersAndReferences(t *testing.T) {
 	op := transactionOperation(t, a)
 	copyOp := *op
 	foreign := transactionOperation(t, b)
-	for _, bad := range []*Operation{nil, &copyOp, foreign} {
+	for _, bad := range []*session.Operation{nil, &copyOp, foreign} {
 		if _, err := e.Commit(bad, ref); err == nil {
 			t.Fatal("invalid Operation accepted")
 		}
@@ -306,7 +307,7 @@ func TestTransactionControlsCancellationAndReplacement(t *testing.T) {
 	if _, err := a.Acquire(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if a.TransactionState() != TxIdle {
+	if a.TransactionState() != session.TxIdle {
 		t.Fatal("precancel birth")
 	}
 	controlsRequire(t, a, "BEGIN")
@@ -317,7 +318,7 @@ func TestTransactionControlsCancellationAndReplacement(t *testing.T) {
 	lockPending(t, e, 1)
 	cancel()
 	lockAwait(t, done, context.Canceled)
-	if b.TransactionState() != TxAborted {
+	if b.TransactionState() != session.TxAborted {
 		t.Fatal("cancel did not abort")
 	}
 	controlsRequire(t, b, "ROLLBACK AND CHAIN")
@@ -366,12 +367,12 @@ func TestTransactionControlsSessionLifecycle(t *testing.T) {
 	sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 	done := lockAsync(e, b, context.Background(), "SELECT v FROM t", false)
 	lockPending(t, e, 1)
-	a.RequestEnd(CleanClose)
+	a.RequestEnd(session.CleanClose)
 	if err := a.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	lockAwait(t, done, nil)
-	a.RequestEnd(CleanClose)
+	a.RequestEnd(session.CleanClose)
 	transactionRows(t, b, "SELECT v FROM t", 77)
 	lockEmpty(t, e)
 	c := sessionStart(t, e, nil)
@@ -380,12 +381,12 @@ func TestTransactionControlsSessionLifecycle(t *testing.T) {
 	controlsRequire(t, c, "BEGIN")
 	draining := lockAsync(e, c, context.Background(), "INSERT INTO t VALUES(3)", false)
 	lockPending(t, e, 1)
-	c.RequestEnd(Terminated)
+	c.RequestEnd(session.Terminated)
 	lockAwait(t, draining, context.Canceled)
 	if err := c.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if b.TransactionState() != TxActive {
+	if b.TransactionState() != session.TxActive {
 		t.Fatal("terminal drain ended peer")
 	}
 	controlsRequire(t, b, "COMMIT")
@@ -448,17 +449,17 @@ func TestTransactionControlsStateMatrix(t *testing.T) {
 		}
 	}
 	for _, q := range queries {
-		for _, state := range []TxState{TxIdle, TxActive, TxAborted} {
+		for _, state := range []session.TxState{session.TxIdle, session.TxActive, session.TxAborted} {
 			for _, prepare := range []bool{false, true} {
-				t.Run(map[bool]string{false: "direct", true: "prepared"}[prepare]+"/"+map[TxState]string{TxIdle: "idle", TxActive: "active", TxAborted: "aborted"}[state]+"/"+strings.ReplaceAll(q, " ", "_"), func(t *testing.T) {
+				t.Run(map[bool]string{false: "direct", true: "prepared"}[prepare]+"/"+map[session.TxState]string{session.TxIdle: "idle", session.TxActive: "active", session.TxAborted: "aborted"}[state]+"/"+strings.ReplaceAll(q, " ", "_"), func(t *testing.T) {
 					e := New()
 					a := sessionStart(t, e, nil)
 					b := sessionStart(t, e, nil)
 					sessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
-					if state != TxIdle {
+					if state != session.TxIdle {
 						controlsRequire(t, a, "BEGIN")
 						sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-						if state == TxAborted {
+						if state == session.TxAborted {
 							controlsAbort(t, a)
 						}
 					}
@@ -469,7 +470,7 @@ func TestTransactionControlsStateMatrix(t *testing.T) {
 						op := transactionOperation(t, a)
 						description, err := e.Describe(op, ast)
 						op.Done()
-						if state == TxAborted && start {
+						if state == session.TxAborted && start {
 							var diagnostic *sqlstate.Error
 							if !errors.As(err, &diagnostic) || diagnostic.Code != "25P02" {
 								t.Fatal(err)
@@ -489,12 +490,12 @@ func TestTransactionControlsStateMatrix(t *testing.T) {
 					if result.Count != 0 || result.Rows != nil {
 						t.Fatal("control result", result)
 					}
-					if state == TxAborted && start {
+					if state == session.TxAborted && start {
 						var d *sqlstate.Error
 						if !errors.As(err, &d) || d.Code != "25P02" {
 							t.Fatal(err)
 						}
-					} else if !start && state == TxIdle && strings.HasSuffix(q, "AND CHAIN") {
+					} else if !start && state == session.TxIdle && strings.HasSuffix(q, "AND CHAIN") {
 						var d *sqlstate.Error
 						if !errors.As(err, &d) || d.Code != "25P01" {
 							t.Fatal(err)
@@ -502,11 +503,11 @@ func TestTransactionControlsStateMatrix(t *testing.T) {
 					} else if err != nil {
 						t.Fatal(err)
 					}
-					if start && state == TxActive && (a.Transactions.Ref != ref || a.Transactions.Command != command || a.Transactions.Ticket != ticket) {
+					if start && state == session.TxActive && (a.Transactions.Ref != ref || a.Transactions.Command != command || a.Transactions.Ticket != ticket) {
 						t.Fatal("redundant start changed owner")
 					}
 					want := []int64{}
-					if state == TxActive && (strings.HasPrefix(q, "COMMIT") || strings.HasPrefix(q, "END")) {
+					if state == session.TxActive && (strings.HasPrefix(q, "COMMIT") || strings.HasPrefix(q, "END")) {
 						want = []int64{1}
 					}
 					transactionRows(t, b, "SELECT v FROM t", want...)
@@ -534,7 +535,7 @@ func TestTransactionControlsMissingOperationAuthority(t *testing.T) {
 			t.Fatal("nonmember authority", err)
 		}
 	}
-	_, err := e.Begin(&nonmember, TxOptions{})
+	_, err := e.Begin(&nonmember, session.TxOptions{})
 	assertError(err)
 	_, err = e.Commit(&nonmember, ref)
 	assertError(err)
@@ -545,7 +546,7 @@ func TestTransactionControlsMissingOperationAuthority(t *testing.T) {
 	if scope != nil {
 		t.Fatal("nonmember admitted a scope")
 	}
-	if a.Transactions.Ref != ref || a.Transactions.Ticket != ticket || a.Transactions.Command != command || a.TransactionState() != TxActive {
+	if a.Transactions.Ref != ref || a.Transactions.Ticket != ticket || a.Transactions.Command != command || a.TransactionState() != session.TxActive {
 		t.Fatal("nonmember mutated genuine owner")
 	}
 	op.Done()

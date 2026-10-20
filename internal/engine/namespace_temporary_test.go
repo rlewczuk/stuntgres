@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -92,7 +93,7 @@ func TestSequenceTemporaryNamespacePairAuthority(t *testing.T) {
 	s.TemporaryNamespace = table
 	op.Done()
 	retained := namespaceUnitCapture(t, e, e.CatalogRead())
-	s.RequestEnd(CleanClose)
+	s.RequestEnd(session.CleanClose)
 	if err := s.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +164,7 @@ func TestTemporaryNamespaceCollationRetirement(t *testing.T) {
 	toast := assertTemporaryNamespacePair(t, e, s.SessionToken, table)
 	sessionSQL(t, s, "CREATE COLLATION pg_temp.namespace_collation FROM \"C\"")
 	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: table, Name: "namespace_collation"})
-	s.RequestEnd(CleanClose)
+	s.RequestEnd(session.CleanClose)
 	if err := s.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +202,7 @@ func TestSequenceTemporaryNamespacePairAllocationFailure(t *testing.T) {
 		} else {
 			e.catalog.nextRevision = ids.DefinitionRevision(^uint64(0)) - 1
 		}
-		changes := &catalogChanges{}
+		changes := &session.Journal{}
 		name := statement(t, "CREATE TEMP TABLE allocation_failure(i INT)").(*parser.CreateTable).Name
 		ref, err := e.relationCreationNamespaceLocked(auth, name, "temporary", changes)
 		e.mu.Unlock()

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -22,7 +23,7 @@ type conflictUpdateWorker struct {
 	joined bool
 }
 
-func conflictUpdateStartWorker(t *testing.T, e *Engine, s *Session, q string) *conflictUpdateWorker {
+func conflictUpdateStartWorker(t *testing.T, e *Engine, s *session.Session, q string) *conflictUpdateWorker {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	worker := &conflictUpdateWorker{done: make(chan conflictUpdateWorkerResult, 1), cancel: cancel}

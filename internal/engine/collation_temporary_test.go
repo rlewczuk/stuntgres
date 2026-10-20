@@ -11,16 +11,17 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 )
 
-func collationPrivateSession(t *testing.T, e *Engine) *Session {
+func collationPrivateSession(t *testing.T, e *Engine) *session.Session {
 	t.Helper()
-	s, err := e.startSession(context.Background(), SessionStart{Authenticated: e.roles.domain.Principal(10)}, true)
+	s, err := e.startSession(context.Background(), session.SessionStart{Authenticated: e.roles.domain.Principal(10)}, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		s.RequestEnd(CleanClose)
+		s.RequestEnd(session.CleanClose)
 		if err := s.WaitEnd(context.Background()); err != nil {
 			t.Error(err)
 		}
@@ -64,7 +65,7 @@ func TestCollationTemporaryCleanupAX(t *testing.T) {
 	if err := e.locks.Acquire(context.Background(), peer.Transactions.Ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
-	owner.RequestEnd(CleanClose)
+	owner.RequestEnd(session.CleanClose)
 	lockPending(t, e, 1)
 	lockState := e.locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
@@ -124,7 +125,7 @@ func TestCollationTemporaryCleanupCompletenessFence(t *testing.T) {
 
 func TestCollationTemporaryCleanupExhaustion(t *testing.T) {
 	e := New()
-	owner, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
+	owner, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +139,7 @@ func TestCollationTemporaryCleanupExhaustion(t *testing.T) {
 	e.mu.Unlock()
 	before := e.CatalogRead()
 	namespace := owner.TemporaryNamespace
-	owner.RequestEnd(CleanClose)
+	owner.RequestEnd(session.CleanClose)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err = owner.WaitEnd(ctx)

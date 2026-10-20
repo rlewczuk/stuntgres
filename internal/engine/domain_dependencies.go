@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -510,7 +511,7 @@ func (scope *StatementScope) stageDomainDependents(stage *CatalogStage, mode par
 
 // All stored-expression owners use the same immutable authority traversal.
 // Generated owners are removed through the existing column/storage projection.
-func (scope *StatementScope) stageExpressionDependents(stage *CatalogStage, roots []ids.ObjectAddress, mode parser.DropMode, changes *catalogChanges) error {
+func (scope *StatementScope) stageExpressionDependents(stage *CatalogStage, roots []ids.ObjectAddress, mode parser.DropMode, changes *session.Journal) error {
 	return stageExpressionDependencies(scope.op.Context(), stage, roots, mode, scope, changes, nil, ids.ObjectAddress{})
 }
 
@@ -519,7 +520,7 @@ func (scope *StatementScope) stageExpressionDependents(stage *CatalogStage, root
 // Commit supplies its actual private-root projector without inventing a scope.
 // A nonzero subject attributes only the RESTRICT message to one SQL DROP;
 // retirement roots, dependency discovery, locks and mutations stay unchanged.
-func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots []ids.ObjectAddress, mode parser.DropMode, scope *StatementScope, changes *catalogChanges, project func(*catalog.Relation, *catalog.Relation) error, subject ids.ObjectAddress) error {
+func stageExpressionDependencies(ctx context.Context, stage *CatalogStage, roots []ids.ObjectAddress, mode parser.DropMode, scope *StatementScope, changes *session.Journal, project func(*catalog.Relation, *catalog.Relation) error, subject ids.ObjectAddress) error {
 	return stageDropProvider(ctx, stage, scope, changes, project).expressionDependencies(roots, mode, subject)
 }
 
@@ -749,7 +750,7 @@ func (provider *dropProvider) expressionDependencies(roots []ids.ObjectAddress, 
 	return nil
 }
 
-func (e *Engine) stageSchemaDomainsLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, schemas []*catalog.Namespace, relations []*catalog.Relation, domains []catalog.Descriptor, cascade bool) error {
+func (e *Engine) stageSchemaDomainsLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, schemas []*catalog.Namespace, relations []*catalog.Relation, domains []catalog.Descriptor, cascade bool) error {
 	var contained []catalog.Descriptor
 	for _, r := range relations {
 		contained = append(contained, r)

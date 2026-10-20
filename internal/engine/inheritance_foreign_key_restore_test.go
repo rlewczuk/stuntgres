@@ -10,6 +10,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -96,7 +97,7 @@ func TestInheritanceForeignKeyForwardReplay(t *testing.T) {
 	}
 }
 
-func inheritedForeignKeyImportFixture(t *testing.T) (*Engine, *Operation, map[ids.ObjectAddress]ids.ObjectRef) {
+func inheritedForeignKeyImportFixture(t *testing.T) (*Engine, *session.Operation, map[ids.ObjectAddress]ids.ObjectRef) {
 	t.Helper()
 	source := New()
 	ownershipUnitExec(t, source, "CREATE ROLE fk_receipt_owner")

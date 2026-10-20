@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
@@ -18,7 +19,7 @@ import (
 
 // This fixture exercises package admission/binding/capture functions, not the
 // public driver. Captures use exactly the executor's combined relation set.
-func updateFromBoundSources(t *testing.T, e *Engine, session *Session, ctx context.Context, q string) (*Operation, *StatementScope, analyze.Binding, *exec.Source, *exec.Source) {
+func updateFromBoundSources(t *testing.T, e *Engine, session *session.Session, ctx context.Context, q string) (*session.Operation, *StatementScope, analyze.Binding, *exec.Source, *exec.Source) {
 	t.Helper()
 	op, err := session.Acquire(ctx)
 	if err != nil {

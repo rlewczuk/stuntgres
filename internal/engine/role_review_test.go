@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -433,7 +434,7 @@ func TestRoleTypedIdentityCatalogAndTransaction(t *testing.T) {
 			t.Fatal("identity description", column)
 		}
 	}
-	ref, err := e.Begin(op, TxOptions{})
+	ref, err := e.Begin(op, session.TxOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -539,7 +540,7 @@ func TestRoleCatalogPublicationAuthorityFenceAndRecovery(t *testing.T) {
 			}
 			var ref ids.TxRef
 			if err == nil {
-				ref, err = e.Begin(peer, TxOptions{})
+				ref, err = e.Begin(peer, session.TxOptions{})
 			}
 			if err == nil {
 				var result Result
@@ -575,7 +576,7 @@ func TestRoleCatalogPublicationAuthorityFenceAndRecovery(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("catalog publication did not release lifecycle/authority locks")
 		}
-		if found := e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "fenced_role"}); len(found) != 0 || op.Session.TransactionState() != TxIdle {
+		if found := e.CatalogRead().Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "fenced_role"}); len(found) != 0 || op.Session.TransactionState() != session.TxIdle {
 			t.Fatal("failed publication leaked table or transaction", found)
 		}
 		roleIdentity(t, e, op, "publisher")
@@ -615,7 +616,7 @@ func TestRoleUtilityInstallCompletion(t *testing.T) {
 			cancel() // Successful utility installation cannot be retracted by Finish.
 			err = scope.Finish(nil)
 			op.Ctx = original
-			if err != nil || op.Session.TransactionState() != TxIdle {
+			if err != nil || op.Session.TransactionState() != session.TxIdle {
 				t.Fatal("post-install cancellation retracted success", err)
 			}
 			switch query {

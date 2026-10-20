@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 )
 
 func TestSequencePreparedPeerTemporaryNamespace(t *testing.T) {
@@ -127,7 +128,7 @@ func TestSequenceTemporaryRetirementPreservesPeerAnalysis(t *testing.T) {
 	held(10)
 	sessionSQL(t, a, "CREATE SEQUENCE a.s START 100 CACHE 1")
 	held(11)
-	b.RequestEnd(CleanClose)
+	b.RequestEnd(session.CleanClose)
 	if err := b.WaitEnd(context.Background()); err != nil {
 		t.Fatal("terminal authority prevented physical cleanup", err)
 	}

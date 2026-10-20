@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -65,7 +66,7 @@ func TestUsingIndexBlockedCancellation(t *testing.T) {
 			if len(notices) != 0 {
 				t.Fatal("blocked cancellation emitted attachment notices", notices)
 			}
-			if waiter.TransactionState() != TxIdle || e.catalog.state != catalog || e.storage.Relations[parent.Address()] != store || e.storage.IndexRoots[index.Address()] != root || !reflect.DeepEqual(root.Entries, entries) || len(parent.Constraints.Unique) != 0 || index.SQLIndex.Constraint != nil {
+			if waiter.TransactionState() != session.TxIdle || e.catalog.state != catalog || e.storage.Relations[parent.Address()] != store || e.storage.IndexRoots[index.Address()] != root || !reflect.DeepEqual(root.Entries, entries) || len(parent.Constraints.Unique) != 0 || index.SQLIndex.Constraint != nil {
 				t.Fatal("blocked cancellation leaked state or aborted connection")
 			}
 			transactionEnd(t, holder, tx, false)
@@ -85,7 +86,7 @@ func TestUsingIndexBlockedCancellation(t *testing.T) {
 
 // Package-entry fixtures use independently built ASTs, not driver SQL. Catalog,
 // providers, committed rows, baseline roots and transaction owners are real.
-func usingIndexUnitExecute(t *testing.T, e *Engine, s *Session, statement parser.Statement) Result {
+func usingIndexUnitExecute(t *testing.T, e *Engine, s *session.Session, statement parser.Statement) Result {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -103,7 +104,7 @@ func usingIndexUnitTable(name string) *parser.CreateTable {
 	table.Elements = table.Elements[:3]
 	return table
 }
-func usingIndexUnitSeed(t *testing.T, e *Engine, s *Session) (*catalog.Relation, *catalog.Relation) {
+func usingIndexUnitSeed(t *testing.T, e *Engine, s *session.Session) (*catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	usingIndexUnitExecute(t, e, s, usingIndexUnitTable("t"))
 	for _, a := range []int64{1, 2} {
@@ -115,7 +116,7 @@ func usingIndexUnitSeed(t *testing.T, e *Engine, s *Session) (*catalog.Relation,
 	usingIndexUnitExecute(t, e, s, &parser.CreateIndex{Name: parser.Identifier{Text: "sibling"}, Table: primaryKeyUnitName("t"), Method: "btree", Keys: []parser.IndexKey{{Column: parser.Identifier{Text: "b"}}}})
 	return primaryKeyUnitRelation(t, e, "t"), primaryKeyUnitRelation(t, e, "prebuilt")
 }
-func usingIndexUnitFixture(t *testing.T) (*Engine, *Session, *catalog.Relation, *catalog.Relation) {
+func usingIndexUnitFixture(t *testing.T) (*Engine, *session.Session, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	s := sessionStart(t, e, nil)

@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 )
@@ -15,7 +16,7 @@ import (
 // SQL is fixture construction only: assertions exercise private dependency
 // staging, cloned transaction roots and atomic physical installation, not a
 // second native copy of the public SQL lifecycle contract.
-func rangePartitionRetirementFixture(t *testing.T, s *Session, commitFixture bool) {
+func rangePartitionRetirementFixture(t *testing.T, s *session.Session, commitFixture bool) {
 	t.Helper()
 	provider := "CREATE TEMP TABLE rp_retire_provider(v INT)"
 	for _, q := range []string{
@@ -237,7 +238,7 @@ func TestRangePartitionRetirementPhysicalState(t *testing.T) {
 			peerDescriptors[a], peerStorage[a], peerIndexes[a] = d, e.storage.Relations[a], e.storage.IndexRoots[a]
 		}
 	}
-	s.RequestEnd(CleanClose)
+	s.RequestEnd(session.CleanClose)
 	if err := s.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}

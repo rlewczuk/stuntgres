@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -34,7 +35,7 @@ func TestSavepointsChainCharacteristics(t *testing.T) {
 			if tc.failed {
 				err := controlsExecute(t, a, "SELECT v FROM missing")
 				var diagnostic *sqlstate.Error
-				if !errors.As(err, &diagnostic) || diagnostic.Code != "42P01" || a.TransactionState() != TxAborted {
+				if !errors.As(err, &diagnostic) || diagnostic.Code != "42P01" || a.TransactionState() != session.TxAborted {
 					t.Fatal("failure witness", err)
 				}
 			}
@@ -44,7 +45,7 @@ func TestSavepointsChainCharacteristics(t *testing.T) {
 			if owner.ReadOnly != tc.readOnly {
 				t.Fatalf("chained readonly %v want %v", owner.ReadOnly, tc.readOnly)
 			}
-			if owner.State != TxActive || owner.Ref == ref || owner.Ticket == ticket || len(owner.Savepoints) != 0 || owner.SnapshotSet || owner.Command != 0 || owner.Writes != nil {
+			if owner.State != session.TxActive || owner.Ref == ref || owner.Ticket == ticket || len(owner.Savepoints) != 0 || owner.SnapshotSet || owner.Command != 0 || owner.Writes != nil {
 				t.Fatal("CHAIN did not install clean independent incarnation")
 			}
 			published := []int64{}

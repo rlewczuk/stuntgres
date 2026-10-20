@@ -11,7 +11,7 @@ import (
 
 // validateRoleAttributesLocked is repeated after preparation: held statements,
 // catalog changes and effective identity changes never cache authority.
-func (e *Engine) validateRoleAttributesLocked(op *Operation, stmt parser.Statement) (AuthorizationView, authorization.RoleDescriptor, authorization.RoleDescriptor, parser.RoleOptions, error) {
+func (e *Engine) validateRoleAttributesLocked(op *session.Operation, stmt parser.Statement) (AuthorizationView, authorization.RoleDescriptor, authorization.RoleDescriptor, parser.RoleOptions, error) {
 	v, err := e.authorizationLocked(op)
 	if err != nil {
 		return v, authorization.RoleDescriptor{}, authorization.RoleDescriptor{}, parser.RoleOptions{}, err

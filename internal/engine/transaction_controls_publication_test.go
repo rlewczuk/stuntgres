@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
@@ -39,7 +40,7 @@ func TestControlTransactionsStaleCommitEpochPrecedence(t *testing.T) {
 				t.Fatal("stale ordinary statement", err)
 			}
 			op.Done()
-			if a.TransactionState() != TxAborted || a.Transactions.Writes != nil {
+			if a.TransactionState() != session.TxAborted || a.Transactions.Writes != nil {
 				t.Fatal("stale statement did not discard private work")
 			}
 			op, err = a.Acquire(context.Background())
@@ -59,7 +60,7 @@ func TestControlTransactionsStaleCommitEpochPrecedence(t *testing.T) {
 			if !errors.Is(scope.Finish(err), ids.ErrCatalogReplaced) {
 				t.Fatal("lost replacement error")
 			}
-			if a.TransactionState() != TxIdle || a.Transactions.Ticket != nil || a.Transactions.Ref != (ids.TxRef{}) {
+			if a.TransactionState() != session.TxIdle || a.Transactions.Ticket != nil || a.Transactions.Ref != (ids.TxRef{}) {
 				t.Fatal("failed end installed chain or retained old owner")
 			}
 			transactionRows(t, b, "SELECT v FROM t", 99)
@@ -147,7 +148,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 					t.Fatal("partial mixed publication", n, want)
 				}
 			case "terminal_before":
-				a.RequestEnd(Terminated)
+				a.RequestEnd(session.Terminated)
 				err = e.publishWrites(op, old, a.Transactions.Writes, a.Transactions.Deletes, nil)
 			case "epoch_before":
 				e.mu.Lock()
@@ -184,7 +185,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				if e.visibility.CommitSeq() != frontier+1 {
 					t.Fatal("not one frontier")
 				}
-				if next.ID() <= old.ID() || a.TransactionState() != TxActive || a.Transactions.Command != 0 || ticket == oldTicket || a.Transactions.Writes != nil {
+				if next.ID() <= old.ID() || a.TransactionState() != session.TxActive || a.Transactions.Command != 0 || ticket == oldTicket || a.Transactions.Writes != nil {
 					t.Fatal("completed chain authority")
 				}
 				// An actual catalog replacement after control execution also cannot
@@ -221,7 +222,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				if got := scope.Finish(err); !errors.Is(got, err) {
 					t.Fatal("lost original boundary error", got, err)
 				}
-				if a.TransactionState() == TxActive && a.Transactions.Ref != old {
+				if a.TransactionState() == session.TxActive && a.Transactions.Ref != old {
 					t.Fatal("rejection installed chain")
 				}
 				if e.visibility.CommitSeq() != frontier || len(stores[0].Versions) != 3 || len(stores[1].Versions) != 1 || &stores[0].Versions[0] != &roots[0][0] || &stores[1].Versions[0] != &roots[1][0] {
@@ -258,7 +259,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				lockEmpty(t, e)
 			}
 			if boundary == "ref_before" {
-				if a.Transactions.Ref != old || a.TransactionState() != TxActive || len(a.Transactions.Writes) != 2 {
+				if a.Transactions.Ref != old || a.TransactionState() != session.TxActive || len(a.Transactions.Writes) != 2 {
 					t.Fatal("bad ref disposed genuine work")
 				}
 				transactionEnd(t, a, old, false)
@@ -291,7 +292,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 			}
 			next, ticket := a.Transactions.Ref, a.Transactions.Ticket
 			if scope.finished || next.ID() <= old.ID() || ticket == nil || ticket == oldTicket ||
-				a.TransactionState() != TxActive || a.Transactions.Command != 0 || a.Transactions.Writes != nil ||
+				a.TransactionState() != session.TxActive || a.Transactions.Command != 0 || a.Transactions.Writes != nil ||
 				e.visibility.CommitSeq() != frontier+1 {
 				t.Fatal("execution did not publish once and leave an unfinished fresh chain")
 			}
@@ -311,7 +312,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				t.Fatal("execution did not release old ticket/install empty fresh authority")
 			}
 			if boundary == "terminal_after_execute" {
-				a.RequestEnd(Terminated)
+				a.RequestEnd(session.Terminated)
 				<-op.Context().Done()
 				select {
 				case <-a.Completed:
@@ -339,7 +340,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				t.Fatal("repeated completed-control Finish lost saved success", err)
 			}
 			if a.Transactions.Ref != next || a.Transactions.Ticket != ticket ||
-				a.TransactionState() != TxActive || a.Transactions.Command != 0 ||
+				a.TransactionState() != session.TxActive || a.Transactions.Command != 0 ||
 				a.Transactions.Writes != nil || e.visibility.CommitSeq() != completedFrontier {
 				t.Fatal("Finish ended or mutated the fresh chained incarnation")
 			}
@@ -370,12 +371,12 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				if err := a.WaitEnd(context.Background()); err != nil {
 					t.Fatal(err)
 				}
-				if a.TransactionState() != TxIdle || a.Transactions.Ticket != nil || a.Transactions.Writes != nil {
+				if a.TransactionState() != session.TxIdle || a.Transactions.Ticket != nil || a.Transactions.Writes != nil {
 					t.Fatal("physical drain retained chained transaction")
 				}
 				lockEmpty(t, e)
 				op.Done()
-				a.RequestEnd(Terminated)
+				a.RequestEnd(session.Terminated)
 				if err := a.WaitEnd(context.Background()); err != nil || e.visibility.CommitSeq() != completedFrontier {
 					t.Fatal("repeated drain changed accepted publication", err)
 				}
@@ -397,7 +398,7 @@ func TestTransactionControlsPublicationBoundary(t *testing.T) {
 				}
 				controlsRequire(t, a, "ROLLBACK AND CHAIN")
 				if a.Transactions.Ref.ID() <= next.ID() || a.Transactions.Ref.Epoch() != e.CatalogRead().Epoch() ||
-					a.TransactionState() != TxActive || a.Transactions.Command != 0 {
+					a.TransactionState() != session.TxActive || a.Transactions.Command != 0 {
 					t.Fatal("replacement recovery did not create current-epoch chain")
 				}
 				sessionSQL(t, b, "CREATE TABLE t(v INT)")

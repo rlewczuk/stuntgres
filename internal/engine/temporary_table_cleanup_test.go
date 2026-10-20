@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -78,7 +79,7 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 
 // Setup binds an actual stored CHECK/manifest; assertions exercise the private
 // terminal stage and publication seams rather than repeat driver SQL scenarios.
-func temporaryCleanupConsumer(t *testing.T) (*Engine, *Operation, *catalog.Relation, *catalog.Relation, *catalog.Relation) {
+func temporaryCleanupConsumer(t *testing.T) (*Engine, *session.Operation, *catalog.Relation, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")

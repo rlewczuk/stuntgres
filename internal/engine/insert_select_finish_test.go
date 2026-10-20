@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 )
 
 func TestInsertSelectCancellationBeforeFinish(t *testing.T) {
@@ -46,9 +47,9 @@ func TestInsertSelectCancellationBeforeFinish(t *testing.T) {
 		worker.Transactions.Mu.Lock()
 		state := worker.Transactions.State
 		worker.Transactions.Mu.Unlock()
-		want := TxIdle
+		want := session.TxIdle
 		if explicit {
-			want = TxAborted
+			want = session.TxAborted
 		}
 		if state != want {
 			t.Fatal(state, want)

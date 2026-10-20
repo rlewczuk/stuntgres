@@ -173,7 +173,7 @@ func stageOwnership(stage *CatalogStage, d catalog.Descriptor, target authorizat
 	}
 	return nil
 }
-func (e *Engine) ownershipStage(auth AuthorizationView, op *Operation) *CatalogStage {
+func (e *Engine) ownershipStage(auth AuthorizationView, op *session.Operation) *CatalogStage {
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.Session)
 	return stage

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -75,7 +76,7 @@ func TestExtensionDropRollbackIdentity(t *testing.T) {
 				t.Fatal(err)
 			}
 			bound := node.(plan.InstalledTextExpr)
-			tx, err := e.Begin(op, TxOptions{})
+			tx, err := e.Begin(op, session.TxOptions{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -138,7 +139,7 @@ func TestExtensionDropPublication(t *testing.T) {
 				defer done()
 				// Both schedules capture retirement before a genuine peer publication.
 				if outer {
-					tx, err := e.Begin(op, TxOptions{})
+					tx, err := e.Begin(op, session.TxOptions{})
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -189,7 +190,7 @@ func TestExtensionDropPublication(t *testing.T) {
 	}
 }
 
-func extensionDropUnitProvider(t *testing.T, consumer string) (*Engine, *Operation, *catalog.Extension, ids.ObjectAddress) {
+func extensionDropUnitProvider(t *testing.T, consumer string) (*Engine, *session.Operation, *catalog.Extension, ids.ObjectAddress) {
 	t.Helper()
 	if consumer == "query_int_column" || consumer == "query_int_array_column_unsupported" {
 		e, ext, base := intarrayUnitInstalled(t)
@@ -232,7 +233,7 @@ func extensionDropUnitRetirement(t *testing.T, e *Engine, ext *catalog.Extension
 	return stage
 }
 
-func extensionDropUnitCaptured(t *testing.T, observations []catalogDependencyObservation, target ids.ObjectAddress) {
+func extensionDropUnitCaptured(t *testing.T, observations []session.DependencyObservation, target ids.ObjectAddress) {
 	t.Helper()
 	for _, observation := range observations {
 		if slices.Contains(observation.Targets, target) {
@@ -242,7 +243,7 @@ func extensionDropUnitCaptured(t *testing.T, observations []catalogDependencyObs
 	t.Fatal("authentic provider omitted from retirement observation", target)
 }
 
-func extensionDropUnitArrayBoundary(t *testing.T, e *Engine, op *Operation, ext *catalog.Extension, target ids.ObjectAddress) {
+func extensionDropUnitArrayBoundary(t *testing.T, e *Engine, op *session.Operation, ext *catalog.Extension, target ids.ObjectAddress) {
 	t.Helper()
 	before := e.CatalogRead()
 	alias := before.MustType(target)
@@ -267,7 +268,7 @@ func extensionDropUnitArrayBoundary(t *testing.T, e *Engine, op *Operation, ext 
 	unchanged()
 }
 
-func extensionDropUnitConsumer(t *testing.T, e *Engine, op *Operation, consumer string, target ids.ObjectAddress) catalog.Descriptor {
+func extensionDropUnitConsumer(t *testing.T, e *Engine, op *session.Operation, consumer string, target ids.ObjectAddress) catalog.Descriptor {
 	t.Helper()
 	if consumer == "domain_check" {
 		domainUnitPublish(t, e, domainUnitStage(t, e, op, "CREATE DOMAIN ext_drop_late AS text CONSTRAINT ext_drop_late_check CHECK (unaccent(VALUE)=VALUE)"))
@@ -329,10 +330,10 @@ func extensionDropUnitPreserved(t *testing.T, e *Engine, before catalog.Read, ex
 func extensionDropUnitStorage(t *testing.T, e *Engine) func() {
 	t.Helper()
 	relations := maps.Clone(e.storage.Relations)
-	shapes := make(map[ids.ObjectAddress]catalogStorageChange, len(relations))
+	shapes := make(map[ids.ObjectAddress]session.StorageChange, len(relations))
 	for address, store := range relations {
 		if store != nil {
-			shapes[address] = catalogStorageChange{Original: store, Root: store.Versions, Ends: store.Ends, Generation: store.Generation}
+			shapes[address] = session.StorageChange{Original: store, Root: store.Versions, Ends: store.Ends, Generation: store.Generation}
 		}
 	}
 	indexes := maps.Clone(e.storage.IndexRoots)
@@ -484,7 +485,7 @@ func TestExtensionDropPublicationCandidate(t *testing.T) {
 	})
 }
 
-func extensionDropUnitLateView(t *testing.T, e *Engine, op *Operation) {
+func extensionDropUnitLateView(t *testing.T, e *Engine, op *session.Operation) {
 	t.Helper()
 	call := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unaccent"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Hôtel"}}}}
 	stmt := &parser.CreateView{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "ext_drop_late"}}}, Query: &parser.Select{Targets: []parser.Expr{call}, Labels: []parser.Identifier{{Text: "v"}}}}

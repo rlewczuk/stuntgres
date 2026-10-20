@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -16,7 +17,7 @@ import (
 )
 
 // The retained description is captured before the competing utility starts.
-func ownedLockAsync(e *Engine, s *Session, ctx context.Context, ast parser.Statement, description *StatementDescription) <-chan error {
+func ownedLockAsync(e *Engine, s *session.Session, ctx context.Context, ast parser.Statement, description *StatementDescription) <-chan error {
 	done := make(chan error, 1)
 	go func() {
 		op, err := s.Acquire(ctx)
@@ -60,7 +61,7 @@ func ownedLockQueued(t *testing.T, e *Engine, ref ids.ObjectRef, mode lock.Mode,
 	}
 }
 
-func ownedLockStatement(t *testing.T, e *Engine, s *Session, create, prepared bool) (parser.Statement, *StatementDescription) {
+func ownedLockStatement(t *testing.T, e *Engine, s *session.Session, create, prepared bool) (parser.Statement, *StatementDescription) {
 	t.Helper()
 	q := "ALTER SEQUENCE late OWNED BY t.c"
 	if create {
@@ -306,7 +307,7 @@ func TestSequenceOwnedLockCycleCleanup(t *testing.T) {
 			case <-ctx.Done():
 				t.Fatal("cycle did not produce 40P01", ctx.Err())
 			}
-			if b.TransactionState() != TxAborted {
+			if b.TransactionState() != session.TxAborted {
 				t.Fatal("deadlock victim did not abort")
 			}
 			// Finish must release the victim's sequence lock before explicit ROLLBACK.

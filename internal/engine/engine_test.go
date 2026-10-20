@@ -16,6 +16,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -23,8 +24,8 @@ import (
 
 var testSessionID atomic.Uint64
 
-func testOperation(e *Engine, ctx context.Context) (*Operation, func(), error) {
-	s, err := e.StartSession(ctx, SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
+func testOperation(e *Engine, ctx context.Context) (*session.Operation, func(), error) {
+	s, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -33,7 +34,7 @@ func testOperation(e *Engine, ctx context.Context) (*Operation, func(), error) {
 		if op != nil {
 			op.Done()
 		}
-		s.RequestEnd(CleanClose)
+		s.RequestEnd(session.CleanClose)
 		_ = s.WaitEnd(context.Background())
 	}
 	if err != nil {
@@ -169,7 +170,7 @@ func testUsage(e *Engine, id sqltype.ID) sqltype.Usage {
 	}
 	return d.Usage()
 }
-func testExecuteFrame(e *Engine, op *Operation, stmt parser.Statement, args []driver.NamedValue) (Result, error) {
+func testExecuteFrame(e *Engine, op *session.Operation, stmt parser.Statement, args []driver.NamedValue) (Result, error) {
 	raw := make([]driver.Value, len(args))
 	for i, a := range args {
 		if a.Name != "" || a.Ordinal != i+1 {

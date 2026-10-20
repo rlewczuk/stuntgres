@@ -24,20 +24,20 @@ type preparedTransaction struct {
 	ticket   *lock.Ticket
 	writes   map[ids.ObjectAddress][]storage.RowVersion
 	deletes  map[ids.ObjectAddress]*visibility.PrivateDeletes
-	catalog  *catalogChanges
+	catalog  *session.Journal
 	claimed  bool
 	roots    map[ids.ObjectAddress]visibility.Root
 	frontier ids.CommitSeq
-	options  TxOptions
+	options  session.TxOptions
 }
 
 type preparedPublication struct {
 	entry     *preparedTransaction
 	preparing bool
-	origin    *transactionOwner
+	origin    *session.TransactionOwner
 }
 
-func (e *Engine) preparedPublicationPreflightLocked(op *Operation, p *preparedPublication) error {
+func (e *Engine) preparedPublicationPreflightLocked(op *session.Operation, p *preparedPublication) error {
 	if p == nil {
 		return nil
 	}
@@ -58,7 +58,7 @@ func (e *Engine) preparedPublicationPreflightLocked(op *Operation, p *preparedPu
 }
 
 // Engine.mu and the finishing Session.mu are held at final installation.
-func (e *Engine) preparedActorLocked(op *Operation, entry *preparedTransaction) error {
+func (e *Engine) preparedActorLocked(op *session.Operation, entry *preparedTransaction) error {
 	roles := e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)
 	current := op.Session.Authorization.State.CurrentUser
 	if err := roles.ValidatePrincipal(current); err != nil {
@@ -89,10 +89,10 @@ func (e *Engine) finishPreparedLocked(p *preparedPublication) {
 	e.endSerializableLocked(p.entry.ref, true)
 }
 
-func (s *StatementScope) executePrepared(control *parser.TransactionControl, state TxState, ref ids.TxRef) error {
+func (s *StatementScope) executePrepared(control *parser.TransactionControl, state session.TxState, ref ids.TxRef) error {
 	e, t := s.engine(), s.owner
 	if control.Kind != parser.KindPrepareTransaction {
-		if state != TxIdle {
+		if state != session.TxIdle {
 			word := "COMMIT"
 			if control.Kind == parser.KindRollbackPrepared {
 				word = "ROLLBACK"
@@ -101,16 +101,16 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 		}
 		return e.completePrepared(s.op, control.GID, control.Kind == parser.KindCommitPrepared)
 	}
-	if state == TxIdle {
+	if state == session.TxIdle {
 		s.op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
 		return nil
 	}
-	if state == TxImplicit {
+	if state == session.TxImplicit {
 		s.op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
 	}
 	// Every admitted PREPARE, even failure, ends the whole incarnation.
 	s.controlOutcome = controlExecuted
-	if state == TxAborted {
+	if state == session.TxAborted {
 		_, err := e.endAdmitted(s.op, t, ref, false, false, true, s.statementStart, s)
 		return err
 	}
@@ -136,7 +136,7 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 		auth, authErr := operationAuthorization(s.op)
 		err = authErr
 		if err == nil {
-			entry = &preparedTransaction{gid: control.GID, owner: auth.State.CurrentUser, ref: ref, prepared: time.Now().UTC().Truncate(time.Microsecond), database: s.op.Session.DatabaseName, ticket: t.Ticket, writes: t.Writes, deletes: t.Deletes, catalog: t.Catalog, roots: t.Roots, frontier: t.Frontier, options: TxOptions{Isolation: t.Isolation, ReadOnly: t.ReadOnly, Deferrable: t.Deferrable}}
+			entry = &preparedTransaction{gid: control.GID, owner: auth.State.CurrentUser, ref: ref, prepared: time.Now().UTC().Truncate(time.Microsecond), database: s.op.Session.DatabaseName, ticket: t.Ticket, writes: t.Writes, deletes: t.Deletes, catalog: t.Catalog, roots: t.Roots, frontier: t.Frontier, options: session.TxOptions{Isolation: t.Isolation, ReadOnly: t.ReadOnly, Deferrable: t.Deferrable}}
 			e.mu.Lock()
 			if e.prepared == nil {
 				e.prepared = make(map[string]*preparedTransaction)
@@ -171,7 +171,7 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 	return nil
 }
 
-func (e *Engine) completePrepared(op *Operation, gid string, commit bool) error {
+func (e *Engine) completePrepared(op *session.Operation, gid string, commit bool) error {
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	entry := e.prepared[gid]

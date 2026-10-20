@@ -16,14 +16,14 @@ import (
 
 // Exercise the actual callback decision with an explicit observed instant, not
 // sleeps or a fake scheduler. Long real timers are stopped by bounded cleanup.
-func timeoutMechanicsSession(t *testing.T) *Session {
+func timeoutMechanicsSession(t *testing.T) *session.Session {
 	t.Helper()
-	s, err := New().StartSession(context.Background(), SessionStart{ID: 1})
+	s, err := New().StartSession(context.Background(), session.SessionStart{ID: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		s.RequestEnd(CleanClose)
+		s.RequestEnd(session.CleanClose)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := s.WaitEnd(ctx); err != nil {
@@ -33,7 +33,7 @@ func timeoutMechanicsSession(t *testing.T) *Session {
 	return s
 }
 
-func timeoutMechanicsSettings(s *Session, transaction, idleTransaction, idleSession time.Duration, assignment bool, now time.Time) {
+func timeoutMechanicsSettings(s *session.Session, transaction, idleTransaction, idleSession time.Duration, assignment bool, now time.Time) {
 	s.Settings.Mu.Lock()
 	defer s.Settings.Mu.Unlock()
 	if s.Settings.Typed == nil {
@@ -51,7 +51,7 @@ func timeoutMechanicsSettings(s *Session, transaction, idleTransaction, idleSess
 	s.Mu.Unlock()
 }
 
-func timeoutMechanicsRef(s *Session, id ids.TxID) ids.TxRef {
+func timeoutMechanicsRef(s *session.Session, id ids.TxID) ids.TxRef {
 	return engineOf(s).catalog.Domain.Tx(s.Token(), id, 0, s.Transactions, 0)
 }
 
@@ -67,7 +67,7 @@ func TestSessionTimeoutGenerationMechanics(t *testing.T) {
 	scope := &StatementScope{statementStart: now, transactionStart: now}
 	s.StartProvisionalTimeout(&scope.lease, scope.op, scope.transactionStart)
 	s.Transactions.Mu.Lock()
-	if s.Transactions.Next != 0 || s.Transactions.State != TxIdle {
+	if s.Transactions.Next != 0 || s.Transactions.State != session.TxIdle {
 		t.Error("provisional budget minted transaction state")
 	}
 	s.Transactions.Mu.Unlock()
@@ -96,7 +96,7 @@ func TestSessionTimeoutGenerationMechanics(t *testing.T) {
 		t.Error("stale or early callback expired the next incarnation")
 	}
 	s.ExpireTimeoutLocked(slot, slot.Generation, s.SessionToken, "25P04", slot.Deadline)
-	if s.State != session.Ending || s.Reason != Terminated {
+	if s.State != session.Ending || s.Reason != session.Terminated {
 		t.Error("current expiry did not request canonical physical end")
 	}
 	s.Mu.Unlock()
@@ -111,7 +111,7 @@ func TestSessionTimeoutGenerationMechanics(t *testing.T) {
 	if err := s.Check(context.Background()); !errors.As(err, &diagnostic) || diagnostic.Position != "" {
 		t.Error("operation mutated persistent fatal location", err)
 	}
-	s.RequestEnd(CleanClose)
+	s.RequestEnd(session.CleanClose)
 	op.Done()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -119,7 +119,7 @@ func TestSessionTimeoutGenerationMechanics(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.Mu.Lock()
-	if s.Reason != Terminated || s.State != session.Ended {
+	if s.Reason != session.Terminated || s.State != session.Ended {
 		t.Error("late close replaced fatal first reason", s.Reason, s.State)
 	}
 	s.Mu.Unlock()
@@ -154,7 +154,7 @@ func TestSessionTimeoutAssignmentMechanics(t *testing.T) {
 		t.Error("explicit assignment did not rearm stopped budget")
 	}
 	s.Mu.Unlock()
-	s.FinishScopeTimeout(&StatementLease{TimeoutRef: timeoutMechanicsRef(s, 1)}, nil, false, ids.TxRef{}, true)
+	s.FinishScopeTimeout(&session.StatementLease{TimeoutRef: timeoutMechanicsRef(s, 1)}, nil, false, ids.TxRef{}, true)
 	timeoutMechanicsSettings(s, time.Hour, 0, 0, false, now.Add(3*time.Minute))
 	s.Mu.Lock()
 	if !s.Timeouts.Transaction.Deadline.IsZero() {
@@ -166,7 +166,7 @@ func TestSessionTimeoutAssignmentMechanics(t *testing.T) {
 		t.Error("next incarnation did not receive a fresh restored budget")
 	}
 	s.Mu.Unlock()
-	s.FinishScopeTimeout(&StatementLease{TimeoutRef: timeoutMechanicsRef(s, 1)}, nil, false, ids.TxRef{}, true)
+	s.FinishScopeTimeout(&session.StatementLease{TimeoutRef: timeoutMechanicsRef(s, 1)}, nil, false, ids.TxRef{}, true)
 	s.Mu.Lock()
 	if s.Timeouts.Transaction.Deadline != now.Add(4*time.Minute+time.Hour) {
 		t.Error("late previous scope stopped the new CHAIN budget")
@@ -253,9 +253,9 @@ func TestSessionTimeoutCancellationMechanics(t *testing.T) {
 	if got := op.CommandError(context.Canceled); got != context.Canceled {
 		t.Error("caller cancellation became SQL fatal", got)
 	}
-	s.RequestEnd(CleanClose)
+	s.RequestEnd(session.CleanClose)
 	s.Mu.Lock()
-	if s.Reason != CleanClose {
+	if s.Reason != session.CleanClose {
 		t.Error("clean close lost first reason")
 	}
 	s.Mu.Unlock()
@@ -375,7 +375,7 @@ func TestSessionTimeoutNoBirthFinishMechanics(t *testing.T) {
 			}
 			op.Done()
 			s.Transactions.Mu.Lock()
-			if s.Transactions.Next != 0 || s.Transactions.State != TxIdle {
+			if s.Transactions.Next != 0 || s.Transactions.State != session.TxIdle {
 				t.Error("no-birth finish minted transaction state")
 			}
 			s.Transactions.Mu.Unlock()
@@ -393,17 +393,17 @@ func TestSessionTimeoutNoBirthFinishMechanics(t *testing.T) {
 }
 
 func TestSessionTimeoutCleanupErrorMechanics(t *testing.T) {
-	s, err := New().StartSession(context.Background(), SessionStart{ID: 1})
+	s, err := New().StartSession(context.Background(), session.SessionStart{ID: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
 	// This mechanics unit substitutes a failing callback for the SQL-name owner.
-	if err := s.Detach(s.Resources[PreparedSQL].Handle, CleanClose); err != nil {
+	if err := s.Detach(s.Resources[session.PreparedSQL].Handle, session.CleanClose); err != nil {
 		t.Fatal(err)
 	}
 	cleanupError := errors.New("independent cleanup result")
 	t.Cleanup(func() {
-		s.RequestEnd(CleanClose)
+		s.RequestEnd(session.CleanClose)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := s.WaitEnd(ctx); !errors.Is(err, cleanupError) {
@@ -416,9 +416,9 @@ func TestSessionTimeoutCleanupErrorMechanics(t *testing.T) {
 	}
 	defer op.Done()
 	calls := 0
-	if _, err := op.Attach(PreparedSQL, &sessionOwner{fn: func(token ids.SessionToken, reason EndReason) error {
+	if _, err := op.Attach(session.PreparedSQL, &sessionOwner{fn: func(token ids.SessionToken, reason session.EndReason) error {
 		calls++
-		if token != s.SessionToken || reason != Terminated {
+		if token != s.SessionToken || reason != session.Terminated {
 			t.Error("wrong cleanup authority", token, reason)
 		}
 		return cleanupError
@@ -435,7 +435,7 @@ func TestSessionTimeoutCleanupErrorMechanics(t *testing.T) {
 		t.Error("canonical end failed to retain accepted lease drain")
 	}
 	s.Mu.Unlock()
-	s.RequestEnd(CleanClose)
+	s.RequestEnd(session.CleanClose)
 	op.Done()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -466,7 +466,7 @@ func TestSessionTimeoutResetAllMechanics(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	ref, err := engineOf(s).Begin(op, TxOptions{})
+	ref, err := engineOf(s).Begin(op, session.TxOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

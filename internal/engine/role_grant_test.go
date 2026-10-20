@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -16,7 +17,7 @@ import (
 )
 
 // These fixtures exercise the private catalog planner directly, not public SQL.
-func objectGrantUnitFixture(t *testing.T) (*Engine, *Operation, authorization.PrincipalRef, ids.ObjectAddress) {
+func objectGrantUnitFixture(t *testing.T) (*Engine, *session.Operation, authorization.PrincipalRef, ids.ObjectAddress) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -30,7 +31,7 @@ func objectGrantUnitFixture(t *testing.T) (*Engine, *Operation, authorization.Pr
 	e.catalog.state.BindName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: relation.Name()}, address)
 	return e, op, reader, address
 }
-func applyObjectGrantUnit(e *Engine, op *Operation, s *parser.ObjectGrant) error {
+func applyObjectGrantUnit(e *Engine, op *session.Operation, s *parser.ObjectGrant) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	v, err := e.authorizationLocked(op)

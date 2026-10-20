@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"testing"
 	"time"
@@ -219,8 +220,8 @@ func TestMembershipConcurrentCyclePublication(t *testing.T) {
 	statements := []parser.Statement{statement(t, "GRANT a TO b WITH INHERIT FALSE, SET FALSE"), statement(t, "GRANT b TO a WITH INHERIT FALSE, SET FALSE")}
 	start := make(chan struct{})
 	results := make(chan error, 2)
-	for index, op := range []*Operation{first, second} {
-		go func(op *Operation, stmt parser.Statement) {
+	for index, op := range []*session.Operation{first, second} {
+		go func(op *session.Operation, stmt parser.Statement) {
 			<-start
 			_, err := e.Execute(op, stmt, 0, nil)
 			results <- err

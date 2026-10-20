@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
@@ -35,7 +36,7 @@ type sequenceDeletePublicationSnapshot struct {
 	memoryValues            map[ids.ObjectAddress]sequence.Memory
 }
 
-func captureSequenceDeletePublication(e *Engine, s *Session, table ids.ObjectAddress) sequenceDeletePublicationSnapshot {
+func captureSequenceDeletePublication(e *Engine, s *session.Session, table ids.ObjectAddress) sequenceDeletePublicationSnapshot {
 	p := sequenceDeletePublicationSnapshot{
 		state: e.catalog.state, catalog: *e.catalog.state,
 		descriptors: make(map[ids.ObjectAddress]catalog.Descriptor), names: make(map[ids.NameKey]ids.ObjectAddress),
@@ -77,7 +78,7 @@ func captureSequenceDeletePublication(e *Engine, s *Session, table ids.ObjectAdd
 	return p
 }
 
-func (p sequenceDeletePublicationSnapshot) assertUnchanged(t *testing.T, e *Engine, s *Session) {
+func (p sequenceDeletePublicationSnapshot) assertUnchanged(t *testing.T, e *Engine, s *session.Session) {
 	t.Helper()
 	if e.catalog.state != p.state || !reflect.DeepEqual(*e.catalog.state, p.catalog) || !reflect.DeepEqual(maps.Collect(e.catalog.state.Descriptors()), p.descriptors) || !reflect.DeepEqual(maps.Collect(e.catalog.state.Names()), p.names) {
 		t.Fatal("failed combined publication changed catalog authority, descriptor/name bindings or namespace generation")
@@ -111,10 +112,10 @@ func (p sequenceDeletePublicationSnapshot) assertUnchanged(t *testing.T, e *Engi
 	}
 }
 
-func assertSequenceDeletePrivateBatch(t *testing.T, s *Session, table, sequence ids.ObjectAddress, firstTemp bool) {
+func assertSequenceDeletePrivateBatch(t *testing.T, s *session.Session, table, sequence ids.ObjectAddress, firstTemp bool) {
 	t.Helper()
 	tx := s.Transactions
-	if tx.State != TxActive || len(tx.Writes[table]) != 2 || tx.Deletes[table] == nil || len(tx.Deletes[table].Rows) != 3 || tx.Catalog == nil {
+	if tx.State != session.TxActive || len(tx.Writes[table]) != 2 || tx.Deletes[table] == nil || len(tx.Deletes[table].Rows) != 3 || tx.Catalog == nil {
 		t.Fatal("fixture must contain private appended rows, committed/own deletions and sequence overlay")
 	}
 	g := tx.Catalog.Generators[sequence]
@@ -146,10 +147,10 @@ func assertSequenceDeletePrivateBatch(t *testing.T, s *Session, table, sequence 
 	}
 }
 
-func assertSequenceDeleteEndCleanup(t *testing.T, e *Engine, s *Session, old *lock.Ticket) {
+func assertSequenceDeleteEndCleanup(t *testing.T, e *Engine, s *session.Session, old *lock.Ticket) {
 	t.Helper()
 	tx := s.Transactions
-	if tx.State != TxIdle || tx.Ref != (ids.TxRef{}) || tx.Command != 0 || !tx.Start.IsZero() || tx.Writes != nil || tx.Deletes != nil || tx.Catalog != nil || tx.Ticket != nil {
+	if tx.State != session.TxIdle || tx.Ref != (ids.TxRef{}) || tx.Command != 0 || !tx.Start.IsZero() || tx.Writes != nil || tx.Deletes != nil || tx.Catalog != nil || tx.Ticket != nil {
 		t.Fatal("failed native Commit did not discard the complete private transaction incarnation")
 	}
 	if len(e.locks.Inspect(old).Journals[old]) != 0 {

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -154,13 +155,13 @@ func TestInsertConflictAdmissionClaimsAndPrefix(t *testing.T) {
 	}
 }
 func TestInsertConflictCommittedVisibility(t *testing.T) {
-	for _, isolation := range []Isolation{ReadCommitted, RepeatableRead, Serializable} {
+	for _, isolation := range []session.Isolation{session.ReadCommitted, session.RepeatableRead, session.Serializable} {
 		f := insertConflictUniqueFixture(t)
 		scope, ref := insertConflictUnitScope(t, f)
 		scope.owner.Isolation = isolation
 		scope.owner.Frontier = 0
 		admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 10)}, indexWriteBatch{}, nil)
-		if isolation == ReadCommitted {
+		if isolation == session.ReadCommitted {
 			if err != nil || admitted {
 				t.Fatal("read committed", admitted, err)
 			}

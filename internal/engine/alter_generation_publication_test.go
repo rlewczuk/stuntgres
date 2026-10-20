@@ -8,12 +8,13 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
-func alterGenerationPopulate(t *testing.T, e *Engine, op *Operation) {
+func alterGenerationPopulate(t *testing.T, e *Engine, op *session.Operation) {
 	t.Helper()
 	insert := &parser.Insert{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "g"}}}, Targets: []parser.InsertTarget{{Name: "a"}}, Rows: [][]parser.Expr{{alterGenerationLiteral(1)}, {alterGenerationLiteral(2)}}}
 	if _, err := e.Execute(op, insert, 0, nil); err != nil {

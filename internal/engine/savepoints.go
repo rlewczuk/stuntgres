@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func captureSavepoint(t *transactionOwner, name string) savepointMark {
+func captureSavepoint(t *session.TransactionOwner, name string) session.SavepointMark {
 	writes := maps.Clone(t.Writes)
 	t.SavepointSerial++
 	for a, rows := range t.Writes {
@@ -27,10 +27,10 @@ func captureSavepoint(t *transactionOwner, name string) savepointMark {
 	t.Session.Mu.Lock()
 	identity := t.Session.Authorization.State
 	t.Session.Mu.Unlock()
-	return savepointMark{Name: name, Serial: t.SavepointSerial, Writes: writes, Deletes: t.Deletes, Catalog: t.Catalog, Settings: t.Session.Settings.Savepoint(), Isolation: t.Isolation, ReadOnly: t.ReadOnly, Deferrable: t.Deferrable, Locks: e.locks.Checkpoint(t.Ticket), Cursors: payloadOf(t.Session).cursors.ordinal, Exclusion: exclusionMarkSlotOf(ownerExtensionOrZero(t).exclusionModes, projection), Identity: identity, NotificationActions: t.NotificationActions[:len(t.NotificationActions):len(t.NotificationActions)], NotificationEvents: t.NotificationEvents[:len(t.NotificationEvents):len(t.NotificationEvents)]}
+	return session.SavepointMark{Name: name, Serial: t.SavepointSerial, Writes: writes, Deletes: t.Deletes, Catalog: t.Catalog, Settings: t.Session.Settings.Savepoint(), Isolation: t.Isolation, ReadOnly: t.ReadOnly, Deferrable: t.Deferrable, Locks: e.locks.Checkpoint(t.Ticket), Cursors: payloadOf(t.Session).cursors.ordinal, Exclusion: exclusionMarkSlotOf(ownerExtensionOrZero(t).exclusionModes, projection), Identity: identity, NotificationActions: t.NotificationActions[:len(t.NotificationActions):len(t.NotificationActions)], NotificationEvents: t.NotificationEvents[:len(t.NotificationEvents):len(t.NotificationEvents)]}
 }
 
-func restoreSavepoint(t *transactionOwner, mark savepointMark, settings settingsMark) {
+func restoreSavepoint(t *session.TransactionOwner, mark session.SavepointMark, settings session.SettingsMark) {
 	ownerExtensionOf(t).detachCursors(payloadOf(t.Session).cursors.rollback(mark.Cursors))
 	retireProtocolPortalsAfter(t, mark.Cursors)
 	t.Writes, t.Deletes, t.Catalog = mark.Writes, mark.Deletes, mark.Catalog
@@ -69,7 +69,7 @@ func (s *StatementScope) gateSavepoint(control *parser.SavepointControl) error {
 	if err := e.endPreflight(s.op); err != nil {
 		return err
 	}
-	if t.State == TxAborted && control.Kind != parser.RollbackSavepoint {
+	if t.State == session.TxAborted && control.Kind != parser.RollbackSavepoint {
 		return sqlError("25P02", "current transaction is aborted, commands ignored until end of transaction block")
 	}
 	return nil
@@ -87,7 +87,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 	t, e := s.owner, s.engine()
 	t.Mu.Lock()
 	defer t.Mu.Unlock()
-	if t.State == TxIdle || t.State == TxImplicit {
+	if t.State == session.TxIdle || t.State == session.TxImplicit {
 		word := "SAVEPOINT"
 		if control.Kind == parser.RollbackSavepoint {
 			word = "ROLLBACK TO SAVEPOINT"
@@ -98,9 +98,9 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		return Result{}, sqlError("25P01", word+" can only be used in transaction blocks")
 	}
 	index := -1
-	var mark savepointMark
-	var settings settingsMark
-	var stack []savepointMark
+	var mark session.SavepointMark
+	var settings session.SettingsMark
+	var stack []session.SavepointMark
 	if control.Kind == parser.CreateSavepoint {
 		if t.SavepointSerial == ^uint64(0) {
 			return Result{}, fmt.Errorf("stuntgres: foreign savepoint identity exhausted")
@@ -194,7 +194,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 			e.reconcileSerializableWritesLocked(t)
 			e.enrollSerializableLocked(t.Ref, t.Isolation)
 			t.TruncateSavepoints(index + 1)
-			t.State = TxActive
+			t.State = session.TxActive
 		case parser.ReleaseSavepoint:
 			// PostgreSQL restores the parent's access mode on subcommit, unlike
 			// ordinary SESSION/LOCAL settings, whose effects are retained.

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 )
 
 // Context.Err is the canonical cooperative publication seam. With no peer
@@ -17,7 +18,7 @@ import (
 type batchPublicationContext struct {
 	context.Context
 	e                *Engine
-	s                *Session
+	s                *session.Session
 	entered, release chan struct{}
 	armed            atomic.Bool
 	late             context.CancelFunc
@@ -119,7 +120,7 @@ func TestDriverBatchPublicationBoundary(t *testing.T) {
 					t.Fatal("stale-ref primary replaced", end)
 				}
 			case "terminal_before":
-				s.RequestEnd(Terminated)
+				s.RequestEnd(session.Terminated)
 				err = m.end(nil)
 				wait, stop := context.WithTimeout(context.Background(), 5*time.Second)
 				defer stop()

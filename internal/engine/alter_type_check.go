@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -21,7 +22,7 @@ type alterTypeCheck struct {
 	literals []plan.LiteralExpr
 }
 
-func captureAlterTypeChecks(op *Operation, view catalog.Read, original, survivor *catalog.Relation, actions []parser.AlterTableAction) ([]alterTypeCheck, error) {
+func captureAlterTypeChecks(op *session.Operation, view catalog.Read, original, survivor *catalog.Relation, actions []parser.AlterTableAction) ([]alterTypeCheck, error) {
 	if len(survivor.Constraints.Check) == 0 || !slices.ContainsFunc(actions, func(a parser.AlterTableAction) bool { return a.Action == parser.AlterColumnType }) {
 		return nil, nil
 	}
@@ -64,7 +65,7 @@ func captureAlterTypeChecks(op *Operation, view catalog.Read, original, survivor
 
 // Reparse original syntax against the completed TYPE descriptor, rather than
 // retagging old operators or retaining inferred coercions from the old usage.
-func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, auth AuthorizationView, ref ids.ObjectRef, next *catalog.Relation, queue []alterTypeCheck) (*catalog.Relation, []catalog.CheckConstraint, error) {
+func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *session.Operation, auth AuthorizationView, ref ids.ObjectRef, next *catalog.Relation, queue []alterTypeCheck) (*catalog.Relation, []catalog.CheckConstraint, error) {
 	if len(queue) == 0 {
 		return next, nil, nil
 	}

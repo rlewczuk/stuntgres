@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -65,7 +66,7 @@ func alterActionPhase(action parser.AlterTableActionKind) int {
 	return -1
 }
 
-func (e *Engine) prepareInheritanceNode(scope *StatementScope, op *Operation, auth AuthorizationView, old *catalog.Relation, actions []parser.AlterTableAction) (*inheritancePreparedNode, error) {
+func (e *Engine) prepareInheritanceNode(scope *StatementScope, op *session.Operation, auth AuthorizationView, old *catalog.Relation, actions []parser.AlterTableAction) (*inheritancePreparedNode, error) {
 	state := scope.inheritance.alter
 	prepared := &inheritancePreparedNode{old: old, actions: actions, graph: state.graph, steps: make(map[int]inheritancePreparedAction)}
 	prepared.phaseZeroOnly = state.only && !inheritancePureDefinitionPreparation(actions)
@@ -288,7 +289,7 @@ func (scope *StatementScope) inheritancePreparedNode() *inheritancePreparedNode 
 	return scope.inheritance.alter.prepared[scope.lockedRef.Address]
 }
 
-func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStage, prepared *inheritancePreparedNode, index int, old *catalog.Relation, ref ids.ObjectRef, changes *catalogChanges) (*catalog.Relation, addedColumn, bool, error) {
+func (scope *StatementScope) consumeInheritancePreparedAction(stage *CatalogStage, prepared *inheritancePreparedNode, index int, old *catalog.Relation, ref ids.ObjectRef, changes *session.Journal) (*catalog.Relation, addedColumn, bool, error) {
 	if prepared == nil {
 		return nil, addedColumn{}, false, nil
 	}

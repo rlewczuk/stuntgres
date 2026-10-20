@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -83,7 +84,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 				return err
 			}
 			s.owner.Mu.Lock()
-			implicit := s.owner.State == TxImplicit
+			implicit := s.owner.State == session.TxImplicit
 			s.owner.Mu.Unlock()
 			if implicit && !s.replacementRead {
 				e.replacementMu.RLock()

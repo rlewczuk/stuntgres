@@ -5,12 +5,13 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 )
 
 // settingAccess checks whether op may set d at all: startup-only and
 // read-only settings are refused, and privileged ones need a parameter grant.
-func settingAccess(d settings.Definition, op *Operation) error {
+func settingAccess(d settings.Definition, op *session.Operation) error {
 	switch d.Access {
 	case settings.StartupOnly:
 		return sqlError("55P02", fmt.Sprintf(`parameter "%s" cannot be changed without restarting the server`, d.Name))
@@ -35,7 +36,7 @@ func settingAccess(d settings.Definition, op *Operation) error {
 // SET grants. Read-only settings and deny-only custom settings retain their
 // access contract in settingAccess. The operation supplies one coherent current
 // catalog/role root; no session ACL cache or second setting authority exists.
-func parameterSetAllowed(op *Operation, name string) (bool, error) {
+func parameterSetAllowed(op *session.Operation, name string) (bool, error) {
 	view, err := operationAuthorization(op)
 	if err != nil {
 		return false, err

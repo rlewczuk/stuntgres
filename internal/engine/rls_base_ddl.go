@@ -5,12 +5,13 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 )
 
 // Called by the existing ALTER executor with Engine.mu held. Flag-only lists
 // stage only metadata: no storage clone, row scan, policy copy or definition OID
 // reminting. The ordinary StatementScope owns transaction merge/publication.
-func (e *Engine) stageRowSecurityFlagsLocked(scope *StatementScope, op *Operation, auth AuthorizationView, old, next *catalog.Relation) (Result, error) {
+func (e *Engine) stageRowSecurityFlagsLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, old, next *catalog.Relation) (Result, error) {
 	scope.catalogAuthority = auth.catalogAuthorityLocked(scope.lockedRef, e.catalog.state.Get(old.Address()))
 	if next == old {
 		e.mu.Unlock()

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -45,7 +46,7 @@ func TestLockModesViews(t *testing.T) {
 		{"LOCK s.invoker IN SHARE MODE NOWAIT", "permission denied for table t"},
 		{"LOCK s.nested IN SHARE MODE NOWAIT", "permission denied for table t"},
 	} {
-		tx, err := e.Begin(op, TxOptions{})
+		tx, err := e.Begin(op, session.TxOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -64,7 +65,7 @@ func TestLockModesViews(t *testing.T) {
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
 	grant(table)
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION view_reader")
-	tx, err := e.Begin(op, TxOptions{})
+	tx, err := e.Begin(op, session.TxOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +80,7 @@ func TestLockModesViews(t *testing.T) {
 	column.Address.SubID = 1
 	grant(column, entry(owner.Ref, authorization.UpdatePrivilege))
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION view_reader")
-	tx, err = e.Begin(op, TxOptions{})
+	tx, err = e.Begin(op, session.TxOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

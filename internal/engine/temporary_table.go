@@ -6,13 +6,14 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 )
 
 // Called under Engine.mu. Every return releases it, like the existing DDL path.
-func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth AuthorizationView, s *parser.CreateTable, count int) (Result, error) {
+func (e *Engine) createTableLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, s *parser.CreateTable, count int) (Result, error) {
 	if count != 0 {
 		e.mu.Unlock()
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
@@ -68,7 +69,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 		e.mu.Unlock()
 		return Result{}, sqlError("42P16", "ON COMMIT can only be used on temporary tables")
 	}
-	if !temporary && scope.owner.State == TxActive {
+	if !temporary && scope.owner.State == session.TxActive {
 		e.mu.Unlock()
 		return Result{}, sqlError("0A000", "statement is unsupported in an explicit transaction")
 	}
@@ -185,7 +186,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 
 // Convert an already validated ordinary catalog stage into the transaction's
 // immutable overlay. New stores use committed absence as their honest fence.
-func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage, changes *catalogChanges) error {
+func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage, changes *session.Journal) error {
 	e.mu.Lock()
 	if scope.txRef.Epoch() != e.catalog.state.Epoch() {
 		e.mu.Unlock()
@@ -257,12 +258,12 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 	return err
 }
 
-func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalogChanges) {
+func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *session.Journal) {
 	e.stageDefaultChangesLocked(stage, changes)
 	for a, rowShape := range stage.rowShapes {
 		shape, exists := changes.Storage[a]
 		if !exists {
-			shape = catalogStorageChange{Original: rowShape.original, Root: rowShape.root, Ends: rowShape.observedEnds, Generation: rowShape.generation}
+			shape = session.StorageChange{Original: rowShape.original, Root: rowShape.root, Ends: rowShape.observedEnds, Generation: rowShape.generation}
 		}
 		if shape.Replacement != rowShape.replacement {
 			shape.Truncated = false
@@ -281,7 +282,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 		a := r.original.Address()
 		shape, exists := changes.Storage[a]
 		if !exists {
-			shape = catalogStorageChange{Original: r.predecessor, Root: r.predecessor.Versions, Ends: r.ends, Generation: r.generation}
+			shape = session.StorageChange{Original: r.predecessor, Root: r.predecessor.Versions, Ends: r.ends, Generation: r.generation}
 		}
 		if !exists {
 			shape.MaterializedContinuous = r.concurrent && r.predecessor == e.storage.Relations[a]
@@ -300,7 +301,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 	for a, d := range stage.Descriptors() {
 		e.catalogChangeLocked(changes, a, d)
 		if table, ok := d.(*catalog.Relation); ok && table.RelationKind.Stored() && e.privateStorageLocked(changes, a) == nil {
-			changes.Storage[a] = catalogStorageChange{Replacement: &storage.Relation{}, Relation: table}
+			changes.Storage[a] = session.StorageChange{Replacement: &storage.Relation{}, Relation: table}
 		}
 	}
 	for address, candidate := range stage.indexesOrZero().candidates {

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"sync"
 	"sync/atomic"
@@ -44,7 +45,7 @@ func (p *extensionVersionValidationGate) Validate(v catalog.Read, d catalog.Desc
 	return nil
 }
 
-func extensionVersionUnitConsumer(t *testing.T, e *Engine, op *Operation) ids.ObjectAddress {
+func extensionVersionUnitConsumer(t *testing.T, e *Engine, op *session.Operation) ids.ObjectAddress {
 	t.Helper()
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: "version_consumer"}}}
 	call := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "soundex"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "John"}}}}

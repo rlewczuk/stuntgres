@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -89,7 +90,7 @@ func TestUpdateCoreFinishCancellationAndExhaustion(t *testing.T) {
 			}
 			transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 2)
 			if explicit {
-				if a.TransactionState() != TxAborted {
+				if a.TransactionState() != session.TxAborted {
 					t.Fatal(a.TransactionState())
 				}
 				transactionEnd(t, a, tx, false)

@@ -10,7 +10,7 @@ import (
 // place: domainWritable and enumWritable first replace it with a private
 // copy (the maps and slices inside keep their old sharing rules).
 
-func domainWritable(c *catalogChanges) *typedef.DomainJournal {
+func domainWritable(c *session.Journal) *typedef.DomainJournal {
 	next := new(typedef.DomainJournal)
 	if c.Domain != nil {
 		*next = *domainJournalOf(c.Domain)
@@ -19,7 +19,7 @@ func domainWritable(c *catalogChanges) *typedef.DomainJournal {
 	return next
 }
 
-func enumWritable(c *catalogChanges) *typedef.EnumJournal {
+func enumWritable(c *session.Journal) *typedef.EnumJournal {
 	next := new(typedef.EnumJournal)
 	if c.Enum != nil {
 		*next = *enumJournalOf(c.Enum)

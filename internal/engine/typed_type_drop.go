@@ -7,12 +7,13 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func (e *Engine) stageDropCompositeLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropComposite) error {
+func (e *Engine) stageDropCompositeLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropComposite) error {
 	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
 	for _, name := range s.Names {
 		typ, err := e.namedType(auth, name)

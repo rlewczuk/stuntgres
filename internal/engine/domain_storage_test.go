@@ -6,13 +6,14 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func domainUnitTable(t *testing.T, e *Engine, op *Operation, q string) *catalog.Relation {
+func domainUnitTable(t *testing.T, e *Engine, op *session.Operation, q string) *catalog.Relation {
 	t.Helper()
 	raw := statement(t, q).(*parser.CreateTable)
 	e.mu.Lock()

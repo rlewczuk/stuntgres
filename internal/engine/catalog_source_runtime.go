@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 )
 
@@ -21,13 +22,13 @@ type engineCatalogRuntime struct {
 	engine       *Engine
 	auth         AuthorizationView
 	cursors      *cursorRegistry
-	settings     *sessionSettings
+	settings     *session.SettingsStore
 	input        sqltype.InputEnvironment
 	database     string
 	temporary    ids.SessionToken
 	presentation viewPresentation
 	sequenceBase *catalog.State
-	sequenceOwn  *catalogChanges
+	sequenceOwn  *session.Journal
 }
 
 var _ pgcatalog.Runtime = engineCatalogRuntime{}

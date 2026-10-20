@@ -9,7 +9,7 @@ import (
 	"stuntgres/internal/engine/session"
 )
 
-func localOwnerValue(t *testing.T, s *Session, name, want string) {
+func localOwnerValue(t *testing.T, s *session.Session, name, want string) {
 	t.Helper()
 	s.Settings.Mu.Lock()
 	defer s.Settings.Mu.Unlock()
@@ -48,7 +48,7 @@ func TestSettingsLocalLifecycle(t *testing.T) {
 				scope.Finish(err)
 				op.Done()
 				localOwnerValue(t, s, "application_name", "b")
-				if s.TransactionState() != TxAborted {
+				if s.TransactionState() != session.TxAborted {
 					t.Fatal("not aborted")
 				}
 				transactionEnd(t, s, ref, false)

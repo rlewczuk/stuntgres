@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -16,7 +17,7 @@ import (
 // Nothing is installed in the transaction owner or live catalog between nodes.
 type inheritanceAlterState struct {
 	stage      *CatalogStage
-	changes    *catalogChanges
+	changes    *session.Journal
 	root       *catalog.Relation
 	targets    []*catalog.Relation
 	selected   map[ids.ObjectAddress]bool
@@ -190,7 +191,7 @@ func inheritanceOnlyActions(root *catalog.Relation, children bool, actions []par
 	return next, nil
 }
 
-func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTable, count int, tablespace ids.ObjectRef, types []alterTypePreparation) (Result, error) {
+func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, count int, tablespace ids.ObjectRef, types []alterTypePreparation) (Result, error) {
 	root := scope.lockedDescriptor.(*catalog.Relation)
 	actions := raw.Actions
 	if err := inheritanceAlterActionsGuard(auth.Catalog, root, actions); err != nil {
@@ -356,7 +357,7 @@ func (e *Engine) alterInheritanceLocked(scope *StatementScope, op *Operation, au
 		e.catalogChangeLocked(state.changes, address, nil)
 	}
 	for address, rebound := range stage.rowShapes {
-		state.changes.Storage[address] = catalogStorageChange{Original: rebound.original, Root: rebound.original.Versions, Ends: rebound.observedEnds, Generation: rebound.generation, Replacement: rebound.replacement, Relation: stage.Get(address).(*catalog.Relation)}
+		state.changes.Storage[address] = session.StorageChange{Original: rebound.original, Root: rebound.original.Versions, Ends: rebound.observedEnds, Generation: rebound.generation, Replacement: rebound.replacement, Relation: stage.Get(address).(*catalog.Relation)}
 	}
 	scope.catalog = state.changes
 	e.mu.Unlock()

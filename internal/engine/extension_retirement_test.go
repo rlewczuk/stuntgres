@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 	"sync"
 	"sync/atomic"
@@ -84,7 +85,7 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 		namespace := e.catalog.state.Get(ext.TargetNamespace).Name()
 		stmt := statement(t, "CREATE VIEW public.ext_stale_late AS SELECT "+namespace+".unaccent('Hôtel'::text) AS v")
 		peerCtx, cancelPeer := context.WithTimeout(context.Background(), 5*time.Second)
-		peer, err := e.StartSession(peerCtx, SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: e.roles.domain.Principal(10)})
+		peer, err := e.StartSession(peerCtx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: e.roles.domain.Principal(10)})
 		if err != nil {
 			t.Error("bounded independent peer start", err)
 		} else {
@@ -103,7 +104,7 @@ func extensionTemporaryStaleEnd(t *testing.T, mixed bool) {
 				}
 				peerOp.Done()
 			}
-			peer.RequestEnd(CleanClose)
+			peer.RequestEnd(session.CleanClose)
 			peerEndCtx, cancelPeerEnd := context.WithTimeout(context.Background(), 5*time.Second)
 			if err := peer.WaitEnd(peerEndCtx); err != nil {
 				t.Error("bounded independent peer end", err)
@@ -238,7 +239,7 @@ func extensionTemporarySaturatedEnd(t *testing.T) {
 	}
 }
 
-func extensionRetirementRowsUnit(t *testing.T, e *Engine, op *Operation) {
+func extensionRetirementRowsUnit(t *testing.T, e *Engine, op *session.Operation) {
 	t.Helper()
 	result := roleExecute(t, e, op, "SELECT id,txt FROM public.ext_survivor ORDER BY id")
 	defer result.Rows.Close()
@@ -271,17 +272,17 @@ func extensionRetirementRowsUnit(t *testing.T, e *Engine, op *Operation) {
 func extensionTemporaryStructuralEnd(t *testing.T, mixed bool) {
 	t.Helper()
 	e := New()
-	ownerSession, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: e.roles.domain.Principal(10)})
+	ownerSession, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: e.roles.domain.Principal(10)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var owner *Operation
+	var owner *session.Operation
 	expectedFailure := false
 	t.Cleanup(func() {
 		if owner != nil {
 			owner.Done()
 		}
-		ownerSession.RequestEnd(CleanClose)
+		ownerSession.RequestEnd(session.CleanClose)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		err := ownerSession.WaitEnd(ctx)
@@ -317,7 +318,7 @@ func extensionTemporaryStructuralEnd(t *testing.T, mixed bool) {
 	e.mu.Unlock()
 	expectedFailure = true
 	owner.Done()
-	ownerSession.RequestEnd(CleanClose)
+	ownerSession.RequestEnd(session.CleanClose)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	err = ownerSession.WaitEnd(ctx)

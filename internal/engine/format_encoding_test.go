@@ -19,7 +19,7 @@ func TestFormatEncodingCapturedDefaults(t *testing.T) {
 	ctx := context.Background()
 	values := map[string]string{"client_encoding": "utf-8", "lc_messages": "POSIX", "lc_monetary": "", "lc_numeric": "POSIX", "lc_time": "C", "icu_validation_level": "DEBUG", "extra_float_digits": "-1"}
 	provider := &settingsDefaultProviderForTest{values: values, calls: map[string]int{}}
-	store := sessionSettings{Defaults: make(map[string]string), Values: make(map[string]string)}
+	store := session.SettingsStore{Defaults: make(map[string]string), Values: make(map[string]string)}
 	if err := store.Initialize(ctx, e.settings.Definitions(), e.settings.Order(), provider); err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestFormatEncodingCapturedDefaults(t *testing.T) {
 		t.Fatal("live provider leaked into captured defaults")
 	}
 	for _, bad := range []struct{ name, value string }{{"lc_numeric", "C.UTF-8"}, {"lc_messages", ""}, {"client_encoding", "LATIN1"}, {"icu_validation_level", "bogus"}, {"extra_float_digits", "4"}} {
-		owner := sessionSettings{Defaults: make(map[string]string), Values: make(map[string]string)}
+		owner := session.SettingsStore{Defaults: make(map[string]string), Values: make(map[string]string)}
 		p := &settingsDefaultProviderForTest{values: map[string]string{bad.name: bad.value}, calls: map[string]int{}}
 		if err := owner.Initialize(ctx, e.settings.Definitions(), e.settings.Order(), p); err == nil {
 			t.Fatal("invalid physical default accepted", bad)
@@ -177,7 +177,7 @@ func TestFormatEncodingValidationNotices(t *testing.T) {
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
-	for _, threshold := range []noticeLevel{session.LevelWarning, session.LevelError} {
+	for _, threshold := range []session.NoticeLevel{session.LevelWarning, session.LevelError} {
 		op.NoticeThreshold = threshold
 		_, err := e.executeSetting(op, &parser.Set{Name: parser.Identifier{Text: "lc_time"}, Local: true, Values: []string{"é🙂"}}, 0, true)
 		var diagnostic *sqlstate.Error

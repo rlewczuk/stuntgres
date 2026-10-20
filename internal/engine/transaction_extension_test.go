@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/session"
 	"testing"
 )
 
@@ -15,14 +16,14 @@ func TestOwnerExtensionAllocatedWithSession(t *testing.T) {
 	if got := ownerExtensionOf(s.Transactions); got != x {
 		t.Fatalf("ownerExtensionOf = %p, want the session's extension %p", got, x)
 	}
-	s.RequestEnd(CleanClose)
+	s.RequestEnd(session.CleanClose)
 	if err := s.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestOwnerExtensionOfLiteralOwner(t *testing.T) {
-	owner := &transactionOwner{}
+	owner := &session.TransactionOwner{}
 	allocs := testing.AllocsPerRun(10, func() {
 		if zero := ownerExtensionOrZero(owner); len(zero.foreign.participants) != 0 || zero.cursorCleanup != nil {
 			t.Fatal("missing extension does not read as zero")

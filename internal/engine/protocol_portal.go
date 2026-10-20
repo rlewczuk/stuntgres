@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -237,7 +238,7 @@ func (s *StatementScope) DescribeProtocolPortal(name string) (ProtocolPortalDesc
 	if p == nil || p.retired {
 		return ProtocolPortalDescription{}, missingProtocolPortal(name)
 	}
-	if protocolHasRows(p.entry.body, p.columns) && s.op.Session.TransactionState() == TxAborted {
+	if protocolHasRows(p.entry.body, p.columns) && s.op.Session.TransactionState() == session.TxAborted {
 		return ProtocolPortalDescription{}, protocolAbortedError()
 	}
 	return ProtocolPortalDescription{Columns: p.columns, Formats: p.formats, Context: p.context, Empty: p.entry.body == nil, HasRows: protocolHasRows(p.entry.body, p.columns)}, nil
@@ -265,7 +266,7 @@ func protocolAbortedError() error {
 
 // Savepoint publication only removes visibility; callbacks and producer
 // disposal belong to the existing unlocked terminal cleanup path.
-func retireProtocolPortalsAfter(t *transactionOwner, frontier uint64) {
+func retireProtocolPortalsAfter(t *session.TransactionOwner, frontier uint64) {
 	if payloadOf(t.Session).preparedSQL == nil {
 		return
 	}

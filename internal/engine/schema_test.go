@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -27,7 +28,7 @@ func schemaRef(t *testing.T, e *Engine, name string) ids.ObjectRef {
 	}
 	return e.catalog.Domain.Ref(v.Epoch(), a)
 }
-func schemaFail(t *testing.T, e *Engine, op *Operation, q, code string) {
+func schemaFail(t *testing.T, e *Engine, op *session.Operation, q, code string) {
 	t.Helper()
 	before := e.CatalogRead()
 	storage := e.storage.Relations
@@ -172,7 +173,7 @@ func TestSchemaSearchPathSessionDefaultsAndSpecials(t *testing.T) {
 	// Provider values are captured once into each session's typed defaults.
 	// Portable SQL path behavior lives in the namespace reference scenarios.
 	for _, tc := range []struct {
-		session *Session
+		session *session.Session
 		want    []string
 	}{
 		{a, []string{"s1", "s2"}}, {b, []string{"s2", "s1"}},

@@ -20,7 +20,7 @@ import (
 // Reuse the ownership roles and real sequence constructor, not a mock stage.
 // Only the selected database descriptor supplies the source-owner privilege;
 // the separate SET-only edge supplies successor eligibility, not source INHERIT.
-func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Session, ids.ObjectRef, authorization.PrincipalRef, catalog.Descriptor, *catalogChanges) {
+func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *session.Session, ids.ObjectRef, authorization.PrincipalRef, catalog.Descriptor, *session.Journal) {
 	t.Helper()
 	e, bootstrap, actor, target, reader := ownershipUnitRoles()
 	roles := cloneRoleFixture(e.roles.published)
@@ -68,7 +68,7 @@ func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Sessio
 	ownershipUnitPublish(t, e, setup)
 	e.DiscardCatalogStage(setup)
 	committed := e.catalog.state.Get(catalog.CurrentDatabaseAddress)
-	var changes *catalogChanges
+	var changes *session.Journal
 	if private {
 		// Honest installed predecessor, distinct selected owner-private authority;
 		// this is the package overlay seam, not new database SQL admission.
@@ -78,12 +78,12 @@ func ownershipSequenceFenceFixture(t *testing.T, private bool) (*Engine, *Sessio
 		changes.Descriptors[catalog.CurrentDatabaseAddress] = &database
 		changes.Originals[catalog.CurrentDatabaseAddress] = committed
 	}
-	sess, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: actor})
+	sess, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: actor})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		sess.RequestEnd(CleanClose)
+		sess.RequestEnd(session.CleanClose)
 		if err := sess.WaitEnd(context.Background()); err != nil {
 			t.Error(err)
 		}

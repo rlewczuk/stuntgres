@@ -17,7 +17,7 @@ import (
 
 // Engine.mu is held on entry and consumed on every return. The parent SUE grant
 // is already admitted. All bound/provider work and manager waits run unlocked.
-func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTableAttachPartition, count int) (Result, error) {
+func (e *Engine) attachPartitionLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTableAttachPartition, count int) (Result, error) {
 	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
@@ -248,7 +248,7 @@ func (e *Engine) partitionAttachRelation(scope *StatementScope, ref ids.ObjectRe
 
 // Private import executes the same utility against captured definitions. Only
 // its authenticated bootstrap may check the independently owned attachments.
-func (e *Engine) partitionAttachAuthorization(op *Operation, auth AuthorizationView) (AuthorizationView, error) {
+func (e *Engine) partitionAttachAuthorization(op *session.Operation, auth AuthorizationView) (AuthorizationView, error) {
 	if !operationReplayOrZero(op).partitionAttach {
 		return auth, nil
 	}

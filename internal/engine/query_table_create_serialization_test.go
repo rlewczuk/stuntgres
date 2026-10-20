@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -56,7 +57,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				t.Fatal(err)
 			}
 			node := e.visibility.Serializable.Nodes[scope.txRef]
-			if node == nil || !node.Captured || scope.owner.State != TxImplicit {
+			if node == nil || !node.Captured || scope.owner.State != session.TxImplicit {
 				t.Fatal("missing actual implicit serializable consumer")
 			}
 			e.mu.Lock()

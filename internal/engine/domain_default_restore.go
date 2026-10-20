@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -92,7 +93,7 @@ func captureDomainReplayNode(ctx context.Context, view catalog.Read, u sqltype.U
 	return typedef.DomainReplayNode{Kind: "scalar", Scalar: &literal}, nil
 }
 
-func restoreDomainReplayNode(c *exec.Context, e *Engine, op *Operation, auth AuthorizationView, u sqltype.Usage, n *typedef.DomainReplayNode) (sqltype.Value, int, error) {
+func restoreDomainReplayNode(c *exec.Context, e *Engine, op *session.Operation, auth AuthorizationView, u sqltype.Usage, n *typedef.DomainReplayNode) (sqltype.Value, int, error) {
 	bad := func() (sqltype.Value, int, error) {
 		return sqltype.Value{}, 0, fmt.Errorf("stuntgres: invalid native domain replay value")
 	}
@@ -324,7 +325,7 @@ func (e *Engine) captureDomainReplay(scope *StatementScope, s *parser.Insert, re
 	return capture, nil
 }
 
-func (e *Engine) executeDomainReplayInsert(op *Operation, s *parser.Insert, record typedef.DomainReplayRecord) (result Result, err error) {
+func (e *Engine) executeDomainReplayInsert(op *session.Operation, s *parser.Insert, record typedef.DomainReplayRecord) (result Result, err error) {
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		return Result{}, err
@@ -370,7 +371,7 @@ func (e *Engine) executeDomainReplayInsert(op *Operation, s *parser.Insert, reco
 	return scope.Execute(s, 0, nil)
 }
 
-func capturedDomainReplayCell(b *analyze.Binding, op *Operation, s *parser.Insert, row, column int) (expr.Expr, bool, error) {
+func capturedDomainReplayCell(b *analyze.Binding, op *session.Operation, s *parser.Insert, row, column int) (expr.Expr, bool, error) {
 	if op == nil || operationReplayOrZero(op).domainReplay == nil || operationReplayOrZero(op).domainReplay.statement != s {
 		return nil, false, nil
 	}

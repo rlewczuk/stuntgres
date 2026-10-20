@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"testing"
 	"time"
@@ -11,12 +12,12 @@ import (
 
 type batchUnitMessage struct {
 	scope  *StatementScope
-	op     *Operation
+	op     *session.Operation
 	ended  bool
 	result error
 }
 
-func batchUnitStart(t *testing.T, s *Session, ctx context.Context) *batchUnitMessage {
+func batchUnitStart(t *testing.T, s *session.Session, ctx context.Context) *batchUnitMessage {
 	t.Helper()
 	op, _, err := s.AcquireCommand(ctx)
 	if err != nil {
@@ -67,7 +68,7 @@ func TestDriverBatchOwnerPromotionAndAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref, ticket, start := a.Transactions.Ref, a.Transactions.Ticket, a.Transactions.Start
-	if a.TransactionState() != TxImplicit || ref == (ids.TxRef{}) || ticket == nil || a.Transactions.Command != 1 {
+	if a.TransactionState() != session.TxImplicit || ref == (ids.TxRef{}) || ticket == nil || a.Transactions.Command != 1 {
 		t.Fatal("retained implicit owner")
 	}
 	if a.Transactions.Admission.TryLock() {
@@ -91,7 +92,7 @@ func TestDriverBatchOwnerPromotionAndAdmission(t *testing.T) {
 	if _, err := m.step(statement(t, "BEGIN")); err != nil {
 		t.Fatal(err)
 	}
-	if a.Transactions.Ref != ref || a.Transactions.Ticket != ticket || a.Transactions.Start != start || a.TransactionState() != TxActive {
+	if a.Transactions.Ref != ref || a.Transactions.Ticket != ticket || a.Transactions.Start != start || a.TransactionState() != session.TxActive {
 		t.Fatal("promotion replaced authority")
 	}
 	if err := first.FinishMessage(nil); err == nil {
@@ -110,7 +111,7 @@ func TestDriverBatchOwnerPromotionAndAdmission(t *testing.T) {
 	if _, err := final.NextStatement(); err == nil {
 		t.Fatal("ended message admitted work")
 	}
-	if a.Transactions.RetainedMessage || a.TransactionState() != TxActive {
+	if a.Transactions.RetainedMessage || a.TransactionState() != session.TxActive {
 		t.Fatal("message end incorrectly ended explicit block")
 	}
 	transactionRows(t, b, "SELECT v FROM t")
@@ -177,9 +178,9 @@ func TestDriverBatchQueuedPrefixCancellation(t *testing.T) {
 				t.Fatal("message failed to cancel while lock remained held")
 			}
 			<-joined
-			want := TxIdle
+			want := session.TxIdle
 			if explicit {
-				want = TxAborted
+				want = session.TxAborted
 			}
 			if a.TransactionState() != want || a.Transactions.Writes != nil || a.Transactions.Catalog != nil || a.Transactions.RetainedMessage {
 				t.Fatal("cancellation retained private effects")
@@ -220,9 +221,9 @@ func TestDriverBatchCanceledBetweenStatements(t *testing.T) {
 			if err = m.end(err); !errors.Is(err, context.Canceled) {
 				t.Fatal(err)
 			}
-			want := TxIdle
+			want := session.TxIdle
 			if explicit {
-				want = TxAborted
+				want = session.TxAborted
 			}
 			if s.TransactionState() != want || s.Transactions.Writes != nil {
 				t.Fatal("between-statement error disposition")

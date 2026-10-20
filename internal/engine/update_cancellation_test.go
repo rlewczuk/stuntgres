@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -15,7 +16,7 @@ import (
 
 // Reuse the real binder, admission and view; only the existing evaluator seam
 // is replaced when a test must observe construction between two row payloads.
-func updateBoundSource(t *testing.T, e *Engine, s *Session, ctx context.Context, q string) (*Operation, *StatementScope, analyze.Binding, *exec.Source) {
+func updateBoundSource(t *testing.T, e *Engine, s *session.Session, ctx context.Context, q string) (*session.Operation, *StatementScope, analyze.Binding, *exec.Source) {
 	t.Helper()
 	op, err := s.Acquire(ctx)
 	if err != nil {
@@ -112,7 +113,7 @@ func TestUpdateCoreMidExecutionCancellation(t *testing.T) {
 					t.Fatal("retained root changed")
 				}
 				if explicit {
-					if a.TransactionState() != TxAborted || a.Transactions.Writes != nil {
+					if a.TransactionState() != session.TxAborted || a.Transactions.Writes != nil {
 						t.Fatal("prior private effects not discarded")
 					}
 					op := transactionOperation(t, a)

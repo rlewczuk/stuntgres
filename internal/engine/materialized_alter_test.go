@@ -18,11 +18,11 @@ import (
 	"stuntgres/internal/parser"
 )
 
-func materializedAlterUnit(t *testing.T, e *Engine, op *Operation, d *catalog.Relation, action, target string) error {
+func materializedAlterUnit(t *testing.T, e *Engine, op *session.Operation, d *catalog.Relation, action, target string) error {
 	t.Helper()
 	return extensionUnitExecute(t, e, op, &parser.AlterView{Materialized: true, Name: parser.ObjectName{Parts: []parser.Identifier{{Text: d.Name()}}}, Action: action, Target: parser.Identifier{Text: target}})
 }
-func materializedAlterIndex(t *testing.T, e *Engine, op *Operation, d *catalog.Relation) *catalog.Relation {
+func materializedAlterIndex(t *testing.T, e *Engine, op *session.Operation, d *catalog.Relation) *catalog.Relation {
 	t.Helper()
 	// Setup uses the real index binder and publisher; assertions below inspect roots.
 	roleExecute(t, e, op, "CREATE UNIQUE INDEX unit_mv_i ON "+d.Name()+"(i)")

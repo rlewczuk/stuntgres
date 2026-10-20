@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/session"
 )
 
 // restoreReplay is an operation's native Restore replay and materialized
@@ -26,7 +27,7 @@ type restoreReplay struct {
 func (*restoreReplay) ReplaySlot() {}
 
 // operationReplay returns op's replay state, allocating it on first use.
-func operationReplay(op *Operation) *restoreReplay {
+func operationReplay(op *session.Operation) *restoreReplay {
 	r, _ := op.ReplaySlot.(*restoreReplay)
 	if r == nil {
 		r = new(restoreReplay)
@@ -36,7 +37,7 @@ func operationReplay(op *Operation) *restoreReplay {
 }
 
 // operationReplayOrZero reads op's replay state; a nil slot reads as zero.
-func operationReplayOrZero(op *Operation) restoreReplay {
+func operationReplayOrZero(op *session.Operation) restoreReplay {
 	if r, _ := op.ReplaySlot.(*restoreReplay); r != nil {
 		return *r
 	}

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -23,7 +24,7 @@ func TestPartitionDetachTransactionOverlay(t *testing.T) {
 			parentRef := ref
 			parentRef.Address = f.parent.Address()
 			partitionAttachUnitWrite(t, f.e, owner, ref, 1)
-			tx := partitionAttachUnitBegin(t, f.e, owner, ReadCommitted)
+			tx := partitionAttachUnitBegin(t, f.e, owner, session.ReadCommitted)
 			partitionAttachUnitWrite(t, f.e, owner, ref, 2)
 			mark, markOp := partitionAttachUnitScope(t, f.e, owner)
 			partitionAttachUnitGrant(t, mark, parentRef, lock.AccessShare)
@@ -143,7 +144,7 @@ func TestPartitionDetachLockFences(t *testing.T) {
 				// A real explicit holder retains relation locks without retaining
 				// implicit row-work replacement admission.
 				holderSession := sessionStart(t, f.e, nil)
-				holderRef := partitionAttachUnitBegin(t, f.e, holderSession, ReadCommitted)
+				holderRef := partitionAttachUnitBegin(t, f.e, holderSession, session.ReadCommitted)
 				holder, holderOp := partitionAttachUnitScope(t, f.e, holderSession)
 				partitionAttachUnitGrant(t, holder, ref, lock.AccessShare)
 				raw := &parser.AlterTableDetachPartition{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: f.parent.Name()}}}, Partition: parser.ObjectName{Parts: []parser.Identifier{{Text: f.child.Name()}}}}
@@ -226,7 +227,7 @@ func TestPartitionDetachLockFences(t *testing.T) {
 				}
 				_ = holder.Finish(nil)
 				holderOp.Done()
-				if holderSession.TransactionState() != TxIdle {
+				if holderSession.TransactionState() != session.TxIdle {
 					transactionEnd(t, holderSession, holderRef, false)
 				}
 				lockEmpty(t, f.e)

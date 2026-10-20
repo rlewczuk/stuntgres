@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -16,7 +17,7 @@ import (
 )
 
 // Domain declarations use the same private catalog publication as schema DDL.
-func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateDomain, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
+func (e *Engine) stageCreateDomainLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateDomain, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
 	ns, err := e.creationNamespace(auth, s.Name)
 	if err != nil {
 		return err
@@ -138,7 +139,7 @@ func (e *Engine) stageCreateDomainLocked(op *Operation, auth AuthorizationView, 
 	return stage.Create(&catalog.Type{SQLType: array, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: auth.State.CurrentUser, ACL: authorization.DefaultBaseline(auth.State.CurrentUser, authorization.DefaultTypes, false), ACLSyntheticDefault: true})
 }
 
-func (e *Engine) stageDropDomainLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropDomain) error {
+func (e *Engine) stageDropDomainLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropDomain) error {
 	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
 	for _, name := range s.Names {
 		path, err := e.lookupNamespaces(auth, name, analyze.TypeLookup)

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -135,7 +136,7 @@ func TestTimestampTransactionStartAndEndpointCapture(t *testing.T) {
 	}
 	defer done()
 	before := time.Now().UTC()
-	tx, err := e.Begin(op, TxOptions{})
+	tx, err := e.Begin(op, session.TxOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -334,7 +335,7 @@ func TestTimestampSQLTransactionControlClock(t *testing.T) {
 				t.Fatal(err)
 			}
 			newStart := owner.Start
-			if owner.State != TxActive || owner.Ref == oldRef || newStart.Before(before.Truncate(time.Microsecond)) || newStart.After(time.Now().UTC()) || newStart.Location() != time.UTC || newStart.Nanosecond()%1000 != 0 {
+			if owner.State != session.TxActive || owner.Ref == oldRef || newStart.Before(before.Truncate(time.Microsecond)) || newStart.After(time.Now().UTC()) || newStart.Location() != time.UTC || newStart.Nanosecond()%1000 != 0 {
 				t.Fatal("CHAIN must capture a fresh quantized UTC transaction start within bounds", owner.State, owner.Ref, newStart)
 			}
 			checkInput(newStart)

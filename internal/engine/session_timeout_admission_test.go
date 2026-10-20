@@ -13,7 +13,7 @@ import (
 // Publish a due budget without delivering its runtime callback. Admission must
 // observe expiry before it can stop an idle slot or create a new statement.
 // No public SQL behavior or scheduler ordering is simulated here.
-func timeoutMechanicsDueAdmission(t *testing.T, s *Session, code string) {
+func timeoutMechanicsDueAdmission(t *testing.T, s *session.Session, code string) {
 	t.Helper()
 	now := time.Now()
 	transaction, idleTransaction, idleSession := time.Duration(0), time.Duration(0), time.Duration(0)
@@ -56,7 +56,7 @@ func TestSessionTimeoutAdmissionMechanics(t *testing.T) {
 				if entry == "check" {
 					err = s.Check(context.Background())
 				} else {
-					var op *Operation
+					var op *session.Operation
 					if entry == "command" {
 						op, _, err = s.AcquireCommand(context.Background())
 					} else {
@@ -72,7 +72,7 @@ func TestSessionTimeoutAdmissionMechanics(t *testing.T) {
 					t.Fatalf("overdue admission = %#v, %v; want exact %s FATAL", diagnostic, err, code)
 				}
 				s.Mu.Lock()
-				if s.State == session.Live || s.Reason != Terminated || s.Leases != 0 || s.Timeouts.SQLLeases != 0 || len(s.Operations) != 0 {
+				if s.State == session.Live || s.Reason != session.Terminated || s.Leases != 0 || s.Timeouts.SQLLeases != 0 || len(s.Operations) != 0 {
 					t.Error("fatal admission retained live owner or published a lease", s.State, s.Reason, s.Leases, s.Timeouts.SQLLeases, len(s.Operations))
 				}
 				s.Mu.Unlock()
@@ -121,7 +121,7 @@ func TestSessionTimeoutCanceledAdmissionMechanics(t *testing.T) {
 			if entry == "check" {
 				err = s.Check(ctx)
 			} else {
-				var op *Operation
+				var op *session.Operation
 				op, err = s.AcquireActivity(ctx)
 				if op != nil {
 					op.Done()

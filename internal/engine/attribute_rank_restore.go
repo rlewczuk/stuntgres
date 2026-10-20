@@ -6,6 +6,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -13,7 +14,7 @@ const restoreAttributeRankBoundary = "restore accepts only canonical pg_attribut
 
 // Restore alone calls this interpreter, against its isolated catalog. It is not
 // an UPDATE execution path and never grants writable access to catalog sources.
-func (e *Engine) restoreAttributeRank(op *Operation, raw *parser.Update) error {
+func (e *Engine) restoreAttributeRank(op *session.Operation, raw *parser.Update) error {
 	name, column, rank, err := restoreAttributeRankSyntax(raw)
 	if err != nil {
 		return err

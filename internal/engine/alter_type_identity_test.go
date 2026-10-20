@@ -354,7 +354,7 @@ func TestAlterTypeIdentityRefreshedDependencyFences(t *testing.T) {
 				e.catalog.state.SetDescriptor(tableRef.Address, &changed)
 				changes.Originals[tableRef.Address] = &changed
 			}
-			changes.Dependencies = append(changes.Dependencies, catalogDependencyObservation{observationBase, []ids.ObjectAddress{target}})
+			changes.Dependencies = append(changes.Dependencies, session.DependencyObservation{observationBase, []ids.ObjectAddress{target}})
 			err := e.catalogPreflightLocked(changes)
 			e.mu.Unlock()
 			if name == "current" {

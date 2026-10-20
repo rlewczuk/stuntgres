@@ -11,11 +11,12 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func cursorUnitExecute(t *testing.T, s *Session, ctx context.Context, q string) (Result, error) {
+func cursorUnitExecute(t *testing.T, s *session.Session, ctx context.Context, q string) (Result, error) {
 	t.Helper()
 	op, err := s.Acquire(ctx)
 	if err != nil {
@@ -24,7 +25,7 @@ func cursorUnitExecute(t *testing.T, s *Session, ctx context.Context, q string) 
 	defer op.Done()
 	return engineOf(s).Execute(op, statement(t, q), 0, nil)
 }
-func cursorUnitError(t *testing.T, s *Session, q, code, message string) {
+func cursorUnitError(t *testing.T, s *session.Session, q, code, message string) {
 	t.Helper()
 	result, err := cursorUnitExecute(t, s, context.Background(), q)
 	var diagnostic *sqlstate.Error
@@ -32,7 +33,7 @@ func cursorUnitError(t *testing.T, s *Session, q, code, message string) {
 		t.Fatalf("%s: result=%+v diagnostic=%+v error=%v", q, result, diagnostic, err)
 	}
 }
-func cursorUnitBatch(t *testing.T, s *Session, q string, want [][]driver.Value) Result {
+func cursorUnitBatch(t *testing.T, s *session.Session, q string, want [][]driver.Value) Result {
 	t.Helper()
 	result := sessionSQL(t, s, q)
 	if result.Count != int64(len(want)) || !reflect.DeepEqual(tuples(result), want) {
@@ -44,7 +45,7 @@ func cursorUnitBatch(t *testing.T, s *Session, q string, want [][]driver.Value) 
 	}
 	return result
 }
-func cursorUnitSetup(t *testing.T) *Session {
+func cursorUnitSetup(t *testing.T) *session.Session {
 	t.Helper()
 	s := sessionStart(t, New(), nil)
 	sessionSQL(t, s, "CREATE TABLE unit_rows(i INT NOT NULL)")
@@ -80,14 +81,14 @@ func TestSQLCursorDetachedBatchesAndLifetime(t *testing.T) {
 	}
 	sessionSQL(t, s, "COMMIT")
 	// A detached batch is independent even of the physical session lifetime.
-	s.RequestEnd(CleanClose)
+	s.RequestEnd(session.CleanClose)
 	if err := s.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(tuples(first), [][]driver.Value{{int64(1)}}) {
 		t.Fatal("end mutates detached batch")
 	}
-	if err := payloadOf(s).cursors.EndSession(s.Token(), CleanClose); err != nil {
+	if err := payloadOf(s).cursors.EndSession(s.Token(), session.CleanClose); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -337,7 +338,7 @@ func TestSQLCursorForeignRegistryAndEmptyAuthority(t *testing.T) {
 	sessionSQL(t, s, "DECLARE c NO SCROLL CURSOR FOR SELECT i FROM unit_rows")
 	cursor := payloadOf(s).cursors.entries["c"]
 	foreign := engineOf(s).catalog.Domain.Session(s.SessionToken.ID() + 1)
-	if err := payloadOf(s).cursors.EndSession(foreign, CleanClose); err == nil || payloadOf(s).cursors.entries["c"] != cursor {
+	if err := payloadOf(s).cursors.EndSession(foreign, session.CleanClose); err == nil || payloadOf(s).cursors.entries["c"] != cursor {
 		t.Fatal("foreign cleanup consumed cursor", err)
 	}
 	if cursor.source.Host != nil || cursor.authority.Host != nil {
@@ -349,7 +350,7 @@ func TestSQLCursorForeignRegistryAndEmptyAuthority(t *testing.T) {
 func TestSQLCursorCompletedPublicationBoundary(t *testing.T) {
 	// Cancellation here is deliberately after Execute's successful publication
 	// preflight, not inside demand (covered by CancellationClearsAuthority).
-	completed := func(t *testing.T, s *Session, query string) Result {
+	completed := func(t *testing.T, s *session.Session, query string) Result {
 		t.Helper()
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -380,7 +381,7 @@ func TestSQLCursorCompletedPublicationBoundary(t *testing.T) {
 		if err := scope.Finish(nil); err != nil {
 			t.Fatalf("%s: repeated Finish changes success: %v", query, err)
 		}
-		if s.Transactions.State != TxActive {
+		if s.Transactions.State != session.TxActive {
 			t.Fatalf("%s aborts completed explicit transaction: %v", query, s.Transactions.State)
 		}
 		return result

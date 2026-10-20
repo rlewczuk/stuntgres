@@ -16,7 +16,7 @@ type catalogIndexFence struct {
 
 func (catalogIndexFence) Kind() session.FenceKind { return fenceIndexSet }
 
-func (f catalogIndexFence) currentLocked(e *Engine, _ *catalogChanges) error {
+func (f catalogIndexFence) currentLocked(e *Engine, _ *session.Journal) error {
 	count := 0
 	for a, d := range e.catalog.state.Descriptors() {
 		r, ok := d.(*catalog.Relation)
@@ -40,7 +40,7 @@ type catalogNamespaceFence struct {
 
 func (catalogNamespaceFence) Kind() session.FenceKind { return fenceNamespace }
 
-func (f catalogNamespaceFence) currentLocked(e *Engine, _ *catalogChanges) error {
+func (f catalogNamespaceFence) currentLocked(e *Engine, _ *session.Journal) error {
 	count := 0
 	for a, d := range e.catalog.state.Descriptors() {
 		if d.Namespace() == f.namespace {
@@ -68,7 +68,7 @@ func (e *Engine) stageStorageLocked(s *CatalogStage, a ids.ObjectAddress) *stora
 	}
 	return e.storage.Relations[a]
 }
-func (e *Engine) catalogReadPreflightLocked(c *catalogChanges) error {
+func (e *Engine) catalogReadPreflightLocked(c *session.Journal) error {
 	for _, fence := range domainJournalOf(c.Domain).ValidationFences() {
 		if !fence.Current(e.catalog.read(e.catalog.state), e.storage.Relations) {
 			return catalog.Conflict{}
@@ -84,7 +84,7 @@ func (e *Engine) catalogReadPreflightLocked(c *catalogChanges) error {
 
 // Capture committed predecessor fences while checking the exact private roots
 // used by the ordinary stage. Pending writes are not committed observations.
-func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, current *catalog.State, authority *catalogAuthority) error {
+func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *session.Journal, current *catalog.State, authority *catalogAuthority) error {
 	if err := s.defaultPreflight(current); err != nil {
 		return err
 	}
@@ -299,7 +299,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 	return nil
 }
 
-func (e *Engine) stageMessageCatalog(op *Operation, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
+func (e *Engine) stageMessageCatalog(op *session.Operation, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
 	if p == nil || p.stage == nil || p.stage.owner != e || p.stage.lifecycle != catalogValidated {
 		return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
 	}

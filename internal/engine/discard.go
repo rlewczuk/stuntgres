@@ -57,7 +57,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 		history := state != nil && state.history
 		e.mu.Unlock()
 		if history {
-			s.notificationActions = append(s.notificationActions, notificationAction{All: true})
+			s.notificationActions = append(s.notificationActions, session.NotificationAction{All: true})
 		}
 		s.op.DiscardRoleReset = reset
 		defer func() { s.op.DiscardRoleReset = authorization.RoleState{} }()
@@ -140,7 +140,7 @@ func (s *StatementScope) discardAllPreflight() (authorization.RoleState, error) 
 
 // The combined publisher calls these under Engine -> session locks, closing the
 // gap between role-identity validation and irreversible TEMP publication.
-func (e *Engine) discardResetPreflightLocked(op *Operation) error {
+func (e *Engine) discardResetPreflightLocked(op *session.Operation) error {
 	if op.DiscardRoleReset.Authenticated == (authorization.PrincipalRef{}) {
 		return nil
 	}
@@ -156,7 +156,7 @@ func (e *Engine) discardResetPreflightLocked(op *Operation) error {
 	return nil
 }
 
-func (e *Engine) finishDiscardRoleResetLocked(op *Operation) {
+func (e *Engine) finishDiscardRoleResetLocked(op *session.Operation) {
 	if op.DiscardRoleReset.Authenticated != (authorization.PrincipalRef{}) {
 		op.Session.Authorization.State = op.DiscardRoleReset
 		op.Session.Authorization.Revision++
@@ -165,7 +165,7 @@ func (e *Engine) finishDiscardRoleResetLocked(op *Operation) {
 
 // Caller holds Engine -> settings -> session locks. Defaults and placeholder
 // recognition remain intact; the default provider is never invoked again.
-func (e *Engine) resetAllSettingsLocked(session *Session) {
+func (e *Engine) resetAllSettingsLocked(session *session.Session) {
 	owner := session.Settings
 	timeoutChanged, transactionAssignment := false, false
 	for key := range owner.Values {

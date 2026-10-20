@@ -9,10 +9,11 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 )
 
-func cteDMLUnitScope(t *testing.T, session *Session, ctx context.Context) (*StatementScope, *Operation) {
+func cteDMLUnitScope(t *testing.T, session *session.Session, ctx context.Context) (*StatementScope, *session.Operation) {
 	t.Helper()
 	op, err := session.Acquire(ctx)
 	if err != nil {
@@ -74,9 +75,9 @@ func TestCTEDMLCancellationBeforeFinish(t *testing.T) {
 			}
 			transactionRows(t, observer, "SELECT id FROM a ORDER BY id", 1, 2)
 			transactionRows(t, observer, "SELECT id FROM b ORDER BY id", 9)
-			want := TxIdle
+			want := session.TxIdle
 			if explicit {
-				want = TxAborted
+				want = session.TxAborted
 			}
 			if worker.TransactionState() != want {
 				t.Fatal(worker.TransactionState(), want)

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -120,7 +121,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 		f.e.catalog.Domain.PrivateSession(f.op.Session),
 	} {
 		peer := auth
-		peer.session = &Session{SessionToken: token}
+		peer.session = &session.Session{SessionToken: token}
 		defaultUnitDiagnostic(t, peer.CanUse(ref), "42501", "permission denied for schema "+namespace.Name())
 	}
 	// Even an exact namespace token cannot elevate zero/foreign/private
@@ -133,7 +134,7 @@ func TestDefaultPrivilegesTemporaryNamespace(t *testing.T) {
 		invalid := auth
 		invalid.Catalog = f.e.catalog.read(candidate)
 		invalid.Recapture(invalid.Catalog)
-		invalid.session = &Session{SessionToken: token}
+		invalid.session = &session.Session{SessionToken: token}
 		defaultUnitDiagnostic(t, invalid.CanUse(ref), "42501", "permission denied for schema "+namespace.Name())
 	}
 	withoutSession := auth

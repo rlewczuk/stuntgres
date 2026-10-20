@@ -8,9 +8,10 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 )
 
-func exclusionCommitWorker(t *testing.T, s *Session, ref ids.TxRef) <-chan error {
+func exclusionCommitWorker(t *testing.T, s *session.Session, ref ids.TxRef) <-chan error {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	done := make(chan error, 1)

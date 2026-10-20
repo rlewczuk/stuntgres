@@ -2,17 +2,20 @@ package engine
 
 import (
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 )
 
-func stableIsolation(level Isolation) bool { return level == RepeatableRead || level == Serializable }
+func stableIsolation(level session.Isolation) bool {
+	return level == session.RepeatableRead || level == session.Serializable
+}
 
 // enrollSerializableLocked fences ref against the current catalog epoch and
 // applies its isolation to the tracker. Caller holds Engine.mu.
-func (e *Engine) enrollSerializableLocked(ref ids.TxRef, isolation Isolation) {
+func (e *Engine) enrollSerializableLocked(ref ids.TxRef, isolation session.Isolation) {
 	if ref.ID() == 0 || ref.Epoch() != e.catalog.state.Epoch() {
 		return
 	}
-	e.visibility.EnrollSerializableLocked(ref, isolation == Serializable)
+	e.visibility.EnrollSerializableLocked(ref, isolation == session.Serializable)
 }
 
 func (e *Engine) endSerializable(ref ids.TxRef, committed bool) {

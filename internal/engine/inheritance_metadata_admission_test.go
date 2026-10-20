@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -23,7 +24,7 @@ import (
 // No SQL executor, fake catalog pointer, observer hook or sleep drives the race.
 type inheritanceMetadataAdmissionCase struct {
 	e      *Engine
-	op     *Operation
+	op     *session.Operation
 	scope  *StatementScope
 	raw    parser.Statement
 	auth   AuthorizationView
@@ -38,12 +39,12 @@ func inheritanceMetadataScope(t *testing.T, e *Engine, role, sql string) *inheri
 	if err != nil {
 		t.Fatal(err)
 	}
-	sess, err := e.StartSession(ctx, SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: principal})
+	sess, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: principal})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		sess.RequestEnd(CleanClose)
+		sess.RequestEnd(session.CleanClose)
 		if err := sess.WaitEnd(context.Background()); err != nil {
 			t.Error(err)
 		}

@@ -7,12 +7,13 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
 )
 
-func rangePartitionQueuedSQL(t *testing.T, e *Engine, session *Session, query string) (func() error, context.CancelFunc) {
+func rangePartitionQueuedSQL(t *testing.T, e *Engine, session *session.Session, query string) (func() error, context.CancelFunc) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	finished := lockAsync(e, session, ctx, query, false)

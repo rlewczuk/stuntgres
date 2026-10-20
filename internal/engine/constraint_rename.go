@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -14,7 +15,7 @@ import (
 // The owner-authorized AX grant pins the private parent incarnation. Rename is
 // metadata-only: the existing overlay and Finish own publication of the group.
 // Engine.mu is held on entry and released on every return.
-func (e *Engine) renameConstraintLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTableRenameConstraint, count int) (Result, error) {
+func (e *Engine) renameConstraintLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTableRenameConstraint, count int) (Result, error) {
 	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))

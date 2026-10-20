@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 )
 
 func TestAlterNullabilityReviewOwnedSequenceReplacement(t *testing.T) {
@@ -17,7 +18,7 @@ func TestAlterNullabilityReviewOwnedSequenceReplacement(t *testing.T) {
 			for _, at := range []int{1, 2} {
 				t.Run(fmt.Sprintf("explicit=%t/restore=%t/validation=%d", explicit, restore, at), func(t *testing.T) {
 					e := New()
-					s, startErr := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
+					s, startErr := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
 					if startErr != nil {
 						t.Fatal(startErr)
 					}
@@ -26,7 +27,7 @@ func TestAlterNullabilityReviewOwnedSequenceReplacement(t *testing.T) {
 						if !completed {
 							return
 						}
-						s.RequestEnd(CleanClose)
+						s.RequestEnd(session.CleanClose)
 						ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 						defer cancel()
 						if err := s.WaitEnd(ctx); err != nil {

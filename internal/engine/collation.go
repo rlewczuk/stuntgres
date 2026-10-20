@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -30,7 +31,7 @@ func (e *Engine) findCollation(auth AuthorizationView, raw parser.ObjectName) (*
 	return nil, expr.ErrorAt("42704", fmt.Sprintf(`collation "%s" for encoding "UTF8" does not exist`, catalog.ObjectNameText(raw)), raw.Parts[0].Pos)
 }
 
-func (e *Engine) resolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName, op *Operation) (sqltype.Usage, error) {
+func (e *Engine) resolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName, op *session.Operation) (sqltype.Usage, error) {
 	if raw == nil {
 		return u, nil
 	}
@@ -55,7 +56,7 @@ func (e *Engine) resolveColumnCollation(u sqltype.Usage, raw *parser.ObjectName,
 	return u, nil
 }
 
-func (e *Engine) lookupCollation(raw parser.ObjectName, op *Operation) (uint32, error) {
+func (e *Engine) lookupCollation(raw parser.ObjectName, op *session.Operation) (uint32, error) {
 	auth, err := e.authorizationLocked(op)
 	if err != nil {
 		return 0, err

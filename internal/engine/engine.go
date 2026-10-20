@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/session"
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -36,7 +37,7 @@ type Engine struct {
 	databaseNameError    error
 	storage              storage.Store
 	sessionMu            sync.Mutex
-	sessions             map[ids.SessionToken]*Session
+	sessions             map[ids.SessionToken]*session.Session
 	settings             settings.Registry // Immutable, initialized once before publication.
 	visibility           visibility.Registry
 	indexBuildWaits      map[ids.ObjectAddress]indexBuildWait
@@ -224,7 +225,7 @@ func sqlError(code, message string) error {
 		Code: code, Message: message,
 	}
 }
-func (e *Engine) Describe(op *Operation, stmt parser.Statement) (info StatementDescription, err error) {
+func (e *Engine) Describe(op *session.Operation, stmt parser.Statement) (info StatementDescription, err error) {
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		return StatementDescription{}, err
@@ -521,7 +522,7 @@ func notNullDetailError(schema, table, column, detail string) error {
 // owns only its binding/capture lock and evaluates outside it without replay.
 type FrameImporter func(context.Context, analyze.ParameterInfo, []sqltype.Value, sqltype.InputEnvironment) error
 
-func (e *Engine) Execute(op *Operation, stmt parser.Statement, count int, importFrame FrameImporter) (result Result, err error) {
+func (e *Engine) Execute(op *session.Operation, stmt parser.Statement, count int, importFrame FrameImporter) (result Result, err error) {
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		return Result{}, err

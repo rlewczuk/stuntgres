@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -15,7 +16,7 @@ import (
 // The owner-authorized AX grant protects identity; publication changes only the
 // immutable descriptor and never evaluates a default or rewrites row storage.
 // Every return releases Engine.mu.
-func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth AuthorizationView, s *parser.AlterTableDefault, count int) (Result, error) {
+func (e *Engine) alterDefaultLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, s *parser.AlterTableDefault, count int) (Result, error) {
 	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
@@ -146,7 +147,7 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 	return Result{}, nil
 }
 
-func (e *Engine) cookAlterDefaultLocked(scope *StatementScope, op *Operation, auth AuthorizationView, old *catalog.Relation, slot int, expression parser.Expr) (catalog.ColumnDefault, error) {
+func (e *Engine) cookAlterDefaultLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, old *catalog.Relation, slot int, expression parser.Expr) (catalog.ColumnDefault, error) {
 	var definition catalog.ColumnDefault
 	binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
 	binder.Query.Auth = &auth

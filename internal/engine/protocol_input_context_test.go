@@ -91,7 +91,7 @@ func TestProtocolCopyInputContext(t *testing.T) {
 		cause := &sqlstate.Error{Code: "57014", Message: "canceling statement due to user request"}
 		cancel(cause)
 		input := op.Context()
-		sess.RequestEnd(InvalidConnection)
+		sess.RequestEnd(session.InvalidConnection)
 		select {
 		case <-input.Done():
 		default:

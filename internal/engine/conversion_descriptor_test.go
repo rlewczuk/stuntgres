@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -24,7 +25,7 @@ func conversionUnitName(parts ...string) parser.ObjectName {
 	return name
 }
 
-func conversionUnitAuth(t *testing.T, e *Engine) (*Operation, AuthorizationView) {
+func conversionUnitAuth(t *testing.T, e *Engine) (*session.Operation, AuthorizationView) {
 	t.Helper()
 	op, done := roleOperation(t, e, "postgres")
 	t.Cleanup(done)

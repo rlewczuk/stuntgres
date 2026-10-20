@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -38,16 +39,19 @@ func TestRangePartitionPublicationTrustedImporterProvenance(t *testing.T) {
 	}
 	for _, test := range []struct {
 		name   string
-		mutate func(*AuthorizationView, *Operation) *Engine
+		mutate func(*AuthorizationView, *session.Operation) *Engine
 	}{
-		{"foreign engine", func(a *AuthorizationView, o *Operation) *Engine { return source }},
-		{"nonbootstrap authenticated", func(a *AuthorizationView, o *Operation) *Engine {
+		{"foreign engine", func(a *AuthorizationView, o *session.Operation) *Engine { return source }},
+		{"nonbootstrap authenticated", func(a *AuthorizationView, o *session.Operation) *Engine {
 			a.State.Authenticated = a.State.CurrentUser
 			return stage
 		}},
-		{"copied operation", func(a *AuthorizationView, o *Operation) *Engine { return stage }},
-		{"foreign catalog", func(a *AuthorizationView, o *Operation) *Engine { a.Catalog = source.CatalogRead(); return stage }},
-		{"foreign roles", func(a *AuthorizationView, o *Operation) *Engine { a.Roles = source.Roles(); return stage }},
+		{"copied operation", func(a *AuthorizationView, o *session.Operation) *Engine { return stage }},
+		{"foreign catalog", func(a *AuthorizationView, o *session.Operation) *Engine {
+			a.Catalog = source.CatalogRead()
+			return stage
+		}},
+		{"foreign roles", func(a *AuthorizationView, o *session.Operation) *Engine { a.Roles = source.Roles(); return stage }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			a := auth

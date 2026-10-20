@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -53,7 +54,7 @@ func (s *StatementScope) acquireAdmittedQueryRelations(admission analyze.LockAdm
 
 // Validate exact admission identity without resolving SQL names again. Metadata
 // revisions may refresh authority before binding, never an already bound layout.
-func currentQuerySourceLocked(e *Engine, view catalog.Read, changes *catalogChanges, source exec.Leaf) (*catalog.Relation, error) {
+func currentQuerySourceLocked(e *Engine, view catalog.Read, changes *session.Journal, source exec.Leaf) (*catalog.Relation, error) {
 	current, ok := view.Relation(source.Ref.Address)
 	if !ok || source.Relation == nil || source.Ref.Domain() != e.catalog.Domain || source.Ref.Epoch != e.catalog.state.Epoch() || source.Ref.Address.SubID != 0 ||
 		current.Address() != source.Relation.Address() || current.Namespace() != source.Relation.Namespace() || current.Name() != source.Relation.Name() || current.RelationKind != source.Relation.RelationKind ||

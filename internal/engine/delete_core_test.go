@@ -7,10 +7,11 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/analyze"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 )
 
-func deleteCount(t *testing.T, s *Session, query string, want int64) {
+func deleteCount(t *testing.T, s *session.Session, query string, want int64) {
 	t.Helper()
 	result := sessionSQL(t, s, query)
 	if result.Count != want || result.Rows != nil {

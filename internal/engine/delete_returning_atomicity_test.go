@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -77,7 +78,7 @@ func TestDeleteReturningOutputAtomicity(t *testing.T) {
 				t.Fatal(err)
 			}
 			if phase == "explicit_error" || phase == "explicit_cancel" {
-				if s.TransactionState() != TxAborted {
+				if s.TransactionState() != session.TxAborted {
 					t.Fatal("not aborted")
 				}
 				transactionEnd(t, s, tx, false)

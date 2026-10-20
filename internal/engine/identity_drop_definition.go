@@ -68,7 +68,7 @@ func (e *Engine) dropIdentityDefinition(provider *dropProvider, old *catalog.Rel
 		if err == nil {
 			provider.base = provider.stage.Base
 			capture = identityDropCapture{sequence: ref, original: e.catalog.state.Get(identity.Sequence)}
-			provider.stage.sequenceState().observeIdentityDependencies(catalogDependencyObservation{e.catalog.state, []ids.ObjectAddress{identity.Sequence}})
+			provider.stage.sequenceState().observeIdentityDependencies(session.DependencyObservation{e.catalog.state, []ids.ObjectAddress{identity.Sequence}})
 		}
 	} else {
 		capture, err = e.captureIdentityDropDefinitionLocked(provider, old, attribute, ref)

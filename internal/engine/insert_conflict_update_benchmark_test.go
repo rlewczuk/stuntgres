@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -18,12 +19,12 @@ func BenchmarkInsertConflictUpdateDistinctStage(b *testing.B) {
 			b.Run(fmt.Sprintf("%s/rows=%d", mode, size), func(b *testing.B) {
 				b.StopTimer()
 				e := New()
-				s, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
+				s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
 				if err != nil {
 					b.Fatal(err)
 				}
 				defer func() {
-					s.RequestEnd(CleanClose)
+					s.RequestEnd(session.CleanClose)
 					if err := s.WaitEnd(context.Background()); err != nil {
 						b.Error(err)
 					}

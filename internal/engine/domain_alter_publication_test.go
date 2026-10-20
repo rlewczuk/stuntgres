@@ -11,11 +11,12 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
-func domainAlterPublicationFixture(t *testing.T) (*Engine, *Operation, func(), *catalog.Type, *catalog.Relation, *CatalogStage, *PreparedCatalogPublication) {
+func domainAlterPublicationFixture(t *testing.T) (*Engine, *session.Operation, func(), *catalog.Type, *catalog.Relation, *CatalogStage, *PreparedCatalogPublication) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")

@@ -10,12 +10,13 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 )
 
 // The baseline has no public role-rename SQL. This fixture follows the existing
 // immutable role publication convention without changing any principal identity,
 // memberships, attributes, catalog owners, or collation properties.
-func collationRenameBootstrapFixture(e *Engine, op *Operation, name string) error {
+func collationRenameBootstrapFixture(e *Engine, op *session.Operation, name string) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	auth, err := e.authorizationLocked(op)
@@ -130,7 +131,7 @@ func TestCollationBootstrapPrincipalNameReuse(t *testing.T) {
 	roleExecute(t, e, admin, `CREATE TABLE coll_bootstrap_survivor(id INT,v TEXT COLLATE pg_temp.coll_bootstrap_temporary DEFAULT ('a' COLLATE pg_temp.coll_bootstrap_temporary))`)
 	roleExecute(t, e, admin, `INSERT INTO coll_bootstrap_survivor VALUES(7,'é')`)
 	done()
-	inspection, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: bootstrap})
+	inspection, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: bootstrap})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +141,7 @@ func TestCollationBootstrapPrincipalNameReuse(t *testing.T) {
 	}
 	defer func() {
 		reader.Done()
-		inspection.RequestEnd(CleanClose)
+		inspection.RequestEnd(session.CleanClose)
 		if err := inspection.WaitEnd(context.Background()); err != nil {
 			t.Error(err)
 		}
@@ -154,7 +155,7 @@ func TestCollationBootstrapPrincipalNameReuse(t *testing.T) {
 		t.Fatal("temporary collation survived physical end", got)
 	}
 	reader.Done()
-	inspection.RequestEnd(CleanClose)
+	inspection.RequestEnd(session.CleanClose)
 	if err := inspection.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}

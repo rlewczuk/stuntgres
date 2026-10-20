@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -16,15 +17,15 @@ import (
 	"time"
 )
 
-func roleLimitStart(e *Engine, ref authorization.PrincipalRef, id ids.SessionID, p settings.SessionDefaultProvider) (*Session, error) {
+func roleLimitStart(e *Engine, ref authorization.PrincipalRef, id ids.SessionID, p settings.SessionDefaultProvider) (*session.Session, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return e.StartSession(ctx, SessionStart{ID: id, Authenticated: ref, Defaults: p})
+	return e.StartSession(ctx, session.SessionStart{ID: id, Authenticated: ref, Defaults: p})
 }
-func roleLimitClose(t *testing.T, s *Session) {
+func roleLimitClose(t *testing.T, s *session.Session) {
 	t.Helper()
-	s.RequestEnd(CleanClose)
-	s.RequestEnd(CleanClose)
+	s.RequestEnd(session.CleanClose)
+	s.RequestEnd(session.CleanClose)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := s.WaitEnd(ctx); err != nil {
@@ -43,7 +44,7 @@ func roleLimitDenied(t *testing.T, e *Engine, ref authorization.PrincipalRef, na
 		t.Fatalf("admission: %v %#v want %#v", s, err, want)
 	}
 }
-func roleLimitOpen(t *testing.T, e *Engine, ref authorization.PrincipalRef) *Session {
+func roleLimitOpen(t *testing.T, e *Engine, ref authorization.PrincipalRef) *session.Session {
 	t.Helper()
 	s, err := roleLimitStart(e, ref, ids.SessionID(testSessionID.Add(1)), nil)
 	if err != nil {
@@ -101,12 +102,12 @@ func TestRoleAttributesConnectionLimitLifecycle(t *testing.T) {
 	roleLimitOpen(t, e, super.Ref)
 	roleAttributeApply(t, e, admin, roleAttributeAlter("exempt", parser.RoleOptions{Present: parser.RoleLogin}))
 	wantLogin := &sqlstate.Error{Severity: "FATAL", SeverityUnlocalized: "FATAL", Code: "28000", Message: `role "exempt" is not permitted to log in`}
-	for _, admission := range []func() (*Session, error){
-		func() (*Session, error) {
+	for _, admission := range []func() (*session.Session, error){
+		func() (*session.Session, error) {
 			_, err := e.ResolveLogin("exempt")
 			return nil, err
 		},
-		func() (*Session, error) {
+		func() (*session.Session, error) {
 			return roleLimitStart(e, super.Ref, ids.SessionID(testSessionID.Add(1)), nil)
 		},
 	} {
@@ -164,7 +165,7 @@ func (g *roleLimitGate) SessionDefault(ctx context.Context, d settings.Definitio
 }
 
 type roleLimitStartResult struct {
-	s   *Session
+	s   *session.Session
 	err error
 }
 
@@ -180,11 +181,11 @@ func roleLimitReceive(t *testing.T, ch <-chan roleLimitStartResult) roleLimitSta
 }
 
 type roleLimitEndGate struct {
-	owner            SessionResource
+	owner            session.SessionResource
 	entered, release chan struct{}
 }
 
-func (g *roleLimitEndGate) EndSession(token ids.SessionToken, reason EndReason) error {
+func (g *roleLimitEndGate) EndSession(token ids.SessionToken, reason session.EndReason) error {
 	err := g.owner.EndSession(token, reason)
 	close(g.entered)
 	<-g.release
@@ -217,7 +218,7 @@ func TestRoleAttributesConnectionLimitRaces(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		fence := &roleLimitFenceContext{Context: ctx, e: e, cancel: cancel}
-		s, err := e.StartSession(fence, SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: d.Ref})
+		s, err := e.StartSession(fence, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: d.Ref})
 		if s != nil || !errors.Is(err, context.Canceled) || !fence.observed {
 			t.Fatal("registry cancellation consumed slot", s, err)
 		}
@@ -267,7 +268,7 @@ func TestRoleAttributesConnectionLimitRaces(t *testing.T) {
 			id := ids.SessionID(testSessionID.Add(1))
 			results := make(chan roleLimitStartResult, 1)
 			go func() {
-				s, err := e.StartSession(ctx, SessionStart{ID: id, Authenticated: d.Ref, Defaults: gate})
+				s, err := e.StartSession(ctx, session.SessionStart{ID: id, Authenticated: d.Ref, Defaults: gate})
 				results <- roleLimitStartResult{s, err}
 			}()
 			select {
@@ -367,11 +368,11 @@ func TestRoleAttributesConnectionLimitRaces(t *testing.T) {
 		unblock := func() { release.Do(func() { close(gate.release) }) }
 		t.Cleanup(unblock)
 		s.Mu.Lock()
-		entry := s.Resources[Authorization]
+		entry := s.Resources[session.Authorization]
 		gate.owner = entry.Owner
 		entry.Owner = gate
 		s.Mu.Unlock()
-		s.RequestEnd(CleanClose)
+		s.RequestEnd(session.CleanClose)
 		select {
 		case <-gate.entered:
 		case <-time.After(5 * time.Second):
@@ -428,7 +429,7 @@ func TestRoleAttributesPasswordCancellationLifecycle(t *testing.T) {
 				ctx := &cancelAtErrCheck{Context: op.Context(), at: 128}
 				ctx.cancel = func() {
 					if teardown {
-						s.RequestEnd(CleanClose)
+						s.RequestEnd(session.CleanClose)
 					} else {
 						op.Cancel(nil)
 					}

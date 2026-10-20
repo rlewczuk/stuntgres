@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -23,7 +24,7 @@ func TestEnumTypeDeadlockRetirement(t *testing.T) {
 		d := domainUnitType(t, e.CatalogRead(), name)
 		resources[i] = lock.Resource{ObjectRef: e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())}
 	}
-	sessions := [2]*Session{sessionStart(t, e, nil), sessionStart(t, e, nil)}
+	sessions := [2]*session.Session{sessionStart(t, e, nil), sessionStart(t, e, nil)}
 	var refs [2]ids.TxRef
 	var tickets [2]*lock.Ticket
 	var pending [2]*lock.Request

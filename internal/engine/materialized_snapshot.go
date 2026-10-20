@@ -14,6 +14,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -172,7 +173,7 @@ func materializedSnapshotScalar(raw parser.Expr) error {
 // All rows and descriptors belong exclusively to Restore's isolated engine.
 // No public INSERT execution, authority relaxation or definition evaluation is
 // involved. The destination engine still receives one fenced replacement only.
-func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation, records []materializedSnapshot) error {
+func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *session.Operation, records []materializedSnapshot) error {
 	if len(records) == 0 {
 		return nil
 	}
@@ -296,7 +297,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 // Captured cells use the same exact INSERT binder transport as ordinary private
 // table replay. A real statement scope also retains normal CHECK providers for
 // all other non-NULL conversions; no constraint suppression is introduced here.
-func (e *Engine) importMaterializedSnapshotRow(ctx context.Context, op *Operation, auth AuthorizationView, d *catalog.Relation, s *parser.Insert, input sqltype.InputEnvironment, replay *typedef.DomainReplayRecord) (rows [][]sqltype.Value, err error) {
+func (e *Engine) importMaterializedSnapshotRow(ctx context.Context, op *session.Operation, auth AuthorizationView, d *catalog.Relation, s *parser.Insert, input sqltype.InputEnvironment, replay *typedef.DomainReplayRecord) (rows [][]sqltype.Value, err error) {
 	scope, err := e.StartStatement(op)
 	if err != nil {
 		return nil, err

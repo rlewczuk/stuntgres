@@ -15,7 +15,7 @@ import (
 
 // Engine.mu is consumed on every return. The execution scope owns parent AX;
 // DEFAULT, candidate and descendant waits use the same ticket without Engine.mu.
-func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTableDetachPartition, count int) (Result, error) {
+func (e *Engine) detachPartitionLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTableDetachPartition, count int) (Result, error) {
 	fail := func(err error) (Result, error) { e.mu.Unlock(); return Result{}, err }
 	if count != 0 {
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))

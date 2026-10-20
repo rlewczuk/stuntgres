@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -15,7 +16,7 @@ import (
 	"testing"
 )
 
-func foreignActionUnitScope(t *testing.T, e *Engine, session *Session, q string) *StatementScope {
+func foreignActionUnitScope(t *testing.T, e *Engine, session *session.Session, q string) *StatementScope {
 	t.Helper()
 	op, err := session.Acquire(context.Background())
 	if err != nil {

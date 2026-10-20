@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
 // This capability is an exact private-import target, not a public hierarchy
 // ALTER policy. The ordinary ALTER binder, providers, stage and Finish still own
 // every definition and publication check.
-func (e *Engine) beginPartitionCheckReplay(op *Operation, raw *parser.AlterTable) error {
+func (e *Engine) beginPartitionCheckReplay(op *session.Operation, raw *parser.AlterTable) error {
 	if op == nil {
 		return fmt.Errorf("stuntgres: invalid trusted restore partition CHECK operation")
 	}
@@ -57,7 +58,7 @@ func partitionCheckReplayActions(raw *parser.AlterTable) bool {
 }
 
 // Callers hold Engine.mu, as do the existing hierarchy admission guards.
-func partitionConstraintReplayImport(e *Engine, op *Operation, auth AuthorizationView) bool {
+func partitionConstraintReplayImport(e *Engine, op *session.Operation, auth AuthorizationView) bool {
 	if e == nil || op == nil || op.Self != op || op.Session == nil || engineOf(op.Session) != e || e.importTargets == nil || auth.engine != e || auth.session != op.Session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() {
 		return false
 	}
@@ -68,6 +69,6 @@ func partitionConstraintReplayImport(e *Engine, op *Operation, auth Authorizatio
 	return err == nil && bootstrap.Superuser
 }
 
-func partitionCheckReplayAllowed(op *Operation, auth AuthorizationView, raw *parser.AlterTable, d *catalog.Relation) bool {
+func partitionCheckReplayAllowed(op *session.Operation, auth AuthorizationView, raw *parser.AlterTable, d *catalog.Relation) bool {
 	return op != nil && operationReplayOrZero(op).partitionCheck == d && d != nil && d.RelationKind == catalog.TableRelation && d.Partition == nil && d.Membership != nil && d.Inheritance == nil && auth.Catalog.Get(d.Address()) == d && partitionCheckReplayActions(raw) && partitionConstraintReplayImport(auth.engine, op, auth)
 }

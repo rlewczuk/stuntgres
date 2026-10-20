@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -147,7 +148,7 @@ func captureInheritedForeignColumns(table *catalog.Relation, names []parser.Iden
 // This is not a general valid ALTER whitelist. Only a successful isolated
 // import of both actual relations, with a strict ordinary inheritance edge,
 // can issue a receipt. The incumbent pending binder remains the sole FK binder.
-func (e *Engine) captureInheritedForeignKey(op *Operation, raw *parser.AlterTable, created map[ids.ObjectAddress]ids.ObjectRef) (restoredForeignKeys, bool, error) {
+func (e *Engine) captureInheritedForeignKey(op *session.Operation, raw *parser.AlterTable, created map[ids.ObjectAddress]ids.ObjectRef) (restoredForeignKeys, bool, error) {
 	if len(raw.Actions) != 1 || raw.Actions[0].Action != parser.AddForeignKey || raw.Actions[0].ForeignKey == nil || raw.Actions[0].ForeignKey.NotValid {
 		return restoredForeignKeys{}, false, nil
 	}
@@ -259,7 +260,7 @@ func inheritedForeignRelationUnchanged(current, before *catalog.Relation) bool {
 
 // Comments and final attribute-rank repairs do not alter these key/provider
 // observations. No later key, owner, type or provider incarnation can reuse them.
-func (receipt *restoredInheritedForeignKey) validate(e *Engine, op *Operation, declaration restoredForeignKeys, view catalog.Read) error {
+func (receipt *restoredInheritedForeignKey) validate(e *Engine, op *session.Operation, declaration restoredForeignKeys, view catalog.Read) error {
 	auth := declaration.auth
 	auth.Catalog = view
 	auth.Recapture(view)

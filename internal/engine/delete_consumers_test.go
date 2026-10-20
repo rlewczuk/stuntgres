@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/session"
 	"testing"
 )
 
@@ -251,7 +252,7 @@ func TestDeleteCoreFailedReplacement(t *testing.T) {
 	if err := e.Restore(ctx, strings.NewReader("CREATE TABLE fresh(v INT)")); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if e.CatalogRead().Epoch() != epoch || e.visibility.CommitSeq() != frontier || e.storage.Relations[target.Address].Ends != ends || a.TransactionState() != TxActive || a.Transactions.Deletes[target.Address] != own {
+	if e.CatalogRead().Epoch() != epoch || e.visibility.CommitSeq() != frontier || e.storage.Relations[target.Address].Ends != ends || a.TransactionState() != session.TxActive || a.Transactions.Deletes[target.Address] != own {
 		t.Fatal("failed replacement changed committed/private authority")
 	}
 	transactionRows(t, a, "SELECT v FROM t ORDER BY v", 7)

@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -19,7 +20,7 @@ type preparedAddedChecks struct {
 
 // Definition cooking is independent of stage ownership. Admission retains this
 // exact result; the sole physical pipeline installs it and scans rows once.
-func (e *Engine) prepareAddedChecks(scope *StatementScope, op *Operation, auth AuthorizationView, parent *catalog.Relation, raw []*parser.CheckConstraint) (preparedAddedChecks, error) {
+func (e *Engine) prepareAddedChecks(scope *StatementScope, op *session.Operation, auth AuthorizationView, parent *catalog.Relation, raw []*parser.CheckConstraint) (preparedAddedChecks, error) {
 	prepared := preparedAddedChecks{old: parent, next: parent, raw: raw}
 	if len(raw) == 0 {
 		return prepared, nil
@@ -97,7 +98,7 @@ func (e *Engine) prepareAddedChecks(scope *StatementScope, op *Operation, auth A
 	return prepared, nil
 }
 
-func (e *Engine) stageAddedChecks(scope *StatementScope, op *Operation, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw []*parser.CheckConstraint, scans *[]catalog.CheckConstraint) (*catalog.Relation, error) {
+func (e *Engine) stageAddedChecks(scope *StatementScope, op *session.Operation, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw []*parser.CheckConstraint, scans *[]catalog.CheckConstraint) (*catalog.Relation, error) {
 	var prepared preparedAddedChecks
 	var err error
 	if definition := scope.inheritancePreparedNode(); definition != nil && !definition.phaseZeroOnly {
@@ -163,7 +164,7 @@ func verifyNotNullPKCompatible(parent *catalog.Relation, attributes []int32) err
 	return nil
 }
 
-func (e *Engine) stageAddedUnique(op *Operation, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw *parser.UniqueConstraint) (*catalog.Relation, error) {
+func (e *Engine) stageAddedUnique(op *session.Operation, auth AuthorizationView, stage *CatalogStage, parent *catalog.Relation, raw *parser.UniqueConstraint) (*catalog.Relation, error) {
 	if raw.Primary {
 		for _, c := range parent.Constraints.Unique {
 			if c.Primary {

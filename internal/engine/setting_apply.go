@@ -14,7 +14,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (e *Engine) sessionSetting(s *sessionSettings, name string, create bool) (settings.Definition, error) {
+func (e *Engine) sessionSetting(s *session.SettingsStore, name string, create bool) (settings.Definition, error) {
 	key := settings.FoldName(name)
 	if d, ok := e.settings.Definitions()[key]; ok {
 		return d, nil
@@ -32,7 +32,7 @@ func (e *Engine) sessionSetting(s *sessionSettings, name string, create bool) (s
 
 // applySetting stages callbacks without publication locks, then atomically
 // installs recognition, transaction action and effective typed/text override.
-func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d settings.Definition, input *string, local bool) (string, error) {
+func (e *Engine) applySetting(op *session.Operation, owner *session.SettingsStore, d settings.Definition, input *string, local bool) (string, error) {
 	if d.Name == "transaction_isolation" || d.Name == "transaction_read_only" || d.Name == "transaction_deferrable" {
 		return e.applyCurrentCharacteristic(op, d, input)
 	}
@@ -103,7 +103,7 @@ func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d settings.
 	return owner.Value(d.Name), nil
 }
 
-func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int, implicit bool) (Result, error) {
+func (e *Engine) executeSetting(op *session.Operation, stmt parser.Statement, count int, implicit bool) (Result, error) {
 	if count != 0 {
 		return Result{}, errors.New("stuntgres: settings expect zero arguments")
 	}

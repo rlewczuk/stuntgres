@@ -9,12 +9,13 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 )
 
 // Caller holds Engine.mu and the session's statement admission.
-func (e *Engine) privateCatalogLocked(c *catalogChanges) catalog.Read {
+func (e *Engine) privateCatalogLocked(c *session.Journal) catalog.Read {
 	if c == nil {
 		return e.catalog.read(e.catalog.state)
 	}
@@ -53,7 +54,7 @@ func (e *Engine) privateCatalogLocked(c *catalogChanges) catalog.Read {
 	c.CachedBase, c.Cached = e.catalog.state, e.catalog.read(n)
 	return c.Cached
 }
-func (e *Engine) catalogChangeLocked(c *catalogChanges, a ids.ObjectAddress, d catalog.Descriptor) {
+func (e *Engine) catalogChangeLocked(c *session.Journal, a ids.ObjectAddress, d catalog.Descriptor) {
 	if _, ok := c.Originals[a]; !ok {
 		c.Originals[a] = e.catalog.state.Get(a)
 	}
@@ -95,7 +96,7 @@ func (e *Engine) sequenceGeneratorLocked(s *StatementScope, a ids.ObjectAddress)
 	}
 	return e.storage.Sequences[a]
 }
-func (e *Engine) preparePrivateCatalog(ctx context.Context, c *catalogChanges, epoch ids.CatalogEpoch) (*catalog.State, error) {
+func (e *Engine) preparePrivateCatalog(ctx context.Context, c *session.Journal, epoch ids.CatalogEpoch) (*catalog.State, error) {
 	e.mu.Lock()
 	// Bind the overlay only to its owning incarnation. Replacement types must
 	// never validate old descriptors before the publication epoch fence.
@@ -127,7 +128,7 @@ func (e *Engine) preparePrivateCatalog(ctx context.Context, c *catalogChanges, e
 	}
 	return view.State(), ctx.Err()
 }
-func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
+func (e *Engine) catalogPreflightLocked(c *session.Journal) error {
 	if c.RolesBase != nil && e.roles.published != c.RolesBase {
 		return catalog.Conflict{}
 	}
@@ -189,7 +190,7 @@ func (e *Engine) catalogPreflightLocked(c *catalogChanges) error {
 // must not impersonate a surviving edge into an absent provider.
 // Existing expression/ownership observations also fence retained-message
 // admission before removals are overlaid; only new type edges require absence.
-func catalogDependencyPreflight(current, candidate *catalog.State, observations []catalogDependencyObservation, originals map[ids.ObjectAddress]catalog.Descriptor) error {
+func catalogDependencyPreflight(current, candidate *catalog.State, observations []session.DependencyObservation, originals map[ids.ObjectAddress]catalog.Descriptor) error {
 	for _, observation := range observations {
 		if current == observation.Base {
 			continue

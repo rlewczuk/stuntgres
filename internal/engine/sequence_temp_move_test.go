@@ -5,10 +5,11 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"testing"
 )
 
-func sequenceTempMoveCommand(t *testing.T, e *Engine, s *Session, query string, prepared bool) error {
+func sequenceTempMoveCommand(t *testing.T, e *Engine, s *session.Session, query string, prepared bool) error {
 	t.Helper()
 	if prepared {
 		ast, description := sequencePreparedDescription(t, e, s, query)
@@ -99,7 +100,7 @@ func TestSequenceTemporaryMoveAuthority(t *testing.T) {
 				if len(got) != 1 || got[0][0] != first+1 || held.sequences != cell {
 					t.Fatal("rejected move disturbed held cache progression", got)
 				}
-				a.RequestEnd(CleanClose)
+				a.RequestEnd(session.CleanClose)
 				if err := a.WaitEnd(context.Background()); err != nil {
 					t.Fatal(err)
 				}

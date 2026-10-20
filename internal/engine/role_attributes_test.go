@@ -8,13 +8,14 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func roleAttributeCreate(t *testing.T, e *Engine, op *Operation, name string, login bool, o parser.RoleOptions) authorization.RoleDescriptor {
+func roleAttributeCreate(t *testing.T, e *Engine, op *session.Operation, name string, login bool, o parser.RoleOptions) authorization.RoleDescriptor {
 	t.Helper()
 	roleAttributeApply(t, e, op, &parser.CreateRole{Name: parser.Identifier{Text: name}, DefaultLogin: login, Options: o})
 	d, ok := e.Roles().Lookup(name)
@@ -23,7 +24,7 @@ func roleAttributeCreate(t *testing.T, e *Engine, op *Operation, name string, lo
 	}
 	return d
 }
-func roleAttributeApply(t *testing.T, e *Engine, op *Operation, s parser.Statement) {
+func roleAttributeApply(t *testing.T, e *Engine, op *session.Operation, s parser.Statement) {
 	t.Helper()
 	r, err := e.Execute(op, s, 0, nil)
 	if err != nil || r.Count != 0 || r.Rows != nil {
@@ -33,7 +34,7 @@ func roleAttributeApply(t *testing.T, e *Engine, op *Operation, s parser.Stateme
 func roleAttributeAlter(name string, o parser.RoleOptions) *parser.AlterRole {
 	return &parser.AlterRole{Name: parser.Identifier{Text: name}, Options: o}
 }
-func roleAttributeFailure(t *testing.T, e *Engine, op *Operation, s parser.Statement, code string) {
+func roleAttributeFailure(t *testing.T, e *Engine, op *session.Operation, s parser.Statement, code string) {
 	t.Helper()
 	beforePublication := e.roles.published
 	next := e.roles.nextPrincipal

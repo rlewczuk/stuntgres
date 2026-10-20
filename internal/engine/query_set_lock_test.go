@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -223,7 +224,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 		{localCatalogSet, plan.RowMark{}, "0A000", "row locking is not supported for virtual catalog relations"},
 	} {
 		d := e.catalog.state.MustRelation(tc.ref.Address)
-		scope := &StatementScope{owner: &transactionOwner{}}
+		scope := &StatementScope{owner: &session.TransactionOwner{}}
 		leaf := exec.Leaf{Ref: tc.ref, Relation: d, Mark: tc.mark, Query: &parser.Select{Locking: []parser.RowLockClause{{}}}}
 		e.mu.Lock()
 		err := e.initializeQueryLocksLocked(scope, nil, []exec.Leaf{leaf})
@@ -257,7 +258,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	definition.sources[1].ref.Epoch++
 	d.View = &definition
 	e.catalog.state.SetDescriptor(set.Address, &d)
-	scope := &StatementScope{owner: &transactionOwner{}}
+	scope := &StatementScope{owner: &session.TransactionOwner{}}
 	e.mu.Lock()
 	err := e.initializeQueryLocksLocked(scope, nil, []exec.Leaf{{Ref: set, Relation: &d, Mark: localMark}})
 	e.mu.Unlock()
@@ -267,7 +268,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	// First-mode discovery still finds locally stored marks beneath a set when
 	// there is no inherited outer diagnostic, without granting marks to arms.
 	e.mu.Lock()
-	mode, err := e.firstQueryRowModeLocked(&StatementScope{owner: &transactionOwner{}}, nil, []exec.Leaf{{Ref: refs["local_set"], Relation: e.catalog.state.MustRelation(refs["local_set"].Address)}})
+	mode, err := e.firstQueryRowModeLocked(&StatementScope{owner: &session.TransactionOwner{}}, nil, []exec.Leaf{{Ref: refs["local_set"], Relation: e.catalog.state.MustRelation(refs["local_set"].Address)}})
 	e.mu.Unlock()
 	if err != nil || mode != lock.ForUpdate {
 		t.Fatal("local first diagnostic lost", mode, err)

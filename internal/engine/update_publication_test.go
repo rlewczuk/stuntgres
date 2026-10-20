@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"testing"
 )
@@ -65,7 +66,7 @@ func TestUpdateCoreMultiRelationPreflight(t *testing.T) {
 	}
 	transactionRows(t, b, "SELECT v FROM t", 1)
 	transactionRows(t, b, "SELECT v FROM u", 2)
-	if a.TransactionState() != TxIdle {
+	if a.TransactionState() != session.TxIdle {
 		transactionEnd(t, a, tx, false)
 	}
 	lockEmpty(t, e)

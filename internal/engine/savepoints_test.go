@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 )
 
 func TestSavepointsAcceptance(t *testing.T) {
@@ -194,11 +195,11 @@ func TestSavepointsOperationAuthority(t *testing.T) {
 	done := transactionOperation(t, a)
 	done.Done()
 	foreign := transactionOperation(t, b)
-	for _, candidate := range []*Operation{nil, &copyOp, &missing, done, foreign} {
+	for _, candidate := range []*session.Operation{nil, &copyOp, &missing, done, foreign} {
 		if _, err := e.Execute(candidate, statement(t, "ROLLBACK TO s"), 0, nil); err == nil {
 			t.Fatal("invalid operation admitted")
 		}
-		if a.TransactionState() != TxActive || len(a.Transactions.Savepoints) != 1 {
+		if a.TransactionState() != session.TxActive || len(a.Transactions.Savepoints) != 1 {
 			t.Fatal("invalid operation mutated mark authority")
 		}
 	}
@@ -228,17 +229,17 @@ func TestSavepointsErrorRecovery(t *testing.T) {
 	sessionSQL(t, a, "INSERT INTO t VALUES(2)")
 	controlsRequire(t, a, "RELEASE child")
 	controlsAbort(t, a)
-	if a.TransactionState() != TxAborted || a.Transactions.Ref != ref || a.Transactions.Ticket != ticket || len(a.Transactions.Savepoints) != 1 {
+	if a.TransactionState() != session.TxAborted || a.Transactions.Ref != ref || a.Transactions.Ticket != ticket || len(a.Transactions.Savepoints) != 1 {
 		t.Fatal("recoverable failure lost ancestor authority")
 	}
-	if err := controlsDescribe(t, a, "ROLLBACK TO s"); err != nil || a.TransactionState() != TxAborted {
+	if err := controlsDescribe(t, a, "ROLLBACK TO s"); err != nil || a.TransactionState() != session.TxAborted {
 		t.Fatal("Describe recovered or rejected rollback", err)
 	}
 	for range 2 {
 		if err := controlsExecute(t, a, "ROLLBACK TO missing"); err == nil {
 			t.Fatal("unknown mark accepted")
 		}
-		if a.TransactionState() != TxAborted || len(a.Transactions.Savepoints) != 1 {
+		if a.TransactionState() != session.TxAborted || len(a.Transactions.Savepoints) != 1 {
 			t.Fatal("failed recovery destroyed ancestor")
 		}
 	}

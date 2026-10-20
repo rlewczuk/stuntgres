@@ -40,7 +40,7 @@ func alterCookingError(err error) error {
 	return err
 }
 
-func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction, captured *sqltype.Usage) (*catalog.Relation, addedColumn, error) {
+func (e *Engine) addColumnCandidate(scope *StatementScope, op *session.Operation, auth AuthorizationView, old *catalog.Relation, action parser.AlterTableAction, captured *sqltype.Usage) (*catalog.Relation, addedColumn, error) {
 	scope.routineAuth = auth
 	fail := func(err error) (*catalog.Relation, addedColumn, error) { return nil, addedColumn{}, err }
 	column := action.Definition

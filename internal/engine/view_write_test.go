@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -64,7 +65,7 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	return viewWriteFixture{e, base, view, baseRef, viewRef, integer, boolean}
 }
 
-func (f viewWriteFixture) authorization(t *testing.T, op *Operation) AuthorizationView {
+func (f viewWriteFixture) authorization(t *testing.T, op *session.Operation) AuthorizationView {
 	t.Helper()
 	f.e.mu.Lock()
 	defer f.e.mu.Unlock()
@@ -74,7 +75,7 @@ func (f viewWriteFixture) authorization(t *testing.T, op *Operation) Authorizati
 	}
 	return v
 }
-func (f viewWriteFixture) scope(t *testing.T, explicit ...bool) (*StatementScope, *Operation) {
+func (f viewWriteFixture) scope(t *testing.T, explicit ...bool) (*StatementScope, *session.Operation) {
 	t.Helper()
 	session := sessionStart(t, f.e, nil)
 	if len(explicit) != 0 && explicit[0] {

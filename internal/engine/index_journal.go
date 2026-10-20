@@ -17,7 +17,7 @@ type indexJournal struct {
 }
 
 // journalIndexes returns c's index slot, allocating it on first use.
-func journalIndexes(c *catalogChanges) *indexJournal {
+func journalIndexes(c *session.Journal) *indexJournal {
 	if c.Indexes == nil {
 		c.Indexes = indexSlotOf(new(indexJournal))
 	}
@@ -25,7 +25,7 @@ func journalIndexes(c *catalogChanges) *indexJournal {
 }
 
 // journalIndexesOrZero reads c's index slot; a nil slot reads as zero.
-func journalIndexesOrZero(c *catalogChanges) indexJournal {
+func journalIndexesOrZero(c *session.Journal) indexJournal {
 	if j := indexJournalOf(c.Indexes); j != nil {
 		return *j
 	}

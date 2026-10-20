@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 )
 
@@ -93,7 +94,7 @@ func TestCastCoercionSelectPreflightAuthorityIdentityCancellation(t *testing.T) 
 					op.Session.Authorization.State.CurrentUser = actor.Ref
 					op.Session.Mu.Unlock()
 				case "teardown":
-					op.Session.RequestEnd(CleanClose)
+					op.Session.RequestEnd(session.CleanClose)
 				case "descriptor":
 					leaf := scope.querySources[0]
 					address := leaf.Ref.Address

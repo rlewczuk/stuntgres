@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -47,7 +48,7 @@ func TestAdvisoryXactPreparedOwnership(t *testing.T) {
 		if advisoryUnitHold(a, key).Mode != sessionMode {
 			t.Fatal("session contribution transferred")
 		}
-		a.RequestEnd(CleanClose)
+		a.RequestEnd(session.CleanClose)
 		if err := a.WaitEnd(context.Background()); err != nil {
 			t.Fatal(err)
 		}

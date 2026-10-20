@@ -29,7 +29,7 @@ func (truncateGraphFence) Kind() session.FenceKind { return fenceTruncateGraph }
 
 // Catalog replacements do not have to honor SQL AX locks. Fence new inbound
 // FK/hierarchy edges as well as the exact selected descriptors and stores.
-func (fence truncateGraphFence) currentLocked(e *Engine, c *catalogChanges) error {
+func (fence truncateGraphFence) currentLocked(e *Engine, c *session.Journal) error {
 	current := e.privateCatalogLocked(c)
 	if fence.restart {
 		for address, generator := range fence.sequences {
@@ -149,7 +149,7 @@ func (s *StatementScope) stageTruncate() error {
 				err = ids.ErrCatalogReplaced
 				break
 			}
-			shape = catalogStorageChange{Original: original, Root: original.Versions, Ends: original.Ends, Generation: original.Generation}
+			shape = session.StorageChange{Original: original, Root: original.Versions, Ends: original.Ends, Generation: original.Generation}
 		}
 		// Do not bridge a preceding ordinary private storage rewrite. The marker
 		// means the entire transition from the first committed predecessor is pure.

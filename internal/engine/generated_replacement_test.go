@@ -44,8 +44,8 @@ func (s *generatedRepairSource) Uint64() uint64 {
 type generatedRepairFixture struct {
 	target     *Engine
 	stage      *Engine
-	session    *Session
-	op         *Operation
+	session    *session.Session
+	op         *session.Operation
 	next       *catalog.State
 	storage    map[ids.ObjectAddress]*storage.Relation
 	sequences  map[ids.ObjectAddress]*storage.SequenceGenerator
@@ -114,13 +114,13 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	e.storage.InstallRelationLocked(tempAddress, &storage.Relation{Versions: []storage.RowVersion{{Values: tempValues}}})
 	e.mu.Unlock()
 	stage := e.restoreStage()
-	sess, err := stage.StartSession(context.Background(), SessionStart{ID: 1})
+	sess, err := stage.StartSession(context.Background(), session.SessionStart{ID: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
 	op, err := sess.Acquire(context.Background())
 	if err != nil {
-		sess.RequestEnd(CleanClose)
+		sess.RequestEnd(session.CleanClose)
 		_ = sess.WaitEnd(context.Background())
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	f := &generatedRepairFixture{target: e, stage: stage, session: sess, op: op, next: next, storage: map[ids.ObjectAddress]*storage.Relation{d.Address(): {Versions: []storage.RowVersion{{Values: source}}}}, sequences: map[ids.ObjectAddress]*storage.SequenceGenerator{{ClassID: ids.RelationClassID, ObjectID: 28000}: {Last: 77, Called: true}}, mapping: map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.Address()}, imported: d.Address(), temp: tempAddress, source: source, tempValues: tempValues, gate: gate}
 	t.Cleanup(func() {
 		op.Done()
-		sess.RequestEnd(CleanClose)
+		sess.RequestEnd(session.CleanClose)
 		if err := sess.WaitEnd(context.Background()); err != nil {
 			t.Error(err)
 		}
@@ -170,7 +170,7 @@ func (f *generatedRepairFixture) assertJoined(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.op.Done()
-	f.session.RequestEnd(CleanClose)
+	f.session.RequestEnd(session.CleanClose)
 	if err := f.session.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}

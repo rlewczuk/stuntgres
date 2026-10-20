@@ -8,12 +8,13 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"testing"
 )
 
-func discardUnitScope(t *testing.T, session *Session, ctx context.Context, category parser.DiscardCategory) (*Operation, *StatementScope) {
+func discardUnitScope(t *testing.T, session *session.Session, ctx context.Context, category parser.DiscardCategory) (*session.Operation, *StatementScope) {
 	t.Helper()
 	op, err := session.Acquire(ctx)
 	if err != nil {
@@ -32,7 +33,7 @@ func discardUnitScope(t *testing.T, session *Session, ctx context.Context, categ
 	return op, scope
 }
 
-func discardUnitApply(t *testing.T, session *Session, category parser.DiscardCategory) {
+func discardUnitApply(t *testing.T, session *session.Session, category parser.DiscardCategory) {
 	t.Helper()
 	op, scope := discardUnitScope(t, session, context.Background(), category)
 	defer op.Done()

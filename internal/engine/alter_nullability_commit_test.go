@@ -6,10 +6,11 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 )
 
 func TestAlterNullabilityCombinedCommitBoundary(t *testing.T) {
-	setup := func() (*Engine, *Session, ids.TxRef, ids.ObjectRef) {
+	setup := func() (*Engine, *session.Session, ids.TxRef, ids.ObjectRef) {
 		e := New()
 		s := sessionStart(t, e, nil)
 		sessionSQL(t, s, "CREATE TABLE t(a INT,b INT)")
@@ -56,7 +57,7 @@ func TestAlterNullabilityCombinedCommitBoundary(t *testing.T) {
 			transactionRows(t, s, "SELECT a FROM t ORDER BY a", 8, 9)
 			sequenceScalar(t, s, "SELECT nextval('seq')", 20)
 		}
-		if s.Transactions.State != TxIdle {
+		if s.Transactions.State != session.TxIdle {
 			transactionEnd(t, s, tx, false)
 		}
 		lockEmpty(t, e)

@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -47,7 +48,7 @@ func TestAnalysisHostWithOperation(t *testing.T) {
 	if host != e.analysisHost(op) || host.op != op || host.engine != e {
 		t.Fatal("a session operation does not reuse its own binding host")
 	}
-	copied := &Operation{Session: op.Session, Analysis: op.Analysis}
+	copied := &session.Operation{Session: op.Session, Analysis: op.Analysis}
 	if fresh := e.analysisHost(copied); fresh == host || fresh.op != copied {
 		t.Fatal("a copied operation binds through the original operation's host")
 	}
@@ -67,6 +68,6 @@ func TestAnalysisHostWithOperation(t *testing.T) {
 }
 
 // binderOperation and binderEngine read a binder's host state in tests.
-func binderOperation(b *analyze.Binder) *Operation { return b.Host.(*bindingHost).op }
+func binderOperation(b *analyze.Binder) *session.Operation { return b.Host.(*bindingHost).op }
 
 func binderEngine(b *analyze.Binder) *Engine { return b.Host.(*bindingHost).engine }

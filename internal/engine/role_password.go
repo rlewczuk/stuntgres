@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func emitPasswordNotice(op *Operation, n authorization.PasswordNotice) {
+func emitPasswordNotice(op *session.Operation, n authorization.PasswordNotice) {
 	switch n {
 	case authorization.PasswordEmptyNotice:
 		op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: "empty string is not a valid password, clearing password"})

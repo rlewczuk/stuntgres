@@ -6,6 +6,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -105,7 +106,7 @@ func (provider *dropProvider) partitionIndexPromotionPath(start, target ids.Obje
 	return false
 }
 
-func partitionIndexAttachCheck(op *Operation, view catalog.Read, parent, child *catalog.Relation) error {
+func partitionIndexAttachCheck(op *session.Operation, view catalog.Read, parent, child *catalog.Relation) error {
 	diagnostic := func(code, detail string) error {
 		return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: fmt.Sprintf(`cannot attach index "%s" as a partition of index "%s"`, child.Name(), parent.Name()), Detail: detail}
 	}
@@ -155,7 +156,7 @@ func partitionIndexAttachCheck(op *Operation, view catalog.Read, parent, child *
 	return nil
 }
 
-func (e *Engine) stagePartitionIndexAttach(op *Operation, stage *CatalogStage, parent, child *catalog.Relation) error {
+func (e *Engine) stagePartitionIndexAttach(op *session.Operation, stage *CatalogStage, parent, child *catalog.Relation) error {
 	view := e.stageRead(stage)
 	if err := partitionIndexAttachCheck(op, view, parent, child); err != nil {
 		return err

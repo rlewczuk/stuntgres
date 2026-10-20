@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -593,7 +594,7 @@ func TestConditionalInsertPlanningLockBoundary(t *testing.T) {
 					op.Session.Authorization.State.CurrentUser = actor.Ref
 					op.Session.Mu.Unlock()
 				case "teardown":
-					op.Session.RequestEnd(CleanClose)
+					op.Session.RequestEnd(session.CleanClose)
 				case "descriptor", "shape":
 					address := scope.lockedRef.Address
 					original := e.catalog.state.Get(address)

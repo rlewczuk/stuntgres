@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/session"
 )
 
 // sessionPayload is the root-owned part of a session (13c decision 3): SQL
@@ -24,14 +25,14 @@ func (*sessionPayload) PayloadSlot() {}
 // sessionAllocation places a session, its root payload and its transaction
 // owner's root extension in one allocation.
 type sessionAllocation struct {
-	session Session
+	session session.Session
 	payload sessionPayload
 	owner   ownerExtension
 }
 
 // payloadOf returns the root payload of s, or nil for a session built without
 // one (unit-test literals).
-func payloadOf(s *Session) *sessionPayload {
+func payloadOf(s *session.Session) *sessionPayload {
 	p, _ := s.Payload.(*sessionPayload)
 	return p
 }

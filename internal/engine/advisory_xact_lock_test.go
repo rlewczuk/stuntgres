@@ -5,30 +5,31 @@ import (
 	"errors"
 	"fmt"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/session"
 	"testing"
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
 
-func advisoryXactUnitTicket(s *Session, xact bool) *lock.Ticket {
+func advisoryXactUnitTicket(s *session.Session, xact bool) *lock.Ticket {
 	if xact {
 		return s.Transactions.Ticket
 	}
 	return s.Advisory.Ticket
 }
-func advisoryXactUnitAcquire(t *testing.T, s *Session, key lock.Resource, mode lock.Mode, xact, nowait bool) (*lock.Request, error) {
+func advisoryXactUnitAcquire(t *testing.T, s *session.Session, key lock.Resource, mode lock.Mode, xact, nowait bool) (*lock.Request, error) {
 	t.Helper()
 	return engineOf(s).locks.StartAcquire(context.Background(), advisoryXactUnitTicket(s, xact), key, mode, lock.Policy{Provenance: s.Transactions.Ref, NoWait: nowait})
 }
-func advisoryXactUnitGrant(t *testing.T, s *Session, key lock.Resource, mode lock.Mode, xact bool) {
+func advisoryXactUnitGrant(t *testing.T, s *session.Session, key lock.Resource, mode lock.Mode, xact bool) {
 	t.Helper()
 	r, err := advisoryXactUnitAcquire(t, s, key, mode, xact, true)
 	if r != nil || err != nil {
 		t.Fatal("expected immediate grant", r, err)
 	}
 }
-func advisoryXactUnitHold(s *Session, key lock.Resource) lock.Hold {
+func advisoryXactUnitHold(s *session.Session, key lock.Resource) lock.Hold {
 	m := engineOf(s).locks
 	lockState := m.Inspect()
 	if e := lockState.Resources[key]; e != nil {

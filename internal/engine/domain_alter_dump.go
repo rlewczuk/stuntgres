@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
@@ -85,7 +86,7 @@ func restoreDomainAlter(raw *parser.AlterDomain) error {
 // Only the constructor's actual fresh ref, immediately after the captured owner
 // and bootstrap directives, can produce this pair. The Restore loop expires it
 // on every subsequent statement; it is not general ALTER OWNER eligibility.
-func (e *Engine) captureRestoredDomainOwner(op *Operation, created ids.ObjectRef, owner authorization.PrincipalRef) (typedef.RestoredDomainOwner, error) {
+func (e *Engine) captureRestoredDomainOwner(op *session.Operation, created ids.ObjectRef, owner authorization.PrincipalRef) (typedef.RestoredDomainOwner, error) {
 	reject := func() (typedef.RestoredDomainOwner, error) {
 		return typedef.RestoredDomainOwner{}, sqlError("0A000", typedef.RestoreDomainOwnerBoundary)
 	}
@@ -128,7 +129,7 @@ func (e *Engine) captureRestoredDomainOwner(op *Operation, created ids.ObjectRef
 	return typedef.RestoredDomainOwner{Ref: created, Domain: domain, Namespace: namespace, Owner: owner, Creator: actor.Ref}, nil
 }
 
-func (e *Engine) restoreDomainOwner(op *Operation, raw *parser.AlterOwner, pair typedef.RestoredDomainOwner) error {
+func (e *Engine) restoreDomainOwner(op *session.Operation, raw *parser.AlterOwner, pair typedef.RestoredDomainOwner) error {
 	reject := func() error { return sqlError("0A000", typedef.RestoreDomainOwnerBoundary) }
 	if raw == nil || raw.Kind != "domain" || raw.IfExists || len(raw.Name.Parts) != 2 || raw.Target.Identity != "" || pair.Ref == (ids.ObjectRef{}) {
 		return reject()

@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -23,7 +24,7 @@ func retiredUnitTable(t *testing.T, e *Engine, name string) *catalog.Relation {
 	return nil
 }
 
-func retiredRuntimeFixture(t *testing.T) (*Engine, *Operation) {
+func retiredRuntimeFixture(t *testing.T) (*Engine, *session.Operation) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")

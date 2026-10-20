@@ -102,7 +102,7 @@ func TestCommitTimeAssignment(t *testing.T) {
 	}
 	// Enrollment can follow assignment (for example a later captured snapshot).
 	publicXID := disabled.visibility.Entries[ref].AssignedXID
-	disabled.enrollSerializableLocked(ref, Serializable)
+	disabled.enrollSerializableLocked(ref, session.Serializable)
 	node := disabled.visibility.Serializable.Nodes[ref]
 	if node.AssignedXID != publicXID {
 		t.Fatal("late SSI enrollment lost the assigned public identity")
@@ -128,7 +128,7 @@ func TestCommitTimePublication(t *testing.T) {
 				defer op.Done()
 				tx := sess.Transactions
 				tx.Mu.Lock()
-				err = e.beginLocked(op, tx, TxImplicit, time.Now())
+				err = e.beginLocked(op, tx, session.TxImplicit, time.Now())
 				tx.Mu.Unlock()
 				if err != nil {
 					t.Fatal(err)

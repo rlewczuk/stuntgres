@@ -9,11 +9,12 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func (e *Engine) resolveGrantRoutine(op *Operation, v AuthorizationView, target parser.GrantRoutineTarget, kind string) (ids.ObjectRef, error) {
+func (e *Engine) resolveGrantRoutine(op *session.Operation, v AuthorizationView, target parser.GrantRoutineTarget, kind string) (ids.ObjectRef, error) {
 	path, err := e.lookupNamespaces(v, target.Name, analyze.FunctionLookup)
 	if err != nil {
 		return ids.ObjectRef{}, err

@@ -8,7 +8,7 @@ import (
 )
 
 // catalogFencesOf returns the journal's fences of type F in recording order.
-func catalogFencesOf[F catalogFence](c *catalogChanges) []F {
+func catalogFencesOf[F catalogFence](c *session.Journal) []F {
 	var out []F
 	for _, f := range c.Fences {
 		if typed, ok := f.(F); ok {
@@ -27,7 +27,7 @@ type orderProbeFence struct {
 
 func (f orderProbeFence) Kind() session.FenceKind { return f.kind }
 
-func (f orderProbeFence) currentLocked(*Engine, *catalogChanges) error {
+func (f orderProbeFence) currentLocked(*Engine, *session.Journal) error {
 	*f.seen = append(*f.seen, f.name)
 	return f.err
 }

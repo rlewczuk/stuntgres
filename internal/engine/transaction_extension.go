@@ -1,5 +1,7 @@
 package engine
 
+import "stuntgres/internal/engine/session"
+
 // ownerExtension is the root-owned part of a transaction owner (13c decision
 // 3): foreign transaction participants and cleanup, exclusion constraint modes
 // and the SQL cursors detached for cleanup. startSession allocates it with the
@@ -14,7 +16,7 @@ func (*ownerExtension) OwnerSlot() {}
 
 // ownerExtensionOf returns t's extension for writing. Session owners always
 // have one; an owner built without one (unit-test literals) gets one here.
-func ownerExtensionOf(t *transactionOwner) *ownerExtension {
+func ownerExtensionOf(t *session.TransactionOwner) *ownerExtension {
 	x, _ := t.Extension.(*ownerExtension)
 	if x == nil {
 		x = new(ownerExtension)
@@ -25,7 +27,7 @@ func ownerExtensionOf(t *transactionOwner) *ownerExtension {
 
 // ownerExtensionOrZero returns a copy of t's extension for reading; a missing
 // extension reads as all zero and is not allocated.
-func ownerExtensionOrZero(t *transactionOwner) ownerExtension {
+func ownerExtensionOrZero(t *session.TransactionOwner) ownerExtension {
 	if x, _ := t.Extension.(*ownerExtension); x != nil {
 		return *x
 	}

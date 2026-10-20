@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -400,7 +401,7 @@ func TestCatalogReplacementStatementBoundary(t *testing.T) {
 			defer cleanup()
 			var ref ids.TxRef
 			if explicit {
-				ref, err = e.Begin(op, TxOptions{})
+				ref, err = e.Begin(op, session.TxOptions{})
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -230,7 +231,7 @@ func typedReviewTypeACL(t *testing.T, e *Engine, address ids.ObjectAddress, acl 
 	domainUnitPublish(t, e, stage)
 }
 
-func typedReviewACLFixture(t *testing.T) (*Engine, *Operation, func(), ids.ObjectAddress) {
+func typedReviewACLFixture(t *testing.T) (*Engine, *session.Operation, func(), ids.ObjectAddress) {
 	t.Helper()
 	e := New()
 	admin, finish := roleOperation(t, e, "postgres")

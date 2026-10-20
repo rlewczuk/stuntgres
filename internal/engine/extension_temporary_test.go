@@ -17,29 +17,30 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func extensionTemporaryOperation(t *testing.T, e *Engine, name string) (*Operation, func()) {
+func extensionTemporaryOperation(t *testing.T, e *Engine, name string) (*session.Operation, func()) {
 	t.Helper()
 	ref, err := e.ResolveLogin(name)
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: ref})
+	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: ref})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var op *Operation
+	var op *session.Operation
 	var once sync.Once
 	close := func() {
 		once.Do(func() {
 			if op != nil {
 				op.Done()
 			}
-			s.RequestEnd(CleanClose)
+			s.RequestEnd(session.CleanClose)
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			if err := s.WaitEnd(ctx); err != nil {
@@ -54,7 +55,7 @@ func extensionTemporaryOperation(t *testing.T, e *Engine, name string) (*Operati
 	}
 	return op, close
 }
-func extensionTemporaryInstalled(t *testing.T) (*Engine, *Operation, *Operation, *catalog.Extension, func()) {
+func extensionTemporaryInstalled(t *testing.T) (*Engine, *session.Operation, *session.Operation, *catalog.Extension, func()) {
 	t.Helper()
 	e := New()
 	owner, closeOwner := extensionTemporaryOperation(t, e, "postgres")
@@ -67,7 +68,7 @@ func extensionTemporaryInstalled(t *testing.T) (*Engine, *Operation, *Operation,
 	ext := e.catalog.state.MustExtension(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "unaccent"}))
 	return e, owner, installer, ext, closeOwner
 }
-func extensionTemporaryConsumerUnits(t *testing.T, e *Engine, op *Operation, ext *catalog.Extension) *catalog.Relation {
+func extensionTemporaryConsumerUnits(t *testing.T, e *Engine, op *session.Operation, ext *catalog.Extension) *catalog.Relation {
 	t.Helper()
 	name := e.catalog.state.Get(ext.TargetNamespace).Name()
 	for _, q := range []string{
@@ -212,18 +213,18 @@ func TestExtensionTemporaryCleanup(t *testing.T) {
 	})
 	t.Run("private_authority", func(t *testing.T) {
 		e, _, _, ext, _ := extensionTemporaryInstalled(t)
-		private, err := e.startSession(context.Background(), SessionStart{Authenticated: e.roles.domain.Principal(10)}, true)
+		private, err := e.startSession(context.Background(), session.SessionStart{Authenticated: e.roles.domain.Principal(10)}, true)
 		if err != nil {
 			t.Fatal(err)
 		}
-		var op *Operation
+		var op *session.Operation
 		var once sync.Once
 		closePrivate := func() {
 			once.Do(func() {
 				if op != nil {
 					op.Done()
 				}
-				private.RequestEnd(CleanClose)
+				private.RequestEnd(session.CleanClose)
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 				if err := private.WaitEnd(ctx); err != nil {

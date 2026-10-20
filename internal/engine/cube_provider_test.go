@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/session"
 	"testing"
 
 	"stuntgres/internal/engine/access"
@@ -19,7 +20,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func cubeUnitStage(t *testing.T, e *Engine, op *Operation, name, schema string) *CatalogStage {
+func cubeUnitStage(t *testing.T, e *Engine, op *session.Operation, name, schema string) *CatalogStage {
 	t.Helper()
 	creation := &parser.CreateExtension{Name: parser.Identifier{Text: name}}
 	if schema != "" {

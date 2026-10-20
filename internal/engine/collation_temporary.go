@@ -8,11 +8,12 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
 func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage *CatalogStage, name parser.ObjectName) (ids.ObjectRef, error) {
-	var changes catalogChanges
+	var changes session.Journal
 	ref, err := e.creationNamespaceStagedLocked(*auth, name, false, &changes, true)
 	if err != nil {
 		return ids.ObjectRef{}, err
@@ -46,11 +47,11 @@ func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage
 // A failed candidate leaves the namespace and every durable dependency intact.
 // Engine.mu also owns the ending session's sequence memories and TEMP pointer:
 // command drain does not exclude concurrent catalog replacement of live peers.
-func (e *Engine) endTemporaryCollations(source *Session) (err error) {
+func (e *Engine) endTemporaryCollations(source *session.Session) (err error) {
 	if privateSessionOf(source.SessionToken) != nil {
 		return nil
 	}
-	var maintenance *Session
+	var maintenance *session.Session
 	for {
 		e.mu.Lock()
 		base := e.catalog.read(e.catalog.state)
@@ -76,12 +77,12 @@ func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 			return captureErr
 		}
 		if maintenance == nil {
-			maintenance, err = e.startSession(context.Background(), SessionStart{Authenticated: e.roles.domain.Principal(10)}, true)
+			maintenance, err = e.startSession(context.Background(), session.SessionStart{Authenticated: e.roles.domain.Principal(10)}, true)
 			if err != nil {
 				return err
 			}
 			defer func() {
-				maintenance.RequestEnd(CleanClose)
+				maintenance.RequestEnd(session.CleanClose)
 				err = errors.Join(err, maintenance.WaitEnd(context.Background()))
 			}()
 		}
@@ -100,7 +101,7 @@ func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 	}
 }
 
-func (e *Engine) removeTemporaryNamespaceCandidate(session *Session, base catalog.Read, namespaces []*catalog.Namespace, children []ids.ObjectAddress, token ids.SessionToken) (stale bool, err error) {
+func (e *Engine) removeTemporaryNamespaceCandidate(session *session.Session, base catalog.Read, namespaces []*catalog.Namespace, children []ids.ObjectAddress, token ids.SessionToken) (stale bool, err error) {
 	var stage *CatalogStage
 	// Registered first, so classification runs after Finish, stage discard and
 	// Operation.Done have fully unwound the failed attempt.

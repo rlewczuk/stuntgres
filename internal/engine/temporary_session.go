@@ -42,11 +42,11 @@ func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
 func ownTemporaryNamespace(auth AuthorizationView, ns *catalog.Namespace) bool {
 	return ns != nil && !ns.TemporaryToast && ns.Temporary != (ids.SessionToken{}) && temporaryNamespace(auth) == ns.Address()
 }
-func (e *Engine) relationCreationNamespaceLocked(auth AuthorizationView, name parser.ObjectName, persistence string, c *catalogChanges) (ids.ObjectRef, error) {
+func (e *Engine) relationCreationNamespaceLocked(auth AuthorizationView, name parser.ObjectName, persistence string, c *session.Journal) (ids.ObjectRef, error) {
 	return e.creationNamespaceStagedLocked(auth, name, persistence == "temporary", c, false)
 }
 
-func (e *Engine) creationNamespaceStagedLocked(auth AuthorizationView, name parser.ObjectName, temp bool, c *catalogChanges, system bool) (ids.ObjectRef, error) {
+func (e *Engine) creationNamespaceStagedLocked(auth AuthorizationView, name parser.ObjectName, temp bool, c *session.Journal, system bool) (ids.ObjectRef, error) {
 	if len(name.Parts) == 2 && name.Parts[0].Text != "pg_temp" {
 		return e.creationNamespaceWithSystem(auth, name, system)
 	}
@@ -65,7 +65,7 @@ func (e *Engine) creationNamespaceStagedLocked(auth AuthorizationView, name pars
 }
 
 // Engine.mu is held. The caller owns the candidate and its publication.
-func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catalogChanges) (ids.ObjectRef, error) {
+func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *session.Journal) (ids.ObjectRef, error) {
 	if auth.session == nil || privateSessionOf(auth.session.SessionToken) != nil {
 		return ids.ObjectRef{}, fmt.Errorf("stuntgres: private maintenance cannot create a temporary namespace")
 	}
@@ -145,7 +145,7 @@ func adjustRelationCreationPersistence(auth AuthorizationView, ref ids.ObjectRef
 // Logical namespace retirement is not a PostgreSQL namespace tuple deletion:
 // physical backend exit preserves pg_namespace and cleans only temp relations.
 // Keep peer analysis generation/epoch unchanged, including at scalar exhaustion.
-func (e *Engine) endTemporarySession(s *Session) error {
+func (e *Engine) endTemporarySession(s *session.Session) error {
 	if privateSessionOf(s.SessionToken) != nil {
 		return nil
 	}
@@ -252,7 +252,7 @@ func (e *Engine) temporaryCleanupStale(stage *CatalogStage, indexes *temporarySe
 // The whole-root fence includes replacement predecessors and newly introduced
 // dependents. Row-only commits need not change that root: copy their current
 // storage/generator/index maps at this final publication, not at preparation.
-func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogStage, namespaces []ids.ObjectAddress, indexes *temporarySessionIndexes) (bool, error) {
+func (e *Engine) installTemporarySessionStageLocked(s *session.Session, stage *CatalogStage, namespaces []ids.ObjectAddress, indexes *temporarySessionIndexes) (bool, error) {
 	if e.catalog.state != stage.Base.State() {
 		return false, nil
 	}

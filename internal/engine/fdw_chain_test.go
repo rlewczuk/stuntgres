@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 )
 
 type fdwChainTransaction struct {
@@ -111,7 +112,7 @@ func fdwChainReadmission(t *testing.T) {
 	held = false
 	got := <-done
 	consumed = true
-	if !errors.Is(got.err, ids.ErrCatalogReplaced) || !got.result.Committed || owner.State != TxIdle || owner.Ref != (ids.TxRef{}) || owner.Ticket != nil {
+	if !errors.Is(got.err, ids.ErrCatalogReplaced) || !got.result.Committed || owner.State != session.TxIdle || owner.Ref != (ids.TxRef{}) || owner.Ticket != nil {
 		t.Fatal("CHAIN changed old commit truth or installed stale next owner", got.result, got.err, owner.State)
 	}
 	if len(remote.calls) != 1 || remote.calls[0] != "commit" {

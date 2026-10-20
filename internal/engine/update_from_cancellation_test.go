@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 )
 
@@ -88,7 +89,7 @@ func TestUpdateFromCancelledTraversalAndPublicationCleanup(t *testing.T) {
 					t.Fatal("orphan captured statement")
 				}
 				if explicit {
-					if writer.TransactionState() != TxAborted || writer.Transactions.Writes != nil {
+					if writer.TransactionState() != session.TxAborted || writer.Transactions.Writes != nil {
 						t.Fatal("prior private write survived abort")
 					}
 					transactionEnd(t, writer, tx, false)

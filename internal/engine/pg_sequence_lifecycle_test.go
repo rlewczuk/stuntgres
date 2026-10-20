@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -15,7 +16,7 @@ func TestPGSequenceSnapshotTerminalRelease(t *testing.T) {
 			e := New()
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
-			ref, err := e.Begin(op, TxOptions{Isolation: RepeatableRead})
+			ref, err := e.Begin(op, session.TxOptions{Isolation: session.RepeatableRead})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -39,12 +40,12 @@ func TestPGSequenceSnapshotTerminalRelease(t *testing.T) {
 				if err := scope.Finish(failure); err != failure {
 					t.Fatal(err)
 				}
-				if owner.State != TxAborted {
+				if owner.State != session.TxAborted {
 					t.Fatal("failure did not abort owner")
 				}
 			case "session_end":
 				op.Done()
-				op.Session.RequestEnd(CleanClose)
+				op.Session.RequestEnd(session.CleanClose)
 				if err := op.Session.WaitEnd(context.Background()); err != nil {
 					t.Fatal(err)
 				}

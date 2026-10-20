@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"sync"
 	"testing"
@@ -117,7 +118,7 @@ func TestDefaultPrivilegesPublicationFence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.op.Session.RequestEnd(CleanClose)
+	f.op.Session.RequestEnd(session.CleanClose)
 	// Isolate the terminal publication gate from the earlier cancellation gate:
 	// a fully staged candidate still cannot install into an ending physical owner.
 	f.op.Session.Mu.Lock()

@@ -14,11 +14,12 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func jsonbRecordRoutineUnitFixture(t *testing.T) (*Engine, *Operation, *StatementScope) {
+func jsonbRecordRoutineUnitFixture(t *testing.T) (*Engine, *session.Operation, *StatementScope) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -370,7 +371,7 @@ func TestJSONBRecordRoutineEndedScope(t *testing.T) {
 	}
 }
 
-func eMustJSONBRoutineAuthority(t *testing.T, e *Engine, op *Operation) *AuthorizationView {
+func eMustJSONBRoutineAuthority(t *testing.T, e *Engine, op *session.Operation) *AuthorizationView {
 	t.Helper()
 	e.mu.Lock()
 	defer e.mu.Unlock()

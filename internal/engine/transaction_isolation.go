@@ -13,31 +13,31 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func isolationFromText(text string) Isolation {
+func isolationFromText(text string) session.Isolation {
 	switch text {
 	case "read uncommitted":
-		return ReadUncommitted
+		return session.ReadUncommitted
 	case "repeatable read":
-		return RepeatableRead
+		return session.RepeatableRead
 	case "serializable":
-		return Serializable
+		return session.Serializable
 	default:
-		return ReadCommitted
+		return session.ReadCommitted
 	}
 }
-func isolationText(level Isolation) string {
+func isolationText(level session.Isolation) string {
 	switch level {
-	case ReadUncommitted:
+	case session.ReadUncommitted:
 		return "read uncommitted"
-	case RepeatableRead:
+	case session.RepeatableRead:
 		return "repeatable read"
-	case Serializable:
+	case session.Serializable:
 		return "serializable"
 	default:
 		return "read committed"
 	}
 }
-func syncCharacteristics(t *transactionOwner) {
+func syncCharacteristics(t *session.TransactionOwner) {
 	settings := t.Session.Settings
 	settings.Mu.Lock()
 	settings.CurrentIsolation = isolationText(t.Isolation)
@@ -46,16 +46,16 @@ func syncCharacteristics(t *transactionOwner) {
 	settings.Mu.Unlock()
 	e := engineOf(t.Session)
 	e.mu.Lock()
-	if !t.SnapshotSet && (t.State == TxActive || t.State == TxImplicit) {
+	if !t.SnapshotSet && (t.State == session.TxActive || t.State == session.TxImplicit) {
 		e.enrollSerializableLocked(t.Ref, t.Isolation)
 	}
 	e.mu.Unlock()
 }
-func assignModes(t *transactionOwner, modes []parser.TransactionMode) error {
+func assignModes(t *session.TransactionOwner, modes []parser.TransactionMode) error {
 	isolation, readOnly, deferrable := t.Isolation, t.ReadOnly, t.Deferrable
 	for _, mode := range modes {
 		if mode.Isolation != parser.IsolationDefault {
-			next := Isolation(mode.Isolation)
+			next := session.Isolation(mode.Isolation)
 			if t.SnapshotSet && next != isolation {
 				return sqlError("25001", "SET TRANSACTION ISOLATION LEVEL must be called before any query")
 			}
@@ -88,7 +88,7 @@ func assignModes(t *transactionOwner, modes []parser.TransactionMode) error {
 	syncCharacteristics(t)
 	return nil
 }
-func (e *Engine) applyCurrentCharacteristic(op *Operation, d settings.Definition, input *string) (string, error) {
+func (e *Engine) applyCurrentCharacteristic(op *session.Operation, d settings.Definition, input *string) (string, error) {
 	if input == nil {
 		return "", sqlError("0A000", fmt.Sprintf(`parameter "%s" cannot be reset`, d.Name))
 	}
@@ -140,7 +140,7 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 		for _, mode := range stmt.Modes {
 			name, value := "", ""
 			if mode.Isolation != parser.IsolationDefault {
-				name, value = "default_transaction_isolation", isolationText(Isolation(mode.Isolation))
+				name, value = "default_transaction_isolation", isolationText(session.Isolation(mode.Isolation))
 			}
 			if mode.AccessSet {
 				name, value = "default_transaction_read_only", "off"
@@ -482,7 +482,7 @@ func (s *StatementScope) executionEligibility(stmt parser.Statement) error {
 	if index, ok := stmt.(*parser.CreateIndex); ok && index.Concurrent.Character != 0 && t.InBlock() {
 		return sqlError("25001", "CREATE INDEX CONCURRENTLY cannot run inside a transaction block")
 	}
-	if t.State == TxActive {
+	if t.State == session.TxActive {
 		return sqlError("0A000", "statement is unsupported in an explicit transaction")
 	}
 	return nil

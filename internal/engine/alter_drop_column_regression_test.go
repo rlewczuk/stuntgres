@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"sync"
 	"sync/atomic"
@@ -266,7 +267,7 @@ func TestAlterDropColumnLockedBindingShadowCreation(t *testing.T) {
 				if values := tuples(run(t, e, "SELECT * FROM early.t")); !reflect.DeepEqual(values, [][]driver.Value{{int64(2), "early", int64(20)}}) {
 					t.Error(values)
 				}
-				if waiter.TransactionState() != TxIdle {
+				if waiter.TransactionState() != session.TxIdle {
 					t.Error("waiter implicit transaction not finished")
 				}
 				lockEmpty(t, e)

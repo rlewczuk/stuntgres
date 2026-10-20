@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -17,7 +18,7 @@ func commentWant(t *testing.T, e *Engine, read catalog.Read, ref ids.ObjectRef, 
 		t.Fatalf("comment: %q %v %v want %q", got, present, err, want)
 	}
 }
-func commentFailure(t *testing.T, e *Engine, op *Operation, q, code, message, detail string) {
+func commentFailure(t *testing.T, e *Engine, op *session.Operation, q, code, message, detail string) {
 	t.Helper()
 	before := e.CatalogRead()
 	rolesPublication := e.roles.published

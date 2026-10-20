@@ -6,13 +6,14 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
 // The ordinary default provider is metadata-only. Cook each physical default
 // against its own column Usage, but publish the complete hierarchy only once.
 // The caller holds Engine.mu; every return releases it.
-func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *Operation, auth AuthorizationView, raw *parser.AlterTableDefault, root *catalog.Relation) (Result, error) {
+func (e *Engine) alterInheritanceDefaultLocked(scope *StatementScope, op *session.Operation, auth AuthorizationView, raw *parser.AlterTableDefault, root *catalog.Relation) (Result, error) {
 	targets, auth, err := scope.acquireInheritanceDefinitions(root, !raw.Only)
 	if err != nil {
 		return Result{}, err

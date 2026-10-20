@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/engine/session"
 )
 
-func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session, error) {
+func (e *Engine) StartSession(ctx context.Context, start session.SessionStart) (*session.Session, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -24,7 +24,7 @@ func (e *Engine) StartSession(ctx context.Context, start SessionStart) (*Session
 
 // Private maintenance sessions have genuine resources and leases, but a separate
 // pointer identity domain that cannot collide with the driver's public IDs.
-func (e *Engine) startSession(ctx context.Context, start SessionStart, private bool) (*Session, error) {
+func (e *Engine) startSession(ctx context.Context, start session.SessionStart, private bool) (*session.Session, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 		return nil, roleLoginError(role.Name)
 	}
 	// One allocation holds the session, its root payload and the owner extension.
-	allocation := &sessionAllocation{session: Session{Host: (*sessionHost)(e), SessionToken: e.catalog.Domain.Session(start.ID), CountedAuthenticated: authenticated, State: session.Initializing, Completed: make(chan struct{}), Leases: 1, Removed: make(map[ResourceHandle]bool)}}
+	allocation := &sessionAllocation{session: session.Session{Host: (*sessionHost)(e), SessionToken: e.catalog.Domain.Session(start.ID), CountedAuthenticated: authenticated, State: session.Initializing, Completed: make(chan struct{}), Leases: 1, Removed: make(map[session.ResourceHandle]bool)}}
 	s, payload := &allocation.session, &allocation.payload
 	s.Payload = payload
 	if private {
@@ -57,13 +57,13 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	s.DatabaseName = e.databaseName
 	s.Cond = sync.NewCond(&s.Mu)
 	op := s.Operation(ctx, true)
-	auth := &sessionAuthorization{Session: s, State: authorization.RoleState{Authenticated: authenticated, SessionUser: authenticated, CurrentUser: authenticated}, Revision: 1}
-	_, authErr = op.Attach(Authorization, auth)
+	auth := &session.AuthorizationState{Session: s, State: authorization.RoleState{Authenticated: authenticated, SessionUser: authenticated, CurrentUser: authenticated}, Revision: 1}
+	_, authErr = op.Attach(session.Authorization, auth)
 	if authErr == nil {
 		s.Authorization = auth
 	}
-	owner := &sessionSettings{Session: s, Values: make(map[string]string), Defaults: make(map[string]string)}
-	_, err := op.Attach(Settings, owner)
+	owner := &session.SettingsStore{Session: s, Values: make(map[string]string), Defaults: make(map[string]string)}
+	_, err := op.Attach(session.Settings, owner)
 	if err == nil {
 		s.Settings = owner
 		err = owner.Initialize(op.Context(), e.settings.Definitions(), e.settings.Order(), start.Defaults)
@@ -83,15 +83,15 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 		resetRole, err = e.initialRole(op.Context(), authenticated, start.Defaults)
 	}
 	if err == nil {
-		transactions := &transactionOwner{Session: s, Extension: &allocation.owner}
-		_, err = op.Attach(Transaction, (*transactionSessionEnd)(transactions))
+		transactions := &session.TransactionOwner{Session: s, Extension: &allocation.owner}
+		_, err = op.Attach(session.Transaction, (*transactionSessionEnd)(transactions))
 		if err == nil {
 			s.Transactions = transactions
 		}
 	}
 	if err == nil {
 		payload.notifications.engine, payload.notifications.token = e, s.SessionToken
-		_, err = op.Attach(Notifications, &payload.notifications)
+		_, err = op.Attach(session.Notifications, &payload.notifications)
 	}
 	if err == nil {
 		var ticket *lock.Ticket
@@ -102,7 +102,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 		}
 		if err == nil {
 			s.Advisory.Ticket, s.Advisory.Locks = ticket, e.locks
-			_, err = op.Attach(AdvisorySession, &s.Advisory)
+			_, err = op.Attach(session.AdvisorySession, &s.Advisory)
 			if err != nil {
 				e.endLockOwner(ticket)
 				s.Advisory.Ticket = nil
@@ -111,14 +111,14 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	}
 	if err == nil {
 		cursors := &cursorRegistry{entries: make(map[string]*sqlCursor), token: s.SessionToken}
-		_, err = op.Attach(Cursors, cursors)
+		_, err = op.Attach(session.Cursors, cursors)
 		if err == nil {
 			payload.cursors = cursors
 		}
 	}
 	if err == nil {
 		prepared := &sqlPreparedRegistry{entries: make(map[string]*sqlPreparedStatement), token: s.SessionToken}
-		_, err = op.Attach(PreparedSQL, prepared)
+		_, err = op.Attach(session.PreparedSQL, prepared)
 		if err == nil {
 			payload.preparedSQL = prepared
 		}
@@ -146,7 +146,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	if err == nil {
 		e.sessionMu.Lock()
 		if e.sessions == nil {
-			e.sessions = make(map[ids.SessionToken]*Session)
+			e.sessions = make(map[ids.SessionToken]*session.Session)
 		}
 		if e.sessions[s.SessionToken] != nil {
 			err = errors.New("stuntgres: duplicate session identity")
@@ -164,7 +164,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	s.Mu.Unlock()
 	e.mu.Unlock()
 	if err != nil {
-		s.RequestEnd(InitFailure)
+		s.RequestEnd(session.InitFailure)
 	}
 	op.Done()
 	if err != nil {
@@ -173,6 +173,6 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 	return s, nil
 }
 
-func (e *Engine) validateOperation(op *Operation) error {
+func (e *Engine) validateOperation(op *session.Operation) error {
 	return session.ValidateOperation(domainOf(e), op)
 }

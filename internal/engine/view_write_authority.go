@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -120,7 +121,7 @@ func (s *StatementScope) acquireViewWriteTarget(w *viewWrite) error {
 		return err
 	}
 	s.owner.Mu.Lock()
-	implicit := s.owner.State == TxImplicit
+	implicit := s.owner.State == session.TxImplicit
 	s.owner.Mu.Unlock()
 	if implicit && !s.replacementRead {
 		e.replacementMu.RLock()

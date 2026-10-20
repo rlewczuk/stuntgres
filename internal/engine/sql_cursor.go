@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -156,7 +157,7 @@ func disposeSQLCursors(ctx context.Context, cursors []*sqlCursor) error {
 	}
 	return failure
 }
-func (r *cursorRegistry) EndSession(token ids.SessionToken, _ EndReason) error {
+func (r *cursorRegistry) EndSession(token ids.SessionToken, _ session.EndReason) error {
 	if token != r.token {
 		return fmt.Errorf("stuntgres: foreign cursor attachment")
 	}

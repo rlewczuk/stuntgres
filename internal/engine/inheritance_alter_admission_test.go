@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -25,7 +26,7 @@ import (
 // no driver SQL, mocked binder, sleep or production observer is involved.
 type inheritanceAlterAdmissionCase struct {
 	e      *Engine
-	op     *Operation
+	op     *session.Operation
 	scope  *StatementScope
 	raw    *parser.AlterTable
 	auth   AuthorizationView
@@ -40,12 +41,12 @@ func inheritanceAlterAdmissionScope(t *testing.T, e *Engine, role, sql string) *
 	if err != nil {
 		t.Fatal(err)
 	}
-	sess, err := e.StartSession(ctx, SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: principal})
+	sess, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: principal})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		sess.RequestEnd(CleanClose)
+		sess.RequestEnd(session.CleanClose)
 		if err := sess.WaitEnd(context.Background()); err != nil {
 			t.Error(err)
 		}

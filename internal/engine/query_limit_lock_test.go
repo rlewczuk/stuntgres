@@ -7,9 +7,10 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 )
 
-func queryLimitAsync(t *testing.T, e *Engine, s *Session, q string, prepared bool) <-chan deleteOutcome {
+func queryLimitAsync(t *testing.T, e *Engine, s *session.Session, q string, prepared bool) <-chan deleteOutcome {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	ast := statement(t, q)

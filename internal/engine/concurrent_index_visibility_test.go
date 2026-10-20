@@ -7,10 +7,11 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/visibility"
 )
 
-func concurrentUnitSnapshotScope(t *testing.T, e *Engine, s *Session) (*StatementScope, *Operation, context.CancelFunc) {
+func concurrentUnitSnapshotScope(t *testing.T, e *Engine, s *session.Session) (*StatementScope, *session.Operation, context.CancelFunc) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	op, err := s.Acquire(ctx)

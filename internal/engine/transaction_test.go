@@ -12,11 +12,12 @@ import (
 
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
 
-func transactionOperation(t *testing.T, s *Session) *Operation {
+func transactionOperation(t *testing.T, s *session.Session) *session.Operation {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -25,17 +26,17 @@ func transactionOperation(t *testing.T, s *Session) *Operation {
 	t.Cleanup(op.Done)
 	return op
 }
-func transactionBegin(t *testing.T, s *Session) ids.TxRef {
+func transactionBegin(t *testing.T, s *session.Session) ids.TxRef {
 	t.Helper()
 	op := transactionOperation(t, s)
 	defer op.Done()
-	ref, err := engineOf(s).Begin(op, TxOptions{})
+	ref, err := engineOf(s).Begin(op, session.TxOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	return ref
 }
-func transactionEnd(t *testing.T, s *Session, ref ids.TxRef, commit bool) EndResult {
+func transactionEnd(t *testing.T, s *session.Session, ref ids.TxRef, commit bool) EndResult {
 	t.Helper()
 	op := transactionOperation(t, s)
 	defer op.Done()
@@ -51,7 +52,7 @@ func transactionEnd(t *testing.T, s *Session, ref ids.TxRef, commit bool) EndRes
 	}
 	return r
 }
-func transactionRows(t *testing.T, s *Session, q string, want ...int64) *exec.FinalRows {
+func transactionRows(t *testing.T, s *session.Session, q string, want ...int64) *exec.FinalRows {
 	t.Helper()
 	r := sessionSQL(t, s, q)
 	t.Cleanup(func() {
@@ -201,7 +202,7 @@ func TestTransactionFailureCancellationAndEpoch(t *testing.T) {
 			}
 			op.Done()
 			if explicit {
-				if a.TransactionState() != TxAborted {
+				if a.TransactionState() != session.TxAborted {
 					t.Fatal("not aborted")
 				}
 				op = transactionOperation(t, a)
@@ -211,7 +212,7 @@ func TestTransactionFailureCancellationAndEpoch(t *testing.T) {
 				if transactionEnd(t, a, ref, true).Committed {
 					t.Fatal("aborted commit")
 				}
-			} else if a.TransactionState() != TxIdle {
+			} else if a.TransactionState() != session.TxIdle {
 				t.Fatal("implicit not idle")
 			}
 			transactionRows(t, b, "SELECT v FROM t ORDER BY v", 7)
@@ -242,7 +243,7 @@ func TestTransactionFailureCancellationAndEpoch(t *testing.T) {
 	op = transactionOperation(t, a)
 	_, err = e.Commit(op, ref)
 	op.Done()
-	if !errors.Is(err, ids.ErrCatalogReplaced) || a.TransactionState() != TxIdle {
+	if !errors.Is(err, ids.ErrCatalogReplaced) || a.TransactionState() != session.TxIdle {
 		t.Fatal("stale commit", err)
 	}
 }
@@ -254,7 +255,7 @@ func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 	ref := transactionBegin(t, a)
 	op := transactionOperation(t, a)
 	defer op.Done()
-	if _, err := e.Begin(op, TxOptions{}); err == nil {
+	if _, err := e.Begin(op, session.TxOptions{}); err == nil {
 		t.Fatal("nested begin")
 	}
 	for _, bad := range []ids.TxRef{{}, New().catalog.Domain.Tx(a.Token(), ref.ID(), 0, nil, 0), e.catalog.Domain.Tx(b.Token(), ref.ID(), 0, nil, 0)} {
@@ -263,7 +264,7 @@ func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 		}
 	}
 	copyOp := *op
-	for _, bad := range []*Operation{nil, &copyOp, transactionOperation(t, b)} {
+	for _, bad := range []*session.Operation{nil, &copyOp, transactionOperation(t, b)} {
 		if _, err := e.Commit(bad, ref); err == nil {
 			t.Fatal("foreign/copy operation")
 		}
@@ -273,7 +274,7 @@ func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 	if _, err := a.Acquire(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if a.TransactionState() != TxActive {
+	if a.TransactionState() != session.TxActive {
 		t.Fatal("pre-cancel mutated state")
 	}
 	transactionEnd(t, a, ref, false)
@@ -288,15 +289,15 @@ func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 	done := transactionOperation(t, a)
 	done.Done()
 	next = transactionBegin(t, a)
-	if _, err := e.Commit(done, next); err == nil || a.TransactionState() != TxActive {
+	if _, err := e.Commit(done, next); err == nil || a.TransactionState() != session.TxActive {
 		t.Fatal("done operation mutated state")
 	}
 	transactionEnd(t, a, next, false)
-	if _, err := e.Begin(op, TxOptions{Isolation: Isolation(99)}); err == nil || a.TransactionState() != TxIdle {
+	if _, err := e.Begin(op, session.TxOptions{Isolation: session.Isolation(99)}); err == nil || a.TransactionState() != session.TxIdle {
 		t.Fatal("option mutation")
 	}
 	a.Transactions.Next = ids.TxID(^uint64(0))
-	if _, err := e.Begin(op, TxOptions{}); err == nil || a.TransactionState() != TxIdle {
+	if _, err := e.Begin(op, session.TxOptions{}); err == nil || a.TransactionState() != session.TxIdle {
 		t.Fatal("identity wrapped")
 	}
 	a.Transactions.Next = next.ID()
@@ -317,7 +318,7 @@ func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	e.visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
 	_, err = e.Commit(op, ref)
-	if err == nil || a.TransactionState() != TxIdle {
+	if err == nil || a.TransactionState() != session.TxIdle {
 		t.Fatal("commit frontier wrapped")
 	}
 	transactionRows(t, b, "SELECT v FROM t ORDER BY v")
@@ -440,7 +441,7 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 					t.Fatalf("observer saw partial publication: got %v want %v", counts, want)
 				}
 			case "terminal_before":
-				a.RequestEnd(Terminated)
+				a.RequestEnd(session.Terminated)
 				// Keep the admitted lease and private batch alive. Exercise the
 				// publication seam after terminal admission, so both buffers are
 				// prepared and the final live-operation check rejects installation.
@@ -521,7 +522,7 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				}
 			}
 			if boundary == "ref_before" {
-				if a.TransactionState() != TxActive || len(a.Transactions.Writes) != 2 {
+				if a.TransactionState() != session.TxActive || len(a.Transactions.Writes) != 2 {
 					t.Fatal("invalid reference discarded current incarnation")
 				}
 				transactionEnd(t, a, ref, false)
@@ -542,8 +543,8 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 	}
 }
 func TestTransactionTerminalCleanupAndEndFence(t *testing.T) {
-	for _, reason := range []EndReason{CleanClose, Terminated, Abandoned} {
-		t.Run(map[EndReason]string{CleanClose: "close", Terminated: "terminate", Abandoned: "abandon"}[reason], func(t *testing.T) {
+	for _, reason := range []session.EndReason{session.CleanClose, session.Terminated, session.Abandoned} {
+		t.Run(map[session.EndReason]string{session.CleanClose: "close", session.Terminated: "terminate", session.Abandoned: "abandon"}[reason], func(t *testing.T) {
 			e := New()
 			a := sessionStart(t, e, nil)
 			b := sessionStart(t, e, nil)
@@ -562,7 +563,7 @@ func TestTransactionTerminalCleanupAndEndFence(t *testing.T) {
 			if err := a.WaitEnd(context.Background()); err != nil {
 				t.Fatal(err)
 			}
-			if a.TransactionState() != TxIdle {
+			if a.TransactionState() != session.TxIdle {
 				t.Fatal("owned writes survived physical end")
 			}
 			transactionRows(t, b, "SELECT v FROM t ORDER BY v", 7)
@@ -576,7 +577,7 @@ func TestTransactionTerminalCleanupAndEndFence(t *testing.T) {
 	ref := transactionBegin(t, a)
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 	op := transactionOperation(t, a)
-	a.RequestEnd(Terminated)
+	a.RequestEnd(session.Terminated)
 	_, err := e.Commit(op, ref)
 	if err == nil {
 		t.Fatal("terminal end published")
@@ -601,7 +602,7 @@ func TestTransactionConcurrentPeerRetention(t *testing.T) {
 				return
 			}
 			defer op.Done()
-			ref, err := e.Begin(op, TxOptions{})
+			ref, err := e.Begin(op, session.TxOptions{})
 			if err != nil {
 				t.Error(err)
 				return

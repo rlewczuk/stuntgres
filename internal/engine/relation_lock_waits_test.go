@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/sqlstate"
 
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 )
 
 func waitsDiagnostic(t *testing.T, err error, code, message string, position ...string) {
@@ -132,7 +133,7 @@ func TestRelationLockWaitsTimeoutPrecedence(t *testing.T) {
 	}
 }
 
-func waitsCommandAsync(e *Engine, s *Session, ctx context.Context, q string, prepare bool) <-chan error {
+func waitsCommandAsync(e *Engine, s *session.Session, ctx context.Context, q string, prepare bool) <-chan error {
 	done := make(chan error, 1)
 	go func() {
 		op, _, err := s.AcquireCommand(ctx)

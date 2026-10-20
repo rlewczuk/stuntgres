@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 )
 
@@ -15,7 +16,7 @@ type sequenceStage struct {
 	// identityOriginals hold the live descriptor an identity change started
 	// from; publication compares against it instead of the grant catalog.
 	identityOriginals    map[ids.ObjectAddress]catalog.Descriptor
-	identityDependencies []catalogDependencyObservation
+	identityDependencies []session.DependencyObservation
 }
 
 // sequenceState returns the stage's sequence slot, allocating it on first use.
@@ -88,12 +89,12 @@ func (s *sequenceStage) captureIdentityOriginal(address ids.ObjectAddress, origi
 	}
 }
 
-func (s *sequenceStage) observeIdentityDependencies(observation catalogDependencyObservation) {
+func (s *sequenceStage) observeIdentityDependencies(observation session.DependencyObservation) {
 	s.identityDependencies = append(s.identityDependencies, observation)
 }
 
 // identityDependencyList returns the observed identity dependencies; may be nil.
-func (s *sequenceStage) identityDependencyList() []catalogDependencyObservation {
+func (s *sequenceStage) identityDependencyList() []session.DependencyObservation {
 	if s == nil {
 		return nil
 	}

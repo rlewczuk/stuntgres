@@ -15,12 +15,12 @@ import (
 type capturedACLItemInput struct {
 	roles     authorization.Read
 	authority *sqltype.ACLAuthority
-	op        *Operation
+	op        *session.Operation
 	position  int
 	portal    string
 }
 
-func (e *Engine) captureACLItemInput(auth AuthorizationView, op *Operation) capturedACLItemInput {
+func (e *Engine) captureACLItemInput(auth AuthorizationView, op *session.Operation) capturedACLItemInput {
 	return capturedACLItemInput{roles: auth.Roles, authority: &e.roles.aclAuthority, op: op}
 }
 func (r capturedACLItemInput) ACLItemAuthority() *sqltype.ACLAuthority { return r.authority }

@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 )
 
@@ -18,7 +19,7 @@ type catalogOverlayIndex struct {
 // publication locks. The committed baseline remains distinct from own rows;
 // reconstructing the overlay validates CREATE/REINDEX at this statement, with
 // build diagnostics, rather than incorrectly delaying errors until COMMIT.
-func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *CatalogStage, c *catalogChanges) error {
+func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *CatalogStage, c *session.Journal) error {
 	e.mu.Lock()
 	if scope.txRef.Epoch() != e.catalog.state.Epoch() {
 		e.mu.Unlock()

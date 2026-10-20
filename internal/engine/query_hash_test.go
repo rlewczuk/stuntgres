@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -15,7 +16,7 @@ import (
 
 // Follow the existing queryJoinsFixture capture seam, but on the actual hash
 // owner's engine. No public adapter or testing-only production switch is used.
-func hashCaptureQuery(t *testing.T, e *Engine, op *Operation, q string) (*plan.Query, *exec.Source, func()) {
+func hashCaptureQuery(t *testing.T, e *Engine, op *session.Operation, q string) (*plan.Query, *exec.Source, func()) {
 	t.Helper()
 	ast := statement(t, q)
 	scope, err := e.StartStatement(op)

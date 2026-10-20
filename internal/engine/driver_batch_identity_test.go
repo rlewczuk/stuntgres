@@ -87,14 +87,14 @@ func TestDriverBatchIdentityPromotionMarksAndRevision(t *testing.T) {
 	if failure == nil {
 		t.Fatal("admitted failure")
 	}
-	if s.TransactionState() != TxAborted || s.Authorization.State != mark || s.Authorization.Revision <= revision {
+	if s.TransactionState() != session.TxAborted || s.Authorization.State != mark || s.Authorization.Revision <= revision {
 		t.Fatal("abort did not restore reached mark identity monotonically")
 	}
 	revision = s.Authorization.Revision
 	if _, err := n.step(statement(t, "ROLLBACK TO q")); err != nil {
 		t.Fatal(err)
 	}
-	if s.TransactionState() != TxActive || s.Authorization.State != mark || s.Authorization.Revision != revision {
+	if s.TransactionState() != session.TxActive || s.Authorization.State != mark || s.Authorization.Revision != revision {
 		t.Fatal("same-state recovery invented mutation")
 	}
 	if _, err := n.step(statement(t, "ROLLBACK")); err != nil {

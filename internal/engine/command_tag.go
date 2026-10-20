@@ -1,10 +1,13 @@
 package engine
 
-import "stuntgres/internal/parser"
+import (
+	"stuntgres/internal/engine/session"
+	"stuntgres/internal/parser"
+)
 
 // classifyCommandTag describes only admitted AST kinds, never SQL source text.
 // Count formatting belongs to Execute after the actual statement has succeeded.
-func classifyCommandTag(stmt parser.Statement, before TxState) (base string, counted bool, insert bool, ok bool) {
+func classifyCommandTag(stmt parser.Statement, before session.TxState) (base string, counted bool, insert bool, ok bool) {
 	switch s := stmt.(type) {
 	case *parser.Insert:
 		return "INSERT", true, true, true
@@ -184,7 +187,7 @@ func classifyCommandTag(stmt parser.Statement, before TxState) (base string, cou
 		case parser.KindStart:
 			base = "BEGIN"
 		case parser.KindCommit:
-			if before == TxAborted {
+			if before == session.TxAborted {
 				base = "ROLLBACK"
 			} else {
 				base = "COMMIT"

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -87,12 +88,12 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 		t.Fatal("reservation is not the actual unique provider", resource)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	sess, err := f.e.StartSession(ctx, SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: reader.Ref})
+	sess, err := f.e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: reader.Ref})
 	if err != nil {
 		cancel()
 		t.Fatal(err)
 	}
-	var op *Operation
+	var op *session.Operation
 	var scope *StatementScope
 	type outcome struct {
 		admitted bool
@@ -118,7 +119,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 		if op != nil {
 			op.Done()
 		}
-		sess.RequestEnd(CleanClose)
+		sess.RequestEnd(session.CleanClose)
 		closeCtx, closeCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer closeCancel()
 		if err := sess.WaitEnd(closeCtx); err != nil {

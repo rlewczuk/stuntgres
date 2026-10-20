@@ -1,8 +1,11 @@
 package engine
 
-import "errors"
+import (
+	"errors"
+	"stuntgres/internal/engine/session"
+)
 
-func (e *Engine) StartProtocolCommand(op *Operation, cycle *ProtocolCycle) (*StatementScope, error) {
+func (e *Engine) StartProtocolCommand(op *session.Operation, cycle *session.ProtocolCycle) (*StatementScope, error) {
 	if op == nil || cycle == nil || cycle.Owner != op.Session.Transactions || engineOf(op.Session) != e {
 		return nil, errors.New("stuntgres: foreign protocol cycle")
 	}
@@ -36,7 +39,7 @@ func (s *StatementScope) ProtocolSimpleQuery(statements int) {
 	s.owner.Mu.Unlock()
 }
 
-func (e *Engine) SyncProtocolCycle(op *Operation, cycle *ProtocolCycle) error {
+func (e *Engine) SyncProtocolCycle(op *session.Operation, cycle *session.ProtocolCycle) error {
 	if op == nil || cycle == nil || cycle.Owner != op.Session.Transactions || engineOf(op.Session) != e {
 		return errors.New("stuntgres: foreign protocol cycle")
 	}
@@ -49,7 +52,7 @@ func (e *Engine) SyncProtocolCycle(op *Operation, cycle *ProtocolCycle) error {
 	state, ref := t.State, t.Ref
 	cycle.Active, cycle.Executed = false, false
 	t.Mu.Unlock()
-	if state == TxImplicit {
+	if state == session.TxImplicit {
 		_, err = e.endAdmitted(op, t, ref, true, false, true, s.statementStart, s)
 	}
 	return s.Finish(err)

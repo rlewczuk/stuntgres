@@ -7,11 +7,12 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
-func truncateUnitError(t *testing.T, e *Engine, s *Session, q, code string) {
+func truncateUnitError(t *testing.T, e *Engine, s *session.Session, q, code string) {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {

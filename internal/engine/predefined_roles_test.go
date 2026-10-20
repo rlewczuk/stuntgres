@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
-func predefinedUtilityError(t *testing.T, e *Engine, op *Operation, stmt parser.Statement, code, message, detail string) {
+func predefinedUtilityError(t *testing.T, e *Engine, op *session.Operation, stmt parser.Statement, code, message, detail string) {
 	t.Helper()
 	before, next := e.roles.published, e.roles.nextPrincipal
 	result, err := e.Execute(op, stmt, 0, nil)

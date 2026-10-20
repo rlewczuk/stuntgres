@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -90,12 +91,12 @@ func BenchmarkUpdateCoreSparse(b *testing.B) {
 			b.Run(name, func(b *testing.B) {
 				e := New()
 				ctx := context.Background()
-				s, err := e.StartSession(ctx, SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
+				s, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1))})
 				if err != nil {
 					b.Fatal(err)
 				}
 				b.Cleanup(func() {
-					s.RequestEnd(CleanClose)
+					s.RequestEnd(session.CleanClose)
 					if err := s.WaitEnd(ctx); err != nil {
 						b.Error(err)
 					}

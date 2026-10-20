@@ -9,24 +9,25 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func partitionAttachUnitBegin(t *testing.T, e *Engine, sess *Session, isolation Isolation) ids.TxRef {
+func partitionAttachUnitBegin(t *testing.T, e *Engine, sess *session.Session, isolation session.Isolation) ids.TxRef {
 	t.Helper()
 	op, err := sess.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	ref, err := e.Begin(op, TxOptions{Isolation: isolation})
+	ref, err := e.Begin(op, session.TxOptions{Isolation: isolation})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if sess.TransactionState() != TxIdle {
+		if sess.TransactionState() != session.TxIdle {
 			op, err := sess.Acquire(context.Background())
 			if err != nil {
 				t.Error(err)
@@ -41,7 +42,7 @@ func partitionAttachUnitBegin(t *testing.T, e *Engine, sess *Session, isolation 
 	return ref
 }
 
-func partitionAttachUnitWrite(t *testing.T, e *Engine, session *Session, ref ids.ObjectRef, values ...int64) {
+func partitionAttachUnitWrite(t *testing.T, e *Engine, session *session.Session, ref ids.ObjectRef, values ...int64) {
 	t.Helper()
 	scope, op := partitionAttachUnitScope(t, e, session)
 	rows := make([][]sqltype.Value, len(values))
@@ -89,7 +90,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 		ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), child.Address())
 		writer, owner := sessionStart(t, e, nil), sessionStart(t, e, nil)
 		partitionAttachUnitWrite(t, e, writer, ref, 1)
-		partitionAttachUnitBegin(t, e, owner, RepeatableRead)
+		partitionAttachUnitBegin(t, e, owner, session.RepeatableRead)
 		first, firstOp := partitionAttachUnitScope(t, e, owner)
 		ordinary, err := first.AcquireDataView(ref)
 		if err != nil {
@@ -170,7 +171,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			parent = e.catalog.state.MustRelation(parent.Address())
 			child = e.catalog.state.MustRelation(child.Address())
 			owner := sessionStart(t, e, nil)
-			tx := partitionAttachUnitBegin(t, e, owner, ReadCommitted)
+			tx := partitionAttachUnitBegin(t, e, owner, session.ReadCommitted)
 			parentRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), parent.Address())
 			childRef := parentRef
 			childRef.Address = child.Address()

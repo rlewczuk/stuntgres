@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -38,7 +39,7 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 	if err := scope.Finish(execErr); err != nil {
 		t.Fatal(err)
 	}
-	if !scope.completed || sess.Transactions.State != TxIdle {
+	if !scope.completed || sess.Transactions.State != session.TxIdle {
 		t.Fatal("utility retained implicit transaction ownership")
 	}
 	actual, ok := result.Rows.(*exec.FinalRows)
@@ -54,7 +55,7 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 	sess.Settings.Mu.Lock()
 	sess.Settings.Values["application_name"] = "changed"
 	sess.Settings.Mu.Unlock()
-	sess.RequestEnd(CleanClose)
+	sess.RequestEnd(session.CleanClose)
 	if err := sess.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +221,7 @@ func TestSettingProviderDefaultsAndDescriptorOwnership(t *testing.T) {
 			value = "on"
 		}
 		bad := &settingsDefaultProviderForTest{values: map[string]string{name: value}, calls: map[string]int{}}
-		if s, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: bad}); err == nil || s != nil {
+		if s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: bad}); err == nil || s != nil {
 			t.Fatal("intrinsic default changed", s, err)
 		}
 	}

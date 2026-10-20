@@ -7,12 +7,13 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func (e *Engine) executeAlterComposite(scope *StatementScope, op *Operation, s *parser.AlterComposite, count int) (Result, error) {
+func (e *Engine) executeAlterComposite(scope *StatementScope, op *session.Operation, s *parser.AlterComposite, count int) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}

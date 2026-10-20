@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 )
 
@@ -218,12 +219,12 @@ func TestDriverBatchMaterializedPromotionSavepoint(t *testing.T) {
 		}
 	}
 	_, err := m.step(statement(t, "SELECT missing"))
-	if err == nil || m.end(err) != err || s.Transactions.State != TxAborted {
+	if err == nil || m.end(err) != err || s.Transactions.State != session.TxAborted {
 		t.Fatal("promoted mark did not preserve failed-block recovery", err)
 	}
 	sessionSQL(t, s, "ROLLBACK TO kept")
 	restored := s.Transactions.Catalog.Storage[target.Address]
-	if s.Transactions.State != TxActive || s.Transactions.Ref != ref || s.Transactions.Ticket != ticket || s.Transactions.Start != start || restored.Original != shape.Original || restored.Replacement != shape.Replacement || restored.Generation != shape.Generation || restored.Ends != shape.Ends || !restored.Rewritten || len(s.Transactions.Writes[source.Address]) != 1 || e.storage.Relations[target.Address] != original || e.visibility.CommitSeq() != frontier {
+	if s.Transactions.State != session.TxActive || s.Transactions.Ref != ref || s.Transactions.Ticket != ticket || s.Transactions.Start != start || restored.Original != shape.Original || restored.Replacement != shape.Replacement || restored.Generation != shape.Generation || restored.Ends != shape.Ends || !restored.Rewritten || len(s.Transactions.Writes[source.Address]) != 1 || e.storage.Relations[target.Address] != original || e.visibility.CommitSeq() != frontier {
 		t.Fatal("savepoint recovery rebuilt or published retained replacement authority")
 	}
 	sessionSQL(t, s, "COMMIT")

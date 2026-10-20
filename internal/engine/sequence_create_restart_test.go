@@ -13,12 +13,13 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 // Utility Prepare is analysis-only; both routes execute through a real scope.
-func sequenceCreateRestartCommand(t *testing.T, e *Engine, s *Session, query string, prepared bool) ([]sqlstate.Error, error) {
+func sequenceCreateRestartCommand(t *testing.T, e *Engine, s *session.Session, query string, prepared bool) ([]sqlstate.Error, error) {
 	t.Helper()
 	ast := statement(t, query)
 	var expected *StatementDescription
@@ -51,7 +52,7 @@ func sequenceCreateRestartCommand(t *testing.T, e *Engine, s *Session, query str
 	return op.DetachNotices(), err
 }
 
-func sequenceCreateRestartRow(t *testing.T, e *Engine, s *Session, name string, last int64, called bool) {
+func sequenceCreateRestartRow(t *testing.T, e *Engine, s *session.Session, name string, last int64, called bool) {
 	t.Helper()
 	r := sessionSQL(t, s, "SELECT * FROM "+name)
 	defer r.Rows.Close()
@@ -238,7 +239,7 @@ func TestSequenceCreateRestartFailureAtomicity(t *testing.T) {
 						t.Fatal("failed CREATE emitted notice", notices)
 					}
 					before.assertUnchanged(t, e, s)
-					if s.Transactions.Catalog != nil || s.Transactions.Writes != nil || s.Transactions.Deletes != nil || s.Transactions.State != TxIdle {
+					if s.Transactions.Catalog != nil || s.Transactions.Writes != nil || s.Transactions.Deletes != nil || s.Transactions.State != session.TxIdle {
 						t.Fatal("failed implicit CREATE retained private publication")
 					}
 					_, err = sequencePreparedExecute(e, s, statement(t, "SELECT * FROM failed"), nil)
@@ -329,7 +330,7 @@ func TestSequenceCreateRestartTransactionalPublication(t *testing.T) {
 					_, err = sequencePreparedExecute(e, b, statement(t, "SELECT * FROM s"), nil)
 					sequenceCreateRestartDiagnostic(t, err, "42P01", `relation "s" does not exist`, "15")
 				}
-				if a.Transactions.Catalog != nil || a.Transactions.State != TxIdle {
+				if a.Transactions.Catalog != nil || a.Transactions.State != session.TxIdle {
 					t.Fatal("transaction end retained private CREATE")
 				}
 			})
@@ -412,7 +413,7 @@ func TestSequenceCreateRestartConstructorFailure(t *testing.T) {
 					}
 				}
 				before.assertUnchanged(t, e, s)
-				if s.Transactions.Catalog != nil || s.Transactions.Writes != nil || s.Transactions.Deletes != nil || s.Transactions.State != TxIdle {
+				if s.Transactions.Catalog != nil || s.Transactions.Writes != nil || s.Transactions.Deletes != nil || s.Transactions.State != session.TxIdle {
 					t.Fatal("constructor failure retained a private batch")
 				}
 				sequenceScalar(t, s, "SELECT nextval('kept')", 32)

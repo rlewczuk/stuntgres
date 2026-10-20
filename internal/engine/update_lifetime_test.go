@@ -9,9 +9,10 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 )
 
-func updateRowWorker(t *testing.T, e *Engine, s *Session, q string) func(error) {
+func updateRowWorker(t *testing.T, e *Engine, s *session.Session, q string) func(error) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	done := lockAsync(e, s, ctx, q, false)
@@ -55,7 +56,7 @@ func TestUpdateCoreRowResourceLifetime(t *testing.T) {
 	join := updateRowWorker(t, e, b, "UPDATE t SET v=3")
 	lockPending(t, e, 1)
 	// Closing a result and ending each command did not release the owning row.
-	a.RequestEnd(CleanClose)
+	a.RequestEnd(session.CleanClose)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := a.WaitEnd(ctx); err != nil {
@@ -191,7 +192,7 @@ func TestUpdateCoreRestoreRowWaitLifecycle(t *testing.T) {
 					t.Fatal("fenced owner retained row resources")
 				}
 			} else {
-				if catalogRef(t, e, e.CatalogRead(), "t") != ref || a.TransactionState() != TxActive {
+				if catalogRef(t, e, e.CatalogRead(), "t") != ref || a.TransactionState() != session.TxActive {
 					t.Fatal("failed/canceled Restore fenced eligible owner")
 				}
 				lockPending(t, e, 1)

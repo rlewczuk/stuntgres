@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -11,7 +12,7 @@ func TestSettingsTimezoneAbbreviationsCapturedProvider(t *testing.T) {
 	e := New()
 	provider := &settingsDefaultProviderForTest{values: map[string]string{"timezone_abbreviations": "India"}, calls: map[string]int{}}
 	a := sessionStart(t, e, provider)
-	check := func(s *Session, want sqltype.TimezoneAbbreviations) {
+	check := func(s *session.Session, want sqltype.TimezoneAbbreviations) {
 		t.Helper()
 		input, _ := sessionPresentation(s)
 		s.Settings.Mu.Lock()
@@ -45,7 +46,7 @@ func TestSettingsTimezoneAbbreviationsCapturedProvider(t *testing.T) {
 		t.Fatal("invalid exact-case name accepted")
 	}
 	bad := &settingsDefaultProviderForTest{values: map[string]string{"timezone_abbreviations": "default"}, calls: map[string]int{}}
-	if s, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: bad}); err == nil || s != nil {
+	if s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: bad}); err == nil || s != nil {
 		t.Fatal("invalid provider default published", s, err)
 	}
 }

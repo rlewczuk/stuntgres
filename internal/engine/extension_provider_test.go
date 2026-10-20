@@ -16,13 +16,14 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func extensionUnitStage(t *testing.T, e *Engine, op *Operation) *CatalogStage {
+func extensionUnitStage(t *testing.T, e *Engine, op *session.Operation) *CatalogStage {
 	t.Helper()
 	e.mu.Lock()
 	stage, err := e.stageExtensionLocked(&StatementScope{op: op}, &parser.CreateExtension{Name: parser.Identifier{Text: "unaccent"}})
@@ -32,7 +33,7 @@ func extensionUnitStage(t *testing.T, e *Engine, op *Operation) *CatalogStage {
 	}
 	return stage
 }
-func extensionUnitPublish(t *testing.T, e *Engine, op *Operation, stage *CatalogStage) {
+func extensionUnitPublish(t *testing.T, e *Engine, op *session.Operation, stage *CatalogStage) {
 	t.Helper()
 	p, err := e.ValidateCatalogStage(context.Background(), stage)
 	if err != nil {
@@ -42,7 +43,7 @@ func extensionUnitPublish(t *testing.T, e *Engine, op *Operation, stage *Catalog
 		t.Fatal(err)
 	}
 }
-func extensionUnitInstalled(t *testing.T) (*Engine, *Operation, *catalog.Extension) {
+func extensionUnitInstalled(t *testing.T) (*Engine, *session.Operation, *catalog.Extension) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")

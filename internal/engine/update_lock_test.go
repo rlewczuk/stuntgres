@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
@@ -150,7 +151,7 @@ func TestUpdateCoreRowDeadlinesAndExplicitAbort(t *testing.T) {
 			case <-time.After(time.Second):
 				t.Fatal("SQL deadline did not stop row wait")
 			}
-			if b.TransactionState() != TxAborted {
+			if b.TransactionState() != session.TxAborted {
 				t.Fatal("error did not abort explicit block")
 			}
 			transactionEnd(t, b, tb, false)

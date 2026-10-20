@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
 )
@@ -63,9 +64,9 @@ func TestDatabaseAdmissionPublicationAndCleanup(t *testing.T) {
 				}
 			}}
 			id := ids.SessionID(testSessionID.Add(1))
-			s, err := e.StartSession(ctx, SessionStart{ID: id, Authenticated: login, Defaults: provider})
+			s, err := e.StartSession(ctx, session.SessionStart{ID: id, Authenticated: login, Defaults: provider})
 			if s != nil {
-				s.RequestEnd(CleanClose)
+				s.RequestEnd(session.CleanClose)
 				_ = s.WaitEnd(context.Background())
 				t.Fatal("failed physical admission published a session")
 			}
@@ -88,11 +89,11 @@ func TestDatabaseAdmissionPublicationAndCleanup(t *testing.T) {
 			e.mu.Unlock()
 			// Reusing the exact failed identity exercises advisory-ticket cleanup,
 			// not merely absence from the public session registry.
-			live, err := e.StartSession(context.Background(), SessionStart{ID: id, Authenticated: login})
+			live, err := e.StartSession(context.Background(), session.SessionStart{ID: id, Authenticated: login})
 			if err != nil {
 				t.Fatal("failed admission retained lifecycle resources", err)
 			}
-			live.RequestEnd(CleanClose)
+			live.RequestEnd(session.CleanClose)
 			if err := live.WaitEnd(context.Background()); err != nil {
 				t.Fatal(err)
 			}
@@ -105,12 +106,12 @@ func TestDatabaseAdmissionPublicationAndCleanup(t *testing.T) {
 
 func TestDatabaseAdmissionRetainedSession(t *testing.T) {
 	e, login := databaseAdmissionFixture()
-	live, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login})
+	live, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		live.RequestEnd(CleanClose)
+		live.RequestEnd(session.CleanClose)
 		if err := live.WaitEnd(context.Background()); err != nil {
 			t.Error(err)
 		}
@@ -126,9 +127,9 @@ func TestDatabaseAdmissionRetainedSession(t *testing.T) {
 	if !live.IsLive() || live.CountedAuthenticated != login || e.roleSessionCountLocked(login) != 1 {
 		t.Fatal("revocation changed physical lifetime or authenticated count")
 	}
-	fresh, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login})
+	fresh, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login})
 	if fresh != nil {
-		fresh.RequestEnd(CleanClose)
+		fresh.RequestEnd(session.CleanClose)
 		_ = fresh.WaitEnd(context.Background())
 		t.Fatal("fresh session admitted after revoke")
 	}
@@ -156,11 +157,11 @@ func TestDatabaseAdmissionAuthenticatedNotResetRole(t *testing.T) {
 			grantee = login
 		}
 		databaseAdmissionPolicyLocked(e, authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{Grantor: owner, Grantee: authorization.ACLGrantee{Role: grantee}, Privileges: authorization.ConnectPrivilege}}})
-		start := SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login, Defaults: roleSwitchDefaultProvider{value: fixtureRole(roles, reset).Name}}
+		start := session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login, Defaults: roleSwitchDefaultProvider{value: fixtureRole(roles, reset).Name}}
 		s, err := e.StartSession(context.Background(), start)
 		if !allowLogin {
 			if s != nil {
-				s.RequestEnd(CleanClose)
+				s.RequestEnd(session.CleanClose)
 				_ = s.WaitEnd(context.Background())
 				t.Fatal("effective startup role supplied CONNECT to NOINHERIT login")
 			}
@@ -176,7 +177,7 @@ func TestDatabaseAdmissionAuthenticatedNotResetRole(t *testing.T) {
 		if s.Authorization.State.CurrentUser != reset || s.CountedAuthenticated != login {
 			t.Fatal("startup role or physical identity changed", s.Authorization.State)
 		}
-		s.RequestEnd(CleanClose)
+		s.RequestEnd(session.CleanClose)
 		if err := s.WaitEnd(context.Background()); err != nil {
 			t.Fatal(err)
 		}

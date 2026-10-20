@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 )
 
 func TestUpdateFromQueuedTargetFrozenSources(t *testing.T) {
@@ -118,7 +119,7 @@ func TestUpdateFromQueuedTargetFrozenSources(t *testing.T) {
 					message = "could not serialize access due to concurrent delete"
 				}
 				waitsDiagnostic(t, got.err, "40001", message)
-				if got.count != 0 || got.rows != nil || writer.TransactionState() != TxAborted {
+				if got.count != 0 || got.rows != nil || writer.TransactionState() != session.TxAborted {
 					t.Fatal(got, writer.TransactionState())
 				}
 				transactionEnd(t, writer, writerTx, false)

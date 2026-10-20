@@ -10,9 +10,10 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 )
 
-func rowLockViewExecute(t *testing.T, e *Engine, s *Session, q string, prepared bool) (Result, error) {
+func rowLockViewExecute(t *testing.T, e *Engine, s *session.Session, q string, prepared bool) (Result, error) {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -37,7 +38,7 @@ func rowLockViewExecute(t *testing.T, e *Engine, s *Session, q string, prepared 
 	result, err := scope.Execute(ast, 0, nil)
 	return result, scope.Finish(err)
 }
-func rowLockViewRows(t *testing.T, e *Engine, s *Session, q string, prepared bool, want ...int64) {
+func rowLockViewRows(t *testing.T, e *Engine, s *session.Session, q string, prepared bool, want ...int64) {
 	t.Helper()
 	result, err := rowLockViewExecute(t, e, s, q, prepared)
 	if err != nil {
@@ -75,7 +76,7 @@ func rowLockViewGrants(t *testing.T, e *Engine, ticket *lock.Ticket, table strin
 		t.Fatal("physical row grants", got, want)
 	}
 }
-func rowLockViewAsync(t *testing.T, s *Session, parent context.Context, q string) <-chan deleteOutcome {
+func rowLockViewAsync(t *testing.T, s *session.Session, parent context.Context, q string) <-chan deleteOutcome {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	ast := statement(t, q)
@@ -115,7 +116,7 @@ func rowLockViewFirstResource(t *testing.T, e *Engine, table string) lock.Resour
 	return lock.Resource{ObjectRef: ref, Row: e.storage.Relations[ref.Address].Versions[0].Row}
 }
 
-func rowLockViewFixture(t *testing.T) (*Engine, *Session, *Session, *Session) {
+func rowLockViewFixture(t *testing.T) (*Engine, *session.Session, *session.Session, *session.Session) {
 	e, a, b, c := rowLockEngineFixture(t)
 	sessionSQL(t, c, "INSERT INTO t VALUES(3,30)")
 	sessionSQL(t, c, "CREATE VIEW v AS SELECT id,v FROM t WHERE id<3")

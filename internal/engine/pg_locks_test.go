@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -278,7 +279,7 @@ func TestPGLocksTransactionLifetime(t *testing.T) {
 		if owner, ok, err := lock.PublicOwner(e.catalog.Domain, ref, true); err != nil || !ok || !owner.Prepared {
 			t.Fatal("prepared PID must be NULL", owner, ok, err)
 		}
-		ref = withTxSession(ref, e.catalog.Domain.PrivateSession(&Session{}))
+		ref = withTxSession(ref, e.catalog.Domain.PrivateSession(&session.Session{}))
 		if _, ok, err := lock.PublicOwner(e.catalog.Domain, ref, false); err != nil || ok {
 			t.Fatal("private maintenance backend leaked", ok, err)
 		}
@@ -359,8 +360,8 @@ func TestPGLocksPredicateLifetime(t *testing.T) {
 	_, b := blockingUnitOwner(t, e)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.enrollSerializableLocked(a.Ref(), Serializable)
-	e.enrollSerializableLocked(b.Ref(), Serializable)
+	e.enrollSerializableLocked(a.Ref(), session.Serializable)
+	e.enrollSerializableLocked(b.Ref(), session.Serializable)
 	first, overlap := e.visibility.Serializable.Nodes[a.Ref()], e.visibility.Serializable.Nodes[b.Ref()]
 	first.Captured, overlap.Captured = true, true
 	first.Reads[d.Address()] = struct{}{}

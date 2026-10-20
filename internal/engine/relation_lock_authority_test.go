@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -24,7 +25,7 @@ func TestRelationLockAuthority(t *testing.T) {
 	roleExecute(t, e, op, "SET SESSION AUTHORIZATION lockreader")
 	roleExecute(t, e, op, "SELECT v FROM t")
 	roleExecute(t, e, op, "INSERT INTO t VALUES(1)")
-	tx, err := e.Begin(op, TxOptions{})
+	tx, err := e.Begin(op, session.TxOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +41,7 @@ func TestRelationLockAuthority(t *testing.T) {
 	withPublicSchemaUnitOwner(t, e, "lockreader", func() {
 		roleExecute(t, e, op, "CREATE TABLE owned(v INT)")
 	})
-	tx, err = e.Begin(op, TxOptions{})
+	tx, err = e.Begin(op, session.TxOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +53,7 @@ func TestRelationLockAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	roleExecute(t, e, op, "RESET SESSION AUTHORIZATION")
-	tx, err = e.Begin(op, TxOptions{})
+	tx, err = e.Begin(op, session.TxOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

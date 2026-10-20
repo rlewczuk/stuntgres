@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -74,13 +75,13 @@ func validateUniques(view catalog.Read, parent *catalog.Relation, names map[stri
 	return nil
 }
 
-func (e *Engine) stageCreateUniques(op *Operation, stage *CatalogStage, d *catalog.Relation, declarations []analyze.UniqueConstraint) error {
+func (e *Engine) stageCreateUniques(op *session.Operation, stage *CatalogStage, d *catalog.Relation, declarations []analyze.UniqueConstraint) error {
 	return e.stageUniqueDefinitions(op, stage, d, declarations, false)
 }
 
 // CREATE and ALTER share index/provider/ownership construction. ALTER appends
 // only new groups and replaces the existing parent instead of creating it.
-func (e *Engine) stageUniqueDefinitions(op *Operation, stage *CatalogStage, d *catalog.Relation, declarations []analyze.UniqueConstraint, altering bool) error {
+func (e *Engine) stageUniqueDefinitions(op *session.Operation, stage *CatalogStage, d *catalog.Relation, declarations []analyze.UniqueConstraint, altering bool) error {
 	for _, declaration := range declarations {
 		for _, attribute := range declaration.Attributes {
 			if definition, ok := d.ColumnMeta.Generations[attribute]; ok && definition.Kind == catalog.GenerationVirtual {

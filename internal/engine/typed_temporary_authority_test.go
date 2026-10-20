@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"testing"
 )
 
@@ -92,7 +93,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 						}
 					}
 					if explicit {
-						if reader.Session.Transactions.State != TxAborted || reader.Session.Transactions.Catalog != nil {
+						if reader.Session.Transactions.State != session.TxAborted || reader.Session.Transactions.Catalog != nil {
 							t.Error("failed admitted statement did not follow existing abort/overlay cleanup")
 						}
 						roleExecute(t, e, reader, "ROLLBACK")
@@ -112,7 +113,7 @@ func TestTypedPublicationCreateACLConflict(t *testing.T) {
 	}
 }
 
-func typedCreateACLFixture(t *testing.T, member bool) (*Engine, *Operation, func(), *catalog.Type, ids.ObjectAddress) {
+func typedCreateACLFixture(t *testing.T, member bool) (*Engine, *session.Operation, func(), *catalog.Type, ids.ObjectAddress) {
 	t.Helper()
 	e, owner, finishOwner, memberAddress := typedReviewACLFixture(t)
 	if member {

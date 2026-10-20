@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -239,7 +240,7 @@ func (t *dumpRelation) emitRetiredConstraints(view catalog.Read, checks bool, em
 	return nil
 }
 
-func (e *Engine) restoreRetiredConstraint(op *Operation, raw *parser.Update, authority *restoredHistoryAuthority) error {
+func (e *Engine) restoreRetiredConstraint(op *session.Operation, raw *parser.Update, authority *restoredHistoryAuthority) error {
 	repair, err := restoreRetiredSyntax(raw)
 	if err != nil {
 		return err

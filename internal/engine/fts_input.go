@@ -10,7 +10,7 @@ import (
 )
 
 type capturedFTSInput struct {
-	op       *Operation
+	op       *session.Operation
 	position int
 	portal   string
 }

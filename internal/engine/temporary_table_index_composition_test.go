@@ -207,7 +207,7 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 func TestTemporaryTableIndexDefinitionOwnNamespace(t *testing.T) {
 	e := New()
 	owner, peer := sessionStart(t, e, nil), sessionStart(t, e, nil)
-	for _, session := range []*Session{owner, peer} {
+	for _, session := range []*session.Session{owner, peer} {
 		sessionSQL(t, session, "CREATE TEMP TABLE deparse_owner_table(v INT)")
 		sessionSQL(t, session, "CREATE INDEX deparse_owner_index ON deparse_owner_table(v)")
 	}

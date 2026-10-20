@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
@@ -73,19 +74,19 @@ func (s *StatementScope) Finish(err error) error {
 	}
 	// Implicit HOLD declaration installation is not its external completion:
 	// unfetched targets must settle before publication and ON COMMIT actions.
-	if err == nil && s.worked && t.State == TxImplicit && !t.RetainsTransaction() {
+	if err == nil && s.worked && t.State == session.TxImplicit && !t.RetainsTransaction() {
 		t.Mu.Unlock()
 		err = s.materializeHeldCursors()
 		t.Mu.Lock()
 	}
 	if err == nil && s.worked {
 		t.Mu.Unlock()
-		err = s.checkExclusionEvents(t.State == TxImplicit && !t.RetainsTransaction(), nil)
+		err = s.checkExclusionEvents(t.State == session.TxImplicit && !t.RetainsTransaction(), nil)
 		if err == nil {
 			err = s.settleForeignActions()
 		}
 		if err == nil && s.foreignActionsOrZero().exclusionAdded {
-			err = s.checkExclusionEvents(t.State == TxImplicit && !t.RetainsTransaction(), nil)
+			err = s.checkExclusionEvents(t.State == session.TxImplicit && !t.RetainsTransaction(), nil)
 		}
 		if err == nil {
 			err = s.checkForeignKeys()
@@ -105,7 +106,7 @@ func (s *StatementScope) Finish(err error) error {
 		if s.catalog != nil {
 			catalog = s.catalog
 		}
-		if t.State == TxImplicit && !t.RetainsTransaction() {
+		if t.State == session.TxImplicit && !t.RetainsTransaction() {
 			if !s.completed {
 				t.Mu.Unlock()
 				err = e.publishRows(s.op, t.Ref, s.stage.rows, s.stage.deletes, catalog, s.catalogAuthority, s)
@@ -188,7 +189,7 @@ func (s *StatementScope) Finish(err error) error {
 			t.Command++
 		}
 	}
-	if t.State == TxImplicit && err != nil && len(ownerExtensionOrZero(t).foreign.participants) != 0 {
+	if t.State == session.TxImplicit && err != nil && len(ownerExtensionOrZero(t).foreign.participants) != 0 {
 		t.Mu.Unlock()
 		s.foreignUnlocked()
 		_ = disposeSQLCursors(s.op.Context(), payloadOf(t.Session).cursors.endTransaction(t.Ref))
@@ -214,20 +215,20 @@ func (s *StatementScope) Finish(err error) error {
 	var diagnostic *sqlstate.Error
 	admittedFailure := s.worked || errors.As(err, &diagnostic) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 	var endedTicket *lock.Ticket
-	if t.State == TxImplicit && (!t.RetainsTransaction() || err != nil) {
+	if t.State == session.TxImplicit && (!t.RetainsTransaction() || err != nil) {
 		t.Session.Settings.FinishTransaction(err == nil)
 		e.endSerializable(t.Ref, err == nil)
 		endedTicket = t.Ticket
 		t.Ticket = nil
 		clearTransaction(t)
 		t.Session.RetireTransactionTimeout()
-	} else if err != nil && admittedFailure && (t.State == TxActive || t.State == TxAborted) {
+	} else if err != nil && admittedFailure && (t.State == session.TxActive || t.State == session.TxAborted) {
 		if errors.Is(err, ids.ErrCatalogReplaced) {
 			ownerExtensionOf(t).detachCursors(payloadOf(t.Session).cursors.clear())
 			t.TruncateSavepoints(0)
 		}
 		if len(t.Savepoints) != 0 {
-			if t.State == TxActive {
+			if t.State == session.TxActive {
 				mark := t.Savepoints[len(t.Savepoints)-1]
 				t.Mu.Unlock()
 				remoteErr := foreignSavepoint(t, context.WithoutCancel(s.op.Context()), 1, mark.Serial)
@@ -238,14 +239,14 @@ func (s *StatementScope) Finish(err error) error {
 				restoreSavepoint(t, mark, mark.Settings.Clone())
 				e.locks.Restore(t.Ticket, mark.Locks)
 			}
-			t.State = TxAborted
+			t.State = session.TxAborted
 		} else {
 			ownerExtensionOf(t).retireForeign()
 			t.Session.Settings.FinishTransaction(false)
 			e.endSerializable(t.Ref, false)
 			t.Isolation, t.ReadOnly = t.EntryIsolation, t.EntryReadOnly
 			t.Deferrable = t.EntryDeferrable
-			t.State = TxAborted
+			t.State = session.TxAborted
 			syncCharacteristics(t)
 			t.Writes = nil
 			t.Deletes = nil
@@ -260,7 +261,7 @@ func (s *StatementScope) Finish(err error) error {
 			ownerExtensionOf(t).detachCursors(payloadOf(t.Session).cursors.endTransaction(t.Ref))
 		}
 	}
-	e.endStatementVisibility(s.txRef, t.State != TxIdle && stableIsolation(t.Isolation))
+	e.endStatementVisibility(s.txRef, t.State != session.TxIdle && stableIsolation(t.Isolation))
 	if s.view != nil {
 		s.view.Release()
 		s.view = nil

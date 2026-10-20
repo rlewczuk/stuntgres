@@ -20,14 +20,14 @@ import (
 // These are package mechanics, not SQL text/response tests. Real canonical
 // scopes and queued requests run with long timers; explicit observed instants
 // exercise callback decisions without sleeps or callback scheduling assumptions.
-func timeoutPendingSession(t *testing.T, e *Engine, id ids.SessionID) *Session {
+func timeoutPendingSession(t *testing.T, e *Engine, id ids.SessionID) *session.Session {
 	t.Helper()
-	s, err := e.StartSession(context.Background(), SessionStart{ID: id})
+	s, err := e.StartSession(context.Background(), session.SessionStart{ID: id})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		s.RequestEnd(CleanClose)
+		s.RequestEnd(session.CleanClose)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := s.WaitEnd(ctx); err != nil {
@@ -37,7 +37,7 @@ func timeoutPendingSession(t *testing.T, e *Engine, id ids.SessionID) *Session {
 	return s
 }
 
-func timeoutPendingOperation(t *testing.T, s *Session) *Operation {
+func timeoutPendingOperation(t *testing.T, s *session.Session) *session.Operation {
 	t.Helper()
 	op, err := s.AcquireActivity(context.Background())
 	if err != nil {
@@ -47,7 +47,7 @@ func timeoutPendingOperation(t *testing.T, s *Session) *Operation {
 	return op
 }
 
-func timeoutPendingScope(t *testing.T, op *Operation) *StatementScope {
+func timeoutPendingScope(t *testing.T, op *session.Operation) *StatementScope {
 	t.Helper()
 	scope, err := engineOf(op.Session).StartStatement(op)
 	if err != nil {
@@ -56,7 +56,7 @@ func timeoutPendingScope(t *testing.T, op *Operation) *StatementScope {
 	return scope
 }
 
-func timeoutPendingControl(t *testing.T, s *Session, kind parser.SavepointControlKind) {
+func timeoutPendingControl(t *testing.T, s *session.Session, kind parser.SavepointControlKind) {
 	t.Helper()
 	op := timeoutPendingOperation(t, s)
 	scope := timeoutPendingScope(t, op)
@@ -68,12 +68,12 @@ func timeoutPendingControl(t *testing.T, s *Session, kind parser.SavepointContro
 	}
 }
 
-func timeoutPendingFixture(t *testing.T, child bool) (*Session, *Session, ids.TxRef, *parser.LockTable) {
+func timeoutPendingFixture(t *testing.T, child bool) (*session.Session, *session.Session, ids.TxRef, *parser.LockTable) {
 	t.Helper()
 	return timeoutPendingFixtureWithBudget(t, child, 3*time.Hour)
 }
 
-func timeoutPendingFixtureWithBudget(t *testing.T, child bool, transactionBudget time.Duration) (*Session, *Session, ids.TxRef, *parser.LockTable) {
+func timeoutPendingFixtureWithBudget(t *testing.T, child bool, transactionBudget time.Duration) (*session.Session, *session.Session, ids.TxRef, *parser.LockTable) {
 	t.Helper()
 	e := New()
 	s, holder := timeoutPendingSession(t, e, 1), timeoutPendingSession(t, e, 2)
@@ -89,7 +89,7 @@ func timeoutPendingFixtureWithBudget(t *testing.T, child bool, transactionBudget
 	s.Settings.Values["transaction_timeout"] = transactionBudget.String()
 	s.Settings.Mu.Unlock()
 	begin := timeoutPendingOperation(t, s)
-	ref, err := e.Begin(begin, TxOptions{})
+	ref, err := e.Begin(begin, session.TxOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +102,7 @@ func timeoutPendingFixtureWithBudget(t *testing.T, child bool, transactionBudget
 		timeoutPendingControl(t, s, parser.CreateSavepoint)
 	}
 	peer := timeoutPendingOperation(t, holder)
-	if _, err := e.Begin(peer, TxOptions{}); err != nil {
+	if _, err := e.Begin(peer, session.TxOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	peerScope := timeoutPendingScope(t, peer)
@@ -115,7 +115,7 @@ func timeoutPendingFixtureWithBudget(t *testing.T, child bool, transactionBudget
 	return s, holder, ref, &parser.LockTable{Targets: []parser.LockTarget{{Name: name}}, Mode: parser.LockAccessShare}
 }
 
-func timeoutPendingRequest(t *testing.T, e *Engine, op *Operation) *lock.Request {
+func timeoutPendingRequest(t *testing.T, e *Engine, op *session.Operation) *lock.Request {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
@@ -163,21 +163,21 @@ func timeoutPendingDiagnostic(t *testing.T, err error, code string) {
 	}
 }
 
-func timeoutPendingRecovery(t *testing.T, s *Session, ref ids.TxRef, child bool) {
+func timeoutPendingRecovery(t *testing.T, s *session.Session, ref ids.TxRef, child bool) {
 	t.Helper()
 	if !s.IsLive() {
 		t.Error("recoverable ERROR lost physical owner and recovery authority")
 		return
 	}
 	s.Transactions.Mu.Lock()
-	if s.Transactions.State != TxAborted || s.Transactions.Ref != ref {
+	if s.Transactions.State != session.TxAborted || s.Transactions.Ref != ref {
 		t.Error("ERROR did not retain exact aborted transaction")
 	}
 	s.Transactions.Mu.Unlock()
 	if child {
 		timeoutPendingControl(t, s, parser.RollbackSavepoint)
 		s.Transactions.Mu.Lock()
-		if s.Transactions.State != TxActive || s.Transactions.Ref != ref || len(s.Transactions.Savepoints) != 1 {
+		if s.Transactions.State != session.TxActive || s.Transactions.Ref != ref || len(s.Transactions.Savepoints) != 1 {
 			t.Error("child rollback did not recover parent incarnation")
 		}
 		s.Transactions.Mu.Unlock()
@@ -204,7 +204,7 @@ func timeoutPendingRecovery(t *testing.T, s *Session, ref ids.TxRef, child bool)
 	s.Mu.Unlock()
 }
 
-func timeoutPendingStatement(op *Operation, deadline time.Time) {
+func timeoutPendingStatement(op *session.Operation, deadline time.Time) {
 	timed, cancel := context.WithDeadlineCause(op.Ctx, deadline, session.StatementTimeoutCause)
 	op.Session.Mu.Lock()
 	op.StatementDeadline, op.Ctx, op.TimerCancel = deadline, timed, cancel
@@ -412,7 +412,7 @@ func TestSessionTimeoutPendingCompletedLifecycle(t *testing.T) {
 					if _, err := engineOf(s).Rollback(control, ref); err != nil {
 						t.Fatal(err)
 					}
-					next, err := engineOf(s).Begin(control, TxOptions{})
+					next, err := engineOf(s).Begin(control, session.TxOptions{})
 					if err != nil || next == ref {
 						t.Fatal("fresh incarnation", next, err)
 					}
@@ -599,7 +599,7 @@ func TestSessionTimeoutResidualBeforeIdle(t *testing.T) {
 			t.Fatalf("residual deadlines: transaction=%v idle=%v, want BEGIN+500ms and BEGIN+675ms", transactionDeadline.Sub(start), idleDeadline.Sub(start))
 		}
 		beginPeer := timeoutPendingOperation(t, holder)
-		peerRef, err := e.Begin(beginPeer, TxOptions{})
+		peerRef, err := e.Begin(beginPeer, session.TxOptions{})
 		beginPeer.Done()
 		if err != nil {
 			t.Fatal("beginning explicit peer lock owner", err)

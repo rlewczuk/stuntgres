@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -323,7 +324,7 @@ func TestQueryJoinsCancelPreservesTransactionAuthority(t *testing.T) {
 			// abort retains the ticket and premark grant, but releases the
 			// admitted first leaf acquired after the mark. Neither releases
 			// the competing owner's grant or retains the canceled waiter.
-			if priorHeld != recoverable || !holderHeld || joinHeld || reader.TransactionState() != TxAborted {
+			if priorHeld != recoverable || !holderHeld || joinHeld || reader.TransactionState() != session.TxAborted {
 				t.Fatal("cancellation violated transaction authority", priorHeld, holderHeld, joinHeld, reader.TransactionState())
 			}
 			if recoverable && reader.Transactions.Ticket != readerTicket || !recoverable && reader.Transactions.Ticket != nil {
@@ -331,7 +332,7 @@ func TestQueryJoinsCancelPreservesTransactionAuthority(t *testing.T) {
 			}
 			if recoverable {
 				controlsRequire(t, reader, "ROLLBACK TO before_join")
-				if reader.Transactions.Ticket != readerTicket || reader.TransactionState() != TxActive {
+				if reader.Transactions.Ticket != readerTicket || reader.TransactionState() != session.TxActive {
 					t.Fatal("savepoint recovery replaced outer authority")
 				}
 				transactionRows(t, reader, "SELECT count(*) FROM prior", 0)

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"testing"
@@ -27,26 +28,26 @@ func (p roleSwitchDefaultProvider) SessionDefault(ctx context.Context, d setting
 	}
 	return p.value, true, p.err
 }
-func roleSwitchUnitSession(t *testing.T) (*Engine, *Session) {
+func roleSwitchUnitSession(t *testing.T) (*Engine, *session.Session) {
 	t.Helper()
 	e := New()
 	for _, q := range []string{"CREATE USER switch_login NOINHERIT", "CREATE ROLE switch_a", "CREATE ROLE switch_b", "CREATE ROLE switch_c", "GRANT switch_a,switch_b,switch_c TO switch_login WITH INHERIT FALSE, SET TRUE"} {
 		run(t, e, q)
 	}
 	login, _ := e.Roles().Lookup("switch_login")
-	s, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login.Ref})
+	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login.Ref})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		s.RequestEnd(CleanClose)
+		s.RequestEnd(session.CleanClose)
 		if err := s.WaitEnd(context.Background()); err != nil {
 			t.Error(err)
 		}
 	})
 	return e, s
 }
-func roleSwitchAssert(t *testing.T, s *Session, before authorization.RoleState, name string) {
+func roleSwitchAssert(t *testing.T, s *session.Session, before authorization.RoleState, name string) {
 	t.Helper()
 	role, ok := engineOf(s).Roles().Lookup(name)
 	if !ok {
@@ -60,7 +61,7 @@ func roleSwitchAssert(t *testing.T, s *Session, before authorization.RoleState, 
 		t.Fatalf("role state %+v want %+v", after, before)
 	}
 }
-func roleSwitchUnitExec(t *testing.T, s *Session, q string) error {
+func roleSwitchUnitExec(t *testing.T, s *session.Session, q string) error {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -158,12 +159,12 @@ func TestRoleSwitchInitializationAndCachedReset(t *testing.T) {
 		}
 		e.mu.Unlock()
 	}}
-	s, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login.Ref, Defaults: provider})
+	s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login.Ref, Defaults: provider})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		s.RequestEnd(CleanClose)
+		s.RequestEnd(session.CleanClose)
 		if err := s.WaitEnd(context.Background()); err != nil {
 			t.Error(err)
 		}
@@ -209,7 +210,7 @@ func TestRoleSwitchInitializationFailures(t *testing.T) {
 					cancel()
 				}
 			}}
-			s, err := e.StartSession(ctx, SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login.Ref, Defaults: provider})
+			s, err := e.StartSession(ctx, session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login.Ref, Defaults: provider})
 			if s != nil || err == nil || len(e.sessions) != before {
 				t.Fatal("failed startup published", s, err)
 			}
@@ -227,14 +228,14 @@ func TestRoleSwitchInitializationFailures(t *testing.T) {
 	for _, value := range []string{"none"} {
 		e, _ := roleSwitchUnitSession(t)
 		login, _ := e.Roles().Lookup("switch_login")
-		s, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login.Ref, Defaults: roleSwitchDefaultProvider{value: value}})
+		s, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login.Ref, Defaults: roleSwitchDefaultProvider{value: value}})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if s.Authorization.State.CurrentUser != login.Ref || s.Authorization.State.ResetRole != (authorization.PrincipalRef{}) {
 			t.Fatal(s.Authorization.State)
 		}
-		s.RequestEnd(CleanClose)
+		s.RequestEnd(session.CleanClose)
 		if err := s.WaitEnd(context.Background()); err != nil {
 			t.Fatal(err)
 		}
@@ -368,7 +369,7 @@ func TestRoleSwitchFinishConsumers(t *testing.T) {
 	roleSwitchAssert(t, s, before, "switch_a")
 	sessionSQL(t, s, "BEGIN")
 	sessionSQL(t, s, "SET LOCAL ROLE switch_b")
-	s.RequestEnd(CleanClose)
+	s.RequestEnd(session.CleanClose)
 	if err := s.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}

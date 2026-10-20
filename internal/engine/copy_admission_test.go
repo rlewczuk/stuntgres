@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -55,7 +56,7 @@ func (c *copyWaitContext) Done() <-chan struct{} {
 	c.once.Do(func() { close(c.entered) })
 	return c.Context.Done()
 }
-func copyUnitStart(t *testing.T, explicit bool) (*Engine, *Session, *Operation, *StatementScope) {
+func copyUnitStart(t *testing.T, explicit bool) (*Engine, *session.Session, *session.Operation, *StatementScope) {
 	t.Helper()
 	e := New()
 	session := sessionStart(t, e, nil)
@@ -141,7 +142,7 @@ func copyOwnerReservation(t *testing.T, format copyFormat) {
 						err = next.Finish(errors.New("unexpected reservation entry"))
 					}
 				case "begin":
-					_, err = e.Begin(waiter, TxOptions{})
+					_, err = e.Begin(waiter, session.TxOptions{})
 				case "commit":
 					_, err = e.Commit(waiter, before)
 				case "rollback":
@@ -274,7 +275,7 @@ func TestCopyTextTermination(t *testing.T) {
 		close(reader.release)
 		t.Fatal("COPY failed before termination barrier", err)
 	}
-	sess.RequestEnd(CleanClose)
+	sess.RequestEnd(session.CleanClose)
 	if op.Context().Err() == nil {
 		t.Fatal("termination could not cancel while I/O blocked")
 	}
@@ -422,7 +423,7 @@ func TestCopyTextOwnerWaitCompletion(t *testing.T) {
 						err = next.Finish(nil)
 					}
 				case "begin":
-					_, err = e.Begin(waiter, TxOptions{})
+					_, err = e.Begin(waiter, session.TxOptions{})
 				case "commit":
 					_, err = e.Commit(waiter, before)
 				case "rollback":

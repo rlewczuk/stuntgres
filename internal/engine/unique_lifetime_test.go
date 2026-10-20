@@ -7,13 +7,14 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
 )
 
-func uniqueAsyncUnit(t *testing.T, s *Session, query string) (<-chan deleteOutcome, context.CancelFunc) {
+func uniqueAsyncUnit(t *testing.T, s *session.Session, query string) (<-chan deleteOutcome, context.CancelFunc) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	ast := statement(t, query)

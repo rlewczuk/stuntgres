@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 )
@@ -12,7 +13,7 @@ import (
 // Stage observations describe the exact private entry roots. Outer publication
 // instead fences their committed predecessors, never private-vs-committed pointer
 // equality and never another execution of the selected CHECK.
-func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogChanges, current *catalog.State) error {
+func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *session.Journal, current *catalog.State) error {
 	if fence := stage.domainAlter.ValidationFence(); fence != nil {
 		stores := make(map[ids.ObjectAddress]*storage.Relation, len(fence.Uses))
 		for _, use := range fence.Uses {
@@ -67,7 +68,7 @@ func (e *Engine) domainStageIndexRootLocked(stage *CatalogStage, address ids.Obj
 	return e.storage.IndexRoots[address]
 }
 
-func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes *catalogChanges) error {
+func (scope *StatementScope) reownDomainOverlayRows(stage *CatalogStage, changes *session.Journal) error {
 	if stage.domainAlter.AlterContext() == nil {
 		return nil
 	}

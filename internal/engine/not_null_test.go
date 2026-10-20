@@ -9,6 +9,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -302,7 +303,7 @@ func notNullProviderPublicationFences(t *testing.T, q string) {
 					op.Session.Authorization.Revision++
 					op.Session.Mu.Unlock()
 				case "end":
-					op.Session.RequestEnd(CleanClose)
+					op.Session.RequestEnd(session.CleanClose)
 				}
 			}}
 			_, err = e.Execute(op, statement(t, q), 0, nil)

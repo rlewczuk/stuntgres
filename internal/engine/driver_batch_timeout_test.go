@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/session"
 	"testing"
 	"time"
 )
@@ -106,7 +107,7 @@ func TestDriverBatchFreshSegmentBudgetAndNoIdle(t *testing.T) {
 	retired := s.Timeouts.Transaction.Deadline.IsZero()
 	idleSession := s.Timeouts.Idle.Deadline
 	s.Mu.Unlock()
-	if !retired || idleSession.IsZero() || s.TransactionState() != TxIdle {
+	if !retired || idleSession.IsZero() || s.TransactionState() != session.TxIdle {
 		t.Fatal("whole-message completion did not retire/arm correct timers")
 	}
 }
@@ -143,7 +144,7 @@ func TestDriverBatchFatalTransactionBudget(t *testing.T) {
 	if err = s.WaitEnd(wait); err != nil {
 		t.Fatal(err)
 	}
-	if s.IsLive() || s.Transactions.RetainedMessage || s.Transactions.Ticket != nil || s.TransactionState() != TxIdle {
+	if s.IsLive() || s.Transactions.RetainedMessage || s.Transactions.Ticket != nil || s.TransactionState() != session.TxIdle {
 		t.Fatal("fatal message retained owner resources")
 	}
 	lockEmpty(t, e)

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"testing"
 	"time"
@@ -18,7 +19,7 @@ type preparedRebindAdmissionResult struct {
 	rows    bool
 }
 
-func preparedRebindWorker(t *testing.T, e *Engine, s *Session, ast parser.Statement, description *StatementDescription) (<-chan preparedRebindAdmissionResult, context.CancelFunc) {
+func preparedRebindWorker(t *testing.T, e *Engine, s *session.Session, ast parser.Statement, description *StatementDescription) (<-chan preparedRebindAdmissionResult, context.CancelFunc) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	done := make(chan preparedRebindAdmissionResult, 1)

@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/session"
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -118,11 +119,11 @@ func TestDatetimeSleepCleanup(t *testing.T) {
 			t.Fatal("execution resources retained")
 		}
 		if explicit {
-			if s.TransactionState() != TxAborted || s.Transactions.Ticket != nil {
+			if s.TransactionState() != session.TxAborted || s.Transactions.Ticket != nil {
 				t.Fatal("explicit abort owner retained")
 			}
 			transactionEnd(t, s, ref, false)
-		} else if s.TransactionState() != TxIdle {
+		} else if s.TransactionState() != session.TxIdle {
 			t.Fatal("implicit owner retained")
 		}
 		op = transactionOperation(t, s)

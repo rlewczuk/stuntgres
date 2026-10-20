@@ -6,13 +6,14 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
 
 type catalogAuthority struct {
-	session                                *Session
+	session                                *session.Session
 	authorization, roles                   uint64
 	ref                                    ids.ObjectRef
 	descriptor                             catalog.Descriptor
@@ -29,7 +30,7 @@ func (v AuthorizationView) catalogAuthorityLocked(ref ids.ObjectRef, descriptor 
 // Statement authority expires at successful Finish, never at outer Commit.
 // Caller holds Engine.mu and the authority session's mutex. Catalog changes
 // retain the owning transaction's validated installed predecessors.
-func (e *Engine) catalogAuthorityPreflightLocked(a *catalogAuthority, c *catalogChanges) error {
+func (e *Engine) catalogAuthorityPreflightLocked(a *catalogAuthority, c *session.Journal) error {
 	if a == nil {
 		return nil
 	}
@@ -71,7 +72,7 @@ func sameVersionRoot(a, b []storage.RowVersion) bool {
 }
 
 // Callers hold Engine.mu; private storage is never installed before Finish/Commit.
-func (e *Engine) privateStorageLocked(c *catalogChanges, a ids.ObjectAddress) *storage.Relation {
+func (e *Engine) privateStorageLocked(c *session.Journal, a ids.ObjectAddress) *storage.Relation {
 	if c != nil {
 		if shape, ok := c.Storage[a]; ok {
 			return shape.Replacement
@@ -170,8 +171,8 @@ func projectDeletions(root *visibility.PrivateDeletes, store *storage.Relation) 
 
 // Savepoint marks may predate first snapshot establishment. Clone only the
 // immutable shape map when attaching the matching projection to such a mark.
-func projectPrivateSnapshotRoots(ctx context.Context, catalog *catalogChanges, roots map[ids.ObjectAddress]visibility.Root) (*catalogChanges, error) {
-	var next *catalogChanges
+func projectPrivateSnapshotRoots(ctx context.Context, catalog *session.Journal, roots map[ids.ObjectAddress]visibility.Root) (*session.Journal, error) {
+	var next *session.Journal
 	for address, shape := range catalog.Storage {
 		root, exists := roots[address]
 		if !exists || shape.Rewritten || shape.HasSnapshot || slices.Equal(root.Relation.Attributes, shape.Relation.Attributes) {
@@ -188,7 +189,7 @@ func projectPrivateSnapshotRoots(ctx context.Context, catalog *catalogChanges, r
 		if next == nil {
 			copy := *catalog
 			next = &copy
-			next.Storage = make(map[ids.ObjectAddress]catalogStorageChange, len(catalog.Storage))
+			next.Storage = make(map[ids.ObjectAddress]session.StorageChange, len(catalog.Storage))
 			for a, entry := range catalog.Storage {
 				next.Storage[a] = entry
 			}

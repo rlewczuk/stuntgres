@@ -23,7 +23,7 @@ const (
 // Membership is transaction admission authority, not numeric/session identity.
 // Context remains a separate check: an accepted Go commit canceled after
 // admission must retain its existing failed-end/discard disposition.
-func (e *Engine) transactionAuthority(op *Operation) error {
+func (e *Engine) transactionAuthority(op *session.Operation) error {
 	if op == nil || op.Self != op || op.Session == nil || op.Session.SessionToken.Domain() != domainOf(e) {
 		return errors.New("stuntgres: foreign or missing operation")
 	}
@@ -47,7 +47,7 @@ func (e *Engine) transactionAuthority(op *Operation) error {
 // Begin, Rollback and statement admission reject cancellation without mutation.
 // Native Commit deliberately admits cancellation to dispose its valid old
 // incarnation, preserving the established failed-commit contract.
-func (e *Engine) transactionAdmission(op *Operation) error {
+func (e *Engine) transactionAdmission(op *session.Operation) error {
 	if err := e.transactionAuthority(op); err != nil {
 		return err
 	}
@@ -55,16 +55,16 @@ func (e *Engine) transactionAdmission(op *Operation) error {
 }
 
 // Admission is held by the Go entrypoint or the SQL scope, never recursively.
-func (e *Engine) beginAdmitted(op *Operation, t *transactionOwner, start time.Time) (ids.TxRef, error) {
+func (e *Engine) beginAdmitted(op *session.Operation, t *session.TransactionOwner, start time.Time) (ids.TxRef, error) {
 	t.Mu.Lock()
 	defer t.Mu.Unlock()
 	if err := e.transactionAdmission(op); err != nil {
 		return ids.TxRef{}, err
 	}
-	if t.State != TxIdle {
+	if t.State != session.TxIdle {
 		return ids.TxRef{}, errors.New("stuntgres: transaction already active")
 	}
-	if err := e.beginLocked(op, t, TxActive, start); err != nil {
+	if err := e.beginLocked(op, t, session.TxActive, start); err != nil {
 		return ids.TxRef{}, err
 	}
 	ref := t.Ref
@@ -82,7 +82,7 @@ func (e *Engine) beginAdmitted(op *Operation, t *transactionOwner, start time.Ti
 
 // The owner lock precedes Engine.mu -> Session.mu. Rollback deliberately does
 // not validate the old epoch, so native replacement always permits recovery.
-func (e *Engine) endPreflight(op *Operation) error {
+func (e *Engine) endPreflight(op *session.Operation) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	op.Session.Mu.Lock()
@@ -90,7 +90,7 @@ func (e *Engine) endPreflight(op *Operation) error {
 	return publicationOperationLocked(e, op)
 }
 
-func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, commit, chain, sqlEnd bool, nextStart time.Time, scope *StatementScope) (EndResult, error) {
+func (e *Engine) endAdmitted(op *session.Operation, t *session.TransactionOwner, ref ids.TxRef, commit, chain, sqlEnd bool, nextStart time.Time, scope *StatementScope) (EndResult, error) {
 	// Registration can fail. A short replacement fence keeps the prospective
 	// ticket's epoch current through installation, without a lifetime fence.
 	chainFence := false
@@ -139,7 +139,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 		}
 	}
 	isolation, readOnly, deferrable := t.Isolation, t.ReadOnly, t.Deferrable
-	if chain && (!commit || t.State == TxAborted) && len(t.Savepoints) != 0 {
+	if chain && (!commit || t.State == session.TxAborted) && len(t.Savepoints) != 0 {
 		// Abort pops every retained child before PostgreSQL selects CHAIN
 		// characteristics. Healthy commit instead carries the current child
 		// mode; do not apply abort unwinding to that distinct disposition.
@@ -178,7 +178,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 	// failed rollback preflight, ends the old incarnation with its original error.
 	var err error
 	committed := false
-	if commit && t.State != TxAborted {
+	if commit && t.State != session.TxAborted {
 		if len(ownerExtensionOrZero(t).exclusionModes.events) != 0 || payloadOf(op.Session).cursors.hasCurrentHold(ref) {
 			if scope == nil {
 				scope = newStatementScope(op, t, statementOperationStart(op))
@@ -259,7 +259,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 	if err != nil && !commit {
 		return EndResult{}, err
 	}
-	if !commit || t.State == TxAborted {
+	if !commit || t.State == session.TxAborted {
 		if chainFence {
 			e.replacementMu.RUnlock()
 			chainFence = false
@@ -293,7 +293,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 	// and old waiters wake only after this fresh empty incarnation is installed.
 	if chain {
 		t.Ref = next
-		t.State = TxActive
+		t.State = session.TxActive
 		t.Isolation, t.ReadOnly = isolation, readOnly
 		t.Deferrable = deferrable
 		// CHAIN restores modes directly: they are the new block's unstacked
@@ -338,18 +338,18 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 		return Result{}, err
 	}
 	if control.Kind == parser.KindStart {
-		if state == TxIdle {
+		if state == session.TxIdle {
 			_, err = e.beginAdmitted(s.op, t, s.transactionStart)
 			if err == nil {
 				t.Mu.Lock()
 				err = assignModes(t, control.Modes)
 				t.Mu.Unlock()
 			}
-		} else if state == TxImplicit {
+		} else if state == session.TxImplicit {
 			err = e.endPreflight(s.op)
 			if err == nil {
 				t.Mu.Lock()
-				t.State = TxActive
+				t.State = session.TxActive
 				err = assignModes(t, control.Modes)
 				t.Mu.Unlock()
 				t.Session.Mu.Lock()
@@ -362,7 +362,7 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 				s.op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25001", Message: "there is already a transaction in progress"})
 			}
 		}
-	} else if state == TxIdle {
+	} else if state == session.TxIdle {
 		err = e.endPreflight(s.op)
 		if err == nil && control.Chain {
 			word := "COMMIT"
@@ -374,7 +374,7 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 			s.op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: "25P01", Message: "there is no transaction in progress"})
 		}
 	} else {
-		if state == TxImplicit {
+		if state == session.TxImplicit {
 			if control.Chain {
 				word := "COMMIT"
 				if control.Kind == parser.KindRollback {

@@ -1,11 +1,14 @@
 package engine
 
-import "stuntgres/internal/engine/ids"
+import (
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
+)
 
 // txOwnerOf recovers the transaction owner a ref is attached to, or nil.
 // Engine code compares and dereferences attachments only through it.
-func txOwnerOf(ref ids.TxRef) *transactionOwner {
-	owner, _ := ref.Attachment().(*transactionOwner)
+func txOwnerOf(ref ids.TxRef) *session.TransactionOwner {
+	owner, _ := ref.Attachment().(*session.TransactionOwner)
 	return owner
 }
 
@@ -29,7 +32,7 @@ func txOwnerAttached(ref ids.TxRef) bool {
 
 // privateSessionOf recovers the maintenance session a private token names,
 // or nil for a public or zero token.
-func privateSessionOf(token ids.SessionToken) *Session {
-	session, _ := token.Private().(*Session)
+func privateSessionOf(token ids.SessionToken) *session.Session {
+	session, _ := token.Private().(*session.Session)
 	return session
 }

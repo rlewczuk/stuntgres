@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -57,14 +58,14 @@ type AuthorizationView struct {
 	access.View
 	engine     *Engine
 	definition catalog.DefinitionReader // Cooking-only sparse effects; never SQL execution authority.
-	settings   *sessionSettings
+	settings   *session.SettingsStore
 	// Nested schema elements prepend their enclosing namespace without changing settings.
 	pathPrefix ids.ObjectAddress
 	// Trusted replay permissions may elevate without changing $user semantics.
 	namespaceUser authorization.PrincipalRef
 	// An owned TEMP table builder may see its namespace before session publication.
 	stagedTemporary        ids.ObjectAddress
-	session                *Session
+	session                *session.Session
 	materializedPopulation bool
 }
 
@@ -109,7 +110,7 @@ func (v AuthorizationView) ReferencePath() ([]ids.ObjectAddress, error) {
 
 // Statement-local Restore authority must cover both lock resolution and effects.
 // INSERT/COMMENT stamp no owner; named directives and session identity stay intact.
-func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Statement) (AuthorizationView, error) {
+func (e *Engine) statementAuthorizationLocked(op *session.Operation, stmt parser.Statement) (AuthorizationView, error) {
 	auth, err := e.authorizationLocked(op)
 	if err != nil {
 		return AuthorizationView{}, err
@@ -171,7 +172,7 @@ func (e *Engine) statementAuthorizationLocked(op *Operation, stmt parser.Stateme
 
 // operationAuthorization returns op's current authorization view. It takes
 // Engine.mu, then Session.mu inside authorizationLocked.
-func operationAuthorization(op *Operation) (AuthorizationView, error) {
+func operationAuthorization(op *session.Operation) (AuthorizationView, error) {
 	if op == nil || op.Self != op || op.Session == nil {
 		return AuthorizationView{}, fmt.Errorf("stuntgres: foreign or missing operation")
 	}
@@ -185,7 +186,7 @@ func operationAuthorization(op *Operation) (AuthorizationView, error) {
 }
 
 // Lock order is Engine.mu then Session.mu. Views retain only immutable values.
-func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
+func (e *Engine) authorizationLocked(op *session.Operation) (AuthorizationView, error) {
 	s := op.Session
 	s.Mu.Lock()
 	defer s.Mu.Unlock()

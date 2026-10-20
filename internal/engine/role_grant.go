@@ -16,7 +16,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func grantWarning(op *Operation, relation, column string, requested, available authorization.Privileges, all, revoke bool) {
+func grantWarning(op *session.Operation, relation, column string, requested, available authorization.Privileges, all, revoke bool) {
 	if available == requested || available != 0 && all {
 		return
 	}
@@ -39,7 +39,7 @@ func grantWarning(op *Operation, relation, column string, requested, available a
 	op.EmitNotice(session.LevelWarning, sqlstate.Error{Severity: "WARNING", SeverityUnlocalized: "WARNING", Code: code, Message: message})
 }
 
-func (e *Engine) objectGrantTargets(op *Operation, v AuthorizationView, s *parser.ObjectGrant) ([]catalog.Descriptor, error) {
+func (e *Engine) objectGrantTargets(op *session.Operation, v AuthorizationView, s *parser.ObjectGrant) ([]catalog.Descriptor, error) {
 	targets := make([]catalog.Descriptor, 0, len(s.Relations)+len(s.Routines))
 	for _, name := range s.Relations {
 		if err := op.Context().Err(); err != nil {
@@ -136,7 +136,7 @@ type objectGrantChange struct {
 	columnsOwned bool
 }
 
-func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser.ObjectGrant) (Result, error) {
+func (e *Engine) objectGrantLocked(op *session.Operation, v AuthorizationView, s *parser.ObjectGrant) (Result, error) {
 	if s.Grantor != nil {
 		grantor, err := authorization.MembershipRole(v.Roles, v.State, *s.Grantor)
 		if err != nil {

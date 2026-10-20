@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -52,7 +53,7 @@ type capturedOperatorInput struct {
 	operands  *[]catalog.ExpressionDependency
 }
 
-func (e *Engine) captureOperatorInput(auth AuthorizationView, op *Operation) (capturedOperatorInput, error) {
+func (e *Engine) captureOperatorInput(auth AuthorizationView, op *session.Operation) (capturedOperatorInput, error) {
 	types, err := e.captureRegtypeInput(auth, op)
 	if err != nil {
 		return capturedOperatorInput{}, err

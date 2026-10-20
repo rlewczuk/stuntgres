@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/session"
 	"testing"
 
 	"stuntgres/internal/engine/access"
@@ -18,7 +19,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func intarrayUnitStage(t *testing.T, e *Engine, op *Operation, name, schema string) *CatalogStage {
+func intarrayUnitStage(t *testing.T, e *Engine, op *session.Operation, name, schema string) *CatalogStage {
 	t.Helper()
 	creation := &parser.CreateExtension{Name: parser.Identifier{Text: name}}
 	if schema != "" {
@@ -240,7 +241,7 @@ func TestIntarrayProviderConflicts(t *testing.T) {
 
 // Construct the namespace through the actual physical-session creation path,
 // then validate/publish it. No fabricated TEMP token or helper-script parity.
-func intarrayUnitTemporaryNamespace(t *testing.T, e *Engine, op *Operation) *catalog.Namespace {
+func intarrayUnitTemporaryNamespace(t *testing.T, e *Engine, op *session.Operation) *catalog.Namespace {
 	t.Helper()
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
@@ -248,7 +249,7 @@ func intarrayUnitTemporaryNamespace(t *testing.T, e *Engine, op *Operation) *cat
 		e.mu.Unlock()
 		t.Fatal(err)
 	}
-	var changes catalogChanges
+	var changes session.Journal
 	ref, err := e.creationNamespaceStagedLocked(auth, parser.ObjectName{Parts: []parser.Identifier{{Text: "component"}}}, true, &changes, false)
 	if err != nil {
 		e.mu.Unlock()

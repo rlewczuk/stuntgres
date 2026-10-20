@@ -4,24 +4,25 @@ import (
 	"context"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
 func TestTransactionAttachmentIncarnationExcludesReusedSessionID(t *testing.T) {
 	e := New()
-	start := func() *Session {
-		s, err := e.StartSession(context.Background(), SessionStart{ID: 1000000})
+	start := func() *session.Session {
+		s, err := e.StartSession(context.Background(), session.SessionStart{ID: 1000000})
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Cleanup(func() { s.RequestEnd(CleanClose); _ = s.WaitEnd(context.Background()) })
+		t.Cleanup(func() { s.RequestEnd(session.CleanClose); _ = s.WaitEnd(context.Background()) })
 		return s
 	}
 	old := start()
 	oldRef := transactionBegin(t, old)
 	transactionEnd(t, old, oldRef, false)
-	old.RequestEnd(CleanClose)
+	old.RequestEnd(session.CleanClose)
 	if err := old.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +36,7 @@ func TestTransactionAttachmentIncarnationExcludesReusedSessionID(t *testing.T) {
 	if _, err := e.Commit(op, oldRef); err == nil {
 		t.Fatal("old attachment ended replacement work")
 	}
-	if current.TransactionState() != TxActive {
+	if current.TransactionState() != session.TxActive {
 		t.Fatal("foreign authority changed state")
 	}
 	transactionEnd(t, current, ref, false)

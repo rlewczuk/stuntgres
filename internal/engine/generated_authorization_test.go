@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -16,7 +17,7 @@ import (
 // The fixture publishes a normally cooked generation through the catalog stage,
 // then grants only column privileges through the immutable internal ACL seam.
 // No SQL parser, public execution API, or substitute authorization is involved.
-func generatedAuthorizationFixture(t *testing.T) (*Engine, *Operation, *Operation, ids.ObjectRef) {
+func generatedAuthorizationFixture(t *testing.T) (*Engine, *session.Operation, *session.Operation, ids.ObjectRef) {
 	t.Helper()
 	e, view, d := generatedUnitDescriptor(t)
 	admin, adminDone := roleOperation(t, e, "postgres")
@@ -63,7 +64,7 @@ func generatedAuthorizationFixture(t *testing.T) (*Engine, *Operation, *Operatio
 	return e, admin, actor, ref
 }
 
-func generatedAuthorizationGrant(t *testing.T, e *Engine, admin, actor *Operation, ref ids.ObjectRef, attribute int32, privileges authorization.Privileges) {
+func generatedAuthorizationGrant(t *testing.T, e *Engine, admin, actor *session.Operation, ref ids.ObjectRef, attribute int32, privileges authorization.Privileges) {
 	t.Helper()
 	ref.Address.SubID = attribute
 	acl := authorization.ACLValue{Explicit: true, Entries: []authorization.ACLEntry{{

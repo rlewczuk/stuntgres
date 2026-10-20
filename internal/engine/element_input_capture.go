@@ -1,12 +1,13 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 )
 
 // Capture recursive catalog input from one coherent authorization snapshot.
 // Frozen expressions and newly bound expressions share these same owners.
-func (e *Engine) captureElementInput(auth AuthorizationView, op *Operation, input *sqltype.InputEnvironment) error {
+func (e *Engine) captureElementInput(auth AuthorizationView, op *session.Operation, input *sqltype.InputEnvironment) error {
 	var err error
 	if input.Regclass == nil {
 		input.Regclass, err = e.captureRegclassInput(auth)

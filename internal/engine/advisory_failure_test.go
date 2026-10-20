@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/session"
 	"testing"
 	"time"
 
@@ -19,16 +20,16 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 		key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 18}
 		advisoryUnitGrant(t, s, ref, key, lock.AdvisoryExclusive)
 		injected := errors.New("advisory initialization default failed")
-		_, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: &defaultProvider{err: injected}})
+		_, err := e.StartSession(context.Background(), session.SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: &defaultProvider{err: injected}})
 		if !errors.Is(err, injected) {
 			t.Fatal("actual initialization failure", err)
 		}
 		op := transactionOperation(t, s)
 		called := false
-		callerOwned := &sessionOwner{fn: func(_ ids.SessionToken, _ EndReason) error { called = true; return nil }}
-		transferred, err := op.Attach(AdvisorySession, callerOwned)
+		callerOwned := &sessionOwner{fn: func(_ ids.SessionToken, _ session.EndReason) error { called = true; return nil }}
+		transferred, err := op.Attach(session.AdvisorySession, callerOwned)
 		op.Done()
-		if err == nil || transferred != (ResourceHandle{}) || advisoryUnitHold(s, key).Exclusive != 1 {
+		if err == nil || transferred != (session.ResourceHandle{}) || advisoryUnitHold(s, key).Exclusive != 1 {
 			t.Fatal("duplicate attachment changed canonical ownership", transferred, err)
 		}
 		lockState := e.locks.Inspect()
@@ -37,7 +38,7 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 		if registrations != 1 || !canonical {
 			t.Fatal("failed initialization leaked/replaced owner", registrations, canonical)
 		}
-		s.RequestEnd(CleanClose)
+		s.RequestEnd(session.CleanClose)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err = s.WaitEnd(ctx); err != nil {
@@ -92,7 +93,7 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 		if advisoryUnitHold(b, key).Exclusive != 1 {
 			t.Fatal("completed transfer absent")
 		}
-		b.RequestEnd(CleanClose)
+		b.RequestEnd(session.CleanClose)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := b.WaitEnd(ctx); err != nil {

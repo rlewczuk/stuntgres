@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/visibility"
 )
 
@@ -10,7 +11,7 @@ import (
 // can therefore drain this operation and replacement can fence its candidate.
 func (s *StatementScope) acquireSerializableSnapshot() error {
 	t, e := s.owner, s.engine()
-	if t.SnapshotSet || t.Isolation != Serializable {
+	if t.SnapshotSet || t.Isolation != session.Serializable {
 		return nil
 	}
 	for {

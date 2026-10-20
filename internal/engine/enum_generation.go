@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 )
@@ -24,7 +25,7 @@ func enumReownVersions(next *catalog.State, versions []storage.RowVersion) ([]st
 	return stores[address].Versions, nil
 }
 
-func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *catalogChanges, stage *CatalogStage) error {
+func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *session.Journal, stage *CatalogStage) error {
 	next := e.stageRead(stage).State()
 	for a, rebound := range stage.rowShapes {
 		consumer, ok := stage.Get(a).(*catalog.Relation)
@@ -44,7 +45,7 @@ func (e *Engine) adoptEnumGenerationsLocked(scope *StatementScope, changes *cata
 		}
 		shape, exists := changes.Storage[a]
 		if !exists {
-			shape = catalogStorageChange{Original: rebound.original, Root: rebound.original.Versions, Ends: rebound.observedEnds, Generation: rebound.generation}
+			shape = session.StorageChange{Original: rebound.original, Root: rebound.original.Versions, Ends: rebound.observedEnds, Generation: rebound.generation}
 		}
 		if shape.Replacement != rebound.replacement {
 			shape.Truncated = false

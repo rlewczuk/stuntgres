@@ -7,10 +7,11 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 )
 
-func (e *Engine) stageInheritance(op *Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Relation, b analyze.Binding) error {
+func (e *Engine) stageInheritance(op *session.Operation, auth AuthorizationView, stage *CatalogStage, d *catalog.Relation, b analyze.Binding) error {
 	if len(b.Create.Inheritance) == 0 {
 		return nil
 	}

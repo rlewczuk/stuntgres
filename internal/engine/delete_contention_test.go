@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 )
 
 type deleteOutcome struct {
@@ -15,7 +16,7 @@ type deleteOutcome struct {
 	err    error
 }
 
-func deleteAsync(t *testing.T, s *Session, ctx context.Context, query string) <-chan deleteOutcome {
+func deleteAsync(t *testing.T, s *session.Session, ctx context.Context, query string) <-chan deleteOutcome {
 	t.Helper()
 	ast := statement(t, query)
 	done := make(chan deleteOutcome, 1)
@@ -171,7 +172,7 @@ func TestDeleteCoreQueuedCancellation(t *testing.T) {
 			cancel()
 			deleteAwait(t, done, 0, context.Canceled)
 			if explicit {
-				if b.TransactionState() != TxAborted || b.Transactions.Writes != nil || b.Transactions.Deletes != nil || b.Transactions.Ticket != nil {
+				if b.TransactionState() != session.TxAborted || b.Transactions.Writes != nil || b.Transactions.Deletes != nil || b.Transactions.Ticket != nil {
 					t.Fatal("explicit cancellation did not discard all private work")
 				}
 				transactionEnd(t, b, br, false)

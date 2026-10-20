@@ -177,7 +177,7 @@ func TestPGSequenceEmptySource(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		base *catalog.State
-		own  *catalogChanges
+		own  *session.Journal
 	}{
 		{"no definitions", e.catalog.state, nil},
 		{"private drop", &base, own},
@@ -249,12 +249,12 @@ func TestPGSequenceSnapshotsAndCancellation(t *testing.T) {
 	}
 }
 func TestPGSequenceSnapshotOwnerLifecycle(t *testing.T) {
-	for _, isolation := range []Isolation{ReadCommitted, RepeatableRead, Serializable} {
+	for _, isolation := range []session.Isolation{session.ReadCommitted, session.RepeatableRead, session.Serializable} {
 		t.Run(isolationText(isolation), func(t *testing.T) {
 			e := New()
 			op, done := roleOperation(t, e, "postgres")
 			defer done()
-			ref, err := e.Begin(op, TxOptions{Isolation: isolation})
+			ref, err := e.Begin(op, session.TxOptions{Isolation: isolation})
 			if err != nil {
 				t.Fatal(err)
 			}

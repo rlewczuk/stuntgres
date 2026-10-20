@@ -8,12 +8,13 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
 	"time"
 )
 
-func foreignKeyLockFixture(t *testing.T) (*Engine, *Session, *Session, *Session, ids.ObjectRef, ids.RowID) {
+func foreignKeyLockFixture(t *testing.T) (*Engine, *session.Session, *session.Session, *session.Session, ids.ObjectRef, ids.RowID) {
 	t.Helper()
 	e := New()
 	a, b, c := sessionStart(t, e, nil), sessionStart(t, e, nil), sessionStart(t, e, nil)

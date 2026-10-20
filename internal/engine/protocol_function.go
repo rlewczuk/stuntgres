@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -23,7 +24,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 	}
 	t := s.owner
 	t.Mu.Lock()
-	if t.State == TxAborted {
+	if t.State == session.TxAborted {
 		t.Mu.Unlock()
 		return ProtocolField{}, sqlError("25P02", "current transaction is aborted, commands ignored until end of transaction block")
 	}

@@ -4,6 +4,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -53,7 +54,7 @@ func physicalImportedIndexMatches(source *catalog.Relation, constructor *physica
 // A keyless physical cleanup may be followed immediately by the captured,
 // unrelated ordinary primary declaration. It cannot certify one of its own
 // flag-only attributes as a primary key (or as an INCLUDE payload key).
-func (e *Engine) prepareDeferredPhysicalPrimary(op *Operation, raw *parser.AlterTable, pair *restoredPhysicalNotNull, created map[ids.ObjectAddress]ids.ObjectRef) (*physicalNotNullConstructor, error) {
+func (e *Engine) prepareDeferredPhysicalPrimary(op *session.Operation, raw *parser.AlterTable, pair *restoredPhysicalNotNull, created map[ids.ObjectAddress]ids.ObjectRef) (*physicalNotNullConstructor, error) {
 	if pair == nil || len(raw.Actions) != 1 || raw.Actions[0].Action != parser.AddUnique {
 		return nil, nil
 	}

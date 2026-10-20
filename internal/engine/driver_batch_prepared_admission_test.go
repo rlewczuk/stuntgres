@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 )
 
 func TestDriverBatchPreparedControlSegmentAdmission(t *testing.T) {
@@ -30,7 +31,7 @@ func TestDriverBatchPreparedControlSegmentAdmission(t *testing.T) {
 					}
 					m.scope = next
 				}
-				if s.Transactions.State != TxIdle {
+				if s.Transactions.State != session.TxIdle {
 					t.Fatal("fixture did not reach idle segment boundary")
 				}
 				// Test the actual canonical gate before execution/registry lookup.
@@ -38,7 +39,7 @@ func TestDriverBatchPreparedControlSegmentAdmission(t *testing.T) {
 					t.Fatal(err)
 				}
 				tx := s.Transactions
-				if tx.State != TxImplicit || !tx.InBlock() || tx.Ref == (ids.TxRef{}) || tx.Ref == preceding || tx.Ref != m.scope.txRef || tx.Ticket == nil || tx.Ticket != m.scope.ticket || tx.Ref.Epoch() != e.catalog.state.Epoch() || !m.scope.implicit {
+				if tx.State != session.TxImplicit || !tx.InBlock() || tx.Ref == (ids.TxRef{}) || tx.Ref == preceding || tx.Ref != m.scope.txRef || tx.Ticket == nil || tx.Ticket != m.scope.ticket || tx.Ref.Epoch() != e.catalog.state.Epoch() || !m.scope.implicit {
 					t.Fatal("reached prepared control bypassed ordinary segment authority")
 				}
 				if len(e.prepared) != 0 || e.visibility.CommitSeq() != 0 {

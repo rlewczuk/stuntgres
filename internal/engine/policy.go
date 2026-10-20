@@ -64,7 +64,7 @@ func resolvePolicyRoles(auth AuthorizationView, raw []parser.GrantGrantee) ([]ca
 	return roles, false, nil
 }
 
-func policyPreflight(op *Operation, auth AuthorizationView, stmt parser.Statement, notices bool) error {
+func policyPreflight(op *session.Operation, auth AuthorizationView, stmt parser.Statement, notices bool) error {
 	var roles []parser.GrantGrantee
 	switch s := stmt.(type) {
 	case *parser.CreatePolicy:

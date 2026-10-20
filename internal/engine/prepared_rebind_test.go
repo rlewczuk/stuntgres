@@ -10,11 +10,12 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func preparedRebindValid(t *testing.T, e *Engine, s *Session, cell *preparedAnalysis) bool {
+func preparedRebindValid(t *testing.T, e *Engine, s *session.Session, cell *preparedAnalysis) bool {
 	t.Helper()
 	op, err := s.Acquire(context.Background())
 	if err != nil {
@@ -78,7 +79,7 @@ func TestPreparedRebindValidity(t *testing.T) {
 		t.Fatal("foreign owner was accepted")
 	}
 	private := *cell
-	private.private = &catalogChanges{}
+	private.private = &session.Journal{}
 	if preparedRebindValid(t, e, s, &private) {
 		t.Fatal("different private catalog certified")
 	}

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -17,7 +18,7 @@ func extensionVersionUnitCreate(version string) *parser.CreateExtension {
 func extensionVersionUnitUpdate() *parser.AlterExtensionUpdate {
 	return &parser.AlterExtensionUpdate{Name: parser.Identifier{Text: "fuzzystrmatch"}, Options: []parser.ExtensionOption{{Name: "version", Value: parser.Identifier{Text: "1.2"}}}}
 }
-func extensionVersionUnitInstalled(t *testing.T, version string) (*Engine, *Operation, *catalog.Extension) {
+func extensionVersionUnitInstalled(t *testing.T, version string) (*Engine, *session.Operation, *catalog.Extension) {
 	t.Helper()
 	e := New()
 	op, done := roleOperation(t, e, "postgres")
@@ -28,7 +29,7 @@ func extensionVersionUnitInstalled(t *testing.T, version string) (*Engine, *Oper
 	ext := e.CatalogRead().MustExtension(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.ExtensionClassID, Name: "fuzzystrmatch"}))
 	return e, op, ext
 }
-func extensionVersionUnitRevoke(t *testing.T, e *Engine, op *Operation) {
+func extensionVersionUnitRevoke(t *testing.T, e *Engine, op *session.Operation) {
 	t.Helper()
 	s := &parser.ObjectGrant{Kind: "function", Revoke: true, Privileges: []parser.GrantPrivilege{{Name: "execute"}}, Grantees: []parser.GrantGrantee{{Public: true}}, Routines: []parser.GrantRoutineTarget{{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "public"}, {Text: "levenshtein"}}}, SignatureSpecified: true, Arguments: []parser.GrantRoutineArgument{{Type: parser.TypeName{Name: "text"}}, {Type: parser.TypeName{Name: "text"}}}}}}
 	if err := extensionUnitExecute(t, e, op, s); err != nil {

@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
@@ -61,9 +62,9 @@ func assertTemporaryProjectionProviders(t *testing.T, e *Engine) {
 	}
 }
 
-func endTemporaryProjectionSession(t *testing.T, s *Session) {
+func endTemporaryProjectionSession(t *testing.T, s *session.Session) {
 	t.Helper()
-	s.RequestEnd(CleanClose)
+	s.RequestEnd(session.CleanClose)
 	if err := s.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}

@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -20,7 +21,7 @@ func TestInheritanceAdmissionDropLateGrowthAndCancel(t *testing.T) {
 			inheritanceLifecycleInstall(e, parent, firstChild)
 			holder, holderDone := roleOperation(t, e, "postgres")
 			defer holderDone()
-			holderRef, err := e.Begin(holder, TxOptions{})
+			holderRef, err := e.Begin(holder, session.TxOptions{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -36,7 +37,7 @@ func TestInheritanceAdmissionDropLateGrowthAndCancel(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer done()
-			tx, err := e.Begin(op, TxOptions{})
+			tx, err := e.Begin(op, session.TxOptions{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -128,7 +129,7 @@ func TestInheritanceAdmissionStandaloneDropKeepsExistingLockPolicy(t *testing.T)
 	inheritanceLifecycleInstall(e, table)
 	holder, holderDone := roleOperation(t, e, "postgres")
 	defer holderDone()
-	holderTx, err := e.Begin(holder, TxOptions{})
+	holderTx, err := e.Begin(holder, session.TxOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +151,7 @@ func TestInheritanceAdmissionStandaloneDropKeepsExistingLockPolicy(t *testing.T)
 		t.Fatal(err)
 	}
 	defer done()
-	tx, err := e.Begin(op, TxOptions{})
+	tx, err := e.Begin(op, session.TxOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

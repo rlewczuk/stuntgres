@@ -5,12 +5,13 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"testing"
 )
 
-func temporaryProjectionFixture(t *testing.T) (*Engine, *Session, *catalog.Relation, *catalog.Relation, *catalog.Relation) {
+func temporaryProjectionFixture(t *testing.T) (*Engine, *session.Session, *catalog.Relation, *catalog.Relation, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	owner := sessionStart(t, e, nil)
@@ -60,7 +61,7 @@ func temporaryProjectionStage(t *testing.T, e *Engine, provider *catalog.Relatio
 	return stage, indexes
 }
 
-func temporaryProjectionInstall(e *Engine, owner *Session, provider *catalog.Relation, stage *CatalogStage, indexes *temporarySessionIndexes) (bool, error) {
+func temporaryProjectionInstall(e *Engine, owner *session.Session, provider *catalog.Relation, stage *CatalogStage, indexes *temporarySessionIndexes) (bool, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.installTemporarySessionStageLocked(owner, stage, []ids.ObjectAddress{provider.Namespace()}, indexes)

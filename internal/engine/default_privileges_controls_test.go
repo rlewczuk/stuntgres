@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"testing"
 )
 
@@ -89,7 +90,7 @@ func TestDefaultPrivilegesReplacement(t *testing.T) {
 		tempKey := catalog.DefaultACLKey{Creator: f.owner, Schema: f.schema, Class: authorization.DefaultSequences}
 		endSnapshot := f.e.CatalogRead()
 		f.op.Done()
-		f.op.Session.RequestEnd(CleanClose)
+		f.op.Session.RequestEnd(session.CleanClose)
 		if err = f.op.Session.WaitEnd(context.Background()); err != nil {
 			t.Fatal(err)
 		}

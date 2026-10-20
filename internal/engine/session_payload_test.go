@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/session"
 	"testing"
 )
 
@@ -21,7 +22,7 @@ func TestSessionPayloadHoldsRootResources(t *testing.T) {
 	if p.notifications.engine != e || p.notifications.token != s.SessionToken {
 		t.Fatal("payload listener is not bound to the session's engine and token")
 	}
-	s.RequestEnd(CleanClose)
+	s.RequestEnd(session.CleanClose)
 	if err := s.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +35,7 @@ func TestSessionPayloadHoldsRootResources(t *testing.T) {
 }
 
 func TestSessionPayloadOfLiteralIsNil(t *testing.T) {
-	if p := payloadOf(&Session{}); p != nil {
+	if p := payloadOf(&session.Session{}); p != nil {
 		t.Fatalf("payloadOf(&Session{}) = %p, want nil", p)
 	}
 }

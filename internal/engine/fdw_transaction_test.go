@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/session"
 )
 
 type fdwUnitTransaction struct {
@@ -58,7 +59,7 @@ func TestFDWTransactionParticipants(t *testing.T) {
 	sess := sessionStart(t, e, nil)
 	op := transactionOperation(t, sess)
 	defer op.Done()
-	ref, err := e.Begin(op, TxOptions{})
+	ref, err := e.Begin(op, session.TxOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

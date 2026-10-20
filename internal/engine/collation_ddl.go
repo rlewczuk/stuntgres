@@ -16,7 +16,7 @@ import (
 	"stuntgres/internal/sqlstate"
 )
 
-func collationVersionWarning(op *Operation, d *catalog.Collation, view catalog.Read, actual *string) error {
+func collationVersionWarning(op *session.Operation, d *catalog.Collation, view catalog.Read, actual *string) error {
 	if d.Version == nil {
 		return nil
 	}
@@ -30,7 +30,7 @@ func collationVersionWarning(op *Operation, d *catalog.Collation, view catalog.R
 	return nil
 }
 
-func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateCollation) error {
+func (e *Engine) stageCreateCollationLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateCollation) error {
 	ns, err := e.collationCreationNamespaceLocked(&auth, stage, s.Name)
 	if err != nil {
 		return err
@@ -204,7 +204,7 @@ func (e *Engine) stageCreateCollationLocked(op *Operation, auth AuthorizationVie
 	return stage.Create(&d)
 }
 
-func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.AlterCollation) error {
+func (e *Engine) stageAlterCollationLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.AlterCollation) error {
 	d, err := e.findUtilityCollation(auth, s.Name)
 	if err != nil {
 		return err
@@ -281,7 +281,7 @@ func (e *Engine) stageAlterCollationLocked(op *Operation, auth AuthorizationView
 	return stage.Replace(&next)
 }
 
-func (e *Engine) stageDropCollationLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropCollation) error {
+func (e *Engine) stageDropCollationLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.DropCollation) error {
 	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
 	for _, name := range s.Names {
 		d, err := e.findUtilityCollation(auth, name)

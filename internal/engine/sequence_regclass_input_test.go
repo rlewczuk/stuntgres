@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func sequenceInputExecute(t *testing.T, e *Engine, op *Operation, query string, args ...any) (Result, error) {
+func sequenceInputExecute(t *testing.T, e *Engine, op *session.Operation, query string, args ...any) (Result, error) {
 	t.Helper()
 	ast := statement(t, query)
 	description, err := e.Describe(op, ast)

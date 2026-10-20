@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -149,7 +150,7 @@ func TestRLSBaseFlagsAndPublication(t *testing.T) {
 	exhausted := *d
 	exhausted.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 	exhaustedNext := rowSecurityFlags(&exhausted, []parser.AlterTableAction{{Action: parser.EnableRowSecurity}})
-	exhaustedScope := &StatementScope{op: op, owner: &transactionOwner{}}
+	exhaustedScope := &StatementScope{op: op, owner: &session.TransactionOwner{}}
 	e.mu.Lock()
 	if _, err := e.stageRowSecurityFlagsLocked(exhaustedScope, op, auth, &exhausted, exhaustedNext); err == nil || err.Error() != "stuntgres: definition revision exhausted" {
 		t.Fatal("revision exhaustion", err)

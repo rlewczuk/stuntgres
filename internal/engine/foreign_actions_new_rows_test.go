@@ -3,12 +3,13 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
 
 func TestForeignActionsLocksNewRows(t *testing.T) {
-	for _, isolation := range []Isolation{RepeatableRead, Serializable} {
+	for _, isolation := range []session.Isolation{session.RepeatableRead, session.Serializable} {
 		for _, direction := range []string{"DELETE", "UPDATE"} {
 			t.Run(fmt.Sprintf("%d/%s", isolation, direction), func(t *testing.T) {
 				e := New()
@@ -17,7 +18,7 @@ func TestForeignActionsLocksNewRows(t *testing.T) {
 					sessionSQL(t, writer, q)
 				}
 				op := transactionOperation(t, reader)
-				ref, err := e.Begin(op, TxOptions{Isolation: isolation})
+				ref, err := e.Begin(op, session.TxOptions{Isolation: isolation})
 				op.Done()
 				if err != nil {
 					t.Fatal(err)

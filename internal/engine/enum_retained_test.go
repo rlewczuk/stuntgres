@@ -155,7 +155,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 	if d, ok := failure.(*sqlstate.Error); !ok || d.Code != "55P04" {
 		t.Fatal("CREATE candidate binder lost admitted safety transport", failure)
 	}
-	mark := savepointMark{Catalog: root}
+	mark := session.SavepointMark{Catalog: root}
 	candidate := root.Clone()
 	enumJournalOf(candidate.Enum).UnsafeMembers()[members[0].ID] = true
 	scope.owner.Catalog = candidate
@@ -181,7 +181,7 @@ func TestEnumOperationSafetyCapture(t *testing.T) {
 	if err := e.captureEnumOperationInput(auth, &b.Input); err != nil || b.Input.EnumMemberSafe != nil || original.EnumMemberSafe(mood.ID(), members[1].ID) || child(mood.ID(), members[0].ID) {
 		t.Fatal("completed root retained stale safety or changed old capture", err)
 	}
-	for _, empty := range []*catalogChanges{nil, session.NewJournal()} {
+	for _, empty := range []*session.Journal{nil, session.NewJournal()} {
 		scope.owner.Catalog = empty
 		probe := analyze.Binder{}
 		// Nil engine deliberately makes any unnecessary naming/path capture fail.

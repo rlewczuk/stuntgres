@@ -9,11 +9,12 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func pgSequencesRows(t *testing.T, s *Session, query string, want [][]driver.Value) {
+func pgSequencesRows(t *testing.T, s *session.Session, query string, want [][]driver.Value) {
 	t.Helper()
 	result := sessionSQL(t, s, query)
 	defer result.Rows.Close()

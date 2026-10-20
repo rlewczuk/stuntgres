@@ -9,18 +9,19 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 )
 
 // Project a DROP shape through committed, private-write and retained snapshot
 // roots. The original publication preconditions remain in shape.
-func projectColumnShape(scope *StatementScope, old, next *catalog.Relation, store *storage.Relation, shape catalogStorageChange, snapshot visibility.Root, snapshotExists bool) (catalogStorageChange, []storage.RowVersion, *visibility.PrivateDeletes, error) {
+func projectColumnShape(scope *StatementScope, old, next *catalog.Relation, store *storage.Relation, shape session.StorageChange, snapshot visibility.Root, snapshotExists bool) (session.StorageChange, []storage.RowVersion, *visibility.PrivateDeletes, error) {
 	writes, deletes := scope.columnProjectionRoots(old.Address())
 	return projectColumnShapeRoots(scope.op.Context(), stableIsolation(scope.owner.Isolation), old, next, store, shape, snapshot, snapshotExists, writes, deletes)
 }
 
-func projectColumnShapeRoots(ctx context.Context, stable bool, old, next *catalog.Relation, store *storage.Relation, shape catalogStorageChange, snapshot visibility.Root, snapshotExists bool, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) (catalogStorageChange, []storage.RowVersion, *visibility.PrivateDeletes, error) {
+func projectColumnShapeRoots(ctx context.Context, stable bool, old, next *catalog.Relation, store *storage.Relation, shape session.StorageChange, snapshot visibility.Root, snapshotExists bool, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) (session.StorageChange, []storage.RowVersion, *visibility.PrivateDeletes, error) {
 	if slices.Equal(old.Attributes, next.Attributes) {
 		shape.Relation = next
 		return shape, writes, deletes, nil
@@ -91,15 +92,15 @@ func (scope *StatementScope) stageProjectedColumnRoots(address ids.ObjectAddress
 	scope.stage.deletes[address] = deletes
 }
 
-func (scope *StatementScope) stagePrivateColumnShape(stage *CatalogStage, changes *catalogChanges, old, next *catalog.Relation) error {
+func (scope *StatementScope) stagePrivateColumnShape(stage *CatalogStage, changes *session.Journal, old, next *catalog.Relation) error {
 	return scope.stageColumnShape(stage, changes, old, next, false)
 }
 
-func (scope *StatementScope) stagePreparedColumnShape(stage *CatalogStage, changes *catalogChanges, old, next *catalog.Relation) error {
+func (scope *StatementScope) stagePreparedColumnShape(stage *CatalogStage, changes *session.Journal, old, next *catalog.Relation) error {
 	return scope.stageColumnShape(stage, changes, old, next, true)
 }
 
-func (scope *StatementScope) stageColumnShape(stage *CatalogStage, changes *catalogChanges, old, next *catalog.Relation, metadataPrepared bool) error {
+func (scope *StatementScope) stageColumnShape(stage *CatalogStage, changes *session.Journal, old, next *catalog.Relation, metadataPrepared bool) error {
 	writes, deletes := scope.columnProjectionRoots(old.Address())
 	stage.owner.mu.Lock()
 	snapshot, snapshotExists := scope.owner.Roots[old.Address()]
@@ -112,13 +113,13 @@ func (scope *StatementScope) stageColumnShape(stage *CatalogStage, changes *cata
 	return err
 }
 
-func stagePrivateColumnShape(evaluation *exec.Context, stage *CatalogStage, changes *catalogChanges, old, next *catalog.Relation, writes []storage.RowVersion, deletes *visibility.PrivateDeletes, snapshot visibility.Root, snapshotExists, stable bool) ([]storage.RowVersion, *visibility.PrivateDeletes, bool, error) {
+func stagePrivateColumnShape(evaluation *exec.Context, stage *CatalogStage, changes *session.Journal, old, next *catalog.Relation, writes []storage.RowVersion, deletes *visibility.PrivateDeletes, snapshot visibility.Root, snapshotExists, stable bool) ([]storage.RowVersion, *visibility.PrivateDeletes, bool, error) {
 	return stagePrivateColumnShapeMetadata(evaluation, stage, changes, old, next, writes, deletes, snapshot, snapshotExists, stable, false)
 }
 
 // The prepared path consumes the same physical projector after the immutable
 // descriptor/index/lineage effects have been applied to this sole stage.
-func stagePrivateColumnShapeMetadata(evaluation *exec.Context, stage *CatalogStage, changes *catalogChanges, old, next *catalog.Relation, writes []storage.RowVersion, deletes *visibility.PrivateDeletes, snapshot visibility.Root, snapshotExists, stable, metadataPrepared bool) ([]storage.RowVersion, *visibility.PrivateDeletes, bool, error) {
+func stagePrivateColumnShapeMetadata(evaluation *exec.Context, stage *CatalogStage, changes *session.Journal, old, next *catalog.Relation, writes []storage.RowVersion, deletes *visibility.PrivateDeletes, snapshot visibility.Root, snapshotExists, stable, metadataPrepared bool) ([]storage.RowVersion, *visibility.PrivateDeletes, bool, error) {
 	ctx := evaluation.Context
 	e := stage.owner
 	e.mu.Lock()
@@ -135,7 +136,7 @@ func stagePrivateColumnShapeMetadata(evaluation *exec.Context, stage *CatalogSta
 			e.mu.Unlock()
 			return nil, nil, false, fmt.Errorf("stuntgres: relation storage descriptor is missing")
 		}
-		shape = catalogStorageChange{Original: original, Root: original.Versions, Ends: original.Ends, Generation: original.Generation, Replacement: store, Relation: storageOwner}
+		shape = session.StorageChange{Original: original, Root: original.Versions, Ends: original.Ends, Generation: original.Generation, Replacement: store, Relation: storageOwner}
 	}
 	e.mu.Unlock()
 	sourceWrites := writes
@@ -180,7 +181,7 @@ func stagePrivateColumnShapeMetadata(evaluation *exec.Context, stage *CatalogSta
 // Generic utility stages already project their baseline storage. Reuse the
 // canonical column projection for earlier own writes, deletions and stable
 // snapshots without projecting that physical baseline a second time.
-func (scope *StatementScope) projectCatalogOverlayShapes(stage *CatalogStage, changes *catalogChanges) error {
+func (scope *StatementScope) projectCatalogOverlayShapes(stage *CatalogStage, changes *session.Journal) error {
 	for address, rowShape := range stage.rowShapes {
 		old, oldOK := stage.Base.Relation(address)
 		next, nextOK := stage.Get(address).(*catalog.Relation)

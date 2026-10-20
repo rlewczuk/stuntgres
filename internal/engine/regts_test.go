@@ -13,13 +13,14 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 // Algorithm snapshots clone real installed descriptors. The extra names/IDs
 // are private unit inputs, never published providers or public dictionary DDL.
-func regTSUnitSnapshot(t *testing.T) (*Engine, *Operation, catalog.Read, AuthorizationView, []ids.ObjectAddress) {
+func regTSUnitSnapshot(t *testing.T) (*Engine, *session.Operation, catalog.Read, AuthorizationView, []ids.ObjectAddress) {
 	t.Helper()
 	e, op, ext := extensionUnitInstalled(t)
 	view := e.CatalogRead()

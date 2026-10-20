@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -39,7 +40,7 @@ func lockEmpty(t *testing.T, e *Engine) {
 		t.Fatalf("residual lock state: owners=%d entries=%d", len(lockState.Owners), len(lockState.Resources))
 	}
 }
-func lockAsync(e *Engine, s *Session, ctx context.Context, q string, prepare bool) <-chan error {
+func lockAsync(e *Engine, s *session.Session, ctx context.Context, q string, prepare bool) <-chan error {
 	done := make(chan error, 1)
 	go func() {
 		op, err := s.Acquire(ctx)
@@ -197,18 +198,18 @@ func TestRelationLockCancellation(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			done := lockAsync(e, b, ctx, "SELECT v FROM t", false)
 			lockPending(t, e, 1)
-			if got := b.TransactionState(); got != map[bool]TxState{false: TxImplicit, true: TxActive}[explicit] {
+			if got := b.TransactionState(); got != map[bool]session.TxState{false: session.TxImplicit, true: session.TxActive}[explicit] {
 				t.Fatal("state observation blocked or wrong", got)
 			}
 			cancel()
 			lockAwait(t, done, context.Canceled)
 			lockPending(t, e, 0)
 			if explicit {
-				if b.TransactionState() != TxAborted {
+				if b.TransactionState() != session.TxAborted {
 					t.Fatal("not aborted")
 				}
 				transactionEnd(t, b, rb, false)
-			} else if b.TransactionState() != TxIdle {
+			} else if b.TransactionState() != session.TxIdle {
 				t.Fatal("not idle")
 			}
 			transactionEnd(t, a, ra, false)
@@ -300,7 +301,7 @@ func TestRelationLockLifecycle(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected failure")
 			}
-			if a.TransactionState() != TxAborted {
+			if a.TransactionState() != session.TxAborted {
 				t.Fatal("not aborted")
 			}
 			transactionRows(t, b, "SELECT v FROM t")
@@ -317,7 +318,7 @@ func TestRelationLockLifecycle(t *testing.T) {
 		sessionSQL(t, a, "LOCK TABLE t IN ACCESS EXCLUSIVE MODE")
 		done := lockAsync(e, b, context.Background(), "SELECT v FROM t", false)
 		lockPending(t, e, 1)
-		a.RequestEnd(CleanClose)
+		a.RequestEnd(session.CleanClose)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := a.WaitEnd(ctx); err != nil {

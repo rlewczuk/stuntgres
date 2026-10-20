@@ -23,7 +23,7 @@ func schemaReserved(name string) error {
 	}
 	return nil
 }
-func schemaNotice(op *Operation, code, message string) {
+func schemaNotice(op *session.Operation, code, message string) {
 	op.EmitNotice(session.LevelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: code, Message: message})
 }
 
@@ -35,7 +35,7 @@ func checkPersistentCreationNamespace(catalog catalog.Read, namespace ids.Object
 	return nil
 }
 
-func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ids.ObjectAddress, owner authorization.PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ids.ObjectRef) error {
+func (e *Engine) schemaTableLocked(op *session.Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ids.ObjectAddress, owner authorization.PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ids.ObjectRef) error {
 	auth.Catalog = stage.Base
 	auth.Recapture(auth.Catalog)
 	if namespace, ok := auth.Catalog.Namespace(ns); ok && !namespace.TemporaryToast && auth.session != nil && namespace.Temporary == auth.session.SessionToken {
@@ -221,7 +221,7 @@ func (e *Engine) newTableDescriptorLocked(ns ids.ObjectAddress, name string, own
 	}
 	return d, nil
 }
-func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser.Statement, count int, input sqltype.InputEnvironment) (Result, error) {
+func (e *Engine) executeSchema(scope *StatementScope, op *session.Operation, stmt parser.Statement, count int, input sqltype.InputEnvironment) (Result, error) {
 	if count != 0 {
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want 0", count)
 	}
@@ -339,7 +339,7 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	}
 	return Result{created: created}, nil
 }
-func (e *Engine) stageSchemaLocked(op *Operation, stmt parser.Statement, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (*CatalogStage, error) {
+func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (*CatalogStage, error) {
 	auth, err := e.authorizationLocked(op)
 	if err != nil {
 		return nil, err

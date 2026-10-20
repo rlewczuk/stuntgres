@@ -284,7 +284,7 @@ type partitionReadFence struct {
 
 func (partitionReadFence) Kind() session.FenceKind { return fenceStorageRead }
 
-func (f partitionReadFence) currentLocked(e *Engine, _ *catalogChanges) error {
+func (f partitionReadFence) currentLocked(e *Engine, _ *session.Journal) error {
 	s := e.storage.Relations[f.address]
 	if s != f.storage || s != nil && (len(s.Versions) != f.length || s.Ends != f.ends || s.Generation != f.generation) {
 		return catalog.Conflict{}

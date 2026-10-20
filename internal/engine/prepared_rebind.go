@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/sequence"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -18,7 +19,7 @@ type preparedAnalysis struct {
 	domain          *ids.Domain
 	epoch           ids.CatalogEpoch
 	session         ids.SessionToken
-	private         *catalogChanges
+	private         *session.Journal
 	path            sequence.Environment
 	namespace       uint64
 	target          ids.ObjectRef
@@ -83,7 +84,7 @@ func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *p
 // Caller holds Engine.mu. Sequence source events are independent of generator
 // state and descriptor revisions. Commit exposes the descriptor's source stamp
 // to peers; a reverted reset retains its event only in the initiating session.
-func preparedDefinitionStamp(d catalog.Descriptor, session *Session) ids.DefinitionRevision {
+func preparedDefinitionStamp(d catalog.Descriptor, session *session.Session) ids.DefinitionRevision {
 	if relation, ok := d.(*catalog.Relation); ok && relation.RelationKind == catalog.SequenceRelation {
 		stamp := relation.SequencePlanStamp
 		if session != nil {
@@ -276,7 +277,7 @@ type preparedRebind struct {
 	invalid                bool
 	path                   sequence.Environment
 	namespace              uint64
-	private                *catalogChanges
+	private                *session.Journal
 	epoch                  ids.CatalogEpoch
 	changedDuringAdmission bool
 }

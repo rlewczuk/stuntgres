@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -26,7 +27,7 @@ func TestLockModesUtilityPrecedence(t *testing.T) {
 		{"LOCK seq NOWAIT", "42809", `cannot lock relation "seq"`, "This operation is not supported for sequences."},
 		{"LOCK hidden.missing NOWAIT", "42501", "permission denied for schema hidden", ""},
 	} {
-		tx, err := e.Begin(op, TxOptions{})
+		tx, err := e.Begin(op, session.TxOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}

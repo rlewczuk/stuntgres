@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -39,7 +40,7 @@ func TestTransactionUtilityCompletionBoundary(t *testing.T) {
 					cancel()
 				}
 				if boundary == "end_before" {
-					s.RequestEnd(Terminated)
+					s.RequestEnd(session.Terminated)
 				}
 				var result Result
 				var execErr error
@@ -173,7 +174,7 @@ func BenchmarkTransactionAppend(b *testing.B) {
 			b.ReportAllocs()
 			for range b.N {
 				e := New()
-				s, err := e.StartSession(context.Background(), SessionStart{ID: 1})
+				s, err := e.StartSession(context.Background(), session.SessionStart{ID: 1})
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -193,7 +194,7 @@ func BenchmarkTransactionAppend(b *testing.B) {
 						b.Fatal(err)
 					}
 				}
-				s.RequestEnd(CleanClose)
+				s.RequestEnd(session.CleanClose)
 				if err := s.WaitEnd(context.Background()); err != nil {
 					b.Fatal(err)
 				}
@@ -202,7 +203,7 @@ func BenchmarkTransactionAppend(b *testing.B) {
 	}
 }
 
-func benchmarkTransactionSQL(b *testing.B, s *Session, query string) {
+func benchmarkTransactionSQL(b *testing.B, s *session.Session, query string) {
 	b.Helper()
 	stmt, err := parser.Parse(query)
 	if err != nil {
@@ -226,12 +227,12 @@ func BenchmarkTransactionRelationCapture(b *testing.B) {
 	for _, relations := range []int{1, 256, 512} {
 		b.Run(fmt.Sprint(relations), func(b *testing.B) {
 			e := New()
-			s, err := e.StartSession(context.Background(), SessionStart{ID: 1})
+			s, err := e.StartSession(context.Background(), session.SessionStart{ID: 1})
 			if err != nil {
 				b.Fatal(err)
 			}
 			defer func() {
-				s.RequestEnd(CleanClose)
+				s.RequestEnd(session.CleanClose)
 				_ = s.WaitEnd(context.Background())
 			}()
 			for i := range relations {

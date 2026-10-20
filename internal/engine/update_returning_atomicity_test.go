@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -62,7 +63,7 @@ func TestUpdateReturningProjectionAtomicity(t *testing.T) {
 				t.Fatal(finishErr)
 			}
 			if explicit {
-				if s.TransactionState() != TxAborted {
+				if s.TransactionState() != session.TxAborted {
 					t.Fatal(s.TransactionState())
 				}
 				transactionEnd(t, s, tx, false)

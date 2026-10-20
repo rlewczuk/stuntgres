@@ -6,11 +6,12 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func partitionConsumerBoundary(op *Operation, auth AuthorizationView, statement parser.Statement, d *catalog.Relation) error {
+func partitionConsumerBoundary(op *session.Operation, auth AuthorizationView, statement parser.Statement, d *catalog.Relation) error {
 	if !hierarchyRelation(d) {
 		return nil
 	}
@@ -91,7 +92,7 @@ func partitionWriteExtensionBoundary(statement parser.Statement, d *catalog.Rela
 	return nil
 }
 
-func partitionDefaultReplayAllowed(e *Engine, op *Operation, auth AuthorizationView, statement *parser.AlterTableDefault) bool {
+func partitionDefaultReplayAllowed(e *Engine, op *session.Operation, auth AuthorizationView, statement *parser.AlterTableDefault) bool {
 	if e == nil || op == nil || op.Self != op || !operationReplayOrZero(op).defaultReplay || op.Session == nil || engineOf(op.Session) != e || e.importTargets == nil || auth.engine != e || auth.session != op.Session || auth.RoleRecord != e.roles.published || auth.Catalog.Owner() == nil || auth.Catalog.Owner().Domain != e.catalog.Domain || auth.Catalog.State() != e.catalog.state || auth.Catalog.Epoch() != e.catalog.state.Epoch() || statement == nil || statement.Action != parser.SetDefault || statement.Expression == nil {
 		return false
 	}
@@ -105,7 +106,7 @@ func partitionDefaultReplayAllowed(e *Engine, op *Operation, auth AuthorizationV
 // Dump may replay differently owned members. Only the private, authenticated
 // importer can open their parent as its bootstrap principal; the child owner
 // and all type and scalar-expression authority remain the named CurrentUser.
-func (e *Engine) partitionParentAuthorization(op *Operation, auth AuthorizationView, syntax *parser.CreateTable) (AuthorizationView, error) {
+func (e *Engine) partitionParentAuthorization(op *session.Operation, auth AuthorizationView, syntax *parser.CreateTable) (AuthorizationView, error) {
 	if syntax == nil || syntax.PartitionOf == nil || op == nil || !operationReplayOrZero(op).tableDestination {
 		return auth, nil
 	}

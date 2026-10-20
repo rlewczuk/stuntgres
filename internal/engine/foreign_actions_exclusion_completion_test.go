@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -36,7 +37,7 @@ func TestForeignActionsExclusionCompletion(t *testing.T) {
 				dq = "UPDATE p SET id=id WHERE id=2"
 			}
 			ca, da := statement(t, cq), statement(t, dq)
-			complete := func(s *Session, action bool) {
+			complete := func(s *session.Session, action bool) {
 				op, err := s.Acquire(context.Background())
 				if err != nil {
 					t.Fatal(err)

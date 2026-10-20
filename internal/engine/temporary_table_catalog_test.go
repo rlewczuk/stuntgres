@@ -21,7 +21,7 @@ import (
 
 // Package-function candidates use real registry descriptors and ownership; no
 // public SQL API or manufactured committed DELETE rows are used here.
-func temporaryCatalogCandidate(t *testing.T, action parser.OnCommitAction) (*Engine, *Operation, *catalogChanges, *catalog.Relation) {
+func temporaryCatalogCandidate(t *testing.T, action parser.OnCommitAction) (*Engine, *session.Operation, *session.Journal, *catalog.Relation) {
 	t.Helper()
 	e := New()
 	s := sessionStart(t, e, nil)
@@ -36,7 +36,7 @@ func temporaryCatalogCandidate(t *testing.T, action parser.OnCommitAction) (*Eng
 	e.mu.Lock()
 	e.catalogChangeLocked(c, namespace.Address(), namespace)
 	e.catalogChangeLocked(c, table.Address(), table)
-	c.Storage[table.Address()] = catalogStorageChange{Replacement: &storage.Relation{}, Relation: table}
+	c.Storage[table.Address()] = session.StorageChange{Replacement: &storage.Relation{}, Relation: table}
 	e.mu.Unlock()
 	return e, op, c, table
 }

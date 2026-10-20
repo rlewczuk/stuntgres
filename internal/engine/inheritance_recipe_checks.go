@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -276,7 +277,7 @@ func (e *Engine) captureRestoredPlaceholders(created ids.ObjectRef, raw *parser.
 	}
 }
 
-func (e *Engine) pairRestoredGeneration(op *Operation, raw *parser.AlterTable, origins map[restoredGenerationKey]restoredGenerationRecipe) error {
+func (e *Engine) pairRestoredGeneration(op *session.Operation, raw *parser.AlterTable, origins map[restoredGenerationKey]restoredGenerationRecipe) error {
 	if err := op.Context().Err(); err != nil {
 		return err
 	}
@@ -324,7 +325,7 @@ func (e *Engine) pairRestoredGeneration(op *Operation, raw *parser.AlterTable, o
 	return nil
 }
 
-func (e *Engine) captureRestoredGeneration(op *Operation, raw *parser.AlterTable) (restoredGenerationRecipe, error) {
+func (e *Engine) captureRestoredGeneration(op *session.Operation, raw *parser.AlterTable) (restoredGenerationRecipe, error) {
 	auth, err := operationAuthorization(op)
 	if err != nil {
 		return restoredGenerationRecipe{}, err
@@ -346,7 +347,7 @@ func (e *Engine) captureRestoredGeneration(op *Operation, raw *parser.AlterTable
 	return restoredGenerationRecipe{ref: ref, attribute: attribute, generation: generation.OID, usage: table.Columns[slot].Usage, kind: generation.Kind}, nil
 }
 
-func (e *Engine) restoreInheritedCheck(op *Operation, raw *parser.AlterTable, repairs []restoredGenerationRecipe) error {
+func (e *Engine) restoreInheritedCheck(op *session.Operation, raw *parser.AlterTable, repairs []restoredGenerationRecipe) error {
 	if err := op.Context().Err(); err != nil {
 		return err
 	}
@@ -500,7 +501,7 @@ func capturedGenerationReplayPlan(view catalog.Read) (map[ids.ObjectAddress]*dum
 	return selected, nil
 }
 
-func (e *Engine) closeRestoredRecipesForData(op *Operation, raw *parser.Insert, repairs []restoredGenerationRecipe) ([]restoredGenerationRecipe, error) {
+func (e *Engine) closeRestoredRecipesForData(op *session.Operation, raw *parser.Insert, repairs []restoredGenerationRecipe) ([]restoredGenerationRecipe, error) {
 	auth, err := operationAuthorization(op)
 	if err != nil {
 		return nil, err

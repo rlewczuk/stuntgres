@@ -6,12 +6,13 @@ import (
 	"maps"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func inheritedRestoreFixture(t *testing.T) (*Engine, *Operation, map[string]ids.ObjectRef, map[restoredGenerationKey]restoredGenerationRecipe) {
+func inheritedRestoreFixture(t *testing.T) (*Engine, *session.Operation, map[string]ids.ObjectRef, map[restoredGenerationKey]restoredGenerationRecipe) {
 	t.Helper()
 	source := New()
 	ownershipUnitExec(t, source, "CREATE ROLE captured_owner")

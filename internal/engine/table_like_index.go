@@ -8,11 +8,12 @@ import (
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 )
 
 // Clone live definitions, not source roots or validity flags. Invalid concurrent
 // source indexes are rebuilt as ordinary ready/valid/live destination indexes.
-func (e *Engine) stageLikeIndexes(op *Operation, auth AuthorizationView, stage *CatalogStage, destination *catalog.Relation, inputs []analyze.LikeInput) error {
+func (e *Engine) stageLikeIndexes(op *session.Operation, auth AuthorizationView, stage *CatalogStage, destination *catalog.Relation, inputs []analyze.LikeInput) error {
 	for i := range inputs {
 		in := &inputs[i]
 		if in.Options&analyze.LikeIndexes == 0 {

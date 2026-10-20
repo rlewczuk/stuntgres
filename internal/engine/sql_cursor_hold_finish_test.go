@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/sqltype"
 )
 
@@ -36,7 +37,7 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 		})
 		sessionSQL(t, s, "INSERT INTO unit_rows VALUES(4)")
 		result, err := cursorUnitExecute(t, s, context.Background(), "COMMIT")
-		if !errors.Is(err, sentinel) || result.Rows != nil || result.Count != 0 || calls != 2 || !good.promoted || payloadOf(s).cursors.entries["good"] != good || payloadOf(s).cursors.entries["bad"] != nil || payloadOf(s).cursors.entries["ordinary"] != nil || bad.values != nil || bad.source != nil || badPin.Load() != nil || goodPin.Load() != nil || badCell.Host != nil || s.Transactions.State != TxIdle {
+		if !errors.Is(err, sentinel) || result.Rows != nil || result.Count != 0 || calls != 2 || !good.promoted || payloadOf(s).cursors.entries["good"] != good || payloadOf(s).cursors.entries["bad"] != nil || payloadOf(s).cursors.entries["ordinary"] != nil || bad.values != nil || bad.source != nil || badPin.Load() != nil || goodPin.Load() != nil || badCell.Host != nil || s.Transactions.State != session.TxIdle {
 			t.Fatal("failed end retracts promotion or publishes pending store", result, err, calls)
 		}
 		cursorUnitBatch(t, s, "FETCH ALL FROM good", [][]driver.Value{{int64(1)}, {int64(2)}, {int64(3)}})
@@ -106,7 +107,7 @@ func TestSQLCursorHoldPublication(t *testing.T) {
 		if err := scope.Finish(nil); !errors.Is(err, context.Canceled) {
 			t.Fatal("implicit materialization cancellation suppressed", err)
 		}
-		if payloadOf(s).cursors.entries["implicit_h"] != nil || pin.Load() != nil || cell.Host != nil || s.Transactions.State != TxIdle {
+		if payloadOf(s).cursors.entries["implicit_h"] != nil || pin.Load() != nil || cell.Host != nil || s.Transactions.State != session.TxIdle {
 			t.Fatal("failed implicit declaration retains producer")
 		}
 	})
@@ -219,7 +220,7 @@ func TestSQLCursorHoldCancellation(t *testing.T) {
 			cancel()
 			lockAwait(t, done, context.Canceled)
 			joined = true
-			if c.promoted || c.values != nil || c.source != nil || c.stage != nil || pin.Load() != nil || cell.Host != nil || payloadOf(s).cursors.entries["h"] != nil || s.Transactions.Ticket != nil || s.Transactions.State != TxIdle {
+			if c.promoted || c.values != nil || c.source != nil || c.stage != nil || pin.Load() != nil || cell.Host != nil || payloadOf(s).cursors.entries["h"] != nil || s.Transactions.Ticket != nil || s.Transactions.State != session.TxIdle {
 				t.Fatal("canceled commit retains partial store/producer/admission")
 			}
 			s.Mu.Lock()
@@ -232,7 +233,7 @@ func TestSQLCursorHoldCancellation(t *testing.T) {
 			if got := tuples(sessionSQL(t, s, "SELECT i FROM unit_rows ORDER BY i")); !reflect.DeepEqual(got, [][]driver.Value{{int64(1)}, {int64(2)}, {int64(3)}}) {
 				t.Fatal("canceled commit publishes private write", got)
 			}
-			s.RequestEnd(CleanClose)
+			s.RequestEnd(session.CleanClose)
 			if err := s.WaitEnd(context.Background()); err != nil || len(payloadOf(s).cursors.entries) != 0 {
 				t.Fatal("session end retains old exported store", err)
 			}

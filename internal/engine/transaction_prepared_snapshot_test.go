@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/exec"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
-func preparedUnitStatement(t *testing.T, e *Engine, s *Session, stmt parser.Statement) {
+func preparedUnitStatement(t *testing.T, e *Engine, s *session.Session, stmt parser.Statement) {
 	t.Helper()
 	op := transactionOperation(t, s)
 	defer op.Done()
@@ -38,7 +39,7 @@ func TestPreparedSerializableCandidateRetainsAdmittedSnapshot(t *testing.T) {
 			}
 			preparedUnitStatement(t, e, writer, &parser.Insert{Name: name, Rows: [][]parser.Expr{{literal(0)}}})
 			op := transactionOperation(t, writer)
-			_, err := e.Begin(op, TxOptions{Isolation: Serializable})
+			_, err := e.Begin(op, session.TxOptions{Isolation: session.Serializable})
 			op.Done()
 			if err != nil {
 				t.Fatal(err)
@@ -54,7 +55,7 @@ func TestPreparedSerializableCandidateRetainsAdmittedSnapshot(t *testing.T) {
 			if err := preparedUnitControl(t, e, writer, parser.KindPrepareTransaction, "candidate"); err != nil {
 				t.Fatal(err)
 			}
-			writer.RequestEnd(CleanClose)
+			writer.RequestEnd(session.CleanClose)
 			if err := writer.WaitEnd(context.Background()); err != nil {
 				t.Fatal(err)
 			}
@@ -119,7 +120,7 @@ func TestPreparedTemporarySemanticDescriptionIsSticky(t *testing.T) {
 	name := parser.ObjectName{Parts: []parser.Identifier{{Text: "semantic_temp"}}}
 	preparedUnitStatement(t, e, s, &parser.CreateSequence{Name: name, Persistence: "temporary"})
 	op := transactionOperation(t, s)
-	_, err := e.Begin(op, TxOptions{})
+	_, err := e.Begin(op, session.TxOptions{})
 	op.Done()
 	if err != nil {
 		t.Fatal(err)
@@ -142,7 +143,7 @@ func TestPreparedTemporarySemanticDescriptionIsSticky(t *testing.T) {
 	if err := preparedUnitControl(t, e, s, parser.KindPrepareTransaction, "semantic"); err == nil {
 		t.Fatal("semantic temporary access allowed prepare")
 	}
-	if s.TransactionState() != TxIdle || len(e.prepared) != 0 {
+	if s.TransactionState() != session.TxIdle || len(e.prepared) != 0 {
 		t.Fatal("semantic prepare failure did not fully dispose transaction")
 	}
 }

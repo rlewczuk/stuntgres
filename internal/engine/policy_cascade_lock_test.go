@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 )
 
@@ -44,7 +45,7 @@ func TestRLSPolicyCascadeLockTargets(t *testing.T) {
 					}
 					var scope *StatementScope
 					if authority == "sql" {
-						tx, err := e.Begin(op, TxOptions{})
+						tx, err := e.Begin(op, session.TxOptions{})
 						if err != nil {
 							t.Fatal(err)
 						}

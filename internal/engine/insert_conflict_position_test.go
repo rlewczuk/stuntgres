@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
@@ -166,7 +167,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 				t.Fatal("trusted shape reconstruction", err)
 			}
 			insertConflictWantHints(t, prepared[index.Address()], &shaped, want)
-			changes := &catalogChanges{Descriptors: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): &index}, Originals: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): f.index}}
+			changes := &session.Journal{Descriptors: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): &index}, Originals: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): f.index}}
 			if err := prepareAlterIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: f.e.CatalogRead()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, changes, f.e.CatalogRead(), &parent, &shaped, nil, false); err != nil {
 				t.Fatal("private reconstruction", err)
 			}
@@ -176,7 +177,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 }
 
 func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
-	for i, isolation := range []Isolation{ReadUncommitted, ReadCommitted, RepeatableRead, Serializable} {
+	for i, isolation := range []session.Isolation{session.ReadUncommitted, session.ReadCommitted, session.RepeatableRead, session.Serializable} {
 		t.Run([]string{"read-uncommitted", "read-committed", "repeatable-read", "serializable"}[i], func(t *testing.T) {
 			f := insertConflictUniqueFixture(t)
 			scope, ref := insertConflictUnitScope(t, f)
@@ -233,7 +234,7 @@ func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 	}
 	index := *f.index
 	index.ObjectRevision++
-	changes := &catalogChanges{Descriptors: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): &index}, Originals: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): f.index}}
+	changes := &session.Journal{Descriptors: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): &index}, Originals: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): f.index}}
 	if err := prepareAlterIndexRoots(&exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Catalog: f.e.CatalogRead()}, EvalFrame: exec.EvalFrame{Scope: 1, Frame: 1}}, changes, f.e.CatalogRead(), f.parent, f.store, validated, false); err != nil {
 		t.Fatal(err)
 	}
@@ -244,7 +245,7 @@ func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 	insertConflictWantHints(t, root, f.store, map[ids.RowID]int{2: 1})
 	scope, ref := insertConflictUnitScope(t, f)
 	scope.owner.Catalog = changes
-	scope.owner.Isolation = RepeatableRead
+	scope.owner.Isolation = session.RepeatableRead
 	scope.owner.Frontier = 2
 	if admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 20)}, indexWriteBatch{}, nil); err != nil || admitted {
 		t.Fatal("reused tombstone baseline did not recover actual visible born", admitted, err)

@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -21,7 +22,7 @@ type alterTablePreparation struct {
 // Engine.mu is held by the caller.
 // On completion error only, the result retains the admitted TYPE prefix for
 // sequence AS; that error-path result must never reach a descriptor candidate.
-func (e *Engine) prepareAlterTableActions(scope *StatementScope, op *Operation, auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef, actions []parser.AlterTableAction) (alterTablePreparation, error) {
+func (e *Engine) prepareAlterTableActions(scope *StatementScope, op *session.Operation, auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef, actions []parser.AlterTableAction) (alterTablePreparation, error) {
 	prepared := alterTablePreparation{actions: actions}
 	fail := func(err error) (alterTablePreparation, error) {
 		return alterTablePreparation{}, err

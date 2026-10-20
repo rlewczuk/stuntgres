@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"stuntgres/internal/engine/session"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqlstate"
 )
@@ -13,7 +14,7 @@ func serializableUnitNode(t *testing.T, e *Engine, readOnly bool) *visibility.Se
 	t.Helper()
 	s := sessionStart(t, e, nil)
 	op := transactionOperation(t, s)
-	ref, err := e.Begin(op, TxOptions{Isolation: Serializable, ReadOnly: readOnly})
+	ref, err := e.Begin(op, session.TxOptions{Isolation: session.Serializable, ReadOnly: readOnly})
 	op.Done()
 	if err != nil {
 		t.Fatal(err)
@@ -57,7 +58,7 @@ func TestSerializableGraphCycleFirstCommitDoomsActivePivot(t *testing.T) {
 				t.Fatal(err)
 			}
 			e.visibility.SerializableCommittedLocked(first.Ref, e.visibility.CommitSeq())
-			if !last.Doomed || last.Committed || txOwnerOf(last.Ref).State != TxActive || first.Doomed {
+			if !last.Doomed || last.Committed || txOwnerOf(last.Ref).State != session.TxActive || first.Doomed {
 				t.Fatal("peer doom became an asynchronous TX abort")
 			}
 			serializableUnitDiagnostic(t, e.visibility.SerializablePrecommitLocked(last.Ref), "Canceled on identification as a pivot, during commit attempt.")
