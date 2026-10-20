@@ -122,7 +122,7 @@ without enabling domain utilities after promotion into a genuine explicit block.
 Historical validation reads the current private catalog/projected storage plus
 prior own inserts, replacements and deletions. Each successful validation carries
 immutable relevant committed predecessor graph/storage observations through
-catalogChanges cloning, savepoints and promotion. Final owner publication checks
+journal (`session.Journal`) cloning, savepoints and promotion. Final owner publication checks
 those committed predecessors, not an earlier private projection against the
 later private candidate: subsequent own container creation or CHECK removal can
 be legal. Peer relevant type-use/storage drift vetoes publication without CHECK

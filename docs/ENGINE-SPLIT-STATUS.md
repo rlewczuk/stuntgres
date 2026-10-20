@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `859d932b0`. The later-wave plans
+Last verified against `master` at `96460e8a2`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,13 +15,14 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 13 `session`** — 13d.1, the journal (item 44a) **broad**, and
-  13d.2, the statement lease (item 44b, in place); they may run in parallel.
+- **Step 13 `session`** — 13d.3, the engine edges (item 44c) **broad**.
 
-Steps 1, 2 and 4–12 and `access` (A1–B5) are done. Step 13's in-place untangling (13a,
-13b) and its refine (13c) are done; 13d runs in six sessions (44a–44f). Step 16
-Part A (16a, 16b) is done; 16c (item 50) waits for 13d (item 44). Step 17 Part
-A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
+Steps 1, 2 and 4–12 and `access` (A1–B5) are done. Step 13's in-place
+untangling (13a, 13b) and its refine (13c) are done; 13d runs in six sessions
+(44a–44f), of which 44a (`session` created, journal moved) and 44b
+(statement lease) are done. Step 16 Part A (16a, 16b) is done; 16c (item 50)
+waits for 13d (item 44). Step 17 Part A (17a, 17b) is done; 17c (item 52)
+waits for 13d (item 44).
 
 ## Task tree
 
@@ -320,8 +321,8 @@ A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
   - [x] 13c — Refine (docs only; the commit that records this status)
     *(quickcheck passed; racecheck/finalcheck skipped at user request)*
   - [ ] 13d — `session` created and moved (several sessions)
-    - [ ] 13d.1 — Journal, creates `session` *(broad)*
-    - [ ] 13d.2 — Statement lease and small cuts (in place)
+    - [x] 13d.1 — Journal, creates `session` *(broad)*
+    - [x] 13d.2 — Statement lease and small cuts (in place)
     - [ ] 13d.3 — Engine edges *(broad)*
     - [ ] 13d.4 — Root payloads (in place)
     - [ ] 13d.5 — File splits and exports *(broad)*
@@ -587,9 +588,15 @@ in the prompt file's Status section.
     user request
 44. [ ] Session 13d (several sessions) — [session](ENGINE-SPLIT-session.md)
     13d · needs 43 · **broad** · done when 44a–44f are ticked
-    - 44a. [ ] 13d.1 journal, creates `session` · needs 43 · **broad**
-    - 44b. [ ] 13d.2 statement lease and small cuts · needs 43 · may run in
-      parallel with 44a
+    - 44a. [x] 13d.1 journal, creates `session` · needs 43 · **broad**
+      (`548b81e54`, `353ec50ae`, `7cc803313`, `2eb0cefb3`, then the docs
+      commit) · selected unit/`RACE=1` and dual-mode proof (47
+      `REFERENCE=1` tests) and quickcheck passed; bench unchanged;
+      racecheck/finalcheck skipped at user request
+    - 44b. [x] 13d.2 statement lease and small cuts · needs 43 · may run in
+      parallel with 44a (`d31baeb58`, `00fec2882`, then the docs commit) ·
+      selected unit/`RACE=1` and dual-mode proof and quickcheck passed;
+      racecheck/finalcheck skipped at user request
     - 44c. [ ] 13d.3 engine edges · needs 44a, 44b · **broad**
     - 44d. [ ] 13d.4 root payloads · needs 44c
     - 44e. [ ] 13d.5 file splits and exports · needs 44d · **broad**

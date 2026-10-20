@@ -411,6 +411,36 @@ timeouts, COPY, cancellation and 2PC.
 4. Create `session`, move `catalogChanges`, `catalogStorageChange`,
    `catalogDependencyObservation` and the clone helper, with aliases.
 
+**13d.1 result** (measured at `96460e8a2`). `session` holds `Journal` (was
+`catalogChanges`; 19 fields, all exported, `indexesSlot` became `Indexes`),
+`StorageChange`, `DependencyObservation`, `NewJournal`, `Journal.Clone`
+(absorbing `cloneDefaultChanges`; a nil journal clones to an empty one) and
+`AddFence`; it imports only `ids`, `authorization`, `catalog`, `storage`,
+`access` and `sqltype`. Slot interfaces `EnumSlot`, `DomainSlot`,
+`IndexSlot` (marker plus `Clone`) and `Fence` (`Kind() FenceKind`).
+`typedef.EnumJournal`/`DomainJournal` implement the slots, so `typedef` now
+imports `session` (planned for Part B; acyclic). The root keeps the index
+journal, the fence types, their kinds and check order, and the helpers
+`enumJournalOf`/`enumSlotOf`, `domainJournalOf`/`domainSlotOf`,
+`indexJournalOf`/`indexSlotOf`; the four slot accessor methods became root
+functions (`journalIndexes`, `journalIndexesOrZero`, `domainWritable`,
+`enumWritable`). Call sites of `newCatalogChanges`/`cloneCatalogChanges`
+name `session.NewJournal`/`Clone` directly.
+
+Deviations: `catalog_fence_test.go` changed in two lines (its probe fence
+implements `Kind() session.FenceKind` instead of `fenceKind()`); a foreign
+fence in `catalogFencesCurrentLocked` returns an internal error.
+
+Tests: new `session/journal_test.go` (`TestJournalCloneOfNilIsEmpty`,
+`TestJournalCloneKeepsNilSlotsNil`,
+`TestJournalCloneCopiesMapsAndSlotsAndSharesFences`). Engine unit tests were
+rewritten in place by the tools (slot reads through the helpers, exported
+members, `session.NewJournal`/`Clone`), for example
+`catalog_type_journal_test.go`, `enum_evolution_test.go`,
+`domain_alter_message_test.go` and `driver_batch_role_retirement_test.go`;
+`temporary_table_catalog_test.go` renamed a local `session` variable that
+shadowed the package. No test moved or was deleted.
+
 #### 13d.2 — Statement lease and small cuts (in place)
 
 May run in parallel with 13d.1 (it touches the timeout, COPY admission and
@@ -420,6 +450,29 @@ authorization files, not the journal).
    `sessionTimeout.scope` and `transactionOwner.copyScope`; pass the read
    fields to `startProvisionalTimeout` and `finishScopeTimeout`.
 2. `settingAccess` and `Operation.Authorization` become root functions.
+
+**13d.2 result.** `StatementLease` (`statement_lease.go`, still in the root;
+moves in 13d.6) holds `Statement any` (the owning scope, recovered with
+`scopeOfLease`) and `TimeoutRef` (was the scope's `timeoutRef`; `Session.mu`
+guards it). `StatementScope.lease` is a value field set in
+`newStatementScope`, so no allocation is added. `Operation.lease`, the
+timeout slot's `lease` and `transactionOwner.copyLease` replace the three
+back-pointers and compare by lease address; a copied scope's lease has
+another address, as the copy's pointer did. `startProvisionalTimeout(lease,
+op, transactionStart)` and `finishScopeTimeout(lease, op, message, txRef,
+failed)` take the fields they read. `stageMessageCatalog` and
+`insert_conflict_update_lock_test.go` recover the scope with `scopeOfLease`
+(the lease's back-reference, per §3 rule 7). `operationAuthorization(op)`
+replaces the method (30 production and 103 test call sites, rewritten with
+`meth2fn`); `settingAccess` was already a function and moved to
+`parameter_permission.go`.
+
+Tests: adapted in place, none moved or deleted (`session_timeout_test.go`,
+`session_timeout_pending_test.go`, `copy_admission_test.go`,
+`copy_binary_test.go`, `protocol_copy_scope_test.go`,
+`protocol_copy_input_start_test.go`, `protocol_simple_test.go`,
+`insert_conflict_update_lock_test.go`, and the `operationAuthorization`
+call sites).
 
 #### 13d.3 — Engine edges (broad)
 
@@ -549,17 +602,32 @@ facade, the statement scope, dispatch and the root payloads of 13c decision
   *(measured at `3fbd7d241`; quickcheck passed; racecheck/finalcheck
   skipped at user request)*
 - [ ] 13d — `session` created and moved (sessions per the 13c plan)
-  - [ ] 13d.1 — Journal (creates `session`)
-  - [ ] 13d.2 — Statement lease and small cuts
+  - [x] 13d.1 — Journal (creates `session`) (`548b81e54`, `353ec50ae`,
+    `7cc803313`, `2eb0cefb3`, then the docs commit) *(selected unit/`RACE=1`
+    and dual-mode proof (47 `REFERENCE=1` tests: timeouts, COPY admission,
+    savepoints, 2PC, enum, index) and quickcheck passed; bench unchanged,
+    about 830 µs/op and 5014 allocs; racecheck/finalcheck skipped at user
+    request)*
+  - [x] 13d.2 — Statement lease and small cuts (`d31baeb58`, `00fec2882`,
+    then the docs commit) *(same proof as 13d.1, run on the combined
+    branch)*
   - [ ] 13d.3 — Engine edges
   - [ ] 13d.4 — Root payloads
   - [ ] 13d.5 — File splits and exports
   - [ ] 13d.6 — Move
 - [ ] 13e — Aliases removed
 
-Outstanding aliases: none yet.
+Outstanding aliases: `catalogChanges`, `catalogDependencyObservation` and
+`catalogStorageChange` (`session_aliases.go`, 13d.1).
 
 Notes for later steps:
+
+- 13d.1, for 13d.3–13d.6: the journal's methods now live in `session`, so
+  root code cannot add methods to `catalogChanges`; add root functions.
+  Fence kinds stay `session.FenceKind` constants in `catalog_fence.go`.
+- 13d.2, for 13d.4–13d.6: `StatementLease.Statement` is the only route from
+  session-layer state back to the scope (`scopeOfLease`). `copyDone` stays
+  next to `copyLease` on the owner.
 
 - Part B of the feature steps (14c–17d) and the postponed packages need 13d.
   After the 13c refine their handlers do not name `StatementScope` (it

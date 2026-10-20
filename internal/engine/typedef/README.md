@@ -5,9 +5,9 @@ composites and typed tables, collations and conversions. Part A of step 15
 moved the records, validation, Dump/Restore and remap helpers here; the DDL
 handlers follow in Part B (15c/15d). The package sits at layer L10 of
 [ENGINE-SPLIT.md §3](../../../docs/ENGINE-SPLIT.md#3-target-architecture).
-It imports only `authorization`, `catalog`, `expr`, `ids`, `storage`,
-`parser`, `sqltype`, `sqlstate` and the standard library, and never the
-engine or `routine`. See
+It imports only `authorization`, `catalog`, `expr`, `ids`, `session` (for
+the journal slot interfaces), `storage`, `parser`, `sqltype`, `sqlstate` and
+the standard library, and never the engine or `routine`. See
 [ENGINE-SPLIT-typedef.md](../../../docs/ENGINE-SPLIT-typedef.md).
 
 ## What it owns
@@ -45,16 +45,19 @@ engine or `routine`. See
   `UsageDependsOn`.
 - **Slot structs**: `DomainAlterStage` and `TypedStage` (the type state of a
   `CatalogStage`), `DomainJournal` and `EnumJournal` (the type state of the
-  catalog journal; `journal_slots.go`).
+  catalog journal, implementing `session.DomainSlot` and `session.EnumSlot`;
+  `journal_slots.go`).
 
 ## Invariants
 
 - **No locks, no engine state.** The package has no mutex and reads the
   catalog only through `catalog.Read`/`catalog.State`. The engine
   synchronizes the slots it holds, as it did before the move.
-- **Slots are owned by the engine.** `CatalogStage` and `catalogChanges`
-  allocate the slots (`domainAlterState`, `typedState`, `domainWritable`,
-  `enumWritable`) and write them in the engine. A nil slot is the empty
+- **Slots are owned by the engine.** `CatalogStage` and the journal
+  (`session.Journal`) hold the slots; the engine allocates them
+  (`domainAlterState`, `typedState`, `domainWritable`, `enumWritable`),
+  recovers the journal slots with `domainJournalOf`/`enumJournalOf` and
+  writes them. A nil slot is the empty
   state, and the getters here are nil-safe. Journal slots are copy-on-write:
   `Clone` makes a savepoint or statement copy, and a writer replaces a shared
   slot before it changes it.

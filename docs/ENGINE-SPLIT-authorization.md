@@ -109,7 +109,7 @@ plan.
     `objectACLClass`).
 - **Stays in the engine:**
   - view capture (`authorizationLocked`, `statementAuthorizationLocked` with
-    its Restore elevation, `Operation.Authorization`);
+    its Restore elevation, `operationAuthorization`);
   - role publication (`roleStore`, B1) and the `catalogAuthority` fences;
   - role DDL, GRANT and REVOKE resolution and publication, ALTER DEFAULT
     PRIVILEGES and the ownership statements;

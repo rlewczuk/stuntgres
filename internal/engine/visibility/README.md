@@ -90,8 +90,9 @@ standard library. It never imports the root engine. Layering is in
 ## What stays in the engine
 
 `transactionOwner` (the per-session state machine and its CHAIN and
-characteristic rules), savepoints, the `catalogChanges` journal, prepared
-transactions (2PC), `StatementScope`, write staging and `mergeDeletions`.
+characteristic rules), savepoints, publication of the catalog journal (the
+journal itself is `session.Journal`), prepared transactions (2PC),
+`StatementScope`, write staging and `mergeDeletions`.
 Also every entry point that combines visibility with the catalog, storage,
 locks or sessions:
 

@@ -68,7 +68,7 @@ come from the `catalog` diagnostic name helpers it shares with the engine.
   that pass the view itself as the `Environment`. It implements
   `analyze.Privileges` for the binding walkers.
 - View capture (`authorizationLocked`, `statementAuthorizationLocked`,
-  `Operation.Authorization`), role publication (`roleStore`) and the catalog
+  `operationAuthorization`), role publication (`roleStore`) and the catalog
   authority fences.
 - Role DDL, GRANT/REVOKE, ALTER DEFAULT PRIVILEGES and the ownership
   statements; `SetObjectACL` and `SetRoleReferences`.
