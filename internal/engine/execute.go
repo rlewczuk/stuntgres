@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -399,7 +400,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		if err = e.pinSequenceReplacementLocked(auth, scope.Expected.sequences, callerSequences); err != nil {
+		if err = sequence.PinReplacement(auth.Catalog.Epoch(), auth.session.SessionToken, scope.Expected.sequences, callerSequences); err != nil {
 			e.mu.Unlock()
 			return Result{}, err
 		}

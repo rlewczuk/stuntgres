@@ -30,7 +30,7 @@ func (h *statementHost) Sequence(request functions.SequenceRequest) (int64, erro
 		before.Catalog = e.privateCatalogLocked(scope.catalog)
 		before.Recapture(before.Catalog)
 	}
-	if beforeErr == nil && ref.Epoch != before.Catalog.Epoch() && request.Temporary == scope.op.Session.SessionToken && temporarySequenceEpochValid(before.Catalog, ref, request.Temporary) {
+	if beforeErr == nil && ref.Epoch != before.Catalog.Epoch() && request.Temporary == scope.op.Session.SessionToken && sequence.TemporaryEpochValid(before.Catalog, ref, request.Temporary) {
 		ref.Epoch = before.Catalog.Epoch()
 	}
 	if beforeErr == nil && (ref.Domain() != e.catalog.Domain || ref.Epoch != before.Catalog.Epoch()) {

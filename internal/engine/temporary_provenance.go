@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/routine"
+	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/sqltype"
 )
 
@@ -151,19 +152,7 @@ func storedSequenceEpochValid(view catalog.Read, consumer *catalog.Relation, ref
 	if !storedReferenceEpochValid(view, consumer, ref) {
 		return false
 	}
-	return temporarySequenceEpochValid(view, ref, token)
-}
-
-func temporarySequenceEpochValid(view catalog.Read, ref ids.ObjectRef, token ids.SessionToken) bool {
-	if token == (ids.SessionToken{}) || ref.Domain() != view.Owner().Domain || ref.Epoch == 0 || ref.Epoch > view.Epoch() || ref.Address.SubID != 0 {
-		return false
-	}
-	sequence, ok := view.Relation(ref.Address)
-	if !ok || sequence.RelationKind != catalog.SequenceRelation {
-		return false
-	}
-	ns, ok := view.Namespace(sequence.Namespace())
-	return ok && ns.Temporary == token
+	return sequence.TemporaryEpochValid(view, ref, token)
 }
 
 func (r scalarRenderer) retainedConsumer() *catalog.Relation {

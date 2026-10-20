@@ -85,16 +85,11 @@ func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *p
 // state and descriptor revisions. Commit exposes the descriptor's source stamp
 // to peers; a reverted reset retains its event only in the initiating session.
 func preparedDefinitionStamp(d catalog.Descriptor, session *session.Session) ids.DefinitionRevision {
-	if relation, ok := d.(*catalog.Relation); ok && relation.RelationKind == catalog.SequenceRelation {
-		stamp := relation.SequencePlanStamp
-		if session != nil {
-			if memory := payloadOf(session).sequences.Memory(relation.Address()); memory != nil {
-				stamp = max(stamp, memory.SourceStamp())
-			}
-		}
-		return stamp
+	var memory *sequence.SessionMemory
+	if session != nil {
+		memory = &payloadOf(session).sequences
 	}
-	return d.Revision()
+	return sequence.DefinitionStamp(d, memory)
 }
 
 // Build only on initial or invalidated analysis. Existing binder dependencies

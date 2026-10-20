@@ -340,7 +340,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		if err := e.ValidateObjectRef(retained, ref); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal("generic object reference gained old-epoch authority", err)
 		}
-		if temporarySequenceEpochValid(retained, ref, owner.SessionToken) {
+		if sequence.TemporaryEpochValid(retained, ref, owner.SessionToken) {
 			t.Fatal("non-sequence gained sequence runtime authority")
 		}
 		for _, bad := range []ids.ObjectRef{
