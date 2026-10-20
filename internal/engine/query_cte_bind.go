@@ -6,13 +6,14 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
 type cteBinding struct {
 	name       string
-	definition *cteDefinition
+	definition *plan.CTEDefinition
 	contained  bool // This binding is inside its owning WITH's definition bodies.
 }
 
@@ -27,19 +28,19 @@ func futureCTEError(err error, name string) error {
 	return &copy
 }
 
-func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTableExpression, recursive bool) ([]*cteDefinition, error) {
+func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTableExpression, recursive bool) ([]*plan.CTEDefinition, error) {
 	analysis, err := parser.AnalyzeRecursiveCTEs(&parser.Select{With: rawDefinitions, WithRecursive: recursive})
 	if err != nil {
 		return nil, err
 	}
-	definitions := make([]*cteDefinition, len(rawDefinitions))
+	definitions := make([]*plan.CTEDefinition, len(rawDefinitions))
 	startBindings := len(b.cte.bindings)
 	for _, index := range analysis.Order {
 		raw := rawDefinitions[index]
 		start := len(b.query.sources)
-		definition := &cteDefinition{Owner: b.frameID(), Hint: raw.Materialization, Position: raw.Name.Pos, Name: raw.Name.Text, Columns: raw.Columns, Recursive: analysis.Recursive[index]}
+		definition := &plan.CTEDefinition{Owner: b.frameID(), Hint: raw.Materialization, Position: raw.Name.Pos, Name: raw.Name.Text, Columns: raw.Columns, Recursive: analysis.Recursive[index]}
 		if raw.Search != nil {
-			definition.Search = &searchRecipe{Syntax: raw.Search}
+			definition.Search = &plan.SearchRecipe{Syntax: raw.Search}
 		}
 		if raw.Cycle != nil {
 			definition.Cycle, err = b.bindCycleMarks(raw.Cycle)
@@ -93,12 +94,12 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 			return nil, expr.ErrorAt("42601", "WITH query is not recursive", raw.Name.Pos)
 		}
 		if len(raw.Columns) != 0 {
-			aliased := append(querySchema(nil), definition.OutputSchema()...)
+			aliased := append(plan.QuerySchema(nil), definition.OutputSchema()...)
 			for i, name := range raw.Columns {
 				aliased[i].Name = name.Text
 			}
 			if definition.Query != nil {
-				project := *definition.Query.Root.(*projectNode)
+				project := *definition.Query.Root.(*plan.ProjectNode)
 				project.QuerySchema = aliased
 				definition.Query.Root = &project
 			} else {
@@ -118,27 +119,27 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 	return definitions, nil
 }
 
-func (b *expressionBinder) bindCTEScan(table *parser.TableReference, binding cteBinding) (LogicalNode, queryNamespace, error) {
+func (b *expressionBinder) bindCTEScan(table *parser.TableReference, binding cteBinding) (plan.Node, queryNamespace, error) {
 	d := binding.definition
 	if mutation, ok := mutationBinding(d); ok && mutation.returning == nil {
 		return nil, queryNamespace{}, expr.ErrorAt("0A000", fmt.Sprintf(`WITH query "%s" does not have a RETURNING clause`, table.Name.Parts[0].Text), table.Name.Parts[0].Pos)
 	}
 	d.References++
 	schema := d.OutputSchema()
-	var scan *derivedNode
-	var root LogicalNode
+	var scan *plan.DerivedNode
+	var root plan.Node
 	if d.Recursive && d.Query == nil {
-		self := &worktableScanNode{}
+		self := &plan.WorktableScanNode{}
 		scan, root = &self.DerivedNode, self
 		if b.cte.recursiveFrames == nil {
 			b.cte.recursiveFrames = make(map[uint32]bool)
 		}
 		b.cte.recursiveFrames[b.frameID()] = true
 	} else {
-		scan = &derivedNode{}
+		scan = &plan.DerivedNode{}
 		root = scan
 	}
-	*scan = derivedNode{QuerySchema: schema, Query: d.Query, CTE: d, Table: table, Ordinal: -1 - b.cte.scanOrdinal, ScanFrame: b.frameID(), Demand: make([]bool, len(schema))}
+	*scan = plan.DerivedNode{QuerySchema: schema, Query: d.Query, CTE: d, Table: table, Ordinal: -1 - b.cte.scanOrdinal, ScanFrame: b.frameID(), Demand: make([]bool, len(schema))}
 	b.cte.scanOrdinal++
 	columns := make([]queryColumn, len(schema))
 	for i, column := range schema {
@@ -152,11 +153,11 @@ func (b *expressionBinder) bindCTEScan(table *parser.TableReference, binding cte
 
 // Runtime demand omits unused definitions, while PostgreSQL's static folding
 // eligibility inspects even nested WITH bodies that will never execute.
-func visitExecutableQuery(node LogicalNode, visit func(LogicalNode), expression func(expr.Expr)) {
+func visitExecutableQuery(node plan.Node, visit func(plan.Node), expression func(expr.Expr)) {
 	visitCTEQuery(node, visit, expression, false)
 }
 
-func visitCTEQuery(node LogicalNode, visit func(LogicalNode), expression func(expr.Expr), includeDefinitions bool) {
+func visitCTEQuery(node plan.Node, visit func(plan.Node), expression func(expr.Expr), includeDefinitions bool) {
 	if node == nil {
 		return
 	}
@@ -165,12 +166,12 @@ func visitCTEQuery(node LogicalNode, visit func(LogicalNode), expression func(ex
 		if bound == nil {
 			return
 		}
-		if edge, ok := bound.(subqueryExpression); ok && edge.CTEDefinition && !includeDefinitions {
+		if edge, ok := bound.(plan.SubqueryExpr); ok && edge.CTEDefinition && !includeDefinitions {
 			return
 		}
 		expression(bound)
 		walkBoundExpression(bound, func(n expr.Expr) {
-			if s, ok := n.(subqueryExpression); ok {
+			if s, ok := n.(plan.SubqueryExpr); ok {
 				visitCTEQuery(s.QueryPlan.Root, visit, expression, includeDefinitions)
 			}
 		})
@@ -180,10 +181,10 @@ func visitCTEQuery(node LogicalNode, visit func(LogicalNode), expression func(ex
 	visitCTEQuery(right, visit, expression, includeDefinitions)
 }
 
-func cteVolatile(root LogicalNode) bool {
+func cteVolatile(root plan.Node) bool {
 	volatile := false
-	visitCTEQuery(root, func(n LogicalNode) {
-		if source, ok := n.(*sourceNode); ok && source.Ref.Address.ClassID == ids.RelationClassID && source.Ref.Address.ObjectID == 12048 {
+	visitCTEQuery(root, func(n plan.Node) {
+		if source, ok := n.(*plan.SourceNode); ok && source.Ref.Address.ClassID == ids.RelationClassID && source.Ref.Address.ObjectID == 12048 {
 			volatile = true
 		}
 		for _, mark := range queryRootRowMarks(n) {
@@ -202,11 +203,11 @@ func cteVolatile(root LogicalNode) bool {
 // Stored views are source leaves, not logical inputs. Inspect their immutable
 // definitions using the same identity-bound graph authority as view expansion;
 // no source is opened and no expression is evaluated during this analysis.
-func cteStoredViewVolatile(view catalog.Read, root LogicalNode) (bool, error) {
+func cteStoredViewVolatile(view catalog.Read, root plan.Node) (bool, error) {
 	var leaves []queryLeaf
 	var sourceErr error
-	visitCTEQuery(root, func(node LogicalNode) {
-		if source, ok := node.(*sourceNode); ok {
+	visitCTEQuery(root, func(node plan.Node) {
+		if source, ok := node.(*plan.SourceNode); ok {
 			relation, _ := view.Relation(source.Ref.Address)
 			if relation == nil {
 				sourceErr = ids.ErrCatalogReplaced
@@ -254,9 +255,9 @@ func cteStoredViewVolatile(view catalog.Read, root LogicalNode) (bool, error) {
 	return false, nil
 }
 
-func activateCTESources(root LogicalNode, leaves []queryLeaf) {
-	visitExecutableQuery(root, func(n LogicalNode) {
-		if source, ok := n.(*sourceNode); ok && source.Occurrence >= 0 && source.Occurrence < len(leaves) {
+func activateCTESources(root plan.Node, leaves []queryLeaf) {
+	visitExecutableQuery(root, func(n plan.Node) {
+		if source, ok := n.(*plan.SourceNode); ok && source.Occurrence >= 0 && source.Occurrence < len(leaves) {
 			leaves[source.Occurrence].analysisOnly = false
 		}
 	}, func(expr.Expr) {})

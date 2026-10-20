@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -167,7 +168,7 @@ func TestJSONBPathQueryInvocation(t *testing.T) {
 	if failed, err := openFunctionSource(c, bad); err == nil || failed.Values != nil {
 		t.Fatal("late failure exposed prefix", failed, err)
 	}
-	invocation, err := openFunctionInvocation(c, &functionFromNode{Calls: []expr.Expr{call, bad}})
+	invocation, err := openFunctionInvocation(c, &plan.FunctionFromNode{Calls: []expr.Expr{call, bad}})
 	if err == nil || invocation.cursors != nil {
 		t.Fatal("partial sibling open published invocation", invocation, err)
 	}

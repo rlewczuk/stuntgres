@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 )
 
@@ -81,7 +82,7 @@ func TestDeleteCurrentOfEligibility(t *testing.T) {
 	if got := cursorOccurrenceVersion(c.currentSource, c.currentIndex, scan.occurrence, c.locks); got.Row == 0 {
 		t.Fatal("unlocked derived lineage lost identity")
 	}
-	for _, node := range []LogicalNode{&sortNode{Child: c.root}, &aggregateNode{Child: c.root}, &joinNode{}, &setNode{}, &distinctNode{}, &singletonNode{}} {
+	for _, node := range []plan.Node{&plan.SortNode{Child: c.root}, &plan.AggregateNode{Child: c.root}, &plan.JoinNode{}, &plan.SetNode{}, &plan.DistinctNode{}, &plan.SingletonNode{}} {
 		if cursorSimpleScan(node, c.source) != nil {
 			t.Fatalf("identity-losing %T accepted", node)
 		}

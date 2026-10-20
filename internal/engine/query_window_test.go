@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -366,7 +367,7 @@ func TestQueryWindowReviewDescriptorRemap(t *testing.T) {
 	}
 	ref := roleTableRef(t, e, "enum_window")
 	definition := viewOf(e.CatalogRead().MustRelation(ref.Address))
-	original := definition.query.Root.(*projectNode).Child.(*windowNode)
+	original := definition.query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	oldEnum := domainUnitType(t, e.CatalogRead(), "window_enum").SQLType
 	oldDomain := domainUnitType(t, e.CatalogRead(), "window_domain").SQLType
 	var dump bytes.Buffer
@@ -398,7 +399,7 @@ func TestQueryWindowReviewDescriptorRemap(t *testing.T) {
 	if err != nil || mapped == definition.query.Root {
 		t.Fatal(mapped, err)
 	}
-	next := mapped.(*projectNode).Child.(*windowNode)
+	next := mapped.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	value, err := newDomain.Input(context.Background(), "a", -1)
 	if err != nil {
 		t.Fatal(err)
@@ -475,7 +476,7 @@ func TestQueryWindowReview3SignatureAnalysisNoRegistration(t *testing.T) {
 			if _, err := b.bind(seed, expressionPolicy{context: projectionContext}); err != nil {
 				t.Fatal(err)
 			}
-			before := append([]aggregateCall(nil), b.grouping.aggregates...)
+			before := append([]plan.AggregateCall(nil), b.grouping.aggregates...)
 			name := parser.ObjectName{Parts: []parser.Identifier{{Text: raw.Name, Pos: raw.Pos}}}
 			var argument expr.Expr
 			_, err := b.resolveWindowAggregateSignature(raw, name, &argument)
@@ -527,8 +528,8 @@ func TestQueryWindowReview4ArgumentOwnerRestoration(t *testing.T) {
 			b.grouping.aggregates = b.grouping.aggregates[:len(b.grouping.aggregates):len(b.grouping.aggregates)]
 			b.grouping.windowCalls = b.grouping.windowCalls[:len(b.grouping.windowCalls):len(b.grouping.windowCalls)]
 			aggregates, windows := b.grouping.aggregates, b.grouping.windowCalls
-			aggregateValues := append([]aggregateCall(nil), aggregates...)
-			windowValues := append([]windowCall(nil), windows...)
+			aggregateValues := append([]plan.AggregateCall(nil), aggregates...)
+			windowValues := append([]plan.WindowCall(nil), windows...)
 			seedOccurrence := *windows[0].Expression
 			frame, clause := b.query.frame, b.clause.aggregateClause
 			raw := statement(t, tc.sql).(*parser.Select).Targets[0]
@@ -563,7 +564,7 @@ func TestQueryWindowReview4ArgumentOwnerRestoration(t *testing.T) {
 				t.Fatal("successful sibling retained failed owner or mutated seed", b.grouping.argumentOwner, b.grouping.windowCalls)
 			}
 			retainedWindows := b.grouping.windowCalls
-			retainedAggregateValues := append([]aggregateCall(nil), retainedAggregates...)
+			retainedAggregateValues := append([]plan.AggregateCall(nil), retainedAggregates...)
 			owner := argumentWindowOwner{active: true, window: true, found: true, first: parser.Position{Character: 23}}
 			b.grouping.argumentOwner = owner
 			leave := b.enterQuery(false)

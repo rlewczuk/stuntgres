@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -27,7 +28,7 @@ func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnviron
 // used by the enclosing CREATE or TYPE owner.
 // Ordering admission belongs to the caller's final selected class/collation,
 // not an expression-only default comparator.
-func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, raw parser.Expr, literals []literalExpression) (*catalog.DerivedIndexKey, string, error) {
+func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, raw parser.Expr, literals []plan.LiteralExpr) (*catalog.DerivedIndexKey, string, error) {
 	binder := e.indexExpressionBinder(op, input, auth, parent)
 	binder.stored.checkLiterals = literals
 	definition, err := binder.bind(raw, expressionPolicy{context: projectionContext})

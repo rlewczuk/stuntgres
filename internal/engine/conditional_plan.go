@@ -11,7 +11,7 @@ import (
 // Searched CASE has a physical-literal decision requiring no expression,
 // conversion, provider or domain evaluation. Demand and simplification share it.
 func literalSearchedCaseMatch(condition expr.Expr) (known, match bool, err error) {
-	literal, ok := condition.(literalExpression)
+	literal, ok := condition.(plan.LiteralExpr)
 	if !ok {
 		return false, false, nil
 	}
@@ -32,7 +32,7 @@ func walkDemandedBoundExpression(node expr.Expr, visit func(expr.Expr)) {
 	visit(node)
 	walk := func(child expr.Expr) { walkDemandedBoundExpression(child, visit) }
 	switch e := node.(type) {
-	case caseExpression:
+	case plan.CaseExpr:
 		if e.Test != nil {
 			boundExpressionChildren(node, walk)
 			return
@@ -48,18 +48,18 @@ func walkDemandedBoundExpression(node expr.Expr, visit func(expr.Expr)) {
 			}
 		}
 		walk(e.Otherwise)
-	case conditionalExpression:
+	case plan.ConditionalExpr:
 		if e.Kind != parser.Coalesce {
 			boundExpressionChildren(node, walk)
 			return
 		}
 		for _, arg := range e.Args {
 			walk(arg)
-			if literal, ok := arg.(literalExpression); ok && !literal.Value.IsNull() {
+			if literal, ok := arg.(plan.LiteralExpr); ok && !literal.Value.IsNull() {
 				return
 			}
 		}
-	case logicalExpression:
+	case plan.LogicalExpr:
 		walk(e.Left)
 		if _, decisive, err := plan.DecisiveLogicalValue(&e); err != nil || !decisive {
 			walk(e.Right)
@@ -109,7 +109,7 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 	}
 	var err error
 	switch e := expression.(type) {
-	case rowExpression:
+	case plan.RowExpr:
 		var did bool
 		e, did, err = mapRow(e, func(old expr.Expr) (expr.Expr, bool, error) { return simplifyConditional(c, old, decisiveDefaults) })
 		if err != nil {
@@ -117,7 +117,7 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 		}
 		changed = changed || did
 		expression = e
-	case fieldExpression:
+	case plan.FieldExpr:
 		e.Base, err = child(e.Base)
 		if err != nil {
 			return nil, false, err
@@ -126,7 +126,7 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 		// unused immutable failures still precede selected-field execution.
 		// Only genuine ROW constructors can discard their other children;
 		// source rows retain occurrence absence and transition semantics.
-		if row, ok := e.Base.(rowExpression); ok && row.Raw != nil && e.Index >= 0 && e.Index < len(row.Fields) {
+		if row, ok := e.Base.(plan.RowExpr); ok && row.Raw != nil && e.Index >= 0 && e.Index < len(row.Fields) {
 			shape := row.ResultUsage().Type.BaseType()
 			index, valid := shape.CompositeAttributeIndex(e.Attribute)
 			source := row.FieldSourceIndex(index)
@@ -136,7 +136,7 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 			}
 		}
 		expression = e
-	case arrayExpression:
+	case plan.ArrayExpr:
 		var elements []expr.Expr
 		for i, old := range e.Elements {
 			next, did, failure := simplifyConditional(c, old, decisiveDefaults)
@@ -155,7 +155,7 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 			e.Elements = elements
 		}
 		expression = e
-	case subscriptExpression:
+	case plan.SubscriptExpr:
 		var did bool
 		e, did, err = mapSubscript(e, func(old expr.Expr) (expr.Expr, bool, error) { return simplifyConditional(c, old, decisiveDefaults) })
 		if err != nil {
@@ -163,14 +163,14 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 		}
 		changed = changed || did
 		expression = e
-	case caseExpression:
+	case plan.CaseExpr:
 		if e.Test != nil {
 			e.Test, err = child(e.Test)
 			if err != nil {
 				return nil, false, err
 			}
 		}
-		var arms []caseBranch
+		var arms []plan.CaseBranch
 		for i, old := range e.Arms {
 			arm := old
 			arm.Condition, err = child(arm.Condition)
@@ -178,10 +178,10 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 				return nil, false, err
 			}
 			known, match := false, false
-			if condition, ok := arm.Condition.(literalExpression); ok {
+			if condition, ok := arm.Condition.(plan.LiteralExpr); ok {
 				if e.Test == nil {
 					known, match, err = literalSearchedCaseMatch(arm.Condition)
-				} else if test, ok := e.Test.(literalExpression); ok {
+				} else if test, ok := e.Test.(plan.LiteralExpr); ok {
 					known = true
 					var view sqltype.Value
 					view, err = arm.TestPlan.Apply(c.Context, test.Value, c.Input, c.Output)
@@ -198,7 +198,7 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 			}
 			if known && !match {
 				if arms == nil {
-					arms = append([]caseBranch{}, e.Arms[:i]...)
+					arms = append([]plan.CaseBranch{}, e.Arms[:i]...)
 				}
 				changed = true
 				continue
@@ -212,14 +212,14 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 					return plannedConditionalResult(e.Info, arm.Result), true, nil
 				}
 				if arms == nil {
-					arms = append([]caseBranch{}, e.Arms[:i]...)
+					arms = append([]plan.CaseBranch{}, e.Arms[:i]...)
 				}
 				e.Arms = arms
 				e.Otherwise = arm.Result
 				return e, true, nil
 			}
 			if changed && arms == nil {
-				arms = append([]caseBranch{}, e.Arms[:i]...)
+				arms = append([]plan.CaseBranch{}, e.Arms[:i]...)
 			}
 			if arms != nil {
 				arms = append(arms, arm)
@@ -239,7 +239,7 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 			return e, true, nil
 		}
 		return expression, false, nil
-	case conditionalExpression:
+	case plan.ConditionalExpr:
 		if err := e.ExtremaError(); err != nil {
 			return nil, false, err
 		}
@@ -250,7 +250,7 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 				return nil, false, err
 			}
 			if e.Kind == parser.Coalesce {
-				if literal, ok := node.(literalExpression); ok {
+				if literal, ok := node.(plan.LiteralExpr); ok {
 					if literal.Value.IsNull() {
 						if args == nil {
 							args = append([]expr.Expr{}, e.Args[:i]...)
@@ -279,19 +279,19 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 			e.Args = args
 		}
 		if len(e.Args) == 0 {
-			return literalExpression{e.Info, sqltype.Null(e.Usage.Type)}, true, nil
+			return plan.LiteralExpr{e.Info, sqltype.Null(e.Usage.Type)}, true, nil
 		}
 		expression = e
-	case collationExpression:
+	case plan.CollationExpr:
 		e.Child, err = child(e.Child)
 		expression = e
-	case coercionExpression:
+	case plan.CoercionExpr:
 		e.Child, err = child(e.Child)
 		if err == nil && e.Plan.ChecksDomain() {
 			err = c.prepareDomainConversion(e.Child.ResultUsage().Type, e.Usage.Type)
 		}
 		expression = e
-	case bitwiseExpression:
+	case plan.BitwiseExpr:
 		e.Left, err = child(e.Left)
 		if err == nil {
 			e.Right, err = child(e.Right)
@@ -300,26 +300,26 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 			return preflightValue(c, e.Info, sqltype.Null(e.Usage.Type), nil)
 		}
 		expression = e
-	case selectedOperatorExpression:
+	case plan.SelectedOperatorExpr:
 		e.Provider, err = child(e.Provider)
 		expression = e
-	case arithmeticExpression:
+	case plan.ArithmeticExpr:
 		e.Left, err = child(e.Left)
 		if err == nil {
 			e.Right, err = child(e.Right)
 		}
-		if err == nil && arithmeticSetConstantNull(expression.(arithmeticExpression), e) {
+		if err == nil && arithmeticSetConstantNull(expression.(plan.ArithmeticExpr), e) {
 			return preflightValue(c, e.Info, sqltype.Null(e.Usage.Type), nil)
 		}
 		expression = e
-	case likeExpression:
+	case plan.LikeExpr:
 		e.Left, err = child(e.Left)
 		if err == nil {
 			e.Right, err = child(e.Right)
 		}
 		expression = e
-	case rowComparisonExpression:
-		e.Comparisons = append([]comparisonExpression(nil), e.Comparisons...)
+	case plan.RowComparisonExpr:
+		e.Comparisons = append([]plan.ComparisonExpr(nil), e.Comparisons...)
 		for i, pair := range e.Comparisons {
 			pair.Left, err = child(pair.Left)
 			if err == nil {
@@ -331,20 +331,20 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 			e.Comparisons[i] = pair
 		}
 		expression = e
-	case scalarArrayComparisonExpression:
+	case plan.ScalarArrayComparisonExpr:
 		var replaced bool
 		e, replaced, err = mapScalarArrayChildren(e, func(old expr.Expr) (expr.Expr, bool, error) {
 			return simplifyConditional(c, old, decisiveDefaults)
 		})
 		changed = changed || replaced
 		expression = e
-	case comparisonExpression:
+	case plan.ComparisonExpr:
 		e.Left, err = child(e.Left)
 		if err == nil {
 			e.Right, err = child(e.Right)
 		}
 		expression = e
-	case logicalExpression:
+	case plan.LogicalExpr:
 		if decisiveDefaults {
 			// Reuse the existing consumed-default AND/OR policy before
 			// visiting a right child that a decisive left constant excludes.
@@ -355,13 +355,13 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 			e.Right, err = child(e.Right)
 		}
 		expression = e
-	case nullTestExpression:
+	case plan.NullTestExpr:
 		e.Child, err = child(e.Child)
 		expression = e
-	case truthTestExpression:
+	case plan.TruthTestExpr:
 		e.Child, err = child(e.Child)
 		expression = e
-	case distinctExpression:
+	case plan.DistinctExpr:
 		e.Left, err = child(e.Left)
 		if err == nil {
 			e.Right, err = child(e.Right)
@@ -490,12 +490,12 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 		return nil, false, err
 	}
 	p := expression.Properties()
-	if _, literal := expression.(literalExpression); !literal && p.Volatility == expr.Immutable && !p.RuntimeDomainConversion && conditionalConstantInputs(expression) {
+	if _, literal := expression.(plan.LiteralExpr); !literal && p.Volatility == expr.Immutable && !p.RuntimeDomainConversion && conditionalConstantInputs(expression) {
 		value, err := evaluatePlanningExpression(c, expression)
 		if err != nil {
 			return nil, false, err
 		}
-		return literalExpression{foldedExpressionInfo(expression), value}, true, nil
+		return plan.LiteralExpr{foldedExpressionInfo(expression), value}, true, nil
 	}
 	return expression, changed, nil
 }
@@ -504,11 +504,11 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 // decisive constant eliminates runtime branches. Nonliteral selection uses the
 // existing CASE control node with no tests, not a second evaluator or a cast.
 func plannedConditionalResult(info expr.Info, node expr.Expr) expr.Expr {
-	if literal, ok := node.(literalExpression); ok {
+	if literal, ok := node.(plan.LiteralExpr); ok {
 		literal.Info = info
 		return literal
 	}
-	return caseExpression{Info: info, Otherwise: node}
+	return plan.CaseExpr{Info: info, Otherwise: node}
 }
 
 // Analysis properties retain dead-arm dependence; literal children after
@@ -519,28 +519,28 @@ func conditionalConstantInputs(node expr.Expr) bool {
 	if node.Properties().RuntimeDomainConversion {
 		return false
 	}
-	literal := func(child expr.Expr) bool { _, ok := child.(literalExpression); return ok }
+	literal := func(child expr.Expr) bool { _, ok := child.(plan.LiteralExpr); return ok }
 	switch e := node.(type) {
-	case collationExpression:
+	case plan.CollationExpr:
 		return literal(e.Child)
-	case coercionExpression:
+	case plan.CoercionExpr:
 		return !e.Plan.ChecksDomain() && literal(e.Child)
-	case bitwiseExpression:
+	case plan.BitwiseExpr:
 		return literal(e.Left) && (e.Right == nil || literal(e.Right))
-	case selectedOperatorExpression:
+	case plan.SelectedOperatorExpr:
 		return conditionalConstantInputs(e.Provider)
-	case arithmeticExpression:
+	case plan.ArithmeticExpr:
 		return literal(e.Left) && (e.Right == nil || literal(e.Right))
-	case likeExpression:
+	case plan.LikeExpr:
 		return literal(e.Left) && literal(e.Right)
-	case rowComparisonExpression:
+	case plan.RowComparisonExpr:
 		for _, pair := range e.Comparisons {
 			if !literal(pair.Left) || !literal(pair.Right) {
 				return false
 			}
 		}
 		return true
-	case scalarArrayComparisonExpression:
+	case plan.ScalarArrayComparisonExpr:
 		if !literal(e.Left) || e.Array != nil && !literal(e.Array) {
 			return false
 		}
@@ -550,17 +550,17 @@ func conditionalConstantInputs(node expr.Expr) bool {
 			}
 		}
 		return true
-	case comparisonExpression:
+	case plan.ComparisonExpr:
 		return literal(e.Left) && literal(e.Right)
-	case logicalExpression:
+	case plan.LogicalExpr:
 		return literal(e.Left) && (e.Right == nil || literal(e.Right))
-	case nullTestExpression:
+	case plan.NullTestExpr:
 		return literal(e.Child)
-	case truthTestExpression:
+	case plan.TruthTestExpr:
 		return literal(e.Child)
-	case distinctExpression:
+	case plan.DistinctExpr:
 		return literal(e.Left) && literal(e.Right)
-	case conditionalExpression:
+	case plan.ConditionalExpr:
 		for _, arg := range e.Args {
 			if !literal(arg) {
 				return false

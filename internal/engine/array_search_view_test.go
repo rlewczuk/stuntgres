@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -32,14 +33,14 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	integer, wide, text := b.typ(sqltype.Int4), b.typ(sqltype.Int8), b.typ(sqltype.Text)
 	array, wideArray, textArray := b.typ(integer.AssociatedArray()), b.typ(wide.AssociatedArray()), b.typ(text.AssociatedArray())
 	literal := func(value sqltype.Value) expr.Expr {
-		return literalExpression{Info: b.info(value.Type().Usage(), parser.Position{}, expr.Properties{}), Value: value}
+		return plan.LiteralExpr{Info: b.info(value.Type().Usage(), parser.Position{}, expr.Properties{}), Value: value}
 	}
 	coerce := func(child expr.Expr, target *sqltype.Descriptor, mode sqltype.CoercionContext) expr.Expr {
 		coercionPlan, err := sqltype.PlanCoercion(child.ResultUsage(), target.Usage(), mode)
 		if err != nil {
 			t.Fatal(err)
 		}
-		return coercionExpression{Info: b.info(target.Usage(), parser.Position{}, coercionProperties(child, coercionPlan)), Child: child, Plan: coercionPlan, Mode: mode}
+		return plan.CoercionExpr{Info: b.info(target.Usage(), parser.Position{}, coercionProperties(child, coercionPlan)), Child: child, Plan: coercionPlan, Mode: mode}
 	}
 	one, err := sqltype.Integer(integer, 1)
 	if err != nil {
@@ -79,7 +80,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	position := parser.Position{Character: 1}
 	info := b.info(usage, position, expr.Properties{})
 	info.CollationExplicit = position
-	collated := collationExpression{Info: info, Child: literal(strings)}
+	collated := plan.CollationExpr{Info: info, Child: literal(strings)}
 	search, replacement := literal(sqltype.String(text, "a")), literal(sqltype.String(text, "b"))
 	replace, err := functions.ArraySearchNode(b, "array_replace", name("array_replace"), parser.Position{}, textArray.Usage(), []expr.Expr{collated, search, replacement})
 	if err != nil {
@@ -106,8 +107,8 @@ func TestArraySearchViewCoercions(t *testing.T) {
 		}
 	}
 	syntax := &parser.Select{Targets: []parser.Expr{raw, rawText}}
-	project := &projectNode{QuerySchema: querySchema{{Name: "r", Usage: wideArray.Usage()}, {Name: "ps", Usage: array.Usage()}}, Child: &singletonNode{}, Expressions: []expr.Expr{outer, positions}, Frame: b.frameID(), Syntax: syntax}
-	original := &viewDefinition{query: &BoundQuery{Root: project}, syntax: syntax, literals: b.capture.literals, castUsages: b.capture.castUsages, collations: b.capture.collations}
+	project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "r", Usage: wideArray.Usage()}, {Name: "ps", Usage: array.Usage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{outer, positions}, Frame: b.frameID(), Syntax: syntax}
+	original := &viewDefinition{query: &plan.Query{Root: project}, syntax: syntax, literals: b.capture.literals, castUsages: b.capture.castUsages, collations: b.capture.collations}
 	path := []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, {ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}
 	render := func(view catalog.Read, definition *viewDefinition, target int, expression parser.Expr, want string) {
 		r := viewRenderer{viewDefinition: definition, frame: b.frameID(), presentation: viewPresentation{deparse: true, pretty: true, path: path}}
@@ -153,7 +154,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mappedProject := mapped.query.Root.(*projectNode)
+	mappedProject := mapped.query.Root.(*plan.ProjectNode)
 	if mappedProject == project || mappedProject.Schema()[0].Usage.Type == wideArray || mappedProject.Schema()[1].Usage.Type == array {
 		t.Fatal("descriptor transition did not produce target-owned schema")
 	}

@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -23,12 +24,12 @@ func TestQueryOuterJoinsAbsentRecheck(t *testing.T) {
 				text = "SELECT * FROM (b FULL JOIN wide USING(k)) j FULL JOIN a USING(k)"
 			}
 			e, query, inputs := queryJoinsFixture(t, text)
-			outer := query.Root.(*projectNode).Child.(*joinNode)
+			outer := query.Root.(*plan.ProjectNode).Child.(*plan.JoinNode)
 			missing, present := outer.Right, outer.Left
 			if missingLeft {
 				missing, present = outer.Left, outer.Right
 			}
-			inner := missing.(*joinNode)
+			inner := missing.(*plan.JoinNode)
 			boolType, _ := e.CatalogRead().LookupType(sqltype.Bool)
 			forbidden := 0
 			fail := func(*EvalContext) (sqltype.Value, error) {
@@ -41,11 +42,11 @@ func TestQueryOuterJoinsAbsentRecheck(t *testing.T) {
 			}
 			// Projection and order recipes of the missing subtree must also be
 			// bypassed, including slots that do not name a physical input column.
-			project := &projectNode{QuerySchema: inner.Schema(), Child: inner}
+			project := &plan.ProjectNode{QuerySchema: inner.Schema(), Child: inner}
 			for _, column := range inner.Schema() {
 				project.Expressions = append(project.Expressions, queryProbe(column.Usage, fail))
 			}
-			wrapped := &evaluationNode{QuerySchema: project.Schema(), Child: project, Expressions: []expr.Expr{queryProbe(boolType.Usage(), fail)}}
+			wrapped := &plan.EvaluationNode{QuerySchema: project.Schema(), Child: project, Expressions: []expr.Expr{queryProbe(boolType.Usage(), fail)}}
 			if missingLeft {
 				outer.Left = wrapped
 			} else {
@@ -66,7 +67,7 @@ func TestQueryOuterJoinsAbsentRecheck(t *testing.T) {
 				locks.leaves[i].absent = true
 				rows[i] = source.row(0)
 			}
-			physical := present.(*sourceNode).Occurrence
+			physical := present.(*plan.SourceNode).Occurrence
 			locks.leaves[physical] = queryLockLeaf{changed: true}
 			rows[physical] = append([]sqltype.Value(nil), rows[physical]...)
 			// This is replacement data, not the captured original candidate.
@@ -102,7 +103,7 @@ func TestQueryOuterJoinsAbsentRecheck(t *testing.T) {
 		intType, _ := e.CatalogRead().LookupType(sqltype.Int4)
 		boolType, _ := e.CatalogRead().LookupType(sqltype.Bool)
 		for _, width := range []int{0, 1} {
-			schema := make(querySchema, width)
+			schema := make(plan.QuerySchema, width)
 			row := make([]sqltype.Value, width)
 			if width != 0 {
 				schema[0] = catalog.Column{Usage: intType.Usage()}
@@ -111,7 +112,7 @@ func TestQueryOuterJoinsAbsentRecheck(t *testing.T) {
 			inputs := &querySource{sources: []*querySource{{occurrence: 0}, {occurrence: 1}}}
 			locks := &queryLockContext{leaves: []queryLockLeaf{{changed: true}, {changed: true}}}
 			calls := 0
-			join := &joinNode{QuerySchema: schema, Left: &sourceNode{QuerySchema: schema, Occurrence: 0}, Right: &sourceNode{Occurrence: 1}, LeftWidth: width, Kind: parser.JoinLeft, Predicate: queryProbe(boolType.Usage(), func(*EvalContext) (sqltype.Value, error) {
+			join := &plan.JoinNode{QuerySchema: schema, Left: &plan.SourceNode{QuerySchema: schema, Occurrence: 0}, Right: &plan.SourceNode{Occurrence: 1}, LeftWidth: width, Kind: parser.JoinLeft, Predicate: queryProbe(boolType.Usage(), func(*EvalContext) (sqltype.Value, error) {
 				calls++
 				return sqltype.Boolean(boolType, false), nil
 			})}
@@ -133,7 +134,7 @@ func TestQueryOuterJoinsAbsentRecheck(t *testing.T) {
 			return sqltype.Value{}, errors.New("absent lineage recipe evaluated")
 		})
 		stage := &querySource{materialized: true}
-		inner := &querySource{lineage: &queryLockLineage{stage: stage, currentIndex: 0, currentOrder: []sqltype.Value{sqltype.Boolean(boolType, true)}, root: &projectNode{Child: &singletonNode{}, Expressions: []expr.Expr{recipe}}}}
+		inner := &querySource{lineage: &queryLockLineage{stage: stage, currentIndex: 0, currentOrder: []sqltype.Value{sqltype.Boolean(boolType, true)}, root: &plan.ProjectNode{Child: &plan.SingletonNode{}, Expressions: []expr.Expr{recipe}}}}
 		bridge := &querySource{lineage: &queryLockLineage{stage: inner, currentIndex: 0, currentOrder: []sqltype.Value{sqltype.Boolean(boolType, true)}}}
 		setQueryLineage(bridge, absentQueryIndex)
 		if bridge.lineage.currentOrder != nil || inner.lineage.currentOrder != nil || inner.lineage.currentIndex != absentQueryIndex {
@@ -142,7 +143,7 @@ func TestQueryOuterJoinsAbsentRecheck(t *testing.T) {
 		inputs := &querySource{sources: []*querySource{bridge}}
 		evaluation := EvalContext{evalStatement: evalStatement{statementScope: &StatementScope{queryLocks: &queryLockContext{}}}}
 		offset := 0
-		got, ok, err := recheckLockedQuery(&sourceNode{Occurrence: 0}, inputs, nil, &evaluation, nil, &offset, nil)
+		got, ok, err := recheckLockedQuery(&plan.SourceNode{Occurrence: 0}, inputs, nil, &evaluation, nil, &offset, nil)
 		if err != nil || !ok || got != nil || calls != 0 || offset != 0 {
 			t.Fatal(got, ok, err, calls, offset)
 		}
@@ -156,7 +157,7 @@ func TestQueryOuterJoinsAbsentRecheck(t *testing.T) {
 func TestQueryOuterJoinsChangedPairRecheck(t *testing.T) {
 	for _, kind := range []parser.JoinKind{parser.JoinLeft, parser.JoinRight, parser.JoinFull} {
 		_, query, inputs := queryJoinsFixture(t, "SELECT * FROM a LEFT JOIN b ON a.k=b.k")
-		join := query.Root.(*projectNode).Child.(*joinNode)
+		join := query.Root.(*plan.ProjectNode).Child.(*plan.JoinNode)
 		join.Kind = kind
 		rows := [][]sqltype.Value{inputs.sources[0].row(0), inputs.sources[1].row(2)}
 		locks := &queryLockContext{leaves: []queryLockLeaf{{changed: true}, {}}}

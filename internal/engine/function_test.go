@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -149,7 +150,7 @@ func TestNullCountDependenciesAndAuthorization(t *testing.T) {
 	if len(bound.querySources) != 1 || bound.querySources[0].ref != ref || !reflect.DeepEqual(bound.querySources[0].uses, []int{1, 2}) {
 		t.Fatal(bound.querySources)
 	}
-	project := bound.query.Root.(*projectNode)
+	project := bound.query.Root.(*plan.ProjectNode)
 	for _, expression := range project.Expressions {
 		if p := expression.Properties(); p.Volatility != expr.Immutable || !p.RowDependent || p.ParameterDependent || p.StageDependent {
 			t.Fatal(p)

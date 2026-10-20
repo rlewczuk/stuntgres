@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/engine/ids"
+import (
+	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
+)
 
 // Frozen action-owned modifiers are definitions to refresh, not protected
 // enclosing statement spools. One mapper reconnects declarations and all scans.
@@ -8,7 +11,7 @@ func refreshRuleActionCTEs(auth AuthorizationView, b binding) (binding, error) {
 	if len(b.ctes) == 0 {
 		return b, nil
 	}
-	mapper := newRuleTreeMapper(auth.Catalog, nil, 0, nil, ruleTreeMapping{mutation: func(definition *cteDefinition) (binding, error) {
+	mapper := newRuleTreeMapper(auth.Catalog, nil, 0, nil, ruleTreeMapping{mutation: func(definition *plan.CTEDefinition) (binding, error) {
 		mutation, _ := mutationBinding(definition)
 		body := *mutation
 		// Stored modifier recipes need a private execution workspace even when

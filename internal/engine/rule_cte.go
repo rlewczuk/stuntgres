@@ -4,13 +4,14 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
 
 // The original definition remains the provider key and SQL/output authority.
 // Only this execution-private tuple chooses the executable command/context.
 type ruleCTECommand struct {
-	definition *cteDefinition
+	definition *plan.CTEDefinition
 	command    ruleCommand
 	caller     AuthorizationView
 	events     []catalog.ExpressionDependency
@@ -68,7 +69,7 @@ func (e *Engine) normalizeRuleCTEsLocked(scope *StatementScope, auth Authorizati
 		}
 		command := program.commands[0]
 		if b.rule.ctes == nil {
-			b.rule.ctes = make(map[*cteDefinition]*ruleCTECommand)
+			b.rule.ctes = make(map[*plan.CTEDefinition]*ruleCTECommand)
 		}
 		b.rule.ctes[definition] = &ruleCTECommand{definition: definition, command: command, caller: auth, events: program.events, mutation: -1}
 		b.dependencies = append(b.dependencies, program.events...)
@@ -91,7 +92,7 @@ func (e *Engine) admitRuleCTEsLocked(scope *StatementScope, statement parser.Sta
 	}
 	// Prepared bindings retain analysis recipes, never an execution's admitted
 	// index or refreshed principal. Each request owns these mutable tuples.
-	commands := make(map[*cteDefinition]*ruleCTECommand, len(b.rule.ctes))
+	commands := make(map[*plan.CTEDefinition]*ruleCTECommand, len(b.rule.ctes))
 	for definition, recipe := range b.rule.ctes {
 		copy := *recipe
 		commands[definition] = &copy

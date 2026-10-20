@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -16,7 +17,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			f, scope, leaf, view := partialMaskFixture(t)
 			f.e.mu.Lock()
-			mask := f.e.capturePartialMaskLocked(scope, leaf, view, queryRowMark{})
+			mask := f.e.capturePartialMaskLocked(scope, leaf, view, plan.RowMark{})
 			f.e.mu.Unlock()
 			if mask == nil {
 				t.Fatal("admitted partial index did not retain a membership mask")
@@ -101,7 +102,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 				t.Fatal("types-only pass changed dependencies, attributes or parent identity")
 			}
 			for _, node := range []expr.Expr{p.Definition, p.Execution} {
-				column := node.(columnExpression)
+				column := node.(plan.ColumnExpr)
 				if column.ResultUsage() != newUsage || column.Origin != f.predicate.Origin || column.Scope != f.predicate.Scope || column.Frame != f.predicate.Frame || column.Slot != f.predicate.Slot {
 					t.Error("predicate tree retained a stale usage or changed its reference/frame", column)
 				}

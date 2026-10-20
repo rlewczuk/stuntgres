@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -77,12 +78,12 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 		if n.Validate() != nil {
 			t.Fatal("retag mutated original")
 		}
-		column := columnExpression{Info: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}, Slot: 0}
+		column := plan.ColumnExpr{Info: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}, Slot: 0}
 		n.Arg = column
 		n.Property.RowDependent = true
 		visited := 0
 		walkBoundExpression(n, func(child expr.Expr) {
-			if _, ok := child.(columnExpression); ok {
+			if _, ok := child.(plan.ColumnExpr); ok {
 				visited++
 			}
 		})
@@ -93,14 +94,14 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 		if err != nil || !grouped.Properties().StageDependent || grouped.Properties().Volatility != expr.Volatile {
 			t.Fatal("aggregate rewrite", grouped, err)
 		}
-		if _, ok := grouped.(functions.BlockingInquiry).Arg.(groupExpression); !ok {
+		if _, ok := grouped.(functions.BlockingInquiry).Arg.(plan.GroupExpr); !ok {
 			t.Fatal("aggregate child not reconstructed")
 		}
 		remapped, err := remapBoundExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID = 456; return ref }, map[int32]int{1: 2})
 		if err != nil {
 			t.Fatal(err)
 		}
-		child := remapped.(functions.BlockingInquiry).Arg.(columnExpression)
+		child := remapped.(functions.BlockingInquiry).Arg.(plan.ColumnExpr)
 		if child.Origin.Address.ObjectID != 456 || child.Slot != 2 || remapped.Properties().Volatility != expr.Volatile {
 			t.Fatal("view slot/reference remap", child)
 		}

@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/plan"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
@@ -37,7 +38,7 @@ func (v *viewDefinition) selectSQL(ctx context.Context, catalog catalog.Read, pr
 	return renderer.selectQuerySQL(ctx, catalog, v.syntax, v.queries[v.syntax])
 }
 
-func (renderer *viewRenderer) selectQuerySQL(ctx context.Context, view catalog.Read, s *parser.Select, project *projectNode) (string, error) {
+func (renderer *viewRenderer) selectQuerySQL(ctx context.Context, view catalog.Read, s *parser.Select, project *plan.ProjectNode) (string, error) {
 	var columns []catalog.Column
 	if s == renderer.viewDefinition.syntax {
 		columns = renderer.presentation.columns
@@ -45,13 +46,13 @@ func (renderer *viewRenderer) selectQuerySQL(ctx context.Context, view catalog.R
 	return renderer.selectQueryColumnsSQL(ctx, view, s, project, columns, false)
 }
 
-func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, catalogView catalog.Read, s *parser.Select, project *projectNode, columns []catalog.Column, setOperand bool) (string, error) {
+func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, catalogView catalog.Read, s *parser.Select, project *plan.ProjectNode, columns []catalog.Column, setOperand bool) (string, error) {
 	if project == nil {
 		return "", fmt.Errorf("stuntgres: missing frozen query frame")
 	}
 	previous, previousFrame, previousSimple, previousNamespace := renderer.query, renderer.frame, renderer.simple, renderer.namespace
 	previousFunctionSources := renderer.functionSources
-	renderer.query, renderer.frame = &BoundQuery{Root: project}, project.Frame
+	renderer.query, renderer.frame = &plan.Query{Root: project}, project.Frame
 	renderer.namespace = len(renderer.namespaces)
 	if frame, ok := renderer.renderFrames[project.Frame]; ok {
 		renderer.namespace = frame.namespace
@@ -79,7 +80,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 		if columns == nil {
 			columns = set.Schema()
 		}
-		if recursive, ok := viewFromRoot(project).(*recursiveUnionNode); ok && (recursive.Search != nil || recursive.Cycle != nil) {
+		if recursive, ok := viewFromRoot(project).(*plan.RecursiveUnionNode); ok && (recursive.Search != nil || recursive.Cycle != nil) {
 			// Symbolic clauses regenerate outputs and hidden parent carries.
 			columns = columns[:recursive.Definition.UserWidth]
 		}
@@ -126,7 +127,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 		return renderer.selectQueryTailSQL(ctx, catalogView, s, text, presentation, setOperand)
 	}
 	if s.Values != nil {
-		values, ok := viewFromRoot(project).(*valuesNode)
+		values, ok := viewFromRoot(project).(*plan.ValuesNode)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing frozen VALUES query")
 		}
@@ -183,7 +184,7 @@ func (renderer *viewRenderer) selectQueryBodyColumnsSQL(ctx context.Context, cat
 			functionSourceColumns = source.columns
 		}
 		if setOperand && renderer.simple {
-			root, ok := source.root.(*sourceNode)
+			root, ok := source.root.(*plan.SourceNode)
 			if !ok {
 				return "", fmt.Errorf("stuntgres: missing simple set-view source")
 			}
@@ -467,7 +468,7 @@ func (renderer *viewRenderer) selectQueryTailSQL(ctx context.Context, catalog ca
 }
 
 func (renderer *viewRenderer) selectOutputSQL(ctx context.Context, catalog catalog.Read, slot int) (string, error) {
-	project, ok := renderer.query.Root.(*projectNode)
+	project, ok := renderer.query.Root.(*plan.ProjectNode)
 	if !ok || project.Syntax == nil || slot < 0 || slot >= len(project.Schema()) {
 		return "", fmt.Errorf("stuntgres: missing view ORDER output occurrence")
 	}
@@ -587,7 +588,7 @@ func (v *viewRenderer) columnSQL(ctx context.Context, catalog catalog.Read, path
 		_, ownerSimple = owner.Syntax.From.(*parser.TableReference)
 	}
 	if currentNames && ((column.frame == path.query && v.simple && (path.clause == viewOrderLiteral || path.clause == viewGroupLiteral || path.clause == viewDistinctOnLiteral)) || (column.frame != path.query && ownerSimple)) {
-		source, ok := root.(*sourceNode)
+		source, ok := root.(*plan.SourceNode)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: missing simple view source")
 		}

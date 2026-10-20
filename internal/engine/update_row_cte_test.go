@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -19,22 +20,22 @@ func TestUpdateRowCorrelatedCTEFrames(t *testing.T) {
 	if err := selectQuerySources(ctx, sources); err != nil {
 		t.Fatal(err)
 	}
-	source := b.update.assignments[0].(subqueryExpression)
-	project := source.QueryPlan.Root.(*projectNode)
-	var producer *projectNode
+	source := b.update.assignments[0].(plan.SubqueryExpr)
+	project := source.QueryPlan.Root.(*plan.ProjectNode)
+	var producer *plan.ProjectNode
 	for _, analysis := range project.AnalysisExpressions {
-		if edge, ok := analysis.(subqueryExpression); ok && edge.CTEDefinition {
-			producer = edge.QueryPlan.Root.(*projectNode)
+		if edge, ok := analysis.(plan.SubqueryExpr); ok && edge.CTEDefinition {
+			producer = edge.QueryPlan.Root.(*plan.ProjectNode)
 			break
 		}
 	}
 	if producer == nil || project.Frame != 2 || producer.Frame != 3 {
 		t.Fatal("missing nested query frames", project.Frame, producer)
 	}
-	var target columnExpression
+	var target plan.ColumnExpr
 	found := false
-	visitCTEQuery(producer, func(LogicalNode) {}, func(node expr.Expr) {
-		if column, ok := node.(columnExpression); ok && column.Origin.Address.ObjectID == b.ref.Address.ObjectID {
+	visitCTEQuery(producer, func(plan.Node) {}, func(node expr.Expr) {
+		if column, ok := node.(plan.ColumnExpr); ok && column.Origin.Address.ObjectID == b.ref.Address.ObjectID {
 			if column.Frame != 1 {
 				t.Fatal("CTE correlation impersonated an empty intermediate SELECT frame", column.Frame)
 			}

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -17,13 +18,13 @@ import (
 // A definition owns an immutable analyzed query and its creation-time source layout.
 // Runtime source opening uses identities, never the retained deparser syntax.
 type viewDefinition struct {
-	query             *BoundQuery
+	query             *plan.Query
 	syntax            *parser.Select
 	expressionSyntax  parser.Expr // Lexical outer frame for a frozen Boolean definition.
 	sources           []viewLeaf
 	dependencies      []catalog.ExpressionDependency
 	sequenceRefs      map[int]ids.ObjectRef
-	literals          map[viewLiteralPath]literalExpression
+	literals          map[viewLiteralPath]plan.LiteralExpr
 	castUsages        map[viewLiteralPath]sqltype.Usage
 	routineRefs       map[viewLiteralPath]ids.ObjectRef
 	operatorRefs      map[viewLiteralPath]ids.ObjectRef
@@ -32,8 +33,8 @@ type viewDefinition struct {
 	posixSubstrings   map[viewLiteralPath]bool
 	columns           map[viewLiteralPath]viewColumn
 	stars             map[viewLiteralPath][]viewColumn
-	frames            map[uint32]*projectNode
-	queries           map[*parser.Select]*projectNode
+	frames            map[uint32]*plan.ProjectNode
+	queries           map[*parser.Select]*plan.ProjectNode
 	namespaces        []viewNamespace
 	barrier, invoker  bool
 	checkOption       viewCheckMode
@@ -54,7 +55,7 @@ type viewLeaf struct {
 	attributes   []int32
 	reads        []int32
 	analysisOnly bool
-	mark         queryRowMark
+	mark         plan.RowMark
 }
 
 type viewColumn struct {
@@ -96,7 +97,7 @@ func (q *queryScopeState) freezeViewColumns(columns []queryColumn) []viewNamespa
 	return out
 }
 
-func bindViewOutput(query *BoundQuery, view *parser.CreateView) error {
+func bindViewOutput(query *plan.Query, view *parser.CreateView) error {
 	columns := query.Root.Schema()
 	if len(view.Columns) > len(columns) {
 		return sqlError("42601", "CREATE VIEW specifies more column names than columns")
@@ -239,7 +240,7 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 	if persistence == "temporary" && view.Persistence != "temporary" {
 		s.op.emitNotice(levelNotice, sqlstate.Error{Severity: "NOTICE", SeverityUnlocalized: "NOTICE", Code: "00000", Message: fmt.Sprintf(`view "%s" will be a temporary view`, view.Name.Parts[len(view.Name.Parts)-1].Text)})
 	}
-	projection, ok := b.query.Root.(*projectNode)
+	projection, ok := b.query.Root.(*plan.ProjectNode)
 	if !ok {
 		return fmt.Errorf("stuntgres: view lacks final projection")
 	}
@@ -623,31 +624,31 @@ const (
 	viewRegexpNamespace
 )
 
-func frozenNamespaceNode(root LogicalNode) (uint8, int) {
+func frozenNamespaceNode(root plan.Node) (uint8, int) {
 	switch node := viewFromRoot(root).(type) {
-	case *functionFromNode:
+	case *plan.FunctionFromNode:
 		if node.RegexpNamespace {
 			return viewRegexpNamespace, node.ViewOrdinal
 		}
 		return viewFunctionNamespace, node.ViewOrdinal
-	case *sourceNode:
+	case *plan.SourceNode:
 		return viewSourceNamespace, node.Occurrence
-	case *joinNode:
+	case *plan.JoinNode:
 		return viewJoinNamespace, node.ViewOrdinal
-	case *valuesNode:
+	case *plan.ValuesNode:
 		return viewValuesNamespace, node.ViewOrdinal
-	case *derivedNode:
+	case *plan.DerivedNode:
 		if node.CTE != nil {
 			return viewDerivedNamespace, node.Ordinal
 		}
-		return viewDerivedNamespace, int(node.Query.Root.(*projectNode).Frame)
-	case *worktableScanNode:
+		return viewDerivedNamespace, int(node.Query.Root.(*plan.ProjectNode).Frame)
+	case *plan.WorktableScanNode:
 		return viewDerivedNamespace, node.Ordinal
 	}
 	return 0, 0
 }
 
-func (v *viewDefinition) namespaceRoot(ns viewNamespace) LogicalNode {
+func (v *viewDefinition) namespaceRoot(ns viewNamespace) plan.Node {
 	project := v.frames[ns.frame]
 	if project == nil {
 		return nil

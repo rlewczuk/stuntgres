@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -11,13 +12,13 @@ import (
 func TestQueryDistinctOnComputedKeyCacheOwnership(t *testing.T) {
 	for _, suffix := range []string{"", " ORDER BY v+0,id DESC"} {
 		_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(v+0) v+0 AS shown FROM t"+suffix)
-		project := query.Root.(*projectNode)
-		node := project.Child.(*distinctOnNode)
+		project := query.Root.(*plan.ProjectNode)
+		node := project.Child.(*plan.DistinctOnNode)
 		var cached []expr.Expr
 		switch input := node.Child.(type) {
-		case *evaluationNode:
+		case *plan.EvaluationNode:
 			cached = input.Expressions
-		case *sortNode:
+		case *plan.SortNode:
 			cached = []expr.Expr{input.Keys[0].Expression}
 		default:
 			t.Fatalf("missing key cache %T", input)
@@ -26,9 +27,9 @@ func TestQueryDistinctOnComputedKeyCacheOwnership(t *testing.T) {
 		calls := 0
 		probe := queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return original.Eval(c) })
 		switch input := node.Child.(type) {
-		case *evaluationNode:
+		case *plan.EvaluationNode:
 			input.Expressions[0] = probe
-		case *sortNode:
+		case *plan.SortNode:
 			input.Keys[0].Expression = probe
 		}
 		rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
@@ -56,7 +57,7 @@ func TestQueryDistinctOnComputedKeyCacheOwnership(t *testing.T) {
 
 func TestQueryDistinctOnScratchKeyMutation(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(v) id FROM t")
-	node := query.Root.(*projectNode).Child.(*distinctOnNode)
+	node := query.Root.(*plan.ProjectNode).Child.(*plan.DistinctOnNode)
 	usage := node.Expressions[0].ResultUsage()
 	scratch := make([]sqltype.Value, 1)
 	node.Expressions[0] = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
@@ -90,7 +91,7 @@ func TestQueryDistinctOnRequiredCloseAndPrimaryError(t *testing.T) {
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	usage := integer.Usage()
 	one, _ := sqltype.Integer(integer, 1)
-	schema := querySchema{{Name: "id", Usage: usage}}
+	schema := plan.QuerySchema{{Name: "id", Usage: usage}}
 	family, err := sqltype.BindGrouping(usage)
 	if err != nil {
 		t.Fatal(err)
@@ -99,8 +100,8 @@ func TestQueryDistinctOnRequiredCloseAndPrimaryError(t *testing.T) {
 		closeFailure := errors.New("ON child close")
 		primary := errors.New("ON key or sort primary")
 		closed := 0
-		inner := &indexedStage{source: &querySource{anonymous: [][]sqltype.Value{{one}}}, schema: schema, expressions: []expr.Expr{literalExpression{Info: expr.Info{Usage: usage}, Value: one}}, evaluation: EvalContext{}, finish: func() error { closed++; return closeFailure }}
-		bridge := &querySource{materialized: true, flatWidth: 1, nestedRoot: &projectNode{QuerySchema: schema, Child: &singletonNode{}}, nestedStage: inner}
+		inner := &indexedStage{source: &querySource{anonymous: [][]sqltype.Value{{one}}}, schema: schema, expressions: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: one}}, evaluation: EvalContext{}, finish: func() error { closed++; return closeFailure }}
+		bridge := &querySource{materialized: true, flatWidth: 1, nestedRoot: &plan.ProjectNode{QuerySchema: schema, Child: &plan.SingletonNode{}}, nestedStage: inner}
 		source := &querySource{sources: []*querySource{bridge}}
 		key := queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
 			if phase == "key" {
@@ -108,16 +109,16 @@ func TestQueryDistinctOnRequiredCloseAndPrimaryError(t *testing.T) {
 			}
 			return c.Row[0], nil
 		})
-		var child LogicalNode = &sourceNode{QuerySchema: schema, Occurrence: 0}
+		var child plan.Node = &plan.SourceNode{QuerySchema: schema, Occurrence: 0}
 		if phase == "sort" {
 			comparison, err := sqltype.BindOrdering(usage)
 			if err != nil {
 				t.Fatal(err)
 			}
-			child = &sortNode{QuerySchema: schema, Child: child, CacheWidth: 1, Keys: []sortKey{{Cache: 0, Slot: -1, Comparison: comparison, Expression: queryProbe(usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, primary })}}}
+			child = &plan.SortNode{QuerySchema: schema, Child: child, CacheWidth: 1, Keys: []plan.SortKey{{Cache: 0, Slot: -1, Comparison: comparison, Expression: queryProbe(usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, primary })}}}
 		}
-		node := &distinctOnNode{QuerySchema: schema, Child: child, Expressions: []expr.Expr{key}, Grouping: []queryGrouping{{Grouping: family}}}
-		root := &projectNode{QuerySchema: schema, Child: node, Expressions: []expr.Expr{columnExpression{Info: expr.Info{Usage: usage}, Scope: 1, Frame: 1, Slot: 0}}}
+		node := &plan.DistinctOnNode{QuerySchema: schema, Child: child, Expressions: []expr.Expr{key}, Grouping: []plan.Grouping{{Grouping: family}}}
+		root := &plan.ProjectNode{QuerySchema: schema, Child: node, Expressions: []expr.Expr{plan.ColumnExpr{Info: expr.Info{Usage: usage}, Scope: 1, Frame: 1, Slot: 0}}}
 		rows, count, err := finalizeQuery(context.Background(), root, source, nil)
 		want := error(primary)
 		if phase == "close" {

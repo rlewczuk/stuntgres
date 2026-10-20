@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -277,7 +278,7 @@ func TestPGIndexesSourceInvokerAndFreshAuthorization(t *testing.T) {
 		e.mu.Lock()
 		_, ref := pgIndexesUnitSource(t, e.privateCatalogLocked(scope.owner.catalog))
 		// A surrounding definition principal must not replace the operation actor.
-		s, err := e.openRelationSourceLocked(scope, ref, e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
+		s, err := e.openRelationSourceLocked(scope, ref, e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
 		err = scope.Finish(err)
 		if err != nil {
 			t.Fatal(err)

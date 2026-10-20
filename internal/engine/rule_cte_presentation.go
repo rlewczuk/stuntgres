@@ -4,6 +4,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -14,7 +15,7 @@ func retainRuleCTEPresentation(view catalog.Read, b binding) binding {
 	if b.query == nil || len(b.ctes) == 0 {
 		return b
 	}
-	project := b.query.Root.(*projectNode)
+	project := b.query.Root.(*plan.ProjectNode)
 	var analysis []expr.Expr
 	for _, definition := range b.ctes {
 		if definition.Query == nil {
@@ -22,7 +23,7 @@ func retainRuleCTEPresentation(view catalog.Read, b binding) binding {
 		}
 		found := false
 		for _, expr := range project.AnalysisExpressions {
-			if query, ok := expr.(subqueryExpression); ok && query.CTEDefinition && query.QueryPlan == definition.Query {
+			if query, ok := expr.(plan.SubqueryExpr); ok && query.CTEDefinition && query.QueryPlan == definition.Query {
 				found = true
 				break
 			}
@@ -34,7 +35,7 @@ func retainRuleCTEPresentation(view catalog.Read, b binding) binding {
 			analysis = slices.Clone(project.AnalysisExpressions)
 		}
 		typ, _ := view.LookupType(sqltype.Bool)
-		analysis = append(analysis, subqueryExpression{Info: expr.Info{Usage: typ.Usage(), Pos: definition.Position}, QueryPlan: definition.Query, CTEDefinition: true})
+		analysis = append(analysis, plan.SubqueryExpr{Info: expr.Info{Usage: typ.Usage(), Pos: definition.Position}, QueryPlan: definition.Query, CTEDefinition: true})
 	}
 	if analysis == nil {
 		return b

@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/plan"
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
@@ -76,7 +77,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					t.Fatal("aggregate acquired scalar admission carrier", err)
 				}
 			} else {
-				enum, ok := node.(unnestExpression)
+				enum, ok := node.(plan.UnnestExpr)
 				if !ok || !sourceAdmitted(enum) || !binder.clause.queryHasTargetSet {
 					t.Fatal("lost genuine set carrier")
 				}
@@ -142,7 +143,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				}
 			}
 			before := node
-			if enum, ok := node.(unnestExpression); ok {
+			if enum, ok := node.(plan.UnnestExpr); ok {
 				enum.Args = append([]expr.Expr(nil), enum.Args...)
 				before = enum
 			}
@@ -232,7 +233,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					if err := admitRoutineCall(&evaluation, rewritten, false, false); err != nil {
 						t.Fatal("structural parameter rewrite lost original authority", err)
 					}
-					foreignEnum := node.(unnestExpression)
+					foreignEnum := node.(plan.UnnestExpr)
 					foreignEnum.Ref = other.catalog.Domain.Ref(foreignEnum.Ref.Epoch, foreignEnum.Ref.Address)
 					foreignEnum.Ref.Epoch = foreign.catalog.Epoch()
 					foreignNode, _, err := retagBoundTypes(foreign.catalog, foreignEnum, func(d *sqltype.Descriptor) *sqltype.Descriptor {

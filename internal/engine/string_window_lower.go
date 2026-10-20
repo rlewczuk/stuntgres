@@ -1,8 +1,11 @@
 package engine
 
-import "stuntgres/internal/engine/expr"
+import (
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
+)
 
-func (b *expressionBinder) lowerStringWindowSpecs(root LogicalNode, specs []boundWindowSpec, calls []windowCall, companions [][]expr.Expr) (LogicalNode, error) {
+func (b *expressionBinder) lowerStringWindowSpecs(root plan.Node, specs []plan.WindowSpec, calls []plan.WindowCall, companions [][]expr.Expr) (plan.Node, error) {
 	var requests []expr.Expr
 	for _, spec := range specs {
 		requests = append(requests, spec.Partition...)
@@ -32,7 +35,7 @@ func (b *expressionBinder) lowerStringWindowSpecs(root LogicalNode, specs []boun
 	for i := range specs {
 		specs[i].Partition = append([]expr.Expr(nil), requests[offset:offset+len(specs[i].Partition)]...)
 		offset += len(specs[i].Partition)
-		specs[i].Order = append([]sortKey(nil), specs[i].Order...)
+		specs[i].Order = append([]plan.SortKey(nil), specs[i].Order...)
 		for j := range specs[i].Order {
 			specs[i].Order[j].Expression = requests[offset]
 			offset++

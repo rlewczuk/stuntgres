@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -60,9 +61,9 @@ func anyRandomLiteralNull(children []expr.Expr) bool {
 func strictNullLiteral(node expr.Expr, strict expr.Strict) expr.Expr {
 	usage := node.ResultUsage()
 	if strict == expr.StrictAfterBare {
-		return literalExpression{Info: expr.Info{Usage: usage, Pos: node.SourcePosition()}, Value: sqltype.Null(usage.Type)}
+		return plan.LiteralExpr{Info: expr.Info{Usage: usage, Pos: node.SourcePosition()}, Value: sqltype.Null(usage.Type)}
 	}
-	return literalExpression{foldedExpressionInfo(node), sqltype.Null(usage.Type)}
+	return plan.LiteralExpr{foldedExpressionInfo(node), sqltype.Null(usage.Type)}
 }
 
 // compositeConstantInputs reports whether a protocol node that planning may
@@ -72,7 +73,7 @@ func compositeConstantInputs(node expr.Composite) bool {
 		return false
 	}
 	for _, child := range node.Children() {
-		if _, literal := child.(literalExpression); !literal {
+		if _, literal := child.(plan.LiteralExpr); !literal {
 			return false
 		}
 	}

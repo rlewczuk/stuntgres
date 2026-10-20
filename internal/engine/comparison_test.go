@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -59,9 +60,9 @@ func TestCompareOpsBindingPropertiesAndOccurrences(t *testing.T) {
 				t.Fatal(tc.q, u)
 			}
 		}
-		project := bound.query.Root.(*projectNode)
+		project := bound.query.Root.(*plan.ProjectNode)
 		for i, node := range project.Expressions {
-			comparison, ok := node.(comparisonExpression)
+			comparison, ok := node.(plan.ComparisonExpr)
 			if !ok {
 				t.Fatal(node)
 			}
@@ -84,7 +85,7 @@ func TestCompareOpsBindingPropertiesAndOccurrences(t *testing.T) {
 				if child.ResultUsage().Type == nil || !child.ResultUsage().Type.Concrete() {
 					t.Fatal("provisional child escaped", child)
 				}
-				if col, ok := child.(columnExpression); ok {
+				if col, ok := child.(plan.ColumnExpr); ok {
 					found := false
 					for _, d := range bound.dependencies {
 						if d.Ref == col.Origin {
@@ -103,7 +104,7 @@ func TestCompareOpsBindingPropertiesAndOccurrences(t *testing.T) {
 func TestCompareOpsUnknownOccurrenceConflict(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-	p := parameterExpression{Info: expr.Info{Pos: parser.Position{Character: 8}, Property: expr.Properties{ParameterDependent: true}}, Number: 1}
+	p := plan.ParameterExpr{Info: expr.Info{Pos: parser.Position{Character: 8}, Property: expr.Properties{ParameterDependent: true}}, Number: 1}
 	b.params.parameters[1] = b.typ(sqltype.Int4).Usage()
 	_, err := b.coerceParameter(p, b.typ(sqltype.Text).Usage())
 	state(t, err, "42P08")
@@ -113,7 +114,7 @@ func TestCompareOpsUnknownOccurrenceConflict(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := node.(comparisonExpression)
+	c := node.(plan.ComparisonExpr)
 	if c.Left.ResultUsage().Type.ID() != sqltype.Int4 || c.Right.ResultUsage().Type.ID() != sqltype.Int8 || b.params.parameters[1].Type.ID() != sqltype.Int4 {
 		t.Fatal(c, b.params.parameters)
 	}
@@ -175,7 +176,7 @@ func TestCompareOpsTemporalCaptureRebind(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal(err)
 			}
-			c := rebound.query.Root.(*projectNode).Expressions[0].(comparisonExpression)
+			c := rebound.query.Root.(*plan.ProjectNode).Expressions[0].(plan.ComparisonExpr)
 			if c.Left.ResultUsage().Typmod != -1 || c.Right.ResultUsage().Typmod != 0 {
 				e.mu.Unlock()
 				t.Fatal(c)

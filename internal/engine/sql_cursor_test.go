@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -209,9 +210,9 @@ func TestSQLCursorNestedLiveAuthority(t *testing.T) {
 			// arms use their common-type expressions, not the project targets.
 			var expressions []expr.Expr
 			if route == "union" {
-				expressions = cursor.root.Child.(*setNode).RightExpressions
+				expressions = cursor.root.Child.(*plan.SetNode).RightExpressions
 			} else {
-				expressions = cursor.source.nestedRoot.(*projectNode).Expressions
+				expressions = cursor.source.nestedRoot.(*plan.ProjectNode).Expressions
 			}
 			original := expressions[1]
 			expected, calls := "first", 0

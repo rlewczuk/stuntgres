@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -66,7 +67,7 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	floating, _ := view.LookupType(sqltype.Float8)
 	d.Columns[1].Usage = oid.Usage()
 	ref := e.catalog.Domain.Ref(view.Epoch()+1, d.Address())
-	leaf := tableOIDExpression{expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, ref}
+	leaf := plan.TableOIDExpr{expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, ref}
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationStored, Expression: leaf, Planned: leaf}}
 	// CHECK consumes the repaired cell as well as the scoped provider. A stale
 	// source tableoid vetoes the row instead of reaching the final stale fence.
@@ -81,10 +82,10 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	}
 	columnRef := ref
 	columnRef.Address.SubID = 2
-	repairedCell := columnExpression{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Origin: columnRef, Scope: 1, Frame: 1, Slot: 1}
-	equal := comparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, Left: repairedCell, Right: literalExpression{expr.Info{Usage: oid.Usage()}, expectedOID}, Predicate: predicate, Operator: "="}
-	scoped := nullTestExpression{Info: expr.Info{Usage: boolean.Usage()}, Child: probe, Not: true}
-	d.Constraints.Check = []catalog.CheckConstraint{{Name: "scoped_gate", Expression: logicalExpression{Info: expr.Info{Usage: boolean.Usage()}, Op: parser.LogicalAnd, Left: equal, Right: scoped}}}
+	repairedCell := plan.ColumnExpr{Info: expr.Info{Usage: oid.Usage(), Property: expr.Properties{RowDependent: true}}, Origin: columnRef, Scope: 1, Frame: 1, Slot: 1}
+	equal := plan.ComparisonExpr{Info: expr.Info{Usage: boolean.Usage()}, Left: repairedCell, Right: plan.LiteralExpr{expr.Info{Usage: oid.Usage()}, expectedOID}, Predicate: predicate, Operator: "="}
+	scoped := plan.NullTestExpr{Info: expr.Info{Usage: boolean.Usage()}, Child: probe, Not: true}
+	d.Constraints.Check = []catalog.CheckConstraint{{Name: "scoped_gate", Expression: plan.LogicalExpr{Info: expr.Info{Usage: boolean.Usage()}, Op: parser.LogicalAnd, Left: equal, Right: scoped}}}
 	base, err := sqltype.Integer(d.Columns[0].Usage.Type, 2)
 	if err != nil {
 		t.Fatal(err)

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -22,11 +23,11 @@ func TestInstalledFunctionRebuildKeepsWrapper(t *testing.T) {
 		}
 	}
 	textOf := func(node expr.Expr) string {
-		s, _ := node.(literalExpression).Value.Text()
+		s, _ := node.(plan.LiteralExpr).Value.Text()
 		return s
 	}
 	literal := func(s string) expr.Expr {
-		return literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, s)}
+		return plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, s)}
 	}
 	info := expr.Info{Usage: text.Usage()}
 	call, err := functions.NewSoundex(info, "soundex", []expr.Expr{literal("a")})
@@ -62,7 +63,7 @@ func TestWalkBoundExpressionVisitsCompositeChildren(t *testing.T) {
 		}
 	}
 	info := expr.Info{Usage: text.Usage()}
-	leaf := literalExpression{Info: info, Value: sqltype.String(text, "x")}
+	leaf := plan.LiteralExpr{Info: info, Value: sqltype.String(text, "x")}
 	inner, err := functions.NewSoundex(info, "soundex", []expr.Expr{leaf})
 	if err != nil {
 		t.Fatal(err)
@@ -107,7 +108,7 @@ func TestInstalledUUIDOsspRebuildKeepsWrapper(t *testing.T) {
 	if !ok || got.procedure != procedure || got.ref != ref || got.Pos.Offset != 3 || node.Pos.Offset != 0 {
 		t.Fatalf("rebuilt %#v", rebuilt)
 	}
-	if _, err := node.Rebuild(info, []expr.Expr{literalExpression{}}); err == nil {
+	if _, err := node.Rebuild(info, []expr.Expr{plan.LiteralExpr{}}); err == nil {
 		t.Fatal("Rebuild accepted an extra child")
 	}
 }

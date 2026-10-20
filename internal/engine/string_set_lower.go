@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -31,13 +32,13 @@ func sameQuerySetOccurrence(a, b expr.Expr) bool {
 
 // Requests identify this clause's required occurrences. Companions share only
 // already resolved occurrences; their unrelated SRFs remain for later stages.
-func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []expr.Expr, companions [][]expr.Expr, attempts bool, templateRoots ...[]expr.Expr) (LogicalNode, error) {
+func (b *expressionBinder) lowerQuerySets(root plan.Node, requests []expr.Expr, companions [][]expr.Expr, attempts bool, templateRoots ...[]expr.Expr) (plan.Node, error) {
 	maxDepth, scalarUpper := querySetProjectionDepth(requests)
 	if maxDepth == 0 {
 		return root, nil
 	}
 	frame := b.frameID()
-	template := &querySetTemplate{Group: &frame, Expressions: append([]expr.Expr(nil), requests...), Attempts: attempts}
+	template := &plan.SetTemplate{Group: &frame, Expressions: append([]expr.Expr(nil), requests...), Attempts: attempts}
 	if len(templateRoots) != 0 {
 		template.Expressions = append([]expr.Expr(nil), templateRoots[0]...)
 	}
@@ -67,7 +68,7 @@ func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []expr.Expr
 	for request, expression := range requests {
 		for i, scalarRequest := range template.ScalarRequests {
 			if request == scalarRequest {
-				template.Steps = append(template.Steps, querySetStep{Kind: querySetScalarStep, Index: i})
+				template.Steps = append(template.Steps, plan.SetStep{Kind: querySetScalarStep, Index: i})
 			}
 		}
 		walkBoundExpression(expression, func(marker expr.Expr) {
@@ -75,7 +76,7 @@ func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []expr.Expr
 				if !sameQuerySetOccurrence(marker, original) {
 					continue
 				}
-				step := querySetStep{Kind: querySetCallStep, Index: i}
+				step := plan.SetStep{Kind: querySetCallStep, Index: i}
 				for _, previous := range template.Steps {
 					if previous == step {
 						return
@@ -87,7 +88,7 @@ func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []expr.Expr
 		})
 	}
 	base := len(root.Schema())
-	schema := append(querySchema(nil), root.Schema()...)
+	schema := append(plan.QuerySchema(nil), root.Schema()...)
 	for _, expressions := range [][]expr.Expr{template.Origins, template.Scalars} {
 		for _, expression := range expressions {
 			schema = append(schema, catalog.Column{Usage: expression.ResultUsage()})
@@ -96,7 +97,7 @@ func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []expr.Expr
 	column := func(bound expr.Expr, slot int) expr.Expr {
 		info := expr.InfoOf(bound)
 		info.Property.StageDependent, info.Property.RowDependent = true, true
-		return columnExpression{Info: info, Scope: 1, Frame: b.frameID(), Slot: base + slot}
+		return plan.ColumnExpr{Info: info, Scope: 1, Frame: b.frameID(), Slot: base + slot}
 	}
 	rewrite := func(bound expr.Expr, sql99 bool, beforeDepth int) (expr.Expr, error) {
 		return b.mapQuerySetStage(bound, func(e expr.Expr) (expr.Expr, bool, error) {
@@ -109,7 +110,7 @@ func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []expr.Expr
 		})
 	}
 	for level := range maxDepth {
-		node := &setProjectNode{Child: root, QuerySchema: schema, Frame: b.frameID(), Template: template,
+		node := &plan.SetProjectNode{Child: root, QuerySchema: schema, Frame: b.frameID(), Template: template,
 			BaseWidth: base, MarkerWidth: len(template.Origins)}
 		for i, original := range template.Origins {
 			if querySetDepth(original) != level+1 {
@@ -145,7 +146,7 @@ func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []expr.Expr
 		node.Steps = querySetStageSteps(template.Steps, node.CallSlots, node.ScalarSlots, len(node.Scalars))
 		root = node
 	}
-	owner := root.(*setProjectNode)
+	owner := root.(*plan.SetProjectNode)
 	for i, expr := range requests {
 		cached := false
 		for local := range owner.Scalars {
@@ -176,20 +177,20 @@ func (b *expressionBinder) lowerQuerySets(root LogicalNode, requests []expr.Expr
 	}
 	return root, nil
 }
-func stringSortExpressions(keys []sortKey) []expr.Expr {
+func stringSortExpressions(keys []plan.SortKey) []expr.Expr {
 	out := make([]expr.Expr, len(keys))
 	for i, key := range keys {
 		out[i] = key.Expression
 	}
 	return out
 }
-func replaceStringSortExpressions(keys []sortKey, expressions []expr.Expr) {
+func replaceStringSortExpressions(keys []plan.SortKey, expressions []expr.Expr) {
 	for i, expr := range expressions {
 		keys[i].Expression = expr
 	}
 }
 
-func preflightQuerySet(c *EvalContext, n *setProjectNode) (LogicalNode, error) {
+func preflightQuerySet(c *EvalContext, n *plan.SetProjectNode) (plan.Node, error) {
 	if n.Template == nil {
 		return n, nil
 	}
@@ -224,7 +225,7 @@ func preflightQuerySet(c *EvalContext, n *setProjectNode) (LogicalNode, error) {
 	}
 	base := n.Child
 	for {
-		child, ok := base.(*setProjectNode)
+		child, ok := base.(*plan.SetProjectNode)
 		if !ok || child.Template == nil || child.Template.Group != template.Group || child.Frame != n.Frame ||
 			child.BaseWidth != n.BaseWidth || len(child.Schema()) != len(n.Schema()) {
 			break
@@ -238,11 +239,11 @@ func preflightQuerySet(c *EvalContext, n *setProjectNode) (LogicalNode, error) {
 	column := func(original expr.Expr, slot int) expr.Expr {
 		info := expr.InfoOf(original)
 		info.Property.StageDependent, info.Property.RowDependent = true, true
-		return columnExpression{Info: info, Scope: 1, Frame: n.Frame, Slot: n.BaseWidth + slot}
+		return plan.ColumnExpr{Info: info, Scope: 1, Frame: n.Frame, Slot: n.BaseWidth + slot}
 	}
 	rewrite := func(bound expr.Expr, beforeDepth int) (expr.Expr, error) {
 		next, _, err := mapBoundExpressionReader(c.catalog, nil, bound, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d },
-			func(root LogicalNode) (LogicalNode, error) { return root, nil }, nil, true, func(e expr.Expr) (expr.Expr, bool, error) {
+			func(root plan.Node) (plan.Node, error) { return root, nil }, nil, true, func(e expr.Expr) (expr.Expr, bool, error) {
 				for i, original := range template.Origins {
 					if sameQuerySetOccurrence(e, original) && querySetDepth(e) < beforeDepth {
 						return column(original, i), true, nil
@@ -252,7 +253,7 @@ func preflightQuerySet(c *EvalContext, n *setProjectNode) (LogicalNode, error) {
 			})
 		return next, err
 	}
-	bindings := make([]querySetSlot, len(template.Scalars))
+	bindings := make([]plan.SetSlot, len(template.Scalars))
 	for i, original := range template.Scalars {
 		request := template.ScalarRequests[i]
 		if request < 0 || request >= len(roots) {
@@ -273,11 +274,11 @@ func preflightQuerySet(c *EvalContext, n *setProjectNode) (LogicalNode, error) {
 				return nil, err
 			}
 		}
-		bindings[i] = querySetSlot{Original: effective, Column: column(original, len(template.Origins)+i), Scheduled: scheduled}
+		bindings[i] = plan.SetSlot{Original: effective, Column: column(original, len(template.Origins)+i), Scheduled: scheduled}
 	}
 	root := base
 	for level := range max(1, maxDepth) {
-		node := &setProjectNode{Child: root, QuerySchema: n.QuerySchema, Frame: n.Frame,
+		node := &plan.SetProjectNode{Child: root, QuerySchema: n.QuerySchema, Frame: n.Frame,
 			BaseWidth: n.BaseWidth, MarkerWidth: n.MarkerWidth}
 		for i, marker := range live {
 			if marker == nil || querySetDepth(marker) != level+1 {
@@ -319,7 +320,7 @@ func querySetScalarSlot(slots []int, index int) int {
 	return slots[index]
 }
 
-func stringSetLocalStep(step querySetStep, callSlots, scalarSlots []int, scalars int) (querySetStep, bool) {
+func stringSetLocalStep(step plan.SetStep, callSlots, scalarSlots []int, scalars int) (plan.SetStep, bool) {
 	slots := callSlots
 	switch step.Kind {
 	case querySetCallStep:
@@ -329,7 +330,7 @@ func stringSetLocalStep(step querySetStep, callSlots, scalarSlots []int, scalars
 		}
 		slots = scalarSlots
 	default:
-		return querySetStep{}, false
+		return plan.SetStep{}, false
 	}
 	for i, slot := range slots {
 		if slot == step.Index {
@@ -337,11 +338,11 @@ func stringSetLocalStep(step querySetStep, callSlots, scalarSlots []int, scalars
 			return step, true
 		}
 	}
-	return querySetStep{}, false
+	return plan.SetStep{}, false
 }
 
-func querySetStageSteps(original []querySetStep, callSlots, scalarSlots []int, scalars int) []querySetStep {
-	steps := make([]querySetStep, 0, len(callSlots)+scalars)
+func querySetStageSteps(original []plan.SetStep, callSlots, scalarSlots []int, scalars int) []plan.SetStep {
+	steps := make([]plan.SetStep, 0, len(callSlots)+scalars)
 	for _, step := range original {
 		if local, present := stringSetLocalStep(step, callSlots, scalarSlots, scalars); present {
 			steps = append(steps, local)
@@ -350,7 +351,7 @@ func querySetStageSteps(original []querySetStep, callSlots, scalarSlots []int, s
 	return steps
 }
 
-func validateQuerySetSteps(steps []querySetStep, calls, scalars int) error {
+func validateQuerySetSteps(steps []plan.SetStep, calls, scalars int) error {
 	if len(steps) != calls+scalars {
 		return fmt.Errorf("stuntgres: incomplete string set schedule")
 	}
@@ -375,7 +376,7 @@ func validateQuerySetSteps(steps []querySetStep, calls, scalars int) error {
 	return nil
 }
 
-func validateQuerySetStageOrder(original, executable []querySetStep, callSlots, scalarSlots []int, scalars int) error {
+func validateQuerySetStageOrder(original, executable []plan.SetStep, callSlots, scalarSlots []int, scalars int) error {
 	position := 0
 	for _, original := range original {
 		step, present := stringSetLocalStep(original, callSlots, scalarSlots, scalars)
@@ -408,18 +409,18 @@ func querySetProjectionDepth(expressions []expr.Expr) (int, bool) {
 
 // Only the current owner's direct scalar roots or reserved scalar references
 // change ownership. Child query frames and unrelated scalar subexpressions do not.
-func queryScalarOwner(child LogicalNode, expression expr.Expr) (expr.Expr, bool) {
+func queryScalarOwner(child plan.Node, expression expr.Expr) (expr.Expr, bool) {
 	for child != nil {
-		if node, ok := child.(*setProjectNode); ok {
+		if node, ok := child.(*plan.SetProjectNode); ok {
 			for _, binding := range node.ScalarBindings {
-				column := binding.Column.(columnExpression)
-				existing, isColumn := expression.(columnExpression)
+				column := binding.Column.(plan.ColumnExpr)
+				existing, isColumn := expression.(plan.ColumnExpr)
 				matches := isColumn && existing.Frame == column.Frame && existing.Scope == column.Scope && existing.Slot == column.Slot &&
 					existing.SourcePosition() == column.SourcePosition()
 				if isColumn && !matches {
 					continue
 				}
-				if _, cached := expression.(cachedOrderExpression); cached {
+				if _, cached := expression.(plan.CachedOrderExpr); cached {
 					continue
 				}
 				if !matches && expression.SourcePosition() != column.SourcePosition() && expression.SourcePosition() != binding.Original.SourcePosition() {
@@ -432,7 +433,7 @@ func queryScalarOwner(child LogicalNode, expression expr.Expr) (expr.Expr, bool)
 			}
 		}
 		switch child.(type) {
-		case *projectNode, *derivedNode, *sourceNode, *joinNode, *distinctNode, *distinctOnNode, *aggregateNode, *setNode:
+		case *plan.ProjectNode, *plan.DerivedNode, *plan.SourceNode, *plan.JoinNode, *plan.DistinctNode, *plan.DistinctOnNode, *plan.AggregateNode, *plan.SetNode:
 			return expression, false
 		}
 		next, right := queryInputs(child)

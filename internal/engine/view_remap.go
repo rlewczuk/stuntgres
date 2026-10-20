@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/plan"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -17,12 +18,12 @@ import (
 // Replacement copies the closed bound tree; source and expression identities
 // are reminted together. Syntax and frozen layouts are immutable and shared.
 func remapBoundExpression(node expr.Expr, ref func(ids.ObjectRef) ids.ObjectRef, slots map[int32]int) (expr.Expr, error) {
-	return remapBoundExpressionWithQuery(node, ref, slots, func(root LogicalNode) (LogicalNode, error) {
+	return remapBoundExpressionWithQuery(node, ref, slots, func(root plan.Node) (plan.Node, error) {
 		return (&viewQueryRemapper{ref: ref, typ: func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, referencesOnly: true}).query(root)
 	}, nil)
 }
 
-func remapBoundExpressionWithQuery(node expr.Expr, ref func(ids.ObjectRef) ids.ObjectRef, slots map[int32]int, queryMapper func(LogicalNode) (LogicalNode, error), rowRef func(ids.ObjectRef) ids.ObjectRef) (expr.Expr, error) {
+func remapBoundExpressionWithQuery(node expr.Expr, ref func(ids.ObjectRef) ids.ObjectRef, slots map[int32]int, queryMapper func(plan.Node) (plan.Node, error), rowRef func(ids.ObjectRef) ids.ObjectRef) (expr.Expr, error) {
 	if rowRef == nil {
 		rowRef = ref
 	}
@@ -32,7 +33,7 @@ func remapBoundExpressionWithQuery(node expr.Expr, ref func(ids.ObjectRef) ids.O
 // Row copies retain explicit object constants and external calls. Replacement
 // callers map both roles, whereas LIKE and partition inheritance supply a
 // distinct owner-row mapper.
-func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, slots map[int32]int, queryMapper func(LogicalNode) (LogicalNode, error)) (expr.Expr, error) {
+func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.ObjectRef, slots map[int32]int, queryMapper func(plan.Node) (plan.Node, error)) (expr.Expr, error) {
 	if node == nil {
 		return nil, nil
 	}
@@ -54,15 +55,15 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 	}
 	var next expr.Expr
 	switch n := node.(type) {
-	case sqlRoutineExpression:
+	case plan.SQLRoutineExpr:
 		n.Args = args(n.Args)
 		if ref != nil {
 			n.Ref = ref(n.Ref)
 		}
 		next = n
-	case assignmentValueExpression:
+	case plan.AssignmentValueExpr:
 		n.Base, n.Value = child(n.Base), child(n.Value)
-		targets, failure := mapRuleAssignmentTargets([]*arrayAssignmentTarget{n.Target}, func(expr expr.Expr) (expr.Expr, bool, error) {
+		targets, failure := mapRuleAssignmentTargets([]*plan.ArrayAssignmentTarget{n.Target}, func(expr expr.Expr) (expr.Expr, bool, error) {
 			if expr == nil {
 				return nil, false, nil
 			}
@@ -73,7 +74,7 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 		}
 		n.Target = targets[0]
 		next = n
-	case unknownOutput:
+	case plan.UnknownOutput:
 		// Captured contextual analysis carries immutable literal syntax only;
 		// it is not a persisted scalar value or a remappable object reference.
 		literal, ok := n.Raw.(parser.LiteralExpr)
@@ -81,16 +82,16 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 			return nil, fmt.Errorf("stuntgres: invalid contextual view output")
 		}
 		next = n
-	case rowExpression:
+	case plan.RowExpr:
 		n, _, err = mapRowAnalysis(n, func(old expr.Expr) (expr.Expr, bool, error) { next := child(old); return next, true, err })
 		next = n
-	case fieldExpression:
+	case plan.FieldExpr:
 		n.Base = child(n.Base)
 		next = n
-	case arrayExpression:
+	case plan.ArrayExpr:
 		n.Elements = args(n.Elements)
 		next = n
-	case subscriptExpression:
+	case plan.SubscriptExpr:
 		n, _, err = mapSubscript(n, func(old expr.Expr) (expr.Expr, bool, error) {
 			if old == nil {
 				return nil, false, nil
@@ -99,7 +100,7 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 			return next, true, err
 		})
 		next = n
-	case subqueryExpression:
+	case plan.SubqueryExpr:
 		if queryMapper != nil {
 			root, failure := queryMapper(n.QueryPlan.Root)
 			if failure != nil {
@@ -109,13 +110,13 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 			copy.Root = root
 			n.QueryPlan = &copy
 		}
-		n.Comparisons = append([]comparisonExpression(nil), n.Comparisons...)
+		n.Comparisons = append([]plan.ComparisonExpr(nil), n.Comparisons...)
 		for i, c := range n.Comparisons {
 			mapped := child(c)
 			if err != nil {
 				return nil, err
 			}
-			n.Comparisons[i] = mapped.(comparisonExpression)
+			n.Comparisons[i] = mapped.(plan.ComparisonExpr)
 		}
 		n.LeftExpansions, _, err = mapRowComparisonExpansions(n.LeftExpansions, func(old expr.Expr) (expr.Expr, bool, error) {
 			next := child(old)
@@ -125,11 +126,11 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 			n.LeftConstructor = child(n.LeftConstructor)
 		}
 		next = n
-	case updateOutputExpression:
+	case plan.UpdateOutputExpr:
 		next = n
-	case domainValueExpression:
+	case plan.DomainValueExpr:
 		next = n
-	case literalExpression:
+	case plan.LiteralExpr:
 		if ref == nil {
 			next = n
 			break
@@ -183,27 +184,27 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 			}
 		}
 		next = n
-	case tableOIDExpression:
+	case plan.TableOIDExpr:
 		n.Owner = rowRef(n.Owner)
 		next = n
-	case returningColumnExpression:
+	case plan.ReturningColumnExpr:
 		mapped := child(n.ColumnExpr)
 		if err != nil {
 			return nil, err
 		}
-		column, ok := mapped.(columnExpression)
+		column, ok := mapped.(plan.ColumnExpr)
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: invalid remapped RETURNING column")
 		}
 		n.ColumnExpr = column
 		n.Value = child(n.Value)
 		next = n
-	case returningWholeRowExpression:
+	case plan.ReturningWholeRowExpr:
 		n.Members = args(n.Members)
 		next = n
-	case mergeActionExpression:
+	case plan.MergeActionExpr:
 		next = n
-	case columnExpression:
+	case plan.ColumnExpr:
 		n.Origin = rowRef(n.Origin)
 		if ref == nil && slots != nil {
 			// Owner-row copies carry attribute identity only. CREATE attaches
@@ -225,49 +226,49 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 			}
 		}
 		next = n
-	case groupExpression:
+	case plan.GroupExpr:
 		next = n
-	case aggregateExpression:
+	case plan.AggregateExpr:
 		next = n
-	case groupingExpression:
+	case plan.GroupingExpr:
 		n.Args = args(n.Args)
 		next = n
-	case *windowExpression:
+	case *plan.WindowExpr:
 		copy := *n
 		next = &copy
-	case cachedOrderExpression:
+	case plan.CachedOrderExpr:
 		next = n // The cache slot belongs to this immutable query plan.
-	case collationExpression:
+	case plan.CollationExpr:
 		n.Child = child(n.Child)
 		next = n
-	case coercionExpression:
+	case plan.CoercionExpr:
 		n.Child = child(n.Child)
 		next = n
-	case bitwiseExpression:
+	case plan.BitwiseExpr:
 		n.Left, n.Right = child(n.Left), child(n.Right)
 		next = n
-	case selectedOperatorExpression:
+	case plan.SelectedOperatorExpr:
 		n.Provider = child(n.Provider)
 		if ref != nil {
 			n.Ref = ref(n.Ref)
 		}
 		next = n
-	case arithmeticExpression:
+	case plan.ArithmeticExpr:
 		n.Left, n.Right = child(n.Left), child(n.Right)
 		next = n
-	case unnestExpression:
+	case plan.UnnestExpr:
 		n.Args = args(n.Args)
 		if ref != nil && n.Procedure != nil {
 			n.Ref = ref(n.Ref)
 		}
 		next = n
-	case likeExpression:
+	case plan.LikeExpr:
 		n.Left, n.Right = child(n.Left), child(n.Right)
 		next = n
-	case rowComparisonExpression:
-		n.Comparisons = append([]comparisonExpression(nil), n.Comparisons...)
+	case plan.RowComparisonExpr:
+		n.Comparisons = append([]plan.ComparisonExpr(nil), n.Comparisons...)
 		for i, pair := range n.Comparisons {
-			n.Comparisons[i] = child(pair).(comparisonExpression)
+			n.Comparisons[i] = child(pair).(plan.ComparisonExpr)
 		}
 		if err != nil {
 			return nil, err
@@ -282,7 +283,7 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 			}
 		}
 		next = n
-	case scalarArrayComparisonExpression:
+	case plan.ScalarArrayComparisonExpr:
 		n.Left = child(n.Left)
 		if n.Array != nil {
 			n.Array = child(n.Array)
@@ -292,22 +293,22 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 			n.Items[i] = child(n.Items[i])
 		}
 		next = n
-	case comparisonExpression:
+	case plan.ComparisonExpr:
 		n.Left, n.Right = child(n.Left), child(n.Right)
 		next = n
-	case nullTestExpression:
+	case plan.NullTestExpr:
 		n.Child = child(n.Child)
 		next = n
-	case truthTestExpression:
+	case plan.TruthTestExpr:
 		n.Child = child(n.Child)
 		next = n
-	case distinctExpression:
+	case plan.DistinctExpr:
 		n.Left, n.Right = child(n.Left), child(n.Right)
 		next = n
-	case logicalExpression:
+	case plan.LogicalExpr:
 		n.Left, n.Right = child(n.Left), child(n.Right)
 		next = n
-	case conditionalExpression:
+	case plan.ConditionalExpr:
 		n.Args = args(n.Args)
 		next = n
 	case extensionPathsExpression:
@@ -366,9 +367,9 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 		}
 		n.Args = args(n.Args)
 		next = n
-	case caseExpression:
+	case plan.CaseExpr:
 		n.Test, n.Otherwise = child(n.Test), child(n.Otherwise)
-		n.Arms = append([]caseBranch(nil), n.Arms...)
+		n.Arms = append([]plan.CaseBranch(nil), n.Arms...)
 		for i := range n.Arms {
 			n.Arms[i].Condition, n.Arms[i].Result = child(n.Arms[i].Condition), child(n.Arms[i].Result)
 		}
@@ -389,18 +390,18 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 	return next, err
 }
 
-func remapViewQuery(view catalog.Read, node LogicalNode, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...typedef.CollationRemapper) (LogicalNode, error) {
+func remapViewQuery(view catalog.Read, node plan.Node, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...typedef.CollationRemapper) (plan.Node, error) {
 	typ = recordTypeMapper(typ, collations...)
 	return remapViewQueryMapped(view, node, ref, typ, collations...)
 }
 
-func remapViewQueryMapped(view catalog.Read, node LogicalNode, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...typedef.CollationRemapper) (LogicalNode, error) {
+func remapViewQueryMapped(view catalog.Read, node plan.Node, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collations ...typedef.CollationRemapper) (plan.Node, error) {
 	var collation typedef.CollationRemapper
 	if len(collations) != 0 {
 		collation = collations[0]
 	}
 	mapper := &viewQueryRemapper{catalog: view, ref: ref, typ: typ, collation: collation}
-	if _, ok := node.(*projectNode); ok {
+	if _, ok := node.(*plan.ProjectNode); ok {
 		return mapper.nested(node)
 	}
 	return mapper.query(node)
@@ -409,16 +410,16 @@ func remapViewQueryMapped(view catalog.Read, node LogicalNode, ref func(ids.Obje
 type viewQueryRemapper struct {
 	ref            func(ids.ObjectRef) ids.ObjectRef
 	typ            func(*sqltype.Descriptor) *sqltype.Descriptor
-	queries        map[*projectNode]LogicalNode
+	queries        map[*plan.ProjectNode]plan.Node
 	collation      typedef.CollationRemapper
 	catalog        catalog.Read
 	referencesOnly bool
-	ctes           map[*cteDefinition]*cteDefinition
-	mutation       func(*cteDefinition) (binding, error)
+	ctes           map[*plan.CTEDefinition]*plan.CTEDefinition
+	mutation       func(*plan.CTEDefinition) (binding, error)
 }
 
-func (m *viewQueryRemapper) nested(node LogicalNode) (LogicalNode, error) {
-	project, ok := node.(*projectNode)
+func (m *viewQueryRemapper) nested(node plan.Node) (plan.Node, error) {
+	project, ok := node.(*plan.ProjectNode)
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: missing remapped query frame")
 	}
@@ -426,7 +427,7 @@ func (m *viewQueryRemapper) nested(node LogicalNode) (LogicalNode, error) {
 		return root, nil
 	}
 	if m.queries == nil {
-		m.queries = make(map[*projectNode]LogicalNode)
+		m.queries = make(map[*plan.ProjectNode]plan.Node)
 	}
 	// Register the query identity before recursive-definition remapping can
 	// encounter its canonical project again. Self scans remain opaque leaves.
@@ -437,13 +438,13 @@ func (m *viewQueryRemapper) nested(node LogicalNode) (LogicalNode, error) {
 		delete(m.queries, project)
 		return nil, err
 	}
-	copy = *root.(*projectNode)
+	copy = *root.(*plan.ProjectNode)
 	return &copy, nil
 }
 
-func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
+func (m *viewQueryRemapper) query(node plan.Node) (plan.Node, error) {
 	ref, typ := m.ref, m.typ
-	schema := append(querySchema(nil), node.Schema()...)
+	schema := append(plan.QuerySchema(nil), node.Schema()...)
 	for i := range schema {
 		schema[i].Usage.Type = typ(schema[i].Usage.Type)
 		if m.collation != nil {
@@ -466,11 +467,11 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		}
 		return old
 	}
-	child := func(old LogicalNode) LogicalNode {
+	child := func(old plan.Node) plan.Node {
 		if err != nil {
 			return old
 		}
-		var next LogicalNode
+		var next plan.Node
 		next, err = m.query(old)
 		return next
 	}
@@ -499,9 +500,9 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		}
 		return next
 	}
-	var next LogicalNode
+	var next plan.Node
 	switch n := node.(type) {
-	case *functionFromNode:
+	case *plan.FunctionFromNode:
 		copy := *n
 		copy.QuerySchema = schema
 		copy.Calls = append([]expr.Expr(nil), n.Calls...)
@@ -512,7 +513,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			}
 		}
 		next = &copy
-	case *setProjectNode:
+	case *plan.SetProjectNode:
 		copy := *n
 		copy.QuerySchema = schema
 		copy.Child = child(n.Child)
@@ -530,34 +531,34 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			}
 		}
 		next = &copy
-	case *valuesNode:
+	case *plan.ValuesNode:
 		rows := make([][]expr.Expr, len(n.Rows))
 		for i, row := range n.Rows {
 			rows[i] = expressions(row)
 		}
-		next = &valuesNode{QuerySchema: schema, Rows: rows, ViewOrdinal: n.ViewOrdinal, IdentityOrderDemand: append([]bool(nil), n.IdentityOrderDemand...), PresenceSlot: n.PresenceSlot}
-	case *limitNode:
-		copy := &limitNode{QuerySchema: schema, Child: child(n.Child), Offset: expression(n.Offset), Count: expression(n.Count), WithTies: n.WithTies, PresenceOnly: n.PresenceOnly}
+		next = &plan.ValuesNode{QuerySchema: schema, Rows: rows, ViewOrdinal: n.ViewOrdinal, IdentityOrderDemand: append([]bool(nil), n.IdentityOrderDemand...), PresenceSlot: n.PresenceSlot}
+	case *plan.LimitNode:
+		copy := &plan.LimitNode{QuerySchema: schema, Child: child(n.Child), Offset: expression(n.Offset), Count: expression(n.Count), WithTies: n.WithTies, PresenceOnly: n.PresenceOnly}
 		if err == nil {
 			copy.FinishTies(copy.Child)
 		}
 		next = copy
-	case *evaluationNode:
-		next = &evaluationNode{QuerySchema: schema, Child: child(n.Child), Expressions: expressions(n.Expressions), Base: n.Base}
-	case *rowLockNode:
-		next = &rowLockNode{QuerySchema: schema, Child: child(n.Child), Marks: n.Marks, FirstMode: n.FirstMode}
-	case *sourceNode:
-		next = &sourceNode{QuerySchema: schema, Ref: ref(n.Ref), Occurrence: n.Occurrence, PresenceSlot: n.PresenceSlot}
-	case *joinNode:
-		next = &joinNode{QuerySchema: schema, Kind: n.Kind, Left: child(n.Left), Right: child(n.Right), Predicate: expression(n.Predicate), LeftWidth: n.LeftWidth, RightWidth: n.RightWidth, Merges: expressions(n.Merges), ViewOrdinal: n.ViewOrdinal, CorrelatedRight: n.CorrelatedRight, Frame: n.Frame, CorrelationPrefix: n.CorrelationPrefix, Captures: n.Captures, PresenceSlot: n.PresenceSlot}
-	case *singletonNode:
-		next = &singletonNode{QuerySchema: schema}
-	case *worktableScanNode:
+	case *plan.EvaluationNode:
+		next = &plan.EvaluationNode{QuerySchema: schema, Child: child(n.Child), Expressions: expressions(n.Expressions), Base: n.Base}
+	case *plan.RowLockNode:
+		next = &plan.RowLockNode{QuerySchema: schema, Child: child(n.Child), Marks: n.Marks, FirstMode: n.FirstMode}
+	case *plan.SourceNode:
+		next = &plan.SourceNode{QuerySchema: schema, Ref: ref(n.Ref), Occurrence: n.Occurrence, PresenceSlot: n.PresenceSlot}
+	case *plan.JoinNode:
+		next = &plan.JoinNode{QuerySchema: schema, Kind: n.Kind, Left: child(n.Left), Right: child(n.Right), Predicate: expression(n.Predicate), LeftWidth: n.LeftWidth, RightWidth: n.RightWidth, Merges: expressions(n.Merges), ViewOrdinal: n.ViewOrdinal, CorrelatedRight: n.CorrelatedRight, Frame: n.Frame, CorrelationPrefix: n.CorrelationPrefix, Captures: n.Captures, PresenceSlot: n.PresenceSlot}
+	case *plan.SingletonNode:
+		next = &plan.SingletonNode{QuerySchema: schema}
+	case *plan.WorktableScanNode:
 		copy := *n
 		copy.QuerySchema = schema
 		copy.CTE, err = m.cte(n.CTE)
 		next = &copy
-	case *derivedNode:
+	case *plan.DerivedNode:
 		copy := *n
 		copy.QuerySchema = schema
 		if n.CTE != nil {
@@ -569,28 +570,28 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			copy.Query = &query
 		}
 		next = &copy
-	case *projectNode:
-		next = &projectNode{QuerySchema: schema, Child: child(n.Child), Expressions: expressions(n.Expressions), AnalysisExpressions: expressions(n.AnalysisExpressions), FrozenValues: n.FrozenValues, Frame: n.Frame, Syntax: n.Syntax, CTEOwner: n.CTEOwner, HasTargetSet: n.HasTargetSet}
-	case *setNode, *recursiveUnionNode:
+	case *plan.ProjectNode:
+		next = &plan.ProjectNode{QuerySchema: schema, Child: child(n.Child), Expressions: expressions(n.Expressions), AnalysisExpressions: expressions(n.AnalysisExpressions), FrozenValues: n.FrozenValues, Frame: n.Frame, Syntax: n.Syntax, CTEOwner: n.CTEOwner, HasTargetSet: n.HasTargetSet}
+	case *plan.SetNode, *plan.RecursiveUnionNode:
 		set := querySetNode(node)
 		copy := *set
 		copy.QuerySchema = schema
-		var definition *cteDefinition
-		if recursive, ok := node.(*recursiveUnionNode); ok {
+		var definition *plan.CTEDefinition
+		if recursive, ok := node.(*plan.RecursiveUnionNode); ok {
 			definition, err = m.cte(recursive.Definition)
 		}
 		if err == nil {
-			var left LogicalNode
+			var left plan.Node
 			left, err = m.nested(set.Left)
 			if err == nil {
-				copy.Left = left.(*projectNode)
+				copy.Left = left.(*plan.ProjectNode)
 			}
 		}
 		if err == nil {
-			var right LogicalNode
+			var right plan.Node
 			right, err = m.nested(set.Right)
 			if err == nil {
-				copy.Right = right.(*projectNode)
+				copy.Right = right.(*plan.ProjectNode)
 			}
 		}
 		copy.LeftExpressions = expressions(set.LeftExpressions)
@@ -598,7 +599,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		copy.Grouping = nil
 		if !(copy.Operation == "union" && copy.All) {
 			width := len(set.Grouping)
-			copy.Grouping = make([]queryGrouping, width)
+			copy.Grouping = make([]plan.Grouping, width)
 			for i := range copy.Grouping {
 				slot := i
 				if definition != nil && definition.Cycle != nil && i == definition.UserWidth {
@@ -613,19 +614,19 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 		}
 		if definition != nil {
 			cycle := definition.Cycle
-			if original := node.(*recursiveUnionNode).Cycle; original != nil && original != node.(*recursiveUnionNode).Definition.Cycle {
+			if original := node.(*plan.RecursiveUnionNode).Cycle; original != nil && original != node.(*plan.RecursiveUnionNode).Definition.Cycle {
 				cycle, err = m.cycle(original)
 			}
-			next = &recursiveUnionNode{SetNode: copy, Definition: definition, Search: definition.Search, Cycle: cycle}
+			next = &plan.RecursiveUnionNode{SetNode: copy, Definition: definition, Search: definition.Search, Cycle: cycle}
 		} else {
 			next = &copy
 		}
-	case *distinctNode:
+	case *plan.DistinctNode:
 		copy := *n
 		copy.QuerySchema = schema
 		copy.Child = child(n.Child)
 		copy.Expressions = expressions(n.Expressions)
-		copy.Grouping = make([]queryGrouping, len(copy.Expressions))
+		copy.Grouping = make([]plan.Grouping, len(copy.Expressions))
 		for i, expression := range copy.Expressions {
 			copy.Grouping[i] = n.Grouping[i]
 			copy.Grouping[i].Routine = ref(n.Grouping[i].Routine)
@@ -634,12 +635,12 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			}
 		}
 		next = &copy
-	case *distinctOnNode:
+	case *plan.DistinctOnNode:
 		copy := *n
 		copy.QuerySchema = schema
 		copy.Child = child(n.Child)
 		copy.Expressions = expressions(n.Expressions)
-		copy.Grouping = make([]queryGrouping, len(copy.Expressions))
+		copy.Grouping = make([]plan.Grouping, len(copy.Expressions))
 		for i, expression := range copy.Expressions {
 			copy.Grouping[i] = n.Grouping[i]
 			copy.Grouping[i].Routine = ref(n.Grouping[i].Routine)
@@ -648,13 +649,13 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			}
 		}
 		next = &copy
-	case *filterNode:
-		next = &filterNode{QuerySchema: schema, Child: child(n.Child), Predicate: expression(n.Predicate)}
-	case *sortNode:
+	case *plan.FilterNode:
+		next = &plan.FilterNode{QuerySchema: schema, Child: child(n.Child), Predicate: expression(n.Predicate)}
+	case *plan.SortNode:
 		copy := *n
 		copy.QuerySchema = schema
 		copy.Child = child(n.Child)
-		copy.Keys = append([]sortKey(nil), n.Keys...)
+		copy.Keys = append([]plan.SortKey(nil), n.Keys...)
 		copy.Outputs = expressions(n.Outputs)
 		for i, key := range copy.Keys {
 			copy.Keys[i].Expression = expression(key.Expression)
@@ -663,14 +664,14 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			}
 		}
 		next = &copy
-	case *windowNode:
+	case *plan.WindowNode:
 		copy := *n
 		copy.QuerySchema = schema
 		copy.Child = child(n.Child)
-		copy.Specs = append([]boundWindowSpec(nil), n.Specs...)
+		copy.Specs = append([]plan.WindowSpec(nil), n.Specs...)
 		for i, spec := range copy.Specs {
 			spec.Partition = expressions(spec.Partition)
-			spec.Grouping = make([]queryGrouping, len(spec.Partition))
+			spec.Grouping = make([]plan.Grouping, len(spec.Partition))
 			for j, key := range spec.Partition {
 				spec.Grouping[j] = n.Specs[i].Grouping[j]
 				spec.Grouping[j].Routine = ref(n.Specs[i].Grouping[j].Routine)
@@ -678,7 +679,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 					spec.Grouping[j].Grouping, err = sqltype.BindGrouping(key.ResultUsage())
 				}
 			}
-			spec.Order = append([]sortKey(nil), spec.Order...)
+			spec.Order = append([]plan.SortKey(nil), spec.Order...)
 			for j, key := range spec.Order {
 				spec.Order[j].Expression = expression(key.Expression)
 				spec.Order[j].EqualityRoutine = ref(key.EqualityRoutine)
@@ -686,7 +687,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 					spec.Order[j].Comparison, err = sqltype.BindOrdering(spec.Order[j].Expression.ResultUsage())
 				}
 			}
-			for _, bound := range []*boundWindowBound{&spec.Frame.Start, &spec.Frame.End} {
+			for _, bound := range []*plan.WindowBound{&spec.Frame.Start, &spec.Frame.End} {
 				bound.Offset = expression(bound.Offset)
 				if err == nil && spec.Frame.Unit == parser.FrameRange {
 					bound.Support, err = bound.Support.Remap(m.typ)
@@ -694,10 +695,10 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			}
 			copy.Specs[i] = spec
 		}
-		copy.Calls = append([]windowCall(nil), n.Calls...)
+		copy.Calls = append([]plan.WindowCall(nil), n.Calls...)
 		for i, call := range copy.Calls {
 			copy.Calls[i].Routine = ref(call.Routine)
-			copy.Calls[i].Expression = expression(call.Expression).(*windowExpression)
+			copy.Calls[i].Expression = expression(call.Expression).(*plan.WindowExpr)
 			copy.Calls[i].Argument = expression(call.Argument)
 			copy.Calls[i].Ordinal = expression(call.Ordinal)
 			copy.Calls[i].DefaultValue = expression(call.DefaultValue)
@@ -711,12 +712,12 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			}
 		}
 		next = &copy
-	case *aggregateNode:
+	case *plan.AggregateNode:
 		copy := *n
 		copy.QuerySchema = schema
 		copy.Child = child(n.Child)
 		copy.Keys = expressions(n.Keys)
-		copy.Grouping = make([]queryGrouping, len(copy.Keys))
+		copy.Grouping = make([]plan.Grouping, len(copy.Keys))
 		for i, key := range copy.Keys {
 			copy.Grouping[i] = n.Grouping[i]
 			copy.Grouping[i].Routine = ref(n.Grouping[i].Routine)
@@ -724,7 +725,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 				copy.Grouping[i].Grouping, err = sqltype.BindGrouping(key.ResultUsage())
 			}
 		}
-		copy.Calls = make([]aggregateCall, len(n.Calls))
+		copy.Calls = make([]plan.AggregateCall, len(n.Calls))
 		for i, call := range n.Calls {
 			copy.Calls[i] = call
 			if call.Procedure != nil && ref != nil {
@@ -852,7 +853,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 			if call.Filter != nil {
 				copy.Calls[i].Filter = expression(call.Filter)
 			}
-			copy.Calls[i].Distinct = make([]queryGrouping, len(call.Distinct))
+			copy.Calls[i].Distinct = make([]plan.Grouping, len(call.Distinct))
 			for k := range call.Distinct {
 				copy.Calls[i].Distinct[k] = call.Distinct[k]
 				copy.Calls[i].Distinct[k].Routine = ref(call.Distinct[k].Routine)
@@ -867,7 +868,7 @@ func (m *viewQueryRemapper) query(node LogicalNode) (LogicalNode, error) {
 					_, err = functions.AggregateOrdering(arg.ResultUsage(), arg.SourcePosition(), true)
 				}
 			}
-			copy.Calls[i].Order = append([]sortKey(nil), call.Order...)
+			copy.Calls[i].Order = append([]plan.SortKey(nil), call.Order...)
 			for k, key := range call.Order {
 				copy.Calls[i].Order[k].Expression = expression(key.Expression)
 				if err == nil {
@@ -1017,16 +1018,16 @@ func (e *Engine) remapViewRuleOIDs(next *catalog.State) error {
 	return e.remapDefinitionOIDsLocked(next)
 }
 
-func (m *viewQueryRemapper) cte(old *cteDefinition) (*cteDefinition, error) {
+func (m *viewQueryRemapper) cte(old *plan.CTEDefinition) (*plan.CTEDefinition, error) {
 	if mapped := m.ctes[old]; mapped != nil {
 		return mapped, nil
 	}
 	if m.ctes == nil {
-		m.ctes = make(map[*cteDefinition]*cteDefinition)
+		m.ctes = make(map[*plan.CTEDefinition]*plan.CTEDefinition)
 	}
 	copy := *old
 	m.ctes[old] = &copy
-	copy.Schema = append(querySchema(nil), old.Schema...)
+	copy.Schema = append(plan.QuerySchema(nil), old.Schema...)
 	for i := range copy.Schema {
 		copy.Schema[i].Usage.Type = m.typ(copy.Schema[i].Usage.Type)
 		if m.collation != nil {
@@ -1070,7 +1071,7 @@ func (m *viewQueryRemapper) cte(old *cteDefinition) (*cteDefinition, error) {
 	return &copy, nil
 }
 
-func (m *viewQueryRemapper) cycle(old *cycleRecipe) (*cycleRecipe, error) {
+func (m *viewQueryRemapper) cycle(old *plan.CycleRecipe) (*plan.CycleRecipe, error) {
 	copy := *old
 	copy.Record, copy.Path = m.typ(old.Record), m.typ(old.Path)
 	if !sqltype.OccurrenceRecordArray(copy.Path) || copy.Path.Element() != copy.Record {
@@ -1130,7 +1131,7 @@ func (m *viewQueryRemapper) cycle(old *cycleRecipe) (*cycleRecipe, error) {
 	return &copy, nil
 }
 
-func (m *viewQueryRemapper) search(old *searchRecipe) (*searchRecipe, error) {
+func (m *viewQueryRemapper) search(old *plan.SearchRecipe) (*plan.SearchRecipe, error) {
 	copy := *old
 	copy.Record, copy.Result, copy.Depth = m.typ(old.Record), m.typ(old.Result), m.typ(old.Depth)
 	if copy.Record == nil || copy.Record.ID() != 2249 || !copy.Record.IsComposite() ||

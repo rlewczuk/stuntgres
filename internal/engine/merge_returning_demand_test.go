@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -155,7 +156,7 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 		typ := testUsage(e, sqltype.Int4).Type
 		value, _ := sqltype.Integer(typ, 1)
 		calls := 0
-		expr := columnExpression{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 4, Slot: 0, MergeSource: true, Virtual: queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; return value, nil })}
+		expr := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 4, Slot: 0, MergeSource: true, Virtual: queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; return value, nil })}
 		parent := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{sqltype.Null(typ)}, mergeReturning: true}}
 		child := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 8, Outer: &parent, mergeSourcePresent: true}}
 		v, err := expr.Eval(&child)

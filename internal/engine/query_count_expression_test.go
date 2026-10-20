@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -10,7 +11,7 @@ import (
 func TestCountExpressionArgumentVeto(t *testing.T) {
 	for _, cancelArgument := range []bool{false, true} {
 		_, query, source := queryCoreFixture(t, "SELECT count(v) FROM t")
-		node := query.Root.(*projectNode).Child.(*aggregateNode)
+		node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 		original := node.Calls[0].Argument
 		ctx, cancel := context.WithCancel(context.Background())
 		sentinel := errors.New("count argument failed")
@@ -37,7 +38,7 @@ func TestCountExpressionArgumentVeto(t *testing.T) {
 
 func TestCountExpressionSlotsAndMetadata(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT count(*),count(v),count(f),count(NULL),count(v) FROM t")
-	node := query.Root.(*projectNode).Child.(*aggregateNode)
+	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	if len(node.Calls) != 4 {
 		t.Fatal("distinct calls collapsed or immutable call not shared", len(node.Calls))
 	}
@@ -66,7 +67,7 @@ func TestCountExpressionSlotsAndMetadata(t *testing.T) {
 
 func TestCountExpressionInsertArgumentFailure(t *testing.T) {
 	b, source := insertSelectEvaluationFixture(t, "SELECT count(v) FROM t")
-	node := b.query.Root.(*projectNode).Child.(*aggregateNode)
+	node := b.query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	original := node.Calls[0].Argument
 	sentinel := errors.New("late INSERT count argument")
 	calls := 0
@@ -85,7 +86,7 @@ func TestCountExpressionInsertArgumentFailure(t *testing.T) {
 
 func TestCountExpressionVolatileCalls(t *testing.T) {
 	e, query, source := queryCoreFixture(t, "SELECT count(random()),count(random()) FROM t")
-	node := query.Root.(*projectNode).Child.(*aggregateNode)
+	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	if len(node.Calls) != 2 {
 		t.Fatal("volatile calls shared", len(node.Calls))
 	}

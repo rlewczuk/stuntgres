@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -28,11 +29,11 @@ func TestLikeEvaluationAndProperties(t *testing.T) {
 	failure := errors.New("demanded pattern child")
 	left := mathObservedArgument{Info: expr.Info{Usage: text.Usage()}, value: sqltype.Null(text), order: &order, index: 0}
 	right := mathObservedArgument{Info: expr.Info{Usage: text.Usage()}, order: &order, index: 1, err: failure}
-	node := likeExpression{Info: expr.Info{Usage: boolean.Usage()}, Left: left, Right: right, Provider: provider, Operator: "~~"}
+	node := plan.LikeExpr{Info: expr.Info{Usage: boolean.Usage()}, Left: left, Right: right, Provider: provider, Operator: "~~"}
 	if _, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
 		t.Fatal(order, err)
 	}
-	p := likeProperties(columnExpression{Info: expr.Info{Property: expr.Properties{RowDependent: true}}}, parameterExpression{Info: expr.Info{Property: expr.Properties{ParameterDependent: true, StageDependent: true, Volatility: expr.Stable}}})
+	p := likeProperties(plan.ColumnExpr{Info: expr.Info{Property: expr.Properties{RowDependent: true}}}, plan.ParameterExpr{Info: expr.Info{Property: expr.Properties{ParameterDependent: true, StageDependent: true, Volatility: expr.Stable}}})
 	if p != (expr.Properties{RowDependent: true, ParameterDependent: true, StageDependent: true, Volatility: expr.Stable}) {
 		t.Fatal(p)
 	}

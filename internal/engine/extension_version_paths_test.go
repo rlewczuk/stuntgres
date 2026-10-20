@@ -5,6 +5,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -48,11 +49,11 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 	}
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	requests := []expr.Expr{call}
-	root, err := binder.lowerQuerySets(&singletonNode{}, requests, nil, false)
+	root, err := binder.lowerQuerySets(&plan.SingletonNode{}, requests, nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	stage, ok := root.(*setProjectNode)
+	stage, ok := root.(*plan.SetProjectNode)
 	if !ok || len(stage.Calls) != 1 || !sameQuerySetOccurrence(call, stage.Calls[0]) {
 		t.Fatal("record set lowering lost occurrence")
 	}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -10,7 +11,7 @@ import (
 func TestBooleanAggregateSlotsAndMetadata(t *testing.T) {
 	_, q, source := queryCoreFixture(t, "SELECT count(f),bool_and(f),bool_or(f),every(f),bool_and(f) FROM t")
 	defer source.close()
-	node := q.Root.(*projectNode).Child.(*aggregateNode)
+	node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	if len(node.Calls) != 3 {
 		t.Fatal("operation identity or alias sharing", len(node.Calls))
 	}
@@ -46,7 +47,7 @@ func TestBooleanAggregateSlotsAndMetadata(t *testing.T) {
 	// scalar-call path to check volatility without executing the fixture.
 	_, volatile, owner := queryCoreFixture(t, "SELECT bool_and(nextval($1)>0),every(nextval($1)>0),bool_or(nextval($1)>0) FROM t")
 	defer owner.close()
-	if len(volatile.Root.(*projectNode).Child.(*aggregateNode).Calls) != 3 {
+	if len(volatile.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode).Calls) != 3 {
 		t.Fatal("volatile arguments shared")
 	}
 }
@@ -56,7 +57,7 @@ func TestBooleanAggregateDatumEvaluationAndCancellation(t *testing.T) {
 		for _, phase := range []string{"success", "argument", "advance", "finalize", "late error"} {
 			t.Run(name+"/"+phase, func(t *testing.T) {
 				_, q, source := queryCoreFixture(t, "SELECT "+name+"(f) FROM t")
-				node := q.Root.(*projectNode).Child.(*aggregateNode)
+				node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 				usage := node.Calls[0].Argument.ResultUsage()
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()

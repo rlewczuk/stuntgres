@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
@@ -15,7 +16,7 @@ import (
 func remapRuleBinding(view catalog.Read, b binding, ref func(ids.ObjectRef) ids.ObjectRef, typ func(*sqltype.Descriptor) *sqltype.Descriptor, collation typedef.CollationRemapper) (binding, error) {
 	typ = recordTypeMapper(typ, collation)
 	mapper := &viewQueryRemapper{catalog: view, ref: ref, typ: typ, collation: collation}
-	mapper.mutation = func(definition *cteDefinition) (binding, error) {
+	mapper.mutation = func(definition *plan.CTEDefinition) (binding, error) {
 		mutation, _ := mutationBinding(definition)
 		return remapRuleBindingMapped(view, *mutation, ref, typ, collation, mapper)
 	}
@@ -55,11 +56,11 @@ func remapRuleBindingMapped(view catalog.Read, b binding, ref func(ids.ObjectRef
 		}
 		return next, nil
 	}
-	mapQuery := func(root LogicalNode) (LogicalNode, error) {
+	mapQuery := func(root plan.Node) (plan.Node, error) {
 		if root == nil {
 			return nil, nil
 		}
-		if _, project := root.(*projectNode); project {
+		if _, project := root.(*plan.ProjectNode); project {
 			return mapper.nested(root)
 		}
 		return mapper.query(root)
@@ -384,7 +385,7 @@ func remapRuleConstraintIdentities(view catalog.Read, d *catalog.Relation, mappi
 				continue
 			}
 			mapper := newRuleTreeMapper(view, nil, 0, nil, ruleTreeMapping{
-				mutation: func(definition *cteDefinition) (binding, error) {
+				mutation: func(definition *plan.CTEDefinition) (binding, error) {
 					mutation, _ := mutationBinding(definition)
 					return conflict(*mutation), nil
 				},

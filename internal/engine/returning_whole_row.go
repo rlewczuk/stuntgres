@@ -5,11 +5,12 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func (c *EvalContext) EvalReturningWholeRow(e returningWholeRowExpression) (sqltype.Value, error) {
+func (c *EvalContext) EvalReturningWholeRow(e plan.ReturningWholeRowExpr) (sqltype.Value, error) {
 	parent, err := returningRowContext(c, e.Scope, e.Frame)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -52,7 +53,7 @@ func (b *expressionBinder) returningWholeRow(name string, relation *catalog.Rela
 	scope := &queryBindingScope{relation: relation, frame: frame, returning: aliases}
 	for i := range members {
 		if aliases.mode == returningMerge && side == mergeDefaultSide {
-			column := b.columnAtOf(relation, i, pos).(columnExpression)
+			column := b.columnAtOf(relation, i, pos).(plan.ColumnExpr)
 			column.Frame = frame
 			members[i] = column
 		} else {
@@ -60,5 +61,5 @@ func (b *expressionBinder) returningWholeRow(name string, relation *catalog.Rela
 		}
 	}
 	info := b.info(sqltype.Usage{Type: descriptor.SQLType, Typmod: -1}, pos, expr.Properties{RowDependent: true})
-	return returningWholeRowExpression{Info: info, Members: members, Scope: 1, Frame: frame, Old: old, Merge: aliases.mode == returningMerge, Side: side}, true, nil
+	return plan.ReturningWholeRowExpr{Info: info, Members: members, Scope: 1, Frame: frame, Old: old, Merge: aliases.mode == returningMerge, Side: side}, true, nil
 }

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -155,7 +156,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	var foreign *foreignModification
 	if b.relation.RelationKind == catalog.ForeignRelation {
 		e.mu.Lock()
-		target, captureErr := e.captureForeignSourceLocked(s, b.ref, b.relation, authorization.PrincipalRef{}, nil, queryRowMark{})
+		target, captureErr := e.captureForeignSourceLocked(s, b.ref, b.relation, authorization.PrincipalRef{}, nil, plan.RowMark{})
 		e.mu.Unlock()
 		if captureErr != nil {
 			return 0, captureErr
@@ -213,7 +214,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 			return 0, planErr
 		}
 		b.insert.defaults[i] = folded
-		if constant, ok := folded.(literalExpression); ok && constant.Value.IsNull() && b.defaultOriginAt(i).definition.Expression == nil {
+		if constant, ok := folded.(plan.LiteralExpr); ok && constant.Value.IsNull() && b.defaultOriginAt(i).definition.Expression == nil {
 			b.insert.defaults[i] = nil
 		}
 	}

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -109,10 +110,10 @@ func closedPgcryptoDefault(node expr.Expr) bool {
 		if !ok || string(n.procedure.Signature) != member.Signature || n.procedure.Result != member.Result || n.procedure.Volatility != member.Volatility || n.procedure.Strict != member.Strict {
 			return false
 		}
-	case coercionExpression, collationExpression, rowExpression, fieldExpression,
-		comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression,
-		nullTestExpression, truthTestExpression, logicalExpression, distinctExpression,
-		conditionalExpression, caseExpression, scalarArrayComparisonExpression,
+	case plan.CoercionExpr, plan.CollationExpr, plan.RowExpr, plan.FieldExpr,
+		plan.ComparisonExpr, plan.ArithmeticExpr, plan.BitwiseExpr, plan.LikeExpr,
+		plan.NullTestExpr, plan.TruthTestExpr, plan.LogicalExpr, plan.DistinctExpr,
+		plan.ConditionalExpr, plan.CaseExpr, plan.ScalarArrayComparisonExpr,
 		functions.Binary,
 		functions.String,
 		functions.StringVariadic,

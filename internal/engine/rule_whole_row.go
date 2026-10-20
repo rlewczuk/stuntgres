@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -37,5 +38,5 @@ func (b *expressionBinder) ruleWholeRow(side parser.Identifier, pos parser.Posit
 	if side.Text == "new" {
 		ruleSide = 2
 	}
-	return rowExpression{Info: b.info(typ.Usage(), pos, properties), Fields: fields, RuleSide: ruleSide}, nil
+	return plan.RowExpr{Info: b.info(typ.Usage(), pos, properties), Fields: fields, RuleSide: ruleSide}, nil
 }

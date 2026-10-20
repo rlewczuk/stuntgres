@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -17,7 +18,7 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 	typ, _ := e.CatalogRead().LookupType(sqltype.Text)
 	u := typ.Usage()
 	parent := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 9000}, Attributes: []int32{1}, Columns: []catalog.Column{{Name: "v", Usage: u}}, Index: map[string]int{"v": 0}}
-	column := columnExpression{Info: expr.Info{Usage: u, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}
+	column := plan.ColumnExpr{Info: expr.Info{Usage: u, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}
 	plan, err := sqltype.BindString("lower", u, u, []sqltype.Usage{u}, [4]bool{true}, false)
 	if err != nil {
 		t.Fatal(err)
@@ -63,7 +64,7 @@ func TestExpressionIndexUniqueSlotContract(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(ordering.slots, []int{1, 0}) || ordering.derived != nil {
 		t.Fatal(ordering, err)
 	}
-	d.Keys[0] = catalog.IndexKey{Derived: &catalog.DerivedIndexKey{Execution: literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: sqltype.Null(typ)}}}
+	d.Keys[0] = catalog.IndexKey{Derived: &catalog.DerivedIndexKey{Execution: plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: sqltype.Null(typ)}}}
 	if _, err := bindIndexOrdering(parent, d); err == nil {
 		t.Fatal("derived UNIQUE sentinel admitted")
 	}
@@ -72,11 +73,11 @@ func TestExpressionIndexUniqueSlotContract(t *testing.T) {
 func TestExpressionIndexPlannedVolatility(t *testing.T) {
 	e := New()
 	typ, _ := e.CatalogRead().LookupType(sqltype.Float8)
-	value := literalExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Value: sqltype.Null(typ)}
+	value := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Value: sqltype.Null(typ)}
 	if plannedVolatility(value) != expr.Immutable {
 		t.Fatal("conservative literal metadata rejected")
 	}
-	wrapper := caseExpression{Info: value.Info, Otherwise: value}
+	wrapper := plan.CaseExpr{Info: value.Info, Otherwise: value}
 	if plannedVolatility(wrapper) != expr.Immutable || wrapper.Properties().Volatility != expr.Volatile {
 		t.Fatal("pruned CASE metadata changed")
 	}

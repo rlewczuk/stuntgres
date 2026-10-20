@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -42,12 +43,12 @@ func (b *expressionBinder) groupingRoutineReference(usage sqltype.Usage) (ids.Ob
 	return ref, false, err
 }
 
-func (b *expressionBinder) bindDistinctGrouping(expression expr.Expr) (queryGrouping, error) {
+func (b *expressionBinder) bindDistinctGrouping(expression expr.Expr) (plan.Grouping, error) {
 	if expression.CollationIndeterminate() {
 		left, right, position := expression.ImplicitCollationConflict()
 		d := expr.ErrorAt("42P21", fmt.Sprintf(`collation mismatch between implicit collations "%s" and "%s"`, b.collationName(left.ID), b.collationName(right.ID)), position).(*sqlstate.Error)
 		d.Hint = "You can choose the collation by applying the COLLATE clause to one or both expressions."
-		return queryGrouping{}, d
+		return plan.Grouping{}, d
 	}
 	family, err := sqltype.BindGrouping(expression.ResultUsage())
 	if diagnostic, ok := err.(*sqlstate.Error); ok {
@@ -55,28 +56,28 @@ func (b *expressionBinder) bindDistinctGrouping(expression expr.Expr) (queryGrou
 		if position := expression.SourcePosition().Character; position > 0 {
 			copy.Position = strconv.Itoa(position)
 		}
-		return queryGrouping{}, &copy
+		return plan.Grouping{}, &copy
 	}
 	if err != nil {
-		return queryGrouping{}, err
+		return plan.Grouping{}, err
 	}
-	group := queryGrouping{Grouping: family}
+	group := plan.Grouping{Grouping: family}
 	usage := expression.ResultUsage()
 	if !privateTreeGrouping(usage.Type) {
 		signature, err := sqltype.ResolveEquality(usage.Type.BaseType(), usage.Type.BaseType())
 		if err != nil {
-			return queryGrouping{}, err
+			return plan.Grouping{}, err
 		}
 		if signature.Left != usage.Type.BaseType().ID() {
 			target := b.typ(signature.Left).Usage()
 			target.Collation = usage.Collation
 			group.Conversion, err = sqltype.PlanCoercion(usage, target, sqltype.Implicit)
 			if err != nil {
-				return queryGrouping{}, err
+				return plan.Grouping{}, err
 			}
 			group.Converted, err = sqltype.BindGrouping(target)
 			if err != nil {
-				return queryGrouping{}, err
+				return plan.Grouping{}, err
 			}
 			group.Convert = true
 			usage = target

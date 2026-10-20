@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -19,7 +20,7 @@ func (r scalarRenderer) conditionalSQL(ctx context.Context, view catalog.Read, n
 		}
 		// Retain known text and bigint leaves on replay; bare strings are unknown
 		// and small bigint constants would otherwise turn into integer constants.
-		if literal, ok := child.(literalExpression); ok && (literal.Value.Type().ID() == sqltype.Text || literal.Value.Type().ID() == sqltype.Int8 || literal.Value.IsNull()) {
+		if literal, ok := child.(plan.LiteralExpr); ok && (literal.Value.Type().ID() == sqltype.Text || literal.Value.Type().ID() == sqltype.Int8 || literal.Value.IsNull()) {
 			if sqltype.BaselineCastType(child.ResultUsage().Type.ID()) {
 				declaration, err := child.ResultUsage().Declaration()
 				if err != nil {
@@ -31,7 +32,7 @@ func (r scalarRenderer) conditionalSQL(ctx context.Context, view catalog.Read, n
 		return text, nil
 	}
 	switch e := node.(type) {
-	case caseExpression:
+	case plan.CaseExpr:
 		if len(e.Arms) == 0 || e.Otherwise == nil {
 			return "", fmt.Errorf("stuntgres: invalid stored CASE")
 		}
@@ -88,7 +89,7 @@ func (r scalarRenderer) conditionalSQL(ctx context.Context, view catalog.Read, n
 		sql.WriteString(otherwise)
 		sql.WriteString(" END)")
 		return sql.String(), nil
-	case conditionalExpression:
+	case plan.ConditionalExpr:
 		if len(e.Args) == 0 || e.Kind == parser.NullIf && len(e.Args) != 2 || e.Kind.String() == "" {
 			return "", fmt.Errorf("stuntgres: invalid stored conditional")
 		}

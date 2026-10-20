@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
 
@@ -31,37 +32,37 @@ func validateRuleActionCTEs(action parser.Statement, b binding) error {
 		return false
 	}
 	old, new := false, false
-	var inspectQuery func(LogicalNode)
+	var inspectQuery func(plan.Node)
 	sides := func(bound expr.Expr) {
 		if bound == nil {
 			return
 		}
 		walkBoundExpression(bound, func(node expr.Expr) {
 			switch node := node.(type) {
-			case columnExpression:
+			case plan.ColumnExpr:
 				if node.Scope == rulePseudoScope {
 					old = old || node.Frame == 1
 					new = new || node.Frame == 2
 				}
-			case rowExpression:
+			case plan.RowExpr:
 				old = old || node.RuleSide == 1
 				new = new || node.RuleSide == 2
 			}
 		})
 	}
-	inspectQuery = func(root LogicalNode) { visitCTEQuery(root, func(LogicalNode) {}, sides, true) }
+	inspectQuery = func(root plan.Node) { visitCTEQuery(root, func(plan.Node) {}, sides, true) }
 	inspectExpression := func(bound expr.Expr) {
 		if bound == nil {
 			return
 		}
 		sides(bound)
 		walkBoundExpression(bound, func(node expr.Expr) {
-			if query, ok := node.(subqueryExpression); ok {
+			if query, ok := node.(plan.SubqueryExpr); ok {
 				inspectQuery(query.QueryPlan.Root)
 			}
 		})
 	}
-	inspectTargets := func(targets []*arrayAssignmentTarget) {
+	inspectTargets := func(targets []*plan.ArrayAssignmentTarget) {
 		for _, target := range targets {
 			for current := target; current != nil; current = current.Next {
 				inspectExpression(current.Node)
@@ -127,9 +128,9 @@ func validateRuleActionCTEs(action parser.Statement, b binding) error {
 		}
 	}
 	if b.query != nil {
-		visitCTEQuery(b.query.Root, func(LogicalNode) {}, func(bound expr.Expr) {
+		visitCTEQuery(b.query.Root, func(plan.Node) {}, func(bound expr.Expr) {
 			walkBoundExpression(bound, func(node expr.Expr) {
-				if query, ok := node.(subqueryExpression); ok && query.CTEDefinition && owned(query.Pos) {
+				if query, ok := node.(plan.SubqueryExpr); ok && query.CTEDefinition && owned(query.Pos) {
 					for _, definition := range b.ctes {
 						if definition.Query == query.QueryPlan && owned(definition.Position) {
 							return

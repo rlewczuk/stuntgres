@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 type cteCommandExecution struct {
-	definition *cteDefinition
+	definition *plan.CTEDefinition
 	execution  preparedCommandExecution
 	mutation   int
 	statement  parser.Statement
@@ -186,7 +187,7 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 	}
 	collectAuth := auth
 	collectAuth.Recapture(scope.inheritanceRead(auth.Catalog))
-	refs, err := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, leaves, normalizedRefs, scope.op.session.token, queryRowMark{})
+	refs, err := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, leaves, normalizedRefs, scope.op.session.token, plan.RowMark{})
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -220,7 +221,7 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 		}
 		return nil
 	}
-	addOwners := func(definitions []*cteDefinition) {
+	addOwners := func(definitions []*plan.CTEDefinition) {
 		for _, definition := range definitions {
 			if findOwner(definition.Owner) != nil {
 				continue
@@ -286,7 +287,7 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 	return e.executePreparedCommandLocked(scope, statement, &prepared.main, parameters, creationStage, creationDescriptor)
 }
 
-func (o *cteInvocation) completeMutation(definition *cteDefinition, result Result) error {
+func (o *cteInvocation) completeMutation(definition *plan.CTEDefinition, result Result) error {
 	if o.closed || o.producers[definition] != nil {
 		if result.Rows != nil {
 			result.Rows.Close()
@@ -312,7 +313,7 @@ func (o *cteInvocation) completeMutation(definition *cteDefinition, result Resul
 		return fmt.Errorf("stuntgres: no-RETURNING CTE produced a relation")
 	}
 	if o.producers == nil {
-		o.producers = make(map[*cteDefinition]*cteProducer)
+		o.producers = make(map[*plan.CTEDefinition]*cteProducer)
 	}
 	o.producers[definition] = producer
 	o.order = append(o.order, producer)

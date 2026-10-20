@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/plan"
 	"testing"
 
 	"stuntgres/internal/engine/access"
@@ -66,8 +67,8 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	node := functions.Binary{Info: expr.Info{Usage: bytea.Usage()}, Plan: binaryPlan, Args: []expr.Expr{
-		literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "é")},
-		literalExpression{Info: expr.Info{Usage: name.Usage()}, Value: sqltype.String(name, "LATIN1")},
+		plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "é")},
+		plan.LiteralExpr{Info: expr.Info{Usage: name.Usage()}, Value: sqltype.String(name, "LATIN1")},
 	}}
 	result, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: fresh}})
 	if err != nil {
@@ -81,7 +82,7 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 	if _, err = node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: missing}}); err == nil {
 		t.Fatal("hardwired provider fallback repaired missing default")
 	}
-	node.Args[0] = literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "")}
+	node.Args[0] = plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "")}
 	if _, err = node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}); err != nil {
 		t.Fatal("empty input demanded default snapshot", err)
 	}

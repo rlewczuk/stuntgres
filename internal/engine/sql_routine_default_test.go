@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -20,7 +21,7 @@ func TestSQLRoutineStoredDefaultValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	original, ok := bound.(sqlRoutineExpression)
+	original, ok := bound.(plan.SQLRoutineExpr)
 	if !ok {
 		t.Fatalf("not a SQL routine: %T", bound)
 	}
@@ -34,17 +35,17 @@ func TestSQLRoutineStoredDefaultValidation(t *testing.T) {
 	}
 	for _, test := range []struct {
 		name   string
-		mutate func(*sqlRoutineExpression)
+		mutate func(*plan.SQLRoutineExpr)
 	}{
-		{"understated-volatility", func(n *sqlRoutineExpression) { n.Property.Volatility = expr.Immutable }},
-		{"invented-row-dependency", func(n *sqlRoutineExpression) { n.Property.RowDependent = true }},
-		{"invented-parameter-dependency", func(n *sqlRoutineExpression) { n.Property.ParameterDependent = true }},
-		{"invented-stage-dependency", func(n *sqlRoutineExpression) { n.Property.StageDependent = true }},
-		{"invented-domain-dependency", func(n *sqlRoutineExpression) { n.Property.DomainDependent = true }},
-		{"missing-carrier", func(n *sqlRoutineExpression) { n.RoutineReference = nil }},
-		{"missing-argument", func(n *sqlRoutineExpression) { n.Args = nil }},
-		{"nil-argument", func(n *sqlRoutineExpression) { n.Args = []expr.Expr{nil} }},
-		{"wrong-result", func(n *sqlRoutineExpression) { n.Usage = b.typ(sqltype.Int8).Usage() }},
+		{"understated-volatility", func(n *plan.SQLRoutineExpr) { n.Property.Volatility = expr.Immutable }},
+		{"invented-row-dependency", func(n *plan.SQLRoutineExpr) { n.Property.RowDependent = true }},
+		{"invented-parameter-dependency", func(n *plan.SQLRoutineExpr) { n.Property.ParameterDependent = true }},
+		{"invented-stage-dependency", func(n *plan.SQLRoutineExpr) { n.Property.StageDependent = true }},
+		{"invented-domain-dependency", func(n *plan.SQLRoutineExpr) { n.Property.DomainDependent = true }},
+		{"missing-carrier", func(n *plan.SQLRoutineExpr) { n.RoutineReference = nil }},
+		{"missing-argument", func(n *plan.SQLRoutineExpr) { n.Args = nil }},
+		{"nil-argument", func(n *plan.SQLRoutineExpr) { n.Args = []expr.Expr{nil} }},
+		{"wrong-result", func(n *plan.SQLRoutineExpr) { n.Usage = b.typ(sqltype.Int8).Usage() }},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			bad := original

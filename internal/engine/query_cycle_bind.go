@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindCycleMarks(raw *parser.CycleClause) (*cycleRecipe, error) {
+func (b *expressionBinder) bindCycleMarks(raw *parser.CycleClause) (*plan.CycleRecipe, error) {
 	value, fallback := raw.Value, raw.Default
 	if value == nil {
 		value = parser.LiteralExpr{Value: parser.Value{Kind: parser.BooleanValue, Boolean: true, Pos: raw.Pos}}
@@ -52,7 +53,7 @@ func (b *expressionBinder) bindCycleMarks(raw *parser.CycleClause) (*cycleRecipe
 			coercionInfo := info
 			coercionInfo.Pos = node.SourcePosition()
 			coercionInfo.Property = coercionProperties(node, coercionPlan)
-			nodes[i] = coercionExpression{coercionInfo, node, coercionPlan, sqltype.Implicit, false}
+			nodes[i] = plan.CoercionExpr{coercionInfo, node, coercionPlan, sqltype.Implicit, false}
 		}
 	}
 	mark, otherwise = nodes[0], nodes[1]
@@ -63,13 +64,13 @@ func (b *expressionBinder) bindCycleMarks(raw *parser.CycleClause) (*cycleRecipe
 	if err != nil {
 		return nil, err
 	}
-	return &cycleRecipe{Syntax: raw, Mark: mark, Fallback: otherwise, TypedConstants: typedConstants, Inequality: predicate}, nil
+	return &plan.CycleRecipe{Syntax: raw, Mark: mark, Fallback: otherwise, TypedConstants: typedConstants, Inequality: predicate}, nil
 }
 func (b *expressionBinder) recursiveTypeName(t *sqltype.Descriptor) string {
 	return b.recursiveUsageName(t.Usage())
 }
 
-func (b *expressionBinder) bindCycleShape(d *cteDefinition) error {
+func (b *expressionBinder) bindCycleShape(d *plan.CTEDefinition) error {
 	c := d.Cycle
 	c.MarkSlot = len(d.Schema)
 	c.Keys = make([]int, len(c.Syntax.Keys))
@@ -115,7 +116,7 @@ func (b *expressionBinder) bindCycleShape(d *cteDefinition) error {
 	d.Schema = append(d.Schema, catalog.Column{Name: c.Syntax.Mark.Text, Usage: c.Mark.ResultUsage()}, catalog.Column{Name: c.Syntax.Path.Text, Usage: c.Path.Usage()})
 	return nil
 }
-func cycleNameError(d *cteDefinition) error {
+func cycleNameError(d *plan.CTEDefinition) error {
 	c := d.Cycle
 	for _, column := range d.Schema[:d.UserWidth] {
 		if column.Name == c.Syntax.Mark.Text {

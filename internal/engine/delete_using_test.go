@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
@@ -96,7 +97,7 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 				sentinel := errors.New("late DELETE USING output failure")
 				switch phase {
 				case "source_rejected":
-					join := b.delete.using.(*joinNode)
+					join := b.delete.using.(*plan.JoinNode)
 					usage := join.Predicate.ResultUsage()
 					join.Predicate = queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
 						calls++

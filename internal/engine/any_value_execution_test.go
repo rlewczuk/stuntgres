@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"testing"
 
 	"stuntgres/internal/parser"
@@ -29,7 +30,7 @@ func TestAnyValueEvaluationAndCancellation(t *testing.T) {
 				qtext = "SELECT v,any_value(id) FROM t GROUP BY v"
 			}
 			_, q, source := queryCoreFixture(t, qtext)
-			node := q.Root.(*projectNode).Child.(*aggregateNode)
+			node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 			usage := node.Calls[0].Argument.ResultUsage()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()

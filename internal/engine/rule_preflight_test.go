@@ -25,8 +25,8 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "22012" {
 		t.Fatalf("static operator error was not planned: %v", err)
 	}
-	parameter := preflightCast(t, "SELECT CAST($1::text AS int4)/0 FROM t").(arithmeticExpression)
-	source := parameter.Left.(coercionExpression).Child.ResultUsage().Type
+	parameter := preflightCast(t, "SELECT CAST($1::text AS int4)/0 FROM t").(plan.ArithmeticExpr)
+	source := parameter.Left.(plan.CoercionExpr).Child.ResultUsage().Type
 	value, err := source.Input(context.Background(), "2", -1)
 	if err != nil {
 		t.Fatal(err)
@@ -36,11 +36,11 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatalf("parameter conversion preflight: changed=%v error=%v", changed, err)
 	}
-	private, ok := mapped.(arithmeticExpression)
+	private, ok := mapped.(plan.ArithmeticExpr)
 	if !ok || !private.Properties().ParameterDependent {
 		t.Fatal("imported parameter became static arithmetic")
 	}
-	if _, ok := private.Left.(literalExpression); !ok {
+	if _, ok := private.Left.(plan.LiteralExpr); !ok {
 		t.Fatal("canonical cast preflight was skipped")
 	}
 	_, err = private.Eval(&planning)
@@ -48,7 +48,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		t.Fatalf("runtime operator error lost: %v", err)
 	}
 	t.Run("supplied_parameter_specialization", func(t *testing.T) {
-		original := preflightCast(t, "SELECT 1/$1::int4 FROM t").(arithmeticExpression)
+		original := preflightCast(t, "SELECT 1/$1::int4 FROM t").(plan.ArithmeticExpr)
 		typ := original.Right.ResultUsage().Type
 		for _, text := range []string{"0", "2", "0"} {
 			value, err := typ.Input(context.Background(), text, -1)
@@ -83,7 +83,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		}
 	})
 	t.Run("specialization_preserves_barriers", func(t *testing.T) {
-		original := preflightCast(t, "SELECT 1/$1::int4 FROM t").(arithmeticExpression)
+		original := preflightCast(t, "SELECT 1/$1::int4 FROM t").(plan.ArithmeticExpr)
 		value, err := original.Right.ResultUsage().Type.Input(context.Background(), "0", -1)
 		if err != nil {
 			t.Fatal(err)
@@ -113,25 +113,25 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 	t.Run("derived_payload_demand", func(t *testing.T) {
 		bad := preflightCast(t, "SELECT 1/0 FROM t")
 		good := preflightCast(t, "SELECT 7 FROM t")
-		schema := querySchema{{Name: "n", Usage: bad.ResultUsage()}}
-		child := &projectNode{QuerySchema: schema, Child: &singletonNode{}, Expressions: []expr.Expr{bad}, Frame: 2}
-		derived := &derivedNode{QuerySchema: schema, Query: &BoundQuery{Root: child}, ScanFrame: 1}
-		outer := &projectNode{QuerySchema: schema, Child: derived, Expressions: []expr.Expr{good}, Frame: 1}
+		schema := plan.QuerySchema{{Name: "n", Usage: bad.ResultUsage()}}
+		child := &plan.ProjectNode{QuerySchema: schema, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{bad}, Frame: 2}
+		derived := &plan.DerivedNode{QuerySchema: schema, Query: &plan.Query{Root: child}, ScanFrame: 1}
+		outer := &plan.ProjectNode{QuerySchema: schema, Child: derived, Expressions: []expr.Expr{good}, Frame: 1}
 		evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), planStaticOperators: true}}
 		prepared, err := preflightQuery(&evaluation, outer)
 		if err != nil {
 			t.Fatalf("unused pure child was prepared: %v", err)
 		}
-		privateChild := prepared.(*projectNode).Child.(*derivedNode).Query.Root.(*projectNode)
-		literal, ok := privateChild.Expressions[0].(literalExpression)
+		privateChild := prepared.(*plan.ProjectNode).Child.(*plan.DerivedNode).Query.Root.(*plan.ProjectNode)
+		literal, ok := privateChild.Expressions[0].(plan.LiteralExpr)
 		if !ok || !literal.Value.IsNull() || literal.ResultUsage() != bad.ResultUsage() {
 			t.Fatal("unused payload did not preserve its typed output slot")
 		}
-		if _, ok := child.Expressions[0].(arithmeticExpression); !ok || derived.Query.Root != child {
+		if _, ok := child.Expressions[0].(plan.ArithmeticExpr); !ok || derived.Query.Root != child {
 			t.Fatal("derived template was mutated")
 		}
 		demanded := *outer
-		demanded.Expressions = []expr.Expr{columnExpression{
+		demanded.Expressions = []expr.Expr{plan.ColumnExpr{
 			Info:  expr.Info{Usage: bad.ResultUsage(), Property: expr.Properties{RowDependent: true}},
 			Frame: 1, Slot: 0,
 		}}
@@ -144,17 +144,17 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			expression := good
 			if used {
 				// The mutation target owns slot zero; FROM starts at slot one.
-				expression = columnExpression{
+				expression = plan.ColumnExpr{
 					Info:  expr.Info{Usage: bad.ResultUsage(), Property: expr.Properties{RowDependent: true}},
 					Frame: 1, Slot: 1,
 				}
 			}
 			if shape == "dead_case" {
 				expression, _, err = rewriteViewExpression(catalog.Read{}, preflightCast(t, "SELECT CASE WHEN false THEN $1::int4 ELSE 7 END FROM t"), nil, func(node expr.Expr) (expr.Expr, bool, error) {
-					if parameter, ok := node.(parameterExpression); ok {
+					if parameter, ok := node.(plan.ParameterExpr); ok {
 						info := parameter.Info
 						info.Property = expr.Properties{RowDependent: true}
-						return columnExpression{Info: info, Frame: 1, Slot: 1}, true, nil
+						return plan.ColumnExpr{Info: info, Frame: 1, Slot: 1}, true, nil
 					}
 					return node, false, nil
 				})
@@ -164,7 +164,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			}
 			original := binding{relation: &catalog.Relation{Columns: []catalog.Column{schema[0]}},
 				update: &boundUpdate{from: derived, sourceWidth: 1, assignments: []expr.Expr{expression}}}
-			private, err := preflightUpdate(&evaluation, original.update, func(prepared *boundUpdate) (LogicalNode, error) {
+			private, err := preflightUpdate(&evaluation, original.update, func(prepared *boundUpdate) (plan.Node, error) {
 				current := original
 				current.update = prepared
 				demanded, err := ruleMutationProducerDemand(current)
@@ -187,7 +187,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 	})
 	t.Run("composed_correlated_runtime_demand", func(t *testing.T) {
 		e, auth, src, _ := ruleUnitCatalog(t)
-		bind := func(sql string, rule bool) (*parser.Select, *BoundQuery) {
+		bind := func(sql string, rule bool) (*parser.Select, *plan.Query) {
 			statements, err := parser.Parse(sql)
 			if err != nil {
 				t.Fatal(err)
@@ -219,15 +219,15 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 				output = "CASE WHEN FALSE THEN q.n ELSE 7 END"
 			}
 			statement, query := bind("SELECT "+output+" AS out FROM (SELECT 1/NEW.v AS n) AS q", true)
-			template := query.Root.(*projectNode)
-			childTemplate := template.Child.(*derivedNode).Query.Root.(*projectNode)
+			template := query.Root.(*plan.ProjectNode)
+			childTemplate := template.Child.(*plan.DerivedNode).Query.Root.(*plan.ProjectNode)
 			action := ruleAction{syntax: statement, binding: binding{query: query, commandQuery: true}}
 			composed, err := composeRuleAction(auth, original, "INSERT", ruleDefinition{}, action)
 			if err != nil {
 				t.Fatal(err)
 			}
-			joined := composed.query.Root.(*projectNode).Child.(*joinNode)
-			if !joined.CorrelatedRight || !joined.Right.(*projectNode).RuleInvocation {
+			joined := composed.query.Root.(*plan.ProjectNode).Child.(*plan.JoinNode)
+			if !joined.CorrelatedRight || !joined.Right.(*plan.ProjectNode).RuleInvocation {
 				t.Fatal("unit did not reach the real correlated rule invocation")
 			}
 			planning := EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: auth.Catalog, planStaticOperators: true}}
@@ -236,7 +236,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 				t.Fatalf("row-dependent payload was evaluated during planning: %v", err)
 			}
 			if shape == "demanded" {
-				supplier := prepared.(*projectNode).Child.(*joinNode).Left.(*derivedNode).Query.Root.(*projectNode).Expressions[0]
+				supplier := prepared.(*plan.ProjectNode).Child.(*plan.JoinNode).Left.(*plan.DerivedNode).Query.Root.(*plan.ProjectNode).Expressions[0]
 				value, err := supplier.Eval(&planning)
 				integer, accessErr := value.Integer()
 				if err != nil || accessErr != nil || integer != 0 {
@@ -271,26 +271,26 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 			}
 			pseudoRetained := false
 			walkBoundExpression(childTemplate.Expressions[0], func(node expr.Expr) {
-				if column, ok := node.(columnExpression); ok && column.Scope == rulePseudoScope {
+				if column, ok := node.(plan.ColumnExpr); ok && column.Scope == rulePseudoScope {
 					pseudoRetained = true
 				}
 			})
 			if query.Root != template || !pseudoRetained ||
-				original.query.Root != supplied.Root || supplied.Root.(*projectNode).Expressions[0].(literalExpression).Value.IsNull() {
+				original.query.Root != supplied.Root || supplied.Root.(*plan.ProjectNode).Expressions[0].(plan.LiteralExpr).Value.IsNull() {
 				t.Fatal("composition or demand preparation mutated a stored provider recipe")
 			}
 		}
 	})
 	t.Run("delete_dead_case_source_frontier", func(t *testing.T) {
 		bad := preflightCast(t, "SELECT 1/0 FROM t")
-		schema := querySchema{{Name: "n", Usage: bad.ResultUsage()}}
-		child := &projectNode{QuerySchema: schema, Child: &singletonNode{}, Expressions: []expr.Expr{bad}, Frame: 2}
-		source := &derivedNode{QuerySchema: schema, Query: &BoundQuery{Root: child}, ScanFrame: 1}
+		schema := plan.QuerySchema{{Name: "n", Usage: bad.ResultUsage()}}
+		child := &plan.ProjectNode{QuerySchema: schema, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{bad}, Frame: 2}
+		source := &plan.DerivedNode{QuerySchema: schema, Query: &plan.Query{Root: child}, ScanFrame: 1}
 		predicate, _, err := rewriteViewExpression(catalog.Read{}, preflightCast(t, "SELECT CASE WHEN FALSE THEN $1::int4=0 ELSE TRUE END FROM t"), nil, func(node expr.Expr) (expr.Expr, bool, error) {
-			if parameter, ok := node.(parameterExpression); ok {
+			if parameter, ok := node.(plan.ParameterExpr); ok {
 				info := parameter.Info
 				info.Property = expr.Properties{RowDependent: true}
-				return columnExpression{Info: info, Scope: 1, Frame: 1, Slot: 1}, true, nil
+				return plan.ColumnExpr{Info: info, Scope: 1, Frame: 1, Slot: 1}, true, nil
 			}
 			return node, false, nil
 		})
@@ -321,7 +321,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		if err != nil || truth != plan.True {
 			t.Fatalf("prepared DELETE predicate truth=%v error=%v", truth, err)
 		}
-		rows, count, err := finalizeQuery(context.Background(), prepared.(*derivedNode).Query.Root, &querySource{}, nil)
+		rows, count, err := finalizeQuery(context.Background(), prepared.(*plan.DerivedNode).Query.Root, &querySource{}, nil)
 		if err != nil || rows == nil || count != 1 {
 			t.Fatalf("row-presence source was lost: count=%d error=%v", count, err)
 		}
@@ -337,7 +337,7 @@ func TestRuleStaticOperatorPreflight(t *testing.T) {
 		if original.delete.using != source || source.Query.Root != child {
 			t.Fatal("DELETE source template was mutated")
 		}
-		if _, ok := child.Expressions[0].(arithmeticExpression); !ok {
+		if _, ok := child.Expressions[0].(plan.ArithmeticExpr); !ok {
 			t.Fatal("DELETE source recipe was erased")
 		}
 	})

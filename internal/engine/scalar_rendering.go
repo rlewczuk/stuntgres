@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -132,7 +133,7 @@ func (r scalarRenderer) replayTemplate(pieces []expr.Piece, args []expr.RenderAr
 		if piece.Identifier {
 			return pgIdentifier(piece.Text), nil
 		}
-		literal, ok := args[piece.Arg].Expr.(literalExpression)
+		literal, ok := args[piece.Arg].Expr.(plan.LiteralExpr)
 		if !ok {
 			return "", fmt.Errorf("stuntgres: invalid normalization syntax form")
 		}
@@ -200,7 +201,7 @@ func (r scalarRenderer) transportDeclaration(view catalog.Read, arg expr.RenderA
 	if arg.Transport == expr.TransportCast {
 		return catalogTypeDeclaration(view, arg.TransportType)
 	}
-	literal, ok := arg.Expr.(literalExpression)
+	literal, ok := arg.Expr.(plan.LiteralExpr)
 	if !ok || r.checkLiterals != nil {
 		return "", nil
 	}

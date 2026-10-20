@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -10,7 +11,7 @@ import (
 func TestIntervalAvgSlotsAndMetadata(t *testing.T) {
 	_, q, source := queryCoreFixture(t, "SELECT avg(INTERVAL '1 day'),avg(INTERVAL '1 day'),count(*),bool_and(f) FROM t")
 	defer source.close()
-	node := q.Root.(*projectNode).Child.(*aggregateNode)
+	node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	if len(node.Calls) != 3 {
 		t.Fatal("operation sharing", len(node.Calls))
 	}
@@ -41,7 +42,7 @@ func TestIntervalAvgSlotsAndMetadata(t *testing.T) {
 	}
 	_, volatile, owner := queryCoreFixture(t, "SELECT avg(CASE WHEN nextval($1)>0 THEN INTERVAL '1 day' ELSE INTERVAL '0' END),avg(CASE WHEN nextval($1)>0 THEN INTERVAL '1 day' ELSE INTERVAL '0' END) FROM t")
 	defer owner.close()
-	if len(volatile.Root.(*projectNode).Child.(*aggregateNode).Calls) != 2 {
+	if len(volatile.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode).Calls) != 2 {
 		t.Fatal("volatile average arguments shared")
 	}
 }

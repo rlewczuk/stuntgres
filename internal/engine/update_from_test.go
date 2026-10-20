@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
@@ -67,7 +68,7 @@ func updateFromBoundSources(t *testing.T, e *Engine, session *Session, ctx conte
 	}
 	var refs []ids.ObjectRef
 	if err == nil {
-		refs, err = e.queryTableRefsLocked(auth, auth.State.CurrentUser, b.querySources, []ids.ObjectRef{b.ref}, scope.op.session.token, queryRowMark{})
+		refs, err = e.queryTableRefsLocked(auth, auth.State.CurrentUser, b.querySources, []ids.ObjectRef{b.ref}, scope.op.session.token, plan.RowMark{})
 	}
 	if err == nil {
 		_, err = scope.acquireDataViewsLocked(e, refs)

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -24,7 +25,7 @@ func TestCatalogInquiryRetainedVolatility(t *testing.T) {
 		t.Fatal(changed, err)
 	}
 	child := simplified.(expr.Composite).Children()[0]
-	literal, ok := child.(literalExpression)
+	literal, ok := child.(plan.LiteralExpr)
 	if !ok {
 		t.Fatalf("decisive CASE did not simplify: %T", child)
 	}

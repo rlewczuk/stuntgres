@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
@@ -139,7 +140,7 @@ func (r engineCatalogRuntime) VisitCheckAttributes(ctx context.Context, table *c
 		if failure = ctx.Err(); failure != nil {
 			return
 		}
-		column, ok := node.(columnExpression)
+		column, ok := node.(plan.ColumnExpr)
 		if ok && column.Origin.Address.ClassID == ids.RelationClassID && column.Origin.Address.ObjectID == table.Address().ObjectID {
 			failure = visit(column.Origin.Address.SubID)
 		}
@@ -156,7 +157,7 @@ func (r engineCatalogRuntime) IndexSimpleAttribute(parent ids.ObjectAddress, key
 	if key.Derived == nil {
 		return key.Attribute, true
 	}
-	if column, ok := key.Derived.Definition.(columnExpression); ok && column.Origin.Address.ClassID == parent.ClassID && column.Origin.Address.ObjectID == parent.ObjectID {
+	if column, ok := key.Derived.Definition.(plan.ColumnExpr); ok && column.Origin.Address.ClassID == parent.ClassID && column.Origin.Address.ObjectID == parent.ObjectID {
 		return column.Origin.Address.SubID, true
 	}
 	return 0, false

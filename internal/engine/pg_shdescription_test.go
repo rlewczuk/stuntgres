@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -66,12 +67,12 @@ func TestPGShDescriptionEmptySource(t *testing.T) {
 	deleted := cloneRoleFixture(e.roles.published)
 	removed := pgShDescriptionUnitRole(e, deleted, 20000, "removed", "old")
 	retireFixtureRole(deleted, removed)
-	root := &projectNode{
-		QuerySchema: querySchema(d.Columns),
-		Child:       &sourceNode{QuerySchema: querySchema(d.Columns), Ref: ref},
+	root := &plan.ProjectNode{
+		QuerySchema: plan.QuerySchema(d.Columns),
+		Child:       &plan.SourceNode{QuerySchema: plan.QuerySchema(d.Columns), Ref: ref},
 	}
 	for i, column := range d.Columns {
-		root.Expressions = append(root.Expressions, columnExpression{
+		root.Expressions = append(root.Expressions, plan.ColumnExpr{
 			Info:   expr.Info{Usage: column.Usage},
 			Origin: ref, Scope: 1, Frame: 1, Slot: i,
 		})
@@ -132,8 +133,8 @@ func pgShDescriptionUnitInquiry(t *testing.T, e *Engine, roles authorization.Rea
 		t.Fatal(err)
 	}
 	expr := functions.CommentInquiry{Info: expr.Info{Usage: textUsage}, Kind: functions.SharedDescription, Args: []expr.Expr{
-		literalExpression{Info: expr.Info{Usage: oidUsage}, Value: oid},
-		literalExpression{Info: expr.Info{Usage: nameUsage}, Value: sqltype.String(nameUsage.Type, "pg_authid")},
+		plan.LiteralExpr{Info: expr.Info{Usage: oidUsage}, Value: oid},
+		plan.LiteralExpr{Info: expr.Info{Usage: nameUsage}, Value: sqltype.String(nameUsage.Type, "pg_authid")},
 	}}
 	value, err := expr.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: &StatementScope{inquiry: inquirySnapshot{commentRoles: roles, commentCatalog: catalog}}}})
 	if err != nil {
@@ -293,7 +294,7 @@ func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 	open := func(scope *StatementScope, ref ids.ObjectRef) *querySource {
 		t.Helper()
 		e.mu.Lock()
-		source, err := e.openRelationSourceLocked(scope, ref, e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
+		source, err := e.openRelationSourceLocked(scope, ref, e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -309,7 +310,7 @@ func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 		view.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
 		view.ObjectName, view.RelationKind = name, catalog.ViewRelation
 		viewRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
-		view.View = &viewDefinition{query: &BoundQuery{Root: &sourceNode{QuerySchema: querySchema(d.Columns), Ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: []int32{1, 2, 3}, reads: []int32{1, 2, 3}}}}
+		view.View = &viewDefinition{query: &plan.Query{Root: &plan.SourceNode{QuerySchema: plan.QuerySchema(d.Columns), Ref: leaf}}, sources: []viewLeaf{{ref: leaf, attributes: []int32{1, 2, 3}, reads: []int32{1, 2, 3}}}}
 		e.catalog.state.SetDescriptor(view.Address(), &view)
 		return viewRef
 	}

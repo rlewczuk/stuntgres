@@ -7,13 +7,14 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func (c *EvalContext) EvalTableOID(n tableOIDExpression) (sqltype.Value, error) {
+func (c *EvalContext) EvalTableOID(n plan.TableOIDExpr) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -124,7 +125,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 			return catalog.ColumnGeneration{}, diagnostic
 		}
 		info.Property = coercionProperties(input, coercionPlan)
-		node = restoreDomainCastCollations(annotations, coercionExpression{info, input, coercionPlan, sqltype.Assignment, false})
+		node = restoreDomainCastCollations(annotations, plan.CoercionExpr{info, input, coercionPlan, sqltype.Assignment, false})
 		analyzedInput, analyzedAnnotations := domainCoercionInput(analyzed, column.Usage)
 		analyzedInfo, failure := storageCoercionInfo(b.bindingCatalog(), b.info(column.Usage, parser.Position{}, analyzedInput.Properties()), analyzedInput)
 		if failure != nil {
@@ -135,7 +136,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 			return catalog.ColumnGeneration{}, failure
 		}
 		analyzedInfo.Property = coercionProperties(analyzedInput, analyzedPlan)
-		analyzed = restoreDomainCastCollations(analyzedAnnotations, coercionExpression{analyzedInfo, analyzedInput, analyzedPlan, sqltype.Assignment, false})
+		analyzed = restoreDomainCastCollations(analyzedAnnotations, plan.CoercionExpr{analyzedInfo, analyzedInput, analyzedPlan, sqltype.Assignment, false})
 	}
 	node, err = storageDestination(node, column.Usage, parser.Position{})
 	if err != nil {
@@ -166,51 +167,51 @@ func generationImmutable(node expr.Expr) bool {
 		return true
 	}
 	switch n := node.(type) {
-	case rowExpression:
+	case plan.RowExpr:
 		return args(n.Fields)
-	case fieldExpression:
+	case plan.FieldExpr:
 		return one(n.Base)
-	case arrayExpression:
+	case plan.ArrayExpr:
 		return args(n.Elements)
-	case subscriptExpression:
+	case plan.SubscriptExpr:
 		var storage [13]expr.Expr
 		return args(subscriptChildren(n, &storage))
-	case literalExpression, columnExpression, tableOIDExpression:
+	case plan.LiteralExpr, plan.ColumnExpr, plan.TableOIDExpr:
 		return true
-	case collationExpression:
+	case plan.CollationExpr:
 		return one(n.Child)
-	case coercionExpression:
+	case plan.CoercionExpr:
 		return one(n.Child) && (n.Mode == sqltype.Assignment || !n.Plan.SessionDependent())
-	case selectedOperatorExpression:
+	case plan.SelectedOperatorExpr:
 		return one(n.Provider)
-	case arithmeticExpression:
+	case plan.ArithmeticExpr:
 		return !n.Provider.SessionDependent() && both(n.Left, n.Right)
-	case bitwiseExpression:
+	case plan.BitwiseExpr:
 		return both(n.Left, n.Right)
-	case rowComparisonExpression:
+	case plan.RowComparisonExpr:
 		for _, pair := range n.Comparisons {
 			if pair.Predicate.SessionDependent() || !both(pair.Left, pair.Right) {
 				return false
 			}
 		}
 		return true
-	case scalarArrayComparisonExpression:
+	case plan.ScalarArrayComparisonExpr:
 		return !n.Predicate.SessionDependent() && one(n.Left) && (n.Array == nil || one(n.Array)) && args(n.Items)
-	case comparisonExpression:
+	case plan.ComparisonExpr:
 		return !n.Predicate.SessionDependent() && both(n.Left, n.Right)
-	case logicalExpression:
+	case plan.LogicalExpr:
 		return both(n.Left, n.Right)
-	case distinctExpression:
+	case plan.DistinctExpr:
 		return !n.Equality.SessionDependent() && both(n.Left, n.Right)
-	case nullTestExpression:
+	case plan.NullTestExpr:
 		return one(n.Child)
-	case truthTestExpression:
+	case plan.TruthTestExpr:
 		return one(n.Child)
-	case likeExpression:
+	case plan.LikeExpr:
 		return both(n.Left, n.Right)
-	case conditionalExpression:
+	case plan.ConditionalExpr:
 		return !n.Comparison.SessionDependent() && args(n.Args)
-	case caseExpression:
+	case plan.CaseExpr:
 		if !both(n.Test, n.Otherwise) {
 			return false
 		}
@@ -220,7 +221,7 @@ func generationImmutable(node expr.Expr) bool {
 			}
 		}
 		return true
-	case unnestExpression:
+	case plan.UnnestExpr:
 		return false
 	case extensionPathsExpression:
 		return false
@@ -359,51 +360,51 @@ func generationHasTableOID(node expr.Expr) bool {
 		return false
 	}
 	switch n := node.(type) {
-	case rowExpression:
+	case plan.RowExpr:
 		return args(n.Fields)
-	case fieldExpression:
+	case plan.FieldExpr:
 		return one(n.Base)
-	case arrayExpression:
+	case plan.ArrayExpr:
 		return args(n.Elements)
-	case subscriptExpression:
+	case plan.SubscriptExpr:
 		var storage [13]expr.Expr
 		return args(subscriptChildren(n, &storage))
-	case tableOIDExpression:
+	case plan.TableOIDExpr:
 		return true
-	case collationExpression:
+	case plan.CollationExpr:
 		return one(n.Child)
-	case coercionExpression:
+	case plan.CoercionExpr:
 		return one(n.Child)
-	case selectedOperatorExpression:
+	case plan.SelectedOperatorExpr:
 		return one(n.Provider)
-	case arithmeticExpression:
+	case plan.ArithmeticExpr:
 		return both(n.Left, n.Right)
-	case bitwiseExpression:
+	case plan.BitwiseExpr:
 		return both(n.Left, n.Right)
-	case rowComparisonExpression:
+	case plan.RowComparisonExpr:
 		for _, pair := range n.Comparisons {
 			if both(pair.Left, pair.Right) {
 				return true
 			}
 		}
 		return false
-	case scalarArrayComparisonExpression:
+	case plan.ScalarArrayComparisonExpr:
 		return one(n.Left) || n.Array != nil && one(n.Array) || args(n.Items)
-	case comparisonExpression:
+	case plan.ComparisonExpr:
 		return both(n.Left, n.Right)
-	case logicalExpression:
+	case plan.LogicalExpr:
 		return both(n.Left, n.Right)
-	case distinctExpression:
+	case plan.DistinctExpr:
 		return both(n.Left, n.Right)
-	case nullTestExpression:
+	case plan.NullTestExpr:
 		return one(n.Child)
-	case truthTestExpression:
+	case plan.TruthTestExpr:
 		return one(n.Child)
-	case likeExpression:
+	case plan.LikeExpr:
 		return both(n.Left, n.Right)
-	case conditionalExpression:
+	case plan.ConditionalExpr:
 		return args(n.Args)
-	case caseExpression:
+	case plan.CaseExpr:
 		if both(n.Test, n.Otherwise) {
 			return true
 		}
@@ -631,7 +632,7 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 		return nil
 	}
 	switch n := node.(type) {
-	case rowExpression:
+	case plan.RowExpr:
 		shape := n.Usage.Type.BaseType()
 		if !shape.IsComposite() || n.FieldProjection == nil && len(n.Fields) != shape.CompositeLen() || n.FieldProjection != nil && len(n.FieldProjection) != len(n.Fields) || n.PresenceSlot < 0 || n.WholeNames == nil && (n.PresenceSlot != 0 || n.PresenceFrame != 0) || n.WholeNames != nil && (len(n.WholeNames) != len(n.Fields) || n.PresenceFrame == 0) {
 			return fmt.Errorf("stuntgres: invalid composite row plan")
@@ -670,26 +671,26 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 			}
 		}
 		return args(n.Fields)
-	case fieldExpression:
+	case plan.FieldExpr:
 		if n.Base == nil || n.Base.ResultUsage().Type == nil || !n.Base.ResultUsage().Type.BaseType().IsComposite() {
 			return fmt.Errorf("stuntgres: invalid composite field base")
 		}
 		shape := n.Base.ResultUsage().Type.BaseType()
 		index, ok := shape.CompositeAttributeIndex(n.Attribute)
 		source := index
-		if row, constructor := n.Base.(rowExpression); constructor {
+		if row, constructor := n.Base.(plan.RowExpr); constructor {
 			source = row.FieldSourceIndex(index)
 		}
 		if !ok || source != n.Index || !sqltype.SameRecordUsage(n.Usage, shape.CompositeMember(index).Usage) {
 			return fmt.Errorf("stuntgres: invalid composite field plan")
 		}
 		return child(n.Base)
-	case arrayExpression:
+	case plan.ArrayExpr:
 		return args(n.Elements)
-	case subscriptExpression:
+	case plan.SubscriptExpr:
 		var storage [13]expr.Expr
 		return args(subscriptChildren(n, &storage))
-	case columnExpression:
+	case plan.ColumnExpr:
 		if _, generated := d.ColumnMeta.Generations[n.Origin.Address.SubID]; generated || n.Virtual != nil {
 			return fmt.Errorf("stuntgres: generated reference in generation plan")
 		}
@@ -697,34 +698,34 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 			return fmt.Errorf("stuntgres: invalid generation plan row")
 		}
 		return nil
-	case tableOIDExpression:
+	case plan.TableOIDExpr:
 		if !storedReferenceEpochValid(view, d, n.Owner) || n.Owner.Address != d.Address() || usage.Type.ID() != sqltype.Oid {
 			return fmt.Errorf("stuntgres: invalid generation plan owner")
 		}
 		return nil
-	case literalExpression:
+	case plan.LiteralExpr:
 		if n.Value.Type() != usage.Type {
 			return fmt.Errorf("stuntgres: invalid generation plan literal")
 		}
 		return nil
-	case collationExpression:
+	case plan.CollationExpr:
 		return child(n.Child)
-	case coercionExpression:
+	case plan.CoercionExpr:
 		return child(n.Child)
-	case selectedOperatorExpression:
+	case plan.SelectedOperatorExpr:
 		return child(n.Provider)
-	case arithmeticExpression:
+	case plan.ArithmeticExpr:
 		return pair(n.Left, n.Right)
-	case bitwiseExpression:
+	case plan.BitwiseExpr:
 		return pair(n.Left, n.Right)
-	case rowComparisonExpression:
+	case plan.RowComparisonExpr:
 		for _, comparison := range n.Comparisons {
 			if err := pair(comparison.Left, comparison.Right); err != nil {
 				return err
 			}
 		}
 		return nil
-	case scalarArrayComparisonExpression:
+	case plan.ScalarArrayComparisonExpr:
 		if err := child(n.Left); err != nil {
 			return err
 		}
@@ -734,21 +735,21 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 			}
 		}
 		return args(n.Items)
-	case comparisonExpression:
+	case plan.ComparisonExpr:
 		return pair(n.Left, n.Right)
-	case logicalExpression:
+	case plan.LogicalExpr:
 		return pair(n.Left, n.Right)
-	case distinctExpression:
+	case plan.DistinctExpr:
 		return pair(n.Left, n.Right)
-	case nullTestExpression:
+	case plan.NullTestExpr:
 		return child(n.Child)
-	case truthTestExpression:
+	case plan.TruthTestExpr:
 		return child(n.Child)
-	case likeExpression:
+	case plan.LikeExpr:
 		return pair(n.Left, n.Right)
-	case conditionalExpression:
+	case plan.ConditionalExpr:
 		return args(n.Args)
-	case caseExpression:
+	case plan.CaseExpr:
 		if err := pair(n.Test, n.Otherwise); err != nil {
 			return err
 		}

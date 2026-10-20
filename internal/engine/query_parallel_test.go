@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
@@ -174,7 +175,7 @@ func TestQueryParallelConcurrentExecution(t *testing.T) {
 					return c.Row[0], nil
 				})
 			} else {
-				filter := project.Child.(*filterNode)
+				filter := project.Child.(*plan.FilterNode)
 				filter.Predicate = queryProbe(filter.Predicate.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 					if err := gate(c); err != nil {
 						return sqltype.Value{}, err
@@ -226,7 +227,7 @@ func TestQueryParallelConcurrentExecution(t *testing.T) {
 
 func TestQueryParallelSnapshot(t *testing.T) {
 	e, query, source := queryCoreFixture(t, "SELECT id FROM t")
-	project := query.Root.(*projectNode)
+	project := query.Root.(*plan.ProjectNode)
 	entered := make(chan *queryState, 2)
 	releases := []chan struct{}{make(chan struct{}), make(chan struct{})}
 	project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
@@ -329,17 +330,17 @@ func TestQueryParallelEligibility(t *testing.T) {
 	}
 	for _, mode := range []lock.Mode{lock.ForKeyShare, lock.ForShare, lock.ForNoKeyUpdate, lock.ForUpdate} {
 		copy := *source
-		copy.inherited = queryRowMark{Mode: mode}
+		copy.inherited = plan.RowMark{Mode: mode}
 		if _, _, ok := parallelQueryPlan(project, &copy); ok {
 			t.Fatal("inherited rowmark admitted", mode)
 		}
 		locked := *project
-		locked.Child = &rowLockNode{QuerySchema: project.Child.Schema(), Child: project.Child, Marks: []queryRowMark{{Mode: mode}}, FirstMode: mode}
+		locked.Child = &plan.RowLockNode{QuerySchema: project.Child.Schema(), Child: project.Child, Marks: []plan.RowMark{{Mode: mode}}, FirstMode: mode}
 		if _, _, ok := parallelQueryPlan(&locked, source); ok {
 			t.Fatal("nested rowmark admitted", mode)
 		}
 	}
-	for _, node := range []LogicalNode{&singletonNode{}, &valuesNode{}, &rowLockNode{}, &limitNode{}, &evaluationNode{}, &joinNode{}, &aggregateNode{}, &distinctNode{}, &distinctOnNode{}, &setNode{}, &windowNode{}, &derivedNode{}, &functionFromNode{}, &setProjectNode{}} {
+	for _, node := range []plan.Node{&plan.SingletonNode{}, &plan.ValuesNode{}, &plan.RowLockNode{}, &plan.LimitNode{}, &plan.EvaluationNode{}, &plan.JoinNode{}, &plan.AggregateNode{}, &plan.DistinctNode{}, &plan.DistinctOnNode{}, &plan.SetNode{}, &plan.WindowNode{}, &plan.DerivedNode{}, &plan.FunctionFromNode{}, &plan.SetProjectNode{}} {
 		copy := *project
 		copy.Child = node
 		if _, _, ok := parallelQueryPlan(&copy, source); ok {
@@ -350,7 +351,7 @@ func TestQueryParallelEligibility(t *testing.T) {
 		func(s *querySource) { s.locks = &queryLockContext{} }, func(s *querySource) { s.lineage = &queryLockLineage{} }, func(s *querySource) { s.inherited.Mode = 1 },
 		func(s *querySource) { s.sources = []*querySource{s} }, func(s *querySource) { s.partialMask = &storage.IndexRoot{} }, func(s *querySource) { s.hashIndexes = []capturedHashIndex{} },
 		func(s *querySource) { s.inheritance = []inheritanceQuerySegment{} }, func(s *querySource) { s.anonymous = [][]sqltype.Value{} }, func(s *querySource) { s.singleton = true },
-		func(s *querySource) { s.materialized = true }, func(s *querySource) { s.final = &finalRows{} }, func(s *querySource) { s.input = &querySource{} }, func(s *querySource) { s.nestedRoot = &singletonNode{} },
+		func(s *querySource) { s.materialized = true }, func(s *querySource) { s.final = &finalRows{} }, func(s *querySource) { s.input = &querySource{} }, func(s *querySource) { s.nestedRoot = &plan.SingletonNode{} },
 		func(s *querySource) { s.window = true }, func(s *querySource) { s.scratch = []sqltype.Value{} }, func(s *querySource) { s.rlsDenied = true }, func(s *querySource) { s.storedRef = s.ref },
 	} {
 		copy := *source
@@ -359,13 +360,13 @@ func TestQueryParallelEligibility(t *testing.T) {
 			t.Fatal("unsupported source admitted")
 		}
 	}
-	column := project.Expressions[0].(columnExpression)
-	for _, expr := range []expr.Expr{functions.SequenceCall{}, functions.Random{}, functions.Advisory{}, subqueryExpression{}, queryProbe(column.ResultUsage(), nil)} {
+	column := project.Expressions[0].(plan.ColumnExpr)
+	for _, expr := range []expr.Expr{functions.SequenceCall{}, functions.Random{}, functions.Advisory{}, plan.SubqueryExpr{}, queryProbe(column.ResultUsage(), nil)} {
 		if parallelQueryExpression(expr, project.Frame, len(project.Child.Schema())) {
 			t.Fatalf("unsafe/unknown %T admitted", expr)
 		}
 		copy := *ordered
-		copy.Keys = append([]sortKey(nil), ordered.Keys...)
+		copy.Keys = append([]plan.SortKey(nil), ordered.Keys...)
 		copy.Keys[0].Expression = expr
 		p := *project
 		p.Child = &copy
@@ -373,7 +374,7 @@ func TestQueryParallelEligibility(t *testing.T) {
 			t.Fatal("hidden unsafe key admitted")
 		}
 	}
-	for _, mutate := range []func(*columnExpression){func(c *columnExpression) { c.Virtual = column }, func(c *columnExpression) { c.Frame++ }, func(c *columnExpression) { c.Scope++ }} {
+	for _, mutate := range []func(*plan.ColumnExpr){func(c *plan.ColumnExpr) { c.Virtual = column }, func(c *plan.ColumnExpr) { c.Frame++ }, func(c *plan.ColumnExpr) { c.Scope++ }} {
 		copy := column
 		mutate(&copy)
 		if parallelQueryExpression(copy, project.Frame, len(project.Child.Schema())) {
@@ -385,7 +386,7 @@ func TestQueryParallelEligibility(t *testing.T) {
 func TestQueryParallelErrorIdentity(t *testing.T) {
 	parallelOpenFailureProof(t)
 	_, query, source := queryCoreFixture(t, "SELECT id FROM t")
-	project := query.Root.(*projectNode)
+	project := query.Root.(*plan.ProjectNode)
 	blocked := make(chan struct{})
 	var joined atomic.Bool
 	sentinel := errors.New("primary worker failure")
@@ -418,8 +419,8 @@ func TestQueryParallelCancellation(t *testing.T) {
 	for _, phase := range []string{"before", "filter", "target", "sort"} {
 		t.Run(phase, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT id FROM t WHERE f ORDER BY id+1")
-			project := query.Root.(*projectNode)
-			ordered := project.Child.(*sortNode)
+			project := query.Root.(*plan.ProjectNode)
+			ordered := project.Child.(*plan.SortNode)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			var calls atomic.Int64
@@ -434,7 +435,7 @@ func TestQueryParallelCancellation(t *testing.T) {
 			case "before":
 				cancel()
 			case "filter":
-				f := ordered.Child.(*filterNode)
+				f := ordered.Child.(*plan.FilterNode)
 				f.Predicate = probe(f.Predicate.ResultUsage())
 			case "target":
 				project.Expressions[0] = probe(project.Schema()[0].Usage)
@@ -491,8 +492,8 @@ func TestQueryParallelMerge(t *testing.T) {
 	}
 	for _, workers := range []int{2, 4} {
 		_, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY id")
-		project := query.Root.(*projectNode)
-		ordered := project.Child.(*sortNode)
+		project := query.Root.(*plan.ProjectNode)
+		ordered := project.Child.(*plan.SortNode)
 		ordered.Keys[0].Comparison = sqltype.Comparison{}
 		// At four singleton runs no local comparison is possible: failure proves
 		// the leader actually compares run heads, not a discarded sorted plan.

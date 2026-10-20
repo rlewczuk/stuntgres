@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -108,7 +109,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 		}
 		rawArg, arg := analyzed.Raw, analyzed.Expression
 		if unknownNullSyntax(rawArg) {
-			literal, ok := arg.(literalExpression)
+			literal, ok := arg.(plan.LiteralExpr)
 			if !ok || !literal.Value.IsNull() || literal.Usage.Type.ID() != sqltype.Text {
 				return nil, fmt.Errorf("stuntgres: invalid unknown null-count argument")
 			}
@@ -127,7 +128,7 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 		if p.Volatility > properties.Volatility {
 			properties.Volatility = p.Volatility
 		}
-		if parameter, ok := arg.(parameterExpression); ok && parameter.Usage.Type == nil {
+		if parameter, ok := arg.(plan.ParameterExpr); ok && parameter.Usage.Type == nil {
 			b.params.anyParameters = append(b.params.anyParameters, parameter)
 		}
 	}

@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"testing"
 
 	"stuntgres/internal/sqltype"
@@ -16,7 +17,7 @@ func TestBitwiseAggregateEagerEvaluation(t *testing.T) {
 		for _, phase := range []string{"success", "late error", "late cancellation"} {
 			t.Run(name+"/"+phase, func(t *testing.T) {
 				_, q, source := queryCoreFixture(t, "SELECT "+name+"(v) FROM t")
-				node := q.Root.(*projectNode).Child.(*aggregateNode)
+				node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 				usage := node.Calls[0].Argument.ResultUsage()
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
@@ -131,7 +132,7 @@ func TestBitwiseAggregateActualBitLoopCancellation(t *testing.T) {
 	for _, op := range []functions.AggregateOperation{functions.AggregateBitAnd, functions.AggregateBitOr, functions.AggregateBitXor} {
 		e, q, source := queryCoreFixture(t, "SELECT bit_xor(v) FROM t")
 		d, _ := e.CatalogRead().LookupType(sqltype.Bit)
-		node := q.Root.(*projectNode).Child.(*aggregateNode)
+		node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 		operator, err := bitwiseAggregateOperator(op)
 		if err != nil {
 			t.Fatal(err)
@@ -162,7 +163,7 @@ func TestBitwiseAggregateEagerWidthFailure(t *testing.T) {
 	for _, op := range []functions.AggregateOperation{functions.AggregateBitAnd, functions.AggregateBitOr, functions.AggregateBitXor} {
 		e, q, source := queryCoreFixture(t, "SELECT bit_xor(v) FROM t")
 		d, _ := e.CatalogRead().LookupType(sqltype.Bit)
-		node := q.Root.(*projectNode).Child.(*aggregateNode)
+		node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 		operator, err := bitwiseAggregateOperator(op)
 		if err != nil {
 			t.Fatal(err)

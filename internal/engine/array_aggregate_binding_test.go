@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"testing"
 
 	"stuntgres/internal/engine/ids"
@@ -54,7 +55,7 @@ func TestArrayAggregateBinding(t *testing.T) {
 			t.Fatal("missing result-array dependency")
 		}
 		again, err := b.bind(raw, expressionPolicy{context: projectionContext})
-		if err != nil || again.(aggregateExpression).Slot != result.(aggregateExpression).Slot {
+		if err != nil || again.(plan.AggregateExpr).Slot != result.(plan.AggregateExpr).Slot {
 			t.Fatal("identical aggregate failed state-slot sharing", err)
 		}
 		other := call

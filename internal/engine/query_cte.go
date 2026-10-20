@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -12,14 +13,14 @@ type cteInvocation struct {
 	frame     uint32
 	parent    *cteInvocation
 	state     queryState
-	producers map[*cteDefinition]*cteProducer
+	producers map[*plan.CTEDefinition]*cteProducer
 	order     []*cteProducer
 	closed    bool
 	failure   error
 }
 type cteProducer struct {
 	state                queryState
-	project              *projectNode
+	project              *plan.ProjectNode
 	inner                indexedStage
 	source               *querySource
 	opened, done, closed bool
@@ -122,7 +123,7 @@ func (p *cteProducer) ensure(ctx context.Context, index int) (bool, error) {
 	return index < p.source.flatCount, nil
 }
 
-func openCTEScan(ctx context.Context, state *queryState, n *derivedNode) (indexedStage, error) {
+func openCTEScan(ctx context.Context, state *queryState, n *plan.DerivedNode) (indexedStage, error) {
 	owner := state.ctes
 	for owner != nil && owner.frame != n.CTE.Owner {
 		owner = owner.parent
@@ -131,14 +132,14 @@ func openCTEScan(ctx context.Context, state *queryState, n *derivedNode) (indexe
 		return indexedStage{}, fmt.Errorf("stuntgres: missing CTE invocation owner")
 	}
 	if owner.producers == nil {
-		owner.producers = make(map[*cteDefinition]*cteProducer)
+		owner.producers = make(map[*plan.CTEDefinition]*cteProducer)
 	}
 	producer := owner.producers[n.CTE]
 	if producer == nil {
 		if n.CTE.Mutation != nil {
 			return indexedStage{}, fmt.Errorf("stuntgres: modifying CTE has not completed")
 		}
-		project, ok := n.Query.Root.(*projectNode)
+		project, ok := n.Query.Root.(*plan.ProjectNode)
 		if !ok {
 			return indexedStage{}, fmt.Errorf("stuntgres: CTE lacks projection")
 		}

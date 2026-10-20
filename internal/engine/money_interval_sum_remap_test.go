@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"testing"
 
 	"stuntgres/internal/engine/ids"
@@ -31,10 +32,10 @@ func moneyIntervalSumProviderRemap(t *testing.T, id sqltype.ID) {
 	} else {
 		p = functions.NewIntervalSum(old.Usage())
 	}
-	root := &aggregateNode{
-		QuerySchema: querySchema{{Name: "sum", Usage: p.ResultUsage(), Nullable: true, NullabilityKnown: true}},
-		Child:       &valuesNode{},
-		Calls:       []aggregateCall{{Provider: p, Operation: operation}},
+	root := &plan.AggregateNode{
+		QuerySchema: plan.QuerySchema{{Name: "sum", Usage: p.ResultUsage(), Nullable: true, NullabilityKnown: true}},
+		Child:       &plan.ValuesNode{},
+		Calls:       []plan.AggregateCall{{Provider: p, Operation: operation}},
 	}
 	mapped, err := remapViewQuery(destination.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == old {
@@ -45,7 +46,7 @@ func moneyIntervalSumProviderRemap(t *testing.T, id sqltype.ID) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	call := mapped.(*aggregateNode).Calls[0]
+	call := mapped.(*plan.AggregateNode).Calls[0]
 	provider := call.Provider
 	if provider.ResultUsage() != owned.Usage() || mapped.Schema()[0].Usage != owned.Usage() || call.Operation != operation {
 		t.Fatal("wrong remapped provider", provider.ResultUsage(), mapped.Schema())

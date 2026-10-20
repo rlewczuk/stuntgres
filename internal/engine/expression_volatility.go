@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 )
 
 // plannedVolatility inspects the physical surviving tree. Analysis properties
@@ -54,7 +55,7 @@ func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 			return children(n.Args...)
 		}
 		return n.Properties().Volatility
-	case assignmentValueExpression:
+	case plan.AssignmentValueExpr:
 		v := children(n.Base, n.Value)
 		for target := n.Target; target != nil; target = target.Next {
 			for _, sub := range target.Node.Subscripts {
@@ -63,22 +64,22 @@ func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 			v = session(v, target.Reapply.SessionDependent())
 		}
 		return v
-	case rowExpression:
+	case plan.RowExpr:
 		return children(n.Fields...)
-	case fieldExpression:
+	case plan.FieldExpr:
 		return children(n.Base)
-	case arrayExpression:
+	case plan.ArrayExpr:
 		return children(n.Elements...)
-	case subscriptExpression:
+	case plan.SubscriptExpr:
 		var storage [13]expr.Expr
 		return children(subscriptChildren(n, &storage)...)
-	case domainValueExpression, literalExpression, columnExpression:
+	case plan.DomainValueExpr, plan.LiteralExpr, plan.ColumnExpr:
 		return expr.Immutable
-	case collationExpression:
+	case plan.CollationExpr:
 		return children(n.Child)
-	case coercionExpression:
+	case plan.CoercionExpr:
 		return session(children(n.Child), n.Plan.SessionDependent())
-	case rowComparisonExpression:
+	case plan.RowComparisonExpr:
 		v := expr.Immutable
 		for _, pair := range n.Comparisons {
 			if intrinsicOnly {
@@ -88,32 +89,32 @@ func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 			}
 		}
 		return v
-	case scalarArrayComparisonExpression:
+	case plan.ScalarArrayComparisonExpr:
 		v := children(n.Left)
 		if n.Array != nil {
 			v = merge(v, children(n.Array))
 		}
 		v = merge(v, children(n.Items...))
 		return session(v, n.Predicate.SessionDependent())
-	case comparisonExpression:
+	case plan.ComparisonExpr:
 		return session(children(n.Left, n.Right), n.Predicate.SessionDependent())
-	case selectedOperatorExpression:
+	case plan.SelectedOperatorExpr:
 		return children(n.Provider)
-	case arithmeticExpression:
+	case plan.ArithmeticExpr:
 		return session(children(n.Left, n.Right), n.Provider.SessionDependent())
-	case bitwiseExpression:
+	case plan.BitwiseExpr:
 		return children(n.Left, n.Right)
-	case likeExpression:
+	case plan.LikeExpr:
 		return children(n.Left, n.Right)
-	case nullTestExpression:
+	case plan.NullTestExpr:
 		return children(n.Child)
-	case truthTestExpression:
+	case plan.TruthTestExpr:
 		return children(n.Child)
-	case logicalExpression:
+	case plan.LogicalExpr:
 		return children(n.Left, n.Right)
-	case distinctExpression:
+	case plan.DistinctExpr:
 		return session(children(n.Left, n.Right), n.Equality.SessionDependent())
-	case conditionalExpression:
+	case plan.ConditionalExpr:
 		return session(children(n.Args...), n.Comparison.SessionDependent())
 	case extensionPathsExpression:
 		return merge(children(n.arg), expr.Stable)
@@ -129,7 +130,7 @@ func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 		return merge(n.procedure.Volatility, children(n.Args...))
 	case installedFunctionExpression:
 		return merge(n.procedure.Volatility, children(n.Arg))
-	case caseExpression:
+	case plan.CaseExpr:
 		v := children(n.Test, n.Otherwise)
 		for _, arm := range n.Arms {
 			v = merge(v, children(arm.Condition, arm.Result))

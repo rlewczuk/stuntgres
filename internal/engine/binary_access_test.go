@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -101,7 +102,7 @@ func TestBinaryAccessRetagAndRestoreArguments(t *testing.T) {
 			} else {
 				value, _ = sqltype.Integer(d, 0)
 			}
-			args[i] = literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: value}
+			args[i] = plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: value}
 		}
 		p, err := sqltype.BindBinary(name, types[result].Usage(), usages...)
 		if err != nil {
@@ -191,12 +192,12 @@ func bitAccessBindingProperties(t *testing.T) {
 				t.Fatal(err)
 			}
 			props := expr.Properties{Volatility: expr.Stable, RowDependent: true, StageDependent: true, DomainDependent: true}
-			source := literalExpression{Info: expr.Info{Usage: usage, Property: props}, Value: value}
+			source := plan.LiteralExpr{Info: expr.Info{Usage: usage, Property: props}, Value: value}
 			operands := []functions.Argument{{Expression: source, Usage: usage}}
 			for i := 1; i < len(raw.Args); i++ {
 				u := b.typ(sqltype.Int4).Usage()
 				v, _ := sqltype.Integer(u.Type, 0)
-				operands = append(operands, functions.Argument{Expression: literalExpression{Info: expr.Info{Usage: u}, Value: v}, Usage: u})
+				operands = append(operands, functions.Argument{Expression: plan.LiteralExpr{Info: expr.Info{Usage: u}, Value: v}, Usage: u})
 			}
 			var types functions.BinaryTypes
 			node, err := functions.FinishBinary(b, name, sqltype.Bit, parser.Position{}, operands, parser.OrdinaryFunctionSyntax, &types)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -15,9 +16,9 @@ func TestQueryOuterJoinsNegatedKeys(t *testing.T) {
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
 	info := expr.Info{Usage: boolean.Usage(), Property: expr.Properties{RowDependent: true, ParameterDependent: true, StageDependent: true}}
 	columnInfo := expr.Info{Usage: integer.Usage(), Property: info.Property}
-	left := columnExpression{Info: columnInfo, Slot: 0}
-	right := columnExpression{Info: columnInfo, Slot: 1}
-	comparison := func(op string, a, b expr.Expr) comparisonExpression {
+	left := plan.ColumnExpr{Info: columnInfo, Slot: 0}
+	right := plan.ColumnExpr{Info: columnInfo, Slot: 1}
+	comparison := func(op string, a, b expr.Expr) plan.ComparisonExpr {
 		t.Helper()
 		operator := map[string]sqltype.ComparisonOperator{
 			"=": sqltype.CompareEqual, "<>": sqltype.CompareNotEqual,
@@ -28,18 +29,18 @@ func TestQueryOuterJoinsNegatedKeys(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return comparisonExpression{Info: info, Left: a, Right: b, Operator: op, Predicate: provider}
+		return plan.ComparisonExpr{Info: info, Left: a, Right: b, Operator: op, Predicate: provider}
 	}
-	logical := func(op parser.LogicalOperator, a, b expr.Expr) logicalExpression {
-		return logicalExpression{Info: info, Op: op, Left: a, Right: b}
+	logical := func(op parser.LogicalOperator, a, b expr.Expr) plan.LogicalExpr {
+		return plan.LogicalExpr{Info: info, Op: op, Left: a, Right: b}
 	}
 	not := func(a expr.Expr) expr.Expr { return logical(parser.LogicalNot, a, nil) }
 	equal := comparison("=", left, right)
 	unequal := comparison("<>", left, right)
-	unknown := literalExpression{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Null(boolean)}
+	unknown := plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Null(boolean)}
 	one, _ := sqltype.Integer(integer, 1)
 	two, _ := sqltype.Integer(integer, 2)
-	constant := literalExpression{Info: expr.Info{Usage: integer.Usage()}, Value: one}
+	constant := plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}, Value: one}
 	volatile := left
 	volatile.Property.Volatility = expr.Volatile
 	stable := left
@@ -69,7 +70,7 @@ func TestQueryOuterJoinsNegatedKeys(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			join := &joinNode{Kind: parser.JoinFull, LeftWidth: 1, RightWidth: 1, Predicate: tc.expr}
+			join := &plan.JoinNode{Kind: parser.JoinFull, LeftWidth: 1, RightWidth: 1, Predicate: tc.expr}
 			before := join.Predicate
 			ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 			facts, err := fullJoinCondition(ctx, join, join.Predicate, false)

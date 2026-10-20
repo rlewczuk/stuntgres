@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -66,7 +67,7 @@ func (r pgRenderer) renderingWithReturning(ctx context.Context, node expr.Expr, 
 			}
 			arg := spec.Args[piece.Arg]
 			if piece.Value {
-				literal, ok := arg.Expr.(literalExpression)
+				literal, ok := arg.Expr.(plan.LiteralExpr)
 				if !ok {
 					return "", fmt.Errorf("stuntgres: invalid deparse syntax keyword")
 				}
@@ -135,9 +136,9 @@ func (r pgRenderer) renderingArg(ctx context.Context, spec expr.Rendering, arg e
 	}
 	simple := false
 	switch arg.Expr.(type) {
-	case columnExpression, literalExpression:
+	case plan.ColumnExpr, plan.LiteralExpr:
 		simple = arg.CastForm != expr.CastParenthesized
-	case coercionExpression:
+	case plan.CoercionExpr:
 		simple = arg.CastForm == expr.CastLeafOrCoercion
 	}
 	return r.cast(text, arg.Cast, simple)

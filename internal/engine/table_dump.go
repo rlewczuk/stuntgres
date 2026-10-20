@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
@@ -121,7 +122,7 @@ func (t *dumpRelation) emitRows(ctx context.Context, catalogView catalog.Read, e
 				// non-contextual stored expressions keep catalogLiteralSQL.
 				literal, err = destination.SQLLiteral(ctx, v)
 			} else {
-				literal, err = catalogLiteralSQL(ctx, catalogView, literalExpression{Info: expr.Info{Usage: t.columns[i].Usage}, Value: v})
+				literal, err = catalogLiteralSQL(ctx, catalogView, plan.LiteralExpr{Info: expr.Info{Usage: t.columns[i].Usage}, Value: v})
 			}
 			if err != nil {
 				return err
@@ -164,7 +165,7 @@ func (t *dumpRelation) rowReplayReferences(ctx context.Context, catalog catalog.
 			if !column.Usage.Type.ContainsRegclass() {
 				continue
 			}
-			literal := literalExpression{Info: expr.Info{Usage: column.Usage}, Value: version.Values[i]}
+			literal := plan.LiteralExpr{Info: expr.Info{Usage: column.Usage}, Value: version.Values[i]}
 			if err := regclassReplayReferences(catalog, literal, add); err != nil {
 				return err
 			}

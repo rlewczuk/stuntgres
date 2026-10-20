@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -40,7 +41,7 @@ func TestStatisticalAggregateWindowSignatures(t *testing.T) {
 				if _, err := b.bind(seed, expressionPolicy{context: projectionContext}); err != nil {
 					t.Fatal(err)
 				}
-				before := append([]aggregateCall(nil), b.grouping.aggregates...)
+				before := append([]plan.AggregateCall(nil), b.grouping.aggregates...)
 				callee := parser.ObjectName{Parts: []parser.Identifier{{Text: name, Pos: raw.Pos}}}
 				var argument expr.Expr
 				usage, err := b.resolveWindowAggregateSignature(raw, callee, &argument)

@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -28,7 +29,7 @@ func TestSourceProtocolSubstitution(t *testing.T) {
 		t.Fatal("test requires distinct descriptor owners")
 	}
 	replacement := queryProbe(fresh.Usage(), func(*EvalContext) (sqltype.Value, error) { return value, nil })
-	node := &functionFromNode{Calls: []expr.Expr{original}}
+	node := &plan.FunctionFromNode{Calls: []expr.Expr{original}}
 	mapped, err := rewriteQueryExpressions(node, func(child expr.Expr) (expr.Expr, bool, error) {
 		if child == original.Args[0] {
 			return replacement, true, nil
@@ -38,7 +39,7 @@ func TestSourceProtocolSubstitution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	call := mapped.(*functionFromNode).Calls[0].(functions.JSONRecord)
+	call := mapped.(*plan.FunctionFromNode).Calls[0].(functions.JSONRecord)
 	staged, err := b.mapQuerySetStage(original, func(child expr.Expr) (expr.Expr, bool, error) {
 		if child == original.Args[0] {
 			return replacement, true, nil
@@ -69,7 +70,7 @@ func TestSourceProtocolOccurrence(t *testing.T) {
 	first := seriesUnit(t, d, 1, 3)
 	otherArity := seriesUnit(t, d, 1, 3, 1)
 	otherUsage := seriesUnit(t, seriesUnitType(t, sqltype.Int8), 1, 3)
-	otherFamily := subscriptsExpression{Info: first.Info, Args: first.Args}
+	otherFamily := plan.SubscriptsExpr{Info: first.Info, Args: first.Args}
 	for _, other := range []expr.Expr{otherArity, otherUsage, otherFamily} {
 		if sameQuerySetOccurrence(first, other) || sameQuerySetOccurrence(other, first) {
 			t.Fatal("distinct occurrence collapsed", other)
@@ -249,14 +250,14 @@ func TestSourceProtocolPresence(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		call := unnestExpression{Info: expr.Info{Usage: empty.Usage()}, Args: []expr.Expr{literalExpression{Info: expr.Info{Usage: array.Usage()}, Value: value}}}
+		call := plan.UnnestExpr{Info: expr.Info{Usage: empty.Usage()}, Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: array.Usage()}, Value: value}}}
 		for _, reverse := range []bool{false, true} {
 			borrowed, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: ctx}}, call)
 			if err != nil {
 				t.Fatal(err)
 			}
 			scalar := expr.ScalarSource(sqltype.Null(integer))
-			calls := []expr.Expr{literalExpression{Info: expr.Info{Usage: integer.Usage()}}, call}
+			calls := []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}}, call}
 			invocation := functionSetInvocation{cursors: []expr.SourceCursor{scalar, borrowed}}
 			if reverse {
 				calls[0], calls[1] = calls[1], calls[0]
@@ -318,7 +319,7 @@ func TestSourceProtocolCleanup(t *testing.T) {
 	failure := errors.New("later source argument")
 	later := seriesUnit(t, seriesUnitType(t, sqltype.Int4), 1, 2)
 	later.Args[0] = queryProbe(later.Args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })
-	invocation, err := openFunctionInvocation(ctx, &functionFromNode{Calls: []expr.Expr{first, later}})
+	invocation, err := openFunctionInvocation(ctx, &plan.FunctionFromNode{Calls: []expr.Expr{first, later}})
 	if !errors.Is(err, failure) || invocation.cursors != nil {
 		t.Fatal("partial open exposed an invocation", invocation, err)
 	}
@@ -350,7 +351,7 @@ func sourceProtocolSurvivorSubstitution(t *testing.T) {
 		t.Fatal(err)
 	}
 	info := expr.Info{Usage: record.Usage, Property: expr.Properties{Volatility: expr.Stable, StageDependent: true}}
-	member, err := functions.NewJSONRecord(info, "json_to_recordset", -1, []expr.Expr{literalExpression{Info: expr.Info{Usage: input.Type().Usage()}, Value: array}})
+	member, err := functions.NewJSONRecord(info, "json_to_recordset", -1, []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: input.Type().Usage()}, Value: array}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -367,11 +368,11 @@ func sourceProtocolSurvivorSubstitution(t *testing.T) {
 	call := substituted.(functions.JSONRecord)
 	requests := []expr.Expr{call}
 	b.query.frame = 1
-	root, err := b.lowerQuerySets(&singletonNode{}, requests, nil, true)
+	root, err := b.lowerQuerySets(&plan.SingletonNode{}, requests, nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	project := &projectNode{QuerySchema: querySchema{{Name: "record", Usage: call.Usage}}, Child: root, Expressions: requests, Frame: 1, HasTargetSet: true}
+	project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "record", Usage: call.Usage}}, Child: root, Expressions: requests, Frame: 1, HasTargetSet: true}
 	planned, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: ctx, catalog: engine.CatalogRead()}}, project)
 	if err != nil {
 		t.Fatal(err)

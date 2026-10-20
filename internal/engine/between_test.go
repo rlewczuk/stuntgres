@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -60,7 +61,7 @@ func TestBetweenBindingProperties(t *testing.T) {
 				t.Fatal(tc.expr, u)
 			}
 		}
-		node := bound.query.Root.(*projectNode).Expressions[0]
+		node := bound.query.Root.(*plan.ProjectNode).Expressions[0]
 		p := node.Properties()
 		if node.ResultUsage().Type.ID() != sqltype.Bool || p.RowDependent != tc.row || p.ParameterDependent != (len(tc.ids) > 0) || p.StageDependent || p.Volatility != expr.Immutable {
 			t.Fatal(tc.expr, node, p)
@@ -137,7 +138,7 @@ func TestBetweenTemporalCaptureRebind(t *testing.T) {
 					e.mu.Unlock()
 					t.Fatal(err)
 				}
-				node := rebound.query.Root.(*projectNode).Expressions[0]
+				node := rebound.query.Root.(*plan.ProjectNode).Expressions[0]
 				value, evalErr := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 				truth, truthErr := value.Boolean()
 				want := form == "BETWEEN" || form == "BETWEEN SYMMETRIC"

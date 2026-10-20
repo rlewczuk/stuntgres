@@ -7,6 +7,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -271,7 +272,7 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 			}
 			if modifier {
 				body := mappedRule.actions[0].binding
-				var definition *cteDefinition
+				var definition *plan.CTEDefinition
 				for _, candidate := range body.ctes {
 					if candidate.Mutation != nil && cteMutationOf(candidate).insert.conflict == mappedConflict {
 						definition = candidate
@@ -281,12 +282,12 @@ func TestRuleNamedConstraintRemap(t *testing.T) {
 					t.Fatal("reminted modifier lost its actual definition owner")
 				}
 				foundScan := false
-				var scan func(LogicalNode)
-				scan = func(node LogicalNode) {
+				var scan func(plan.Node)
+				scan = func(node plan.Node) {
 					if node == nil {
 						return
 					}
-					if derived, ok := node.(*derivedNode); ok && derived.CTE != nil && derived.CTE.Name == definition.Name {
+					if derived, ok := node.(*plan.DerivedNode); ok && derived.CTE != nil && derived.CTE.Name == definition.Name {
 						foundScan = true
 						if derived.CTE != definition || derived.Query != definition.Query {
 							t.Fatal("constraint remint forked modifier definition/consumer spool")

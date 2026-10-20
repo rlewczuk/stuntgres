@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
 
@@ -116,7 +117,7 @@ func TestPGNamespaceViewStoragePrecedence(t *testing.T) {
 		leaf := queryLeaf{ref: e.catalog.Domain.Ref(auth.Catalog.Epoch(), address), relation: relation}
 		before, sequence, oid, revision := e.catalog.state, e.visibility.CommitSeq(), e.catalog.nextOID, e.catalog.nextRevision
 		e.mu.Lock()
-		refs, err := e.queryTableRefsLocked(auth, auth.State.CurrentUser, []queryLeaf{leaf}, nil, peer.token, queryRowMark{})
+		refs, err := e.queryTableRefsLocked(auth, auth.State.CurrentUser, []queryLeaf{leaf}, nil, peer.token, plan.RowMark{})
 		e.mu.Unlock()
 		defaultUnitDiagnostic(t, err, code, message)
 		if len(refs) != 0 || e.catalog.state != before || e.visibility.CommitSeq() != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[base] != store || !sameVersionRoot(store.Versions, root) || store.Ends != ends || peer.temporaryNamespace != (ids.ObjectAddress{}) || peer.transactions.accessedTemporary {

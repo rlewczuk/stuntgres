@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 )
 
@@ -71,19 +72,19 @@ func (s *StatementScope) positionedMutationRow(b binding) (mutationRowIdentity, 
 
 // Only occurrence-preserving nodes may expose an unlocked physical scan.
 // A real sort/aggregate/join/set frontier is not a simply updatable scan.
-func cursorSimpleScan(node LogicalNode, inputs *querySource) *querySource {
+func cursorSimpleScan(node plan.Node, inputs *querySource) *querySource {
 	switch n := node.(type) {
-	case *projectNode:
+	case *plan.ProjectNode:
 		return cursorSimpleScan(n.Child, inputs)
-	case *filterNode:
+	case *plan.FilterNode:
 		return cursorSimpleScan(n.Child, inputs)
-	case *evaluationNode:
+	case *plan.EvaluationNode:
 		return cursorSimpleScan(n.Child, inputs)
-	case *limitNode:
+	case *plan.LimitNode:
 		return cursorSimpleScan(n.Child, inputs)
-	case *derivedNode:
+	case *plan.DerivedNode:
 		return cursorSimpleScan(n.Query.Root, inputs)
-	case *sourceNode:
+	case *plan.SourceNode:
 		source := querySourceAt(inputs, n.Occurrence)
 		for source.input != nil {
 			source = source.input

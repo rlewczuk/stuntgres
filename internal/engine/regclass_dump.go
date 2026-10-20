@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 )
 
 // regclassReplayReferences discovers only replay-order prerequisites. Opaque
@@ -16,7 +17,7 @@ func regclassReplayReferences(view catalog.Read, node expr.Expr, visit func(ids.
 		if failure != nil {
 			return
 		}
-		literal, ok := child.(literalExpression)
+		literal, ok := child.(plan.LiteralExpr)
 		if !ok {
 			return
 		}

@@ -6,11 +6,12 @@ import (
 	"math"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
 const (
-	querySetCallStep querySetStepKind = iota
+	querySetCallStep plan.SetStepKind = iota
 	querySetScalarStep
 )
 
@@ -32,7 +33,7 @@ func strictScalarFunctionSource(call expr.Expr) bool {
 	return allowed && !set && call.ResultUsage().Type != nil && !call.ResultUsage().Type.IsComposite()
 }
 
-func preflightFunctionFrom(c *EvalContext, n *functionFromNode) (LogicalNode, error) {
+func preflightFunctionFrom(c *EvalContext, n *plan.FunctionFromNode) (plan.Node, error) {
 	// Plan every child before simplifying a source call. Keep the analyzed
 	// call carrier: it owns aliases, record expansion and the fixed stage width.
 	planned, err := rewriteQueryExpressions(n, func(expr expr.Expr) (expr.Expr, bool, error) {
@@ -41,7 +42,7 @@ func preflightFunctionFrom(c *EvalContext, n *functionFromNode) (LogicalNode, er
 	if err != nil {
 		return nil, err
 	}
-	source := planned.(*functionFromNode)
+	source := planned.(*plan.FunctionFromNode)
 	var scalarNull []bool
 	for i, call := range source.Calls {
 		if !strictScalarFunctionSource(call) {
@@ -68,7 +69,7 @@ func preflightFunctionFrom(c *EvalContext, n *functionFromNode) (LogicalNode, er
 
 // openFunctionCall opens call i of a ROWS FROM item; a strict call with a NULL
 // scalar argument yields its typed NULL after the node prologue.
-func openFunctionCall(c *EvalContext, n *functionFromNode, i int) (expr.SourceCursor, error) {
+func openFunctionCall(c *EvalContext, n *plan.FunctionFromNode, i int) (expr.SourceCursor, error) {
 	if n.ScalarNull != nil && n.ScalarNull[i] {
 		if err := evaluationContext(c); err != nil {
 			return expr.SourceCursor{}, err
@@ -78,7 +79,7 @@ func openFunctionCall(c *EvalContext, n *functionFromNode, i int) (expr.SourceCu
 	return openFunctionSource(c, n.Calls[i])
 }
 
-func openFunctionInvocation(c *EvalContext, n *functionFromNode) (functionSetInvocation, error) {
+func openFunctionInvocation(c *EvalContext, n *plan.FunctionFromNode) (functionSetInvocation, error) {
 	s := functionSetInvocation{cursors: make([]expr.SourceCursor, len(n.Calls))}
 	for i := range n.Calls {
 		cursor, err := openFunctionCall(c, n, i)
@@ -101,7 +102,7 @@ func openFunctionSource(c *EvalContext, expression expr.Expr) (expr.SourceCursor
 	return opening.OpenSource(c)
 }
 
-func openFunctionFromNode(ctx context.Context, state *queryState, n *functionFromNode) (indexedStage, error) {
+func openFunctionFromNode(ctx context.Context, state *queryState, n *plan.FunctionFromNode) (indexedStage, error) {
 	if n.Frame == 0 {
 		return indexedStage{}, fmt.Errorf("stuntgres: invalid function source frame")
 	}
@@ -196,7 +197,7 @@ func appendFunctionStageRow(ctx context.Context, out *indexedStage, schema []cat
 	return nil
 }
 
-func openSetProjectNode(ctx context.Context, state *queryState, n *setProjectNode) (indexedStage, error) {
+func openSetProjectNode(ctx context.Context, state *queryState, n *plan.SetProjectNode) (indexedStage, error) {
 	child, err := openQueryNode(ctx, state, n.Child)
 	if err != nil {
 		return indexedStage{}, err
@@ -338,7 +339,7 @@ func functionFromCallWidth(call expr.Expr) int {
 	return 1
 }
 
-func validateFunctionFromLayout(n *functionFromNode) error {
+func validateFunctionFromLayout(n *plan.FunctionFromNode) error {
 	if len(n.Calls) == 0 {
 		return fmt.Errorf("stuntgres: empty function source")
 	}

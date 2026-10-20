@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sort"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -20,12 +21,12 @@ type analyzedGroupItem struct {
 	pos   parser.Position
 }
 
-func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection []expr.Expr, names []string) ([]expr.Expr, []queryGrouping, [][]int, error) {
+func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection []expr.Expr, names []string) ([]expr.Expr, []plan.Grouping, [][]int, error) {
 	if raw == nil {
 		return nil, nil, nil, nil
 	}
 	var keys []expr.Expr
-	var families []queryGrouping
+	var families []plan.Grouping
 	leaf := 0
 	var bind func(parser.GroupItem) (analyzedGroupItem, error)
 	bind = func(item parser.GroupItem) (analyzedGroupItem, error) {
@@ -104,15 +105,15 @@ func (b *expressionBinder) bindGroupClause(raw *parser.GroupClause, projection [
 		if err != nil {
 			return out, err
 		}
-		if unknown, ok := key.(unknownOutput); ok {
+		if unknown, ok := key.(plan.UnknownOutput); ok {
 			key, err = b.bind(unknown.Raw, expressionPolicy{context: projectionContext})
 			if err != nil {
 				return out, err
 			}
 		}
-		var operation *groupingExpression
+		var operation *plan.GroupingExpr
 		walkBoundExpression(key, func(node expr.Expr) {
-			if n, ok := node.(groupingExpression); ok && n.Frame == b.frameID() && operation == nil {
+			if n, ok := node.(plan.GroupingExpr); ok && n.Frame == b.frameID() && operation == nil {
 				operation = &n
 			}
 		})
@@ -305,7 +306,7 @@ func expandGroupingItem(ctx context.Context, item analyzedGroupItem) ([][]int, e
 	return nil, fmt.Errorf("stuntgres: invalid grouping item")
 }
 
-func (c *EvalContext) EvalGrouping(e groupingExpression) (sqltype.Value, error) {
+func (c *EvalContext) EvalGrouping(e plan.GroupingExpr) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -371,11 +372,11 @@ func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (expr.Expr, err
 	for _, arg := range args {
 		walkQueryArgumentExpression(arg, func(node expr.Expr) {
 			switch n := node.(type) {
-			case aggregateExpression:
+			case plan.AggregateExpr:
 				if n.Frame == owner && nested == nil {
 					nested = n
 				}
-			case groupingExpression:
+			case plan.GroupingExpr:
 				if n.Frame == owner && nested == nil {
 					nested = n
 				}
@@ -403,17 +404,17 @@ func (b *expressionBinder) bindGrouping(raw parser.GroupingExpr) (expr.Expr, err
 		b.grouping.active = true
 	}
 	usage := b.typ(sqltype.Int4).Usage()
-	return groupingExpression{Info: expr.Info{Usage: usage, Pos: raw.Pos, Property: expr.Properties{StageDependent: true}}, Args: args, Positions: positions, Frame: owner, Slot: -1}, nil
+	return plan.GroupingExpr{Info: expr.Info{Usage: usage, Pos: raw.Pos, Property: expr.Properties{StageDependent: true}}, Args: args, Positions: positions, Frame: owner, Slot: -1}, nil
 }
 
-func (b *expressionBinder) rewriteGrouping(e groupingExpression, keys []expr.Expr) (expr.Expr, error) {
+func (b *expressionBinder) rewriteGrouping(e plan.GroupingExpr, keys []expr.Expr) (expr.Expr, error) {
 	if e.Frame != b.frameID() {
 		return e, nil
 	}
 	refs := make([]int, len(e.Args))
 	for i, arg := range e.Args {
 		refs[i] = -1
-		_, variable := arg.(columnExpression)
+		_, variable := arg.(plan.ColumnExpr)
 		if !b.grouping.groupSubquery || variable {
 			for k, key := range keys {
 				if b.sameGroupExpression(arg, key) {

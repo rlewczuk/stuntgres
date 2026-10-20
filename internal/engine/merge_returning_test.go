@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -49,7 +50,7 @@ func TestMergeReturningFrames(t *testing.T) {
 	}
 	owner.mergeAction = parser.MergeUpdateAction
 	owner.OldRow = old
-	whole := b.returning.expressions[4].(returningWholeRowExpression)
+	whole := b.returning.expressions[4].(plan.ReturningWholeRowExpr)
 	calls := 0
 	member := whole.Members[0]
 	whole.Members[0] = queryProbe(member.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return member.Eval(c) })

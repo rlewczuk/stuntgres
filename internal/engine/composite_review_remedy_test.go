@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -24,9 +25,9 @@ func TestCompositeAlterFunctionalRetainedFields(t *testing.T) {
 			t.Fatal(err)
 		}
 		binder := expressionBinder{engine: e}
-		base := literalExpression{expr.Info{Usage: current.Usage()}, sqltype.Null(current)}
+		base := plan.LiteralExpr{expr.Info{Usage: current.Usage()}, sqltype.Null(current)}
 		node := binder.retainedCompositeField(base, key, capture, parser.Position{})
-		literal, ok := node.(literalExpression)
+		literal, ok := node.(plan.LiteralExpr)
 		if !ok || !literal.Value.IsNull() || node.ResultUsage() != original.CompositeMember(1).Usage {
 			t.Fatal("retired field retargeted", node)
 		}
@@ -36,8 +37,8 @@ func TestCompositeAlterFunctionalRetainedFields(t *testing.T) {
 		}
 	}
 	binder := expressionBinder{engine: e}
-	base := literalExpression{expr.Info{Usage: original.Usage()}, sqltype.Null(original)}
-	if field, ok := binder.retainedCompositeField(base, key, capture, parser.Position{}).(fieldExpression); !ok || field.Attribute != source.Attributes[1] {
+	base := plan.LiteralExpr{expr.Info{Usage: original.Usage()}, sqltype.Null(original)}
+	if field, ok := binder.retainedCompositeField(base, key, capture, parser.Position{}).(plan.FieldExpr); !ok || field.Attribute != source.Attributes[1] {
 		t.Fatal("live identity lost")
 	}
 }

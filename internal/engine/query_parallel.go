@@ -9,12 +9,13 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
 // Positive permission belongs only to the eager top-level SELECT entry. Generic
 // finalization remains serial for writes, cursors, nested queries and controls.
-func finalizeSelectQuery(ctx context.Context, root LogicalNode, source *querySource, parameters []sqltype.Value, ceiling int) (RowResult, int, error) {
+func finalizeSelectQuery(ctx context.Context, root plan.Node, source *querySource, parameters []sqltype.Value, ceiling int) (RowResult, int, error) {
 	project, ordered, eligible := parallelQueryPlan(root, source)
 	workers := queryParallelWorkers(ceiling, source.count())
 	if !eligible || workers < 2 {
@@ -27,8 +28,8 @@ func queryParallelWorkers(ceiling, count int) int {
 	return min(ceiling, count, max(2, runtime.GOMAXPROCS(0)))
 }
 
-func parallelQueryPlan(root LogicalNode, source *querySource) (*projectNode, *sortNode, bool) {
-	project, ok := root.(*projectNode)
+func parallelQueryPlan(root plan.Node, source *querySource) (*plan.ProjectNode, *plan.SortNode, bool) {
+	project, ok := root.(*plan.ProjectNode)
 	if !ok || source == nil || source.view == nil || project.CTEOwner || project.HasTargetSet || project.FrozenValues || source.sources != nil || source.storedRef != (ids.ObjectRef{}) ||
 		source.locks != nil || source.lineage != nil || source.inherited.Mode != 0 || source.hashIndexes != nil || source.partialMask != nil || source.inheritance != nil ||
 		source.singleton || source.rlsDenied || source.anonymous != nil || source.pgSequences != nil || source.materialized || source.final != nil || source.input != nil ||
@@ -63,8 +64,8 @@ func parallelQueryPlan(root LogicalNode, source *querySource) (*projectNode, *so
 		}
 	}
 	node := project.Child
-	var ordered *sortNode
-	if sort, ok := node.(*sortNode); ok {
+	var ordered *plan.SortNode
+	if sort, ok := node.(*plan.SortNode); ok {
 		if sort.PresenceOnly {
 			return nil, nil, false
 		}
@@ -80,13 +81,13 @@ func parallelQueryPlan(root LogicalNode, source *querySource) (*projectNode, *so
 			}
 		}
 	}
-	if filter, ok := node.(*filterNode); ok {
+	if filter, ok := node.(*plan.FilterNode); ok {
 		if !safe(filter.Predicate) {
 			return nil, nil, false
 		}
 		node = filter.Child
 	}
-	leaf, ok := node.(*sourceNode)
+	leaf, ok := node.(*plan.SourceNode)
 	if !ok || leaf.Ref != source.ref || leaf.Occurrence != source.occurrence {
 		return nil, nil, false
 	}
@@ -101,15 +102,15 @@ func parallelQueryExpression(bound expr.Expr, frame uint32, width int) bool {
 		return true
 	}
 	switch e := bound.(type) {
-	case literalExpression, parameterExpression, cachedOrderExpression:
+	case plan.LiteralExpr, plan.ParameterExpr, plan.CachedOrderExpr:
 		return true
-	case columnExpression:
+	case plan.ColumnExpr:
 		return e.Virtual == nil && !e.MergeSource && e.Scope == 1 && e.Frame == frame && e.Slot >= 0 && e.Slot < width
-	case coercionExpression:
+	case plan.CoercionExpr:
 		if !parallelScalarType(e.ResultUsage().Type) || !parallelScalarType(e.Child.ResultUsage().Type) {
 			return false
 		}
-	case selectedOperatorExpression, arithmeticExpression, comparisonExpression, logicalExpression, distinctExpression, nullTestExpression, truthTestExpression, caseExpression, collationExpression:
+	case plan.SelectedOperatorExpr, plan.ArithmeticExpr, plan.ComparisonExpr, plan.LogicalExpr, plan.DistinctExpr, plan.NullTestExpr, plan.TruthTestExpr, plan.CaseExpr, plan.CollationExpr:
 	default:
 		return false
 	}
@@ -177,21 +178,21 @@ func (r *queryParallelRun) sortRow(source *querySource, ordinal int) querySortRo
 	return row
 }
 
-func parallelProjectionSlots(project *projectNode) ([]int, bool) {
+func parallelProjectionSlots(project *plan.ProjectNode) ([]int, bool) {
 	for _, expr := range project.Expressions {
-		column, ok := expr.(columnExpression)
+		column, ok := expr.(plan.ColumnExpr)
 		if !ok || column.Virtual != nil {
 			return nil, false
 		}
 	}
 	slots := make([]int, len(project.Expressions))
 	for i, expr := range project.Expressions {
-		slots[i] = expr.(columnExpression).Slot
+		slots[i] = expr.(plan.ColumnExpr).Slot
 	}
 	return slots, true
 }
 
-func runParallelQuery(ctx context.Context, project *projectNode, source *querySource, parameters []sqltype.Value, start, end int, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, direct bool) (run queryParallelRun, err error) {
+func runParallelQuery(ctx context.Context, project *plan.ProjectNode, source *querySource, parameters []sqltype.Value, start, end int, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, direct bool) (run queryParallelRun, err error) {
 	worker, err := parallelQuerySource(source)
 	if err != nil {
 		return run, err
@@ -237,7 +238,7 @@ func runParallelQuery(ctx context.Context, project *projectNode, source *querySo
 	return run, ctx.Err()
 }
 
-func finalizeParallelQuery(ctx context.Context, project *projectNode, ordered *sortNode, source *querySource, parameters []sqltype.Value, workers int) (RowResult, int, error) {
+func finalizeParallelQuery(ctx context.Context, project *plan.ProjectNode, ordered *plan.SortNode, source *querySource, parameters []sqltype.Value, workers int) (RowResult, int, error) {
 	keep := false
 	defer func() {
 		if !keep {
@@ -301,7 +302,7 @@ func finalizeParallelQuery(ctx context.Context, project *projectNode, ordered *s
 // Gather concatenates occurrences without an SQL order promise. Gather Merge
 // selects sorted run heads with the exact same fallible comparator as serial
 // sort. It never concatenates then globally sorts and never evaluates targets.
-func gatherQueryRuns(ctx context.Context, project *projectNode, ordered *sortNode, source *querySource, runs []queryParallelRun, slots []int, direct bool, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (*finalRows, error) {
+func gatherQueryRuns(ctx context.Context, project *plan.ProjectNode, ordered *plan.SortNode, source *querySource, runs []queryParallelRun, slots []int, direct bool, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (*finalRows, error) {
 	count := 0
 	for i := range runs {
 		count += runs[i].count
@@ -384,14 +385,14 @@ type querySortRow struct {
 	values []sqltype.Value
 }
 
-func (r querySortRow) value(key sortKey) sqltype.Value {
+func (r querySortRow) value(key plan.SortKey) sqltype.Value {
 	if key.Cache >= 0 {
 		return r.values[key.Cache]
 	}
 	return r.source.row(r.index)[key.Slot]
 }
 
-func compareQueryOrder(ctx context.Context, keys []sortKey, input sqltype.InputEnvironment, a, b querySortRow) (int, error) {
+func compareQueryOrder(ctx context.Context, keys []plan.SortKey, input sqltype.InputEnvironment, a, b querySortRow) (int, error) {
 	for _, key := range keys {
 		if err := ctx.Err(); err != nil {
 			return 0, err

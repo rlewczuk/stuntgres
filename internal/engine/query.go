@@ -37,31 +37,31 @@ func queryPredicateRejectsAll(c *EvalContext, expr expr.Expr) (bool, error) {
 
 // preflightQuery retains schemas and source identity from analysis. Only paths
 // containing folded coercions are copied for this execution.
-func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
+func preflightQuery(c *EvalContext, node plan.Node) (plan.Node, error) {
 	if err := evaluationContext(c); err != nil {
 		return nil, err
 	}
 	switch n := node.(type) {
-	case *functionFromNode:
+	case *plan.FunctionFromNode:
 		return preflightFunctionFrom(c, n)
-	case *setProjectNode:
+	case *plan.SetProjectNode:
 		return preflightQuerySet(c, n)
-	case *windowNode:
-		return rewriteQueryExpressions(n, func(expr expr.Expr) (expr.Expr, bool, error) { return preflightCoercions(c, expr) }, func(child LogicalNode) (LogicalNode, error) {
+	case *plan.WindowNode:
+		return rewriteQueryExpressions(n, func(expr expr.Expr) (expr.Expr, bool, error) { return preflightCoercions(c, expr) }, func(child plan.Node) (plan.Node, error) {
 			if child == n {
 				return child, nil
 			}
 			return preflightQuery(c, child)
 		})
-	case *setNode:
+	case *plan.SetNode:
 		return preflightSet(c, n)
-	case *recursiveUnionNode:
+	case *plan.RecursiveUnionNode:
 		bound, err := preflightSet(c, &n.SetNode)
 		if err != nil {
 			return nil, err
 		}
 		copy := *n
-		copy.SetNode = *bound.(*setNode)
+		copy.SetNode = *bound.(*plan.SetNode)
 		if n.Cycle != nil {
 			recipe := *n.Cycle
 			recipe.Mark, _, err = preflightCoercions(c, recipe.Mark)
@@ -75,13 +75,13 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			copy.Cycle = &recipe
 		}
 		return &copy, nil
-	case *worktableScanNode:
+	case *plan.WorktableScanNode:
 		return n, nil
-	case *distinctNode:
+	case *plan.DistinctNode:
 		return preflightDistinct(c, n)
-	case *distinctOnNode:
+	case *plan.DistinctOnNode:
 		return preflightDistinctOn(c, n)
-	case *derivedNode:
+	case *plan.DerivedNode:
 		// Ordinary queries retain their runtime projection frontier. Rule
 		// programs prepare only the child payload retained by producer demand.
 		if !c.planStaticOperators || n.Query == nil {
@@ -98,7 +98,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 		query.Root = root
 		copy.Query = &query
 		return &copy, nil
-	case *limitNode:
+	case *plan.LimitNode:
 		child, err := preflightQuery(c, n.Child)
 		if err != nil {
 			return nil, err
@@ -111,7 +111,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			return &copy, nil
 		}
 		return n, nil
-	case *evaluationNode:
+	case *plan.EvaluationNode:
 		child, err := preflightQuery(c, n.Child)
 		if err != nil {
 			return nil, err
@@ -141,7 +141,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			return &copy, nil
 		}
 		return n, nil
-	case *rowLockNode:
+	case *plan.RowLockNode:
 		child, err := preflightQuery(c, n.Child)
 		if err != nil {
 			return nil, err
@@ -152,11 +152,11 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			return &copy, nil
 		}
 		return n, nil
-	case *joinNode:
+	case *plan.JoinNode:
 		return preflightJoin(c, n)
-	case *sourceNode, *singletonNode:
+	case *plan.SourceNode, *plan.SingletonNode:
 		return n, nil
-	case *valuesNode:
+	case *plan.ValuesNode:
 		var rows [][]expr.Expr
 		for i, row := range n.Rows {
 			var expressions []expr.Expr
@@ -184,7 +184,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			copy.Rows = rows
 			return &copy, nil
 		}
-	case *aggregateNode:
+	case *plan.AggregateNode:
 		if n.PresenceOnly {
 			child, err := preflightQuery(c, n.Child)
 			if err != nil {
@@ -210,7 +210,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 				keys[i] = folded
 			}
 		}
-		var calls []aggregateCall
+		var calls []plan.AggregateCall
 		for i, call := range n.Calls {
 			// Ordered-set direct expressions remain group-finalization owned:
 			// preflight must not evaluate them for absent keyed groups.
@@ -224,7 +224,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 				}
 				if replacement {
 					if calls == nil {
-						calls = append([]aggregateCall(nil), n.Calls...)
+						calls = append([]plan.AggregateCall(nil), n.Calls...)
 					}
 					if j == 0 {
 						calls[i].Argument = folded
@@ -235,7 +235,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 					}
 				}
 			}
-			var order []sortKey
+			var order []plan.SortKey
 			for k, key := range call.Order {
 				folded, replacement, err := preflightCoercions(c, key.Expression)
 				if err != nil {
@@ -243,14 +243,14 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 				}
 				if replacement {
 					if order == nil {
-						order = append([]sortKey(nil), call.Order...)
+						order = append([]plan.SortKey(nil), call.Order...)
 					}
 					order[k].Expression = folded
 				}
 			}
 			if order != nil {
 				if calls == nil {
-					calls = append([]aggregateCall(nil), n.Calls...)
+					calls = append([]plan.AggregateCall(nil), n.Calls...)
 				}
 				calls[i].Order = order
 			}
@@ -270,7 +270,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			}
 			return &copy, nil
 		}
-	case *filterNode:
+	case *plan.FilterNode:
 		predicate, changed, err := preflightCoercions(c, n.Predicate)
 		if err != nil {
 			return nil, err
@@ -284,7 +284,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			copy.Child, copy.Predicate = child, predicate
 			return &copy, nil
 		}
-	case *sortNode:
+	case *plan.SortNode:
 		if n.PresenceOnly {
 			child, err := preflightQuery(c, n.Child)
 			if err != nil {
@@ -297,7 +297,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			copy.Child = child
 			return &copy, nil
 		}
-		var keys []sortKey
+		var keys []plan.SortKey
 		for i, key := range n.Keys {
 			if key.Expression.CollationIndeterminate() {
 				return nil, setOrderCollationError()
@@ -308,7 +308,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			}
 			if changed {
 				if keys == nil {
-					keys = append([]sortKey(nil), n.Keys...)
+					keys = append([]plan.SortKey(nil), n.Keys...)
 				}
 				keys[i].Expression = folded
 			}
@@ -341,7 +341,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			}
 			return &copy, nil
 		}
-	case *projectNode:
+	case *plan.ProjectNode:
 		// Projection initialization precedes opening its child. CHECK recipes
 		// may fail here, but checked conversion truth stays in each runtime row.
 		var expressions []expr.Expr
@@ -376,7 +376,7 @@ func preflightQuery(c *EvalContext, node LogicalNode) (LogicalNode, error) {
 			if err != nil {
 				return nil, err
 			}
-			n, node = demanded.(*projectNode), demanded
+			n, node = demanded.(*plan.ProjectNode), demanded
 		}
 		child, err := preflightQuery(c, n.Child)
 		if err != nil {
@@ -445,10 +445,10 @@ type querySource struct {
 	scratch              []sqltype.Value
 	locks                *queryLockContext
 	lineage              *queryLockLineage
-	nestedRoot           LogicalNode
+	nestedRoot           plan.Node
 	nestedInputs         *querySource
 	nestedStage          *indexedStage
-	inherited            queryRowMark // Execution-only mark crossing this view boundary.
+	inherited            plan.RowMark // Execution-only mark crossing this view boundary.
 	// Locking and lazy virtual reads retain physical SQL occurrence identity.
 	occurrence               int
 	occurrences              []int
@@ -663,17 +663,17 @@ type queryState struct {
 	source       *querySource
 	invocation   *EvalContext // Borrowed same-query P+L frame; outer remains lexical.
 	foreignOwner any
-	hashFilter   *filterNode
+	hashFilter   *plan.FilterNode
 	parameters   []sqltype.Value
 	input        sqltype.InputEnvironment
 	output       sqltype.OutputEnvironment
 	locking      bool
 	virtualReads bool
-	inherited    queryRowMark
+	inherited    plan.RowMark
 	frame        uint32
 	outer        *EvalContext
 	retain       bool
-	derived      map[*derivedNode]*querySource
+	derived      map[*plan.DerivedNode]*querySource
 	ctes         *cteInvocation
 	hashOwner    *queryState
 	memberships  map[subqueryMembershipKey]*subqueryMembership
@@ -875,46 +875,46 @@ func (s *indexedStage) fail(err error) error {
 	s.terminal = err
 	return err
 }
-func openQueryNode(ctx context.Context, state *queryState, node LogicalNode) (indexedStage, error) {
+func openQueryNode(ctx context.Context, state *queryState, node plan.Node) (indexedStage, error) {
 	state.inheritCTEs()
 	return openRetainedQueryNode(ctx, state, node)
 }
 
-func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalNode) (out indexedStage, err error) {
+func openRetainedQueryNode(ctx context.Context, state *queryState, node plan.Node) (out indexedStage, err error) {
 	defer func() { out.retain = state.retain }()
 	if err := ctx.Err(); err != nil {
 		return indexedStage{}, err
 	}
 	switch n := node.(type) {
-	case *functionFromNode:
+	case *plan.FunctionFromNode:
 		return openFunctionFromNode(ctx, state, n)
-	case *setProjectNode:
+	case *plan.SetProjectNode:
 		return openSetProjectNode(ctx, state, n)
-	case *windowNode:
+	case *plan.WindowNode:
 		return openWindowNode(ctx, state, n)
-	case *setNode:
+	case *plan.SetNode:
 		return openSetNode(ctx, state, n)
-	case *recursiveUnionNode:
+	case *plan.RecursiveUnionNode:
 		return openRecursiveUnion(ctx, state, n)
-	case *worktableScanNode:
+	case *plan.WorktableScanNode:
 		return openWorktableScan(ctx, state, n)
-	case *limitNode:
+	case *plan.LimitNode:
 		return openLimitNode(ctx, state, n)
-	case *evaluationNode:
+	case *plan.EvaluationNode:
 		return openEvaluationNode(ctx, state, n)
-	case *rowLockNode:
+	case *plan.RowLockNode:
 		return openRowLockNode(ctx, state, n)
-	case *joinNode:
+	case *plan.JoinNode:
 		return openJoinNode(ctx, state, n)
-	case *distinctNode:
+	case *plan.DistinctNode:
 		return openDistinctNode(ctx, state, n)
-	case *distinctOnNode:
+	case *plan.DistinctOnNode:
 		return openDistinctOnNode(ctx, state, n)
-	case *derivedNode:
+	case *plan.DerivedNode:
 		return openDerivedNode(ctx, state, n)
-	case *aggregateNode:
+	case *plan.AggregateNode:
 		return openAggregateNode(ctx, state, n)
-	case *valuesNode:
+	case *plan.ValuesNode:
 		if state.source == nil {
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid VALUES query source")
 		}
@@ -948,13 +948,13 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 			return true, ctx.Err()
 		}
 		return out, nil
-	case *singletonNode:
+	case *plan.SingletonNode:
 		if state.source == nil {
 			return indexedStage{}, fmt.Errorf("stuntgres: missing singleton statement source")
 		}
 		source := &querySource{singleton: true, authority: state.source.authority, scope: state.source.scope, locks: state.source.locks}
 		return indexedStage{source: source, schema: n.Schema()}, nil
-	case *sourceNode:
+	case *plan.SourceNode:
 		source := state.source
 		if source != nil && source.sources != nil {
 			if n.Occurrence < 0 || n.Occurrence >= len(source.sources) {
@@ -985,7 +985,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 			}
 		}
 		return indexedStage{source: source, schema: n.Schema(), scanRange: state.scanRange, scanStart: state.scanStart, scanEnd: state.scanEnd}, nil
-	case *filterNode:
+	case *plan.FilterNode:
 		evaluation := state.evaluation(ctx)
 		rejects, err := queryPredicateRejectsAll(&evaluation, n.Predicate)
 		if err != nil {
@@ -995,7 +995,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 		// side effects/errors on empty global input. This is a local aggregate
 		// frontier, not a reason to force unrelated derived/WHERE producers.
 		finalizesOrderedSet := false
-		if aggregate, ok := n.Child.(*aggregateNode); ok {
+		if aggregate, ok := n.Child.(*plan.AggregateNode); ok {
 			for _, call := range aggregate.Calls {
 				if _, ordered := call.Provider.(functions.OrderedAggregate); ordered {
 					finalizesOrderedSet = true
@@ -1010,7 +1010,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 			source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, scope: state.source.scope, locks: state.source.locks}
 			return indexedStage{source: source, schema: n.Schema()}, nil
 		}
-		if join, ok := n.Child.(*joinNode); ok && !queryHasMandatoryPhysicalFrontier(n.Child, state.source) {
+		if join, ok := n.Child.(*plan.JoinNode); ok && !queryHasMandatoryPhysicalFrontier(n.Child, state.source) {
 			if partitioned := functionFromConjuncts(join, n.Predicate); partitioned != nil {
 				return openQueryNode(ctx, state, partitioned)
 			}
@@ -1094,7 +1094,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 			}
 		}
 		return out, nil
-	case *sortNode:
+	case *plan.SortNode:
 		if n.PresenceOnly {
 			return openQueryNode(ctx, state, n.Child)
 		}
@@ -1183,7 +1183,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node LogicalN
 		transferred = err == nil
 		child.reset = nil
 		return child, err
-	case *projectNode:
+	case *plan.ProjectNode:
 		if n.RuleInvocation {
 			local := *state
 			local.outer = state.invocation
@@ -1459,7 +1459,7 @@ func (r *finalRows) takeTableRows(ctx context.Context) (rows [][]sqltype.Value, 
 
 // SELECT and INSERT settle residual qualified marks at the eager publication
 // frontier. A nested scalar bridge is not a publication frontier.
-func openQueryProjectStage(ctx context.Context, state *queryState, project *projectNode) (indexedStage, error) {
+func openQueryProjectStage(ctx context.Context, state *queryState, project *plan.ProjectNode) (indexedStage, error) {
 	child, err := openQueryNode(ctx, state, project)
 	if err != nil {
 		return indexedStage{}, err
@@ -1472,7 +1472,7 @@ func openQueryProjectStage(ctx context.Context, state *queryState, project *proj
 	return settled, nil
 }
 
-func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, parameters []sqltype.Value) (RowResult, int, error) {
+func finalizeQuery(ctx context.Context, root plan.Node, source *querySource, parameters []sqltype.Value) (RowResult, int, error) {
 	keep := false
 	defer func() {
 		_ = finishForeignSources(ctx, source)
@@ -1480,7 +1480,7 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 			source.close()
 		}
 	}()
-	project, ok := root.(*projectNode)
+	project, ok := root.(*plan.ProjectNode)
 	if !ok {
 		return nil, 0, fmt.Errorf("stuntgres: query lacks final projection")
 	}
@@ -1506,7 +1506,7 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 		frame = 1
 	}
 	for _, expr := range project.Expressions {
-		column, ok := expr.(columnExpression)
+		column, ok := expr.(plan.ColumnExpr)
 		if !ok || column.Virtual != nil {
 			direct = false
 			break
@@ -1525,7 +1525,7 @@ func finalizeQuery(ctx context.Context, root LogicalNode, source *querySource, p
 	if direct {
 		slots = make([]int, len(project.Expressions))
 		for i, expr := range project.Expressions {
-			slots[i] = expr.(columnExpression).Slot
+			slots[i] = expr.(plan.ColumnExpr).Slot
 		}
 		evaluation := state.evaluation(ctx)
 		for i := range r.count {

@@ -8,12 +8,13 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
-func queryCreateBoundSource(t *testing.T, e *Engine, width int) (*projectNode, *querySource) {
+func queryCreateBoundSource(t *testing.T, e *Engine, width int) (*plan.ProjectNode, *querySource) {
 	t.Helper()
-	schema := make(querySchema, width)
+	schema := make(plan.QuerySchema, width)
 	expressions := make([]expr.Expr, width)
 	rows := make([][]sqltype.Value, 3)
 	for i := range rows {
@@ -22,13 +23,13 @@ func queryCreateBoundSource(t *testing.T, e *Engine, width int) (*projectNode, *
 	for i := range schema {
 		usage := testUsage(e, sqltype.Int4)
 		schema[i] = catalog.Column{Name: "i", Usage: usage}
-		expressions[i] = columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: i}
+		expressions[i] = plan.ColumnExpr{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: i}
 		for j := range rows {
 			rows[j][i], _ = sqltype.Integer(usage.Type, int64(j+1))
 		}
 	}
 	source := &querySource{anonymous: rows}
-	return &projectNode{QuerySchema: schema, Child: &sourceNode{QuerySchema: schema}, Expressions: expressions, Frame: 1}, source
+	return &plan.ProjectNode{QuerySchema: schema, Child: &plan.SourceNode{QuerySchema: schema}, Expressions: expressions, Frame: 1}, source
 }
 
 func TestQueryTableCreateDemand(t *testing.T) {
@@ -36,7 +37,7 @@ func TestQueryTableCreateDemand(t *testing.T) {
 	project, source := queryCreateBoundSource(t, e, 1)
 	usage := project.Schema()[0].Usage
 	calls, predicates := 0, 0
-	project.Child = &filterNode{QuerySchema: project.Schema(), Child: project.Child, Predicate: queryProbe(testUsage(e, sqltype.Bool), func(c *EvalContext) (sqltype.Value, error) {
+	project.Child = &plan.FilterNode{QuerySchema: project.Schema(), Child: project.Child, Predicate: queryProbe(testUsage(e, sqltype.Bool), func(c *EvalContext) (sqltype.Value, error) {
 		predicates++
 		value, _ := c.Row[0].Integer()
 		return sqltype.Boolean(testUsage(e, sqltype.Bool).Type, value >= 2), nil
@@ -128,7 +129,7 @@ func TestQueryTableCreateCleanup(t *testing.T) {
 			inner.expressions = []expr.Expr{queryProbe(project.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
 		}
 		bridge := &querySource{nestedRoot: project, nestedInputs: input, nestedStage: &inner, materialized: true, flatWidth: 1}
-		outer := &projectNode{QuerySchema: project.Schema(), Child: &sourceNode{QuerySchema: project.Schema()}, Expressions: project.Expressions, Frame: 1}
+		outer := &plan.ProjectNode{QuerySchema: project.Schema(), Child: &plan.SourceNode{QuerySchema: project.Schema()}, Expressions: project.Expressions, Frame: 1}
 		result, count, err := finalizeQuery(context.Background(), outer, bridge, nil)
 		want := cleanup
 		if primary {

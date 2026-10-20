@@ -17,7 +17,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (c *EvalContext) EvalDomainValue(e domainValueExpression) (sqltype.Value, error) {
+func (c *EvalContext) EvalDomainValue(e plan.DomainValueExpr) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -340,8 +340,8 @@ func domainNullInputExpression(target sqltype.Usage) expr.Expr {
 	if err != nil {
 		panic(err)
 	}
-	child := literalExpression{Info: expr.Info{Usage: base}, Value: sqltype.Null(base.Type)}
-	return coercionExpression{Info: expr.Info{Usage: target, Property: coercionProperties(child, coercionPlan)}, Child: child, Plan: coercionPlan, Mode: sqltype.Assignment}
+	child := plan.LiteralExpr{Info: expr.Info{Usage: base}, Value: sqltype.Null(base.Type)}
+	return plan.CoercionExpr{Info: expr.Info{Usage: target, Property: coercionProperties(child, coercionPlan)}, Child: child, Plan: coercionPlan, Mode: sqltype.Assignment}
 }
 
 func validateDomainCheckDefinitions(view catalog.Read, domain *catalog.Type) error {

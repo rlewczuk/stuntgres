@@ -5,6 +5,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -27,7 +28,7 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			n, ok := node.(sqlRoutineExpression)
+			n, ok := node.(plan.SQLRoutineExpr)
 			if !ok {
 				t.Fatalf("not a scalar SQL provider: %T", node)
 			}
@@ -43,8 +44,8 @@ func TestSQLRoutineFrozenPresentation(t *testing.T) {
 			}
 			ownedSyntax := *syntax
 			ownedSyntax.Targets = []parser.Expr{frozen}
-			project := &projectNode{QuerySchema: querySchema{{Name: "v", Usage: node.ResultUsage()}}, Child: &singletonNode{}, Expressions: []expr.Expr{node}, Frame: b.frameID(), Syntax: &ownedSyntax}
-			definition := &viewDefinition{query: &BoundQuery{Root: project}, syntax: &ownedSyntax, dependencies: b.dependencies, routineRefs: b.capture.routineRefs, literals: b.capture.literals, castUsages: b.capture.castUsages}
+			project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: node.ResultUsage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{node}, Frame: b.frameID(), Syntax: &ownedSyntax}
+			definition := &viewDefinition{query: &plan.Query{Root: project}, syntax: &ownedSyntax, dependencies: b.dependencies, routineRefs: b.capture.routineRefs, literals: b.capture.literals, castUsages: b.capture.castUsages}
 			definition.frames, definition.queries = collectQueryFrames(project)
 			read := e.CatalogRead()
 			if err := definition.validateLiterals(read); err != nil {

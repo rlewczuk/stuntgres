@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -56,7 +57,7 @@ func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
 	defer previous.close()
 	origin := ref
 	origin.Address.SubID = 2
-	frozen := columnExpression{Info: expr.Info{Usage: old.Columns[1].Usage}, Origin: origin, Scope: 1, Frame: 1, Slot: 1, QueryOccurrence: 1}.WithGeneration(old, 1, 0)
+	frozen := plan.ColumnExpr{Info: expr.Info{Usage: old.Columns[1].Usage}, Origin: origin, Scope: 1, Frame: 1, Slot: 1, QueryOccurrence: 1}.WithGeneration(old, 1, 0)
 	add := parser.AlterTableAction{Action: parser.AddColumn, Definition: &parser.Column{Name: "c", TypeName: parser.TypeName{Name: "int4"}, Constraints: []parser.ColumnConstraint{{Default: alterGenerationLiteral(5)}}}}
 	set := alterGenerationAction(alterGenerationOperator("+", alterGenerationColumn("a"), alterGenerationColumn("c")))
 	if _, err := e.Execute(admin, &parser.AlterTable{Name: alterGenerationName("g"), Actions: []parser.AlterTableAction{add, set}}, 0, nil); err != nil {
@@ -146,7 +147,7 @@ func TestVirtualGenerationOriginalAdmission(t *testing.T) {
 		result.Rows.Close()
 	}
 	node, _, evaluation := strictNullUnitBind(t, e, op, scope, "h")
-	column, ok := node.(columnExpression)
+	column, ok := node.(plan.ColumnExpr)
 	if !ok || column.VirtualOwner == nil {
 		t.Fatal("bound virtual column lost owning generation", node)
 	}

@@ -6,13 +6,14 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"testing"
 
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func moreUnitExpression(t *testing.T, view catalog.Read) unnestExpression {
+func moreUnitExpression(t *testing.T, view catalog.Read) plan.UnnestExpr {
 	t.Helper()
 	m, _ := view.LookupType(sqltype.Int4Multirange)
 	r, _ := view.LookupType(sqltype.Int4Range)
@@ -20,9 +21,9 @@ func moreUnitExpression(t *testing.T, view catalog.Read) unnestExpression {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return unnestExpression{
+	return plan.UnnestExpr{
 		Info: expr.Info{Usage: r.Usage(), Pos: parser.Position{Offset: 7, Character: 8}, Property: expr.Properties{Volatility: expr.Immutable, StageDependent: true}},
-		Args: []expr.Expr{literalExpression{Info: expr.Info{Usage: m.Usage()}, Value: v}},
+		Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: m.Usage()}, Value: v}},
 	}
 }
 
@@ -37,7 +38,7 @@ func TestRangeMoreExpressionCursor(t *testing.T) {
 		t.Fatal("unlifted scalar execution")
 	}
 	count := 0
-	value := e.Args[0].(literalExpression).Value
+	value := e.Args[0].(plan.LiteralExpr).Value
 	e.Args[0] = queryProbe(e.Args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { count++; return value, nil })
 	first, err := openFunctionSource(c, e)
 	if err != nil {
@@ -93,7 +94,7 @@ func TestRangeMoreExpressionHooks(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	n := next.(unnestExpression)
+	n := next.(plan.UnnestExpr)
 	if n.ResultUsage().Type == e.ResultUsage().Type || n.Args[0].ResultUsage().Type == e.Args[0].ResultUsage().Type || n.Properties() != e.Properties() || n.SourcePosition() != e.SourcePosition() {
 		t.Fatal("retag lost authority or properties")
 	}
@@ -101,7 +102,7 @@ func TestRangeMoreExpressionHooks(t *testing.T) {
 		t.Fatal("occurrence identity")
 	}
 	rewritten, changed, err := expr.MapSubstituted(e, func(expr.Expr) (expr.Expr, bool, error) { return n.Args[0], true, nil })
-	mapped := rewritten.(unnestExpression)
+	mapped := rewritten.(plan.UnnestExpr)
 	if err != nil || !changed || mapped.Args[0].ResultUsage() != n.Args[0].ResultUsage() || e.Args[0].ResultUsage() == n.Args[0].ResultUsage() {
 		t.Fatal("child map mutated source", err)
 	}
@@ -126,7 +127,7 @@ func TestRangeMoreBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		arg := literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: value}
+		arg := plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: value}
 		raw := nullCountRaw("multirange")
 		node, err := functions.FinishRangeInspect(b, raw, true, []functions.Argument{{Expression: arg, Usage: d.Usage()}})
 		if err != nil || node.ResultUsage().Type != b.typ(tc.output) {

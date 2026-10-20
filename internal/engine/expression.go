@@ -138,7 +138,7 @@ func (c *EvalContext) FunctionOverlapsConstant(node expr.Expr) bool {
 }
 func (c *EvalContext) FunctionLiteralNull(node expr.Expr) bool { return randomLiteralNull(node) }
 func (c *EvalContext) WholeRowNullPresence(node expr.Expr) (handled, absent bool, err error) {
-	row, ok := node.(rowExpression)
+	row, ok := node.(plan.RowExpr)
 	if !ok || row.WholeNames == nil {
 		return false, false, nil
 	}
@@ -223,7 +223,7 @@ func (c *EvalContext) FrameValue(scope, frame uint32, slot int, usage sqltype.Us
 	return row.Row[slot], nil
 }
 
-func (c *EvalContext) EvalColumn(e columnExpression) (sqltype.Value, error) {
+func (c *EvalContext) EvalColumn(e plan.ColumnExpr) (sqltype.Value, error) {
 	row, err := c.frameRow(e.Scope, e.Frame, e.Slot, e.Usage)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -349,16 +349,16 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 		}
 	}
 	switch e := expression.(type) {
-	case subqueryExpression:
+	case plan.SubqueryExpr:
 		if !c.planStaticOperators || e.CTEDefinition || e.QueryPlan == nil {
 			return e, false, nil
 		}
 		input := e.QueryPlan.Root
-		var presence *projectNode
+		var presence *plan.ProjectNode
 		if e.PresenceOnly {
 			// Eligible EXISTS uses nextOccurrence, never its outer targets.
 			// Keep actual child predicate and presence/sort preparation.
-			presence = input.(*projectNode)
+			presence = input.(*plan.ProjectNode)
 			input = presence.Child
 		}
 		root, err := preflightQuery(c, input)
@@ -377,7 +377,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 		query.Root = root
 		e.QueryPlan = &query
 		return e, true, nil
-	case domainValueExpression:
+	case plan.DomainValueExpr:
 		return e, false, nil
 	case installedSoundexFunctionExpression:
 		var args []expr.Expr
@@ -469,7 +469,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			e.Pgcrypto = next
 		}
 		return e, args != nil, nil
-	case assignmentValueExpression:
+	case plan.AssignmentValueExpr:
 		base, baseChanged, err := preflightCoercionsWithPolicy(c, e.Base, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
@@ -478,7 +478,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 		if err != nil {
 			return nil, false, err
 		}
-		targets, err := preflightArrayTargetsWithPlanning(c, []*arrayAssignmentTarget{e.Target}, decisiveDefaults)
+		targets, err := preflightArrayTargetsWithPlanning(c, []*plan.ArrayAssignmentTarget{e.Target}, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
@@ -493,11 +493,11 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			e.Arg = arg
 		}
 		return e, changed, err
-	case viewQualificationExpression:
+	case plan.ViewQualificationExpr:
 		return mapViewQualification(e, func(child expr.Expr) (expr.Expr, bool, error) {
 			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
 		})
-	case groupingExpression:
+	case plan.GroupingExpr:
 		var args []expr.Expr
 		for i, arg := range e.Args {
 			next, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
@@ -522,9 +522,9 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 		}
 		e.arg = arg
 		return e, changed, nil
-	case caseExpression:
+	case plan.CaseExpr:
 		return simplifyConditional(c, expression, decisiveDefaults)
-	case conditionalExpression:
+	case plan.ConditionalExpr:
 		if err := e.ExtremaError(); err != nil {
 			return nil, false, err
 		}
@@ -549,7 +549,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 		}
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
-	case rowExpression:
+	case plan.RowExpr:
 		next, changed, err := mapRow(e, func(old expr.Expr) (expr.Expr, bool, error) {
 			next, changed, err := simplifyConditional(c, old, decisiveDefaults)
 			if err != nil {
@@ -559,14 +559,14 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			return folded, changed || did, err
 		})
 		return next, changed, err
-	case fieldExpression:
+	case plan.FieldExpr:
 		base, changed, err := preflightCoercionsWithPolicy(c, e.Base, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
 		e.Base = base
 		return e, changed, nil
-	case arrayExpression:
+	case plan.ArrayExpr:
 		var elements []expr.Expr
 		for i, old := range e.Elements {
 			next, changed, err := preflightCoercionsWithPolicy(c, old, decisiveDefaults)
@@ -589,19 +589,19 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			return preflightValue(c, e.Info, value, err)
 		}
 		return e, elements != nil, nil
-	case subscriptExpression:
+	case plan.SubscriptExpr:
 		next, changed, err := mapSubscript(e, func(old expr.Expr) (expr.Expr, bool, error) {
 			return preflightCoercionsWithPolicy(c, old, decisiveDefaults)
 		})
 		return next, changed, err
-	case collationExpression:
+	case plan.CollationExpr:
 		child, changed, err := preflightCoercionsWithPolicy(c, e.Child, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
 		e.Child = child
 		return e, changed, nil
-	case coercionExpression:
+	case plan.CoercionExpr:
 		child, changed, err := preflightCoercionsWithPolicy(c, e.Child, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
@@ -626,7 +626,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 		if changed {
 			return e, true, nil
 		}
-	case likeExpression:
+	case plan.LikeExpr:
 		left, lc, err := preflightCoercionsWithPolicy(c, e.Left, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
@@ -645,8 +645,8 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			return preflightValue(c, e.Info, value, err)
 		}
 		return e, lc || rc, nil
-	case rowComparisonExpression:
-		var pairs []comparisonExpression
+	case plan.RowComparisonExpr:
+		var pairs []plan.ComparisonExpr
 		for i, pair := range e.Comparisons {
 			left, leftChanged, err := preflightCoercionsWithPolicy(c, pair.Left, false)
 			if err != nil {
@@ -660,7 +660,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			// not an independently foldable scalar comparison.
 			if leftChanged || rightChanged {
 				if pairs == nil {
-					pairs = append([]comparisonExpression(nil), e.Comparisons...)
+					pairs = append([]plan.ComparisonExpr(nil), e.Comparisons...)
 				}
 				pair.Left, pair.Right = left, right
 				pairs[i] = pair
@@ -671,7 +671,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			return e, true, nil
 		}
 		return e, false, nil
-	case scalarArrayComparisonExpression:
+	case plan.ScalarArrayComparisonExpr:
 		next, changed, err := mapScalarArrayChildren(e, func(child expr.Expr) (expr.Expr, bool, error) {
 			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
 		})
@@ -685,7 +685,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 		if changed {
 			return next, true, nil
 		}
-	case comparisonExpression:
+	case plan.ComparisonExpr:
 		left, leftChanged, err := preflightCoercionsWithPolicy(c, e.Left, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
@@ -695,8 +695,8 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			return nil, false, err
 		}
 		if decisiveDefaults {
-			_, leftConstant := left.(literalExpression)
-			_, rightConstant := right.(literalExpression)
+			_, leftConstant := left.(plan.LiteralExpr)
+			_, rightConstant := right.(plan.LiteralExpr)
 			if leftConstant && rightConstant {
 				e.Left, e.Right = left, right
 				value, err := evaluatePlanningExpression(c, e)
@@ -707,7 +707,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			e.Left, e.Right = left, right
 			return e, true, nil
 		}
-	case bitwiseExpression:
+	case plan.BitwiseExpr:
 		left, lc, err := preflightCoercionsWithPolicy(c, e.Left, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
@@ -734,8 +734,8 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			return preflightValue(c, e.Info, value, err)
 		}
 		if decisiveDefaults || e.Usage.Type.ID() == sqltype.Bit {
-			_, l := left.(literalExpression)
-			_, r := right.(literalExpression)
+			_, l := left.(plan.LiteralExpr)
+			_, r := right.(plan.LiteralExpr)
 			p := e.Properties()
 			if l && (right == nil || r) && p == (expr.Properties{}) {
 				v, err := evaluatePlanningExpression(c, e)
@@ -745,7 +745,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 		if lc || rc {
 			return e, true, nil
 		}
-	case selectedOperatorExpression:
+	case plan.SelectedOperatorExpr:
 		provider, changed, err := preflightCoercionsWithPolicy(c, e.Provider, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
@@ -754,7 +754,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			e.Provider = provider
 			return e, true, nil
 		}
-	case arithmeticExpression:
+	case plan.ArithmeticExpr:
 		left, leftChanged, err := preflightCoercionsWithPolicy(c, e.Left, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
@@ -768,7 +768,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			}
 		}
 		e.Left, e.Right = left, right
-		if arithmeticSetConstantNull(expression.(arithmeticExpression), e) {
+		if arithmeticSetConstantNull(expression.(plan.ArithmeticExpr), e) {
 			return preflightValue(c, e.Info, sqltype.Null(e.Usage.Type), nil)
 		}
 		if (e.Left.ResultUsage().Type.ID() == sqltype.Inet || e.Right != nil && e.Right.ResultUsage().Type.ID() == sqltype.Inet) && networkOperatorExecutionConstant(e, c) {
@@ -791,13 +791,13 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 		if leftChanged || rightChanged {
 			return e, true, nil
 		}
-	case nullTestExpression:
+	case plan.NullTestExpr:
 		child, changed, err := preflightCoercionsWithPolicy(c, e.Child, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
 		if decisiveDefaults {
-			if _, constant := child.(literalExpression); constant {
+			if _, constant := child.(plan.LiteralExpr); constant {
 				e.Child = child
 				value, err := evaluatePlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
@@ -807,13 +807,13 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			e.Child = child
 			return e, true, nil
 		}
-	case truthTestExpression:
+	case plan.TruthTestExpr:
 		child, changed, err := preflightCoercionsWithPolicy(c, e.Child, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
 		if decisiveDefaults {
-			if _, constant := child.(literalExpression); constant {
+			if _, constant := child.(plan.LiteralExpr); constant {
 				e.Child = child
 				value, err := evaluatePlanningExpression(c, e)
 				return preflightValue(c, e.Info, value, err)
@@ -823,7 +823,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			e.Child = child
 			return e, true, nil
 		}
-	case distinctExpression:
+	case plan.DistinctExpr:
 		left, leftChanged, err := preflightCoercionsWithPolicy(c, e.Left, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
@@ -833,8 +833,8 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			return nil, false, err
 		}
 		if decisiveDefaults {
-			_, leftConstant := left.(literalExpression)
-			_, rightConstant := right.(literalExpression)
+			_, leftConstant := left.(plan.LiteralExpr)
+			_, rightConstant := right.(plan.LiteralExpr)
 			if leftConstant && rightConstant {
 				e.Left, e.Right = left, right
 				value, err := evaluatePlanningExpression(c, e)
@@ -845,14 +845,14 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			e.Left, e.Right = left, right
 			return e, true, nil
 		}
-	case logicalExpression:
+	case plan.LogicalExpr:
 		left, leftChanged, err := preflightCoercionsWithPolicy(c, e.Left, decisiveDefaults)
 		if err != nil {
 			return nil, false, err
 		}
 		var leftConstant bool
 		if decisiveDefaults {
-			_, leftConstant = left.(literalExpression)
+			_, leftConstant = left.(plan.LiteralExpr)
 			e.Left = left
 			value, decisive, err := plan.DecisiveLogicalValue(&e)
 			if err != nil {
@@ -871,7 +871,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			}
 		}
 		if decisiveDefaults && leftConstant {
-			_, rightConstant := right.(literalExpression)
+			_, rightConstant := right.(plan.LiteralExpr)
 			if e.Op == parser.LogicalNot || rightConstant {
 				e.Left, e.Right = left, right
 				value, err := evaluatePlanningExpression(c, e)
@@ -898,7 +898,7 @@ func preflightValue(c *EvalContext, info expr.Info, value sqltype.Value, err err
 		return nil, false, err
 	}
 	info.RoutineReference = nil
-	return literalExpression{Info: info, Value: value}, true, nil
+	return plan.LiteralExpr{Info: info, Value: value}, true, nil
 }
 
 type expressionContext uint8
@@ -1033,7 +1033,7 @@ func (b *expressionBinder) constrain(n int, u sqltype.Usage, pos parser.Position
 		if b.params.updateParameters {
 			// UPDATE uses occurrence-sensitive inference diagnostics; other
 			// assignment consumers retain their selected 0A000 boundary.
-			_, err := b.coerceParameter(parameterExpression{Info: expr.Info{Pos: pos}, Number: n}, u)
+			_, err := b.coerceParameter(plan.ParameterExpr{Info: expr.Info{Pos: pos}, Number: n}, u)
 			return err
 		}
 		return sqlError("0A000", "parameter reused with different destination types")
@@ -1072,7 +1072,7 @@ func (b *expressionBinder) finish() (ParameterInfo, error) {
 // Output fallback belongs to an unresolved occurrence, not its subsequently
 // constrained shared slot. These private provisional nodes never escape describe.
 func (b *expressionBinder) finalizeProjection(node expr.Expr) (expr.Expr, error) {
-	p, ok := node.(parameterExpression)
+	p, ok := node.(plan.ParameterExpr)
 	if !ok || p.Usage.Type != nil {
 		return node, nil
 	}
@@ -1080,7 +1080,7 @@ func (b *expressionBinder) finalizeProjection(node expr.Expr) (expr.Expr, error)
 }
 func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 	if b.clause.domainValueUsage != nil && len(raw.Name.Parts) == 1 && raw.Name.Parts[0].Text == "value" {
-		return domainValueExpression{b.info(*b.clause.domainValueUsage, raw.Pos, expr.Properties{DomainDependent: true})}, nil
+		return plan.DomainValueExpr{b.info(*b.clause.domainValueUsage, raw.Pos, expr.Properties{DomainDependent: true})}, nil
 	}
 	if b.target.generatedOwner != nil {
 		name := raw.Name.Parts[len(raw.Name.Parts)-1].Text
@@ -1089,7 +1089,7 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 		if qualified {
 			if name == "tableoid" {
 				ref := b.query.sources[0].ref
-				return tableOIDExpression{b.info(b.typ(sqltype.Oid).Usage(), raw.Pos, expr.Properties{RowDependent: true}), ref}, nil
+				return plan.TableOIDExpr{b.info(b.typ(sqltype.Oid).Usage(), raw.Pos, expr.Properties{RowDependent: true}), ref}, nil
 			}
 			if isSystemColumn(name) {
 				return nil, expr.ErrorAt("42P10", fmt.Sprintf(`cannot use system column "%s" in column generation expression`, name), raw.Pos)
@@ -1106,12 +1106,12 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 			}
 			return nil, err
 		}
-		if _, whole := node.(rowExpression); whole {
+		if _, whole := node.(plan.RowExpr); whole {
 			diagnostic := expr.ErrorAt("42P17", "cannot use whole-row variable in column generation expression", raw.Pos).(*sqlstate.Error)
 			diagnostic.Detail = "This would cause the generated column to depend on its own value."
 			return nil, diagnostic
 		}
-		if column, ok := node.(columnExpression); ok {
+		if column, ok := node.(plan.ColumnExpr); ok {
 			if _, generated := owner.ColumnMeta.Generations[column.Origin.Address.SubID]; generated {
 				diagnostic := expr.ErrorAt("42P17", fmt.Sprintf(`cannot use generated column "%s" in column generation expression`, name), raw.Pos).(*sqlstate.Error)
 				diagnostic.Detail = "A generated column cannot reference another generated column."
@@ -1194,7 +1194,7 @@ func (b *expressionBinder) columnAt(i int, pos parser.Position) expr.Expr {
 
 func (b *expressionBinder) columnAtOf(relation *catalog.Relation, i int, pos parser.Position) expr.Expr {
 	ref := b.useColumnOf(relation, i)
-	column := columnExpression{Info: expr.Info{Usage: relation.Columns[i].Usage, Pos: pos, Property: expr.Properties{RowDependent: true}}, Origin: ref, Scope: 1, Frame: 1, Slot: i}
+	column := plan.ColumnExpr{Info: expr.Info{Usage: relation.Columns[i].Usage, Pos: pos, Property: expr.Properties{RowDependent: true}}, Origin: ref, Scope: 1, Frame: 1, Slot: i}
 	if b.target.generatedOwner == nil {
 		column = column.WithGeneration(relation, i, 0)
 	}
@@ -1569,12 +1569,12 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 			if u.Type == nil {
 				b.params.parameters[r.Number] = sqltype.Usage{}
-				node = parameterExpression{expr.Info{Pos: r.Pos, Property: expr.Properties{ParameterDependent: true}}, r.Number}
+				node = plan.ParameterExpr{expr.Info{Pos: r.Pos, Property: expr.Properties{ParameterDependent: true}}, r.Number}
 			} else {
 				if err := b.constrain(r.Number, u, r.Pos); err != nil {
 					return nil, err
 				}
-				node = parameterExpression{b.info(u.Type.Usage(), r.Pos, expr.Properties{ParameterDependent: true}), r.Number}
+				node = plan.ParameterExpr{b.info(u.Type.Usage(), r.Pos, expr.Properties{ParameterDependent: true}), r.Number}
 			}
 		case parser.LiteralExpr:
 			v := r.Value
@@ -1630,7 +1630,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				literalUsage = u.BaseUsage()
 			}
 			info := b.info(literalUsage, v.Pos, expr.Properties{})
-			node = literalExpression{info, value}
+			node = plan.LiteralExpr{info, value}
 			if literalUsage.Type.ID() == sqltype.Regclass && !value.IsNull() {
 				text, _ := value.Text()
 				oid, err := strconv.ParseUint(text, 10, 32)
@@ -1685,7 +1685,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				}
 			}
 			literalInfo := b.info(inputUsage, r.Pos, expr.Properties{})
-			node = literalExpression{literalInfo, value}
+			node = plan.LiteralExpr{literalInfo, value}
 			if inputUsage != u {
 				coercionPlan, err := sqltype.PlanCoercion(inputUsage, u, sqltype.Explicit)
 				if err != nil {
@@ -1695,7 +1695,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				if err != nil {
 					return nil, err
 				}
-				node = coercionExpression{info, node, coercionPlan, sqltype.Explicit, false}
+				node = plan.CoercionExpr{info, node, coercionPlan, sqltype.Explicit, false}
 			}
 		case parser.CollateExpr:
 			child, err := b.bind(r.Child, policy)
@@ -1711,7 +1711,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 			info := b.info(usage, r.Pos, child.Properties())
 			info.CollationExplicit = r.Pos
-			node = collationExpression{info, child}
+			node = plan.CollationExpr{info, child}
 		case parser.CastExpr:
 			var err error
 			node, err = b.cast(r, policy)
@@ -1776,7 +1776,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 	}
 	// Logical children already passed this policy independently. Do not walk
 	// every prefix again when binding a long AND/OR chain.
-	if _, logical := node.(logicalExpression); policy.booleanConstruct != "" && !logical {
+	if _, logical := node.(plan.LogicalExpr); policy.booleanConstruct != "" && !logical {
 		returnsSet := false
 		walkBoundExpression(node, func(child expr.Expr) {
 			returnsSet = returnsSet || sourceReturnsSet(child)
@@ -1827,7 +1827,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 			node = restoreDomainCastCollations(annotations, folded)
 		} else {
-			node = restoreDomainCastCollations(annotations, coercionExpression{info, input, coercionPlan, policy.mode, false})
+			node = restoreDomainCastCollations(annotations, plan.CoercionExpr{info, input, coercionPlan, policy.mode, false})
 		}
 		if policy.context == assignmentContext {
 			var err error
@@ -2046,7 +2046,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 	if folded, ok, err := b.foldRegtypeConstant(child, coercionPlan, info); ok || err != nil {
 		return restoreDomainCastCollations(annotations, folded), err
 	}
-	return restoreDomainCastCollations(annotations, coercionExpression{info, child, coercionPlan, sqltype.Explicit, false}), nil
+	return restoreDomainCastCollations(annotations, plan.CoercionExpr{info, child, coercionPlan, sqltype.Explicit, false}), nil
 }
 
 func domainCoercionInput(child expr.Expr, target sqltype.Usage) (expr.Expr, expr.Expr) {
@@ -2055,7 +2055,7 @@ func domainCoercionInput(child expr.Expr, target sqltype.Usage) (expr.Expr, expr
 	}
 	annotations := child
 	for {
-		annotation, ok := child.(collationExpression)
+		annotation, ok := child.(plan.CollationExpr)
 		if !ok {
 			return child, annotations
 		}
@@ -2067,7 +2067,7 @@ func restoreDomainCastCollations(original, coerced expr.Expr) expr.Expr {
 	if coerced == nil {
 		return nil
 	}
-	annotation, ok := original.(collationExpression)
+	annotation, ok := original.(plan.CollationExpr)
 	if !ok {
 		return coerced
 	}
@@ -2091,7 +2091,7 @@ func storageDestination(node expr.Expr, target sqltype.Usage, pos parser.Positio
 		return nil, err
 	}
 	info := expr.Info{Usage: target, Pos: pos, Property: coercionProperties(node, coercionPlan)}
-	return coercionExpression{info, node, coercionPlan, sqltype.Assignment, false}, nil
+	return plan.CoercionExpr{info, node, coercionPlan, sqltype.Assignment, false}, nil
 }
 
 // Only a new domain conversion adds semantic authority before storage. Other
@@ -2107,7 +2107,7 @@ func storageCoercionInfo(view catalog.Read, info expr.Info, child expr.Expr) (ex
 // Strong column/function names survive standard casts; weak literal names do not.
 func expressionName(raw parser.Expr, usage sqltype.Usage, bound expr.Expr) (string, bool) {
 	for {
-		coercion, ok := bound.(coercionExpression)
+		coercion, ok := bound.(plan.CoercionExpr)
 		if !ok {
 			break
 		}
@@ -2128,7 +2128,7 @@ func expressionName(raw parser.Expr, usage sqltype.Usage, bound expr.Expr) (stri
 			return "exists", true
 		}
 		if r.Kind == parser.SubqueryScalar {
-			if child, ok := bound.(subqueryExpression); ok && len(child.QueryPlan.Root.Schema()) == 1 {
+			if child, ok := bound.(plan.SubqueryExpr); ok && len(child.QueryPlan.Root.Schema()) == 1 {
 				name := child.QueryPlan.Root.Schema()[0].Name
 				return name, name != "?column?" || len(r.Query.Labels) > 0 && r.Query.Labels[0].Text != ""
 			}
@@ -2147,7 +2147,7 @@ func expressionName(raw parser.Expr, usage sqltype.Usage, bound expr.Expr) (stri
 	case parser.CaseExpr:
 		if r.Else != nil {
 			var otherwise expr.Expr
-			if expr, ok := bound.(caseExpression); ok {
+			if expr, ok := bound.(plan.CaseExpr); ok {
 				otherwise = expr.Otherwise
 			}
 			if name, strong := expressionName(r.Else, usage, otherwise); strong {
@@ -2179,7 +2179,7 @@ func expressionName(raw parser.Expr, usage sqltype.Usage, bound expr.Expr) (stri
 	case parser.TimeZoneExpr:
 		return "timezone", true
 	case parser.CollateExpr:
-		if expr, ok := bound.(collationExpression); ok {
+		if expr, ok := bound.(plan.CollationExpr); ok {
 			bound = expr.Child
 		}
 		return expressionName(r.Child, usage, bound)
@@ -2294,7 +2294,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		return node.(literalExpression).Value, nil
+		return node.(plan.LiteralExpr).Value, nil
 	}
 	if sqltype.IsFTS(u.Type.BaseType().ID()) || u.Type.BaseType().IsCube() || u.Type.BaseType().IsQueryInt() || u.Type.ContainsACLItem() || u.Type.ContainsRegrole() || u.Type.BaseType().IsEnum() || u.Type.BaseType().IsArray() || u.Type.BaseType().IsComposite() || u.Type.BaseType().ID() == sqltype.DateRange || u.Type.BaseType().ID() == sqltype.TimestampRange || u.Type.BaseType().ID() == sqltype.TimestamptzRange {
 		if u.Type.BaseType().IsArray() && u.Type.ContainsRegtype() {
@@ -2513,7 +2513,7 @@ func (b *expressionBinder) AnalyzeArgument(raw parser.Expr, request functions.An
 		operand.node, err = b.bind(raw, expressionPolicy{context: projectionContext, stringInput: request.Intent == functions.StringProjectionArgument})
 		operand.raw = raw
 		if err == nil && unknownNullSyntax(raw) {
-			if literal, ok := operand.node.(literalExpression); ok {
+			if literal, ok := operand.node.(plan.LiteralExpr); ok {
 				literal.UnknownNull = true
 				operand.node = literal
 			}
@@ -2555,7 +2555,7 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 		return b.likeOperand(operand, request.Target.Type)
 	case functions.RecordFormalArgument:
 		var record *sqltype.Descriptor
-		if parameter, ok := argument.Expression.(parameterExpression); ok {
+		if parameter, ok := argument.Expression.(plan.ParameterExpr); ok {
 			record = b.params.parameters[parameter.Number].Type
 		}
 		if record == nil {
@@ -2583,7 +2583,7 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 			return nil, err
 		}
 		info.Property = coercionProperties(node, coercionPlan)
-		return coercionExpression{info, node, coercionPlan, sqltype.Implicit, false}, nil
+		return plan.CoercionExpr{info, node, coercionPlan, sqltype.Implicit, false}, nil
 	case functions.ConditionalArgument:
 		return b.coerceConditional(operand, request.Target, request.Label)
 	case functions.JSONFormattedArgument:
@@ -2592,7 +2592,7 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 		if err != nil {
 			return nil, err
 		}
-		return coercionExpression{info, node, request.Plan, sqltype.Explicit, false}, nil
+		return plan.CoercionExpr{info, node, request.Plan, sqltype.Explicit, false}, nil
 	case functions.BareFormalArgument:
 		node := argument.Expression
 		if node == nil || !request.Planned {
@@ -2602,7 +2602,7 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 		if request.PreserveProperties {
 			properties = node.Properties()
 		}
-		return coercionExpression{b.info(request.Target, argument.Raw.SourcePosition(), properties), node, request.Plan, sqltype.Implicit, false}, nil
+		return plan.CoercionExpr{b.info(request.Target, argument.Raw.SourcePosition(), properties), node, request.Plan, sqltype.Implicit, false}, nil
 	case functions.AssignmentFormalArgument:
 		if !b.clause.selectedCallArguments || argument.Expression == nil || argument.Usage.Type == nil {
 			return b.bind(argument.Raw, expressionPolicy{context: assignmentContext, expected: request.Target, mode: sqltype.Implicit})
@@ -2656,7 +2656,7 @@ func (b *expressionBinder) CoerceArgument(argument functions.Argument, request f
 	if err != nil {
 		return nil, err
 	}
-	return coercionExpression{info, node, coercionPlan, sqltype.Implicit, false}, nil
+	return plan.CoercionExpr{info, node, coercionPlan, sqltype.Implicit, false}, nil
 }
 
 func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expressionPolicy) (comparisonOperand, error) {
@@ -2692,21 +2692,21 @@ func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expre
 	return comparisonOperand{node: node, raw: raw}, err
 }
 
-func (b *expressionBinder) coerceParameter(p parameterExpression, u sqltype.Usage) (expr.Expr, error) {
+func (b *expressionBinder) coerceParameter(p plan.ParameterExpr, u sqltype.Usage) (expr.Expr, error) {
 	if existing := b.params.parameters[p.Number]; existing.Type != nil && existing.Type != u.Type {
 		d := expr.ErrorAt("42P08", fmt.Sprintf("inconsistent types deduced for parameter $%d", p.Number), p.Pos).(*sqlstate.Error)
 		d.Detail = fmt.Sprintf("%s versus %s", existing.Type.DiagnosticName(), u.Type.DiagnosticName())
 		return nil, d
 	}
 	b.params.parameters[p.Number] = u.Type.Usage()
-	return parameterExpression{b.info(u.Type.Usage(), p.Pos, p.Property), p.Number}, nil
+	return plan.ParameterExpr{b.info(u.Type.Usage(), p.Pos, p.Property), p.Number}, nil
 }
 
 func (b *expressionBinder) finalizeOperand(o comparisonOperand, typ *sqltype.Descriptor) (expr.Expr, error) {
 	if o.descriptor() != nil {
 		return o.node, nil
 	}
-	if p, ok := o.node.(parameterExpression); ok {
+	if p, ok := o.node.(plan.ParameterExpr); ok {
 		return b.coerceParameter(p, typ.Usage())
 	}
 	if o.raw == nil {
@@ -2816,13 +2816,13 @@ func (b *expressionBinder) bindComparisonOperandCandidates(raw parser.OperatorEx
 			return nil, err
 		}
 	}
-	return comparisonExpression{info, l, r, predicate, name, namespace}, nil
+	return plan.ComparisonExpr{info, l, r, predicate, name, namespace}, nil
 }
 
 // Strict arithmetic may erase a target-set subtree when a physical constant
 // NULL makes its result independent of producer demand. Ordinary row arithmetic
 // and imported parameter NULLs retain their existing execution-owned behavior.
-func arithmeticSetConstantNull(original, current arithmeticExpression) bool {
+func arithmeticSetConstantNull(original, current plan.ArithmeticExpr) bool {
 	return (bitwiseConstantNull(current.Left) || bitwiseConstantNull(current.Right)) &&
 		(querySetDepth(original) != 0 || querySetDepth(current) != 0)
 }
@@ -2942,7 +2942,7 @@ func (b *expressionBinder) finishArithmetic(raw parser.OperatorExpr, left, right
 			if err != nil {
 				return nil, err
 			}
-			n = coercionExpression{info, n, coercionPlan, sqltype.Implicit, false}
+			n = plan.CoercionExpr{info, n, coercionPlan, sqltype.Implicit, false}
 		}
 		return n, nil
 	}
@@ -2993,5 +2993,5 @@ func (b *expressionBinder) finishArithmetic(raw parser.OperatorExpr, left, right
 	if err != nil {
 		return nil, err
 	}
-	return arithmeticExpression{info, l, r, provider, operator, namespace}, nil
+	return plan.ArithmeticExpr{info, l, r, provider, operator, namespace}, nil
 }

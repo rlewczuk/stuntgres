@@ -2,9 +2,10 @@ package engine
 
 import (
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 )
 
-func mapViewQualification(e viewQualificationExpression, mapper func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, bool, error) {
+func mapViewQualification(e plan.ViewQualificationExpr, mapper func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, bool, error) {
 	changed := false
 	var private []expr.Expr
 	for i, x := range e.Predicates {

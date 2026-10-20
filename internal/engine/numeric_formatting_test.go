@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -58,8 +59,8 @@ func TestNumericFormattingDemandAndRetag(t *testing.T) {
 	// Pure NULL/sibling-error runtime demand is exercised locally. Retain
 	// genuine STABLE/group/retag owner invariants with executable literals.
 	n := functions.NumericFormatting{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Plan: numericFormatPlan, Args: [2]expr.Expr{
-		literalExpression{Info: expr.Info{Usage: numeric.Usage()}, Value: sqltype.Null(numeric)},
-		literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, mask)},
+		plan.LiteralExpr{Info: expr.Info{Usage: numeric.Usage()}, Value: sqltype.Null(numeric)},
+		plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, mask)},
 	}}
 	simplified, _, err := simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: ctx}}, n, false)
 	if err != nil {
@@ -72,7 +73,7 @@ func TestNumericFormattingDemandAndRetag(t *testing.T) {
 		t.Fatal("intrinsic STABLE/semantic identity")
 	}
 	other := n
-	other.Args[1] = literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "FM99")}
+	other.Args[1] = plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "FM99")}
 	if b.sameGroupExpression(n, other) {
 		t.Fatal("mask omitted from group identity")
 	}

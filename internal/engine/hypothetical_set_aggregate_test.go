@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"testing"
 
 	"stuntgres/internal/engine/ids"
@@ -21,7 +22,7 @@ type hypotheticalUnit struct {
 	values  []sqltype.Value
 	indices []int
 	width   int
-	order   []sortKey
+	order   []plan.SortKey
 	target  []sqltype.Value
 }
 
@@ -45,7 +46,7 @@ func hypotheticalUnitInput(t *testing.T, id sqltype.ID, direct string, values ..
 	if err != nil {
 		t.Fatal(err)
 	}
-	in := hypotheticalUnit{width: 3, values: make([]sqltype.Value, 3*len(values)), indices: make([]int, len(values)), target: make([]sqltype.Value, 3), order: []sortKey{{Comparison: comparison, Cache: 2, Slot: -1}}}
+	in := hypotheticalUnit{width: 3, values: make([]sqltype.Value, 3*len(values)), indices: make([]int, len(values)), target: make([]sqltype.Value, 3), order: []plan.SortKey{{Comparison: comparison, Cache: 2, Slot: -1}}}
 	parse := func(text string) sqltype.Value {
 		if text == "NULL" {
 			return sqltype.Null(input)
@@ -176,7 +177,7 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			call := b.grouping.aggregates[node.(aggregateExpression).Slot]
+			call := b.grouping.aggregates[node.(plan.AggregateExpr).Slot]
 			if len(call.Direct) != 49 || len(call.Order) != 49 || call.StageWidth != 51 || call.Argument != nil || !call.IncludeNulls {
 				t.Fatal("full tuple layout", call)
 			}
@@ -188,9 +189,9 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 			if node.ResultUsage() != b.typ(tc.id).Usage() || node.ResultUsage().Collation.ID != 0 {
 				t.Fatal("result authority", node.ResultUsage())
 			}
-			child := &valuesNode{Rows: [][]expr.Expr{{}}}
-			aggregate := &aggregateNode{QuerySchema: querySchema{{Usage: node.ResultUsage()}}, Child: child, Calls: []aggregateCall{call}}
-			root := &projectNode{QuerySchema: aggregate.QuerySchema, Child: aggregate, Expressions: []expr.Expr{groupExpression{Info: expr.Info{Usage: node.ResultUsage()}, Slot: 0, Frame: 1}}, Frame: 1}
+			child := &plan.ValuesNode{Rows: [][]expr.Expr{{}}}
+			aggregate := &plan.AggregateNode{QuerySchema: plan.QuerySchema{{Usage: node.ResultUsage()}}, Child: child, Calls: []plan.AggregateCall{call}}
+			root := &plan.ProjectNode{QuerySchema: aggregate.QuerySchema, Child: aggregate, Expressions: []expr.Expr{plan.GroupExpr{Info: expr.Info{Usage: node.ResultUsage()}, Slot: 0, Frame: 1}}, Frame: 1}
 			rows, count, err := finalizeQuery(context.Background(), root, &querySource{}, nil)
 			if err != nil || count != 1 {
 				t.Fatal("49-key private execution", count, err)
@@ -224,7 +225,7 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !b.sameGroupExpression(rewritten.(*aggregateNode).Calls[0].Direct[48], call.Direct[0]) || !b.sameGroupExpression(aggregate.Calls[0].Direct[48], call.Direct[48]) {
+			if !b.sameGroupExpression(rewritten.(*plan.AggregateNode).Calls[0].Direct[48], call.Direct[0]) || !b.sameGroupExpression(aggregate.Calls[0].Direct[48], call.Direct[48]) {
 				t.Fatal("rewrite aliased direct slice")
 			}
 			// Every direct/key/result descriptor must belong to the destination catalog.
@@ -242,7 +243,7 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			mapped := remapped.(*aggregateNode).Calls[0]
+			mapped := remapped.(*plan.AggregateNode).Calls[0]
 			expressions := append([]expr.Expr(nil), mapped.Direct...)
 			for _, key := range mapped.Order {
 				expressions = append(expressions, key.Expression)
@@ -332,13 +333,13 @@ func TestHypotheticalAggregateCancellationPublication(t *testing.T) {
 				}))
 			}
 			key := queryProbe(input.Usage(), func(c *EvalContext) (sqltype.Value, error) { keyCalls++; return c.Row[0], nil })
-			call := aggregateCall{Provider: p, Direct: direct, Operation: p.Operation(), StageWidth: 4, IncludeNulls: true, Order: []sortKey{{Expression: key, Comparison: in.order[0].Comparison, Slot: -1, Cache: 2}, {Expression: key, Comparison: in.order[0].Comparison, Slot: -1, Cache: 3}}}
-			child := &valuesNode{QuerySchema: querySchema{{Usage: input.Usage()}}}
+			call := plan.AggregateCall{Provider: p, Direct: direct, Operation: p.Operation(), StageWidth: 4, IncludeNulls: true, Order: []plan.SortKey{{Expression: key, Comparison: in.order[0].Comparison, Slot: -1, Cache: 2}, {Expression: key, Comparison: in.order[0].Comparison, Slot: -1, Cache: 3}}}
+			child := &plan.ValuesNode{QuerySchema: plan.QuerySchema{{Usage: input.Usage()}}}
 			for i := range in.len() {
-				child.Rows = append(child.Rows, []expr.Expr{literalExpression{Info: expr.Info{Usage: input.Usage()}, Value: in.tuple(i)[2]}})
+				child.Rows = append(child.Rows, []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: input.Usage()}, Value: in.tuple(i)[2]}})
 			}
-			aggregate := &aggregateNode{QuerySchema: querySchema{{Usage: p.ResultUsage()}}, Child: child, Calls: []aggregateCall{call}}
-			root := &projectNode{QuerySchema: aggregate.QuerySchema, Child: aggregate, Expressions: []expr.Expr{groupExpression{Info: expr.Info{Usage: p.ResultUsage()}, Slot: 0, Frame: 1}}, Frame: 1}
+			aggregate := &plan.AggregateNode{QuerySchema: plan.QuerySchema{{Usage: p.ResultUsage()}}, Child: child, Calls: []plan.AggregateCall{call}}
+			root := &plan.ProjectNode{QuerySchema: aggregate.QuerySchema, Child: aggregate, Expressions: []expr.Expr{plan.GroupExpr{Info: expr.Info{Usage: p.ResultUsage()}, Slot: 0, Frame: 1}}, Frame: 1}
 			if phase == "prepublication" {
 				result := root.Expressions[0]
 				root.Expressions[0] = queryProbe(p.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { value, err := result.Eval(c); cancel(); return value, err })

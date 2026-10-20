@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 )
 
 func TestTableLikeTemporaryRetainedRows(t *testing.T) {
@@ -39,9 +40,9 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 				for _, node := range nodes {
 					walkBoundExpression(node, func(node expr.Expr) {
 						switch n := node.(type) {
-						case columnExpression:
+						case plan.ColumnExpr:
 							refs = append(refs, n.Origin)
-						case tableOIDExpression:
+						case plan.TableOIDExpr:
 							refs = append(refs, n.Owner)
 						}
 					})
@@ -223,11 +224,11 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 		t.Helper()
 		walkBoundExpression(node, func(node expr.Expr) {
 			switch n := node.(type) {
-			case columnExpression:
+			case plan.ColumnExpr:
 				if n.Origin.Domain() != e.catalog.Domain || n.Origin.Epoch != stage.Base.Epoch() || n.Origin.Address.ObjectID != destination.Address().ObjectID {
 					t.Fatal("local row authority not current", n.Origin)
 				}
-			case literalExpression:
+			case plan.LiteralExpr:
 				if n.RegclassRef.Address == anchor.Address() && n.RegclassRef != oldRef {
 					t.Fatal("external constant retagged", n.RegclassRef)
 				}

@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -170,7 +171,7 @@ func TestRegTSPersistenceRemap(t *testing.T) {
 			}
 		}
 	}
-	literal := literalExpression{Info: expr.Info{Usage: dictionary.Usage()}, Value: live}
+	literal := plan.LiteralExpr{Info: expr.Info{Usage: dictionary.Usage()}, Value: live}
 	text, err := catalogLiteralSQL(ctx, view, literal)
 	if err != nil || !strings.Contains(text, `"Reg.TS".unaccent`) || strings.Contains(text, "91000") {
 		t.Fatal("qualified logical reference", text, err)
@@ -227,7 +228,7 @@ func TestRegTSPersistenceRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	id, _ := remapped.(literalExpression).Value.RegTSOID()
+	id, _ := remapped.(plan.LiteralExpr).Value.RegTSOID()
 	original, _ := literal.Value.RegTSOID()
 	if id != 92000 || original != 91000 {
 		t.Fatal("immutable literal remap", id, original)

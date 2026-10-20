@@ -2,10 +2,11 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
-func (c *EvalContext) EvalGroup(e groupExpression) (sqltype.Value, error) {
+func (c *EvalContext) EvalGroup(e plan.GroupExpr) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

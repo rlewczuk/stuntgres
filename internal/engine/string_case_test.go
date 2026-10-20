@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -34,7 +35,7 @@ func TestStringCaseRetainedPlan(t *testing.T) {
 		node := functions.String{
 			Info: expr.Info{Usage: usage, CollationConflict: conflict},
 			Plan: stringPlan, Textual: [4]bool{true}, Syntax: parser.OrdinaryStringSyntax,
-			Args: []expr.Expr{literalExpression{expr.Info{Usage: usage}, sqltype.String(text, "ß")}},
+			Args: []expr.Expr{plan.LiteralExpr{expr.Info{Usage: usage}, sqltype.String(text, "ß")}},
 		}
 		rebound, changed, err := retagBoundTypes(New().CatalogRead(), node, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 			if d == text {
@@ -85,7 +86,7 @@ func TestStringCaseOnceOnlyChildAndMetadata(t *testing.T) {
 	node := functions.String{
 		Info: expr.Info{Usage: usage, Property: expr.Properties{Volatility: expr.Immutable, RowDependent: true}},
 		Plan: stringPlan, Textual: [4]bool{true}, Syntax: parser.OrdinaryStringSyntax,
-		Args: []expr.Expr{literalExpression{expr.Info{Usage: usage}, sqltype.String(text, "İ")}},
+		Args: []expr.Expr{plan.LiteralExpr{expr.Info{Usage: usage}, sqltype.String(text, "İ")}},
 	}
 	info, err := collatedInfo(New().CatalogRead(), expr.Info{Usage: usage}, node)
 	if err != nil || info.Usage.Collation.ID != 811 || info.CollationConflict {
@@ -118,7 +119,7 @@ func TestStringCaseCollatedParameterInference(t *testing.T) {
 					t.Fatal(err)
 				}
 				bound := node.(functions.String)
-				input := bound.Args[0].(collationExpression)
+				input := bound.Args[0].(plan.CollationExpr)
 				if b.params.parameters[1] != text.Usage() || input.Child.ResultUsage() != text.Usage() ||
 					input.ResultUsage().Collation.ID != collation.id || bound.ResultUsage().Collation.ID != collation.id ||
 					!bound.Properties().ParameterDependent {

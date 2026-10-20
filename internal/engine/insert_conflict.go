@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -144,14 +145,14 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 		}
 		// Top-level COLLATE is a decoration, not index expression identity.
 		for {
-			collated, ok := expression.(collationExpression)
+			collated, ok := expression.(plan.CollationExpr)
 			if !ok {
 				break
 			}
 			c.keys[i].collation = collated.ResultUsage().Collation.ID
 			expression = collated.Child
 		}
-		if col, ok := expression.(columnExpression); ok {
+		if col, ok := expression.(plan.ColumnExpr); ok {
 			c.keys[i].attribute = col.Origin.Address.SubID
 		} else {
 			c.keys[i].expression = expression

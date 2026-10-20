@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -66,7 +67,7 @@ func TestArrayExpressionParameterManifestAndTraversal(t *testing.T) {
 	}
 	var numbers []int
 	walkBoundExpression(node, func(child expr.Expr) {
-		if p, ok := child.(parameterExpression); ok {
+		if p, ok := child.(plan.ParameterExpr); ok {
 			numbers = append(numbers, p.Number)
 		}
 	})
@@ -100,9 +101,9 @@ func TestArrayExpressionImmutableRewriteAndGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := original.(subscriptExpression)
+	node := original.(plan.SubscriptExpr)
 	saved := node.Subscripts[0].Upper
-	replacement := literalExpression{Info: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{}), Value: sqltype.Null(b.typ(sqltype.Int4))}
+	replacement := plan.LiteralExpr{Info: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{}), Value: sqltype.Null(b.typ(sqltype.Int4))}
 	mapped, changed, err := mapSubscript(node, func(child expr.Expr) (expr.Expr, bool, error) {
 		if child == saved {
 			return replacement, true, nil
@@ -163,7 +164,7 @@ func TestArrayExpressionRuntimeDemandOrder(t *testing.T) {
 	child := func(label string, value sqltype.Value) expr.Expr {
 		return arrayDemandExpression{b.info(value.Type().Usage(), parser.Position{}, expr.Properties{}), func(*EvalContext) (sqltype.Value, error) { order = append(order, label); return value, nil }}
 	}
-	node := subscriptExpression{Info: b.info(arr.Usage(), parser.Position{}, expr.Properties{}), Base: child("base", input), Slice: true, Subscripts: []boundArraySubscript{{Lower: child("l1", one), Upper: child("u1", one), Slice: true}, {Lower: child("l2", one), Upper: child("u2", one), Slice: true}}}
+	node := plan.SubscriptExpr{Info: b.info(arr.Usage(), parser.Position{}, expr.Properties{}), Base: child("base", input), Slice: true, Subscripts: []plan.BoundArraySubscript{{Lower: child("l1", one), Upper: child("u1", one), Slice: true}, {Lower: child("l2", one), Upper: child("u2", one), Slice: true}}}
 	if _, err := node.Eval(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +180,7 @@ func TestArrayExpressionRuntimeDemandOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	target := arrayAssignmentTarget{Node: node, Reapply: coercionPlan}
+	target := plan.ArrayAssignmentTarget{Node: node, Reapply: coercionPlan}
 	order = nil
 	if _, err := target.ApplyExpression(ctx, input, child("rhs", input)); err != nil {
 		t.Fatal(err)
@@ -219,7 +220,7 @@ func TestArrayExpressionColumnUseAndTargetManifest(t *testing.T) {
 	if !reflect.DeepEqual(b.target.uses, []int{0, 1}) {
 		t.Fatal("base and bound must contribute actual SELECT uses", b.target.uses)
 	}
-	if _, physical := node.(columnExpression); physical {
+	if _, physical := node.(plan.ColumnExpr); physical {
 		t.Fatal("derived access has physical origin")
 	}
 	b.target.uses = nil
@@ -233,7 +234,7 @@ func TestArrayExpressionColumnUseAndTargetManifest(t *testing.T) {
 	var slots []int
 	var storage [13]expr.Expr
 	for _, child := range subscriptChildren(target.Node, &storage) {
-		if col, ok := child.(columnExpression); ok {
+		if col, ok := child.(plan.ColumnExpr); ok {
 			slots = append(slots, col.Slot)
 		}
 	}

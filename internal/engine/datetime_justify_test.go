@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -76,7 +77,7 @@ func TestDatetimeJustifyParameterAndStrictNull(t *testing.T) {
 			t.Fatal(err)
 		}
 		e := null.(functions.DatetimeJustify)
-		e.Arg = literalExpression{expr.InfoOf(e), sqltype.Null(e.ResultUsage().Type)}
+		e.Arg = plan.LiteralExpr{expr.InfoOf(e), sqltype.Null(e.ResultUsage().Type)}
 		v, err := e.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		if err != nil || !v.IsNull() || v.Type() != e.ResultUsage().Type {
 			t.Fatal(v, err)

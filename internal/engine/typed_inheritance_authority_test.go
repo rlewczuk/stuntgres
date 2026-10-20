@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -23,13 +24,13 @@ func TestTypedInheritanceRetainedConstraintAndDefaultAuthority(t *testing.T) {
 			child.Columns[0].OriginAttribute = 7
 			child.Columns[0].Nullable = false
 			boolean := testUsage(e, sqltype.Bool)
-			predicate := literalExpression{Info: expr.Info{Usage: boolean}, Value: sqltype.Boolean(boolean.Type, true)}
+			predicate := plan.LiteralExpr{Info: expr.Info{Usage: boolean}, Value: sqltype.Boolean(boolean.Type, true)}
 			integer := testUsage(e, sqltype.Int4)
 			value, err := sqltype.Integer(integer.Type, 7)
 			if err != nil {
 				t.Fatal(err)
 			}
-			defaultExpression := literalExpression{Info: expr.Info{Usage: integer}, Value: value}
+			defaultExpression := plan.LiteralExpr{Info: expr.Info{Usage: integer}, Value: value}
 			child.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 23001, Name: "c_id_not_null", Attribute: 7}}
 			child.Constraints.Check = []catalog.CheckConstraint{{OID: 23003, Name: "positive", Expression: predicate}}
 			child.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{7: {OID: 23005, Expression: defaultExpression}}
@@ -127,7 +128,7 @@ func TestTypedSameUsageTypePreservesPhysicalRoot(t *testing.T) {
 	store := e.storage.Relations[table.Address()]
 	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), table.Address())
 	ref.Address.SubID = 1
-	node := columnExpression{Info: expr.Info{Usage: table.Columns[0].Usage}, Origin: ref, Scope: 1, Frame: 1, Slot: 0}
+	node := plan.ColumnExpr{Info: expr.Info{Usage: table.Columns[0].Usage}, Origin: ref, Scope: 1, Frame: 1, Slot: 0}
 	mutation := typedRelationMutation{old: table, next: &next, transforms: []columnTransformation{{attribute: 1, expression: node}}}
 	if err := e.stageTypedRows(scope, auth, stage, mutation); err != nil {
 		t.Fatal(err)

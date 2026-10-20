@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -170,13 +171,13 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 			if err != nil {
 				t.Fatal("actual source binding", err)
 			}
-			var source *functionFromNode
-			var findSource func(LogicalNode)
-			findSource = func(node LogicalNode) {
+			var source *plan.FunctionFromNode
+			var findSource func(plan.Node)
+			findSource = func(node plan.Node) {
 				if node == nil {
 					return
 				}
-				if found, ok := node.(*functionFromNode); ok {
+				if found, ok := node.(*plan.FunctionFromNode); ok {
 					source = found
 					return
 				}
@@ -193,13 +194,13 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 				evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.params.parameters[1].Type)}
 			}
 			originalCalls := append([]expr.Expr(nil), source.Calls...)
-			originalSchema := append(querySchema(nil), source.QuerySchema...)
+			originalSchema := append(plan.QuerySchema(nil), source.QuerySchema...)
 			originalManifest := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
 			planned, err := preflightFunctionFrom(&evaluation, source)
 			if err != nil {
 				t.Fatal("source preflight", err)
 			}
-			execution := planned.(*functionFromNode)
+			execution := planned.(*plan.FunctionFromNode)
 			pruned := execution.ScalarNull != nil && execution.ScalarNull[0]
 			if pruned != tc.pruned || source.ScalarNull != nil || !reflect.DeepEqual(source.Calls, originalCalls) || !reflect.DeepEqual(source.QuerySchema, originalSchema) || !reflect.DeepEqual(binder.dependencies, originalManifest) {
 				t.Fatal("preflight lost source immutability or scalar/RECORD distinction")
@@ -222,7 +223,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 			probe := evaluation
 			probe.routineChecks = []catalog.ExpressionDependency{}
 			for _, empty := range []bool{true, false} {
-				err := validateMarkedQueryJoin(&probe, execution, evaluation.catalog, nil, queryRowMark{}, empty, nil, nil)
+				err := validateMarkedQueryJoin(&probe, execution, evaluation.catalog, nil, plan.RowMark{}, empty, nil, nil)
 				if (err == nil) != (tc.pruned || empty) {
 					t.Fatal("execution demand versus original lifetime", empty, tc.pruned, err)
 				}
@@ -232,7 +233,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 				// Removing it on a private copy exposes the original missing refs.
 				unpruned := *execution
 				unpruned.ScalarNull = nil
-				if err := validateMarkedQueryJoin(&probe, &unpruned, evaluation.catalog, nil, queryRowMark{}, false, nil, nil); err == nil {
+				if err := validateMarkedQueryJoin(&probe, &unpruned, evaluation.catalog, nil, plan.RowMark{}, false, nil, nil); err == nil {
 					t.Fatal("nonpruned original graph did not demand its manifest")
 				}
 				cursor, err := openFunctionCall(&probe, execution, 0)
@@ -251,17 +252,17 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					fresh := replanned.(*functionFromNode)
+					fresh := replanned.(*plan.FunctionFromNode)
 					if fresh.ScalarNull != nil && fresh.ScalarNull[0] {
 						t.Fatal("original source retained a prior NULL frame")
 					}
 					again.routineChecks = []catalog.ExpressionDependency{}
-					if err := validateMarkedQueryJoin(&again, fresh, evaluation.catalog, nil, queryRowMark{}, false, nil, nil); err == nil {
+					if err := validateMarkedQueryJoin(&again, fresh, evaluation.catalog, nil, plan.RowMark{}, false, nil, nil); err == nil {
 						t.Fatal("non-NULL frame borrowed NULL admission")
 					}
 				}
 			}
-			if err := validateMarkedQueryJoin(&evaluation, execution, evaluation.catalog, nil, queryRowMark{}, false, nil, nil); err != nil {
+			if err := validateMarkedQueryJoin(&evaluation, execution, evaluation.catalog, nil, plan.RowMark{}, false, nil, nil); err != nil {
 				t.Fatal("intact original manifest", err)
 			}
 			sequence := catalogRef(t, e, e.CatalogRead(), "strict_null_steps")
@@ -368,9 +369,9 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		if bindErr != nil {
 			t.Fatal("literal-sibling source binding", bindErr)
 		}
-		source := query.Root.(*projectNode).Child.(*functionFromNode)
+		source := query.Root.(*plan.ProjectNode).Child.(*plan.FunctionFromNode)
 		sourceInfo := expr.InfoOf(source.Calls[0])
-		sourceSchema := append(querySchema(nil), source.QuerySchema...)
+		sourceSchema := append(plan.QuerySchema(nil), source.QuerySchema...)
 		sourceManifest := append([]catalog.ExpressionDependency(nil), sourceBinder.dependencies...)
 		sourceEvaluation := evaluation
 		sourceEvaluation.routineChecks = sourceBinder.dependencies
@@ -378,7 +379,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		if err != nil {
 			t.Fatal("literal sibling source pruning", err)
 		}
-		execution := planned.(*functionFromNode)
+		execution := planned.(*plan.FunctionFromNode)
 		if execution.ScalarNull == nil || !execution.ScalarNull[0] {
 			t.Fatal("known NULL source was not pruned")
 		}
@@ -506,11 +507,11 @@ func TestObjectAddressSourceFalseDemand(t *testing.T) {
 				}
 				probe := evaluation
 				probe.routineChecks = []catalog.ExpressionDependency{}
-				err = validateMarkedQueryJoin(&probe, root, evaluation.catalog, nil, queryRowMark{}, false, nil, nil)
+				err = validateMarkedQueryJoin(&probe, root, evaluation.catalog, nil, plan.RowMark{}, false, nil, nil)
 				if (err == nil) != route.pruned {
 					t.Fatal("proven source demand", route.name, err)
 				}
-				if err := validateMarkedQueryJoin(&evaluation, root, evaluation.catalog, nil, queryRowMark{}, false, nil, nil); err != nil {
+				if err := validateMarkedQueryJoin(&evaluation, root, evaluation.catalog, nil, plan.RowMark{}, false, nil, nil); err != nil {
 					t.Fatal("intact original authority", err)
 				}
 				if !reflect.DeepEqual(binder.dependencies, manifest) {

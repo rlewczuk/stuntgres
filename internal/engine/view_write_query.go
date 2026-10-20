@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -14,8 +15,8 @@ type viewWriteOccurrence struct {
 
 // Only transplanted, demanded subqueries acquire an execution source slot.
 // Frozen view layouts are bridged by capture, not by re-resolving SQL names.
-func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root LogicalNode, rewrite func(expr.Expr) (expr.Expr, bool, error)) (LogicalNode, error) {
-	project, ok := root.(*projectNode)
+func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root plan.Node, rewrite func(expr.Expr) (expr.Expr, bool, error)) (plan.Node, error) {
+	project, ok := root.(*plan.ProjectNode)
 	if !ok {
 		return rewriteQueryExpressions(root, rewrite)
 	}
@@ -61,12 +62,12 @@ func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root LogicalNode, 
 	// Structural derived inputs belong to this transplant. Scalar child queries
 	// are lowered by rewrite's explicit query callback and must not map twice.
 	frames := make(map[uint32]bool)
-	var ownFrames func(LogicalNode)
-	ownFrames = func(node LogicalNode) {
+	var ownFrames func(plan.Node)
+	ownFrames = func(node plan.Node) {
 		if node == nil {
 			return
 		}
-		if project, ok := node.(*projectNode); ok {
+		if project, ok := node.(*plan.ProjectNode); ok {
 			frames[project.Frame] = true
 		}
 		left, right := queryInputs(node)
@@ -75,7 +76,7 @@ func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root LogicalNode, 
 	}
 	ownFrames(root)
 	translate := func(n expr.Expr) (expr.Expr, bool, error) {
-		column, ok := n.(columnExpression)
+		column, ok := n.(plan.ColumnExpr)
 		if !ok || column.Origin == (ids.ObjectRef{}) || !frames[column.Frame] {
 			return n, false, nil
 		}
@@ -103,8 +104,8 @@ func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root LogicalNode, 
 		}
 		lowered, changed, err := rewrite(next)
 		return lowered, translated || changed, err
-	}, func(node LogicalNode) (LogicalNode, error) {
-		source, ok := node.(*sourceNode)
+	}, func(node plan.Node) (plan.Node, error) {
+		source, ok := node.(*plan.SourceNode)
 		if !ok {
 			return node, nil
 		}

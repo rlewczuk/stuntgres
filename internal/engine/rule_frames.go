@@ -3,12 +3,13 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 )
 
 // Transplanted queries retain lexical identity, including expression-owned
 // subqueries and CTE producers. This shares the existing copy-on-change walkers.
-func rewriteRuleFrames(view catalog.Read, root LogicalNode, expr expr.Expr, frame func(uint32) uint32, retainedCTEs ...[]*cteDefinition) (LogicalNode, expr.Expr, error) {
-	var retained []*cteDefinition
+func rewriteRuleFrames(view catalog.Read, root plan.Node, expr expr.Expr, frame func(uint32) uint32, retainedCTEs ...[]*plan.CTEDefinition) (plan.Node, expr.Expr, error) {
+	var retained []*plan.CTEDefinition
 	if len(retainedCTEs) != 0 {
 		retained = retainedCTEs[0]
 	}
@@ -23,7 +24,7 @@ func rewriteRuleFrames(view catalog.Read, root LogicalNode, expr expr.Expr, fram
 
 func ruleBindingMaxFrame(b binding) uint32 {
 	max := uint32(1)
-	visit := func(root LogicalNode) {
+	visit := func(root plan.Node) {
 		frames, _ := collectQueryFrames(root)
 		for frame := range frames {
 			if frame > max {
@@ -33,7 +34,7 @@ func ruleBindingMaxFrame(b binding) uint32 {
 	}
 	visitExpression := func(bound expr.Expr) {
 		if bound != nil {
-			visit(&projectNode{Expressions: []expr.Expr{bound}})
+			visit(&plan.ProjectNode{Expressions: []expr.Expr{bound}})
 		}
 	}
 	for _, definition := range b.ctes {
@@ -70,21 +71,21 @@ func ruleBindingMaxFrame(b binding) uint32 {
 	}
 	for _, row := range b.expressions {
 		for _, bound := range row {
-			visit(&projectNode{Expressions: []expr.Expr{bound}})
+			visit(&plan.ProjectNode{Expressions: []expr.Expr{bound}})
 		}
 	}
 	if b.update != nil {
 		visit(b.update.from)
 		visitExpression(b.update.predicate)
 		for _, bound := range b.update.assignments {
-			visit(&projectNode{Expressions: []expr.Expr{bound}})
+			visit(&plan.ProjectNode{Expressions: []expr.Expr{bound}})
 		}
 	}
 	visit(b.delete.using)
 	return max
 }
 
-func rewriteRuleOccurrences(view catalog.Read, root LogicalNode, expr expr.Expr, offset int) (LogicalNode, expr.Expr, error) {
+func rewriteRuleOccurrences(view catalog.Read, root plan.Node, expr expr.Expr, offset int) (plan.Node, expr.Expr, error) {
 	if offset == 0 {
 		return root, expr, nil
 	}
@@ -97,11 +98,11 @@ func rewriteRuleOccurrences(view catalog.Read, root LogicalNode, expr expr.Expr,
 	return mapped, mappedExpr, err
 }
 
-func offsetRuleSources(view catalog.Read, b binding, offset int, retainedCTEs ...[]*cteDefinition) (binding, error) {
+func offsetRuleSources(view catalog.Read, b binding, offset int, retainedCTEs ...[]*plan.CTEDefinition) (binding, error) {
 	if offset == 0 {
 		return b, nil
 	}
-	var retained []*cteDefinition
+	var retained []*plan.CTEDefinition
 	if len(retainedCTEs) != 0 {
 		retained = retainedCTEs[0]
 	}

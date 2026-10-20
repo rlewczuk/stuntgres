@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -88,7 +89,7 @@ func TestDomainAlterConstraintSelectedEvaluation(t *testing.T) {
 	if evaluation.domainValue != sentinel || evaluation.Input.DomainChecks != prior {
 		t.Fatal("cancellation leaked frame")
 	}
-	leaf := domainValueExpression{Info: expr.Info{Usage: child.SQLType.DomainBase()}}
+	leaf := plan.DomainValueExpr{Info: expr.Info{Usage: child.SQLType.DomainBase()}}
 	evaluation.Context = context.Background()
 	evaluation.domainValue = sqltype.Null(child.SQLType.DomainBase().Type)
 	evaluation.domainFrameUsage = child.SQLType.DomainBase()

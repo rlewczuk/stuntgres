@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -35,7 +36,7 @@ func TestQueryFromValuesCommonSchema(t *testing.T) {
 			if column.Name != "column1" || column.Usage.Type.ID() != tc.id || column.Usage.Typmod != tc.typmod || column.NullabilityKnown {
 				t.Fatal(column)
 			}
-			output := query.Root.(*projectNode).Expressions[0].(columnExpression)
+			output := query.Root.(*plan.ProjectNode).Expressions[0].(plan.ColumnExpr)
 			if output.Origin != (ids.ObjectRef{}) || len(b.query.sources) != 0 || len(b.target.uses) != 0 {
 				t.Fatal("synthetic source acquired physical identity", output, b.query.sources)
 			}
@@ -73,7 +74,7 @@ func TestQueryFromValuesMixedDemandAndCancellation(t *testing.T) {
 	for _, mode := range []string{"complete", "limit0", "cancel", "error"} {
 		t.Run(mode, func(t *testing.T) {
 			e, query, source := queryCoreFixture(t, "SELECT id FROM t")
-			project := query.Root.(*projectNode)
+			project := query.Root.(*plan.ProjectNode)
 			usage := project.Schema()[0].Usage
 			calls := []int{0, 0, 0}
 			ctx, cancel := context.WithCancel(context.Background())
@@ -93,20 +94,20 @@ func TestQueryFromValuesMixedDemandAndCancellation(t *testing.T) {
 					return sqltype.Integer(usage.Type, 7)
 				})}
 			}
-			values := &valuesNode{QuerySchema: querySchema{{Name: "column1", Usage: usage}}, Rows: cells}
+			values := &plan.ValuesNode{QuerySchema: plan.QuerySchema{{Name: "column1", Usage: usage}}, Rows: cells}
 			width := len(project.Child.Schema())
-			schema := append(append(querySchema(nil), project.Child.Schema()...), values.Schema()...)
-			join := &joinNode{QuerySchema: schema, Left: project.Child, Right: values, LeftWidth: width, RightWidth: 1}
+			schema := append(append(plan.QuerySchema(nil), project.Child.Schema()...), values.Schema()...)
+			join := &plan.JoinNode{QuerySchema: schema, Left: project.Child, Right: values, LeftWidth: width, RightWidth: 1}
 			project.Child = join
-			project.QuerySchema = querySchema{{Name: "n", Usage: usage}}
-			project.Expressions = []expr.Expr{columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: width}}
+			project.QuerySchema = plan.QuerySchema{{Name: "n", Usage: usage}}
+			project.Expressions = []expr.Expr{plan.ColumnExpr{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: width}}
 			if mode == "limit0" {
 				typ, _ := e.CatalogRead().LookupType(sqltype.Int8)
 				zero, err := sqltype.Integer(typ, 0)
 				if err != nil {
 					t.Fatal(err)
 				}
-				project.Child = &limitNode{QuerySchema: schema, Child: join, Count: literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: zero}}
+				project.Child = &plan.LimitNode{QuerySchema: schema, Child: join, Count: plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: zero}}
 			}
 			rows, count, err := finalizeQuery(ctx, project, source, nil)
 			if mode == "cancel" || mode == "error" {
@@ -139,9 +140,9 @@ func TestQueryFromValuesLockRecheckKeepsSyntheticOccurrence(t *testing.T) {
 	typ, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	usage := typ.Usage()
 	calls := 0
-	values := &valuesNode{QuerySchema: querySchema{{Name: "column1", Usage: usage}}, Rows: [][]expr.Expr{{queryProbe(usage, func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Integer(typ, 99) })}}}
-	physical := &sourceNode{QuerySchema: querySchema{{Name: "n", Usage: usage}}, Occurrence: 0}
-	join := &joinNode{QuerySchema: append(append(querySchema(nil), physical.Schema()...), values.Schema()...), Left: physical, Right: values, LeftWidth: 1, RightWidth: 1}
+	values := &plan.ValuesNode{QuerySchema: plan.QuerySchema{{Name: "column1", Usage: usage}}, Rows: [][]expr.Expr{{queryProbe(usage, func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Integer(typ, 99) })}}}
+	physical := &plan.SourceNode{QuerySchema: plan.QuerySchema{{Name: "n", Usage: usage}}, Occurrence: 0}
+	join := &plan.JoinNode{QuerySchema: append(append(plan.QuerySchema(nil), physical.Schema()...), values.Schema()...), Left: physical, Right: values, LeftWidth: 1, RightWidth: 1}
 	integer := func(n int64) sqltype.Value {
 		value, err := sqltype.Integer(typ, n)
 		if err != nil {

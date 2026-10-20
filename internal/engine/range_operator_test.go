@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -56,7 +57,7 @@ func TestRangeOperatorCarrierEvaluation(t *testing.T) {
 	if _, err := e.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}}); !errors.Is(err, failure) || counts != [2]int{1, 0} {
 		t.Fatal("child demand", counts, err)
 	}
-	args[1] = literalExpression{Info: b.info(d.Usage(), parser.Position{}, expr.Properties{}), Value: sqltype.Null(d)}
+	args[1] = plan.LiteralExpr{Info: b.info(d.Usage(), parser.Position{}, expr.Properties{}), Value: sqltype.Null(d)}
 	counts = [2]int{}
 	e, err = e.Reconstruct(info, args)
 	if err != nil {
@@ -77,7 +78,7 @@ func TestRangeOperatorRetagAndStoredAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	arg := literalExpression{Info: b.info(d.Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: v}
+	arg := plan.LiteralExpr{Info: b.info(d.Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: v}
 	original, err := functions.NewRangeOperator(b.info(d.Usage(), parser.Position{Character: 8}, expr.Properties{Volatility: expr.Immutable}), sqltype.RangeUnion, [2]expr.Expr{arg, arg}, "pg_catalog")
 	if err != nil {
 		t.Fatal(err)

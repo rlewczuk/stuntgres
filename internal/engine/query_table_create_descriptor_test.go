@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -46,13 +47,13 @@ func TestQueryTableCreateDescriptor(t *testing.T) {
 	sized := testUsage(e, sqltype.VarChar)
 	sized.Typmod = 8
 	sized.Collation.ID = 950
-	schema := querySchema{{Name: "old", Usage: sized, Nullable: false, NullabilityKnown: true, OriginTable: 19000, OriginAttribute: 3}, {Name: "d", Usage: domain.SQLType.Usage(), Nullable: false, NullabilityKnown: true, OriginTable: 19000, OriginAttribute: 4}}
+	schema := plan.QuerySchema{{Name: "old", Usage: sized, Nullable: false, NullabilityKnown: true, OriginTable: 19000, OriginAttribute: 3}, {Name: "d", Usage: domain.SQLType.Usage(), Nullable: false, NullabilityKnown: true, OriginTable: 19000, OriginAttribute: 4}}
 	expressions := make([]expr.Expr, len(schema))
 	for i, column := range schema {
 		usage := column.Usage
 		expressions[i] = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Null(usage.Type), nil })
 	}
-	query := &BoundQuery{Root: &projectNode{QuerySchema: schema, Child: &singletonNode{}, Expressions: expressions}}
+	query := &plan.Query{Root: &plan.ProjectNode{QuerySchema: schema, Child: &plan.SingletonNode{}, Expressions: expressions}}
 	syntax := &parser.CreateQueryTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "copy"}}}, Columns: []parser.Identifier{{Text: "renamed"}}, Query: &parser.Select{}, NoData: true}
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
@@ -114,14 +115,14 @@ func TestQueryTableCreateDescriptorDiagnostics(t *testing.T) {
 			defer done()
 			usage := testUsage(e, sqltype.Text)
 			info := expr.Info{Usage: usage, CollationConflict: tc.conflict}
-			project := &projectNode{QuerySchema: querySchema{{Name: "x", Usage: usage}, {Name: "y", Usage: usage}}, Expressions: []expr.Expr{literalExpression{Info: info, Value: sqltype.Null(usage.Type)}, literalExpression{Info: expr.Info{Usage: usage}, Value: sqltype.Null(usage.Type)}}}
+			project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "x", Usage: usage}, {Name: "y", Usage: usage}}, Expressions: []expr.Expr{plan.LiteralExpr{Info: info, Value: sqltype.Null(usage.Type)}, plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: sqltype.Null(usage.Type)}}}
 			syntax := &parser.CreateQueryTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "copy"}}}, Columns: tc.labels, Query: &parser.Select{}}
 			registry := queryCreateTypes(e)
 			e.mu.Lock()
 			auth, authErr := e.authorizationLocked(op)
 			var stage *CatalogStage
 			if authErr == nil {
-				stage, _, _, err = e.prepareQueryTableLocked(op, auth, syntax, binding{query: &BoundQuery{Root: project}})
+				stage, _, _, err = e.prepareQueryTableLocked(op, auth, syntax, binding{query: &plan.Query{Root: project}})
 			} else {
 				err = authErr
 			}
@@ -258,7 +259,7 @@ func TestQueryTableCreateStructuralDescriptorAdmission(t *testing.T) {
 			calls++
 			return sqltype.Null(usage.Type), nil
 		})
-		project := &projectNode{QuerySchema: querySchema{{Name: "tree", Usage: usage}}, Expressions: []expr.Expr{probe}}
+		project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "tree", Usage: usage}}, Expressions: []expr.Expr{probe}}
 		syntax := &parser.CreateQueryTable{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "copy"}}}, Query: &parser.Select{}, NoData: noData}
 		registry := queryCreateTypes(e)
 		beforeRow, beforeVersion, beforeFrontier := e.storage.RowFrontier(), e.storage.VersionFrontier(), e.visibility.CommitSeq()
@@ -266,7 +267,7 @@ func TestQueryTableCreateStructuralDescriptorAdmission(t *testing.T) {
 		auth, err := e.authorizationLocked(op)
 		var stage *CatalogStage
 		if err == nil {
-			stage, _, _, err = e.prepareQueryTableLocked(op, auth, syntax, binding{query: &BoundQuery{Root: project}})
+			stage, _, _, err = e.prepareQueryTableLocked(op, auth, syntax, binding{query: &plan.Query{Root: project}})
 		}
 		e.mu.Unlock()
 		var got *sqlstate.Error
@@ -287,7 +288,7 @@ func TestQueryTableCreateStructuralDescriptorAdmission(t *testing.T) {
 		auth, err = e.authorizationLocked(op)
 		var skipped bool
 		if err == nil {
-			stage, _, skipped, err = e.prepareQueryTableLocked(op, auth, syntax, binding{query: &BoundQuery{Root: project}})
+			stage, _, skipped, err = e.prepareQueryTableLocked(op, auth, syntax, binding{query: &plan.Query{Root: project}})
 		}
 		e.mu.Unlock()
 		if err != nil || stage != nil || !skipped || calls != 0 || e.CatalogRead().Get(d.Address()) != d {

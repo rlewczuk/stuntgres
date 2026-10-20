@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -99,7 +100,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 	})
 	t.Run("planning_and_live_demand", func(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT id, 12/(2+1) FROM t ORDER BY id")
-		original := query.Root.(*projectNode)
+		original := query.Root.(*plan.ProjectNode)
 		variable := original.Expressions[0]
 		calls := 0
 		probe := queryProbe(variable.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
@@ -114,7 +115,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 			source.close()
 			t.Fatal(err)
 		}
-		root := prepared.(*projectNode)
+		root := prepared.(*plan.ProjectNode)
 		if calls != 0 {
 			source.close()
 			t.Fatal("planning demanded volatile target", calls)
@@ -140,7 +141,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 		}
 	})
 	t.Run("parameter_barrier", func(t *testing.T) {
-		original := preflightCast(t, "SELECT 1/$1::int4 FROM t").(arithmeticExpression)
+		original := preflightCast(t, "SELECT 1/$1::int4 FROM t").(plan.ArithmeticExpr)
 		typ := original.Right.ResultUsage().Type
 		value, err := typ.Input(context.Background(), "0", -1)
 		if err != nil {

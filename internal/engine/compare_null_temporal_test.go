@@ -20,7 +20,7 @@ func TestExpressionCompareNullTemporalCaptureOrderAndFreeze(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := bound.(distinctExpression)
+		node := bound.(plan.DistinctExpr)
 		beforeLeft, err := node.Left.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 		if err != nil {
 			t.Fatal(err)
@@ -39,7 +39,7 @@ func TestExpressionCompareNullTemporalCaptureOrderAndFreeze(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node = bound.(distinctExpression)
+		node = bound.(plan.DistinctExpr)
 		afterLeft, err := node.Left.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 		if err != nil {
 			t.Fatal(err)

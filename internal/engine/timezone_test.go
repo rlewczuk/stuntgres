@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 	"time"
@@ -38,7 +39,7 @@ func TestTimezoneBoundSessionSensitiveOperations(t *testing.T) {
 		if err != nil {
 			t.Fatal(query, err)
 		}
-		if _, folded := planned.(literalExpression); folded {
+		if _, folded := planned.(plan.LiteralExpr); folded {
 			t.Fatal("session-sensitive operation folded", query)
 		}
 		if _, err := planned.Eval(&evaluation); err != nil {

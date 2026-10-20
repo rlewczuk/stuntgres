@@ -3,6 +3,7 @@ package engine
 import (
 	"reflect"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -40,7 +41,7 @@ func TestPgClassOptionHistory(t *testing.T) {
 		t.Fatal("lexical facts", got)
 	}
 	e := New()
-	original := &viewDefinition{query: &BoundQuery{Root: &singletonNode{}}, options: old, barrier: true, invoker: false, checkOption: viewCheckNone, rule: 200001}
+	original := &viewDefinition{query: &plan.Query{Root: &plan.SingletonNode{}}, options: old, barrier: true, invoker: false, checkOption: viewCheckNone, rule: 200001}
 	mapped, err := remapFrozenPresentation(e.CatalogRead(), original, nil, func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch++; return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
 	if err != nil || mapped == original || mapped.rule != original.rule || mapped.barrier != original.barrier || mapped.invoker != original.invoker || !reflect.DeepEqual(mapped.options, old) {
 		t.Fatal("remap lost installed options", mapped, err)

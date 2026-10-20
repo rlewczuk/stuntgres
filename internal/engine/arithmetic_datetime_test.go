@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -39,7 +40,7 @@ func TestDatetimeArithmeticBindingAndPhysicalVolatility(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, literal := folded.(literalExpression)
+		_, literal := folded.(plan.LiteralExpr)
 		if tc.volatility == expr.Stable && (changed || literal) {
 			t.Fatal("stable literal arithmetic folded", tc, folded)
 		}
@@ -58,8 +59,8 @@ func TestDatetimeArithmeticDependenceAndVolatileDominance(t *testing.T) {
 		if err != nil || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Stable {
 			t.Fatal(node, err)
 		}
-		n := node.(arithmeticExpression)
-		child := parameterExpression{Info: expr.Info{Usage: b.typ(sqltype.Timestamptz).Usage(), Property: expr.Properties{Volatility: expr.Volatile, RowDependent: true, ParameterDependent: true, StageDependent: true}}, Number: 1}
+		n := node.(plan.ArithmeticExpr)
+		child := plan.ParameterExpr{Info: expr.Info{Usage: b.typ(sqltype.Timestamptz).Usage(), Property: expr.Properties{Volatility: expr.Volatile, RowDependent: true, ParameterDependent: true, StageDependent: true}}, Number: 1}
 		if n.Left.ResultUsage().Type.ID() == sqltype.Timestamptz {
 			n.Left = child
 		} else {
@@ -88,7 +89,7 @@ func TestDatetimeArithmeticDefaultRegistryRebind(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(rebound, changed, err)
 	}
-	n := rebound.(arithmeticExpression)
+	n := rebound.(plan.ArithmeticExpr)
 	typ, _ := target.CatalogRead().LookupType(sqltype.Timestamptz)
 	if n.ResultUsage().Type != typ || n.Provider.ResultType() != typ || !n.Provider.SessionDependent() || plannedVolatility(n) != expr.Stable {
 		t.Fatal(n)

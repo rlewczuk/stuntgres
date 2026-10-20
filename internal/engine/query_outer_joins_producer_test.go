@@ -5,6 +5,7 @@ import (
 	"errors"
 	"runtime"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -15,7 +16,7 @@ func TestQueryOuterJoinsZeroWidthOccurrences(t *testing.T) {
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
 	for _, kind := range []parser.JoinKind{parser.JoinLeft, parser.JoinRight, parser.JoinFull} {
 		for _, truth := range []bool{false, true} {
-			join := &joinNode{Kind: kind, Left: &sourceNode{Occurrence: 0}, Right: &sourceNode{Occurrence: 1}, Predicate: literalExpression{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, truth)}}
+			join := &plan.JoinNode{Kind: kind, Left: &plan.SourceNode{Occurrence: 0}, Right: &plan.SourceNode{Occurrence: 1}, Predicate: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, truth)}}
 			source := &querySource{sources: []*querySource{{anonymous: [][]sqltype.Value{{}, {}}}, {anonymous: [][]sqltype.Value{{}, {}, {}}}}}
 			stage, err := openJoinNode(context.Background(), &queryState{source: source}, join)
 			if err != nil {
@@ -52,13 +53,13 @@ func TestQueryOuterJoinsMissingChildDoesNotEvaluateRecipe(t *testing.T) {
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
 	value, _ := sqltype.Integer(integer, 7)
-	schema := querySchema{{Name: "k", Usage: integer.Usage()}}
+	schema := plan.QuerySchema{{Name: "k", Usage: integer.Usage()}}
 	calls := 0
-	missing := &joinNode{QuerySchema: schema, Left: &sourceNode{Occurrence: 1}, Right: &sourceNode{Occurrence: 2}, Merges: []expr.Expr{queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) {
+	missing := &plan.JoinNode{QuerySchema: schema, Left: &plan.SourceNode{Occurrence: 1}, Right: &plan.SourceNode{Occurrence: 2}, Merges: []expr.Expr{queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) {
 		calls++
 		return sqltype.Value{}, errors.New("missing recipe evaluated")
 	})}}
-	join := &joinNode{QuerySchema: append(append(querySchema(nil), schema...), schema...), Kind: parser.JoinLeft, Left: &sourceNode{QuerySchema: schema, Occurrence: 0}, Right: missing, LeftWidth: 1, RightWidth: 1, Predicate: literalExpression{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, true)}}
+	join := &plan.JoinNode{QuerySchema: append(append(plan.QuerySchema(nil), schema...), schema...), Kind: parser.JoinLeft, Left: &plan.SourceNode{QuerySchema: schema, Occurrence: 0}, Right: missing, LeftWidth: 1, RightWidth: 1, Predicate: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, true)}}
 	source := &querySource{sources: []*querySource{{anonymous: [][]sqltype.Value{{value}}}, {anonymous: [][]sqltype.Value{}}, {anonymous: [][]sqltype.Value{}}}}
 	stage, err := openJoinNode(context.Background(), &queryState{source: source}, join)
 	if err != nil {
@@ -85,7 +86,7 @@ func TestQueryOuterJoinsRejectedProductAllocation(t *testing.T) {
 			inputs[i] = []sqltype.Value{}
 		}
 		source := &querySource{sources: []*querySource{{anonymous: inputs}, {anonymous: inputs}}}
-		join := &joinNode{Kind: parser.JoinFull, Left: &sourceNode{Occurrence: 0}, Right: &sourceNode{Occurrence: 1}, Predicate: literalExpression{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}}
+		join := &plan.JoinNode{Kind: parser.JoinFull, Left: &plan.SourceNode{Occurrence: 0}, Right: &plan.SourceNode{Occurrence: 1}, Predicate: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}}
 		runtime.GC()
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
@@ -118,11 +119,11 @@ func TestQueryOuterJoinsCloseOnceAndPrimaryError(t *testing.T) {
 		primary := errors.New("predicate primary")
 		bridge := func(which int) *querySource {
 			inner := &indexedStage{source: &querySource{anonymous: [][]sqltype.Value{{}}}, evaluation: EvalContext{}, finish: func() error { closed[which]++; return closeFailure }}
-			return &querySource{materialized: true, nestedRoot: &projectNode{Child: &singletonNode{}}, nestedStage: inner}
+			return &querySource{materialized: true, nestedRoot: &plan.ProjectNode{Child: &plan.SingletonNode{}}, nestedStage: inner}
 		}
 		inputs := &querySource{sources: []*querySource{bridge(0), bridge(1)}}
-		join := &joinNode{Kind: kind, Left: &sourceNode{Occurrence: 0}, Right: &sourceNode{Occurrence: 1}, Predicate: queryProbe(boolean.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, primary })}
-		rows, _, err := finalizeQuery(context.Background(), &projectNode{Child: join}, inputs, nil)
+		join := &plan.JoinNode{Kind: kind, Left: &plan.SourceNode{Occurrence: 0}, Right: &plan.SourceNode{Occurrence: 1}, Predicate: queryProbe(boolean.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, primary })}
+		rows, _, err := finalizeQuery(context.Background(), &plan.ProjectNode{Child: join}, inputs, nil)
 		if rows != nil || !errors.Is(err, primary) || closed != [2]int{1, 1} {
 			t.Fatal(kind, rows, err, closed)
 		}
@@ -133,12 +134,12 @@ func TestQueryOuterJoinsNullRowsAreNotAbsentOccurrences(t *testing.T) {
 	e := New()
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
-	schema := querySchema{{Usage: integer.Usage()}}
+	schema := plan.QuerySchema{{Usage: integer.Usage()}}
 	left := &querySource{anonymous: [][]sqltype.Value{{sqltype.Null(integer)}}, occurrence: 0}
 	right := &querySource{anonymous: [][]sqltype.Value{{sqltype.Null(integer)}}, occurrence: 1}
 	locks := &queryLockContext{leaves: []queryLockLeaf{{source: left}, {source: right}}}
 	inputs := &querySource{sources: []*querySource{left, right}, locks: locks}
-	join := &joinNode{QuerySchema: append(append(querySchema(nil), schema...), schema...), Kind: parser.JoinFull, Left: &sourceNode{QuerySchema: schema, Occurrence: 0}, Right: &sourceNode{QuerySchema: schema, Occurrence: 1}, LeftWidth: 1, RightWidth: 1, Predicate: literalExpression{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}}
+	join := &plan.JoinNode{QuerySchema: append(append(plan.QuerySchema(nil), schema...), schema...), Kind: parser.JoinFull, Left: &plan.SourceNode{QuerySchema: schema, Occurrence: 0}, Right: &plan.SourceNode{QuerySchema: schema, Occurrence: 1}, LeftWidth: 1, RightWidth: 1, Predicate: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}}
 	stage, err := openJoinNode(context.Background(), &queryState{source: inputs}, join)
 	if err != nil {
 		t.Fatal(err)

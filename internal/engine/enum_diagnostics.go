@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
@@ -206,7 +207,7 @@ func captureRetainedExpressionInput(node expr.Expr, element func() error, diagno
 				return err
 			}
 		}
-	case coercionExpression:
+	case plan.CoercionExpr:
 		target := node.ResultUsage().Type
 		characterInput := sqltype.IsCharacter(node.Child.ResultUsage().Type.BaseType().ID())
 		if characterInput || sqltype.ContainsDomainConstraints(target) {

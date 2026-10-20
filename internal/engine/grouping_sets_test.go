@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -74,13 +75,13 @@ func TestGroupingSetsMasksFramesAndNoArgumentEvaluation(t *testing.T) {
 	b.query.frame = 1
 	b.grouping.groupSets = [][]int{{0}, {}}
 	usage := b.typ(sqltype.Int4).Usage()
-	key := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}
-	operation := groupingExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{StageDependent: true}}, Frame: 1, Args: []expr.Expr{key, key}}
+	key := plan.ColumnExpr{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}
+	operation := plan.GroupingExpr{Info: expr.Info{Usage: usage, Property: expr.Properties{StageDependent: true}}, Frame: 1, Args: []expr.Expr{key, key}}
 	expression, err := b.rewriteGrouping(operation, []expr.Expr{key})
 	if err != nil {
 		t.Fatal(err)
 	}
-	grouping := expression.(groupingExpression)
+	grouping := expression.(plan.GroupingExpr)
 	if !reflect.DeepEqual(grouping.Masks, []int32{0, 3}) || grouping.Slot != 1 {
 		t.Fatal(grouping)
 	}
@@ -140,7 +141,7 @@ func TestGroupingSetsRuntimeOccurrencesAndFreshState(t *testing.T) {
 
 func TestGroupingSetsOncePerSourceModifiers(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT count(DISTINCT v ORDER BY v) FILTER(WHERE TRUE) FROM t GROUP BY GROUPING SETS((),(),())")
-	node := query.Root.(*projectNode).Child.(*aggregateNode)
+	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	call := &node.Calls[0]
 	filter, argument := call.Filter, call.Argument
 	filters, values := 0, 0
@@ -165,8 +166,8 @@ func TestGroupingSetsCancellationPublication(t *testing.T) {
 	for _, phase := range []string{"fanout", "finalize", "sort", "prepare", "hash", "equality"} {
 		t.Run(phase, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT v,count(DISTINCT v ORDER BY v) FROM t GROUP BY GROUPING SETS((v),(v),()) ORDER BY v")
-			project := query.Root.(*projectNode)
-			node := project.Child.(*sortNode).Child.(*aggregateNode)
+			project := query.Root.(*plan.ProjectNode)
+			node := project.Child.(*plan.SortNode).Child.(*plan.AggregateNode)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			var execution context.Context = ctx
@@ -246,7 +247,7 @@ func TestGroupingSetsInsertLateFailureAndActiveCancellation(t *testing.T) {
 	for _, phase := range []string{"late_finalize", "fanout_cancel"} {
 		t.Run(phase, func(t *testing.T) {
 			b, source := insertSelectEvaluationFixture(t, "SELECT count(*) FROM t GROUP BY GROUPING SETS((v),(v),())")
-			node := b.query.Root.(*projectNode).Child.(*aggregateNode)
+			node := b.query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 			provider := node.Calls[0].Provider
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
@@ -63,14 +64,14 @@ func admitRoutineCall(c *EvalContext, node expr.Expr, scalarPlanning, constantCo
 		}
 		c = &local
 	}
-	var pairs []comparisonExpression
+	var pairs []plan.ComparisonExpr
 	var ordering []sqltype.Comparison
 	switch expression := node.(type) {
-	case rowComparisonExpression:
+	case plan.RowComparisonExpr:
 		pairs, ordering = expression.Comparisons, expression.Ordering
-	case subqueryExpression:
+	case plan.SubqueryExpr:
 		pairs, ordering = expression.Comparisons, expression.Ordering
-	case caseExpression:
+	case plan.CaseExpr:
 		if expression.Test != nil && !randomLiteralNull(expression.Test) {
 			for _, arm := range expression.Arms {
 				if err := admitCaseEquality(c, arm); err != nil {
@@ -119,7 +120,7 @@ func admitRoutineCall(c *EvalContext, node expr.Expr, scalarPlanning, constantCo
 	return admitRoutineBody(c, node, captured, constantComputation)
 }
 
-func admitCaseEquality(c *EvalContext, arm caseBranch) error {
+func admitCaseEquality(c *EvalContext, arm plan.CaseBranch) error {
 	if arm.Routine == nil || arm.Routine.Strict && randomLiteralNull(arm.Condition) {
 		return nil
 	}
@@ -253,7 +254,7 @@ func evaluatePlanningExpression(c *EvalContext, node expr.Expr) (sqltype.Value, 
 
 // Query equality is caller-checked; index/hash support and native semantic-tree
 // grouping are deliberately not callable PostgreSQL routines.
-func admitQueryGroupings(c *EvalContext, groups []queryGrouping, keys []expr.Expr) error {
+func admitQueryGroupings(c *EvalContext, groups []plan.Grouping, keys []expr.Expr) error {
 	if len(groups) != len(keys) {
 		return fmt.Errorf("stuntgres: missing query grouping identity")
 	}

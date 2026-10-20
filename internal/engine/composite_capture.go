@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -26,7 +27,7 @@ type compositeOccurrence struct {
 	attributes []int32
 	names      []string // Original exposed labels for a selected source star.
 	function   functions.NullCountKind
-	source     wholeRowSource
+	source     plan.WholeRowSource
 }
 type preparedCompositeKey struct {
 	offset     int
@@ -93,13 +94,13 @@ func (c *viewCapture) captureViewComposite(path viewLiteralPath, kind compositeO
 	if c.composites == nil {
 		c.composites = make(map[viewLiteralPath]compositeOccurrence)
 	}
-	source := wholeRowSource{}
-	if row, ok := base.(rowExpression); ok {
+	source := plan.WholeRowSource{}
+	if row, ok := base.(plan.RowExpr); ok {
 		source = row.WholeSource
 	}
 	c.composites[path] = compositeOccurrence{kind: kind, base: base.ResultUsage(), attributes: attributes, source: source}
 }
-func (b *expressionBinder) captureCompositeExpansion(raw parser.Expr, expansion compositeExpansionBinding, path viewLiteralPath, ordinal *int) error {
+func (b *expressionBinder) captureCompositeExpansion(raw parser.Expr, expansion plan.CompositeExpansionBinding, path viewLiteralPath, ordinal *int) error {
 	path.node = *ordinal
 	(*ordinal)++
 	b.capture.captureViewComposite(path, compositeExpansion, expansion.Base, expansion.Attributes)
@@ -130,11 +131,11 @@ func (b *expressionBinder) bindDotBuiltin(raw parser.FieldExpr, key preparedComp
 	return call, nil
 }
 
-func (b *expressionBinder) frozenWholeRowSource(qualifier queryQualifier, frame uint32) (wholeRowSource, error) {
+func (b *expressionBinder) frozenWholeRowSource(qualifier queryQualifier, frame uint32) (plan.WholeRowSource, error) {
 	if !b.params.noParameters && !b.consumer.materializedDefinition {
-		return wholeRowSource{}, nil
+		return plan.WholeRowSource{}, nil
 	}
-	var source wholeRowSource
+	var source plan.WholeRowSource
 	for index, namespace := range b.capture.namespaces {
 		if namespace.frame != frame {
 			continue
@@ -156,7 +157,7 @@ func (b *expressionBinder) frozenWholeRowSource(qualifier queryQualifier, frame 
 				}
 			}
 			if matches {
-				source = wholeRowSource{Namespace: index + 1, Qualifier: position, Frame: frame}
+				source = plan.WholeRowSource{Namespace: index + 1, Qualifier: position, Frame: frame}
 			}
 		}
 	}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -105,7 +106,7 @@ func appendQueryProvenance(dst []int, source *querySource, index int) []int {
 
 // The source manifest, not target-only DML authority or a re-resolved name,
 // identifies each grant. Waiting shares the existing journal/deadline machinery.
-func (s *StatementScope) acquireQueryRow(leaf queryLeaf, row ids.RowID, mark queryRowMark) (bool, error) {
+func (s *StatementScope) acquireQueryRow(leaf queryLeaf, row ids.RowID, mark plan.RowMark) (bool, error) {
 	if err := s.active(); err != nil {
 		return false, err
 	}
@@ -197,7 +198,7 @@ func (s *StatementScope) latestQueryRow(leaf queryLeaf, candidate storage.RowVer
 	return current, present, nil
 }
 
-func openRowLockNode(ctx context.Context, state *queryState, n *rowLockNode) (indexedStage, error) {
+func openRowLockNode(ctx context.Context, state *queryState, n *plan.RowLockNode) (indexedStage, error) {
 	if state.source.liveScope() == nil {
 		return indexedStage{}, fmt.Errorf("stuntgres: missing row locking scope")
 	}

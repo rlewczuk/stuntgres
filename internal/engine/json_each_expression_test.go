@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -90,7 +91,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 			t.Fatal("symbolic rendering", text, err)
 		}
 		other := jsonEachUnitMarker(t, b, name, `{"x":2}`)
-		root := &functionFromNode{Calls: []expr.Expr{original}, QuerySchema: querySchema{{Name: "key", Usage: b.typ(sqltype.Text).Usage()}, {Name: "value", Usage: b.typ(valueID).Usage()}}, Frame: 1}
+		root := &plan.FunctionFromNode{Calls: []expr.Expr{original}, QuerySchema: plan.QuerySchema{{Name: "key", Usage: b.typ(sqltype.Text).Usage()}, {Name: "value", Usage: b.typ(valueID).Usage()}}, Frame: 1}
 		rewritten, err := rewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
 			if n == original.Args[0] {
 				return other.Args[0], true, nil
@@ -100,14 +101,14 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if rewritten.(*functionFromNode).Calls[0].(functions.JSONEach).Args[0] != other.Args[0] || root.Calls[0].(functions.JSONEach).Args[0] != original.Args[0] {
+		if rewritten.(*plan.FunctionFromNode).Calls[0].(functions.JSONEach).Args[0] != other.Args[0] || root.Calls[0].(functions.JSONEach).Args[0] != original.Args[0] {
 			t.Fatal("mutated retained query")
 		}
 		if err := validateFunctionFromLayout(root); err != nil {
 			t.Fatal(err)
 		}
 		broken := *root
-		broken.QuerySchema = querySchema{{Usage: b.typ(sqltype.Text).Usage()}, {Usage: b.typ(sqltype.Int4).Usage()}}
+		broken.QuerySchema = plan.QuerySchema{{Usage: b.typ(sqltype.Text).Usage()}, {Usage: b.typ(sqltype.Int4).Usage()}}
 		if err := validateFunctionFromLayout(&broken); err == nil {
 			t.Fatal("invalid leaf span accepted")
 		}
@@ -124,7 +125,7 @@ func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
 			t.Fatal(err)
 		}
 		calls := []expr.Expr{series, marker}
-		invocation, err := openFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, &functionFromNode{Calls: calls})
+		invocation, err := openFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, &plan.FunctionFromNode{Calls: calls})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -152,7 +153,7 @@ func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
 			t.Fatal("exhausted source", present, err)
 		}
 		// The real target stage stores one record slot instead of FROM fields.
-		node := regexpSetUnitLayout(&setProjectNode{QuerySchema: querySchema{{Usage: marker.ResultUsage()}}, Child: &singletonNode{}, Calls: []expr.Expr{marker}, Frame: 1})
+		node := regexpSetUnitLayout(&plan.SetProjectNode{QuerySchema: plan.QuerySchema{{Usage: marker.ResultUsage()}}, Child: &plan.SingletonNode{}, Calls: []expr.Expr{marker}, Frame: 1})
 		stage, err := openSetProjectNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, node)
 		if err != nil {
 			t.Fatal(err)

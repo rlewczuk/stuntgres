@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 )
 
 // Exercise actual session publication, replacement, frontier admission and read
@@ -68,8 +69,8 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 			auth := namespaceCapturedAuthorization(t, owner)
 			auth.Recapture(current)
 			e.mu.Lock()
-			refs, err := e.queryTableRefsLocked(auth, auth.State.CurrentUser, []queryLeaf{{ref: use, relation: original}}, nil, owner.token, queryRowMark{})
-			_, staleErr := e.queryTableRefsLocked(auth, auth.State.CurrentUser, []queryLeaf{{ref: oldBase, relation: current.MustRelation(baseAddress)}}, nil, ids.SessionToken{}, queryRowMark{})
+			refs, err := e.queryTableRefsLocked(auth, auth.State.CurrentUser, []queryLeaf{{ref: use, relation: original}}, nil, owner.token, plan.RowMark{})
+			_, staleErr := e.queryTableRefsLocked(auth, auth.State.CurrentUser, []queryLeaf{{ref: oldBase, relation: current.MustRelation(baseAddress)}}, nil, ids.SessionToken{}, plan.RowMark{})
 			e.mu.Unlock()
 			if err != nil || len(refs) != 1 || refs[0].Address != baseAddress || refs[0].Epoch != current.Epoch() {
 				t.Fatal("retained frontier", refs, err)

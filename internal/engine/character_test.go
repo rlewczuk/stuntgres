@@ -37,8 +37,8 @@ func TestCharacterRightColumnDependenceAndCastUsage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	project := b.query.Root.(*projectNode)
-	filter := project.Child.(*filterNode)
+	project := b.query.Root.(*plan.ProjectNode)
+	filter := project.Child.(*plan.FilterNode)
 	properties := filter.Predicate.Properties()
 	if !properties.RowDependent || properties.ParameterDependent || properties.Volatility != expr.Immutable {
 		t.Fatal("right-column dependence was lost", properties)
@@ -49,7 +49,7 @@ func TestCharacterRightColumnDependenceAndCastUsage(t *testing.T) {
 	bpchar, _ := e.CatalogRead().LookupType(sqltype.BPChar)
 	for _, tc := range []struct {
 		text string
-		want Truth
+		want plan.Truth
 	}{{"a  ", plan.True}, {"b  ", plan.False}} {
 		value, err := filter.Predicate.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.String(bpchar, tc.text)}}})
 		if err != nil {
@@ -72,7 +72,7 @@ func TestCharacterCastPreservesKnownParameterUsage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cast, ok := node.(coercionExpression)
+	cast, ok := node.(plan.CoercionExpr)
 	if !ok || cast.Child.ResultUsage() != source || cast.ResultUsage().Type.ID() != sqltype.Text || b.params.parameters[1] != source {
 		t.Fatal("cast retargeted known parameter", node, b.params.parameters[1])
 	}

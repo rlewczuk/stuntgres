@@ -2,25 +2,26 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
 // Peer keys borrow the finished ORDER authority; no expressions are evaluated
 // by LIMIT. Datum values own their payload even when a source borrows row headers.
-func queryTiesValue(child *indexedStage, occurrence int, key sortKey) sqltype.Value {
+func queryTiesValue(child *indexedStage, occurrence int, key plan.SortKey) sqltype.Value {
 	if key.Cache >= 0 {
 		return child.orderRow(occurrence)[key.Cache]
 	}
 	return child.source.row(child.index(occurrence))[key.Slot]
 }
 
-func captureQueryTiesBoundary(child *indexedStage, occurrence int, keys []sortKey, boundary []sqltype.Value) {
+func captureQueryTiesBoundary(child *indexedStage, occurrence int, keys []plan.SortKey, boundary []sqltype.Value) {
 	for i, key := range keys {
 		boundary[i] = queryTiesValue(child, occurrence, key)
 	}
 }
 
-func queryTiesPeer(ctx context.Context, child *indexedStage, occurrence int, keys []sortKey, boundary []sqltype.Value, input sqltype.InputEnvironment) (bool, error) {
+func queryTiesPeer(ctx context.Context, child *indexedStage, occurrence int, keys []plan.SortKey, boundary []sqltype.Value, input sqltype.InputEnvironment) (bool, error) {
 	for i, key := range keys {
 		if err := ctx.Err(); err != nil {
 			return false, err

@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -203,7 +204,7 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 			usage, boolean := target.Columns[0].Usage, testUsage(e, sqltype.Bool)
 			ref := e.catalog.Domain.Ref(view.Epoch(), target.Address())
 			ref.Address.SubID = 1
-			key := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Origin: ref, Scope: 1, Frame: 1, Slot: 0}
+			key := plan.ColumnExpr{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Origin: ref, Scope: 1, Frame: 1, Slot: 0}
 			cmp := func(op string, n int64) expr.Expr {
 				operator := sqltype.CompareLess
 				if op == ">=" {
@@ -217,12 +218,12 @@ func partitionAttachUnitDescendantAdmission(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				return comparisonExpression{Info: expr.Info{Usage: boolean, Property: expr.Properties{RowDependent: true}}, Left: key, Right: literalExpression{Info: expr.Info{Usage: usage}, Value: value}, Predicate: predicate, Operator: op}
+				return plan.ComparisonExpr{Info: expr.Info{Usage: boolean, Property: expr.Properties{RowDependent: true}}, Left: key, Right: plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: value}, Predicate: predicate, Operator: op}
 			}
-			var proof expr.Expr = logicalExpression{Info: expr.Info{Usage: boolean}, Op: parser.LogicalOr, Left: cmp("<", 1), Right: cmp(">=", 3)}
+			var proof expr.Expr = plan.LogicalExpr{Info: expr.Info{Usage: boolean}, Op: parser.LogicalOr, Left: cmp("<", 1), Right: cmp(">=", 3)}
 			if mode == "candidate_proven" {
-				bounds := logicalExpression{Info: expr.Info{Usage: boolean}, Op: parser.LogicalAnd, Left: cmp(">=", 1), Right: cmp("<", 3)}
-				proof = logicalExpression{Info: expr.Info{Usage: boolean}, Op: parser.LogicalAnd, Left: nullTestExpression{Info: expr.Info{Usage: boolean}, Child: key, Not: true}, Right: bounds}
+				bounds := plan.LogicalExpr{Info: expr.Info{Usage: boolean}, Op: parser.LogicalAnd, Left: cmp(">=", 1), Right: cmp("<", 3)}
+				proof = plan.LogicalExpr{Info: expr.Info{Usage: boolean}, Op: parser.LogicalAnd, Left: plan.NullTestExpr{Info: expr.Info{Usage: boolean}, Child: key, Not: true}, Right: bounds}
 			}
 			if mode != "default_unproven" {
 				check := catalog.CheckConstraint{OID: 46113, Name: "frontier_proof", Expression: proof}

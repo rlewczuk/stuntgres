@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
 
@@ -83,7 +84,7 @@ func (e *Engine) retiredArchiveHighWater() uint64 {
 func constraintAttributeKeys(table *catalog.Relation, expression expr.Expr) []int32 {
 	var keys []int32
 	walkBoundExpression(expression, func(node expr.Expr) {
-		if column, ok := node.(columnExpression); ok && column.Origin.Address.ClassID == ids.RelationClassID && column.Origin.Address.ObjectID == table.Address().ObjectID && !slices.Contains(keys, column.Origin.Address.SubID) {
+		if column, ok := node.(plan.ColumnExpr); ok && column.Origin.Address.ClassID == ids.RelationClassID && column.Origin.Address.ObjectID == table.Address().ObjectID && !slices.Contains(keys, column.Origin.Address.SubID) {
 			keys = append(keys, column.Origin.Address.SubID)
 		}
 	})

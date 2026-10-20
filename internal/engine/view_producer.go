@@ -4,39 +4,40 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
-func queryTreeOccurrences(node LogicalNode, inputs *querySource, dst []int) []int {
+func queryTreeOccurrences(node plan.Node, inputs *querySource, dst []int) []int {
 	switch n := node.(type) {
-	case *sourceNode:
+	case *plan.SourceNode:
 		return appendQueryOccurrences(dst, querySourceAt(inputs, n.Occurrence))
-	case *singletonNode, *valuesNode, *functionFromNode, *worktableScanNode:
+	case *plan.SingletonNode, *plan.ValuesNode, *plan.FunctionFromNode, *plan.WorktableScanNode:
 		return dst
-	case *joinNode:
+	case *plan.JoinNode:
 		return queryTreeOccurrences(n.Right, inputs, queryTreeOccurrences(n.Left, inputs, dst))
-	case *derivedNode:
+	case *plan.DerivedNode:
 		if n.CTE != nil {
 			return dst
 		}
 		return queryTreeOccurrences(n.Query.Root, inputs, dst)
-	case *projectNode:
+	case *plan.ProjectNode:
 		return queryTreeOccurrences(n.Child, inputs, dst)
-	case *setProjectNode:
+	case *plan.SetProjectNode:
 		return queryTreeOccurrences(n.Child, inputs, dst)
-	case *filterNode:
+	case *plan.FilterNode:
 		return queryTreeOccurrences(n.Child, inputs, dst)
-	case *sortNode:
+	case *plan.SortNode:
 		return queryTreeOccurrences(n.Child, inputs, dst)
-	case *windowNode:
+	case *plan.WindowNode:
 		return dst // Windows consume their input and cannot carry row marks.
-	case *aggregateNode, *distinctNode, *distinctOnNode, *setNode, *recursiveUnionNode:
+	case *plan.AggregateNode, *plan.DistinctNode, *plan.DistinctOnNode, *plan.SetNode, *plan.RecursiveUnionNode:
 		return dst
-	case *rowLockNode:
+	case *plan.RowLockNode:
 		return queryTreeOccurrences(n.Child, inputs, dst)
-	case *evaluationNode:
+	case *plan.EvaluationNode:
 		return queryTreeOccurrences(n.Child, inputs, dst)
-	case *limitNode:
+	case *plan.LimitNode:
 		return queryTreeOccurrences(n.Child, inputs, dst)
 	}
 	panic("invalid view producer tree")
@@ -97,7 +98,7 @@ func openSourceStage(ctx context.Context, state *queryState, source *querySource
 	}
 	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 		if source.nestedStage == nil {
-			project, ok := source.nestedRoot.(*projectNode)
+			project, ok := source.nestedRoot.(*plan.ProjectNode)
 			if !ok {
 				return false, fmt.Errorf("stuntgres: view lacks final projection")
 			}

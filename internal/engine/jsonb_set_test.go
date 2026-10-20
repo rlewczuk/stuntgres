@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -196,17 +197,17 @@ func TestJSONBSetAllSlotGroupAndDependencyTraversal(t *testing.T) {
 	base := jsonbSetUnitBind(t, b, `SELECT jsonb_set_lax('{"a":1}','{a}',NULL,true,'return_target')`).(functions.JSONBSet)
 	for slot := range 5 {
 		e := base
-		column := columnExpression{Info: expr.Info{Usage: e.Args[slot].ResultUsage(), Property: expr.Properties{RowDependent: true}}}
+		column := plan.ColumnExpr{Info: expr.Info{Usage: e.Args[slot].ResultUsage(), Property: expr.Properties{RowDependent: true}}}
 		e.Args[slot] = column
 		rewritten, err := b.rewriteGroup(e, []expr.Expr{column})
 		if err != nil {
 			t.Fatal(slot, err)
 		}
 		n := rewritten.(functions.JSONBSet)
-		if _, ok := n.Args[slot].(groupExpression); !ok {
+		if _, ok := n.Args[slot].(plan.GroupExpr); !ok {
 			t.Fatal("slot not grouped", slot, n.Args[slot])
 		}
-		if _, ok := e.Args[slot].(columnExpression); !ok {
+		if _, ok := e.Args[slot].(plan.ColumnExpr); !ok {
 			t.Fatal("rewrite mutated original", slot)
 		}
 		seen := false
@@ -236,7 +237,7 @@ func TestJSONBSetConstantPreflight(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(next, changed, err)
 		}
-		if _, ok := next.(literalExpression); !ok {
+		if _, ok := next.(plan.LiteralExpr); !ok {
 			t.Fatal("immutable replacement not folded", next)
 		}
 	}

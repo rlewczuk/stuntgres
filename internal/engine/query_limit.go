@@ -4,15 +4,16 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindQueryBounds(raw *parser.QueryBounds, captureLiterals bool) (*limitNode, error) {
+func (b *expressionBinder) bindQueryBounds(raw *parser.QueryBounds, captureLiterals bool) (*plan.LimitNode, error) {
 	if raw == nil {
 		return nil, nil
 	}
-	n := &limitNode{WithTies: raw.WithTies}
+	n := &plan.LimitNode{WithTies: raw.WithTies}
 	var err error
 	old := b.clause.aggregateClause
 	defer func() { b.clause.aggregateClause = old }()
@@ -56,7 +57,7 @@ func (b *expressionBinder) bindQueryBound(raw parser.Expr, clause string, litera
 		if err != nil {
 			return nil, expr.ErrorAt("42804", fmt.Sprintf("argument of %s must be type bigint, not type %s", clause, bound.ResultUsage().Type.DiagnosticName()), bound.SourcePosition())
 		}
-		bound = coercionExpression{b.info(usage, bound.SourcePosition(), coercionProperties(bound, coercionPlan)), bound, coercionPlan, sqltype.Assignment, false}
+		bound = plan.CoercionExpr{b.info(usage, bound.SourcePosition(), coercionProperties(bound, coercionPlan)), bound, coercionPlan, sqltype.Assignment, false}
 	}
 	if expressionUsesFrame(bound, b.frameID()) {
 		pos := firstQueryBoundFrameVariable(bound, b.frameID())
@@ -73,27 +74,27 @@ func (b *expressionBinder) bindQueryBound(raw parser.Expr, clause string, litera
 func firstQueryBoundFrameVariable(bound expr.Expr, frame uint32) parser.Position {
 	var position parser.Position
 	found := false
-	var query func(LogicalNode)
+	var query func(plan.Node)
 	var expression func(expr.Expr)
 	expression = func(bound expr.Expr) {
 		walkBoundExpression(bound, func(expr expr.Expr) {
 			matched := false
 			switch e := expr.(type) {
-			case columnExpression:
+			case plan.ColumnExpr:
 				matched = e.Frame == frame
-			case returningWholeRowExpression:
+			case plan.ReturningWholeRowExpr:
 				matched = e.Frame == frame
-			case mergeActionExpression:
+			case plan.MergeActionExpr:
 				matched = e.Frame == frame
-			case groupExpression:
+			case plan.GroupExpr:
 				matched = e.Frame == frame
-			case aggregateExpression:
+			case plan.AggregateExpr:
 				matched = e.Frame == frame
-			case groupingExpression:
+			case plan.GroupingExpr:
 				matched = e.Frame == frame
-			case *windowExpression:
+			case *plan.WindowExpr:
 				matched = e.Frame == frame
-			case subqueryExpression:
+			case plan.SubqueryExpr:
 				query(e.QueryPlan.Root)
 			}
 			if matched {
@@ -105,7 +106,7 @@ func firstQueryBoundFrameVariable(bound expr.Expr, frame uint32) parser.Position
 			}
 		})
 	}
-	query = func(node LogicalNode) {
+	query = func(node plan.Node) {
 		if node == nil {
 			return
 		}

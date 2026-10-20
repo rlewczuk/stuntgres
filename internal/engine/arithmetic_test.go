@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -41,23 +42,23 @@ func TestExpressionArithmeticInferenceAndDependencies(t *testing.T) {
 		if bound.parameters.Count != 1 || bound.parameters.Types[0].Type.ID() != tc.slot {
 			t.Fatal(bound.parameters)
 		}
-		project := bound.query.Root.(*projectNode)
+		project := bound.query.Root.(*plan.ProjectNode)
 		for i, n := range project.Expressions {
 			if n.ResultUsage().Type.ID() != tc.results[i] || !n.Properties().ParameterDependent || n.Properties().Volatility != expr.Immutable {
 				t.Fatal(n)
 			}
 			if tc.q == "SELECT s+$1,i+$1 FROM t" && i == 1 {
-				a := n.(arithmeticExpression)
+				a := n.(plan.ArithmeticExpr)
 				if a.Left.ResultUsage().Type.ID() != sqltype.Int4 || a.Right.ResultUsage().Type.ID() != sqltype.Int2 {
 					t.Fatal("mixed addition lost actual operand widths", a)
 				}
 			}
 			if tc.q == "SELECT s%$1,b%$1 FROM t" && i == 1 {
-				a := n.(arithmeticExpression)
+				a := n.(plan.ArithmeticExpr)
 				if a.Left.ResultUsage().Type.ID() != sqltype.Int8 || a.Right.ResultUsage().Type.ID() != sqltype.Int8 {
 					t.Fatal("mixed modulo lost homogeneous signature", a)
 				}
-				if _, ok := a.Right.(coercionExpression); !ok {
+				if _, ok := a.Right.(plan.CoercionExpr); !ok {
 					t.Fatal("mixed modulo omitted implicit widening", a.Right)
 				}
 			}

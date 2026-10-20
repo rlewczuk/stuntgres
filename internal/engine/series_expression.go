@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -44,7 +45,7 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (ex
 		if l, ok := r.(parser.LiteralExpr); ok && (l.Value.Kind == parser.StringValue || l.Value.Kind == parser.NullValue) {
 			if args != nil {
 				unknown[i] = true
-				args[i] = literalExpression{Info: expr.Info{Pos: r.SourcePosition()}}
+				args[i] = plan.LiteralExpr{Info: expr.Info{Pos: r.SourcePosition()}}
 			}
 			continue
 		}
@@ -177,7 +178,7 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (ex
 			if err != nil {
 				return nil, err
 			}
-			args[i] = coercionExpression{b.info(u, raw.Args[i].SourcePosition(), arg.Properties()), arg, coercionPlan, sqltype.Implicit, false}
+			args[i] = plan.CoercionExpr{b.info(u, raw.Args[i].SourcePosition(), arg.Properties()), arg, coercionPlan, sqltype.Implicit, false}
 		}
 		p := args[i].Properties()
 		properties.Volatility = max(properties.Volatility, p.Volatility)
@@ -221,7 +222,7 @@ func (b *expressionBinder) bindSeries(raw parser.FunctionExpr, visible bool) (ex
 	if err != nil {
 		return nil, err
 	}
-	return seriesExpression{Info: info, Args: args}, nil
+	return plan.SeriesExpr{Info: info, Args: args}, nil
 }
 
 func (b *expressionBinder) seriesSignatureError(raw parser.FunctionExpr, args []expr.Expr, unknown []bool, ambiguous bool) error {

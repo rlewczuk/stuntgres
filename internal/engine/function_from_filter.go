@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
 
@@ -9,32 +10,32 @@ import (
 // excluded predecessor rows must not open its cursor. Move the complete predicate
 // once in an execution-private copy, without changing canonical/view literal
 // paths, outer joins, merged columns or expression boundaries. Nil declines.
-func functionFromWhere(root LogicalNode, predicate expr.Expr) *joinNode {
-	join, ok := root.(*joinNode)
+func functionFromWhere(root plan.Node, predicate expr.Expr) *plan.JoinNode {
+	join, ok := root.(*plan.JoinNode)
 	if !ok || join.Kind != parser.JoinInner || !join.CorrelatedRight || len(join.Merges) != 0 {
 		return nil
 	}
-	if _, ok := join.Right.(*functionFromNode); !ok {
+	if _, ok := join.Right.(*plan.FunctionFromNode); !ok {
 		return nil
 	}
 	if !functionFromRestriction(join, predicate) {
 		return nil
 	}
 	copy := *join
-	copy.Left = &filterNode{QuerySchema: join.Left.Schema(), Child: join.Left, Predicate: predicate}
+	copy.Left = &plan.FilterNode{QuerySchema: join.Left.Schema(), Child: join.Left, Predicate: predicate}
 	return &copy
 }
 
 // A conjunct can move only when its dependencies and evaluation properties
 // already satisfy the whole-predicate predecessor rule.
-func functionFromRestriction(join *joinNode, predicate expr.Expr) bool {
+func functionFromRestriction(join *plan.JoinNode, predicate expr.Expr) bool {
 	properties := predicate.Properties()
 	if properties.Volatility == expr.Volatile || properties.StageDependent || properties.DomainDependent || properties.RuntimeDomainConversion {
 		return false
 	}
 	currentFrame := true
 	walkBoundExpression(predicate, func(expr expr.Expr) {
-		if column, ok := expr.(columnExpression); ok && (column.Frame != join.Frame || column.Virtual != nil) {
+		if column, ok := expr.(plan.ColumnExpr); ok && (column.Frame != join.Frame || column.Virtual != nil) {
 			currentFrame = false
 		}
 	})
@@ -53,15 +54,15 @@ func functionFromRestriction(join *joinNode, predicate expr.Expr) bool {
 // functionFromConjuncts partitions only the immediate function join's WHERE
 // conjunction. Volatile/unsafe residuals stay after expansion; ordinary Boolean
 // evaluation and the canonical tree remain unchanged. Nil declines.
-func functionFromConjuncts(root LogicalNode, predicate expr.Expr) LogicalNode {
-	join, ok := root.(*joinNode)
+func functionFromConjuncts(root plan.Node, predicate expr.Expr) plan.Node {
+	join, ok := root.(*plan.JoinNode)
 	if !ok || join.Kind != parser.JoinInner || len(join.Merges) != 0 {
 		return nil
 	}
-	if _, ok := join.Right.(*functionFromNode); !ok {
+	if _, ok := join.Right.(*plan.FunctionFromNode); !ok {
 		return nil
 	}
-	conjunction, ok := predicate.(logicalExpression)
+	conjunction, ok := predicate.(plan.LogicalExpr)
 	if !ok || conjunction.Op != parser.LogicalAnd || conjunction.QueryRight {
 		return nil
 	}
@@ -70,15 +71,15 @@ func functionFromConjuncts(root LogicalNode, predicate expr.Expr) LogicalNode {
 		return nil
 	}
 	copy := *join
-	copy.Left = &filterNode{QuerySchema: join.Left.Schema(), Child: join.Left, Predicate: before}
+	copy.Left = &plan.FilterNode{QuerySchema: join.Left.Schema(), Child: join.Left, Predicate: before}
 	if after == nil {
 		return &copy
 	}
-	return &filterNode{QuerySchema: join.Schema(), Child: &copy, Predicate: after}
+	return &plan.FilterNode{QuerySchema: join.Schema(), Child: &copy, Predicate: after}
 }
 
-func partitionFunctionConjuncts(join *joinNode, predicate expr.Expr) (before, after expr.Expr) {
-	if logical, ok := predicate.(logicalExpression); ok {
+func partitionFunctionConjuncts(join *plan.JoinNode, predicate expr.Expr) (before, after expr.Expr) {
+	if logical, ok := predicate.(plan.LogicalExpr); ok {
 		if logical.Op != parser.LogicalAnd || logical.QueryRight {
 			return nil, predicate
 		}

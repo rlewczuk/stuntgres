@@ -6,21 +6,22 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func viewCTEScan(root LogicalNode, match func(*derivedNode) bool) LogicalNode {
+func viewCTEScan(root plan.Node, match func(*plan.DerivedNode) bool) plan.Node {
 	switch n := viewFromRoot(root).(type) {
-	case *derivedNode:
+	case *plan.DerivedNode:
 		if n.CTE != nil && match(n) {
 			return n
 		}
-	case *worktableScanNode:
+	case *plan.WorktableScanNode:
 		if match(&n.DerivedNode) {
 			return n
 		}
-	case *joinNode:
+	case *plan.JoinNode:
 		if found := viewCTEScan(n.Left, match); found != nil {
 			return found
 		}
@@ -28,14 +29,14 @@ func viewCTEScan(root LogicalNode, match func(*derivedNode) bool) LogicalNode {
 	}
 	return nil
 }
-func viewCTETable(root LogicalNode, table *parser.TableReference) LogicalNode {
-	return viewCTEScan(root, func(n *derivedNode) bool { return n.Table == table })
+func viewCTETable(root plan.Node, table *parser.TableReference) plan.Node {
+	return viewCTEScan(root, func(n *plan.DerivedNode) bool { return n.Table == table })
 }
-func viewCTEOrdinal(root LogicalNode, ordinal int) LogicalNode {
-	return viewCTEScan(root, func(n *derivedNode) bool { return n.Ordinal == ordinal })
+func viewCTEOrdinal(root plan.Node, ordinal int) plan.Node {
+	return viewCTEScan(root, func(n *plan.DerivedNode) bool { return n.Ordinal == ordinal })
 }
 
-func (r *viewRenderer) selectQueryColumnsSQL(ctx context.Context, catalog catalog.Read, s *parser.Select, project *projectNode, columns []catalog.Column, setOperand bool) (string, error) {
+func (r *viewRenderer) selectQueryColumnsSQL(ctx context.Context, catalog catalog.Read, s *parser.Select, project *plan.ProjectNode, columns []catalog.Column, setOperand bool) (string, error) {
 	prefix, err := r.withClauseSQL(ctx, catalog, s.With, s.WithRecursive)
 	if err != nil {
 		return "", err
@@ -103,7 +104,7 @@ func (r *viewRenderer) withClauseSQL(ctx context.Context, catalogView catalog.Re
 			suffix += " CYCLE " + strings.Join(keys, ", ") + " SET " + catalog.QuoteIdentifier(cycle.Mark.Text)
 			if cycle.Value != nil {
 				project := r.queries[definition.Query.(*parser.Select)]
-				union, ok := viewFromRoot(project).(*recursiveUnionNode)
+				union, ok := viewFromRoot(project).(*plan.RecursiveUnionNode)
 				if !ok || union.Cycle == nil {
 					return "", fmt.Errorf("stuntgres: missing stored cycle recipe")
 				}

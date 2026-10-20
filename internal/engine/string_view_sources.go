@@ -7,16 +7,17 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func viewFunctionFromAt(root LogicalNode, ordinal int, selected bool) *functionFromNode {
+func viewFunctionFromAt(root plan.Node, ordinal int, selected bool) *plan.FunctionFromNode {
 	if root == nil {
 		return nil
 	}
-	if node, ok := root.(*functionFromNode); ok && node.ViewOrdinal == ordinal && node.RegexpNamespace == selected {
+	if node, ok := root.(*plan.FunctionFromNode); ok && node.ViewOrdinal == ordinal && node.RegexpNamespace == selected {
 		return node
 	}
 	left, right := queryInputs(root)

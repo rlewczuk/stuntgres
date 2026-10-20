@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -20,7 +21,7 @@ func TestAggregateModifiersTupleDistinct(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	grouping := []queryGrouping{{Grouping: family}, {Grouping: family}}
+	grouping := []plan.Grouping{{Grouping: family}, {Grouping: family}}
 	a, comma, slash := sqltype.String(typ, "a"), sqltype.String(typ, ","), sqltype.String(typ, "/")
 	null := sqltype.Null(typ)
 	var state aggregateDistinctState
@@ -86,7 +87,7 @@ func TestAggregateModifiersBindingIdentity(t *testing.T) {
 	} {
 		raw := statement(t, "SELECT "+tc.call).(*parser.Select).Targets[0]
 		expr, err := b.bind(raw, expressionPolicy{context: projectionContext})
-		if err != nil || expr.(aggregateExpression).Slot != tc.slot {
+		if err != nil || expr.(plan.AggregateExpr).Slot != tc.slot {
 			t.Fatal(i, expr, err)
 		}
 	}
@@ -95,7 +96,7 @@ func TestAggregateModifiersBindingIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	call := b.grouping.aggregates[bound.(aggregateExpression).Slot]
+	call := b.grouping.aggregates[bound.(plan.AggregateExpr).Slot]
 	if call.Order[0].Slot != 0 || call.Order[1].Slot != 0 || bound.Properties().Volatility != expr.Volatile {
 		t.Fatal(call, bound.Properties())
 	}
@@ -122,7 +123,7 @@ func TestAggregateModifiersParameterTargets(t *testing.T) {
 		if err != nil {
 			t.Fatal(query, err)
 		}
-		call := b.grouping.aggregates[expression.(aggregateExpression).Slot]
+		call := b.grouping.aggregates[expression.(plan.AggregateExpr).Slot]
 		if parameters.Count != 1 || parameters.Types[0].Type.ID() != sqltype.Text ||
 			call.Argument.ResultUsage().Type.ID() != sqltype.Text ||
 			call.Order[0].Slot != 0 || call.Order[0].Cache != 0 || len(b.params.anyParameters) != 0 {
@@ -169,7 +170,7 @@ func TestAggregateModifiersFamilyCancellation(t *testing.T) {
 	for _, phase := range []string{".Grouping.PrepareKey", ".Grouping.Hash", ".Grouping.Equal"} {
 		t.Run(phase, func(t *testing.T) {
 			var state aggregateDistinctState
-			grouping := []queryGrouping{{Grouping: family}}
+			grouping := []plan.Grouping{{Grouping: family}}
 			value := sqltype.String(typ, strings.Repeat("x", 8192))
 			if _, err := state.admit(context.Background(), grouping, []sqltype.Value{value}); err != nil {
 				t.Fatal(err)
@@ -189,7 +190,7 @@ func TestAggregateModifiersEvaluationPublication(t *testing.T) {
 	for _, phase := range []string{"success", "filter", "key", "hash", "equality", "sort", "replay", "finalize"} {
 		t.Run(phase, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT count(DISTINCT v ORDER BY v) FILTER(WHERE TRUE) FROM t")
-			node := query.Root.(*projectNode).Child.(*aggregateNode)
+			node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 			call := &node.Calls[0]
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -283,23 +284,23 @@ func TestAggregateModifiersEvaluationPublication(t *testing.T) {
 func TestAggregateModifiersImmutableConsumers(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT count(DISTINCT v ORDER BY v) FILTER(WHERE f) FROM t")
 	defer source.close()
-	node := query.Root.(*projectNode).Child.(*aggregateNode)
+	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	original := node.Calls[0]
 	rewritten, err := rewriteQueryExpressions(node, func(bound expr.Expr) (expr.Expr, bool, error) {
-		column, ok := bound.(columnExpression)
+		column, ok := bound.(plan.ColumnExpr)
 		if !ok || column.Slot != 2 {
 			return bound, false, nil
 		}
-		return literalExpression{Info: expr.Info{Usage: column.ResultUsage()}, Value: sqltype.Boolean(column.ResultUsage().Type, false)}, true, nil
+		return plan.LiteralExpr{Info: expr.Info{Usage: column.ResultUsage()}, Value: sqltype.Boolean(column.ResultUsage().Type, false)}, true, nil
 	})
 	if err != nil || rewritten == node {
 		t.Fatal("FILTER rewrite not copied", rewritten, err)
 	}
-	changed := rewritten.(*aggregateNode).Calls[0]
-	if _, ok := changed.Filter.(literalExpression); !ok {
+	changed := rewritten.(*plan.AggregateNode).Calls[0]
+	if _, ok := changed.Filter.(plan.LiteralExpr); !ok {
 		t.Fatal("FILTER rewrite lost")
 	}
-	if _, ok := node.Calls[0].Filter.(columnExpression); !ok {
+	if _, ok := node.Calls[0].Filter.(plan.ColumnExpr); !ok {
 		t.Fatal("original FILTER mutated")
 	}
 	if changed.Order[0].Slot != original.Order[0].Slot || changed.Order[0].Cache != original.Order[0].Cache || changed.StageWidth != original.StageWidth {
@@ -317,7 +318,7 @@ func TestAggregateModifiersImmutableConsumers(t *testing.T) {
 	if err != nil || remapped == node {
 		t.Fatal(remapped, err)
 	}
-	call := remapped.(*aggregateNode).Calls[0]
+	call := remapped.(*plan.AggregateNode).Calls[0]
 	if call.Filter.ResultUsage().Type == original.Filter.ResultUsage().Type || call.Argument.ResultUsage().Type == original.Argument.ResultUsage().Type {
 		t.Fatal("modifier descriptor ownership not remapped")
 	}
@@ -338,7 +339,7 @@ func TestAggregateModifiersImmutableConsumers(t *testing.T) {
 
 func TestAggregateModifiersOuterOwnershipSharing(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT (SELECT count(*) FILTER(WHERE o.v=1)),(SELECT count(*) FILTER(WHERE o.v=1)),(SELECT count(*) FILTER(WHERE o.v=2)) FROM t o")
-	node := query.Root.(*projectNode).Child.(*aggregateNode)
+	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	if len(node.Calls) != 2 || node.Calls[0].Filter == nil || node.Calls[1].Filter == nil {
 		t.Fatal("incomplete outer-owner modifier identity", node.Calls)
 	}

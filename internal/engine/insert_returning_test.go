@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -69,7 +70,7 @@ func TestInsertReturningModes(t *testing.T) {
 	typ := relation.Columns[0].Usage.Type
 	three, _ := sqltype.Integer(typ, 3)
 	seven, _ := sqltype.Integer(typ, 7)
-	column := columnExpression{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 4, Slot: 0}
+	column := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 4, Slot: 0}
 	outer := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{three}, OldRow: []sqltype.Value{seven}}}
 	inner := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 8, Outer: &outer}}
 	calls := 0
@@ -90,7 +91,7 @@ func TestInsertReturningModes(t *testing.T) {
 				outer.OldRow = nil
 			}
 			before := calls
-			expr := returningColumnExpression{ColumnExpr: column, Old: tc.old, Absent: tc.absent, Value: probe}
+			expr := plan.ReturningColumnExpr{ColumnExpr: column, Old: tc.old, Absent: tc.absent, Value: probe}
 			v, err := expr.Eval(&inner)
 			if err != nil || v.Type() != typ || testExport(v) != tc.want {
 				t.Fatal(v, err)
@@ -105,7 +106,7 @@ func TestInsertReturningModes(t *testing.T) {
 		})
 	}
 	inner.Outer = nil
-	if _, err := (returningColumnExpression{ColumnExpr: column, Absent: true}).Eval(&inner); err == nil {
+	if _, err := (plan.ReturningColumnExpr{ColumnExpr: column, Absent: true}).Eval(&inner); err == nil {
 		t.Fatal("absent side silently accepted a missing owning frame")
 	}
 }

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -27,7 +28,7 @@ func TestPreparedParameterFormalSeed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	conversion, ok := node.(coercionExpression)
+	conversion, ok := node.(plan.CoercionExpr)
 	if !ok || conversion.Child.ResultUsage().Type != integer.Type {
 		t.Fatalf("formal source replaced by destination: %T", node)
 	}

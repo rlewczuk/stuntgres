@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -119,7 +120,7 @@ func (b *expressionBinder) ruleColumn(raw parser.ColumnExpr) (expr.Expr, bool, e
 		frame = 2
 	}
 	b.dependencies = append(b.dependencies, catalog.ExpressionDependency{Ref: ref, Revision: ns.relation.Revision()})
-	return columnExpression{Info: b.info(ns.relation.Columns[slot].Usage, raw.Pos, expr.Properties{RowDependent: true}), Origin: ref, Scope: rulePseudoScope, Frame: frame, Slot: slot}, true, nil
+	return plan.ColumnExpr{Info: b.info(ns.relation.Columns[slot].Usage, raw.Pos, expr.Properties{RowDependent: true}), Origin: ref, Scope: rulePseudoScope, Frame: frame, Slot: slot}, true, nil
 }
 
 func ruleResultCheck(d *catalog.Relation, schema []catalog.Column, selectRule bool) error {
@@ -210,7 +211,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 			return r, err
 		}
 		query := &parser.Select{Targets: []parser.Expr{normalizedCondition}}
-		b := binding{query: &BoundQuery{Root: &projectNode{QuerySchema: querySchema{{Name: "condition", Usage: r.condition.ResultUsage()}}, Child: &singletonNode{}, Expressions: []expr.Expr{r.condition}, Frame: binder.frameID(), Syntax: query}}, dependencies: binder.dependencies, querySources: binder.query.sources, capture: viewCapture{columns: binder.capture.columns, literals: binder.capture.literals, castUsages: binder.capture.castUsages, composites: binder.capture.composites, collations: binder.capture.collations, namespaces: binder.capture.namespaces}, prepared: preparedCaptures{sequenceConstants: binder.prepared.sequenceConstants, regtypeConstants: binder.prepared.regtypeConstants}}
+		b := binding{query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "condition", Usage: r.condition.ResultUsage()}}, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{r.condition}, Frame: binder.frameID(), Syntax: query}}, dependencies: binder.dependencies, querySources: binder.query.sources, capture: viewCapture{columns: binder.capture.columns, literals: binder.capture.literals, castUsages: binder.capture.castUsages, composites: binder.capture.composites, collations: binder.capture.collations, namespaces: binder.capture.namespaces}, prepared: preparedCaptures{sequenceConstants: binder.prepared.sequenceConstants, regtypeConstants: binder.prepared.regtypeConstants}}
 		b.capture.routineRefs = binder.capture.routineRefs
 		b.capture.operatorRefs = binder.capture.operatorRefs
 		for i := range b.querySources {

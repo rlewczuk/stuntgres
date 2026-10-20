@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
@@ -162,15 +163,15 @@ func domainDumpStatement(ctx context.Context, view catalog.Read, roles authoriza
 	return dumpDomain{owner.Name, "CREATE DOMAIN " + qualified + " AS " + declaration + collation + checks.String() + ";\n"}, nil
 }
 
-func catalogLiteralSQL(ctx context.Context, view catalog.Read, n literalExpression) (string, error) {
+func catalogLiteralSQL(ctx context.Context, view catalog.Read, n plan.LiteralExpr) (string, error) {
 	return catalogLiteralWithACL(ctx, view, n, aclItemContextFormatter(ctx))
 }
 
-func catalogLiteralWithACL(ctx context.Context, view catalog.Read, n literalExpression, aclOutput sqltype.ACLItemFormatter) (string, error) {
+func catalogLiteralWithACL(ctx context.Context, view catalog.Read, n plan.LiteralExpr, aclOutput sqltype.ACLItemFormatter) (string, error) {
 	return catalogLiteralWithACLAt(ctx, view, nil, n, aclOutput)
 }
 
-func catalogLiteralWithACLAt(ctx context.Context, view catalog.Read, reader definitionReader, n literalExpression, aclOutput sqltype.ACLItemFormatter) (string, error) {
+func catalogLiteralWithACLAt(ctx context.Context, view catalog.Read, reader definitionReader, n plan.LiteralExpr, aclOutput sqltype.ACLItemFormatter) (string, error) {
 	u := n.ResultUsage()
 	if n.Value.Type() != u.Type {
 		return "", fmt.Errorf("stuntgres: invalid stored literal")
@@ -216,7 +217,7 @@ func catalogLiteralWithACLAt(ctx context.Context, view catalog.Read, reader defi
 		parts := make([]string, n.Value.CompositeLen())
 		for i := range parts {
 			member := n.Value.CompositeField(i)
-			literal := literalExpression{Info: expr.Info{Usage: u.Type.CompositeMember(i).Usage}, Value: member}
+			literal := plan.LiteralExpr{Info: expr.Info{Usage: u.Type.CompositeMember(i).Usage}, Value: member}
 			parts[i], err = catalogLiteralWithACLAt(ctx, view, reader, literal, aclOutput)
 			if err != nil {
 				return "", err

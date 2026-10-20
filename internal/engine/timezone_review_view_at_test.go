@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"testing"
 )
 
@@ -58,7 +59,7 @@ func TestTimezoneReviewViewAtRemap(t *testing.T) {
 	}
 	ref := roleTableRef(t, source, "tz_at")
 	definition := viewOf(source.catalog.state.MustRelation(ref.Address))
-	project := definition.query.Root.(*projectNode)
+	project := definition.query.Root.(*plan.ProjectNode)
 	for _, expression := range project.Expressions {
 		original := expression.(functions.Timezone)
 		before := original
@@ -78,10 +79,10 @@ func TestTimezoneReviewViewAtRemap(t *testing.T) {
 		if !reflect.DeepEqual(original, before) {
 			t.Fatal("remap mutated original expression")
 		}
-		if next.Value.(columnExpression).Origin == original.Value.(columnExpression).Origin {
+		if next.Value.(plan.ColumnExpr).Origin == original.Value.(plan.ColumnExpr).Origin {
 			t.Fatal("value identity was not remapped")
 		}
-		if !original.Local && next.Zone.(columnExpression).Origin == original.Zone.(columnExpression).Origin {
+		if !original.Local && next.Zone.(plan.ColumnExpr).Origin == original.Zone.(plan.ColumnExpr).Origin {
 			t.Fatal("zone identity was not remapped")
 		}
 	}
@@ -122,7 +123,7 @@ func TestTimezoneReviewViewAtValidation(t *testing.T) {
 				break
 			}
 		} else {
-			bad.literals = make(map[viewLiteralPath]literalExpression, len(definition.literals))
+			bad.literals = make(map[viewLiteralPath]plan.LiteralExpr, len(definition.literals))
 			for path, literal := range definition.literals {
 				bad.literals[path] = literal
 			}

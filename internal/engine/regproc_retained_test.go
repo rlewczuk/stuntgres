@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -32,9 +33,9 @@ func TestRoutineRetainedWriteInputAuthority(t *testing.T) {
 	}
 	// A restored fragment expression retains this character-to-container cast.
 	// Its consuming statement must supply input authority without rebinding it.
-	node := coercionExpression{
+	node := plan.CoercionExpr{
 		Info:  expr.Info{Usage: pair.Usage()},
-		Child: literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: value},
+		Child: plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: value},
 		Plan:  coercionPlan,
 		Mode:  sqltype.Explicit,
 	}

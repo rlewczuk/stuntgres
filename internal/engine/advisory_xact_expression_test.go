@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -49,7 +50,7 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 					}
 				} else {
 					last := len(node.Args) - 1
-					column := columnExpression{Info: expr.Info{Usage: node.Args[last].ResultUsage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Slot: 1, Origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}}
+					column := plan.ColumnExpr{Info: expr.Info{Usage: node.Args[last].ResultUsage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Slot: 1, Origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}}
 					stored := node
 					stored.Args = append([]expr.Expr(nil), node.Args...)
 					stored.Args[last] = column
@@ -58,8 +59,8 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 						t.Fatal("remapping stored column", err)
 					}
 					mapped := remapped.(functions.Advisory)
-					child := mapped.Args[last].(columnExpression)
-					if mapped.Lifetime != functions.AdvisoryTransaction || !mapped.ValidStored() || child.Origin.Address.ObjectID != 124 || child.Slot != 7 || stored.Args[last].(columnExpression).Slot != 1 {
+					child := mapped.Args[last].(plan.ColumnExpr)
+					if mapped.Lifetime != functions.AdvisoryTransaction || !mapped.ValidStored() || child.Origin.Address.ObjectID != 124 || child.Slot != 7 || stored.Args[last].(plan.ColumnExpr).Slot != 1 {
 						t.Fatal("stored remap lost lifetime/column identity or mutated source", mapped, child)
 					}
 					// Only stored literal consumers have a catalog deparse

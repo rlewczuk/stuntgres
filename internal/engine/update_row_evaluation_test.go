@@ -5,23 +5,24 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func updateRowTestAction(t *testing.T, e *Engine, q *BoundQuery) *boundUpdate {
+func updateRowTestAction(t *testing.T, e *Engine, q *plan.Query) *boundUpdate {
 	t.Helper()
 	source := subqueryTestExpression(t, e, q, parser.SubqueryScalar)
 	source.UpdateWidth = 2
 	source.Property.StageDependent = true
-	return &boundUpdate{assignments: []expr.Expr{source, updateOutputExpression{Info: expr.Info{Usage: q.Root.Schema()[1].Usage, Property: expr.Properties{StageDependent: true}}, Index: 1}}, groups: []updateAssignmentGroup{{start: 0, width: 2}}, outputWidth: 2}
+	return &boundUpdate{assignments: []expr.Expr{source, plan.UpdateOutputExpr{Info: expr.Info{Usage: q.Root.Schema()[1].Usage, Property: expr.Properties{StageDependent: true}}, Index: 1}}, groups: []updateAssignmentGroup{{start: 0, width: 2}}, outputWidth: 2}
 }
 
 func TestUpdateRowEvaluation(t *testing.T) {
 	t.Run("one_source_fresh_calls", func(t *testing.T) {
 		e, q, source := queryJoinsFixture(t, "SELECT k,k+100 FROM a WHERE k=2")
-		project := q.Root.(*projectNode)
+		project := q.Root.(*plan.ProjectNode)
 		calls := 0
 		subqueryTestTarget(t, project, queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
 			calls++
@@ -74,7 +75,7 @@ func TestUpdateRowEvaluation(t *testing.T) {
 	})
 	t.Run("groups_and_nested_owner", func(t *testing.T) {
 		e, q, source := queryJoinsFixture(t, "SELECT k,k+100 FROM a WHERE k=2")
-		project := q.Root.(*projectNode)
+		project := q.Root.(*plan.ProjectNode)
 		calls := 0
 		subqueryTestTarget(t, project, queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
 			calls++
@@ -84,7 +85,7 @@ func TestUpdateRowEvaluation(t *testing.T) {
 		defer execution.releaseMemberships()
 		c := execution.evaluation(context.Background())
 		action := updateRowTestAction(t, e, q)
-		second := action.assignments[1].(updateOutputExpression)
+		second := action.assignments[1].(plan.UpdateOutputExpr)
 		second.Group = 2
 		action.assignments = append(action.assignments, action.assignments[0], second)
 		action.groups = append(action.groups, updateAssignmentGroup{start: 2, width: 2})
@@ -133,8 +134,8 @@ func TestUpdateRowCancellationBeforeFinish(t *testing.T) {
 				q = "UPDATE t SET (a,b)=(SELECT a+1,b+2 FROM (VALUES(1),(2)) draw(n) WHERE t.id=2 OR draw.n=1) RETURNING a,b"
 			}
 			op, scope, b, target, sources := updateFromBoundSources(t, e, owner, ctx, q)
-			source := b.update.assignments[0].(subqueryExpression)
-			project := source.QueryPlan.Root.(*projectNode)
+			source := b.update.assignments[0].(plan.SubqueryExpr)
+			project := source.QueryPlan.Root.(*plan.ProjectNode)
 			calls, stagedBeforeCancel := 0, false
 			subqueryTestTarget(t, project, queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
 				calls++

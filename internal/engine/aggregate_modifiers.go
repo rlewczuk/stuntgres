@@ -24,7 +24,7 @@ func (b *expressionBinder) bindAggregateFilter(raw parser.AggregateExpr) (expr.E
 // SQL99 ignores implicit coercion of an existing target, not explicit casts.
 func (b *expressionBinder) sameAggregateTarget(target, expression expr.Expr) bool {
 	for {
-		c, ok := target.(coercionExpression)
+		c, ok := target.(plan.CoercionExpr)
 		if !ok || c.Mode != sqltype.Implicit {
 			break
 		}
@@ -33,7 +33,7 @@ func (b *expressionBinder) sameAggregateTarget(target, expression expr.Expr) boo
 	return b.sameGroupExpression(target, expression)
 }
 
-func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggregateCall, filter expr.Expr, info expr.Info) (expr.Expr, error) {
+func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call plan.AggregateCall, filter expr.Expr, info expr.Info) (expr.Expr, error) {
 	call.Filter = filter
 	objectProvider, object := call.Provider.(functions.JSONObjectAggregate)
 	if raw.Distinct && !object {
@@ -44,7 +44,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 		}
 	}
 	if _, ordered := call.Provider.(functions.OrderedAggregate); !ordered {
-		call.Order = make([]sortKey, len(raw.Order))
+		call.Order = make([]plan.SortKey, len(raw.Order))
 	}
 	if len(raw.Order) > 0 && call.StageWidth == 0 {
 		call.StageWidth = 2
@@ -128,7 +128,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 		} else if slot >= 2 {
 			cache = call.Order[slot-2].Cache
 		}
-		call.Order[i] = sortKey{Expression: expression, Comparison: comparison, Position: key.Pos.Character, Desc: key.Desc, NullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc, Slot: slot, Cache: cache}
+		call.Order[i] = plan.SortKey{Expression: expression, Comparison: comparison, Position: key.Pos.Character, Desc: key.Desc, NullsFirst: key.Nulls == parser.NullsFirst || key.Nulls == parser.NullsDefault && key.Desc, Slot: slot, Cache: cache}
 	}
 	if raw.Distinct {
 		if object {
@@ -142,7 +142,7 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 				return nil, err
 			}
 		}
-		call.Distinct = make([]queryGrouping, len(raw.Args))
+		call.Distinct = make([]plan.Grouping, len(raw.Args))
 		args := [2]expr.Expr{call.Argument, call.Separator}
 		for i, arg := range args {
 			if arg == nil {
@@ -193,10 +193,10 @@ func (b *expressionBinder) finishAggregate(raw parser.AggregateExpr, call aggreg
 	if slot == len(b.grouping.aggregates) {
 		b.grouping.aggregates = append(b.grouping.aggregates, call)
 	}
-	return aggregateExpression{Info: info, Slot: slot, Frame: b.frameID()}, nil
+	return plan.AggregateExpr{Info: info, Slot: slot, Frame: b.frameID()}, nil
 }
 
-func (b *expressionBinder) sameAggregateCall(a, other aggregateCall) bool {
+func (b *expressionBinder) sameAggregateCall(a, other plan.AggregateCall) bool {
 	if !plan.SameIntaggIdentity(a.Procedure, a.Ref, other.Procedure, other.Ref) {
 		return false
 	}
@@ -226,7 +226,7 @@ func (b *expressionBinder) sameAggregateCall(a, other aggregateCall) bool {
 // A modifier resolves one particular ANY input occurrence, not every use of its
 // parameter number. Keep earlier occurrences for finish's 42P08 validation.
 func (b *expressionBinder) completeJSONObjectAggregateInput(node expr.Expr) (expr.Expr, error) {
-	p, unknown := node.(parameterExpression)
+	p, unknown := node.(plan.ParameterExpr)
 	if !unknown || p.Usage.Type != nil {
 		return node, nil
 	}
@@ -240,7 +240,7 @@ func (b *expressionBinder) completeJSONObjectAggregateInput(node expr.Expr) (exp
 		}
 		copy(b.params.anyParameters[i:], b.params.anyParameters[i+1:])
 		last := len(b.params.anyParameters) - 1
-		b.params.anyParameters[last] = parameterExpression{}
+		b.params.anyParameters[last] = plan.ParameterExpr{}
 		b.params.anyParameters = b.params.anyParameters[:last]
 		break
 	}

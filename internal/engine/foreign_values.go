@@ -6,13 +6,14 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
 // The scan and actual mutation-result paths share one codec/domain/typmod
 // authority. Nil slots denotes the full declared tuple; nonnil denotes a scan
 // plan's precomputed sparse layout, including a genuine zero-width layout.
-func (f *foreignQuerySource) importValues(ctx context.Context, row catalog.ForeignRow, slots []int, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, node *sourceNode) ([]sqltype.Value, error) {
+func (f *foreignQuerySource) importValues(ctx context.Context, row catalog.ForeignRow, slots []int, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, node *plan.SourceNode) ([]sqltype.Value, error) {
 	width := len(f.columns)
 	if slots != nil {
 		width = len(slots)

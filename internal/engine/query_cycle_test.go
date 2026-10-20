@@ -5,16 +5,17 @@ import (
 	"errors"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func cycleUnitRecipe(t *testing.T, usages ...sqltype.Usage) *cycleRecipe {
+func cycleUnitRecipe(t *testing.T, usages ...sqltype.Usage) *plan.CycleRecipe {
 	t.Helper()
-	c := &cycleRecipe{MarkSlot: len(usages), Keys: make([]int, len(usages)), Grouping: make([]sqltype.Grouping, len(usages))}
+	c := &plan.CycleRecipe{MarkSlot: len(usages), Keys: make([]int, len(usages)), Grouping: make([]sqltype.Grouping, len(usages))}
 	boolean, _ := New().CatalogRead().LookupType(sqltype.Bool)
-	c.Mark = literalExpression{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, true)}
-	c.Fallback = literalExpression{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}
+	c.Mark = plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, true)}
+	c.Fallback = plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}
 	members := make([]sqltype.CompositeMember, len(usages))
 	for i, u := range usages {
 		c.Keys[i] = i
@@ -36,7 +37,7 @@ func cycleUnitRecipe(t *testing.T, usages ...sqltype.Usage) *cycleRecipe {
 	}
 	return c
 }
-func cycleUnitAugment(t *testing.T, c *cycleRecipe, parent sqltype.Value, fields ...sqltype.Value) []sqltype.Value {
+func cycleUnitAugment(t *testing.T, c *plan.CycleRecipe, parent sqltype.Value, fields ...sqltype.Value) []sqltype.Value {
 	t.Helper()
 	boolean := c.Mark.ResultUsage().Type
 	row, err := c.Augment(context.Background(), fields, parent, sqltype.Boolean(boolean, true), sqltype.Boolean(boolean, false))
@@ -95,7 +96,7 @@ func TestQueryCycleEquality(t *testing.T) {
 	if equal, err := c.EqualPath(ctx, a[3], b[3]); err != nil || equal {
 		t.Fatal("ordered keys collapsed", equal, err)
 	}
-	grouping := make([]queryGrouping, 3)
+	grouping := make([]plan.Grouping, 3)
 	for i := range 2 {
 		grouping[i].Grouping, _ = sqltype.BindGrouping(integer.Usage())
 	}
@@ -105,7 +106,7 @@ func TestQueryCycleEquality(t *testing.T) {
 	// Force a hash bucket whose first tuple has the same user fields and mark
 	// but different ancestry. Only full path equality may reject that tuple.
 	a = cycleUnitAugment(t, c, a[3], two, one)
-	stage := recursiveUnionStage{node: &recursiveUnionNode{SetNode: setNode{QuerySchema: make(querySchema, 4), Grouping: grouping}, Definition: &cteDefinition{UserWidth: 2}, Cycle: c}, source: &querySource{flat: append(append([]sqltype.Value(nil), a...), b...)}}
+	stage := recursiveUnionStage{node: &plan.RecursiveUnionNode{SetNode: plan.SetNode{QuerySchema: make(plan.QuerySchema, 4), Grouping: grouping}, Definition: &plan.CTEDefinition{UserWidth: 2}, Cycle: c}, source: &querySource{flat: append(append([]sqltype.Value(nil), a...), b...)}}
 	if index, err := stage.findTuple(ctx, b, []int{0, 1}); err != nil || index != 1 {
 		t.Fatal("full collision equality", index, err)
 	}
@@ -128,14 +129,14 @@ func TestQueryCycleParent(t *testing.T) {
 	if a[2].ArrayLen() != 1 || childA[2].ArrayLen() != 2 {
 		t.Fatal("mutated parent path")
 	}
-	d := &cteDefinition{Cycle: c}
-	self := &worktableScanNode{DerivedNode: derivedNode{CTE: d}}
-	physical := &singletonNode{QuerySchema: make(querySchema, 4)}
-	root := &joinNode{Left: physical, Right: self, LeftWidth: 4}
+	d := &plan.CTEDefinition{Cycle: c}
+	self := &plan.WorktableScanNode{DerivedNode: plan.DerivedNode{CTE: d}}
+	physical := &plan.SingletonNode{QuerySchema: make(plan.QuerySchema, 4)}
+	root := &plan.JoinNode{Left: physical, Right: self, LeftWidth: 4}
 	if found, offset := recursiveParentSlot(root, d, 0); found != self || offset != 4 {
 		t.Fatal(found, offset)
 	}
-	root = &joinNode{Left: self, Right: physical, LeftWidth: 3}
+	root = &plan.JoinNode{Left: self, Right: physical, LeftWidth: 3}
 	if found, offset := recursiveParentSlot(root, d, 0); found != self || offset != 0 {
 		t.Fatal(found, offset)
 	}
@@ -194,9 +195,9 @@ func TestQueryCycleOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var original *recursiveUnionNode
-	visitCTEQuery(bound.Root, func(node LogicalNode) {
-		if n, ok := node.(*recursiveUnionNode); ok {
+	var original *plan.RecursiveUnionNode
+	visitCTEQuery(bound.Root, func(node plan.Node) {
+		if n, ok := node.(*plan.RecursiveUnionNode); ok {
 			original = n
 		}
 	}, func(expr.Expr) {}, true)
@@ -228,7 +229,7 @@ func TestQueryCycleOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	union := remapped.(*projectNode).Child.(*recursiveUnionNode)
+	union := remapped.(*plan.ProjectNode).Child.(*plan.RecursiveUnionNode)
 	if err := validateStoredSetNode(&union.SetNode, union.Cycle, nil); err != nil {
 		t.Fatal("remapped cycle arm layout", err)
 	}
@@ -249,7 +250,7 @@ func TestQueryCycleOwnership(t *testing.T) {
 		t.Fatal("foreign remap retained/mutated source")
 	}
 	for i := range 2 {
-		hidden, ok := union.RightExpressions[union.Cycle.MarkSlot+i].(columnExpression)
+		hidden, ok := union.RightExpressions[union.Cycle.MarkSlot+i].(plan.ColumnExpr)
 		if !ok || hidden.Slot != offset+union.Cycle.MarkSlot+i || !scan.Demand[union.Cycle.MarkSlot+i] {
 			t.Fatal("hidden projection lost joined parent authority", hidden)
 		}

@@ -24,7 +24,7 @@ func unknownOperand(raw parser.Expr, node expr.Expr) bool {
 // Only the coerced occurrence acquires a type. Earlier unknown parameters
 // beneath null tests deliberately remain unresolved through final validation.
 func (b *expressionBinder) contextualOperand(raw parser.Expr, node expr.Expr, u sqltype.Usage, context expressionContext) (expr.Expr, error) {
-	if p, ok := node.(parameterExpression); ok {
+	if p, ok := node.(plan.ParameterExpr); ok {
 		return b.coerceParameter(p, u)
 	}
 	return b.bind(raw, expressionPolicy{context: context, expected: u, operand: true})
@@ -35,10 +35,10 @@ func (b *expressionBinder) nullTest(raw parser.Expr, pos parser.Position, not, w
 	if err != nil {
 		return nil, err
 	}
-	if p, ok := child.(parameterExpression); ok && p.Usage.Type == nil {
+	if p, ok := child.(plan.ParameterExpr); ok && p.Usage.Type == nil {
 		b.params.anyParameters = append(b.params.anyParameters, p)
 	}
-	return nullTestExpression{b.info(b.typ(sqltype.Bool).Usage(), pos, child.Properties()), child, not, whole}, nil
+	return plan.NullTestExpr{b.info(b.typ(sqltype.Bool).Usage(), pos, child.Properties()), child, not, whole}, nil
 }
 
 func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expressionContext) (expr.Expr, error) {
@@ -68,10 +68,10 @@ func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expre
 			if err != nil {
 				return nil, err
 			}
-			child = coercionExpression{info, child, coercionPlan, sqltype.Implicit, false}
+			child = plan.CoercionExpr{info, child, coercionPlan, sqltype.Implicit, false}
 		}
-		truth := [...]Truth{plan.True, plan.True, plan.False, plan.False, plan.Unknown, plan.Unknown}
-		return truthTestExpression{b.info(boolUsage, raw.Pos, child.Properties()), child, truth[index], index%2 == 1}, nil
+		truth := [...]plan.Truth{plan.True, plan.True, plan.False, plan.False, plan.Unknown, plan.Unknown}
+		return plan.TruthTestExpr{b.info(boolUsage, raw.Pos, child.Properties()), child, truth[index], index%2 == 1}, nil
 	case parser.IsDistinct, parser.IsNotDistinct:
 		if left, ok := raw.Left.(parser.RowExpr); ok {
 			if right, ok := raw.Right.(parser.RowExpr); ok {
@@ -104,8 +104,8 @@ func (b *expressionBinder) bindPredicate(raw parser.PredicateExpr, context expre
 		if err != nil {
 			return nil, err
 		}
-		equality := bound.(comparisonExpression)
-		return distinctExpression{equality.Info, equality.Left, equality.Right, equality.Predicate, raw.Kind == parser.IsNotDistinct}, nil
+		equality := bound.(plan.ComparisonExpr)
+		return plan.DistinctExpr{equality.Info, equality.Left, equality.Right, equality.Predicate, raw.Kind == parser.IsNotDistinct}, nil
 	default:
 		return nil, fmt.Errorf("stuntgres: invalid predicate kind")
 	}

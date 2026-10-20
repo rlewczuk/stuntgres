@@ -6,13 +6,14 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 func TestSQLJSONArrayQueryReachedCancellationCleanup(t *testing.T) {
 	e, query, captured := queryJoinsFixture(t, "SELECT k FROM a")
-	inner := query.Root.(*projectNode)
+	inner := query.Root.(*plan.ProjectNode)
 	inputUsage := inner.Schema()[0].Usage
 	jsonType, ok := e.CatalogRead().LookupType(sqltype.JSON)
 	if !ok {
@@ -24,16 +25,16 @@ func TestSQLJSONArrayQueryReachedCancellationCleanup(t *testing.T) {
 	}
 	// A real lazy view producer exposes its actual nested stage. Both levels
 	// are ordinary query machinery, not a stand-in cursor or canned result.
-	base := inner.Child.(*sourceNode)
-	outer := &projectNode{QuerySchema: inner.QuerySchema, Frame: inner.Frame + 1}
-	outer.Child = &sourceNode{QuerySchema: inner.QuerySchema, Ref: base.Ref, Occurrence: 0, PresenceSlot: base.PresenceSlot}
-	column := columnExpression{Info: expr.Info{Usage: inputUsage}, Scope: 1, Frame: outer.Frame, Slot: 0}
+	base := inner.Child.(*plan.SourceNode)
+	outer := &plan.ProjectNode{QuerySchema: inner.QuerySchema, Frame: inner.Frame + 1}
+	outer.Child = &plan.SourceNode{QuerySchema: inner.QuerySchema, Ref: base.Ref, Occurrence: 0, PresenceSlot: base.PresenceSlot}
+	column := plan.ColumnExpr{Info: expr.Info{Usage: inputUsage}, Scope: 1, Frame: outer.Frame, Slot: 0}
 	outer.Expressions = []expr.Expr{column}
 	bound := *query
 	bound.Root = outer
 	expr := subqueryTestExpression(t, e, &bound, parser.SubqueryScalar)
 	expr.Usage = jsonType.Usage()
-	expr.JSONArray = &sqlJSONArrayQuery{Plan: jsonArrayAggregatePlan, Input: column}
+	expr.JSONArray = &plan.SQLJSONArrayQuery{Plan: jsonArrayAggregatePlan, Input: column}
 	newCapture := func() *querySource {
 		return &querySource{ref: base.Ref, authority: captured.authority, nestedRoot: inner, nestedInputs: captured, flatWidth: 1, materialized: true}
 	}

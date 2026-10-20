@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -33,9 +34,9 @@ func TestQueryWindowSurvivingOccurrences(t *testing.T) {
 			e, query, source := queryCoreFixture(t, tc.sql)
 			defer source.close()
 			original := pruningTestWindow(t, query.Root)
-			calls := append([]windowCall(nil), original.Calls...)
+			calls := append([]plan.WindowCall(nil), original.Calls...)
 			for range 2 {
-				prepared, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: e.CatalogRead()}, evalFrame: evalFrame{Scope: 1, Frame: query.Root.(*projectNode).Frame}}, query.Root)
+				prepared, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: e.CatalogRead()}, evalFrame: evalFrame{Scope: 1, Frame: query.Root.(*plan.ProjectNode).Frame}}, query.Root)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -100,13 +101,13 @@ func TestQueryWindowGraftedDemand(t *testing.T) {
 			defer source.close()
 			original := pruningTestWindow(t, query.Root)
 			originalCall := original.Calls[0]
-			project := query.Root.(*projectNode)
+			project := query.Root.(*plan.ProjectNode)
 			frame := project.Frame + 7
 			// Exercise the same physical-layout graft as writable rules while
 			// leaving original window call metadata untouched.
 			schema := append([]catalog.Column(nil), original.Child.Schema()...)
 			schema = append(schema, schema[0])
-			input := &evaluationNode{QuerySchema: querySchema(schema), Child: original.Child}
+			input := &plan.EvaluationNode{QuerySchema: plan.QuerySchema(schema), Child: original.Child}
 			slots := make(map[int]int)
 			grafted, err := ruleGraftSchemas(query.Root, original.Child, input, slots)
 			if err != nil {
@@ -114,7 +115,7 @@ func TestQueryWindowGraftedDemand(t *testing.T) {
 			}
 			grafted, err = rewriteQueryExpressions(grafted, func(bound expr.Expr) (expr.Expr, bool, error) {
 				return rewriteViewExpression(e.CatalogRead(), bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
-					if occurrence, ok := expr.(*windowExpression); ok && occurrence.Frame == project.Frame {
+					if occurrence, ok := expr.(*plan.WindowExpr); ok && occurrence.Frame == project.Frame {
 						copy := *occurrence
 						copy.Slot = slots[occurrence.Slot]
 						copy.Frame = frame
@@ -126,7 +127,7 @@ func TestQueryWindowGraftedDemand(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			copy := *grafted.(*projectNode)
+			copy := *grafted.(*plan.ProjectNode)
 			copy.Frame = frame
 			pruned, err := pruneProjectWindows(&copy)
 			if err != nil {
@@ -144,10 +145,10 @@ func TestQueryWindowGraftedDemand(t *testing.T) {
 	}
 }
 
-func pruningTestWindow(t *testing.T, root LogicalNode) *windowNode {
+func pruningTestWindow(t *testing.T, root plan.Node) *plan.WindowNode {
 	t.Helper()
 	for root != nil {
-		if window, ok := root.(*windowNode); ok {
+		if window, ok := root.(*plan.WindowNode); ok {
 			return window
 		}
 		root, _ = queryInputs(root)

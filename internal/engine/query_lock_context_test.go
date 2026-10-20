@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -37,7 +38,7 @@ func TestQueryLockContextsAndReferenceKinds(t *testing.T) {
 			auth, err := e.authorizationLocked(op)
 			binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 			binder.query.auth = &auth
-			var query *BoundQuery
+			var query *plan.Query
 			if err == nil {
 				query, err = binder.bindSelect(raw, false)
 			}

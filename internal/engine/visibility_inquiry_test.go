@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -86,7 +87,7 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 	if !relation.Constraints.Check[0].VisibilitySnapshot {
 		t.Fatal("missing CHECK capture manifest")
 	}
-	inquiry := relation.Constraints.Check[0].Expression.(nullTestExpression).Child.(functions.VisibilityInquiry)
+	inquiry := relation.Constraints.Check[0].Expression.(plan.NullTestExpr).Child.(functions.VisibilityInquiry)
 	renderer := scalarRenderer{owner: relation}
 	intType, _ := view.LookupType(sqltype.Int4)
 	for _, tc := range []struct {
@@ -97,12 +98,12 @@ func TestVisibilityInquiryProvidersAndStoredValidation(t *testing.T) {
 		{"child", func(n *functions.VisibilityInquiry) { n.Arg = nil }},
 		{"result", func(n *functions.VisibilityInquiry) { n.Usage.Type = intType }},
 		{"argument", func(n *functions.VisibilityInquiry) {
-			c := n.Arg.(columnExpression)
+			c := n.Arg.(plan.ColumnExpr)
 			c.Usage = intType.Usage()
 			n.Arg = c
 		}},
 		{"properties", func(n *functions.VisibilityInquiry) { n.Property.RowDependent = false }},
-		{"origin", func(n *functions.VisibilityInquiry) { c := n.Arg.(columnExpression); c.Origin.Epoch++; n.Arg = c }},
+		{"origin", func(n *functions.VisibilityInquiry) { c := n.Arg.(plan.ColumnExpr); c.Origin.Epoch++; n.Arg = c }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			n := inquiry
@@ -173,7 +174,7 @@ func TestVisibilityInquiryCapturedFrontier(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	n := functions.VisibilityInquiry{Info: expr.Info{Usage: boolean.Usage()}, Kind: functions.TableVisibility, Arg: literalExpression{Info: expr.Info{Usage: oid.Usage()}, Value: value}}
+	n := functions.VisibilityInquiry{Info: expr.Info{Usage: boolean.Usage()}, Kind: functions.TableVisibility, Arg: plan.LiteralExpr{Info: expr.Info{Usage: oid.Usage()}, Value: value}}
 	got, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, statementScope: scope}})
 	if err != nil {
 		t.Fatal(err)

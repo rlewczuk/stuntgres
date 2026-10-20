@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -30,7 +31,7 @@ type insertBinding struct {
 // DELETE binding and rule grafting write it; execution and rule rewriting
 // read it.
 type deleteBinding struct {
-	using       LogicalNode
+	using       plan.Node
 	sourceWidth int
 }
 
@@ -52,7 +53,7 @@ type createTableBinding struct {
 // literal path. View, rule and policy definitions read them to deparse stored
 // SQL; the maps keep the binder's contents and iteration rules.
 type viewCapture struct {
-	literals          map[viewLiteralPath]literalExpression
+	literals          map[viewLiteralPath]plan.LiteralExpr
 	castUsages        map[viewLiteralPath]sqltype.Usage
 	routineRefs       map[viewLiteralPath]ids.ObjectRef
 	operatorRefs      map[viewLiteralPath]ids.ObjectRef
@@ -114,5 +115,5 @@ func newResolverInputs(input sqltype.InputEnvironment) resolverInputs {
 // commands.
 type ruleBinding struct {
 	template bool
-	ctes     map[*cteDefinition]*ruleCTECommand
+	ctes     map[*plan.CTEDefinition]*ruleCTECommand
 }

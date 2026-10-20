@@ -46,7 +46,7 @@ func windowValueMember(mode parser.FrameExclusion, head, tail, current, peerStar
 	return 0, false
 }
 
-func evaluateWindowValue(ctx context.Context, evaluation *EvalContext, child *indexedStage, call windowCall, rows []int, frame boundWindowFrame, head, tail, current, peerStart, peerEnd int) (sqltype.Value, error) {
+func evaluateWindowValue(ctx context.Context, evaluation *EvalContext, child *indexedStage, call plan.WindowCall, rows []int, frame plan.WindowFrame, head, tail, current, peerStart, peerEnd int) (sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -99,7 +99,7 @@ func evaluateWindowValue(ctx context.Context, evaluation *EvalContext, child *in
 // A sort-input boundary retains exact required targets before matching window
 // leaves from postponed volatile payloads. Only an ACTUAL whole retained target
 // can own a leaf; unmatched postponed leaves keep independent execution slots.
-func (b *expressionBinder) windowValueAliases(calls []windowCall, projection []expr.Expr, order, on []sortKey) []int {
+func (b *expressionBinder) windowValueAliases(calls []plan.WindowCall, projection []expr.Expr, order, on []plan.SortKey) []int {
 	if len(order) == 0 {
 		return nil
 	}
@@ -111,7 +111,7 @@ func (b *expressionBinder) windowValueAliases(calls []windowCall, projection []e
 		return nil
 	}
 	demanded := func(output int) bool {
-		for _, keys := range [2][]sortKey{order, on} {
+		for _, keys := range [2][]plan.SortKey{order, on} {
 			for _, key := range keys {
 				if key.OutputOrdinal == output+1 || key.TargetIdentity == output+1 {
 					return true
@@ -120,9 +120,9 @@ func (b *expressionBinder) windowValueAliases(calls []windowCall, projection []e
 		}
 		return false
 	}
-	owners := make([]*windowExpression, 0, len(calls))
+	owners := make([]*plan.WindowExpr, 0, len(calls))
 	retain := func(expression expr.Expr) {
-		leaf, ok := expression.(*windowExpression)
+		leaf, ok := expression.(*plan.WindowExpr)
 		if !ok || leaf.Frame != b.frameID() || leaf.Call < 0 || leaf.Call >= len(calls) || !calls[leaf.Call].Operation.EvaluatesArgument() {
 			return
 		}
@@ -138,7 +138,7 @@ func (b *expressionBinder) windowValueAliases(calls []windowCall, projection []e
 			retain(expression)
 		}
 	}
-	for _, keys := range [2][]sortKey{order, on} {
+	for _, keys := range [2][]plan.SortKey{order, on} {
 		for _, key := range keys {
 			retain(key.Expression)
 		}
@@ -149,7 +149,7 @@ func (b *expressionBinder) windowValueAliases(calls []windowCall, projection []e
 			continue
 		}
 		walkBoundExpression(expression, func(child expr.Expr) {
-			leaf, ok := child.(*windowExpression)
+			leaf, ok := child.(*plan.WindowExpr)
 			if !ok || leaf.Frame != b.frameID() || leaf.Call < 0 || leaf.Call >= len(calls) || !calls[leaf.Call].Operation.EvaluatesArgument() {
 				return
 			}

@@ -4,13 +4,14 @@ import (
 	"context"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
 func compositeExprUnitLiteral(value sqltype.Value) expr.Expr {
-	return literalExpression{Info: expr.Info{Usage: value.Type().Usage()}, Value: value}
+	return plan.LiteralExpr{Info: expr.Info{Usage: value.Type().Usage()}, Value: value}
 }
 func compositeExprUnitInteger(t *testing.T, typ *sqltype.Descriptor, n int64) sqltype.Value {
 	t.Helper()
@@ -29,20 +30,20 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	row := rowExpression{Info: expr.Info{Usage: shape.Usage()}, Fields: []expr.Expr{compositeExprUnitLiteral(compositeExprUnitInteger(t, integer, 7)), compositeExprUnitLiteral(sqltype.Null(integer))}}
+	row := plan.RowExpr{Info: expr.Info{Usage: shape.Usage()}, Fields: []expr.Expr{compositeExprUnitLiteral(compositeExprUnitInteger(t, integer, 7)), compositeExprUnitLiteral(sqltype.Null(integer))}}
 	c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	value, err := row.Eval(c)
 	if err != nil || value.IsNull() || !value.CompositeField(1).IsNull() {
 		t.Fatal("present partially NULL constructor", err)
 	}
-	selected := fieldExpression{Info: expr.Info{Usage: integer.Usage()}, Base: row, Attribute: 1, Index: 0}
+	selected := plan.FieldExpr{Info: expr.Info{Usage: integer.Usage()}, Base: row, Attribute: 1, Index: 0}
 	value, err = selected.Eval(c)
 	number, nerr := value.Integer()
 	if err != nil || nerr != nil || number != 7 {
 		t.Fatal(number, err, nerr)
 	}
 	// A selected constructor child does not evaluate an unused invalid child.
-	row.Fields = []expr.Expr{row.Fields[0], literalExpression{}}
+	row.Fields = []expr.Expr{row.Fields[0], plan.LiteralExpr{}}
 	selected.Base = row
 	if _, err := selected.Eval(c); err != nil {
 		t.Fatal("selected field evaluated sibling", err)
@@ -79,7 +80,7 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	zero := rowExpression{Info: expr.Info{Usage: empty.Usage()}, WholeNames: []string{}, PresenceSlot: 1, PresenceFrame: 1}
+	zero := plan.RowExpr{Info: expr.Info{Usage: empty.Usage()}, WholeNames: []string{}, PresenceSlot: 1, PresenceFrame: 1}
 	c.presenceSlots = []int{1}
 	c.presence = []bool{true}
 	if value, err := zero.Eval(c); err != nil || value.IsNull() || value.CompositeLen() != 0 {
@@ -103,9 +104,9 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 		}
 	})
 	t.Run("transparent VALUES occurrence", func(t *testing.T) {
-		values := &valuesNode{}
+		values := &plan.ValuesNode{}
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
-		q := queryQualifier{nullExtended: true, sourceRoot: &projectNode{Child: values}}
+		q := queryQualifier{nullExtended: true, sourceRoot: &plan.ProjectNode{Child: values}}
 		slot, err := b.wholeRowPresence(&q, 1)
 		if err != nil || slot != 1 || values.PresenceSlot != slot {
 			t.Fatal("presence did not belong to emitted VALUES occurrence", slot, err)
@@ -152,7 +153,7 @@ func TestCompositeExprAssignmentPaths(t *testing.T) {
 	}
 	original := sqltype.Null(outer)
 	c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{compositeExprUnitInteger(t, integer, 9)}}}
-	rhs := columnExpression{Info: expr.Info{Usage: integer.Usage()}, Scope: 1, Frame: 1, Slot: 0}
+	rhs := plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage()}, Scope: 1, Frame: 1, Slot: 0}
 	first, err := target.ApplyExpression(c, original, rhs)
 	if err != nil {
 		t.Fatal(err)
@@ -193,8 +194,8 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	row := bound.(rowExpression)
-	row.Expansions = map[int]compositeExpansionBinding{0: {Base: row.Fields[1], Fields: []expr.Expr{row.Fields[1]}}}
+	row := bound.(plan.RowExpr)
+	row.Expansions = map[int]plan.CompositeExpansionBinding{0: {Base: row.Fields[1], Fields: []expr.Expr{row.Fields[1]}}}
 	selected, err := b.selectCompositeField(row, "f2", parser.Position{})
 	if err != nil {
 		t.Fatal(err)
@@ -222,7 +223,7 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal("record closure reownership", changed, err)
 	}
-	mappedRow := remapped.(fieldExpression).Base.(rowExpression)
+	mappedRow := remapped.(plan.FieldExpr).Base.(plan.RowExpr)
 	if mappedRow.Usage.Type == row.Usage.Type || mappedRow.Fields[1].ResultUsage().Type == row.Fields[1].ResultUsage().Type || mappedRow.Expansions[0].Base.ResultUsage().Type == row.Expansions[0].Base.ResultUsage().Type {
 		t.Fatal("runtime or retained analysis shape borrowed old owner")
 	}
@@ -242,7 +243,7 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	if err := validateGenerationPlan(view, nil, broken); err == nil {
 		t.Fatal("malformed row width admitted")
 	}
-	badField := remapped.(fieldExpression)
+	badField := remapped.(plan.FieldExpr)
 	badField.Attribute = 99
 	if err := validateGenerationPlan(view, nil, badField); err == nil {
 		t.Fatal("retired field plan admitted")
@@ -251,7 +252,7 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	left := rowExpression{Info: expr.Info{Usage: empty.Usage(), Property: expr.Properties{RowDependent: true}}, WholeNames: []string{}, WholeName: "a", PresenceFrame: 1}
+	left := plan.RowExpr{Info: expr.Info{Usage: empty.Usage(), Property: expr.Properties{RowDependent: true}}, WholeNames: []string{}, WholeName: "a", PresenceFrame: 1}
 	right := left
 	right.WholeName = "b"
 	if b.sameGroupExpression(left, right) {
@@ -265,7 +266,7 @@ func TestCompositeExprVisitorsAndRetag(t *testing.T) {
 	if err := zero.validate(view); err == nil {
 		t.Fatal("missing capture kind admitted")
 	}
-	whole := compositeOccurrence{kind: compositeWholeRow, base: mappedRow.Usage, source: wholeRowSource{Namespace: 1, Frame: 1}}
+	whole := compositeOccurrence{kind: compositeWholeRow, base: mappedRow.Usage, source: plan.WholeRowSource{Namespace: 1, Frame: 1}}
 	if err := (&viewDefinition{}).validateCompositeSource(whole); err == nil {
 		t.Fatal("missing actual namespace source admitted")
 	}

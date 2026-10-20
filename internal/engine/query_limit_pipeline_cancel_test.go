@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -9,13 +10,13 @@ import (
 func TestQueryLimitPipelineCancellation(t *testing.T) {
 	t.Run("nonproductive join", func(t *testing.T) {
 		e, query, source := queryCoreFixture(t, "SELECT id FROM t")
-		project := query.Root.(*projectNode)
+		project := query.Root.(*plan.ProjectNode)
 		bt, _ := e.CatalogRead().LookupType(sqltype.Bool)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		calls := 0
-		join := &joinNode{QuerySchema: project.Child.Schema(), Left: project.Child, Right: &sourceNode{Occurrence: 1}, LeftWidth: len(project.Child.Schema()), Predicate: queryProbe(bt.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; cancel(); return sqltype.Boolean(bt, false), nil })}
-		project.Child = &limitNode{QuerySchema: join.Schema(), Child: join, Count: queryLimitBound(t, e, 1)}
+		join := &plan.JoinNode{QuerySchema: project.Child.Schema(), Left: project.Child, Right: &plan.SourceNode{Occurrence: 1}, LeftWidth: len(project.Child.Schema()), Predicate: queryProbe(bt.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; cancel(); return sqltype.Boolean(bt, false), nil })}
+		project.Child = &plan.LimitNode{QuerySchema: join.Schema(), Child: join, Count: queryLimitBound(t, e, 1)}
 		inputs := &querySource{sources: []*querySource{source, {anonymous: [][]sqltype.Value{{}}}}}
 		rows, n, err := finalizeQuery(ctx, project, inputs, nil)
 		if rows != nil || n != 0 || err != context.Canceled || calls != 1 || source.view != nil {
@@ -25,8 +26,8 @@ func TestQueryLimitPipelineCancellation(t *testing.T) {
 	for _, mode := range []string{"NULL", "tie"} {
 		t.Run("sort comparator "+mode, func(t *testing.T) {
 			e, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY v")
-			project := query.Root.(*projectNode)
-			sort := project.Child.(*sortNode)
+			project := query.Root.(*plan.ProjectNode)
+			sort := project.Child.(*plan.SortNode)
 			typ, _ := e.CatalogRead().LookupType(sqltype.Int4)
 			value := sqltype.Null(typ)
 			if mode == "tie" {
@@ -43,7 +44,7 @@ func TestQueryLimitPipelineCancellation(t *testing.T) {
 				}
 				return value, nil
 			})
-			project.Child = &limitNode{QuerySchema: sort.Schema(), Child: sort, Count: queryLimitBound(t, e, 1)}
+			project.Child = &plan.LimitNode{QuerySchema: sort.Schema(), Child: sort, Count: queryLimitBound(t, e, 1)}
 			// Cancel sorting NULL/tie keys without pinning an incidental
 			// expression invocation count. No prefix may be published.
 			rows, n, err := finalizeQuery(ctx, project, source, nil)

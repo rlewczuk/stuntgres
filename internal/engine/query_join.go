@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func preflightJoin(c *EvalContext, n *joinNode) (LogicalNode, error) {
+func preflightJoin(c *EvalContext, n *plan.JoinNode) (plan.Node, error) {
 	left, err := preflightQuery(c, n.Left)
 	if err != nil {
 		return nil, err
@@ -49,7 +50,7 @@ func preflightJoin(c *EvalContext, n *joinNode) (LogicalNode, error) {
 	return n, nil
 }
 
-func openJoinNode(ctx context.Context, state *queryState, n *joinNode) (indexedStage, error) {
+func openJoinNode(ctx context.Context, state *queryState, n *plan.JoinNode) (indexedStage, error) {
 	foreignOwner := n // Private coercion rewrites must not create new scan owners.
 	// Admission/preflight is independent of operand population. Opening both
 	// children must validate their row-independent coercions even when the
@@ -355,20 +356,20 @@ func initializeJoinEquality(ctx context.Context, bound expr.Expr, leftWidth int)
 	if bound == nil {
 		return nil
 	}
-	if logical, ok := bound.(logicalExpression); ok && logical.Op == parser.LogicalAnd {
+	if logical, ok := bound.(plan.LogicalExpr); ok && logical.Op == parser.LogicalAnd {
 		if err := initializeJoinEquality(ctx, logical.Left, leftWidth); err != nil {
 			return err
 		}
 		return initializeJoinEquality(ctx, logical.Right, leftWidth)
 	}
-	comparison, ok := bound.(comparisonExpression)
+	comparison, ok := bound.(plan.ComparisonExpr)
 	if !ok || comparison.Operator != "=" {
 		return nil
 	}
 	side := func(bound expr.Expr) int {
 		result := 0
 		walkBoundExpression(bound, func(node expr.Expr) {
-			column, ok := node.(columnExpression)
+			column, ok := node.(plan.ColumnExpr)
 			if !ok || column.Scope != 1 {
 				return
 			}

@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -14,7 +15,7 @@ func (b *expressionBinder) bindRowComparison(raw parser.OperatorExpr, operator s
 }
 
 // Analyze constructors without allocating RECORD values or finalizing unknowns.
-func (b *expressionBinder) rowComparisonOperands(raw parser.RowExpr) ([]comparisonOperand, map[int]compositeExpansionBinding, error) {
+func (b *expressionBinder) rowComparisonOperands(raw parser.RowExpr) ([]comparisonOperand, map[int]plan.CompositeExpansionBinding, error) {
 	list, err := b.expandRawList(raw.Fields)
 	if err != nil {
 		return nil, nil, err
@@ -41,7 +42,7 @@ func (b *expressionBinder) rowComparisonOperands(raw parser.RowExpr) ([]comparis
 type inComparisonOperand struct {
 	scalar      comparisonOperand
 	fields      []comparisonOperand
-	expansions  map[int]compositeExpansionBinding
+	expansions  map[int]plan.CompositeExpansionBinding
 	constructor bool
 }
 
@@ -52,7 +53,7 @@ func (b *expressionBinder) inComparisonOperand(raw parser.Expr) (inComparisonOpe
 	}
 	operand, err := b.comparisonOperand(raw)
 	result := inComparisonOperand{scalar: operand}
-	if row, ok := operand.node.(rowExpression); ok && row.Raw != nil && !row.Usage.Type.IsDomain() {
+	if row, ok := operand.node.(plan.RowExpr); ok && row.Raw != nil && !row.Usage.Type.IsDomain() {
 		result.constructor, result.expansions = true, row.Expansions
 		result.fields = make([]comparisonOperand, row.Usage.Type.BaseType().CompositeLen())
 		for i, field := range row.Fields {
@@ -74,7 +75,7 @@ func (b *expressionBinder) inComparisonOperand(raw parser.Expr) (inComparisonOpe
 // RECORD cannot enter the scalar-array branch, and residual pairs use fields.
 func (b *expressionBinder) inCommonOperand(operand inComparisonOperand) comparisonOperand {
 	if operand.constructor && operand.scalar.node == nil {
-		return comparisonOperand{node: rowExpression{Info: b.info(b.typ(2249).Usage(), operand.scalar.raw.SourcePosition(), expr.Properties{})}, raw: operand.scalar.raw}
+		return comparisonOperand{node: plan.RowExpr{Info: b.info(b.typ(2249).Usage(), operand.scalar.raw.SourcePosition(), expr.Properties{})}, raw: operand.scalar.raw}
 	}
 	return operand.scalar
 }
@@ -104,7 +105,7 @@ func (b *expressionBinder) inScalarOperand(operand *inComparisonOperand) (compar
 		return comparisonOperand{}, err
 	}
 	raw := operand.scalar.raw.(parser.RowExpr)
-	operand.scalar.node = rowExpression{Info: b.info(shape.Usage(), raw.Pos, properties), Fields: fields, Raw: &raw, Expansions: operand.expansions}
+	operand.scalar.node = plan.RowExpr{Info: b.info(shape.Usage(), raw.Pos, properties), Fields: fields, Raw: &raw, Expansions: operand.expansions}
 	return operand.scalar, nil
 }
 
@@ -120,15 +121,15 @@ func (b *expressionBinder) bindRowPredicate(raw parser.OperatorExpr, operator sq
 	return b.bindRowPredicateOperands(raw, operator, lhs, rhs, le, re, mode)
 }
 
-func (b *expressionBinder) bindRowPredicateOperands(raw parser.OperatorExpr, operator sqltype.ComparisonOperator, lhs, rhs []comparisonOperand, le, re map[int]compositeExpansionBinding, mode string) (expr.Expr, error) {
+func (b *expressionBinder) bindRowPredicateOperands(raw parser.OperatorExpr, operator sqltype.ComparisonOperator, lhs, rhs []comparisonOperand, le, re map[int]plan.CompositeExpansionBinding, mode string) (expr.Expr, error) {
 	if len(lhs) != len(rhs) {
 		return nil, expr.ErrorAt("42601", "unequal number of entries in row expressions", raw.Pos)
 	}
-	e := rowComparisonExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, expr.Properties{}), Operator: mode, Expansions: [2]map[int]compositeExpansionBinding{le, re}}
+	e := plan.RowComparisonExpr{Info: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, expr.Properties{}), Operator: mode, Expansions: [2]map[int]plan.CompositeExpansionBinding{le, re}}
 	if len(lhs) == 0 && !e.Distinct() {
 		return nil, expr.ErrorAt("0A000", "cannot compare rows of zero length", raw.Pos)
 	}
-	e.Comparisons = make([]comparisonExpression, len(lhs))
+	e.Comparisons = make([]plan.ComparisonExpr, len(lhs))
 	if operator > sqltype.CompareNotEqual {
 		e.Ordering = make([]sqltype.Comparison, len(lhs))
 	}
@@ -138,7 +139,7 @@ func (b *expressionBinder) bindRowPredicateOperands(raw parser.OperatorExpr, ope
 		if err != nil {
 			return nil, err
 		}
-		pair, ok := node.(comparisonExpression)
+		pair, ok := node.(plan.ComparisonExpr)
 		if !ok {
 			return nil, fmt.Errorf("stuntgres: invalid row comparison pair")
 		}
@@ -160,7 +161,7 @@ func (b *expressionBinder) bindRowPredicateOperands(raw parser.OperatorExpr, ope
 	return e, nil
 }
 
-func renderRowComparison(e rowComparisonExpression, operand func(expr.Expr) (string, error), operator string) (string, error) {
+func renderRowComparison(e plan.RowComparisonExpr, operand func(expr.Expr) (string, error), operator string) (string, error) {
 	if len(e.Comparisons) == 0 && !e.Distinct() {
 		return "", fmt.Errorf("stuntgres: invalid stored row comparison")
 	}
@@ -185,8 +186,8 @@ func renderRowComparison(e rowComparisonExpression, operand func(expr.Expr) (str
 
 // Reuse the constructor's copy-on-change ownership mapping for analysis-only
 // expansion associations; executable pairs are mapped by their existing owners.
-func mapRowComparisonExpansions(expansions map[int]compositeExpansionBinding, child func(expr.Expr) (expr.Expr, bool, error)) (map[int]compositeExpansionBinding, bool, error) {
-	row, changed, err := mapRowAnalysis(rowExpression{Expansions: expansions}, child)
+func mapRowComparisonExpansions(expansions map[int]plan.CompositeExpansionBinding, child func(expr.Expr) (expr.Expr, bool, error)) (map[int]plan.CompositeExpansionBinding, bool, error) {
+	row, changed, err := mapRowAnalysis(plan.RowExpr{Expansions: expansions}, child)
 	return row.Expansions, changed, err
 }
 func rowSubqueryComparison(raw parser.OperatorExpr) (parser.SubqueryExpr, bool) {

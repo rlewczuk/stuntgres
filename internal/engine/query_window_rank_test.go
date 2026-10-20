@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -24,7 +25,7 @@ func TestQueryWindowRankDescriptors(t *testing.T) {
 			t.Fatal("ranking descriptor", i, column)
 		}
 	}
-	node := query.Root.(*projectNode).Child.(*windowNode)
+	node := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	if len(node.Calls) != 4 {
 		t.Fatal("execution calls", len(node.Calls))
 	}

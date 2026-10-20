@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -36,7 +37,7 @@ func (e *Engine) bindDomainDefault(ctx context.Context, op *Operation, auth Auth
 		// PostgreSQL omits only a final bare builtin Const NULL. Real
 		// domain/typmod conversions and expressions that may return NULL
 		// remain executable recipes; never evaluate or unwrap them here.
-		if literal, ok := node.(literalExpression); ok && literal.Value.IsNull() && !literal.Usage.Type.IsDomain() && !literal.Usage.Type.IsUserDefined() {
+		if literal, ok := node.(plan.LiteralExpr); ok && literal.Value.IsNull() && !literal.Usage.Type.IsDomain() && !literal.Usage.Type.IsUserDefined() {
 			return nil
 		}
 		d.DomainDefaultOwn = true
@@ -89,7 +90,7 @@ func defaultDestination(node expr.Expr, target sqltype.Usage) expr.Expr {
 	if err != nil {
 		panic(err)
 	} // Catalog validation guarantees assignment-compatible recipes.
-	return coercionExpression{Info: expr.Info{Usage: target, Property: coercionProperties(node, coercionPlan)}, Child: node, Plan: coercionPlan, Mode: sqltype.Assignment}
+	return plan.CoercionExpr{Info: expr.Info{Usage: target, Property: coercionProperties(node, coercionPlan)}, Child: node, Plan: coercionPlan, Mode: sqltype.Assignment}
 }
 
 // Default origin is statement-private authority, not a fabricated pg_attrdef for

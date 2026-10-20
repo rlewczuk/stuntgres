@@ -3,6 +3,7 @@ package engine
 import (
 	"slices"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -28,7 +29,7 @@ func mapRuleBindingRecipes(b binding, mapper ruleTreeMapper) (binding, error) {
 		}
 		return copied, true, nil
 	}
-	targets := func(values []*arrayAssignmentTarget) ([]*arrayAssignmentTarget, error) {
+	targets := func(values []*plan.ArrayAssignmentTarget) ([]*plan.ArrayAssignmentTarget, error) {
 		return mapRuleAssignmentTargets(values, mapper.expression, func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil })
 	}
 	var err error
@@ -175,7 +176,7 @@ func mapRuleBindingRecipes(b binding, mapper ruleTreeMapper) (binding, error) {
 			b.insert.conflict = &conflict
 		}
 	}
-	var definitions []*cteDefinition
+	var definitions []*plan.CTEDefinition
 	for i, original := range b.ctes {
 		next, err := mapper.definition(original)
 		if err != nil {

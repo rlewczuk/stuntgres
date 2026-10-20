@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -96,10 +97,10 @@ func producingStage(child *indexedStage, schema []catalog.Column) indexedStage {
 		}}
 }
 
-func (b *expressionBinder) scheduleQueryProjection(root LogicalNode, projection []expr.Expr, bounded bool) LogicalNode {
+func (b *expressionBinder) scheduleQueryProjection(root plan.Node, projection []expr.Expr, bounded bool) plan.Node {
 	base := 0
 	var lateSlots []int
-	ordered, sorting := root.(*sortNode)
+	ordered, sorting := root.(*plan.SortNode)
 	if !sorting && !bounded {
 		return root
 	}
@@ -115,14 +116,14 @@ func (b *expressionBinder) scheduleQueryProjection(root LogicalNode, projection 
 			continue
 		}
 		switch bound.(type) {
-		case columnExpression, groupExpression, cachedOrderExpression, unknownOutput, literalExpression, parameterExpression:
+		case plan.ColumnExpr, plan.GroupExpr, plan.CachedOrderExpr, plan.UnknownOutput, plan.LiteralExpr, plan.ParameterExpr:
 			continue
 		}
 		if sorting && bound.Properties().Volatility != expr.Volatile {
 			slot := ordered.CacheWidth
 			ordered.Outputs = append(ordered.Outputs, bound)
 			ordered.CacheWidth++
-			projection[i] = cachedOrderExpression{Info: expr.InfoOf(bound), Slot: slot}
+			projection[i] = plan.CachedOrderExpr{Info: expr.InfoOf(bound), Slot: slot}
 		} else if bounded {
 			late = append(late, bound)
 			lateSlots = append(lateSlots, i)
@@ -136,12 +137,12 @@ func (b *expressionBinder) scheduleQueryProjection(root LogicalNode, projection 
 	}
 	for j, i := range lateSlots {
 		bound := projection[i]
-		projection[i] = cachedOrderExpression{Info: expr.InfoOf(bound), Slot: base + j}
+		projection[i] = plan.CachedOrderExpr{Info: expr.InfoOf(bound), Slot: base + j}
 	}
-	return &evaluationNode{QuerySchema: root.Schema(), Child: root, Expressions: late, Base: base}
+	return &plan.EvaluationNode{QuerySchema: root.Schema(), Child: root, Expressions: late, Base: base}
 }
 
-func openEvaluationNode(ctx context.Context, state *queryState, n *evaluationNode) (indexedStage, error) {
+func openEvaluationNode(ctx context.Context, state *queryState, n *plan.EvaluationNode) (indexedStage, error) {
 	child, err := openQueryNode(ctx, state, n.Child)
 	if err != nil {
 		return indexedStage{}, err
@@ -175,7 +176,7 @@ func openEvaluationNode(ctx context.Context, state *queryState, n *evaluationNod
 	return out, nil
 }
 
-func openLimitNode(ctx context.Context, state *queryState, n *limitNode) (indexedStage, error) {
+func openLimitNode(ctx context.Context, state *queryState, n *plan.LimitNode) (indexedStage, error) {
 	if n.PresenceOnly {
 		return openQueryNode(ctx, state, n.Child)
 	}

@@ -6,12 +6,13 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func assignmentTargetHasVirtualReads(target *arrayAssignmentTarget) bool {
+func assignmentTargetHasVirtualReads(target *plan.ArrayAssignmentTarget) bool {
 	for ; target != nil; target = target.Next {
 		if target.Attribute == 0 && boundHasVirtualReads(target.Node) {
 			return true
@@ -33,7 +34,7 @@ func arrayTargetUsage(container sqltype.Usage, subs []parser.ArraySubscript) sql
 	return usage
 }
 
-func (b *expressionBinder) bindArrayTarget(column catalog.Column, raw []parser.ArraySubscript, pos parser.Position) (*arrayAssignmentTarget, error) {
+func (b *expressionBinder) bindArrayTarget(column catalog.Column, raw []parser.ArraySubscript, pos parser.Position) (*plan.ArrayAssignmentTarget, error) {
 	usage := column.Usage.BaseUsage()
 	if !usage.Type.IsArray() {
 		return nil, expr.ErrorAt("42804", fmt.Sprintf("cannot subscript type %s because it does not support subscripting", b.diagnosticTypeName(usage.Type)), pos)
@@ -49,10 +50,10 @@ func (b *expressionBinder) bindArrayTarget(column catalog.Column, raw []parser.A
 	if err != nil {
 		return nil, err
 	}
-	return &arrayAssignmentTarget{Node: subscriptExpression{Subscripts: subs, Slice: slice}, Container: column.Usage, Destination: arrayTargetUsage(column.Usage, raw), Reapply: coercionPlan, Name: column.Name, Pos: pos}, nil
+	return &plan.ArrayAssignmentTarget{Node: plan.SubscriptExpr{Subscripts: subs, Slice: slice}, Container: column.Usage, Destination: arrayTargetUsage(column.Usage, raw), Reapply: coercionPlan, Name: column.Name, Pos: pos}, nil
 }
 
-func (b *expressionBinder) arrayAssignmentDiagnostic(t *arrayAssignmentTarget, err error, source *sqltype.Descriptor) error {
+func (b *expressionBinder) arrayAssignmentDiagnostic(t *plan.ArrayAssignmentTarget, err error, source *sqltype.Descriptor) error {
 	if err == nil {
 		return nil
 	}
@@ -76,12 +77,12 @@ func (b *expressionBinder) arrayAssignmentDiagnostic(t *arrayAssignmentTarget, e
 	return &copy
 }
 
-func preflightArrayTargets(c *EvalContext, targets []*arrayAssignmentTarget) ([]*arrayAssignmentTarget, error) {
+func preflightArrayTargets(c *EvalContext, targets []*plan.ArrayAssignmentTarget) ([]*plan.ArrayAssignmentTarget, error) {
 	return preflightArrayTargetsWithPlanning(c, targets, false)
 }
 
-func preflightArrayTargetsWithPlanning(c *EvalContext, targets []*arrayAssignmentTarget, planConstants bool) ([]*arrayAssignmentTarget, error) {
-	var replacements []*arrayAssignmentTarget
+func preflightArrayTargetsWithPlanning(c *EvalContext, targets []*plan.ArrayAssignmentTarget, planConstants bool) ([]*plan.ArrayAssignmentTarget, error) {
+	var replacements []*plan.ArrayAssignmentTarget
 	for i, target := range targets {
 		if target == nil {
 			continue
@@ -92,7 +93,7 @@ func preflightArrayTargetsWithPlanning(c *EvalContext, targets []*arrayAssignmen
 		}
 		if next != target {
 			if replacements == nil {
-				replacements = append([]*arrayAssignmentTarget(nil), targets...)
+				replacements = append([]*plan.ArrayAssignmentTarget(nil), targets...)
 			}
 			replacements[i] = next
 		}
@@ -103,7 +104,7 @@ func preflightArrayTargetsWithPlanning(c *EvalContext, targets []*arrayAssignmen
 	return replacements, nil
 }
 
-func preflightAssignmentTarget(c *EvalContext, target *arrayAssignmentTarget, planConstants bool) (*arrayAssignmentTarget, error) {
+func preflightAssignmentTarget(c *EvalContext, target *plan.ArrayAssignmentTarget, planConstants bool) (*plan.ArrayAssignmentTarget, error) {
 	if target == nil {
 		return nil, nil
 	}
@@ -161,13 +162,13 @@ func targetUsage(container sqltype.Usage, steps []parser.TargetStep) sqltype.Usa
 	return usage
 }
 
-func (b *expressionBinder) bindAssignmentTarget(column catalog.Column, steps []parser.TargetStep, pos parser.Position) (*arrayAssignmentTarget, error) {
+func (b *expressionBinder) bindAssignmentTarget(column catalog.Column, steps []parser.TargetStep, pos parser.Position) (*plan.ArrayAssignmentTarget, error) {
 	return b.bindAssignmentTargetPath(column, steps, pos, pos)
 }
 
 // FieldSelect has no expression location in PostgreSQL. Keep that container
 // location separate from the assignment head used by coercion diagnostics.
-func (b *expressionBinder) bindAssignmentTargetPath(column catalog.Column, steps []parser.TargetStep, pos, containerPos parser.Position) (*arrayAssignmentTarget, error) {
+func (b *expressionBinder) bindAssignmentTargetPath(column catalog.Column, steps []parser.TargetStep, pos, containerPos parser.Position) (*plan.ArrayAssignmentTarget, error) {
 	if field := steps[0].Field; field != nil {
 		shape := column.Usage.Type.BaseType()
 		if !shape.IsComposite() {
@@ -182,7 +183,7 @@ func (b *expressionBinder) bindAssignmentTargetPath(column catalog.Column, steps
 			if err != nil {
 				return nil, err
 			}
-			target := &arrayAssignmentTarget{Container: column.Usage, Destination: member.Usage, Reapply: reapply, Name: member.Name, Pos: pos, Attribute: member.Attribute}
+			target := &plan.ArrayAssignmentTarget{Container: column.Usage, Destination: member.Usage, Reapply: reapply, Name: member.Name, Pos: pos, Attribute: member.Attribute}
 			if len(steps) > 1 {
 				target.Next, err = b.bindAssignmentTargetPath(catalog.Column{Name: member.Name, Usage: member.Usage}, steps[1:], pos, parser.Position{})
 				if err != nil {

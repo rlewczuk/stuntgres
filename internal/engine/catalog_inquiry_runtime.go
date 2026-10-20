@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -27,6 +28,6 @@ func (c *EvalContext) CatalogUserName(oid uint32, result *sqltype.Descriptor) (s
 }
 
 func bareInquiryLiteralNull(node expr.Expr) bool {
-	value, ok := node.(literalExpression)
+	value, ok := node.(plan.LiteralExpr)
 	return ok && value.Value.IsNull()
 }

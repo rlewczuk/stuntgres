@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqlstate"
@@ -48,7 +49,7 @@ func infoYesOrNoUnitCatalog(t *testing.T, e *Engine, view catalog.Read) *catalog
 	}
 	valueLeaves := 0
 	walkBoundExpression(check.Expression, func(node expr.Expr) {
-		if _, ok := node.(domainValueExpression); ok {
+		if _, ok := node.(plan.DomainValueExpr); ok {
 			valueLeaves++
 			if node.ResultUsage() != d.SQLType.DomainBase() {
 				t.Fatal("VALUE lost immediate base/typmod/C authority", node.ResultUsage())

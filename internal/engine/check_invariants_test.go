@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -18,20 +19,20 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 	view := e.CatalogRead()
 	descriptor, _ := view.Descriptor(ref.Address)
 	original := descriptor.(*catalog.Relation)
-	predicate := original.Constraints.Check[0].Expression.(comparisonExpression)
-	column := predicate.Left.(columnExpression)
+	predicate := original.Constraints.Check[0].Expression.(plan.ComparisonExpr)
+	column := predicate.Left.(plan.ColumnExpr)
 	for _, tc := range []struct {
 		name   string
-		change func(*columnExpression)
+		change func(*plan.ColumnExpr)
 	}{
-		{"foreign owner", func(c *columnExpression) { c.Origin = New().catalog.Domain.Ref(c.Origin.Epoch, c.Origin.Address) }},
-		{"foreign relation", func(c *columnExpression) { c.Origin.Address.ObjectID++ }},
-		{"foreign epoch", func(c *columnExpression) { c.Origin.Epoch++ }},
-		{"stale attribute", func(c *columnExpression) { c.Origin.Address.SubID++ }},
-		{"wrong dense slot", func(c *columnExpression) { c.Slot++ }},
-		{"wrong scope", func(c *columnExpression) { c.Scope++ }},
-		{"wrong frame", func(c *columnExpression) { c.Frame++ }},
-		{"foreign type", func(c *columnExpression) { c.Usage.Type, _ = New().CatalogRead().LookupType(sqltype.Int4) }},
+		{"foreign owner", func(c *plan.ColumnExpr) { c.Origin = New().catalog.Domain.Ref(c.Origin.Epoch, c.Origin.Address) }},
+		{"foreign relation", func(c *plan.ColumnExpr) { c.Origin.Address.ObjectID++ }},
+		{"foreign epoch", func(c *plan.ColumnExpr) { c.Origin.Epoch++ }},
+		{"stale attribute", func(c *plan.ColumnExpr) { c.Origin.Address.SubID++ }},
+		{"wrong dense slot", func(c *plan.ColumnExpr) { c.Slot++ }},
+		{"wrong scope", func(c *plan.ColumnExpr) { c.Scope++ }},
+		{"wrong frame", func(c *plan.ColumnExpr) { c.Frame++ }},
+		{"foreign type", func(c *plan.ColumnExpr) { c.Usage.Type, _ = New().CatalogRead().LookupType(sqltype.Int4) }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			copy := *original
@@ -47,8 +48,8 @@ func TestCheckDescriptorInvariants(t *testing.T) {
 		})
 	}
 	for _, node := range []expr.Expr{
-		parameterExpression{Info: expr.Info{Usage: predicate.Usage}, Number: 1},
-		aggregateExpression{Info: expr.Info{Usage: predicate.Usage}, Slot: 0},
+		plan.ParameterExpr{Info: expr.Info{Usage: predicate.Usage}, Number: 1},
+		plan.AggregateExpr{Info: expr.Info{Usage: predicate.Usage}, Slot: 0},
 	} {
 		copy := *original
 		copy.Constraints.Check = append([]catalog.CheckConstraint(nil), original.Constraints.Check...)

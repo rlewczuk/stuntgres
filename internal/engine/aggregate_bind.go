@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -38,8 +39,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 		same = func(a, other expr.Expr) bool { return b.sameGroupExpressionIn(a, other, comparison) }
 	}
 	switch e := a.(type) {
-	case assignmentValueExpression:
-		o, ok := other.(assignmentValueExpression)
+	case plan.AssignmentValueExpr:
+		o, ok := other.(plan.AssignmentValueExpr)
 		if !ok || !same(e.Base, o.Base) || !same(e.Value, o.Value) {
 			return false
 		}
@@ -54,11 +55,11 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			left, right = left.Next, right.Next
 		}
 		return left == nil && right == nil
-	case tableOIDExpression:
-		o, ok := other.(tableOIDExpression)
+	case plan.TableOIDExpr:
+		o, ok := other.(plan.TableOIDExpr)
 		return ok && e.Owner == o.Owner
-	case groupingExpression:
-		o, ok := other.(groupingExpression)
+	case plan.GroupingExpr:
+		o, ok := other.(plan.GroupingExpr)
 		if !ok || !comparison.sameFrame(e.Frame, o.Frame) || len(e.Args) != len(o.Args) {
 			return false
 		}
@@ -68,8 +69,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			}
 		}
 		return true
-	case rowComparisonExpression:
-		o, ok := other.(rowComparisonExpression)
+	case plan.RowComparisonExpr:
+		o, ok := other.(plan.RowComparisonExpr)
 		if !ok || e.Operator != o.Operator || len(e.Comparisons) != len(o.Comparisons) || len(e.Ordering) != len(o.Ordering) {
 			return false
 		}
@@ -84,11 +85,11 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			}
 		}
 		return true
-	case updateOutputExpression:
-		o, ok := other.(updateOutputExpression)
+	case plan.UpdateOutputExpr:
+		o, ok := other.(plan.UpdateOutputExpr)
 		return ok && e.Index == o.Index && e.Group == o.Group
-	case subqueryExpression:
-		o, ok := other.(subqueryExpression)
+	case plan.SubqueryExpr:
+		o, ok := other.(plan.SubqueryExpr)
 		if !ok || e.UpdateWidth != o.UpdateWidth || e.Kind != o.Kind || e.Operator != o.Operator || e.Negate != o.Negate || len(e.Membership) != len(o.Membership) || (comparison != nil && e.PresenceOnly != o.PresenceOnly) || len(e.Comparisons) != len(o.Comparisons) {
 			return false
 		}
@@ -99,7 +100,7 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			return false
 		}
 		if comparison == nil {
-			if e.QueryPlan.Root.(*projectNode).Frame != o.QueryPlan.Root.(*projectNode).Frame {
+			if e.QueryPlan.Root.(*plan.ProjectNode).Frame != o.QueryPlan.Root.(*plan.ProjectNode).Frame {
 				return false
 			}
 		} else if !comparison.sameQuery(b, e.QueryPlan.Root, o.QueryPlan.Root) {
@@ -124,11 +125,11 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			}
 		}
 		return true
-	case aggregateExpression:
-		o, ok := other.(aggregateExpression)
+	case plan.AggregateExpr:
+		o, ok := other.(plan.AggregateExpr)
 		return ok && e.Slot == o.Slot && comparison.sameFrame(e.Frame, o.Frame)
-	case *windowExpression:
-		o, ok := other.(*windowExpression)
+	case *plan.WindowExpr:
+		o, ok := other.(*plan.WindowExpr)
 		if !ok || !comparison.sameFrame(e.Frame, o.Frame) {
 			return false
 		}
@@ -147,29 +148,29 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 		}
 		a, c := b.grouping.windowCalls[e.Call], b.grouping.windowCalls[o.Call]
 		return b.sameWindowCall(a, c)
-	case groupExpression:
-		o, ok := other.(groupExpression)
+	case plan.GroupExpr:
+		o, ok := other.(plan.GroupExpr)
 		return ok && e.Slot == o.Slot && comparison.sameFrame(e.Frame, o.Frame)
-	case literalExpression:
-		o, ok := other.(literalExpression)
+	case plan.LiteralExpr:
+		o, ok := other.(plan.LiteralExpr)
 		if !ok {
 			return false
 		}
 		return e.UnknownNull == o.UnknownNull && sqltype.SameDatum(e.Value, o.Value)
-	case domainValueExpression:
-		_, ok := other.(domainValueExpression)
+	case plan.DomainValueExpr:
+		_, ok := other.(plan.DomainValueExpr)
 		return ok
-	case columnExpression:
-		o, ok := other.(columnExpression)
+	case plan.ColumnExpr:
+		o, ok := other.(plan.ColumnExpr)
 		return ok && e.Origin == o.Origin && e.Scope == o.Scope && comparison.sameFrame(e.Frame, o.Frame) && e.Slot == o.Slot
-	case cachedOrderExpression:
-		o, ok := other.(cachedOrderExpression)
+	case plan.CachedOrderExpr:
+		o, ok := other.(plan.CachedOrderExpr)
 		return comparison != nil && ok && e.Slot == o.Slot
-	case parameterExpression:
-		o, ok := other.(parameterExpression)
+	case plan.ParameterExpr:
+		o, ok := other.(plan.ParameterExpr)
 		return ok && e.Number == o.Number
-	case rowExpression:
-		o, ok := other.(rowExpression)
+	case plan.RowExpr:
+		o, ok := other.(plan.RowExpr)
 		if !ok || len(e.Fields) != len(o.Fields) || (e.WholeNames == nil) != (o.WholeNames == nil) || e.WholeName != o.WholeName || e.WholeSource != o.WholeSource || e.PresenceSlot != o.PresenceSlot || e.PresenceFrame != o.PresenceFrame || e.ReturningWhole != o.ReturningWhole || e.ReturningNull != o.ReturningNull {
 			return false
 		}
@@ -182,11 +183,11 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			}
 		}
 		return true
-	case fieldExpression:
-		o, ok := other.(fieldExpression)
+	case plan.FieldExpr:
+		o, ok := other.(plan.FieldExpr)
 		return ok && e.Attribute == o.Attribute && same(e.Base, o.Base)
-	case arrayExpression:
-		o, ok := other.(arrayExpression)
+	case plan.ArrayExpr:
+		o, ok := other.(plan.ArrayExpr)
 		if !ok || e.Multidimensional != o.Multidimensional || len(e.Elements) != len(o.Elements) {
 			return false
 		}
@@ -196,8 +197,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			}
 		}
 		return true
-	case subscriptExpression:
-		o, ok := other.(subscriptExpression)
+	case plan.SubscriptExpr:
+		o, ok := other.(plan.SubscriptExpr)
 		if !ok || e.Slice != o.Slice || len(e.Subscripts) != len(o.Subscripts) || !same(e.Base, o.Base) {
 			return false
 		}
@@ -208,26 +209,26 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			}
 		}
 		return true
-	case collationExpression:
-		o, ok := other.(collationExpression)
+	case plan.CollationExpr:
+		o, ok := other.(plan.CollationExpr)
 		return ok && same(e.Child, o.Child)
-	case coercionExpression:
-		o, ok := other.(coercionExpression)
+	case plan.CoercionExpr:
+		o, ok := other.(plan.CoercionExpr)
 		return ok && e.Plan.Equal(o.Plan) && (checkDefinitionEquality || e.Mode == o.Mode) && same(e.Child, o.Child)
-	case bitwiseExpression:
-		o, ok := other.(bitwiseExpression)
+	case plan.BitwiseExpr:
+		o, ok := other.(plan.BitwiseExpr)
 		return ok && e.Provider == o.Provider && e.Bits == o.Bits && e.Network == o.Network && e.Operator == o.Operator && same(e.Left, o.Left) && same(e.Right, o.Right)
-	case selectedOperatorExpression:
-		o, ok := other.(selectedOperatorExpression)
+	case plan.SelectedOperatorExpr:
+		o, ok := other.(plan.SelectedOperatorExpr)
 		return ok && e.Ref == o.Ref && same(e.Provider, o.Provider)
-	case arithmeticExpression:
-		o, ok := other.(arithmeticExpression)
+	case plan.ArithmeticExpr:
+		o, ok := other.(plan.ArithmeticExpr)
 		return ok && e.Provider == o.Provider && e.Operator == o.Operator && same(e.Left, o.Left) && same(e.Right, o.Right)
-	case likeExpression:
-		o, ok := other.(likeExpression)
+	case plan.LikeExpr:
+		o, ok := other.(plan.LikeExpr)
 		return ok && e.Provider == o.Provider && e.Operator == o.Operator && e.Namespace == o.Namespace && same(e.Left, o.Left) && same(e.Right, o.Right)
-	case scalarArrayComparisonExpression:
-		o, ok := other.(scalarArrayComparisonExpression)
+	case plan.ScalarArrayComparisonExpr:
+		o, ok := other.(plan.ScalarArrayComparisonExpr)
 		if !ok || !e.Predicate.Equal(o.Predicate) || e.Operator != o.Operator || e.Namespace != o.Namespace || e.All != o.All || !same(e.Left, o.Left) || !same(e.Array, o.Array) || len(e.Items) != len(o.Items) {
 			return false
 		}
@@ -237,23 +238,23 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			}
 		}
 		return true
-	case comparisonExpression:
-		o, ok := other.(comparisonExpression)
+	case plan.ComparisonExpr:
+		o, ok := other.(plan.ComparisonExpr)
 		return ok && e.Predicate.Equal(o.Predicate) && e.Operator == o.Operator && same(e.Left, o.Left) && same(e.Right, o.Right)
-	case logicalExpression:
-		o, ok := other.(logicalExpression)
+	case plan.LogicalExpr:
+		o, ok := other.(plan.LogicalExpr)
 		return ok && e.Op == o.Op && e.QueryRight == o.QueryRight && same(e.Left, o.Left) && same(e.Right, o.Right)
-	case nullTestExpression:
-		o, ok := other.(nullTestExpression)
+	case plan.NullTestExpr:
+		o, ok := other.(plan.NullTestExpr)
 		return ok && e.Not == o.Not && e.Whole == o.Whole && same(e.Child, o.Child)
-	case truthTestExpression:
-		o, ok := other.(truthTestExpression)
+	case plan.TruthTestExpr:
+		o, ok := other.(plan.TruthTestExpr)
 		return ok && e.Truth == o.Truth && e.Not == o.Not && same(e.Child, o.Child)
-	case distinctExpression:
-		o, ok := other.(distinctExpression)
+	case plan.DistinctExpr:
+		o, ok := other.(plan.DistinctExpr)
 		return ok && e.Equality.Equal(o.Equality) && e.Not == o.Not && same(e.Left, o.Left) && same(e.Right, o.Right)
-	case caseExpression:
-		o, ok := other.(caseExpression)
+	case plan.CaseExpr:
+		o, ok := other.(plan.CaseExpr)
 		if !ok || len(e.Arms) != len(o.Arms) || !same(e.Test, o.Test) || !same(e.Otherwise, o.Otherwise) {
 			return false
 		}
@@ -264,8 +265,8 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 			}
 		}
 		return true
-	case conditionalExpression:
-		o, ok := other.(conditionalExpression)
+	case plan.ConditionalExpr:
+		o, ok := other.(plan.ConditionalExpr)
 		if !ok || e.Kind != o.Kind || e.MissingOrdering != o.MissingOrdering || !e.Comparison.Equal(o.Comparison) || len(e.Args) != len(o.Args) {
 			return false
 		}
@@ -339,7 +340,7 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 	if err := b.ctx.Err(); err != nil {
 		return nil, err
 	}
-	if operation, ok := bound.(groupingExpression); ok {
+	if operation, ok := bound.(plan.GroupingExpr); ok {
 		return b.rewriteGrouping(operation, keys)
 	}
 	for i, key := range keys {
@@ -349,7 +350,7 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 			properties.StageDependent = true
 			info := expr.InfoOf(bound)
 			info.Property = properties
-			return groupExpression{Info: info, Slot: i, Frame: b.frameID()}, nil
+			return plan.GroupExpr{Info: info, Slot: i, Frame: b.frameID()}, nil
 		}
 	}
 	var err error
@@ -363,7 +364,7 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 	}
 	stage := func(info *expr.Info) { info.Property.StageDependent = true }
 	switch e := bound.(type) {
-	case subqueryExpression:
+	case plan.SubqueryExpr:
 		old := b.grouping.groupSubquery
 		b.grouping.groupSubquery = true
 		root, failure := rewriteQueryExpressions(e.QueryPlan.Root, func(child expr.Expr) (expr.Expr, bool, error) {
@@ -383,21 +384,21 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 			e.QueryPlan = &query
 		}
 		if len(e.Comparisons) != 0 {
-			comparisons := append([]comparisonExpression(nil), e.Comparisons...)
+			comparisons := append([]plan.ComparisonExpr(nil), e.Comparisons...)
 			for i := range comparisons {
 				comparisons[i].Left = rewrite(comparisons[i].Left)
 			}
 			e.Comparisons = comparisons
 		}
 		bound = e
-	case aggregateExpression:
+	case plan.AggregateExpr:
 		if e.Frame != 0 && e.Frame != b.frameID() {
 			return e, nil
 		}
-		return groupExpression{Info: e.Info, Slot: len(keys) + e.Slot, Frame: b.frameID()}, nil
-	case *windowExpression:
+		return plan.GroupExpr{Info: e.Info, Slot: len(keys) + e.Slot, Frame: b.frameID()}, nil
+	case *plan.WindowExpr:
 		return e, nil
-	case columnExpression:
+	case plan.ColumnExpr:
 		if e.Frame != b.frameID() {
 			return e, nil
 		}
@@ -419,7 +420,7 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 			return nil, expr.ErrorAt("42803", fmt.Sprintf(`subquery uses ungrouped column "%s" from outer query`, name), e.Pos)
 		}
 		return nil, expr.ErrorAt("42803", fmt.Sprintf(`column "%s" must appear in the GROUP BY clause or be used in an aggregate function`, name), e.Pos)
-	case rowExpression:
+	case plan.RowExpr:
 		e, _, err = mapRow(e, func(old expr.Expr) (expr.Expr, bool, error) {
 			next := rewrite(old)
 			return next, !b.sameGroupExpression(old, next), err
@@ -429,18 +430,18 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		}
 		stage(&e.Info)
 		bound = e
-	case fieldExpression:
+	case plan.FieldExpr:
 		e.Base = rewrite(e.Base)
 		stage(&e.Info)
 		bound = e
-	case arrayExpression:
+	case plan.ArrayExpr:
 		e.Elements = append([]expr.Expr(nil), e.Elements...)
 		for i, element := range e.Elements {
 			e.Elements[i] = rewrite(element)
 		}
 		stage(&e.Info)
 		bound = e
-	case subscriptExpression:
+	case plan.SubscriptExpr:
 		var failure error
 		e, _, failure = mapSubscript(e, func(child expr.Expr) (expr.Expr, bool, error) {
 			if child == nil {
@@ -454,15 +455,15 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		}
 		stage(&e.Info)
 		bound = e
-	case collationExpression:
+	case plan.CollationExpr:
 		e.Child = rewrite(e.Child)
 		stage(&e.Info)
 		bound = e
-	case coercionExpression:
+	case plan.CoercionExpr:
 		e.Child = rewrite(e.Child)
 		stage(&e.Info)
 		bound = e
-	case bitwiseExpression:
+	case plan.BitwiseExpr:
 		e.Left = rewrite(e.Left)
 		e.Right = rewrite(e.Right)
 		stage(&e.Info)
@@ -476,27 +477,27 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		stage(&info)
 		e.Info = info
 		bound = e
-	case selectedOperatorExpression:
+	case plan.SelectedOperatorExpr:
 		e.Provider = rewrite(e.Provider)
 		stage(&e.Info)
 		bound = e
-	case arithmeticExpression:
+	case plan.ArithmeticExpr:
 		e.Left = rewrite(e.Left)
 		e.Right = rewrite(e.Right)
 		stage(&e.Info)
 		bound = e
-	case likeExpression:
+	case plan.LikeExpr:
 		e.Left, e.Right = rewrite(e.Left), rewrite(e.Right)
 		stage(&e.Info)
 		bound = e
-	case rowComparisonExpression:
-		e.Comparisons = append([]comparisonExpression(nil), e.Comparisons...)
+	case plan.RowComparisonExpr:
+		e.Comparisons = append([]plan.ComparisonExpr(nil), e.Comparisons...)
 		for i, pair := range e.Comparisons {
-			e.Comparisons[i] = rewrite(pair).(comparisonExpression)
+			e.Comparisons[i] = rewrite(pair).(plan.ComparisonExpr)
 		}
 		stage(&e.Info)
 		bound = e
-	case scalarArrayComparisonExpression:
+	case plan.ScalarArrayComparisonExpr:
 		e.Left = rewrite(e.Left)
 		if e.Array != nil {
 			e.Array = rewrite(e.Array)
@@ -507,32 +508,32 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		}
 		stage(&e.Info)
 		bound = e
-	case comparisonExpression:
+	case plan.ComparisonExpr:
 		e.Left = rewrite(e.Left)
 		e.Right = rewrite(e.Right)
 		stage(&e.Info)
 		bound = e
-	case logicalExpression:
+	case plan.LogicalExpr:
 		e.Left = rewrite(e.Left)
 		e.Right = rewrite(e.Right)
 		stage(&e.Info)
 		bound = e
-	case nullTestExpression:
+	case plan.NullTestExpr:
 		e.Child = rewrite(e.Child)
 		stage(&e.Info)
 		bound = e
-	case truthTestExpression:
+	case plan.TruthTestExpr:
 		e.Child = rewrite(e.Child)
 		stage(&e.Info)
 		bound = e
-	case distinctExpression:
+	case plan.DistinctExpr:
 		e.Left = rewrite(e.Left)
 		e.Right = rewrite(e.Right)
 		stage(&e.Info)
 		bound = e
-	case caseExpression:
+	case plan.CaseExpr:
 		e.Test = rewrite(e.Test)
-		e.Arms = append([]caseBranch(nil), e.Arms...)
+		e.Arms = append([]plan.CaseBranch(nil), e.Arms...)
 		for i := range e.Arms {
 			e.Arms[i].Condition = rewrite(e.Arms[i].Condition)
 			e.Arms[i].Result = rewrite(e.Arms[i].Result)
@@ -540,7 +541,7 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		e.Otherwise = rewrite(e.Otherwise)
 		stage(&e.Info)
 		bound = e
-	case conditionalExpression:
+	case plan.ConditionalExpr:
 		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
 			e.Args[i] = rewrite(e.Args[i])
@@ -622,37 +623,37 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 	}
 	return bound, err
 }
-func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
-	var found *aggregateExpression
+func aggregateOccurrence(bound expr.Expr) *plan.AggregateExpr {
+	var found *plan.AggregateExpr
 	walk := func(child expr.Expr) {
 		if found == nil {
 			found = aggregateOccurrence(child)
 		}
 	}
 	switch e := bound.(type) {
-	case rowExpression:
+	case plan.RowExpr:
 		for _, field := range e.Fields {
 			walk(field)
 		}
-	case fieldExpression:
+	case plan.FieldExpr:
 		walk(e.Base)
-	case arrayExpression:
+	case plan.ArrayExpr:
 		for _, element := range e.Elements {
 			walk(element)
 		}
-	case subscriptExpression:
+	case plan.SubscriptExpr:
 		walk(e.Base)
 		for _, s := range e.Subscripts {
 			walk(s.Lower)
 			walk(s.Upper)
 		}
-	case aggregateExpression:
+	case plan.AggregateExpr:
 		return &e
-	case collationExpression:
+	case plan.CollationExpr:
 		walk(e.Child)
-	case coercionExpression:
+	case plan.CoercionExpr:
 		walk(e.Child)
-	case bitwiseExpression:
+	case plan.BitwiseExpr:
 		walk(e.Left)
 		walk(e.Right)
 	case functions.Timezone:
@@ -660,20 +661,20 @@ func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
 		if !e.Local {
 			walk(e.Zone)
 		}
-	case selectedOperatorExpression:
+	case plan.SelectedOperatorExpr:
 		walk(e.Provider)
-	case arithmeticExpression:
+	case plan.ArithmeticExpr:
 		walk(e.Left)
 		walk(e.Right)
-	case likeExpression:
+	case plan.LikeExpr:
 		walk(e.Left)
 		walk(e.Right)
-	case rowComparisonExpression:
+	case plan.RowComparisonExpr:
 		for _, pair := range e.Comparisons {
 			walk(pair.Left)
 			walk(pair.Right)
 		}
-	case scalarArrayComparisonExpression:
+	case plan.ScalarArrayComparisonExpr:
 		walk(e.Left)
 		if e.Array != nil {
 			walk(e.Array)
@@ -681,27 +682,27 @@ func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
 		for _, item := range e.Items {
 			walk(item)
 		}
-	case comparisonExpression:
+	case plan.ComparisonExpr:
 		walk(e.Left)
 		walk(e.Right)
-	case logicalExpression:
+	case plan.LogicalExpr:
 		walk(e.Left)
 		walk(e.Right)
-	case nullTestExpression:
+	case plan.NullTestExpr:
 		walk(e.Child)
-	case truthTestExpression:
+	case plan.TruthTestExpr:
 		walk(e.Child)
-	case distinctExpression:
+	case plan.DistinctExpr:
 		walk(e.Left)
 		walk(e.Right)
-	case caseExpression:
+	case plan.CaseExpr:
 		walk(e.Test)
 		for _, arm := range e.Arms {
 			walk(arm.Condition)
 			walk(arm.Result)
 		}
 		walk(e.Otherwise)
-	case conditionalExpression:
+	case plan.ConditionalExpr:
 		for _, arg := range e.Args {
 			walk(arg)
 		}

@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -201,7 +202,7 @@ func TestArrayTransformCollationRemap(t *testing.T) {
 	old := functions.ArrayTransform{
 		Info: b.info(usage, parser.Position{}, expr.Properties{}),
 		Kind: functions.ArraySort, Slots: [3]uint8{0, 1, 2}, Sort: arraySortPlan,
-		Args: []expr.Expr{literalExpression{Info: b.info(usage, parser.Position{}, expr.Properties{}), Value: value}},
+		Args: []expr.Expr{plan.LiteralExpr{Info: b.info(usage, parser.Position{}, expr.Properties{}), Value: value}},
 	}
 	originalSQL, err := defaultSQL(ctx, source.CatalogRead(), old)
 	if err != nil {

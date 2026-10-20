@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -22,7 +23,7 @@ func subqueryTestInteger(t *testing.T, typ *sqltype.Descriptor, n int64) sqltype
 	return value
 }
 
-func subqueryTestExpression(t *testing.T, e *Engine, q *BoundQuery, kind parser.SubqueryKind) subqueryExpression {
+func subqueryTestExpression(t *testing.T, e *Engine, q *plan.Query, kind parser.SubqueryKind) plan.SubqueryExpr {
 	t.Helper()
 	typ, ok := e.CatalogRead().LookupType(sqltype.Bool)
 	if !ok {
@@ -32,20 +33,20 @@ func subqueryTestExpression(t *testing.T, e *Engine, q *BoundQuery, kind parser.
 	if kind == parser.SubqueryScalar {
 		usage = q.Root.Schema()[0].Usage
 	}
-	return subqueryExpression{Info: expr.Info{Usage: usage}, Kind: kind, QueryPlan: q, PresenceOnly: kind == parser.SubqueryExists && canSimplifyExists(q)}
+	return plan.SubqueryExpr{Info: expr.Info{Usage: usage}, Kind: kind, QueryPlan: q, PresenceOnly: kind == parser.SubqueryExists && canSimplifyExists(q)}
 }
 
 // Replace an actual scheduler-owned target rather than mocking a query result.
-func subqueryTestTarget(t *testing.T, project *projectNode, replacement expr.Expr) {
+func subqueryTestTarget(t *testing.T, project *plan.ProjectNode, replacement expr.Expr) {
 	t.Helper()
 	for node := project.Child; node != nil; {
 		switch n := node.(type) {
-		case *evaluationNode:
+		case *plan.EvaluationNode:
 			if len(n.Expressions) > 0 {
 				n.Expressions[0] = replacement
 				return
 			}
-		case *sortNode:
+		case *plan.SortNode:
 			if len(n.Outputs) > 0 {
 				n.Outputs[0] = replacement
 				return
@@ -79,7 +80,7 @@ func TestQuerySubqueryDemand(t *testing.T) {
 	} {
 		t.Run(tc.sql, func(t *testing.T) {
 			e, q, source := queryJoinsFixture(t, tc.sql)
-			project := q.Root.(*projectNode)
+			project := q.Root.(*plan.ProjectNode)
 			sentinel := errors.New("final target")
 			calls := 0
 			probe := queryProbe(project.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Value{}, sentinel })
@@ -87,7 +88,7 @@ func TestQuerySubqueryDemand(t *testing.T) {
 			// a target ordinal is also an evaluation cache ordinal.
 			ordered := false
 			for node := project.Child; node != nil; {
-				if n, ok := node.(*sortNode); ok {
+				if n, ok := node.(*plan.SortNode); ok {
 					for i, key := range n.Keys {
 						if key.Output {
 							n.Keys[i].Expression = probe
@@ -139,7 +140,7 @@ func TestQuerySubqueryDemand(t *testing.T) {
 	t.Run("required derived projection", func(t *testing.T) {
 		e, q, source := queryJoinsFixture(t, "SELECT 1 FROM (SELECT abs(k) AS x FROM a) d WHERE x=1 LIMIT 1")
 		frames, _ := collectQueryFrames(q.Root)
-		root := q.Root.(*projectNode)
+		root := q.Root.(*plan.ProjectNode)
 		sentinel := errors.New("required derived target")
 		calls := 0
 		found := false
@@ -170,7 +171,7 @@ func TestQuerySubqueryCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	sentinelCalls := 0
-	subqueryTestTarget(t, q.Root.(*projectNode), queryProbe(q.Root.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) {
+	subqueryTestTarget(t, q.Root.(*plan.ProjectNode), queryProbe(q.Root.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) {
 		sentinelCalls++
 		cancel()
 		return sqltype.Value{}, context.Canceled
@@ -319,7 +320,7 @@ func TestQuerySubqueryManifest(t *testing.T) {
 		t.Fatal("reordered admission accepted", err)
 	}
 	changed = append([]queryLeaf(nil), bound.querySources...)
-	changed[2].mark = queryRowMark{}
+	changed[2].mark = plan.RowMark{}
 	if err = scope.validateQuerySources(changed); err != ids.ErrCatalogReplaced {
 		t.Fatal("weakened row mark admitted", err)
 	}
@@ -409,9 +410,9 @@ func TestQuerySubqueryRowComparison(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			bound := subqueryExpression{Info: expr.Info{Usage: boolean.Usage()}, Operator: tc.text}
+			bound := plan.SubqueryExpr{Info: expr.Info{Usage: boolean.Usage()}, Operator: tc.text}
 			for i := range tc.right {
-				bound.Comparisons = append(bound.Comparisons, comparisonExpression{Right: columnExpression{Info: expr.Info{Usage: integer.Usage()}, Scope: 1, Frame: 9, Slot: i}, Predicate: predicate})
+				bound.Comparisons = append(bound.Comparisons, plan.ComparisonExpr{Right: plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage()}, Scope: 1, Frame: 9, Slot: i}, Predicate: predicate})
 				if tc.operator > sqltype.CompareNotEqual {
 					bound.Ordering = append(bound.Ordering, comparison)
 				}
@@ -428,7 +429,7 @@ func TestQuerySubqueryRowComparison(t *testing.T) {
 
 func TestQuerySubqueryOperandDemand(t *testing.T) {
 	e, q, source := queryJoinsFixture(t, "SELECT k FROM a")
-	project := q.Root.(*projectNode)
+	project := q.Root.(*plan.ProjectNode)
 	integer := project.Schema()[0].Usage.Type
 	bound := subqueryTestExpression(t, e, q, parser.SubqueryAny)
 	predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, integer, integer, bound.Usage.Type, sqltype.CollationRef{}, false)
@@ -437,7 +438,7 @@ func TestQuerySubqueryOperandDemand(t *testing.T) {
 	}
 	leftCalls, targetCalls := 0, 0
 	project.Expressions[0] = queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { targetCalls++; return sqltype.Integer(integer, 1) })
-	bound.Comparisons = []comparisonExpression{{Left: queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { leftCalls++; return sqltype.Integer(integer, 1) }), Right: columnExpression{Info: expr.Info{Usage: integer.Usage()}, Scope: 1, Frame: project.Frame, Slot: 0}, Predicate: predicate}}
+	bound.Comparisons = []plan.ComparisonExpr{{Left: queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { leftCalls++; return sqltype.Integer(integer, 1) }), Right: plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage()}, Scope: 1, Frame: project.Frame, Slot: 0}, Predicate: predicate}}
 	parent := queryState{source: source}
 	c := parent.evaluation(context.Background())
 	for demand := 1; demand <= 2; demand++ {
@@ -527,9 +528,9 @@ func TestQuerySubqueryViewRemap(t *testing.T) {
 	}
 	originalRefs := make(map[int]ids.ObjectRef)
 	capture := true
-	var walk func(LogicalNode)
-	walk = func(node LogicalNode) {
-		if n, ok := node.(*sourceNode); ok {
+	var walk func(plan.Node)
+	walk = func(node plan.Node) {
+		if n, ok := node.(*plan.SourceNode); ok {
 			if capture {
 				originalRefs[n.Occurrence] = n.Ref
 			} else {
@@ -548,7 +549,7 @@ func TestQuerySubqueryViewRemap(t *testing.T) {
 		}
 		queryExpressions(node, func(bound expr.Expr) {
 			walkBoundExpression(bound, func(expr expr.Expr) {
-				if child, ok := expr.(subqueryExpression); ok {
+				if child, ok := expr.(plan.SubqueryExpr); ok {
 					walk(child.QueryPlan.Root)
 				}
 			})
@@ -567,7 +568,7 @@ func TestQuerySubqueryDerivedDuplicateSchema(t *testing.T) {
 	}
 	frames, _ := collectQueryFrames(q.Root)
 	for frame, project := range frames {
-		if frame != q.Root.(*projectNode).Frame {
+		if frame != q.Root.(*plan.ProjectNode).Frame {
 			if project.Schema()[0].Name != "x" || project.Schema()[1].Name != "x" {
 				t.Fatal("child names changed", project.Schema())
 			}

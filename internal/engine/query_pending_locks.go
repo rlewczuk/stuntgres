@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
 
@@ -10,27 +11,27 @@ import (
 // execution-private scratch, never in the shared capture leaf modes.
 type queryPendingMark struct {
 	occurrences []int
-	mark        queryRowMark
+	mark        plan.RowMark
 }
 
 // Unlike the output pending-mark walk, dead qualification must inspect consumed
 // input marks below blocking owners and expanded stored sources. A CTE scan is
 // opaque: its body's frontier belongs to a later, actual invocation demand.
-func queryHasMandatoryPhysicalFrontier(node LogicalNode, inputs *querySource) bool {
+func queryHasMandatoryPhysicalFrontier(node plan.Node, inputs *querySource) bool {
 	return queryHasPhysicalFrontier(node, inputs, false)
 }
 
-func queryHasPhysicalFrontier(node LogicalNode, inputs *querySource, consuming bool) bool {
+func queryHasPhysicalFrontier(node plan.Node, inputs *querySource, consuming bool) bool {
 	switch n := node.(type) {
-	case *derivedNode:
+	case *plan.DerivedNode:
 		if n.CTE != nil {
 			return false
 		}
-	case *worktableScanNode:
+	case *plan.WorktableScanNode:
 		return false
-	case *sourceNode:
+	case *plan.SourceNode:
 		return sourceHasPhysicalFrontier(querySourceAt(inputs, n.Occurrence), consuming)
-	case *sortNode, *aggregateNode, *distinctNode, *distinctOnNode, *setNode, *recursiveUnionNode, *limitNode, *windowNode:
+	case *plan.SortNode, *plan.AggregateNode, *plan.DistinctNode, *plan.DistinctOnNode, *plan.SetNode, *plan.RecursiveUnionNode, *plan.LimitNode, *plan.WindowNode:
 		consuming = true
 	}
 	left, right := queryInputs(node)
@@ -64,23 +65,23 @@ func sourceHasPhysicalFrontier(source *querySource, consuming bool) bool {
 	return source.locks.leaves[source.occurrence].mark.Mode != 0
 }
 
-func pendingQueryMarks(node LogicalNode, inputs *querySource, dst []queryPendingMark) []queryPendingMark {
+func pendingQueryMarks(node plan.Node, inputs *querySource, dst []queryPendingMark) []queryPendingMark {
 	switch n := node.(type) {
-	case *derivedNode, *worktableScanNode:
+	case *plan.DerivedNode, *plan.WorktableScanNode:
 		// The derived projection frontier consumes its own child marks.
 		return dst
-	case *projectNode:
+	case *plan.ProjectNode:
 		return pendingQueryMarks(n.Child, inputs, dst)
-	case *filterNode:
+	case *plan.FilterNode:
 		return pendingQueryMarks(n.Child, inputs, dst)
-	case *evaluationNode:
+	case *plan.EvaluationNode:
 		return pendingQueryMarks(n.Child, inputs, dst)
-	case *rowLockNode:
+	case *plan.RowLockNode:
 		dst = pendingQueryMarks(n.Child, inputs, dst)
 		return appendPendingRowMarks(dst, n.Marks, inputs)
-	case *sourceNode:
+	case *plan.SourceNode:
 		return pendingSourceMarks(querySourceAt(inputs, n.Occurrence), dst)
-	case *joinNode:
+	case *plan.JoinNode:
 		if n.Kind != parser.JoinInner {
 			// Outer joins consume each local input mark before ON matching.
 			// Do not lift it back onto matched or NULL-extended output.
@@ -88,9 +89,9 @@ func pendingQueryMarks(node LogicalNode, inputs *querySource, dst []queryPending
 		}
 		dst = pendingQueryMarks(n.Left, inputs, dst)
 		return pendingQueryMarks(n.Right, inputs, dst)
-	case *sortNode, *aggregateNode, *distinctNode, *distinctOnNode, *setNode, *limitNode:
+	case *plan.SortNode, *plan.AggregateNode, *plan.DistinctNode, *plan.DistinctOnNode, *plan.SetNode, *plan.LimitNode:
 		// These owners consume descendant pending marks. Own marks sit above
-		// their Sort and therefore are discovered separately by rowLockNode.
+		// their Sort and therefore are discovered separately by plan.RowLockNode.
 		return dst
 	default:
 		return dst
@@ -105,7 +106,7 @@ func pendingSourceMarks(source *querySource, dst []queryPendingMark) []queryPend
 	}
 	return dst
 }
-func settlePendingQueryMarks(ctx context.Context, state *queryState, node LogicalNode, child indexedStage) (indexedStage, error) {
+func settlePendingQueryMarks(ctx context.Context, state *queryState, node plan.Node, child indexedStage) (indexedStage, error) {
 	if len(child.pending) == 0 {
 		return child, nil
 	}

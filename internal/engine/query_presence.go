@@ -1,6 +1,9 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+	"stuntgres/internal/engine/plan"
+)
 
 // Slots belong to one bound query frame. Only namespace occurrences which may
 // be null-extended get a slot; ordinary queries and proven-present rows do not.
@@ -13,30 +16,30 @@ func (b *expressionBinder) wholeRowPresence(q *queryQualifier, frame uint32) (in
 unwrap:
 	for {
 		switch n := root.(type) {
-		case *projectNode:
+		case *plan.ProjectNode:
 			root = n.Child
-		case *sortNode:
+		case *plan.SortNode:
 			root = n.Child
-		case *limitNode:
+		case *plan.LimitNode:
 			root = n.Child
-		case *filterNode:
+		case *plan.FilterNode:
 			root = n.Child
 		default:
 			break unwrap
 		}
 	}
 	switch n := root.(type) {
-	case *sourceNode:
+	case *plan.SourceNode:
 		slot = &n.PresenceSlot
-	case *valuesNode:
+	case *plan.ValuesNode:
 		slot = &n.PresenceSlot
-	case *derivedNode:
+	case *plan.DerivedNode:
 		slot = &n.PresenceSlot
-	case *worktableScanNode:
+	case *plan.WorktableScanNode:
 		slot = &n.PresenceSlot
-	case *joinNode:
+	case *plan.JoinNode:
 		slot = &n.PresenceSlot
-	case *functionFromNode:
+	case *plan.FunctionFromNode:
 		slot = &n.PresenceSlot
 	default:
 		return 0, fmt.Errorf("stuntgres: missing whole-row source occurrence")
@@ -51,7 +54,7 @@ unwrap:
 	return *slot, nil
 }
 
-func (c *EvalContext) RowAbsent(n rowExpression) (bool, error) {
+func (c *EvalContext) RowAbsent(n plan.RowExpr) (bool, error) {
 	if n.PresenceSlot == 0 && n.WholeNames == nil {
 		return false, nil
 	}
@@ -114,7 +117,7 @@ type presenceCopy struct {
 // Deferred correlated sources must expose the same demanded layout as their
 // eventual invocation before a parent borrows it. Discover only bound slots:
 // no child stage is opened and no argument is evaluated.
-func establishDeferredPresence(source *querySource, root LogicalNode) {
+func establishDeferredPresence(source *querySource, root plan.Node) {
 	width := markPresenceTopology(root, nil)
 	if width == 0 {
 		return
@@ -124,33 +127,33 @@ func establishDeferredPresence(source *querySource, root LogicalNode) {
 	source.presenceCount = packPresenceSlots(source.presenceSlots)
 }
 
-func markPresenceTopology(root LogicalNode, slots []int) int {
+func markPresenceTopology(root plan.Node, slots []int) int {
 	slot := 0
 	switch n := root.(type) {
-	case *sourceNode:
+	case *plan.SourceNode:
 		slot = n.PresenceSlot
-	case *valuesNode:
+	case *plan.ValuesNode:
 		slot = n.PresenceSlot
-	case *derivedNode:
+	case *plan.DerivedNode:
 		slot = n.PresenceSlot
-	case *worktableScanNode:
+	case *plan.WorktableScanNode:
 		slot = n.PresenceSlot
-	case *functionFromNode:
+	case *plan.FunctionFromNode:
 		slot = n.PresenceSlot
-	case *joinNode:
+	case *plan.JoinNode:
 		slot = n.PresenceSlot
 		width := max(markPresenceTopology(n.Left, slots), markPresenceTopology(n.Right, slots))
 		if slots != nil && slot != 0 {
 			slots[slot-1] = 1
 		}
 		return max(width, slot)
-	case *projectNode:
+	case *plan.ProjectNode:
 		return markPresenceTopology(n.Child, slots)
-	case *sortNode:
+	case *plan.SortNode:
 		return markPresenceTopology(n.Child, slots)
-	case *limitNode:
+	case *plan.LimitNode:
 		return markPresenceTopology(n.Child, slots)
-	case *filterNode:
+	case *plan.FilterNode:
 		return markPresenceTopology(n.Child, slots)
 	}
 	if slots != nil && slot != 0 {

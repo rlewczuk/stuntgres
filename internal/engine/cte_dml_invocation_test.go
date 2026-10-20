@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -21,14 +22,14 @@ func TestCTEDMLInvocationOwnership(t *testing.T) {
 	}
 	for _, width := range []int{0, 2} {
 		for _, hint := range []parser.CTEMaterialization{parser.CTEDefault, parser.CTEMaterialized, parser.CTENotMaterialized} {
-			schema := querySchema{}
+			schema := plan.QuerySchema{}
 			rows := newFinalRows(schema, 3)
 			if width == 2 {
-				schema = querySchema{{Name: "id", Usage: integer.Usage()}, {Name: "v", Usage: integer.Usage()}}
+				schema = plan.QuerySchema{{Name: "id", Usage: integer.Usage()}, {Name: "v", Usage: integer.Usage()}}
 				rows.schema = schema
 				rows.values = []sqltype.Value{value(1), value(10), value(2), sqltype.Null(integer), value(2), sqltype.Null(integer)}
 			}
-			definition := &cteDefinition{Owner: 1, Mutation: &binding{returning: &boundReturning{schema: schema}}, Schema: schema, Hint: hint, References: 2}
+			definition := &plan.CTEDefinition{Owner: 1, Mutation: &binding{returning: &boundReturning{schema: schema}}, Schema: schema, Hint: hint, References: 2}
 			if definition.Folded() {
 				t.Fatal("modifier folded")
 			}
@@ -47,7 +48,7 @@ func TestCTEDMLInvocationOwnership(t *testing.T) {
 			if width != 0 && &producer.source.flat[0] != first {
 				t.Fatal("typed output buffer copied")
 			}
-			scan := &derivedNode{QuerySchema: schema, CTE: definition}
+			scan := &plan.DerivedNode{QuerySchema: schema, CTE: definition}
 			state := &queryState{source: owner.state.source, ctes: owner}
 			left, err := openCTEScan(context.Background(), state, scan)
 			if err != nil {
@@ -91,7 +92,7 @@ func TestCTEDMLInvocationOwnership(t *testing.T) {
 			}
 		}
 	}
-	noReturning := &cteDefinition{Owner: 1, Mutation: &binding{}}
+	noReturning := &plan.CTEDefinition{Owner: 1, Mutation: &binding{}}
 	completion := &cteInvocation{frame: 1}
 	if err := completion.completeMutation(noReturning, Result{Count: 2}); err != nil {
 		t.Fatal(err)

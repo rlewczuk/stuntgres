@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -11,7 +12,7 @@ import (
 func TestStatisticalAggregateSlotsAndMetadata(t *testing.T) {
 	_, q, source := queryCoreFixture(t, "SELECT var_pop(1),var_pop(1),var_samp(1),stddev_pop(1),stddev_samp(1),variance(1),stddev(1),regr_slope(2,1),regr_sxx(2,1),regr_sxy(2,1),regr_syy(2,1) FROM t")
 	defer source.close()
-	node := q.Root.(*projectNode).Child.(*aggregateNode)
+	node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	if len(node.Calls) != 8 {
 		t.Fatal("final-operation sharing", len(node.Calls))
 	}
@@ -55,7 +56,7 @@ func TestStatisticalAggregateViewRemapping(t *testing.T) {
 			result, _ = source.CatalogRead().LookupType(sqltype.Int8)
 			provider = functions.NewRegressionCountAggregate(input, result.Usage())
 		}
-		node := &aggregateNode{Child: &singletonNode{}, Calls: []aggregateCall{{Provider: provider}}}
+		node := &plan.AggregateNode{Child: &plan.SingletonNode{}, Calls: []plan.AggregateCall{{Provider: provider}}}
 		mapped, err := remapViewQuery(destination.CatalogRead(), node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			d, _ := destination.CatalogRead().LookupType(old.ID())
 			return d
@@ -63,7 +64,7 @@ func TestStatisticalAggregateViewRemapping(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		next := mapped.(*aggregateNode).Calls[0].Provider
+		next := mapped.(*plan.AggregateNode).Calls[0].Provider
 		if next.ResultUsage().Type == provider.ResultUsage().Type {
 			t.Fatal("foreign result retained")
 		}
@@ -107,8 +108,8 @@ func TestStatisticalAggregateEagerCancellation(t *testing.T) {
 	for _, call := range []string{"var_pop(1::numeric)", "stddev_pop(1::numeric)", "var_samp(1::double precision)", "regr_sxx(2,1)", "regr_intercept(2,1)", "regr_count(2,1)"} {
 		for _, phase := range []string{"advance", "finalize", "prepublication"} {
 			_, q, source := queryCoreFixture(t, "SELECT "+call+" FROM t")
-			project := q.Root.(*projectNode)
-			node := project.Child.(*aggregateNode)
+			project := q.Root.(*plan.ProjectNode)
+			node := project.Child.(*plan.AggregateNode)
 			ctx, cancel := context.WithCancel(context.Background())
 			original := node.Calls[0].Provider
 			switch phase {

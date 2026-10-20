@@ -3,13 +3,14 @@ package engine
 import (
 	"strconv"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 // Identities are analysis targets, not structural expression cache identities.
-func (b *expressionBinder) resolveDistinctOn(s *parser.Select, order []sortKey, projection []expr.Expr, names []string) ([]sortKey, []queryGrouping, error) {
+func (b *expressionBinder) resolveDistinctOn(s *parser.Select, order []plan.SortKey, projection []expr.Expr, names []string) ([]plan.SortKey, []plan.Grouping, error) {
 	for i := range order {
 		if err := bindOnOrdering(&order[i]); err != nil {
 			return nil, nil, err
@@ -25,7 +26,7 @@ func (b *expressionBinder) resolveDistinctOn(s *parser.Select, order []sortKey, 
 		return nil, nil, err
 	}
 	targets := append([]expr.Expr(nil), projection...)
-	identify := func(key *sortKey) {
+	identify := func(key *plan.SortKey) {
 		if key.OutputOrdinal != 0 {
 			key.TargetIdentity = key.OutputOrdinal
 			return
@@ -77,7 +78,7 @@ func (b *expressionBinder) resolveDistinctOn(s *parser.Select, order []sortKey, 
 			}
 		}
 	}
-	families := make([]queryGrouping, len(on))
+	families := make([]plan.Grouping, len(on))
 	for i, k := range on {
 		families[i], err = b.bindDistinctGrouping(k.Expression)
 		if err != nil {
@@ -92,7 +93,7 @@ func (b *expressionBinder) resolveDistinctOn(s *parser.Select, order []sortKey, 
 	return on, families, nil
 }
 
-func bindOnOrdering(key *sortKey) error {
+func bindOnOrdering(key *plan.SortKey) error {
 	if key.Expression.CollationIndeterminate() {
 		return nil
 	}
@@ -108,9 +109,9 @@ func bindOnOrdering(key *sortKey) error {
 	return err
 }
 
-func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKey, families []queryGrouping, projection []expr.Expr) (LogicalNode, error) {
+func (b *expressionBinder) finishDistinctOn(root plan.Node, order, on []plan.SortKey, families []plan.Grouping, projection []expr.Expr) (plan.Node, error) {
 	// Deduplicate only resolved ORDER targets. Keep raw entries for capture.
-	effective := make([]sortKey, 0, len(order))
+	effective := make([]plan.SortKey, 0, len(order))
 	seen := make(map[int]bool)
 	for _, k := range order {
 		if !seen[k.TargetIdentity] {
@@ -123,13 +124,13 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 	if err != nil {
 		return nil, err
 	}
-	sorted, _ := root.(*sortNode)
+	sorted, _ := root.(*plan.SortNode)
 	cacheWidth := 0
 	if sorted != nil {
 		cacheWidth = sorted.CacheWidth
 	}
 	var extra []expr.Expr
-	required := make([]sortKey, len(effective)+len(on))
+	required := make([]plan.SortKey, len(effective)+len(on))
 	copy(required, effective)
 	copy(required[len(effective):], on)
 	for i := range required {
@@ -149,7 +150,7 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 			continue
 		}
 		switch k.Expression.(type) {
-		case columnExpression, groupExpression:
+		case plan.ColumnExpr, plan.GroupExpr:
 			continue
 		}
 		k.Cache = cacheWidth
@@ -187,7 +188,7 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 		sorted.Outputs = append(sorted.Outputs, extra...)
 		sorted.CacheWidth = cacheWidth
 	} else if len(extra) != 0 {
-		root = &evaluationNode{QuerySchema: root.Schema(), Child: root, Expressions: extra, Base: 0}
+		root = &plan.EvaluationNode{QuerySchema: root.Schema(), Child: root, Expressions: extra, Base: 0}
 	}
 	// Cheap nonvolatile outputs are required below ON, not complete-row keys.
 	if sorted != nil {
@@ -203,19 +204,19 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 				continue
 			}
 			switch e.(type) {
-			case columnExpression, groupExpression, cachedOrderExpression, literalExpression, parameterExpression, unknownOutput:
+			case plan.ColumnExpr, plan.GroupExpr, plan.CachedOrderExpr, plan.LiteralExpr, plan.ParameterExpr, plan.UnknownOutput:
 				continue
 			}
 			projection[i] = distinctOnCached(e, cacheWidth+len(early))
 			early = append(early, e)
 		}
 		if len(early) != 0 {
-			root = &evaluationNode{QuerySchema: root.Schema(), Child: root, Expressions: early, Base: cacheWidth}
+			root = &plan.EvaluationNode{QuerySchema: root.Schema(), Child: root, Expressions: early, Base: cacheWidth}
 			cacheWidth += len(early)
 		}
 	}
 	expressions := make([]expr.Expr, 0, len(on))
-	grouping := make([]queryGrouping, 0, len(on))
+	grouping := make([]plan.Grouping, 0, len(on))
 	clear(seen)
 	for i, k := range required[len(effective):] {
 		if seen[k.TargetIdentity] {
@@ -230,16 +231,16 @@ func (b *expressionBinder) finishDistinctOn(root LogicalNode, order, on []sortKe
 		grouping = append(grouping, families[i])
 	}
 	for i, e := range projection {
-		if cached, ok := e.(cachedOrderExpression); ok {
+		if cached, ok := e.(plan.CachedOrderExpr); ok {
 			cached.Property.StageDependent = true
 			projection[i] = cached
 		}
 	}
-	return &distinctOnNode{QuerySchema: root.Schema(), Child: root, Expressions: expressions, Grouping: grouping}, nil
+	return &plan.DistinctOnNode{QuerySchema: root.Schema(), Child: root, Expressions: expressions, Grouping: grouping}, nil
 }
 
-func distinctOnCached(expression expr.Expr, slot int) cachedOrderExpression {
+func distinctOnCached(expression expr.Expr, slot int) plan.CachedOrderExpr {
 	info := expr.InfoOf(expression)
 	info.Property.StageDependent = true
-	return cachedOrderExpression{Info: info, Slot: slot}
+	return plan.CachedOrderExpr{Info: info, Slot: slot}
 }

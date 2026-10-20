@@ -7,13 +7,14 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
 // The normalized constructor is a source association only. Executable comparison
 // fields retain their existing ownership and are never evaluated through it.
-func (b *expressionBinder) normalizeQuantifiedConstructor(raw parser.Expr, constructor rowExpression) (expr.Expr, error) {
+func (b *expressionBinder) normalizeQuantifiedConstructor(raw parser.Expr, constructor plan.RowExpr) (expr.Expr, error) {
 	members := make([]sqltype.CompositeMember, len(constructor.Fields))
 	for i, field := range constructor.Fields {
 		members[i] = constructor.Usage.Type.CompositeMember(i)
@@ -37,9 +38,9 @@ func (b *expressionBinder) normalizeQuantifiedConstructor(raw parser.Expr, const
 // still needs that identity. The ordinary pg_depend expression owner decides.
 func frozenQueryDependencies(view catalog.Read, b binding) ([]catalog.ExpressionDependency, error) {
 	var erased map[sqltype.ID]bool
-	visitCTEQuery(b.query.Root, func(LogicalNode) {}, func(bound expr.Expr) {
+	visitCTEQuery(b.query.Root, func(plan.Node) {}, func(bound expr.Expr) {
 		walkBoundExpression(bound, func(node expr.Expr) {
-			if n, ok := node.(subqueryExpression); ok && n.ErasedLeftType != 0 {
+			if n, ok := node.(plan.SubqueryExpr); ok && n.ErasedLeftType != 0 {
 				if erased == nil {
 					erased = make(map[sqltype.ID]bool)
 				}
@@ -70,7 +71,7 @@ func frozenQueryDependencies(view catalog.Read, b binding) ([]catalog.Expression
 
 // Quantified and residual IN constructors share source slots, expansion
 // associations and synthetic member casts; only frozen capture needs this walk.
-func (b *expressionBinder) captureConstructorFields(raw parser.RowExpr, count int, fieldAt func(int) expr.Expr, expansions map[int]compositeExpansionBinding, memberCasts bool, path viewLiteralPath, ordinal *int) error {
+func (b *expressionBinder) captureConstructorFields(raw parser.RowExpr, count int, fieldAt func(int) expr.Expr, expansions map[int]plan.CompositeExpansionBinding, memberCasts bool, path viewLiteralPath, ordinal *int) error {
 	if memberCasts && b.capture.castUsages == nil {
 		b.capture.castUsages = make(map[viewLiteralPath]sqltype.Usage)
 	}

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -31,7 +32,7 @@ func TestArrayCompareBinding(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, batch := node.(scalarArrayComparisonExpression)
+			_, batch := node.(plan.ScalarArrayComparisonExpr)
 			if batch != tc.batch {
 				t.Fatalf("lowering=%T batch=%t", node, tc.batch)
 			}
@@ -100,9 +101,9 @@ func TestArrayCompareCommonType(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	integer := func(id sqltype.ID) comparisonOperand {
-		return comparisonOperand{node: parameterExpression{Info: b.info(b.typ(id).Usage(), parser.Position{}, expr.Properties{}), Number: 1}}
+		return comparisonOperand{node: plan.ParameterExpr{Info: b.info(b.typ(id).Usage(), parser.Position{}, expr.Properties{}), Number: 1}}
 	}
-	unknown := comparisonOperand{node: parameterExpression{Number: 1}}
+	unknown := comparisonOperand{node: plan.ParameterExpr{Number: 1}}
 	common, err := commonExpressionUsage([]comparisonOperand{unknown, integer(sqltype.Int4), integer(sqltype.Int8)}, b.typ(sqltype.Text).Usage(), "")
 	if err != nil || common.Type.ID() != 20 || len(b.params.parameters) != 0 {
 		t.Fatal(common, err, b.params.parameters)
@@ -114,10 +115,10 @@ func TestArrayCompareCommonType(t *testing.T) {
 	_, err = commonExpressionUsage([]comparisonOperand{integer(sqltype.Int4), integer(sqltype.Bool)}, b.typ(sqltype.Text).Usage(), "ARRAY")
 	state(t, err, "42804")
 	// Lexical frame identity, not dependence flags, distinguishes Vars.
-	local := columnExpression{Info: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Frame: b.frameID()}
+	local := plan.ColumnExpr{Info: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Frame: b.frameID()}
 	other := local
 	other.Frame++
-	if !b.inListHasVar(local) || b.inListHasVar(other) || b.inListHasVar(parameterExpression{Info: expr.Info{Property: expr.Properties{RowDependent: true}}}) {
+	if !b.inListHasVar(local) || b.inListHasVar(other) || b.inListHasVar(plan.ParameterExpr{Info: expr.Info{Property: expr.Properties{RowDependent: true}}}) {
 		t.Fatal("IN Var classification lost lexical identity")
 	}
 }

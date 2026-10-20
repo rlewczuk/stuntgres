@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -19,7 +20,7 @@ func TestSerialSequenceSystemColumns(t *testing.T) {
 				f := serialSequenceUnitFixture(t)
 				f.table.RelationKind = kind
 				text := f.node.ResultUsage().Type
-				f.node.Args[1] = literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, column)}
+				f.node.Args[1] = plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, column)}
 				value, err := f.node.Eval(f.context)
 				// Keep expectations independent of the production name helper.
 				system := column == "ctid" || column == "xmin" || column == "cmin" || column == "xmax" || column == "cmax" || column == "tableoid"
@@ -46,7 +47,7 @@ func TestSerialSequenceSystemColumns(t *testing.T) {
 	f.table.Index["ctid"] = 0
 	f.sequence.Sequence.Owned = ids.ObjectAddress{}
 	text := f.node.ResultUsage().Type
-	f.node.Args[1] = literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "ctid")}
+	f.node.Args[1] = plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "ctid")}
 	value, err := f.node.Eval(f.context)
 	if err != nil || !value.IsNull() || value.Type() != text {
 		t.Fatal("declared view column skipped", value, err)

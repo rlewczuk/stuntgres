@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
@@ -43,7 +44,7 @@ func TestHashIndexLookupCancellation(t *testing.T) {
 	if filter == nil {
 		t.Fatal("missing real filter")
 	}
-	state := &queryState{source: source, hashFilter: filter, frame: query.Root.(*projectNode).Frame}
+	state := &queryState{source: source, hashFilter: filter, frame: query.Root.(*plan.ProjectNode).Frame}
 	if scope := source.liveScope(); scope != nil {
 		state.input, state.output = scope.input, scope.output
 	}

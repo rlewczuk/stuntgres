@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -49,19 +50,19 @@ func jsonbSetContextualArrayCapture(t *testing.T, query, wantA, wantB string) {
 	if !foundColumn || !foundTypmod {
 		t.Fatal("capture lost original column identity or written typmod", b.capture.columns, b.capture.castUsages)
 	}
-	pathConversion := func(node expr.Expr) coercionExpression {
+	pathConversion := func(node expr.Expr) plan.CoercionExpr {
 		e := node.(functions.JSONBSet)
 		arg := e.Args[1]
 		for {
-			wrapper, ok := arg.(coercionExpression)
+			wrapper, ok := arg.(plan.CoercionExpr)
 			if !ok {
 				break
 			}
 			arg = wrapper.Child
 		}
-		array := arg.(arrayExpression)
-		conversion := array.Elements[0].(coercionExpression)
-		written := conversion.Child.(coercionExpression)
+		array := arg.(plan.ArrayExpr)
+		conversion := array.Elements[0].(plan.CoercionExpr)
+		written := conversion.Child.(plan.CoercionExpr)
 		length, known := written.Usage.Length()
 		if conversion.Mode != sqltype.Explicit || !conversion.SyntheticConstructorElement || written.SyntheticConstructorElement || written.Mode != sqltype.Explicit || written.Usage.Type.ID() != sqltype.VarChar || !known || length != 1 {
 			t.Fatal("conversion context or written origin changed", conversion, written)

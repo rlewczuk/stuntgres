@@ -13,7 +13,7 @@ import (
 )
 
 type boundMerge struct {
-	source        LogicalNode
+	source        plan.Node
 	on            expr.Expr
 	arms          []boundMergeArm
 	hasInsert     bool
@@ -326,7 +326,7 @@ func preflightMerge(c *EvalContext, merge *boundMerge, catalog catalog.Read) err
 		var facts fullJoinFacts
 		var err error
 		properties := merge.on.Properties()
-		_, literal := merge.on.(literalExpression)
+		_, literal := merge.on.(plan.LiteralExpr)
 		if merge.on.ResultUsage().Type.BaseType().ID() != sqltype.Bool && (literal || properties.Volatility == expr.Immutable && !properties.RowDependent && !properties.StageDependent && !properties.RuntimeDomainConversion) {
 			// MERGE admits integer/TEXT carriers independently of Boolean JOIN
 			// predicates. Preserve that truth contract in constant capability facts
@@ -338,7 +338,7 @@ func preflightMerge(c *EvalContext, merge *boundMerge, catalog catalog.Read) err
 				facts.constant = true
 			}
 		} else {
-			facts, err = fullJoinCondition(&owner, &joinNode{LeftWidth: merge.targetWidth, RightWidth: merge.sourceWidth}, merge.on, false)
+			facts, err = fullJoinCondition(&owner, &plan.JoinNode{LeftWidth: merge.targetWidth, RightWidth: merge.sourceWidth}, merge.on, false)
 		}
 		if err != nil {
 			return err
@@ -350,7 +350,7 @@ func preflightMerge(c *EvalContext, merge *boundMerge, catalog catalog.Read) err
 	return nil
 }
 
-func mergeOnTruth(value sqltype.Value) (Truth, error) {
+func mergeOnTruth(value sqltype.Value) (plan.Truth, error) {
 	if value.Type().IsDomain() {
 		var err error
 		value, err = value.BaseValue()

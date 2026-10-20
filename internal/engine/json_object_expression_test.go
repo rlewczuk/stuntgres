@@ -5,6 +5,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"testing"
 
 	"stuntgres/internal/engine/ids"
@@ -37,7 +38,7 @@ func TestJSONObjectExpressionRetagRemapAndRendering(t *testing.T) {
 				t.Fatal(err)
 			}
 			usages[i] = types[1009].Usage()
-			args[i] = literalExpression{Info: expr.Info{Usage: usages[i]}, Value: value}
+			args[i] = plan.LiteralExpr{Info: expr.Info{Usage: usages[i]}, Value: value}
 		}
 		plan, err := sqltype.BindBinary("json_object", types[sqltype.JSON].Usage(), usages...)
 		if err != nil {
@@ -102,7 +103,7 @@ func TestJSONObjectExpressionRetagRemapAndRendering(t *testing.T) {
 func TestJSONObjectExpressionGroupTraversal(t *testing.T) {
 	types := jsonObjectUnitTypes()
 	usage := types[1009].Usage()
-	column := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}}
+	column := plan.ColumnExpr{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}}
 	binaryPlan, err := sqltype.BindBinary("json_object", types[sqltype.JSON].Usage(), usage, usage)
 	if err != nil {
 		t.Fatal(err)
@@ -115,11 +116,11 @@ func TestJSONObjectExpressionGroupTraversal(t *testing.T) {
 	}
 	next := rewritten.(functions.Binary)
 	for _, arg := range next.Args {
-		if _, ok := arg.(groupExpression); !ok {
+		if _, ok := arg.(plan.GroupExpr); !ok {
 			t.Fatal(arg)
 		}
 	}
-	if _, ok := bound.Args[0].(columnExpression); !ok {
+	if _, ok := bound.Args[0].(plan.ColumnExpr); !ok {
 		t.Fatal("mutated original arguments")
 	}
 	var count int

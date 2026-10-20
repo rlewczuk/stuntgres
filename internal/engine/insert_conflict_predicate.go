@@ -38,10 +38,10 @@ func normalizeConflictPredicate(ctx *EvalContext, node expr.Expr) (expr.Expr, er
 		}
 		info := expr.InfoOf(node)
 		info.Property = expr.Properties{}
-		return literalExpression{Info: info, Value: value}, nil
+		return plan.LiteralExpr{Info: info, Value: value}, nil
 	}
 	switch n := node.(type) {
-	case logicalExpression:
+	case plan.LogicalExpr:
 		left, err := normalizeConflictPredicate(ctx, n.Left)
 		if err != nil {
 			return nil, err
@@ -71,7 +71,7 @@ func normalizeConflictPredicate(ctx *EvalContext, node expr.Expr) (expr.Expr, er
 			}
 		}
 		return n, nil
-	case comparisonExpression:
+	case plan.ComparisonExpr:
 		left, err := normalizeConflictPredicate(ctx, n.Left)
 		if err != nil {
 			return nil, err
@@ -87,7 +87,7 @@ func normalizeConflictPredicate(ctx *EvalContext, node expr.Expr) (expr.Expr, er
 					return left, nil
 				}
 				if truth == plan.False {
-					return negateConflictPredicate(logicalExpression{Info: n.Info, Op: parser.LogicalNot, Left: left}), nil
+					return negateConflictPredicate(plan.LogicalExpr{Info: n.Info, Op: parser.LogicalNot, Left: left}), nil
 				}
 			}
 			if truth, ok := conflictLiteralTruth(left); ok {
@@ -95,16 +95,16 @@ func normalizeConflictPredicate(ctx *EvalContext, node expr.Expr) (expr.Expr, er
 					return right, nil
 				}
 				if truth == plan.False {
-					return negateConflictPredicate(logicalExpression{Info: n.Info, Op: parser.LogicalNot, Left: right}), nil
+					return negateConflictPredicate(plan.LogicalExpr{Info: n.Info, Op: parser.LogicalNot, Left: right}), nil
 				}
 			}
 		}
 		return n, nil
-	case selectedOperatorExpression:
+	case plan.SelectedOperatorExpr:
 		var err error
 		n.Provider, err = normalizeConflictPredicate(ctx, n.Provider)
 		return n, err
-	case arithmeticExpression:
+	case plan.ArithmeticExpr:
 		left, err := normalizeConflictPredicate(ctx, n.Left)
 		if err != nil {
 			return nil, err
@@ -112,36 +112,36 @@ func normalizeConflictPredicate(ctx *EvalContext, node expr.Expr) (expr.Expr, er
 		right, err := normalizeConflictPredicate(ctx, n.Right)
 		n.Left, n.Right = left, right
 		return n, err
-	case nullTestExpression:
+	case plan.NullTestExpr:
 		child, err := normalizeConflictPredicate(ctx, n.Child)
 		n.Child = child
 		return n, err
-	case truthTestExpression:
+	case plan.TruthTestExpr:
 		child, err := normalizeConflictPredicate(ctx, n.Child)
 		n.Child = child
 		return n, err
-	case coercionExpression:
+	case plan.CoercionExpr:
 		child, err := normalizeConflictPredicate(ctx, n.Child)
 		n.Child = child
 		return n, err
-	case collationExpression:
+	case plan.CollationExpr:
 		child, err := normalizeConflictPredicate(ctx, n.Child)
 		n.Child = child
 		return n, err
 	}
 	return node, nil
 }
-func conflictLiteralTruth(node expr.Expr) (Truth, bool) {
-	literal, ok := node.(literalExpression)
+func conflictLiteralTruth(node expr.Expr) (plan.Truth, bool) {
+	literal, ok := node.(plan.LiteralExpr)
 	if !ok || literal.Value.Type() == nil || literal.Value.Type().ID() != sqltype.Bool {
 		return plan.Unknown, false
 	}
 	truth, err := plan.TruthOf(literal.Value)
 	return truth, err == nil
 }
-func negateConflictPredicate(n logicalExpression) expr.Expr {
+func negateConflictPredicate(n plan.LogicalExpr) expr.Expr {
 	switch child := n.Left.(type) {
-	case logicalExpression:
+	case plan.LogicalExpr:
 		if child.Op == parser.LogicalNot {
 			return child.Left
 		}
@@ -150,9 +150,9 @@ func negateConflictPredicate(n logicalExpression) expr.Expr {
 			if child.Op == parser.LogicalAnd {
 				op = parser.LogicalOr
 			}
-			return logicalExpression{Info: n.Info, Op: op, Left: negateConflictPredicate(logicalExpression{Info: n.Info, Op: parser.LogicalNot, Left: child.Left}), Right: negateConflictPredicate(logicalExpression{Info: n.Info, Op: parser.LogicalNot, Left: child.Right})}
+			return plan.LogicalExpr{Info: n.Info, Op: op, Left: negateConflictPredicate(plan.LogicalExpr{Info: n.Info, Op: parser.LogicalNot, Left: child.Left}), Right: negateConflictPredicate(plan.LogicalExpr{Info: n.Info, Op: parser.LogicalNot, Left: child.Right})}
 		}
-	case nullTestExpression:
+	case plan.NullTestExpr:
 		child.Not = !child.Not
 		return child
 	}
@@ -171,21 +171,21 @@ func conflictPredicateProof(ctx *EvalContext, a, b expr.Expr) (bool, error) {
 	if sameGroupExpression(a, b) {
 		return true, nil
 	}
-	if right, ok := b.(logicalExpression); ok && right.Op == parser.LogicalAnd {
+	if right, ok := b.(plan.LogicalExpr); ok && right.Op == parser.LogicalAnd {
 		left, err := conflictPredicateProof(ctx, a, right.Left)
 		if err != nil || !left {
 			return left, err
 		}
 		return conflictPredicateProof(ctx, a, right.Right)
 	}
-	if left, ok := a.(logicalExpression); ok && left.Op == parser.LogicalOr {
+	if left, ok := a.(plan.LogicalExpr); ok && left.Op == parser.LogicalOr {
 		first, err := conflictPredicateProof(ctx, left.Left, b)
 		if err != nil || !first {
 			return first, err
 		}
 		return conflictPredicateProof(ctx, left.Right, b)
 	}
-	if right, ok := b.(logicalExpression); ok && right.Op == parser.LogicalOr {
+	if right, ok := b.(plan.LogicalExpr); ok && right.Op == parser.LogicalOr {
 		first, err := conflictPredicateProof(ctx, a, right.Left)
 		if err != nil || first {
 			return first, err
@@ -195,14 +195,14 @@ func conflictPredicateProof(ctx *EvalContext, a, b expr.Expr) (bool, error) {
 			return second, err
 		}
 	}
-	if left, ok := a.(logicalExpression); ok && left.Op == parser.LogicalAnd {
+	if left, ok := a.(plan.LogicalExpr); ok && left.Op == parser.LogicalAnd {
 		first, err := conflictPredicateProof(ctx, left.Left, b)
 		if err != nil || first {
 			return first, err
 		}
 		return conflictPredicateProof(ctx, left.Right, b)
 	}
-	if required, ok := b.(nullTestExpression); ok && required.Not {
+	if required, ok := b.(plan.NullTestExpr); ok && required.Not {
 		return conflictStrictFor(a, required.Child), nil
 	}
 	return conflictComparisonProof(ctx, a, b)
@@ -211,10 +211,10 @@ func conflictStrictFor(node, subject expr.Expr) bool {
 	if sameGroupExpression(node, subject) {
 		return node.ResultUsage().Type.ID() == sqltype.Bool
 	}
-	if c, ok := node.(comparisonExpression); ok {
+	if c, ok := node.(plan.ComparisonExpr); ok {
 		return !c.Predicate.SessionDependent() && (sameGroupExpression(c.Left, subject) || sameGroupExpression(c.Right, subject))
 	}
-	if n, ok := node.(logicalExpression); ok && n.Op == parser.LogicalNot {
+	if n, ok := node.(plan.LogicalExpr); ok && n.Op == parser.LogicalNot {
 		return conflictStrictFor(n.Left, subject)
 	}
 	return false
@@ -254,17 +254,17 @@ func conflictCommuted(op string) string {
 
 // A negated comparison view is proof-only: never replace an executable node's
 // operator while retaining its original evaluator.
-func conflictProofComparison(node expr.Expr) (comparisonExpression, bool) {
-	if comparison, ok := node.(comparisonExpression); ok {
+func conflictProofComparison(node expr.Expr) (plan.ComparisonExpr, bool) {
+	if comparison, ok := node.(plan.ComparisonExpr); ok {
 		return comparison, true
 	}
-	not, ok := node.(logicalExpression)
+	not, ok := node.(plan.LogicalExpr)
 	if !ok || not.Op != parser.LogicalNot {
-		return comparisonExpression{}, false
+		return plan.ComparisonExpr{}, false
 	}
-	comparison, ok := not.Left.(comparisonExpression)
+	comparison, ok := not.Left.(plan.ComparisonExpr)
 	if !ok {
-		return comparisonExpression{}, false
+		return plan.ComparisonExpr{}, false
 	}
 	switch comparison.Operator {
 	case "<":
@@ -280,7 +280,7 @@ func conflictProofComparison(node expr.Expr) (comparisonExpression, bool) {
 	case "<>", "!=":
 		comparison.Operator = "="
 	default:
-		return comparisonExpression{}, false
+		return plan.ComparisonExpr{}, false
 	}
 	return comparison, true
 }
@@ -296,11 +296,11 @@ func conflictComparisonProof(ctx *EvalContext, a, b expr.Expr) (bool, error) {
 	if x.Predicate.SessionDependent() || y.Predicate.SessionDependent() || x.Namespace != y.Namespace {
 		return false, nil
 	}
-	if _, ok := x.Left.(literalExpression); ok {
+	if _, ok := x.Left.(plan.LiteralExpr); ok {
 		x.Left, x.Right = x.Right, x.Left
 		x.Operator = conflictCommuted(x.Operator)
 	}
-	if _, ok := y.Left.(literalExpression); ok {
+	if _, ok := y.Left.(plan.LiteralExpr); ok {
 		y.Left, y.Right = y.Right, y.Left
 		y.Operator = conflictCommuted(y.Operator)
 	}
@@ -338,11 +338,11 @@ func conflictComparisonProof(ctx *EvalContext, a, b expr.Expr) (bool, error) {
 	if sameGroupExpression(x.Right, y.Right) {
 		return conflictSameOperators[xi][yi], nil
 	}
-	first, ok := x.Right.(literalExpression)
+	first, ok := x.Right.(plan.LiteralExpr)
 	if !ok {
 		return false, nil
 	}
-	second, ok := y.Right.(literalExpression)
+	second, ok := y.Right.(plan.LiteralExpr)
 	if !ok {
 		return false, nil
 	}

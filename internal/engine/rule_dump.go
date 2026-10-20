@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
@@ -27,24 +28,24 @@ func ruleRelationSQL(view catalog.Read, ref ids.ObjectRef) (string, error) {
 	return catalog.QuoteIdentifier(ns.Name()) + "." + catalog.QuoteIdentifier(d.Name()), nil
 }
 
-func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, action ruleAction, sourceRoots ...LogicalNode) (string, error) {
+func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, action ruleAction, sourceRoots ...plan.Node) (string, error) {
 	r := pgRenderer{view: view, showImplicit: true}
-	r.columnSQL = func(column columnExpression) (string, error) {
+	r.columnSQL = func(column plan.ColumnExpr) (string, error) {
 		if column.Scope == 1 && column.Frame == 1 && len(sourceRoots) != 0 {
-			return ruleSourceColumnSQL(view, sourceRoots[0], column.Slot, action, func(root LogicalNode, expr expr.Expr) (string, error) {
+			return ruleSourceColumnSQL(view, sourceRoots[0], column.Slot, action, func(root plan.Node, expr expr.Expr) (string, error) {
 				return ruleExpressionSQL(ctx, view, expr, action, root)
 			})
 		}
 		if column.Scope != rulePseudoScope && column.Scope == 1 && column.Frame == 1 && action.binding.relation != nil {
 			offset := len(action.binding.relation.Columns)
-			var from LogicalNode
+			var from plan.Node
 			if action.binding.update != nil {
 				from = action.binding.update.from
 			} else {
 				from = action.binding.delete.using
 			}
 			if from != nil && column.Slot >= offset {
-				return ruleSourceColumnSQL(view, from, column.Slot-offset, action, func(root LogicalNode, expr expr.Expr) (string, error) {
+				return ruleSourceColumnSQL(view, from, column.Slot-offset, action, func(root plan.Node, expr expr.Expr) (string, error) {
 					return ruleExpressionSQL(ctx, view, expr, action, root)
 				})
 			}
@@ -77,14 +78,14 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 		return catalog.QuoteIdentifier(d.Name()) + "." + name, nil
 	}
 	r.nodeSQL = func(expr expr.Expr) (string, bool, error) {
-		subquery, ok := expr.(subqueryExpression)
+		subquery, ok := expr.(plan.SubqueryExpr)
 		if !ok {
 			return "", false, nil
 		}
 		if action.presentation == nil {
 			return "", true, fmt.Errorf("stuntgres: missing rule subquery presentation")
 		}
-		project, ok := subquery.QueryPlan.Root.(*projectNode)
+		project, ok := subquery.QueryPlan.Root.(*plan.ProjectNode)
 		if !ok || project.Syntax == nil {
 			return "", true, fmt.Errorf("stuntgres: missing rule subquery syntax")
 		}
@@ -131,7 +132,7 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 		return text, true, nil
 	}
 	node, _, err := rewriteViewExpression(view, bound, nil, func(expr expr.Expr) (expr.Expr, bool, error) {
-		if c, ok := expr.(returningColumnExpression); ok {
+		if c, ok := expr.(plan.ReturningColumnExpr); ok {
 			return c.ColumnExpr, true, nil
 		}
 		return expr, false, nil
@@ -146,7 +147,7 @@ func ruleExpressionSQL(ctx context.Context, view catalog.Read, bound expr.Expr, 
 // actual correlated recipes under that frozen outer root, using the same target
 // and source-offset authority as ordinary rule expressions. Unreferenced retired
 // columns are never rendered, and the frozen presentation remains immutable.
-func seedRuleMutationSlots(renderer *viewRenderer, action ruleAction, query LogicalNode, columnSQL func(columnExpression) (string, error)) error {
+func seedRuleMutationSlots(renderer *viewRenderer, action ruleAction, query plan.Node, columnSQL func(plan.ColumnExpr) (string, error)) error {
 	switch action.syntax.(type) {
 	case *parser.Update, *parser.Delete:
 	default:
@@ -159,9 +160,9 @@ func seedRuleMutationSlots(renderer *viewRenderer, action ruleAction, query Logi
 	root := viewFromRoot(owner)
 	slots := renderer.slots[root]
 	var failure error
-	visitCTEQuery(query, func(LogicalNode) {}, func(bound expr.Expr) {
+	visitCTEQuery(query, func(plan.Node) {}, func(bound expr.Expr) {
 		walkBoundExpression(bound, func(node expr.Expr) {
-			column, ok := node.(columnExpression)
+			column, ok := node.(plan.ColumnExpr)
 			if failure != nil || !ok || column.Scope != 1 || column.Frame != 1 {
 				return
 			}
@@ -183,18 +184,18 @@ func seedRuleMutationSlots(renderer *viewRenderer, action ruleAction, query Logi
 	return failure
 }
 
-func ruleFromSQL(ctx context.Context, view catalog.Read, root LogicalNode, action ruleAction) (string, error) {
+func ruleFromSQL(ctx context.Context, view catalog.Read, root plan.Node, action ruleAction) (string, error) {
 	if root == nil {
 		return "", nil
 	}
 	switch n := root.(type) {
-	case *sourceNode:
+	case *plan.SourceNode:
 		name, err := ruleRelationSQL(view, n.Ref)
 		if err != nil {
 			return "", err
 		}
 		return name + " AS " + catalog.QuoteIdentifier("_rule_source_"+strconv.Itoa(n.Occurrence)), nil
-	case *joinNode:
+	case *plan.JoinNode:
 		left, err := ruleFromSQL(ctx, view, n.Left, action)
 		if err != nil {
 			return "", err
@@ -220,11 +221,11 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root LogicalNode, actio
 			kind = "FULL"
 		}
 		return "(" + left + " " + kind + " JOIN " + right + " ON " + predicate + ")", nil
-	case *derivedNode:
+	case *plan.DerivedNode:
 		if n.CTE != nil {
 			return catalog.QuoteIdentifier(n.CTE.Name) + " AS " + catalog.QuoteIdentifier("_rule_source_"+strconv.Itoa(n.Ordinal)), nil
 		}
-		project, ok := n.Query.Root.(*projectNode)
+		project, ok := n.Query.Root.(*plan.ProjectNode)
 		if !ok || project.Syntax == nil || action.presentation == nil {
 			return "", fmt.Errorf("stuntgres: missing rule derived-query presentation")
 		}
@@ -233,7 +234,7 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root LogicalNode, actio
 		if project == nil {
 			return "", fmt.Errorf("stuntgres: missing retained rule derived-query presentation")
 		}
-		if err := seedRuleMutationSlots(renderer, action, project, func(column columnExpression) (string, error) {
+		if err := seedRuleMutationSlots(renderer, action, project, func(column plan.ColumnExpr) (string, error) {
 			return ruleExpressionSQL(ctx, view, column, action)
 		}); err != nil {
 			return "", err
@@ -243,7 +244,7 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root LogicalNode, actio
 			return "", err
 		}
 		return "(" + text + ") AS " + catalog.QuoteIdentifier("_rule_source_"+strconv.Itoa(n.Ordinal)), nil
-	case *functionFromNode:
+	case *plan.FunctionFromNode:
 		parts := make([]string, len(n.Calls))
 		for i, call := range n.Calls {
 			var err error
@@ -264,7 +265,7 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root LogicalNode, actio
 			names[i] = catalog.QuoteIdentifier(column.Name)
 		}
 		return text + " AS " + catalog.QuoteIdentifier("_rule_function_"+strconv.Itoa(n.ViewOrdinal)) + "(" + strings.Join(names, ", ") + ")", nil
-	case *valuesNode:
+	case *plan.ValuesNode:
 		var rows []string
 		for _, row := range n.Rows {
 			parts := make([]string, len(row))
@@ -282,7 +283,7 @@ func ruleFromSQL(ctx context.Context, view catalog.Read, root LogicalNode, actio
 			names[i] = catalog.QuoteIdentifier(column.Name)
 		}
 		return "(VALUES " + strings.Join(rows, ", ") + ") AS " + catalog.QuoteIdentifier("_rule_values") + "(" + strings.Join(names, ", ") + ")", nil
-	case *singletonNode:
+	case *plan.SingletonNode:
 		return "", nil
 	}
 	return "", fmt.Errorf("stuntgres: missing rule FROM presentation for %T", root)
@@ -547,7 +548,7 @@ func ruleDumpGroups(ctx context.Context, view catalog.Read, roles authorization.
 			sql.WriteString("CREATE RULE " + catalog.QuoteIdentifier(r.Name) + " AS ON " + r.event + " TO " + table)
 			if r.condition != nil {
 				renderer := newViewRenderer(r.conditionPresentation)
-				renderer.frame = r.conditionPresentation.query.Root.(*projectNode).Frame
+				renderer.frame = r.conditionPresentation.query.Root.(*plan.ProjectNode).Frame
 				text, err := renderer.expressionSQL(ctx, view, r.conditionPresentation.syntax.Targets[0], viewLiteralPath{clause: viewTargetLiteral})
 				if err != nil {
 					return nil, err

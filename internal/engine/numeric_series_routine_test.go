@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -31,7 +32,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			node, binder, evaluation := strictNullUnitBind(t, e, op, scope, tc.expression)
-			carrier, ok := node.(seriesExpression)
+			carrier, ok := node.(plan.SeriesExpr)
 			if !ok || len(carrier.Args) != tc.arity || !sourceAdmitted(carrier) || !binder.clause.queryHasTargetSet {
 				t.Fatal("original SRF arity/source/project carrier", node)
 			}
@@ -122,7 +123,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal("actual numeric carrier retag", err)
 			}
-			if len(remapped.(seriesExpression).Args) != tc.arity {
+			if len(remapped.(plan.SeriesExpr).Args) != tc.arity {
 				t.Fatal("retag expanded omitted step into a third formal")
 			}
 			if err := admitRoutineCall(&probe, remapped, false, false); err == nil {
@@ -146,7 +147,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			}
 			rebound, _, reboundEvaluation := strictNullUnitBind(t, e, op, scope, text)
 			reboundDescriptor, err := routine.ExpressionRoutineDescriptor(rebound)
-			if err != nil || reboundDescriptor != captured || len(rebound.(seriesExpression).Args) != tc.arity {
+			if err != nil || reboundDescriptor != captured || len(rebound.(plan.SeriesExpr).Args) != tc.arity {
 				t.Fatal("render/rebind lost original full-IN declaration", reboundDescriptor, err)
 			}
 			if err := admitRoutineCall(&reboundEvaluation, rebound, false, false); err != nil {

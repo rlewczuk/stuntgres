@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -17,7 +18,7 @@ import (
 
 // Field dependencies retain logical attribute identities, not field spellings.
 func expressionUsesCompositeField(node expr.Expr, id sqltype.ID, attribute int32) bool {
-	if field, ok := node.(fieldExpression); ok && field.Base.ResultUsage().Type.BaseType().ID() == id && field.Attribute == attribute {
+	if field, ok := node.(plan.FieldExpr); ok && field.Base.ResultUsage().Type.BaseType().ID() == id && field.Attribute == attribute {
 		return true
 	}
 	found := false

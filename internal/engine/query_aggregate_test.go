@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -36,7 +37,7 @@ func TestQueryAggregateCountProvider(t *testing.T) {
 	e, query, source := queryCoreFixture(t, "SELECT count(*) FROM t")
 	_ = e
 	defer source.close()
-	node := query.Root.(*projectNode).Child.(*aggregateNode)
+	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	p := node.Calls[0].Provider
 	if p.ResultUsage() != query.Root.Schema()[0].Usage {
 		t.Fatal("count provider/result usage", p.ResultUsage(), query.Root.Schema())
@@ -79,10 +80,10 @@ func TestQueryAggregateCancellationAndLateErrors(t *testing.T) {
 	for _, phase := range []string{"key", "advance", "finalize", "having", "HAVING-to-sort boundary", "projection", "prepublication", "late_finalize"} {
 		t.Run(phase, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT v,count(*) FROM t GROUP BY v HAVING count(*)>0 ORDER BY v")
-			project := query.Root.(*projectNode)
-			sort := project.Child.(*sortNode)
-			having := sort.Child.(*filterNode)
-			node := having.Child.(*aggregateNode)
+			project := query.Root.(*plan.ProjectNode)
+			sort := project.Child.(*plan.SortNode)
+			having := sort.Child.(*plan.FilterNode)
+			node := having.Child.(*plan.AggregateNode)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			sentinel := errors.New("late aggregate finalization")
@@ -161,7 +162,7 @@ func TestQueryAggregateCancellationAndLateErrors(t *testing.T) {
 func TestQueryAggregateHashCollisionEquality(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT v,count(*) FROM t GROUP BY v")
 	defer source.close()
-	node := query.Root.(*projectNode).Child.(*aggregateNode)
+	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	typ := node.Keys[0].ResultUsage().Type
 	one, _ := sqltype.Integer(typ, 1)
 	two, _ := sqltype.Integer(typ, 2)
@@ -180,7 +181,7 @@ func TestQueryAggregateHashCollisionEquality(t *testing.T) {
 
 func TestQueryAggregateInsertLateProviderFailure(t *testing.T) {
 	b, source := insertSelectEvaluationFixture(t, "SELECT count(*) FROM t GROUP BY v")
-	node := b.query.Root.(*projectNode).Child.(*aggregateNode)
+	node := b.query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	original := node.Calls[0].Provider
 	sentinel := errors.New("late INSERT aggregate provider")
 	calls := 0
@@ -199,7 +200,7 @@ func TestQueryAggregateInsertLateProviderFailure(t *testing.T) {
 
 func TestQueryAggregateLateKeyFailure(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT v,count(*) FROM t GROUP BY v")
-	node := query.Root.(*projectNode).Child.(*aggregateNode)
+	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	original := node.Keys[0]
 	sentinel := errors.New("late group key")
 	calls := 0
@@ -233,7 +234,7 @@ func (c *aggregateCancelContext) Err() error {
 }
 func TestQueryAggregateMidHashAndCollisionCancellation(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT v,count(*) FROM t GROUP BY v")
-	node := query.Root.(*projectNode).Child.(*aggregateNode)
+	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	usage := source.row(0)[1].Type().Usage()
 	// The collision comparator cancels after entering typed equality, not merely
 	// before opening the stage.
@@ -266,12 +267,12 @@ func TestQueryAggregateMidHashAndCollisionCancellation(t *testing.T) {
 func TestQueryAggregateSemanticIdentityAndStagePreflight(t *testing.T) {
 	e, query, source := queryCoreFixture(t, "SELECT (v+1)*2,count(*) FROM t GROUP BY v+1")
 	defer source.close()
-	node := query.Root.(*projectNode).Child.(*aggregateNode)
-	key := node.Keys[0].(arithmeticExpression)
+	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
+	key := node.Keys[0].(plan.ArithmeticExpr)
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	equivalent := key
 	equivalent.Pos.Character = 999
-	column := key.Left.(columnExpression)
+	column := key.Left.(plan.ColumnExpr)
 	column.Pos.Character = 888
 	equivalent.Left = column
 	if !binder.sameGroupExpression(key, equivalent) {
@@ -282,7 +283,7 @@ func TestQueryAggregateSemanticIdentityAndStagePreflight(t *testing.T) {
 	if binder.sameGroupExpression(key, reversed) {
 		t.Fatal("algebraic identity admitted")
 	}
-	first := parameterExpression{Info: expr.Info{Usage: key.ResultUsage()}, Number: 1}
+	first := plan.ParameterExpr{Info: expr.Info{Usage: key.ResultUsage()}, Number: 1}
 	second := first
 	second.Number = 2
 	if binder.sameGroupExpression(first, second) {
@@ -293,7 +294,7 @@ func TestQueryAggregateSemanticIdentityAndStagePreflight(t *testing.T) {
 	if binder.sameGroupExpression(first, differentUsage) {
 		t.Fatal("different typmods equated")
 	}
-	projected := query.Root.(*projectNode).Expressions[0]
+	projected := query.Root.(*plan.ProjectNode).Expressions[0]
 	if !projected.Properties().StageDependent {
 		t.Fatal("group dependence lost")
 	}
@@ -353,7 +354,7 @@ func TestQueryAggregateActualSortComparisonCancellation(t *testing.T) {
 // in the child's private state unit; NULL filtering is tested with real COUNT.
 func TestQueryAggregateRealAdvanceFailure(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT sum(1::real) FROM t")
-	node := query.Root.(*projectNode).Child.(*aggregateNode)
+	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	usage := node.Calls[0].Argument.ResultUsage()
 	argumentEffects := 0
 	node.Calls[0].Argument = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {

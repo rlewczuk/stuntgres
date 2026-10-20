@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -21,7 +22,7 @@ type queryLeaf struct {
 	principal        authorization.PrincipalRef // Relation authority, not expression/session identity.
 	frozenAttributes []int32                    // Execution-owned stored-view subquery layout.
 	uses             []int
-	mark             queryRowMark
+	mark             plan.RowMark
 	query            *parser.Select
 	table            *parser.TableReference
 	// DELETE's immediate USING occurrences require reference-kind validation,
@@ -80,8 +81,8 @@ func (a *queryLockAdmission) retainedQuery(table *parser.TableReference) *parser
 	return query
 }
 
-func (a *queryLockAdmission) tableMark(table *parser.TableReference) queryRowMark {
-	mark := queryRowMark{}
+func (a *queryLockAdmission) tableMark(table *parser.TableReference) plan.RowMark {
+	mark := plan.RowMark{}
 	if a != nil {
 		for _, admission := range a.ordered {
 			if index, ok := admission.indices[table]; ok && index < len(admission.marks) {
@@ -208,7 +209,7 @@ func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []query
 			break
 		}
 	}
-	return e.captureQuerySourcesForInvokerLocked(scope, leaves, singleton, invoker, queryRowMark{}, scope.queryLocks)
+	return e.captureQuerySourcesForInvokerLocked(scope, leaves, singleton, invoker, plan.RowMark{}, scope.queryLocks)
 }
 
 // commentEngine returns the engine whose catalog the comment snapshot was
@@ -292,7 +293,7 @@ func (e *Engine) captureCheckVisibilitySnapshotLocked(scope *StatementScope, rel
 	return nil
 }
 
-func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leaves []queryLeaf, singleton bool, invoker authorization.PrincipalRef, inherited queryRowMark, locks *queryLockContext) (*querySource, error) {
+func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leaves []queryLeaf, singleton bool, invoker authorization.PrincipalRef, inherited plan.RowMark, locks *queryLockContext) (*querySource, error) {
 	// Metadata-only retained captures have no admitted transaction owner.
 	// Singleton execution still advertises its actual live statement snapshot.
 	if scope.txRef != (ids.TxRef{}) {

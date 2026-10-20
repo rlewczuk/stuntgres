@@ -26,7 +26,7 @@ func windowOffsetTarget(size, current int, offset int32, reverse bool) (int, boo
 	return current - int(distance), true
 }
 
-func evaluateWindowOffset(ctx context.Context, evaluation *EvalContext, child *indexedStage, call windowCall, rows []int, current int) (sqltype.Value, error) {
+func evaluateWindowOffset(ctx context.Context, evaluation *EvalContext, child *indexedStage, call plan.WindowCall, rows []int, current int) (sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}

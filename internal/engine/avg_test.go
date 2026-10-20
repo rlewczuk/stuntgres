@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -23,7 +24,7 @@ func TestAvgViewProviderRemapping(t *testing.T) {
 	ctx := context.Background()
 	for _, id := range []sqltype.ID{sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Numeric, sqltype.Float4, sqltype.Float8} {
 		provider, input := avgUnitProvider(source, id)
-		node := &aggregateNode{Child: &singletonNode{}, Calls: []aggregateCall{{Provider: provider}}}
+		node := &plan.AggregateNode{Child: &plan.SingletonNode{}, Calls: []plan.AggregateCall{{Provider: provider}}}
 		mapped, err := remapViewQuery(restored.CatalogRead(), node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			typ, ok := restored.CatalogRead().LookupType(old.ID())
 			if !ok {
@@ -34,7 +35,7 @@ func TestAvgViewProviderRemapping(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		next := mapped.(*aggregateNode).Calls[0].Provider
+		next := mapped.(*plan.AggregateNode).Calls[0].Provider
 		want, restoredInput := avgUnitProvider(restored, id)
 		if next.ResultUsage() != want.ResultUsage() || provider.ResultUsage().Type == next.ResultUsage().Type {
 			t.Fatal("result descriptor was not independently remapped")
@@ -84,7 +85,7 @@ func TestAvgViewProviderRemapping(t *testing.T) {
 func TestAvgSlotsAndMetadata(t *testing.T) {
 	_, q, source := queryCoreFixture(t, "SELECT avg(1),avg(1),avg(1::bigint),avg(1::numeric),avg(1::real),avg(1::double precision),avg(INTERVAL '1 day'),count(*) FROM t")
 	defer source.close()
-	node := q.Root.(*projectNode).Child.(*aggregateNode)
+	node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	if len(node.Calls) != 7 {
 		t.Fatal("input-aware immutable sharing", len(node.Calls))
 	}
@@ -104,7 +105,7 @@ func TestAvgSlotsAndMetadata(t *testing.T) {
 	}
 	_, volatile, owner := queryCoreFixture(t, "SELECT avg(CASE WHEN nextval($1)>0 THEN 1 ELSE 0 END),avg(CASE WHEN nextval($1)>0 THEN 1 ELSE 0 END) FROM t")
 	defer owner.close()
-	if len(volatile.Root.(*projectNode).Child.(*aggregateNode).Calls) != 2 {
+	if len(volatile.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode).Calls) != 2 {
 		t.Fatal("volatile calls shared")
 	}
 }
@@ -113,8 +114,8 @@ func TestAvgEagerCancellation(t *testing.T) {
 	for _, cast := range []string{"numeric", "double precision"} {
 		for _, phase := range []string{"advance", "finalize", "prepublication"} {
 			_, q, source := queryCoreFixture(t, "SELECT avg(1::"+cast+") FROM t")
-			project := q.Root.(*projectNode)
-			node := project.Child.(*aggregateNode)
+			project := q.Root.(*plan.ProjectNode)
+			node := project.Child.(*plan.AggregateNode)
 			ctx, cancel := context.WithCancel(context.Background())
 			original := node.Calls[0].Provider
 			switch phase {

@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/plan"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -15,7 +16,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func intaggUnitAggregate(t *testing.T, e *Engine) (*expressionBinder, aggregateCall) {
+func intaggUnitAggregate(t *testing.T, e *Engine) (*expressionBinder, plan.AggregateCall) {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	b.clause.aggregateClause = "SELECT"
@@ -29,7 +30,7 @@ func intaggUnitAggregate(t *testing.T, e *Engine) (*expressionBinder, aggregateC
 	return b, b.grouping.aggregates[0]
 }
 
-func intaggUnitEnum(t *testing.T, e *Engine, input string) unnestExpression {
+func intaggUnitEnum(t *testing.T, e *Engine, input string) plan.UnnestExpr {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	b.clause.aggregateClause = "SELECT"
@@ -38,7 +39,7 @@ func intaggUnitEnum(t *testing.T, e *Engine, input string) unnestExpression {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return node.(unnestExpression)
+	return node.(plan.UnnestExpr)
 }
 
 func TestIntaggAggregateIdentity(t *testing.T) {
@@ -101,14 +102,14 @@ func TestIntaggAggregateIdentity(t *testing.T) {
 	if err != nil || !value.IsNull() || value.Type() != array {
 		t.Fatal("empty group", value, err)
 	}
-	root := &aggregateNode{Child: &valuesNode{}, Calls: []aggregateCall{call}}
+	root := &plan.AggregateNode{Child: &plan.ValuesNode{}, Calls: []plan.AggregateCall{call}}
 	refs := pgDependRefs{ctx: ctx, catalog: e.CatalogRead()}
 	refs.query(root)
 	if refs.err != nil {
 		t.Fatal(refs.err)
 	}
 	if _, ok := refs.addresses[call.Ref.Address]; !ok {
-		t.Fatal("aggregateNode lost procedure dependency")
+		t.Fatal("plan.AggregateNode lost procedure dependency")
 	}
 }
 
@@ -169,7 +170,7 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 	for _, wholeNull := range []bool{false, true} {
 		empty := intaggUnitEnum(t, e, "{}")
 		if wholeNull {
-			empty.Args = []expr.Expr{literalExpression{Info: expr.InfoOf(empty.Args[0]), Value: sqltype.Null(empty.Args[0].ResultUsage().Type)}}
+			empty.Args = []expr.Expr{plan.LiteralExpr{Info: expr.InfoOf(empty.Args[0]), Value: sqltype.Null(empty.Args[0].ResultUsage().Type)}}
 		}
 		cursor, err := openFunctionSource(c, empty)
 		if err != nil {
@@ -182,9 +183,9 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 		}
 	}
 	rewritten, changed, err := expr.MapSubstituted(n, func(arg expr.Expr) (expr.Expr, bool, error) {
-		return literalExpression{Info: expr.InfoOf(arg), Value: input}, true, nil
+		return plan.LiteralExpr{Info: expr.InfoOf(arg), Value: input}, true, nil
 	})
-	mapped := rewritten.(unnestExpression)
+	mapped := rewritten.(plan.UnnestExpr)
 	if err != nil || !changed || mapped.Procedure != n.Procedure || mapped.Ref != n.Ref {
 		t.Fatal("child rewrite lost installation", err)
 	}
@@ -242,12 +243,12 @@ func TestIntaggIdentityRemap(t *testing.T) {
 		}
 		return old
 	}
-	root := &aggregateNode{QuerySchema: querySchema{{Name: "a", Usage: call.Provider.ResultUsage()}}, Child: &valuesNode{}, Calls: []aggregateCall{call}}
+	root := &plan.AggregateNode{QuerySchema: plan.QuerySchema{{Name: "a", Usage: call.Provider.ResultUsage()}}, Child: &plan.ValuesNode{}, Calls: []plan.AggregateCall{call}}
 	mapped, err := remapViewQuery(view, root, ref, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
 	if err != nil {
 		t.Fatal(err)
 	}
-	remapped := mapped.(*aggregateNode).Calls[0]
+	remapped := mapped.(*plan.AggregateNode).Calls[0]
 	if remapped.Procedure != next.Get(mapping[call.Ref.Address]) || remapped.Ref != ref(call.Ref) || remapped.Provider == call.Provider {
 		t.Fatal("aggregate remap authority", remapped)
 	}
@@ -259,7 +260,7 @@ func TestIntaggIdentityRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	n := node.(unnestExpression)
+	n := node.(plan.UnnestExpr)
 	if n.Ref != ref(enum.Ref) || n.Procedure != next.Get(n.Ref.Address) {
 		t.Fatal("enum remap authority", n.Ref)
 	}

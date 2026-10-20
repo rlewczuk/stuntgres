@@ -37,7 +37,7 @@ func TestQueryWindowOffsetTarget(t *testing.T) {
 			t.Fatalf("%+v => %d/%v", tc, got, present)
 		}
 	}
-	for _, op := range []windowOperation{plan.WindowLead, plan.WindowLag} {
+	for _, op := range []plan.WindowOperation{plan.WindowLead, plan.WindowLag} {
 		if op.FrameDependent() || !op.EvaluatesArgument() {
 			t.Fatal("offset demand classification", op)
 		}
@@ -47,7 +47,7 @@ func TestQueryWindowOffsetTarget(t *testing.T) {
 func TestQueryWindowOffsetGraph(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT lead(v,id,id+1) OVER w,lead(v,id,id+2) OVER w FROM t WINDOW w AS(ORDER BY id)")
 	defer source.close()
-	node := query.Root.(*projectNode).Child.(*windowNode)
+	node := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	if len(node.Calls) != 2 {
 		t.Fatal(node.Calls)
 	}
@@ -70,7 +70,7 @@ func TestQueryWindowOffsetGraph(t *testing.T) {
 		}
 		return e, false, nil
 	})
-	if err != nil || next == node || next.(*windowNode).Calls[0].DefaultValue != second.DefaultValue || node.Calls[0].DefaultValue != first.DefaultValue {
+	if err != nil || next == node || next.(*plan.WindowNode).Calls[0].DefaultValue != second.DefaultValue || node.Calls[0].DefaultValue != first.DefaultValue {
 		t.Fatal("mutable/default rewrite", next, err)
 	}
 	for _, column := range query.Root.Schema() {
@@ -81,19 +81,19 @@ func TestQueryWindowOffsetGraph(t *testing.T) {
 	t.Run("grouped-default", func(t *testing.T) {
 		_, grouped, input := queryCoreFixture(t, "SELECT lead(sum(v),0,sum(id)) OVER() FROM t")
 		defer input.close()
-		fallback := grouped.Root.(*projectNode).Child.(*windowNode).Calls[0].DefaultValue
-		if _, ok := fallback.(groupExpression); !ok {
+		fallback := grouped.Root.(*plan.ProjectNode).Child.(*plan.WindowNode).Calls[0].DefaultValue
+		if _, ok := fallback.(plan.GroupExpr); !ok {
 			t.Fatalf("default not rewritten to owned group slot: %T", fallback)
 		}
 	})
 	t.Run("matched-order-default", func(t *testing.T) {
 		_, matched, input := queryCoreFixture(t, "SELECT lead(v,0,(SELECT max(id) FROM t)) OVER() AS x FROM t ORDER BY lead(v,0,(SELECT max(id) FROM t)) OVER()")
 		defer input.close()
-		project := matched.Root.(*projectNode)
+		project := matched.Root.(*plan.ProjectNode)
 		found := false
 		for _, bound := range project.AnalysisExpressions {
 			walkBoundExpression(bound, func(child expr.Expr) {
-				if _, ok := child.(subqueryExpression); ok {
+				if _, ok := child.(plan.SubqueryExpr); ok {
 					found = true
 				}
 			})
@@ -115,7 +115,7 @@ func TestQueryWindowOffsetGraph(t *testing.T) {
 		}
 		before := b.grouping.windowCalls[:len(b.grouping.windowCalls):len(b.grouping.windowCalls)]
 		b.grouping.windowCalls = before
-		values := append([]windowCall(nil), before...)
+		values := append([]plan.WindowCall(nil), before...)
 		_, err := b.bind(statement(t, tc.q).(*parser.Select).Targets[0], expressionPolicy{context: projectionContext})
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != tc.code || len(b.grouping.windowCalls) != len(before) || cap(b.grouping.windowCalls) != cap(before) || &b.grouping.windowCalls[0] != &before[0] || !reflect.DeepEqual(values, b.grouping.windowCalls) || b.grouping.argumentOwner != (argumentWindowOwner{}) {
@@ -144,7 +144,7 @@ func TestQueryWindowOffsetOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	root := description.query.Root
-	original := root.(*projectNode).Child.(*windowNode).Calls[0]
+	original := root.(*plan.ProjectNode).Child.(*plan.WindowNode).Calls[0]
 	domain := original.Argument.ResultUsage().Type
 	if !domain.IsDomain() || original.DefaultValue.ResultUsage().Type != domain || original.Expression.ResultUsage().Type != domain {
 		t.Fatal("common domain lost", original)
@@ -162,7 +162,7 @@ func TestQueryWindowOffsetOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next := mapped.(*projectNode).Child.(*windowNode).Calls[0]
+	next := mapped.(*plan.ProjectNode).Child.(*plan.WindowNode).Calls[0]
 	if next.Argument == original.Argument || next.Ordinal == original.Ordinal || next.DefaultValue == original.DefaultValue || next.Expression == original.Expression || next.Argument.ResultUsage().Type != types[domain.ID()] || next.DefaultValue.ResultUsage().Type != types[domain.ID()] || next.Expression.ResultUsage().Type != types[domain.ID()] || !queryDescriptorsChanged(root, lookup) || queryDescriptorsChanged(mapped, lookup) {
 		t.Fatal("source-owned default/result", next)
 	}
@@ -176,7 +176,7 @@ func TestQueryWindowOffsetCancellation(t *testing.T) {
 				offset = "100"
 			}
 			_, query, source := queryCoreFixture(t, "SELECT lead(v,"+offset+",id) OVER(ORDER BY id) FROM t")
-			call := &query.Root.(*projectNode).Child.(*windowNode).Calls[0]
+			call := &query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode).Calls[0]
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			original := call.Ordinal
@@ -214,7 +214,7 @@ func TestQueryWindowOffsetCancellation(t *testing.T) {
 
 func TestQueryWindowOffsetEvaluationRoles(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT lead(v,CASE WHEN id<4 THEN 4-id ELSE 100 END,id) OVER(ORDER BY id) FROM t")
-	call := &query.Root.(*projectNode).Child.(*windowNode).Calls[0]
+	call := &query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode).Calls[0]
 	argument, offset, fallback := call.Argument, call.Ordinal, call.DefaultValue
 	var current, selected, defaults []int64
 	call.Ordinal = queryProbe(offset.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {

@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -143,13 +144,13 @@ func TestInsertSelectEagerFailureAndCancellation(t *testing.T) {
 	for _, phase := range []string{"late source", "rejected scan", "assignment", "before apply", "sorting"} {
 		t.Run(phase, func(t *testing.T) {
 			b, source := insertSelectEvaluationFixture(t, "SELECT id FROM t WHERE f ORDER BY id")
-			project := b.query.Root.(*projectNode)
+			project := b.query.Root.(*plan.ProjectNode)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			sentinel := errors.New("late source evaluation")
 			calls := 0
 			if phase == "rejected scan" {
-				filter := project.Child.(*sortNode).Child.(*filterNode)
+				filter := project.Child.(*plan.SortNode).Child.(*plan.FilterNode)
 				filter.Predicate = queryProbe(filter.Predicate.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 					calls++
 					cancel()

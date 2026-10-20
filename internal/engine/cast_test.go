@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -96,16 +97,16 @@ func TestCastExpressionReductionOriginsAndDependencies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	project := bound.query.Root.(*projectNode)
-	original := project.Expressions[0].(columnExpression)
+	project := bound.query.Root.(*plan.ProjectNode)
+	original := project.Expressions[0].(plan.ColumnExpr)
 	for _, index := range []int{1, 2} {
-		reduced, ok := project.Expressions[index].(columnExpression)
+		reduced, ok := project.Expressions[index].(plan.ColumnExpr)
 		if !ok || reduced.Origin != original.Origin || reduced.Slot != original.Slot || project.Schema()[index].Nullable {
 			t.Fatal(index, project.Expressions[index], project.Schema()[index])
 		}
 	}
 	for _, index := range []int{3, 4} {
-		conversion, ok := project.Expressions[index].(coercionExpression)
+		conversion, ok := project.Expressions[index].(plan.CoercionExpr)
 		if !ok || !conversion.Properties().RowDependent || conversion.Properties().ParameterDependent {
 			t.Fatal(index, project.Expressions[index])
 		}

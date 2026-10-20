@@ -5,6 +5,7 @@ import (
 	"slices"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -15,7 +16,7 @@ import (
 type alterTypeCheck struct {
 	index    int
 	sql      string
-	literals []literalExpression
+	literals []plan.LiteralExpr
 }
 
 func captureAlterTypeChecks(op *Operation, view catalog.Read, original, survivor *catalog.Relation, actions []parser.AlterTableAction) ([]alterTypeCheck, error) {
@@ -48,7 +49,7 @@ func captureAlterTypeChecks(op *Operation, view catalog.Read, original, survivor
 			if slices.ContainsFunc(queue, func(c alterTypeCheck) bool { return c.index == index }) {
 				continue
 			}
-			var literals []literalExpression
+			var literals []plan.LiteralExpr
 			canonical, err := (scalarRenderer{definition: op.definition, owner: survivor, checkLiterals: &literals}).sql(op.Context(), view, check.Expression)
 			if err != nil {
 				return nil, err

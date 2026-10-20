@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -36,7 +37,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 		t.Fatal(err)
 	}
 	literal := func(value sqltype.Value) expr.Expr {
-		return literalExpression{Info: expr.Info{Usage: value.Type().Usage()}, Value: value}
+		return plan.LiteralExpr{Info: expr.Info{Usage: value.Type().Usage()}, Value: value}
 	}
 	bound := functions.Enum{Info: expr.Info{Usage: array.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Plan: enumSupportPlan, Args: []expr.Expr{literal(sqltype.Null(mood)), literal(sqltype.Null(mood))}, EnumName: "mood"}
 	old, err := bound.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})

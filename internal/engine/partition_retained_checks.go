@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
@@ -146,7 +147,7 @@ func partitionCheckRecipeAffected(ctx context.Context, before, after expr.Expr, 
 		if err != nil {
 			return
 		}
-		if literal, ok := node.(literalExpression); ok {
+		if literal, ok := node.(plan.LiteralExpr); ok {
 			literals = append(literals, literal.Value)
 		}
 	})
@@ -162,7 +163,7 @@ func partitionCheckRecipeAffected(ctx context.Context, before, after expr.Expr, 
 		if err != nil {
 			return
 		}
-		if literal, ok := node.(literalExpression); ok {
+		if literal, ok := node.(plan.LiteralExpr); ok {
 			if position >= len(literals) {
 				affected = true
 			} else {

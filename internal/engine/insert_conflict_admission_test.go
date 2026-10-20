@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -236,7 +237,7 @@ func TestInsertConflictInferenceInstalledStates(t *testing.T) {
 }
 func TestInsertConflictInferenceMixedExpressionsAndAllProviders(t *testing.T) {
 	f := insertConflictUniqueFixture(t)
-	expression := logicalExpression{Info: expr.Info{Usage: f.predicate.Usage, Property: expr.Properties{RowDependent: true}}, Op: parser.LogicalNot, Left: f.predicate}
+	expression := plan.LogicalExpr{Info: expr.Info{Usage: f.predicate.Usage, Property: expr.Properties{RowDependent: true}}, Op: parser.LogicalNot, Left: f.predicate}
 	class, _ := sqltype.DefaultIndexClass(f.predicate.Usage.Type)
 	for i := range 2 {
 		index := *f.index
@@ -264,7 +265,7 @@ func TestInsertConflictInferenceMixedExpressionsAndAllProviders(t *testing.T) {
 		t.Fatal("complete mixed expression set", action.selected, err)
 	}
 	unrelated := expression
-	unrelated.Left = logicalExpression{Info: expression.Info, Op: parser.LogicalNot, Left: f.predicate}
+	unrelated.Left = plan.LogicalExpr{Info: expression.Info, Op: parser.LogicalNot, Left: f.predicate}
 	action.keys[1].expression = unrelated
 	action.keys[2].expression = unrelated
 	if err := action.selectArbiters(&ctx, f.parent, f.e.CatalogRead()); err == nil {

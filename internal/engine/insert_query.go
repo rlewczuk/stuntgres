@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -35,7 +36,7 @@ func bindInsertTargets(relation *catalog.Relation, targets []parser.InsertTarget
 }
 
 func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth AuthorizationView, s *parser.Insert) error {
-	var query *BoundQuery
+	var query *plan.Query
 	var err error
 	if sel := s.Source.Select; sel != nil {
 		out.insert.subquerySource = true
@@ -57,7 +58,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 	if err != nil {
 		return err
 	}
-	project := query.Root.(*projectNode)
+	project := query.Root.(*plan.ProjectNode)
 	width := len(project.Expressions)
 	if len(s.Targets) == 0 {
 		if width > len(out.relation.Columns) {
@@ -78,7 +79,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 	schemaDetached := false
 	for i, expr := range project.Expressions {
 		target := out.relation.Columns[out.targets[i]]
-		var partial *arrayAssignmentTarget
+		var partial *plan.ArrayAssignmentTarget
 		if len(out.arrayTargets) != 0 {
 			partial = out.arrayTargets[i]
 			if partial != nil {
@@ -115,7 +116,7 @@ func (e *Engine) bindInsertSource(out *binding, binder *expressionBinder, auth A
 			// The output schema may share backing with source nodes. Assignment
 			// owns only the final projection, never source validation or set keys.
 			if !schemaDetached {
-				project.QuerySchema = append(querySchema(nil), project.QuerySchema...)
+				project.QuerySchema = append(plan.QuerySchema(nil), project.QuerySchema...)
 				schemaDetached = true
 			}
 			project.QuerySchema[i].Usage = usage
@@ -171,7 +172,7 @@ func commonValuesUsage(nodes [][]expr.Expr, raw [][]parser.Expr, column int, tex
 		return operand
 	}, text, "VALUES", (*sqltype.Descriptor).DiagnosticName)
 }
-func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscard bool) (*BoundQuery, error) {
+func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscard bool) (*plan.Query, error) {
 	oldFrame := b.query.frame
 	if oldFrame == 0 {
 		b.query.frame = 1
@@ -251,7 +252,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 		}
 		common = info.Usage
 		schema[j] = catalog.Column{Name: fmt.Sprintf("column%d", j+1), Usage: common}
-		projection[j] = columnExpression{Info: info, Scope: 1, Frame: b.frameID(), Slot: j}
+		projection[j] = plan.ColumnExpr{Info: info, Scope: 1, Frame: b.frameID(), Slot: j}
 	}
 	if lists != nil {
 		for i, written := range source.Rows {
@@ -273,11 +274,11 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 			}
 		}
 	}
-	values := &valuesNode{QuerySchema: schema, Rows: nodes, ViewOrdinal: occurrence}
+	values := &plan.ValuesNode{QuerySchema: schema, Rows: nodes, ViewOrdinal: occurrence}
 	if identityDiscard && len(nodes) == 1 {
 		values.IdentityOrderDemand = make([]bool, width)
 	}
-	var root LogicalNode = values
+	var root plan.Node = values
 	namespace := queryNamespace{frame: schema, values: true, identityValuesOrderDemand: values.IdentityOrderDemand}
 	names := make([]string, width)
 	for i, column := range schema {
@@ -324,7 +325,7 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 	// The output schema is owned separately: destination assignment modifies it,
 	// never the common-typed VALUES input or its sort descriptor.
 	results := append([]catalog.Column(nil), schema...)
-	return &BoundQuery{Root: &projectNode{QuerySchema: results, Child: root, Expressions: projection, FrozenValues: true, Frame: b.frameID()}}, nil
+	return &plan.Query{Root: &plan.ProjectNode{QuerySchema: results, Child: root, Expressions: projection, FrozenValues: true, Frame: b.frameID()}}, nil
 }
 
 // VALUES exposes generated ASCII column names in one synthetic namespace.
@@ -384,7 +385,7 @@ func valuesOrderColumnError(schema []catalog.Column, name string, pos parser.Pos
 // runs unlocked; only the complete, constrained batch reaches WriteStage.Apply.
 func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, parameters []sqltype.Value, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, scope *StatementScope) (indexWriteBatch, error) {
 	defer source.close()
-	project, ok := b.query.Root.(*projectNode)
+	project, ok := b.query.Root.(*plan.ProjectNode)
 	if !ok {
 		return indexWriteBatch{}, fmt.Errorf("stuntgres: INSERT query lacks final projection")
 	}
@@ -593,7 +594,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 func identityUnusedOutput(expression expr.Expr) expr.Expr {
 	info := expr.InfoOf(expression)
 	info.Property = expr.Properties{}
-	return literalExpression{
+	return plan.LiteralExpr{
 		Info:  info,
 		Value: sqltype.Null(expression.ResultUsage().Type),
 	}
@@ -603,33 +604,33 @@ func identityUnusedOutput(expression expr.Expr) expr.Expr {
 // existing count/ORDER cache. Remove only that output's pure producer; ORDER
 // keys and multirow VALUES remain independent source consumers. Nodes are owned
 // by this fresh binding, never a published descriptor or held execution plan.
-func pruneIdentityQueryProducer(node LogicalNode, expression expr.Expr) (LogicalNode, bool) {
+func pruneIdentityQueryProducer(node plan.Node, expression expr.Expr) (plan.Node, bool) {
 	for {
-		coercion, ok := expression.(coercionExpression)
+		coercion, ok := expression.(plan.CoercionExpr)
 		if !ok {
 			break
 		}
 		expression = coercion.Child
 	}
 	switch n := node.(type) {
-	case *setNode:
+	case *plan.SetNode:
 		return n, false // Every set retains source output/key/cardinality demand.
-	case *recursiveUnionNode:
+	case *plan.RecursiveUnionNode:
 		return n, false // The full recursive tuple determines fixpoint identity.
-	case *distinctNode:
+	case *plan.DistinctNode:
 		return n, false // Every projected slot participates in source cardinality.
-	case *distinctOnNode:
+	case *plan.DistinctOnNode:
 		return n, false // ON keys and ordering determine source winners.
-	case *limitNode:
+	case *plan.LimitNode:
 		var discard bool
 		n.Child, discard = pruneIdentityQueryProducer(n.Child, expression)
 		return n, discard
-	case *rowLockNode:
+	case *plan.RowLockNode:
 		var discard bool
 		n.Child, discard = pruneIdentityQueryProducer(n.Child, expression)
 		return n, discard
-	case *evaluationNode:
-		if cached, ok := expression.(cachedOrderExpression); ok && cached.Slot >= n.Base && cached.Slot < n.Base+len(n.Expressions) {
+	case *plan.EvaluationNode:
+		if cached, ok := expression.(plan.CachedOrderExpr); ok && cached.Slot >= n.Base && cached.Slot < n.Base+len(n.Expressions) {
 			slot := cached.Slot - n.Base
 			if n.Expressions[slot].Properties().Volatility == expr.Volatile {
 				return n, false
@@ -638,7 +639,7 @@ func pruneIdentityQueryProducer(node LogicalNode, expression expr.Expr) (Logical
 			// A solely discarded projection no longer needs a per-row cache.
 			unused := true
 			for _, producer := range n.Expressions {
-				literal, ok := producer.(literalExpression)
+				literal, ok := producer.(plan.LiteralExpr)
 				if !ok || !literal.Value.IsNull() {
 					unused = false
 					break
@@ -652,8 +653,8 @@ func pruneIdentityQueryProducer(node LogicalNode, expression expr.Expr) (Logical
 		var discard bool
 		n.Child, discard = pruneIdentityQueryProducer(n.Child, expression)
 		return n, discard
-	case *sortNode:
-		if cached, ok := expression.(cachedOrderExpression); ok {
+	case *plan.SortNode:
+		if cached, ok := expression.(plan.CachedOrderExpr); ok {
 			for _, key := range n.Keys {
 				if key.Cache == cached.Slot {
 					return n, true
@@ -671,8 +672,8 @@ func pruneIdentityQueryProducer(node LogicalNode, expression expr.Expr) (Logical
 		var discard bool
 		n.Child, discard = pruneIdentityQueryProducer(n.Child, expression)
 		return n, discard
-	case *valuesNode:
-		column, ok := expression.(columnExpression)
+	case *plan.ValuesNode:
+		column, ok := expression.(plan.ColumnExpr)
 		if !ok || len(n.Rows) != 1 || len(n.IdentityOrderDemand) == 0 {
 			return n, false
 		}

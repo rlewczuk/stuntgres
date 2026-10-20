@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -143,9 +144,9 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		converted := coercionExpression{Info: expr.Info{Usage: routine.Usage()}, Child: probe, Plan: coercionPlan, Mode: sqltype.Explicit}
+		converted := plan.CoercionExpr{Info: expr.Info{Usage: routine.Usage()}, Child: probe, Plan: coercionPlan, Mode: sqltype.Explicit}
 		definition := *viewOf(d)
-		definition.query = &BoundQuery{Root: &projectNode{QuerySchema: d.Columns, Child: &singletonNode{}, Expressions: []expr.Expr{converted}}}
+		definition.query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: d.Columns, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{converted}}}
 		d.View = &definition
 		e.mu.Lock()
 		rows, err := e.materializedRefreshRowsLocked(scope, e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address()), d)

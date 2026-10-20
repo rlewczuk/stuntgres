@@ -196,7 +196,7 @@ func TestDefaultQuerySourcePreflightKeepsStoredStructure(t *testing.T) {
 		}
 		current := e.CatalogRead().MustRelation(ref.Address)
 		stored := current.ColumnMeta.Defaults[current.Attributes[1]]
-		cast, ok := stored.Expression.(coercionExpression)
+		cast, ok := stored.Expression.(plan.CoercionExpr)
 		if !ok || cast.Mode != sqltype.Explicit || !reflect.DeepEqual(stored, definition) {
 			t.Fatal("execution preflight replaced stored default", stored, definition)
 		}
@@ -233,8 +233,8 @@ func TestDefaultQueryPlanningScopedPolicy(t *testing.T) {
 			if err != nil || !changed {
 				t.Fatal(planned, changed, err)
 			}
-			literal, ok := planned.(literalExpression)
-			if !ok || literal.Info != original.Expression.(logicalExpression).Info {
+			literal, ok := planned.(plan.LiteralExpr)
+			if !ok || literal.Info != original.Expression.(plan.LogicalExpr).Info {
 				t.Fatal("whole result or conservative metadata was lost", planned)
 			}
 			value, err := literal.Eval(c)

@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -79,7 +80,7 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 		t.Fatal("stored foreign provider accepted")
 	}
 	foreign = reminted
-	foreign.Args = []expr.Expr{literalExpression{Info: expr.Info{Usage: reminted.Usage}, Value: sqltype.Null(reminted.Usage.Type)}}
+	foreign.Args = []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: reminted.Usage}, Value: sqltype.Null(reminted.Usage.Type)}}
 	if _, err := defaultSQL(ctx, target.CatalogRead(), foreign); err == nil {
 		t.Fatal("stored pi argument accepted")
 	}

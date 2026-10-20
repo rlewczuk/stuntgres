@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -12,14 +13,14 @@ import (
 
 func TestPosixDependencyAndPresentationIdentity(t *testing.T) {
 	text, boolean := similarUnitTypes()
-	source := columnExpression{Info: expr.Info{Usage: text.Usage()}, Slot: 0}
-	pattern := columnExpression{Info: expr.Info{Usage: text.Usage()}, Slot: 1}
+	source := plan.ColumnExpr{Info: expr.Info{Usage: text.Usage()}, Slot: 0}
+	pattern := plan.ColumnExpr{Info: expr.Info{Usage: text.Usage()}, Slot: 1}
 	predicate := functions.Posix{Info: expr.Info{Usage: boolean.Usage()}, Left: source, Right: pattern, Operator: "~"}
 	extraction := functions.PosixSubstring{Info: expr.Info{Usage: text.Usage()}, Args: [2]expr.Expr{source, pattern}}
 	for _, node := range []expr.Expr{predicate, extraction} {
 		var slots []int
 		walkBoundExpression(node, func(n expr.Expr) {
-			if c, ok := n.(columnExpression); ok {
+			if c, ok := n.(plan.ColumnExpr); ok {
 				slots = append(slots, c.Slot)
 			}
 		})
@@ -48,7 +49,7 @@ func TestPosixCommonStatementOwner(t *testing.T) {
 	text, boolean := similarUnitTypes()
 	info := expr.Info{Usage: text.Usage()}
 	literal := func(s string) expr.Expr {
-		return literalExpression{Info: info, Value: sqltype.String(text, s)}
+		return plan.LiteralExpr{Info: info, Value: sqltype.String(text, s)}
 	}
 	pp, err := sqltype.BindPosix("~*", text.Usage(), text.Usage(), boolean.Usage(), text.Usage().Collation, false)
 	if err != nil {

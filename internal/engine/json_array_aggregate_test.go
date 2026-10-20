@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -92,7 +93,7 @@ func TestJSONArrayAggregateProviderRemap(t *testing.T) {
 	for _, id := range []sqltype.ID{sqltype.JSON, sqltype.JSONB} {
 		result, _ := source.CatalogRead().LookupType(id)
 		p := jsonArrayProviderUnit(t, input.Usage(), result.Usage(), true)
-		root := &aggregateNode{QuerySchema: querySchema{{Name: "v", Usage: result.Usage(), Nullable: true, NullabilityKnown: true}}, Child: &valuesNode{}, Calls: []aggregateCall{{Provider: p, Operation: functions.AggregateJSONStrict, IncludeNulls: true}}}
+		root := &plan.AggregateNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: result.Usage(), Nullable: true, NullabilityKnown: true}}, Child: &plan.ValuesNode{}, Calls: []plan.AggregateCall{{Provider: p, Operation: functions.AggregateJSONStrict, IncludeNulls: true}}}
 		mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			next, _ := destination.CatalogRead().LookupType(old.ID())
 			return next
@@ -100,7 +101,7 @@ func TestJSONArrayAggregateProviderRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		call := mapped.(*aggregateNode).Calls[0]
+		call := mapped.(*plan.AggregateNode).Calls[0]
 		newInput, _ := destination.CatalogRead().LookupType(sqltype.Int4)
 		newResult, _ := destination.CatalogRead().LookupType(id)
 		if call.Provider.ResultUsage().Type != newResult || mapped.Schema()[0].Usage.Type != newResult || p.ResultUsage().Type != result || !call.IncludeNulls {
@@ -142,7 +143,7 @@ func TestJSONArrayAggregateRunnerNullPresence(t *testing.T) {
 			}
 			qtext += " FROM t"
 			_, q, source := queryCoreFixture(t, qtext)
-			node := q.Root.(*projectNode).Child.(*aggregateNode)
+			node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 			usage := node.Calls[0].Argument.ResultUsage()
 			node.Calls[0].Argument = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
 				if rejected {
@@ -182,7 +183,7 @@ func TestJSONArrayAggregateReachedEagerCancellation(t *testing.T) {
 		{"json_agg", ".writeJSONBString"}, {"jsonb_agg", ".jsonbOutput"}, {"jsonb_agg", ".(*jsonbBuilder).close"},
 	} {
 		e, q, source := queryCoreFixture(t, "SELECT "+tc.name+"(v) FROM t")
-		node := q.Root.(*projectNode).Child.(*aggregateNode)
+		node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 		input, _ := e.CatalogRead().LookupType(sqltype.Text)
 		result := node.Calls[0].Provider.ResultUsage()
 		node.Calls[0].Provider = jsonArrayProviderUnit(t, input.Usage(), result, false)

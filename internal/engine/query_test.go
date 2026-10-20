@@ -8,12 +8,13 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func queryCoreFixture(t *testing.T, sql string) (*Engine, *BoundQuery, *querySource) {
+func queryCoreFixture(t *testing.T, sql string) (*Engine, *plan.Query, *querySource) {
 	t.Helper()
 	// Parsing may terminate the test; never do it while holding e.mu, since
 	// deferred session teardown needs that mutex before WaitEnd can return.
@@ -71,7 +72,7 @@ func queryProbe(usage sqltype.Usage, eval func(*EvalContext) (sqltype.Value, err
 func TestQueryCoreEagerFinalization(t *testing.T) {
 	t.Run("later admitted target failure", func(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY id")
-		project := query.Root.(*projectNode)
+		project := query.Root.(*plan.ProjectNode)
 		usage := project.Schema()[0].Usage
 		sentinel := errors.New("later target")
 		calls := 0
@@ -89,7 +90,7 @@ func TestQueryCoreEagerFinalization(t *testing.T) {
 	})
 	t.Run("rejected rows do not evaluate targets", func(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT id FROM t WHERE f ORDER BY id")
-		project := query.Root.(*projectNode)
+		project := query.Root.(*plan.ProjectNode)
 		calls := 0
 		project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
 			calls++
@@ -127,11 +128,11 @@ func TestQueryCoreCancellation(t *testing.T) {
 			e, query, source := queryCoreFixture(t, "SELECT id FROM t WHERE f")
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			project := query.Root.(*projectNode)
+			project := query.Root.(*plan.ProjectNode)
 			calls := 0
 			if phase == "rejected scan" {
 				typ, _ := e.CatalogRead().LookupType(sqltype.Bool)
-				filter := project.Child.(*filterNode)
+				filter := project.Child.(*plan.FilterNode)
 				filter.Predicate = queryProbe(typ.Usage(), func(c *EvalContext) (sqltype.Value, error) {
 					calls++
 					cancel()
@@ -198,7 +199,7 @@ func TestQueryCoreSortErrors(t *testing.T) {
 	}
 	t.Run("type comparison failure prevents publication", func(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY id")
-		query.Root.(*projectNode).Child.(*sortNode).Keys[0].Comparison = sqltype.Comparison{}
+		query.Root.(*plan.ProjectNode).Child.(*plan.SortNode).Keys[0].Comparison = sqltype.Comparison{}
 		rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
 		if rows != nil || count != 0 || err == nil || err.Error() != "invalid comparison values" || source.view != nil {
 			t.Fatal(rows, count, err, source.view)
@@ -345,7 +346,7 @@ func TestQueryCoreStageContractsAndDescriptors(t *testing.T) {
 	for _, q := range []string{"SELECT id FROM t", "SELECT id FROM t WHERE f", "SELECT id FROM t WHERE f ORDER BY id"} {
 		t.Run(q, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, q)
-			project := query.Root.(*projectNode)
+			project := query.Root.(*plan.ProjectNode)
 			stage, err := openQueryNode(context.Background(), &queryState{source: source}, project.Child)
 			if err != nil {
 				t.Fatal(err)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -126,7 +127,7 @@ func TestDatetimeZoneStrictConstantNullAndPrecancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	expression := node.(functions.DatetimeZoneCalendar)
-	expression.Args[0] = literalExpression{expr.InfoOf(expression.Args[0]), sqltype.Null(expression.Args[0].ResultUsage().Type)}
+	expression.Args[0] = plan.LiteralExpr{expr.InfoOf(expression.Args[0]), sqltype.Null(expression.Args[0].ResultUsage().Type)}
 	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	simplified, changed, err := preflightCoercions(ctx, expression)
 	if err != nil || !changed {

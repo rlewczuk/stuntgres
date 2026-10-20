@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -200,7 +201,7 @@ func (b *expressionBinder) bindArrayComparison(raw parser.ArrayComparisonExpr) (
 			return nil, err
 		}
 	}
-	return scalarArrayComparisonExpression{Info: info, Left: l, Array: r, Predicate: predicate, Operator: name, Namespace: namespace, All: raw.All}, nil
+	return plan.ScalarArrayComparisonExpr{Info: info, Left: l, Array: r, Predicate: predicate, Operator: name, Namespace: namespace, All: raw.All}, nil
 }
 
 func (b *expressionBinder) inListHasVar(node expr.Expr) bool {
@@ -209,11 +210,11 @@ func (b *expressionBinder) inListHasVar(node expr.Expr) bool {
 	var visit func(expr.Expr)
 	visit = func(child expr.Expr) {
 		switch n := child.(type) {
-		case columnExpression:
+		case plan.ColumnExpr:
 			found = found || n.Frame == frame
-		case returningWholeRowExpression:
+		case plan.ReturningWholeRowExpr:
 			found = found || n.Frame == frame
-		case aggregateExpression:
+		case plan.AggregateExpr:
 			if n.Frame == frame {
 				if call, ok := b.aggregateCallAt(n); ok {
 					call.Expressions(func(expr expr.Expr) { walkQueryArgumentExpression(expr, visit) })
@@ -357,11 +358,11 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) 
 					return nil, err
 				}
 			}
-			result = scalarArrayComparisonExpression{Info: info, Left: l, Items: children, Predicate: predicate, Operator: name, All: raw.Negate}
+			result = plan.ScalarArrayComparisonExpr{Info: info, Left: l, Items: children, Predicate: predicate, Operator: name, All: raw.Negate}
 			// PostgreSQL coerces an unknown Param occurrence in place, unlike
 			// an unknown Const. Only the original batch lhs is updated before
 			// Var pairs copy it; other transformed occurrences stay independent.
-			if parameter, ok := left.node.(parameterExpression); ok && parameter.Usage.Type == nil {
+			if parameter, ok := left.node.(plan.ParameterExpr); ok && parameter.Usage.Type == nil {
 				left.node = l
 			}
 			batched = true
@@ -408,10 +409,10 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) 
 			// retain the same constructor's whole identity in its batch.
 			args := []parser.Expr{raw.Left, raw.Items[i]}
 			if rowPair {
-				comparison := pair.(rowComparisonExpression)
+				comparison := pair.(plan.RowComparisonExpr)
 				for side, input := range [2]inComparisonOperand{leftInput, rowItems[i]} {
 					_, rawRow := input.scalar.raw.(parser.RowExpr)
-					if constructor, ok := input.scalar.node.(rowExpression); ok && !rawRow {
+					if constructor, ok := input.scalar.node.(plan.RowExpr); ok && !rawRow {
 						args[side] = *constructor.Raw
 						comparison.MemberCasts[side] = true
 					}
@@ -428,7 +429,7 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) 
 			continue
 		}
 		properties := expr.MergeProperties(result.Properties(), pair.Properties())
-		result = logicalExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties), Op: logical, Left: result, Right: pair}
+		result = plan.LogicalExpr{Info: b.info(b.typ(sqltype.Bool).Usage(), raw.Pos, properties), Op: logical, Left: result, Right: pair}
 		if capture {
 			syntax = parser.LogicalExpr{Op: logical, Left: syntax, Right: pairSyntax, Pos: raw.Pos}
 		}
@@ -443,7 +444,7 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) 
 }
 
 // Copy only changed list storage; the analyzed tree remains immutable.
-func mapScalarArrayChildren(n scalarArrayComparisonExpression, child func(expr.Expr) (expr.Expr, bool, error)) (scalarArrayComparisonExpression, bool, error) {
+func mapScalarArrayChildren(n plan.ScalarArrayComparisonExpr, child func(expr.Expr) (expr.Expr, bool, error)) (plan.ScalarArrayComparisonExpr, bool, error) {
 	left, changed, err := child(n.Left)
 	if err != nil {
 		return n, false, err
@@ -477,7 +478,7 @@ func mapScalarArrayChildren(n scalarArrayComparisonExpression, child func(expr.E
 	return n, changed, nil
 }
 
-func renderScalarArrayComparison(n scalarArrayComparisonExpression, child func(expr.Expr) (string, error), identifier func(string) string) (string, error) {
+func renderScalarArrayComparison(n plan.ScalarArrayComparisonExpr, child func(expr.Expr) (string, error), identifier func(string) string) (string, error) {
 	left, err := child(n.Left)
 	if err != nil {
 		return "", err

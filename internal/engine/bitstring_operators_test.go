@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -80,8 +81,8 @@ func TestBitStringOperatorsBindingAndReownership(t *testing.T) {
 			t.Fatal(tc.name, err)
 		}
 		if tc.name != "||" {
-			original := node.(bitwiseExpression)
-			next := rebound.(bitwiseExpression)
+			original := node.(plan.BitwiseExpr)
+			next := rebound.(plan.BitwiseExpr)
 			if original.Bits == (sqltype.BitStringBitwise{}) || original.Provider != (sqltype.Bitwise{}) || original.Bits == next.Bits {
 				t.Fatal("wrong bit provider ownership")
 			}
@@ -107,21 +108,21 @@ func TestBitStringOperatorsStoredValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := node.(bitwiseExpression)
+	root := node.(plan.BitwiseExpr)
 	integral, err := sqltype.BindBitwise(sqltype.BitwiseAnd, b.typ(sqltype.Int4), b.typ(sqltype.Int4))
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, mutate := range []func(bitwiseExpression) bitwiseExpression{
-		func(n bitwiseExpression) bitwiseExpression { n.Bits = sqltype.BitStringBitwise{}; return n },
-		func(n bitwiseExpression) bitwiseExpression { n.Provider = integral; return n },
-		func(n bitwiseExpression) bitwiseExpression { n.Left = nil; return n },
-		func(n bitwiseExpression) bitwiseExpression { n.Right = nil; return n },
-		func(n bitwiseExpression) bitwiseExpression { n.Operator = sqltype.BitwiseOperator(255); return n },
-		func(n bitwiseExpression) bitwiseExpression { n.Usage.Typmod = 3; return n },
-		func(n bitwiseExpression) bitwiseExpression {
-			n.Right = n.Left.(literalExpression)
-			r := n.Right.(literalExpression)
+	for _, mutate := range []func(plan.BitwiseExpr) plan.BitwiseExpr{
+		func(n plan.BitwiseExpr) plan.BitwiseExpr { n.Bits = sqltype.BitStringBitwise{}; return n },
+		func(n plan.BitwiseExpr) plan.BitwiseExpr { n.Provider = integral; return n },
+		func(n plan.BitwiseExpr) plan.BitwiseExpr { n.Left = nil; return n },
+		func(n plan.BitwiseExpr) plan.BitwiseExpr { n.Right = nil; return n },
+		func(n plan.BitwiseExpr) plan.BitwiseExpr { n.Operator = sqltype.BitwiseOperator(255); return n },
+		func(n plan.BitwiseExpr) plan.BitwiseExpr { n.Usage.Typmod = 3; return n },
+		func(n plan.BitwiseExpr) plan.BitwiseExpr {
+			n.Right = n.Left.(plan.LiteralExpr)
+			r := n.Right.(plan.LiteralExpr)
 			r.Usage.Typmod = 3
 			n.Right = r
 			return n
@@ -146,7 +147,7 @@ func TestBitStringOperatorsStoredValidation(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	if _, ok := folded.(literalExpression); !ok {
+	if _, ok := folded.(plan.LiteralExpr); !ok {
 		t.Fatal("constant bit operator not folded")
 	}
 	got, err := folded.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
@@ -157,7 +158,7 @@ func TestBitStringOperatorsStoredValidation(t *testing.T) {
 	// An imported parameter literal must not acquire immutable-constant demand.
 	dependent := root
 	dependent.Property.ParameterDependent = true
-	left := dependent.Left.(literalExpression)
+	left := dependent.Left.(plan.LiteralExpr)
 	left.Property.ParameterDependent = true
 	dependent.Left = left
 	if _, changed, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: ctx}}, dependent); err != nil || changed {
@@ -183,7 +184,7 @@ func TestBitStringOperatorsOperandEvaluation(t *testing.T) {
 			calls = append(calls, "error")
 			return sqltype.Value{}, &sqlstate.Error{Code: "22026", Message: "cannot AND bit strings of different sizes"}
 		})
-		root := bitwiseExpression{Info: expr.Info{Usage: bit.Usage()}, Left: null, Right: failure, Bits: provider, Operator: sqltype.BitwiseAnd}
+		root := plan.BitwiseExpr{Info: expr.Info{Usage: bit.Usage()}, Left: null, Right: failure, Bits: provider, Operator: sqltype.BitwiseAnd}
 		if reverse {
 			root.Left, root.Right = root.Right, root.Left
 		}
@@ -207,7 +208,7 @@ func TestBitStringOperatorsBoundedConcatArguments(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		source := literalExpression{Info: expr.Info{Usage: usage}, Value: value}
+		source := plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: value}
 		operands := []functions.Argument{{Expression: source, Usage: usage}, {Expression: source, Usage: usage}}
 		var types functions.BinaryTypes
 		node, err := functions.FinishBinary(b, "||", sqltype.VarBit, parser.Position{}, operands, parser.OrdinaryFunctionSyntax, &types)

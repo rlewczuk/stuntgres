@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -111,17 +112,17 @@ func TestJSONBInsertAllSlotPropertiesAndTraversal(t *testing.T) {
 	base := jsonbSetUnitBind(t, b, `SELECT jsonb_insert('[0]','{0}','9',false)`).(functions.JSONBSet)
 	for slot := range 4 {
 		e := base
-		column := columnExpression{Info: expr.Info{Usage: e.Args[slot].ResultUsage(), Property: expr.Properties{RowDependent: true}}}
+		column := plan.ColumnExpr{Info: expr.Info{Usage: e.Args[slot].ResultUsage(), Property: expr.Properties{RowDependent: true}}}
 		e.Args[slot] = column
 		rewritten, err := b.rewriteGroup(e, []expr.Expr{column})
 		if err != nil {
 			t.Fatal(slot, err)
 		}
 		n := rewritten.(functions.JSONBSet)
-		if _, ok := n.Args[slot].(groupExpression); !ok {
+		if _, ok := n.Args[slot].(plan.GroupExpr); !ok {
 			t.Fatal("slot not grouped", slot)
 		}
-		if _, ok := e.Args[slot].(columnExpression); !ok {
+		if _, ok := e.Args[slot].(plan.ColumnExpr); !ok {
 			t.Fatal("rewrite mutated source", slot)
 		}
 		seen := false

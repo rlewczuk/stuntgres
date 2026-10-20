@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -14,9 +15,9 @@ func TestQueryTiesPresenceOnly(t *testing.T) {
 	if !canSimplifyExists(query) {
 		t.Fatal("literal positive bound not eligible")
 	}
-	original := query.Root.(*projectNode).Child.(*limitNode)
-	limit := presenceQueryInput(original).(*limitNode)
-	ordered := limit.Child.(*sortNode)
+	original := query.Root.(*plan.ProjectNode).Child.(*plan.LimitNode)
+	limit := presenceQueryInput(original).(*plan.LimitNode)
+	ordered := limit.Child.(*plan.SortNode)
 	if !limit.PresenceOnly || !ordered.PresenceOnly || limit.Count != original.Count || !limit.WithTies || len(limit.PeerKeys) != len(original.PeerKeys) {
 		t.Fatal("presence transformation lost analyzed graph")
 	}
@@ -24,7 +25,7 @@ func TestQueryTiesPresenceOnly(t *testing.T) {
 	failure := errors.New("ignored bounds or ORDER executed")
 	limit.Count = queryProbe(limit.Count.ResultUsage(), func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Value{}, failure })
 	probe := queryProbe(ordered.Keys[0].Expression.ResultUsage(), func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Value{}, failure })
-	ordered.Keys = append([]sortKey(nil), ordered.Keys...)
+	ordered.Keys = append([]plan.SortKey(nil), ordered.Keys...)
 	ordered.Keys[0].Expression = probe
 	limit.PeerKeys = ordered.Keys
 	state := &queryState{source: source}
@@ -58,9 +59,9 @@ func TestQueryTiesReplacementCache(t *testing.T) {
 			t.Run(properties.name+"/"+mode, func(t *testing.T) {
 				calls := 0
 				expr := queryProbeExpression{Info: expr.Info{Usage: typ.Usage(), Property: properties.properties}, eval: func(c *EvalContext) (sqltype.Value, error) { calls++; return c.Row[0], nil }}
-				ordered := &sortNode{Keys: []sortKey{{Cache: 0, Expression: expr, Output: mode == "only visible"}, {Cache: 0, Expression: expr, Output: mode == "only visible"}}, CacheWidth: 1}
+				ordered := &plan.SortNode{Keys: []plan.SortKey{{Cache: 0, Expression: expr, Output: mode == "only visible"}, {Cache: 0, Expression: expr, Output: mode == "only visible"}}, CacheWidth: 1}
 				if mode == "ties hidden" {
-					limit := &limitNode{WithTies: true}
+					limit := &plan.LimitNode{WithTies: true}
 					limit.FinishTies(ordered)
 				}
 				evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{orderValues: []sqltype.Value{one}}}
@@ -128,8 +129,8 @@ func TestQueryTiesReplacementFailure(t *testing.T) {
 			if phase == "physical slot" {
 				slot = -1
 			}
-			ordered := &sortNode{Keys: []sortKey{{Cache: slot, Expression: expr}}, CacheWidth: 1}
-			limit := &limitNode{WithTies: true}
+			ordered := &plan.SortNode{Keys: []plan.SortKey{{Cache: slot, Expression: expr}}, CacheWidth: 1}
+			limit := &plan.LimitNode{WithTies: true}
 			limit.FinishTies(ordered)
 			evaluation := EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{orderValues: []sqltype.Value{one}}}
 			err := refreshLockedOrder(ordered, []sqltype.Value{one}, &evaluation)
@@ -166,8 +167,8 @@ func TestQueryTiesPresenceBoundEligibility(t *testing.T) {
 			if canSimplifyExists(query) {
 				t.Fatal("ordinary bound incorrectly discarded")
 			}
-			limit := query.Root.(*projectNode).Child.(*limitNode)
-			if limit.PresenceOnly || limit.Child.(*sortNode).PresenceOnly {
+			limit := query.Root.(*plan.ProjectNode).Child.(*plan.LimitNode)
+			if limit.PresenceOnly || limit.Child.(*plan.SortNode).PresenceOnly {
 				t.Fatal("ordinary ORDER production bypassed")
 			}
 		})

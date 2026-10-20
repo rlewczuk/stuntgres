@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -140,7 +141,7 @@ func TestTimezoneSourceScopeRetainsClockAndSettings(t *testing.T) {
 			d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: tc.oid})
 			ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
 			e.mu.Lock()
-			rows, err := e.openRelationSourceLocked(scope, ref, d.Owner, queryRowMark{}, nil, nil)
+			rows, err := e.openRelationSourceLocked(scope, ref, d.Owner, plan.RowMark{}, nil, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

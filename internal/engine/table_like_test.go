@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -66,25 +67,25 @@ func TestTableLikeCookedRowRemap(t *testing.T) {
 	in.rowRef, in.slots = in.rowMapper(destination, e.CatalogRead())
 	columnRef := ref
 	columnRef.Address.SubID = 3
-	column := columnExpression{Info: expr.Info{Usage: testUsage(e, sqltype.Int4)}, Origin: columnRef, Scope: 1, Frame: 1, Slot: 1}
+	column := plan.ColumnExpr{Info: expr.Info{Usage: testUsage(e, sqltype.Int4)}, Origin: columnRef, Scope: 1, Frame: 1, Slot: 1}
 	mapped, err := in.remap(column, destination, e.CatalogRead())
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := mapped.(columnExpression)
+	got := mapped.(plan.ColumnExpr)
 	if got.Origin.Domain() != e.catalog.Domain || got.Origin.Epoch != current.Epoch || got.Origin.Address.ObjectID != destination.Address().ObjectID || got.Origin.Address.SubID != 3 || got.Slot != 2 || column.Origin != columnRef || column.Slot != 1 {
 		t.Fatal(got, column)
 	}
-	owner := tableOIDExpression{Info: expr.Info{Usage: testUsage(e, sqltype.Oid)}, Owner: ref}
+	owner := plan.TableOIDExpr{Info: expr.Info{Usage: testUsage(e, sqltype.Oid)}, Owner: ref}
 	mapped, err = in.remap(owner, destination, e.CatalogRead())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if mapped.(tableOIDExpression).Owner.Domain() != e.catalog.Domain || mapped.(tableOIDExpression).Owner.Epoch != current.Epoch || mapped.(tableOIDExpression).Owner.Address != destination.Address() || owner.Owner != ref {
+	if mapped.(plan.TableOIDExpr).Owner.Domain() != e.catalog.Domain || mapped.(plan.TableOIDExpr).Owner.Epoch != current.Epoch || mapped.(plan.TableOIDExpr).Owner.Address != destination.Address() || owner.Owner != ref {
 		t.Fatal(mapped, owner)
 	}
 	usage := testUsage(e, sqltype.Regclass)
-	literal := literalExpression{Info: expr.Info{Usage: usage, RegclassRef: ref}, Value: sqltype.Null(usage.Type)}
+	literal := plan.LiteralExpr{Info: expr.Info{Usage: usage, RegclassRef: ref}, Value: sqltype.Null(usage.Type)}
 	mapped, err = in.remap(literal, destination, e.CatalogRead())
 	if err != nil {
 		t.Fatal(err)

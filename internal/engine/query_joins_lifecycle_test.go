@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -482,7 +483,7 @@ func TestQueryJoinsSelectedPrivateRoots(t *testing.T) {
 			sessionSQL(t, s, "INSERT INTO a VALUES(3)")
 			sessionSQL(t, s, "INSERT INTO b VALUES(3)")
 		}
-		var query *BoundQuery
+		var query *plan.Query
 		source, finish := func() (*querySource, func(error) error) {
 			op := transactionOperation(t, s)
 			t.Cleanup(op.Done)

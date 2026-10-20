@@ -7,13 +7,14 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
 func serialLeaf(node expr.Expr) functions.SequenceCall {
 	for {
-		if wrapper, ok := node.(coercionExpression); ok {
+		if wrapper, ok := node.(plan.CoercionExpr); ok {
 			node = wrapper.Child
 			continue
 		}
@@ -51,7 +52,7 @@ func TestSerialStoredDefaultInvariants(t *testing.T) {
 			func(n functions.SequenceCall) functions.SequenceCall { n.Args = nil; return n },
 			func(n functions.SequenceCall) functions.SequenceCall { n.Property.Volatility = expr.Stable; return n },
 			func(n functions.SequenceCall) functions.SequenceCall {
-				arg := n.Args[0].(literalExpression)
+				arg := n.Args[0].(plan.LiteralExpr)
 				arg.Value = sqltype.String(arg.Usage.Type, "999")
 				n.Args = []expr.Expr{arg}
 				return n

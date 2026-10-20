@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -97,7 +98,7 @@ func TestBinaryConversionCarrier(t *testing.T) {
 			}
 			for i, arg := range args {
 				observed := arg.(mathObservedArgument)
-				args[i] = literalExpression{Info: observed.Info, Value: observed.value}
+				args[i] = plan.LiteralExpr{Info: observed.Info, Value: observed.value}
 			}
 			if generationImmutable(bound) != (tc.volatility == expr.Immutable) {
 				t.Fatal("generation intrinsic volatility lost")

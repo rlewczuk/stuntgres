@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
@@ -127,7 +128,7 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 	defer done()
 	for _, query := range []string{"SELECT pg_get_acl($1,$2,$3)", "SELECT pg_get_acl(objsubid => $1,classid => $2,objid => $3)", "SELECT pg_get_acl(NULL,NULL,NULL)"} {
 		q := domainUnitBindSelect(t, e, op, query)
-		n, ok := q.Root.(*projectNode).Expressions[0].(functions.ObjectACL)
+		n, ok := q.Root.(*plan.ProjectNode).Expressions[0].(functions.ObjectACL)
 		if !ok || n.ResultUsage().Type.ID() != sqltype.ACLItemArray || n.Properties().Volatility != expr.Stable || n.Validate() != nil {
 			t.Fatal("typed STABLE recipe", n)
 		}
@@ -165,7 +166,7 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 	integer, _ := view.LookupType(sqltype.Int4)
 	n := functions.ObjectACL{Info: expr.Info{Usage: array.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Slots: [3]uint8{0, 1, 2}}
 	for i, typ := range []*sqltype.Descriptor{oid, oid, integer} {
-		n.Args[i] = literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: sqltype.Null(typ)}
+		n.Args[i] = plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: sqltype.Null(typ)}
 	}
 	destination := New().CatalogRead()
 	mapped, changed, err := retagBoundTypes(destination, n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
@@ -189,13 +190,13 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 		t.Fatal("stored remap", err)
 	}
 	rewritten, changed, err := mapBoundExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(child expr.Expr) (expr.Expr, bool, error) {
-		if literal, ok := child.(literalExpression); ok && literal.Value.Type().ID() == sqltype.Oid {
+		if literal, ok := child.(plan.LiteralExpr); ok && literal.Value.Type().ID() == sqltype.Oid {
 			literal.Value, _ = sqltype.OIDValue(oid, 42)
 			return literal, true, nil
 		}
 		return child, false, nil
 	})
-	if err != nil || !changed || rewritten.(functions.ObjectACL).Args[0].(literalExpression).Value.IsNull() || !n.Args[0].(literalExpression).Value.IsNull() {
+	if err != nil || !changed || rewritten.(functions.ObjectACL).Args[0].(plan.LiteralExpr).Value.IsNull() || !n.Args[0].(plan.LiteralExpr).Value.IsNull() {
 		t.Fatal("leaf rewrite mutated original recipe or skipped children", changed, err)
 	}
 	// Named recipes must render their NULL children in written order.
@@ -206,7 +207,7 @@ func TestObjectACLExpressionProperties(t *testing.T) {
 		t.Fatal("named written-order render", spec, err)
 	}
 	for i, label := range []string{"objsubid", "classid", "objid"} {
-		if spec.Args[i].Label != label || spec.Args[i].Expr != n.Args[i] || !spec.Args[i].Expr.(literalExpression).Value.IsNull() {
+		if spec.Args[i].Label != label || spec.Args[i].Expr != n.Args[i] || !spec.Args[i].Expr.(plan.LiteralExpr).Value.IsNull() {
 			t.Fatal("named render changed written order or a NULL child", i, spec.Args[i])
 		}
 	}

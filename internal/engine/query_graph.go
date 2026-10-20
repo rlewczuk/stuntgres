@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -11,37 +12,37 @@ import (
 
 // Logical inputs exclude expression-owned queries. Consumers visit those at
 // explicit subquery boundaries, preserving lexical frames and leaf occurrences.
-func queryInputs(node LogicalNode) (LogicalNode, LogicalNode) {
+func queryInputs(node plan.Node) (plan.Node, plan.Node) {
 	switch n := node.(type) {
-	case *setProjectNode:
+	case *plan.SetProjectNode:
 		return n.Child, nil
-	case *setNode:
+	case *plan.SetNode:
 		return n.Left, n.Right
-	case *recursiveUnionNode:
+	case *plan.RecursiveUnionNode:
 		return n.Left, n.Right
-	case *projectNode:
+	case *plan.ProjectNode:
 		return n.Child, nil
-	case *filterNode:
+	case *plan.FilterNode:
 		return n.Child, nil
-	case *sortNode:
+	case *plan.SortNode:
 		return n.Child, nil
-	case *windowNode:
+	case *plan.WindowNode:
 		return n.Child, nil
-	case *aggregateNode:
+	case *plan.AggregateNode:
 		return n.Child, nil
-	case *distinctNode:
+	case *plan.DistinctNode:
 		return n.Child, nil
-	case *distinctOnNode:
+	case *plan.DistinctOnNode:
 		return n.Child, nil
-	case *limitNode:
+	case *plan.LimitNode:
 		return n.Child, nil
-	case *rowLockNode:
+	case *plan.RowLockNode:
 		return n.Child, nil
-	case *evaluationNode:
+	case *plan.EvaluationNode:
 		return n.Child, nil
-	case *joinNode:
+	case *plan.JoinNode:
 		return n.Left, n.Right
-	case *derivedNode:
+	case *plan.DerivedNode:
 		if n.Query != nil {
 			return n.Query.Root, nil
 		}
@@ -49,18 +50,18 @@ func queryInputs(node LogicalNode) (LogicalNode, LogicalNode) {
 	return nil, nil
 }
 
-func queryExpressions(node LogicalNode, visit func(expr.Expr)) {
+func queryExpressions(node plan.Node, visit func(expr.Expr)) {
 	args := func(items []expr.Expr) {
 		for _, expr := range items {
 			visit(expr)
 		}
 	}
 	switch n := node.(type) {
-	case *functionFromNode:
+	case *plan.FunctionFromNode:
 		for _, call := range n.Calls {
 			visit(call)
 		}
-	case *setProjectNode:
+	case *plan.SetProjectNode:
 		for _, call := range n.Calls {
 			visit(call)
 		}
@@ -70,27 +71,27 @@ func queryExpressions(node LogicalNode, visit func(expr.Expr)) {
 			args(n.Template.Origins)
 			args(n.Template.Scalars)
 		}
-	case *setNode:
+	case *plan.SetNode:
 		args(n.LeftExpressions)
 		args(n.RightExpressions)
-	case *recursiveUnionNode:
+	case *plan.RecursiveUnionNode:
 		args(n.LeftExpressions)
 		args(n.RightExpressions)
 		if c := n.Cycle; c != nil {
 			visit(c.Mark)
 			visit(c.Fallback)
 		}
-	case *projectNode:
+	case *plan.ProjectNode:
 		args(n.Expressions)
 		args(n.AnalysisExpressions)
-	case *filterNode:
+	case *plan.FilterNode:
 		visit(n.Predicate)
-	case *sortNode:
+	case *plan.SortNode:
 		for _, key := range n.Keys {
 			visit(key.Expression)
 		}
 		args(n.Outputs)
-	case *windowNode:
+	case *plan.WindowNode:
 		for _, call := range n.Calls {
 			if call.AnalysisOnly {
 				continue
@@ -110,24 +111,24 @@ func queryExpressions(node LogicalNode, visit func(expr.Expr)) {
 			visit(spec.Frame.Start.Offset)
 			visit(spec.Frame.End.Offset)
 		}
-	case *aggregateNode:
+	case *plan.AggregateNode:
 		args(n.Keys)
 		for _, call := range n.Calls {
 			call.Expressions(visit)
 		}
-	case *distinctNode:
+	case *plan.DistinctNode:
 		args(n.Expressions)
-	case *distinctOnNode:
+	case *plan.DistinctOnNode:
 		args(n.Expressions)
-	case *limitNode:
+	case *plan.LimitNode:
 		visit(n.Offset)
 		visit(n.Count)
-	case *evaluationNode:
+	case *plan.EvaluationNode:
 		args(n.Expressions)
-	case *joinNode:
+	case *plan.JoinNode:
 		visit(n.Predicate)
 		args(n.Merges)
-	case *valuesNode:
+	case *plan.ValuesNode:
 		for _, row := range n.Rows {
 			args(row)
 		}
@@ -136,15 +137,15 @@ func queryExpressions(node LogicalNode, visit func(expr.Expr)) {
 
 // A stored view freezes every query's original input frame as well as the
 // executable output tree. The maps are analyzed metadata, never row caches.
-func collectQueryFrames(root LogicalNode) (map[uint32]*projectNode, map[*parser.Select]*projectNode) {
-	frames := make(map[uint32]*projectNode)
-	queries := make(map[*parser.Select]*projectNode)
-	var walk func(LogicalNode)
-	walk = func(node LogicalNode) {
+func collectQueryFrames(root plan.Node) (map[uint32]*plan.ProjectNode, map[*parser.Select]*plan.ProjectNode) {
+	frames := make(map[uint32]*plan.ProjectNode)
+	queries := make(map[*parser.Select]*plan.ProjectNode)
+	var walk func(plan.Node)
+	walk = func(node plan.Node) {
 		if node == nil {
 			return
 		}
-		if n, ok := node.(*projectNode); ok && n.Syntax != nil {
+		if n, ok := node.(*plan.ProjectNode); ok && n.Syntax != nil {
 			if frames[n.Frame] != nil {
 				return
 			}
@@ -155,7 +156,7 @@ func collectQueryFrames(root LogicalNode) (map[uint32]*projectNode, map[*parser.
 		walk(right)
 		queryExpressions(node, func(bound expr.Expr) {
 			walkBoundExpression(bound, func(expr expr.Expr) {
-				if e, ok := expr.(subqueryExpression); ok {
+				if e, ok := expr.(plan.SubqueryExpr); ok {
 					walk(e.QueryPlan.Root)
 				}
 			})
@@ -165,7 +166,7 @@ func collectQueryFrames(root LogicalNode) (map[uint32]*projectNode, map[*parser.
 	return frames, queries
 }
 
-func queryDescriptorsChanged(node LogicalNode, typ func(*sqltype.Descriptor) *sqltype.Descriptor) bool {
+func queryDescriptorsChanged(node plan.Node, typ func(*sqltype.Descriptor) *sqltype.Descriptor) bool {
 	if node == nil {
 		return false
 	}
@@ -180,7 +181,7 @@ func queryDescriptorsChanged(node LogicalNode, typ func(*sqltype.Descriptor) *sq
 			if typ(expr.ResultUsage().Type) != expr.ResultUsage().Type {
 				changed = true
 			}
-			if child, ok := expr.(subqueryExpression); ok && queryDescriptorsChanged(child.QueryPlan.Root, typ) {
+			if child, ok := expr.(plan.SubqueryExpr); ok && queryDescriptorsChanged(child.QueryPlan.Root, typ) {
 				changed = true
 			}
 		})
@@ -195,7 +196,7 @@ func queryDescriptorsChanged(node LogicalNode, typ func(*sqltype.Descriptor) *sq
 // A type-only fast path must not retain an old routine identity carrier after
 // catalog reownership. Pointer comparison here requests metadata reconstruction;
 // it is never an ACL or lifetime admission decision.
-func queryRoutineCarriersChanged(view catalog.Read, node LogicalNode) bool {
+func queryRoutineCarriersChanged(view catalog.Read, node plan.Node) bool {
 	if node == nil || view.State() == nil {
 		return false
 	}
@@ -206,7 +207,7 @@ func queryRoutineCarriersChanged(view catalog.Read, node LogicalNode) bool {
 			if err != nil || captured != nil && view.Get(captured.Address()) != captured {
 				changed = true
 			}
-			if subquery, ok := expression.(subqueryExpression); ok && queryRoutineCarriersChanged(view, subquery.QueryPlan.Root) {
+			if subquery, ok := expression.(plan.SubqueryExpr); ok && queryRoutineCarriersChanged(view, subquery.QueryPlan.Root) {
 				changed = true
 			}
 		})
@@ -218,30 +219,30 @@ func queryRoutineCarriersChanged(view catalog.Read, node LogicalNode) bool {
 	return queryRoutineCarriersChanged(view, left) || queryRoutineCarriersChanged(view, right)
 }
 
-func queryIgnoresOwnExpressions(node LogicalNode) bool {
+func queryIgnoresOwnExpressions(node plan.Node) bool {
 	switch n := node.(type) {
-	case *sortNode:
+	case *plan.SortNode:
 		return n.PresenceOnly
-	case *aggregateNode:
+	case *plan.AggregateNode:
 		return n.PresenceOnly
-	case *distinctNode:
+	case *plan.DistinctNode:
 		return n.PresenceOnly
-	case *distinctOnNode:
+	case *plan.DistinctOnNode:
 		return n.PresenceOnly
 	}
 	return false
 }
 
-func queryDemandProperties(project *projectNode, presence bool) expr.Properties {
+func queryDemandProperties(project *plan.ProjectNode, presence bool) expr.Properties {
 	var properties expr.Properties
-	var walk func(LogicalNode, *projectNode)
-	walk = func(node LogicalNode, ignoredProject *projectNode) {
+	var walk func(plan.Node, *plan.ProjectNode)
+	walk = func(node plan.Node, ignoredProject *plan.ProjectNode) {
 		if node == nil {
 			return
 		}
 		if node != ignoredProject && !queryIgnoresOwnExpressions(node) {
 			queryExpressions(node, func(bound expr.Expr) {
-				if edge, ok := bound.(subqueryExpression); ok && edge.CTEDefinition {
+				if edge, ok := bound.(plan.SubqueryExpr); ok && edge.CTEDefinition {
 					return
 				}
 				if bound == nil {
@@ -253,24 +254,24 @@ func queryDemandProperties(project *projectNode, presence bool) expr.Properties 
 				walkBoundExpression(bound, func(expr expr.Expr) {
 					var frame uint32
 					switch n := expr.(type) {
-					case columnExpression:
+					case plan.ColumnExpr:
 						frame = n.Frame
-					case returningWholeRowExpression:
+					case plan.ReturningWholeRowExpr:
 						frame = n.Frame
-					case mergeActionExpression:
+					case plan.MergeActionExpr:
 						frame = n.Frame
-					case groupExpression:
+					case plan.GroupExpr:
 						frame = n.Frame
-					case aggregateExpression:
+					case plan.AggregateExpr:
 						frame = n.Frame
-					case groupingExpression:
+					case plan.GroupingExpr:
 						frame = n.Frame
-					case *windowExpression:
+					case *plan.WindowExpr:
 						frame = n.Frame
-					case subqueryExpression:
-						var ignoredChild *projectNode
+					case plan.SubqueryExpr:
+						var ignoredChild *plan.ProjectNode
 						if n.PresenceOnly {
-							ignoredChild = n.QueryPlan.Root.(*projectNode)
+							ignoredChild = n.QueryPlan.Root.(*plan.ProjectNode)
 						}
 						walk(n.QueryPlan.Root, ignoredChild)
 					}
@@ -284,7 +285,7 @@ func queryDemandProperties(project *projectNode, presence bool) expr.Properties 
 		walk(left, ignoredProject)
 		walk(right, ignoredProject)
 	}
-	var ignoredProject *projectNode
+	var ignoredProject *plan.ProjectNode
 	if presence {
 		ignoredProject = project
 	}
@@ -294,25 +295,25 @@ func queryDemandProperties(project *projectNode, presence bool) expr.Properties 
 
 // Runtime reads belong to an occurrence's physical input span in its lexical
 // frame, not to a relation OID. Analysis-only CTE edges remain frozen metadata.
-func queryExecutionSourceReads(root LogicalNode, ignoredProject *projectNode) map[int][]int32 {
+func queryExecutionSourceReads(root plan.Node, ignoredProject *plan.ProjectNode) map[int][]int32 {
 	type span struct {
-		source *sourceNode
+		source *plan.SourceNode
 		offset int
 	}
 	var frames map[uint32][]span
 	var reads map[int][]int32
-	var walk func(LogicalNode, uint32, int, *projectNode, bool)
-	walk = func(node LogicalNode, frame uint32, offset int, ignored *projectNode, collect bool) {
+	var walk func(plan.Node, uint32, int, *plan.ProjectNode, bool)
+	walk = func(node plan.Node, frame uint32, offset int, ignored *plan.ProjectNode, collect bool) {
 		if node == nil {
 			return
 		}
-		if project, ok := node.(*projectNode); ok {
+		if project, ok := node.(*plan.ProjectNode); ok {
 			frame, offset = project.Frame, 0
 			if frame == 0 {
 				frame = 1
 			}
 		}
-		if source, ok := node.(*sourceNode); ok && !collect {
+		if source, ok := node.(*plan.SourceNode); ok && !collect {
 			if reads == nil {
 				frames = make(map[uint32][]span)
 				reads = make(map[int][]int32)
@@ -323,7 +324,7 @@ func queryExecutionSourceReads(root LogicalNode, ignoredProject *projectNode) ma
 		left, right := queryInputs(node)
 		walk(left, frame, offset, ignored, collect)
 		rightOffset := offset
-		if join, ok := node.(*joinNode); ok {
+		if join, ok := node.(*plan.JoinNode); ok {
 			rightOffset += join.LeftWidth
 		}
 		walk(right, frame, rightOffset, ignored, collect)
@@ -333,16 +334,16 @@ func queryExecutionSourceReads(root LogicalNode, ignoredProject *projectNode) ma
 		visit := func(expression expr.Expr) {
 			walkBoundExpression(expression, func(expression expr.Expr) {
 				switch e := expression.(type) {
-				case subqueryExpression:
+				case plan.SubqueryExpr:
 					if e.CTEDefinition {
 						return
 					}
-					var ignoredChild *projectNode
+					var ignoredChild *plan.ProjectNode
 					if e.PresenceOnly {
-						ignoredChild = e.QueryPlan.Root.(*projectNode)
+						ignoredChild = e.QueryPlan.Root.(*plan.ProjectNode)
 					}
 					walk(e.QueryPlan.Root, frame, 0, ignoredChild, collect)
-				case columnExpression:
+				case plan.ColumnExpr:
 					if !collect || e.Scope != 1 || e.Origin.Address.SubID <= 0 {
 						return
 					}
@@ -362,7 +363,7 @@ func queryExecutionSourceReads(root LogicalNode, ignoredProject *projectNode) ma
 				}
 			})
 		}
-		if project, ok := node.(*projectNode); ok {
+		if project, ok := node.(*plan.ProjectNode); ok {
 			for _, expression := range project.Expressions {
 				visit(expression)
 			}

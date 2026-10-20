@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/visibility"
 )
 
@@ -77,7 +78,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 				if err != nil {
 					return err
 				}
-				if err := visit(use, viewLeafRowMark(viewOf(d), i, queryRowMark{Mode: mode}).Mode); err != nil {
+				if err := visit(use, viewLeafRowMark(viewOf(d), i, plan.RowMark{Mode: mode}).Mode); err != nil {
 					return err
 				}
 			}
@@ -118,7 +119,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		if err = e.captureCommentSnapshotLocked(s); err == nil {
 			collectAuth := s.inquiry.deparseAuth
 			collectAuth.Recapture(catalogView)
-			physical, err = e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, leaves, nil, s.op.session.token, queryRowMark{})
+			physical, err = e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, leaves, nil, s.op.session.token, plan.RowMark{})
 		}
 		if err == nil {
 			var view *visibility.View

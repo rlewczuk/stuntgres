@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -17,7 +18,7 @@ func preflightComposite(c *EvalContext, node expr.Composite, decisiveDefaults bo
 		return node, false, nil
 	case expr.PreflightNullFirst:
 		if literalNullChild(node) {
-			return literalExpression{foldedExpressionInfo(node), sqltype.Null(node.ResultUsage().Type)}, true, nil
+			return plan.LiteralExpr{foldedExpressionInfo(node), sqltype.Null(node.ResultUsage().Type)}, true, nil
 		}
 	}
 	mapped, changed, err := expr.MapSubstituted(node, func(child expr.Expr) (expr.Expr, bool, error) {
@@ -33,7 +34,7 @@ func preflightComposite(c *EvalContext, node expr.Composite, decisiveDefaults bo
 	case expr.PreflightNullBare:
 		if literalNullChild(next) {
 			u := next.ResultUsage()
-			return literalExpression{Info: expr.Info{Usage: u, Pos: next.SourcePosition()}, Value: sqltype.Null(u.Type)}, true, nil
+			return plan.LiteralExpr{Info: expr.Info{Usage: u, Pos: next.SourcePosition()}, Value: sqltype.Null(u.Type)}, true, nil
 		}
 		return next, changed, nil
 	case expr.PreflightNullOrEvaluate, expr.PreflightRegexNullOrEvaluate:
@@ -62,7 +63,7 @@ func preflightComposite(c *EvalContext, node expr.Composite, decisiveDefaults bo
 	}
 	if template, ok := next.(expr.ConstantTemplate); ok {
 		specialized, did, err := template.SpecializeTemplate(c.Context, func(child expr.Expr) (sqltype.Value, bool) {
-			literal, ok := child.(literalExpression)
+			literal, ok := child.(plan.LiteralExpr)
 			return literal.Value, ok
 		})
 		if err != nil {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -12,9 +13,9 @@ import (
 func TestQueryDistinctOnSlotsMetadataAndFreshProviders(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(v) id AS shown FROM t ORDER BY v,id DESC")
 	defer source.close()
-	project := query.Root.(*projectNode)
-	node := project.Child.(*distinctOnNode)
-	sorted := node.Child.(*sortNode)
+	project := query.Root.(*plan.ProjectNode)
+	node := project.Child.(*plan.DistinctOnNode)
+	sorted := node.Child.(*plan.SortNode)
 	if len(project.Schema()) != 1 || project.Schema()[0].OriginAttribute != 1 || project.Schema()[0].OriginTable == 0 || !project.Schema()[0].NullabilityKnown || project.Schema()[0].Nullable || len(node.Expressions) != 1 || len(sorted.Keys) != 2 {
 		t.Fatal(project.Schema(), node, sorted)
 	}
@@ -26,7 +27,7 @@ func TestQueryDistinctOnSlotsMetadataAndFreshProviders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	remapped := root.(*projectNode).Child.(*distinctOnNode)
+	remapped := root.(*plan.ProjectNode).Child.(*plan.DistinctOnNode)
 	v, _ := sqltype.Integer(fresh[sqltype.Int4], 1)
 	if _, err := remapped.Grouping[0].Hash(context.Background(), v); err != nil {
 		t.Fatal(err)
@@ -41,10 +42,10 @@ func TestQueryDistinctOnRequiredOutputIdentity(t *testing.T) {
 	for _, q := range []string{"SELECT DISTINCT ON(y) random() AS x,random() AS y FROM t ORDER BY y,id", "SELECT DISTINCT ON(1,2) random() AS x,random() AS y FROM t ORDER BY 1,2"} {
 		_, query, source := queryCoreFixture(t, q)
 		defer source.close()
-		p := query.Root.(*projectNode)
-		n := p.Child.(*distinctOnNode)
-		sorted := n.Child.(*sortNode)
-		x, y := p.Expressions[0].(cachedOrderExpression), p.Expressions[1].(cachedOrderExpression)
+		p := query.Root.(*plan.ProjectNode)
+		n := p.Child.(*plan.DistinctOnNode)
+		sorted := n.Child.(*plan.SortNode)
+		x, y := p.Expressions[0].(plan.CachedOrderExpr), p.Expressions[1].(plan.CachedOrderExpr)
 		if len(n.Expressions) == 1 {
 			if x.Slot != y.Slot || sorted.Keys[0].OutputOrdinal != 2 {
 				t.Fatal("undemanded sharing lost", x, y, sorted.Keys)
@@ -58,7 +59,7 @@ func TestQueryDistinctOnRequiredOutputIdentity(t *testing.T) {
 func TestQueryDistinctOnCollisionCandidates(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(v) id FROM t")
 	defer source.close()
-	node := query.Root.(*projectNode).Child.(*distinctOnNode)
+	node := query.Root.(*plan.ProjectNode).Child.(*plan.DistinctOnNode)
 	typ := node.Expressions[0].ResultUsage().Type
 	one, _ := sqltype.Integer(typ, 1)
 	two, _ := sqltype.Integer(typ, 2)
@@ -79,8 +80,8 @@ func TestQueryDistinctOnFailureCancellationAndPublication(t *testing.T) {
 	for _, phase := range []string{"key", "late key", "hash", "prepublication"} {
 		t.Run(phase, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(v) id FROM t")
-			project := query.Root.(*projectNode)
-			node := project.Child.(*distinctOnNode)
+			project := query.Root.(*plan.ProjectNode)
+			node := project.Child.(*plan.DistinctOnNode)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			original := node.Expressions[0]
@@ -139,7 +140,7 @@ func TestQueryDistinctOnFailureCancellationAndPublication(t *testing.T) {
 
 func TestQueryDistinctOnInsertKeyFailureNoBatch(t *testing.T) {
 	b, source := insertSelectEvaluationFixture(t, "SELECT DISTINCT ON(v) id FROM t")
-	node := b.query.Root.(*projectNode).Child.(*distinctOnNode)
+	node := b.query.Root.(*plan.ProjectNode).Child.(*plan.DistinctOnNode)
 	original := node.Expressions[0]
 	calls := 0
 	sentinel := errors.New("late ON INSERT key")
@@ -158,7 +159,7 @@ func TestQueryDistinctOnInsertKeyFailureNoBatch(t *testing.T) {
 
 func TestQueryDistinctOnLaterComponentDemand(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(v,id) id FROM t")
-	node := query.Root.(*projectNode).Child.(*distinctOnNode)
+	node := query.Root.(*plan.ProjectNode).Child.(*plan.DistinctOnNode)
 	first := node.Expressions[0]
 	node.Expressions[0] = queryProbe(first.ResultUsage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Integer(first.ResultUsage().Type, 1) })
 	second := node.Expressions[1]

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
 
@@ -24,7 +25,7 @@ func TestSQLRoutineKnownArgumentWindowOwner(t *testing.T) {
 		{"first occurrence", argumentWindowOwner{active: true, found: true, first: prior}, 1, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			node := &windowExpression{Info: expr.Info{Pos: position}, Frame: tc.frame, Slot: -1, Call: -1}
+			node := &plan.WindowExpr{Info: expr.Info{Pos: position}, Frame: tc.frame, Slot: -1, Call: -1}
 			b := &expressionBinder{
 				ctx:      context.Background(),
 				query:    queryScopeState{frame: 1},

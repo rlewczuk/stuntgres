@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -277,7 +278,7 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 		t.Fatal("distinguishing live publication missing")
 	}
 	e.mu.Lock()
-	captured, err := e.openRelationSourceLocked(scope, ref, op.RoleState().CurrentUser, queryRowMark{}, nil, nil)
+	captured, err := e.openRelationSourceLocked(scope, ref, op.RoleState().CurrentUser, plan.RowMark{}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

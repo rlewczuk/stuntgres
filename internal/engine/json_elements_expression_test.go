@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -90,7 +91,7 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 			t.Fatal("symbolic rendering", text, err)
 		}
 		other := jsonElementsUnitMarker(t, b, name, `[2]`)
-		root := &functionFromNode{Calls: []expr.Expr{original}, QuerySchema: querySchema{{Name: "value", Usage: b.typ(id).Usage()}}, Frame: 1}
+		root := &plan.FunctionFromNode{Calls: []expr.Expr{original}, QuerySchema: plan.QuerySchema{{Name: "value", Usage: b.typ(id).Usage()}}, Frame: 1}
 		rewritten, err := rewriteQueryExpressions(root, func(n expr.Expr) (expr.Expr, bool, error) {
 			if n == original.Args[0] {
 				return other.Args[0], true, nil
@@ -100,7 +101,7 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if rewritten.(*functionFromNode).Calls[0].(functions.JSONElements).Args[0] != other.Args[0] || root.Calls[0].(functions.JSONElements).Args[0] != original.Args[0] {
+		if rewritten.(*plan.FunctionFromNode).Calls[0].(functions.JSONElements).Args[0] != other.Args[0] || root.Calls[0].(functions.JSONElements).Args[0] != original.Args[0] {
 			t.Fatal("query rewrite mutated original")
 		}
 		if err := validateFunctionFromLayout(root); err != nil {
@@ -125,7 +126,7 @@ func TestJSONElementsNullPresenceAndPadding(t *testing.T) {
 			t.Fatal(err)
 		}
 		calls := []expr.Expr{series, marker}
-		invocation, err := openFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, &functionFromNode{Calls: calls})
+		invocation, err := openFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, &plan.FunctionFromNode{Calls: calls})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -149,7 +150,7 @@ func TestJSONElementsNullPresenceAndPadding(t *testing.T) {
 		if err != nil || present {
 			t.Fatal("exhausted source", present, err)
 		}
-		node := regexpSetUnitLayout(&setProjectNode{QuerySchema: querySchema{{Usage: marker.ResultUsage()}}, Child: &singletonNode{}, Calls: []expr.Expr{marker}, Frame: 1})
+		node := regexpSetUnitLayout(&plan.SetProjectNode{QuerySchema: plan.QuerySchema{{Usage: marker.ResultUsage()}}, Child: &plan.SingletonNode{}, Calls: []expr.Expr{marker}, Frame: 1})
 		stage, err := openSetProjectNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, node)
 		if err != nil {
 			t.Fatal(err)

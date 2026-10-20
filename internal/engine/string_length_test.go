@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -19,8 +20,8 @@ func TestStringLengthInputCollationAndResultAuthority(t *testing.T) {
 	left, right := text.Usage(), text.Usage()
 	left.Collation.ID, right.Collation.ID = 950, 951
 	args := []expr.Expr{
-		literalExpression{expr.Info{Usage: left}, sqltype.String(text, "abc")},
-		literalExpression{expr.Info{Usage: right}, sqltype.String(text, "")},
+		plan.LiteralExpr{expr.Info{Usage: left}, sqltype.String(text, "abc")},
+		plan.LiteralExpr{expr.Info{Usage: right}, sqltype.String(text, "")},
 	}
 	for _, name := range []string{"position", "strpos"} {
 		node, err := b.stringNode(name, integer.Usage(), parser.Position{Character: 8}, args, [4]bool{true, true}, parser.OrdinaryStringSyntax)
@@ -37,7 +38,7 @@ func TestStringLengthInputCollationAndResultAuthority(t *testing.T) {
 			t.Fatal("empty needle bypassed input demand", err)
 		}
 		explicit := append([]expr.Expr(nil), args...)
-		explicit[0] = literalExpression{expr.Info{Usage: left, CollationExplicit: parser.Position{Character: 20}}, sqltype.String(text, "abc")}
+		explicit[0] = plan.LiteralExpr{expr.Info{Usage: left, CollationExplicit: parser.Position{Character: 20}}, sqltype.String(text, "abc")}
 		resolved, err := b.stringNode(name, integer.Usage(), parser.Position{}, explicit, [4]bool{true, true}, parser.OrdinaryStringSyntax)
 		if err != nil || resolved.(functions.String).Plan.CollationIndeterminate() || resolved.ResultUsage() != integer.Usage() {
 			t.Fatal(resolved, err)
@@ -47,7 +48,7 @@ func TestStringLengthInputCollationAndResultAuthority(t *testing.T) {
 		if err != nil || index != 1 {
 			t.Fatal(value, err)
 		}
-		explicit[1] = literalExpression{expr.Info{Usage: right, CollationExplicit: parser.Position{Character: 40}}, sqltype.Null(text)}
+		explicit[1] = plan.LiteralExpr{expr.Info{Usage: right, CollationExplicit: parser.Position{Character: 40}}, sqltype.Null(text)}
 		_, err = b.stringNode(name, integer.Usage(), parser.Position{}, explicit, [4]bool{true, true}, parser.OrdinaryStringSyntax)
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42P21" || diagnostic.Position != "40" {
 			t.Fatal("explicit mismatch analysis", err)
@@ -64,8 +65,8 @@ func TestStringLengthRetainedPlansAndChildDemand(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	text, integer := b.typ(sqltype.Text), b.typ(sqltype.Int4)
 	args := []expr.Expr{
-		literalExpression{expr.Info{Usage: text.Usage(), Property: expr.Properties{Volatility: expr.Stable, ParameterDependent: true}}, sqltype.Null(text)},
-		literalExpression{expr.Info{Usage: text.Usage(), Property: expr.Properties{Volatility: expr.Volatile, RowDependent: true}}, sqltype.String(text, "x")},
+		plan.LiteralExpr{expr.Info{Usage: text.Usage(), Property: expr.Properties{Volatility: expr.Stable, ParameterDependent: true}}, sqltype.Null(text)},
+		plan.LiteralExpr{expr.Info{Usage: text.Usage(), Property: expr.Properties{Volatility: expr.Volatile, RowDependent: true}}, sqltype.String(text, "x")},
 	}
 	bound, err := b.stringNode("strpos", integer.Usage(), parser.Position{}, args, [4]bool{true, true}, parser.OrdinaryStringSyntax)
 	if err != nil {
@@ -79,7 +80,7 @@ func TestStringLengthRetainedPlansAndChildDemand(t *testing.T) {
 	bpchar := b.typ(sqltype.BPChar)
 	fixed := bpchar.Usage()
 	fixed.Typmod = 8
-	count, err := b.stringNode("octet_length", integer.Usage(), parser.Position{}, []expr.Expr{literalExpression{expr.Info{Usage: fixed}, sqltype.String(bpchar, "é🙂  ")}}, [4]bool{true}, parser.OrdinaryStringSyntax)
+	count, err := b.stringNode("octet_length", integer.Usage(), parser.Position{}, []expr.Expr{plan.LiteralExpr{expr.Info{Usage: fixed}, sqltype.String(bpchar, "é🙂  ")}}, [4]bool{true}, parser.OrdinaryStringSyntax)
 	if err != nil {
 		t.Fatal(err)
 	}

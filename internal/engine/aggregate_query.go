@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -19,7 +20,7 @@ type aggregateDistinctState struct {
 	tuples  []sqltype.Value
 }
 
-func (s *aggregateDistinctState) admit(ctx context.Context, grouping []queryGrouping, tuple []sqltype.Value) (bool, error) {
+func (s *aggregateDistinctState) admit(ctx context.Context, grouping []plan.Grouping, tuple []sqltype.Value) (bool, error) {
 	hash := uint64(14695981039346656037)
 	for i, family := range grouping {
 		value, err := family.PrepareKey(ctx, tuple[i])
@@ -45,7 +46,7 @@ func (s *aggregateDistinctState) admit(ctx context.Context, grouping []queryGrou
 	return true, ctx.Err()
 }
 
-func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode) (indexedStage, error) {
+func openAggregateNode(ctx context.Context, state *queryState, n *plan.AggregateNode) (indexedStage, error) {
 	if n.PresenceOnly {
 		return openQueryNode(ctx, state, n.Child)
 	}
@@ -364,7 +365,7 @@ func openAggregateNode(ctx context.Context, state *queryState, n *aggregateNode)
 	return indexedStage{source: source, schema: n.Schema()}, nil
 }
 
-func findQueryGroup(ctx context.Context, grouping []queryGrouping, keys []sqltype.Value, active []int, groups []queryGroup, candidates []int) (int, error) {
+func findQueryGroup(ctx context.Context, grouping []plan.Grouping, keys []sqltype.Value, active []int, groups []queryGroup, candidates []int) (int, error) {
 	for _, candidate := range candidates {
 		if err := ctx.Err(); err != nil {
 			return -1, err
@@ -396,7 +397,7 @@ type orderedAggregateInput struct {
 	values  []sqltype.Value
 	indices []int
 	width   int
-	order   []sortKey
+	order   []plan.SortKey
 }
 
 // borrowed lends the sorted input to an ordered-set provider, with the
@@ -409,7 +410,7 @@ func (in orderedAggregateInput) borrowed(target []sqltype.Value) functions.Order
 		}}
 }
 
-func sortOrderedAggregate(ctx context.Context, state *queryState, call aggregateCall, tuples []sqltype.Value) (orderedAggregateInput, error) {
+func sortOrderedAggregate(ctx context.Context, state *queryState, call plan.AggregateCall, tuples []sqltype.Value) (orderedAggregateInput, error) {
 	width := call.StageWidth
 	indices := make([]int, len(tuples)/width)
 	for i := range indices {
@@ -425,7 +426,7 @@ func sortOrderedAggregate(ctx context.Context, state *queryState, call aggregate
 
 // Sorting, hypothetical placement and peer equality share exactly one typed
 // ordering implementation. Values and key metadata are borrowed, never copied.
-func compareOrderedAggregateTuple(ctx context.Context, order []sortKey, left, right []sqltype.Value, env sqltype.InputEnvironment) (int, error) {
+func compareOrderedAggregateTuple(ctx context.Context, order []plan.SortKey, left, right []sqltype.Value, env sqltype.InputEnvironment) (int, error) {
 	for _, key := range order {
 		if err := ctx.Err(); err != nil {
 			return 0, err
@@ -457,7 +458,7 @@ func compareOrderedAggregateTuple(ctx context.Context, order []sortKey, left, ri
 	return 0, ctx.Err()
 }
 
-func replayOrderedAggregate(ctx context.Context, state *queryState, call aggregateCall, aggregateState any, tuples []sqltype.Value) error {
+func replayOrderedAggregate(ctx context.Context, state *queryState, call plan.AggregateCall, aggregateState any, tuples []sqltype.Value) error {
 	input, err := sortOrderedAggregate(ctx, state, call, tuples)
 	if err != nil {
 		return err

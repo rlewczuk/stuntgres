@@ -14,15 +14,15 @@ import (
 // Planning-only restrictions run on execution-owned parameters, never Prepare.
 // Inherited marks cross view boundaries; a stored local mark does not mark its
 // enclosing join or siblings.
-func validateQueryJoinExecution(c *EvalContext, node LogicalNode, catalog catalog.Read, inherited lock.Mode) error {
+func validateQueryJoinExecution(c *EvalContext, node plan.Node, catalog catalog.Read, inherited lock.Mode) error {
 	reads := queryExecutionSourceReads(node, nil)
-	if source, ok := node.(*sourceNode); ok {
+	if source, ok := node.(*plan.SourceNode); ok {
 		reads[source.Occurrence] = nil
 	}
-	return validateMarkedQueryJoin(c, node, catalog, nil, queryRowMark{Mode: inherited}, false, nil, reads)
+	return validateMarkedQueryJoin(c, node, catalog, nil, plan.RowMark{Mode: inherited}, false, nil, reads)
 }
 
-func firstNullableQueryMark(a, b queryRowMark) queryRowMark {
+func firstNullableQueryMark(a, b plan.RowMark) plan.RowMark {
 	if a.Mode == 0 {
 		return b
 	}
@@ -32,35 +32,35 @@ func firstNullableQueryMark(a, b queryRowMark) queryRowMark {
 	return a
 }
 
-func nullableQueryRowMark(node LogicalNode, marks []queryRowMark, inherited queryRowMark) queryRowMark {
+func nullableQueryRowMark(node plan.Node, marks []plan.RowMark, inherited plan.RowMark) plan.RowMark {
 	switch n := node.(type) {
-	case *sourceNode:
+	case *plan.SourceNode:
 		return queryOccurrenceMark(marks, n.Occurrence, inherited)
-	case *derivedNode:
+	case *plan.DerivedNode:
 		if n.CTE != nil {
-			return queryRowMark{}
+			return plan.RowMark{}
 		}
 		return nullableQueryRowMark(n.Query.Root, marks, inherited)
-	case *joinNode:
+	case *plan.JoinNode:
 		return firstNullableQueryMark(nullableQueryRowMark(n.Left, marks, inherited), nullableQueryRowMark(n.Right, marks, inherited))
-	case *rowLockNode:
+	case *plan.RowLockNode:
 		return nullableQueryRowMark(n.Child, marks, inherited)
-	case *limitNode:
+	case *plan.LimitNode:
 		return nullableQueryRowMark(n.Child, marks, inherited)
-	case *evaluationNode:
+	case *plan.EvaluationNode:
 		return nullableQueryRowMark(n.Child, marks, inherited)
-	case *filterNode:
+	case *plan.FilterNode:
 		return nullableQueryRowMark(n.Child, marks, inherited)
-	case *projectNode:
+	case *plan.ProjectNode:
 		return nullableQueryRowMark(n.Child, marks, inherited)
-	case *sortNode:
+	case *plan.SortNode:
 		return nullableQueryRowMark(n.Child, marks, inherited)
-	case *aggregateNode:
+	case *plan.AggregateNode:
 		return nullableQueryRowMark(n.Child, marks, inherited)
-	case *setProjectNode:
+	case *plan.SetProjectNode:
 		return nullableQueryRowMark(n.Child, marks, inherited)
 	}
-	return queryRowMark{}
+	return plan.RowMark{}
 }
 
 // Mutation targets and RETURNING are planned even when their input selects no
@@ -68,7 +68,7 @@ func nullableQueryRowMark(node LogicalNode, marks []queryRowMark, inherited quer
 func validateMutationJoinExecution(c *EvalContext, b *binding, expressions [][]expr.Expr, catalog catalog.Read) error {
 	owner := *c
 	owner.Scope, owner.Frame = 1, 1
-	validateTargets := func(targets []*arrayAssignmentTarget) error {
+	validateTargets := func(targets []*plan.ArrayAssignmentTarget) error {
 		for _, target := range targets {
 			for path := target; path != nil; path = path.Next {
 				var storage [13]expr.Expr
@@ -144,25 +144,25 @@ func validateExpressionJoinExecution(c *EvalContext, expression expr.Expr, catal
 	if err := admitRoutineCall(c, expression, true, false); err != nil {
 		return err
 	}
-	if column, ok := expression.(columnExpression); ok && column.Virtual != nil {
+	if column, ok := expression.(plan.ColumnExpr); ok && column.Virtual != nil {
 		// A virtual column is a recipe boundary, not a lexical child in the
 		// enclosing query's frame or routine dependency manifest.
 		return c.admitColumnVirtualGeneration(column, catalog)
 	}
-	if subquery, ok := expression.(subqueryExpression); ok {
-		project := subquery.QueryPlan.Root.(*projectNode)
+	if subquery, ok := expression.(plan.SubqueryExpr); ok {
+		project := subquery.QueryPlan.Root.(*plan.ProjectNode)
 		child := *c
 		child.Scope, child.Frame = 1, project.Frame
 		child.Row, child.orderValues, child.Outer = nil, nil, c
-		var ignored *projectNode
+		var ignored *plan.ProjectNode
 		if subquery.PresenceOnly {
 			ignored = project
 		}
-		if err := validateMarkedQueryJoin(&child, project, catalog, nil, queryRowMark{}, false, ignored, queryExecutionSourceReads(project, ignored)); err != nil {
+		if err := validateMarkedQueryJoin(&child, project, catalog, nil, plan.RowMark{}, false, ignored, queryExecutionSourceReads(project, ignored)); err != nil {
 			return err
 		}
 	}
-	if logical, ok := expression.(logicalExpression); ok {
+	if logical, ok := expression.(plan.LogicalExpr); ok {
 		if err := validateExpressionJoinExecution(c, logical.Left, catalog); err != nil {
 			return err
 		}
@@ -182,7 +182,7 @@ func validateExpressionJoinExecution(c *EvalContext, expression expr.Expr, catal
 	})
 	return failure
 }
-func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, view catalog.Read, marks []queryRowMark, inherited queryRowMark, emptyInput bool, ignoredProject *projectNode, reads map[int][]int32) error {
+func validateMarkedQueryJoin(c *EvalContext, node plan.Node, view catalog.Read, marks []plan.RowMark, inherited plan.RowMark, emptyInput bool, ignoredProject *plan.ProjectNode, reads map[int][]int32) error {
 
 	if node == nil {
 		return nil
@@ -199,7 +199,7 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, view catalog.Read
 				failure = validateExpressionJoinExecution(c, expression, view)
 			}
 		}
-		if source, ok := node.(*functionFromNode); ok {
+		if source, ok := node.(*plan.FunctionFromNode); ok {
 			// Preflight preserves the analyzed call and schema. A proven dead
 			// FROM path, like a scalar-NULL invocation, has no runtime call or
 			// argument demand. Enclosing target expressions remain planned.
@@ -218,7 +218,7 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, view catalog.Read
 		}
 	}
 	switch n := node.(type) {
-	case *aggregateNode:
+	case *plan.AggregateNode:
 		if !n.PresenceOnly {
 			if err := admitQueryGroupings(c, n.Grouping, n.Keys); err != nil {
 				return err
@@ -235,7 +235,7 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, view catalog.Read
 				}
 			}
 		}
-	case *windowNode:
+	case *plan.WindowNode:
 		for _, call := range n.Calls {
 			if call.AnalysisOnly {
 				continue
@@ -260,7 +260,7 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, view catalog.Read
 				}
 			}
 		}
-	case *functionFromNode:
+	case *plan.FunctionFromNode:
 		if !emptyInput {
 			for i, call := range n.Calls {
 				if n.ScalarNull != nil && n.ScalarNull[i] {
@@ -271,21 +271,21 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, view catalog.Read
 				}
 			}
 		}
-	case *setProjectNode:
+	case *plan.SetProjectNode:
 		// Target calls initialize even when the child's FROM input is dead.
 		for _, call := range n.Calls {
 			if err := admitRoutineCall(c, call, false, false); err != nil {
 				return err
 			}
 		}
-	case *setNode, *recursiveUnionNode:
+	case *plan.SetNode, *plan.RecursiveUnionNode:
 		// Inline inherited sets were rejected at analysis. A stored set
 		// source is opaque to an outer row mark, but all arms still plan.
 		set := querySetNode(node)
 		if len(set.Grouping) != 0 {
 			groups := set.Grouping
 			var cycleMark expr.Expr
-			if recursive, ok := node.(*recursiveUnionNode); ok && recursive.Cycle != nil {
+			if recursive, ok := node.(*plan.RecursiveUnionNode); ok && recursive.Cycle != nil {
 				// Seed expressions retain only user columns. CYCLE appends
 				// its mark grouping separately; ancestry uses its own executor.
 				cycleMark = recursive.Cycle.Mark
@@ -301,13 +301,13 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, view catalog.Read
 				}
 			}
 		}
-		if err := validateMarkedQueryJoin(c, set.Left, view, nil, queryRowMark{}, emptyInput, nil, reads); err != nil {
+		if err := validateMarkedQueryJoin(c, set.Left, view, nil, plan.RowMark{}, emptyInput, nil, reads); err != nil {
 			return err
 		}
-		return validateMarkedQueryJoin(c, set.Right, view, nil, queryRowMark{}, emptyInput, nil, reads)
-	case *worktableScanNode:
+		return validateMarkedQueryJoin(c, set.Right, view, nil, plan.RowMark{}, emptyInput, nil, reads)
+	case *plan.WorktableScanNode:
 		return nil
-	case *sourceNode:
+	case *plan.SourceNode:
 		mark := queryOccurrenceMark(marks, n.Occurrence, inherited)
 		if d, ok := view.Relation(n.Ref.Address); ok && d.RelationKind == catalog.ViewRelation {
 			if err := viewRowLockLegality(viewOf(d), queryRowDiagnostic(mark)); err != nil {
@@ -328,15 +328,15 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, view catalog.Read
 			return validateMarkedQueryJoin(&child, root, view, nil, mark, emptyInput, nil, storedReads)
 		}
 		return nil
-	case *derivedNode:
+	case *plan.DerivedNode:
 		if n.CTE != nil && n.CTE.Mutation != nil {
 			return nil
 		}
 		if n.CTE != nil {
 			marks = nil
-			inherited = queryRowMark{}
+			inherited = plan.RowMark{}
 		}
-		project, ok := n.Query.Root.(*projectNode)
+		project, ok := n.Query.Root.(*plan.ProjectNode)
 		if !ok {
 			return fmt.Errorf("stuntgres: missing derived query frame")
 		}
@@ -348,8 +348,8 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, view catalog.Read
 			return err
 		}
 		return validateMarkedQueryJoin(&child, root, view, marks, inherited, emptyInput, nil, reads)
-	case *joinNode:
-		mark := queryRowMark{}
+	case *plan.JoinNode:
+		mark := plan.RowMark{}
 		if n.Kind == parser.JoinLeft || n.Kind == parser.JoinFull {
 			mark = nullableQueryRowMark(n.Right, marks, inherited)
 		}
@@ -368,7 +368,7 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, view catalog.Read
 				return sqlError("0A000", "FULL JOIN is only supported with merge-joinable or hash-joinable join conditions")
 			}
 		}
-	case *rowLockNode:
+	case *plan.RowLockNode:
 		if len(marks) == 0 {
 			marks = n.Marks
 		} else {
@@ -376,14 +376,14 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, view catalog.Read
 			if len(marks) > width {
 				width = len(marks)
 			}
-			local := make([]queryRowMark, width)
+			local := make([]plan.RowMark, width)
 			copy(local, marks)
 			for i, mark := range n.Marks {
 				local[i] = mergeQueryRowMark(local[i], mark)
 			}
 			marks = local
 		}
-	case *filterNode:
+	case *plan.FilterNode:
 		// Prune only this input's proven dead FROM path, using this execution's
 		// parameter frame. Nullable rowmark legality still applies.
 		if !emptyInput {
@@ -393,7 +393,7 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, view catalog.Read
 			}
 			emptyInput = rejects
 		}
-	case *distinctNode:
+	case *plan.DistinctNode:
 		if inherited.Mode != 0 {
 			return sqlError("0A000", queryRowClause(queryRowDiagnostic(inherited))+" is not allowed with DISTINCT clause")
 		}
@@ -402,7 +402,7 @@ func validateMarkedQueryJoin(c *EvalContext, node LogicalNode, view catalog.Read
 				return err
 			}
 		}
-	case *distinctOnNode:
+	case *plan.DistinctOnNode:
 		if inherited.Mode != 0 {
 			return sqlError("0A000", queryRowClause(queryRowDiagnostic(inherited))+" is not allowed with DISTINCT clause")
 		}
@@ -427,7 +427,7 @@ type fullJoinKey struct {
 
 type fullJoinFacts struct {
 	constant bool
-	truth    Truth
+	truth    plan.Truth
 	keys     []fullJoinKey
 }
 
@@ -435,14 +435,14 @@ type fullJoinFacts struct {
 // OR retains only structurally common keys in the same operand order. NOT is
 // pushed through Boolean nodes with SQL three-valued truth. At the resulting
 // match boundary, FALSE and UNKNOWN both reject a pair.
-func fullJoinCondition(c *EvalContext, join *joinNode, bound expr.Expr, negate bool) (fullJoinFacts, error) {
+func fullJoinCondition(c *EvalContext, join *plan.JoinNode, bound expr.Expr, negate bool) (fullJoinFacts, error) {
 	if bound == nil {
 		return fullJoinFacts{constant: true, truth: plan.True}, nil
 	}
 	p := bound.Properties()
 	// Pruning preserves analyzed dependencies even on a physical literal.
 	// Those properties still govern metadata/ACLs, not its planning truth.
-	_, literal := bound.(literalExpression)
+	_, literal := bound.(plan.LiteralExpr)
 	if literal || p.Volatility == expr.Immutable && !p.RowDependent && !p.StageDependent && !p.RuntimeDomainConversion {
 		value, err := bound.Eval(c)
 		if err != nil {
@@ -458,7 +458,7 @@ func fullJoinCondition(c *EvalContext, join *joinNode, bound expr.Expr, negate b
 		}
 		return fullJoinFacts{constant: true, truth: truth}, err
 	}
-	if e, ok := bound.(logicalExpression); ok {
+	if e, ok := bound.(plan.LogicalExpr); ok {
 		if e.Op == parser.LogicalNot {
 			return fullJoinCondition(c, join, e.Left, !negate)
 		}
@@ -524,7 +524,7 @@ func fullJoinCondition(c *EvalContext, join *joinNode, bound expr.Expr, negate b
 		}
 		return fullJoinFacts{keys: common}, nil
 	}
-	if e, ok := bound.(caseExpression); ok {
+	if e, ok := bound.(plan.CaseExpr); ok {
 		var test sqltype.Value
 		if e.Test != nil {
 			p := e.Test.Properties()
@@ -575,7 +575,7 @@ func fullJoinCondition(c *EvalContext, join *joinNode, bound expr.Expr, negate b
 		}
 		return fullJoinCondition(c, join, e.Otherwise, negate)
 	}
-	if e, ok := bound.(conditionalExpression); ok && e.Kind == parser.Coalesce {
+	if e, ok := bound.(plan.ConditionalExpr); ok && e.Kind == parser.Coalesce {
 		for _, arg := range e.Args {
 			p := arg.Properties()
 			if p.Volatility != expr.Immutable || p.RowDependent || p.StageDependent || p.RuntimeDomainConversion {
@@ -592,7 +592,7 @@ func fullJoinCondition(c *EvalContext, join *joinNode, bound expr.Expr, negate b
 			}
 		}
 	}
-	if e, ok := bound.(comparisonExpression); ok && fullJoinComparisonOperator(e.Operator, negate) == "=" {
+	if e, ok := bound.(plan.ComparisonExpr); ok && fullJoinComparisonOperator(e.Operator, negate) == "=" {
 		left, err := joinExpressionSides(e.Left, join.LeftWidth, join.RightWidth)
 		if err != nil {
 			return fullJoinFacts{}, err
@@ -637,7 +637,7 @@ func joinExpressionSides(node expr.Expr, leftWidth, rightWidth int) (uint8, erro
 	if node == nil {
 		return 0, nil
 	}
-	if e, ok := node.(columnExpression); ok {
+	if e, ok := node.(plan.ColumnExpr); ok {
 		if e.Slot < 0 || e.Slot >= leftWidth+rightWidth {
 			return 0, fmt.Errorf("stuntgres: invalid join expression slot")
 		}
@@ -654,15 +654,15 @@ func joinExpressionSides(node expr.Expr, leftWidth, rightWidth int) (uint8, erro
 	}
 	var children []expr.Expr
 	switch e := node.(type) {
-	case literalExpression, parameterExpression:
+	case plan.LiteralExpr, plan.ParameterExpr:
 		return 0, nil
-	case rowExpression:
+	case plan.RowExpr:
 		children = e.Fields
-	case fieldExpression:
+	case plan.FieldExpr:
 		return joinExpressionSides(e.Base, leftWidth, rightWidth)
-	case arrayExpression:
+	case plan.ArrayExpr:
 		children = e.Elements
-	case subscriptExpression:
+	case plan.SubscriptExpr:
 		sides, err := joinExpressionSides(e.Base, leftWidth, rightWidth)
 		if err != nil {
 			return 0, err
@@ -680,17 +680,17 @@ func joinExpressionSides(node expr.Expr, leftWidth, rightWidth int) (uint8, erro
 			}
 		}
 		return sides, nil
-	case coercionExpression:
+	case plan.CoercionExpr:
 		return joinExpressionSides(e.Child, leftWidth, rightWidth)
-	case collationExpression:
+	case plan.CollationExpr:
 		return joinExpressionSides(e.Child, leftWidth, rightWidth)
-	case selectedOperatorExpression:
+	case plan.SelectedOperatorExpr:
 		return joinExpressionSides(e.Provider, leftWidth, rightWidth)
-	case arithmeticExpression:
+	case plan.ArithmeticExpr:
 		children = []expr.Expr{e.Left, e.Right}
-	case bitwiseExpression:
+	case plan.BitwiseExpr:
 		children = []expr.Expr{e.Left, e.Right}
-	case rowComparisonExpression:
+	case plan.RowComparisonExpr:
 		var sides uint8
 		for _, pair := range e.Comparisons {
 			left, err := joinExpressionSides(pair.Left, leftWidth, rightWidth)
@@ -704,7 +704,7 @@ func joinExpressionSides(node expr.Expr, leftWidth, rightWidth int) (uint8, erro
 			sides |= left | right
 		}
 		return sides, nil
-	case scalarArrayComparisonExpression:
+	case plan.ScalarArrayComparisonExpr:
 		sides, err := joinExpressionSides(e.Left, leftWidth, rightWidth)
 		if err != nil {
 			return 0, err
@@ -724,19 +724,19 @@ func joinExpressionSides(node expr.Expr, leftWidth, rightWidth int) (uint8, erro
 			sides |= side
 		}
 		return sides, nil
-	case comparisonExpression:
+	case plan.ComparisonExpr:
 		children = []expr.Expr{e.Left, e.Right}
-	case logicalExpression:
+	case plan.LogicalExpr:
 		children = []expr.Expr{e.Left, e.Right}
-	case distinctExpression:
+	case plan.DistinctExpr:
 		children = []expr.Expr{e.Left, e.Right}
-	case likeExpression:
+	case plan.LikeExpr:
 		children = []expr.Expr{e.Left, e.Right}
-	case nullTestExpression:
+	case plan.NullTestExpr:
 		children = []expr.Expr{e.Child}
-	case truthTestExpression:
+	case plan.TruthTestExpr:
 		children = []expr.Expr{e.Child}
-	case conditionalExpression:
+	case plan.ConditionalExpr:
 		children = e.Args
 	case extensionPathsExpression:
 		return joinExpressionSides(e.arg, leftWidth, rightWidth)
@@ -752,7 +752,7 @@ func joinExpressionSides(node expr.Expr, leftWidth, rightWidth int) (uint8, erro
 		children = e.Args
 	case installedFunctionExpression:
 		children = []expr.Expr{e.Arg}
-	case caseExpression:
+	case plan.CaseExpr:
 		if err := child(e.Test); err != nil {
 			return 0, err
 		}

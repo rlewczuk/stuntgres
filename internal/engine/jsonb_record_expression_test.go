@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -36,7 +37,7 @@ func TestJSONBRecordBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source, ok := node.(*functionFromNode)
+	source, ok := node.(*plan.FunctionFromNode)
 	if !ok || len(source.Calls) != 1 || len(ns.columns) != 2 || ns.columns[0].descriptor.Usage.Type.ID() != sqltype.Int4 || ns.columns[1].descriptor.Usage.Type.ID() != sqltype.Text {
 		t.Fatal("lost definition usage", node, ns)
 	}
@@ -88,7 +89,7 @@ func TestJSONBRecordBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	set := node.(*functionFromNode).Calls[0]
+	set := node.(*plan.FunctionFromNode).Calls[0]
 	if !sourceReturnsSet(set) || functionFromCallWidth(set) != 2 || !set.Properties().StageDependent {
 		t.Fatal("recordset placement/width", set)
 	}
@@ -244,8 +245,8 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 			Name: "jsonb_populate_record",
 		}
 		args := []expr.Expr{
-			literalExpression{expr.Info{Usage: typ.Usage()}, sqltype.Null(typ)},
-			literalExpression{expr.Info{Usage: jsonb.Usage()}, document},
+			plan.LiteralExpr{expr.Info{Usage: typ.Usage()}, sqltype.Null(typ)},
+			plan.LiteralExpr{expr.Info{Usage: jsonb.Usage()}, document},
 		}
 		next, err := call.Reconstruct(call.Info, args)
 		if err != nil {
@@ -286,7 +287,7 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 	ordinal := column("n", 8, first.Usage)
 	currentColumns := []queryColumn{left, currentSource[0], currentSource[1], currentSource[2], ordinal}
 	call := callFor(current)
-	node := &functionFromNode{Calls: []expr.Expr{call}, Ordinality: true, Frame: 3}
+	node := &plan.FunctionFromNode{Calls: []expr.Expr{call}, Ordinality: true, Frame: 3}
 	qualifier := queryQualifier{sourceRoot: node, columns: append(append([]queryColumn(nil), currentSource...), ordinal)}
 	out, err = b.jsonbRecordStarColumns(currentColumns, 3, star, &qualifier)
 	if err != nil || len(out) != 4 {
@@ -482,7 +483,7 @@ func TestJSONBRecordLayout(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc.query, err)
 		}
-		call := root.(*functionFromNode).Calls[0].(functions.JSONBRecord)
+		call := root.(*plan.FunctionFromNode).Calls[0].(functions.JSONBRecord)
 		if !call.Definitions || call.Unresolved || len(namespace.columns) != 2 || call.RecordUsage().Type.CompositeMember(0).Name != "a" {
 			t.Fatal("lost caller layout", call, namespace)
 		}

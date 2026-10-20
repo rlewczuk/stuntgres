@@ -7,27 +7,28 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func recursiveUnitFixture(t *testing.T, all bool, seeds []int64, terminal int64) (*cteInvocation, *queryState, *derivedNode) {
+func recursiveUnitFixture(t *testing.T, all bool, seeds []int64, terminal int64) (*cteInvocation, *queryState, *plan.DerivedNode) {
 	t.Helper()
 	typ := cteUnitType(t)
 	boolean, _ := New().CatalogRead().LookupType(sqltype.Bool)
-	schema := querySchema{{Name: "n", Usage: typ.Usage()}}
-	d := &cteDefinition{Owner: 1, Recursive: true, Name: "r", Schema: schema}
-	column := func(frame uint32) columnExpression {
-		return columnExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: frame, Slot: 0}
+	schema := plan.QuerySchema{{Name: "n", Usage: typ.Usage()}}
+	d := &plan.CTEDefinition{Owner: 1, Recursive: true, Name: "r", Schema: schema}
+	column := func(frame uint32) plan.ColumnExpr {
+		return plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: frame, Slot: 0}
 	}
 	rows := make([][]expr.Expr, len(seeds))
 	for i, n := range seeds {
-		rows[i] = []expr.Expr{literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: cteUnitValue(t, typ, n)}}
+		rows[i] = []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: cteUnitValue(t, typ, n)}}
 	}
-	left := &projectNode{QuerySchema: schema, Child: &valuesNode{QuerySchema: schema, Rows: rows}, Expressions: []expr.Expr{column(2)}, Frame: 2}
-	self := &worktableScanNode{DerivedNode: derivedNode{QuerySchema: schema, CTE: d, ScanFrame: 3}}
+	left := &plan.ProjectNode{QuerySchema: schema, Child: &plan.ValuesNode{QuerySchema: schema, Rows: rows}, Expressions: []expr.Expr{column(2)}, Frame: 2}
+	self := &plan.WorktableScanNode{DerivedNode: plan.DerivedNode{QuerySchema: schema, CTE: d, ScanFrame: 3}}
 	read := column(3)
 	predicate := queryProbe(boolean.Usage(), func(c *EvalContext) (sqltype.Value, error) {
 		value, err := read.Eval(c)
@@ -48,21 +49,21 @@ func recursiveUnitFixture(t *testing.T, all bool, seeds []int64, terminal int64)
 		}
 		return sqltype.Integer(typ, n+1)
 	})
-	right := &projectNode{QuerySchema: schema, Child: &filterNode{QuerySchema: schema, Child: self, Predicate: predicate}, Expressions: []expr.Expr{successor}, Frame: 3}
-	n := &recursiveUnionNode{SetNode: setNode{QuerySchema: schema, Left: left, Right: right, Operation: "union", All: all, LeftExpressions: left.Expressions, RightExpressions: right.Expressions}, Definition: d}
+	right := &plan.ProjectNode{QuerySchema: schema, Child: &plan.FilterNode{QuerySchema: schema, Child: self, Predicate: predicate}, Expressions: []expr.Expr{successor}, Frame: 3}
+	n := &plan.RecursiveUnionNode{SetNode: plan.SetNode{QuerySchema: schema, Left: left, Right: right, Operation: "union", All: all, LeftExpressions: left.Expressions, RightExpressions: right.Expressions}, Definition: d}
 	if !all {
 		grouping, err := sqltype.BindGrouping(typ.Usage())
 		if err != nil {
 			t.Fatal(err)
 		}
-		n.Grouping = []queryGrouping{{Grouping: grouping}}
+		n.Grouping = []plan.Grouping{{Grouping: grouping}}
 	}
-	project := &projectNode{QuerySchema: schema, Child: n, Expressions: []expr.Expr{column(4)}, Frame: 4}
-	d.Query = &BoundQuery{Root: project}
+	project := &plan.ProjectNode{QuerySchema: schema, Child: n, Expressions: []expr.Expr{column(4)}, Frame: 4}
+	d.Query = &plan.Query{Root: project}
 	state := &queryState{source: &querySource{materialized: true}}
 	owner := &cteInvocation{frame: 1, state: *state}
 	state.ctes = owner
-	return owner, state, &derivedNode{QuerySchema: schema, Query: d.Query, CTE: d}
+	return owner, state, &plan.DerivedNode{QuerySchema: schema, Query: d.Query, CTE: d}
 }
 
 func recursiveUnitGeneration(t *testing.T, s *recursiveUnionStage, indexes []int) []int64 {
@@ -147,7 +148,7 @@ func TestQueryRecursiveCTEDistinctAnchorPassAndCollision(t *testing.T) {
 	if _, present, err := stage.nextOccurrence(context.Background()); present || err != nil {
 		t.Fatal(present, err)
 	}
-	n := node.Query.Root.(*projectNode).Child.(*recursiveUnionNode)
+	n := node.Query.Root.(*plan.ProjectNode).Child.(*plan.RecursiveUnionNode)
 	one, two := cteUnitValue(t, n.Schema()[0].Usage.Type, 1), cteUnitValue(t, n.Schema()[0].Usage.Type, 2)
 	if index, err := findDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0}); index != -1 || err != nil {
 		t.Fatal("unequal forced collision", index, err)
@@ -211,27 +212,27 @@ func TestQueryRecursiveCTEDemandCancellationAndClose(t *testing.T) {
 func TestQueryRecursiveCTENullAndZeroWidth(t *testing.T) {
 	for _, zero := range []bool{false, true} {
 		owner, state, node := recursiveUnitFixture(t, false, []int64{1, 1}, 2)
-		n := node.Query.Root.(*projectNode).Child.(*recursiveUnionNode)
+		n := node.Query.Root.(*plan.ProjectNode).Child.(*plan.RecursiveUnionNode)
 		if zero {
-			n.QuerySchema = querySchema{}
-			n.Left.QuerySchema = querySchema{}
-			n.Left.Child.(*valuesNode).QuerySchema = querySchema{}
-			n.Left.Child.(*valuesNode).Rows = [][]expr.Expr{{}, {}}
+			n.QuerySchema = plan.QuerySchema{}
+			n.Left.QuerySchema = plan.QuerySchema{}
+			n.Left.Child.(*plan.ValuesNode).QuerySchema = plan.QuerySchema{}
+			n.Left.Child.(*plan.ValuesNode).Rows = [][]expr.Expr{{}, {}}
 			n.Left.Expressions = nil
 			n.LeftExpressions = nil
 			n.Grouping = nil
-			n.Right.QuerySchema = querySchema{}
+			n.Right.QuerySchema = plan.QuerySchema{}
 			n.Right.Expressions = nil
 			n.RightExpressions = nil
-			n.Right.Child = &worktableScanNode{DerivedNode: derivedNode{CTE: node.CTE, QuerySchema: querySchema{}}}
-			node.QuerySchema = querySchema{}
-			node.Query.Root.(*projectNode).QuerySchema = querySchema{}
-			node.Query.Root.(*projectNode).Expressions = nil
+			n.Right.Child = &plan.WorktableScanNode{DerivedNode: plan.DerivedNode{CTE: node.CTE, QuerySchema: plan.QuerySchema{}}}
+			node.QuerySchema = plan.QuerySchema{}
+			node.Query.Root.(*plan.ProjectNode).QuerySchema = plan.QuerySchema{}
+			node.Query.Root.(*plan.ProjectNode).Expressions = nil
 		} else {
 			typ := n.Schema()[0].Usage.Type
-			n.Left.Child.(*valuesNode).Rows = [][]expr.Expr{{literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: sqltype.Null(typ)}}, {literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: sqltype.Null(typ)}}}
-			n.Right.Child = &worktableScanNode{DerivedNode: derivedNode{CTE: node.CTE, QuerySchema: n.Schema()}}
-			n.Right.Expressions = []expr.Expr{columnExpression{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 3, Slot: 0}}
+			n.Left.Child.(*plan.ValuesNode).Rows = [][]expr.Expr{{plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: sqltype.Null(typ)}}, {plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: sqltype.Null(typ)}}}
+			n.Right.Child = &plan.WorktableScanNode{DerivedNode: plan.DerivedNode{CTE: node.CTE, QuerySchema: n.Schema()}}
+			n.Right.Expressions = []expr.Expr{plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 3, Slot: 0}}
 			n.RightExpressions = n.Right.Expressions
 		}
 		stage, err := openCTEScan(context.Background(), state, node)
@@ -261,7 +262,7 @@ func TestQueryRecursiveCTENullAndZeroWidth(t *testing.T) {
 	}
 }
 
-func recursiveUnitBind(t *testing.T, text string) (*Engine, *BoundQuery, error) {
+func recursiveUnitBind(t *testing.T, text string) (*Engine, *plan.Query, error) {
 	t.Helper()
 	statements, err := parser.Parse(text)
 	if err != nil {
@@ -296,13 +297,13 @@ func TestQueryRecursiveCTEBindingUsageAndIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var union *recursiveUnionNode
-	var self *worktableScanNode
-	visitCTEQuery(query.Root, func(n LogicalNode) {
+	var union *plan.RecursiveUnionNode
+	var self *plan.WorktableScanNode
+	visitCTEQuery(query.Root, func(n plan.Node) {
 		switch n := n.(type) {
-		case *recursiveUnionNode:
+		case *plan.RecursiveUnionNode:
 			union = n
-		case *worktableScanNode:
+		case *plan.WorktableScanNode:
 			self = n
 		}
 	}, func(expr.Expr) {}, true)
@@ -322,16 +323,16 @@ func TestQueryRecursiveCTERewriteAndForeignRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var n *recursiveUnionNode
-	visitCTEQuery(bound.Root, func(node LogicalNode) {
-		if recursive, ok := node.(*recursiveUnionNode); ok {
+	var n *plan.RecursiveUnionNode
+	visitCTEQuery(bound.Root, func(node plan.Node) {
+		if recursive, ok := node.(*plan.RecursiveUnionNode); ok {
 			n = recursive
 		}
 	}, func(expr.Expr) {}, true)
 	if n == nil {
 		t.Fatal("missing recursive node")
 	}
-	project := n.Definition.Query.Root.(*projectNode)
+	project := n.Definition.Query.Root.(*plan.ProjectNode)
 	original := n.LeftExpressions[0]
 	replacement := queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { return original.Eval(c) })
 	rewritten, err := rewriteQueryExpressions(project, func(e expr.Expr) (expr.Expr, bool, error) {
@@ -354,10 +355,10 @@ func TestQueryRecursiveCTERewriteAndForeignRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	copy := mapped.(*projectNode).Child.(*recursiveUnionNode)
-	var self *worktableScanNode
-	visitCTEQuery(copy.Right, func(node LogicalNode) {
-		if scan, ok := node.(*worktableScanNode); ok {
+	copy := mapped.(*plan.ProjectNode).Child.(*plan.RecursiveUnionNode)
+	var self *plan.WorktableScanNode
+	visitCTEQuery(copy.Right, func(node plan.Node) {
+		if scan, ok := node.(*plan.WorktableScanNode); ok {
 			self = scan
 		}
 	}, func(expr.Expr) {}, true)
@@ -372,13 +373,13 @@ func TestQueryRecursiveCTERewriteAndForeignRemap(t *testing.T) {
 func TestQueryRecursiveCTEStoredNamespaceIdentity(t *testing.T) {
 	typ := cteUnitType(t)
 	table := &parser.TableReference{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "r"}}}}
-	definition := &cteDefinition{Recursive: true}
-	self := &worktableScanNode{DerivedNode: derivedNode{QuerySchema: querySchema{{Name: "n", Usage: typ.Usage()}}, Table: table, CTE: definition, Ordinal: -1}}
-	project := &projectNode{Child: &filterNode{Child: self}}
+	definition := &plan.CTEDefinition{Recursive: true}
+	self := &plan.WorktableScanNode{DerivedNode: plan.DerivedNode{QuerySchema: plan.QuerySchema{{Name: "n", Usage: typ.Usage()}}, Table: table, CTE: definition, Ordinal: -1}}
+	project := &plan.ProjectNode{Child: &plan.FilterNode{Child: self}}
 	if viewCTETable(project, table) != self || viewCTEOrdinal(project, -1) != self {
 		t.Fatal("stored self scan lost opaque node identity")
 	}
-	renderer := &viewRenderer{slots: map[LogicalNode]map[int]string{self: {0: "r.n"}}}
+	renderer := &viewRenderer{slots: map[plan.Node]map[int]string{self: {0: "r.n"}}}
 	text, err := renderer.slotSQL(context.Background(), catalog.Read{}, viewCTETable(project, table), 0)
 	if err != nil || text != "r.n" {
 		t.Fatal("worktable namespace slot", text, err)

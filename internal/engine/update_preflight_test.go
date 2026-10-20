@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -40,7 +41,7 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 		}
 		return b.update
 	}()
-	cast := original.assignments[0].(coercionExpression)
+	cast := original.assignments[0].(plan.CoercionExpr)
 	column := original.assignments[1]
 	source := cast.Child.ResultUsage().Type
 	for _, input := range []string{"7", "oops", "", "17", "oops", "42"} {
@@ -63,7 +64,7 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 			if err != nil || private == original {
 				t.Fatal(private, err)
 			}
-			literal, ok := private.assignments[0].(literalExpression)
+			literal, ok := private.assignments[0].(plan.LiteralExpr)
 			if !ok || literal.Info != cast.Info {
 				t.Fatal("fold lost conservative frame/source metadata", private.assignments[0])
 			}
@@ -98,10 +99,10 @@ func TestUpdateCoreRecursivePreflight(t *testing.T) {
 				t.Fatal("assignment backing storage shared after fold")
 			}
 		}
-		if _, ok := original.assignments[0].(coercionExpression); !ok {
+		if _, ok := original.assignments[0].(plan.CoercionExpr); !ok {
 			t.Fatal("analyzed assignment replaced")
 		}
-		if _, ok := original.predicate.(comparisonExpression).Right.(coercionExpression); !ok {
+		if _, ok := original.predicate.(plan.ComparisonExpr).Right.(plan.CoercionExpr); !ok {
 			t.Fatal("analyzed predicate replaced")
 		}
 	}

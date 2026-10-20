@@ -8,14 +8,15 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func srfFromUnitNode(t *testing.T, calls ...expr.Expr) *functionFromNode {
+func srfFromUnitNode(t *testing.T, calls ...expr.Expr) *plan.FunctionFromNode {
 	t.Helper()
-	n := &functionFromNode{Calls: calls, Frame: 1, Ordinality: true}
+	n := &plan.FunctionFromNode{Calls: calls, Frame: 1, Ordinality: true}
 	for _, call := range calls {
 		n.QuerySchema = append(n.QuerySchema, catalog.Column{Usage: call.ResultUsage()})
 	}
@@ -25,7 +26,7 @@ func srfFromUnitNode(t *testing.T, calls ...expr.Expr) *functionFromNode {
 func srfFromUnitState() *queryState {
 	return &queryState{source: &querySource{materialized: true}, frame: 1}
 }
-func srfFromUnitRows(t *testing.T, n LogicalNode) [][]any {
+func srfFromUnitRows(t *testing.T, n plan.Node) [][]any {
 	t.Helper()
 	stage, err := openQueryNode(context.Background(), srfFromUnitState(), n)
 	if err != nil {
@@ -77,7 +78,7 @@ func TestSRFFromBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source, ok := node.(*functionFromNode)
+	source, ok := node.(*plan.FunctionFromNode)
 	if !ok || !source.RegexpNamespace || b.clause.queryHasTargetSet || len(ns.columns) != 2 || ns.columns[0].descriptor.Name != "generate_series" || ns.columns[1].descriptor.Usage.Type.ID() != sqltype.Int8 {
 		t.Fatal(node, ns)
 	}
@@ -164,7 +165,7 @@ func TestSRFFromInvocation(t *testing.T) {
 	call := seriesUnit(t, d, 1, 3, 1)
 	var order []int
 	for i, arg := range call.Args {
-		index, value := i, arg.(literalExpression).Value
+		index, value := i, arg.(plan.LiteralExpr).Value
 		call.Args[i] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { order = append(order, index); return value, nil })
 	}
 	probed := srfFromUnitNode(t, call)
@@ -178,7 +179,7 @@ func TestSRFFromInvocation(t *testing.T) {
 	}
 	order = nil
 	zero := seriesUnit(t, big, 0, 0).Args[0]
-	limit := &limitNode{QuerySchema: probed.QuerySchema, Child: probed, Count: zero}
+	limit := &plan.LimitNode{QuerySchema: probed.QuerySchema, Child: probed, Count: zero}
 	if got := srfFromUnitRows(t, limit); len(got) != 0 || len(order) != 0 {
 		t.Fatal("LIMIT0 opened provider", got, order)
 	}
@@ -212,7 +213,7 @@ func TestSRFFromOwnership(t *testing.T) {
 	bad := seriesUnit(t, d, 1, 2)
 	bad.Args[0] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })
 	// First member opens successfully; failed partial open must close the group.
-	invocation, err := openFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, &functionFromNode{Calls: []expr.Expr{n.Calls[0], bad}})
+	invocation, err := openFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, &plan.FunctionFromNode{Calls: []expr.Expr{n.Calls[0], bad}})
 	if !errors.Is(err, failure) || len(invocation.cursors) != 0 {
 		t.Fatal(invocation, err)
 	}
@@ -276,7 +277,7 @@ func TestSRFFromStoredEligibility(t *testing.T) {
 		if err != nil || !sourceAdmitted(mapped) {
 			t.Fatal(mapped, err)
 		}
-		if _, ok := expr.Expr(original).(expr.Composite).Children()[0].(literalExpression); !ok {
+		if _, ok := expr.Expr(original).(expr.Composite).Children()[0].(plan.LiteralExpr); !ok {
 			t.Fatal("immutable original overwritten")
 		}
 		if got := srfFromUnitRows(t, srfFromUnitNode(t, mapped)); !reflect.DeepEqual(got, [][]any{{int64(1), int64(1)}, {int64(2), int64(2)}}) {
@@ -288,7 +289,7 @@ func TestSRFFromStoredEligibility(t *testing.T) {
 	}
 	original := srfFromUnitNode(t, calls[0])
 	rewritten, err := rewriteQueryExpressions(original, func(expr expr.Expr) (expr.Expr, bool, error) {
-		literal, ok := expr.(literalExpression)
+		literal, ok := expr.(plan.LiteralExpr)
 		if !ok {
 			return expr, false, nil
 		}

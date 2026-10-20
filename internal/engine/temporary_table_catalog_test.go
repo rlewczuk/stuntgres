@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -218,7 +219,7 @@ func TestTemporaryTableRetainedRegclassManifest(t *testing.T) {
 	}
 	ref := e.catalog.Domain.Ref(view.Epoch(), sequence.Address())
 	typeRef := e.catalog.Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)})
-	literal := literalExpression{Info: expr.Info{Usage: regclass.Usage(), RegclassRef: ref}, Value: sqltype.String(regclass, strconv.FormatUint(uint64(sequence.Address().ObjectID), 10))}
+	literal := plan.LiteralExpr{Info: expr.Info{Usage: regclass.Usage(), RegclassRef: ref}, Value: sqltype.String(regclass, strconv.FormatUint(uint64(sequence.Address().ObjectID), 10))}
 	next := catalog.CloneState(view.State())
 	next.SetEpoch(next.Epoch() + 1)
 	retained := e.catalog.read(next)
@@ -375,24 +376,24 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	}
 	// This is a real captured row origin, not a provider-kind substitute. Exact
 	// concrete Usage and stable attribute/slot/frame checks remain mandatory.
-	columnNode := consumer.ColumnMeta.Generations[5].Expression.(arithmeticExpression).Left
+	columnNode := consumer.ColumnMeta.Generations[5].Expression.(plan.ArithmeticExpr).Left
 	for {
-		cast, ok := columnNode.(coercionExpression)
+		cast, ok := columnNode.(plan.CoercionExpr)
 		if !ok {
 			break
 		}
 		columnNode = cast.Child
 	}
-	column := columnNode.(columnExpression)
+	column := columnNode.(plan.ColumnExpr)
 	int8, ok := retained.LookupType(sqltype.Int8)
 	if !ok {
 		t.Fatal("missing actual bigint descriptor")
 	}
-	for _, change := range []func(*columnExpression){
-		func(n *columnExpression) { n.Usage = int8.Usage() },
-		func(n *columnExpression) { n.Origin.Address.SubID = 99 },
-		func(n *columnExpression) { n.Slot = 0 },
-		func(n *columnExpression) { n.Frame = 2 },
+	for _, change := range []func(*plan.ColumnExpr){
+		func(n *plan.ColumnExpr) { n.Usage = int8.Usage() },
+		func(n *plan.ColumnExpr) { n.Origin.Address.SubID = 99 },
+		func(n *plan.ColumnExpr) { n.Slot = 0 },
+		func(n *plan.ColumnExpr) { n.Frame = 2 },
 	} {
 		bad := column
 		change(&bad)

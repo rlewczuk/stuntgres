@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 )
 
 func (c *EvalContext) FunctionRandomOwner() (expr.RandomOwner, error) {
@@ -14,11 +15,11 @@ func (c *EvalContext) FunctionRandomOwner() (expr.RandomOwner, error) {
 
 func randomLiteralNull(arg expr.Expr) bool {
 	switch e := arg.(type) {
-	case literalExpression:
+	case plan.LiteralExpr:
 		return e.Value.IsNull()
-	case collationExpression:
+	case plan.CollationExpr:
 		return randomLiteralNull(e.Child)
-	case coercionExpression:
+	case plan.CoercionExpr:
 		return randomLiteralNull(e.Child)
 	}
 	return false

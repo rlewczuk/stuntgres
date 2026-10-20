@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 )
@@ -44,7 +45,7 @@ func partitionDumpPredecessors(view catalog.Read, d *catalog.Relation, predecess
 					if datum.Kind != 0 {
 						continue
 					}
-					literal := literalExpression{Info: expr.Info{Usage: datum.Value.Type().Usage()}, Value: datum.Value}
+					literal := plan.LiteralExpr{Info: expr.Info{Usage: datum.Value.Type().Usage()}, Value: datum.Value}
 					if err := regclassReplayReferences(view, literal, add); err != nil {
 						return nil, err
 					}
@@ -329,7 +330,7 @@ func partitionTupleDumpSQL(ctx context.Context, catalog catalog.Read, keys []cat
 		case 1:
 			text.WriteString("MAXVALUE")
 		default:
-			literal := literalExpression{Info: expr.Info{Usage: keys[i].Usage}, Value: datum.Value}
+			literal := plan.LiteralExpr{Info: expr.Info{Usage: keys[i].Usage}, Value: datum.Value}
 			value, err := catalogLiteralSQL(ctx, catalog, literal)
 			if err != nil {
 				return "", err

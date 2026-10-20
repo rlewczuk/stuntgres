@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -228,7 +229,7 @@ func (state *partitionInsertState) missingPartition(ctx context.Context, parent 
 				}
 				renderer.path = path
 			}
-			cast, coercion := entry.Derived.Definition.(coercionExpression)
+			cast, coercion := entry.Derived.Definition.(plan.CoercionExpr)
 			regTSCast := coercion && cast.Mode == sqltype.Explicit && sqltype.IsRegTS(entry.Usage.Type.BaseType().ID())
 			keyRenderer := renderer
 			if regTSCast {

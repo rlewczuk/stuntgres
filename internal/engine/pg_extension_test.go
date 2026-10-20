@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -105,9 +106,9 @@ func TestPGExtensionCapture(t *testing.T) {
 	if old.ref != ref || old.anonymous == nil || old.count() != 0 || !maps.Equal(before, maps.Collect(e.catalog.state.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.state.Names())) {
 		t.Fatal("empty immutable capture", old)
 	}
-	root := &projectNode{QuerySchema: querySchema(d.Columns), Child: &sourceNode{QuerySchema: querySchema(d.Columns), Ref: ref}}
+	root := &plan.ProjectNode{QuerySchema: plan.QuerySchema(d.Columns), Child: &plan.SourceNode{QuerySchema: plan.QuerySchema(d.Columns), Ref: ref}}
 	for i, c := range d.Columns {
-		root.Expressions = append(root.Expressions, columnExpression{Info: expr.Info{Usage: c.Usage}, Origin: ref, Scope: 1, Frame: 1, Slot: i})
+		root.Expressions = append(root.Expressions, plan.ColumnExpr{Info: expr.Info{Usage: c.Usage}, Origin: ref, Scope: 1, Frame: 1, Slot: i})
 	}
 	executable, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, captureExtensionCatalog)
 	if err != nil {

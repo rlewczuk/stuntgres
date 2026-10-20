@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -24,7 +25,7 @@ func TestQueryDistinctOnSubquerySemanticIdentity(t *testing.T) {
 		{"(SELECT t.v FROM t)", "(SELECT t.v FROM t AS t)", false},
 	} {
 		_, query, source := queryCoreFixture(t, "SELECT "+tc.left+","+tc.right+" FROM t")
-		project := query.Root.(*projectNode)
+		project := query.Root.(*plan.ProjectNode)
 		a, b := project.Expressions[0], project.Expressions[1]
 		got := (*expressionBinder)(nil).sameSubqueryTarget(a, b)
 		source.close()
@@ -43,9 +44,9 @@ func TestQueryDistinctOnSubquerySemanticIdentity(t *testing.T) {
 func TestQueryDistinctOnSameSubqueryTargetAndRemap(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON((SELECT max(v) FROM t)) id FROM t ORDER BY (SELECT /* λ */ max(t.v) FROM t),id DESC")
 	defer source.close()
-	node := query.Root.(*projectNode).Child.(*distinctOnNode)
-	sorted := node.Child.(*sortNode)
-	key := node.Expressions[0].(cachedOrderExpression)
+	node := query.Root.(*plan.ProjectNode).Child.(*plan.DistinctOnNode)
+	sorted := node.Child.(*plan.SortNode)
+	key := node.Expressions[0].(plan.CachedOrderExpr)
 	if key.Slot != sorted.Keys[0].Cache || len(sorted.Outputs) != 0 {
 		t.Fatal("ON/ORDER same-query datum not shared", key, sorted.Keys, sorted.Outputs)
 	}
@@ -57,9 +58,9 @@ func TestQueryDistinctOnSameSubqueryTargetAndRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next := remapped.(*projectNode).Child.(*distinctOnNode)
-	sort := next.Child.(*sortNode)
-	if next.Expressions[0].(cachedOrderExpression).Slot != sort.Keys[0].Cache || next.Expressions[0].ResultUsage().Type != fresh[sqltype.Int4] {
+	next := remapped.(*plan.ProjectNode).Child.(*plan.DistinctOnNode)
+	sort := next.Child.(*plan.SortNode)
+	if next.Expressions[0].(plan.CachedOrderExpr).Slot != sort.Keys[0].Cache || next.Expressions[0].ResultUsage().Type != fresh[sqltype.Int4] {
 		t.Fatal("remapped scoped target sharing lost", next, sort)
 	}
 }
@@ -72,8 +73,8 @@ func TestQueryDistinctOnSubqueryFrameAndSourceGuards(t *testing.T) {
 	}
 	_, query, source := queryCoreFixture(t, "SELECT (SELECT v FROM t) FROM t")
 	defer source.close()
-	root := query.Root.(*projectNode).Expressions[0].(subqueryExpression).QueryPlan.Root.(*projectNode)
-	leaf := root.Child.(*sourceNode)
+	root := query.Root.(*plan.ProjectNode).Expressions[0].(plan.SubqueryExpr).QueryPlan.Root.(*plan.ProjectNode)
+	leaf := root.Child.(*plan.SourceNode)
 	changed := *leaf
 	changed.Ref = ids.ObjectRef{}
 	var occurrences [4]queryTargetOccurrence

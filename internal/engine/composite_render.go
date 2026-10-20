@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
 
@@ -20,7 +21,7 @@ func (v *viewRenderer) frozenCompositeFields(ctx context.Context, catalogView ca
 	shape := captured.base.Type.BaseType()
 	fields := make([]string, len(captured.attributes))
 	var exposed []string
-	var scalarRoot LogicalNode
+	var scalarRoot plan.Node
 	var scalarColumns []viewNamespaceColumn
 	if captured.source.Namespace != 0 {
 		rendered, ok := v.wholeRows[captured.source]
@@ -30,7 +31,7 @@ func (v *viewRenderer) frozenCompositeFields(ctx context.Context, catalogView ca
 		exposed = rendered.names
 		namespace := v.namespaces[captured.source.Namespace-1]
 		root := v.namespaceRoot(namespace)
-		if function, ok := root.(*functionFromNode); ok && len(function.Calls) == 1 && !function.Ordinality && !function.Calls[0].ResultUsage().Type.IsComposite() && captured.kind == compositeExpansion {
+		if function, ok := root.(*plan.FunctionFromNode); ok && len(function.Calls) == 1 && !function.Ordinality && !function.Calls[0].ResultUsage().Type.IsComposite() && captured.kind == compositeExpansion {
 			// A namespace list is not a composite field selection on the
 			// function's scalar alias value. Replay its analyzed column slots.
 			scalarRoot = root

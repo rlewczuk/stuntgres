@@ -200,7 +200,7 @@ func TestTableLikePartialUniqueClone(t *testing.T) {
 	}
 	predicate := copied.SQLIndex.Predicate
 	for _, node := range []expr.Expr{predicate.Definition, predicate.Execution} {
-		column, ok := node.(columnExpression)
+		column, ok := node.(plan.ColumnExpr)
 		if !ok || column.Origin.Address.ObjectID != destination.Address().ObjectID || column.Origin.Address.SubID != 4 || column.Slot != 3 {
 			t.Fatal("partial unique predicate row mapping", node)
 		}

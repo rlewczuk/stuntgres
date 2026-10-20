@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -15,9 +16,9 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (expr.E
 	if err != nil {
 		return nil, err
 	}
-	query := bound.(subqueryExpression)
-	project := query.QueryPlan.Root.(*projectNode)
-	arg := expr.Expr(columnExpression{Info: b.info(query.Usage, raw.Pos, expr.Properties{RowDependent: true}), Scope: 1, Frame: project.Frame, Slot: 0})
+	query := bound.(plan.SubqueryExpr)
+	project := query.QueryPlan.Root.(*plan.ProjectNode)
+	arg := expr.Expr(plan.ColumnExpr{Info: b.info(query.Usage, raw.Pos, expr.Properties{RowDependent: true}), Scope: 1, Frame: project.Frame, Slot: 0})
 	var format *parser.JSONFormat
 	if len(raw.Formats) > 0 {
 		format = raw.Formats[0]
@@ -52,7 +53,7 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (expr.E
 	if err != nil {
 		return nil, err
 	}
-	query.JSONArray = &sqlJSONArrayQuery{Raw: raw, Input: arg, Plan: jsonArrayAggregatePlan}
+	query.JSONArray = &plan.SQLJSONArrayQuery{Raw: raw, Input: arg, Plan: jsonArrayAggregatePlan}
 	query.Usage = usage
 	if returning.Type == nil {
 		return query, nil
@@ -65,9 +66,9 @@ func (b *expressionBinder) bindSQLJSONArrayQuery(raw parser.SQLJSONExpr) (expr.E
 	if err != nil {
 		return nil, err
 	}
-	return coercionExpression{info, query, coercion, sqltype.Assignment, false}, nil
+	return plan.CoercionExpr{info, query, coercion, sqltype.Assignment, false}, nil
 }
-func (c *EvalContext) subqueryJSONArray(e subqueryExpression, state *queryState, stage *indexedStage) (sqltype.Value, error) {
+func (c *EvalContext) subqueryJSONArray(e plan.SubqueryExpr, state *queryState, stage *indexedStage) (sqltype.Value, error) {
 	p := e.JSONArray
 	aggregate, err := p.Plan.Init(c.Context, c.FunctionJSONOutput())
 	if err != nil {
@@ -83,7 +84,7 @@ func (c *EvalContext) subqueryJSONArray(e subqueryExpression, state *queryState,
 			return p.Plan.Finalize(c.Context, aggregate)
 		}
 		inner := state.evaluation(c.Context)
-		inner.Frame = e.QueryPlan.Root.(*projectNode).Frame
+		inner.Frame = e.QueryPlan.Root.(*plan.ProjectNode).Frame
 		inner.Row = row[:]
 		value, err := p.Input.Eval(&inner)
 		if err != nil {

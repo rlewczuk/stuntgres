@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -112,7 +113,7 @@ func TestRLSBaseDecision(t *testing.T) {
 		if source.view == nil || !source.rlsDenied || len(source.committed) != 0 || len(source.own) != 0 || source.hashIndexes != nil || source.partialMask != nil {
 			t.Fatal("denied source lost ownership or captured physical rows/indexes")
 		}
-		stage, err := openQueryNode(op.ctx, &queryState{source: source}, b.query.Root.(*projectNode).Child)
+		stage, err := openQueryNode(op.ctx, &queryState{source: source}, b.query.Root.(*plan.ProjectNode).Child)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -66,8 +67,8 @@ func TestQueryWindowExcludeEndpoints(t *testing.T) {
 					tail, err = windowGroupsEndpoint(ctx, parser.FrameCurrentRow, 0, peers, group, true)
 				}
 			case parser.FrameRange:
-				spec := boundWindowSpec{}
-				bound := boundWindowBound{Kind: parser.FrameCurrentRow}
+				spec := plan.WindowSpec{}
+				bound := plan.WindowBound{Kind: parser.FrameCurrentRow}
 				head, err = windowFrameEndpoint(ctx, spec, bound, sqltype.Value{}, windowOrderState{}, []int{0, 1, 2}, first, last, 0, false, sqltype.InputEnvironment{})
 				if err == nil {
 					tail, err = windowFrameEndpoint(ctx, spec, bound, sqltype.Value{}, windowOrderState{}, []int{0, 1, 2}, first, last, 0, true, sqltype.InputEnvironment{})
@@ -92,7 +93,7 @@ func TestQueryWindowExcludeEndpoints(t *testing.T) {
 func TestQueryWindowExcludeIdentityAndMetadata(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT count(*) OVER w,sum(v) OVER w,sum(v) OVER w,sum(v+1) OVER w,sum(v::bigint) OVER w,row_number() OVER w FROM t WINDOW w AS(ORDER BY id ROWS CURRENT ROW EXCLUDE GROUP)")
 	defer source.close()
-	node := query.Root.(*projectNode).Child.(*windowNode)
+	node := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	if len(node.Calls) != 6 || len(node.Specs) != 1 {
 		t.Fatal(node)
 	}
@@ -142,7 +143,7 @@ func TestQueryWindowExcludeIdentityAndMetadata(t *testing.T) {
 func TestQueryWindowExcludeGraphRemap(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT sum(v+1) OVER(ORDER BY id ROWS CURRENT ROW EXCLUDE TIES) FROM t")
 	defer source.close()
-	node := query.Root.(*projectNode).Child.(*windowNode)
+	node := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	argument := node.Calls[0].Argument
 	found := false
 	queryExpressions(node, func(expr expr.Expr) { found = found || expr == argument })
@@ -155,7 +156,7 @@ func TestQueryWindowExcludeGraphRemap(t *testing.T) {
 		}
 		return expr, false, nil
 	})
-	if err != nil || next == node || next.(*windowNode).Calls[0].Argument == argument || node.Calls[0].Argument != argument {
+	if err != nil || next == node || next.(*plan.WindowNode).Calls[0].Argument == argument || node.Calls[0].Argument != argument {
 		t.Fatal("immutable argument rewrite", next, err)
 	}
 	types := make(map[sqltype.ID]*sqltype.Descriptor)
@@ -166,7 +167,7 @@ func TestQueryWindowExcludeGraphRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	call := mapped.(*projectNode).Child.(*windowNode).Calls[0]
+	call := mapped.(*plan.ProjectNode).Child.(*plan.WindowNode).Calls[0]
 	provider := call.Provider.(functions.IntegralSum)
 	if call.Argument == argument || call.Argument.ResultUsage().Type != types[sqltype.Int4] || provider.InputType() != types[sqltype.Int4] || provider.ResultUsage().Type != types[sqltype.Int8] || call.Expression == node.Calls[0].Expression {
 		t.Fatal("argument/provider ownership", call)
@@ -297,7 +298,7 @@ func TestQueryWindowExcludeFinishAtomicity(t *testing.T) {
 func TestQueryWindowExcludePeers(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT count(*) OVER(ORDER BY v DESC NULLS FIRST,id) FROM t")
 	defer source.close()
-	keys := query.Root.(*projectNode).Child.(*windowNode).Specs[0].Order
+	keys := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode).Specs[0].Order
 	typ := keys[0].Expression.ResultUsage().Type
 	one, err := sqltype.Integer(typ, 1)
 	if err != nil {
@@ -332,9 +333,9 @@ func TestQueryWindowExcludeLiteralCapture(t *testing.T) {
 	}
 	defer done()
 	binder := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
-	project := query.Root.(*projectNode)
-	window := project.Child.(*windowNode)
-	binder.grouping.windowCalls = append([]windowCall(nil), window.Calls...)
+	project := query.Root.(*plan.ProjectNode)
+	window := project.Child.(*plan.WindowNode)
+	binder.grouping.windowCalls = append([]plan.WindowCall(nil), window.Calls...)
 	binder.grouping.windowCalls[0].Spec = window.Specs[0]
 	raw := statement(t, sql).(*parser.Select).Targets[0]
 	if err := binder.captureViewLiterals(raw, project.Expressions[0], viewTargetLiteral, 0); err != nil {
@@ -355,8 +356,8 @@ func TestQueryWindowExcludeLiteralCapture(t *testing.T) {
 func TestQueryWindowExcludeGroupedArgument(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT v,sum(count(*)) OVER(ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE TIES) FROM t GROUP BY v")
 	defer source.close()
-	window := query.Root.(*projectNode).Child.(*windowNode)
-	if _, ok := window.Calls[0].Argument.(groupExpression); !ok {
+	window := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
+	if _, ok := window.Calls[0].Argument.(plan.GroupExpr); !ok {
 		t.Fatal("grouped SUM argument lost aggregate slot", window.Calls[0].Argument)
 	}
 	rows, n, err := finalizeQuery(context.Background(), query.Root, source, nil)
@@ -394,7 +395,7 @@ func TestQueryWindowExcludeDomainRemap(t *testing.T) {
 		t.Fatal(err)
 	}
 	root := description.query.Root
-	original := root.(*projectNode).Child.(*windowNode)
+	original := root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	var domain *sqltype.Descriptor
 	walkBoundExpression(original.Calls[0].Argument, func(expr expr.Expr) {
 		if expr.ResultUsage().Type.IsDomain() {
@@ -417,7 +418,7 @@ func TestQueryWindowExcludeDomainRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next := mapped.(*projectNode).Child.(*windowNode)
+	next := mapped.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	var mappedDomain *sqltype.Descriptor
 	walkBoundExpression(next.Calls[0].Argument, func(expr expr.Expr) {
 		if expr.ResultUsage().Type.IsDomain() {

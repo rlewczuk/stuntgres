@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/plan"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -35,12 +36,12 @@ func intaggUnitRecipes(t *testing.T) {
 			if !ok || ref.Address == (ids.ObjectAddress{}) || len(b.capture.routineRefs) != 1 {
 				t.Fatal("missing bound occurrence", b.capture.routineRefs)
 			}
-			var child LogicalNode = &singletonNode{}
+			var child plan.Node = &plan.SingletonNode{}
 			if len(b.grouping.aggregates) != 0 {
-				child = &aggregateNode{Child: child, Calls: b.grouping.aggregates}
+				child = &plan.AggregateNode{Child: child, Calls: b.grouping.aggregates}
 			}
-			project := &projectNode{QuerySchema: querySchema{{Name: "v", Usage: node.ResultUsage()}}, Child: child, Expressions: []expr.Expr{node}, Frame: b.frameID(), Syntax: syntax}
-			definition := &viewDefinition{query: &BoundQuery{Root: project}, syntax: syntax, dependencies: b.dependencies, routineRefs: b.capture.routineRefs, literals: b.capture.literals, castUsages: b.capture.castUsages}
+			project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: node.ResultUsage()}}, Child: child, Expressions: []expr.Expr{node}, Frame: b.frameID(), Syntax: syntax}
+			definition := &viewDefinition{query: &plan.Query{Root: project}, syntax: syntax, dependencies: b.dependencies, routineRefs: b.capture.routineRefs, literals: b.capture.literals, castUsages: b.capture.castUsages}
 			definition.frames, definition.queries = collectQueryFrames(project)
 			if err := definition.validateLiterals(e.CatalogRead()); err != nil {
 				t.Fatal(err)

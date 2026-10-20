@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -94,11 +95,11 @@ func TestUpdateRowRuleReplay(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					var executable *projectNode
+					var executable *plan.ProjectNode
 					find := func(recipe expr.Expr) {
 						walkBoundExpression(recipe, func(node expr.Expr) {
-							if query, ok := node.(subqueryExpression); ok && executable == nil {
-								executable = query.QueryPlan.Root.(*projectNode)
+							if query, ok := node.(plan.SubqueryExpr); ok && executable == nil {
+								executable = query.QueryPlan.Root.(*plan.ProjectNode)
 							}
 						})
 					}

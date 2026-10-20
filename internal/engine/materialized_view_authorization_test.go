@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"testing"
 )
@@ -52,7 +53,7 @@ func TestMaterializedViewAuthorization(t *testing.T) {
 		t.Fatalf("base unexpectedly readable: %v", err)
 	}
 	e.mu.Lock()
-	refs, err := e.queryTableRefsLocked(auth, auth.State.CurrentUser, mvSources, nil, ids.SessionToken{}, queryRowMark{})
+	refs, err := e.queryTableRefsLocked(auth, auth.State.CurrentUser, mvSources, nil, ids.SessionToken{}, plan.RowMark{})
 	e.mu.Unlock()
 	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectRef{mvRef}) {
 		t.Fatalf("physical read expanded frozen source references: %v %v", refs, err)

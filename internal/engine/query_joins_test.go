@@ -9,13 +9,14 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func queryJoinsFixture(t *testing.T, q string) (*Engine, *BoundQuery, *querySource) {
+func queryJoinsFixture(t *testing.T, q string) (*Engine, *plan.Query, *querySource) {
 	t.Helper()
 	e, query, source, _ := queryJoinsAdmittedFixture(t, q, false)
 	return e, query, source
@@ -23,7 +24,7 @@ func queryJoinsFixture(t *testing.T, q string) (*Engine, *BoundQuery, *querySour
 
 // Explicit admission allows immutable captured rows to outlive catalog replacement
 // without bypassing the replacement reservation held by implicit statements.
-func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*Engine, *BoundQuery, *querySource, func()) {
+func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*Engine, *plan.Query, *querySource, func()) {
 	t.Helper()
 	ast := statement(t, q)
 	e := New()
@@ -72,7 +73,7 @@ func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*Engine, 
 	}
 	if err == nil {
 		// Standalone stages supply contexts, but still need live admission authority.
-		source, err = e.captureQuerySourcesForInvokerLocked(scope, b.querySources, false, authorization.PrincipalRef{}, queryRowMark{}, scope.queryLocks)
+		source, err = e.captureQuerySourcesForInvokerLocked(scope, b.querySources, false, authorization.PrincipalRef{}, plan.RowMark{}, scope.queryLocks)
 	}
 	e.mu.Unlock()
 	if err == nil {
@@ -118,7 +119,7 @@ func TestQueryJoinsMergedMetadataAndFrames(t *testing.T) {
 		result.Close()
 	}
 	e, query, source := queryJoinsFixture(t, "SELECT a.k,b.k,k FROM a JOIN b USING(k)")
-	join := query.Root.(*projectNode).Child.(*joinNode)
+	join := query.Root.(*plan.ProjectNode).Child.(*plan.JoinNode)
 	if len(join.Schema()) != 6 || len(query.Root.Schema()) != 3 {
 		t.Fatal(join.Schema(), query.Root.Schema())
 	}
@@ -129,9 +130,9 @@ func TestQueryJoinsMergedMetadataAndFrames(t *testing.T) {
 	if _, ok := source.view.Data().Committed[unused.Address]; ok {
 		t.Fatal("unrelated root captured")
 	}
-	project := query.Root.(*projectNode)
+	project := query.Root.(*plan.ProjectNode)
 	for i, want := range []int{1, 5, 1} {
-		if project.Expressions[i].(columnExpression).Slot != want {
+		if project.Expressions[i].(plan.ColumnExpr).Slot != want {
 			t.Fatal(project.Expressions)
 		}
 	}
@@ -142,8 +143,8 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			e, query, source := queryJoinsFixture(t, "SELECT a.k FROM a JOIN b ON a.k=b.k")
 			children := append([]*querySource(nil), source.sources...)
-			project := query.Root.(*projectNode)
-			join := project.Child.(*joinNode)
+			project := query.Root.(*plan.ProjectNode)
+			join := project.Child.(*plan.JoinNode)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			sentinel := errors.New("join provider sentinel")
@@ -188,7 +189,7 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 					return c.Row[1], nil
 				})}
 			case "second_open":
-				join.Right.(*sourceNode).Occurrence = len(children)
+				join.Right.(*plan.SourceNode).Occurrence = len(children)
 			case "bad_width":
 				join.LeftWidth++
 			case "bad_usage":
@@ -221,7 +222,7 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 func TestQueryJoinsRejectedPairAllocation(t *testing.T) {
 	_, query, source := queryJoinsFixture(t, "SELECT a.k FROM a JOIN b ON FALSE")
 	defer source.close()
-	join := query.Root.(*projectNode).Child.(*joinNode)
+	join := query.Root.(*plan.ProjectNode).Child.(*plan.JoinNode)
 	calls := 0
 	usage := join.Predicate.ResultUsage()
 	join.Predicate = queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
@@ -347,7 +348,7 @@ func TestQueryJoinsZeroWidthAndHeldRoots(t *testing.T) {
 
 func TestQueryJoinsAdmittedFrameLayout(t *testing.T) {
 	_, query, source := queryJoinsFixture(t, "SELECT a.k FROM a JOIN b ON TRUE")
-	join := query.Root.(*projectNode).Child.(*joinNode)
+	join := query.Root.(*plan.ProjectNode).Child.(*plan.JoinNode)
 	left := append([]sqltype.Value(nil), source.sources[0].row(0)...)
 	right := append([]sqltype.Value(nil), source.sources[1].row(0)...)
 	stage, err := openJoinNode(context.Background(), &queryState{source: source}, join)

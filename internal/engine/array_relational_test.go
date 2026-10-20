@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -88,7 +89,7 @@ func TestArrayRelationalRandomSlices(t *testing.T) {
 		t.Fatal(err)
 	}
 	call.Info.Usage = array.Usage()
-	call.Args[0] = literalExpression{Info: expr.Info{Usage: array.Usage()}, Value: value}
+	call.Args[0] = plan.LiteralExpr{Info: expr.Info{Usage: array.Usage()}, Value: value}
 	if err := call.Validate(); err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +136,7 @@ func TestArrayRelationalSampleCounts(t *testing.T) {
 	}
 }
 
-func arrayRelationalUnitUnnest(t *testing.T, input string) unnestExpression {
+func arrayRelationalUnitUnnest(t *testing.T, input string) plan.UnnestExpr {
 	t.Helper()
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	b.clause.aggregateClause = "SELECT"
@@ -143,7 +144,7 @@ func arrayRelationalUnitUnnest(t *testing.T, input string) unnestExpression {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return node.(unnestExpression)
+	return node.(plan.UnnestExpr)
 }
 func TestArrayRelationalUnnestCursor(t *testing.T) {
 	c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
@@ -192,7 +193,7 @@ func TestArrayRelationalUnnestCursor(t *testing.T) {
 	for _, input := range []string{"{}", "{1}"} {
 		e := arrayRelationalUnitUnnest(t, input)
 		if input == "{1}" {
-			e.Args[0] = literalExpression{Info: expr.Info{Usage: e.Args[0].ResultUsage()}, Value: sqltype.Null(e.Args[0].ResultUsage().Type)}
+			e.Args[0] = plan.LiteralExpr{Info: expr.Info{Usage: e.Args[0].ResultUsage()}, Value: sqltype.Null(e.Args[0].ResultUsage().Type)}
 		}
 		cursor, err := openFunctionSource(c, e)
 		if err != nil {
@@ -226,8 +227,8 @@ func TestArrayRelationalCompositeNull(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		e := unnestExpression{Info: expr.Info{Usage: element.Usage(), Property: expr.Properties{StageDependent: true}}, Args: []expr.Expr{literalExpression{Info: expr.Info{Usage: array.Usage()}, Value: value}}}
-		node := &functionFromNode{QuerySchema: querySchema{{Name: "id", Usage: integer.Usage()}, {Name: "label", Usage: text.Usage()}}, Calls: []expr.Expr{e}}
+		e := plan.UnnestExpr{Info: expr.Info{Usage: element.Usage(), Property: expr.Properties{StageDependent: true}}, Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: array.Usage()}, Value: value}}}
+		node := &plan.FunctionFromNode{QuerySchema: plan.QuerySchema{{Name: "id", Usage: integer.Usage()}, {Name: "label", Usage: text.Usage()}}, Calls: []expr.Expr{e}}
 		if err := validateFunctionFromLayout(node); err != nil {
 			t.Fatal(err)
 		}
@@ -278,8 +279,8 @@ func TestArrayRelationalZeroWidthComposite(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			call := unnestExpression{Info: expr.Info{Usage: element.Usage(), Property: expr.Properties{StageDependent: true}}, Args: []expr.Expr{literalExpression{Info: expr.Info{Usage: array.Usage()}, Value: value}}}
-			node := &functionFromNode{Calls: []expr.Expr{call}}
+			call := plan.UnnestExpr{Info: expr.Info{Usage: element.Usage(), Property: expr.Properties{StageDependent: true}}, Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: array.Usage()}, Value: value}}}
+			node := &plan.FunctionFromNode{Calls: []expr.Expr{call}}
 			if err := validateFunctionFromLayout(node); err != nil {
 				t.Fatal("valid zero-column layout", err)
 			}
@@ -295,7 +296,7 @@ func TestArrayRelationalZeroWidthComposite(t *testing.T) {
 			}
 			invocation.close()
 			node.Ordinality = true
-			node.QuerySchema = querySchema{{Name: "n", Usage: ordinal.Usage()}}
+			node.QuerySchema = plan.QuerySchema{{Name: "n", Usage: ordinal.Usage()}}
 			if err := validateFunctionFromLayout(node); err != nil {
 				t.Fatal("valid zero-field ordinality", err)
 			}
@@ -342,7 +343,7 @@ func TestArrayRelationalTypedDefinitionClasses(t *testing.T) {
 		{domain, "a column definition list is redundant for a function returning a named composite type"},
 		{record, "a column definition list is redundant for a function with OUT parameters"},
 	} {
-		call := literalExpression{Info: expr.Info{Usage: tc.typ.Usage()}, Value: sqltype.Null(tc.typ)}
+		call := plan.LiteralExpr{Info: expr.Info{Usage: tc.typ.Usage()}, Value: sqltype.Null(tc.typ)}
 		if got := functionColumnDefinitionMessage(call); got != tc.message {
 			t.Fatalf("type %d: got %q, want %q", tc.typ.ID(), got, tc.message)
 		}
@@ -506,7 +507,7 @@ func TestArrayRelationalReownership(t *testing.T) {
 	if err != nil || !did {
 		t.Fatal(did, err)
 	}
-	u := rebound.(unnestExpression)
+	u := rebound.(plan.UnnestExpr)
 	if u.Usage.Type != u.Args[0].ResultUsage().Type.Element() || u.Usage.Type == e.Usage.Type || u.Properties() != e.Properties() {
 		t.Fatal("unnest generation remap")
 	}
@@ -545,7 +546,7 @@ func TestArrayRelationalCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	call.Args[0] = literalExpression{Info: expr.Info{Usage: call.Usage}, Value: value}
+	call.Args[0] = plan.LiteralExpr{Info: expr.Info{Usage: call.Usage}, Value: value}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	boundary := &arrayRelationalLoopContext{Context: ctx, cancel: cancel, owner: &c.statementScope.op.session.arrayRandom}

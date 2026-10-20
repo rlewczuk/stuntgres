@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -31,7 +32,7 @@ func TestUpdateFromCancelledTraversalAndPublicationCleanup(t *testing.T) {
 				calls := 0
 				switch phase {
 				case "source_rejected":
-					join := b.update.from.(*joinNode)
+					join := b.update.from.(*plan.JoinNode)
 					join.Predicate = queryProbe(join.Predicate.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
 						calls++
 						if calls == 3 {

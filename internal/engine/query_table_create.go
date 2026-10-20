@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -49,7 +50,7 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 	if !available {
 		return nil, nil, false, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42710", Message: fmt.Sprintf(`type "%s" already exists`, name), Hint: "A relation has an associated type of the same name, so you must use a name that doesn't conflict with any existing type."}
 	}
-	projection, ok := b.query.Root.(*projectNode)
+	projection, ok := b.query.Root.(*plan.ProjectNode)
 	if !ok {
 		return nil, nil, false, errors.New("stuntgres: query table lacks final projection")
 	}
@@ -246,7 +247,7 @@ func (e *Engine) publishQueryTable(scope *StatementScope, stage *CatalogStage) e
 
 // The common SELECT pipeline has already planned and admitted this producer.
 // Engine.mu is held on entry; every outcome releases it. The caller owns discard.
-func (e *Engine) executeQueryTableLocked(scope *StatementScope, s *parser.CreateQueryTable, b binding, root LogicalNode, parameters []sqltype.Value, stage *CatalogStage, d *catalog.Relation) (Result, error) {
+func (e *Engine) executeQueryTableLocked(scope *StatementScope, s *parser.CreateQueryTable, b binding, root plan.Node, parameters []sqltype.Value, stage *CatalogStage, d *catalog.Relation) (Result, error) {
 	ctx := scope.op.Context()
 	source, err := e.captureQuerySourcesLocked(scope, b.querySources, s.Query.From == nil && s.Query.Values == nil)
 	e.mu.Unlock()

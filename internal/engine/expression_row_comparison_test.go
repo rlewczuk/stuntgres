@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -40,7 +41,7 @@ func TestRowComparisonDistinctPairs(t *testing.T) {
 				probe := func(id int, value sqltype.Value, failure error) expr.Expr {
 					return rowOperandEffect{expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, value, &order, id, failure}
 				}
-				row := rowComparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, Operator: mode, Comparisons: []comparisonExpression{{
+				row := plan.RowComparisonExpr{Info: expr.Info{Usage: boolean.Usage()}, Operator: mode, Comparisons: []plan.ComparisonExpr{{
 					Info: expr.Info{Usage: boolean.Usage()}, Left: probe(0, tc.left, nil), Right: probe(1, tc.right, nil), Predicate: predicate, Operator: "=",
 				}}}
 				value, err := row.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
@@ -52,7 +53,7 @@ func TestRowComparisonDistinctPairs(t *testing.T) {
 				if err != nil || boolErr != nil || truth != want || !reflect.DeepEqual(order, []int{0, 1}) {
 					t.Fatal("single pair total result/demand", value, err, boolErr, order)
 				}
-				row.Comparisons = append(row.Comparisons, comparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, Left: probe(2, one, failure), Right: probe(3, one, nil), Predicate: predicate, Operator: "="})
+				row.Comparisons = append(row.Comparisons, plan.ComparisonExpr{Info: expr.Info{Usage: boolean.Usage()}, Left: probe(2, one, failure), Right: probe(3, one, nil), Predicate: predicate, Operator: "="})
 				order = nil
 				_, err = row.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 				if tc.distinct {
@@ -72,7 +73,7 @@ func TestRowComparisonDistinctPairs(t *testing.T) {
 		}
 	}
 	for _, mode := range []string{"IS DISTINCT FROM", "IS NOT DISTINCT FROM"} {
-		row := rowComparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, Operator: mode}
+		row := plan.RowComparisonExpr{Info: expr.Info{Usage: boolean.Usage()}, Operator: mode}
 		value, err := row.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		truth, boolErr := value.Boolean()
 		if err != nil || boolErr != nil || truth != (mode == "IS NOT DISTINCT FROM") {
@@ -111,7 +112,7 @@ func TestRowComparisonAnalysis(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pair := node.(rowComparisonExpression).Comparisons[0]
+	pair := node.(plan.RowComparisonExpr).Comparisons[0]
 	if pair.Left.ResultUsage().Type.ID() != sqltype.Int4 || pair.Right.ResultUsage().Type.ID() != sqltype.Int4 {
 		t.Fatal("unknown finalized before pair inference")
 	}
@@ -140,16 +141,16 @@ func TestRowComparisonStoredRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := node.(rowComparisonExpression)
+		original := node.(plan.RowComparisonExpr)
 		if width != 0 {
-			original.Expansions[0] = map[int]compositeExpansionBinding{0: {Base: original.Comparisons[0].Left, Fields: []expr.Expr{original.Comparisons[0].Left}}}
+			original.Expansions[0] = map[int]plan.CompositeExpansionBinding{0: {Base: original.Comparisons[0].Left, Fields: []expr.Expr{original.Comparisons[0].Left}}}
 		}
 		retained := func(old *sqltype.Descriptor) *sqltype.Descriptor { return eType(t, target, old.ID()) }
 		mapped, changed, err := retagBoundTypes(target.CatalogRead(), original, retained)
 		if err != nil || !changed {
 			t.Fatal(width, changed, err)
 		}
-		next := mapped.(rowComparisonExpression)
+		next := mapped.(plan.RowComparisonExpr)
 		if next.Operator != original.Operator || len(next.Ordering) != 0 {
 			t.Fatal("mode/provider changed")
 		}

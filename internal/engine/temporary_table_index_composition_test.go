@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -82,15 +83,15 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 					t.Fatal("captured layout", derived.Attributes, wantLayout)
 				}
 				for _, expression := range []expr.Expr{derived.Definition, derived.Execution} {
-					node := expression.(arithmeticExpression).Left
+					node := expression.(plan.ArithmeticExpr).Left
 					for {
-						cast, ok := node.(coercionExpression)
+						cast, ok := node.(plan.CoercionExpr)
 						if !ok {
 							break
 						}
 						node = cast.Child
 					}
-					column := node.(columnExpression)
+					column := node.(plan.ColumnExpr)
 					if column.Slot != wantSlot || column.Origin.Address.SubID != 4 {
 						t.Fatal("derived slot/attribute", column.Slot, column.Origin.Address)
 					}
@@ -137,15 +138,15 @@ func TestTemporaryTableIndexComposition(t *testing.T) {
 			}{{index, 3}, {intermediate, 2}} {
 				derived := retained.candidate.SQLIndex.Keys[0].Derived
 				for _, expression := range []expr.Expr{derived.Definition, derived.Execution} {
-					node := expression.(arithmeticExpression).Left
+					node := expression.(plan.ArithmeticExpr).Left
 					for {
-						cast, ok := node.(coercionExpression)
+						cast, ok := node.(plan.CoercionExpr)
 						if !ok {
 							break
 						}
 						node = cast.Child
 					}
-					if column := node.(columnExpression); column.Slot != retained.slot || column.Origin.Address.SubID != 4 {
+					if column := node.(plan.ColumnExpr); column.Slot != retained.slot || column.Origin.Address.SubID != 4 {
 						t.Fatal("retained derived tree mutated", column.Slot, retained.slot)
 					}
 				}

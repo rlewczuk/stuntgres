@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -53,7 +54,7 @@ func TestRangePartitionInheritedCookedCheckStructuralIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	binder := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, op, nil)
-	implicit := coercionExpression{binder.info(original.ResultUsage(), original.SourcePosition(), original.Properties()), original, coercionPlan, sqltype.Implicit, false}
+	implicit := plan.CoercionExpr{binder.info(original.ResultUsage(), original.SourcePosition(), original.Properties()), original, coercionPlan, sqltype.Implicit, false}
 	explicit := implicit
 	explicit.Mode = sqltype.Explicit
 	grouping := expressionBinder{}

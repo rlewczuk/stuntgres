@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -22,7 +23,7 @@ func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	arg := literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: v}
+	arg := plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: v}
 	result := b.typ(sqltype.Numeric)
 	original, err := functions.NewRangeInspect(b.info(result.Usage(), parser.Position{Character: 8}, expr.Properties{Volatility: expr.Immutable}), sqltype.RangeLower, []expr.Expr{arg})
 	if err != nil {
@@ -81,7 +82,7 @@ func TestRangeInspectBindingUsesSelectedAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	arg := literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: value}
+	arg := plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: value}
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "lower"}}}, Pos: parser.Position{Character: 8}}
 	node, err := functions.FinishRangeInspect(b, raw, true, []functions.Argument{{Expression: arg, Usage: d.Usage()}})
 	if err != nil {

@@ -2,13 +2,14 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
 func TestProtocolPortalProducer(t *testing.T) {
 	e, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY id")
-	root := query.Root.(*projectNode)
+	root := query.Root.(*plan.ProjectNode)
 	original := root.Expressions[0]
 	calls := 0
 	root.Expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return original.Eval(c) })

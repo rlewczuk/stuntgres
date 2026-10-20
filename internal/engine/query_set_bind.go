@@ -6,14 +6,15 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func setOperand(arm *projectNode, slot int) comparisonOperand {
+func setOperand(arm *plan.ProjectNode, slot int) comparisonOperand {
 	expression := arm.Expressions[slot]
-	if unknown, ok := expression.(unknownOutput); ok {
+	if unknown, ok := expression.(plan.UnknownOutput); ok {
 		return comparisonOperand{raw: unknown.Raw}
 	}
 	operand := comparisonOperand{node: expression}
@@ -23,7 +24,7 @@ func setOperand(arm *projectNode, slot int) comparisonOperand {
 	return operand
 }
 
-func (b *expressionBinder) finalizeSetOperand(arm *projectNode, slot int, target sqltype.Usage, operation string) (expr.Expr, error) {
+func (b *expressionBinder) finalizeSetOperand(arm *plan.ProjectNode, slot int, target sqltype.Usage, operation string) (expr.Expr, error) {
 	original := arm.Expressions[slot]
 	operand := setOperand(arm, slot)
 	oldFrame := b.query.frame
@@ -33,7 +34,7 @@ func (b *expressionBinder) finalizeSetOperand(arm *projectNode, slot int, target
 	if err != nil {
 		return nil, err
 	}
-	if unknown, ok := original.(unknownOutput); ok {
+	if unknown, ok := original.(plan.UnknownOutput); ok {
 		arm.Expressions[slot] = node
 		arm.QuerySchema[slot].Usage = node.ResultUsage()
 		if b.params.noParameters || b.consumer.materializedDefinition {
@@ -53,7 +54,7 @@ func (b *expressionBinder) finalizeSetOperand(arm *projectNode, slot int, target
 	return node, nil
 }
 
-func (b *expressionBinder) bindSet(s *parser.Select) (*BoundQuery, error) {
+func (b *expressionBinder) bindSet(s *parser.Select) (*plan.Query, error) {
 	if d := b.cte.recursiveDefinition; d != nil && d.Syntax == s {
 		return b.bindRecursiveSet(s, d)
 	}
@@ -68,8 +69,8 @@ func (b *expressionBinder) bindSet(s *parser.Select) (*BoundQuery, error) {
 	return b.bindSetArms(s, leftQuery, rightQuery)
 }
 
-func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *BoundQuery) (*BoundQuery, error) {
-	left, right := leftQuery.Root.(*projectNode), rightQuery.Root.(*projectNode)
+func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *plan.Query) (*plan.Query, error) {
+	left, right := leftQuery.Root.(*plan.ProjectNode), rightQuery.Root.(*plan.ProjectNode)
 	operation := strings.ToUpper(s.Set.Operator)
 	if len(left.Schema()) != len(right.Schema()) {
 		pos := s.Set.Right.Pos
@@ -79,12 +80,12 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 		return nil, expr.ErrorAt("42601", "each "+operation+" query must have the same number of columns", pos)
 	}
 	width := len(left.Schema())
-	n := &setNode{QuerySchema: make(querySchema, width), Left: left, Right: right, Operation: strings.ToLower(operation), All: s.Set.All, LeftExpressions: make([]expr.Expr, width), RightExpressions: make([]expr.Expr, width)}
+	n := &plan.SetNode{QuerySchema: make(plan.QuerySchema, width), Left: left, Right: right, Operation: strings.ToLower(operation), All: s.Set.All, LeftExpressions: make([]expr.Expr, width), RightExpressions: make([]expr.Expr, width)}
 	projection := make([]expr.Expr, width)
 	names := make([]string, width)
 	namespace := queryNamespace{frame: n.QuerySchema, columns: make([]queryColumn, width)}
 	if !(n.Operation == "union" && n.All) {
-		n.Grouping = make([]queryGrouping, width)
+		n.Grouping = make([]plan.Grouping, width)
 	}
 	regclass := false
 	for i := range width {
@@ -118,7 +119,7 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 			coercionInfo := info
 			coercionInfo.Pos = node.SourcePosition()
 			coercionInfo.Property = coercionProperties(node, coercionPlan)
-			expression := coercionExpression{coercionInfo, node, coercionPlan, sqltype.Implicit, false}
+			expression := plan.CoercionExpr{coercionInfo, node, coercionPlan, sqltype.Implicit, false}
 			if side == 0 {
 				n.LeftExpressions[i] = expression
 			} else {
@@ -128,7 +129,7 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 		n.QuerySchema[i] = catalog.Column{Name: left.Schema()[i].Name, Usage: common}
 		names[i] = n.Schema()[i].Name
 		namespace.columns[i] = queryColumn{descriptor: n.Schema()[i], slot: i, leaf: -1, physical: -1}
-		projection[i] = columnExpression{Info: info, Scope: 1, Frame: b.frameID(), Slot: i}
+		projection[i] = plan.ColumnExpr{Info: info, Scope: 1, Frame: b.frameID(), Slot: i}
 		regclass = regclass || common.Type.ContainsCatalogIdentifier()
 		if n.Grouping != nil {
 			n.Grouping[i], err = b.bindDistinctGrouping(projection[i])
@@ -151,7 +152,7 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 	if err != nil {
 		return nil, err
 	}
-	var root LogicalNode = n
+	var root plan.Node = n
 	root, err = b.finishOrder(root, order, projection)
 	if err != nil {
 		return nil, err
@@ -163,14 +164,14 @@ func (b *expressionBinder) bindSetArms(s *parser.Select, leftQuery, rightQuery *
 		bounds.QuerySchema, bounds.Child = root.Schema(), root
 		root = bounds
 	}
-	return &BoundQuery{Root: &projectNode{QuerySchema: n.QuerySchema, Child: root, Expressions: projection, Frame: b.frameID(), Syntax: s}, RegclassOutput: regclass, VisibilitySnapshot: leftQuery.VisibilitySnapshot || rightQuery.VisibilitySnapshot}, nil
+	return &plan.Query{Root: &plan.ProjectNode{QuerySchema: n.QuerySchema, Child: root, Expressions: projection, Frame: b.frameID(), Syntax: s}, RegclassOutput: regclass, VisibilitySnapshot: leftQuery.VisibilitySnapshot || rightQuery.VisibilitySnapshot}, nil
 }
 
-func (b *expressionBinder) bindSetOrder(order *parser.Order, projection []expr.Expr, names []string, right []catalog.Column) ([]sortKey, error) {
+func (b *expressionBinder) bindSetOrder(order *parser.Order, projection []expr.Expr, names []string, right []catalog.Column) ([]plan.SortKey, error) {
 	if order == nil {
 		return nil, nil
 	}
-	keys := make([]sortKey, len(order.Keys))
+	keys := make([]plan.SortKey, len(order.Keys))
 	for i, raw := range order.Keys {
 		slot, ordinal, err := orderOrdinal(raw.Expr, len(projection), "ORDER BY")
 		if err != nil {
@@ -213,7 +214,7 @@ func (b *expressionBinder) bindSetOrder(order *parser.Order, projection []expr.E
 				return nil, err
 			}
 		}
-		keys[i] = sortKey{Expression: projection[slot], Position: raw.Pos.Character, OutputOrdinal: slot + 1, Desc: raw.Desc, NullsFirst: raw.Nulls == parser.NullsFirst || raw.Nulls == parser.NullsDefault && raw.Desc, Cache: -1}
+		keys[i] = plan.SortKey{Expression: projection[slot], Position: raw.Pos.Character, OutputOrdinal: slot + 1, Desc: raw.Desc, NullsFirst: raw.Nulls == parser.NullsFirst || raw.Nulls == parser.NullsDefault && raw.Desc, Cache: -1}
 	}
 	return keys, nil
 }

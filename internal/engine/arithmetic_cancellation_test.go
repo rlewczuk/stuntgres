@@ -5,13 +5,14 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
 func TestExpressionArithmeticCancellationBeforePublication(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT (v::smallint+1::smallint)*2::smallint FROM t WHERE id=1")
-	project := query.Root.(*projectNode)
+	project := query.Root.(*plan.ProjectNode)
 	real := project.Expressions[0]
 	schema := project.Schema()[0]
 	if schema.Name != "?column?" || schema.Usage.Type.ID() != sqltype.Int2 || schema.NullabilityKnown || schema.OriginTable != 0 || schema.OriginAttribute != 0 {

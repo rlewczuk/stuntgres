@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -59,7 +60,7 @@ func TestExprCollationRowOperandDemand(t *testing.T) {
 			probe := func(id int, value sqltype.Value, err error) expr.Expr {
 				return rowOperandEffect{expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, value, &order, id, err}
 			}
-			row := rowComparisonExpression{Info: expr.Info{Usage: boolean.Usage()}, Operator: "<", Ordering: []sqltype.Comparison{comparison, comparison}, Comparisons: []comparisonExpression{
+			row := plan.RowComparisonExpr{Info: expr.Info{Usage: boolean.Usage()}, Operator: "<", Ordering: []sqltype.Comparison{comparison, comparison}, Comparisons: []plan.ComparisonExpr{
 				{Info: expr.Info{Usage: boolean.Usage()}, Left: probe(0, tc.left, nil), Right: probe(1, tc.right, nil), Predicate: predicate, Operator: "<"},
 				{Info: expr.Info{Usage: boolean.Usage()}, Left: probe(2, one, failure), Right: probe(3, two, errors.New("later right operand")), Predicate: predicate, Operator: "<"},
 			}}
@@ -94,24 +95,24 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 		sessionSQL(t, owner, `CREATE VIEW `+tc.name+` AS SELECT id,a=b AS unused,a COLLATE "C"=b AS selected FROM expr_scheduled_t `+tc.tail)
 		view := e.CatalogRead()
 		ref := catalogRef(t, e, view, tc.name)
-		project := viewOf(view.MustRelation(ref.Address)).query.Root.(*projectNode)
-		unused, ok := project.Expressions[1].(cachedOrderExpression)
+		project := viewOf(view.MustRelation(ref.Address)).query.Root.(*plan.ProjectNode)
+		unused, ok := project.Expressions[1].(plan.CachedOrderExpr)
 		if !ok {
 			t.Fatal("fixture has no real scheduled producer", tc.name, project.Expressions[1])
 		}
-		selected, ok := project.Expressions[2].(cachedOrderExpression)
+		selected, ok := project.Expressions[2].(plan.CachedOrderExpr)
 		if !ok {
 			t.Fatal("selected payload was not scheduled", tc.name)
 		}
-		producer := func(root LogicalNode, slot int) expr.Expr {
+		producer := func(root plan.Node, slot int) expr.Expr {
 			for root != nil {
 				switch n := root.(type) {
-				case *sortNode:
+				case *plan.SortNode:
 					base := n.CacheWidth - len(n.Outputs)
 					if slot >= base && slot < base+len(n.Outputs) {
 						return n.Outputs[slot-base]
 					}
-				case *evaluationNode:
+				case *plan.EvaluationNode:
 					if slot >= n.Base && slot < n.Base+len(n.Expressions) {
 						return n.Expressions[slot-n.Base]
 					}
@@ -165,9 +166,9 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 		// consume an earlier slot. This exercises transitive cache authority,
 		// not only directly referenced final projection slots.
 		identity := func(expression expr.Expr) (expr.Expr, bool, error) { return expression, false, nil }
-		chained, err := rewriteQueryExpressions(project.Child, identity, func(node LogicalNode) (LogicalNode, error) {
+		chained, err := rewriteQueryExpressions(project.Child, identity, func(node plan.Node) (plan.Node, error) {
 			switch n := node.(type) {
-			case *sortNode:
+			case *plan.SortNode:
 				base := n.CacheWidth - len(n.Outputs)
 				if selected.Slot >= base && selected.Slot < base+len(n.Outputs) {
 					copy := *n
@@ -175,7 +176,7 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 					copy.Outputs[selected.Slot-base] = unused
 					return &copy, nil
 				}
-			case *evaluationNode:
+			case *plan.EvaluationNode:
 				if selected.Slot >= n.Base && selected.Slot < n.Base+len(n.Expressions) {
 					copy := *n
 					copy.Expressions = append([]expr.Expr(nil), n.Expressions...)

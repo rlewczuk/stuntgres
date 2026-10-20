@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -12,8 +13,8 @@ import (
 func TestSubscriptsDeparse(t *testing.T) {
 	view := New().CatalogRead()
 	e := subscriptsUnit(t, view, []sqltype.ArrayDimension{{Lower: -2, Length: 3}}, 1)
-	arrayLiteral := e.Args[0].(literalExpression)
-	integerLiteral := e.Args[1].(literalExpression)
+	arrayLiteral := e.Args[0].(plan.LiteralExpr)
+	integerLiteral := e.Args[1].(plan.LiteralExpr)
 	arrayUsage := arrayLiteral.ResultUsage()
 	wide, _ := view.LookupType(sqltype.Int8)
 	wideArray, _ := view.LookupArray(wide)
@@ -29,7 +30,7 @@ func TestSubscriptsDeparse(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var raw parser.Expr = parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "[-2:0]={NULL,NULL,NULL}"}}
-			definition := &viewDefinition{literals: make(map[viewLiteralPath]literalExpression), castUsages: make(map[viewLiteralPath]sqltype.Usage)}
+			definition := &viewDefinition{literals: make(map[viewLiteralPath]plan.LiteralExpr), castUsages: make(map[viewLiteralPath]sqltype.Usage)}
 			for i := range tc.casts {
 				usage := arrayUsage
 				if i == 0 {

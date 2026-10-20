@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -290,7 +291,7 @@ func TestPGAttributeCarrier(t *testing.T) {
 	if present, err := result.Rows.Next(context.Background(), dst); !present || err != nil || !dst[0].IsNull() || dst[0].Type() != u.Type {
 		t.Fatal("catalog result carrier", dst, present, err)
 	}
-	column := columnExpression{Info: expr.Info{Usage: u}, Slot: 0, Scope: 1, Frame: 1}
+	column := plan.ColumnExpr{Info: expr.Info{Usage: u}, Slot: 0, Scope: 1, Frame: 1}
 	got, err := column.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{value}}})
 	if err != nil || !got.ValidResult(u) {
 		t.Fatal("projection carrier", got, err)

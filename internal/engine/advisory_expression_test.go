@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -150,9 +151,9 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		child := literalExpression{Info: b.info(textUsage, parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.String(textUsage.Type, "bad")}
+		child := plan.LiteralExpr{Info: b.info(textUsage, parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.String(textUsage.Type, "bad")}
 		deferred.Args = append([]expr.Expr(nil), deferred.Args...)
-		deferred.Args[1] = coercionExpression{b.info(integerUsage, parser.Position{}, expr.Properties{Volatility: expr.Immutable}), child, coercionPlan, sqltype.Explicit, false}
+		deferred.Args[1] = plan.CoercionExpr{b.info(integerUsage, parser.Position{}, expr.Properties{Volatility: expr.Immutable}), child, coercionPlan, sqltype.Explicit, false}
 		bound = deferred
 		for _, preflight := range []bool{false, true} {
 			if preflight {
@@ -170,7 +171,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			t.Fatal(err)
 		}
 		node := bound.(functions.Advisory)
-		column := columnExpression{Info: expr.Info{Usage: node.Args[0].ResultUsage(), Pos: parser.Position{Character: 99}, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: b.frameID(), Origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999, SubID: 1}}}
+		column := plan.ColumnExpr{Info: expr.Info{Usage: node.Args[0].ResultUsage(), Pos: parser.Position{Character: 99}, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: b.frameID(), Origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999, SubID: 1}}}
 		node.Args = []expr.Expr{node.Args[0], column}
 		node.Property.RowDependent = true
 		visits := 0
@@ -182,10 +183,10 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, ok := grouped.(functions.Advisory).Args[1].(groupExpression); !ok {
+		if _, ok := grouped.(functions.Advisory).Args[1].(plan.GroupExpr); !ok {
 			t.Fatal("group descendant not rewritten")
 		}
-		if _, ok := node.Args[1].(columnExpression); !ok {
+		if _, ok := node.Args[1].(plan.ColumnExpr); !ok {
 			t.Fatal("group rewrite mutated shared source")
 		}
 		if !b.sameGroupExpression(node, node) {
@@ -200,8 +201,8 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		mappedColumn := remapped.(functions.Advisory).Args[1].(columnExpression)
-		if mappedColumn.Origin.Address.ObjectID != 1000 || mappedColumn.Slot != 7 || node.Args[1].(columnExpression).Origin.Address.ObjectID != 999 {
+		mappedColumn := remapped.(functions.Advisory).Args[1].(plan.ColumnExpr)
+		if mappedColumn.Origin.Address.ObjectID != 1000 || mappedColumn.Slot != 7 || node.Args[1].(plan.ColumnExpr).Origin.Address.ObjectID != 999 {
 			t.Fatal("view child identity/slot remap", mappedColumn)
 		}
 		types := formatUnitTypes()
@@ -213,7 +214,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if fresh.ResultUsage().Type != types[sqltype.Bool] || fresh.Args[1].ResultUsage().Type != types[sqltype.Int4] || fresh.Mode != node.Mode || fresh.Action != node.Action || node.ResultUsage().Type == fresh.ResultUsage().Type {
 			t.Fatal("retained generation/compiled action")
 		}
-		aggregate := aggregateExpression{Info: expr.Info{Usage: node.Args[0].ResultUsage(), Property: expr.Properties{StageDependent: true}}, Slot: 7}
+		aggregate := plan.AggregateExpr{Info: expr.Info{Usage: node.Args[0].ResultUsage(), Property: expr.Properties{StageDependent: true}}, Slot: 7}
 		node.Args = []expr.Expr{node.Args[0], aggregate}
 		if found := aggregateOccurrence(node); found == nil || found.Slot != 7 {
 			t.Fatal("aggregate descendant lost")
@@ -304,7 +305,7 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	column := columnExpression{Info: expr.Info{Usage: trueNode.ResultUsage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1}
+	column := plan.ColumnExpr{Info: expr.Info{Usage: trueNode.ResultUsage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1}
 	stored := bind("pg_try_advisory_lock(NULL::integer,CASE WHEN pg_try_advisory_lock(3201) THEN 2 ELSE 3 END)")
 	var before strings.Builder
 	if err := appendBoundTree(ctx, &before, stored); err != nil {
@@ -323,7 +324,7 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 	if !ok || len(cached) != 2 || !reflect.DeepEqual(cached[0], column) {
 		t.Fatal("unchanged CHECK references or descriptor cache lost", cached, ok)
 	}
-	if _, ok := cached[1].(literalExpression); !ok {
+	if _, ok := cached[1].(plan.LiteralExpr); !ok {
 		t.Fatal("constant-NULL executable CHECK was not detached", cached[1])
 	}
 	first := &cached[0]

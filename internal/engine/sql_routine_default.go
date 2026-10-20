@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 )
 
 // A selected SQL routine executes inside the existing DEFAULT statement owner.
@@ -29,15 +30,15 @@ func sqlRoutineDefaultClosure(node expr.Expr) (valid, containsSQL bool) {
 		return true, false
 	}
 	switch n := node.(type) {
-	case sqlRoutineExpression:
+	case plan.SQLRoutineExpr:
 		if n.Procedure == nil || n.Procedure.SQL == nil || n.Ref == (ids.ObjectRef{}) || n.Ref.Address != n.Procedure.Address() || n.Info.RoutineReference != n.Procedure || n.ValidateStoredProvider() != nil {
 			return false, false
 		}
 		containsSQL = true
-	case coercionExpression, collationExpression, rowExpression, fieldExpression, arrayExpression, subscriptExpression,
-		comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression,
-		nullTestExpression, truthTestExpression, logicalExpression, distinctExpression,
-		conditionalExpression, caseExpression, scalarArrayComparisonExpression:
+	case plan.CoercionExpr, plan.CollationExpr, plan.RowExpr, plan.FieldExpr, plan.ArrayExpr, plan.SubscriptExpr,
+		plan.ComparisonExpr, plan.ArithmeticExpr, plan.BitwiseExpr, plan.LikeExpr,
+		plan.NullTestExpr, plan.TruthTestExpr, plan.LogicalExpr, plan.DistinctExpr,
+		plan.ConditionalExpr, plan.CaseExpr, plan.ScalarArrayComparisonExpr:
 	case expr.ClosureTransparent:
 	default:
 		return closedSequenceDefault(node) || closedUUIDDefault(node) || closedTransactionTimeDefault(node) || closedPgcryptoDefault(node), false

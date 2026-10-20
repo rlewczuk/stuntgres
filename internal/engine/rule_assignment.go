@@ -3,12 +3,13 @@ package engine
 import (
 	"slices"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
-func mapRuleAssignmentTargets(targets []*arrayAssignmentTarget, expression func(expr.Expr) (expr.Expr, bool, error), usage func(sqltype.Usage) (sqltype.Usage, error)) ([]*arrayAssignmentTarget, error) {
-	var target func(*arrayAssignmentTarget) (*arrayAssignmentTarget, error)
-	target = func(old *arrayAssignmentTarget) (*arrayAssignmentTarget, error) {
+func mapRuleAssignmentTargets(targets []*plan.ArrayAssignmentTarget, expression func(expr.Expr) (expr.Expr, bool, error), usage func(sqltype.Usage) (sqltype.Usage, error)) ([]*plan.ArrayAssignmentTarget, error) {
+	var target func(*plan.ArrayAssignmentTarget) (*plan.ArrayAssignmentTarget, error)
+	target = func(old *plan.ArrayAssignmentTarget) (*plan.ArrayAssignmentTarget, error) {
 		if old == nil {
 			return nil, nil
 		}
@@ -41,7 +42,7 @@ func mapRuleAssignmentTargets(targets []*arrayAssignmentTarget, expression func(
 		}
 		return &next, nil
 	}
-	var next []*arrayAssignmentTarget
+	var next []*plan.ArrayAssignmentTarget
 	for i, old := range targets {
 		mapped, err := target(old)
 		if err != nil {

@@ -11,19 +11,19 @@ import (
 
 func TestJSONEachPredecessorFilterPlacement(t *testing.T) {
 	types := jsonObjectUnitTypes()
-	left := &valuesNode{QuerySchema: querySchema{{Usage: types[sqltype.Bool].Usage()}}}
-	right := &functionFromNode{QuerySchema: querySchema{{Usage: types[sqltype.Text].Usage()}, {Usage: types[sqltype.JSON].Usage()}}, Correlated: true, Frame: 7}
-	join := &joinNode{QuerySchema: append(append(querySchema(nil), left.Schema()...), right.Schema()...), Left: left, Right: right, LeftWidth: 1, RightWidth: 2, Kind: parser.JoinInner, CorrelatedRight: true, Frame: 7}
-	predicate := columnExpression{Info: expr.Info{Usage: types[sqltype.Bool].Usage(), Property: expr.Properties{RowDependent: true}}, Frame: 7, Scope: 1, Slot: 0}
+	left := &plan.ValuesNode{QuerySchema: plan.QuerySchema{{Usage: types[sqltype.Bool].Usage()}}}
+	right := &plan.FunctionFromNode{QuerySchema: plan.QuerySchema{{Usage: types[sqltype.Text].Usage()}, {Usage: types[sqltype.JSON].Usage()}}, Correlated: true, Frame: 7}
+	join := &plan.JoinNode{QuerySchema: append(append(plan.QuerySchema(nil), left.Schema()...), right.Schema()...), Left: left, Right: right, LeftWidth: 1, RightWidth: 2, Kind: parser.JoinInner, CorrelatedRight: true, Frame: 7}
+	predicate := plan.ColumnExpr{Info: expr.Info{Usage: types[sqltype.Bool].Usage(), Property: expr.Properties{RowDependent: true}}, Frame: 7, Scope: 1, Slot: 0}
 	moved := functionFromWhere(join, predicate)
 	if moved == nil || moved == join || moved.Right != right || moved.Frame != join.Frame || moved.LeftWidth != 1 || moved.RightWidth != 2 {
 		t.Fatal("incorrect copied join", moved)
 	}
-	filter, ok := moved.Left.(*filterNode)
+	filter, ok := moved.Left.(*plan.FilterNode)
 	if !ok || filter.Child != left || filter.Predicate != predicate || len(filter.Schema()) != 1 || join.Left != left {
 		t.Fatal("predicate duplicated or retained tree mutated", moved)
 	}
-	unchanged := func(label string, root LogicalNode, predicate expr.Expr) {
+	unchanged := func(label string, root plan.Node, predicate expr.Expr) {
 		t.Helper()
 		if functionFromWhere(root, predicate) != nil {
 			t.Fatal("unsafe predicate moved", label)
@@ -41,7 +41,7 @@ func TestJSONEachPredecessorFilterPlacement(t *testing.T) {
 	copy.Merges = []expr.Expr{predicate}
 	unchanged("merged", &copy, predicate)
 	copy = *join
-	copy.Right = &derivedNode{}
+	copy.Right = &plan.DerivedNode{}
 	unchanged("subquery boundary", &copy, predicate)
 	for _, property := range []expr.Properties{{RowDependent: true, Volatility: expr.Volatile}, {RowDependent: true, StageDependent: true}, {RowDependent: true, RuntimeDomainConversion: true}, {RowDependent: true, DomainDependent: true}} {
 		unsafe := predicate
@@ -65,25 +65,25 @@ func TestJSONEachPredecessorFilterPlacement(t *testing.T) {
 func TestJSONElementsPredecessorConjunctDemand(t *testing.T) {
 	types := jsonObjectUnitTypes()
 	usage := types[sqltype.Bool].Usage()
-	left := &valuesNode{QuerySchema: querySchema{{Usage: usage}}}
-	right := &functionFromNode{QuerySchema: querySchema{{Usage: usage}}, Frame: 7}
-	join := &joinNode{QuerySchema: querySchema{{Usage: usage}, {Usage: usage}}, Left: left, Right: right, LeftWidth: 1, RightWidth: 1, Kind: parser.JoinInner, Frame: 7}
-	column := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Frame: 7, Scope: 1, Slot: 0}
+	left := &plan.ValuesNode{QuerySchema: plan.QuerySchema{{Usage: usage}}}
+	right := &plan.FunctionFromNode{QuerySchema: plan.QuerySchema{{Usage: usage}}, Frame: 7}
+	join := &plan.JoinNode{QuerySchema: plan.QuerySchema{{Usage: usage}, {Usage: usage}}, Left: left, Right: right, LeftWidth: 1, RightWidth: 1, Kind: parser.JoinInner, Frame: 7}
+	column := plan.ColumnExpr{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Frame: 7, Scope: 1, Slot: 0}
 	calls := 0
 	volatile := &queryProbeExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{Volatility: expr.Volatile}}, eval: func(*EvalContext) (sqltype.Value, error) {
 		calls++
 		return sqltype.Boolean(usage.Type, true), nil
 	}}
-	predicate := logicalExpression{Info: expr.Info{Usage: usage, Property: expr.MergeProperties(column.Properties(), volatile.Properties())}, Op: parser.LogicalAnd, Left: column, Right: volatile}
-	root, ok := functionFromConjuncts(join, predicate).(*filterNode)
+	predicate := plan.LogicalExpr{Info: expr.Info{Usage: usage, Property: expr.MergeProperties(column.Properties(), volatile.Properties())}, Op: parser.LogicalAnd, Left: column, Right: volatile}
+	root, ok := functionFromConjuncts(join, predicate).(*plan.FilterNode)
 	if !ok || root.Predicate != volatile {
 		t.Fatal("volatile residual lost", root)
 	}
-	moved, ok := root.Child.(*joinNode)
+	moved, ok := root.Child.(*plan.JoinNode)
 	if !ok || moved == join || moved.Right != right || moved.CorrelatedRight || moved.Frame != join.Frame {
 		t.Fatal("uncorrelated function join not copied", root.Child)
 	}
-	predecessor, ok := moved.Left.(*filterNode)
+	predecessor, ok := moved.Left.(*plan.FilterNode)
 	if !ok || predecessor.Child != left || predecessor.Predicate != column || join.Left != left || predicate.Left != column || predicate.Right != volatile {
 		t.Fatal("predicate duplicated or canonical tree mutated", moved)
 	}
@@ -117,12 +117,12 @@ func TestJSONElementsPredecessorConjunctDemand(t *testing.T) {
 func TestJSONElementsPredecessorConjunctBarriers(t *testing.T) {
 	types := jsonObjectUnitTypes()
 	usage := types[sqltype.Bool].Usage()
-	left := &valuesNode{QuerySchema: querySchema{{Usage: usage}}}
-	right := &functionFromNode{QuerySchema: querySchema{{Usage: usage}}, Frame: 7}
-	join := &joinNode{QuerySchema: querySchema{{Usage: usage}, {Usage: usage}}, Left: left, Right: right, LeftWidth: 1, RightWidth: 1, Kind: parser.JoinInner, Frame: 7}
-	column := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Frame: 7, Scope: 1, Slot: 0}
-	and := func(a, b expr.Expr) logicalExpression {
-		return logicalExpression{Info: expr.Info{Usage: usage, Property: expr.MergeProperties(a.Properties(), b.Properties())}, Op: parser.LogicalAnd, Left: a, Right: b}
+	left := &plan.ValuesNode{QuerySchema: plan.QuerySchema{{Usage: usage}}}
+	right := &plan.FunctionFromNode{QuerySchema: plan.QuerySchema{{Usage: usage}}, Frame: 7}
+	join := &plan.JoinNode{QuerySchema: plan.QuerySchema{{Usage: usage}, {Usage: usage}}, Left: left, Right: right, LeftWidth: 1, RightWidth: 1, Kind: parser.JoinInner, Frame: 7}
+	column := plan.ColumnExpr{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Frame: 7, Scope: 1, Slot: 0}
+	and := func(a, b expr.Expr) plan.LogicalExpr {
+		return plan.LogicalExpr{Info: expr.Info{Usage: usage, Property: expr.MergeProperties(a.Properties(), b.Properties())}, Op: parser.LogicalAnd, Left: a, Right: b}
 	}
 	var unsafe []expr.Expr
 	for _, properties := range []expr.Properties{{RowDependent: true, Volatility: expr.Volatile}, {RowDependent: true, StageDependent: true}, {RowDependent: true, DomainDependent: true}, {RowDependent: true, RuntimeDomainConversion: true}} {
@@ -135,9 +135,9 @@ func TestJSONElementsPredecessorConjunctBarriers(t *testing.T) {
 	rhs := column
 	rhs.Slot = 1
 	virtual := column
-	virtual.Virtual = literalExpression{Info: expr.Info{Usage: usage}, Value: sqltype.Boolean(usage.Type, true)}
-	or := logicalExpression{Info: column.Info, Op: parser.LogicalOr, Left: column, Right: column}
-	not := logicalExpression{Info: column.Info, Op: parser.LogicalNot, Left: column}
+	virtual.Virtual = plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: sqltype.Boolean(usage.Type, true)}
+	or := plan.LogicalExpr{Info: column.Info, Op: parser.LogicalOr, Left: column, Right: column}
+	not := plan.LogicalExpr{Info: column.Info, Op: parser.LogicalNot, Left: column}
 	query := and(column, column)
 	query.QueryRight = true
 	unsupported := &queryProbeExpression{Info: expr.Info{Usage: usage}, eval: func(*EvalContext) (sqltype.Value, error) {
@@ -167,13 +167,13 @@ func TestJSONElementsPredecessorConjunctBarriers(t *testing.T) {
 		t.Fatal("merged join boundary crossed")
 	}
 	copy = *join
-	copy.Right = &derivedNode{}
+	copy.Right = &plan.DerivedNode{}
 	if functionFromConjuncts(&copy, and(column, column)) != nil || functionFromConjuncts(left, and(column, column)) != nil {
 		t.Fatal("non-function boundary crossed")
 	}
 	// A fully eligible conjunction moves as a whole, without a residual or
 	// mutation of the original expression and join.
-	if moved, ok := functionFromConjuncts(join, and(column, column)).(*joinNode); !ok || moved == join || moved.Right != right || join.Left != left {
+	if moved, ok := functionFromConjuncts(join, and(column, column)).(*plan.JoinNode); !ok || moved == join || moved.Right != right || join.Left != left {
 		t.Fatal("safe conjunction not moved immutably")
 	}
 }

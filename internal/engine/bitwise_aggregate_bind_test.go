@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"testing"
 
 	"stuntgres/internal/engine/ids"
@@ -107,7 +108,7 @@ func TestBitwiseAggregateRemap(t *testing.T) {
 		newType, _ := destination.CatalogRead().LookupType(id)
 		for _, op := range []functions.AggregateOperation{functions.AggregateBitAnd, functions.AggregateBitOr, functions.AggregateBitXor} {
 			provider := bitwiseAggregateUnitProvider(t, oldType, op)
-			root := &aggregateNode{QuerySchema: querySchema{{Name: "fold", Usage: provider.ResultUsage(), Nullable: true, NullabilityKnown: true}}, Child: &valuesNode{}, Calls: []aggregateCall{{Provider: provider, Operation: op}}}
+			root := &plan.AggregateNode{QuerySchema: plan.QuerySchema{{Name: "fold", Usage: provider.ResultUsage(), Nullable: true, NullabilityKnown: true}}, Child: &plan.ValuesNode{}, Calls: []plan.AggregateCall{{Provider: provider, Operation: op}}}
 			mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				d, _ := destination.CatalogRead().LookupType(old.ID())
 				return d
@@ -115,7 +116,7 @@ func TestBitwiseAggregateRemap(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			call := mapped.(*aggregateNode).Calls[0]
+			call := mapped.(*plan.AggregateNode).Calls[0]
 			if call.Operation != op || call.Provider.ResultUsage().Type != newType || mapped.Schema()[0].Usage.Type != newType || provider.ResultUsage().Type != oldType {
 				t.Fatal("incomplete provider remap or original mutated")
 			}

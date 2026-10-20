@@ -5,12 +5,13 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
 // prepareStoredQueryLocked consumes Engine.mu on all returns. Both ordinary
 // views and refresh execute the frozen tree through current attribute bridges.
-func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark queryRowMark, locks *queryLockContext, outputUses []int) (LogicalNode, *querySource, error) {
+func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark plan.RowMark, locks *queryLockContext, outputUses []int) (plan.Node, *querySource, error) {
 	ctx := scope.op.Context()
 	if scope.authority == nil {
 		scope.authority = &queryAuthority{scope: scope}
@@ -34,7 +35,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	evaluation.routineAuthority = &auth
 	root, reads, err := prepareStoredExecutionRoot(&evaluation, definition, outputUses)
 	if err == nil {
-		err = validateMarkedQueryJoin(&evaluation, root, catalog, nil, queryRowMark{}, false, nil, reads)
+		err = validateMarkedQueryJoin(&evaluation, root, catalog, nil, plan.RowMark{}, false, nil, reads)
 	}
 	if err != nil {
 		return nil, nil, err
@@ -73,7 +74,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 		scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || definition.query.VisibilitySnapshot
 		locks = scope.queryLocks
 	}
-	source, err := e.captureQuerySourcesForInvokerLocked(scope, leaves, len(leaves) == 0, invoker, queryRowMark{}, locks)
+	source, err := e.captureQuerySourcesForInvokerLocked(scope, leaves, len(leaves) == 0, invoker, plan.RowMark{}, locks)
 	e.mu.Unlock()
 	if err != nil {
 		return nil, nil, err
@@ -136,9 +137,9 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 
 // Legality and source opening consume the same execution-owned projection and
 // scheduled producers. Frozen authorization reads and dependencies are unchanged.
-func prepareStoredExecutionRoot(c *EvalContext, definition *viewDefinition, outputUses []int) (LogicalNode, map[int][]int32, error) {
+func prepareStoredExecutionRoot(c *EvalContext, definition *viewDefinition, outputUses []int) (plan.Node, map[int][]int32, error) {
 	demanded := definition.query.Root
-	if project, ok := demanded.(*projectNode); ok {
+	if project, ok := demanded.(*plan.ProjectNode); ok {
 		var err error
 		demanded, err = storedProjectionDemand(project, outputUses)
 		if err != nil {
@@ -156,7 +157,7 @@ func prepareStoredExecutionRoot(c *EvalContext, definition *viewDefinition, outp
 		return nil, nil, err
 	}
 	reads := queryExecutionSourceReads(root, nil)
-	if source, ok := root.(*sourceNode); ok {
+	if source, ok := root.(*plan.SourceNode); ok {
 		if source.Occurrence < 0 || source.Occurrence >= len(definition.sources) {
 			return nil, nil, fmt.Errorf("stuntgres: invalid stored source occurrence")
 		}
@@ -187,7 +188,7 @@ func prepareStoredExecutionRoot(c *EvalContext, definition *viewDefinition, outp
 // demand. Clause/key stages and volatile outputs remain executable. nil uses
 // means a full consumer (including materialized refresh); a nonnil empty list
 // means only row presence is consumed. The stored definition is never changed.
-func storedProjectionDemand(project *projectNode, uses []int) (*projectNode, error) {
+func storedProjectionDemand(project *plan.ProjectNode, uses []int) (*plan.ProjectNode, error) {
 	if uses == nil {
 		return project, nil
 	}
@@ -204,7 +205,7 @@ func storedProjectionDemand(project *projectNode, uses []int) (*projectNode, err
 		if expressions == nil {
 			expressions = append([]expr.Expr(nil), project.Expressions...)
 		}
-		expressions[slot] = literalExpression{expr.InfoOf(expression), sqltype.Null(expression.ResultUsage().Type)}
+		expressions[slot] = plan.LiteralExpr{expr.InfoOf(expression), sqltype.Null(expression.ResultUsage().Type)}
 	}
 	if expressions == nil {
 		return project, nil
@@ -238,7 +239,7 @@ func storedProjectionOutputDemand(expression expr.Expr, slot int, uses []int) bo
 // Inspect the same retained payload/cache/clause authority without copying or
 // executing the producer. Rule-program liveness converges before its sole
 // copy-on-change projection pruning pass.
-func storedProjectionDemandExpressions(project *projectNode, uses []int, inspect func(expr.Expr), boundary func(LogicalNode)) error {
+func storedProjectionDemandExpressions(project *plan.ProjectNode, uses []int, inspect func(expr.Expr), boundary func(plan.Node)) error {
 	for _, slot := range uses {
 		if slot < 0 || slot >= len(project.Expressions) {
 			return fmt.Errorf("stuntgres: invalid stored projection use")
@@ -259,10 +260,10 @@ func storedProjectionDemandExpressions(project *projectNode, uses []int, inspect
 // Projection scheduling owns payload cache slots on the outer query's unary
 // path. Follow those existing owners, not source/derived-query frames, and
 // retain the transitive slot reads of selected payloads and internal clauses.
-func storedScheduledPayloadDemand(root LogicalNode, retained func(func(expr.Expr)), inspect func(expr.Expr), boundary func(LogicalNode)) (LogicalNode, error) {
-	input := func(node LogicalNode) LogicalNode {
+func storedScheduledPayloadDemand(root plan.Node, retained func(func(expr.Expr)), inspect func(expr.Expr), boundary func(plan.Node)) (plan.Node, error) {
+	input := func(node plan.Node) plan.Node {
 		switch node.(type) {
-		case *projectNode, *derivedNode, *worktableScanNode, *joinNode, *setNode, *recursiveUnionNode:
+		case *plan.ProjectNode, *plan.DerivedNode, *plan.WorktableScanNode, *plan.JoinNode, *plan.SetNode, *plan.RecursiveUnionNode:
 			return nil
 		}
 		left, right := queryInputs(node)
@@ -272,14 +273,14 @@ func storedScheduledPayloadDemand(root LogicalNode, retained func(func(expr.Expr
 		return left
 	}
 	var producers map[int]expr.Expr
-	var owners map[LogicalNode]int
+	var owners map[plan.Node]int
 	for node := root; node != nil; node = input(node) {
 		var expressions []expr.Expr
 		var base int
 		switch n := node.(type) {
-		case *sortNode:
+		case *plan.SortNode:
 			expressions, base = n.Outputs, n.CacheWidth-len(n.Outputs)
-		case *evaluationNode:
+		case *plan.EvaluationNode:
 			expressions, base = n.Expressions, n.Base
 		}
 		if len(expressions) == 0 {
@@ -287,7 +288,7 @@ func storedScheduledPayloadDemand(root LogicalNode, retained func(func(expr.Expr
 		}
 		if producers == nil {
 			producers = make(map[int]expr.Expr)
-			owners = make(map[LogicalNode]int)
+			owners = make(map[plan.Node]int)
 		}
 		owners[node] = base
 		for i, expression := range expressions {
@@ -307,7 +308,7 @@ func storedScheduledPayloadDemand(root LogicalNode, retained func(func(expr.Expr
 			return
 		}
 		walkBoundExpression(expression, func(node expr.Expr) {
-			cache, ok := node.(cachedOrderExpression)
+			cache, ok := node.(plan.CachedOrderExpr)
 			if !ok || live[cache.Slot] {
 				return
 			}
@@ -324,16 +325,16 @@ func storedScheduledPayloadDemand(root LogicalNode, retained func(func(expr.Expr
 			demand(producer)
 		}
 	}
-	clauses := func(visit func(expr.Expr), boundary func(LogicalNode)) {
+	clauses := func(visit func(expr.Expr), boundary func(plan.Node)) {
 		for node := root; node != nil; node = input(node) {
 			switch n := node.(type) {
-			case *sortNode:
+			case *plan.SortNode:
 				for _, key := range n.Keys {
 					visit(key.Expression)
 				}
-			case *evaluationNode:
+			case *plan.EvaluationNode:
 				// Payload reads are demanded through live owner slots only.
-			case *projectNode, *derivedNode, *worktableScanNode, *joinNode, *setNode, *recursiveUnionNode:
+			case *plan.ProjectNode, *plan.DerivedNode, *plan.WorktableScanNode, *plan.JoinNode, *plan.SetNode, *plan.RecursiveUnionNode:
 				if boundary != nil {
 					boundary(node)
 				}
@@ -355,18 +356,18 @@ func storedScheduledPayloadDemand(root LogicalNode, retained func(func(expr.Expr
 	identity := func(expression expr.Expr) (expr.Expr, bool, error) {
 		return expression, false, nil
 	}
-	var rewrite func(LogicalNode) (LogicalNode, error)
-	rewrite = func(node LogicalNode) (LogicalNode, error) {
+	var rewrite func(plan.Node) (plan.Node, error)
+	rewrite = func(node plan.Node) (plan.Node, error) {
 		base, owned := owners[node]
 		if !owned {
 			return node, nil
 		}
 		var expressions []expr.Expr
-		var child LogicalNode
+		var child plan.Node
 		switch n := node.(type) {
-		case *sortNode:
+		case *plan.SortNode:
 			expressions, child = n.Outputs, n.Child
-		case *evaluationNode:
+		case *plan.EvaluationNode:
 			expressions, child = n.Expressions, n.Child
 		}
 		var replacement []expr.Expr
@@ -377,7 +378,7 @@ func storedScheduledPayloadDemand(root LogicalNode, retained func(func(expr.Expr
 			if replacement == nil {
 				replacement = append([]expr.Expr(nil), expressions...)
 			}
-			replacement[i] = literalExpression{expr.InfoOf(expression), sqltype.Null(expression.ResultUsage().Type)}
+			replacement[i] = plan.LiteralExpr{expr.InfoOf(expression), sqltype.Null(expression.ResultUsage().Type)}
 		}
 		if replacement == nil {
 			return node, nil
@@ -387,11 +388,11 @@ func storedScheduledPayloadDemand(root LogicalNode, retained func(func(expr.Expr
 			return nil, err
 		}
 		switch n := node.(type) {
-		case *sortNode:
+		case *plan.SortNode:
 			copy := *n
 			copy.Child, copy.Outputs = next, replacement
 			return &copy, nil
-		case *evaluationNode:
+		case *plan.EvaluationNode:
 			copy := *n
 			copy.Child, copy.Expressions = next, replacement
 			return &copy, nil

@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
 
@@ -13,7 +14,7 @@ import (
 // acquires the original ticket's locks, not data views or command effects.
 func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser.Statement, program *ruleProgram) ([]ids.ObjectRef, error) {
 	commands, events := program.commands, program.events
-	var seen map[*cteDefinition]bool
+	var seen map[*plan.CTEDefinition]bool
 	expanded := false
 	for i := 0; i < len(commands); i++ {
 		for _, definition := range commands[i].binding.ctes {
@@ -22,7 +23,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 				continue
 			}
 			if seen == nil {
-				seen = make(map[*cteDefinition]bool)
+				seen = make(map[*plan.CTEDefinition]bool)
 			}
 			seen[definition] = true
 			mutation, _ := mutationBinding(definition)
@@ -81,7 +82,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 			}
 			collectAuth.State.CurrentUser = invoker
 			var err error
-			queryRefs, err = e.queryTableRefsLocked(collectAuth, invoker, command.binding.querySources[start:end], queryRefs, scope.op.session.token, queryRowMark{})
+			queryRefs, err = e.queryTableRefsLocked(collectAuth, invoker, command.binding.querySources[start:end], queryRefs, scope.op.session.token, plan.RowMark{})
 			if err != nil {
 				e.mu.Unlock()
 				return nil, err

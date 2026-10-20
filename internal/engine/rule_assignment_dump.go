@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/plan"
 )
 
-func ruleAssignmentSQL(ctx context.Context, view catalog.Read, column string, target *arrayAssignmentTarget, action ruleAction) (string, error) {
+func ruleAssignmentSQL(ctx context.Context, view catalog.Read, column string, target *plan.ArrayAssignmentTarget, action ruleAction) (string, error) {
 	var sql strings.Builder
 	sql.WriteString(column)
 	for ; target != nil; target = target.Next {

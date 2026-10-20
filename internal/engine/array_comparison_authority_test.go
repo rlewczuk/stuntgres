@@ -42,7 +42,7 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 	ref := catalogRef(t, e, view, "ac_authority")
 	table := view.MustRelation(ref.Address)
 	for _, attribute := range table.Attributes {
-		original := table.ColumnMeta.Defaults[attribute].Expression.(scalarArrayComparisonExpression)
+		original := table.ColumnMeta.Defaults[attribute].Expression.(plan.ScalarArrayComparisonExpr)
 		input, conflict := original.Predicate.InputCollation()
 		if input.ID != uint32(source.OID) || conflict || original.ResultUsage().Collation.ID != 0 {
 			t.Fatal("BOOL result leaked or hid input authority", input, conflict, original.ResultUsage())
@@ -51,7 +51,7 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(mapped, changed, err)
 		}
-		node := mapped.(scalarArrayComparisonExpression)
+		node := mapped.(plan.ScalarArrayComparisonExpr)
 		input, conflict = node.Predicate.InputCollation()
 		if input.ID != uint32(destination.OID) || !input.Valid() || conflict {
 			t.Fatal("predicate retained stale collation", input, conflict)
@@ -67,22 +67,22 @@ func TestArrayCompareCollationAndOwners(t *testing.T) {
 	}
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	oid, boolean := b.typ(sqltype.Oid), b.typ(sqltype.Bool)
-	left := literalExpression{Info: b.info(oid.Usage(), parser.Position{}, expr.Properties{}), Value: sqltype.Null(oid)}
-	late := tableOIDExpression{Info: b.info(oid.Usage(), parser.Position{}, expr.Properties{RowDependent: true})}
+	left := plan.LiteralExpr{Info: b.info(oid.Usage(), parser.Position{}, expr.Properties{}), Value: sqltype.Null(oid)}
+	late := plan.TableOIDExpr{Info: b.info(oid.Usage(), parser.Position{}, expr.Properties{RowDependent: true})}
 	predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, oid, oid, boolean, sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, node := range []scalarArrayComparisonExpression{
+	for _, node := range []plan.ScalarArrayComparisonExpr{
 		{Info: b.info(boolean.Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Left: left, Items: []expr.Expr{left, late}, Predicate: predicate, Operator: "="},
-		{Info: b.info(boolean.Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Left: left, Array: arrayExpression{Info: b.info(b.typ(oid.AssociatedArray()).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Elements: []expr.Expr{left, late}}, Predicate: predicate, Operator: "="},
+		{Info: b.info(boolean.Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Left: left, Array: plan.ArrayExpr{Info: b.info(b.typ(oid.AssociatedArray()).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Elements: []expr.Expr{left, late}}, Predicate: predicate, Operator: "="},
 	} {
 		if !generationHasTableOID(node) || !generationImmutable(node) {
 			t.Fatal("late RHS owner-dependent generation lost", node)
 		}
 		seen := false
 		walkBoundExpression(node, func(child expr.Expr) {
-			if _, ok := child.(tableOIDExpression); ok {
+			if _, ok := child.(plan.TableOIDExpr); ok {
 				seen = true
 			}
 		})

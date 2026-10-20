@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -23,7 +24,7 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		arg := literalExpression{Info: expr.Info{Usage: b.typ(sqltype.JSONB).Usage()}, Value: value}
+		arg := plan.LiteralExpr{Info: expr.Info{Usage: b.typ(sqltype.JSONB).Usage()}, Value: value}
 		original, err := functions.NewJSONBElements(expr.Info{Usage: b.typ(id).Usage(), Pos: parser.Position{Offset: 20, Character: 21}, Property: expr.Properties{StageDependent: true}}, name, expr.Expr(arg))
 		if err != nil {
 			t.Fatal(err)
@@ -60,7 +61,7 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 			}
 		}
 		assertFirst(next, fresh[id], "1")
-		root := &functionFromNode{Calls: []expr.Expr{original}, QuerySchema: querySchema{{Usage: original.ResultUsage()}}, Frame: 1}
+		root := &plan.FunctionFromNode{Calls: []expr.Expr{original}, QuerySchema: plan.QuerySchema{{Usage: original.ResultUsage()}}, Frame: 1}
 		replacementValue, err := b.typ(sqltype.JSONB).Input(context.Background(), `[9]`, -1)
 		if err != nil {
 			t.Fatal(err)
@@ -75,7 +76,7 @@ func TestJSONBElementsMarkerTraversalRetagAndInvocation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		assertFirst(rewritten.(*functionFromNode).Calls[0], b.typ(id), "9")
+		assertFirst(rewritten.(*plan.FunctionFromNode).Calls[0], b.typ(id), "9")
 		assertFirst(root.Calls[0], b.typ(id), "1")
 		draws := 0
 		// Use the reminted argument captured before replacing its expression.

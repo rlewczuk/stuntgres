@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -81,7 +82,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	}
 	changed := n
 	changed.Args = append([]expr.Expr(nil), n.Args...)
-	changed.Args[0] = literalExpression{Info: expr.InfoOf(n.Args[0]), Value: sqltype.String(n.Args[0].ResultUsage().Type, "Smith")}
+	changed.Args[0] = plan.LiteralExpr{Info: expr.InfoOf(n.Args[0]), Value: sqltype.String(n.Args[0].ResultUsage().Type, "Smith")}
 	if sameGroupExpression(n, changed) {
 		t.Fatal("argument identity collapsed")
 	}
@@ -133,7 +134,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := folded.(literalExpression); !ok {
+	if _, ok := folded.(plan.LiteralExpr); !ok {
 		t.Fatal("immutable call not folded", folded)
 	}
 	// The symbolic codec rejects incomplete old one-member records, as well as

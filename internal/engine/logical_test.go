@@ -22,7 +22,7 @@ func TestLogicalTypedTruthAndFrames(t *testing.T) {
 	// Each row explicitly specifies AND, OR and NOT for an ordered input pair.
 	cases := []struct {
 		a, b         int
-		and, or, not Truth
+		and, or, not plan.Truth
 	}{
 		{0, 0, plan.True, plan.True, plan.False}, {0, 1, plan.False, plan.True, plan.False}, {0, 2, plan.Unknown, plan.True, plan.False},
 		{1, 0, plan.False, plan.True, plan.True}, {1, 1, plan.False, plan.False, plan.True}, {1, 2, plan.False, plan.Unknown, plan.True},
@@ -53,9 +53,9 @@ func TestLogicalTypedTruthAndFrames(t *testing.T) {
 	}
 	check := func(tc struct {
 		a, b         int
-		and, or, not Truth
+		and, or, not plan.Truth
 	}) {
-		for i, want := range []Truth{tc.and, tc.or, tc.not} {
+		for i, want := range []plan.Truth{tc.and, tc.or, tc.not} {
 			v, err := nodes[i].Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{values[tc.a], values[tc.b]}}})
 			if err != nil || v.Type() != typ || v.IsNull() != (want == plan.Unknown) {
 				t.Error(v, err, want)
@@ -139,8 +139,8 @@ func TestLogicalBindingDiagnosticsAndInvariants(t *testing.T) {
 	}
 	// Stage dependence is preserved from each child without any row-time allocation.
 	typ := b.typ(sqltype.Bool)
-	child := literalExpression{expr.Info{Usage: typ.Usage(), Property: expr.Properties{StageDependent: true}}, sqltype.Boolean(typ, true)}
-	invalid := logicalExpression{Info: expr.Info{Usage: typ.Usage()}, Op: parser.LogicalOperator(99), Left: child, Right: child}
+	child := plan.LiteralExpr{expr.Info{Usage: typ.Usage(), Property: expr.Properties{StageDependent: true}}, sqltype.Boolean(typ, true)}
+	invalid := plan.LogicalExpr{Info: expr.Info{Usage: typ.Usage()}, Op: parser.LogicalOperator(99), Left: child, Right: child}
 	if _, err := invalid.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}); err == nil {
 		t.Fatal("invalid bound operator")
 	}
@@ -174,7 +174,7 @@ func TestLogicalDependenciesMetadataAndAuthorization(t *testing.T) {
 	if bound.parameters.Count != 1 || bound.parameters.Types[0] != eType(t, e, sqltype.Bool).Usage() {
 		t.Fatal(bound.parameters)
 	}
-	project := bound.query.Root.(*projectNode)
+	project := bound.query.Root.(*plan.ProjectNode)
 	for i, node := range project.Expressions {
 		p := node.Properties()
 		volatility := expr.Immutable

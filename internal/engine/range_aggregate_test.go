@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"testing"
 
 	"stuntgres/internal/engine/ids"
@@ -77,9 +78,9 @@ func rangeAggregateEagerUnit(t *testing.T) {
 	e := New()
 	d, _ := e.CatalogRead().LookupType(sqltype.Int4Range)
 	p := rangeAggregateUnitProvider(t, d, sqltype.RangeAggregateIntersection)
-	build := func(failure error) (*projectNode, *querySource, *int) {
+	build := func(failure error) (*plan.ProjectNode, *querySource, *int) {
 		calls := new(int)
-		child := &valuesNode{QuerySchema: querySchema{{Name: "v", Usage: d.Usage()}}}
+		child := &plan.ValuesNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: d.Usage()}}}
 		for _, text := range []string{"empty", "[1,4)", "[2,3)"} {
 			v, err := d.Input(context.Background(), text, -1)
 			if err != nil {
@@ -94,9 +95,9 @@ func rangeAggregateEagerUnit(t *testing.T) {
 			}
 			return c.Row[0], nil
 		})
-		schema := querySchema{{Name: "i", Usage: p.ResultUsage(), Nullable: true, NullabilityKnown: true}}
-		node := &aggregateNode{QuerySchema: schema, Child: child, Calls: []aggregateCall{{Provider: p, Argument: argument, Operation: functions.AggregateRangeIntersection}}}
-		project := &projectNode{QuerySchema: schema, Child: node, Expressions: []expr.Expr{queryProbe(p.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { return c.Row[0], nil })}}
+		schema := plan.QuerySchema{{Name: "i", Usage: p.ResultUsage(), Nullable: true, NullabilityKnown: true}}
+		node := &plan.AggregateNode{QuerySchema: schema, Child: child, Calls: []plan.AggregateCall{{Provider: p, Argument: argument, Operation: functions.AggregateRangeIntersection}}}
+		project := &plan.ProjectNode{QuerySchema: schema, Child: node, Expressions: []expr.Expr{queryProbe(p.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { return c.Row[0], nil })}}
 		return project, &querySource{}, calls
 	}
 	root, source, calls := build(nil)
@@ -122,7 +123,7 @@ func rangeAggregateEagerUnit(t *testing.T) {
 		root, source, _ = build(nil)
 		if strings.Contains(target, "normalizeRangeMembers") {
 			union := rangeAggregateUnitProvider(t, d, sqltype.RangeAggregateUnion)
-			n := root.Child.(*aggregateNode)
+			n := root.Child.(*plan.AggregateNode)
 			n.Calls[0].Provider = union
 			n.Calls[0].Operation = functions.AggregateRangeUnion
 			n.QuerySchema[0].Usage = union.ResultUsage()
@@ -175,7 +176,7 @@ func TestRangeAggregateRemap(t *testing.T) {
 			if operation == sqltype.RangeAggregateIntersection {
 				identity = functions.AggregateRangeIntersection
 			}
-			root := &aggregateNode{QuerySchema: querySchema{{Name: "set", Usage: p.ResultUsage(), Nullable: true, NullabilityKnown: true}}, Child: &valuesNode{}, Calls: []aggregateCall{{Provider: p, Operation: identity}}}
+			root := &plan.AggregateNode{QuerySchema: plan.QuerySchema{{Name: "set", Usage: p.ResultUsage(), Nullable: true, NullabilityKnown: true}}, Child: &plan.ValuesNode{}, Calls: []plan.AggregateCall{{Provider: p, Operation: identity}}}
 			mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				next, _ := destination.CatalogRead().LookupType(old.ID())
 				return next
@@ -183,7 +184,7 @@ func TestRangeAggregateRemap(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			call := mapped.(*aggregateNode).Calls[0]
+			call := mapped.(*plan.AggregateNode).Calls[0]
 			provider := call.Provider.(functions.RangeAggregateProvider)
 			newInput, _ := destination.CatalogRead().LookupType(id)
 			newResult, _ := destination.CatalogRead().LookupType(p.ResultUsage().Type.ID())

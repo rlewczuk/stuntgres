@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -28,7 +29,7 @@ func TestCheckReviewScalarInquiryStoredInvariants(t *testing.T) {
 	if err := validateChecks(view, &badRelation, map[string]bool{}); err == nil {
 		t.Fatal("invalid snapshot demand persisted")
 	}
-	inquiry := relation.Constraints.Check[0].Expression.(nullTestExpression).Child.(functions.CommentInquiry)
+	inquiry := relation.Constraints.Check[0].Expression.(plan.NullTestExpr).Child.(functions.CommentInquiry)
 	intType, ok := view.LookupType(sqltype.Int4)
 	if !ok {
 		t.Fatal("missing int4 type")
@@ -51,7 +52,7 @@ func TestCheckReviewScalarInquiryStoredInvariants(t *testing.T) {
 		{"result-type", func(n *functions.CommentInquiry) { n.Usage = intType.Usage() }},
 		{"properties", func(n *functions.CommentInquiry) { n.Property.RowDependent = false }},
 		{"foreign-origin", func(n *functions.CommentInquiry) {
-			column := n.Args[0].(columnExpression)
+			column := n.Args[0].(plan.ColumnExpr)
 			column.Origin.Epoch++
 			n.Args[0] = column
 		}},
@@ -127,7 +128,7 @@ func TestCheckReviewScalarInquiryStatementSnapshot(t *testing.T) {
 	view := e.CatalogRead()
 	ref := catalogRef(t, e, view, "t")
 	relation := view.MustRelation(ref.Address)
-	inquiry := relation.Constraints.Check[0].Expression.(distinctExpression).Left
+	inquiry := relation.Constraints.Check[0].Expression.(plan.DistinctExpr).Left
 	op, err := s.Acquire(ctx)
 	if err != nil {
 		t.Fatal(err)

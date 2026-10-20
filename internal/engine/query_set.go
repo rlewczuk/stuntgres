@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -43,11 +44,11 @@ type setArm struct {
 	row         []sqltype.Value
 }
 
-func openSetArm(ctx context.Context, state *queryState, project *projectNode, expressions []expr.Expr, schema []catalog.Column) (setArm, error) {
+func openSetArm(ctx context.Context, state *queryState, project *plan.ProjectNode, expressions []expr.Expr, schema []catalog.Column) (setArm, error) {
 	return openSetArmScratch(ctx, state, project, expressions, schema, nil)
 }
 
-func openSetArmScratch(ctx context.Context, state *queryState, project *projectNode, expressions []expr.Expr, schema []catalog.Column, scratch []sqltype.Value) (setArm, error) {
+func openSetArmScratch(ctx context.Context, state *queryState, project *plan.ProjectNode, expressions []expr.Expr, schema []catalog.Column, scratch []sqltype.Value) (setArm, error) {
 	innerState := &queryState{source: state.source, parameters: state.parameters, input: state.input, output: state.output, locking: state.locking, outer: state.outer, ctes: state.ctes, hashOwner: state.membershipOwner()}
 	inner, err := openQueryProjectStage(ctx, innerState, project)
 	if err != nil {
@@ -87,7 +88,7 @@ func (a *setArm) next(ctx context.Context) ([]sqltype.Value, bool, error) {
 	return a.row, true, ctx.Err()
 }
 
-func openSetNode(ctx context.Context, state *queryState, n *setNode) (out indexedStage, err error) {
+func openSetNode(ctx context.Context, state *queryState, n *plan.SetNode) (out indexedStage, err error) {
 	if n.Operation == "union" && n.All {
 		return openUnionAll(ctx, state, n)
 	}
@@ -97,7 +98,7 @@ func openSetNode(ctx context.Context, state *queryState, n *setNode) (out indexe
 	source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, scope: state.source.scope}
 	buckets := make(map[uint64][]int)
 	var counts [][2]int
-	for side, arm := range [2]*projectNode{n.Left, n.Right} {
+	for side, arm := range [2]*plan.ProjectNode{n.Left, n.Right} {
 		expressions := n.LeftExpressions
 		if side == 1 {
 			expressions = n.RightExpressions
@@ -167,7 +168,7 @@ func openSetNode(ctx context.Context, state *queryState, n *setNode) (out indexe
 	return out, ctx.Err()
 }
 
-func openUnionAll(ctx context.Context, state *queryState, n *setNode) (indexedStage, error) {
+func openUnionAll(ctx context.Context, state *queryState, n *plan.SetNode) (indexedStage, error) {
 	out := indexedStage{source: &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, scope: state.source.scope}, schema: n.Schema(), selection: []int{}}
 	var child setArm
 	opened, side := false, 0
@@ -214,7 +215,7 @@ func openUnionAll(ctx context.Context, state *queryState, n *setNode) (indexedSt
 	return out, nil
 }
 
-func preflightSet(c *EvalContext, n *setNode) (LogicalNode, error) {
+func preflightSet(c *EvalContext, n *plan.SetNode) (plan.Node, error) {
 	left, err := preflightQuery(c, n.Left)
 	if err != nil {
 		return nil, err
@@ -224,7 +225,7 @@ func preflightSet(c *EvalContext, n *setNode) (LogicalNode, error) {
 		return nil, err
 	}
 	copy := *n
-	copy.Left, copy.Right = left.(*projectNode), right.(*projectNode)
+	copy.Left, copy.Right = left.(*plan.ProjectNode), right.(*plan.ProjectNode)
 	changed := left != n.Left || right != n.Right
 	for side, expressions := range [2][]expr.Expr{n.LeftExpressions, n.RightExpressions} {
 		var next []expr.Expr

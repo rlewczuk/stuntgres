@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -11,11 +12,11 @@ import (
 // and availability only, never evaluates a child again or freezes its value.
 func overlapsExecutionConstant(node expr.Expr, c *EvalContext) bool {
 	switch n := node.(type) {
-	case literalExpression:
+	case plan.LiteralExpr:
 		return true
-	case parameterExpression:
+	case plan.ParameterExpr:
 		return n.Number > 0 && n.Number <= len(c.Parameters)
-	case columnExpression, groupExpression, aggregateExpression, groupingExpression, subqueryExpression:
+	case plan.ColumnExpr, plan.GroupExpr, plan.AggregateExpr, plan.GroupingExpr, plan.SubqueryExpr:
 		return false
 	}
 	if plannedVolatility(node) != expr.Immutable {
@@ -39,7 +40,7 @@ func overlapsInlineSafe(e functions.DatetimeOverlaps) bool {
 		}
 		safe, cost := true, 0
 		walkBoundExpression(start, func(node expr.Expr) {
-			if _, ok := node.(subqueryExpression); ok {
+			if _, ok := node.(plan.SubqueryExpr); ok {
 				safe = false
 			}
 			cost = min(11, cost+overlapsNodeCost(node))
@@ -55,19 +56,19 @@ func overlapsInlineSafe(e functions.DatetimeOverlaps) bool {
 // boolean/CASE nodes cost zero; only function-backed work adds to the threshold.
 func overlapsNodeCost(node expr.Expr) int {
 	switch n := node.(type) {
-	case literalExpression, parameterExpression, columnExpression, groupExpression, aggregateExpression, groupingExpression, collationExpression, logicalExpression, nullTestExpression, truthTestExpression, returningColumnExpression, returningWholeRowExpression:
+	case plan.LiteralExpr, plan.ParameterExpr, plan.ColumnExpr, plan.GroupExpr, plan.AggregateExpr, plan.GroupingExpr, plan.CollationExpr, plan.LogicalExpr, plan.NullTestExpr, plan.TruthTestExpr, plan.ReturningColumnExpr, plan.ReturningWholeRowExpr:
 		return 0
-	case caseExpression:
+	case plan.CaseExpr:
 		if n.Test != nil {
 			return len(n.Arms)
 		}
 		return 0
-	case conditionalExpression:
+	case plan.ConditionalExpr:
 		if n.Kind == parser.NullIf || n.Kind == parser.Greatest || n.Kind == parser.Least {
 			return 1
 		}
 		return 0
-	case coercionExpression:
+	case plan.CoercionExpr:
 		cost := n.Plan.EvaluationFunctionCount()
 		if n.ResultUsage().Type.IsDomain() {
 			cost++
@@ -115,7 +116,7 @@ func simplifyOverlapsRoute(c *EvalContext, e functions.DatetimeOverlaps) (functi
 	e.WrapperContext = !overlapsInlineSafe(e)
 	all := true
 	for _, arg := range e.Args {
-		if _, ok := arg.(literalExpression); !ok {
+		if _, ok := arg.(plan.LiteralExpr); !ok {
 			all = false
 			break
 		}
@@ -129,8 +130,8 @@ func simplifyOverlapsRoute(c *EvalContext, e functions.DatetimeOverlaps) (functi
 			if !duration {
 				continue
 			}
-			start, a := e.Args[pair*2].(literalExpression)
-			interval, b := e.Args[pair*2+1].(literalExpression)
+			start, a := e.Args[pair*2].(plan.LiteralExpr)
+			interval, b := e.Args[pair*2+1].(plan.LiteralExpr)
 			if !a || !b {
 				continue
 			}

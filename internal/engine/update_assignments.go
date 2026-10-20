@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -69,14 +70,14 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 		if source == nil && b.relation.RelationKind == catalog.ViewRelation {
 			continue
 		}
-		var target *arrayAssignmentTarget
+		var target *plan.ArrayAssignmentTarget
 		if partial {
 			target, err = binder.bindAssignmentTarget(dest, a.Steps, a.Target.Pos)
 			if err != nil {
 				return err
 			}
 			if u.arrayTargets == nil {
-				u.arrayTargets = make([]*arrayAssignmentTarget, len(assignments))
+				u.arrayTargets = make([]*plan.ArrayAssignmentTarget, len(assignments))
 			}
 			u.arrayTargets[i] = target
 			dest = target.Column(dest)
@@ -87,7 +88,7 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 			if err := binder.captureTypeDiagnosticInput(dest.Usage.Type); err != nil {
 				return err
 			}
-			if row, ok := source.(rowExpression); ok && row.Usage.Type.ID() == 2249 && dest.Usage.Type.BaseType().IsComposite() {
+			if row, ok := source.(plan.RowExpr); ok && row.Usage.Type.ID() == 2249 && dest.Usage.Type.BaseType().IsComposite() {
 				source, err = binder.assignCompositeMember(row, dest.Usage, sqltype.Assignment, sourcePos)
 				if err != nil {
 					return err
@@ -119,7 +120,7 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 				binder.prepared.regclassConcat = true
 			}
 			info.Property = coercionProperties(input, coercionPlan)
-			source = restoreDomainCastCollations(annotations, coercionExpression{info, input, coercionPlan, sqltype.Assignment, false})
+			source = restoreDomainCastCollations(annotations, plan.CoercionExpr{info, input, coercionPlan, sqltype.Assignment, false})
 			source, err = storageDestination(source, dest.Usage, info.Pos)
 			if err != nil {
 				return err

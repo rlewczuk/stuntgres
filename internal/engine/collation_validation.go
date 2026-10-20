@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
@@ -52,7 +53,7 @@ func validateStoredCollationDependency(view catalog.Read, ref ids.ObjectRef, nod
 		if ids.OID(usage.Collation.ID) == ref.Address.ObjectID {
 			comparison = true
 		}
-		literal, ok := child.(literalExpression)
+		literal, ok := child.(plan.LiteralExpr)
 		if !ok || literal.Value.IsNull() || literal.Value.Type() == nil || literal.Value.Type().ID() != sqltype.Regcollation || usage.Type == nil || usage.Type.ID() != sqltype.Regcollation {
 			return
 		}

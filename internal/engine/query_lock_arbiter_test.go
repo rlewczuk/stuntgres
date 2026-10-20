@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -53,8 +54,8 @@ func TestQueryLockArbiterSkipRetainsAcquiredContributor(t *testing.T) {
 		t.Fatal(err)
 	}
 	leaves := scope.querySources
-	join := &joinNode{QuerySchema: append(append(querySchema(nil), leaves[0].relation.Columns...), leaves[1].relation.Columns...), Left: &sourceNode{QuerySchema: leaves[0].relation.Columns, Ref: tRef, Occurrence: 0}, Right: &sourceNode{QuerySchema: leaves[1].relation.Columns, Ref: uRef, Occurrence: 1}, LeftWidth: len(leaves[0].relation.Columns), RightWidth: len(leaves[1].relation.Columns)}
-	root := &rowLockNode{QuerySchema: join.Schema(), Child: join, Marks: marks, FirstMode: lock.ForUpdate}
+	join := &plan.JoinNode{QuerySchema: append(append(plan.QuerySchema(nil), leaves[0].relation.Columns...), leaves[1].relation.Columns...), Left: &plan.SourceNode{QuerySchema: leaves[0].relation.Columns, Ref: tRef, Occurrence: 0}, Right: &plan.SourceNode{QuerySchema: leaves[1].relation.Columns, Ref: uRef, Occurrence: 1}, LeftWidth: len(leaves[0].relation.Columns), RightWidth: len(leaves[1].relation.Columns)}
+	root := &plan.RowLockNode{QuerySchema: join.Schema(), Child: join, Marks: marks, FirstMode: lock.ForUpdate}
 	e.mu.Lock()
 	err = e.initializeQueryLocksLocked(scope, root, leaves)
 	var inputs *querySource

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
 
@@ -14,30 +15,30 @@ func viewSourceAlias(occurrence int) string {
 	return "__view_source_" + strconv.Itoa(occurrence)
 }
 
-func viewFromRoot(node LogicalNode) LogicalNode {
+func viewFromRoot(node plan.Node) plan.Node {
 	for {
 		switch n := node.(type) {
-		case *setProjectNode:
+		case *plan.SetProjectNode:
 			node = n.Child
-		case *limitNode:
+		case *plan.LimitNode:
 			node = n.Child
-		case *evaluationNode:
+		case *plan.EvaluationNode:
 			node = n.Child
-		case *rowLockNode:
+		case *plan.RowLockNode:
 			node = n.Child
-		case *projectNode:
+		case *plan.ProjectNode:
 			node = n.Child
-		case *filterNode:
+		case *plan.FilterNode:
 			node = n.Child
-		case *sortNode:
+		case *plan.SortNode:
 			node = n.Child
-		case *aggregateNode:
+		case *plan.AggregateNode:
 			node = n.Child
-		case *windowNode:
+		case *plan.WindowNode:
 			node = n.Child
-		case *distinctNode:
+		case *plan.DistinctNode:
 			node = n.Child
-		case *distinctOnNode:
+		case *plan.DistinctOnNode:
 			node = n.Child
 		default:
 			return node
@@ -45,10 +46,10 @@ func viewFromRoot(node LogicalNode) LogicalNode {
 	}
 }
 
-func viewJoinAt(root LogicalNode, ordinal int) *joinNode {
-	var visit func(LogicalNode) *joinNode
-	visit = func(node LogicalNode) *joinNode {
-		n, ok := node.(*joinNode)
+func viewJoinAt(root plan.Node, ordinal int) *plan.JoinNode {
+	var visit func(plan.Node) *plan.JoinNode
+	visit = func(node plan.Node) *plan.JoinNode {
+		n, ok := node.(*plan.JoinNode)
 		if !ok {
 			return nil
 		}
@@ -63,11 +64,11 @@ func viewJoinAt(root LogicalNode, ordinal int) *joinNode {
 	return visit(root)
 }
 
-func viewJoinOffset(root LogicalNode, target *joinNode) (int, bool) {
+func viewJoinOffset(root plan.Node, target *plan.JoinNode) (int, bool) {
 	if root == target {
 		return 0, true
 	}
-	join, ok := root.(*joinNode)
+	join, ok := root.(*plan.JoinNode)
 	if !ok {
 		return 0, false
 	}
@@ -85,9 +86,9 @@ func viewJoinOffset(root LogicalNode, target *joinNode) (int, bool) {
 // No SQL is rebound and no persistent execution layout is changed.
 type viewRenderer struct {
 	*viewDefinition
-	query           *BoundQuery
+	query           *plan.Query
 	frame           uint32
-	slots           map[LogicalNode]map[int]string
+	slots           map[plan.Node]map[int]string
 	reserved        map[string]bool
 	namespace       int
 	depth           int
@@ -99,7 +100,7 @@ type viewRenderer struct {
 	// Summary names follow current attributes independently of literal presentation.
 	currentNames bool
 	rowTargets   map[string]string
-	wholeRows    map[wholeRowSource]viewRenderWholeRow
+	wholeRows    map[plan.WholeRowSource]viewRenderWholeRow
 }
 
 type viewRenderFrame struct {
@@ -123,7 +124,7 @@ type viewRenderWholeRow struct {
 }
 type viewRenderFrom struct {
 	text, relation string
-	root           LogicalNode
+	root           plan.Node
 	columns        []viewRenderColumn
 	slots          map[int]string
 	rowTarget      string
@@ -134,7 +135,7 @@ type viewRenderFrom struct {
 }
 
 func newViewRenderer(v *viewDefinition) *viewRenderer {
-	r := &viewRenderer{viewDefinition: v, query: v.query, slots: make(map[LogicalNode]map[int]string), reserved: make(map[string]bool)}
+	r := &viewRenderer{viewDefinition: v, query: v.query, slots: make(map[plan.Node]map[int]string), reserved: make(map[string]bool)}
 	if v.syntax != nil && len(v.syntax.Locking) != 0 {
 		r.rowTargets = make(map[string]string)
 	}
@@ -143,7 +144,7 @@ func newViewRenderer(v *viewDefinition) *viewRenderer {
 			continue
 		}
 		if r.wholeRows == nil {
-			r.wholeRows = make(map[wholeRowSource]viewRenderWholeRow)
+			r.wholeRows = make(map[plan.WholeRowSource]viewRenderWholeRow)
 		}
 		r.wholeRows[captured.source] = viewRenderWholeRow{}
 	}
@@ -185,7 +186,7 @@ func (v *viewRenderer) freshLabel(ns viewNamespace, attribute int32, physical bo
 	return v.allocateAlias(key, base)
 }
 
-func (v *viewRenderer) slotSQL(ctx context.Context, catalog catalog.Read, root LogicalNode, slot int) (string, error) {
+func (v *viewRenderer) slotSQL(ctx context.Context, catalog catalog.Read, root plan.Node, slot int) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -253,11 +254,11 @@ func (v *viewRenderer) aliasFrom(from viewRenderFrom, ns viewNamespace, name str
 	}
 	aliasWidth := len(from.columns)
 	switch scan := from.root.(type) {
-	case *worktableScanNode:
+	case *plan.WorktableScanNode:
 		if scan.CTE.Search != nil || scan.CTE.Cycle != nil {
 			aliasWidth = scan.CTE.UserWidth
 		}
-	case *derivedNode:
+	case *plan.DerivedNode:
 		if scan.CTE != nil && (scan.CTE.Search != nil || scan.CTE.Cycle != nil) {
 			aliasWidth = scan.CTE.UserWidth
 		}
@@ -364,7 +365,7 @@ func (v *viewRenderer) fromSQL(ctx context.Context, catalog catalog.Read, item p
 	if err == nil && v.wholeRows != nil && from.wholeSQL != "" {
 		namespace := v.namespaces[from.namespace-1]
 		for position, qualifier := range namespace.qualifiers {
-			key := wholeRowSource{Namespace: from.namespace, Qualifier: position, Frame: namespace.frame}
+			key := plan.WholeRowSource{Namespace: from.namespace, Qualifier: position, Frame: namespace.frame}
 			if _, demanded := v.wholeRows[key]; !demanded {
 				continue
 			}
@@ -382,7 +383,7 @@ func (v *viewRenderer) fromSQL(ctx context.Context, catalog catalog.Read, item p
 					return viewRenderFrom{}, fmt.Errorf("stuntgres: missing rendered whole-row field")
 				}
 			}
-			v.wholeRows[wholeRowSource{Namespace: from.namespace, Qualifier: position, Frame: namespace.frame}] = viewRenderWholeRow{sql: from.wholeSQL + ".*", names: names}
+			v.wholeRows[plan.WholeRowSource{Namespace: from.namespace, Qualifier: position, Frame: namespace.frame}] = viewRenderWholeRow{sql: from.wholeSQL + ".*", names: names}
 		}
 	}
 	return from, err
@@ -719,13 +720,13 @@ func (v *viewRenderer) renderFromSQL(ctx context.Context, catalogView catalog.Re
 	return viewRenderFrom{}, fmt.Errorf("stuntgres: unsupported view FROM syntax %T", item)
 }
 
-func viewSourceAt(node LogicalNode, occurrence int) *sourceNode {
+func viewSourceAt(node plan.Node, occurrence int) *plan.SourceNode {
 	switch n := node.(type) {
-	case *sourceNode:
+	case *plan.SourceNode:
 		if n.Occurrence == occurrence {
 			return n
 		}
-	case *joinNode:
+	case *plan.JoinNode:
 		if found := viewSourceAt(n.Left, occurrence); found != nil {
 			return found
 		}
@@ -734,12 +735,12 @@ func viewSourceAt(node LogicalNode, occurrence int) *sourceNode {
 	return nil
 }
 
-func viewDerivedAt(node LogicalNode, syntax *parser.Select) *derivedNode {
+func viewDerivedAt(node plan.Node, syntax *parser.Select) *plan.DerivedNode {
 	if node == nil {
 		return nil
 	}
-	if derived, ok := node.(*derivedNode); ok {
-		if project, ok := derived.Query.Root.(*projectNode); ok && project.Syntax == syntax {
+	if derived, ok := node.(*plan.DerivedNode); ok {
+		if project, ok := derived.Query.Root.(*plan.ProjectNode); ok && project.Syntax == syntax {
 			return derived
 		}
 	}

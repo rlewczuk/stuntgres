@@ -7,31 +7,32 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func querySetUnitFixture(t *testing.T, operation string, all, zeroWidth bool) (*setNode, *projectNode, *querySource) {
+func querySetUnitFixture(t *testing.T, operation string, all, zeroWidth bool) (*plan.SetNode, *plan.ProjectNode, *querySource) {
 	t.Helper()
 	_, query, source := queryCoreFixture(t, "SELECT v FROM t")
-	arm := query.Root.(*projectNode)
+	arm := query.Root.(*plan.ProjectNode)
 	copy := *arm
 	copy.Expressions = append([]expr.Expr(nil), arm.Expressions...)
-	copy.QuerySchema = append(querySchema(nil), arm.QuerySchema...)
+	copy.QuerySchema = append(plan.QuerySchema(nil), arm.QuerySchema...)
 	if zeroWidth {
 		copy.Expressions = []expr.Expr{}
-		copy.QuerySchema = querySchema{}
+		copy.QuerySchema = plan.QuerySchema{}
 	}
-	schema := append(querySchema(nil), copy.Schema()...)
+	schema := append(plan.QuerySchema(nil), copy.Schema()...)
 	for i := range schema {
 		schema[i].OriginTable = 0
 		schema[i].OriginAttribute = 0
 		schema[i].Nullable = false
 		schema[i].NullabilityKnown = false
 	}
-	n := &setNode{QuerySchema: schema, Left: &copy, Right: &copy, Operation: operation, All: all, LeftExpressions: append([]expr.Expr(nil), copy.Expressions...), RightExpressions: append([]expr.Expr(nil), copy.Expressions...)}
+	n := &plan.SetNode{QuerySchema: schema, Left: &copy, Right: &copy, Operation: operation, All: all, LeftExpressions: append([]expr.Expr(nil), copy.Expressions...), RightExpressions: append([]expr.Expr(nil), copy.Expressions...)}
 	if operation != "union" || !all {
-		n.Grouping = make([]queryGrouping, len(schema))
+		n.Grouping = make([]plan.Grouping, len(schema))
 		for i := range schema {
 			var err error
 			n.Grouping[i].Grouping, err = sqltype.BindGrouping(schema[i].Usage)
@@ -42,9 +43,9 @@ func querySetUnitFixture(t *testing.T, operation string, all, zeroWidth bool) (*
 	}
 	projection := make([]expr.Expr, len(schema))
 	for i := range schema {
-		projection[i] = columnExpression{Info: expr.InfoOf(copy.Expressions[i]), Scope: 1, Frame: copy.Frame, Slot: i}
+		projection[i] = plan.ColumnExpr{Info: expr.InfoOf(copy.Expressions[i]), Scope: 1, Frame: copy.Frame, Slot: i}
 	}
-	return n, &projectNode{QuerySchema: schema, Child: n, Expressions: projection, Frame: copy.Frame}, source
+	return n, &plan.ProjectNode{QuerySchema: schema, Child: n, Expressions: projection, Frame: copy.Frame}, source
 }
 
 func TestQuerySetCounts(t *testing.T) {
@@ -206,8 +207,8 @@ func TestQuerySetCoercionFrames(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	project := b.query.Root.(*projectNode)
-	n := project.Child.(*setNode)
+	project := b.query.Root.(*plan.ProjectNode)
+	n := project.Child.(*plan.SetNode)
 	if n.Left.Frame == n.Right.Frame || n.Left.Frame == project.Frame || n.Right.Frame == project.Frame {
 		t.Fatal("set arms share frame", project.Frame, n.Left.Frame, n.Right.Frame)
 	}
@@ -215,7 +216,7 @@ func TestQuerySetCoercionFrames(t *testing.T) {
 	if len(frames) != 5 || len(queries) != 5 {
 		t.Fatal("nested arm frame registration", len(frames), len(queries))
 	}
-	for _, schema := range []querySchema{project.QuerySchema, n.QuerySchema, n.Left.QuerySchema, n.Right.QuerySchema} {
+	for _, schema := range []plan.QuerySchema{project.QuerySchema, n.QuerySchema, n.Left.QuerySchema, n.Right.QuerySchema} {
 		for _, column := range schema {
 			if column.Usage.Type.ID() != sqltype.Int4 || column.OriginTable != 0 || column.OriginAttribute != 0 || column.NullabilityKnown {
 				t.Fatal(column)
@@ -247,7 +248,7 @@ func TestQuerySetImmutableRewriteRemap(t *testing.T) {
 	if err != nil || rewritten == project {
 		t.Fatal(rewritten, err)
 	}
-	copy := rewritten.(*projectNode).Child.(*setNode)
+	copy := rewritten.(*plan.ProjectNode).Child.(*plan.SetNode)
 	if copy == n || n.LeftExpressions[0] != original || copy.LeftExpressions[0] != replacement {
 		t.Fatal("rewrite mutated held binary plan")
 	}
@@ -265,7 +266,7 @@ func TestQuerySetImmutableRewriteRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reminted := mapped.(*projectNode).Child.(*setNode)
+	reminted := mapped.(*plan.ProjectNode).Child.(*plan.SetNode)
 	if reminted == n || reminted.Left == n.Left || reminted.Right == n.Right || n.Schema()[0].Usage.Type != typ {
 		t.Fatal("remap mutated held set")
 	}
@@ -343,11 +344,11 @@ func TestQuerySetArmCleanupErrorPriority(t *testing.T) {
 
 func TestQuerySetInsertNoBatchOnLateArmFailure(t *testing.T) {
 	b, source := insertSelectEvaluationFixture(t, "SELECT id FROM t")
-	project := b.query.Root.(*projectNode)
+	project := b.query.Root.(*plan.ProjectNode)
 	arm := *project
 	arm.Expressions = append([]expr.Expr(nil), project.Expressions...)
-	arm.QuerySchema = append(querySchema(nil), project.QuerySchema...)
-	n := &setNode{QuerySchema: arm.QuerySchema, Left: &arm, Right: &arm, Operation: "union", All: true, LeftExpressions: append([]expr.Expr(nil), arm.Expressions...), RightExpressions: append([]expr.Expr(nil), arm.Expressions...)}
+	arm.QuerySchema = append(plan.QuerySchema(nil), project.QuerySchema...)
+	n := &plan.SetNode{QuerySchema: arm.QuerySchema, Left: &arm, Right: &arm, Operation: "union", All: true, LeftExpressions: append([]expr.Expr(nil), arm.Expressions...), RightExpressions: append([]expr.Expr(nil), arm.Expressions...)}
 	original := n.RightExpressions[0]
 	sentinel := errors.New("late INSERT set arm")
 	calls := 0
@@ -360,7 +361,7 @@ func TestQuerySetInsertNoBatchOnLateArmFailure(t *testing.T) {
 	})
 	project.Child = n
 	for i, expression := range project.Expressions {
-		project.Expressions[i] = columnExpression{Info: expr.InfoOf(expression), Scope: 1, Frame: project.Frame, Slot: i}
+		project.Expressions[i] = plan.ColumnExpr{Info: expr.InfoOf(expression), Scope: 1, Frame: project.Frame, Slot: i}
 	}
 	rows, err := evaluateInsertQuery(context.Background(), b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
 	if rows.values != nil || err != sentinel || source.view != nil || source.anonymous != nil {
@@ -402,7 +403,7 @@ func TestQuerySetAssignmentSchemaOwnership(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			project := bound.query.Root.(*projectNode)
+			project := bound.query.Root.(*plan.ProjectNode)
 			if project.Schema()[0].Usage.Type.ID() != sqltype.Int4 || project.Expressions[0].ResultUsage().Type.ID() != sqltype.Int4 {
 				t.Fatal("destination projection is not assigned INT4", project.Schema())
 			}
@@ -411,7 +412,7 @@ func TestQuerySetAssignmentSchemaOwnership(t *testing.T) {
 				if node.Schema()[0].Usage.Type.ID() != tc.source {
 					t.Fatal("assignment changed source schema", node.Schema(), tc.source)
 				}
-				if _, ok := node.(*setNode); ok {
+				if _, ok := node.(*plan.SetNode); ok {
 					break
 				}
 				child, sibling := queryInputs(node)

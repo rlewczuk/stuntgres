@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -74,7 +75,7 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 		}
 		ref := view.Owner().Domain.Ref(view.Epoch(), d.Address())
 		e.mu.Lock()
-		source, err := e.openRelationSourceLocked(scope, ref, d.Owner, queryRowMark{}, nil, nil)
+		source, err := e.openRelationSourceLocked(scope, ref, d.Owner, plan.RowMark{}, nil, nil)
 		if err != nil || source == nil {
 			t.Fatal(d.Name(), err)
 		}
@@ -146,7 +147,7 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 		e.mu.Lock()
 		e.catalog.state.SetDescriptor(unknown.Address(), &unknown)
 		ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), unknown.Address())
-		source, err := e.openRelationSourceLocked(scope, ref, unknown.Owner, queryRowMark{}, nil, nil)
+		source, err := e.openRelationSourceLocked(scope, ref, unknown.Owner, plan.RowMark{}, nil, nil)
 		want := "stuntgres: unknown catalog source"
 		if virtual {
 			want = "stuntgres: unknown virtual catalog view"
@@ -232,7 +233,7 @@ func TestCatalogSourceRuntimeCapture(t *testing.T) {
 		for _, oid := range []ids.OID{pgcatalog.CursorsOID, pgcatalog.SettingsOID} {
 			d := e.CatalogRead().MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: oid})
 			e.mu.Lock()
-			source, err := e.openRelationSourceLocked(scope, e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address()), d.Owner, queryRowMark{}, nil, nil)
+			source, err := e.openRelationSourceLocked(scope, e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address()), d.Owner, plan.RowMark{}, nil, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"testing"
@@ -57,7 +58,7 @@ func TestDiscardOwnerPrecision(t *testing.T) {
 			if category != parser.DiscardAll {
 				tx = transactionBegin(t, a)
 			}
-			cursor := &sqlCursor{root: &projectNode{}, authority: &queryAuthority{}}
+			cursor := &sqlCursor{root: &plan.ProjectNode{}, authority: &queryAuthority{}}
 			cursor.tx = tx
 			a.cursors.entries["c"] = cursor
 			resources, serial, ticket, catalog, roles := a.resources, a.serial, a.advisory.ticket, e.catalog.state, e.roles.published

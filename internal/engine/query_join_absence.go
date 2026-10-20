@@ -1,5 +1,7 @@
 package engine
 
+import "stuntgres/internal/engine/plan"
+
 // Absence is carried by occurrence identity, never inferred from NULL cells or
 // a zero-width physical row. Missing subtrees must not evaluate their recipes.
 func absentLockedSource(source *querySource, locks *queryLockContext) bool {
@@ -14,32 +16,32 @@ func absentLockedSource(source *querySource, locks *queryLockContext) bool {
 	}
 	return locks.leaves[source.occurrence].absent
 }
-func absentLockedQuery(node LogicalNode, inputs *querySource, locks *queryLockContext) bool {
+func absentLockedQuery(node plan.Node, inputs *querySource, locks *queryLockContext) bool {
 	switch n := node.(type) {
-	case *distinctNode, *aggregateNode, *setNode, *recursiveUnionNode, *worktableScanNode:
+	case *plan.DistinctNode, *plan.AggregateNode, *plan.SetNode, *plan.RecursiveUnionNode, *plan.WorktableScanNode:
 		return false // Materialized tuples no longer carry physical absence.
-	case *derivedNode:
+	case *plan.DerivedNode:
 		if n.CTE != nil {
 			return false
 		}
 		return absentLockedQuery(n.Query.Root, inputs, locks)
-	case *sourceNode:
+	case *plan.SourceNode:
 		return absentLockedSource(querySourceAt(inputs, n.Occurrence), locks)
-	case *joinNode:
+	case *plan.JoinNode:
 		return absentLockedQuery(n.Left, inputs, locks) && absentLockedQuery(n.Right, inputs, locks)
-	case *projectNode:
+	case *plan.ProjectNode:
 		return absentLockedQuery(n.Child, inputs, locks)
-	case *filterNode:
+	case *plan.FilterNode:
 		return absentLockedQuery(n.Child, inputs, locks)
-	case *evaluationNode:
+	case *plan.EvaluationNode:
 		return absentLockedQuery(n.Child, inputs, locks)
-	case *sortNode:
+	case *plan.SortNode:
 		return absentLockedQuery(n.Child, inputs, locks)
-	case *distinctOnNode:
+	case *plan.DistinctOnNode:
 		return absentLockedQuery(n.Child, inputs, locks)
-	case *limitNode:
+	case *plan.LimitNode:
 		return absentLockedQuery(n.Child, inputs, locks)
-	case *rowLockNode:
+	case *plan.RowLockNode:
 		return absentLockedQuery(n.Child, inputs, locks)
 	}
 	return false

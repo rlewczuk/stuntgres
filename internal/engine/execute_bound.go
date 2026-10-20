@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -13,7 +14,7 @@ type preparedCommandExecution struct {
 	binding     binding
 	auth        AuthorizationView
 	evaluation  EvalContext
-	queryRoot   LogicalNode
+	queryRoot   plan.Node
 	expressions [][]expr.Expr
 	primaryTag  string
 }
@@ -28,7 +29,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	expressionsChanged := false
 	quoteCaptures := evaluation.quoteCaptures
 	_, inserting := stmt.(*parser.Insert)
-	var queryRoot LogicalNode
+	var queryRoot plan.Node
 	_, deleting := stmt.(*parser.Delete)
 	if (scope.protocolOrZero().command || scope.protocolOrZero().simple) && protocolPlainSelect(stmt) {
 		// Plan closed immutable recipes before executor startup, retaining
@@ -117,7 +118,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 			err = preflightMerge(&evaluation, b.merge, auth.Catalog)
 		} else if b.update != nil {
 			if evaluation.planStaticOperators {
-				b.update, err = preflightUpdate(&evaluation, b.update, func(prepared *boundUpdate) (LogicalNode, error) {
+				b.update, err = preflightUpdate(&evaluation, b.update, func(prepared *boundUpdate) (plan.Node, error) {
 					demandBinding := b
 					demandBinding.update = prepared
 					demanded, err := ruleMutationProducerDemand(demandBinding)
@@ -441,7 +442,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		collectAuth := auth
 		collectAuth.Recapture(scope.inheritanceRead(auth.Catalog))
-		refs, err := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.querySources, []ids.ObjectRef{b.ref}, scope.op.session.token, queryRowMark{})
+		refs, err := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.querySources, []ids.ObjectRef{b.ref}, scope.op.session.token, plan.RowMark{})
 		if err != nil {
 			e.mu.Unlock()
 			return Result{}, err
@@ -489,7 +490,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		if len(b.querySources) != 0 || len(scope.inheritedTargets) != 0 {
 			collectAuth := auth
 			collectAuth.Recapture(scope.inheritanceRead(auth.Catalog))
-			refs, collectErr := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.querySources, scope.mutationTargetRefs(b.ref), scope.op.session.token, queryRowMark{})
+			refs, collectErr := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.querySources, scope.mutationTargetRefs(b.ref), scope.op.session.token, plan.RowMark{})
 			if collectErr != nil {
 				e.mu.Unlock()
 				return Result{}, collectErr
@@ -551,7 +552,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			if b.viewWrite != nil || b.rule.template {
 				source = freezeViewWriteSources(scope, source, b.querySources)
 			}
-			b.query = &BoundQuery{Root: queryRoot}
+			b.query = &plan.Query{Root: queryRoot}
 			rows, queryErr := evaluateInsertQuery(ctx, b, source, canonical, schema, scope.input, scope.output, scope)
 			if queryErr != nil {
 				return Result{}, queryErr
@@ -694,7 +695,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		if len(b.querySources) != 0 || len(scope.inheritedTargets) != 0 {
 			collectAuth := auth
 			collectAuth.Recapture(scope.inheritanceRead(auth.Catalog))
-			refs, err := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.querySources, scope.mutationTargetRefs(b.ref), scope.op.session.token, queryRowMark{})
+			refs, err := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, b.querySources, scope.mutationTargetRefs(b.ref), scope.op.session.token, plan.RowMark{})
 			if err != nil {
 				e.mu.Unlock()
 				return Result{}, err

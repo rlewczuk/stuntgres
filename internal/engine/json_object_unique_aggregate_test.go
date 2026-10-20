@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -29,10 +30,10 @@ func TestJSONObjectUniqueAggregateSlotsAndRemap(t *testing.T) {
 				t.Fatal(err)
 			}
 			second, err := b.bind(raw, expressionPolicy{context: projectionContext})
-			if err != nil || first.(aggregateExpression).Slot != second.(aggregateExpression).Slot {
+			if err != nil || first.(plan.AggregateExpr).Slot != second.(plan.AggregateExpr).Slot {
 				t.Fatal("identical call did not reuse slot", err)
 			}
-			call := b.grouping.aggregates[first.(aggregateExpression).Slot]
+			call := b.grouping.aggregates[first.(plan.AggregateExpr).Slot]
 			p := call.Provider.(functions.JSONObjectAggregate)
 			id := sqltype.JSON
 			if strings.HasPrefix(name, "jsonb_") {
@@ -50,7 +51,7 @@ func TestJSONObjectUniqueAggregateSlotsAndRemap(t *testing.T) {
 			if !unique {
 				return
 			}
-			root := &aggregateNode{QuerySchema: querySchema{{Name: "v", Usage: p.ResultUsage()}}, Child: &valuesNode{}, Calls: []aggregateCall{{Provider: p, Operation: call.Operation, IncludeNulls: call.IncludeNulls}}}
+			root := &plan.AggregateNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: p.ResultUsage()}}, Child: &plan.ValuesNode{}, Calls: []plan.AggregateCall{{Provider: p, Operation: call.Operation, IncludeNulls: call.IncludeNulls}}}
 			mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 				next, _ := destination.CatalogRead().LookupType(old.ID())
 				return next
@@ -58,7 +59,7 @@ func TestJSONObjectUniqueAggregateSlotsAndRemap(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			q := mapped.(*aggregateNode).Calls[0].Provider.(functions.JSONObjectAggregate)
+			q := mapped.(*plan.AggregateNode).Calls[0].Provider.(functions.JSONObjectAggregate)
 			newKey, _ := destination.CatalogRead().LookupType(sqltype.Text)
 			newInput, _ := destination.CatalogRead().LookupType(sqltype.Int4)
 			newResult, _ := destination.CatalogRead().LookupType(id)

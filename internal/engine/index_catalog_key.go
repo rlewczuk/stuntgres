@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 )
 
 // PostgreSQL ComputeIndexAttrs strips top-level CollateExpr before deciding
@@ -20,13 +21,13 @@ func indexCatalogKey(parent *catalog.Relation, key catalog.IndexKey) (int32, exp
 	}
 	node := key.Derived.Definition
 	for {
-		collated, ok := node.(collationExpression)
+		collated, ok := node.(plan.CollationExpr)
 		if !ok {
 			break
 		}
 		node = collated.Child
 	}
-	if column, ok := node.(columnExpression); ok {
+	if column, ok := node.(plan.ColumnExpr); ok {
 		a := column.Origin.Address
 		if a.ClassID != parent.Address().ClassID || a.ObjectID != parent.Address().ObjectID || !parent.HasAttribute(a.SubID) {
 			return 0, nil, fmt.Errorf("stuntgres: index catalog column has a foreign origin")

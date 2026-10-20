@@ -5,6 +5,7 @@ import (
 	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -12,7 +13,7 @@ import (
 
 // Follow the existing queryJoinsFixture capture seam, but on the actual hash
 // owner's engine. No public adapter or testing-only production switch is used.
-func hashCaptureQuery(t *testing.T, e *Engine, op *Operation, q string) (*BoundQuery, *querySource, func()) {
+func hashCaptureQuery(t *testing.T, e *Engine, op *Operation, q string) (*plan.Query, *querySource, func()) {
 	t.Helper()
 	ast := statement(t, q)
 	scope, err := e.StartStatement(op)
@@ -33,7 +34,7 @@ func hashCaptureQuery(t *testing.T, e *Engine, op *Operation, q string) (*BoundQ
 	if err == nil {
 		// Logical-stage fixtures supply cancellation contexts directly, but keep
 		// the actual admission alive until every retained stage is closed.
-		source, err = e.captureQuerySourcesForInvokerLocked(scope, bound.querySources, false, authorization.PrincipalRef{}, queryRowMark{}, scope.queryLocks)
+		source, err = e.captureQuerySourcesForInvokerLocked(scope, bound.querySources, false, authorization.PrincipalRef{}, plan.RowMark{}, scope.queryLocks)
 	}
 	e.mu.Unlock()
 	if err == nil {
@@ -57,7 +58,7 @@ func hashCaptureQuery(t *testing.T, e *Engine, op *Operation, q string) (*BoundQ
 	t.Cleanup(release)
 	return bound.query, source, release
 }
-func hashImplicitQuery(t *testing.T, e *Engine, q string) (*BoundQuery, *querySource, func()) {
+func hashImplicitQuery(t *testing.T, e *Engine, q string) (*plan.Query, *querySource, func()) {
 	t.Helper()
 	op, done, err := testOperation(e, context.Background())
 	if err != nil {
@@ -70,13 +71,13 @@ func hashImplicitQuery(t *testing.T, e *Engine, q string) (*BoundQuery, *querySo
 		done()
 	}
 }
-func hashFilterStage(t *testing.T, query *BoundQuery, source *querySource, parameters []sqltype.Value) indexedStage {
+func hashFilterStage(t *testing.T, query *plan.Query, source *querySource, parameters []sqltype.Value) indexedStage {
 	t.Helper()
 	filter := hashQueryFilter(query.Root)
 	if filter == nil {
 		t.Fatal("fixture has no top-level filter")
 	}
-	state := &queryState{source: source, parameters: parameters, hashFilter: filter, frame: query.Root.(*projectNode).Frame}
+	state := &queryState{source: source, parameters: parameters, hashFilter: filter, frame: query.Root.(*plan.ProjectNode).Frame}
 	if scope := source.liveScope(); scope != nil {
 		state.input, state.output = scope.input, scope.output
 	}

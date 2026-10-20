@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
 
@@ -22,43 +23,43 @@ func (b *expressionBinder) captureValuesViewLiteral(raw parser.Expr, bound expr.
 	return b.captureViewLiteralTree(raw, bound, path, &ordinal)
 }
 
-func viewValuesAt(node LogicalNode, ordinal int) *valuesNode {
-	var visit func(LogicalNode) *valuesNode
-	visit = func(node LogicalNode) *valuesNode {
+func viewValuesAt(node plan.Node, ordinal int) *plan.ValuesNode {
+	var visit func(plan.Node) *plan.ValuesNode
+	visit = func(node plan.Node) *plan.ValuesNode {
 		switch n := node.(type) {
-		case *valuesNode:
+		case *plan.ValuesNode:
 			if ordinal == n.ViewOrdinal {
 				return n
 			}
-		case *setNode:
+		case *plan.SetNode:
 			if found := visit(n.Left); found != nil {
 				return found
 			}
 			return visit(n.Right)
-		case *joinNode:
+		case *plan.JoinNode:
 			if found := visit(n.Left); found != nil {
 				return found
 			}
 			return visit(n.Right)
-		case *projectNode:
+		case *plan.ProjectNode:
 			return visit(n.Child)
-		case *sortNode:
+		case *plan.SortNode:
 			return visit(n.Child)
-		case *limitNode:
+		case *plan.LimitNode:
 			return visit(n.Child)
-		case *evaluationNode:
+		case *plan.EvaluationNode:
 			return visit(n.Child)
-		case *filterNode:
+		case *plan.FilterNode:
 			return visit(n.Child)
-		case *aggregateNode:
+		case *plan.AggregateNode:
 			return visit(n.Child)
-		case *windowNode:
+		case *plan.WindowNode:
 			return visit(n.Child)
-		case *distinctNode:
+		case *plan.DistinctNode:
 			return visit(n.Child)
-		case *distinctOnNode:
+		case *plan.DistinctOnNode:
 			return visit(n.Child)
-		case *rowLockNode:
+		case *plan.RowLockNode:
 			return visit(n.Child)
 		}
 		return nil

@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -85,7 +86,7 @@ func TestAdvisoryBlockingDomainInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cast := node.(functions.Advisory).Args[0].(coercionExpression)
+	cast := node.(functions.Advisory).Args[0].(plan.CoercionExpr)
 	if cast.Properties() != argument.Expression.Properties() || expr.InfoOf(cast).RoutineReference != nil {
 		t.Fatal("bare advisory coercion changed properties or routine identity", cast.Properties(), argument.Expression.Properties())
 	}

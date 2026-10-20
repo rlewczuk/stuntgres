@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -21,7 +22,7 @@ func TestQuerySubquerySecondProjectedTuple(t *testing.T) {
 		for _, failure := range []string{"valid", "projection", "validation", "cancel"} {
 			t.Run(name+"/"+failure, func(t *testing.T) {
 				e, q, source := queryJoinsFixture(t, "SELECT k FROM a")
-				project := q.Root.(*projectNode)
+				project := q.Root.(*plan.ProjectNode)
 				usage := project.Schema()[0].Usage
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
@@ -48,7 +49,7 @@ func TestQuerySubquerySecondProjectedTuple(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					bound.Comparisons = []comparisonExpression{{Left: literalExpression{Info: expr.Info{Usage: usage}, Value: subqueryTestInteger(t, usage.Type, 1)}, Right: columnExpression{Info: expr.Info{Usage: usage}, Scope: 1, Frame: project.Frame, Slot: 0}, Predicate: predicate}}
+					bound.Comparisons = []plan.ComparisonExpr{{Left: plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: subqueryTestInteger(t, usage.Type, 1)}, Right: plan.ColumnExpr{Info: expr.Info{Usage: usage}, Scope: 1, Frame: project.Frame, Slot: 0}, Predicate: predicate}}
 				}
 				parent := queryState{source: source}
 				c := parent.evaluation(ctx)
@@ -86,9 +87,9 @@ func TestQuerySubqueryProjectionScheduling(t *testing.T) {
 	usage := q.Root.Schema()[0].Usage
 	for _, sorting := range []bool{false, true} {
 		for _, bounded := range []bool{false, true} {
-			var root LogicalNode = &singletonNode{}
+			var root plan.Node = &plan.SingletonNode{}
 			if sorting {
-				root = &sortNode{Child: root}
+				root = &plan.SortNode{Child: root}
 			}
 			immutable := queryProbe(usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Integer(usage.Type, 1) })
 			volatile := immutable.(queryProbeExpression)
@@ -97,16 +98,16 @@ func TestQuerySubqueryProjectionScheduling(t *testing.T) {
 			b := expressionBinder{}
 			next := b.scheduleQueryProjection(root, projection, bounded)
 			if sorting {
-				sort := root.(*sortNode)
+				sort := root.(*plan.SortNode)
 				if len(sort.Outputs) != 1 || sort.CacheWidth != 1 {
 					t.Fatal("sort must cache only nonvolatile output", sorting, bounded)
 				}
-				if _, ok := projection[0].(cachedOrderExpression); !ok {
+				if _, ok := projection[0].(plan.CachedOrderExpr); !ok {
 					t.Fatal("sort projection not reading existing cache")
 				}
 			}
 			if bounded {
-				evaluation, ok := next.(*evaluationNode)
+				evaluation, ok := next.(*plan.EvaluationNode)
 				want := 2
 				if sorting {
 					want = 1
@@ -129,21 +130,21 @@ func TestQuerySubqueryProjectionScheduling(t *testing.T) {
 func TestQuerySubqueryPresenceGraphRetention(t *testing.T) {
 	for _, sql := range []string{"SELECT abs(k) FROM a GROUP BY k ORDER BY a.k", "SELECT DISTINCT abs(k) FROM a"} {
 		_, q, source := queryJoinsFixture(t, sql)
-		project := q.Root.(*projectNode)
+		project := q.Root.(*plan.ProjectNode)
 		if !canSimplifyExists(q) {
 			t.Fatal("plain grouping or DISTINCT became a fence", sql)
 		}
 		calls := 0
-		var owner LogicalNode
+		var owner plan.Node
 		for node := project.Child; node != nil; node, _ = queryInputs(node) {
 			switch n := node.(type) {
-			case *aggregateNode:
+			case *plan.AggregateNode:
 				owner = n
 				n.Keys[0] = queryProbe(n.Keys[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) {
 					calls++
 					return sqltype.Value{}, errors.New("ignored group key")
 				})
-			case *distinctNode:
+			case *plan.DistinctNode:
 				owner = n
 				n.Expressions[0] = queryProbe(n.Expressions[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) {
 					calls++
@@ -158,17 +159,17 @@ func TestQuerySubqueryPresenceGraphRetention(t *testing.T) {
 		seen := false
 		for node := queryPlan.Root; node != nil; node, _ = queryInputs(node) {
 			switch n := node.(type) {
-			case *aggregateNode:
-				seen = n.PresenceOnly && len(n.Keys) != 0 && !owner.(*aggregateNode).PresenceOnly
-			case *distinctNode:
-				seen = n.PresenceOnly && len(n.Expressions) != 0 && !owner.(*distinctNode).PresenceOnly
+			case *plan.AggregateNode:
+				seen = n.PresenceOnly && len(n.Keys) != 0 && !owner.(*plan.AggregateNode).PresenceOnly
+			case *plan.DistinctNode:
+				seen = n.PresenceOnly && len(n.Expressions) != 0 && !owner.(*plan.DistinctNode).PresenceOnly
 			}
 		}
 		if !seen {
 			t.Fatal("ignored analyzed graph lost or original mutated", sql)
 		}
 		state := queryState{source: source}
-		stage, err := openQueryProjectStage(context.Background(), &state, queryPlan.Root.(*projectNode))
+		stage, err := openQueryProjectStage(context.Background(), &state, queryPlan.Root.(*plan.ProjectNode))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -184,7 +185,7 @@ func TestQuerySubqueryPresenceGraphRetention(t *testing.T) {
 
 func TestQuerySubquerySortedProjectionCacheOnce(t *testing.T) {
 	_, q, source := queryJoinsFixture(t, "SELECT abs(k) FROM a ORDER BY a.k")
-	project := q.Root.(*projectNode)
+	project := q.Root.(*plan.ProjectNode)
 	calls := 0
 	subqueryTestTarget(t, project, queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
 		calls++
@@ -207,7 +208,7 @@ func TestQuerySubquerySortedProjectionCacheOnce(t *testing.T) {
 func TestQuerySubqueryPresenceProperties(t *testing.T) {
 	for _, distinct := range []bool{false, true} {
 		_, q, _ := queryJoinsFixture(t, "SELECT k FROM a")
-		project := q.Root.(*projectNode)
+		project := q.Root.(*plan.ProjectNode)
 		probe := queryProbe(project.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) {
 			t.Fatal("property visitor evaluated ignored expression")
 			return sqltype.Value{}, nil
@@ -215,21 +216,21 @@ func TestQuerySubqueryPresenceProperties(t *testing.T) {
 		probe.Property.Volatility = expr.Volatile
 		probe.Property.RowDependent = true
 		if distinct {
-			project.Child = &distinctNode{Child: project.Child, Expressions: []expr.Expr{probe}}
+			project.Child = &plan.DistinctNode{Child: project.Child, Expressions: []expr.Expr{probe}}
 		} else {
-			project.Child = &aggregateNode{Child: project.Child, Keys: []expr.Expr{probe}}
+			project.Child = &plan.AggregateNode{Child: project.Child, Keys: []expr.Expr{probe}}
 		}
 		project.Expressions[0] = probe
 		queryPlan, err := presenceQueryPlan(q)
 		if err != nil {
 			t.Fatal(err)
 		}
-		properties := queryDemandProperties(queryPlan.Root.(*projectNode), true)
+		properties := queryDemandProperties(queryPlan.Root.(*plan.ProjectNode), true)
 		if properties.Volatility == expr.Volatile || properties.RowDependent {
 			t.Fatal("ignored graph polluted demand properties", properties)
 		}
-		nested := subqueryExpression{Kind: parser.SubqueryExists, QueryPlan: queryPlan, PresenceOnly: true}
-		outer := &projectNode{Frame: 99, Child: &singletonNode{}, Expressions: []expr.Expr{nested}}
+		nested := plan.SubqueryExpr{Kind: parser.SubqueryExists, QueryPlan: queryPlan, PresenceOnly: true}
+		outer := &plan.ProjectNode{Frame: 99, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{nested}}
 		if properties := queryDemandProperties(outer, false); properties.Volatility == expr.Volatile || properties.RowDependent {
 			t.Fatal("nested ignored target polluted demand properties", properties)
 		}
@@ -243,7 +244,7 @@ func TestQuerySubqueryPresenceRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		original := q.Root.(*projectNode).Child
+		original := q.Root.(*plan.ProjectNode).Child
 		typ := q.Root.Schema()[0].Usage.Type
 		replacement := *typ
 		mapped, err := remapViewQuery(New().CatalogRead(), queryPlan.Root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
@@ -255,13 +256,13 @@ func TestQuerySubqueryPresenceRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		switch n := mapped.(*projectNode).Child.(type) {
-		case *aggregateNode:
-			if !n.PresenceOnly || original.(*aggregateNode).PresenceOnly || n.Keys[0].ResultUsage().Type != &replacement {
+		switch n := mapped.(*plan.ProjectNode).Child.(type) {
+		case *plan.AggregateNode:
+			if !n.PresenceOnly || original.(*plan.AggregateNode).PresenceOnly || n.Keys[0].ResultUsage().Type != &replacement {
 				t.Fatal("grouping remap lost demand flag or original graph")
 			}
-		case *distinctNode:
-			if !n.PresenceOnly || original.(*distinctNode).PresenceOnly || n.Expressions[0].ResultUsage().Type != &replacement {
+		case *plan.DistinctNode:
+			if !n.PresenceOnly || original.(*plan.DistinctNode).PresenceOnly || n.Expressions[0].ResultUsage().Type != &replacement {
 				t.Fatal("DISTINCT remap lost demand flag or original graph")
 			}
 		default:
@@ -275,10 +276,10 @@ func TestQuerySubqueryLiteralDemandBoundary(t *testing.T) {
 	child := subqueryTestExpression(t, e, query, parser.SubqueryScalar)
 	typ := child.Usage.Type
 	info := expr.Info{Usage: typ.Usage()}
-	falseLiteral := literalExpression{Info: info, Value: sqltype.Boolean(typ, false)}
-	trueLiteral := literalExpression{Info: info, Value: sqltype.Boolean(typ, true)}
-	nullLiteral := literalExpression{Info: info, Value: sqltype.Null(typ)}
-	parameter := parameterExpression{Info: info, Number: 1}
+	falseLiteral := plan.LiteralExpr{Info: info, Value: sqltype.Boolean(typ, false)}
+	trueLiteral := plan.LiteralExpr{Info: info, Value: sqltype.Boolean(typ, true)}
+	nullLiteral := plan.LiteralExpr{Info: info, Value: sqltype.Null(typ)}
+	parameter := plan.ParameterExpr{Info: info, Number: 1}
 	for _, tc := range []struct {
 		name        string
 		op          parser.LogicalOperator
@@ -297,7 +298,7 @@ func TestQuerySubqueryLiteralDemandBoundary(t *testing.T) {
 			parent := queryState{source: source}
 			c := parent.evaluation(context.Background())
 			c.Parameters = []sqltype.Value{sqltype.Boolean(typ, false)}
-			expression := logicalExpression{Info: info, Op: tc.op, Left: tc.left, Right: tc.right, QueryRight: tc.right != nil}
+			expression := plan.LogicalExpr{Info: info, Op: tc.op, Left: tc.left, Right: tc.right, QueryRight: tc.right != nil}
 			value, err := expression.Eval(&c)
 			if tc.state != "" {
 				var diagnostic *sqlstate.Error
@@ -331,7 +332,7 @@ func TestQuerySubqueryLiteralDemandPreflight(t *testing.T) {
 	c := parent.evaluation(context.Background())
 	typ, _ := e.CatalogRead().LookupType(sqltype.Text)
 	c.Parameters = []sqltype.Value{sqltype.String(typ, "invalid")}
-	_, _, err := preflightCoercions(&c, query.Root.(*projectNode).Expressions[0])
+	_, _, err := preflightCoercions(&c, query.Root.(*plan.ProjectNode).Expressions[0])
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "22P02" ||
 		diagnostic.Message != `invalid input syntax for type boolean: "invalid"` {
@@ -354,7 +355,7 @@ func TestQuerySubqueryLogicalDemandFrames(t *testing.T) {
 	} {
 		t.Run(tc.sql, func(t *testing.T) {
 			_, query, source := queryJoinsFixture(t, tc.sql)
-			expression := query.Root.(*projectNode).Expressions[0].(logicalExpression)
+			expression := query.Root.(*plan.ProjectNode).Expressions[0].(plan.LogicalExpr)
 			if expression.QueryRight != tc.queryRight {
 				t.Fatal("logical demand does not match allocated child frames", expression.QueryRight)
 			}

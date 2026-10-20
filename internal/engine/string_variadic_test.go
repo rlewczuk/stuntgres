@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -132,7 +133,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	collision := quoteCaptureCandidate{}
 	for i, origin := range origins {
 		input := string(rune('a' + i))
-		source := literalExpression{Info: expr.Info{Usage: node.Usage}, Value: sqltype.String(node.Usage.Type, input)}
+		source := plan.LiteralExpr{Info: expr.Info{Usage: node.Usage}, Value: sqltype.String(node.Usage.Type, input)}
 		occurrence := functions.StringVariadic{Info: expr.Info{Usage: node.Usage, Pos: parser.Position{Offset: 17}}, Name: "quote_ident", Frame: 1, Args: []expr.Expr{source}}
 		ambient := origin
 		if origin.owner != (ids.ObjectRef{}) && origin.attribute == 0 {
@@ -143,7 +144,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, _ := folded.(literalExpression).Value.Text()
+		got, _ := folded.(plan.LiteralExpr).Value.Text()
 		if got != input || len(collision.entries) != i+1 {
 			t.Fatal("distinct stored origins collided", got, input, collision.entries)
 		}
@@ -171,7 +172,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		t.Fatal("view replacement retained prior defining revision")
 	}
 	sealed := quoteCaptureCandidate{entries: published, sealed: true}
-	missing := functions.StringVariadic{Info: expr.Info{Usage: node.Usage, Pos: parser.Position{Offset: 19}}, Name: "quote_ident", Frame: 1, Args: []expr.Expr{literalExpression{Info: expr.Info{Usage: node.Usage}, Value: sqltype.String(node.Usage.Type, "local")}}}
+	missing := functions.StringVariadic{Info: expr.Info{Usage: node.Usage, Pos: parser.Position{Offset: 19}}, Name: "quote_ident", Frame: 1, Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: node.Usage}, Value: sqltype.String(node.Usage.Type, "local")}}}
 	_, _, err = foldStringVariadic(&EvalContext{evalStatement: evalStatement{Context: ctx, quoteCaptures: &sealed}}, missing)
 	if err != nil || sealed.private || len(sealed.entries) != 4 {
 		t.Fatal("sealed executor group admitted row-time publication", err)
@@ -617,7 +618,7 @@ func TestStringVariadicBoundedCancellationAndSizes(t *testing.T) {
 	types := formatUnitTypes()
 	for _, name := range []string{"concat", "quote_ident", "quote_literal"} {
 		text := strings.Repeat("'a", 8192)
-		arg := literalExpression{Info: expr.Info{Usage: types[sqltype.Text].Usage()}, Value: sqltype.String(types[sqltype.Text], text)}
+		arg := plan.LiteralExpr{Info: expr.Info{Usage: types[sqltype.Text].Usage()}, Value: sqltype.String(types[sqltype.Text], text)}
 		node := functions.StringVariadic{Info: expr.Info{Usage: types[sqltype.Text].Usage()}, Name: name, Args: []expr.Expr{arg}}
 		group := quoteCaptureCandidate{}
 		ctx := &formatWorkContext{Context: context.Background(), checks: 4}

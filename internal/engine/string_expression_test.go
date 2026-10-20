@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -77,8 +78,8 @@ func TestStringCorePropertiesAndWalkers(t *testing.T) {
 	// Keep genuine owner retag/walker integration here; runtime demand is
 	// exercised locally by functions.TestStringRuntimeDemand.
 	node := functions.String{Info: expr.Info{Usage: text.Usage()}, Plan: stringPlan, Textual: [4]bool{true, true}, Args: []expr.Expr{
-		literalExpression{expr.Info{Usage: text.Usage()}, sqltype.String(text, "a")},
-		literalExpression{expr.Info{Usage: text.Usage()}, sqltype.String(text, "b")},
+		plan.LiteralExpr{expr.Info{Usage: text.Usage()}, sqltype.String(text, "a")},
+		plan.LiteralExpr{expr.Info{Usage: text.Usage()}, sqltype.String(text, "b")},
 	}}
 	var replacement *sqltype.Descriptor
 	for _, d := range sqltype.Builtins() {
@@ -108,7 +109,7 @@ func TestStringCorePropertiesAndWalkers(t *testing.T) {
 	}
 	nested := node
 	nested.Args = append([]expr.Expr(nil), node.Args...)
-	nested.Args[1] = columnExpression{Info: expr.Info{Usage: text.Usage(), Pos: parser.Position{Character: 17}, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1}
+	nested.Args[1] = plan.ColumnExpr{Info: expr.Info{Usage: text.Usage(), Pos: parser.Position{Character: 17}, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1}
 	nested.Pos = parser.Position{Character: 8}
 	nested.Property.RowDependent = true
 	if position := firstQueryBoundFrameVariable(nested, 1); position.Character != 17 {
@@ -172,7 +173,7 @@ func TestStringCoreOrdinaryDeparseDoesNotChangeBoundArguments(t *testing.T) {
 	run(t, e, "CREATE TABLE deparse_args(v CHAR(4),s CHAR(4),e TEXT,CHECK(btrim(v,s)=e))")
 	ref := roleTableRef(t, e, "deparse_args")
 	relation := e.catalog.state.MustRelation(ref.Address)
-	node := relation.Constraints.Check[0].Expression.(comparisonExpression).Left.(functions.String)
+	node := relation.Constraints.Check[0].Expression.(plan.ComparisonExpr).Left.(functions.String)
 	args := append([]expr.Expr(nil), node.Args...)
 	stringPlan := node.Plan
 	for _, pretty := range []bool{false, true} {
@@ -191,7 +192,7 @@ func TestStringCoreOrdinaryDeparseDoesNotChangeBoundArguments(t *testing.T) {
 			t.Fatal("rendering changed the retained provider or arguments")
 		}
 		for _, arg := range node.Args {
-			if _, ok := arg.(columnExpression); !ok || arg.ResultUsage().Type.ID() != sqltype.BPChar {
+			if _, ok := arg.(plan.ColumnExpr); !ok || arg.ResultUsage().Type.ID() != sqltype.BPChar {
 				t.Fatal("renderer installed a runtime conversion", arg)
 			}
 		}
@@ -203,7 +204,7 @@ func TestStringCoreBinaryTrimSyntaxCopies(t *testing.T) {
 	run(t, e, "CREATE TABLE trim_copies(v BYTEA,s BYTEA,e BYTEA,CHECK(TRIM(LEADING s FROM v)=e))")
 	ref := roleTableRef(t, e, "trim_copies")
 	relation := e.catalog.state.MustRelation(ref.Address)
-	node := relation.Constraints.Check[0].Expression.(comparisonExpression).Left.(functions.Binary)
+	node := relation.Constraints.Check[0].Expression.(plan.ComparisonExpr).Left.(functions.Binary)
 	if node.Syntax != parser.SQLFunctionSyntax {
 		t.Fatal("binding lost special binary TRIM")
 	}
@@ -219,7 +220,7 @@ func TestStringCoreBinaryTrimSyntaxCopies(t *testing.T) {
 	}
 	remapped, err := remapBoundExpression(node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, map[int32]int{1: 1, 2: 0})
 	if err != nil || remapped.(functions.Binary).Syntax != parser.SQLFunctionSyntax ||
-		remapped.(functions.Binary).Args[0].(columnExpression).Slot != 1 || node.Args[0].(columnExpression).Slot != 0 {
+		remapped.(functions.Binary).Args[0].(plan.ColumnExpr).Slot != 1 || node.Args[0].(plan.ColumnExpr).Slot != 0 {
 		t.Fatal("remap lost syntax or mutated original children", remapped, err)
 	}
 	var replacement *sqltype.Descriptor

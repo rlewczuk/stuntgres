@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -86,7 +87,7 @@ func TestRegexpScalarPreflight(t *testing.T) {
 		t.Fatal(err)
 	}
 	node := bound.(functions.Regexp)
-	node.Args[1] = columnExpression{Info: expr.Info{Usage: node.Args[1].ResultUsage(), Property: expr.Properties{Volatility: expr.Immutable, RowDependent: true}}, Slot: 0}
+	node.Args[1] = plan.ColumnExpr{Info: expr.Info{Usage: node.Args[1].ResultUsage(), Property: expr.Properties{Volatility: expr.Immutable, RowDependent: true}}, Slot: 0}
 	node.Property.RowDependent = true
 	_, _, err = preflightCoercionsWithPolicy(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, node, true)
 	if err != nil {
@@ -130,7 +131,7 @@ func TestRegexpScalarOuterFromFrame(t *testing.T) {
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(b.op)
 	b.query.auth = &auth
-	var query *BoundQuery
+	var query *plan.Query
 	if err == nil {
 		query, err = b.bindSelect(raw, false)
 	}
@@ -138,15 +139,15 @@ func TestRegexpScalarOuterFromFrame(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	seen := make(map[LogicalNode]bool)
+	seen := make(map[plan.Node]bool)
 	from, captured := 0, 0
-	var inspect func(LogicalNode)
-	inspect = func(node LogicalNode) {
+	var inspect func(plan.Node)
+	inspect = func(node plan.Node) {
 		if node == nil || seen[node] {
 			return
 		}
 		seen[node] = true
-		if n, ok := node.(*functionFromNode); ok {
+		if n, ok := node.(*plan.FunctionFromNode); ok {
 			from++
 			if n.Frame <= 1 {
 				t.Fatal("function lost its inner lexical frame", n.Frame)
@@ -154,7 +155,7 @@ func TestRegexpScalarOuterFromFrame(t *testing.T) {
 			for _, call := range n.Calls {
 				for _, arg := range expr.Expr(call).(expr.Composite).Children() {
 					walkBoundExpression(arg, func(child expr.Expr) {
-						if column, ok := child.(columnExpression); ok {
+						if column, ok := child.(plan.ColumnExpr); ok {
 							captured++
 							if column.Frame != 1 {
 								t.Fatal("outer reference rebound to inner frame", column.Frame)
@@ -166,7 +167,7 @@ func TestRegexpScalarOuterFromFrame(t *testing.T) {
 		}
 		queryExpressions(node, func(bound expr.Expr) {
 			walkBoundExpression(bound, func(child expr.Expr) {
-				if subquery, ok := child.(subqueryExpression); ok {
+				if subquery, ok := child.(plan.SubqueryExpr); ok {
 					inspect(subquery.QueryPlan.Root)
 				}
 			})
@@ -213,7 +214,7 @@ func TestRegexpScalarViewPrefix(t *testing.T) {
 			e.mu.Lock()
 			auth, err := e.authorizationLocked(b.op)
 			b.query.auth = &auth
-			var query *BoundQuery
+			var query *plan.Query
 			if err == nil {
 				query, err = b.bindSelect(raw, false)
 			}

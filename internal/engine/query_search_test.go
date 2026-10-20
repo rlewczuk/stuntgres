@@ -5,15 +5,16 @@ import (
 	"errors"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
-func searchUnitDefinition(t *testing.T, breadth bool, usage sqltype.Usage, distinct bool) (*expressionBinder, *cteDefinition) {
+func searchUnitDefinition(t *testing.T, breadth bool, usage sqltype.Usage, distinct bool) (*expressionBinder, *plan.CTEDefinition) {
 	t.Helper()
 	b := &expressionBinder{engine: New(), ctx: context.Background()}
-	d := &cteDefinition{UserWidth: 1, Schema: querySchema{{Name: "n", Usage: usage}}, Search: &searchRecipe{Syntax: &parser.SearchClause{Breadth: breadth, Keys: []parser.Identifier{{Text: "n"}}, Sequence: parser.Identifier{Text: "seq"}}}}
+	d := &plan.CTEDefinition{UserWidth: 1, Schema: plan.QuerySchema{{Name: "n", Usage: usage}}, Search: &plan.SearchRecipe{Syntax: &parser.SearchClause{Breadth: breadth, Keys: []parser.Identifier{{Text: "n"}}, Sequence: parser.Identifier{Text: "seq"}}}}
 	if err := b.bindSearchShape(d); err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +28,7 @@ func searchUnitDefinition(t *testing.T, breadth bool, usage sqltype.Usage, disti
 	}
 	return b, d
 }
-func searchUnitValue(t *testing.T, s *searchRecipe, parent sqltype.Value, key sqltype.Value) sqltype.Value {
+func searchUnitValue(t *testing.T, s *plan.SearchRecipe, parent sqltype.Value, key sqltype.Value) sqltype.Value {
 	t.Helper()
 	value, err := s.Value(context.Background(), []sqltype.Value{key}, parent)
 	if err != nil {
@@ -111,12 +112,12 @@ func TestQuerySearchParent(t *testing.T) {
 				t.Fatal("wrong/mutated parent")
 			}
 		}
-		self := &worktableScanNode{DerivedNode: derivedNode{CTE: d, Demand: []bool{false, true}}}
-		physical := &singletonNode{QuerySchema: make(querySchema, 4)}
+		self := &plan.WorktableScanNode{DerivedNode: plan.DerivedNode{CTE: d, Demand: []bool{false, true}}}
+		physical := &plan.SingletonNode{QuerySchema: make(plan.QuerySchema, 4)}
 		for _, tc := range []struct {
-			node   LogicalNode
+			node   plan.Node
 			offset int
-		}{{&joinNode{Left: physical, Right: self, LeftWidth: 4}, 4}, {&joinNode{Left: self, Right: physical, LeftWidth: 2}, 0}} {
+		}{{&plan.JoinNode{Left: physical, Right: self, LeftWidth: 4}, 4}, {&plan.JoinNode{Left: self, Right: physical, LeftWidth: 2}, 0}} {
 			if scan, offset := recursiveParentSlot(tc.node, d, 0); scan != self || offset != tc.offset {
 				t.Fatal(scan, offset)
 			}
@@ -144,9 +145,9 @@ func TestQuerySearchIdentity(t *testing.T) {
 		if err != nil || ha != hb {
 			t.Fatal("equal hashes", ha, hb, err)
 		}
-		grouping := make([]queryGrouping, 1)
+		grouping := make([]plan.Grouping, 1)
 		grouping[0].Grouping, _ = sqltype.BindGrouping(typ.Usage())
-		stage := recursiveUnionStage{node: &recursiveUnionNode{SetNode: setNode{QuerySchema: d.Schema, Grouping: grouping}, Definition: d, Search: s}, source: &querySource{flat: []sqltype.Value{one, child, one, anchor}}}
+		stage := recursiveUnionStage{node: &plan.RecursiveUnionNode{SetNode: plan.SetNode{QuerySchema: d.Schema, Grouping: grouping}, Definition: d, Search: s}, source: &querySource{flat: []sqltype.Value{one, child, one, anchor}}}
 		if index, err := stage.findTuple(ctx, []sqltype.Value{one, anchor}, []int{0, 1}); err != nil || index != 1 {
 			t.Fatal("collision ignored sequence", index, err)
 		}
@@ -154,11 +155,11 @@ func TestQuerySearchIdentity(t *testing.T) {
 		cycle.MarkSlot = 2
 		first := cycleUnitAugment(t, cycle, sqltype.Value{}, one, anchor)
 		second := cycleUnitAugment(t, cycle, first[3], one, anchor)
-		grouping = append(grouping, queryGrouping{})
+		grouping = append(grouping, plan.Grouping{})
 		grouping[1].Grouping, _ = sqltype.BindGrouping(cycle.Mark.ResultUsage())
 		d.Cycle = cycle
 		d.Schema = append(d.Schema, catalog.Column{Usage: cycle.Mark.ResultUsage()}, catalog.Column{Usage: cycle.Path.Usage()})
-		stage.node = &recursiveUnionNode{SetNode: setNode{QuerySchema: d.Schema, Grouping: grouping}, Definition: d, Search: s, Cycle: cycle}
+		stage.node = &plan.RecursiveUnionNode{SetNode: plan.SetNode{QuerySchema: d.Schema, Grouping: grouping}, Definition: d, Search: s, Cycle: cycle}
 		stage.source.flat = append(append([]sqltype.Value(nil), second...), first...)
 		if index, err := stage.findTuple(ctx, first, []int{0, 1}); err != nil || index != 1 {
 			t.Fatal("collision ignored CYCLE", index, err)
@@ -199,11 +200,11 @@ func TestQuerySearchRemap(t *testing.T) {
 		if sqltype.SameRecordUsage(d.Search.Result.Usage(), copy.Search.Result.Usage()) {
 			t.Fatal("same-OID shapes merged")
 		}
-		bound := literalExpression{Info: expr.Info{Usage: small.Usage()}, Value: sqltype.Null(small)}
-		left := &projectNode{QuerySchema: d.Schema[:1]}
-		right := &projectNode{QuerySchema: d.Schema}
-		seq := columnExpression{Info: expr.Info{Usage: d.Search.Result.Usage()}}
-		n := setNode{QuerySchema: d.Schema, Left: left, Right: right, Operation: "union", LeftExpressions: []expr.Expr{bound}, RightExpressions: []expr.Expr{bound, seq}, Grouping: make([]queryGrouping, 1)}
+		bound := plan.LiteralExpr{Info: expr.Info{Usage: small.Usage()}, Value: sqltype.Null(small)}
+		left := &plan.ProjectNode{QuerySchema: d.Schema[:1]}
+		right := &plan.ProjectNode{QuerySchema: d.Schema}
+		seq := plan.ColumnExpr{Info: expr.Info{Usage: d.Search.Result.Usage()}}
+		n := plan.SetNode{QuerySchema: d.Schema, Left: left, Right: right, Operation: "union", LeftExpressions: []expr.Expr{bound}, RightExpressions: []expr.Expr{bound, seq}, Grouping: make([]plan.Grouping, 1)}
 		if err := validateStoredSetNode(&n, nil, d.Search); err != nil {
 			t.Fatal(err)
 		}
@@ -244,9 +245,9 @@ func TestQuerySearchSignature(t *testing.T) {
 	small := binder.typ(sqltype.Int4)
 	big := binder.typ(sqltype.Int8)
 	for _, breadth := range []bool{true, false} {
-		a := &cteDefinition{UserWidth: 1, Schema: querySchema{{Name: "n", Usage: small.Usage()}}, Search: &searchRecipe{Syntax: &parser.SearchClause{Breadth: breadth, Keys: []parser.Identifier{{Text: "n"}}, Sequence: parser.Identifier{Text: "seq"}}}}
-		b := &cteDefinition{UserWidth: 1, Schema: querySchema{{Name: "n", Usage: big.Usage()}}, Search: &searchRecipe{Syntax: a.Search.Syntax}}
-		for _, definition := range []*cteDefinition{a, b} {
+		a := &plan.CTEDefinition{UserWidth: 1, Schema: plan.QuerySchema{{Name: "n", Usage: small.Usage()}}, Search: &plan.SearchRecipe{Syntax: &parser.SearchClause{Breadth: breadth, Keys: []parser.Identifier{{Text: "n"}}, Sequence: parser.Identifier{Text: "seq"}}}}
+		b := &plan.CTEDefinition{UserWidth: 1, Schema: plan.QuerySchema{{Name: "n", Usage: big.Usage()}}, Search: &plan.SearchRecipe{Syntax: a.Search.Syntax}}
+		for _, definition := range []*plan.CTEDefinition{a, b} {
 			if err := binder.bindSearchShape(definition); err != nil {
 				t.Fatal(err)
 			}

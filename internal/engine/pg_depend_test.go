@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -84,9 +85,9 @@ func TestPGDependConstructionBags(t *testing.T) {
 	column := tableAddress
 	column.SubID = 2
 	ref := e.catalog.Domain.Ref(view.State().Epoch(), column)
-	variable := columnExpression{Info: expr.Info{Usage: integer.Usage()}, Origin: ref}
+	variable := plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage()}, Origin: ref}
 	repeated := functions.Binary{Info: expr.Info{Usage: integer.Usage()}, Args: []expr.Expr{variable, variable}}
-	constant := literalExpression{Info: expr.Info{Usage: integer.Usage()}}
+	constant := plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}}
 	uq := catalog.UniqueConstraint{OID: 42003, Index: pgDependUnitAddress(1259, 44003, 0), Attributes: []int32{5}}
 	table := &catalog.Relation{ObjectAddress: tableAddress, ObjectNamespace: pgDependUnitAddress(2615, 2200, 0), RelationKind: catalog.TableRelation, Attributes: []int32{2, 3, 4, 5}, ColumnMeta: catalog.ColumnMetadata{HighWater: 5, Defaults: map[int32]catalog.ColumnDefault{3: {OID: 43001, Expression: constant}}, Generations: map[int32]catalog.ColumnGeneration{4: {Kind: catalog.GenerationStored, OID: 43002, Expression: repeated}}}, Columns: []catalog.Column{{Usage: integer.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}, {Usage: integer.Usage()}}, Constraints: catalog.RelationConstraints{NotNull: []catalog.NotNullConstraint{{OID: 42001, Attribute: 3}}, Check: []catalog.CheckConstraint{{OID: 42002, Expression: repeated}, {OID: 42004, Expression: constant}}, Unique: []catalog.UniqueConstraint{uq}}}
 	view.State().SetDescriptor(tableAddress, table)

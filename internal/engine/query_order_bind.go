@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -40,7 +41,7 @@ func orderOrdinal(raw parser.Expr, width int, clause string) (int, bool, error) 
 
 // ORDER references source-type outputs, before INSERT destination assignment.
 func (b *expressionBinder) orderOutput(expression expr.Expr) (expr.Expr, error) {
-	if unknown, ok := expression.(unknownOutput); ok {
+	if unknown, ok := expression.(plan.UnknownOutput); ok {
 		var err error
 		expression, err = b.bind(unknown.Raw, expressionPolicy{context: projectionContext})
 		if err != nil {
@@ -50,11 +51,11 @@ func (b *expressionBinder) orderOutput(expression expr.Expr) (expr.Expr, error) 
 	return b.finalizeProjection(expression)
 }
 
-func (b *expressionBinder) bindOrder(order *parser.Order, projection []expr.Expr, names []string, clause string) ([]sortKey, error) {
+func (b *expressionBinder) bindOrder(order *parser.Order, projection []expr.Expr, names []string, clause string) ([]plan.SortKey, error) {
 	if order == nil {
 		return nil, nil
 	}
-	keys := make([]sortKey, len(order.Keys))
+	keys := make([]plan.SortKey, len(order.Keys))
 	for i, raw := range order.Keys {
 		output, ordinal, err := orderOrdinal(raw.Expr, len(projection), clause)
 		if err != nil {
@@ -116,11 +117,11 @@ func (b *expressionBinder) bindOrder(order *parser.Order, projection []expr.Expr
 			projection[output] = expression
 		}
 		if demand := b.query.namespace.identityValuesOrderDemand; len(demand) != 0 {
-			if column, ok := expression.(columnExpression); ok {
+			if column, ok := expression.(plan.ColumnExpr); ok {
 				demand[column.Slot] = true
 			}
 		}
-		keys[i] = sortKey{
+		keys[i] = plan.SortKey{
 			Expression:    expression,
 			Position:      raw.Pos.Character,
 			OutputOrdinal: output + 1,
@@ -134,7 +135,7 @@ func (b *expressionBinder) bindOrder(order *parser.Order, projection []expr.Expr
 
 // finishOrder runs after grouped rewriting and output typing. Equivalent ORDER
 // targets share a datum; unrelated visible outputs remain occurrence-sensitive.
-func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, projection []expr.Expr) (LogicalNode, error) {
+func (b *expressionBinder) finishOrder(root plan.Node, keys []plan.SortKey, projection []expr.Expr) (plan.Node, error) {
 	if len(keys) == 0 {
 		return root, nil
 	}
@@ -162,11 +163,11 @@ func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, project
 		// They still participate in the ordinary output/cache equivalence.
 		key.Slot = -1
 		switch e := key.Expression.(type) {
-		case columnExpression:
+		case plan.ColumnExpr:
 			if e.Virtual == nil {
 				key.Slot = e.Slot
 			}
-		case groupExpression:
+		case plan.GroupExpr:
 			key.Slot = e.Slot
 		}
 		if key.Slot >= 0 {
@@ -211,13 +212,13 @@ func (b *expressionBinder) finishOrder(root LogicalNode, keys []sortKey, project
 			properties.StageDependent = true
 			info := expr.InfoOf(output)
 			info.Property = properties
-			projection[j] = cachedOrderExpression{Info: info, Slot: key.Cache}
+			projection[j] = plan.CachedOrderExpr{Info: info, Slot: key.Cache}
 		}
 	}
-	return &sortNode{QuerySchema: root.Schema(), Child: root, Keys: keys, CacheWidth: computed}, nil
+	return &plan.SortNode{QuerySchema: root.Schema(), Child: root, Keys: keys, CacheWidth: computed}, nil
 }
 
-func (c *EvalContext) EvalCachedOrder(e cachedOrderExpression) (sqltype.Value, error) {
+func (c *EvalContext) EvalCachedOrder(e plan.CachedOrderExpr) (sqltype.Value, error) {
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}

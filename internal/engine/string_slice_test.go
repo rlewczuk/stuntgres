@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -92,7 +93,7 @@ func TestStringSliceDependencyChildren(t *testing.T) {
 			if i == 0 {
 				typ = text
 			}
-			args[i] = columnExpression{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, Slot: i}
+			args[i] = plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{RowDependent: true}}, Slot: i}
 		}
 		node, err := b.stringNode(name, text.Usage(), parser.Position{}, args, [4]bool{true}, parser.OrdinaryStringSyntax)
 		if err != nil {
@@ -100,7 +101,7 @@ func TestStringSliceDependencyChildren(t *testing.T) {
 		}
 		var slots []int
 		walkBoundExpression(node, func(child expr.Expr) {
-			if col, ok := child.(columnExpression); ok {
+			if col, ok := child.(plan.ColumnExpr); ok {
 				slots = append(slots, col.Slot)
 			}
 		})
@@ -120,9 +121,9 @@ func TestStringSliceReconstructionAndIdentity(t *testing.T) {
 	one, _ := sqltype.Integer(integer, 1)
 	two, _ := sqltype.Integer(integer, 2)
 	args := []expr.Expr{
-		literalExpression{expr.Info{Usage: text.Usage()}, sqltype.String(text, "Aé🙂Z")},
-		literalExpression{expr.Info{Usage: integer.Usage()}, two},
-		literalExpression{expr.Info{Usage: integer.Usage()}, one},
+		plan.LiteralExpr{expr.Info{Usage: text.Usage()}, sqltype.String(text, "Aé🙂Z")},
+		plan.LiteralExpr{expr.Info{Usage: integer.Usage()}, two},
+		plan.LiteralExpr{expr.Info{Usage: integer.Usage()}, one},
 	}
 	ordinary, err := b.stringNode("substring", text.Usage(), parser.Position{}, args, [4]bool{true}, parser.OrdinaryStringSyntax)
 	if err != nil {

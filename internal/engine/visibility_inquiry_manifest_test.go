@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -33,33 +34,33 @@ func TestVisibilityInquiryStoredNullManifest(t *testing.T) {
 			check := relation.Constraints.Check[0]
 			switch tc.name {
 			case "wrapped-null":
-				inquiry, ok := check.Expression.(nullTestExpression).Child.(functions.VisibilityInquiry)
+				inquiry, ok := check.Expression.(plan.NullTestExpr).Child.(functions.VisibilityInquiry)
 				if !ok {
-					t.Fatalf("wrapped NULL inquiry folded to %T", check.Expression.(nullTestExpression).Child)
+					t.Fatalf("wrapped NULL inquiry folded to %T", check.Expression.(plan.NullTestExpr).Child)
 				}
-				coercion, ok := inquiry.Arg.(coercionExpression)
+				coercion, ok := inquiry.Arg.(plan.CoercionExpr)
 				if !ok || coercion.ResultUsage().Type.ID() != sqltype.Oid {
 					t.Fatalf("missing integer-to-OID coercion: %T", inquiry.Arg)
 				}
-				literal, ok := coercion.Child.(literalExpression)
+				literal, ok := coercion.Child.(plan.LiteralExpr)
 				if !ok || literal.ResultUsage().Type.ID() != sqltype.Int4 || !literal.Value.IsNull() {
 					t.Fatalf("missing integer NULL beneath coercion: %T", coercion.Child)
 				}
 			case "bare-null":
-				literal, ok := check.Expression.(nullTestExpression).Child.(literalExpression)
+				literal, ok := check.Expression.(plan.NullTestExpr).Child.(plan.LiteralExpr)
 				if !ok || literal.ResultUsage().Type.ID() != sqltype.Bool || !literal.Value.IsNull() {
 					t.Fatal("bare NULL must still fold to an executable BOOL NULL")
 				}
 			case "conversion-wrapped-null":
-				conversion, ok := check.Expression.(nullTestExpression).Child.(functions.Binary)
+				conversion, ok := check.Expression.(plan.NullTestExpr).Child.(functions.Binary)
 				if !ok || conversion.Plan.Immutable() {
 					t.Fatal("expected retained catalog-sensitive binary conversion")
 				}
-				coercion, ok := conversion.Args[1].(coercionExpression)
+				coercion, ok := conversion.Args[1].(plan.CoercionExpr)
 				if !ok || coercion.ResultUsage().Type.ID() != sqltype.Name {
 					t.Fatalf("missing text-to-NAME coercion: %T", conversion.Args[1])
 				}
-				literal, ok := coercion.Child.(literalExpression)
+				literal, ok := coercion.Child.(plan.LiteralExpr)
 				if !ok || literal.ResultUsage().Type.ID() != sqltype.Text || !literal.Value.IsNull() {
 					t.Fatalf("missing text NULL beneath coercion: %T", coercion.Child)
 				}

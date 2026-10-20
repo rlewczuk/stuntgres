@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -44,7 +45,7 @@ func TestArrayCompareDiagnosticPrecedence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := bound.(scalarArrayComparisonExpression)
+	node := bound.(plan.ScalarArrayComparisonExpr)
 	if node.Left.ResultUsage().Type.ID() != 23 || node.Items[0].ResultUsage().Type.ID() != 20 || b.params.parameters[1].Type.ID() != 23 {
 		t.Fatal("batch erased established scalar signature", node.Left.ResultUsage(), node.Items[0].ResultUsage(), b.params.parameters)
 	}

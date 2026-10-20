@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -42,16 +43,16 @@ func TestUpdateRowBinding(t *testing.T) {
 	if !reflect.DeepEqual(b.targets, []int{0, 1, 2, 3, 4}) || len(u.assignments) != 5 || len(u.origins) != 5 || len(u.groups) != 1 || u.groups[0] != (updateAssignmentGroup{start: 1, width: 2}) || u.outputWidth != 2 {
 		t.Fatal("normalization order", b.targets, u)
 	}
-	source, ok := u.assignments[1].(subqueryExpression)
+	source, ok := u.assignments[1].(plan.SubqueryExpr)
 	if !ok || source.UpdateWidth != 2 || len(source.QueryPlan.Root.Schema()) != 2 {
 		t.Fatal("missing shared source", u.assignments[1])
 	}
-	output, ok := u.assignments[2].(updateOutputExpression)
+	output, ok := u.assignments[2].(plan.UpdateOutputExpr)
 	if !ok || output.Index != 1 || output.Group != 1 || output.ResultUsage() != source.QueryPlan.Root.Schema()[1].Usage || output.SourcePosition() != u.origins[2] {
 		t.Fatal("output provenance", output)
 	}
 	_, single := updateRowTestBinding(t, "UPDATE t SET (a)=(SELECT b)")
-	if single.update.assignments[0].(subqueryExpression).UpdateWidth != 1 || len(single.update.groups) != 1 {
+	if single.update.assignments[0].(plan.SubqueryExpr).UpdateWidth != 1 || len(single.update.groups) != 1 {
 		t.Fatal("singleton group lost assignment identity")
 	}
 	for _, q := range []string{"UPDATE t SET a=1,b=2", "UPDATE t SET (a,b)=(SELECT 1,2)"} {
@@ -77,9 +78,9 @@ func TestUpdateRowVisitors(t *testing.T) {
 	for _, recipe := range u.assignments {
 		walkBoundExpression(recipe, func(node expr.Expr) {
 			switch node.(type) {
-			case subqueryExpression:
+			case plan.SubqueryExpr:
 				queries++
-			case updateOutputExpression:
+			case plan.UpdateOutputExpr:
 				outputs++
 			}
 		})
@@ -88,7 +89,7 @@ func TestUpdateRowVisitors(t *testing.T) {
 		t.Fatal("source duplicated in lexical recipes", queries, outputs)
 	}
 	queryMaps := 0
-	mapQuery := func(root LogicalNode) (LogicalNode, error) { queryMaps++; return root, nil }
+	mapQuery := func(root plan.Node) (plan.Node, error) { queryMaps++; return root, nil }
 	for _, recipe := range u.assignments {
 		_, _, err := retagBoundTypesWithQuery(e.CatalogRead(), recipe, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, mapQuery)
 		if err != nil {
@@ -98,9 +99,9 @@ func TestUpdateRowVisitors(t *testing.T) {
 	if queryMaps != 1 {
 		t.Fatal("query graph mapping count", queryMaps)
 	}
-	original := u.assignments[0].(subqueryExpression)
+	original := u.assignments[0].(plan.SubqueryExpr)
 	mapped, _, err := mapBoundExpression(e.CatalogRead(), original, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(node expr.Expr) (expr.Expr, bool, error) { return node, false, nil })
-	if err != nil || mapped.(subqueryExpression).UpdateWidth != 2 || original.QueryPlan != u.assignments[0].(subqueryExpression).QueryPlan {
+	if err != nil || mapped.(plan.SubqueryExpr).UpdateWidth != 2 || original.QueryPlan != u.assignments[0].(plan.SubqueryExpr).QueryPlan {
 		t.Fatal("lost marker or mutated template", err)
 	}
 	ctx := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
@@ -113,7 +114,7 @@ func TestUpdateRowVisitors(t *testing.T) {
 func TestUpdateRowRuleRestriction(t *testing.T) {
 	e, b := updateRowTestBinding(t, "UPDATE t SET (a,b)=(SELECT b,a)")
 	for _, recipe := range b.update.assignments {
-		wrapped := collationExpression{Info: expr.InfoOf(recipe), Child: recipe}
+		wrapped := plan.CollationExpr{Info: expr.InfoOf(recipe), Child: recipe}
 		state(t, validateRuleNewUpdateOutput(wrapped), "0A000")
 	}
 	_, one := updateRowTestBinding(t, "UPDATE t SET (a)=(SELECT b)")
@@ -126,7 +127,7 @@ func TestUpdateRowRuleRestriction(t *testing.T) {
 	}
 	// A nested query's output markers are not current-level lexical recipes.
 	_, query, _ := queryJoinsFixture(t, "SELECT k FROM a WHERE k=2")
-	project := query.Root.(*projectNode)
+	project := query.Root.(*plan.ProjectNode)
 	subqueryTestTarget(t, project, b.update.assignments[1])
 	outer := subqueryTestExpression(t, e, query, parser.SubqueryScalar)
 	if err := validateRuleNewUpdateOutput(outer); err != nil {

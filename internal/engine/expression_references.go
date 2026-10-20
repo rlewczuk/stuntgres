@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 )
 
 // A collection is one PostgreSQL dependency-recording pass. Whole-relation
@@ -58,11 +59,11 @@ func (r *pgDependRefs) expression(expr expr.Expr) {
 		return
 	}
 	switch n := expr.(type) {
-	case sqlRoutineExpression:
+	case plan.SQLRoutineExpr:
 		r.add(n.Ref.Address)
-	case selectedOperatorExpression:
+	case plan.SelectedOperatorExpr:
 		r.add(n.Ref.Address)
-	case unnestExpression:
+	case plan.UnnestExpr:
 		if n.Procedure != nil {
 			r.add(n.Ref.Address)
 		}
@@ -78,7 +79,7 @@ func (r *pgDependRefs) expression(expr expr.Expr) {
 		r.add(n.ref.Address)
 	case installedFunctionExpression:
 		r.add(n.ref.Address)
-	case literalExpression:
+	case plan.LiteralExpr:
 		if typ := n.ResultUsage().Type; typ != nil {
 			r.add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
 		}
@@ -101,25 +102,25 @@ func (r *pgDependRefs) expression(expr expr.Expr) {
 				return r.err
 			})
 		}
-	case rowExpression:
+	case plan.RowExpr:
 		if typ := n.ResultUsage().Type; typ != nil && typ.ID() != 0 {
 			r.add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
 		}
-	case coercionExpression:
+	case plan.CoercionExpr:
 		if typ := n.ResultUsage().Type; typ != nil {
 			r.add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(typ.ID())})
 		}
-	case collationExpression:
+	case plan.CollationExpr:
 		r.add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(n.ResultUsage().Collation.ID)})
-	case columnExpression:
+	case plan.ColumnExpr:
 		r.add(n.Origin.Address)
-	case tableOIDExpression:
+	case plan.TableOIDExpr:
 		address := n.Owner.Address
 		address.SubID = -6
 		r.add(address)
 	case functions.SequenceCall:
 		r.add(n.Ref.Address)
-	case subqueryExpression:
+	case plan.SubqueryExpr:
 		r.query(n.QueryPlan.Root)
 	}
 	// Fixed builtin providers are pinned; installed providers above record their
@@ -128,29 +129,29 @@ func (r *pgDependRefs) expression(expr expr.Expr) {
 	boundExpressionChildren(expr, r.expression)
 }
 
-func (r *pgDependRefs) query(node LogicalNode) {
+func (r *pgDependRefs) query(node plan.Node) {
 	if node == nil || r.err != nil {
 		return
 	}
 	if r.err = r.ctx.Err(); r.err != nil {
 		return
 	}
-	if source, ok := node.(*sourceNode); ok {
+	if source, ok := node.(*plan.SourceNode); ok {
 		r.add(source.Ref.Address)
 	}
-	if aggregate, ok := node.(*aggregateNode); ok {
+	if aggregate, ok := node.(*plan.AggregateNode); ok {
 		for _, call := range aggregate.Calls {
 			if call.Procedure != nil {
 				r.add(call.Ref.Address)
 			}
 		}
 	}
-	if _, set := node.(*setNode); set {
+	if _, set := node.(*plan.SetNode); set {
 		queryExpressions(node, func(expr expr.Expr) {
 			// The set binder always installs an outer adaptation wrapper.
 			// An unchanged usage is not an analyzed cast dependency; genuine
 			// casts remain in its child and still take the ordinary path.
-			if wrapper, ok := expr.(coercionExpression); ok && wrapper.Child.ResultUsage() == wrapper.ResultUsage() {
+			if wrapper, ok := expr.(plan.CoercionExpr); ok && wrapper.Child.ResultUsage() == wrapper.ResultUsage() {
 				r.expression(wrapper.Child)
 			} else {
 				r.expression(expr)
@@ -197,7 +198,7 @@ func pgDependExpressionRefs(ctx context.Context, catalog catalog.Read, expressio
 	return r.finish()
 }
 
-func pgDependQueryRefs(ctx context.Context, catalog catalog.Read, reader definitionReader, query *BoundQuery) ([]ids.ObjectAddress, error) {
+func pgDependQueryRefs(ctx context.Context, catalog catalog.Read, reader definitionReader, query *plan.Query) ([]ids.ObjectAddress, error) {
 	r := pgDependRefs{ctx: ctx, catalog: catalog, definition: reader}
 	if query != nil {
 		r.query(query.Root)

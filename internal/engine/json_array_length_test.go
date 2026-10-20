@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"testing"
 
 	"stuntgres/internal/parser"
@@ -34,7 +35,7 @@ func TestJSONArrayLengthEvaluationAndRetag(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expr := functions.Binary{Info: expr.Info{Usage: u}, Plan: p, Args: []expr.Expr{literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: v}}}
+			expr := functions.Binary{Info: expr.Info{Usage: u}, Plan: p, Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: v}}}
 			got, err := expr.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 			if err != nil {
 				t.Fatal(err)
@@ -104,7 +105,7 @@ func TestJSONArrayLengthLiteralDeparse(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			arg := literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: value}
+			arg := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: value}
 			renderer := pgRenderer{view: view}
 			got, err := renderer.literal(context.Background(), arg)
 			if err != nil || got != tc.literal {

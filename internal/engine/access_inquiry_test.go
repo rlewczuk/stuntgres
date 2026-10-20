@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -37,7 +38,7 @@ func TestAccessInquiryBinding(t *testing.T) {
 	} {
 		t.Run(tc.sql, func(t *testing.T) {
 			q := domainUnitBindSelect(t, e, op, tc.sql)
-			n, ok := q.Root.(*projectNode).Expressions[0].(functions.AccessInquiry)
+			n, ok := q.Root.(*plan.ProjectNode).Expressions[0].(functions.AccessInquiry)
 			if !ok || n.Count != len(tc.ids) || n.RowSecurity != tc.rls || n.ResultUsage().Type.ID() != sqltype.Bool || n.Properties().Volatility != expr.Stable {
 				t.Fatalf("typed signature %#v", n)
 			}
@@ -169,10 +170,10 @@ func TestAccessInquiryLifecycle(t *testing.T) {
 	name, _ := view.LookupType(sqltype.Name)
 	text, _ := view.LookupType(sqltype.Text)
 	n := functions.AccessInquiry{Info: expr.Info{Usage: boolean.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Count: 3}
-	n.Args[0] = literalExpression{Info: expr.Info{Usage: name.Usage()}, Value: sqltype.String(name, "postgres")}
+	n.Args[0] = plan.LiteralExpr{Info: expr.Info{Usage: name.Usage()}, Value: sqltype.String(name, "postgres")}
 	v, _ := sqltype.OIDValue(oid, 10)
-	n.Args[1] = literalExpression{Info: expr.Info{Usage: oid.Usage()}, Value: v}
-	n.Args[2] = literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "MEMBER")}
+	n.Args[1] = plan.LiteralExpr{Info: expr.Info{Usage: oid.Usage()}, Value: v}
+	n.Args[2] = plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "MEMBER")}
 	destination := New().CatalogRead()
 	mapped, changed, err := retagBoundTypes(destination, n, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == nil {
@@ -200,7 +201,7 @@ func TestAccessInquiryLifecycle(t *testing.T) {
 		t.Fatal("mutated original children")
 	}
 	rewritten, changed, err := mapBoundExpression(view, n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, func(child expr.Expr) (expr.Expr, bool, error) {
-		if literal, ok := child.(literalExpression); ok && literal.Value.Type().ID() == sqltype.Name {
+		if literal, ok := child.(plan.LiteralExpr); ok && literal.Value.Type().ID() == sqltype.Name {
 			literal.Value = sqltype.String(name, "replacement")
 			return literal, true, nil
 		}
@@ -209,8 +210,8 @@ func TestAccessInquiryLifecycle(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal("nested leaf rewrite failed", changed, err)
 	}
-	got, _ := rewritten.(functions.AccessInquiry).Args[0].(literalExpression).Value.Text()
-	old, _ := n.Args[0].(literalExpression).Value.Text()
+	got, _ := rewritten.(functions.AccessInquiry).Args[0].(plan.LiteralExpr).Value.Text()
+	old, _ := n.Args[0].(plan.LiteralExpr).Value.Text()
 	if got != "replacement" || old != "postgres" {
 		t.Fatal("recipe rewrite aliasing", got, old)
 	}

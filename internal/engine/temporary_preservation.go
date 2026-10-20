@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/plan"
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
@@ -198,8 +199,8 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 				}
 			}
 			if definition := viewOf(relation); definition != nil {
-				var retainQuery func(LogicalNode)
-				retainQuery = func(node LogicalNode) {
+				var retainQuery func(plan.Node)
+				retainQuery = func(node plan.Node) {
 					if node == nil {
 						return
 					}
@@ -209,7 +210,7 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 					queryExpressions(node, func(expression expr.Expr) {
 						walkBoundExpression(expression, func(expression expr.Expr) {
 							retainBuiltin(expression.ResultUsage().Type)
-							if child, ok := expression.(subqueryExpression); ok {
+							if child, ok := expression.(plan.SubqueryExpr); ok {
 								retainQuery(child.QueryPlan.Root)
 							}
 						})

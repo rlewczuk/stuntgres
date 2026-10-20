@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -17,14 +18,14 @@ func TestRuleAssignmentMapping(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	index := literalExpression{Info: binder.info(integer.Usage(), parser.Position{}, expr.Properties{}), Value: value}
+	index := plan.LiteralExpr{Info: binder.info(integer.Usage(), parser.Position{}, expr.Properties{}), Value: value}
 	coercionPlan, err := sqltype.PlanCoercion(array.Usage(), array.Usage(), sqltype.Assignment)
 	if err != nil {
 		t.Fatal(err)
 	}
-	tail := &arrayAssignmentTarget{Container: array.Usage(), Destination: integer.Usage(), Reapply: coercionPlan, Node: subscriptExpression{Subscripts: []boundArraySubscript{{Upper: index}}}}
-	head := &arrayAssignmentTarget{Container: array.Usage(), Destination: array.Usage(), Reapply: coercionPlan, Next: tail}
-	targets := []*arrayAssignmentTarget{head, nil}
+	tail := &plan.ArrayAssignmentTarget{Container: array.Usage(), Destination: integer.Usage(), Reapply: coercionPlan, Node: plan.SubscriptExpr{Subscripts: []plan.BoundArraySubscript{{Upper: index}}}}
+	head := &plan.ArrayAssignmentTarget{Container: array.Usage(), Destination: array.Usage(), Reapply: coercionPlan, Next: tail}
+	targets := []*plan.ArrayAssignmentTarget{head, nil}
 	identity := func(expr expr.Expr) (expr.Expr, bool, error) { return expr, false, nil }
 	usage := func(usage sqltype.Usage) (sqltype.Usage, error) { return usage, nil }
 	mapped, err := mapRuleAssignmentTargets(targets, identity, usage)
@@ -39,7 +40,7 @@ func TestRuleAssignmentMapping(t *testing.T) {
 	}); allocations != 0 {
 		t.Fatalf("identity mapping allocated %g times", allocations)
 	}
-	replacement := parameterExpression{Info: binder.info(integer.Usage(), parser.Position{}, expr.Properties{ParameterDependent: true}), Number: 1}
+	replacement := plan.ParameterExpr{Info: binder.info(integer.Usage(), parser.Position{}, expr.Properties{ParameterDependent: true}), Number: 1}
 	changed, err := mapRuleAssignmentTargets(targets, func(expr expr.Expr) (expr.Expr, bool, error) {
 		if expr == nil {
 			return nil, false, nil

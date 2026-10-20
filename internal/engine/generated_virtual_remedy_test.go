@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -30,7 +31,7 @@ func TestGeneratedVirtualOccurrenceAliasesAndOuterFrame(t *testing.T) {
 	calls := 0
 	failure := errors.New("demanded recipe")
 	probe := generatedOccurrenceProbe{Info: expr.Info{Usage: typ.Usage()}, calls: &calls, value: one, err: failure}
-	column := columnExpression{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 4, Slot: 1, Virtual: probe, RowWidth: 2, QueryOccurrence: 1}
+	column := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 4, Slot: 1, Virtual: probe, RowWidth: 2, QueryOccurrence: 1}
 	// Local aliases 0/1 map to global physical ordinals 3/7 under locks.
 	physical := &querySource{occurrence: 3}
 	state := &queryState{source: &querySource{sources: []*querySource{{input: physical}, {occurrence: 7}}}, virtualReads: true}
@@ -70,13 +71,13 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 	negative, _ := sqltype.Integer(typ, -9)
 	origin := e.catalog.Domain.Ref(view.Epoch(), source.Address())
 	origin.Address.SubID = 2
-	old := columnExpression{Info: expr.Info{Usage: typ.Usage()}, Origin: origin, Scope: 1, Frame: 1, Slot: 1, Virtual: literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: seven}, RowWidth: 2, QueryOccurrence: 1}
+	old := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Origin: origin, Scope: 1, Frame: 1, Slot: 1, Virtual: plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: seven}, RowWidth: 2, QueryOccurrence: 1}
 	ordinary := *source
 	ordinary.Constraints.Check = []catalog.CheckConstraint{{Name: "positive", Expression: old}}
 	if err := refreshGenerationChecks(&ordinary, view); err != nil {
 		t.Fatal(err)
 	}
-	column := ordinary.Constraints.Check[0].Expression.(columnExpression)
+	column := ordinary.Constraints.Check[0].Expression.(plan.ColumnExpr)
 	if column.Virtual != nil || column.QueryOccurrence != 0 || column.RowWidth != 0 {
 		t.Fatal("ordinary destination retained source payload", column)
 	}
@@ -88,13 +89,13 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 	wide := *source
 	wide.Columns = append(append([]catalog.Column(nil), source.Columns...), source.Columns...)
 	wide.Attributes = []int32{3, 4, 1, 2}
-	base := columnExpression{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 1, Slot: 2}
+	base := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 1, Slot: 2}
 	wide.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: base, Planned: base}}
 	copied, err := remapScalarExpression(old, nil, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, map[int32]int{1: 2, 2: 3}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	copiedColumn := copied.(columnExpression)
+	copiedColumn := copied.(plan.ColumnExpr)
 	if copiedColumn.Virtual != nil || copiedColumn.QueryOccurrence != 0 || copiedColumn.RowWidth != 0 || copiedColumn.Slot != 3 {
 		t.Fatal("owner copy retained source execution recipe", copiedColumn)
 	}
@@ -102,7 +103,7 @@ func TestGeneratedVirtualDestinationCheckAttachment(t *testing.T) {
 	if err := refreshGenerationChecks(&wide, view); err != nil {
 		t.Fatal(err)
 	}
-	column = wide.Constraints.Check[0].Expression.(columnExpression)
+	column = wide.Constraints.Check[0].Expression.(plan.ColumnExpr)
 	if column.Slot != 3 || column.RowStart != 0 || column.RowWidth != 4 || column.QueryOccurrence != 0 {
 		t.Fatal("destination CHECK layout", column)
 	}
@@ -125,25 +126,25 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	origin.Address.SubID = 2
 	typ := d.Columns[0].Usage.Type
 	one, _ := sqltype.Integer(typ, 1)
-	literal := literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: one}
+	literal := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: one}
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: literal, Planned: literal}}
-	left := columnExpression{Info: expr.Info{Usage: typ.Usage()}, Origin: origin, Scope: 1, Frame: 4, Slot: 1, QueryOccurrence: 1}.WithGeneration(d, 1, 0)
+	left := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Origin: origin, Scope: 1, Frame: 4, Slot: 1, QueryOccurrence: 1}.WithGeneration(d, 1, 0)
 	right := left
 	right.Slot, right.RowStart, right.QueryOccurrence = 3, 2, 2
 	provider, err := sqltype.BindArithmetic(sqltype.ArithmeticAdd, typ, typ, typ)
 	if err != nil {
 		t.Fatal(err)
 	}
-	add := arithmeticExpression{Info: expr.Info{Usage: typ.Usage()}, Left: left, Right: literal, Provider: provider, Operator: sqltype.ArithmeticAdd}
+	add := plan.ArithmeticExpr{Info: expr.Info{Usage: typ.Usage()}, Left: left, Right: literal, Provider: provider, Operator: sqltype.ArithmeticAdd}
 	boolean := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil).typ(sqltype.Bool)
-	test := nullTestExpression{Info: expr.Info{Usage: boolean.Usage()}, Child: right}
-	choice := caseExpression{Info: expr.Info{Usage: typ.Usage()}, Arms: []caseBranch{{Condition: test, Result: add}}, Otherwise: right}
+	test := plan.NullTestExpr{Info: expr.Info{Usage: boolean.Usage()}, Child: right}
+	choice := plan.CaseExpr{Info: expr.Info{Usage: typ.Usage()}, Arms: []plan.CaseBranch{{Condition: test, Result: add}}, Otherwise: right}
 	outside := left
 	outside.Frame = 99
 	syntax := &parser.Select{}
-	join := &joinNode{Left: &sourceNode{Ref: ref, Occurrence: 0}, Right: &sourceNode{Ref: ref, Occurrence: 1}}
-	project := &projectNode{Frame: 4, Syntax: syntax, Child: join, Expressions: []expr.Expr{left, right, add, test, choice, outside}}
-	definition := &viewDefinition{queries: map[*parser.Select]*projectNode{syntax: project}, sources: []viewLeaf{{ref: ref}, {ref: ref}}}
+	join := &plan.JoinNode{Left: &plan.SourceNode{Ref: ref, Occurrence: 0}, Right: &plan.SourceNode{Ref: ref, Occurrence: 1}}
+	project := &plan.ProjectNode{Frame: 4, Syntax: syntax, Child: join, Expressions: []expr.Expr{left, right, add, test, choice, outside}}
+	definition := &viewDefinition{queries: map[*parser.Select]*plan.ProjectNode{syntax: project}, sources: []viewLeaf{{ref: ref}, {ref: ref}}}
 	consumer := *d
 	consumer.View = viewPayloadOf(definition)
 	w := &viewWrite{layers: []viewWriteLayer{{relation: &consumer}}}
@@ -152,16 +153,16 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next := mapped.(*projectNode)
-	nextJoin := next.Child.(*joinNode)
-	l, r := next.Expressions[0].(columnExpression), next.Expressions[1].(columnExpression)
-	if len(b.querySources) != 3 || l.QueryOccurrence != 2 || r.QueryOccurrence != 3 || nextJoin.Left.(*sourceNode).Occurrence != 1 || nextJoin.Right.(*sourceNode).Occurrence != 2 {
+	next := mapped.(*plan.ProjectNode)
+	nextJoin := next.Child.(*plan.JoinNode)
+	l, r := next.Expressions[0].(plan.ColumnExpr), next.Expressions[1].(plan.ColumnExpr)
+	if len(b.querySources) != 3 || l.QueryOccurrence != 2 || r.QueryOccurrence != 3 || nextJoin.Left.(*plan.SourceNode).Occurrence != 1 || nextJoin.Right.(*plan.SourceNode).Occurrence != 2 {
 		t.Fatal("grafted aliases lost occurrence mapping", l, r, nextJoin, len(b.querySources))
 	}
-	wrapped := next.Expressions[2].(arithmeticExpression)
-	nullTest := next.Expressions[3].(nullTestExpression)
-	nextChoice := next.Expressions[4].(caseExpression)
-	if wrapped.Left.(columnExpression).QueryOccurrence != 2 || nullTest.Child.(columnExpression).QueryOccurrence != 3 || nextChoice.Arms[0].Condition.(nullTestExpression).Child.(columnExpression).QueryOccurrence != 3 || next.Expressions[5].(columnExpression).QueryOccurrence != 1 {
+	wrapped := next.Expressions[2].(plan.ArithmeticExpr)
+	nullTest := next.Expressions[3].(plan.NullTestExpr)
+	nextChoice := next.Expressions[4].(plan.CaseExpr)
+	if wrapped.Left.(plan.ColumnExpr).QueryOccurrence != 2 || nullTest.Child.(plan.ColumnExpr).QueryOccurrence != 3 || nextChoice.Arms[0].Condition.(plan.NullTestExpr).Child.(plan.ColumnExpr).QueryOccurrence != 3 || next.Expressions[5].(plan.ColumnExpr).QueryOccurrence != 1 {
 		t.Fatal("compound or outside lexical occurrence remap")
 	}
 	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{sqltype.Null(typ), sqltype.Null(typ), sqltype.Null(typ), sqltype.Null(typ)}, query: &queryState{source: &querySource{sources: []*querySource{{occurrence: 9}, {occurrence: 4}, {occurrence: 7}}}}, queryOccurrences: []int{4, 7}, queryProvenance: []int{absentQueryIndex, 0}}}
@@ -178,15 +179,15 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	innerLeft.Frame, innerRight.Frame = 8, 8
 	innerAdd := add
 	innerAdd.Left = innerLeft
-	inner := &projectNode{Frame: 8, Child: join, Expressions: []expr.Expr{innerAdd, innerRight}}
-	outer := &projectNode{Frame: 4, Syntax: syntax, Child: &derivedNode{Query: &BoundQuery{Root: inner}}}
+	inner := &plan.ProjectNode{Frame: 8, Child: join, Expressions: []expr.Expr{innerAdd, innerRight}}
+	outer := &plan.ProjectNode{Frame: 4, Syntax: syntax, Child: &plan.DerivedNode{Query: &plan.Query{Root: inner}}}
 	derived, err := w.graftQuery(&b, view, outer, func(expr expr.Expr) (expr.Expr, bool, error) { return expr, false, nil })
 	if err != nil {
 		t.Fatal(err)
 	}
-	nextInner := derived.(*projectNode).Child.(*derivedNode).Query.Root.(*projectNode)
-	innerColumn := nextInner.Expressions[0].(arithmeticExpression).Left.(columnExpression)
-	if innerColumn.QueryOccurrence != 2 || nextInner.Child.(*joinNode).Left.(*sourceNode).Occurrence != 1 || innerAdd.Left.(columnExpression).QueryOccurrence != 1 {
+	nextInner := derived.(*plan.ProjectNode).Child.(*plan.DerivedNode).Query.Root.(*plan.ProjectNode)
+	innerColumn := nextInner.Expressions[0].(plan.ArithmeticExpr).Left.(plan.ColumnExpr)
+	if innerColumn.QueryOccurrence != 2 || nextInner.Child.(*plan.JoinNode).Left.(*plan.SourceNode).Occurrence != 1 || innerAdd.Left.(plan.ColumnExpr).QueryOccurrence != 1 {
 		t.Fatal("derived lexical frame lost mapping or mutated original")
 	}
 	evaluation.Frame = 8
@@ -199,7 +200,7 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	if err != nil || !value.IsNull() {
 		t.Fatal("derived absent graft evaluation", value, err)
 	}
-	if left.QueryOccurrence != 1 || right.QueryOccurrence != 2 || join.Left.(*sourceNode).Occurrence != 0 {
+	if left.QueryOccurrence != 1 || right.QueryOccurrence != 2 || join.Left.(*plan.SourceNode).Occurrence != 0 {
 		t.Fatal("grafting mutated source graph")
 	}
 }
@@ -211,15 +212,15 @@ func TestGeneratedVirtualJoinIdentityBeforeMerge(t *testing.T) {
 	for _, present := range []bool{false, true} {
 		calls := 0
 		probe := generatedOccurrenceProbe{Info: expr.Info{Usage: typ.Usage()}, calls: &calls, value: one}
-		column := columnExpression{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 1, Slot: 2, Virtual: probe, RowStart: 1, RowWidth: 2, QueryOccurrence: 2}
+		column := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 1, Slot: 2, Virtual: probe, RowStart: 1, RowWidth: 2, QueryOccurrence: 2}
 		left := &querySource{anonymous: [][]sqltype.Value{{one}}, occurrence: 0}
 		right := &querySource{anonymous: [][]sqltype.Value{}, occurrence: 1}
 		if present {
 			right.anonymous = [][]sqltype.Value{{sqltype.Null(typ), sqltype.Null(typ)}}
 		}
 		state := &queryState{source: &querySource{sources: []*querySource{left, right}}, virtualReads: true}
-		schema := querySchema{d.Columns[0], d.Columns[0], d.Columns[1], d.Columns[1]}
-		join := &joinNode{QuerySchema: schema, Kind: parser.JoinLeft, Left: &sourceNode{QuerySchema: schema[:1], Occurrence: 0}, Right: &sourceNode{QuerySchema: schema[1:3], Occurrence: 1}, LeftWidth: 1, RightWidth: 2, Merges: []expr.Expr{column}}
+		schema := plan.QuerySchema{d.Columns[0], d.Columns[0], d.Columns[1], d.Columns[1]}
+		join := &plan.JoinNode{QuerySchema: schema, Kind: parser.JoinLeft, Left: &plan.SourceNode{QuerySchema: schema[:1], Occurrence: 0}, Right: &plan.SourceNode{QuerySchema: schema[1:3], Occurrence: 1}, LeftWidth: 1, RightWidth: 2, Merges: []expr.Expr{column}}
 		stage, err := openJoinNode(context.Background(), state, join)
 		if err != nil {
 			t.Fatal(err)

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -87,7 +88,7 @@ func TestJSONPathSharedSourceErrorAndPersistenceLiteral(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		text, err := literalSQL(ctx, literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: v})
+		text, err := literalSQL(ctx, plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: v})
 		if err != nil || text != tc.want {
 			t.Fatal(text, err)
 		}

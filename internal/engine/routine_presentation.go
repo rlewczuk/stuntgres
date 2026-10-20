@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 )
@@ -21,7 +22,7 @@ func (c *viewCapture) captureRoutineReference(path viewLiteralPath, ref ids.Obje
 	return nil
 }
 
-func (b *expressionBinder) captureSQLRoutineReference(path viewLiteralPath, n sqlRoutineExpression) error {
+func (b *expressionBinder) captureSQLRoutineReference(path viewLiteralPath, n plan.SQLRoutineExpr) error {
 	if err := n.ValidateStoredProvider(); err != nil {
 		return err
 	}

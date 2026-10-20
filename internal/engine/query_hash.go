@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
@@ -17,7 +18,7 @@ type capturedHashIndex struct {
 
 // The caller holds e.mu, the same owner as visibility-prefix capture. After
 // this proof, probing consults only the retained root and retained source rows.
-func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf, source *querySource, mark queryRowMark) error {
+func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf, source *querySource, mark plan.RowMark) error {
 	if !scope.implicit || scope.catalog != nil || mark.Mode != 0 || source.view == nil || source.inheritance != nil || len(source.own) != 0 {
 		return nil
 	}
@@ -70,20 +71,20 @@ type hashCandidateSelection struct {
 
 // Select only a top-level, single-source WHERE. Inner view/derived/subquery
 // execution constructs its own state and never inherits this eligibility.
-func hashQueryFilter(root LogicalNode) *filterNode {
-	project, ok := root.(*projectNode)
+func hashQueryFilter(root plan.Node) *plan.FilterNode {
+	project, ok := root.(*plan.ProjectNode)
 	if !ok {
 		return nil
 	}
 	child := project.Child
 	for {
 		switch node := child.(type) {
-		case *sortNode:
+		case *plan.SortNode:
 			child = node.Child
-		case *evaluationNode:
+		case *plan.EvaluationNode:
 			child = node.Child
-		case *filterNode:
-			if _, ok := node.Child.(*sourceNode); ok {
+		case *plan.FilterNode:
+			if _, ok := node.Child.(*plan.SourceNode); ok {
 				return node
 			}
 			return nil
@@ -93,24 +94,24 @@ func hashQueryFilter(root LogicalNode) *filterNode {
 	}
 }
 
-func hashFilterCandidates(ctx context.Context, state *queryState, n *filterNode, source *querySource) (*hashCandidateSelection, error) {
+func hashFilterCandidates(ctx context.Context, state *queryState, n *plan.FilterNode, source *querySource) (*hashCandidateSelection, error) {
 	if state.hashFilter != n {
 		return nil, nil
 	}
-	if _, ok := n.Child.(*sourceNode); !ok {
+	if _, ok := n.Child.(*plan.SourceNode); !ok {
 		return nil, nil
 	}
 	if source == nil || len(source.hashIndexes) == 0 || source.count() == 0 || source.input != nil || source.final != nil || source.materialized || source.nestedRoot != nil || len(source.own) != 0 || state.source.sources != nil {
 		return nil, nil
 	}
-	predicate, ok := n.Predicate.(comparisonExpression)
+	predicate, ok := n.Predicate.(plan.ComparisonExpr)
 	if !ok || predicate.Operator != "=" || predicate.Namespace != "" && predicate.Namespace != "pg_catalog" {
 		return nil, nil
 	}
-	column, ok := predicate.Left.(columnExpression)
+	column, ok := predicate.Left.(plan.ColumnExpr)
 	probe := predicate.Right
 	if !ok {
-		column, ok = predicate.Right.(columnExpression)
+		column, ok = predicate.Right.(plan.ColumnExpr)
 		probe = predicate.Left
 	}
 	evaluation := state.evaluation(ctx)
@@ -118,7 +119,7 @@ func hashFilterCandidates(ctx context.Context, state *queryState, n *filterNode,
 		return nil, nil
 	}
 	switch probe.(type) {
-	case literalExpression, parameterExpression:
+	case plan.LiteralExpr, plan.ParameterExpr:
 	default:
 		return nil, nil
 	}

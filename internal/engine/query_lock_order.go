@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -28,7 +29,7 @@ func (s indexedStage) orderRow(i int) []sqltype.Value {
 // Called only for a qualifying replacement frame. Original keys retain their
 // cache slot identity; duplicate keys share the first evaluation just as in Sort.
 // Frozen rank is never recomputed. Stable row-independent values remain reusable.
-func refreshLockedOrder(n *sortNode, row []sqltype.Value, evaluation *EvalContext) error {
+func refreshLockedOrder(n *plan.SortNode, row []sqltype.Value, evaluation *EvalContext) error {
 	next := 0
 	evaluation.Row = row
 	for _, key := range n.Keys {

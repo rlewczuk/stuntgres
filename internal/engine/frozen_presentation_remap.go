@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
@@ -45,7 +46,7 @@ func remapFrozenPresentation(view catalog.Read, original *viewDefinition, mappin
 		definition.sources[i].ref = ref(definition.sources[i].ref)
 	}
 	if len(original.literals) != 0 {
-		definition.literals = make(map[viewLiteralPath]literalExpression, len(original.literals))
+		definition.literals = make(map[viewLiteralPath]plan.LiteralExpr, len(original.literals))
 		for path, literal := range original.literals {
 			node, _, err := retagBoundTypes(view, literal, typ, collation)
 			if err != nil {
@@ -55,7 +56,7 @@ func remapFrozenPresentation(view catalog.Read, original *viewDefinition, mappin
 			if err != nil {
 				return nil, err
 			}
-			definition.literals[path] = node.(literalExpression)
+			definition.literals[path] = node.(plan.LiteralExpr)
 		}
 	}
 	if len(original.castUsages) != 0 {
@@ -109,7 +110,7 @@ func remapFrozenPresentation(view catalog.Read, original *viewDefinition, mappin
 	query.Root = root
 	definition.query = &query
 	definition.frames, definition.queries = collectQueryFrames(root)
-	if project, ok := root.(*projectNode); ok && project.Syntax == nil && project.Frame != 0 {
+	if project, ok := root.(*plan.ProjectNode); ok && project.Syntax == nil && project.Frame != 0 {
 		definition.frames[project.Frame] = project
 	}
 	return &definition, nil

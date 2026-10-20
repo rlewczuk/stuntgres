@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -138,7 +139,7 @@ func TestQueryLockPendingTargetsRemainOccurrenceOwned(t *testing.T) {
 		{leaf: queryLeaf{relation: &catalog.Relation{RelationKind: catalog.TableRelation}}},
 		{leaf: queryLeaf{relation: &catalog.Relation{RelationKind: catalog.TableRelation}}},
 	}}
-	marks := []queryRowMark{{Mode: lock.ForUpdate, Wait: parser.RowLockSkip}, {Mode: lock.ForShare, Wait: parser.RowLockNowait}}
+	marks := []plan.RowMark{{Mode: lock.ForUpdate, Wait: parser.RowLockSkip}, {Mode: lock.ForShare, Wait: parser.RowLockNowait}}
 	pending := appendPendingRowMarks(nil, marks, inputs)
 	if len(pending) != 2 || !reflect.DeepEqual(pending[0].occurrences, []int{0}) || !reflect.DeepEqual(pending[1].occurrences, []int{1}) || pending[0].mark != marks[0] || pending[1].mark != marks[1] {
 		t.Fatal(pending)
@@ -153,7 +154,7 @@ func TestPGSequencesEffectiveRowMarks(t *testing.T) {
 	e := New()
 	view := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
 	table := &catalog.Relation{RelationKind: catalog.TableRelation}
-	requested := queryRowMark{Mode: lock.ForUpdate, Wait: parser.RowLockNowait, DiagnosticMode: lock.ForUpdate, Order: 1}
+	requested := plan.RowMark{Mode: lock.ForUpdate, Wait: parser.RowLockNowait, DiagnosticMode: lock.ForUpdate, Order: 1}
 	locks := &queryLockContext{leaves: []queryLockLeaf{
 		{leaf: queryLeaf{relation: view, mark: requested}, mark: effectiveQueryRowMark(view, requested)},
 		{leaf: queryLeaf{relation: table, mark: requested}, mark: effectiveQueryRowMark(table, requested)},
@@ -162,15 +163,15 @@ func TestPGSequencesEffectiveRowMarks(t *testing.T) {
 	// catalog occurrence and a genuinely marked table. Preserve its identities.
 	expanded := &querySource{materialized: true, occurrences: []int{0, 1}}
 	inputs := &querySource{sources: []*querySource{expanded}, locks: locks}
-	pending := appendPendingRowMarks(nil, []queryRowMark{requested}, inputs)
+	pending := appendPendingRowMarks(nil, []plan.RowMark{requested}, inputs)
 	if len(pending) != 1 || !reflect.DeepEqual(pending[0].occurrences, []int{1}) || pending[0].mark != requested {
 		t.Fatal("effective expansion changed ordinary physical mark", pending)
 	}
-	if !reflect.DeepEqual(expanded.occurrences, []int{0, 1}) || locks.leaves[0].leaf.mark != requested || locks.leaves[0].mark != (queryRowMark{}) {
+	if !reflect.DeepEqual(expanded.occurrences, []int{0, 1}) || locks.leaves[0].leaf.mark != requested || locks.leaves[0].mark != (plan.RowMark{}) {
 		t.Fatal("effective decision mutated SQL marks or source identities")
 	}
 	inputs.sources[0] = &querySource{occurrence: 0}
-	if pending := appendPendingRowMarks(nil, []queryRowMark{requested}, inputs); len(pending) != 0 {
+	if pending := appendPendingRowMarks(nil, []plan.RowMark{requested}, inputs); len(pending) != 0 {
 		t.Fatal("SQL-only catalog mark reached physical arbitration", pending)
 	}
 }

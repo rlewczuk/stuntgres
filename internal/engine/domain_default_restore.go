@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -18,7 +19,7 @@ import (
 type domainReplayCapture struct {
 	statement *parser.Insert
 	relation  *catalog.Relation
-	cells     map[int]literalExpression // actual explicit VALUES slot, not raw SQL offsets
+	cells     map[int]plan.LiteralExpr // actual explicit VALUES slot, not raw SQL offsets
 }
 
 func captureDomainReplayNode(ctx context.Context, view catalog.Read, u sqltype.Usage, v sqltype.Value) (typedef.DomainReplayNode, error) {
@@ -82,7 +83,7 @@ func captureDomainReplayNode(ctx context.Context, view catalog.Read, u sqltype.U
 		}
 		return typedef.DomainReplayNode{Kind: "composite", Members: &members}, nil
 	}
-	literal, err := catalogLiteralSQL(ctx, view, literalExpression{Info: expr.Info{Usage: u}, Value: v})
+	literal, err := catalogLiteralSQL(ctx, view, plan.LiteralExpr{Info: expr.Info{Usage: u}, Value: v})
 	if err != nil {
 		return n, err
 	}
@@ -255,7 +256,7 @@ func (e *Engine) captureDomainReplay(scope *StatementScope, s *parser.Insert, re
 	if _, ok := e.importTargets[relation.Owner]; !ok {
 		return nil, fmt.Errorf("stuntgres: uncaptured native domain replay owner")
 	}
-	capture := &domainReplayCapture{statement: s, relation: relation, cells: make(map[int]literalExpression, len(record.Cells))}
+	capture := &domainReplayCapture{statement: s, relation: relation, cells: make(map[int]plan.LiteralExpr, len(record.Cells))}
 	slots := make([]int, len(s.Rows[0]))
 	if len(s.Targets) == 0 {
 		if len(slots) != len(relation.Columns) {
@@ -316,7 +317,7 @@ func (e *Engine) captureDomainReplay(scope *StatementScope, s *parser.Insert, re
 		if count == 0 || value.Type() != usage.Type {
 			return nil, fmt.Errorf("stuntgres: native replay cell has no admitted domain NULL")
 		}
-		capture.cells[position] = literalExpression{Info: expr.Info{Usage: usage, Pos: raw.SourcePosition()}, Value: value}
+		capture.cells[position] = plan.LiteralExpr{Info: expr.Info{Usage: usage, Pos: raw.SourcePosition()}, Value: value}
 	}
 	return capture, nil
 }

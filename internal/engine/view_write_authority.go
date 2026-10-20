@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
 
@@ -84,7 +85,7 @@ func (v AuthorizationView) checkViewWrite(b binding, stmt parser.Statement) erro
 			if occurrence == layer.mainOccurrence {
 				continue // The next write layer owns main-source expansion.
 			}
-			mark := viewLeafRowMark(viewOf(current), occurrence, queryRowMark{})
+			mark := viewLeafRowMark(viewOf(current), occurrence, plan.RowMark{})
 			if mark.Mode != 0 {
 				if err := authority.checkColumns(sourceBinding, authorization.UpdatePrivilege, nil); err != nil {
 					return err

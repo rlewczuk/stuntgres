@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 )
@@ -34,7 +35,7 @@ func (q *queryScopeState) partialIndexCandidate(parent ids.ObjectRef, query expr
 // Caller holds engine.mu, the same installation/capture mutex. Every fence is
 // required: a storage pointer alone can retain newer vectors and end roots.
 // Historical, private and rewritten views always use the ordinary scan.
-func (e *Engine) capturePartialMaskLocked(scope *StatementScope, leaf queryLeaf, view *visibility.View, mark queryRowMark) *storage.IndexRoot {
+func (e *Engine) capturePartialMaskLocked(scope *StatementScope, leaf queryLeaf, view *visibility.View, mark plan.RowMark) *storage.IndexRoot {
 	candidate := leaf.partialCandidate
 	if candidate == nil || view == nil || scope.owner.catalog != nil || stableIsolation(scope.owner.isolation) || scope.queryLocks != nil || mark.Mode != 0 {
 		return nil

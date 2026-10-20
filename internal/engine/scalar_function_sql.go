@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
@@ -14,7 +15,7 @@ import (
 // The common sql entry validates provenance and records dependencies once.
 func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read, node expr.Expr) (string, error) {
 	switch n := node.(type) {
-	case sqlRoutineExpression:
+	case plan.SQLRoutineExpr:
 		if err := n.ValidateStoredProvider(); err != nil {
 			return "", err
 		}
@@ -144,7 +145,7 @@ func (r scalarRenderer) scalarFunctionSQL(ctx context.Context, view catalog.Read
 
 // Serialize captured scalars through their owning type, without evaluating a
 // stored expression or converting a temporal introducer into an unsupported cast.
-func literalSQL(ctx context.Context, n literalExpression) (string, error) {
+func literalSQL(ctx context.Context, n plan.LiteralExpr) (string, error) {
 	u := n.ResultUsage()
 	if n.Value.Type() != u.Type {
 		return "", fmt.Errorf("stuntgres: invalid stored literal")

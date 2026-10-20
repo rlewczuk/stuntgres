@@ -4,21 +4,22 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *cteDefinition) (*BoundQuery, error) {
+func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *plan.CTEDefinition) (*plan.Query, error) {
 	leftQuery, err := b.bindSelect(s.Set.Left, false)
 	if err != nil {
 		return nil, err
 	}
-	left := leftQuery.Root.(*projectNode)
+	left := leftQuery.Root.(*plan.ProjectNode)
 	if len(d.Columns) > len(left.Schema()) {
 		return nil, expr.ErrorAt("42P10", fmt.Sprintf(`WITH query "%s" has %d columns available but %d columns specified`, d.Name, len(left.Schema()), len(d.Columns)), d.Position)
 	}
-	d.Schema = make(querySchema, len(left.Schema()))
+	d.Schema = make(plan.QuerySchema, len(left.Schema()))
 	for i, column := range left.Schema() {
 		d.Schema[i] = catalog.Column{Name: column.Name, Usage: column.Usage}
 		if i < len(d.Columns) {
@@ -50,8 +51,8 @@ func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *cteDefinition) 
 	if err != nil {
 		return nil, err
 	}
-	project := query.Root.(*projectNode)
-	set, ok := project.Child.(*setNode)
+	project := query.Root.(*plan.ProjectNode)
+	set, ok := project.Child.(*plan.SetNode)
 	if !ok {
 		return nil, fmt.Errorf("stuntgres: recursive body lost UNION root")
 	}
@@ -137,15 +138,15 @@ func (b *expressionBinder) bindRecursiveSet(s *parser.Select, d *cteDefinition) 
 			scan.Demand[slot] = true
 			column := d.Schema[slot]
 			info := b.info(column.Usage, d.Position, expr.Properties{RowDependent: true})
-			right.Expressions = append(right.Expressions, columnExpression{Info: info, Scope: 1, Frame: right.Frame, Slot: offset + slot})
+			right.Expressions = append(right.Expressions, plan.ColumnExpr{Info: info, Scope: 1, Frame: right.Frame, Slot: offset + slot})
 			right.QuerySchema = append(right.QuerySchema, column)
 			set.RightExpressions = append(set.RightExpressions, right.Expressions[len(right.Expressions)-1])
-			project.Expressions = append(project.Expressions, columnExpression{Info: info, Scope: 1, Frame: project.Frame, Slot: slot})
+			project.Expressions = append(project.Expressions, plan.ColumnExpr{Info: info, Scope: 1, Frame: project.Frame, Slot: slot})
 		}
 		set.QuerySchema = d.Schema
 		project.QuerySchema = d.Schema
 	}
-	project.Child = &recursiveUnionNode{SetNode: *set, Definition: d, Search: d.Search, Cycle: d.Cycle}
+	project.Child = &plan.RecursiveUnionNode{SetNode: *set, Definition: d, Search: d.Search, Cycle: d.Cycle}
 	return query, nil
 }
 

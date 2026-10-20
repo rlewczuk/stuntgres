@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -44,7 +45,7 @@ func rowBTreeFormalPair(left, right sqltype.ID) bool {
 	return false
 }
 
-func (b *expressionBinder) checkRowComparisonInterpretation(raw parser.OperatorExpr, pairs []comparisonExpression) error {
+func (b *expressionBinder) checkRowComparisonInterpretation(raw parser.OperatorExpr, pairs []plan.ComparisonExpr) error {
 	if len(pairs) < 2 {
 		return nil // The released one-field exception returns the scalar operator.
 	}

@@ -4,18 +4,19 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-// The first recipe owns the source query through subqueryExpression. Remaining
+// The first recipe owns the source query through plan.SubqueryExpr. Remaining
 // outputs are lexical leaves, so all existing query graph transformations visit
 // a group source exactly once, without adding a parallel graph ownership path.
 type updateAssignmentGroup struct {
 	start, width int
 }
 
-func (c *EvalContext) EvalUpdateOutput(e updateOutputExpression) (sqltype.Value, error) {
+func (c *EvalContext) EvalUpdateOutput(e plan.UpdateOutputExpr) (sqltype.Value, error) {
 	if e.Index >= len(c.updateOutputs) || !c.updateOutputsReady {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: UPDATE output outside its assignment group")
 	}
@@ -101,7 +102,7 @@ func (e *Engine) prepareUpdateAssignments(b *binding, binder *expressionBinder, 
 			if err != nil {
 				return nil, err
 			}
-			project := query.Root.(*projectNode)
+			project := query.Root.(*plan.ProjectNode)
 			if len(project.Schema()) != len(a.Targets) {
 				return nil, updateRowWidthError(source.Pos)
 			}
@@ -110,9 +111,9 @@ func (e *Engine) prepareUpdateAssignments(b *binding, binder *expressionBinder, 
 			for j, target := range a.Targets {
 				origin := project.Expressions[j].SourcePosition()
 				info := binder.info(project.Schema()[j].Usage, origin, properties)
-				var node expr.Expr = updateOutputExpression{Info: info, Index: j, Group: start}
+				var node expr.Expr = plan.UpdateOutputExpr{Info: info, Index: j, Group: start}
 				if j == 0 {
-					node = subqueryExpression{Info: info, Kind: parser.SubqueryScalar, QueryPlan: query, UpdateWidth: len(a.Targets)}
+					node = plan.SubqueryExpr{Info: info, Kind: parser.SubqueryScalar, QueryPlan: query, UpdateWidth: len(a.Targets)}
 				}
 				member := parser.UpdateAssignment{Target: parser.Identifier{Text: target.Name, Pos: target.Pos}, Steps: target.Steps, Value: a.Value}
 				if err := appendMember(member, node, origin); err != nil {

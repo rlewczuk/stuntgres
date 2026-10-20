@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"testing"
 
 	"stuntgres/internal/engine/ids"
@@ -229,7 +230,7 @@ func TestOrderedSetAggregateCancellationPhases(t *testing.T) {
 			direct, _ := sqltype.Float(p.FractionType(), .5)
 			var err error
 			if phase == ".sortOrderedAggregate.func1" {
-				_, err = sortOrderedAggregate(probe, &queryState{}, aggregateCall{StageWidth: 2, Order: []sortKey{{Comparison: p.Comparison(), Cache: 0}}}, in.Values)
+				_, err = sortOrderedAggregate(probe, &queryState{}, plan.AggregateCall{StageWidth: 2, Order: []plan.SortKey{{Comparison: p.Comparison(), Cache: 0}}}, in.Values)
 			} else {
 				_, err = orderedSetUnitFinalize(probe, p, direct, in, sqltype.InputEnvironment{})
 			}
@@ -243,15 +244,15 @@ func TestOrderedSetAggregateCancellationPhases(t *testing.T) {
 func TestOrderedSetAggregateGroupFrameAndPublication(t *testing.T) {
 	p := orderedSetUnitProvider(t, functions.AggregatePercentileCont, sqltype.Float8, false)
 	info := expr.Info{Usage: p.InputType().Usage(), Property: expr.Properties{RowDependent: true}}
-	key := columnExpression{Info: info, Scope: 1, Frame: 1, Slot: 0}
-	arg := columnExpression{Info: info, Scope: 1, Frame: 1, Slot: 1}
+	key := plan.ColumnExpr{Info: info, Scope: 1, Frame: 1, Slot: 0}
+	arg := plan.ColumnExpr{Info: info, Scope: 1, Frame: 1, Slot: 1}
 	grouping, err := sqltype.BindGrouping(key.ResultUsage())
 	if err != nil {
 		t.Fatal(err)
 	}
 	literal := func(n float64) expr.Expr {
 		value, _ := sqltype.Float(p.InputType(), n)
-		return literalExpression{Info: expr.Info{Usage: p.InputType().Usage()}, Value: value}
+		return plan.LiteralExpr{Info: expr.Info{Usage: p.InputType().Usage()}, Value: value}
 	}
 	for _, phase := range []string{"success", "having", "direct", "prepare", "sort", "scan", "array", "percentile"} {
 		t.Run(phase, func(t *testing.T) {
@@ -294,15 +295,15 @@ func TestOrderedSetAggregateGroupFrameAndPublication(t *testing.T) {
 				if provider.Array() {
 					return orderedSetUnitFractionArray(t, provider).Input(c.Context, "{.25,.75}", -1)
 				}
-				return groupExpression{Info: expr.Info{Usage: provider.FractionType().Usage()}, Slot: 0, Frame: 1}.Eval(c)
+				return plan.GroupExpr{Info: expr.Info{Usage: provider.FractionType().Usage()}, Slot: 0, Frame: 1}.Eval(c)
 			})
-			child := &valuesNode{QuerySchema: querySchema{{Usage: p.InputType().Usage()}, {Usage: p.InputType().Usage()}}, Rows: [][]expr.Expr{{literal(.25), literal(10)}, {literal(.25), literal(20)}, {literal(.75), literal(30)}, {literal(.75), literal(40)}}}
-			call := aggregateCall{Provider: provider, Argument: arg, Direct: []expr.Expr{direct}, Operation: provider.Operation(), StageWidth: 2, Order: []sortKey{{Expression: arg, Comparison: provider.Comparison(), Slot: 0, Cache: 0}}}
-			aggregate := &aggregateNode{QuerySchema: querySchema{{Usage: p.InputType().Usage()}, {Usage: provider.ResultUsage()}}, Child: child, Keys: []expr.Expr{key}, Grouping: []queryGrouping{{Grouping: grouping}}, Calls: []aggregateCall{call}}
-			root := &projectNode{QuerySchema: querySchema{{Usage: provider.ResultUsage()}}, Child: aggregate, Expressions: []expr.Expr{groupExpression{Info: expr.Info{Usage: provider.ResultUsage()}, Slot: 1, Frame: 1}}, Frame: 1}
+			child := &plan.ValuesNode{QuerySchema: plan.QuerySchema{{Usage: p.InputType().Usage()}, {Usage: p.InputType().Usage()}}, Rows: [][]expr.Expr{{literal(.25), literal(10)}, {literal(.25), literal(20)}, {literal(.75), literal(30)}, {literal(.75), literal(40)}}}
+			call := plan.AggregateCall{Provider: provider, Argument: arg, Direct: []expr.Expr{direct}, Operation: provider.Operation(), StageWidth: 2, Order: []plan.SortKey{{Expression: arg, Comparison: provider.Comparison(), Slot: 0, Cache: 0}}}
+			aggregate := &plan.AggregateNode{QuerySchema: plan.QuerySchema{{Usage: p.InputType().Usage()}, {Usage: provider.ResultUsage()}}, Child: child, Keys: []expr.Expr{key}, Grouping: []plan.Grouping{{Grouping: grouping}}, Calls: []plan.AggregateCall{call}}
+			root := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Usage: provider.ResultUsage()}}, Child: aggregate, Expressions: []expr.Expr{plan.GroupExpr{Info: expr.Info{Usage: provider.ResultUsage()}, Slot: 1, Frame: 1}}, Frame: 1}
 			if phase == "having" {
 				boolean, _ := New().CatalogRead().LookupType(sqltype.Bool)
-				root.Child = &filterNode{QuerySchema: aggregate.QuerySchema, Child: aggregate, Predicate: literalExpression{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}}
+				root.Child = &plan.FilterNode{QuerySchema: aggregate.QuerySchema, Child: aggregate, Predicate: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}}
 			}
 			owned := &querySource{anonymous: [][]sqltype.Value{{sqltype.Null(p.InputType())}}, flat: []sqltype.Value{sqltype.Null(p.InputType())}}
 			source := &querySource{sources: []*querySource{owned}}
@@ -380,7 +381,7 @@ func TestOrderedSetAggregateResolverAndIdentity(t *testing.T) {
 		if got := node.ResultUsage().Type.DiagnosticName(); got != tc.result {
 			t.Fatal(tc, got)
 		}
-		call := b.grouping.aggregates[node.(aggregateExpression).Slot]
+		call := b.grouping.aggregates[node.(plan.AggregateExpr).Slot]
 		if call.Order[0].Slot != 0 || call.Order[0].Cache != 0 || call.StageWidth != 2 || (call.Direct == nil) != (tc.name == "mode") {
 			t.Fatal("uncached input/direct identity", tc, call)
 		}
@@ -393,7 +394,7 @@ func TestOrderedSetAggregateResolverAndIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		slots = append(slots, node.(aggregateExpression).Slot)
+		slots = append(slots, node.(plan.AggregateExpr).Slot)
 	}
 	if slots[0] == slots[1] || slots[0] != slots[2] {
 		t.Fatal("fraction identity", slots)
@@ -473,19 +474,19 @@ func TestOrderedSetAggregatePreSortDecisions(t *testing.T) {
 				if family.id == sqltype.Interval {
 					values = []string{"30 days", "10 days", "20 days"}
 				}
-				child := &valuesNode{QuerySchema: querySchema{{Usage: provider.InputType().Usage()}}}
+				child := &plan.ValuesNode{QuerySchema: plan.QuerySchema{{Usage: provider.InputType().Usage()}}}
 				if !tc.empty {
 					for _, text := range values {
 						value, err := provider.InputType().Input(context.Background(), text, -1)
 						if err != nil {
 							t.Fatal(err)
 						}
-						child.Rows = append(child.Rows, []expr.Expr{literalExpression{Info: expr.Info{Usage: provider.InputType().Usage()}, Value: value}})
+						child.Rows = append(child.Rows, []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: provider.InputType().Usage()}, Value: value}})
 					}
 				}
-				call := aggregateCall{Provider: provider, Argument: argument, Direct: []expr.Expr{direct}, Operation: family.operation, StageWidth: 2, Order: []sortKey{{Expression: argument, Comparison: provider.Comparison(), Slot: 0, Cache: 0}}}
-				node := &aggregateNode{QuerySchema: querySchema{{Usage: provider.ResultUsage()}}, Child: child, Calls: []aggregateCall{call}}
-				root := &projectNode{QuerySchema: node.QuerySchema, Child: node, Expressions: []expr.Expr{groupExpression{Info: expr.Info{Usage: provider.ResultUsage()}, Slot: 0, Frame: 1}}, Frame: 1}
+				call := plan.AggregateCall{Provider: provider, Argument: argument, Direct: []expr.Expr{direct}, Operation: family.operation, StageWidth: 2, Order: []plan.SortKey{{Expression: argument, Comparison: provider.Comparison(), Slot: 0, Cache: 0}}}
+				node := &plan.AggregateNode{QuerySchema: plan.QuerySchema{{Usage: provider.ResultUsage()}}, Child: child, Calls: []plan.AggregateCall{call}}
+				root := &plan.ProjectNode{QuerySchema: node.QuerySchema, Child: node, Expressions: []expr.Expr{plan.GroupExpr{Info: expr.Info{Usage: provider.ResultUsage()}, Slot: 0, Frame: 1}}, Frame: 1}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				probe := &aggregateModifierFamilyCancelContext{Context: ctx, cancel: cancel, target: ".Comparison.Compare"}
@@ -741,7 +742,7 @@ func TestOrderedSetAggregateResultAuthority(t *testing.T) {
 		if column.OriginTable != 0 || column.OriginAttribute != 0 || column.Usage.Typmod != -1 || !column.NullabilityKnown || !column.Nullable {
 			t.Fatal("computed aggregate origin/schema", expression, column)
 		}
-		call := q.Root.(*projectNode).Child.(*aggregateNode).Calls[0]
+		call := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode).Calls[0]
 		if column.Usage != call.Provider.ResultUsage() {
 			t.Fatal("schema/provider authority drift", column, call.Provider.ResultUsage())
 		}

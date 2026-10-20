@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindSearchShape(d *cteDefinition) error {
+func (b *expressionBinder) bindSearchShape(d *plan.CTEDefinition) error {
 	s := d.Search
 	s.Slot = d.UserWidth
 	s.Depth = b.typ(sqltype.Int8)
@@ -59,7 +60,7 @@ func (b *expressionBinder) bindSearchShape(d *cteDefinition) error {
 	return nil
 }
 
-func searchNameError(d *cteDefinition) error {
+func searchNameError(d *plan.CTEDefinition) error {
 	s := d.Search
 	if s.ShapeError != nil {
 		return s.ShapeError
@@ -72,7 +73,7 @@ func searchNameError(d *cteDefinition) error {
 	return nil
 }
 
-func (b *expressionBinder) bindSearchIdentity(d *cteDefinition) error {
+func (b *expressionBinder) bindSearchIdentity(d *plan.CTEDefinition) error {
 	s := d.Search
 	s.Grouping = make([]sqltype.Grouping, s.Record.CompositeLen())
 	for i := range s.Grouping {

@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 )
 
 // Demand is derived from typed NEW references before substitution. The ordinary
@@ -12,7 +13,7 @@ func ruleProducerOutputUses(original binding, rule ruleDefinition, action bindin
 	uses := []int{}
 	inspect := func(bound expr.Expr) {
 		walkBoundExpression(bound, func(node expr.Expr) {
-			column, ok := node.(columnExpression)
+			column, ok := node.(plan.ColumnExpr)
 			if !ok || column.Scope != rulePseudoScope || column.Frame != 2 {
 				return
 			}
@@ -24,13 +25,13 @@ func ruleProducerOutputUses(original binding, rule ruleDefinition, action bindin
 			}
 		})
 	}
-	query := func(root LogicalNode) { visitCTEQuery(root, func(LogicalNode) {}, inspect, true) }
+	query := func(root plan.Node) { visitCTEQuery(root, func(plan.Node) {}, inspect, true) }
 	expression := func(bound expr.Expr) {
 		if bound != nil {
-			query(&projectNode{Expressions: []expr.Expr{bound}})
+			query(&plan.ProjectNode{Expressions: []expr.Expr{bound}})
 		}
 	}
-	targets := func(items []*arrayAssignmentTarget) {
+	targets := func(items []*plan.ArrayAssignmentTarget) {
 		for _, target := range items {
 			for ; target != nil; target = target.Next {
 				for _, sub := range target.Node.Subscripts {
@@ -88,28 +89,28 @@ func ruleProducerOutputUses(original binding, rule ruleDefinition, action bindin
 // rule-program static preparation. Slots are interpreted in their retained
 // lexical input frame, including the offset contributed by preceding join arms.
 // Analysis-only expressions are not executable demand.
-func ruleQueryProducerDemand(root LogicalNode, external func(func(expr.Expr)), targetPrefix int) (LogicalNode, error) {
+func ruleQueryProducerDemand(root plan.Node, external func(func(expr.Expr)), targetPrefix int) (plan.Node, error) {
 	type producer struct {
 		frame   uint32
 		offset  int
 		demand  []bool
-		project *projectNode
+		project *plan.ProjectNode
 		uses    []int
 		active  bool
 		dirty   bool
 	}
 	var producers []*producer
-	bySource := make(map[LogicalNode]*producer)
-	var collect func(LogicalNode, int, uint32, uint32)
-	collect = func(node LogicalNode, offset int, exposedFrame, inputFrame uint32) {
+	bySource := make(map[plan.Node]*producer)
+	var collect func(plan.Node, int, uint32, uint32)
+	collect = func(node plan.Node, offset int, exposedFrame, inputFrame uint32) {
 		if node == nil {
 			return
 		}
-		if derived, ok := node.(*derivedNode); ok {
+		if derived, ok := node.(*plan.DerivedNode); ok {
 			if bySource[derived] != nil || derived.Query == nil {
 				return
 			}
-			project, ok := derived.Query.Root.(*projectNode)
+			project, ok := derived.Query.Root.(*plan.ProjectNode)
 			if !ok {
 				return
 			}
@@ -127,7 +128,7 @@ func ruleQueryProducerDemand(root LogicalNode, external func(func(expr.Expr)), t
 			collect(project, 0, 0, 1)
 			return
 		}
-		if project, projected := node.(*projectNode); projected {
+		if project, projected := node.(*plan.ProjectNode); projected {
 			if exposedFrame != 0 && bySource[project] == nil {
 				// A join arm consumes this projection's output in the enclosing
 				// frame; its payload reads its own local input frame.
@@ -143,7 +144,7 @@ func ruleQueryProducerDemand(root LogicalNode, external func(func(expr.Expr)), t
 			}
 		}
 		left, right := queryInputs(node)
-		if join, joined := node.(*joinNode); joined {
+		if join, joined := node.(*plan.JoinNode); joined {
 			frame := inputFrame
 			if join.Frame != 0 {
 				frame = join.Frame
@@ -156,7 +157,7 @@ func ruleQueryProducerDemand(root LogicalNode, external func(func(expr.Expr)), t
 		}
 		queryExpressions(node, func(expression expr.Expr) {
 			walkDemandedBoundExpression(expression, func(node expr.Expr) {
-				if subquery, ok := node.(subqueryExpression); ok && !subquery.CTEDefinition && subquery.QueryPlan != nil {
+				if subquery, ok := node.(plan.SubqueryExpr); ok && !subquery.CTEDefinition && subquery.QueryPlan != nil {
 					collect(subquery.QueryPlan.Root, 0, 0, 1)
 				}
 			})
@@ -186,11 +187,11 @@ func ruleQueryProducerDemand(root LogicalNode, external func(func(expr.Expr)), t
 		enqueue(item)
 	}
 	var failure error
-	var observe func(LogicalNode)
+	var observe func(plan.Node)
 	var inspect func(expr.Expr, int)
 	inspect = func(expression expr.Expr, prefix int) {
 		walkDemandedBoundExpression(expression, func(node expr.Expr) {
-			if column, ok := node.(columnExpression); ok {
+			if column, ok := node.(plan.ColumnExpr); ok {
 				for _, item := range producers {
 					slot := column.Slot - prefix - item.offset
 					if column.Frame != item.frame || slot < 0 || slot >= len(item.project.Expressions) {
@@ -203,12 +204,12 @@ func ruleQueryProducerDemand(root LogicalNode, external func(func(expr.Expr)), t
 					}
 				}
 			}
-			if subquery, ok := node.(subqueryExpression); ok && !subquery.CTEDefinition && subquery.QueryPlan != nil {
+			if subquery, ok := node.(plan.SubqueryExpr); ok && !subquery.CTEDefinition && subquery.QueryPlan != nil {
 				observe(subquery.QueryPlan.Root)
 			}
 		})
 	}
-	observe = func(node LogicalNode) {
+	observe = func(node plan.Node) {
 		if node == nil || failure != nil {
 			return
 		}
@@ -217,10 +218,10 @@ func ruleQueryProducerDemand(root LogicalNode, external func(func(expr.Expr)), t
 			return
 		}
 		switch n := node.(type) {
-		case *derivedNode:
+		case *plan.DerivedNode:
 			// Modifying scans have no SELECT graph and retain their spool key.
 			return
-		case *projectNode:
+		case *plan.ProjectNode:
 			failure = storedProjectionDemandExpressions(n, nil, func(expression expr.Expr) {
 				inspect(expression, 0)
 			}, observe)
@@ -248,7 +249,7 @@ func ruleQueryProducerDemand(root LogicalNode, external func(func(expr.Expr)), t
 	if failure != nil {
 		return nil, failure
 	}
-	uses := make(map[*projectNode][]int)
+	uses := make(map[*plan.ProjectNode][]int)
 	for _, item := range producers {
 		if !item.active {
 			continue
@@ -264,7 +265,7 @@ func ruleQueryProducerDemand(root LogicalNode, external func(func(expr.Expr)), t
 		}
 		uses[item.project] = current
 	}
-	pruned := make(map[*projectNode]*projectNode)
+	pruned := make(map[*plan.ProjectNode]*plan.ProjectNode)
 	for project, outputUses := range uses {
 		demanded, err := storedProjectionDemand(project, outputUses)
 		if err != nil {
@@ -278,9 +279,9 @@ func ruleQueryProducerDemand(root LogicalNode, external func(func(expr.Expr)), t
 		return root, nil
 	}
 	identity := func(expression expr.Expr) (expr.Expr, bool, error) { return expression, false, nil }
-	var rewrite func(LogicalNode) (LogicalNode, error)
-	rewrite = func(node LogicalNode) (LogicalNode, error) {
-		project, ok := node.(*projectNode)
+	var rewrite func(plan.Node) (plan.Node, error)
+	rewrite = func(node plan.Node) (plan.Node, error) {
+		project, ok := node.(*plan.ProjectNode)
 		if !ok || pruned[project] == nil {
 			return node, nil
 		}

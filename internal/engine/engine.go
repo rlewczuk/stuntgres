@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/plan"
 	"sync"
 
 	"stuntgres/internal/engine/access"
@@ -73,10 +74,10 @@ type binding struct {
 	ref                ids.ObjectRef
 	viewWrite          *viewWrite
 	targets            []int
-	arrayTargets       []*arrayAssignmentTarget
+	arrayTargets       []*plan.ArrayAssignmentTarget
 	usedColumns        []int
-	query              *BoundQuery
-	ctes               []*cteDefinition
+	query              *plan.Query
+	ctes               []*plan.CTEDefinition
 	cteSelectBodies    bool
 	querySources       []queryLeaf
 	visibilitySnapshot bool
@@ -740,7 +741,7 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 	if binder.cte.scanOrdinal != 0 {
 		queries := binder.cte.executables
 		if len(queries) == 0 && b.query != nil {
-			queries = []*BoundQuery{b.query}
+			queries = []*plan.Query{b.query}
 		}
 		for _, query := range queries {
 			activateCTESources(query.Root, b.querySources)

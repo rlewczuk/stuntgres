@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -19,7 +20,7 @@ type queryColumn struct {
 	descriptor     catalog.Column
 	slot           int
 	leaf, physical int // -1 identifies a computed merged value.
-	cteScan        *derivedNode
+	cteScan        *plan.DerivedNode
 	hideStar       bool // Generated CYCLE columns are explicit-only in their owning WITH definitions.
 }
 type queryQualifier struct {
@@ -28,7 +29,7 @@ type queryQualifier struct {
 	columns                       []queryColumn
 	scalarAlias                   bool // The admitted producer declares an alias value as its scalar result.
 	excludeColumnDiagnostics      bool // Whole-join and USING aliases are not error RTE candidates.
-	sourceRoot                    LogicalNode
+	sourceRoot                    plan.Node
 	nullExtended                  bool
 	lateralForbidden              bool // A DML target cannot correlate into its source, even with LATERAL.
 }
@@ -96,7 +97,7 @@ func (b *expressionBinder) queryColumnAt(c queryColumn, pos parser.Position) exp
 			leaf.uses = append(leaf.uses, c.physical)
 		}
 	}
-	column := columnExpression{Info: b.info(c.descriptor.Usage, pos, expr.Properties{RowDependent: true}), Origin: origin, Scope: 1, Frame: b.frameID(), Slot: c.slot}
+	column := plan.ColumnExpr{Info: b.info(c.descriptor.Usage, pos, expr.Properties{RowDependent: true}), Origin: origin, Scope: 1, Frame: b.frameID(), Slot: c.slot}
 	column.MergeSource = c.leaf != queryTargetLeaf && b.mergeReturningFrame(b.frameID())
 	if b.target.generatedOwner == nil {
 		column = column.WithGeneration(relation, c.physical, c.slot-c.physical)
@@ -316,11 +317,11 @@ func (b *expressionBinder) queryColumn(raw parser.ColumnExpr) (expr.Expr, error)
 	return nil, missing
 }
 
-func (b *expressionBinder) bindFrom(item parser.FromItem) (LogicalNode, queryNamespace, error) {
+func (b *expressionBinder) bindFrom(item parser.FromItem) (plan.Node, queryNamespace, error) {
 	return b.bindFromWithDefinitions(item, nil)
 }
 
-func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definitions []parser.FunctionColumnDefinition) (root LogicalNode, namespace queryNamespace, failure error) {
+func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definitions []parser.FunctionColumnDefinition) (root plan.Node, namespace queryNamespace, failure error) {
 	// FROM preorder is shared with the renderer. Capture the namespace after
 	// aliases and USING have been applied, before a parent rebases its slots.
 	defer func() {
@@ -352,7 +353,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 	}
 	switch n := item.(type) {
 	case nil:
-		return &singletonNode{}, queryNamespace{}, nil
+		return &plan.SingletonNode{}, queryNamespace{}, nil
 	case *parser.FunctionTable:
 		normalized := parser.NormalizedFunctionCalls(n)
 		for _, raw := range normalized {
@@ -374,7 +375,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			columns[i] = queryColumn{descriptor: column, slot: i, leaf: -1}
 		}
 		b.query.hidden = append(b.query.hidden, queryQualifier{name: "unnamed_subquery", columns: columns})
-		return &derivedNode{QuerySchema: schema, Query: query, ScanFrame: b.frameID()}, queryNamespace{columns: columns, frame: schema}, nil
+		return &plan.DerivedNode{QuerySchema: schema, Query: query, ScanFrame: b.frameID()}, queryNamespace{columns: columns, frame: schema}, nil
 	case *parser.ValuesQuery:
 		query, err := b.bindValues(n, false)
 		if err != nil {
@@ -426,7 +427,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		namespace, _ := b.query.auth.definitionDescriptor(relation.Namespace())
 		q := queryQualifier{name: relation.Name(), original: relation.Name(), schema: namespace.Name(), ref: ref, columns: columns}
 		b.query.hidden = append(b.query.hidden, q)
-		return &sourceNode{QuerySchema: relation.Columns, Ref: ref, Occurrence: leaf, RangeName: relation.Name()}, queryNamespace{columns: columns, qualifiers: []queryQualifier{q}, frame: relation.Columns}, nil
+		return &plan.SourceNode{QuerySchema: relation.Columns, Ref: ref, Occurrence: leaf, RangeName: relation.Name()}, queryNamespace{columns: columns, qualifiers: []queryQualifier{q}, frame: relation.Columns}, nil
 	case *parser.AliasReference:
 		root, ns, err := b.bindFromWithDefinitions(n.Input, n.ColumnDefinitions)
 		if err != nil {
@@ -437,11 +438,11 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		}
 		aliasWidth := len(ns.columns)
 		switch scan := root.(type) {
-		case *worktableScanNode:
+		case *plan.WorktableScanNode:
 			if scan.CTE.Search != nil || scan.CTE.Cycle != nil {
 				aliasWidth = scan.CTE.UserWidth
 			}
-		case *derivedNode:
+		case *plan.DerivedNode:
 			if scan.CTE != nil && (scan.CTE.Search != nil || scan.CTE.Cycle != nil) {
 				aliasWidth = scan.CTE.UserWidth
 			}
@@ -458,7 +459,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		for i, name := range n.Columns {
 			ns.columns[i].descriptor.Name = name.Text
 		}
-		if source, ok := root.(*sourceNode); ok {
+		if source, ok := root.(*plan.SourceNode); ok {
 			source.RangeName = n.Name.Text
 			if len(n.Columns) != 0 {
 				source.ColumnAliases = make([]string, len(n.Columns))
@@ -475,7 +476,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			case *parser.FunctionFrom:
 				calls = len(function.Calls)
 			}
-			function, composite := root.(*functionFromNode)
+			function, composite := root.(*plan.FunctionFromNode)
 			composite = composite && len(function.Calls) == 1 && function.Calls[0].ResultUsage().Type.BaseType().IsComposite()
 			hasScalarOut := function != nil && len(function.Calls) == 1 && sourceOutName(function.Calls[0]) != ""
 			if calls == 1 && !composite && !hasScalarOut {
@@ -538,8 +539,8 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		// Ancestor-prefix captures remain free for an enclosing boundary; a
 		// descendant's internally satisfied correlation is not exported here.
 		dependent, inheritedDemand := false, false
-		var forbidden functionCorrelation
-		captures := append([]functionCorrelation(nil), functionFromCaptures(left)...)
+		var forbidden plan.FunctionCorrelation
+		captures := append([]plan.FunctionCorrelation(nil), functionFromCaptures(left)...)
 		for _, capture := range functionFromCaptures(right) {
 			if capture.Frame != b.frameID() || capture.Slot < prefix {
 				captures = append(captures, capture)
@@ -566,7 +567,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			}
 			prefix = 0
 		}
-		join := &joinNode{QuerySchema: ns.frame, Kind: n.Kind, Left: left, Right: right, LeftWidth: len(lns.frame), RightWidth: len(rns.frame), ViewOrdinal: joinOrdinal, CorrelatedRight: dependent, Frame: b.frameID(), CorrelationPrefix: prefix, Captures: captures}
+		join := &plan.JoinNode{QuerySchema: ns.frame, Kind: n.Kind, Left: left, Right: right, LeftWidth: len(lns.frame), RightWidth: len(rns.frame), ViewOrdinal: joinOrdinal, CorrelatedRight: dependent, Frame: b.frameID(), CorrelationPrefix: prefix, Captures: captures}
 		old := b.query.namespace
 		b.query.namespace = &ns
 		defer func() { b.query.namespace = old }()
@@ -624,7 +625,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 				if join.Predicate == nil {
 					join.Predicate = eq
 				} else {
-					join.Predicate = logicalExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), pos, expr.Properties{RowDependent: true}), Op: parser.LogicalAnd, Left: join.Predicate, Right: eq}
+					join.Predicate = plan.LogicalExpr{Info: b.info(b.typ(sqltype.Bool).Usage(), pos, expr.Properties{RowDependent: true}), Op: parser.LogicalAnd, Left: join.Predicate, Right: eq}
 				}
 				operands := []comparisonOperand{{node: le}, {node: re}}
 				usage, err := commonExpressionUsage(operands, b.typ(sqltype.Text).Usage(), "JOIN/USING")
@@ -650,7 +651,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 						if err != nil {
 							return nil, queryNamespace{}, err
 						}
-						value = conditionalExpression{Info: b.info(usage, pos, expr.Properties{RowDependent: true}), Kind: parser.Coalesce, Args: []expr.Expr{lv, rv}}
+						value = plan.ConditionalExpr{Info: b.info(usage, pos, expr.Properties{RowDependent: true}), Kind: parser.Coalesce, Args: []expr.Expr{lv, rv}}
 					} else {
 						value, err = b.coerceConditional(comparisonOperand{node: chosen}, usage, "JOIN/USING")
 						if err != nil {
@@ -670,7 +671,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 							return nil, queryNamespace{}, err
 						}
 						info.Property = coercionProperties(input, coercionPlan)
-						value = restoreDomainCastCollations(annotations, coercionExpression{info, input, coercionPlan, sqltype.Implicit, false})
+						value = restoreDomainCastCollations(annotations, plan.CoercionExpr{info, input, coercionPlan, sqltype.Implicit, false})
 					}
 					column = queryColumn{descriptor: catalog.Column{Name: key.Text, Usage: usage}, slot: len(ns.frame), leaf: -1, physical: -1, hideStar: column.hideStar}
 					join.Merges = append(join.Merges, value)
@@ -809,11 +810,11 @@ func (b *expressionBinder) queryQualifierNeedsLateral(q queryQualifier) bool {
 
 // These are only the references still free at a FROM subtree boundary. A
 // join's consumed local captures never escape into its enclosing join.
-func functionFromCaptures(root LogicalNode) []functionCorrelation {
+func functionFromCaptures(root plan.Node) []plan.FunctionCorrelation {
 	switch n := root.(type) {
-	case *functionFromNode:
+	case *plan.FunctionFromNode:
 		return n.Captures
-	case *joinNode:
+	case *plan.JoinNode:
 		return n.Captures
 	}
 	return nil
@@ -823,7 +824,7 @@ func functionFromCaptures(root LogicalNode) []functionCorrelation {
 // Descendants with no free captures have already satisfied/normalized their
 // own dependencies and must not be rebased again. Ordinary join expressions
 // retain their independent output-row layout.
-func rebaseFunctionCorrelation(view catalog.Read, root LogicalNode, frame uint32, prefix int) (LogicalNode, error) {
+func rebaseFunctionCorrelation(view catalog.Read, root plan.Node, frame uint32, prefix int) (plan.Node, error) {
 	captures := functionFromCaptures(root)
 	needed := false
 	for _, capture := range captures {
@@ -837,14 +838,14 @@ func rebaseFunctionCorrelation(view catalog.Read, root LogicalNode, frame uint32
 	if !needed {
 		return root, nil
 	}
-	rebased := append([]functionCorrelation(nil), captures...)
+	rebased := append([]plan.FunctionCorrelation(nil), captures...)
 	for i := range rebased {
 		if rebased[i].Frame == frame {
 			rebased[i].Slot -= prefix
 		}
 	}
 	switch n := root.(type) {
-	case *joinNode:
+	case *plan.JoinNode:
 		left, err := rebaseFunctionCorrelation(view, n.Left, frame, prefix)
 		if err != nil {
 			return nil, err
@@ -866,24 +867,24 @@ func rebaseFunctionCorrelation(view catalog.Read, root LogicalNode, frame uint32
 		copy.Left, copy.Right, copy.Captures = left, right, rebased
 		copy.CorrelationPrefix = correlationPrefix
 		return &copy, nil
-	case *functionFromNode:
+	case *plan.FunctionFromNode:
 		var rewrite func(expr.Expr) (expr.Expr, bool, error)
 		rewrite = func(bound expr.Expr) (expr.Expr, bool, error) {
 			// Virtual owner recipes have their own frame. The lexical walker
 			// stops at their column, so only actual argument captures enter.
 			used := false
 			walkQueryArgumentExpression(bound, func(node expr.Expr) {
-				if column, ok := node.(columnExpression); ok && column.Frame == frame {
+				if column, ok := node.(plan.ColumnExpr); ok && column.Frame == frame {
 					used = true
 				}
 			})
 			if !used {
 				return bound, false, nil
 			}
-			return mapBoundExpression(view, bound, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(query LogicalNode) (LogicalNode, error) {
+			return mapBoundExpression(view, bound, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(query plan.Node) (plan.Node, error) {
 				return rewriteQueryExpressions(query, rewrite)
 			}, nil, func(node expr.Expr) (expr.Expr, bool, error) {
-				column, ok := node.(columnExpression)
+				column, ok := node.(plan.ColumnExpr)
 				if !ok {
 					return node, false, nil
 				}
@@ -946,7 +947,7 @@ func functionColumnDefinitionMessage(call expr.Expr) string {
 	return `a column definition list is only allowed for functions returning "record"`
 }
 
-func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr, ordinality bool, ordinal int, definitions []parser.FunctionColumnDefinition, multiUnnest bool) (LogicalNode, queryNamespace, error) {
+func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr, ordinality bool, ordinal int, definitions []parser.FunctionColumnDefinition, multiUnnest bool) (plan.Node, queryNamespace, error) {
 	calls := make([]expr.Expr, len(rawCalls))
 	schema := make([]catalog.Column, 0, len(calls))
 	oldClause := b.clause.aggregateClause
@@ -1038,5 +1039,5 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 	}
 	captures := b.functionCaptures(calls)
 	b.query.hidden = append(b.query.hidden, q)
-	return &functionFromNode{QuerySchema: schema, Calls: calls, Ordinality: ordinality, Frame: b.frameID(), Correlated: len(captures) != 0, Captures: captures, RegexpNamespace: true, ViewOrdinal: ordinal}, queryNamespace{columns: columns, qualifiers: []queryQualifier{q}, frame: schema}, nil
+	return &plan.FunctionFromNode{QuerySchema: schema, Calls: calls, Ordinality: ordinality, Frame: b.frameID(), Correlated: len(captures) != 0, Captures: captures, RegexpNamespace: true, ViewOrdinal: ordinal}, queryNamespace{columns: columns, qualifiers: []queryQualifier{q}, frame: schema}, nil
 }

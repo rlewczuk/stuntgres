@@ -3,20 +3,25 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func (b *expressionBinder) bindWindowBound(raw parser.FrameBound, order []sortKey, unit parser.FrameUnit) (boundWindowBound, error) {
-	bound := boundWindowBound{Kind: raw.Kind}
+func (b *expressionBinder) bindWindowBound(raw parser.FrameBound, order []plan.SortKey, unit parser.FrameUnit) (plan.WindowBound, error) {
+	bound := plan.WindowBound{Kind: raw.Kind}
 	if raw.Offset == nil {
 		return bound, nil
 	}
 	old := b.clause.aggregateClause
 	aggregates, windows := b.grouping.aggregates, b.grouping.windowCalls
 	b.clause.aggregateClause = "window RANGE"
-	defer func() { b.clause.aggregateClause = old; b.grouping.aggregates = aggregates; b.grouping.windowCalls = windows }()
+	defer func() {
+		b.clause.aggregateClause = old
+		b.grouping.aggregates = aggregates
+		b.grouping.windowCalls = windows
+	}()
 	if unit == parser.FrameGroups || unit == parser.FrameRows {
 		label := "GROUPS"
 		if unit == parser.FrameRows {
@@ -49,7 +54,7 @@ func (b *expressionBinder) bindWindowBound(raw parser.FrameBound, order []sortKe
 		if err != nil {
 			return bound, err
 		}
-		node = coercionExpression{b.info(usage, node.SourcePosition(), coercionProperties(node, coercionPlan)), node, coercionPlan, sqltype.Implicit, false}
+		node = plan.CoercionExpr{b.info(usage, node.SourcePosition(), coercionProperties(node, coercionPlan)), node, coercionPlan, sqltype.Implicit, false}
 	}
 	if expressionUsesFrame(node, b.frameID()) {
 		return bound, expr.ErrorAt("42P10", "argument of RANGE must not contain variables", firstQueryBoundFrameVariable(node, b.frameID()))

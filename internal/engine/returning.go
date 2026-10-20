@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -47,7 +48,7 @@ func returningRowContext(c *EvalContext, scope, frame uint32) (*EvalContext, err
 	return nil, fmt.Errorf("stuntgres: RETURNING row frame is missing")
 }
 
-func (c *EvalContext) EvalReturningColumn(e returningColumnExpression) (sqltype.Value, error) {
+func (c *EvalContext) EvalReturningColumn(e plan.ReturningColumnExpr) (sqltype.Value, error) {
 	parent, err := returningRowContext(c, e.Scope, e.Frame)
 	if err != nil {
 		return sqltype.Value{}, err
@@ -132,7 +133,7 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 	appendOutput := func(expression expr.Expr, name string) {
 		descriptor := catalog.Column{Name: name, Usage: expression.ResultUsage()}
 		switch column := expression.(type) {
-		case columnExpression:
+		case plan.ColumnExpr:
 			if b.query.namespace != nil {
 				descriptor = b.query.namespace.frame[column.Slot]
 			} else {
@@ -141,12 +142,12 @@ func (b *expressionBinder) bindReturning(raw *parser.Returning, mode returningMo
 			if column.MergeSource {
 				descriptor.Nullable, descriptor.NullabilityKnown = true, true
 			}
-		case returningColumnExpression:
+		case plan.ReturningColumnExpr:
 			descriptor = b.target.relation.Columns[column.Slot]
 			if mode == returningMerge || column.Absent || column.Old && mode == returningInsert {
 				descriptor.Nullable, descriptor.NullabilityKnown = true, true
 			}
-		case mergeActionExpression:
+		case plan.MergeActionExpr:
 			descriptor.Nullable, descriptor.NullabilityKnown = false, true
 		default:
 			if metadata, ok := expression.(expr.ResultNullability); ok {
@@ -280,19 +281,19 @@ func (b *expressionBinder) returningQualifier(name parser.ObjectName, pos parser
 }
 
 func (b *expressionBinder) returningColumnAt(slot int, pos parser.Position, newValues bool) expr.Expr {
-	column := b.columnAt(slot, pos).(columnExpression)
+	column := b.columnAt(slot, pos).(plan.ColumnExpr)
 	if b.target.returningAliases.mode == returningMerge {
 		side := mergeOldSide
 		if newValues {
 			side = mergeNewSide
 		}
-		return returningColumnExpression{ColumnExpr: column, Old: !newValues, Merge: true, Side: side}
+		return plan.ReturningColumnExpr{ColumnExpr: column, Old: !newValues, Merge: true, Side: side}
 	}
 	if !newValues && b.target.returningAliases.mode != returningDelete {
-		return returningColumnExpression{ColumnExpr: column, Old: true}
+		return plan.ReturningColumnExpr{ColumnExpr: column, Old: true}
 	}
 	if newValues && b.target.returningAliases.mode == returningDelete {
-		return returningColumnExpression{ColumnExpr: column, Absent: true}
+		return plan.ReturningColumnExpr{ColumnExpr: column, Absent: true}
 	}
 	return column
 }
@@ -428,20 +429,20 @@ func (b *expressionBinder) outerReturningScope(name parser.ObjectName) (*queryBi
 }
 
 func (b *expressionBinder) outerReturningColumnAt(scope *queryBindingScope, slot int, pos parser.Position, newValues bool) expr.Expr {
-	column := b.columnAtOf(scope.relation, slot, pos).(columnExpression)
+	column := b.columnAtOf(scope.relation, slot, pos).(plan.ColumnExpr)
 	column.Frame = scope.frame
 	if scope.returning.mode == returningMerge {
 		side := mergeOldSide
 		if newValues {
 			side = mergeNewSide
 		}
-		return returningColumnExpression{ColumnExpr: column, Old: !newValues, Merge: true, Side: side}
+		return plan.ReturningColumnExpr{ColumnExpr: column, Old: !newValues, Merge: true, Side: side}
 	}
 	if !newValues && scope.returning.mode != returningDelete {
-		return returningColumnExpression{ColumnExpr: column, Old: true}
+		return plan.ReturningColumnExpr{ColumnExpr: column, Old: true}
 	}
 	if newValues && scope.returning.mode == returningDelete {
-		return returningColumnExpression{ColumnExpr: column, Absent: true}
+		return plan.ReturningColumnExpr{ColumnExpr: column, Absent: true}
 	}
 	return column
 }
@@ -464,5 +465,5 @@ func (b *expressionBinder) outerReturningWholeRow(scope *queryBindingScope, pos 
 		props = expr.MergeProperties(props, fields[i].Properties())
 	}
 	typ, _ := b.bindingCatalog().LookupType(scope.relation.RowType)
-	return rowExpression{Info: b.info(typ.Usage(), pos, props), Fields: fields, ReturningWhole: true, ReturningNull: scope.returning.mode == returningDelete && newValues}, nil
+	return plan.RowExpr{Info: b.info(typ.Usage(), pos, props), Fields: fields, ReturningWhole: true, ReturningNull: scope.returning.mode == returningDelete && newValues}, nil
 }

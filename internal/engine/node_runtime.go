@@ -1,10 +1,11 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
-var _ nodeRuntime = (*EvalContext)(nil)
+var _ plan.Runtime = (*EvalContext)(nil)
 
 func (c *EvalContext) BeginEvaluation() error { return evaluationContext(c) }
 

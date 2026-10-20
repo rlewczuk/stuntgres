@@ -5,6 +5,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -33,7 +34,7 @@ func TestDefaultDescriptorProviderClosedDefinitions(t *testing.T) {
 		},
 		func(d *catalog.Relation) {
 			u := old.Columns[0].Usage
-			node := parameterExpression{Info: expr.Info{Usage: u, Property: expr.Properties{ParameterDependent: true}}, Number: 1}
+			node := plan.ParameterExpr{Info: expr.Info{Usage: u, Property: expr.Properties{ParameterDependent: true}}, Number: 1}
 			bad := old.ColumnMeta.Defaults[1]
 			bad.Expression = node
 			d.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: bad}
@@ -43,7 +44,7 @@ func TestDefaultDescriptorProviderClosedDefinitions(t *testing.T) {
 		},
 		func(d *catalog.Relation) {
 			u := old.Columns[0].Usage
-			node := literalExpression{Info: expr.Info{Usage: u}, Value: sqltype.Boolean(old.Columns[1].Usage.Type, true)}
+			node := plan.LiteralExpr{Info: expr.Info{Usage: u}, Value: sqltype.Boolean(old.Columns[1].Usage.Type, true)}
 			bad := old.ColumnMeta.Defaults[1]
 			bad.Expression = node
 			d.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: bad}
@@ -89,41 +90,41 @@ func TestDefaultDescriptorProviderClosedPredicates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	foreignChild := literalExpression{Info: expr.Info{Usage: foreignType.Usage()}, Value: foreignValue}
+	foreignChild := plan.LiteralExpr{Info: expr.Info{Usage: foreignType.Usage()}, Value: foreignValue}
 	for _, tc := range []struct {
 		name      string
 		attribute int32
 		mutate    func(expr.Expr) expr.Expr
 	}{
-		{"null-child", 1, func(node expr.Expr) expr.Expr { n := node.(nullTestExpression); n.Child = nil; return n }},
+		{"null-child", 1, func(node expr.Expr) expr.Expr { n := node.(plan.NullTestExpr); n.Child = nil; return n }},
 		{"null-result-type", 1, func(node expr.Expr) expr.Expr {
-			n := node.(nullTestExpression)
+			n := node.(plan.NullTestExpr)
 			n.Usage = old.Columns[3].Usage
 			return n
 		}},
-		{"null-foreign-child", 1, func(node expr.Expr) expr.Expr { n := node.(nullTestExpression); n.Child = foreignChild; return n }},
+		{"null-foreign-child", 1, func(node expr.Expr) expr.Expr { n := node.(plan.NullTestExpr); n.Child = foreignChild; return n }},
 		{"null-dependent-child", 1, func(node expr.Expr) expr.Expr {
-			n := node.(nullTestExpression)
-			child := old.ColumnMeta.Defaults[4].Expression.(literalExpression)
+			n := node.(plan.NullTestExpr)
+			child := old.ColumnMeta.Defaults[4].Expression.(plan.LiteralExpr)
 			child.Property.RowDependent = true
 			n.Child = child
 			return n
 		}},
-		{"truth-child", 2, func(node expr.Expr) expr.Expr { n := node.(truthTestExpression); n.Child = nil; return n }},
+		{"truth-child", 2, func(node expr.Expr) expr.Expr { n := node.(plan.TruthTestExpr); n.Child = nil; return n }},
 		{"truth-child-type", 2, func(node expr.Expr) expr.Expr {
-			n := node.(truthTestExpression)
+			n := node.(plan.TruthTestExpr)
 			n.Child = old.ColumnMeta.Defaults[4].Expression
 			return n
 		}},
-		{"truth-enum", 2, func(node expr.Expr) expr.Expr { n := node.(truthTestExpression); n.Truth = Truth(255); return n }},
-		{"distinct-child", 3, func(node expr.Expr) expr.Expr { n := node.(distinctExpression); n.Left = nil; return n }},
+		{"truth-enum", 2, func(node expr.Expr) expr.Expr { n := node.(plan.TruthTestExpr); n.Truth = plan.Truth(255); return n }},
+		{"distinct-child", 3, func(node expr.Expr) expr.Expr { n := node.(plan.DistinctExpr); n.Left = nil; return n }},
 		{"distinct-plan", 3, func(node expr.Expr) expr.Expr {
-			n := node.(distinctExpression)
+			n := node.(plan.DistinctExpr)
 			n.Equality = sqltype.ComparisonPredicate{}
 			return n
 		}},
 		{"distinct-operand", 3, func(node expr.Expr) expr.Expr {
-			n := node.(distinctExpression)
+			n := node.(plan.DistinctExpr)
 			n.Right = old.ColumnMeta.Defaults[2].Expression
 			return n
 		}},
@@ -157,16 +158,16 @@ func TestDefaultDescriptorProviderClosedCasts(t *testing.T) {
 	if err != nil || !strings.Contains(text, "CAST(CAST('oops' AS TEXT) AS ") {
 		t.Fatal("lost known TEXT input type", text, err)
 	}
-	for _, mutate := range []func(coercionExpression) coercionExpression{
-		func(n coercionExpression) coercionExpression { n.Mode = sqltype.CoercionContext(255); return n },
-		func(n coercionExpression) coercionExpression { n.Mode = sqltype.Implicit; return n },
-		func(n coercionExpression) coercionExpression { n.Mode = sqltype.Assignment; return n },
-		func(n coercionExpression) coercionExpression { n.Plan = sqltype.CoercionPlan{}; return n },
-		func(n coercionExpression) coercionExpression { n.Child = nil; return n },
+	for _, mutate := range []func(plan.CoercionExpr) plan.CoercionExpr{
+		func(n plan.CoercionExpr) plan.CoercionExpr { n.Mode = sqltype.CoercionContext(255); return n },
+		func(n plan.CoercionExpr) plan.CoercionExpr { n.Mode = sqltype.Implicit; return n },
+		func(n plan.CoercionExpr) plan.CoercionExpr { n.Mode = sqltype.Assignment; return n },
+		func(n plan.CoercionExpr) plan.CoercionExpr { n.Plan = sqltype.CoercionPlan{}; return n },
+		func(n plan.CoercionExpr) plan.CoercionExpr { n.Child = nil; return n },
 	} {
 		next := *old
 		bad := old.ColumnMeta.Defaults[1]
-		bad.Expression = mutate(bad.Expression.(coercionExpression))
+		bad.Expression = mutate(bad.Expression.(plan.CoercionExpr))
 		next.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: bad, 2: old.ColumnMeta.Defaults[2]}
 		if err := (relationProvider{}).Validate(view, &next); err == nil {
 			t.Fatal("invalid cast definition accepted", bad)
@@ -188,7 +189,7 @@ func TestDefaultDescriptorProviderUnfoldedDecisiveBranches(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, ok := definition.Expression.(logicalExpression); !ok ||
+		if _, ok := definition.Expression.(plan.LogicalExpr); !ok ||
 			!strings.Contains(text, "'oops'") || !strings.Contains(text, "CAST(") {
 			t.Fatal("stored default was simplified", definition)
 		}

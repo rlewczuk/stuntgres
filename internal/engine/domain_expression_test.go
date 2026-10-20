@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -85,11 +86,11 @@ func TestDomainExpressionLogicalAndSignatureIdentity(t *testing.T) {
 		}
 	}
 	query := domainUnitBindSelect(t, e, op, "SELECT bool_and(TRUE::public.flag) FROM public.one")
-	project, ok := query.Root.(*projectNode)
+	project, ok := query.Root.(*plan.ProjectNode)
 	if !ok {
 		t.Fatal("aggregate query lacks projection", query.Root)
 	}
-	aggregate, ok := project.Child.(*aggregateNode)
+	aggregate, ok := project.Child.(*plan.AggregateNode)
 	if !ok || len(aggregate.Calls) != 1 || query.Root.Schema()[0].Usage.Type.ID() != sqltype.Bool || aggregate.Calls[0].Argument.ResultUsage().Type.ID() != sqltype.Bool {
 		t.Fatal("aggregate did not downcast signature", project.Child, query.Root.Schema())
 	}
@@ -167,7 +168,7 @@ func TestDomainContextualLiteralTypmodEvaluation(t *testing.T) {
 	if err != nil {
 		t.Fatal("assignment typmod evaluated while binding", err)
 	}
-	coercion, ok := node.(coercionExpression)
+	coercion, ok := node.(plan.CoercionExpr)
 	if !ok || coercion.Child.ResultUsage().Type.ID() != sqltype.VarChar || node.ResultUsage() != target {
 		t.Fatal("literal did not preserve base-to-domain coercion", node)
 	}
@@ -272,14 +273,14 @@ func TestDomainArrayBoundLiteralDiagnosticPosition(t *testing.T) {
 	}
 }
 
-func domainUnitBindSelect(t *testing.T, e *Engine, op *Operation, q string) *BoundQuery {
+func domainUnitBindSelect(t *testing.T, e *Engine, op *Operation, q string) *plan.Query {
 	t.Helper()
 	raw := statement(t, q).(*parser.Select)
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	b := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
 	b.query.auth = &auth
-	var query *BoundQuery
+	var query *plan.Query
 	if err == nil {
 		query, err = b.bindSelect(raw, false)
 	}
@@ -311,7 +312,7 @@ func TestDomainIntervalLiteralCastInputUsage(t *testing.T) {
 			if err != nil {
 				t.Fatal(expression, err)
 			}
-			coercion, ok := node.(coercionExpression)
+			coercion, ok := node.(plan.CoercionExpr)
 			if !ok || node.ResultUsage() != target || coercion.Child.ResultUsage() != target.BaseUsage() {
 				t.Fatal("lost effective input usage or logical cast identity", expression, node)
 			}

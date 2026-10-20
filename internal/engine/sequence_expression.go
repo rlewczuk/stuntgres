@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -63,7 +64,7 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectR
 		if _, ok := auth.definitionRelation(ref.Address); ok {
 			info.RegclassRef = ref
 		}
-		return literalExpression{info, sqltype.String(typ, text)}, ref, nil
+		return plan.LiteralExpr{info, sqltype.String(typ, text)}, ref, nil
 	}
 	// This legacy provider also owns explicit REGCLASS annotations and sequence
 	// inputs. New contextual inquiry coercions must not widen its public boundary.
@@ -85,7 +86,7 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectR
 	if err != nil {
 		return nil, ids.ObjectRef{}, err
 	}
-	return coercionExpression{info, node, coercionPlan, sqltype.Implicit, false}, ids.ObjectRef{}, nil
+	return plan.CoercionExpr{info, node, coercionPlan, sqltype.Implicit, false}, ids.ObjectRef{}, nil
 }
 
 // Explicit casts share name input with sequence consumers but use the ordinary
@@ -114,7 +115,7 @@ func (b *expressionBinder) bindRegclassCast(raw parser.Expr, pos parser.Position
 	if child.ResultUsage() == target {
 		return child, nil
 	}
-	return coercionExpression{b.info(target, raw.SourcePosition(), coercionProperties(child, coercionPlan)), child, coercionPlan, sqltype.Explicit, false}, nil
+	return plan.CoercionExpr{b.info(target, raw.SourcePosition(), coercionProperties(child, coercionPlan)), child, coercionPlan, sqltype.Explicit, false}, nil
 }
 func sequenceInputError(err error, pos parser.Position, context string, parameter int) error {
 	if d, ok := err.(*sqlstate.Error); ok {

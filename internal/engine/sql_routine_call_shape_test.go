@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -154,7 +155,7 @@ func TestSQLRoutineOriginalArgumentRecipes(t *testing.T) {
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
 	b.query.auth = &auth
 	raw := statement(t, "SELECT 1+2").(*parser.Select).Targets[0]
-	node := &literalExpression{Info: expr.Info{Usage: b.Type(sqltype.Int4).Usage()}}
+	node := &plan.LiteralExpr{Info: expr.Info{Usage: b.Type(sqltype.Int4).Usage()}}
 	b.clause.selectedOperatorArgs = []expr.Expr{node}
 	b.clause.selectedOperatorSyntax = []parser.Expr{raw}
 	b.clause.selectedCallArguments = true

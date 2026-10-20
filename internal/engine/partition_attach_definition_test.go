@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -116,7 +117,7 @@ func TestPartitionAttachProof(t *testing.T) {
 	view := inheritanceUnitView(e, parent, child)
 	ref := e.catalog.Domain.Ref(view.Epoch(), child.Address())
 	ref.Address.SubID = 1
-	key := columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Origin: ref, Scope: 1, Frame: 1, Slot: 0}
+	key := plan.ColumnExpr{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Origin: ref, Scope: 1, Frame: 1, Slot: 0}
 	boolean := testUsage(e, sqltype.Bool)
 	value := func(n int64) sqltype.Value {
 		v, err := sqltype.Integer(usage.Type, n)
@@ -131,13 +132,13 @@ func TestPartitionAttachProof(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return comparisonExpression{Info: expr.Info{Usage: boolean, Property: expr.Properties{RowDependent: true}}, Left: key, Right: literalExpression{Info: expr.Info{Usage: usage}, Value: value(n)}, Predicate: predicate, Operator: operator}
+		return plan.ComparisonExpr{Info: expr.Info{Usage: boolean, Property: expr.Properties{RowDependent: true}}, Left: key, Right: plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: value(n)}, Predicate: predicate, Operator: operator}
 	}
 	and := func(a, b expr.Expr) expr.Expr {
-		return logicalExpression{Info: expr.Info{Usage: boolean}, Left: a, Right: b, Op: parser.LogicalAnd}
+		return plan.LogicalExpr{Info: expr.Info{Usage: boolean}, Left: a, Right: b, Op: parser.LogicalAnd}
 	}
 	or := func(a, b expr.Expr) expr.Expr {
-		return logicalExpression{Info: expr.Info{Usage: boolean}, Left: a, Right: b, Op: parser.LogicalOr}
+		return plan.LogicalExpr{Info: expr.Info{Usage: boolean}, Left: a, Right: b, Op: parser.LogicalOr}
 	}
 	bounds := and(cmp(">=", 1), cmp("<", 3))
 	bound := &catalog.PartitionMembership{Parent: parent.Address(), Lower: []catalog.PartitionDatum{{Value: value(1)}}, Upper: []catalog.PartitionDatum{{Value: value(3)}}}
@@ -156,7 +157,7 @@ func TestPartitionAttachProof(t *testing.T) {
 	child.Constraints.NotNull[0].NotValid = true
 	check(false, false)
 	child.Constraints.NotNull = nil
-	child.Constraints.Check[0].Expression = and(nullTestExpression{Info: expr.Info{Usage: boolean}, Child: key, Not: true}, bounds)
+	child.Constraints.Check[0].Expression = and(plan.NullTestExpr{Info: expr.Info{Usage: boolean}, Child: key, Not: true}, bounds)
 	check(false, true)
 	child.Constraints.Check[0].NotValid = true
 	check(false, false)

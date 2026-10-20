@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -15,11 +16,11 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	text, bigint := b.typ(sqltype.Text), b.typ(sqltype.Int8)
 	var evaluations []int
-	dependent := columnExpression{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}
+	dependent := plan.ColumnExpr{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}
 	independent := mathObservedArgument{Info: expr.Info{Usage: text.Usage()}, value: sqltype.String(text, "x,y"), order: &evaluations, index: 0}
 	call := stringSplitMarker(t, b, 1, dependent, stringSplitLiteral(b, ","), stringSplitLiteral(b, "replacement"))
 	peer := stringSplitMarker(t, b, 2, independent, stringSplitLiteral(b, ","))
-	node := &functionFromNode{Calls: []expr.Expr{call, peer}, Ordinality: true, Frame: 1, QuerySchema: querySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: bigint.Usage()}}}
+	node := &plan.FunctionFromNode{Calls: []expr.Expr{call, peer}, Ordinality: true, Frame: 1, QuerySchema: plan.QuerySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: bigint.Usage()}}}
 	ordinal, err := sqltype.Integer(bigint, 2)
 	if err != nil {
 		t.Fatal(err)
@@ -45,14 +46,14 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 	}
 	// Quals are requalified against that tuple.
 	filteredCall := stringSplitMarker(t, b, 3, dependent, stringSplitLiteral(b, ","))
-	filteredNode := &functionFromNode{Calls: []expr.Expr{filteredCall}, Ordinality: true, Frame: 1, QuerySchema: querySchema{{Usage: text.Usage()}, {Usage: bigint.Usage()}}}
-	field := columnExpression{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}
+	filteredNode := &plan.FunctionFromNode{Calls: []expr.Expr{filteredCall}, Ordinality: true, Frame: 1, QuerySchema: plan.QuerySchema{{Usage: text.Usage()}, {Usage: bigint.Usage()}}}
+	field := plan.ColumnExpr{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1, Slot: 0}
 	raw := statement(t, "SELECT 'x'='b'").(*parser.Select).Targets[0].(parser.OperatorExpr)
 	predicate, err := b.bindComparisonOperands(raw, sqltype.CompareEqual, comparisonOperand{node: field}, comparisonOperand{node: stringSplitLiteral(b, "b")})
 	if err != nil {
 		t.Fatal(err)
 	}
-	filter := &filterNode{QuerySchema: filteredNode.QuerySchema, Child: filteredNode, Predicate: predicate}
+	filter := &plan.FilterNode{QuerySchema: filteredNode.QuerySchema, Child: filteredNode, Predicate: predicate}
 	for _, tc := range []struct {
 		field string
 		match bool
@@ -65,7 +66,7 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 			t.Fatal("requalification", tc.field, got, present, err)
 		}
 	}
-	set := &setProjectNode{Child: &singletonNode{}}
+	set := &plan.SetProjectNode{Child: &plan.SingletonNode{}}
 	if physical := queryTreeOccurrences(set, inputs, nil); len(physical) != 0 {
 		t.Fatal(physical)
 	}
@@ -90,21 +91,21 @@ func TestStringSplitRowMarks(t *testing.T) {
 		}
 	}
 	raw := statement(t, "SELECT string_to_table('a,b',',')").(*parser.Select)
-	function := &functionFromNode{}
+	function := &plan.FunctionFromNode{}
 	for _, tc := range []struct {
 		name   string
-		node   LogicalNode
+		node   plan.Node
 		marked bool
 	}{
-		{"relation", &sourceNode{}, true},
-		{"derived_function", &derivedNode{Query: &BoundQuery{Root: &projectNode{Syntax: raw, Child: function}}}, true},
+		{"relation", &plan.SourceNode{}, true},
+		{"derived_function", &plan.DerivedNode{Query: &plan.Query{Root: &plan.ProjectNode{Syntax: raw, Child: function}}}, true},
 		{"function", function, false},
-		{"source_free", &singletonNode{}, false},
-		{"values", &valuesNode{}, false},
-		{"function_expansion", &setProjectNode{Child: function}, false},
+		{"source_free", &plan.SingletonNode{}, false},
+		{"values", &plan.ValuesNode{}, false},
+		{"function_expansion", &plan.SetProjectNode{Child: function}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			project := &projectNode{Syntax: raw, Child: tc.node, HasTargetSet: true}
+			project := &plan.ProjectNode{Syntax: raw, Child: tc.node, HasTargetSet: true}
 			err := queryRowLockLegality(project, lock.ForUpdate)
 			if tc.marked != (err != nil) || err != nil && !strings.Contains(err.Error(), "set-returning functions in the target list") {
 				t.Fatal(tc.name, err)

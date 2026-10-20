@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -59,7 +60,7 @@ func TestDomainCheckPreflightDemandInternal(t *testing.T) {
 			if err != nil {
 				t.Fatal("preflight consumed CHECK truth", err)
 			}
-			if _, literal := prepared.(literalExpression); literal || !prepared.Properties().RuntimeDomainConversion {
+			if _, literal := prepared.(plan.LiteralExpr); literal || !prepared.Properties().RuntimeDomainConversion {
 				t.Fatal("checked conversion/enclosing node folded away")
 			}
 			_, err = prepared.Eval(&evaluation)
@@ -74,7 +75,7 @@ func TestDomainCheckPreflightDemandInternal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, literal := physical.(literalExpression); !literal || physical.Properties().RuntimeDomainConversion {
+	if _, literal := physical.(plan.LiteralExpr); !literal || physical.Properties().RuntimeDomainConversion {
 		t.Fatal("unconstrained physical conversion lost fast folding")
 	}
 	// The runtime folding barrier is legal in stored expressions. It does not

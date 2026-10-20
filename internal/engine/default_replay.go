@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -44,7 +45,7 @@ func defaultReplayDeferrable(definition catalog.ColumnDefault) bool {
 	}
 	captured := false
 	walkBoundExpression(node, func(child expr.Expr) {
-		literal, ok := child.(literalExpression)
+		literal, ok := child.(plan.LiteralExpr)
 		if ok && literal.RegclassRef != (ids.ObjectRef{}) &&
 			literal.RegclassRef.Address.ClassID == ids.RelationClassID && literal.RegclassRef.Address.SubID == 0 &&
 			literal.ResultUsage().Type.ID() == sqltype.Regclass && !literal.Value.IsNull() &&

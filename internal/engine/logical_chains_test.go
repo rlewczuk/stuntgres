@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -42,7 +43,7 @@ func TestLogicalLongBindingPositions(t *testing.T) {
 		// nested NOT parents instead retain their own earlier operator location.
 		current := node
 		for {
-			logical, ok := current.(logicalExpression)
+			logical, ok := current.(plan.LogicalExpr)
 			if !ok {
 				break
 			}

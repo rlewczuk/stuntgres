@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -143,24 +144,24 @@ func TestDatetimeOverlapsInlineSafetyAndContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A nonconstant second pair makes a constant first addition fail inlining.
-	e.Args[2] = columnExpression{Info: expr.InfoOf(e.Args[2])}
-	e.Args[3] = columnExpression{Info: expr.InfoOf(e.Args[3])}
+	e.Args[2] = plan.ColumnExpr{Info: expr.InfoOf(e.Args[2])}
+	e.Args[3] = plan.ColumnExpr{Info: expr.InfoOf(e.Args[3])}
 	_, _, err = simplifyOverlapsRoute(c, e)
 	if !errors.As(err, &d) || d.Context != `SQL function "overlaps" during inlining` {
 		t.Fatal(err)
 	}
-	start := columnExpression{Info: expr.InfoOf(e.Args[0])}
+	start := plan.ColumnExpr{Info: expr.InfoOf(e.Args[0])}
 	e.Args[0] = start
 	if !overlapsInlineSafe(e) {
 		t.Fatal("cheap variable cannot inline")
 	}
 	for i := range 11 {
-		e.Args[0] = arithmeticExpression{Info: expr.InfoOf(start), Left: e.Args[0], Right: literalExpression{Info: expr.InfoOf(e.Args[1])}}
+		e.Args[0] = plan.ArithmeticExpr{Info: expr.InfoOf(start), Left: e.Args[0], Right: plan.LiteralExpr{Info: expr.InfoOf(e.Args[1])}}
 		if overlapsInlineSafe(e) != (i < 10) {
 			t.Fatal("function-cost threshold", i)
 		}
 	}
-	e.Args[0] = subqueryExpression{Info: expr.InfoOf(start)}
+	e.Args[0] = plan.SubqueryExpr{Info: expr.InfoOf(start)}
 	if overlapsInlineSafe(e) {
 		t.Fatal("duplicated subquery inlined")
 	}
@@ -218,7 +219,7 @@ func TestDatetimeOverlapsFoldedBodyAndExecuteOwnedParameters(t *testing.T) {
 		}
 	}
 	// Current imported values are constant candidates, not retained literal cache entries.
-	p := parameterExpression{Info: expr.Info{Usage: b.typ(sqltype.Timestamp).Usage(), Property: expr.Properties{ParameterDependent: true}}, Number: 1}
+	p := plan.ParameterExpr{Info: expr.Info{Usage: b.typ(sqltype.Timestamp).Usage(), Property: expr.Properties{ParameterDependent: true}}, Number: 1}
 	if !overlapsExecutionConstant(p, c) || overlapsExecutionConstant(p, &EvalContext{evalStatement: evalStatement{Context: ctx}}) {
 		t.Fatal("parameter availability classification")
 	}
@@ -236,7 +237,7 @@ func TestDatetimeOverlapsRetainedCachedEndpointRemap(t *testing.T) {
 	stored.Property = expr.Properties{RowDependent: true}
 	for i := range 2 {
 		origin := ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 9000, SubID: int32(i + 1)}}
-		stored.Args[i+2] = columnExpression{Info: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Scope: 1, Frame: 1, Slot: i, Origin: origin}
+		stored.Args[i+2] = plan.ColumnExpr{Info: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Scope: 1, Frame: 1, Slot: i, Origin: origin}
 	}
 	folded, changed, err := simplifyOverlapsRoute(&EvalContext{evalStatement: evalStatement{Context: ctx}}, stored)
 	if err != nil || !changed || folded.Folded[0].Type() != b.typ(sqltype.Timestamp) || folded.Folded[1].Type() != nil {
@@ -260,11 +261,11 @@ func TestDatetimeOverlapsRetainedCachedEndpointRemap(t *testing.T) {
 	}
 	next := mapped.(functions.DatetimeOverlaps)
 	for i := range 2 {
-		column := next.Args[i+2].(columnExpression)
+		column := next.Args[i+2].(plan.ColumnExpr)
 		if column.Slot != 1-i || column.Origin.Address.ObjectID != 9100 || column.ResultUsage().Type != replacements[sqltype.Timestamp] {
 			t.Fatal("retained column remap", column)
 		}
-		if retained.Args[i+2].(columnExpression).Slot != i {
+		if retained.Args[i+2].(plan.ColumnExpr).Slot != i {
 			t.Fatal("source stored tree mutated")
 		}
 	}
@@ -309,9 +310,9 @@ func TestDatetimeOverlapsTypedNullFoldedEndpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 	e := node.(functions.DatetimeOverlaps)
-	e.Args[1] = literalExpression{Info: expr.InfoOf(e.Args[1]), Value: sqltype.Null(b.typ(sqltype.Interval))}
-	e.Args[2] = columnExpression{Info: expr.InfoOf(e.Args[2])}
-	e.Args[3] = columnExpression{Info: expr.InfoOf(e.Args[3])}
+	e.Args[1] = plan.LiteralExpr{Info: expr.InfoOf(e.Args[1]), Value: sqltype.Null(b.typ(sqltype.Interval))}
+	e.Args[2] = plan.ColumnExpr{Info: expr.InfoOf(e.Args[2])}
+	e.Args[3] = plan.ColumnExpr{Info: expr.InfoOf(e.Args[3])}
 	folded, changed, err := simplifyOverlapsRoute(&EvalContext{evalStatement: evalStatement{Context: ctx}}, e)
 	if err != nil || !changed || folded.Folded[0].Type() != b.typ(sqltype.Timestamp) || !folded.Folded[0].IsNull() {
 		t.Fatal("typed NULL is a valid cached endpoint", folded, changed, err)
@@ -360,8 +361,8 @@ func TestDatetimeOverlapsNullIfCostBoundary(t *testing.T) {
 	e := node.(functions.DatetimeOverlaps)
 	e.Property = expr.Properties{RowDependent: true}
 	info := b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{RowDependent: true})
-	var start expr.Expr = columnExpression{Info: info, Scope: 1, Frame: 1, Slot: 0}
-	sentinel := columnExpression{Info: info, Scope: 1, Frame: 1, Slot: 1}
+	var start expr.Expr = plan.ColumnExpr{Info: info, Scope: 1, Frame: 1, Slot: 0}
+	sentinel := plan.ColumnExpr{Info: info, Scope: 1, Frame: 1, Slot: 1}
 	e.Args[2], e.Args[3] = sentinel, sentinel
 	comparison, err := sqltype.BindComparison(b.typ(sqltype.Timestamp), b.typ(sqltype.Timestamp), sqltype.CollationRef{}, false)
 	if err != nil {
@@ -377,7 +378,7 @@ func TestDatetimeOverlapsNullIfCostBoundary(t *testing.T) {
 	}
 	c := &EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{high, low}}}
 	for count := 1; count <= 11; count++ {
-		start = conditionalExpression{Info: info, Kind: parser.NullIf, Args: []expr.Expr{start, sentinel}, Comparison: comparison}
+		start = plan.ConditionalExpr{Info: info, Kind: parser.NullIf, Args: []expr.Expr{start, sentinel}, Comparison: comparison}
 		e.Args[0] = start
 		if cost := overlapsTreeCost(start); cost != count || overlapsInlineSafe(e) != (count <= 10) {
 			t.Fatal("NULLIF operator cost", count, cost)
@@ -399,7 +400,7 @@ func TestDatetimeOverlapsNullIfCostBoundary(t *testing.T) {
 			t.Fatal("NULLIF boundary evaluation", count, err)
 		}
 	}
-	if overlapsNodeCost(conditionalExpression{Info: info, Kind: parser.Coalesce, Args: []expr.Expr{sentinel, sentinel}}) != 0 || overlapsNodeCost(caseExpression{}) != 0 {
+	if overlapsNodeCost(plan.ConditionalExpr{Info: info, Kind: parser.Coalesce, Args: []expr.Expr{sentinel, sentinel}}) != 0 || overlapsNodeCost(plan.CaseExpr{}) != 0 {
 		t.Fatal("zero-overhead control cost changed")
 	}
 }

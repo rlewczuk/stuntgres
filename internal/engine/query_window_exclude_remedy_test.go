@@ -6,9 +6,10 @@ import (
 	"strconv"
 	"testing"
 
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
-	"stuntgres/internal/engine/expr"
 )
 
 // Instrument argument occurrences, not providers or the executor. Evaluating the
@@ -49,8 +50,8 @@ func TestQueryWindowExcludeTransitionLifecycle(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT sum(v) OVER(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM t")
 			defer source.close()
-			project := query.Root.(*projectNode)
-			node := project.Child.(*windowNode)
+			project := query.Root.(*plan.ProjectNode)
+			node := project.Child.(*plan.WindowNode)
 			state := &queryState{source: source, frame: project.Frame}
 			child, err := openQueryNode(context.Background(), state, node.Child)
 			if err != nil {
@@ -60,7 +61,7 @@ func TestQueryWindowExcludeTransitionLifecycle(t *testing.T) {
 			if err := child.drain(context.Background()); err != nil {
 				t.Fatal(err)
 			}
-			calls := append([]windowCall(nil), node.Calls...)
+			calls := append([]plan.WindowCall(nil), node.Calls...)
 			var sequence int64
 			visits := []int{}
 			calls[0].Argument = windowSumArgumentProbe{calls[0].Argument, &sequence, &visits, 0}
@@ -115,8 +116,8 @@ func TestQueryWindowExcludeTransitionLifecycle(t *testing.T) {
 func TestQueryWindowExcludeMemberMajorTypedStates(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT sum(v) OVER w,sum(v::bigint) OVER w FROM t WINDOW w AS(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE TIES)")
 	defer source.close()
-	project := query.Root.(*projectNode)
-	node := project.Child.(*windowNode)
+	project := query.Root.(*plan.ProjectNode)
+	node := project.Child.(*plan.WindowNode)
 	state := &queryState{source: source, frame: project.Frame}
 	child, err := openQueryNode(context.Background(), state, node.Child)
 	if err != nil {
@@ -126,7 +127,7 @@ func TestQueryWindowExcludeMemberMajorTypedStates(t *testing.T) {
 	if err := child.drain(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	calls := append([]windowCall(nil), node.Calls...)
+	calls := append([]plan.WindowCall(nil), node.Calls...)
 	var sequence int64
 	visits := []int{}
 	for i := range calls {

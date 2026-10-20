@@ -94,5 +94,5 @@ func (b *expressionBinder) bindUnnest(raw parser.FunctionExpr) (expr.Expr, error
 	if err != nil {
 		return nil, err
 	}
-	return unnestExpression{Info: info, Args: []expr.Expr{arg}}, nil
+	return plan.UnnestExpr{Info: info, Args: []expr.Expr{arg}}, nil
 }

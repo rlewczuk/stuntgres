@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"testing"
 
 	"stuntgres/internal/engine/ids"
@@ -36,10 +37,10 @@ func TestArrayAggregateViewRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		root := &aggregateNode{
-			QuerySchema: querySchema{{Name: "array_agg", Usage: p.ResultUsage(), Nullable: true, NullabilityKnown: true}},
-			Child:       &valuesNode{},
-			Calls:       []aggregateCall{{Provider: p, IncludeNulls: true}},
+		root := &plan.AggregateNode{
+			QuerySchema: plan.QuerySchema{{Name: "array_agg", Usage: p.ResultUsage(), Nullable: true, NullabilityKnown: true}},
+			Child:       &plan.ValuesNode{},
+			Calls:       []plan.AggregateCall{{Provider: p, IncludeNulls: true}},
 		}
 		mapped, err := remapViewQuery(e.catalog.read(e.catalog.state), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			if old == p.ResultUsage().Type {
@@ -53,7 +54,7 @@ func TestArrayAggregateViewRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		call := mapped.(*aggregateNode).Calls[0]
+		call := mapped.(*plan.AggregateNode).Calls[0]
 		provider := call.Provider.(*functions.ArrayAggregateProvider)
 		argument := &element
 		if arrays {
@@ -126,10 +127,10 @@ func TestArrayAggregateCollationViewRemap(t *testing.T) {
 		sourceUsage := sourceArray.Usage()
 		sourceUsage.Collation = sourceCapability
 		p := functions.NewArrayAggregateProvider(argument, sourceUsage, arrays)
-		root := &aggregateNode{
-			QuerySchema: querySchema{{Name: "array_agg", Usage: sourceUsage, Nullable: true, NullabilityKnown: true}},
-			Child:       &valuesNode{},
-			Calls:       []aggregateCall{{Provider: p, IncludeNulls: true}},
+		root := &plan.AggregateNode{
+			QuerySchema: plan.QuerySchema{{Name: "array_agg", Usage: sourceUsage, Nullable: true, NullabilityKnown: true}},
+			Child:       &plan.ValuesNode{},
+			Calls:       []plan.AggregateCall{{Provider: p, IncludeNulls: true}},
 		}
 		mapped, err := remapViewQuery(destinationView, root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			if old == sourceElement {
@@ -148,7 +149,7 @@ func TestArrayAggregateCollationViewRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		call := mapped.(*aggregateNode).Calls[0]
+		call := mapped.(*plan.AggregateNode).Calls[0]
 		provider := call.Provider.(*functions.ArrayAggregateProvider)
 		want := destinationArray.Usage()
 		want.Collation = destinationCapability

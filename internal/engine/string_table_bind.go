@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -107,7 +108,7 @@ func stringLateralError(q queryQualifier, pos parser.Position, target bool) erro
 	}
 	return err
 }
-func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNode, queryNamespace, error) {
+func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (plan.Node, queryNamespace, error) {
 	old, clause := b.query.namespace, b.clause.aggregateClause
 	if b.query.namespace == nil {
 		b.query.namespace = &queryNamespace{}
@@ -115,7 +116,7 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNo
 	b.clause.aggregateClause = "FROM"
 	defer func() { b.query.namespace, b.clause.aggregateClause = old, clause }()
 	calls := make([]expr.Expr, len(raw.Calls))
-	schema := make(querySchema, len(calls))
+	schema := make(plan.QuerySchema, len(calls))
 	ordinal := b.stored.functionCount
 	b.stored.functionCount += len(raw.Calls)
 	for i, call := range raw.Calls {
@@ -151,17 +152,17 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNo
 	qualifier := queryQualifier{name: name, original: name, columns: columns, scalarAlias: len(calls) == 1 && !raw.Ordinality}
 	b.query.hidden = append(b.query.hidden, qualifier)
 	captures := b.functionCaptures(calls)
-	node := &functionFromNode{QuerySchema: schema, Calls: calls, Ordinality: raw.Ordinality, Correlated: len(captures) != 0, Frame: b.frameID(), ViewOrdinal: ordinal, Captures: captures}
+	node := &plan.FunctionFromNode{QuerySchema: schema, Calls: calls, Ordinality: raw.Ordinality, Correlated: len(captures) != 0, Frame: b.frameID(), ViewOrdinal: ordinal, Captures: captures}
 	return node, queryNamespace{columns: columns, qualifiers: []queryQualifier{qualifier}, frame: schema}, nil
 }
 
 // Only local expressions are rewritten; expression-owned queries retain their
 // own stage/frame ownership through the existing mapper.
 func (b *expressionBinder) mapQuerySetStage(bound expr.Expr, leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, error) {
-	mapped, _, err := mapBoundExpressionReader(b.bindingCatalog(), nil, bound, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, func(n LogicalNode) (LogicalNode, error) { return n, nil }, nil, true, func(e expr.Expr) (expr.Expr, bool, error) {
+	mapped, _, err := mapBoundExpressionReader(b.bindingCatalog(), nil, bound, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, func(n plan.Node) (plan.Node, error) { return n, nil }, nil, true, func(e expr.Expr) (expr.Expr, bool, error) {
 		// Window slots are assigned through shared binder-owned pointers. A
 		// local SRF rewrite must not clone them before their final slot shift.
-		if _, ok := e.(*windowExpression); ok {
+		if _, ok := e.(*plan.WindowExpr); ok {
 			return e, true, nil
 		}
 		return leaf(e)
@@ -172,7 +173,7 @@ func (b *expressionBinder) mapQuerySetStage(bound expr.Expr, leaf func(expr.Expr
 func functionFrameReference(bound expr.Expr, frame uint32) bool {
 	found := false
 	walkQueryArgumentExpression(bound, func(node expr.Expr) {
-		if column, ok := node.(columnExpression); ok && column.Frame == frame {
+		if column, ok := node.(plan.ColumnExpr); ok && column.Frame == frame {
 			found = true
 		}
 	})
@@ -201,12 +202,12 @@ func (b *expressionBinder) stringFromContext() bool {
 	return false
 }
 
-func (b *expressionBinder) functionCaptures(calls []expr.Expr) []functionCorrelation {
-	var captures []functionCorrelation
+func (b *expressionBinder) functionCaptures(calls []expr.Expr) []plan.FunctionCorrelation {
+	var captures []plan.FunctionCorrelation
 	for _, call := range calls {
 		for _, arg := range call.(expr.Composite).Children() {
 			walkQueryArgumentExpression(arg, func(expr expr.Expr) {
-				column, ok := expr.(columnExpression)
+				column, ok := expr.(plan.ColumnExpr)
 				if !ok || column.Frame != b.frameID() {
 					return
 				}
@@ -222,7 +223,7 @@ func (b *expressionBinder) functionCaptures(calls []expr.Expr) []functionCorrela
 						break
 					}
 				}
-				captures = append(captures, functionCorrelation{Frame: column.Frame, Slot: column.Slot, Name: name, Pos: column.Pos})
+				captures = append(captures, plan.FunctionCorrelation{Frame: column.Frame, Slot: column.Slot, Name: name, Pos: column.Pos})
 			})
 		}
 	}

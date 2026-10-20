@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -254,7 +255,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 		expectedGraft.Info.RoutineRecipeReference = recipe
 		expectedGraft.Args = append([]expr.Expr(nil), call.Args...)
 		for i, arg := range expectedGraft.Args {
-			literal, ok := arg.(literalExpression)
+			literal, ok := arg.(plan.LiteralExpr)
 			if !ok {
 				t.Fatal("fixture JSON argument is not the original literal", arg)
 			}

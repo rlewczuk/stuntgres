@@ -5,6 +5,7 @@ import (
 	"iter"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -116,7 +117,7 @@ func TestSQLRoutineStagedLookup(t *testing.T) {
 	if err != nil || !handled {
 		t.Fatal("staged SQL addition did not bind", handled, err)
 	}
-	if call, ok := node.(sqlRoutineExpression); !ok || call.Procedure != added {
+	if call, ok := node.(plan.SQLRoutineExpr); !ok || call.Procedure != added {
 		t.Fatal("selected wrong staged provider")
 	}
 	prepared := &preparedDrop{base: base, discovery: base, input: reader}

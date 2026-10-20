@@ -46,12 +46,12 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 	if b.parameters.Count != 2 || b.parameters.Types[0].Type.ID() != sqltype.Text || b.parameters.Types[1].Type.ID() != sqltype.Int4 || b.parameters.Types[1].Typmod != -1 {
 		t.Fatal(b.parameters)
 	}
-	project := b.query.Root.(*projectNode)
-	filter := project.Child.(*sortNode).Child.(*filterNode)
+	project := b.query.Root.(*plan.ProjectNode)
+	filter := project.Child.(*plan.SortNode).Child.(*plan.FilterNode)
 	if len(project.Expressions) != 3 || project.Expressions[0].ResultUsage().Type.ID() != sqltype.Text || project.Expressions[2].ResultUsage().Type.ID() != sqltype.Text {
 		t.Fatal(project.Schema())
 	}
-	column := project.Expressions[1].(columnExpression)
+	column := project.Expressions[1].(plan.ColumnExpr)
 	if column.Origin.Domain() != e.catalog.Domain || column.Origin.Address.SubID != 2 || column.Slot != 1 || column.Scope == 0 || column.Frame == 0 || column.SourcePosition().Character != 11 {
 		t.Fatal(column)
 	}
@@ -71,7 +71,7 @@ func TestExpressionBindingsAndTypedTruth(t *testing.T) {
 	typ, _ := e.CatalogRead().LookupType(sqltype.Bool)
 	for _, tc := range []struct {
 		v    sqltype.Value
-		want Truth
+		want plan.Truth
 	}{{sqltype.Boolean(typ, true), plan.True}, {sqltype.Boolean(typ, false), plan.False}, {sqltype.Null(typ), plan.Unknown}} {
 		got, err := plan.TruthOf(tc.v)
 		if err != nil || got != tc.want {
@@ -229,9 +229,9 @@ func TestExpressionActualColumnAuthorization(t *testing.T) {
 func TestExpressionInvalidValuesRemainInvariantErrors(t *testing.T) {
 	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{{}}}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{{}}}}
 	for _, expression := range []expr.Expr{
-		literalExpression{},
-		columnExpression{Scope: 1, Frame: 1, Slot: 0},
-		parameterExpression{Number: 1},
+		plan.LiteralExpr{},
+		plan.ColumnExpr{Scope: 1, Frame: 1, Slot: 0},
+		plan.ParameterExpr{Number: 1},
 	} {
 		value, err := expression.Eval(ctx)
 		if err == nil || value.Type() != nil {

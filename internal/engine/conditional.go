@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -95,7 +96,7 @@ func (b *expressionBinder) coerceConditional(o comparisonOperand, target sqltype
 	if node.ResultUsage().Type == target.Type {
 		return node, nil
 	}
-	if row, ok := node.(rowExpression); ok && row.Usage.Type.ID() == 2249 && target.Type.BaseType().IsComposite() {
+	if row, ok := node.(plan.RowExpr); ok && row.Usage.Type.ID() == 2249 && target.Type.BaseType().IsComposite() {
 		return b.assignCompositeMember(row, target.Type.Usage(), sqltype.Implicit, commonOperandStart(o))
 	}
 	input, annotations := domainCoercionInput(node, target.Type.Usage())
@@ -108,7 +109,7 @@ func (b *expressionBinder) coerceConditional(o comparisonOperand, target sqltype
 		return nil, expr.ErrorAt("42846", fmt.Sprintf("%s could not convert type %s to %s", label, b.diagnosticTypeName(node.ResultUsage().Type), b.diagnosticTypeName(target.Type)), commonOperandStart(o))
 	}
 	info.Property = coercionProperties(input, coercionPlan)
-	return restoreDomainCastCollations(annotations, coercionExpression{info, input, coercionPlan, sqltype.Implicit, false}), nil
+	return restoreDomainCastCollations(annotations, plan.CoercionExpr{info, input, coercionPlan, sqltype.Implicit, false}), nil
 }
 func (b *expressionBinder) conditionalEquality(left, right comparisonOperand, pos parser.Position) (expr.Expr, expr.Expr, sqltype.Comparison, *catalog.Procedure, error) {
 	raw := parser.OperatorExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "="}}}, Pos: pos}
@@ -222,7 +223,7 @@ func (b *expressionBinder) bindConditional(raw parser.ConditionalExpr) (expr.Exp
 			return nil, err
 		}
 	}
-	return conditionalExpression{info, raw.Kind, missingOrdering, args, comparison}, nil
+	return plan.ConditionalExpr{info, raw.Kind, missingOrdering, args, comparison}, nil
 }
 
 // CASE compares the once-saved test datum through an implicit CaseTestExpr.
@@ -251,7 +252,7 @@ func (b *expressionBinder) bindCase(raw parser.CaseExpr) (expr.Expr, error) {
 			return nil, err
 		}
 	}
-	arms := make([]caseBranch, len(raw.Arms))
+	arms := make([]plan.CaseBranch, len(raw.Arms))
 	outputs := make([]comparisonOperand, len(arms)+1)
 	for i, arm := range raw.Arms {
 		if test == nil {
@@ -320,7 +321,7 @@ func (b *expressionBinder) bindCase(raw parser.CaseExpr) (expr.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	return caseExpression{info, test, arms, otherwiseNode}, nil
+	return plan.CaseExpr{info, test, arms, otherwiseNode}, nil
 }
 func conditionalName(raw parser.ConditionalExpr) string { return strings.ToLower(raw.Kind.String()) }
 

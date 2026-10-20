@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -25,7 +26,7 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, err
 	}
 	b.query.subqueryDemand = true
 	var left []comparisonOperand
-	var leftExpansions map[int]compositeExpansionBinding
+	var leftExpansions map[int]plan.CompositeExpansionBinding
 	var leftConstructor expr.Expr
 	var erasedLeftType sqltype.ID
 	if raw.Left != nil {
@@ -35,7 +36,7 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, err
 		} else {
 			var operand comparisonOperand
 			operand, err = b.comparisonOperand(raw.Left)
-			if constructor, ok := operand.node.(rowExpression); ok && constructor.Raw != nil && !constructor.Usage.Type.IsDomain() {
+			if constructor, ok := operand.node.(plan.RowExpr); ok && constructor.Raw != nil && !constructor.Usage.Type.IsDomain() {
 				// A cast to a named composite can still analyze to a ROW
 				// constructor. Quantified subqueries compare its fields;
 				// a domain coercion or scalar subquery remains one value.
@@ -63,7 +64,7 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, err
 	if err != nil {
 		return nil, err
 	}
-	project := query.Root.(*projectNode)
+	project := query.Root.(*plan.ProjectNode)
 	width := len(project.Schema())
 	usage := b.typ(sqltype.Bool).Usage()
 	if raw.Kind == parser.SubqueryScalar {
@@ -88,11 +89,11 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, err
 		if err != nil {
 			return nil, err
 		}
-		project = query.Root.(*projectNode)
+		project = query.Root.(*plan.ProjectNode)
 	}
 	properties := queryDemandProperties(project, presenceOnly)
 	properties.StageDependent = true
-	e := subqueryExpression{Info: b.info(usage, raw.Pos, properties), Kind: raw.Kind, QueryPlan: query, Negate: raw.Negate, PresenceOnly: presenceOnly}
+	e := plan.SubqueryExpr{Info: b.info(usage, raw.Pos, properties), Kind: raw.Kind, QueryPlan: query, Negate: raw.Negate, PresenceOnly: presenceOnly}
 	e.LeftExpansions = leftExpansions
 	e.LeftConstructor, e.ErasedLeftType = leftConstructor, erasedLeftType
 	if raw.Kind == parser.SubqueryScalar || raw.Kind == parser.SubqueryExists {
@@ -115,17 +116,17 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, err
 	default:
 		return nil, fmt.Errorf("stuntgres: invalid subquery comparison operator")
 	}
-	e.Comparisons = make([]comparisonExpression, width)
+	e.Comparisons = make([]plan.ComparisonExpr, width)
 	if width > 1 && operator > sqltype.CompareNotEqual {
 		e.Ordering = make([]sqltype.Comparison, width)
 	}
 	for i, column := range project.Schema() {
-		right := columnExpression{Info: b.info(column.Usage, raw.Pos, expr.Properties{RowDependent: true}), Scope: 1, Frame: project.Frame, Slot: i}
+		right := plan.ColumnExpr{Info: b.info(column.Usage, raw.Pos, expr.Properties{RowDependent: true}), Scope: 1, Frame: project.Frame, Slot: i}
 		bound, err := b.bindComparisonOperands(parser.OperatorExpr{Name: raw.Operator, Pos: raw.Pos}, operator, left[i], comparisonOperand{node: right})
 		if err != nil {
 			return nil, err
 		}
-		e.Comparisons[i] = bound.(comparisonExpression)
+		e.Comparisons[i] = bound.(plan.ComparisonExpr)
 		e.Property = expr.MergeProperties(e.Property, e.Comparisons[i].Left.Properties())
 		if len(e.Ordering) != 0 {
 			ref, conflict := e.Comparisons[i].Predicate.InputCollation()
@@ -152,7 +153,7 @@ func (b *expressionBinder) bindSubquery(raw parser.SubqueryExpr) (expr.Expr, err
 	return e, nil
 }
 
-func (c *EvalContext) EvalSubquery(e subqueryExpression) (value sqltype.Value, err error) {
+func (c *EvalContext) EvalSubquery(e plan.SubqueryExpr) (value sqltype.Value, err error) {
 	if err = evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -177,7 +178,7 @@ func (c *EvalContext) EvalSubquery(e subqueryExpression) (value sqltype.Value, e
 		}
 	}
 	state := queryState{source: c.query.source, parameters: c.Parameters, input: c.Input, output: c.Output, locking: c.query.locking, outer: c, ctes: c.query.ctes, hashOwner: c.query.membershipOwner()}
-	stage, err := openQueryProjectStage(c.Context, &state, e.QueryPlan.Root.(*projectNode))
+	stage, err := openQueryProjectStage(c.Context, &state, e.QueryPlan.Root.(*plan.ProjectNode))
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -281,42 +282,42 @@ func (c *EvalContext) EvalSubquery(e subqueryExpression) (value sqltype.Value, e
 // aggregate, HAVING or rowmark retains ordinary tuple projection.
 // Only a proven positive/NULL literal LIMIT is removable; parameters are not
 // evaluated during binding. Retain all other plans conservatively.
-func canSimplifyExists(query *BoundQuery) bool {
-	project := query.Root.(*projectNode)
+func canSimplifyExists(query *plan.Query) bool {
+	project := query.Root.(*plan.ProjectNode)
 	s := project.Syntax
 	if s != nil && (s.Having != nil || s.Locking != nil || s.Bounds != nil && s.Bounds.Offset != nil) {
 		return false
 	}
 	for node := project.Child; node != nil; {
 		switch n := node.(type) {
-		case *setProjectNode:
+		case *plan.SetProjectNode:
 			return false // Target sets, including terminal attempts, own cardinality.
-		case *setNode, *recursiveUnionNode:
+		case *plan.SetNode, *plan.RecursiveUnionNode:
 			return false // Set keys determine presence, not just projected payload.
-		case *sourceNode, *singletonNode, *valuesNode, *derivedNode, *worktableScanNode, *joinNode, *functionFromNode:
+		case *plan.SourceNode, *plan.SingletonNode, *plan.ValuesNode, *plan.DerivedNode, *plan.WorktableScanNode, *plan.JoinNode, *plan.FunctionFromNode:
 			return true // FROM inputs retain their own demand and clause fences.
-		case *windowNode:
+		case *plan.WindowNode:
 			return false // Keep real window-key demand and eager failure frontiers.
-		case *aggregateNode:
+		case *plan.AggregateNode:
 			if !n.DiscardableGrouping() {
 				return false
 			}
-		case *rowLockNode:
+		case *plan.RowLockNode:
 			return false
-		case *limitNode:
+		case *plan.LimitNode:
 			if n.Offset != nil {
 				return false
 			}
 			if n.Count != nil {
 				expr := n.Count
 				for {
-					c, ok := expr.(coercionExpression)
+					c, ok := expr.(plan.CoercionExpr)
 					if !ok {
 						break
 					}
 					expr = c.Child
 				}
-				literal, ok := expr.(literalExpression)
+				literal, ok := expr.(plan.LiteralExpr)
 				if !ok {
 					return false
 				}
@@ -339,11 +340,11 @@ func canSimplifyExists(query *BoundQuery) bool {
 
 // Presence demands keep the fully analyzed graphs while dropping root target,
 // plain grouping, DISTINCT and ORDER demand for eligible EXISTS only.
-func presenceQueryPlan(query *BoundQuery) (*BoundQuery, error) {
-	project := query.Root.(*projectNode)
+func presenceQueryPlan(query *plan.Query) (*plan.Query, error) {
+	project := query.Root.(*plan.ProjectNode)
 	expressions := project.Expressions
 	for i, bound := range project.Expressions {
-		cached, ok := bound.(cachedOrderExpression)
+		cached, ok := bound.(plan.CachedOrderExpr)
 		if !ok {
 			continue
 		}
@@ -367,14 +368,14 @@ func presenceQueryPlan(query *BoundQuery) (*BoundQuery, error) {
 	return &plan, nil
 }
 
-func scheduledQueryTarget(node LogicalNode, slot int) expr.Expr {
+func scheduledQueryTarget(node plan.Node, slot int) expr.Expr {
 	for node != nil {
 		switch n := node.(type) {
-		case *evaluationNode:
+		case *plan.EvaluationNode:
 			if slot >= n.Base && slot-n.Base < len(n.Expressions) {
 				return n.Expressions[slot-n.Base]
 			}
-		case *sortNode:
+		case *plan.SortNode:
 			base := n.CacheWidth - len(n.Outputs)
 			if slot >= base && slot-base < len(n.Outputs) {
 				return n.Outputs[slot-base]
@@ -386,25 +387,25 @@ func scheduledQueryTarget(node LogicalNode, slot int) expr.Expr {
 			}
 		}
 		switch n := node.(type) {
-		case *evaluationNode:
+		case *plan.EvaluationNode:
 			node = n.Child
-		case *sortNode:
+		case *plan.SortNode:
 			node = n.Child
-		case *filterNode:
+		case *plan.FilterNode:
 			node = n.Child
-		case *aggregateNode:
+		case *plan.AggregateNode:
 			node = n.Child
-		case *windowNode:
+		case *plan.WindowNode:
 			node = n.Child
-		case *setProjectNode:
+		case *plan.SetProjectNode:
 			node = n.Child
-		case *distinctNode:
+		case *plan.DistinctNode:
 			node = n.Child
-		case *distinctOnNode:
+		case *plan.DistinctOnNode:
 			node = n.Child
-		case *rowLockNode:
+		case *plan.RowLockNode:
 			node = n.Child
-		case *limitNode:
+		case *plan.LimitNode:
 			node = n.Child
 		default:
 			return nil
@@ -413,26 +414,26 @@ func scheduledQueryTarget(node LogicalNode, slot int) expr.Expr {
 	return nil
 }
 
-func presenceQueryInput(node LogicalNode) LogicalNode {
+func presenceQueryInput(node plan.Node) plan.Node {
 	switch n := node.(type) {
-	case *evaluationNode:
+	case *plan.EvaluationNode:
 		return presenceQueryInput(n.Child)
-	case *sortNode:
+	case *plan.SortNode:
 		copy := *n
 		copy.Child = presenceQueryInput(n.Child)
 		copy.PresenceOnly = true
 		return &copy
-	case *distinctNode:
+	case *plan.DistinctNode:
 		copy := *n
 		copy.Child = presenceQueryInput(n.Child)
 		copy.PresenceOnly = true
 		return &copy
-	case *distinctOnNode:
+	case *plan.DistinctOnNode:
 		copy := *n
 		copy.Child = presenceQueryInput(n.Child)
 		copy.PresenceOnly = true
 		return &copy
-	case *filterNode:
+	case *plan.FilterNode:
 		child := presenceQueryInput(n.Child)
 		if child == n.Child {
 			return node
@@ -440,7 +441,7 @@ func presenceQueryInput(node LogicalNode) LogicalNode {
 		copy := *n
 		copy.Child = child
 		return &copy
-	case *aggregateNode:
+	case *plan.AggregateNode:
 		if n.DiscardableGrouping() {
 			copy := *n
 			copy.Child = presenceQueryInput(n.Child)
@@ -454,7 +455,7 @@ func presenceQueryInput(node LogicalNode) LogicalNode {
 		copy := *n
 		copy.Child = child
 		return &copy
-	case *rowLockNode:
+	case *plan.RowLockNode:
 		child := presenceQueryInput(n.Child)
 		if child == n.Child {
 			return node
@@ -462,7 +463,7 @@ func presenceQueryInput(node LogicalNode) LogicalNode {
 		copy := *n
 		copy.Child = child
 		return &copy
-	case *limitNode:
+	case *plan.LimitNode:
 		copy := *n
 		copy.Child = presenceQueryInput(n.Child)
 		copy.PresenceOnly = true
@@ -475,7 +476,7 @@ func presenceQueryInput(node LogicalNode) LogicalNode {
 // A captured source distinguishes aliases of the same frozen plan. Both remain
 // stable across unrelated parent rescans, within one actual execution owner.
 type subqueryMembershipKey struct {
-	plan   *BoundQuery
+	plan   *plan.Query
 	source *querySource
 }
 
@@ -487,9 +488,9 @@ type subqueryMembership struct {
 	full     bool
 }
 
-func (c *EvalContext) subqueryMembership(e subqueryExpression) (membership *subqueryMembership, err error) {
+func (c *EvalContext) subqueryMembership(e plan.SubqueryExpr) (membership *subqueryMembership, err error) {
 	state := queryState{source: c.query.source, parameters: c.Parameters, input: c.Input, output: c.Output, locking: c.query.locking, outer: c, ctes: c.query.ctes, hashOwner: c.query.membershipOwner()}
-	stage, err := openQueryProjectStage(c.Context, &state, e.QueryPlan.Root.(*projectNode))
+	stage, err := openQueryProjectStage(c.Context, &state, e.QueryPlan.Root.(*plan.ProjectNode))
 	if err != nil {
 		return nil, err
 	}
@@ -562,7 +563,7 @@ func (c *EvalContext) subqueryMembership(e subqueryExpression) (membership *subq
 	}
 }
 
-func (c *EvalContext) subqueryHashMembership(e subqueryExpression) (sqltype.Value, error) {
+func (c *EvalContext) subqueryHashMembership(e plan.SubqueryExpr) (sqltype.Value, error) {
 	owner := c.query.membershipOwner()
 	key := subqueryMembershipKey{e.QueryPlan, c.query.source}
 	membership := owner.memberships[key]

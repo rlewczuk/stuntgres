@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -24,7 +25,7 @@ func TestIdentifierExtremaInitialization(t *testing.T) {
 			if err != nil {
 				t.Fatal("describable extrema rejected at analysis", err)
 			}
-			node := bound.(conditionalExpression)
+			node := bound.(plan.ConditionalExpr)
 			if !node.MissingOrdering || node.Comparison != (sqltype.Comparison{}) {
 				t.Fatal("missing ordering acquired executable comparator", node)
 			}
@@ -68,7 +69,7 @@ func TestIdentifierPublicDeparseLeaves(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: value}
+		node := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: value}
 		for _, pretty := range []bool{false, true} {
 			renderer := pgRenderer{view: view, pretty: pretty}
 			got, err := renderer.literal(ctx, node)

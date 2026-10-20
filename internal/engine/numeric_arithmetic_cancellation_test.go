@@ -5,13 +5,14 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
 
 func TestExpressionNumericArithmeticCancellationBeforePublication(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT 0.1+0.2 FROM t WHERE id=1")
-	project := query.Root.(*projectNode)
+	project := query.Root.(*plan.ProjectNode)
 	real := project.Expressions[0]
 	schema := project.Schema()[0]
 	if schema.Name != "?column?" || schema.Usage.Type.ID() != sqltype.Numeric || schema.Usage.Typmod != -1 || schema.NullabilityKnown || schema.OriginTable != 0 || schema.OriginAttribute != 0 {

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -45,7 +46,7 @@ func (s *windowNtileState) next() int64 {
 	return int64(s.bucket)
 }
 
-func (s *windowNtileState) evaluate(ctx context.Context, evaluation *EvalContext, child *indexedStage, call windowCall, rows []int, current int) (sqltype.Value, error) {
+func (s *windowNtileState) evaluate(ctx context.Context, evaluation *EvalContext, child *indexedStage, call plan.WindowCall, rows []int, current int) (sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
@@ -226,11 +227,11 @@ func pgIndexFunctionExpression(node expr.Expr) bool {
 	switch n := node.(type) {
 	case installedUUIDOsspFunctionExpression:
 		return true
-	case unnestExpression:
+	case plan.UnnestExpr:
 		return false
 	case extensionPathsExpression:
 		return true
-	case conditionalExpression:
+	case plan.ConditionalExpr:
 		return true
 	case expr.FunctionSyntax:
 		return n.LooksLikeFunction()

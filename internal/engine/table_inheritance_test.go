@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -37,13 +38,13 @@ func TestInheritanceMergeStableRemap(t *testing.T) {
 	child := inheritanceUnitRelation(e, "c", 22001, "a", "b", "local")
 	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), parent.Address())
 	ref.Address.SubID = 7
-	node := columnExpression{Info: expr.Info{Usage: testUsage(e, sqltype.Int4)}, Origin: ref, Scope: 1, Frame: 1, Slot: 1}
+	node := plan.ColumnExpr{Info: expr.Info{Usage: testUsage(e, sqltype.Int4)}, Origin: ref, Scope: 1, Frame: 1, Slot: 1}
 	mapper := createLikeInput{source: parent, targetSlots: []int{1, 0}}
 	mapped, err := mapper.remap(node, child, e.CatalogRead())
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := mapped.(columnExpression)
+	got := mapped.(plan.ColumnExpr)
 	if got.Slot != 0 || got.Origin.Address.ObjectID != child.Address().ObjectID || got.Origin.Address.SubID != 1 || node.Slot != 1 || node.Origin != ref {
 		t.Fatal(got, node)
 	}
@@ -66,7 +67,7 @@ func TestInheritanceMergeDefinitions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	literal := literalExpression{Info: expr.Info{Usage: usage}, Value: value}
+	literal := plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: value}
 	p.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 23002, Expression: literal}}
 	q.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{2: {OID: 23003, Expression: literal}}
 	child := inheritanceUnitRelation(e, "c", 22002, "a", "x", "z")
@@ -170,8 +171,8 @@ func TestInheritanceMergeDefaultOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 23000, Expression: literalExpression{Info: expr.Info{Usage: usage}, Value: first}}}
-	q.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 23001, Expression: literalExpression{Info: expr.Info{Usage: usage}, Value: second}}}
+	p.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 23000, Expression: plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: first}}}
+	q.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 23001, Expression: plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: second}}}
 	view := inheritanceUnitView(e, p, q)
 	auth, err := op.Authorization()
 	if err != nil {
@@ -252,7 +253,7 @@ func TestInheritanceRetainedRowAuthority(t *testing.T) {
 	v := e.CatalogRead()
 	oldRef := e.catalog.Domain.Ref(v.Epoch(), d.Address())
 	oldRef.Address.SubID = 1
-	old := columnExpression{Info: expr.Info{Usage: testUsage(e, sqltype.Int4)}, Origin: oldRef, Scope: 1, Frame: 1, Slot: 0}
+	old := plan.ColumnExpr{Info: expr.Info{Usage: testUsage(e, sqltype.Int4)}, Origin: oldRef, Scope: 1, Frame: 1, Slot: 0}
 	state := catalog.CloneState(v.State())
 	state.SetEpoch(state.Epoch() + 1)
 	current := e.catalog.read(state)
@@ -284,7 +285,7 @@ func TestInheritanceGenerationDeclarationProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expression := literalExpression{Info: expr.Info{Usage: usage}, Value: value}
+	expression := plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: value}
 	parent.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{1: {Kind: catalog.GenerationStored, Expression: expression, Planned: expression}}
 	view := inheritanceUnitView(e, parent)
 	auth, err := op.Authorization()

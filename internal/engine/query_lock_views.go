@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
@@ -29,12 +30,12 @@ func (c *queryLockContext) rowMarked() bool {
 type queryLockLeaf struct {
 	leaf    queryLeaf
 	source  *querySource
-	mark    queryRowMark
+	mark    plan.RowMark
 	changed bool
 	absent  bool
 }
 type queryLockLineage struct {
-	root             LogicalNode
+	root             plan.Node
 	inputs, stage    *querySource
 	selection        []int
 	orderValues      []sqltype.Value
@@ -66,25 +67,25 @@ func queryRowClause(mode lock.Mode) string {
 	}
 	return ""
 }
-func queryRootRowMode(node LogicalNode) lock.Mode {
+func queryRootRowMode(node plan.Node) lock.Mode {
 	for {
 		switch n := node.(type) {
-		case *projectNode:
+		case *plan.ProjectNode:
 			node = n.Child
-		case *limitNode:
+		case *plan.LimitNode:
 			node = n.Child
-		case *evaluationNode:
+		case *plan.EvaluationNode:
 			node = n.Child
-		case *rowLockNode:
+		case *plan.RowLockNode:
 			return n.FirstMode
-		case *distinctNode, *distinctOnNode, *aggregateNode:
+		case *plan.DistinctNode, *plan.DistinctOnNode, *plan.AggregateNode:
 			return 0 // Descendant marks are consumed at materialization.
 		default:
 			return 0
 		}
 	}
 }
-func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root LogicalNode, leaves []queryLeaf) (lock.Mode, error) {
+func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root plan.Node, leaves []queryLeaf) (lock.Mode, error) {
 	view := e.privateCatalogLocked(scope.owner.catalog)
 	if _, err := validateViewReadGraph(view, leaves); err != nil {
 		return 0, err
@@ -92,8 +93,8 @@ func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root LogicalNode
 	if mode := queryRootRowMode(root); mode != 0 {
 		return mode, nil
 	}
-	var visit func(*catalog.Relation, queryRowMark, lock.Mode) (lock.Mode, error)
-	visit = func(d *catalog.Relation, inherited queryRowMark, diagnostic lock.Mode) (lock.Mode, error) {
+	var visit func(*catalog.Relation, plan.RowMark, lock.Mode) (lock.Mode, error)
+	visit = func(d *catalog.Relation, inherited plan.RowMark, diagnostic lock.Mode) (lock.Mode, error) {
 		if d.RelationKind != catalog.ViewRelation {
 			if inherited.Mode == 0 {
 				return 0, nil
@@ -162,20 +163,20 @@ func viewRowLockLegality(d *viewDefinition, mode lock.Mode) error {
 // Only the stored query's output boundary stops inherited reference-kind
 // context. Ordinary joins/derived queries retain their existing legality and
 // sibling checks; a nested stored set view applies this boundary on its entry.
-func queryHasSetOutput(node LogicalNode) bool {
+func queryHasSetOutput(node plan.Node) bool {
 	for {
 		switch n := node.(type) {
-		case *projectNode:
+		case *plan.ProjectNode:
 			node = n.Child
-		case *sortNode:
+		case *plan.SortNode:
 			node = n.Child
-		case *limitNode:
+		case *plan.LimitNode:
 			node = n.Child
-		case *evaluationNode:
+		case *plan.EvaluationNode:
 			node = n.Child
-		case *filterNode:
+		case *plan.FilterNode:
 			node = n.Child
-		case *setNode, *recursiveUnionNode:
+		case *plan.SetNode, *plan.RecursiveUnionNode:
 			return true
 		default:
 			return false
@@ -183,11 +184,11 @@ func queryHasSetOutput(node LogicalNode) bool {
 	}
 }
 
-func queryRowLockLegality(root LogicalNode, mode lock.Mode) error {
+func queryRowLockLegality(root plan.Node, mode lock.Mode) error {
 	if mode == 0 {
 		return nil
 	}
-	project, ok := root.(*projectNode)
+	project, ok := root.(*plan.ProjectNode)
 	if !ok || project.Syntax == nil {
 		return fmt.Errorf("stuntgres: missing rowmark query syntax")
 	}
@@ -204,27 +205,27 @@ func queryRowLockLegality(root LogicalNode, mode lock.Mode) error {
 	default:
 		for node := project.Child; node != nil; {
 			switch n := node.(type) {
-			case *projectNode:
+			case *plan.ProjectNode:
 				node = n.Child
-			case *setProjectNode:
+			case *plan.SetProjectNode:
 				node = n.Child
-			case *limitNode:
+			case *plan.LimitNode:
 				node = n.Child
-			case *evaluationNode:
+			case *plan.EvaluationNode:
 				node = n.Child
-			case *sortNode:
+			case *plan.SortNode:
 				node = n.Child
-			case *filterNode:
+			case *plan.FilterNode:
 				node = n.Child
-			case *rowLockNode:
+			case *plan.RowLockNode:
 				node = n.Child
-			case *aggregateNode:
+			case *plan.AggregateNode:
 				suffix = "aggregate functions"
 				node = nil
-			case *windowNode:
+			case *plan.WindowNode:
 				suffix = "window functions"
 				node = nil
-			case *distinctNode, *distinctOnNode:
+			case *plan.DistinctNode, *plan.DistinctOnNode:
 				suffix = "DISTINCT clause"
 				node = nil
 			default:
@@ -238,10 +239,10 @@ func queryRowLockLegality(root LogicalNode, mode lock.Mode) error {
 	if suffix != "" {
 		return sqlError("0A000", queryRowClause(mode)+" is not allowed with "+suffix)
 	}
-	var from func(LogicalNode) error
-	from = func(node LogicalNode) error {
+	var from func(plan.Node) error
+	from = func(node plan.Node) error {
 		switch n := node.(type) {
-		case *derivedNode:
+		case *plan.DerivedNode:
 			if n.CTE != nil && n.CTE.Mutation != nil {
 				return nil
 			}
@@ -249,7 +250,7 @@ func queryRowLockLegality(root LogicalNode, mode lock.Mode) error {
 				return queryRowLockLegality(n.Query.Root, queryRootRowMode(n.Query.Root))
 			}
 			return queryRowLockLegality(n.Query.Root, strongerQueryRowMode(mode, queryRootRowMode(n.Query.Root)))
-		case *joinNode:
+		case *plan.JoinNode:
 			if err := from(n.Left); err != nil {
 				return err
 			}
@@ -261,13 +262,13 @@ func queryRowLockLegality(root LogicalNode, mode lock.Mode) error {
 }
 
 // View lock pushdown marks relation/subquery RTEs, not computed function rows.
-func stringInheritedRowMark(node LogicalNode) bool {
+func stringInheritedRowMark(node plan.Node) bool {
 	switch n := node.(type) {
-	case *sourceNode:
+	case *plan.SourceNode:
 		return true
-	case *derivedNode:
+	case *plan.DerivedNode:
 		return n.CTE == nil
-	case *joinNode:
+	case *plan.JoinNode:
 		return stringInheritedRowMark(n.Left) || stringInheritedRowMark(n.Right)
 	}
 	return false
@@ -275,7 +276,7 @@ func stringInheritedRowMark(node LogicalNode) bool {
 
 // Called before any source expression is opened. Inherited rowmark legality,
 // kind and authorization checks remain Execute-only.
-func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalNode, leaves []queryLeaf) error {
+func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root plan.Node, leaves []queryLeaf) error {
 	marked := queryRootRowMode(root) != 0
 	view := e.privateCatalogLocked(scope.owner.catalog)
 	visibilityDemand, err := validateViewReadGraph(view, leaves)
@@ -283,8 +284,8 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 		return err
 	}
 	scope.inquiry.visibilityDemand = scope.inquiry.visibilityDemand || visibilityDemand
-	var visit func(*catalog.Relation, queryRowMark, bool) error
-	visit = func(d *catalog.Relation, inherited queryRowMark, referenceMarked bool) error {
+	var visit func(*catalog.Relation, plan.RowMark, bool) error
+	visit = func(d *catalog.Relation, inherited plan.RowMark, referenceMarked bool) error {
 		if d.RelationKind == catalog.ViewRelation {
 			if queryHasSetOutput(viewOf(d).query.Root) {
 				referenceMarked = false
@@ -336,14 +337,14 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root LogicalN
 	return nil
 }
 
-func (v AuthorizationView) checkViewRowMarks(d *catalog.Relation, inherited queryRowMark, invoker authorization.PrincipalRef) error {
+func (v AuthorizationView) checkViewRowMarks(d *catalog.Relation, inherited plan.RowMark, invoker authorization.PrincipalRef) error {
 	if _, err := validateViewReadGraph(v.Catalog, []queryLeaf{{relation: d}}); err != nil {
 		return err
 	}
 	return v.checkViewRowMarksExpanded(d, inherited, invoker)
 }
 
-func (v AuthorizationView) checkViewRowMarksExpanded(d *catalog.Relation, inherited queryRowMark, invoker authorization.PrincipalRef) error {
+func (v AuthorizationView) checkViewRowMarksExpanded(d *catalog.Relation, inherited plan.RowMark, invoker authorization.PrincipalRef) error {
 	if d.RelationKind != catalog.ViewRelation {
 		return nil
 	}
@@ -400,39 +401,39 @@ func querySourceAt(bundle *querySource, occurrence int) *querySource {
 	}
 	return bundle
 }
-func queryLockRecheckWidth(node LogicalNode, inputs *querySource) int {
+func queryLockRecheckWidth(node plan.Node, inputs *querySource) int {
 	switch n := node.(type) {
-	case *functionFromNode:
+	case *plan.FunctionFromNode:
 		return len(n.Schema())
-	case *setProjectNode:
+	case *plan.SetProjectNode:
 		return 0 // Legal nonphysical inherited paths need no substitution scratch.
-	case *limitNode:
+	case *plan.LimitNode:
 		return queryLockRecheckWidth(n.Child, inputs)
-	case *aggregateNode, *windowNode, *distinctNode, *distinctOnNode, *setNode, *recursiveUnionNode, *worktableScanNode:
+	case *plan.AggregateNode, *plan.WindowNode, *plan.DistinctNode, *plan.DistinctOnNode, *plan.SetNode, *plan.RecursiveUnionNode, *plan.WorktableScanNode:
 		return 0 // Its input marks/provenance have already been consumed.
-	case *evaluationNode:
+	case *plan.EvaluationNode:
 		return queryLockRecheckWidth(n.Child, inputs)
-	case *derivedNode:
+	case *plan.DerivedNode:
 		if n.CTE != nil {
 			return 0
 		}
 		return queryLockRecheckWidth(n.Query.Root, inputs)
-	case *sourceNode:
+	case *plan.SourceNode:
 		return queryLockSourceWidth(querySourceAt(inputs, n.Occurrence))
-	case *singletonNode, *valuesNode:
+	case *plan.SingletonNode, *plan.ValuesNode:
 		return 0
-	case *rowLockNode:
+	case *plan.RowLockNode:
 		return queryLockRecheckWidth(n.Child, inputs)
-	case *projectNode:
+	case *plan.ProjectNode:
 		if n.FrozenValues {
 			return 0
 		}
 		return len(n.Schema()) + queryLockRecheckWidth(n.Child, inputs)
-	case *joinNode:
+	case *plan.JoinNode:
 		return len(n.Schema()) + queryLockRecheckWidth(n.Left, inputs) + queryLockRecheckWidth(n.Right, inputs)
-	case *filterNode:
+	case *plan.FilterNode:
 		return queryLockRecheckWidth(n.Child, inputs)
-	case *sortNode:
+	case *plan.SortNode:
 		return queryLockRecheckWidth(n.Child, inputs)
 	}
 	panic("invalid marked view recheck tree")
@@ -489,12 +490,12 @@ func recheckLockedSource(source *querySource, rows [][]sqltype.Value, evaluation
 	}
 	return rows[source.occurrence], true, nil
 }
-func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.Value, evaluation *EvalContext, scratch []sqltype.Value, offset *int, frozen []sqltype.Value) ([]sqltype.Value, bool, error) {
+func recheckLockedQuery(node plan.Node, inputs *querySource, rows [][]sqltype.Value, evaluation *EvalContext, scratch []sqltype.Value, offset *int, frozen []sqltype.Value) ([]sqltype.Value, bool, error) {
 	if absentLockedQuery(node, inputs, evaluation.liveScope().queryLocks) {
 		return nil, true, nil
 	}
 	switch n := node.(type) {
-	case *derivedNode:
+	case *plan.DerivedNode:
 		if n.CTE != nil {
 			return frozen, true, nil
 		}
@@ -502,17 +503,17 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 			return nil, false, fmt.Errorf("stuntgres: missing derived rowmark lineage")
 		}
 		return recheckLockedSource(evaluation.query.derived[n], rows, evaluation, scratch, offset)
-	case *valuesNode:
+	case *plan.ValuesNode:
 		return frozen, true, nil
-	case *functionFromNode:
+	case *plan.FunctionFromNode:
 		// PostgreSQL 18.6 keeps the function-scan tuple a row was produced
 		// with; the recheck refreshes only locked rows and requalifies.
 		return frozen, true, nil
-	case *distinctNode, *distinctOnNode, *setNode, *recursiveUnionNode, *worktableScanNode:
+	case *plan.DistinctNode, *plan.DistinctOnNode, *plan.SetNode, *plan.RecursiveUnionNode, *plan.WorktableScanNode:
 		return frozen, true, nil // Its source marks were settled during materialization.
-	case *limitNode:
+	case *plan.LimitNode:
 		return recheckLockedQuery(n.Child, inputs, rows, evaluation, scratch, offset, frozen)
-	case *evaluationNode:
+	case *plan.EvaluationNode:
 		row, ok, err := recheckLockedQuery(n.Child, inputs, rows, evaluation, scratch, offset, frozen)
 		if err != nil || !ok {
 			return nil, ok, err
@@ -526,13 +527,13 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 			evaluation.orderValues[n.Base+i] = value
 		}
 		return row, true, nil
-	case *sourceNode:
+	case *plan.SourceNode:
 		return recheckLockedSource(querySourceAt(inputs, n.Occurrence), rows, evaluation, scratch, offset)
-	case *singletonNode:
+	case *plan.SingletonNode:
 		return nil, true, nil
-	case *rowLockNode:
+	case *plan.RowLockNode:
 		return recheckLockedQuery(n.Child, inputs, rows, evaluation, scratch, offset, frozen)
-	case *sortNode:
+	case *plan.SortNode:
 		row, ok, err := recheckLockedQuery(n.Child, inputs, rows, evaluation, scratch, offset, frozen)
 		if err != nil || !ok {
 			return nil, ok, err
@@ -541,7 +542,7 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 			return nil, false, err
 		}
 		return row, true, nil
-	case *filterNode:
+	case *plan.FilterNode:
 		row, ok, err := recheckLockedQuery(n.Child, inputs, rows, evaluation, scratch, offset, frozen)
 		if err != nil || !ok {
 			return nil, ok, err
@@ -549,7 +550,7 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 		evaluation.Row = row
 		matches, err := updateMatches(evaluation, n.Predicate)
 		return row, matches, err
-	case *projectNode:
+	case *plan.ProjectNode:
 		if n.FrozenValues {
 			return frozen, true, nil
 		}
@@ -568,7 +569,7 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 			frame[i] = value
 		}
 		return frame, true, nil
-	case *joinNode:
+	case *plan.JoinNode:
 		left, ok, err := recheckLockedQuery(n.Left, inputs, rows, evaluation, scratch, offset, frozen[:n.LeftWidth])
 		if err != nil || !ok {
 			return nil, ok, err
@@ -617,9 +618,9 @@ func recheckLockedQuery(node LogicalNode, inputs *querySource, rows [][]sqltype.
 // Arbitrate the qualified physical input before projection or aggregation
 // consumes its provenance. Scalar view layers defer to their nearest owning
 // frontier, including an outer join's local input producer.
-func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode, child indexedStage) (indexedStage, error) {
+func arbitrateViewQuery(ctx context.Context, state *queryState, node plan.Node, child indexedStage) (indexedStage, error) {
 	locks := state.source.locks
-	due := make([]queryRowMark, len(locks.leaves))
+	due := make([]plan.RowMark, len(locks.leaves))
 	for _, mark := range child.pending {
 		for _, occurrence := range mark.occurrences {
 			due[occurrence] = mergeQueryRowMark(due[occurrence], mark.mark)
@@ -774,21 +775,21 @@ func arbitrateViewQuery(ctx context.Context, state *queryState, node LogicalNode
 
 // Inherited marks follow physical lineage, unlike general source/dependency
 // traversal: a materialized set still reads both arms but exposes neither's rows.
-func queryRowMarkReachesSource(node LogicalNode, occurrence int) bool {
+func queryRowMarkReachesSource(node plan.Node, occurrence int) bool {
 	if node == nil {
 		return false
 	}
-	if _, ok := node.(*setNode); ok {
+	if _, ok := node.(*plan.SetNode); ok {
 		return false
 	}
-	if source, ok := node.(*sourceNode); ok {
+	if source, ok := node.(*plan.SourceNode); ok {
 		return source.Occurrence == occurrence
 	}
 	left, right := queryInputs(node)
 	return queryRowMarkReachesSource(left, occurrence) || queryRowMarkReachesSource(right, occurrence)
 }
 
-func viewLeafRowMark(view *viewDefinition, occurrence int, inherited queryRowMark) queryRowMark {
+func viewLeafRowMark(view *viewDefinition, occurrence int, inherited plan.RowMark) plan.RowMark {
 	mark := view.sources[occurrence].mark
 	if inherited.Mode != 0 && queryRowMarkReachesSource(view.query.Root, occurrence) {
 		mark = mergeQueryRowMark(inherited, mark)
@@ -796,11 +797,11 @@ func viewLeafRowMark(view *viewDefinition, occurrence int, inherited queryRowMar
 	return mark
 }
 
-func queryHasPhysicalInput(node LogicalNode) bool {
+func queryHasPhysicalInput(node plan.Node) bool {
 	if node == nil {
 		return false
 	}
-	if _, ok := node.(*sourceNode); ok {
+	if _, ok := node.(*plan.SourceNode); ok {
 		return true
 	}
 	left, right := queryInputs(node)

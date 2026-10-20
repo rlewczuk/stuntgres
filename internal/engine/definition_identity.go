@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 )
 
 // structuralNull only recognizes transparent coercions of a literal NULL.
@@ -14,11 +15,11 @@ import (
 func structuralNull(node expr.Expr) bool {
 	for {
 		switch n := node.(type) {
-		case literalExpression:
+		case plan.LiteralExpr:
 			return n.Value.IsNull()
-		case collationExpression:
+		case plan.CollationExpr:
 			node = n.Child
-		case coercionExpression:
+		case plan.CoercionExpr:
 			node = n.Child
 		default:
 			return false

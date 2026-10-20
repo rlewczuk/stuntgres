@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -77,8 +78,8 @@ func TestNetworkOperatorBindingAndReownership(t *testing.T) {
 			if _, err := defaultSQL(ctx, replacement.CatalogRead(), rebound); err != nil {
 				t.Fatal(err)
 			}
-			if original, ok := node.(bitwiseExpression); ok {
-				next := rebound.(bitwiseExpression)
+			if original, ok := node.(plan.BitwiseExpr); ok {
+				next := rebound.(plan.BitwiseExpr)
 				if original.Network == (sqltype.NetworkBitwise{}) || original.Provider != (sqltype.Bitwise{}) || original.Bits != (sqltype.BitStringBitwise{}) || original.Network == next.Network {
 					t.Fatal("network provider ownership")
 				}
@@ -108,7 +109,7 @@ func TestNetworkOperatorBindingAndReownership(t *testing.T) {
 		calls = append(calls, "right")
 		return sqltype.Value{}, failure
 	})
-	node := bitwiseExpression{Info: expr.Info{Usage: inet.Usage()}, Left: null, Right: right, Network: p, Operator: sqltype.BitwiseAnd}
+	node := plan.BitwiseExpr{Info: expr.Info{Usage: inet.Usage()}, Left: null, Right: right, Network: p, Operator: sqltype.BitwiseAnd}
 	if _, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}}); !errors.Is(err, failure) || !reflect.DeepEqual(calls, []string{"left", "right"}) {
 		t.Fatal(calls, err)
 	}
@@ -124,7 +125,7 @@ func TestNetworkOperatorStoredValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := node.(bitwiseExpression)
+	root := node.(plan.BitwiseExpr)
 	integral, err := sqltype.BindBitwise(sqltype.BitwiseAnd, b.typ(sqltype.Int4), b.typ(sqltype.Int4))
 	if err != nil {
 		t.Fatal(err)
@@ -139,23 +140,23 @@ func TestNetworkOperatorStoredValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, mutate := range []func(bitwiseExpression) bitwiseExpression{
-		func(n bitwiseExpression) bitwiseExpression { n.Network = sqltype.NetworkBitwise{}; return n },
-		func(n bitwiseExpression) bitwiseExpression { n.Network = foreignProvider; return n },
-		func(n bitwiseExpression) bitwiseExpression { n.Provider = integral; return n },
-		func(n bitwiseExpression) bitwiseExpression { n.Bits = bits; return n },
-		func(n bitwiseExpression) bitwiseExpression { n.Left = nil; return n },
-		func(n bitwiseExpression) bitwiseExpression { n.Right = nil; return n },
-		func(n bitwiseExpression) bitwiseExpression { n.Operator = sqltype.BitwiseOr; return n },
-		func(n bitwiseExpression) bitwiseExpression { n.Operator = sqltype.BitwiseOperator(255); return n },
-		func(n bitwiseExpression) bitwiseExpression { n.Usage.Typmod = 4; return n },
-		func(n bitwiseExpression) bitwiseExpression { n.Usage.Type = b.typ(sqltype.Cidr); return n },
-		func(n bitwiseExpression) bitwiseExpression {
+	for _, mutate := range []func(plan.BitwiseExpr) plan.BitwiseExpr{
+		func(n plan.BitwiseExpr) plan.BitwiseExpr { n.Network = sqltype.NetworkBitwise{}; return n },
+		func(n plan.BitwiseExpr) plan.BitwiseExpr { n.Network = foreignProvider; return n },
+		func(n plan.BitwiseExpr) plan.BitwiseExpr { n.Provider = integral; return n },
+		func(n plan.BitwiseExpr) plan.BitwiseExpr { n.Bits = bits; return n },
+		func(n plan.BitwiseExpr) plan.BitwiseExpr { n.Left = nil; return n },
+		func(n plan.BitwiseExpr) plan.BitwiseExpr { n.Right = nil; return n },
+		func(n plan.BitwiseExpr) plan.BitwiseExpr { n.Operator = sqltype.BitwiseOr; return n },
+		func(n plan.BitwiseExpr) plan.BitwiseExpr { n.Operator = sqltype.BitwiseOperator(255); return n },
+		func(n plan.BitwiseExpr) plan.BitwiseExpr { n.Usage.Typmod = 4; return n },
+		func(n plan.BitwiseExpr) plan.BitwiseExpr { n.Usage.Type = b.typ(sqltype.Cidr); return n },
+		func(n plan.BitwiseExpr) plan.BitwiseExpr {
 			v, err := foreignInet.Input(ctx, "::1", -1)
 			if err != nil {
 				t.Fatal(err)
 			}
-			n.Right = literalExpression{Info: expr.Info{Usage: foreignInet.Usage()}, Value: v}
+			n.Right = plan.LiteralExpr{Info: expr.Info{Usage: foreignInet.Usage()}, Value: v}
 			return n
 		},
 	} {
@@ -172,7 +173,7 @@ func TestNetworkOperatorStoredValidation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		corrupt := other.(bitwiseExpression)
+		corrupt := other.(plan.BitwiseExpr)
 		corrupt.Network = root.Network
 		if _, err := defaultSQL(ctx, e.CatalogRead(), corrupt); err == nil {
 			t.Fatal("inactive network provider accepted")
@@ -189,10 +190,10 @@ func TestNetworkOperatorStoredValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parameter := parameterExpression{Info: expr.Info{Usage: inet.Usage(), Property: expr.Properties{ParameterDependent: true}}, Number: 1}
+	parameter := plan.ParameterExpr{Info: expr.Info{Usage: inet.Usage(), Property: expr.Properties{ParameterDependent: true}}, Number: 1}
 	family := root
 	family.Left = parameter
-	family.Right = literalExpression{Info: expr.Info{Usage: inet.Usage()}, Value: v6}
+	family.Right = plan.LiteralExpr{Info: expr.Info{Usage: inet.Usage()}, Value: v6}
 	family.Property = parameter.Property
 	for _, frame := range [][]sqltype.Value{{v4}, {v6}, {sqltype.Null(inet)}, {v4}} {
 		c := &EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: frame}}
@@ -232,9 +233,9 @@ func TestNetworkOperatorStoredValidation(t *testing.T) {
 		frame         []sqltype.Value
 		code, context string
 	}{
-		{sqltype.ArithmeticSubtract, parameter, literalExpression{Info: expr.Info{Usage: inet.Usage()}, Value: v6}, int8, []sqltype.Value{v4}, "22023", ""},
-		{sqltype.ArithmeticAdd, parameter, literalExpression{Info: expr.Info{Usage: int8.Usage()}, Value: one}, inet, nil, "22003", ""},
-		{sqltype.ArithmeticAdd, literalExpression{Info: expr.Info{Usage: int8.Usage()}, Value: one}, parameter, inet, nil, "22003", "SQL function \"int8pl_inet\" statement 1"},
+		{sqltype.ArithmeticSubtract, parameter, plan.LiteralExpr{Info: expr.Info{Usage: inet.Usage()}, Value: v6}, int8, []sqltype.Value{v4}, "22023", ""},
+		{sqltype.ArithmeticAdd, parameter, plan.LiteralExpr{Info: expr.Info{Usage: int8.Usage()}, Value: one}, inet, nil, "22003", ""},
+		{sqltype.ArithmeticAdd, plan.LiteralExpr{Info: expr.Info{Usage: int8.Usage()}, Value: one}, parameter, inet, nil, "22003", "SQL function \"int8pl_inet\" statement 1"},
 	} {
 		if tc.frame == nil {
 			max, err := inet.Input(ctx, "255.255.255.255", -1)
@@ -247,7 +248,7 @@ func TestNetworkOperatorStoredValidation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		n := arithmeticExpression{Info: expr.Info{Usage: tc.result.Usage(), Property: expr.Properties{ParameterDependent: true}}, Left: tc.left, Right: tc.right, Provider: provider, Operator: tc.op}
+		n := plan.ArithmeticExpr{Info: expr.Info{Usage: tc.result.Usage(), Property: expr.Properties{ParameterDependent: true}}, Left: tc.left, Right: tc.right, Provider: provider, Operator: tc.op}
 		_, _, err = preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: tc.frame}}, n)
 		var d *sqlstate.Error
 		if !errors.As(err, &d) || d.Code != tc.code || d.Context != tc.context || d.Position != "" {
@@ -269,14 +270,14 @@ func networkOperatorArithmeticStoredValidation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		root := node.(arithmeticExpression)
-		for _, mutate := range []func(arithmeticExpression) arithmeticExpression{
-			func(n arithmeticExpression) arithmeticExpression { n.Provider = sqltype.Arithmetic{}; return n },
-			func(n arithmeticExpression) arithmeticExpression { n.Operator = sqltype.ArithmeticMultiply; return n },
-			func(n arithmeticExpression) arithmeticExpression { n.Usage.Type = b.typ(sqltype.Int4); return n },
-			func(n arithmeticExpression) arithmeticExpression { n.Left = nil; return n },
-			func(n arithmeticExpression) arithmeticExpression { n.Right = nil; return n },
-			func(n arithmeticExpression) arithmeticExpression {
+		root := node.(plan.ArithmeticExpr)
+		for _, mutate := range []func(plan.ArithmeticExpr) plan.ArithmeticExpr{
+			func(n plan.ArithmeticExpr) plan.ArithmeticExpr { n.Provider = sqltype.Arithmetic{}; return n },
+			func(n plan.ArithmeticExpr) plan.ArithmeticExpr { n.Operator = sqltype.ArithmeticMultiply; return n },
+			func(n plan.ArithmeticExpr) plan.ArithmeticExpr { n.Usage.Type = b.typ(sqltype.Int4); return n },
+			func(n plan.ArithmeticExpr) plan.ArithmeticExpr { n.Left = nil; return n },
+			func(n plan.ArithmeticExpr) plan.ArithmeticExpr { n.Right = nil; return n },
+			func(n plan.ArithmeticExpr) plan.ArithmeticExpr {
 				foreign := New()
 				left, _ := foreign.CatalogRead().LookupType(n.Left.ResultUsage().Type.ID())
 				right, _ := foreign.CatalogRead().LookupType(n.Right.ResultUsage().Type.ID())
@@ -303,7 +304,7 @@ func networkOperatorOptionalPreflightChildren(t *testing.T) {
 	if networkOperatorExecutionConstant(nil, c) {
 		t.Fatal("absent root is not an available expression")
 	}
-	if networkOperatorExecutionConstant(bitwiseExpression{}, c) {
+	if networkOperatorExecutionConstant(plan.BitwiseExpr{}, c) {
 		t.Fatal("absent-only operands are not execution ready")
 	}
 
@@ -342,18 +343,18 @@ func networkOperatorOptionalPreflightChildren(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	offset := arithmeticExpression{
+	offset := plan.ArithmeticExpr{
 		Info:     expr.Info{Usage: int8.Usage()},
-		Left:     literalExpression{Info: expr.Info{Usage: int8.Usage()}, Value: one},
+		Left:     plan.LiteralExpr{Info: expr.Info{Usage: int8.Usage()}, Value: one},
 		Provider: negate, Operator: sqltype.ArithmeticSubtract,
 	}
 	add, err := sqltype.BindArithmetic(sqltype.ArithmeticAdd, inet, int8, inet)
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := arithmeticExpression{
+	root := plan.ArithmeticExpr{
 		Info:  expr.Info{Usage: inet.Usage()},
-		Left:  literalExpression{Info: expr.Info{Usage: inet.Usage()}, Value: address},
+		Left:  plan.LiteralExpr{Info: expr.Info{Usage: inet.Usage()}, Value: address},
 		Right: offset, Provider: add, Operator: sqltype.ArithmeticAdd,
 	}
 	folded, changed, err = preflightCoercions(c, root)

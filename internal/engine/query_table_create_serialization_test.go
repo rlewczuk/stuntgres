@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -69,11 +70,11 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				outcome = err
 				t.Fatal(err)
 			}
-			project.Child = &sourceNode{QuerySchema: project.Schema(), Ref: sourceRef}
+			project.Child = &plan.SourceNode{QuerySchema: project.Schema(), Ref: sourceRef}
 			usage := project.Schema()[0].Usage
-			project.Expressions = []expr.Expr{columnExpression{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Origin: sourceRef, Scope: 1, Frame: 1, Slot: 0}}
+			project.Expressions = []expr.Expr{plan.ColumnExpr{Info: expr.Info{Usage: usage, Property: expr.Properties{RowDependent: true}}, Origin: sourceRef, Scope: 1, Frame: 1, Slot: 0}}
 			predicates := 0
-			project.Child = &filterNode{QuerySchema: project.Schema(), Child: project.Child, Predicate: queryProbe(testUsage(e, sqltype.Bool), func(c *EvalContext) (sqltype.Value, error) {
+			project.Child = &plan.FilterNode{QuerySchema: project.Schema(), Child: project.Child, Predicate: queryProbe(testUsage(e, sqltype.Bool), func(c *EvalContext) (sqltype.Value, error) {
 				predicates++
 				value, _ := c.Row[0].Integer()
 				threshold := int64(2)

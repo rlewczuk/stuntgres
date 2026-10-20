@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -102,7 +103,7 @@ func (b *expressionBinder) bindSubscripts(raw parser.FunctionExpr, visible bool)
 	if err != nil {
 		return nil, err
 	}
-	return subscriptsExpression{Info: info, Args: args}, nil
+	return plan.SubscriptsExpr{Info: info, Args: args}, nil
 }
 
 func subscriptInputTarget(input *sqltype.Descriptor) (sqltype.Usage, bool) {

@@ -5,25 +5,26 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 )
 
 type ruleTreeMapper struct {
-	query      func(LogicalNode) (LogicalNode, error)
+	query      func(plan.Node) (plan.Node, error)
 	expression func(expr.Expr) (expr.Expr, bool, error)
-	definition func(*cteDefinition) (*cteDefinition, error)
+	definition func(*plan.CTEDefinition) (*plan.CTEDefinition, error)
 }
 
 type ruleTreeMapping struct {
 	ownerFrame func(uint32) uint32
 	leaf       func(expr.Expr) (expr.Expr, bool, error)
-	boundary   func(LogicalNode) (LogicalNode, bool)
-	finish     func(LogicalNode) (LogicalNode, error)
-	mutation   func(*cteDefinition) (binding, error)
+	boundary   func(plan.Node) (plan.Node, bool)
+	finish     func(plan.Node) (plan.Node, error)
+	mutation   func(*plan.CTEDefinition) (binding, error)
 }
 
 // One memo owns the entire binding: every action-local provider and its scans
 // share one mapped definition/project. Protected statement providers stay exact.
-func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int, retained []*cteDefinition, options ...ruleTreeMapping) ruleTreeMapper {
+func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int, retained []*plan.CTEDefinition, options ...ruleTreeMapping) ruleTreeMapper {
 	if frame == nil {
 		frame = func(value uint32) uint32 { return value }
 	}
@@ -36,12 +37,12 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 		ownerFrame = mapping.ownerFrame
 	}
 	var mapper ruleTreeMapper
-	var definitions map[*cteDefinition]*cteDefinition
-	var nodes map[LogicalNode]LogicalNode
-	protected := func(definition *cteDefinition) bool {
+	var definitions map[*plan.CTEDefinition]*plan.CTEDefinition
+	var nodes map[plan.Node]plan.Node
+	protected := func(definition *plan.CTEDefinition) bool {
 		return definition != nil && (slices.Contains(retained, definition) || definition.Mutation != nil && mapping.mutation == nil)
 	}
-	mapper.definition = func(original *cteDefinition) (*cteDefinition, error) {
+	mapper.definition = func(original *plan.CTEDefinition) (*plan.CTEDefinition, error) {
 		if original == nil || protected(original) {
 			return original, nil
 		}
@@ -51,7 +52,7 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 		copy := *original
 		copy.Owner = ownerFrame(original.Owner)
 		if definitions == nil {
-			definitions = make(map[*cteDefinition]*cteDefinition)
+			definitions = make(map[*plan.CTEDefinition]*plan.CTEDefinition)
 		}
 		definitions[original] = &copy
 		if original.Query != nil {
@@ -91,7 +92,7 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 				}
 			}
 			switch node := expr.(type) {
-			case columnExpression:
+			case plan.ColumnExpr:
 				if node.Scope == rulePseudoScope {
 					return expr, false, nil
 				}
@@ -106,31 +107,31 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 					changed = true
 				}
 				return node, changed, nil
-			case aggregateExpression:
+			case plan.AggregateExpr:
 				next := frame(node.Frame)
 				if next != node.Frame {
 					node.Frame = next
 					return node, true, nil
 				}
-			case groupExpression:
+			case plan.GroupExpr:
 				next := frame(node.Frame)
 				if next != node.Frame {
 					node.Frame = next
 					return node, true, nil
 				}
-			case groupingExpression:
+			case plan.GroupingExpr:
 				next := frame(node.Frame)
 				if next != node.Frame {
 					node.Frame = next
 					return node, true, nil
 				}
-			case returningWholeRowExpression:
+			case plan.ReturningWholeRowExpr:
 				next := frame(node.Frame)
 				if next != node.Frame {
 					node.Frame = next
 					return node, true, nil
 				}
-			case *windowExpression:
+			case *plan.WindowExpr:
 				next := frame(node.Frame)
 				if next != node.Frame {
 					copy := *node
@@ -139,12 +140,12 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 				}
 			}
 			return expr, false, nil
-		}, func(root LogicalNode, _ func(expr.Expr) (expr.Expr, bool, error)) (LogicalNode, error) {
+		}, func(root plan.Node, _ func(expr.Expr) (expr.Expr, bool, error)) (plan.Node, error) {
 			return mapper.query(root)
 		})
 	}
-	var rewriteNode func(LogicalNode) (LogicalNode, error)
-	rewriteNode = func(original LogicalNode) (LogicalNode, error) {
+	var rewriteNode func(plan.Node) (plan.Node, error)
+	rewriteNode = func(original plan.Node) (plan.Node, error) {
 		if mapping.boundary != nil {
 			if next, opaque := mapping.boundary(original); opaque {
 				return next, nil
@@ -152,7 +153,7 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 		}
 		if mapped := nodes[original]; mapped != nil {
 			if mapped == original && mapping.finish != nil {
-				if project, ok := mapped.(*projectNode); ok {
+				if project, ok := mapped.(*plan.ProjectNode); ok {
 					copy := *project
 					return &copy, nil
 				}
@@ -161,13 +162,13 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 		}
 		mapped := original
 		switch node := original.(type) {
-		case *sourceNode:
+		case *plan.SourceNode:
 			if offset != 0 {
 				copy := *node
 				copy.Occurrence += offset
 				mapped = &copy
 			}
-		case *projectNode:
+		case *plan.ProjectNode:
 			next := frame(node.Frame)
 			if node.CTEOwner {
 				next = ownerFrame(node.Frame)
@@ -177,7 +178,7 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 				copy.Frame = next
 				mapped = &copy
 			}
-		case *joinNode:
+		case *plan.JoinNode:
 			copy := *node
 			changed := false
 			if next := frame(node.Frame); next != node.Frame {
@@ -196,7 +197,7 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 			if changed {
 				mapped = &copy
 			}
-		case *functionFromNode:
+		case *plan.FunctionFromNode:
 			copy := *node
 			changed := false
 			if next := frame(node.Frame); next != node.Frame {
@@ -215,13 +216,13 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 			if changed {
 				mapped = &copy
 			}
-		case *setProjectNode:
+		case *plan.SetProjectNode:
 			if next := frame(node.Frame); next != node.Frame {
 				copy := *node
 				copy.Frame = next
 				mapped = &copy
 			}
-		case *derivedNode:
+		case *plan.DerivedNode:
 			copy := *node
 			copy.ScanFrame = frame(node.ScanFrame)
 			if protected(node.CTE) {
@@ -255,11 +256,11 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 				return node, nil
 			}
 			if nodes == nil {
-				nodes = make(map[LogicalNode]LogicalNode)
+				nodes = make(map[plan.Node]plan.Node)
 			}
 			nodes[original] = &copy
 			return &copy, nil
-		case *worktableScanNode:
+		case *plan.WorktableScanNode:
 			copy := *node
 			copy.ScanFrame = frame(node.ScanFrame)
 			var err error
@@ -268,7 +269,7 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 				return nil, err
 			}
 			mapped = &copy
-		case *recursiveUnionNode:
+		case *plan.RecursiveUnionNode:
 			copy := *node
 			var err error
 			copy.Definition, err = mapper.definition(node.Definition)
@@ -280,7 +281,7 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 		if mapped == original {
 			return original, nil
 		}
-		result, err := rewriteQueryExpressions(mapped, mapper.expression, func(child LogicalNode) (LogicalNode, error) {
+		result, err := rewriteQueryExpressions(mapped, mapper.expression, func(child plan.Node) (plan.Node, error) {
 			if child == mapped {
 				return child, nil
 			}
@@ -290,12 +291,12 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 			return nil, err
 		}
 		if nodes == nil {
-			nodes = make(map[LogicalNode]LogicalNode)
+			nodes = make(map[plan.Node]plan.Node)
 		}
 		nodes[original] = result
 		return result, nil
 	}
-	mapper.query = func(root LogicalNode) (LogicalNode, error) {
+	mapper.query = func(root plan.Node) (plan.Node, error) {
 		if root == nil {
 			return nil, nil
 		}
@@ -313,11 +314,11 @@ func newRuleTreeMapper(view catalog.Read, frame func(uint32) uint32, offset int,
 			}
 		}
 		if nodes == nil {
-			nodes = make(map[LogicalNode]LogicalNode)
+			nodes = make(map[plan.Node]plan.Node)
 		}
 		nodes[root] = mapped
 		if mapping.finish != nil {
-			if _, project := mapped.(*projectNode); project {
+			if _, project := mapped.(*plan.ProjectNode); project {
 				nodes[mapped] = mapped
 			}
 		}

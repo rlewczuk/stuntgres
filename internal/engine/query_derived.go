@@ -3,14 +3,15 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
-func openDerivedNode(ctx context.Context, state *queryState, n *derivedNode) (indexedStage, error) {
+func openDerivedNode(ctx context.Context, state *queryState, n *plan.DerivedNode) (indexedStage, error) {
 	if n.CTE != nil && !n.CTE.Folded() {
 		return openCTEScan(ctx, state, n)
 	}
-	project, ok := n.Query.Root.(*projectNode)
+	project, ok := n.Query.Root.(*plan.ProjectNode)
 	if !ok {
 		return indexedStage{}, fmt.Errorf("stuntgres: derived query lacks final projection")
 	}
@@ -25,7 +26,7 @@ func openDerivedNode(ctx context.Context, state *queryState, n *derivedNode) (in
 		source.lineage = &queryLockLineage{root: project, inputs: state.source, stage: inner.source, state: innerState}
 	}
 	if state.derived == nil {
-		state.derived = make(map[*derivedNode]*querySource)
+		state.derived = make(map[*plan.DerivedNode]*querySource)
 	}
 	state.derived[n] = source
 	out := indexedStage{source: source, schema: n.Schema(), selection: []int{}}

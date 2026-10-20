@@ -3,14 +3,15 @@ package engine
 import (
 	"context"
 	"fmt"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
-func querySetNode(node LogicalNode) *setNode {
+func querySetNode(node plan.Node) *plan.SetNode {
 	switch n := node.(type) {
-	case *setNode:
+	case *plan.SetNode:
 		return n
-	case *recursiveUnionNode:
+	case *plan.RecursiveUnionNode:
 		return &n.SetNode
 	}
 	return nil
@@ -20,7 +21,7 @@ func querySetNode(node LogicalNode) *setNode {
 // Neither a pass nor a worktable reader copies the accumulated tuple payload.
 type recursiveUnionStage struct {
 	state          queryState
-	node           *recursiveUnionNode
+	node           *plan.RecursiveUnionNode
 	source         *querySource
 	current, next  []int
 	seen           map[uint64][]int
@@ -32,7 +33,7 @@ type recursiveUnionStage struct {
 	opened, closed bool
 }
 
-func recursiveCTEOwner(state *queryState, d *cteDefinition) *cteInvocation {
+func recursiveCTEOwner(state *queryState, d *plan.CTEDefinition) *cteInvocation {
 	for owner := state.ctes; owner != nil; owner = owner.parent {
 		if owner.frame == d.Owner {
 			return owner
@@ -41,7 +42,7 @@ func recursiveCTEOwner(state *queryState, d *cteDefinition) *cteInvocation {
 	return nil
 }
 
-func openRecursiveUnion(ctx context.Context, state *queryState, n *recursiveUnionNode) (indexedStage, error) {
+func openRecursiveUnion(ctx context.Context, state *queryState, n *plan.RecursiveUnionNode) (indexedStage, error) {
 	if err := ctx.Err(); err != nil {
 		return indexedStage{}, err
 	}
@@ -218,7 +219,7 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *indexedStage) (b
 	return false, ctx.Err()
 }
 
-func openWorktableScan(ctx context.Context, state *queryState, n *worktableScanNode) (indexedStage, error) {
+func openWorktableScan(ctx context.Context, state *queryState, n *plan.WorktableScanNode) (indexedStage, error) {
 	if err := ctx.Err(); err != nil {
 		return indexedStage{}, err
 	}

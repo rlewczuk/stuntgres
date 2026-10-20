@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
 
@@ -15,9 +16,9 @@ func isPGSequencesRelation(relation *catalog.Relation) bool {
 // SQL marks remain intact for binding, admission and clause diagnostics.
 // The expanded pg_sequences view has no represented physical tuple to mark;
 // its admitted-row sequence helper locks are a separate execution obligation.
-func effectiveQueryRowMark(relation *catalog.Relation, mark queryRowMark) queryRowMark {
+func effectiveQueryRowMark(relation *catalog.Relation, mark plan.RowMark) plan.RowMark {
 	if isPGSequencesRelation(relation) {
-		return queryRowMark{}
+		return plan.RowMark{}
 	}
 	return mark
 }
@@ -27,7 +28,7 @@ func effectiveQueryRowMark(relation *catalog.Relation, mark queryRowMark) queryR
 type queryLockAdmission struct {
 	selectQuery     *parser.Select
 	syntheticOwner  bool // DML source roots are regenerated on each visitor traversal.
-	marks           []queryRowMark
+	marks           []plan.RowMark
 	err             error
 	indices         map[*parser.TableReference]int
 	queries         map[*parser.Select]*queryLockAdmission
@@ -38,7 +39,7 @@ type queryLockAdmission struct {
 	mutationTargets []admittedMutationTarget
 }
 
-func mergeQueryRowMark(a, b queryRowMark) queryRowMark {
+func mergeQueryRowMark(a, b plan.RowMark) plan.RowMark {
 	if a.DiagnosticMode == 0 {
 		a.DiagnosticMode = b.DiagnosticMode
 	}
@@ -52,23 +53,23 @@ func mergeQueryRowMark(a, b queryRowMark) queryRowMark {
 	return a
 }
 
-func queryRowDiagnostic(mark queryRowMark) lock.Mode {
+func queryRowDiagnostic(mark plan.RowMark) lock.Mode {
 	if mark.DiagnosticMode != 0 {
 		return mark.DiagnosticMode
 	}
 	return mark.Mode
 }
 
-func queryRootRowMarks(node LogicalNode) []queryRowMark {
+func queryRootRowMarks(node plan.Node) []plan.RowMark {
 	for {
 		switch n := node.(type) {
-		case *projectNode:
+		case *plan.ProjectNode:
 			node = n.Child
-		case *limitNode:
+		case *plan.LimitNode:
 			node = n.Child
-		case *evaluationNode:
+		case *plan.EvaluationNode:
 			node = n.Child
-		case *rowLockNode:
+		case *plan.RowLockNode:
 			return n.Marks
 		default:
 			return nil
@@ -76,7 +77,7 @@ func queryRootRowMarks(node LogicalNode) []queryRowMark {
 	}
 }
 
-func queryOccurrenceMark(marks []queryRowMark, occurrence int, inherited queryRowMark) queryRowMark {
+func queryOccurrenceMark(marks []plan.RowMark, occurrence int, inherited plan.RowMark) plan.RowMark {
 	if occurrence < len(marks) {
 		return mergeQueryRowMark(inherited, marks[occurrence])
 	}
@@ -85,7 +86,7 @@ func queryOccurrenceMark(marks []queryRowMark, occurrence int, inherited queryRo
 
 // OF sees child relation occurrences through a whole-join alias, unlike the
 // expression namespace. A relation's own alias still hides its original name.
-func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virtual ...map[*parser.TableReference]bool) ([]queryRowMark, error) {
+func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virtual ...map[*parser.TableReference]bool) ([]plan.RowMark, error) {
 	if len(clauses) == 0 {
 		return nil, nil
 	}
@@ -98,7 +99,7 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virt
 	}
 	indices := make(map[*parser.TableReference]int)
 	_ = parser.VisitQuerySources(&parser.Select{From: from}, nil, func(table *parser.TableReference, _ *parser.Select) error { indices[table] = len(indices); return nil })
-	marks := make([]queryRowMark, len(indices))
+	marks := make([]plan.RowMark, len(indices))
 	var targets []target
 	var visit func(parser.FromItem, string)
 	visit = func(item parser.FromItem, alias string) {
@@ -161,7 +162,7 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virt
 	order := 0
 	for _, clause := range clauses {
 		mode := queryRowMode(clause.Mode)
-		mark := queryRowMark{Mode: mode, Wait: clause.Wait, DiagnosticMode: mode}
+		mark := plan.RowMark{Mode: mode, Wait: clause.Wait, DiagnosticMode: mode}
 		if len(clause.Targets) == 0 {
 			for _, target := range targets {
 				for _, i := range target.occurrences {
@@ -228,7 +229,7 @@ func firstSetRowClause(sel *parser.Select) string {
 
 // Resolve the physical expansion once at each existing demand frontier. The
 // candidate loop only consults this immutable manifest.
-func appendPendingRowMarks(dst []queryPendingMark, marks []queryRowMark, inputs *querySource) []queryPendingMark {
+func appendPendingRowMarks(dst []queryPendingMark, marks []plan.RowMark, inputs *querySource) []queryPendingMark {
 	for i, mark := range marks {
 		if mark.Mode == 0 {
 			continue

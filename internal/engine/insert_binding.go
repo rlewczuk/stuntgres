@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -48,7 +49,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 			return expr.ErrorAt("0A000", "MERGE partial insertion targets are unsupported", target.Pos)
 		}
 		if b.arrayTargets == nil {
-			b.arrayTargets = make([]*arrayAssignmentTarget, len(b.targets))
+			b.arrayTargets = make([]*plan.ArrayAssignmentTarget, len(b.targets))
 		}
 		partial, err := binder.bindAssignmentTarget(b.relation.Columns[b.targets[i]], target.Steps, target.Pos)
 		if err != nil {
@@ -140,7 +141,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 					return sequence.IdentityInsertError(c.Name)
 				}
 				if literal, ok := v.(parser.LiteralExpr); ok && (literal.Value.Kind == parser.StringValue || literal.Value.Kind == parser.NullValue) {
-					b.expressions[rowIndex][j] = unknownOutput{Info: expr.Info{Pos: v.SourcePosition()}, Raw: v}
+					b.expressions[rowIndex][j] = plan.UnknownOutput{Info: expr.Info{Pos: v.SourcePosition()}, Raw: v}
 					continue
 				}
 				context := assignmentContext
@@ -162,7 +163,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 				continue
 			}
 			c := b.relation.Columns[b.targets[j]]
-			var partial *arrayAssignmentTarget
+			var partial *plan.ArrayAssignmentTarget
 			if len(b.arrayTargets) != 0 {
 				partial = b.arrayTargets[j]
 				if partial != nil {

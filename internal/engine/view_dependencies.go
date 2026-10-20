@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -521,8 +522,8 @@ func (definition *viewDefinition) Validate(v catalog.Read, d *catalog.Relation) 
 }
 
 func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error {
-	seen := make([]*sourceNode, len(definition.sources))
-	projects := make(map[uint32]*projectNode, len(definition.frames))
+	seen := make([]*plan.SourceNode, len(definition.sources))
+	projects := make(map[uint32]*plan.ProjectNode, len(definition.frames))
 	marked := make(map[uint32]bool)
 	checkUsage := func(usage sqltype.Usage) error {
 		if !usage.Valid() {
@@ -536,8 +537,8 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 		}
 		return nil
 	}
-	var visit func(LogicalNode, uint32) error
-	visit = func(node LogicalNode, frame uint32) error {
+	var visit func(plan.Node, uint32) error
+	visit = func(node plan.Node, frame uint32) error {
 		if node == nil {
 			return fmt.Errorf("stuntgres: missing stored query node")
 		}
@@ -546,7 +547,7 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 				return err
 			}
 		}
-		if project, ok := node.(*projectNode); ok && (project.Syntax != nil || definition.frames[project.Frame] == project) {
+		if project, ok := node.(*plan.ProjectNode); ok && (project.Syntax != nil || definition.frames[project.Frame] == project) {
 			frame = project.Frame
 			frozen := definition.frames[frame]
 			if frozen == nil || frozen.Syntax != project.Syntax {
@@ -566,7 +567,7 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 			projects[frame] = project
 		}
 		switch n := node.(type) {
-		case *valuesNode:
+		case *plan.ValuesNode:
 			for _, row := range n.Rows {
 				if len(row) != len(n.Schema()) {
 					return fmt.Errorf("stuntgres: invalid view VALUES width")
@@ -577,11 +578,11 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 					}
 				}
 			}
-		case *setNode:
+		case *plan.SetNode:
 			if err := validateStoredSetNode(n, nil, nil); err != nil {
 				return err
 			}
-		case *recursiveUnionNode:
+		case *plan.RecursiveUnionNode:
 			if n.Definition == nil || !n.Definition.Recursive {
 				return fmt.Errorf("stuntgres: invalid stored recursive definition")
 			}
@@ -597,13 +598,13 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 					return fmt.Errorf("stuntgres: missing stored recursive parent")
 				}
 				for slot := n.Definition.UserWidth; slot < len(n.Schema()); slot++ {
-					carry, ok := n.RightExpressions[slot].(columnExpression)
+					carry, ok := n.RightExpressions[slot].(plan.ColumnExpr)
 					if !ok || carry.Slot != offset+slot || carry.Frame != n.Right.Frame || slot >= len(scan.Demand) || !scan.Demand[slot] {
 						return fmt.Errorf("stuntgres: invalid stored recursive parent carry")
 					}
 				}
 			}
-		case *limitNode:
+		case *plan.LimitNode:
 			for _, expr := range []expr.Expr{n.Offset, n.Count} {
 				if expr != nil && (expr.ResultUsage().Type.ID() != sqltype.Int8 || expressionUsesFrame(expr, frame)) {
 					return fmt.Errorf("stuntgres: invalid stored view bound")
@@ -619,11 +620,11 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 					}
 				}
 			}
-		case *functionFromNode:
+		case *plan.FunctionFromNode:
 			if err := validateFunctionFromLayout(n); err != nil {
 				return err
 			}
-		case *setProjectNode:
+		case *plan.SetProjectNode:
 			if n.Child == nil || n.Template == nil || n.Template.Group == nil || *n.Template.Group != n.Frame ||
 				len(n.Calls) == 0 || n.BaseWidth < 0 || n.MarkerWidth != len(n.Template.Origins) ||
 				len(n.Schema()) != n.BaseWidth+n.MarkerWidth+len(n.Template.Scalars) ||
@@ -686,7 +687,7 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 					}
 				}
 			}
-		case *sourceNode:
+		case *plan.SourceNode:
 			if n.Occurrence < 0 || n.Occurrence >= len(seen) {
 				return fmt.Errorf("stuntgres: invalid view source occurrence")
 			}
@@ -711,7 +712,7 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 					}
 				}
 			}
-		case *joinNode:
+		case *plan.JoinNode:
 			if n.Kind > parser.JoinFull || n.LeftWidth != len(n.Left.Schema()) || n.RightWidth != len(n.Right.Schema()) || len(n.Schema()) != n.LeftWidth+n.RightWidth+len(n.Merges) {
 				return fmt.Errorf("stuntgres: invalid view join frame")
 			}
@@ -720,7 +721,7 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 					return fmt.Errorf("stuntgres: invalid view merged column usage")
 				}
 			}
-		case *rowLockNode:
+		case *plan.RowLockNode:
 			project := definition.frames[frame]
 			if marked[frame] || project == nil || len(project.Syntax.Locking) == 0 || queryRowClause(n.FirstMode) != project.Syntax.Locking[0].Mode || len(n.Marks) > len(definition.sources) {
 				return fmt.Errorf("stuntgres: invalid stored view rowmark")
@@ -731,15 +732,15 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 				}
 			}
 			marked[frame] = true
-		case *derivedNode:
+		case *plan.DerivedNode:
 			if n.Query == nil || n.Query.Root == nil || len(n.Schema()) != len(n.Query.Root.Schema()) {
 				return fmt.Errorf("stuntgres: invalid stored derived frame")
 			}
-		case *worktableScanNode:
+		case *plan.WorktableScanNode:
 			if n.Query != nil || n.CTE == nil || !n.CTE.Recursive || len(n.Schema()) != len(n.CTE.OutputSchema()) {
 				return fmt.Errorf("stuntgres: invalid stored worktable identity")
 			}
-		case *projectNode, *evaluationNode, *filterNode, *sortNode, *aggregateNode, *windowNode, *distinctNode, *distinctOnNode, *singletonNode:
+		case *plan.ProjectNode, *plan.EvaluationNode, *plan.FilterNode, *plan.SortNode, *plan.AggregateNode, *plan.WindowNode, *plan.DistinctNode, *plan.DistinctOnNode, *plan.SingletonNode:
 		default:
 			return fmt.Errorf("stuntgres: invalid view query node %T", node)
 		}
@@ -752,7 +753,7 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 				if expressionError != nil {
 					return
 				}
-				if unresolved, ok := expr.(unknownOutput); ok {
+				if unresolved, ok := expr.(plan.UnknownOutput); ok {
 					if !contextual {
 						expressionError = fmt.Errorf("stuntgres: invalid view query usage")
 						return
@@ -769,7 +770,7 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 				if expressionError = checkUsage(expr.ResultUsage()); expressionError != nil {
 					return
 				}
-				if child, ok := expr.(subqueryExpression); ok {
+				if child, ok := expr.(plan.SubqueryExpr); ok {
 					if child.QueryPlan == nil || child.QueryPlan.Root == nil {
 						expressionError = fmt.Errorf("stuntgres: invalid stored subquery")
 						return
@@ -782,14 +783,14 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 				}
 			})
 		}
-		if project, ok := node.(*projectNode); ok {
+		if project, ok := node.(*plan.ProjectNode); ok {
 			for _, expr := range project.Expressions {
 				validateExpression(expr, false)
 			}
 			for _, expr := range project.AnalysisExpressions {
 				validateExpression(expr, true)
 			}
-		} else if stage, ok := node.(*setProjectNode); ok {
+		} else if stage, ok := node.(*plan.SetProjectNode); ok {
 			for _, call := range stage.Calls {
 				validateExpression(call, false)
 			}
@@ -798,7 +799,7 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 			}
 			if stage.Template != nil {
 				for _, root := range stage.Template.Expressions {
-					_, contextual := root.(unknownOutput)
+					_, contextual := root.(plan.UnknownOutput)
 					validateExpression(root, contextual)
 				}
 				for _, origin := range stage.Template.Origins {
@@ -846,7 +847,7 @@ func validateViewLeaves(catalog catalog.Read, definition *viewDefinition) error 
 	return nil
 }
 
-func validateStoredSetNode(n *setNode, cycle *cycleRecipe, search *searchRecipe) error {
+func validateStoredSetNode(n *plan.SetNode, cycle *plan.CycleRecipe, search *plan.SearchRecipe) error {
 	width := len(n.Schema())
 	leftWidth, groupingWidth := width, width
 	if cycle != nil {

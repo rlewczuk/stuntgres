@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -251,7 +252,7 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 	info.Pos = raw.Pos
 	// Admission belongs to the actual provider only, not twice to the wrapper.
 	info.RoutineReference = nil
-	return selectedOperatorExpression{Info: info, Operator: d, Ref: ref, Provider: provider}, nil
+	return plan.SelectedOperatorExpr{Info: info, Operator: d, Ref: ref, Provider: provider}, nil
 }
 
 // Provider dispatch is constrained by the selected routine's exact declaration.

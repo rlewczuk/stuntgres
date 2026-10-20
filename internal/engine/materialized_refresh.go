@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -258,7 +259,7 @@ func (e *Engine) materializedRefreshRowsLocked(scope *StatementScope, ref ids.Ob
 		e.mu.Unlock()
 		return nil, err
 	}
-	root, source, err := e.prepareStoredQueryLocked(scope, ref, viewOf(d), d.Owner, queryRowMark{}, nil, nil)
+	root, source, err := e.prepareStoredQueryLocked(scope, ref, viewOf(d), d.Owner, plan.RowMark{}, nil, nil)
 	if err != nil {
 		return nil, err
 	}

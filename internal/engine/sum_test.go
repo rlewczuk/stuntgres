@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -31,7 +32,7 @@ func TestSumViewProviderRemapping(t *testing.T) {
 	ctx := context.Background()
 	for _, id := range []sqltype.ID{sqltype.Int2, sqltype.Int4, sqltype.Int8, sqltype.Numeric, sqltype.Float4, sqltype.Float8} {
 		provider, input := sumUnitProvider(source, id)
-		node := &aggregateNode{Child: &singletonNode{}, Calls: []aggregateCall{{Provider: provider}}}
+		node := &plan.AggregateNode{Child: &plan.SingletonNode{}, Calls: []plan.AggregateCall{{Provider: provider}}}
 		mapped, err := remapViewQuery(restored.CatalogRead(), node, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			typ, _ := restored.CatalogRead().LookupType(old.ID())
 			return typ
@@ -39,7 +40,7 @@ func TestSumViewProviderRemapping(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		next := mapped.(*aggregateNode).Calls[0].Provider
+		next := mapped.(*plan.AggregateNode).Calls[0].Provider
 		want, restoredInput := sumUnitProvider(restored, id)
 		if next.ResultUsage() != want.ResultUsage() || provider.ResultUsage().Type == next.ResultUsage().Type {
 			t.Fatal("result descriptor not remapped")
@@ -86,7 +87,7 @@ func TestSumViewProviderRemapping(t *testing.T) {
 func TestSumSlotsAndMetadata(t *testing.T) {
 	_, q, source := queryCoreFixture(t, "SELECT sum(1),sum(1),sum(1::smallint),sum(1::bigint),sum(1::numeric),sum(1::real),sum(1::double precision),avg(1),count(*) FROM t")
 	defer source.close()
-	node := q.Root.(*projectNode).Child.(*aggregateNode)
+	node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	if len(node.Calls) != 8 {
 		t.Fatal("input-aware immutable sharing", len(node.Calls))
 	}
@@ -115,8 +116,8 @@ func TestSumEagerCancellation(t *testing.T) {
 	for _, cast := range []string{"integer", "numeric", "real", "double precision"} {
 		for _, phase := range []string{"advance", "finalize", "prepublication"} {
 			_, q, source := queryCoreFixture(t, "SELECT sum(1::"+cast+") FROM t")
-			project := q.Root.(*projectNode)
-			node := project.Child.(*aggregateNode)
+			project := q.Root.(*plan.ProjectNode)
+			node := project.Child.(*plan.AggregateNode)
 			ctx, cancel := context.WithCancel(context.Background())
 			original := node.Calls[0].Provider
 			switch phase {

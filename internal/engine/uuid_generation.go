@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 )
 
 // Session-owned, nontransactional clock. Only the clock update holds mu;
@@ -55,7 +56,7 @@ func closedUUIDDefault(node expr.Expr) bool {
 			}
 		}
 		return true
-	case rowExpression, fieldExpression:
+	case plan.RowExpr, plan.FieldExpr:
 		valid := true
 		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
 		return valid
@@ -65,11 +66,11 @@ func closedUUIDDefault(node expr.Expr) bool {
 		valid := true
 		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
 		return valid
-	case scalarArrayComparisonExpression:
+	case plan.ScalarArrayComparisonExpr:
 		valid := true
 		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
 		return valid
-	case coercionExpression, collationExpression, comparisonExpression, arithmeticExpression, bitwiseExpression, likeExpression, nullTestExpression, truthTestExpression, logicalExpression, distinctExpression, conditionalExpression, caseExpression:
+	case plan.CoercionExpr, plan.CollationExpr, plan.ComparisonExpr, plan.ArithmeticExpr, plan.BitwiseExpr, plan.LikeExpr, plan.NullTestExpr, plan.TruthTestExpr, plan.LogicalExpr, plan.DistinctExpr, plan.ConditionalExpr, plan.CaseExpr:
 		valid := true
 		boundExpressionChildren(node, func(child expr.Expr) { valid = valid && closedUUIDDefault(child) })
 		return valid

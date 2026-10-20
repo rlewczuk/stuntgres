@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -20,12 +21,12 @@ func TestExpressionArithmeticCastPreflight(t *testing.T) {
 		{"SELECT 1+CAST($1::text AS int4) FROM t", false, 3, ""},
 		{"SELECT -CAST($1::text AS int4) FROM t", true, -2, ""},
 	} {
-		original := preflightCast(t, tc.query).(arithmeticExpression)
+		original := preflightCast(t, tc.query).(plan.ArithmeticExpr)
 		conversion := original.Left
 		if !tc.unary && tc.code == "" {
 			conversion = original.Right
 		}
-		cast := conversion.(coercionExpression)
+		cast := conversion.(plan.CoercionExpr)
 		source := cast.Child.ResultUsage().Type
 		value, err := source.Input(context.Background(), "2", -1)
 		if err != nil {
@@ -36,7 +37,7 @@ func TestExpressionArithmeticCastPreflight(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal("descendant preflight", tc.query, folded, changed, err)
 		}
-		private, ok := folded.(arithmeticExpression)
+		private, ok := folded.(plan.ArithmeticExpr)
 		if !ok || private.Info != original.Info || !private.Properties().ParameterDependent {
 			t.Fatal("arithmetic root folded or metadata changed", folded)
 		}
@@ -44,10 +45,10 @@ func TestExpressionArithmeticCastPreflight(t *testing.T) {
 		if !tc.unary && tc.code == "" {
 			child = private.Right
 		}
-		if _, ok := child.(literalExpression); !ok {
+		if _, ok := child.(plan.LiteralExpr); !ok {
 			t.Fatal("cast child not materialized", child)
 		}
-		if _, ok := conversion.(coercionExpression); !ok {
+		if _, ok := conversion.(plan.CoercionExpr); !ok {
 			t.Fatal("original conversion mutated", conversion)
 		}
 		// The transformed root still delegates to the actual arithmetic provider.

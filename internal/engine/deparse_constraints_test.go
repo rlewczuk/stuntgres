@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -161,7 +162,7 @@ func TestDeparseConstraintsLiteralTypes(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			node := literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: value}
+			node := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: value}
 			for _, pretty := range []bool{false, true} {
 				got, err := (pgRenderer{view: view, pretty: pretty}).sql(context.Background(), node, pgRenderParent{})
 				want := tc.compact
@@ -264,7 +265,7 @@ func TestDeparseConstraintsStrictnessAndSuppliedAttributes(t *testing.T) {
 	treeType, _ := view.LookupType(sqltype.PgNodeTree)
 	boolType, _ := view.LookupType(sqltype.Bool)
 	literal := func(v sqltype.Value) expr.Expr {
-		return literalExpression{Info: expr.Info{Usage: v.Type().Usage()}, Value: v}
+		return plan.LiteralExpr{Info: expr.Info{Usage: v.Type().Usage()}, Value: v}
 	}
 	zero, _ := sqltype.OIDValue(oidType, 0)
 	tree, err := catalogTree(treeType, literal(zero))
@@ -356,7 +357,7 @@ func TestDeparseConstraintsTypmodsAndLiteralVariants(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			node := literalExpression{Info: expr.Info{Usage: u}, Value: value}
+			node := plan.LiteralExpr{Info: expr.Info{Usage: u}, Value: value}
 			for _, pretty := range []bool{false, true} {
 				got, err := (pgRenderer{view: view, pretty: pretty}).sql(context.Background(), node, pgRenderParent{})
 				if err != nil || got != tc.expected {

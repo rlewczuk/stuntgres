@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -49,10 +50,10 @@ func TestMathTraversal(t *testing.T) {
 	}
 	zero, _ := sqltype.Integer(int4, 0)
 	mod := functions.Math{Info: expr.Info{Usage: int4.Usage()}, Plan: modPlan, Args: []expr.Expr{
-		literalExpression{expr.Info{Usage: int4.Usage()}, one},
-		literalExpression{expr.Info{Usage: int4.Usage()}, zero},
+		plan.LiteralExpr{expr.Info{Usage: int4.Usage()}, one},
+		plan.LiteralExpr{expr.Info{Usage: int4.Usage()}, zero},
 	}}
-	expr := functions.Math{Info: expr.Info{Usage: numeric.Usage()}, Plan: mathPlan, Args: []expr.Expr{literalExpression{expr.Info{Usage: numeric.Usage()}, sqltype.Null(numeric)}, mod}}
+	expr := functions.Math{Info: expr.Info{Usage: numeric.Usage()}, Plan: mathPlan, Args: []expr.Expr{plan.LiteralExpr{expr.Info{Usage: numeric.Usage()}, sqltype.Null(numeric)}, mod}}
 	_, _, err = simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, expr, false)
 	var diagnostic interface{ SQLState() string }
 	if !errors.As(err, &diagnostic) || diagnostic.SQLState() != "22012" {

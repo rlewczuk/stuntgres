@@ -25,9 +25,9 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 	boolInfo := b.info(boolType.Usage(), parser.Position{Character: 8}, expr.Properties{})
 	integer, _ := sqltype.Integer(intType, 1)
 	for _, v := range []sqltype.Value{sqltype.Null(intType), integer, sqltype.Null(boolType), sqltype.Boolean(boolType, true)} {
-		child := literalExpression{b.info(v.Type().Usage(), parser.Position{}, expr.Properties{}), v}
+		child := plan.LiteralExpr{b.info(v.Type().Usage(), parser.Position{}, expr.Properties{}), v}
 		for _, not := range []bool{false, true} {
-			node := nullTestExpression{boolInfo, child, not, false}
+			node := plan.NullTestExpr{boolInfo, child, not, false}
 			got, err := node.Eval(evalContext)
 			want := v.IsNull() != not
 			truth, truthErr := plan.TruthOf(got)
@@ -38,9 +38,9 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 	}
 	matrix := [][]bool{{true, false, false, true, false, true}, {false, true, true, false, false, true}, {false, true, false, true, true, false}}
 	for i, v := range []sqltype.Value{sqltype.Boolean(boolType, true), sqltype.Boolean(boolType, false), sqltype.Null(boolType)} {
-		child := literalExpression{boolInfo, v}
-		for j, truth := range []Truth{plan.True, plan.True, plan.False, plan.False, plan.Unknown, plan.Unknown} {
-			node := truthTestExpression{boolInfo, child, truth, j%2 == 1}
+		child := plan.LiteralExpr{boolInfo, v}
+		for j, truth := range []plan.Truth{plan.True, plan.True, plan.False, plan.False, plan.Unknown, plan.Unknown} {
+			node := plan.TruthTestExpr{boolInfo, child, truth, j%2 == 1}
 			got, err := node.Eval(evalContext)
 			actual, truthErr := plan.TruthOf(got)
 			if err != nil || truthErr != nil || got.IsNull() || (actual == plan.True) != matrix[i][j] {
@@ -56,10 +56,10 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 	}
 	for i, a := range values {
 		for j, c := range values {
-			left := literalExpression{b.info(intType.Usage(), parser.Position{}, expr.Properties{}), a}
-			right := literalExpression{b.info(intType.Usage(), parser.Position{}, expr.Properties{}), c}
+			left := plan.LiteralExpr{b.info(intType.Usage(), parser.Position{}, expr.Properties{}), a}
+			right := plan.LiteralExpr{b.info(intType.Usage(), parser.Position{}, expr.Properties{}), c}
 			for _, not := range []bool{false, true} {
-				node := distinctExpression{boolInfo, left, right, equality, not}
+				node := plan.DistinctExpr{boolInfo, left, right, equality, not}
 				got, err := node.Eval(evalContext)
 				truth, truthErr := plan.TruthOf(got)
 				if err != nil || truthErr != nil || got.IsNull() || (truth == plan.True) != ((i != j) != not) {
@@ -72,9 +72,9 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 	if err != nil || strict.Type() != boolType || !strict.IsNull() {
 		t.Fatal("ordinary equality lost UNKNOWN", strict, err)
 	}
-	column := columnExpression{Info: b.info(intType.Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Scope: 1, Frame: 1, Slot: 0}
-	parameter := parameterExpression{b.info(intType.Usage(), parser.Position{}, expr.Properties{ParameterDependent: true}), 1}
-	nodes := []expr.Expr{nullTestExpression{boolInfo, column, false, false}, truthTestExpression{boolInfo, column, plan.True, false}, distinctExpression{boolInfo, column, parameter, equality, false}}
+	column := plan.ColumnExpr{Info: b.info(intType.Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Scope: 1, Frame: 1, Slot: 0}
+	parameter := plan.ParameterExpr{b.info(intType.Usage(), parser.Position{}, expr.Properties{ParameterDependent: true}), 1}
+	nodes := []expr.Expr{plan.NullTestExpr{boolInfo, column, false, false}, plan.TruthTestExpr{boolInfo, column, plan.True, false}, plan.DistinctExpr{boolInfo, column, parameter, equality, false}}
 	invalid := []*EvalContext{nil, {evalStatement: evalStatement{Context: evalContext.Context}, evalFrame: evalFrame{Scope: 2, Frame: 1, Row: []sqltype.Value{sqltype.Null(intType)}}}, {evalStatement: evalStatement{Context: evalContext.Context, Parameters: []sqltype.Value{integer}}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{{}}}}, {evalStatement: evalStatement{Context: evalContext.Context, Parameters: []sqltype.Value{integer}}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(boolType)}}}}
 	for _, node := range nodes {
 		for _, frame := range invalid {
@@ -210,7 +210,7 @@ func TestExpressionCompareNullDependenciesAndAuthorization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := b.query.Root.(*projectNode).Expressions[0]
+	node := b.query.Root.(*plan.ProjectNode).Expressions[0]
 	if !node.Properties().RowDependent || node.Properties().ParameterDependent || node.ResultUsage().Type.ID() != sqltype.Bool || node.ResultUsage().Typmod != -1 {
 		t.Fatal(node)
 	}
@@ -326,8 +326,8 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 		{"v<2 IS TRUE OR NOT f IS UNKNOWN AND v IS NOT NULL", [4]bool{true, false, true, true}, []int32{2, 3}},
 	} {
 		b, ref := describe("SELECT " + tc.expr + " FROM t WHERE " + tc.expr)
-		project := b.query.Root.(*projectNode)
-		filter := project.Child.(*filterNode)
+		project := b.query.Root.(*plan.ProjectNode)
+		filter := project.Child.(*plan.FilterNode)
 		if b.parameters.Count != 0 {
 			t.Fatal(b.parameters)
 		}
@@ -363,7 +363,7 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 	if b.parameters.Count != 1 || !reflect.DeepEqual(b.parameters.Types, []sqltype.Usage{integer.Usage()}) {
 		t.Fatal("held mixed comparison must infer INT4", b.parameters)
 	}
-	filter := b.query.Root.(*projectNode).Child.(*sortNode).Child.(*filterNode)
+	filter := b.query.Root.(*plan.ProjectNode).Child.(*plan.SortNode).Child.(*plan.FilterNode)
 	p := filter.Predicate.Properties()
 	if !p.RowDependent || !p.ParameterDependent || p.StageDependent || p.Volatility != expr.Immutable || filter.Predicate.ResultUsage() != boolean.Usage() {
 		t.Fatal(p, filter.Predicate.ResultUsage())

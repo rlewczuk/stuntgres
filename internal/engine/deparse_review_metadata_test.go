@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -30,11 +31,11 @@ func TestDeparseConstraintsReviewRawTemporalCapture(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			coercion, ok := node.(coercionExpression)
+			coercion, ok := node.(plan.CoercionExpr)
 			if !ok || coercion.Mode != sqltype.Explicit || coercion.Usage.Typmod != 3 {
 				t.Fatal(node)
 			}
-			literal := coercion.Child.(literalExpression)
+			literal := coercion.Child.(plan.LiteralExpr)
 			if literal.Usage.Typmod != -1 {
 				t.Fatal(literal.Usage)
 			}
@@ -78,7 +79,7 @@ func TestDeparseConstraintsReviewUnknownNullProvenance(t *testing.T) {
 		if err != nil {
 			t.Fatal(expression, err)
 		}
-		leaf := node.(functions.NullCount).Args[0].(literalExpression)
+		leaf := node.(functions.NullCount).Args[0].(plan.LiteralExpr)
 		if !leaf.UnknownNull || !leaf.Value.IsNull() || leaf.Usage.Type.ID() != sqltype.Text {
 			t.Fatal(leaf)
 		}
@@ -126,7 +127,7 @@ func TestDeparseConstraintsReviewUnknownNullProvenance(t *testing.T) {
 func TestDeparseConstraintsReviewLiteralQuotePolicy(t *testing.T) {
 	e := New()
 	typ, _ := e.CatalogRead().LookupType(sqltype.Text)
-	literal := literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: sqltype.String(typ, "a'b\\c")}
+	literal := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: sqltype.String(typ, "a'b\\c")}
 	for _, tc := range []struct {
 		off  bool
 		want string
@@ -204,7 +205,7 @@ func TestDeparseConstraintsReviewSignedConstantNormalization(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc.expression, err)
 		}
-		if _, ok := node.(literalExpression); !ok || node.ResultUsage().Type.ID() != tc.id {
+		if _, ok := node.(plan.LiteralExpr); !ok || node.ResultUsage().Type.ID() != tc.id {
 			t.Fatal(tc.expression, node)
 		}
 		value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
@@ -226,7 +227,7 @@ func TestDeparseConstraintsReviewConcreteNullCountArgument(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	leaf := node.(functions.NullCount).Args[0].(literalExpression)
+	leaf := node.(functions.NullCount).Args[0].(plan.LiteralExpr)
 	if leaf.UnknownNull || leaf.Usage.Type.ID() != sqltype.Int4 || !leaf.Value.IsNull() {
 		t.Fatal(leaf)
 	}
@@ -274,7 +275,7 @@ func TestDeparseConstraintsReviewViewLiteralCaptureCutover(t *testing.T) {
 	run(t, e, "INSERT INTO t VALUES(1)")
 	run(t, e, "CREATE VIEW v AS SELECT TIME(3) '04:05:06.1235' AS clock,+2147483648 AS number FROM t")
 	view := viewOf(e.CatalogRead().MustRelation(roleTableRef(t, e, "v").Address))
-	literal, ok := view.literals[viewLiteralPath{query: view.query.Root.(*projectNode).Frame, clause: viewTargetLiteral, target: 0, node: 0}]
+	literal, ok := view.literals[viewLiteralPath{query: view.query.Root.(*plan.ProjectNode).Frame, clause: viewTargetLiteral, target: 0, node: 0}]
 	if !ok || literal.Usage.Type.ID() != sqltype.Time || literal.Usage.Typmod != 3 {
 		t.Fatal(view.literals)
 	}
@@ -282,7 +283,7 @@ func TestDeparseConstraintsReviewViewLiteralCaptureCutover(t *testing.T) {
 	if err != nil || raw != 14706123500 {
 		t.Fatal(raw, err)
 	}
-	literal, ok = view.literals[viewLiteralPath{query: view.query.Root.(*projectNode).Frame, clause: viewTargetLiteral, target: 1, node: 1}]
+	literal, ok = view.literals[viewLiteralPath{query: view.query.Root.(*plan.ProjectNode).Frame, clause: viewTargetLiteral, target: 1, node: 1}]
 	if !ok || literal.Usage.Type.ID() != sqltype.Int8 {
 		t.Fatal(view.literals)
 	}
@@ -415,7 +416,7 @@ func TestDeparseConstraintsReviewPrinterContexts(t *testing.T) {
 			run(t, e, "CREATE TABLE t(a INT,b INT,c INT,CONSTRAINT ck CHECK(("+tc.input+")>0))")
 			view := e.CatalogRead()
 			d := view.MustRelation(roleTableRef(t, e, "t").Address)
-			node := d.Constraints.Check[0].Expression.(comparisonExpression).Left
+			node := d.Constraints.Check[0].Expression.(plan.ComparisonExpr).Left
 			for _, pretty := range []bool{false, true} {
 				want := tc.compact
 				if pretty {

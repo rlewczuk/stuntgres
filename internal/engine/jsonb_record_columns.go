@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -89,7 +90,7 @@ func (b *expressionBinder) jsonbRecordStarColumns(columns []queryColumn, frame u
 }
 
 func (b *expressionBinder) jsonbRecordQualifierStar(columns []queryColumn, frame uint32, star parser.StarExpr, qualifier queryQualifier) ([]queryColumn, error) {
-	source, ok := qualifier.sourceRoot.(*functionFromNode)
+	source, ok := qualifier.sourceRoot.(*plan.FunctionFromNode)
 	if !ok || source.Frame != frame {
 		return columns, nil
 	}

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -17,7 +18,7 @@ func uuidExtractEngineUnit(t *testing.T, b *expressionBinder, kind functions.UUI
 	if err != nil {
 		t.Fatal(err)
 	}
-	arg := literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: value}
+	arg := plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: value}
 	node, err := functions.NewUUIDExtract(b.info(b.typ(kind.Result()).Usage(), parser.Position{Character: 8}, expr.Properties{Volatility: expr.Immutable}), kind, expr.Expr(arg))
 	if err != nil {
 		t.Fatal(err)
@@ -37,7 +38,7 @@ func TestUUIDExtractIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	other.Arg = literalExpression{Info: expr.Info{Usage: b.typ(sqltype.UUID).Usage()}, Value: v}
+	other.Arg = plan.LiteralExpr{Info: expr.Info{Usage: b.typ(sqltype.UUID).Usage()}, Value: v}
 	if sameGroupExpression(version, other) {
 		t.Fatal("child identity lost")
 	}
@@ -56,10 +57,10 @@ func TestUUIDExtractIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	next := rewritten.(functions.UUIDExtract)
-	if _, ok := next.Arg.(groupExpression); !ok || !next.Properties().StageDependent {
+	if _, ok := next.Arg.(plan.GroupExpr); !ok || !next.Properties().StageDependent {
 		t.Fatal("group child/stage rewrite lost")
 	}
-	if _, ok := version.Arg.(literalExpression); !ok {
+	if _, ok := version.Arg.(plan.LiteralExpr); !ok {
 		t.Fatal("rewrite mutated original child")
 	}
 }

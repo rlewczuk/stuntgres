@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -175,7 +176,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	}
 	collectAuth.Recapture(scope.inheritance.catalog)
 	e.mu.Lock()
-	refs, err := e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, scope.querySources, nil, op.session.token, queryRowMark{})
+	refs, err := e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, scope.querySources, nil, op.session.token, plan.RowMark{})
 	var view *visibility.View
 	if err == nil {
 		view, err = scope.acquireDataViewsLocked(e, refs)
@@ -265,7 +266,7 @@ func TestInheritanceQueryScanMode(t *testing.T) {
 	for _, only := range []bool{false, true} {
 		old := ref
 		old.Epoch++
-		frozen := &viewDefinition{sources: []viewLeaf{{ref: old, only: only}}, query: &BoundQuery{Root: &sourceNode{Ref: old}}}
+		frozen := &viewDefinition{sources: []viewLeaf{{ref: old, only: only}}, query: &plan.Query{Root: &plan.SourceNode{Ref: old}}}
 		mapped, err := remapFrozenPresentation(e.CatalogRead(), frozen, nil, func(source ids.ObjectRef) ids.ObjectRef {
 			if source == old {
 				return ref
@@ -276,7 +277,7 @@ func TestInheritanceQueryScanMode(t *testing.T) {
 			t.Fatal(err)
 		}
 		remapped := mapped.sources[0]
-		if remapped.ref != ref || remapped.only != only || frozen.sources[0].ref != old || mapped.query.Root.(*sourceNode).Ref != ref {
+		if remapped.ref != ref || remapped.only != only || frozen.sources[0].ref != old || mapped.query.Root.(*plan.SourceNode).Ref != ref {
 			t.Fatal("replacement lost source mode or mutated frozen authority")
 		}
 		var got []ids.ObjectAddress

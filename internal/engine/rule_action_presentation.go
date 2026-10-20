@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
 
@@ -15,7 +16,7 @@ func (e *Engine) freezeRuleActionPresentationLocked(auth AuthorizationView, acti
 			query = &parser.Select{Values: insert.Source.Values}
 			// VALUES binding owns a project without SELECT syntax. Retain its
 			// complete envelope under the presentation's synthetic SELECT key.
-			project := *b.query.Root.(*projectNode)
+			project := *b.query.Root.(*plan.ProjectNode)
 			project.Syntax = query
 			producer := *b.query
 			producer.Root = &project
@@ -35,7 +36,7 @@ func (e *Engine) freezeRuleActionPresentationLocked(auth AuthorizationView, acti
 	for _, row := range b.expressions {
 		expressions = append(expressions, row...)
 	}
-	var from LogicalNode
+	var from plan.Node
 	if b.update != nil {
 		from = b.update.from
 		expressions = append(expressions, b.update.assignments...)
@@ -53,15 +54,15 @@ func (e *Engine) freezeRuleActionPresentationLocked(auth AuthorizationView, acti
 		expressions = append(expressions, b.returning.expressions...)
 	}
 	if from == nil {
-		from = &singletonNode{}
+		from = &plan.SingletonNode{}
 	}
-	metadata.query = &BoundQuery{Root: &projectNode{Child: from, Expressions: expressions, Syntax: query, Frame: 1}}
+	metadata.query = &plan.Query{Root: &plan.ProjectNode{Child: from, Expressions: expressions, Syntax: query, Frame: 1}}
 	metadata = retainRuleCTEPresentation(auth.Catalog, metadata)
 	presentation, err := e.freezeQueryPresentationLocked(auth, query, metadata, false, false, 0, "", false)
 	if err != nil {
 		return nil, err
 	}
-	presentation.frames[1] = metadata.query.Root.(*projectNode)
+	presentation.frames[1] = metadata.query.Root.(*plan.ProjectNode)
 	return presentation, nil
 }
 

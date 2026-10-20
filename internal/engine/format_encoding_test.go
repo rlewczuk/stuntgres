@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -143,7 +144,7 @@ func TestFormatEncodingCanonicalDeparse(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := literalExpression{Info: expr.Info{Usage: typ.Usage()}, Value: value}
+		node := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: value}
 		for _, precision := range []int32{0, -1, -15} {
 			renderer := pgRenderer{view: view, output: sqltype.OutputEnvironment{FloatPrecisionSet: true, ExtraFloatDigits: precision}}
 			got, err := renderer.literal(ctx, node)
@@ -158,7 +159,7 @@ func TestFormatEncodingCanonicalDeparse(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			node := literalExpression{Info: expr.Info{Usage: array.Usage()}, Value: values}
+			node := plan.LiteralExpr{Info: expr.Info{Usage: array.Usage()}, Value: values}
 			want := "'{1.2345679}'::real[]"
 			if tc.id == sqltype.Float8 {
 				want = "'{1.2345678901234567}'::double precision[]"

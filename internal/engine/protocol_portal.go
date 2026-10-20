@@ -9,6 +9,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -273,8 +274,8 @@ func (t *transactionOwner) retireProtocolPortalsAfter(frontier uint64) {
 	}
 }
 
-func (s *StatementScope) installProtocolProducer(root LogicalNode, source *querySource, values []sqltype.Value) (Result, error) {
-	project, ok := root.(*projectNode)
+func (s *StatementScope) installProtocolProducer(root plan.Node, source *querySource, values []sqltype.Value) (Result, error) {
+	project, ok := root.(*plan.ProjectNode)
 	if !ok {
 		source.close()
 		return Result{}, fmt.Errorf("stuntgres: portal lacks projection")

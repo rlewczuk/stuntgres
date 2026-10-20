@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -51,12 +52,12 @@ func TestRuleInferenceDumpReanalysis(t *testing.T) {
 					action := r.actions[0]
 					body := action.binding.ctes[0]
 					presentation := action.modifierPresentations[body.Statement]
-					project := cteMutationOf(body).query.Root.(*projectNode)
-					outer := action.binding.query.Root.(*projectNode)
+					project := cteMutationOf(body).query.Root.(*plan.ProjectNode)
+					outer := action.binding.query.Root.(*plan.ProjectNode)
 					if project.Frame == outer.Frame {
 						t.Fatal("modifier and consumer share a SELECT capture frame")
 					}
-					source, ok := project.Expressions[0].(columnExpression)
+					source, ok := project.Expressions[0].(plan.ColumnExpr)
 					if !ok || source.Scope == rulePseudoScope || source.Frame != project.Frame ||
 						source.Origin.Address.ClassID != inputRef.Address.ClassID ||
 						source.Origin.Address.ObjectID != inputRef.Address.ObjectID || source.Origin.Address.SubID != 1 {

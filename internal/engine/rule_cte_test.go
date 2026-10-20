@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -40,12 +41,12 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		}
 	})
 	original := ruleUnitInsert(e, src, 1, 10)
-	definition := &cteDefinition{Statement: original.syntax, Mutation: &original.binding, Schema: querySchema(src.Columns), Owner: 1}
+	definition := &plan.CTEDefinition{Statement: original.syntax, Mutation: &original.binding, Schema: plan.QuerySchema(src.Columns), Owner: 1}
 	t.Run("complete_executable_tuple", func(t *testing.T) {
 		action := ruleUnitInsert(e, sink, 1, 11)
 		src.Rules = rulesPayloadOf([]ruleDefinition{{Name: "redirect", event: "INSERT", instead: true, actions: []ruleAction{action}}})
 		defer func() { src.Rules = nil }()
-		parent := binding{ctes: []*cteDefinition{definition}}
+		parent := binding{ctes: []*plan.CTEDefinition{definition}}
 		e.mu.Lock()
 		err := e.normalizeRuleCTEsLocked(nil, auth, &parser.Select{}, &parent)
 		e.mu.Unlock()
@@ -61,28 +62,28 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		}
 	})
 	t.Run("protected_modifier_and_select", func(t *testing.T) {
-		provider := &BoundQuery{Root: &projectNode{QuerySchema: querySchema(src.Columns), Frame: 2, Child: &singletonNode{}, Expressions: []expr.Expr{ruleUnitInt(src, 1), ruleUnitInt(src, 10)}}}
-		selection := &cteDefinition{Query: provider, Owner: 1}
-		for _, protected := range []*cteDefinition{definition, selection} {
-			scan := &derivedNode{QuerySchema: querySchema(src.Columns), Query: protected.Query, CTE: protected, ScanFrame: 1}
-			mapped, err := newRuleTreeMapper(auth.Catalog, func(frame uint32) uint32 { return frame + 7 }, 4, []*cteDefinition{protected}).query(scan)
+		provider := &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(src.Columns), Frame: 2, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{ruleUnitInt(src, 1), ruleUnitInt(src, 10)}}}
+		selection := &plan.CTEDefinition{Query: provider, Owner: 1}
+		for _, protected := range []*plan.CTEDefinition{definition, selection} {
+			scan := &plan.DerivedNode{QuerySchema: plan.QuerySchema(src.Columns), Query: protected.Query, CTE: protected, ScanFrame: 1}
+			mapped, err := newRuleTreeMapper(auth.Catalog, func(frame uint32) uint32 { return frame + 7 }, 4, []*plan.CTEDefinition{protected}).query(scan)
 			if err != nil {
 				t.Fatal(err)
 			}
-			result := mapped.(*derivedNode)
+			result := mapped.(*plan.DerivedNode)
 			if result.CTE != protected || result.Query != protected.Query || result.CTE.Owner != 1 || result.ScanFrame != 8 {
 				t.Fatal("protected producer identity/owner/query graph changed")
 			}
 		}
 	})
 	t.Run("action_owner_and_project_memo", func(t *testing.T) {
-		leaf := &sourceNode{QuerySchema: querySchema(sink.Columns), Occurrence: 1}
-		provider := &BoundQuery{Root: &projectNode{QuerySchema: querySchema(sink.Columns), Frame: 2, Child: leaf, Expressions: []expr.Expr{ruleUnitInt(sink, 1), ruleUnitInt(sink, 11)}}}
-		local := &cteDefinition{Query: provider, Owner: 1}
-		scan := &derivedNode{QuerySchema: querySchema(sink.Columns), Query: provider, CTE: local, ScanFrame: 1}
-		action := binding{ctes: []*cteDefinition{local}, query: &BoundQuery{Root: &projectNode{QuerySchema: querySchema(sink.Columns), Frame: 1, Child: scan, Expressions: provider.Root.(*projectNode).Expressions, AnalysisExpressions: []expr.Expr{subqueryExpression{QueryPlan: provider, CTEDefinition: true}}}}}
+		leaf := &plan.SourceNode{QuerySchema: plan.QuerySchema(sink.Columns), Occurrence: 1}
+		provider := &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Frame: 2, Child: leaf, Expressions: []expr.Expr{ruleUnitInt(sink, 1), ruleUnitInt(sink, 11)}}}
+		local := &plan.CTEDefinition{Query: provider, Owner: 1}
+		scan := &plan.DerivedNode{QuerySchema: plan.QuerySchema(sink.Columns), Query: provider, CTE: local, ScanFrame: 1}
+		action := binding{ctes: []*plan.CTEDefinition{local}, query: &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Frame: 1, Child: scan, Expressions: provider.Root.(*plan.ProjectNode).Expressions, AnalysisExpressions: []expr.Expr{plan.SubqueryExpr{QueryPlan: provider, CTEDefinition: true}}}}}
 		parent := original.binding
-		parent.ctes = []*cteDefinition{definition}
+		parent.ctes = []*plan.CTEDefinition{definition}
 		mapped, err := isolateRuleCTEFrames(auth.Catalog, parent, action, &parser.Insert{})
 		if err != nil {
 			t.Fatal(err)
@@ -91,36 +92,36 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		project := mapped.query.Root.(*projectNode)
-		result := project.Child.(*derivedNode)
-		analysis := project.AnalysisExpressions[0].(subqueryExpression)
+		project := mapped.query.Root.(*plan.ProjectNode)
+		result := project.Child.(*plan.DerivedNode)
+		analysis := project.AnalysisExpressions[0].(plan.SubqueryExpr)
 		if result.CTE == local || result.CTE.Owner == definition.Owner || result.ScanFrame != 1 || result.Query != result.CTE.Query || mapped.ctes[0] != result.CTE || analysis.QueryPlan.Root != result.CTE.Query.Root {
 			t.Fatal("action provider mapping is incoherent or shadows protected owner")
 		}
-		if result.Query.Root.(*projectNode).Frame == 2 || result.Query.Root.(*projectNode).Child.(*sourceNode).Occurrence != 4 {
+		if result.Query.Root.(*plan.ProjectNode).Frame == 2 || result.Query.Root.(*plan.ProjectNode).Child.(*plan.SourceNode).Occurrence != 4 {
 			t.Fatal("provider frame/occurrence was not mapped exactly once")
 		}
 		final, err := finalizeRuleQuery(auth.Catalog, project)
 		if err != nil {
 			t.Fatal(err)
 		}
-		finalScan := final.(*projectNode).Child.(*derivedNode)
+		finalScan := final.(*plan.ProjectNode).Child.(*plan.DerivedNode)
 		if finalScan.CTE != result.CTE || finalScan.Query != result.CTE.Query {
 			t.Fatal("finalization forked immutable provider graph")
 		}
-		if local.Owner != 1 || provider.Root.(*projectNode).Frame != 2 || leaf.Occurrence != 1 {
+		if local.Owner != 1 || provider.Root.(*plan.ProjectNode).Frame != 2 || leaf.Occurrence != 1 {
 			t.Fatal("mutated frozen action template")
 		}
 	})
 	t.Run("top_owned_namespace_only", func(t *testing.T) {
 		position := parser.Position{Offset: 17}
 		raw := parser.CommonTableExpression{Name: parser.Identifier{Text: "q", Pos: position}}
-		newColumn := columnExpression{Info: ruleColumnInfo(src.Columns[0]), Scope: rulePseudoScope, Frame: 2}
+		newColumn := plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Scope: rulePseudoScope, Frame: 2}
 		oldColumn := newColumn
 		oldColumn.Frame = 1
-		provider := &BoundQuery{Root: &projectNode{Expressions: []expr.Expr{newColumn, oldColumn}}}
-		local := &cteDefinition{Query: provider, Position: position}
-		body := binding{ctes: []*cteDefinition{local}, query: &BoundQuery{Root: &projectNode{AnalysisExpressions: []expr.Expr{subqueryExpression{Info: expr.Info{Pos: position}, QueryPlan: provider, CTEDefinition: true}}}}}
+		provider := &plan.Query{Root: &plan.ProjectNode{Expressions: []expr.Expr{newColumn, oldColumn}}}
+		local := &plan.CTEDefinition{Query: provider, Position: position}
+		body := binding{ctes: []*plan.CTEDefinition{local}, query: &plan.Query{Root: &plan.ProjectNode{AnalysisExpressions: []expr.Expr{plan.SubqueryExpr{Info: expr.Info{Pos: position}, QueryPlan: provider, CTEDefinition: true}}}}}
 		for _, action := range []parser.Statement{
 			&parser.Insert{With: []parser.CommonTableExpression{raw}},
 			&parser.Insert{Source: &parser.InsertSource{Select: &parser.Select{With: []parser.CommonTableExpression{raw}}}},
@@ -133,27 +134,27 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		if err := validateRuleActionCTEs(&parser.Insert{}, body); err != nil {
 			t.Fatalf("nested/enclosing WITH was rejected: %v", err)
 		}
-		provider.Root = &projectNode{Expressions: []expr.Expr{rowExpression{RuleSide: 2}}}
+		provider.Root = &plan.ProjectNode{Expressions: []expr.Expr{plan.RowExpr{RuleSide: 2}}}
 		if err := validateRuleActionCTEs(&parser.Insert{With: []parser.CommonTableExpression{raw}}, body); err == nil || !strings.Contains(err.Error(), "cannot refer to NEW within WITH query") {
 			t.Fatalf("empty formal whole row lost identity: %v", err)
 		}
 	})
 	t.Run("semantic_provider_memo_and_finalization", func(t *testing.T) {
-		pseudo := columnExpression{Info: ruleColumnInfo(src.Columns[0]), Scope: rulePseudoScope, Frame: 2}
-		provider := &BoundQuery{Root: &projectNode{QuerySchema: querySchema(sink.Columns), Frame: 2, Child: &singletonNode{}, Expressions: []expr.Expr{pseudo, ruleUnitInt(sink, 10)}}}
-		local := &cteDefinition{Query: provider, Owner: 1}
-		scan := &derivedNode{QuerySchema: querySchema(sink.Columns), CTE: local, Query: provider, ScanFrame: 1}
-		root := &projectNode{QuerySchema: querySchema(sink.Columns), Frame: 1, Child: scan, Expressions: []expr.Expr{ruleUnitInt(sink, 1), ruleUnitInt(sink, 10)}, AnalysisExpressions: []expr.Expr{subqueryExpression{QueryPlan: provider, CTEDefinition: true}}}
-		finalized := make(map[LogicalNode]bool)
+		pseudo := plan.ColumnExpr{Info: ruleColumnInfo(src.Columns[0]), Scope: rulePseudoScope, Frame: 2}
+		provider := &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Frame: 2, Child: &plan.SingletonNode{}, Expressions: []expr.Expr{pseudo, ruleUnitInt(sink, 10)}}}
+		local := &plan.CTEDefinition{Query: provider, Owner: 1}
+		scan := &plan.DerivedNode{QuerySchema: plan.QuerySchema(sink.Columns), CTE: local, Query: provider, ScanFrame: 1}
+		root := &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Frame: 1, Child: scan, Expressions: []expr.Expr{ruleUnitInt(sink, 1), ruleUnitInt(sink, 10)}, AnalysisExpressions: []expr.Expr{plan.SubqueryExpr{QueryPlan: provider, CTEDefinition: true}}}
+		finalized := make(map[plan.Node]bool)
 		finishCount := 0
 		mapper := newRuleTreeMapper(auth.Catalog, nil, 0, nil, ruleTreeMapping{
 			leaf: func(expr expr.Expr) (expr.Expr, bool, error) {
-				if column, ok := expr.(columnExpression); ok && column.Scope == rulePseudoScope {
+				if column, ok := expr.(plan.ColumnExpr); ok && column.Scope == rulePseudoScope {
 					return ruleUnitInt(sink, 11), true, nil
 				}
 				return expr, false, nil
 			},
-			finish: func(root LogicalNode) (LogicalNode, error) {
+			finish: func(root plan.Node) (plan.Node, error) {
 				finishCount++
 				result, err := finalizeRuleQuery(auth.Catalog, root, finalized)
 				if err == nil {
@@ -166,9 +167,9 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		project := mapped.(*projectNode)
-		result := project.Child.(*derivedNode)
-		analysis := project.AnalysisExpressions[0].(subqueryExpression)
+		project := mapped.(*plan.ProjectNode)
+		result := project.Child.(*plan.DerivedNode)
+		analysis := project.AnalysisExpressions[0].(plan.SubqueryExpr)
 		definition, err := mapper.definition(local)
 		if err != nil {
 			t.Fatal(err)
@@ -176,22 +177,22 @@ func TestRuleCTECommandNormalization(t *testing.T) {
 		if definition != result.CTE || result.Query != definition.Query || analysis.QueryPlan.Root != definition.Query.Root {
 			t.Fatal("semantic graft forked definition/scan/analysis project")
 		}
-		if _, formal := definition.Query.Root.(*projectNode).Expressions[0].(columnExpression); formal {
+		if _, formal := definition.Query.Root.(*plan.ProjectNode).Expressions[0].(plan.ColumnExpr); formal {
 			t.Fatal("formal reference survived semantic provider mapping")
 		}
 		repeated, err := mapper.query(root)
 		if err != nil || repeated != mapped || finishCount != 2 {
 			t.Fatalf("query finalization not exactly once per changed query: %d %v", finishCount, err)
 		}
-		if provider.Root.(*projectNode).Expressions[0].(columnExpression).Scope != rulePseudoScope {
+		if provider.Root.(*plan.ProjectNode).Expressions[0].(plan.ColumnExpr).Scope != rulePseudoScope {
 			t.Fatal("semantic graft mutated stored provider")
 		}
 	})
 	t.Run("persistent_unused_modifier_remap", func(t *testing.T) {
 		auxiliary := ruleUnitInsert(e, sink, 7, 70)
-		owned := &cteDefinition{Statement: auxiliary.syntax, Mutation: &auxiliary.binding, Owner: 1, Name: "ignored"}
+		owned := &plan.CTEDefinition{Statement: auxiliary.syntax, Mutation: &auxiliary.binding, Owner: 1, Name: "ignored"}
 		b := original.binding
-		b.ctes = []*cteDefinition{owned}
+		b.ctes = []*plan.CTEDefinition{owned}
 		mapped, err := remapRuleBinding(auth.Catalog, b, func(ref ids.ObjectRef) ids.ObjectRef { ref.Epoch++; return ref }, func(typ *sqltype.Descriptor) *sqltype.Descriptor { return typ }, nil)
 		if err != nil {
 			t.Fatal(err)
@@ -215,15 +216,15 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 		updateTargets: []int{1}, width: 2,
 	}
 	modifier.binding.insert.conflict = recipe
-	definition := &cteDefinition{Statement: modifier.syntax, Mutation: &modifier.binding, Schema: querySchema(sink.Columns), Owner: 3}
-	scan := &derivedNode{QuerySchema: definition.Schema, CTE: definition, ScanFrame: 1}
+	definition := &plan.CTEDefinition{Statement: modifier.syntax, Mutation: &modifier.binding, Schema: plan.QuerySchema(sink.Columns), Owner: 3}
+	scan := &plan.DerivedNode{QuerySchema: definition.Schema, CTE: definition, ScanFrame: 1}
 	action := ruleUnitInsert(e, sink, 1, 10)
 	action.binding.expressions = nil
-	action.binding.query = &BoundQuery{Root: &projectNode{
-		QuerySchema: querySchema(sink.Columns), Frame: 1, Child: scan,
+	action.binding.query = &plan.Query{Root: &plan.ProjectNode{
+		QuerySchema: plan.QuerySchema(sink.Columns), Frame: 1, Child: scan,
 		Expressions: []expr.Expr{ruleUnitInt(sink, 1), ruleUnitInt(sink, 10)},
 	}}
-	action.binding.ctes = []*cteDefinition{definition}
+	action.binding.ctes = []*plan.CTEDefinition{definition}
 	action.binding.rule.template = true
 	compose := func() binding {
 		t.Helper()
@@ -239,7 +240,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 		}
 		return result
 	}
-	executable := func(b binding) (*cteDefinition, *boundInsertConflict) {
+	executable := func(b binding) (*plan.CTEDefinition, *boundInsertConflict) {
 		t.Helper()
 		provider := b.ctes[0]
 		tuple := b.rule.ctes[provider]
@@ -247,12 +248,12 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 			t.Fatal("normalization lost the modifier's original provider/executable tuple")
 		}
 		var found bool
-		var visit func(LogicalNode)
-		visit = func(node LogicalNode) {
+		var visit func(plan.Node)
+		visit = func(node plan.Node) {
 			if node == nil {
 				return
 			}
-			if derived, ok := node.(*derivedNode); ok && derived.CTE == provider {
+			if derived, ok := node.(*plan.DerivedNode); ok && derived.CTE == provider {
 				found = true
 				if derived.CTE.Owner != provider.Owner || derived.Query != provider.Query {
 					t.Fatal("modifier scan forked its provider or owner")
@@ -297,9 +298,9 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 	}
 	// Executable descendants use the same stored-action refresh authority.
 	nested := modifier.binding
-	nested.ctes = []*cteDefinition{definition}
-	ancestor := &cteDefinition{Statement: modifier.syntax, Mutation: &nested, Schema: definition.Schema, Owner: 4}
-	refreshed, err := refreshRuleActionCTEs(auth, binding{ctes: []*cteDefinition{ancestor}})
+	nested.ctes = []*plan.CTEDefinition{definition}
+	ancestor := &plan.CTEDefinition{Statement: modifier.syntax, Mutation: &nested, Schema: definition.Schema, Owner: 4}
+	refreshed, err := refreshRuleActionCTEs(auth, binding{ctes: []*plan.CTEDefinition{ancestor}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -319,7 +320,7 @@ func TestRuleCTEConflictInstantiation(t *testing.T) {
 }
 
 // cteMutationOf recovers a definition's binding for test assertions.
-func cteMutationOf(definition *cteDefinition) *binding {
+func cteMutationOf(definition *plan.CTEDefinition) *binding {
 	mutation, _ := mutationBinding(definition)
 	return mutation
 }

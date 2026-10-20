@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 )
 
@@ -12,12 +13,12 @@ import (
 // owner changes do not replace lifetime identity; native retagging remaps both
 // the descriptor carrier and existing manifest before this renderer runs.
 func (r scalarRenderer) recordStoredRoutine(view catalog.Read, node expr.Expr) error {
-	if selected, ok := node.(selectedOperatorExpression); ok {
+	if selected, ok := node.(plan.SelectedOperatorExpr); ok {
 		// The wrapper owns operator identity, not a second invocation. Its
 		// actual provider owns the selected routine and immutable body.
 		return r.recordStoredRoutine(view, selected.Provider)
 	}
-	if expression, ok := node.(caseExpression); ok && expression.Test != nil {
+	if expression, ok := node.(plan.CaseExpr); ok && expression.Test != nil {
 		for _, arm := range expression.Arms {
 			if arm.Routine != nil {
 				if err := r.recordStoredRoutineDescriptor(view, arm.Routine); err != nil {

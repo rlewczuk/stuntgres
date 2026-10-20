@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -99,7 +100,7 @@ func TestJSONStripNullsBindingRetagRemap(t *testing.T) {
 		t.Fatal(mapped, err)
 	}
 	different := e
-	different.Args[1] = literalExpression{b.info(b.typ(sqltype.Bool).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), sqltype.Boolean(b.typ(sqltype.Bool), false)}
+	different.Args[1] = plan.LiteralExpr{b.info(b.typ(sqltype.Bool).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), sqltype.Boolean(b.typ(sqltype.Bool), false)}
 	if sameGroupExpression(e, different) {
 		t.Fatal("group identity ignored Boolean formal")
 	}

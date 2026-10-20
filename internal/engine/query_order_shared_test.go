@@ -4,13 +4,14 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
 func TestQueryOrderSharedHiddenKeysAndOwnedIndices(t *testing.T) {
 	e, query, source := queryCoreFixture(t, "SELECT id FROM t WHERE f ORDER BY id+1 DESC,id+1,id+2")
-	project := query.Root.(*projectNode)
-	sorted := project.Child.(*sortNode)
+	project := query.Root.(*plan.ProjectNode)
+	sorted := project.Child.(*plan.SortNode)
 	calls := [2]int{}
 	for i := range sorted.Keys {
 		counter := 0

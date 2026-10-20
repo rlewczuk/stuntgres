@@ -1,6 +1,9 @@
 package engine
 
-import "stuntgres/internal/engine/expr"
+import (
+	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
+)
 
 func (b *expressionBinder) lowerStringInsert(out *binding) error {
 	row := out.expressions[0]
@@ -13,11 +16,11 @@ func (b *expressionBinder) lowerStringInsert(out *binding) error {
 	}
 	projection := make([]expr.Expr, 0, len(row))
 	targets := make([]int, 0, len(out.targets))
-	var partials []*arrayAssignmentTarget
+	var partials []*plan.ArrayAssignmentTarget
 	if len(out.arrayTargets) != 0 {
-		partials = make([]*arrayAssignmentTarget, 0, len(out.arrayTargets))
+		partials = make([]*plan.ArrayAssignmentTarget, 0, len(out.arrayTargets))
 	}
-	schema := make(querySchema, 0, len(row))
+	schema := make(plan.QuerySchema, 0, len(row))
 	for i, expr := range row {
 		// DEFAULT remains demanded by the write scheduler once per emitted row.
 		if expr == nil {
@@ -30,11 +33,11 @@ func (b *expressionBinder) lowerStringInsert(out *binding) error {
 			partials = append(partials, out.arrayTargets[i])
 		}
 	}
-	root, err := b.lowerQuerySets(&singletonNode{}, projection, nil, true)
+	root, err := b.lowerQuerySets(&plan.SingletonNode{}, projection, nil, true)
 	if err != nil {
 		return err
 	}
-	out.query = &BoundQuery{Root: &projectNode{QuerySchema: schema, Child: root, Expressions: projection, Frame: b.frameID()}}
+	out.query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: schema, Child: root, Expressions: projection, Frame: b.frameID()}}
 	out.commandQuery = true
 	out.targets, out.arrayTargets = targets, partials
 	out.expressions = nil

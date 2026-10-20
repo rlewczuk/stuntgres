@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -40,7 +41,7 @@ func TestDomainCheckBindingIdentityInternal(t *testing.T) {
 			t.Fatal("VALUE is not conversion-dependent", check.Expression.Properties())
 		}
 		walkBoundExpression(check.Expression, func(node expr.Expr) {
-			if _, value := node.(domainValueExpression); value && node.ResultUsage() != d.SQLType.DomainBase() {
+			if _, value := node.(plan.DomainValueExpr); value && node.ResultUsage() != d.SQLType.DomainBase() {
 				t.Fatal("VALUE lost immediate base usage")
 			}
 		})
@@ -136,7 +137,7 @@ func TestDomainCheckEvaluationFrameInternal(t *testing.T) {
 			t.Fatal("nested/error VALUE frame leaked", tc)
 		}
 	}
-	leaf := domainValueExpression{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{DomainDependent: true}}}
+	leaf := plan.DomainValueExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{DomainDependent: true}}}
 	if _, err := leaf.Eval(&eval); err == nil {
 		t.Fatal("wrong VALUE frame type accepted")
 	}
@@ -153,7 +154,7 @@ func TestDomainCheckEvaluationFrameInternal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	textLeaf := domainValueExpression{Info: expr.Info{Usage: short, Property: expr.Properties{DomainDependent: true}}}
+	textLeaf := plan.DomainValueExpr{Info: expr.Info{Usage: short, Property: expr.Properties{DomainDependent: true}}}
 	eval.domainValue, eval.domainFrameUsage, eval.domainValueActive = sqltype.String(varchar, "abc"), long, true
 	if _, err := textLeaf.Eval(&eval); err == nil {
 		t.Fatal("foreign immediate-base typmod accepted")
@@ -223,7 +224,7 @@ func TestDomainCheckRetirementAndRemapInternal(t *testing.T) {
 		t.Fatal(err)
 	}
 	walkBoundExpression(child.DomainChecks[0].Expression, func(node expr.Expr) {
-		if _, value := node.(domainValueExpression); value && node.ResultUsage().Type != d.SQLType {
+		if _, value := node.(plan.DomainValueExpr); value && node.ResultUsage().Type != d.SQLType {
 			t.Fatal("VALUE retained old base generation")
 		}
 	})

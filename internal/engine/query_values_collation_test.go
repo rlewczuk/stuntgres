@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -17,13 +18,13 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 	operand := func(id uint32, position int) expr.Expr {
 		u := usage
 		u.Collation = sqltype.CollationRef{ID: id, Derivation: sqltype.Default}
-		return literalExpression{Info: b.info(u, parser.Position{Character: position}, expr.Properties{}), Value: sqltype.Null(text)}
+		return plan.LiteralExpr{Info: b.info(u, parser.Position{Character: position}, expr.Properties{}), Value: sqltype.Null(text)}
 	}
 	info, err := b.collatedInfo(b.info(usage, parser.Position{Character: 40}, expr.Properties{}), operand(950, 59), operand(951, 64))
 	if err != nil {
 		t.Fatal(err)
 	}
-	base := literalExpression{Info: info, Value: sqltype.Null(text)}
+	base := plan.LiteralExpr{Info: info, Value: sqltype.Null(text)}
 	assert := func(name string, expression expr.Expr) {
 		t.Helper()
 		left, right, position := expression.ImplicitCollationConflict()
@@ -53,11 +54,11 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 	}
 	assert("retained descriptor", retagged)
 	projection := []expr.Expr{coerced}
-	_, err = b.finishOrder(&valuesNode{QuerySchema: querySchema{{Name: "n", Usage: coerced.ResultUsage()}}}, []sortKey{{Expression: coerced, Cache: -1, Slot: -1}}, projection)
+	_, err = b.finishOrder(&plan.ValuesNode{QuerySchema: plan.QuerySchema{{Name: "n", Usage: coerced.ResultUsage()}}}, []plan.SortKey{{Expression: coerced, Cache: -1, Slot: -1}}, projection)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := projection[0].(cachedOrderExpression); !ok {
+	if _, ok := projection[0].(plan.CachedOrderExpr); !ok {
 		t.Fatal("ORDER did not cache equivalent output", projection[0])
 	}
 	assert("cache", projection[0])
@@ -74,14 +75,14 @@ func TestQueryFromValuesCollationProvenance(t *testing.T) {
 	if err != nil || defaultC.CollationConflict || defaultC.Usage.Collation.ID != 950 {
 		t.Fatal(defaultC, err)
 	}
-	explicit := operand(950, 80).(literalExpression)
+	explicit := operand(950, 80).(plan.LiteralExpr)
 	explicit.CollationExplicit = parser.Position{Character: 80}
 	overridden, err := b.collatedInfo(info, explicit)
 	if err != nil || overridden.CollationConflict || overridden.CollationLeft.ID != 0 || overridden.CollationRight.ID != 0 || overridden.CollationConflictPos != (parser.Position{}) || overridden.Usage.Collation.ID != 950 {
 		t.Fatal(overridden, err)
 	}
 	b.query.namespace = &queryNamespace{}
-	if _, err := b.bindOrder(order, []expr.Expr{literalExpression{Info: overridden, Value: sqltype.Null(text)}}, []string{"n"}, "ORDER BY"); err != nil {
+	if _, err := b.bindOrder(order, []expr.Expr{plan.LiteralExpr{Info: overridden, Value: sqltype.Null(text)}}, []string{"n"}, "ORDER BY"); err != nil {
 		t.Fatal("explicit override did not restore ordinary ordering", err)
 	}
 }

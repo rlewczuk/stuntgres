@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -224,12 +225,12 @@ func TestViewLiteralProtocolOccurrenceOwnership(t *testing.T) {
 	// All leaf source positions deliberately coincide. Structural occurrence
 	// ownership, not parser offsets or formal slots, must distinguish them.
 	for i, child := range inner.Args {
-		lit := child.(literalExpression)
+		lit := child.(plan.LiteralExpr)
 		lit.Pos = parser.Position{Offset: 7}
 		inner.Args[i] = lit
 	}
 	outer.Args[0] = captureNullCount{inner}
-	last := outer.Args[1].(literalExpression)
+	last := outer.Args[1].(plan.LiteralExpr)
 	last.Pos = parser.Position{Offset: 7}
 	outer.Args[1] = last
 	contexts := []viewLiteralPath{
@@ -335,7 +336,7 @@ func TestViewLiteralProtocolAnnotations(t *testing.T) {
 	t.Run("formatted_json_returning", func(t *testing.T) {
 		b := protocolBinder(t)
 		raw, node := protocolBind(t, b, `SELECT JSON_ARRAY(k FORMAT JSON RETURNING text)`)
-		conversion := node.(coercionExpression)
+		conversion := node.(plan.CoercionExpr)
 		n := conversion.Child.(functions.SQLJSON)
 		before := append([]expr.Expr(nil), n.Args...)
 		conversion.Child = captureSQLJSON{n}

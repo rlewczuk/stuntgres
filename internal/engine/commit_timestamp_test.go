@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -331,7 +332,7 @@ func TestCommitTimeExpression(t *testing.T) {
 			t.Fatal("symbolic persistence lost the inquiry signature or argument", err)
 		}
 		if len(n.(expr.Composite).Children()) != 0 {
-			column := columnExpression{
+			column := plan.ColumnExpr{
 				Info:   b.info(b.typ(sqltype.Xid).Usage(), parser.Position{}, expr.Properties{RowDependent: true}),
 				Origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 16384, SubID: 1}},
 			}
@@ -349,11 +350,11 @@ func TestCommitTimeExpression(t *testing.T) {
 				t.Fatal("symbolic inquiry child remap", err)
 			}
 			next := persisted
-			mappedColumn := next.(expr.Composite).Children()[0].(columnExpression)
+			mappedColumn := next.(expr.Composite).Children()[0].(plan.ColumnExpr)
 			if next.(expr.StoredProvider).ValidateStoredProvider() != nil || expr.InfoOf(next).CallRoutineReference() != expr.InfoOf(n).CallRoutineReference() || next.Properties() != withColumn.Properties() || next.ResultUsage() != n.ResultUsage() || mappedColumn.Origin.Address.SubID != 2 || mappedColumn.Slot != 3 {
 				t.Fatal("persistence failed to remap the inquiry's child")
 			}
-			originalColumn := withColumn.(expr.Composite).Children()[0].(columnExpression)
+			originalColumn := withColumn.(expr.Composite).Children()[0].(plan.ColumnExpr)
 			if originalColumn.Origin.Address.SubID != 1 || originalColumn.Slot != 0 {
 				t.Fatal("persistence mutated the original inquiry child")
 			}

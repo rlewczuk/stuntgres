@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -51,7 +52,7 @@ func serialSequenceUnitFixture(t *testing.T) serialSequenceUnit {
 		view.State().BindName(catalog.DescriptorNameKey(descriptor), descriptor.Address())
 	}
 	literal := func(s string) expr.Expr {
-		return literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, s)}
+		return plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, s)}
 	}
 	node := functions.Deparse{
 		Info:      expr.Info{Usage: text.Usage(), Property: expr.Properties{Volatility: expr.Stable}},
@@ -146,8 +147,8 @@ func TestSerialSequenceNameInput(t *testing.T) {
 		t.Run(tc.table+"/"+tc.column, func(t *testing.T) {
 			node := f.node
 			node.Args = []expr.Expr{
-				literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, tc.table)},
-				literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, tc.column)},
+				plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, tc.table)},
+				plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, tc.column)},
 			}
 			_, err := node.Eval(f.context)
 			var diagnostic *sqlstate.Error
@@ -194,7 +195,7 @@ func TestSerialSequenceExpression(t *testing.T) {
 		{"child-type", func(n *functions.Deparse) {
 			integer, _ := f.view.LookupType(sqltype.Int4)
 			v, _ := sqltype.Integer(integer, 1)
-			n.Args[1] = literalExpression{Info: expr.Info{Usage: integer.Usage()}, Value: v}
+			n.Args[1] = plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}, Value: v}
 		}},
 		{"properties", func(n *functions.Deparse) { n.Property.Volatility = expr.Immutable }},
 	} {
@@ -210,7 +211,7 @@ func TestSerialSequenceExpression(t *testing.T) {
 	// Real parameter nodes prove strict child demand and property merging.
 	text := f.node.ResultUsage().Type
 	node := f.node
-	node.Args = []expr.Expr{literalExpression{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.Null(text)}, parameterExpression{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{ParameterDependent: true}}, Number: 1}}
+	node.Args = []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.Null(text)}, plan.ParameterExpr{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{ParameterDependent: true}}, Number: 1}}
 	node.Property.ParameterDependent = true
 	if _, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}); err == nil {
 		t.Fatal("NULL suppressed demanded child")

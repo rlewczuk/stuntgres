@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -81,7 +82,7 @@ func TestRegtypeRecursiveClassRemapping(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	literal := literalExpression{Info: expr.Info{Usage: array.Usage()}, Value: values}
+	literal := plan.LiteralExpr{Info: expr.Info{Usage: array.Usage()}, Value: values}
 	mapping := map[ids.ObjectAddress]ids.ObjectAddress{
 		{ClassID: ids.RelationClassID, ObjectID: 23}: {ClassID: ids.RelationClassID, ObjectID: 99},
 	}
@@ -95,7 +96,7 @@ func TestRegtypeRecursiveClassRemapping(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	id, err := untouched.(literalExpression).Value.ArrayElement(0).TypeOID()
+	id, err := untouched.(plan.LiteralExpr).Value.ArrayElement(0).TypeOID()
 	if err != nil || id != 23 {
 		t.Fatal("relation ID used as type identity", id, err)
 	}
@@ -104,7 +105,7 @@ func TestRegtypeRecursiveClassRemapping(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next := changed.(literalExpression).Value
+	next := changed.(plan.LiteralExpr).Value
 	id, err = next.ArrayElement(0).TypeOID()
 	if err != nil || id != 42 || !next.ArrayElement(1).IsNull() || next.ArrayElement(0).Type() != domain {
 		t.Fatal("recursive remap", id, err)

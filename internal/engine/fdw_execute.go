@@ -7,6 +7,7 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -39,7 +40,7 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 			}
 		}
 	}
-	target, err := e.captureForeignSourceLocked(s, b.ref, b.relation, invoker, nil, queryRowMark{})
+	target, err := e.captureForeignSourceLocked(s, b.ref, b.relation, invoker, nil, plan.RowMark{})
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -84,7 +85,7 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 	if op == catalog.ForeignInsert {
 		var rows [][]sqltype.Value
 		if b.commandQuery {
-			b.query = &BoundQuery{Root: execution.queryRoot}
+			b.query = &plan.Query{Root: execution.queryRoot}
 			batch, err := evaluateInsertQuery(s.op.Context(), b, inputs, parameters, execution.auth.Catalog.Get(b.relation.Namespace()).Name(), s.input, s.output, s)
 			if err != nil {
 				return Result{}, err
@@ -290,7 +291,7 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b bin
 	if err != nil {
 		return Result{}, err
 	}
-	var from LogicalNode
+	var from plan.Node
 	predicate := b.predicate
 	sourceWidth := b.delete.sourceWidth
 	if b.update != nil {

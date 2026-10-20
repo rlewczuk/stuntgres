@@ -5,10 +5,11 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
-func openDistinctNode(ctx context.Context, state *queryState, n *distinctNode) (out indexedStage, err error) {
+func openDistinctNode(ctx context.Context, state *queryState, n *plan.DistinctNode) (out indexedStage, err error) {
 	if n.PresenceOnly {
 		return openQueryNode(ctx, state, n.Child)
 	}
@@ -109,7 +110,7 @@ func findDistinctTuple[G interface {
 	return -1, ctx.Err()
 }
 
-func preflightDistinct(c *EvalContext, n *distinctNode) (LogicalNode, error) {
+func preflightDistinct(c *EvalContext, n *plan.DistinctNode) (plan.Node, error) {
 	if n.PresenceOnly {
 		child, err := preflightQuery(c, n.Child)
 		if err != nil {

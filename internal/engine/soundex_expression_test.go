@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/extension"
+	"stuntgres/internal/engine/plan"
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
@@ -61,7 +62,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 			}
 			changed := n
 			changed.Args = append([]expr.Expr(nil), n.Args...)
-			changed.Args[0] = literalExpression{Info: expr.InfoOf(n.Args[0]), Value: sqltype.String(n.Args[0].ResultUsage().Type, "Andrew")}
+			changed.Args[0] = plan.LiteralExpr{Info: expr.InfoOf(n.Args[0]), Value: sqltype.String(n.Args[0].ResultUsage().Type, "Andrew")}
 			if sameGroupExpression(n, changed) {
 				t.Fatal("argument identity collapsed")
 			}
@@ -118,7 +119,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, ok := folded.(literalExpression); !ok {
+			if _, ok := folded.(plan.LiteralExpr); !ok {
 				t.Fatal("immutable call not folded", folded)
 			}
 		})
@@ -184,10 +185,10 @@ func TestSoundexExpressionProperties(t *testing.T) {
 			t.Fatal(err)
 		}
 		grouped := rewritten.(installedSoundexFunctionExpression)
-		if _, ok := grouped.Args[0].(groupExpression); !ok || !grouped.Properties().StageDependent {
+		if _, ok := grouped.Args[0].(plan.GroupExpr); !ok || !grouped.Properties().StageDependent {
 			t.Fatal("grouped child/stage lost", grouped)
 		}
-		if _, ok := n.Args[0].(literalExpression); !ok {
+		if _, ok := n.Args[0].(plan.LiteralExpr); !ok {
 			t.Fatal("group rewrite mutated source")
 		}
 		for _, property := range []expr.Properties{
@@ -197,7 +198,7 @@ func TestSoundexExpressionProperties(t *testing.T) {
 		} {
 			modified := n
 			modified.Args = append([]expr.Expr(nil), n.Args...)
-			modified.Args[0] = parameterExpression{Info: expr.Info{Usage: n.Args[0].ResultUsage(), Property: property}, Number: 1}
+			modified.Args[0] = plan.ParameterExpr{Info: expr.Info{Usage: n.Args[0].ResultUsage(), Property: property}, Number: 1}
 			modified.Property = property
 			if plannedVolatility(modified) != property.Volatility {
 				t.Fatal("child volatility lost", property)

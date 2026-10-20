@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -11,12 +12,12 @@ import (
 func TestExprCollationHashExecutionOwner(t *testing.T) {
 	t.Run("reuse-fresh-owner-source-immutable", func(t *testing.T) {
 		_, q, source := queryJoinsFixture(t, `SELECT k = ANY(SELECT q FROM b WHERE k=3) AS v FROM a`)
-		project := q.Root.(*projectNode)
-		node := project.Expressions[0].(subqueryExpression)
+		project := q.Root.(*plan.ProjectNode)
+		node := project.Expressions[0].(plan.SubqueryExpr)
 		if len(node.Membership) != 1 {
 			t.Fatal("fixture did not bind real hashed membership")
 		}
-		rhs := node.QueryPlan.Root.(*projectNode)
+		rhs := node.QueryPlan.Root.(*plan.ProjectNode)
 		usage := rhs.Schema()[0].Usage
 		calls := 0
 		probe := queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
@@ -60,7 +61,7 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 			if stage.source != nil || stage.evaluation.query != nil || stage.expressions != nil {
 				t.Fatal("closed stage retained execution references")
 			}
-			captured := project.Expressions[0].(subqueryExpression)
+			captured := project.Expressions[0].(plan.SubqueryExpr)
 			actualRef, actualConflict := captured.Comparisons[0].Predicate.InputCollation()
 			if captured.QueryPlan.Root != rhs || captured.Properties() != properties || captured.Comparisons[0].Left.ResultUsage() != leftUsage || captured.Comparisons[0].Right.ResultUsage() != rightUsage || actualRef != ref || actualConflict != conflict {
 				t.Fatal("execution mutated captured operand/provider authority")
@@ -80,9 +81,9 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 	})
 	t.Run("repeated-null-evidence", func(t *testing.T) {
 		_, q, source := queryJoinsFixture(t, `SELECT k = ANY(SELECT q FROM b WHERE k=3) AS v FROM a`)
-		project := q.Root.(*projectNode)
-		expr := project.Expressions[0].(subqueryExpression)
-		rhs := expr.QueryPlan.Root.(*projectNode)
+		project := q.Root.(*plan.ProjectNode)
+		expr := project.Expressions[0].(plan.SubqueryExpr)
+		rhs := expr.QueryPlan.Root.(*plan.ProjectNode)
 		usage := rhs.Schema()[0].Usage
 		calls := 0
 		subqueryTestTarget(t, rhs, queryProbe(usage, func(*EvalContext) (sqltype.Value, error) {
@@ -110,9 +111,9 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 				sql = `SELECT k = ANY(SELECT q FROM b WHERE FALSE) AS v FROM a`
 			}
 			_, q, source := queryJoinsFixture(t, sql)
-			project := q.Root.(*projectNode)
-			expr := project.Expressions[0].(subqueryExpression)
-			rhs := expr.QueryPlan.Root.(*projectNode)
+			project := q.Root.(*plan.ProjectNode)
+			expr := project.Expressions[0].(plan.SubqueryExpr)
+			rhs := expr.QueryPlan.Root.(*plan.ProjectNode)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			primary := errors.New("demanded RHS target")
@@ -195,7 +196,7 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 		}
 		state := queryState{source: source, input: scope.input, output: scope.output}
 		defer state.releaseMemberships()
-		stage, err := openQueryProjectStage(context.Background(), &state, bound.query.Root.(*projectNode))
+		stage, err := openQueryProjectStage(context.Background(), &state, bound.query.Root.(*plan.ProjectNode))
 		if err != nil {
 			t.Fatal(err)
 		}

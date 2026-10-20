@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -15,8 +16,8 @@ func TestQueryLimitInsertDefaultDemand(t *testing.T) {
 			run(t, e, "CREATE TABLE d(id INT,n INT DEFAULT 7)")
 			ref := roleTableRef(t, e, "d")
 			relation := e.CatalogRead().MustRelation(ref.Address)
-			project := query.Root.(*projectNode)
-			project.Child = &limitNode{QuerySchema: project.Child.Schema(), Child: project.Child, Offset: queryLimitBound(t, e, 1), Count: queryLimitBound(t, e, count)}
+			project := query.Root.(*plan.ProjectNode)
+			project.Child = &plan.LimitNode{QuerySchema: project.Child.Schema(), Child: project.Child, Offset: queryLimitBound(t, e, 1), Count: queryLimitBound(t, e, count)}
 			typ := relation.Columns[1].Usage.Type
 			value, _ := sqltype.Integer(typ, 7)
 			calls := 0
@@ -45,8 +46,8 @@ func TestQueryLimitInsertDefaultFailure(t *testing.T) {
 	run(t, e, "CREATE TABLE d(id INT,n INT DEFAULT 7)")
 	ref := roleTableRef(t, e, "d")
 	relation := e.CatalogRead().MustRelation(ref.Address)
-	project := query.Root.(*projectNode)
-	project.Child = &limitNode{QuerySchema: project.Child.Schema(), Child: project.Child, Count: queryLimitBound(t, e, 2)}
+	project := query.Root.(*plan.ProjectNode)
+	project.Child = &plan.LimitNode{QuerySchema: project.Child.Schema(), Child: project.Child, Count: queryLimitBound(t, e, 2)}
 	value, _ := sqltype.Integer(relation.Columns[1].Usage.Type, 7)
 	failure := errors.New("retained runtime default failure")
 	calls := 0

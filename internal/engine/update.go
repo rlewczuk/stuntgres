@@ -17,23 +17,23 @@ import (
 type boundUpdate struct {
 	assignments    []expr.Expr
 	defaultOrigins []defaultOrigin
-	arrayTargets   []*arrayAssignmentTarget
+	arrayTargets   []*plan.ArrayAssignmentTarget
 	// Group query graphs are owned by their first assignment recipe.
 	groups      []updateAssignmentGroup
 	origins     []parser.Position // Flat origins, including DEFAULT after group expansion.
 	outputWidth int
 	predicate   expr.Expr
-	from        LogicalNode
+	from        plan.Node
 	sourceWidth int
 }
 
 // Reuse the shared coercion traversal; only changed execution branches are
 // copied. In particular, imported-frame literals never replace analyzed nodes.
-func preflightUpdate(c *EvalContext, original *boundUpdate, sourceDemand ...func(*boundUpdate) (LogicalNode, error)) (*boundUpdate, error) {
+func preflightUpdate(c *EvalContext, original *boundUpdate, sourceDemand ...func(*boundUpdate) (plan.Node, error)) (*boundUpdate, error) {
 	return preflightUpdateWithPlanning(c, original, true, sourceDemand...)
 }
 
-func preflightUpdateWithPlanning(c *EvalContext, original *boundUpdate, planConstants bool, sourceDemand ...func(*boundUpdate) (LogicalNode, error)) (*boundUpdate, error) {
+func preflightUpdateWithPlanning(c *EvalContext, original *boundUpdate, planConstants bool, sourceDemand ...func(*boundUpdate) (plan.Node, error)) (*boundUpdate, error) {
 	result := original
 	var assignments []expr.Expr
 	targets, err := preflightArrayTargetsWithPlanning(c, original.arrayTargets, planConstants)

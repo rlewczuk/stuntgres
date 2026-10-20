@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -71,5 +72,5 @@ func (b *expressionBinder) bindLogical(raw parser.LogicalExpr, context expressio
 			}
 		}
 	}
-	return logicalExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), pos, properties), Op: raw.Op, Left: left, Right: right, QueryRight: b.query.nextQueryFrame != queryFrame}, nil
+	return plan.LogicalExpr{Info: b.info(b.typ(sqltype.Bool).Usage(), pos, properties), Op: raw.Op, Left: left, Right: right, QueryRight: b.query.nextQueryFrame != queryFrame}, nil
 }

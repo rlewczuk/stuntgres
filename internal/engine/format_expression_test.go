@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"testing"
 
@@ -241,7 +242,7 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 	if err != nil || text != "b/a" {
 		t.Fatal(text, err)
 	}
-	column := columnExpression{Info: expr.Info{Usage: node.ResultUsage(), Pos: parser.Position{Character: 99}, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: b.frameID()}
+	column := plan.ColumnExpr{Info: expr.Info{Usage: node.ResultUsage(), Pos: parser.Position{Character: 99}, Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: b.frameID()}
 	node.Variadic = false
 	node.Args = []expr.Expr{node.Args[0], column}
 	node.Property.RowDependent = true
@@ -253,13 +254,13 @@ func TestFormatVariadicRetentionAndSharedChildWalks(t *testing.T) {
 		t.Fatal(err)
 	}
 	grouped := rebound.(functions.Format)
-	if _, ok := grouped.Args[1].(groupExpression); !ok {
+	if _, ok := grouped.Args[1].(plan.GroupExpr); !ok {
 		t.Fatalf("group descendant not rewritten: %T", grouped.Args[1])
 	}
-	if _, ok := node.Args[1].(columnExpression); !ok {
+	if _, ok := node.Args[1].(plan.ColumnExpr); !ok {
 		t.Fatal("group rewrite mutated shared children")
 	}
-	aggregate := aggregateExpression{Info: expr.Info{Usage: node.ResultUsage(), Property: expr.Properties{StageDependent: true}}, Slot: 7}
+	aggregate := plan.AggregateExpr{Info: expr.Info{Usage: node.ResultUsage(), Property: expr.Properties{StageDependent: true}}, Slot: 7}
 	node.Args = []expr.Expr{node.Args[0], column, aggregate}
 	if found := aggregateOccurrence(node); found == nil || found.Slot != 7 {
 		t.Fatal("all arguments must participate in aggregate traversal")

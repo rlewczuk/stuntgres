@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"testing"
 
 	"stuntgres/internal/sqltype"
@@ -66,7 +67,7 @@ func TestExtremaActualComparatorCancellationOwnership(t *testing.T) {
 
 func TestExtremaEagerEvaluationAndSlots(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT min(v),min(v),max(v) FROM t")
-	node := query.Root.(*projectNode).Child.(*aggregateNode)
+	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	if len(node.Calls) != 2 || node.Calls[0].Operation != functions.AggregateMin || node.Calls[1].Operation != functions.AggregateMax {
 		t.Fatal(node.Calls)
 	}
@@ -93,11 +94,11 @@ func TestExtremaEagerEvaluationAndSlots(t *testing.T) {
 	}
 	_, volatile, owner := queryCoreFixture(t, "SELECT min(nextval($1)),min(nextval($1)),max(nextval($1)) FROM t")
 	defer owner.close()
-	if len(volatile.Root.(*projectNode).Child.(*aggregateNode).Calls) != 3 {
+	if len(volatile.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode).Calls) != 3 {
 		t.Fatal("volatile calls shared")
 	}
 	_, failed, failedSource := queryCoreFixture(t, "SELECT min(v) FROM t")
-	failedNode := failed.Root.(*projectNode).Child.(*aggregateNode)
+	failedNode := failed.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	argument := failedNode.Calls[0].Argument
 	sentinel := errors.New("late extrema argument")
 	calls = 0

@@ -8,24 +8,25 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-func numericSeriesUnit(t *testing.T, d *sqltype.Descriptor, args ...string) seriesExpression {
+func numericSeriesUnit(t *testing.T, d *sqltype.Descriptor, args ...string) plan.SeriesExpr {
 	t.Helper()
-	e := seriesExpression{Info: expr.Info{Usage: d.Usage(), Pos: parser.Position{Character: 8, Offset: 7}, Property: expr.Properties{StageDependent: true}}}
+	e := plan.SeriesExpr{Info: expr.Info{Usage: d.Usage(), Pos: parser.Position{Character: 8, Offset: 7}, Property: expr.Properties{StageDependent: true}}}
 	for _, s := range args {
 		v, err := d.Input(context.Background(), s, -1)
 		if err != nil {
 			t.Fatal(err)
 		}
-		e.Args = append(e.Args, literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: v})
+		e.Args = append(e.Args, plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: v})
 	}
 	return e
 }
 
-func numericSeriesUnitRead(t *testing.T, e seriesExpression) []sqltype.Value {
+func numericSeriesUnitRead(t *testing.T, e plan.SeriesExpr) []sqltype.Value {
 	t.Helper()
 	cursor, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, e)
 	if err != nil {
@@ -56,7 +57,7 @@ func TestNumericSeriesBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e, ok := x.(seriesExpression)
+	e, ok := x.(plan.SeriesExpr)
 	if !ok || e.ResultUsage().Type.ID() != sqltype.Numeric || e.ResultUsage() != e.ResultUsage().Type.Usage() || !sourceAdmitted(e) || !b.clause.queryHasTargetSet {
 		t.Fatal(x)
 	}
@@ -71,7 +72,7 @@ func TestNumericSeriesInvocation(t *testing.T) {
 	e := numericSeriesUnit(t, d, "0.1", "0.3", "0.1")
 	var calls []int
 	for i, arg := range e.Args {
-		v := arg.(literalExpression).Value
+		v := arg.(plan.LiteralExpr).Value
 		e.Args[i] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { calls = append(calls, i); return v, nil })
 	}
 	if got := numericSeriesUnitRead(t, e); len(got) != 3 || !reflect.DeepEqual(calls, []int{0, 1, 2}) {
@@ -98,7 +99,7 @@ func TestNumericSeriesExpressionHooks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := numericSeriesUnitRead(t, clone.(seriesExpression)); !reflect.DeepEqual(got, want) {
+	if got := numericSeriesUnitRead(t, clone.(plan.SeriesExpr)); !reflect.DeepEqual(got, want) {
 		t.Fatal("remap", got)
 	}
 	fresh := seriesUnitType(t, sqltype.Numeric)
@@ -111,7 +112,7 @@ func TestNumericSeriesExpressionHooks(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	mappedValues := numericSeriesUnitRead(t, mapped.(seriesExpression))
+	mappedValues := numericSeriesUnitRead(t, mapped.(plan.SeriesExpr))
 	for i, v := range mappedValues {
 		restored, err := v.Retag(d)
 		if err != nil || restored != want[i] {
@@ -134,7 +135,7 @@ func TestNumericSeriesExpressionHooks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := numericSeriesUnitRead(t, rebound.(seriesExpression))
+	got := numericSeriesUnitRead(t, rebound.(plan.SeriesExpr))
 	if len(got) != len(want) {
 		t.Fatal("rendered cardinality")
 	}
@@ -153,7 +154,7 @@ func TestNumericSeriesExpressionHooks(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
-	if got := numericSeriesUnitRead(t, rewritten.(seriesExpression)); !reflect.DeepEqual(got, want[1:]) {
+	if got := numericSeriesUnitRead(t, rewritten.(plan.SeriesExpr)); !reflect.DeepEqual(got, want[1:]) {
 		t.Fatal("copy-on-change", got)
 	}
 	for _, fold := range []func() (expr.Expr, bool, error){
@@ -168,7 +169,7 @@ func TestNumericSeriesExpressionHooks(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := numericSeriesUnitRead(t, n.(seriesExpression)); !reflect.DeepEqual(got, want) {
+		if got := numericSeriesUnitRead(t, n.(plan.SeriesExpr)); !reflect.DeepEqual(got, want) {
 			t.Fatal("fold", got)
 		}
 	}

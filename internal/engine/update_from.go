@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 )
 
 // Mutation target columns retain independent physical write/read authority.
@@ -42,7 +43,7 @@ func checkTemporaryStorageAccess(catalog catalog.Read, relation *catalog.Relatio
 
 // Expand recursive view bases before the first capture. Capture callers pass
 // any already-required target refs, preserving a single statement frontier.
-func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorization.PrincipalRef, leaves []queryLeaf, refs []ids.ObjectRef, token ids.SessionToken, inherited queryRowMark) ([]ids.ObjectRef, error) {
+func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorization.PrincipalRef, leaves []queryLeaf, refs []ids.ObjectRef, token ids.SessionToken, inherited plan.RowMark) ([]ids.ObjectRef, error) {
 	view := auth.Catalog
 	if auth.engine != e || view.Owner() != e.catalog.owner() || view.State() == nil {
 		return nil, ids.ErrCatalogReplaced
@@ -51,8 +52,8 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 	// source or target. Only the recursion path detects cycles; shared views
 	// retain each occurrence's row marks without a permission cache.
 	var active []ids.ObjectRef
-	var authorize func(ids.ObjectRef, authorization.PrincipalRef, queryRowMark) error
-	authorize = func(ref ids.ObjectRef, sourceInvoker authorization.PrincipalRef, mark queryRowMark) error {
+	var authorize func(ids.ObjectRef, authorization.PrincipalRef, plan.RowMark) error
+	authorize = func(ref ids.ObjectRef, sourceInvoker authorization.PrincipalRef, mark plan.RowMark) error {
 		relation, ok := view.Relation(ref.Address)
 		if !ok || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() {
 			return ids.ErrCatalogReplaced

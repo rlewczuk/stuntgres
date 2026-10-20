@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
 
@@ -27,7 +28,7 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 		add(items)
 		return err
 	}
-	targets := func(items []*arrayAssignmentTarget) error {
+	targets := func(items []*plan.ArrayAssignmentTarget) error {
 		for _, target := range items {
 			for ; target != nil; target = target.Next {
 				for _, sub := range target.Node.Subscripts {
@@ -45,7 +46,7 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 	if err := expr(r.condition); err != nil {
 		return nil, err
 	}
-	var seen map[*cteDefinition]bool
+	var seen map[*plan.CTEDefinition]bool
 	var bindingRefs func(binding) error
 	bindingRefs = func(b binding) error {
 		if err := targets(b.arrayTargets); err != nil {
@@ -88,14 +89,14 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 			if err := expr(b.update.predicate); err != nil {
 				return err
 			}
-			items, err := pgDependQueryRefs(ctx, catalog, nil, &BoundQuery{Root: b.update.from})
+			items, err := pgDependQueryRefs(ctx, catalog, nil, &plan.Query{Root: b.update.from})
 			if err != nil {
 				return err
 			}
 			add(items)
 		}
 		if b.delete.using != nil {
-			items, err := pgDependQueryRefs(ctx, catalog, nil, &BoundQuery{Root: b.delete.using})
+			items, err := pgDependQueryRefs(ctx, catalog, nil, &plan.Query{Root: b.delete.using})
 			if err != nil {
 				return err
 			}
@@ -153,7 +154,7 @@ func ruleReferences(ctx context.Context, catalog catalog.Read, r ruleDefinition)
 				continue
 			}
 			if seen == nil {
-				seen = make(map[*cteDefinition]bool)
+				seen = make(map[*plan.CTEDefinition]bool)
 			}
 			seen[definition] = true
 			if err := bindingRefs(*mutation); err != nil {

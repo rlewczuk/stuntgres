@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -163,7 +164,7 @@ func TestInheritanceControlsRetainedChecksAndConstraintCollisions(t *testing.T) 
 		for _, table := range []*catalog.Relation{p, c} {
 			ref := owner.catalog.Domain.Ref(owner.CatalogRead().Epoch(), table.Address())
 			ref.Address.SubID = 1
-			table.Constraints.Check = []catalog.CheckConstraint{{OID: 23002 + table.Address().ObjectID - p.Address().ObjectID, Name: "ck", Expression: columnExpression{Info: expr.Info{Usage: usage}, Origin: ref, Scope: 1, Frame: 1, Slot: 0}}}
+			table.Constraints.Check = []catalog.CheckConstraint{{OID: 23002 + table.Address().ObjectID - p.Address().ObjectID, Name: "ck", Expression: plan.ColumnExpr{Info: expr.Info{Usage: usage}, Origin: ref, Scope: 1, Frame: 1, Slot: 0}}}
 		}
 		c.Inheritance.Columns[1] = catalog.InheritedColumn{Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 1}}}
 		c.Inheritance.NotNull[1] = catalog.InheritedConstraint{Origins: []catalog.InheritanceOrigin{{Parent: p.Address(), Attribute: 1, Constraint: p.Constraints.NotNull[0].OID}}}
@@ -221,7 +222,7 @@ func TestInheritanceControlsRetainedExclusionDefinitionCollision(t *testing.T) {
 			table.Index = map[string]int{"a": 0, "b": 1}
 			ref := owner.catalog.Domain.Ref(owner.CatalogRead().Epoch(), table.Address())
 			ref.Address.SubID = 2
-			table.Constraints.Check = []catalog.CheckConstraint{{OID: 23002 + table.Address().ObjectID - p.Address().ObjectID, Name: "ck", Expression: columnExpression{Info: expr.Info{Usage: table.Columns[1].Usage}, Origin: ref, Scope: 1, Frame: 1, Slot: 1}}}
+			table.Constraints.Check = []catalog.CheckConstraint{{OID: 23002 + table.Address().ObjectID - p.Address().ObjectID, Name: "ck", Expression: plan.ColumnExpr{Info: expr.Info{Usage: table.Columns[1].Usage}, Origin: ref, Scope: 1, Frame: 1, Slot: 1}}}
 		}
 		p.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 23000, Name: "nn", Attribute: 1}}
 		c.Constraints.NotNull = []catalog.NotNullConstraint{{OID: 23001, Name: "nn", Attribute: 1}}

@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -45,7 +46,7 @@ type parameterState struct {
 	executeParameters     bool
 	updateParameters      bool
 	updateInputParameters map[int]sqltype.Usage
-	anyParameters         []parameterExpression
+	anyParameters         []plan.ParameterExpr
 	noParameters          bool
 }
 
@@ -78,7 +79,7 @@ type consumerContext struct {
 type storedSyntaxState struct {
 	// Only internal TYPE CHECK reparsing supplies these immutable literal nodes.
 	// Generated markers are not prepared parameters and never enter inference.
-	checkLiterals []literalExpression
+	checkLiterals []plan.LiteralExpr
 	// Frozen syntax retains analyzed lowering without changing prepared source.
 	// Analysis-only templates never enter executable nodes or prepared frames.
 	syntax        map[storedExpressionSyntaxKey]parser.Expr
@@ -115,13 +116,13 @@ type clauseState struct {
 // the query level being bound, with the window definitions they resolve
 // against.
 type groupingState struct {
-	aggregates        []aggregateCall
+	aggregates        []plan.AggregateCall
 	active            bool
 	groupSets         [][]int
 	groupSubquery     bool
 	windowRaw         []parser.WindowDefinition
-	windowDefinitions map[string]boundWindowSpec
-	windowCalls       []windowCall
+	windowDefinitions map[string]plan.WindowSpec
+	windowCalls       []plan.WindowCall
 	argumentOwner     argumentWindowOwner
 }
 
@@ -141,7 +142,7 @@ type queryScopeState struct {
 	scopes                []queryBindingScope
 	presenceFrames        map[uint32]int
 	suppressWholePresence bool
-	rowDiagnosticMode     lock.Mode // Clause diagnostics only; tuple authority is queryRowMark.
+	rowDiagnosticMode     lock.Mode // Clause diagnostics only; tuple authority is plan.RowMark.
 	subqueryDemand        bool
 }
 
@@ -149,11 +150,11 @@ type queryScopeState struct {
 // recursive definition being bound, and the CTE executables built so far.
 type cteState struct {
 	bindings            []cteBinding
-	recursiveDefinition *cteDefinition
+	recursiveDefinition *plan.CTEDefinition
 	recursiveFrames     map[uint32]bool
 	scanOrdinal         int
 	analysisDepth       int
-	executables         []*BoundQuery
-	statementCTEs       []*cteDefinition
+	executables         []*plan.Query
+	statementCTEs       []*plan.CTEDefinition
 	selectBodies        bool
 }

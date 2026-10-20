@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -28,12 +29,12 @@ func TestTimezoneReviewConditionalProperties(t *testing.T) {
 			if got := node.Properties(); got != (expr.Properties{Volatility: expr.Stable}) {
 				t.Fatalf("properties = %+v, want session-dependent Stable without other dependencies", got)
 			}
-			if _, ok := node.(conditionalExpression); ok {
+			if _, ok := node.(plan.ConditionalExpr); ok {
 				planned, _, err := simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: ctx}}, node, false)
 				if err != nil {
 					t.Fatal(err)
 				}
-				if _, folded := planned.(literalExpression); folded {
+				if _, folded := planned.(plan.LiteralExpr); folded {
 					t.Fatal("session-dependent NULLIF admitted to immutable constant evaluation")
 				}
 			}

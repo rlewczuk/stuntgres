@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -149,7 +150,7 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 	c := inheritanceUnitRelation(e, "c", 22001, "a")
 	usage := testUsage(e, sqltype.Int4)
 	expression := func(n int64) expr.Expr {
-		return literalExpression{Info: expr.Info{Usage: usage}, Value: inheritanceQueryInt(e, n)}
+		return plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: inheritanceQueryInt(e, n)}
 	}
 	p.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {Expression: expression(1)}}
 	c.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {Expression: expression(9)}}
@@ -206,7 +207,7 @@ func TestInheritanceAlterDefinitionAuthority(t *testing.T) {
 	if err := validateGenerationProviders(view, &invalid); err == nil {
 		t.Fatal("foreign generation provider gained authority")
 	}
-	if err := validateGenerationPlan(view, c, literalExpression{}); err == nil {
+	if err := validateGenerationPlan(view, c, plan.LiteralExpr{}); err == nil {
 		t.Fatal("missing own expression Usage passed validation")
 	}
 }

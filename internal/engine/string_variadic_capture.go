@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -63,7 +64,7 @@ func foldStringVariadic(c *EvalContext, e functions.StringVariadic) (expr.Expr, 
 			}
 			index = i
 			if saved.source == entry.source && saved.result == entry.result {
-				return literalExpression{foldedExpressionInfo(e), saved.value}, true, nil
+				return plan.LiteralExpr{foldedExpressionInfo(e), saved.value}, true, nil
 			}
 			break
 		}
@@ -85,7 +86,7 @@ func foldStringVariadic(c *EvalContext, e functions.StringVariadic) (expr.Expr, 
 			group.entries = append(group.entries, entry)
 		}
 	}
-	return literalExpression{foldedExpressionInfo(e), value}, true, nil
+	return plan.LiteralExpr{foldedExpressionInfo(e), value}, true, nil
 }
 
 // Definition tokens, not unrelated catalog revisions, retire stored origins.

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 )
 
 // Destination coercions rebind from the independent SELECT's output schema on
@@ -43,7 +44,7 @@ func ruleUpdateAssignmentsSQL(ctx context.Context, view catalog.Read, b *binding
 			sql.WriteString(") = ")
 			var source expr.Expr
 			walkBoundExpression(b.update.assignments[i], func(node expr.Expr) {
-				if n, ok := node.(subqueryExpression); ok && n.UpdateWidth != 0 {
+				if n, ok := node.(plan.SubqueryExpr); ok && n.UpdateWidth != 0 {
 					source = n
 				}
 			})

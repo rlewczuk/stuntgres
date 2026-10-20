@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -37,5 +38,5 @@ func (b *expressionBinder) bindSQLJSON(raw parser.SQLJSONExpr) (expr.Expr, error
 	if err != nil {
 		return nil, err
 	}
-	return coercionExpression{info, node, coercionPlan, sqltype.Assignment, false}, nil
+	return plan.CoercionExpr{info, node, coercionPlan, sqltype.Assignment, false}, nil
 }

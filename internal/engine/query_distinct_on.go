@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
-func openDistinctOnNode(ctx context.Context, state *queryState, n *distinctOnNode) (out indexedStage, err error) {
+func openDistinctOnNode(ctx context.Context, state *queryState, n *plan.DistinctOnNode) (out indexedStage, err error) {
 	if n.PresenceOnly {
 		return openQueryNode(ctx, state, n.Child)
 	}
@@ -79,7 +80,7 @@ func openDistinctOnNode(ctx context.Context, state *queryState, n *distinctOnNod
 	return out, nil
 }
 
-func preflightDistinctOn(c *EvalContext, n *distinctOnNode) (LogicalNode, error) {
+func preflightDistinctOn(c *EvalContext, n *plan.DistinctOnNode) (plan.Node, error) {
 	child, err := preflightQuery(c, n.Child)
 	if err != nil {
 		return nil, err

@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
 
@@ -17,15 +18,15 @@ type queryBindingScope struct {
 	frame               uint32
 	allowed             bool
 	clause              string
-	aggregates          []aggregateCall
+	aggregates          []plan.AggregateCall
 	groupingActive      bool
 	groupSets           [][]int
 	returning           *returningAliases
 	nonLateral          bool
 	rowDiagnosticMode   lock.Mode
 	windowRaw           []parser.WindowDefinition
-	windowDefinitions   map[string]boundWindowSpec
-	windowCalls         []windowCall
+	windowDefinitions   map[string]plan.WindowSpec
+	windowCalls         []plan.WindowCall
 	argumentOwner       argumentWindowOwner
 	stringFromForbidden bool
 }
@@ -135,7 +136,7 @@ func (q *queryScopeState) outerQualifiers() []queryQualifier {
 }
 
 func (b *expressionBinder) queryColumnInFrame(c queryColumn, pos parser.Position, frame uint32) expr.Expr {
-	expr := b.queryColumnAt(c, pos).(columnExpression)
+	expr := b.queryColumnAt(c, pos).(plan.ColumnExpr)
 	expr.Frame = frame
 	expr.MergeSource = c.leaf != queryTargetLeaf && b.mergeReturningFrame(frame)
 	return expr

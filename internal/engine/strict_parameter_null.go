@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/sqltype"
 )
@@ -26,7 +27,7 @@ func foldStrictParameterNull(c *EvalContext, node expr.Expr) (expr.Expr, bool, e
 		return node, false, nil
 	}
 	switch node.(type) {
-	case literalExpression, distinctExpression, conditionalExpression, scalarArrayComparisonExpression, rowComparisonExpression:
+	case plan.LiteralExpr, plan.DistinctExpr, plan.ConditionalExpr, plan.ScalarArrayComparisonExpr, plan.RowComparisonExpr:
 		// These carriers can name an internal strict comparison without
 		// making the whole NULL-aware or multi-comparison expression strict.
 		return node, false, nil
@@ -53,7 +54,7 @@ func foldStrictParameterNull(c *EvalContext, node expr.Expr) (expr.Expr, bool, e
 		return node, false, nil
 	}
 	info := foldedExpressionInfo(node)
-	return literalExpression{Info: info, Value: sqltype.ResultNull(info.Usage)}, true, nil
+	return plan.LiteralExpr{Info: info, Value: sqltype.ResultNull(info.Usage)}, true, nil
 }
 
 // Expanded variadic path elements form one non-NULL array argument. A NULL
@@ -71,23 +72,23 @@ func executionKnownNullArgument(c *EvalContext, node expr.Expr) (bool, error) {
 		return false, nil
 	}
 	switch e := node.(type) {
-	case literalExpression:
+	case plan.LiteralExpr:
 		return e.Value.IsNull(), nil
-	case parameterExpression:
+	case plan.ParameterExpr:
 		// Description and partially imported frames do not supply a value.
 		if e.Number <= 0 || e.Number > len(c.Parameters) || c.Parameters[e.Number-1].Type() == nil {
 			return false, nil
 		}
 		value, err := e.Eval(c) // Typed frame access only; no operator/function/domain Eval.
 		return value.IsNull(), err
-	case collationExpression:
+	case plan.CollationExpr:
 		return executionKnownNullArgument(c, e.Child)
-	case coercionExpression:
+	case plan.CoercionExpr:
 		if e.Usage.Type == nil || e.Usage.Type.IsDomain() {
 			return false, nil
 		}
 		return executionKnownNullArgument(c, e.Child)
-	case caseExpression:
+	case plan.CaseExpr:
 		// Existing conditional planning preserves conservative properties on
 		// this already-decided native CASE carrier, rather than adding a cast
 		// or substituting parameters throughout the analyzed expression.

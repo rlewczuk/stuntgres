@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -154,7 +155,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 			if err != nil || testExport(value) != int64(3) {
 				t.Fatal(value, err)
 			}
-			if _, literal := original.assignments[0].(literalExpression); literal {
+			if _, literal := original.assignments[0].(plan.LiteralExpr); literal {
 				t.Fatal("analyzed action was mutated")
 			}
 		}

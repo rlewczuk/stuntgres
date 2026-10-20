@@ -4,6 +4,7 @@ import (
 	"context"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -26,11 +27,11 @@ func TestSQLJSONObjectAggregatePolicySlotsAndReturningOwner(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				wrapper, ok := node.(coercionExpression)
+				wrapper, ok := node.(plan.CoercionExpr)
 				if !ok || node.ResultUsage().Type != text {
 					t.Fatal("returning wrapper", node)
 				}
-				if _, ok = wrapper.Child.(aggregateExpression); !ok {
+				if _, ok = wrapper.Child.(plan.AggregateExpr); !ok {
 					t.Fatal("returning did not retain owned aggregate", wrapper)
 				}
 			}
@@ -57,7 +58,7 @@ func TestSQLJSONObjectAggregateUniqueRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		root := &aggregateNode{QuerySchema: querySchema{{Name: "v", Usage: result.Usage()}}, Child: &valuesNode{}, Calls: []aggregateCall{{Provider: p, Operation: functions.AggregateJSONObjectStrict, IncludeNulls: true}}}
+		root := &plan.AggregateNode{QuerySchema: plan.QuerySchema{{Name: "v", Usage: result.Usage()}}, Child: &plan.ValuesNode{}, Calls: []plan.AggregateCall{{Provider: p, Operation: functions.AggregateJSONObjectStrict, IncludeNulls: true}}}
 		mapped, err := remapViewQuery(source.CatalogRead(), root, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, func(old *sqltype.Descriptor) *sqltype.Descriptor {
 			next, _ := destination.CatalogRead().LookupType(old.ID())
 			return next
@@ -65,7 +66,7 @@ func TestSQLJSONObjectAggregateUniqueRemap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		q := mapped.(*aggregateNode).Calls[0].Provider.(functions.JSONObjectAggregate)
+		q := mapped.(*plan.AggregateNode).Calls[0].Provider.(functions.JSONObjectAggregate)
 		if !q.Unique() || !q.Strict() || q.KeyUsage().Type == p.KeyUsage().Type || q.InputUsage().Type == p.InputUsage().Type || q.ResultUsage().Type == p.ResultUsage().Type {
 			t.Fatal("remap lost policy or ownership")
 		}

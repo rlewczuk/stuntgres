@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -167,7 +168,7 @@ func (b *expressionBinder) likeOperand(o comparisonOperand, target *sqltype.Desc
 	if err != nil {
 		return nil, err
 	}
-	return coercionExpression{info, node, coercionPlan, sqltype.Implicit, false}, nil
+	return plan.CoercionExpr{info, node, coercionPlan, sqltype.Implicit, false}, nil
 }
 
 func bindLike(b functions.Binder, raw parser.OperatorExpr) (expr.Expr, error) {
@@ -249,5 +250,5 @@ func bindLike(b functions.Binder, raw parser.OperatorExpr) (expr.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
-	return likeExpression{info, l, r, provider, operator, namespace}, nil
+	return plan.LikeExpr{info, l, r, provider, operator, namespace}, nil
 }

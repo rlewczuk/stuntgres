@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -125,7 +126,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			scope.lockedRef = viewRef
-			scope.querySources = []queryLeaf{{ref: viewRef, relation: view, mark: queryRowMark{Mode: tc.mark}}}
+			scope.querySources = []queryLeaf{{ref: viewRef, relation: view, mark: plan.RowMark{Mode: tc.mark}}}
 			mode := lock.AccessShare
 			if tc.mark != 0 {
 				mode = lock.RowShare
@@ -253,7 +254,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			e.mu.Lock()
 			catalog := scope.inheritanceRead(e.privateCatalogLocked(scope.owner.catalog))
 			collectAuth.Recapture(catalog)
-			refs, captureErr := e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, scope.querySources, nil, op.session.token, queryRowMark{})
+			refs, captureErr := e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, scope.querySources, nil, op.session.token, plan.RowMark{})
 			var snapshot *visibility.View
 			if captureErr == nil {
 				snapshot, captureErr = scope.acquireDataViewsLocked(e, refs)

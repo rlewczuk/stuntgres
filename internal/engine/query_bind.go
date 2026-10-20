@@ -5,6 +5,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -13,7 +14,7 @@ import (
 func (b *expressionBinder) bindOutput(raw parser.Expr, contextual bool) (expr.Expr, error) {
 	if contextual {
 		if v, ok := raw.(parser.LiteralExpr); ok && (v.Value.Kind == parser.StringValue || v.Value.Kind == parser.NullValue) {
-			return unknownOutput{Info: expr.Info{Pos: raw.SourcePosition()}, Raw: raw}, nil
+			return plan.UnknownOutput{Info: expr.Info{Pos: raw.SourcePosition()}, Raw: raw}, nil
 		}
 	}
 	return b.bind(raw, expressionPolicy{context: projectionContext})
@@ -21,10 +22,10 @@ func (b *expressionBinder) bindOutput(raw parser.Expr, contextual bool) (expr.Ex
 
 // bindSelect is shared by public SELECT, set operands and INSERT producers.
 // Contextual outputs defer unknown fallback until their consuming boundary.
-func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*BoundQuery, error) {
+func (b *expressionBinder) bindSelect(s *parser.Select, contextual bool) (*plan.Query, error) {
 	return b.bindSelectScoped(s, contextual, false)
 }
-func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disallowParent bool) (query *BoundQuery, failure error) {
+func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disallowParent bool) (query *plan.Query, failure error) {
 	entry, scanStart := b.cte.analysisDepth == 0, b.cte.scanOrdinal
 	defer func() {
 		if entry && failure == nil && query != nil && b.cte.scanOrdinal != scanStart {
@@ -58,14 +59,14 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		if failure != nil || query == nil || len(definitions) == 0 {
 			return
 		}
-		project := query.Root.(*projectNode)
+		project := query.Root.(*plan.ProjectNode)
 		project.CTEOwner = !parser.HasModifyingCTE(s)
 		if parser.HasModifyingCTE(s) {
 			b.cte.statementCTEs = definitions
 		}
 		for _, definition := range definitions {
 			if definition.Query != nil {
-				project.AnalysisExpressions = append(project.AnalysisExpressions, subqueryExpression{Info: b.info(b.typ(sqltype.Bool).Usage(), definition.Position, expr.Properties{}), QueryPlan: definition.Query, CTEDefinition: true})
+				project.AnalysisExpressions = append(project.AnalysisExpressions, plan.SubqueryExpr{Info: b.info(b.typ(sqltype.Bool).Usage(), definition.Position, expr.Properties{}), QueryPlan: definition.Query, CTEDefinition: true})
 			}
 		}
 	}()
@@ -103,7 +104,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		if len(s.Locking) != 0 {
 			return nil, sqlError("0A000", s.Locking[0].Mode+" cannot be applied to VALUES")
 		}
-		project := query.Root.(*projectNode)
+		project := query.Root.(*plan.ProjectNode)
 		project.Frame, project.Syntax = b.frameID(), s
 		return query, err
 	}
@@ -135,7 +136,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 					if err != nil {
 						return nil, err
 					}
-					pseudo := expression.(columnExpression)
+					pseudo := expression.(plan.ColumnExpr)
 					projection = append(projection, expression)
 					targetNames = append(targetNames, column.Name)
 					literalTargets = append(literalTargets, -1)
@@ -241,11 +242,11 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			}
 		}
 		if !contextual && !b.params.noParameters && !b.consumer.materializedDefinition && len(s.Locking) == 0 {
-			if source, ok := root.(*sourceNode); ok && len(b.query.sources) == 1 && b.query.sources[0].mark.Mode == 0 {
+			if source, ok := root.(*plan.SourceNode); ok && len(b.query.sources) == 1 && b.query.sources[0].mark.Mode == 0 {
 				b.query.sources[0].partialCandidate = b.query.partialIndexCandidate(source.Ref, filter)
 			}
 		}
-		root = &filterNode{QuerySchema: root.Schema(), Child: root, Predicate: filter}
+		root = &plan.FilterNode{QuerySchema: root.Schema(), Child: root, Predicate: filter}
 	}
 	b.clause.aggregateClause = "GROUP BY"
 	keys, comparisons, sets, err := b.bindGroupClause(s.GroupBy, projection, targetNames)
@@ -280,8 +281,8 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	if err != nil {
 		return nil, err
 	}
-	var on []sortKey
-	var onFamilies []queryGrouping
+	var on []plan.SortKey
+	var onFamilies []plan.Grouping
 	if s.Distinct != nil && len(s.Distinct.On) != 0 {
 		on, onFamilies, err = b.resolveDistinctOn(s, order, projection, targetNames)
 		if err != nil {
@@ -362,11 +363,11 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		result := catalog.Column{Name: "?column?", Usage: expression.ResultUsage()}
 		regclassOutput = regclassOutput || result.Usage.Type.ContainsCatalogIdentifier()
 		result.Name = targetNames[i]
-		if c, ok := expression.(columnExpression); ok && c.Scope == 1 && c.Frame == b.frameID() {
+		if c, ok := expression.(plan.ColumnExpr); ok && c.Scope == 1 && c.Frame == b.frameID() {
 			result = namespace.frame[c.Slot]
 			result.Name = targetNames[i]
 		}
-		if operation, ok := expression.(groupingExpression); ok && operation.Frame == b.frameID() {
+		if operation, ok := expression.(plan.GroupingExpr); ok && operation.Frame == b.frameID() {
 			result.Nullable, result.NullabilityKnown = false, true
 		}
 		for keyIndex, key := range keys {
@@ -387,7 +388,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				}
 			}
 		}
-		if aggregate, ok := expression.(aggregateExpression); ok && aggregate.Frame == b.frameID() {
+		if aggregate, ok := expression.(plan.AggregateExpr); ok && aggregate.Frame == b.frameID() {
 			operation := b.grouping.aggregates[aggregate.Slot].Operation
 			switch operation {
 			case functions.AggregateJSON, functions.AggregateJSONStrict, functions.AggregateJSONArray, functions.AggregateJSONArrayAbsent, functions.AggregateJSONObject, functions.AggregateJSONObjectStrict:
@@ -399,7 +400,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				result.Nullable = operation != functions.AggregateCount && operation != functions.AggregateRegrCount && !operation.Hypothetical()
 			}
 		}
-		if window, ok := expression.(*windowExpression); ok {
+		if window, ok := expression.(*plan.WindowExpr); ok {
 			result.Nullable, result.NullabilityKnown = window.Nullable, true
 		}
 		if metadata, ok := expression.(expr.ResultNullability); ok {
@@ -409,12 +410,12 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 		results[i] = result
 	}
-	var distinctFamilies []queryGrouping
+	var distinctFamilies []plan.Grouping
 	if plainDistinct {
 		if width == 0 {
 			return nil, sqlError("42601", "SELECT DISTINCT must have at least one column")
 		}
-		distinctFamilies = make([]queryGrouping, width)
+		distinctFamilies = make([]plan.Grouping, width)
 		for i, expression := range projection {
 			distinctFamilies[i], err = b.bindDistinctGrouping(expression)
 			if err != nil {
@@ -481,7 +482,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			schema[len(keys)+i] = catalog.Column{Usage: call.Provider.ResultUsage()}
 		}
 		schema[len(schema)-1] = catalog.Column{Usage: b.typ(sqltype.Int4).Usage()}
-		root = &aggregateNode{QuerySchema: schema, Child: root, Keys: runtimeKeys, Grouping: comparisons, Sets: sets, GroupingActive: b.grouping.active, Calls: append([]aggregateCall(nil), b.grouping.aggregates...)}
+		root = &plan.AggregateNode{QuerySchema: schema, Child: root, Keys: runtimeKeys, Grouping: comparisons, Sets: sets, GroupingActive: b.grouping.active, Calls: append([]plan.AggregateCall(nil), b.grouping.aggregates...)}
 		for i, expr := range projection {
 			var err error
 			projection[i], err = b.rewriteGroup(expr, keys)
@@ -495,7 +496,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			if err != nil {
 				return nil, err
 			}
-			root = &filterNode{QuerySchema: root.Schema(), Child: root, Predicate: having}
+			root = &plan.FilterNode{QuerySchema: root.Schema(), Child: root, Predicate: having}
 		}
 		for i := range order {
 			order[i].Expression, err = b.rewriteGroup(order[i].Expression, keys)
@@ -522,10 +523,10 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		if err != nil {
 			return nil, err
 		}
-		root = &distinctNode{QuerySchema: results, Child: root, Expressions: projection, Grouping: distinctFamilies}
+		root = &plan.DistinctNode{QuerySchema: results, Child: root, Expressions: projection, Grouping: distinctFamilies}
 		slots := make([]expr.Expr, len(projection))
 		for i, expression := range projection {
-			slots[i] = columnExpression{Info: expr.InfoOf(expression), Scope: 1, Frame: b.frameID(), Slot: i}
+			slots[i] = plan.ColumnExpr{Info: expr.InfoOf(expression), Scope: 1, Frame: b.frameID(), Slot: i}
 		}
 		for i := range order {
 			order[i].Expression = slots[distinctOrder[i]]
@@ -561,7 +562,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	}
 	if len(s.Locking) != 0 {
 		admission := b.query.lockAdmission.queries[s]
-		var local []queryRowMark
+		var local []plan.RowMark
 		var err error
 		if admission != nil {
 			local, err = admission.marks, admission.err
@@ -577,13 +578,13 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		} else {
 			_ = parser.VisitQuerySources(&parser.Select{From: s.From}, nil, func(table *parser.TableReference, _ *parser.Select) error { indices[table] = len(indices); return nil })
 		}
-		marks := make([]queryRowMark, len(b.query.sources))
+		marks := make([]plan.RowMark, len(b.query.sources))
 		for i, source := range b.query.sources {
 			if index, ok := indices[source.table]; ok && index < len(local) {
 				marks[i] = local[index]
 			}
 		}
-		root = &rowLockNode{QuerySchema: root.Schema(), Child: root, Marks: marks, FirstMode: queryRowMode(s.Locking[0].Mode)}
+		root = &plan.RowLockNode{QuerySchema: root.Schema(), Child: root, Marks: marks, FirstMode: queryRowMode(s.Locking[0].Mode)}
 	}
 	if bounds != nil {
 		bounds.QuerySchema, bounds.Child = root.Schema(), root
@@ -642,11 +643,11 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			analysis = append(analysis, spec.Frame.End.Offset)
 		}
 	}
-	return &BoundQuery{Root: &projectNode{QuerySchema: results, Child: root, Expressions: projection, AnalysisExpressions: analysis, Frame: b.frameID(), Syntax: s, HasTargetSet: b.clause.queryHasTargetSet}, RegclassOutput: regclassOutput, VisibilitySnapshot: b.consumer.visibilitySnapshot}, nil
+	return &plan.Query{Root: &plan.ProjectNode{QuerySchema: results, Child: root, Expressions: projection, AnalysisExpressions: analysis, Frame: b.frameID(), Syntax: s, HasTargetSet: b.clause.queryHasTargetSet}, RegclassOutput: regclassOutput, VisibilitySnapshot: b.consumer.visibilitySnapshot}, nil
 }
 
 func (b *expressionBinder) assignOutput(bound expr.Expr, target catalog.Column) (expr.Expr, error) {
-	if raw, ok := bound.(unknownOutput); ok {
+	if raw, ok := bound.(plan.UnknownOutput); ok {
 		return b.bind(raw.Raw, expressionPolicy{context: assignmentContext, expected: target.Usage, mode: sqltype.Assignment})
 	}
 	if source := bound.ResultUsage().Type; source != nil && source.ID() == 2249 && target.Usage.Type.BaseType().IsComposite() {
@@ -654,7 +655,7 @@ func (b *expressionBinder) assignOutput(bound expr.Expr, target catalog.Column) 
 		// whole-source conversion authority at the destination boundary.
 		return nil, b.rowCoercionError(target.Usage, bound.SourcePosition(), "")
 	}
-	if p, ok := bound.(parameterExpression); ok && p.Usage.Type == nil {
+	if p, ok := bound.(plan.ParameterExpr); ok && p.Usage.Type == nil {
 		var err error
 		bound, err = b.coerceParameter(p, target.Usage)
 		if err != nil {
@@ -679,7 +680,7 @@ func (b *expressionBinder) assignOutput(bound expr.Expr, target catalog.Column) 
 		b.prepared.regclassConcat = true
 	}
 	info.Property = coercionProperties(input, coercionPlan)
-	bound = restoreDomainCastCollations(annotations, coercionExpression{info, input, coercionPlan, sqltype.Assignment, false})
+	bound = restoreDomainCastCollations(annotations, plan.CoercionExpr{info, input, coercionPlan, sqltype.Assignment, false})
 	return storageDestination(bound, target.Usage, info.Pos)
 }
 

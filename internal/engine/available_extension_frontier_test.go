@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -37,7 +38,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 				t.Helper()
 				d, ref := availableUnitSource(e, oid)
 				e.mu.Lock()
-				source, err := e.openRelationSourceLocked(s, ref, e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), queryRowMark{}, nil, nil)
+				source, err := e.openRelationSourceLocked(s, ref, e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), plan.RowMark{}, nil, nil)
 				if err != nil {
 					t.Fatal(err)
 				}

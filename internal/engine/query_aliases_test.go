@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -76,7 +77,7 @@ func TestQueryAliasesCancellation(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT x.iid AS shown FROM t x(iid) WHERE x.f")
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			project := query.Root.(*projectNode)
+			project := query.Root.(*plan.ProjectNode)
 			calls := 0
 			project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
 				calls++

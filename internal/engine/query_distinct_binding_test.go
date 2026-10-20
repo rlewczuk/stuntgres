@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -27,7 +28,7 @@ func TestQueryDistinctPhysicalDescriptorsAndRemap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	node := root.(*projectNode).Child.(*distinctNode)
+	node := root.(*plan.ProjectNode).Child.(*plan.DistinctNode)
 	for i, family := range node.Grouping {
 		value, _ := sqltype.Integer(fresh[sqltype.Int4], 1)
 		if _, err := family.Hash(context.Background(), value); err != nil {
@@ -43,13 +44,13 @@ func TestQueryDistinctPhysicalDescriptorsAndRemap(t *testing.T) {
 func TestQueryDistinctSecondOutputOccurrence(t *testing.T) {
 	for _, suffix := range []string{"y", "2"} {
 		e, query, source := queryCoreFixture(t, "SELECT DISTINCT random() AS x,random() AS y FROM t ORDER BY "+suffix)
-		project := query.Root.(*projectNode)
-		sorted := project.Child.(*sortNode)
-		node := sorted.Child.(*distinctNode)
+		project := query.Root.(*plan.ProjectNode)
+		sorted := project.Child.(*plan.SortNode)
+		node := sorted.Child.(*plan.DistinctNode)
 		if len(node.Expressions) != 2 || len(node.Grouping) != 2 || sorted.Keys[0].Slot != 1 || sorted.Keys[0].OutputOrdinal != 2 {
 			t.Fatal("second output occurrence lost", suffix, sorted.Keys, node)
 		}
-		column, ok := sorted.Keys[0].Expression.(columnExpression)
+		column, ok := sorted.Keys[0].Expression.(plan.ColumnExpr)
 		if !ok || column.Slot != 1 {
 			t.Fatal("ORDER did not retain second projected datum", column, ok)
 		}
@@ -71,7 +72,7 @@ func TestQueryDistinctSecondOutputOccurrence(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			sorted := b.query.Root.(*projectNode).Child.(*sortNode)
+			sorted := b.query.Root.(*plan.ProjectNode).Child.(*plan.SortNode)
 			if sorted.Keys[0].Slot != 1 || sorted.Keys[0].OutputOrdinal != 2 {
 				t.Fatal("view output occurrence lost", sorted.Keys)
 			}
@@ -139,13 +140,13 @@ func TestQueryDistinctInsertSourceDescriptorOwnership(t *testing.T) {
 				}
 				source.borrowAuthority(scope)
 				defer source.close()
-				project := b.query.Root.(*projectNode)
+				project := b.query.Root.(*plan.ProjectNode)
 				node := project.Child
 				var expressions []expr.Expr
 				switch n := node.(type) {
-				case *distinctNode:
+				case *plan.DistinctNode:
 					expressions = n.Expressions
-				case *distinctOnNode:
+				case *plan.DistinctOnNode:
 					expressions = n.Expressions
 				default:
 					t.Fatalf("unexpected DISTINCT producer %T", node)

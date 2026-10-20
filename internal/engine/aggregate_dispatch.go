@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -37,7 +38,7 @@ func (b *expressionBinder) aggregateReturning(raw parser.AggregateExpr, node exp
 		return nil, err
 	}
 	info.Property = coercionProperties(node, coercionPlan)
-	return coercionExpression{info, node, coercionPlan, sqltype.Assignment, false}, nil
+	return plan.CoercionExpr{info, node, coercionPlan, sqltype.Assignment, false}, nil
 }
 
 // valuesAggregateNamespace gives a call bound in INSERT ... VALUES, which has

@@ -16,7 +16,7 @@ func TestQueryWindowOffsetNestedComparison(t *testing.T) {
 			left := "(SELECT " + fn + "(0,1,t.id) OVER()" + tail + ")"
 			different := "(SELECT " + fn + "(0,1,-t.id) OVER()" + tail + ")"
 			_, query, source := queryCoreFixture(t, "SELECT "+left+","+different+","+left+" FROM t")
-			project := query.Root.(*projectNode)
+			project := query.Root.(*plan.ProjectNode)
 			a, b, equal := project.Expressions[0], project.Expressions[1], project.Expressions[2]
 			// Independently bound child frames may pair, but their window defaults
 			// remain semantic inputs. The child window is the only differing node.
@@ -45,43 +45,43 @@ func TestQueryWindowOffsetLowering(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ordinal := literalExpression{Info: expr.Info{Usage: b.typ(sqltype.Int4).Usage()}, Value: offset}
+	ordinal := plan.LiteralExpr{Info: expr.Info{Usage: b.typ(sqltype.Int4).Usage()}, Value: offset}
 	tail := stringSplitLiteral(b, "tail")
-	retainedCalls := []windowCall{
+	retainedCalls := []plan.WindowCall{
 		{Operation: plan.WindowLead, Argument: argument, Ordinal: ordinal, DefaultValue: marker},
 		{Operation: plan.WindowLag, Argument: argument, Ordinal: ordinal, DefaultValue: tail},
 	}
-	retainedSpecs := []boundWindowSpec{{Partition: []expr.Expr{stringSplitLiteral(b, "partition")}, Order: []sortKey{{Expression: stringSplitLiteral(b, "order")}}}}
+	retainedSpecs := []plan.WindowSpec{{Partition: []expr.Expr{stringSplitLiteral(b, "partition")}, Order: []plan.SortKey{{Expression: stringSplitLiteral(b, "order")}}}}
 	retainedCompanion := []expr.Expr{marker, peer}
-	calls := append([]windowCall(nil), retainedCalls...)
-	specs := append([]boundWindowSpec(nil), retainedSpecs...)
+	calls := append([]plan.WindowCall(nil), retainedCalls...)
+	specs := append([]plan.WindowSpec(nil), retainedSpecs...)
 	companion := append([]expr.Expr(nil), retainedCompanion...)
 	// This mechanics test supplies a real pre-lowering marker, not public SQL
 	// admitting an SRF inside a window call. The lowering contract must transform
 	// every owned request and corresponding companion without changing its inputs.
-	root, err := b.lowerStringWindowSpecs(&singletonNode{}, specs, calls, [][]expr.Expr{companion})
+	root, err := b.lowerStringWindowSpecs(&plan.SingletonNode{}, specs, calls, [][]expr.Expr{companion})
 	if err != nil {
 		t.Fatal(err)
 	}
-	selected, ok := calls[0].DefaultValue.(columnExpression)
+	selected, ok := calls[0].DefaultValue.(plan.ColumnExpr)
 	if !ok {
 		t.Fatalf("third child not written back after lowering: %T", calls[0].DefaultValue)
 	}
-	shared, ok := companion[0].(columnExpression)
+	shared, ok := companion[0].(plan.ColumnExpr)
 	if !ok || selected.Slot != shared.Slot || selected.Frame != 7 || shared.Frame != 7 {
 		t.Fatal("default/companion lost owned stage datum", selected, companion[0])
 	}
-	independent, ok := companion[1].(columnExpression)
+	independent, ok := companion[1].(plan.ColumnExpr)
 	if !ok || independent.Slot == selected.Slot || independent.Frame != 7 {
 		t.Fatal("independent companion occurrence collapsed", companion[1])
 	}
 	if !reflect.DeepEqual(calls[0].Argument, argument) || !reflect.DeepEqual(calls[0].Ordinal, ordinal) || !reflect.DeepEqual(calls[1], retainedCalls[1]) {
 		t.Fatal("ordered default writeback displaced another child", calls)
 	}
-	if !reflect.DeepEqual(expr.Expr(marker).(expr.Composite).Children(), markerArgs) || !reflect.DeepEqual(expr.Expr(peer).(expr.Composite).Children(), peerArgs) || !reflect.DeepEqual(retainedCalls[0].DefaultValue, marker) || !reflect.DeepEqual(retainedCompanion, []expr.Expr{marker, peer}) || !reflect.DeepEqual(retainedSpecs[0].Partition, []expr.Expr{stringSplitLiteral(b, "partition")}) || !reflect.DeepEqual(retainedSpecs[0].Order, []sortKey{{Expression: stringSplitLiteral(b, "order")}}) {
+	if !reflect.DeepEqual(expr.Expr(marker).(expr.Composite).Children(), markerArgs) || !reflect.DeepEqual(expr.Expr(peer).(expr.Composite).Children(), peerArgs) || !reflect.DeepEqual(retainedCalls[0].DefaultValue, marker) || !reflect.DeepEqual(retainedCompanion, []expr.Expr{marker, peer}) || !reflect.DeepEqual(retainedSpecs[0].Partition, []expr.Expr{stringSplitLiteral(b, "partition")}) || !reflect.DeepEqual(retainedSpecs[0].Order, []plan.SortKey{{Expression: stringSplitLiteral(b, "order")}}) {
 		t.Fatal("lowering mutated retained input ownership")
 	}
-	node, ok := root.(*setProjectNode)
+	node, ok := root.(*plan.SetProjectNode)
 	if !ok {
 		t.Fatalf("no executable marker stage: %T", root)
 	}

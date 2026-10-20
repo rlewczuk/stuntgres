@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -68,7 +69,7 @@ func TestExprCollationStoredPreflightDemand(t *testing.T) {
 			if len(bound.querySources) != 1 || !reflect.DeepEqual(bound.querySources[0].uses, tc.uses) {
 				t.Fatal("ordinary source occurrence uses", bound.querySources, tc.uses)
 			}
-			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: scope, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: bound.query.Root.(*projectNode).Frame}}
+			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), statementScope: scope, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: bound.query.Root.(*plan.ProjectNode).Frame}}
 			err := validateQueryJoinExecution(&evaluation, bound.query.Root, e.CatalogRead(), 0)
 			if tc.fail {
 				var diagnostic *sqlstate.Error
@@ -143,7 +144,7 @@ func TestExprCollationNestedPayloadDemand(t *testing.T) {
 				t.Fatal("nested occurrence count", len(occurrences), len(tc.want))
 			}
 			for i, child := range occurrences {
-				project, ok := child.nestedRoot.(*projectNode)
+				project, ok := child.nestedRoot.(*plan.ProjectNode)
 				if !ok {
 					t.Fatal("missing demanded nested projection", i, child.nestedRoot)
 				}
@@ -151,7 +152,7 @@ func TestExprCollationNestedPayloadDemand(t *testing.T) {
 					t.Fatal("nested output layout changed", project.Schema())
 				}
 				for slot, live := range tc.want[i] {
-					_, dead := project.Expressions[slot].(literalExpression)
+					_, dead := project.Expressions[slot].(plan.LiteralExpr)
 					if dead == live {
 						t.Fatal("nested executable occurrence demand", tc.name, i, slot, "dead", dead, "want live", live)
 					}
@@ -196,7 +197,7 @@ func TestExprCollationDomainDerivation(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			bound, _ := exprCollationStoredBinding(t, e, owner, tc.q)
-			comparison, ok := bound.query.Root.(*projectNode).Expressions[0].(comparisonExpression)
+			comparison, ok := bound.query.Root.(*plan.ProjectNode).Expressions[0].(plan.ComparisonExpr)
 			if !ok {
 				t.Fatal("missing real comparison")
 			}
@@ -218,7 +219,7 @@ func TestExprCollationDomainDerivation(t *testing.T) {
 					t.Fatal("domain reset discarded child properties/dependencies", left.Properties(), bound.querySources)
 				}
 			}
-			value, err := comparison.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: bound.query.Root.(*projectNode).Frame, Row: []sqltype.Value{sqltype.String(text, "A"), sqltype.String(text, "A")}}})
+			value, err := comparison.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: bound.query.Root.(*plan.ProjectNode).Frame, Row: []sqltype.Value{sqltype.String(text, "A"), sqltype.String(text, "A")}}})
 			if tc.conflict {
 				var diagnostic *sqlstate.Error
 				if !errors.As(err, &diagnostic) || *diagnostic != (sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: "could not determine which collation to use for string comparison", Hint: "Use the COLLATE clause to set the collation explicitly."}) {

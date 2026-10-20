@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -64,7 +65,7 @@ func viewComputedWriteError(d *catalog.Relation, operation string, slot int) err
 
 // Only admitted, analyzed nodes participate. A scalar subquery is a separate
 // query boundary and must not be mistaken for a top-level aggregate/window.
-func viewWriteShape(d *catalog.Relation) (*projectNode, *sourceNode, []expr.Expr, string) {
+func viewWriteShape(d *catalog.Relation) (*plan.ProjectNode, *plan.SourceNode, []expr.Expr, string) {
 	q := viewOf(d).syntax
 	if q.Distinct != nil {
 		return nil, nil, nil, "Views containing DISTINCT are not automatically updatable."
@@ -81,7 +82,7 @@ func viewWriteShape(d *catalog.Relation) (*projectNode, *sourceNode, []expr.Expr
 	if q.Bounds != nil {
 		return nil, nil, nil, "Views containing LIMIT or OFFSET are not automatically updatable."
 	}
-	p, ok := viewOf(d).query.Root.(*projectNode)
+	p, ok := viewOf(d).query.Root.(*plan.ProjectNode)
 	if !ok {
 		return nil, nil, nil, "Views that do not select from a single table or view are not automatically updatable."
 	}
@@ -90,21 +91,21 @@ func viewWriteShape(d *catalog.Relation) (*projectNode, *sourceNode, []expr.Expr
 	node := p.Child
 	for {
 		switch n := node.(type) {
-		case *setProjectNode:
+		case *plan.SetProjectNode:
 			hasTargetSet = true
 			node = n.Child
-		case *aggregateNode:
+		case *plan.AggregateNode:
 			return nil, nil, nil, "Views that return aggregate functions are not automatically updatable."
-		case *windowNode:
+		case *plan.WindowNode:
 			return nil, nil, nil, "Views that return window functions are not automatically updatable."
-		case *sortNode:
+		case *plan.SortNode:
 			node = n.Child
-		case *rowLockNode:
+		case *plan.RowLockNode:
 			node = n.Child
-		case *filterNode:
+		case *plan.FilterNode:
 			predicates = append(predicates, n.Predicate)
 			node = n.Child
-		case *sourceNode:
+		case *plan.SourceNode:
 			if hasTargetSet {
 				return nil, nil, nil, "Views that return set-returning functions are not automatically updatable."
 			}
@@ -130,14 +131,14 @@ func viewWriteShape(d *catalog.Relation) (*projectNode, *sourceNode, []expr.Expr
 	}
 }
 
-func viewDirectColumn(expr expr.Expr) (columnExpression, bool) {
-	if c, ok := expr.(columnExpression); ok {
+func viewDirectColumn(expr expr.Expr) (plan.ColumnExpr, bool) {
+	if c, ok := expr.(plan.ColumnExpr); ok {
 		return c, true
 	}
-	if c, ok := expr.(coercionExpression); ok && c.ResultUsage() == c.Child.ResultUsage() {
+	if c, ok := expr.(plan.CoercionExpr); ok && c.ResultUsage() == c.Child.ResultUsage() {
 		return viewDirectColumn(c.Child)
 	}
-	return columnExpression{}, false
+	return plan.ColumnExpr{}, false
 }
 func stableViewSlot(source *catalog.Relation, leaf viewLeaf, frozen int) (int, error) {
 	if frozen < 0 || frozen >= len(leaf.attributes) {
@@ -179,7 +180,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 	// outputs start in the logical target's canonical mutation frame.
 	outputs := make([]expr.Expr, len(d.Columns))
 	for i, c := range d.Columns {
-		outputs[i] = columnExpression{Info: expr.Info{Usage: c.Usage, Property: expr.Properties{RowDependent: true}}, Origin: ref, Slot: i}
+		outputs[i] = plan.ColumnExpr{Info: expr.Info{Usage: c.Usage, Property: expr.Properties{RowDependent: true}}, Origin: ref, Slot: i}
 	}
 	cascaded := false
 	for d.RelationKind == catalog.ViewRelation {
@@ -296,7 +297,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 					// older frozen leaf layout a second time.
 					return n, false, nil
 				}
-				c, ok := n.(columnExpression)
+				c, ok := n.(plan.ColumnExpr)
 				if !ok || !sameViewRelation(c.Origin, leaf.ref) || c.Frame != project.Frame {
 					return n, false, nil
 				}
@@ -335,7 +336,7 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 			expanded[i] = next
 		}
 		replace := func(n expr.Expr) (expr.Expr, bool, error) {
-			c, ok := n.(columnExpression)
+			c, ok := n.(plan.ColumnExpr)
 			if !ok || !sameViewRelation(c.Origin, ref) || c.Frame > 1 {
 				return n, false, nil
 			}
@@ -398,10 +399,10 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 	return e.lowerViewWrite(b, auth, stmt)
 }
 
-func rewriteViewExpression(view catalog.Read, bound expr.Expr, recipe *catalog.Relation, leaf func(expr.Expr) (expr.Expr, bool, error), queries ...func(LogicalNode, func(expr.Expr) (expr.Expr, bool, error)) (LogicalNode, error)) (expr.Expr, bool, error) {
+func rewriteViewExpression(view catalog.Read, bound expr.Expr, recipe *catalog.Relation, leaf func(expr.Expr) (expr.Expr, bool, error), queries ...func(plan.Node, func(expr.Expr) (expr.Expr, bool, error)) (plan.Node, error)) (expr.Expr, bool, error) {
 	var mapper func(expr.Expr) (expr.Expr, bool, error)
 	mapper = func(n expr.Expr) (expr.Expr, bool, error) {
-		return mapBoundExpression(view, n, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(root LogicalNode) (LogicalNode, error) {
+		return mapBoundExpression(view, n, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(root plan.Node) (plan.Node, error) {
 			if len(queries) != 0 {
 				return queries[0](root, mapper)
 			}
@@ -414,13 +415,13 @@ func rewriteViewExpression(view catalog.Read, bound expr.Expr, recipe *catalog.R
 func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.Statement) error {
 	w := b.viewWrite
 	logicalWidth, physicalWidth := len(w.logical.relation.Columns), len(w.base.Columns)
-	graft := func(root LogicalNode, mapper func(expr.Expr) (expr.Expr, bool, error)) (LogicalNode, error) {
+	graft := func(root plan.Node, mapper func(expr.Expr) (expr.Expr, bool, error)) (plan.Node, error) {
 		return w.graftQuery(b, auth.Catalog, root, mapper)
 	}
 	lowerMapped := func(bound expr.Expr) (expr.Expr, bool, error) {
 		return rewriteViewExpression(auth.Catalog, bound, nil, func(n expr.Expr) (expr.Expr, bool, error) {
 			switch n.(type) {
-			case subqueryExpression:
+			case plan.SubqueryExpr:
 				b.subqueryDemand = true
 			case extensionPathsExpression:
 				// This binding flag owns nonquery catalog/role capture in
@@ -445,11 +446,11 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 				b.visibilitySnapshot = b.visibilitySnapshot || visibility
 			}
 			old, absent := false, false
-			var c columnExpression
+			var c plan.ColumnExpr
 			switch x := n.(type) {
-			case columnExpression:
+			case plan.ColumnExpr:
 				c = x
-			case returningColumnExpression:
+			case plan.ReturningColumnExpr:
 				c = x.ColumnExpr
 				old, absent = x.Old, x.Absent
 			default:
@@ -461,7 +462,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 				}
 				output := w.outputs[c.Slot]
 				output, _, err := rewriteViewExpression(auth.Catalog, output, nil, func(child expr.Expr) (expr.Expr, bool, error) {
-					column, ok := child.(columnExpression)
+					column, ok := child.(plan.ColumnExpr)
 					if !ok || !sameViewRelation(column.Origin, w.ref) || column.Frame != 1 {
 						return child, false, nil
 					}
@@ -470,7 +471,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 					return column, true, nil
 				}, graft)
 				if old || absent {
-					return returningColumnExpression{ColumnExpr: c, Old: old, Absent: absent, Value: output}, true, err
+					return plan.ReturningColumnExpr{ColumnExpr: c, Old: old, Absent: absent, Value: output}, true, err
 				}
 				return output, true, err
 			}
@@ -487,8 +488,8 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 	}
 	// Every bound in a mixed field/array path uses the physical write frame.
 	// Preserve unchanged plans and copy only the ancestry of a lowered bound.
-	var lowerTarget func(*arrayAssignmentTarget) (*arrayAssignmentTarget, error)
-	lowerTarget = func(target *arrayAssignmentTarget) (*arrayAssignmentTarget, error) {
+	var lowerTarget func(*plan.ArrayAssignmentTarget) (*plan.ArrayAssignmentTarget, error)
+	lowerTarget = func(target *plan.ArrayAssignmentTarget) (*plan.ArrayAssignmentTarget, error) {
 		if target == nil {
 			return nil, nil
 		}
@@ -536,7 +537,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 			}
 		}
 		if len(u.arrayTargets) != 0 {
-			var replacements []*arrayAssignmentTarget
+			var replacements []*plan.ArrayAssignmentTarget
 			for i, target := range u.arrayTargets {
 				next, failure := lowerTarget(target)
 				if failure != nil {
@@ -544,7 +545,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 				}
 				if next != target {
 					if replacements == nil {
-						replacements = append([]*arrayAssignmentTarget(nil), u.arrayTargets...)
+						replacements = append([]*plan.ArrayAssignmentTarget(nil), u.arrayTargets...)
 					}
 					replacements[i] = next
 				}
@@ -649,5 +650,5 @@ func viewWritePredicate(predicates []expr.Expr, user expr.Expr) expr.Expr {
 	if len(predicates) == 0 {
 		return user
 	}
-	return viewQualificationExpression{Info: expr.InfoOf(predicates[0]), Predicates: predicates, User: user}
+	return plan.ViewQualificationExpr{Info: expr.InfoOf(predicates[0]), Predicates: predicates, User: user}
 }

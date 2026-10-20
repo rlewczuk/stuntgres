@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -149,7 +150,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	}
 	collectAuth.Recapture(fresh.inheritance.catalog)
 	e.mu.Lock()
-	refs, err := e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, fresh.querySources, nil, freshOp.session.token, queryRowMark{})
+	refs, err := e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, fresh.querySources, nil, freshOp.session.token, plan.RowMark{})
 	var view *visibility.View
 	if err == nil {
 		view, err = fresh.acquireDataViewsLocked(e, refs)

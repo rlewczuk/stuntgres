@@ -20,7 +20,7 @@ type windowFrameOffsets struct {
 	integerStart, integerEnd int64
 }
 
-func compareWindowRows(ctx context.Context, keys []sortKey, values []sqltype.Value, a, b int, input sqltype.InputEnvironment) (int, error) {
+func compareWindowRows(ctx context.Context, keys []plan.SortKey, values []sqltype.Value, a, b int, input sqltype.InputEnvironment) (int, error) {
 	width := len(keys)
 	for i, key := range keys {
 		if err := ctx.Err(); err != nil {
@@ -50,10 +50,10 @@ func compareWindowRows(ctx context.Context, keys []sortKey, values []sqltype.Val
 	return 0, ctx.Err()
 }
 
-func evaluateWindowOffsets(ctx context.Context, state *queryState, spec boundWindowSpec) (windowFrameOffsets, error) {
+func evaluateWindowOffsets(ctx context.Context, state *queryState, spec plan.WindowSpec) (windowFrameOffsets, error) {
 	var values windowFrameOffsets
 	evaluation := state.evaluation(ctx)
-	for i, bound := range [2]boundWindowBound{spec.Frame.Start, spec.Frame.End} {
+	for i, bound := range [2]plan.WindowBound{spec.Frame.Start, spec.Frame.End} {
 		if bound.Offset == nil {
 			continue
 		}
@@ -101,7 +101,7 @@ func evaluateWindowOffsets(ctx context.Context, state *queryState, spec boundWin
 	return values, ctx.Err()
 }
 
-func prepareWindowOrder(ctx context.Context, state *queryState, child *indexedStage, spec boundWindowSpec) (windowOrderState, error) {
+func prepareWindowOrder(ctx context.Context, state *queryState, child *indexedStage, spec plan.WindowSpec) (windowOrderState, error) {
 	count := child.count()
 	partitionWidth, orderWidth := len(spec.Partition), len(spec.Order)
 	ordered := windowOrderState{values: make([]sqltype.Value, count*orderWidth)}
@@ -190,7 +190,7 @@ func prepareWindowOrder(ctx context.Context, state *queryState, child *indexedSt
 
 // A cursor advances monotonically over the half-open frame. NULL membership is
 // ordering membership, not arithmetic: strict support never receives NULL keys.
-func windowFrameEndpoint(ctx context.Context, spec boundWindowSpec, bound boundWindowBound, offset sqltype.Value, ordered windowOrderState, rows []int, peerStart, peerEnd, cursor int, upper bool, input sqltype.InputEnvironment) (int, error) {
+func windowFrameEndpoint(ctx context.Context, spec plan.WindowSpec, bound plan.WindowBound, offset sqltype.Value, ordered windowOrderState, rows []int, peerStart, peerEnd, cursor int, upper bool, input sqltype.InputEnvironment) (int, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -359,7 +359,7 @@ type windowSums struct {
 	head, next  int
 }
 
-func (s *windowSums) evaluate(ctx context.Context, state *queryState, child *indexedStage, calls []windowCall, rows []int, frame boundWindowFrame, head, tail, current, peerStart, peerEnd int) error {
+func (s *windowSums) evaluate(ctx context.Context, state *queryState, child *indexedStage, calls []plan.WindowCall, rows []int, frame plan.WindowFrame, head, tail, current, peerStart, peerEnd int) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -435,7 +435,7 @@ func (s *windowSums) evaluate(ctx context.Context, state *queryState, child *ind
 	return ctx.Err()
 }
 
-func openWindowNode(ctx context.Context, state *queryState, n *windowNode) (indexedStage, error) {
+func openWindowNode(ctx context.Context, state *queryState, n *plan.WindowNode) (indexedStage, error) {
 	child, err := openQueryNode(ctx, state, n.Child)
 	if err != nil {
 		return indexedStage{}, err

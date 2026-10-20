@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -255,7 +256,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := folded.(literalExpression); !ok {
+	if _, ok := folded.(plan.LiteralExpr); !ok {
 		t.Fatal("immutable literal function not folded", folded)
 	}
 	for _, input := range []string{"", "---"} {

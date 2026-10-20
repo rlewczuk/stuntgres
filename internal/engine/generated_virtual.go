@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -62,7 +63,7 @@ func selectVirtualGenerationRecipe(c *EvalContext, owner *catalog.Relation, defi
 	c.routineConsumer = owner
 }
 
-func (c *EvalContext) admitColumnVirtualGeneration(e columnExpression, view catalog.Read) error {
+func (c *EvalContext) admitColumnVirtualGeneration(e plan.ColumnExpr, view catalog.Read) error {
 	if e.VirtualOwner == nil {
 		return fmt.Errorf("stuntgres: missing virtual generation owner")
 	}
@@ -86,7 +87,7 @@ func (c *EvalContext) admitColumnVirtualGeneration(e columnExpression, view cata
 func refreshGenerationChecks(d *catalog.Relation, catalog catalog.Read) error {
 	for i := range d.Constraints.Check {
 		next, changed, err := mapBoundExpression(catalog, d.Constraints.Check[i].Expression, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, func(node expr.Expr) (expr.Expr, bool, error) {
-			column, ok := node.(columnExpression)
+			column, ok := node.(plan.ColumnExpr)
 			if !ok || column.Origin.Address.ClassID != d.Address().ClassID || column.Origin.Address.ObjectID != d.Address().ObjectID {
 				return node, false, nil
 			}
@@ -121,7 +122,7 @@ func logicalColumnValue(d *catalog.Relation, slot int, row []sqltype.Value, c *E
 	if definition, ok := d.ColumnMeta.Generations[d.Attributes[slot]]; !ok || definition.Kind != catalog.GenerationVirtual {
 		return row[slot], nil
 	}
-	column := columnExpression{Info: expr.Info{Usage: d.Columns[slot].Usage}, Scope: 1, Frame: 1, Slot: slot}.WithGeneration(d, slot, 0)
+	column := plan.ColumnExpr{Info: expr.Info{Usage: d.Columns[slot].Usage}, Scope: 1, Frame: 1, Slot: slot}.WithGeneration(d, slot, 0)
 	local := *c
 	local.Scope, local.Frame, local.Row = 1, 1, row
 	return column.Eval(&local)
@@ -131,7 +132,7 @@ func logicalColumnValue(d *catalog.Relation, slot int, row []sqltype.Value, c *E
 // Physical child identity belongs to tableoid/provenance, not recipe selection.
 // Rechecks borrow the complete latest logical tuple without rereading a source
 // whose inheritance mapping scratch may still hold that same tuple.
-func (c *EvalContext) columnCapturedGeneration(e columnExpression, source *querySource, index int, current []sqltype.Value) (expr.Expr, []sqltype.Value, error) {
+func (c *EvalContext) columnCapturedGeneration(e plan.ColumnExpr, source *querySource, index int, current []sqltype.Value) (expr.Expr, []sqltype.Value, error) {
 	data := source.view.Load()
 	if data == nil {
 		return nil, nil, fmt.Errorf("stuntgres: virtual source snapshot is released")

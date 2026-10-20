@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -87,7 +88,7 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 					coercionPlan, err = sqltype.PlanCoercion(input.ResultUsage(), info.Usage, sqltype.Explicit)
 					if err == nil {
 						info.Property = coercionProperties(input, coercionPlan)
-						node = restoreDomainCastCollations(annotations, coercionExpression{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Explicit, SyntheticConstructorElement: true})
+						node = restoreDomainCastCollations(annotations, plan.CoercionExpr{Info: info, Child: input, Plan: coercionPlan, Mode: sqltype.Explicit, SyntheticConstructorElement: true})
 					}
 				}
 			}
@@ -104,10 +105,10 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 	if err != nil {
 		return nil, err
 	}
-	return arrayExpression{Info: info, Elements: elements, Multidimensional: multidimensional}, nil
+	return plan.ArrayExpr{Info: info, Elements: elements, Multidimensional: multidimensional}, nil
 }
 
-func (r scalarRenderer) arraySQL(ctx context.Context, view catalog.Read, n arrayExpression) (string, error) {
+func (r scalarRenderer) arraySQL(ctx context.Context, view catalog.Read, n plan.ArrayExpr) (string, error) {
 	parts := make([]string, len(n.Elements))
 	for i, child := range n.Elements {
 		text, err := r.sql(ctx, view, child)
@@ -127,10 +128,10 @@ func (r scalarRenderer) arraySQL(ctx context.Context, view catalog.Read, n array
 	return text, nil
 }
 
-func (b *expressionBinder) bindArrayBounds(raw []parser.ArraySubscript) ([]boundArraySubscript, bool, error) {
-	var subs []boundArraySubscript
+func (b *expressionBinder) bindArrayBounds(raw []parser.ArraySubscript) ([]plan.BoundArraySubscript, bool, error) {
+	var subs []plan.BoundArraySubscript
 	if len(raw) <= 6 {
-		subs = make([]boundArraySubscript, len(raw))
+		subs = make([]plan.BoundArraySubscript, len(raw))
 	}
 	slice := false
 	bind := func(raw parser.Expr) (expr.Expr, error) {
@@ -152,7 +153,7 @@ func (b *expressionBinder) bindArrayBounds(raw []parser.ArraySubscript) ([]bound
 		if err != nil {
 			return nil, expr.ErrorAt("42804", "array subscript must have type integer", parser.ExpressionStart(raw))
 		}
-		return coercionExpression{b.info(b.typ(sqltype.Int4).Usage(), node.SourcePosition(), coercionProperties(node, coercionPlan)), node, coercionPlan, sqltype.Assignment, false}, nil
+		return plan.CoercionExpr{b.info(b.typ(sqltype.Int4).Usage(), node.SourcePosition(), coercionProperties(node, coercionPlan)), node, coercionPlan, sqltype.Assignment, false}, nil
 	}
 	for i, s := range raw {
 		lower, err := bind(s.Lower)
@@ -164,7 +165,7 @@ func (b *expressionBinder) bindArrayBounds(raw []parser.ArraySubscript) ([]bound
 			return nil, false, err
 		}
 		if subs != nil {
-			subs[i] = boundArraySubscript{lower, upper, s.Slice}
+			subs[i] = plan.BoundArraySubscript{lower, upper, s.Slice}
 		}
 		slice = slice || s.Slice
 	}
@@ -202,10 +203,10 @@ func (b *expressionBinder) bindSubscript(raw parser.SubscriptExpr) (expr.Expr, e
 	if err != nil {
 		return nil, err
 	}
-	return subscriptExpression{info, base, subs, slice}, nil
+	return plan.SubscriptExpr{info, base, subs, slice}, nil
 }
 
-func (r scalarRenderer) subscriptSQL(ctx context.Context, view catalog.Read, n subscriptExpression) (string, error) {
+func (r scalarRenderer) subscriptSQL(ctx context.Context, view catalog.Read, n plan.SubscriptExpr) (string, error) {
 	text, err := r.sql(ctx, view, n.Base)
 	if err != nil {
 		return "", err
@@ -235,7 +236,7 @@ func (r scalarRenderer) subscriptSQL(ctx context.Context, view catalog.Read, n s
 	return text, nil
 }
 
-func subscriptChildren(n subscriptExpression, storage *[13]expr.Expr) []expr.Expr {
+func subscriptChildren(n plan.SubscriptExpr, storage *[13]expr.Expr) []expr.Expr {
 	count := 0
 	if n.Base != nil {
 		storage[count] = n.Base
@@ -255,13 +256,13 @@ func subscriptChildren(n subscriptExpression, storage *[13]expr.Expr) []expr.Exp
 }
 
 // Only actual changed child lists are copied; shared plans remain immutable.
-func mapSubscript(n subscriptExpression, rewrite func(expr.Expr) (expr.Expr, bool, error)) (subscriptExpression, bool, error) {
+func mapSubscript(n plan.SubscriptExpr, rewrite func(expr.Expr) (expr.Expr, bool, error)) (plan.SubscriptExpr, bool, error) {
 	base, changed, err := rewrite(n.Base)
 	if err != nil {
 		return n, false, err
 	}
 	n.Base = base
-	var subs []boundArraySubscript
+	var subs []plan.BoundArraySubscript
 	for i, s := range n.Subscripts {
 		lower, did, err := rewrite(s.Lower)
 		if err != nil {
@@ -273,7 +274,7 @@ func mapSubscript(n subscriptExpression, rewrite func(expr.Expr) (expr.Expr, boo
 		}
 		if did || more {
 			if subs == nil {
-				subs = append([]boundArraySubscript(nil), n.Subscripts...)
+				subs = append([]plan.BoundArraySubscript(nil), n.Subscripts...)
 			}
 			s.Lower, s.Upper = lower, upper
 			subs[i] = s

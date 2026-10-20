@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -35,12 +36,12 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 	column := func(slot int) expr.Expr {
 		ref := baseRef
 		ref.Address.SubID = base.Attributes[slot]
-		return columnExpression{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Origin: ref, Scope: 1, Frame: 1, Slot: slot}
+		return plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Origin: ref, Scope: 1, Frame: 1, Slot: slot}
 	}
 	view := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: ns, ObjectName: "logical", ObjectRevision: 1, Owner: owner, RelationKind: catalog.ViewRelation, Attributes: []int32{1, 2}, ColumnMeta: catalog.ColumnMetadata{HighWater: 2}, Columns: []catalog.Column{{Name: "x", Usage: integer.Usage(), Nullable: true}, {Name: "key", Usage: integer.Usage(), Nullable: true}}, Index: map[string]int{"x": 0, "key": 1}}
 	syntax := &parser.Select{From: &parser.TableReference{}}
-	project := &projectNode{QuerySchema: querySchema(view.Columns), Frame: 1, Syntax: syntax, Child: &sourceNode{QuerySchema: querySchema(base.Columns), Ref: baseRef, Occurrence: 0}, Expressions: []expr.Expr{column(1), column(0)}}
-	view.View = &viewDefinition{syntax: syntax, query: &BoundQuery{Root: project}, sources: []viewLeaf{{ref: baseRef, attributes: []int32{7, 11, 19}, reads: []int32{7, 11}}}}
+	project := &plan.ProjectNode{QuerySchema: plan.QuerySchema(view.Columns), Frame: 1, Syntax: syntax, Child: &plan.SourceNode{QuerySchema: plan.QuerySchema(base.Columns), Ref: baseRef, Occurrence: 0}, Expressions: []expr.Expr{column(1), column(0)}}
+	view.View = &viewDefinition{syntax: syntax, query: &plan.Query{Root: project}, sources: []viewLeaf{{ref: baseRef, attributes: []int32{7, 11, 19}, reads: []int32{7, 11}}}}
 	viewRef := e.catalog.Domain.Ref(e.catalog.state.Epoch(), view.Address())
 	e.catalog.state.SetDescriptor(base.Address(), base)
 	e.catalog.state.SetDescriptor(view.Address(), view)
@@ -102,7 +103,7 @@ func TestViewWriteMapping(t *testing.T) {
 	f := viewWriteMechanics(t)
 	scope, op := f.scope(t)
 	auth := f.authorization(t, op)
-	b := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, update: &boundUpdate{assignments: []expr.Expr{literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
+	b := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, update: &boundUpdate{assignments: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: sqltype.Null(f.integer)}}}}
 	if err := f.e.bindViewWrite(&b, auth, &parser.Update{}); err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +162,7 @@ func TestViewWriteDefaults(t *testing.T) {
 	f := viewWriteMechanics(t)
 	scope, op := f.scope(t)
 	constant, _ := sqltype.Integer(f.integer, 42)
-	f.base.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{19: {Expression: literalExpression{Info: expr.Info{Usage: f.integer.Usage()}, Value: constant}}}
+	f.base.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{19: {Expression: plan.LiteralExpr{Info: expr.Info{Usage: f.integer.Usage()}, Value: constant}}}
 	b := binding{relation: f.view, ref: f.viewRef, targets: []int{0}, expressions: [][]expr.Expr{{nil}}}
 	if err := f.e.bindViewWrite(&b, f.authorization(t, op), &parser.Insert{Rows: [][]parser.Expr{{parser.DefaultExpr{}}}}); err != nil {
 		t.Fatal(err)
@@ -196,7 +197,7 @@ func TestViewWriteDemand(t *testing.T) {
 		calls++
 		return sqltype.Value{}, errors.New("hidden user work")
 	})
-	guard := literalExpression{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, false)}
+	guard := plan.LiteralExpr{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, false)}
 	expression := viewWritePredicate([]expr.Expr{guard}, unsafe)
 	eval := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	matched, err := updateMatches(&eval, expression)
@@ -206,17 +207,17 @@ func TestViewWriteDemand(t *testing.T) {
 	// Same-type analyzed casts preserve direct origin; COLLATE never does.
 	ref := f.baseRef
 	ref.Address.SubID = 11
-	column := columnExpression{Info: expr.Info{Usage: f.integer.Usage()}, Origin: ref, Slot: 1}
-	cast := coercionExpression{Info: column.Info, Child: column}
+	column := plan.ColumnExpr{Info: expr.Info{Usage: f.integer.Usage()}, Origin: ref, Slot: 1}
+	cast := plan.CoercionExpr{Info: column.Info, Child: column}
 	if _, ok := viewDirectColumn(cast); !ok {
 		t.Fatal("no-op cast lost origin")
 	}
-	if _, ok := viewDirectColumn(collationExpression{Info: column.Info, Child: column}); ok {
+	if _, ok := viewDirectColumn(plan.CollationExpr{Info: column.Info, Child: column}); ok {
 		t.Fatal("COLLATE gained write authority")
 	}
 	// Prepared/direct parameters are execution inputs, not stored-default
 	// literals. Rewriting must retain their number/type/dependence unchanged.
-	parameter := parameterExpression{
+	parameter := plan.ParameterExpr{
 		Info:   expr.Info{Usage: f.integer.Usage(), Property: expr.Properties{ParameterDependent: true}},
 		Number: 1,
 	}
@@ -226,7 +227,7 @@ func TestViewWriteDemand(t *testing.T) {
 	if err != nil || changed {
 		t.Fatal("unchanged parameter rewrite", changed, err)
 	}
-	retained, ok := rewritten.(parameterExpression)
+	retained, ok := rewritten.(plan.ParameterExpr)
 	if !ok || retained.Number != 1 || retained.ResultUsage() != parameter.ResultUsage() || retained.Properties() != parameter.Properties() {
 		t.Fatal("parameter identity/type changed", rewritten)
 	}

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
 )
@@ -61,7 +62,7 @@ func (e *Engine) preflightACLItemDump(ctx context.Context, view catalog.Read, ou
 	}
 	expression := func(node expr.Expr) {
 		walkBoundExpression(node, func(child expr.Expr) {
-			if literal, ok := child.(literalExpression); ok {
+			if literal, ok := child.(plan.LiteralExpr); ok {
 				check(literal.Value)
 			}
 		})

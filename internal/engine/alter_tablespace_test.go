@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -198,7 +199,7 @@ func TestAlterTablespaceInheritanceTypeCapture(t *testing.T) {
 		t.Helper()
 		columns := 0
 		walkBoundExpression(captured.transformation.expression, func(expression expr.Expr) {
-			if column, ok := expression.(columnExpression); ok {
+			if column, ok := expression.(plan.ColumnExpr); ok {
 				columns++
 				if column.Origin != rootColumn || column.Slot != 0 || column.ResultUsage().Type.ID() != sqltype.Int4 {
 					t.Fatalf("root USING lost original column binding: origin %v want %v, slot %d, usage %v", column.Origin, rootColumn, column.Slot, column.ResultUsage())

@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 )
 
 func TestGeneratedCompositeAttributeProviders(t *testing.T) {
@@ -101,10 +102,10 @@ func TestGeneratedCompositeAttributeProviders(t *testing.T) {
 	if err := (relationProvider{}).Validate(view, unrelated); err == nil {
 		t.Fatal("live unrelated metadata attribute replaced genuine expression manifest")
 	}
-	var ownColumn columnExpression
+	var ownColumn plan.ColumnExpr
 	foundColumn := false
 	walkBoundExpression(definition.Planned, func(node expr.Expr) {
-		if column, ok := node.(columnExpression); ok {
+		if column, ok := node.(plan.ColumnExpr); ok {
 			ownColumn = column
 			foundColumn = true
 		}

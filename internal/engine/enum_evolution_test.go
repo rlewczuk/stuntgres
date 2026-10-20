@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
@@ -148,7 +149,7 @@ func TestEnumImportSameIDMembership(t *testing.T) {
 	importing := catalog.NewState(0)
 	importing.SetScalarImports(imports)
 	view := New().catalog.read(importing)
-	literal := literalExpression{Info: expr.Info{Usage: source.Usage()}, Value: v}
+	literal := plan.LiteralExpr{Info: expr.Info{Usage: source.Usage()}, Value: v}
 	rebound, changed, err := retagBoundTypes(view, literal, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 		if d == source {
 			return target
@@ -158,7 +159,7 @@ func TestEnumImportSameIDMembership(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(err)
 	}
-	id, _ = rebound.(literalExpression).Value.EnumMemberID()
+	id, _ = rebound.(plan.LiteralExpr).Value.EnumMemberID()
 	if id != 80 {
 		t.Fatal("stored literal import", id)
 	}

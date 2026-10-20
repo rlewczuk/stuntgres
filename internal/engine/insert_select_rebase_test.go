@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -65,15 +66,15 @@ func TestInsertSelectIntegratedExpressions(t *testing.T) {
 func TestInsertSelectValuesPreflightPrivate(t *testing.T) {
 	expression := preflightCast(t, "SELECT int4('42'::text) FROM t")
 	schema := []catalog.Column{{Name: "column1", Usage: expression.ResultUsage()}}
-	original := &valuesNode{QuerySchema: schema, Rows: [][]expr.Expr{{expression}, {expression}}}
+	original := &plan.ValuesNode{QuerySchema: schema, Rows: [][]expr.Expr{{expression}, {expression}}}
 	for range 2 {
 		root, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original)
 		if err != nil || root == original {
 			t.Fatal(root, err)
 		}
-		folded := root.(*valuesNode)
+		folded := root.(*plan.ValuesNode)
 		for i, row := range folded.Rows {
-			literal, ok := row[0].(literalExpression)
+			literal, ok := row[0].(plan.LiteralExpr)
 			if !ok || &row[0] == &original.Rows[i][0] {
 				t.Fatal("preflight did not produce a private folded occurrence", i)
 			}
@@ -84,12 +85,12 @@ func TestInsertSelectValuesPreflightPrivate(t *testing.T) {
 			if got, err := value.Integer(); err != nil || got != 42 {
 				t.Fatal(got, err)
 			}
-			if _, ok := original.Rows[i][0].(coercionExpression); !ok {
+			if _, ok := original.Rows[i][0].(plan.CoercionExpr); !ok {
 				t.Fatal("analysis expression mutated")
 			}
 		}
 	}
-	bad := &valuesNode{Rows: [][]expr.Expr{{preflightCast(t, "SELECT int4('bad'::text) FROM t")}}}
+	bad := &plan.ValuesNode{Rows: [][]expr.Expr{{preflightCast(t, "SELECT int4('bad'::text) FROM t")}}}
 	_, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, bad)
 	state(t, err, "22P02")
 }

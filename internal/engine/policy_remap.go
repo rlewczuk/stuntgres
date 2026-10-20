@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqltype"
 )
@@ -25,7 +26,7 @@ func remapPolicies(view catalog.Read, d *catalog.Relation, mapping map[ids.Objec
 				return nil, err
 			}
 			expression.presentation = frozen
-			expression.expression = frozen.query.Root.(*projectNode).Expressions[0]
+			expression.expression = frozen.query.Root.(*plan.ProjectNode).Expressions[0]
 			*slot = &expression
 		}
 	}

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -61,11 +62,11 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 	if err != nil || !strings.Contains(originalText, "ROW(17, 18, 19)") {
 		t.Fatal(originalText, err)
 	}
-	originalField, ok := original.(fieldExpression)
+	originalField, ok := original.(plan.FieldExpr)
 	if !ok {
 		t.Fatal("default lost its genuine selected field", original)
 	}
-	originalRow, ok := originalField.Base.(rowExpression)
+	originalRow, ok := originalField.Base.(plan.RowExpr)
 	if !ok || originalRow.FieldProjection != nil {
 		t.Fatal("fresh constructor allocated retained associations", originalField.Base)
 	}
@@ -103,15 +104,15 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 	if err := validateGenerationPlan(after, nil, mapped.DomainDefault.Expression); err != nil {
 		t.Fatal(err)
 	}
-	var selected fieldExpression
+	var selected plan.FieldExpr
 	found := false
 	walkBoundExpression(mapped.DomainDefault.Expression, func(node expr.Expr) {
-		if field, ok := node.(fieldExpression); ok && field.Attribute == source.Attributes[1] {
+		if field, ok := node.(plan.FieldExpr); ok && field.Attribute == source.Attributes[1] {
 			selected = field
 			found = true
 		}
 	})
-	row, constructor := selected.Base.(rowExpression)
+	row, constructor := selected.Base.(plan.RowExpr)
 	if !found || !constructor || selected.Index != 1 || len(row.Fields) != 3 || len(row.FieldProjection) != 3 || row.FieldProjection[0].Slot != -1 || row.FieldProjection[1].Slot != 0 || row.FieldProjection[2].Slot != -1 {
 		t.Fatal("lost original written child association", selected, row)
 	}
@@ -137,7 +138,7 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 	fast := selected
 	fastRow := row
 	fastRow.Fields = slices.Clone(row.Fields)
-	fastRow.Fields[0], fastRow.Fields[2] = literalExpression{}, literalExpression{}
+	fastRow.Fields[0], fastRow.Fields[2] = plan.LiteralExpr{}, plan.LiteralExpr{}
 	fast.Base = fastRow
 	value, err = fast.Eval(&evaluation)
 	if err != nil {

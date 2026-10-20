@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -113,7 +114,7 @@ func TestLevenshteinExpressionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := folded.(literalExpression); !ok {
+	if _, ok := folded.(plan.LiteralExpr); !ok {
 		t.Fatal("immutable call not folded", folded)
 	}
 	// The symbolic codec rejects incomplete old one-member records, as well as

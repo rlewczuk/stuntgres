@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -16,7 +17,7 @@ func TestQueryRecursiveCTELimitZeroAndEmptyAnchor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	limit := &limitNode{QuerySchema: node.Schema(), Child: node, Count: literalExpression{Info: expr.Info{Usage: int8.Usage()}, Value: zero}}
+	limit := &plan.LimitNode{QuerySchema: node.Schema(), Child: node, Count: plan.LiteralExpr{Info: expr.Info{Usage: int8.Usage()}, Value: zero}}
 	stage, err := openLimitNode(context.Background(), state, limit)
 	if err != nil {
 		t.Fatal(err)
@@ -55,7 +56,7 @@ func TestQueryRecursiveCTEPrimaryErrorAndRequiredClose(t *testing.T) {
 		primary := errors.New("recursive term failed")
 		closes := 0
 		if primaryFailure {
-			n := node.Query.Root.(*projectNode).Child.(*recursiveUnionNode)
+			n := node.Query.Root.(*plan.ProjectNode).Child.(*plan.RecursiveUnionNode)
 			n.RightExpressions = []expr.Expr{queryProbe(n.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) {
 				producer.recursion.arm.inner.finish = func() error { closes++; return cleanup }
 				return sqltype.Value{}, primary

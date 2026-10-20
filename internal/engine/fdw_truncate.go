@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/plan"
 )
 
 type foreignTruncateGroup struct {
@@ -18,7 +19,7 @@ func (s *StatementScope) prepareForeignTruncate() ([]foreignTruncateGroup, error
 			continue
 		}
 		e.mu.Lock()
-		source, err := e.captureForeignSourceLocked(s, selected.ref, selected.relation, authorization.PrincipalRef{}, nil, queryRowMark{})
+		source, err := e.captureForeignSourceLocked(s, selected.ref, selected.relation, authorization.PrincipalRef{}, nil, plan.RowMark{})
 		e.mu.Unlock()
 		if err != nil {
 			return nil, err

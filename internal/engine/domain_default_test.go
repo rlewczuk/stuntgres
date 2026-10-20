@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -81,7 +82,7 @@ func TestDomainDefaultRecipesInternal(t *testing.T) {
 	}
 	numericMask := domainUnitType(t, view, "numeric_mask")
 	walkBoundExpression(numericMask.DomainDefault.Expression, func(node expr.Expr) {
-		if leaf, ok := node.(literalExpression); ok && leaf.Value.IsNull() && leaf.Usage.Typmod != -1 {
+		if leaf, ok := node.(plan.LiteralExpr); ok && leaf.Value.IsNull() && leaf.Usage.Typmod != -1 {
 			t.Fatal("NULL leaf pre-applied inherited typmod")
 		}
 	})
@@ -91,7 +92,7 @@ func TestDomainDefaultRecipesInternal(t *testing.T) {
 	}
 	plain := domainUnitType(t, view, "no_default")
 	integer, _ := view.LookupType(sqltype.Int4)
-	null := literalExpression{Info: expr.Info{Usage: integer.Usage()}, Value: sqltype.Null(integer)}
+	null := plan.LiteralExpr{Info: expr.Info{Usage: integer.Usage()}, Value: sqltype.Null(integer)}
 	if !omitColumnDefault(view, null, integer.Usage()) || omitColumnDefault(view, null, parent.SQLType.Usage()) || !omitColumnDefault(view, null, plain.SQLType.Usage()) {
 		t.Fatal("plain NULL omission/domain mask distinction")
 	}
@@ -119,7 +120,7 @@ func TestDomainDefaultRecipesInternal(t *testing.T) {
 	}
 	foreign, _ := New().CatalogRead().LookupType(sqltype.Int4)
 	definition = *parent.DomainDefault
-	definition.Expression = literalExpression{Info: expr.Info{Usage: foreign.Usage()}, Value: sqltype.Null(foreign)}
+	definition.Expression = plan.LiteralExpr{Info: expr.Info{Usage: foreign.Usage()}, Value: sqltype.Null(foreign)}
 	bad.DomainDefault = &definition
 	if err := validateDomainDefault(view, &bad); err == nil {
 		t.Fatal("foreign recipe type accepted")
@@ -303,7 +304,7 @@ func TestDomainDefaultBareNullInternal(t *testing.T) {
 		if d.DomainDefault == nil || !d.DomainDefaultOwn || d.DomainDefaultText == "" {
 			t.Fatal("real NULL conversion/expression was elided", name)
 		}
-		if _, literal := d.DomainDefault.Expression.(literalExpression); literal {
+		if _, literal := d.DomainDefault.Expression.(plan.LiteralExpr); literal {
 			t.Fatal("control lost its actual conversion/expression node", name)
 		}
 		if err := validateDomainDefault(view, d); err != nil {

@@ -6,6 +6,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -53,7 +54,7 @@ func TestTimezoneReviewDefaultDependencyRejection(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		literal := node.(literalExpression)
+		literal := node.(plan.LiteralExpr)
 		literal.Info.Property = properties
 		if _, err := defaultSQL(ctx, e.CatalogRead(), literal); err == nil {
 			t.Fatalf("accepted forbidden properties %+v", properties)

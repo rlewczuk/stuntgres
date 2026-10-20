@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -72,7 +73,7 @@ func testJSONObjectAggregateModifierProviderCompletion(t *testing.T, names []str
 					if parameters.Types[0].Type != wantType || len(b.params.anyParameters) != 0 {
 						t.Fatal("incorrect parameter completion", parameters, b.params.anyParameters)
 					}
-					call := b.grouping.aggregates[node.(aggregateExpression).Slot]
+					call := b.grouping.aggregates[node.(plan.AggregateExpr).Slot]
 					provider := call.Provider.(functions.JSONObjectAggregate)
 					if provider.KeyUsage() != call.Argument.ResultUsage() || provider.InputUsage() != call.Separator.ResultUsage() {
 						t.Fatal("provider captured provisional inputs")
@@ -195,7 +196,7 @@ func TestJSONObjectAggregateModifierRepeatedDistinctCompletion(t *testing.T) {
 		if _, err = b.finish(); err != nil || len(b.params.anyParameters) != 0 {
 			t.Fatal("DISTINCT did not complete both occurrences", b.params.anyParameters, err)
 		}
-		call := b.grouping.aggregates[node.(aggregateExpression).Slot]
+		call := b.grouping.aggregates[node.(plan.AggregateExpr).Slot]
 		p := call.Provider.(functions.JSONObjectAggregate)
 		text, _ := e.CatalogRead().LookupType(sqltype.Text)
 		if p.KeyUsage().Type != text || p.InputUsage().Type != text || len(call.Distinct) != 2 {

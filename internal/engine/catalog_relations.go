@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -63,7 +64,7 @@ func (b *expressionBinder) bindExtensionUpdatePaths(raw parser.FunctionExpr) (ex
 			}
 			return nil, failure
 		}
-		arg = coercionExpression{b.info(target, raw.Args[0].SourcePosition(), coercionProperties(arg, coercionPlan)), arg, coercionPlan, sqltype.Implicit, false}
+		arg = plan.CoercionExpr{b.info(target, raw.Args[0].SourcePosition(), coercionProperties(arg, coercionPlan)), arg, coercionPlan, sqltype.Implicit, false}
 	}
 	if raw.Star {
 		return nil, expr.ErrorAt("42809", name+"(*) specified, but "+name+" is not an aggregate function", raw.Pos)

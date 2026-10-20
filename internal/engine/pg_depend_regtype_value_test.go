@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -58,7 +59,7 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			literal := literalExpression{Info: expr.Info{Usage: regtype.Usage()}, Value: tc.value}
+			literal := plan.LiteralExpr{Info: expr.Info{Usage: regtype.Usage()}, Value: tc.value}
 			refs, err := pgDependExpressionRefs(context.Background(), view, literal)
 			if err != nil {
 				t.Fatal(err)
@@ -116,14 +117,14 @@ func TestPGDependRegtypeValueReferences(t *testing.T) {
 	}
 	payloadAddress := ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(payloadType.ID())}
 	view.State().SetDescriptor(payloadAddress, &catalog.Type{SQLType: payloadType})
-	literal := literalExpression{Info: expr.Info{Usage: payloadType.Usage()}, Value: payload}
+	literal := plan.LiteralExpr{Info: expr.Info{Usage: payloadType.Usage()}, Value: payload}
 	want := []ids.ObjectAddress{payloadAddress, provider, rowAddress}
 	refs, err := pgDependExpressionRefs(context.Background(), view, literal)
 	if err != nil {
 		t.Fatal(err)
 	}
 	pgDependUnitRefs(t, refs, want)
-	refs, err = pgDependQueryRefs(context.Background(), view, nil, &BoundQuery{Root: &projectNode{Expressions: []expr.Expr{literal}}})
+	refs, err = pgDependQueryRefs(context.Background(), view, nil, &plan.Query{Root: &plan.ProjectNode{Expressions: []expr.Expr{literal}}})
 	if err != nil {
 		t.Fatal(err)
 	}

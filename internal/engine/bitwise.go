@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -14,7 +15,7 @@ import (
 // child planning. Imported parameter values and row-owned NULLs are not planning
 // facts; conservative row/stage dependence on an already-pruned literal remains.
 func bitwiseConstantNull(node expr.Expr) bool {
-	literal, ok := node.(literalExpression)
+	literal, ok := node.(plan.LiteralExpr)
 	return ok && !literal.Property.ParameterDependent && literal.Value.IsNull()
 }
 
@@ -199,7 +200,7 @@ func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right co
 			if err != nil {
 				return nil, err
 			}
-			n = coercionExpression{b.info(t.Usage(), n.SourcePosition(), n.Properties()), n, coercionPlan, sqltype.Implicit, false}
+			n = plan.CoercionExpr{b.info(t.Usage(), n.SourcePosition(), n.Properties()), n, coercionPlan, sqltype.Implicit, false}
 		}
 		return n, nil
 	}
@@ -251,7 +252,7 @@ func (b *expressionBinder) finishBitwise(raw parser.OperatorExpr, left, right co
 	if err != nil {
 		return nil, err
 	}
-	return bitwiseExpression{
+	return plan.BitwiseExpr{
 		Info: selectedInfo,
 		Left: l, Right: r, Provider: provider, Bits: bits, Network: network,
 		Operator: op, Namespace: namespace,
@@ -269,11 +270,11 @@ func networkOperatorExecutionConstant(node expr.Expr, c *EvalContext) bool {
 		return false
 	}
 	switch n := node.(type) {
-	case literalExpression:
+	case plan.LiteralExpr:
 		return true
-	case parameterExpression:
+	case plan.ParameterExpr:
 		return n.Number > 0 && n.Number <= len(c.Parameters)
-	case columnExpression, groupExpression, aggregateExpression, groupingExpression, subqueryExpression:
+	case plan.ColumnExpr, plan.GroupExpr, plan.AggregateExpr, plan.GroupingExpr, plan.SubqueryExpr:
 		return false
 	}
 	found, constant := false, true

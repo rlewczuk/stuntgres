@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -26,7 +27,7 @@ func TestStringAggregateBindingIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(i, err)
 		}
-		if result.(aggregateExpression).Slot != tc.slot {
+		if result.(plan.AggregateExpr).Slot != tc.slot {
 			t.Fatal("incomplete aggregate identity", i, result, b.grouping.aggregates)
 		}
 		u := result.ResultUsage()
@@ -60,7 +61,7 @@ func TestStringAggregateEvaluationAndPublication(t *testing.T) {
 				qtext = "SELECT string_agg(id::text,',' ORDER BY id DESC) FROM t GROUP BY v"
 			}
 			_, q, source := queryCoreFixture(t, qtext)
-			node := q.Root.(*projectNode).Child.(*aggregateNode)
+			node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 			call := &node.Calls[0]
 			usage := call.Argument.ResultUsage()
 			ctx, cancel := context.WithCancel(context.Background())

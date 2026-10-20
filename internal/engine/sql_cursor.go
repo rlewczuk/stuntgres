@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -37,7 +38,7 @@ type sqlCursor struct {
 	values                                      []sqltype.Value
 	count                                       int
 	storeOffset                                 int64
-	root                                        *projectNode
+	root                                        *plan.ProjectNode
 	schema                                      []catalog.Column
 	source                                      *querySource
 	state                                       queryState
@@ -171,7 +172,7 @@ func forwardSQLCursorError() error {
 	return err
 }
 
-func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, root LogicalNode, source *querySource, parameters []sqltype.Value) (Result, error) {
+func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, root plan.Node, source *querySource, parameters []sqltype.Value) (Result, error) {
 	keep := false
 	defer func() {
 		s.routineAuth = AuthorizationView{}
@@ -181,7 +182,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 			source.close()
 		}
 	}()
-	project, ok := root.(*projectNode)
+	project, ok := root.(*plan.ProjectNode)
 	if !ok {
 		return Result{}, fmt.Errorf("stuntgres: cursor query lacks final projection")
 	}

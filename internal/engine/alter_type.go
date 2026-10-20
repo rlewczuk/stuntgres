@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -79,7 +80,7 @@ func alterTypeNamespace(auth AuthorizationView, original *catalog.Relation, ref 
 func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth AuthorizationView, original *catalog.Relation, ref ids.ObjectRef, action parser.AlterTableAction, usage sqltype.Usage, namespace *queryNamespace) (expr.Expr, []catalog.ExpressionDependency, error) {
 	if action.Using == nil {
 		source := original.Index[action.Column.Text]
-		return columnExpression{Info: expr.Info{Usage: original.Columns[source].Usage, Property: expr.Properties{RowDependent: true}}, Origin: ref, Scope: 1, Frame: 1, Slot: source}.WithGeneration(original, source, 0), nil, nil
+		return plan.ColumnExpr{Info: expr.Info{Usage: original.Columns[source].Usage, Property: expr.Properties{RowDependent: true}}, Origin: ref, Scope: 1, Frame: 1, Slot: source}.WithGeneration(original, source, 0), nil, nil
 	}
 	if namespace == nil {
 		namespace = alterTypeNamespace(auth, original, ref)
@@ -203,7 +204,7 @@ func (e *Engine) completeAlterTypeLocked(scope *StatementScope, auth Authorizati
 		}
 	}
 	info.Property = coercionProperties(input, coercionPlan)
-	node = restoreDomainCastCollations(annotations, coercionExpression{info, input, coercionPlan, sqltype.Assignment, false})
+	node = restoreDomainCastCollations(annotations, plan.CoercionExpr{info, input, coercionPlan, sqltype.Assignment, false})
 	node, err = storageDestination(node, usage, info.Pos)
 	if err != nil {
 		return fail(err)
@@ -316,7 +317,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 	if definition, exists := next.ColumnMeta.Defaults[attribute]; exists {
 		expression := definition.Expression
 		for {
-			wrapper, ok := expression.(coercionExpression)
+			wrapper, ok := expression.(plan.CoercionExpr)
 			if !ok || wrapper.Mode == sqltype.Explicit {
 				break
 			}
@@ -332,7 +333,7 @@ func (e *Engine) alterTypeCandidate(scope *StatementScope, op *Operation, auth A
 			return fail(sqlError("42804", fmt.Sprintf(`default for column "%s" cannot be cast automatically to type %s`, a.Column.Text, usage.Type.DiagnosticName())))
 		}
 		info.Property = coercionProperties(input, defaultPlan)
-		expression = restoreDomainCastCollations(annotations, coercionExpression{info, input, defaultPlan, sqltype.Assignment, false})
+		expression = restoreDomainCastCollations(annotations, plan.CoercionExpr{info, input, defaultPlan, sqltype.Assignment, false})
 		expression, err = storageDestination(expression, usage, info.Pos)
 		if err != nil {
 			return fail(err)

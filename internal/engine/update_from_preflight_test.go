@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -23,8 +24,8 @@ func TestUpdateFromImportedPreflightCopiesOnlyChangedTree(t *testing.T) {
 	defer from.close()
 	original := b.update
 	output := b.returning
-	cast := original.assignments[0].(coercionExpression)
-	join := original.from.(*joinNode)
+	cast := original.assignments[0].(plan.CoercionExpr)
+	join := original.from.(*plan.JoinNode)
 	predicate := original.predicate
 	for _, input := range []string{"7", "bad", "17", "bad", "42"} {
 		value, err := cast.Child.ResultUsage().Type.Input(context.Background(), input, -1)
@@ -42,11 +43,11 @@ func TestUpdateFromImportedPreflightCopiesOnlyChangedTree(t *testing.T) {
 			if err != nil || private == original || private.from == original.from || reflect.DeepEqual(private.predicate, predicate) || &private.assignments[0] == &original.assignments[0] {
 				t.Fatal("preflight failed copy-on-change", private, err)
 			}
-			foldedJoin := private.from.(*joinNode)
+			foldedJoin := private.from.(*plan.JoinNode)
 			if foldedJoin.Left != join.Left || foldedJoin.Right != join.Right || !reflect.DeepEqual(foldedJoin.QuerySchema, join.QuerySchema) || reflect.DeepEqual(foldedJoin.Predicate, join.Predicate) {
 				t.Fatal("source preflight rebuilt unchanged providers", foldedJoin, join)
 			}
-			if _, ok := foldedJoin.Predicate.(comparisonExpression).Right.(literalExpression); !ok {
+			if _, ok := foldedJoin.Predicate.(plan.ComparisonExpr).Right.(plan.LiteralExpr); !ok {
 				t.Fatal("ON coercion was not eagerly traversed")
 			}
 			folded, err := preflightReturning(&eval, output)
@@ -58,13 +59,13 @@ func TestUpdateFromImportedPreflightCopiesOnlyChangedTree(t *testing.T) {
 				t.Fatal(result, err)
 			}
 		}
-		if _, ok := original.assignments[0].(coercionExpression); !ok {
+		if _, ok := original.assignments[0].(plan.CoercionExpr); !ok {
 			t.Fatal("analyzed SET mutated")
 		}
-		if _, ok := join.Predicate.(comparisonExpression).Right.(coercionExpression); !ok {
+		if _, ok := join.Predicate.(plan.ComparisonExpr).Right.(plan.CoercionExpr); !ok {
 			t.Fatal("analyzed ON mutated")
 		}
-		if _, ok := output.expressions[0].(coercionExpression); !ok {
+		if _, ok := output.expressions[0].(plan.CoercionExpr); !ok {
 			t.Fatal("analyzed output mutated")
 		}
 	}

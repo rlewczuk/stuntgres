@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -66,7 +67,7 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 		}
 		auth.Recapture(view)
 		e.mu.Lock()
-		refs, err := e.queryTableRefsLocked(auth, auth.State.CurrentUser, []queryLeaf{leaf}, nil, token, queryRowMark{})
+		refs, err := e.queryTableRefsLocked(auth, auth.State.CurrentUser, []queryLeaf{leaf}, nil, token, plan.RowMark{})
 		e.mu.Unlock()
 		return refs, err
 	}
@@ -82,7 +83,7 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 		}
 	}
 	e.mu.Lock()
-	seeded, seededErr := e.queryTableRefsLocked(peerAuth, peerAuth.State.CurrentUser, nil, []ids.ObjectRef{e.catalog.Domain.Ref(catalogView.Epoch(), foreign.Address())}, peer.token, queryRowMark{})
+	seeded, seededErr := e.queryTableRefsLocked(peerAuth, peerAuth.State.CurrentUser, nil, []ids.ObjectRef{e.catalog.Domain.Ref(catalogView.Epoch(), foreign.Address())}, peer.token, plan.RowMark{})
 	e.mu.Unlock()
 	defaultUnitDiagnostic(t, seededErr, "0A000", "cannot access temporary tables of other sessions")
 	if len(seeded) != 0 {

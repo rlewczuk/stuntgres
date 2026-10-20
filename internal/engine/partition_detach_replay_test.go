@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
 )
@@ -114,7 +115,7 @@ func TestPartitionDetachReplayLocalEvents(t *testing.T) {
 	regclass := f.view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(sqltype.Regclass)}).SQLType
 	consumer := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 46901}, ObjectNamespace: f.leaf.Namespace(), Owner: f.leaf.Owner, ObjectName: "unit_local_consumer", ObjectRevision: 1, RelationKind: catalog.TableRelation, Columns: []catalog.Column{{Name: "ref", Usage: regclass.Usage()}}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}, Index: map[string]int{"ref": 0}}
 	value := sqltype.String(regclass, strconv.FormatUint(uint64(local.Address().ObjectID), 10))
-	consumer.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 46902, Expression: literalExpression{Info: expr.Info{Usage: regclass.Usage()}, Value: value}, Dependencies: []ids.ObjectRef{f.e.catalog.Domain.Ref(f.view.Epoch(), local.Address())}}}
+	consumer.ColumnMeta.Defaults = map[int32]catalog.ColumnDefault{1: {OID: 46902, Expression: plan.LiteralExpr{Info: expr.Info{Usage: regclass.Usage()}, Value: value}, Dependencies: []ids.ObjectRef{f.e.catalog.Domain.Ref(f.view.Epoch(), local.Address())}}}
 	f.view.State().SetDescriptor(consumer.Address(), consumer)
 	f.view.State().BindName(catalog.DescriptorNameKey(consumer), consumer.Address())
 	provider, err := dumpPredecessor(f.view, consumer.ColumnMeta.Defaults[1].Dependencies[0].Address, consumer.Address())

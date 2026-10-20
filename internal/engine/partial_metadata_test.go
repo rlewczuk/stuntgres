@@ -24,7 +24,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	consume := func(label string, metadata indexMetadata, want []Truth, membership map[ids.RowID]ids.VersionID) {
+	consume := func(label string, metadata indexMetadata, want []plan.Truth, membership map[ids.RowID]ids.VersionID) {
 		t.Helper()
 		if metadata.Predicate == nil {
 			t.Fatalf("%s: structural metadata omitted the partial predicate", label)
@@ -47,7 +47,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 			t.Fatalf("%s: predicate members=%v want=%v", label, gotMembership, membership)
 		}
 	}
-	oldTruth := []Truth{plan.True, plan.False, plan.Unknown, plan.True, plan.True}
+	oldTruth := []plan.Truth{plan.True, plan.False, plan.Unknown, plan.True, plan.True}
 	oldMembers := map[ids.RowID]ids.VersionID{1: 1, 4: 4, 5: 5}
 	consume("initial projection", retained, oldTruth, oldMembers)
 	partialWantMembership(t, oldRoot, oldMembers)
@@ -87,7 +87,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	consume("current projection", current, []Truth{plan.False, plan.True, plan.Unknown, plan.False, plan.False}, map[ids.RowID]ids.VersionID{2: 2})
+	consume("current projection", current, []plan.Truth{plan.False, plan.True, plan.Unknown, plan.False, plan.False}, map[ids.RowID]ids.VersionID{2: 2})
 	partialWantMembership(t, root, map[ids.RowID]ids.VersionID{2: 2})
 	consume("retained projection", retained, oldTruth, oldMembers)
 	historical, _, err := projectIndexMetadata(ctx, capture, ref)

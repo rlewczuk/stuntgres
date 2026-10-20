@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -66,7 +67,7 @@ func (b *expressionBinder) ArrayType(element *sqltype.Descriptor) (*sqltype.Desc
 // contribute their usages.
 func (b *expressionBinder) CommonUsage(usages []sqltype.Usage) sqltype.Usage {
 	operand := func(i int) comparisonOperand {
-		return comparisonOperand{node: literalExpression{Info: expr.Info{Usage: usages[i]}}}
+		return comparisonOperand{node: plan.LiteralExpr{Info: expr.Info{Usage: usages[i]}}}
 	}
 	common, _ := selectCommonUsage(len(usages), operand, b.typ(sqltype.Text).Usage(), "", b.diagnosticTypeName)
 	return common
@@ -77,7 +78,7 @@ func (b *expressionBinder) ComparisonInfo(left, right expr.Expr) (expr.Info, err
 }
 
 func (b *expressionBinder) Literal(value sqltype.Value, pos parser.Position) expr.Expr {
-	return literalExpression{b.info(value.Type().Usage(), pos, expr.Properties{Volatility: expr.Immutable}), value}
+	return plan.LiteralExpr{b.info(value.Type().Usage(), pos, expr.Properties{Volatility: expr.Immutable}), value}
 }
 
 func (b *expressionBinder) Context() context.Context { return b.ctx }
@@ -98,7 +99,7 @@ func (b *expressionBinder) CollatedInfo(info expr.Info, inputs ...expr.Expr) (ex
 }
 
 func (b *expressionBinder) RetainUntypedParameter(arg expr.Expr) bool {
-	parameter, ok := arg.(parameterExpression)
+	parameter, ok := arg.(plan.ParameterExpr)
 	if !ok || parameter.Usage.Type != nil {
 		return false
 	}
@@ -128,7 +129,7 @@ func (b *expressionBinder) CaptureTypeInput(typ *sqltype.Descriptor) error {
 }
 
 func (b *expressionBinder) ConstantValue(node expr.Expr) (sqltype.Value, bool) {
-	literal, ok := node.(literalExpression)
+	literal, ok := node.(plan.LiteralExpr)
 	return literal.Value, ok
 }
 
@@ -166,7 +167,7 @@ func (b *expressionBinder) AnalyzeAggregateFilter(raw parser.AggregateExpr) (exp
 }
 
 func (b *expressionBinder) FinishAggregate(raw parser.AggregateExpr, call functions.AggregateCall, filter expr.Expr, info expr.Info) (expr.Expr, error) {
-	result, err := b.finishAggregate(raw, aggregateCall{
+	result, err := b.finishAggregate(raw, plan.AggregateCall{
 		Provider:     call.Provider,
 		Routine:      call.Routine,
 		Argument:     call.Argument,
@@ -182,7 +183,7 @@ func (b *expressionBinder) FinishAggregate(raw parser.AggregateExpr, call functi
 	}
 	// ORDER BY matching may have resolved an UNKNOWN target; only an actual
 	// remaining ANY occurrence joins the unresolved-parameter guard.
-	b.RetainUntypedParameter(b.grouping.aggregates[result.(aggregateExpression).Slot].Argument)
+	b.RetainUntypedParameter(b.grouping.aggregates[result.(plan.AggregateExpr).Slot].Argument)
 	return result, nil
 }
 
@@ -224,7 +225,7 @@ func (b *expressionBinder) JSONReturningType(raw parser.TypeName) (sqltype.Usage
 func (b *expressionBinder) SequenceArgument(raw parser.Expr) (expr.Expr, ids.ObjectRef, error) {
 	node, ref, err := b.bindRegclass(raw)
 	if err == nil && b.consumer.defaultConsumer {
-		literal, ok := node.(literalExpression)
+		literal, ok := node.(plan.LiteralExpr)
 		if !ok || literal.Value.IsNull() || ref == (ids.ObjectRef{}) {
 			return nil, ref, expr.ErrorAt("0A000", "unsupported sequence DEFAULT argument", parser.ExpressionStart(raw))
 		}
@@ -252,17 +253,17 @@ func (b *expressionBinder) SequenceTemporary(ref ids.ObjectRef, pos parser.Posit
 // withinGroupOrder converts a family's WITHIN GROUP keys: an argument key
 // reads stage slot 0; other keys own the stage slots after value and
 // separator, in key order.
-func withinGroupOrder(keys []functions.AggregateSortKey) []sortKey {
+func withinGroupOrder(keys []functions.AggregateSortKey) []plan.SortKey {
 	if keys == nil {
 		return nil
 	}
-	order := make([]sortKey, len(keys))
+	order := make([]plan.SortKey, len(keys))
 	for i, key := range keys {
 		slot, cache := -1, 2+i
 		if key.Argument {
 			slot, cache = 0, 0
 		}
-		order[i] = sortKey{Expression: key.Expression, Comparison: key.Comparison, Position: key.Key.Pos.Character, Desc: key.Key.Desc, NullsFirst: key.Key.Nulls == parser.NullsFirst || key.Key.Nulls == parser.NullsDefault && key.Key.Desc, Slot: slot, Cache: cache}
+		order[i] = plan.SortKey{Expression: key.Expression, Comparison: key.Comparison, Position: key.Key.Pos.Character, Desc: key.Key.Desc, NullsFirst: key.Key.Nulls == parser.NullsFirst || key.Key.Nulls == parser.NullsDefault && key.Key.Desc, Slot: slot, Cache: cache}
 	}
 	return order
 }
@@ -276,5 +277,5 @@ func (b *expressionBinder) CommonArgumentUsage(operands []functions.Argument, la
 }
 
 func (b *expressionBinder) CollationRelabel(child expr.Expr, info expr.Info) expr.Expr {
-	return collationExpression{Info: info, Child: child}
+	return plan.CollationExpr{Info: info, Child: child}
 }

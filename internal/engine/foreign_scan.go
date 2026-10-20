@@ -12,6 +12,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
@@ -73,7 +74,7 @@ func copyForeignCells(cells []driver.Value) []driver.Value {
 
 // Capture only metadata while locked. Planning, source admission, conversion,
 // restart and teardown all run from internal demand after the mutex is released.
-func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.ObjectRef, relation *catalog.Relation, invoker authorization.PrincipalRef, uses []int, mark queryRowMark) (*querySource, error) {
+func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.ObjectRef, relation *catalog.Relation, invoker authorization.PrincipalRef, uses []int, mark plan.RowMark) (*querySource, error) {
 	if mark.Mode != 0 {
 		return nil, sqlError("0A000", "foreign row locking is unsupported in embedded mode")
 	}
@@ -147,7 +148,7 @@ func foreignRequiredAttributes(relation *catalog.Relation, uses []int) ([]int32,
 		}
 		if generation, ok := relation.ColumnMeta.Generations[relation.Attributes[slot]]; ok && generation.Kind == catalog.GenerationVirtual {
 			walkBoundExpression(generation.Planned, func(node expr.Expr) {
-				if column, ok := node.(columnExpression); ok {
+				if column, ok := node.(plan.ColumnExpr); ok {
 					add(column.Slot)
 				}
 			})
@@ -277,7 +278,7 @@ func (execution *foreignExecution) end(ctx context.Context) error {
 	execution.owner = nil
 	return execution.closeError
 }
-func openForeignStage(ctx context.Context, state *queryState, source *querySource, node *sourceNode) (indexedStage, error) {
+func openForeignStage(ctx context.Context, state *queryState, source *querySource, node *plan.SourceNode) (indexedStage, error) {
 	f := source.foreign
 	if f.lifetimeClosed {
 		return indexedStage{}, fmt.Errorf("stuntgres: foreign scan owner has ended")
@@ -428,7 +429,7 @@ func finishForeignSources(ctx context.Context, source *querySource) error {
 	return failure
 }
 
-func (f *foreignQuerySource) columnDiagnostic(err error, node *sourceNode, slot int) error {
+func (f *foreignQuerySource) columnDiagnostic(err error, node *plan.SourceNode, slot int) error {
 	var record *sqlstate.Error
 	if !errors.As(err, &record) {
 		return err

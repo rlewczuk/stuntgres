@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/parser"
@@ -61,22 +62,22 @@ func closedSequenceDefault(node expr.Expr) bool {
 		return false
 	}
 	switch n := node.(type) {
-	case coercionExpression:
+	case plan.CoercionExpr:
 		return closedSequenceDefault(n.Child)
-	case rowExpression:
+	case plan.RowExpr:
 		for _, field := range n.Fields {
 			if field.Properties().Volatility > expr.Stable && !closedSequenceDefault(field) {
 				return false
 			}
 		}
 		return true
-	case fieldExpression:
+	case plan.FieldExpr:
 		return closedSequenceDefault(n.Base)
 	case functions.SequenceCall:
 		if n.Name != "nextval" || n.Identity || len(n.Args) != 1 || n.Ref == (ids.ObjectRef{}) || n.ResultUsage().Type.ID() != sqltype.Int8 || n.Properties() != (expr.Properties{Volatility: expr.Volatile}) {
 			return false
 		}
-		literal, ok := n.Args[0].(literalExpression)
+		literal, ok := n.Args[0].(plan.LiteralExpr)
 		if !ok || literal.Value.IsNull() || literal.ResultUsage().Type.ID() != sqltype.Regclass || literal.Properties() != (expr.Properties{}) {
 			return false
 		}
@@ -91,27 +92,27 @@ func closedRegclassDefault(node expr.Expr) bool {
 		return false
 	}
 	switch n := node.(type) {
-	case literalExpression:
+	case plan.LiteralExpr:
 		return true
-	case coercionExpression:
+	case plan.CoercionExpr:
 		return closedRegclassDefault(n.Child)
-	case rowExpression:
+	case plan.RowExpr:
 		for _, field := range n.Fields {
 			if !closedRegclassDefault(field) {
 				return false
 			}
 		}
 		return true
-	case fieldExpression:
+	case plan.FieldExpr:
 		return closedRegclassDefault(n.Base)
-	case arrayExpression:
+	case plan.ArrayExpr:
 		for _, element := range n.Elements {
 			if !closedRegclassDefault(element) {
 				return false
 			}
 		}
 		return true
-	case subscriptExpression:
+	case plan.SubscriptExpr:
 		if !closedRegclassDefault(n.Base) {
 			return false
 		}

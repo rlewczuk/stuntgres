@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -107,12 +108,12 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 		t.Fatal("full analysis invalidation cannot refresh role literal")
 	}
 	textType := aclUnitType(t, e, sqltype.Text)
-	text := literalExpression{Info: expr.Info{Usage: textType.Usage()}, Value: sqltype.String(textType, "unit_role")}
+	text := plan.LiteralExpr{Info: expr.Info{Usage: textType.Usage()}, Value: sqltype.String(textType, "unit_role")}
 	coercionPlan, err := sqltype.PlanCoercion(textType.Usage(), d.Usage(), sqltype.Explicit)
 	if err != nil {
 		t.Fatal(err)
 	}
-	runtime := coercionExpression{Info: expr.Info{Usage: d.Usage()}, Child: text, Plan: coercionPlan, Mode: sqltype.Explicit}
+	runtime := plan.CoercionExpr{Info: expr.Info{Usage: d.Usage()}, Child: text, Plan: coercionPlan, Mode: sqltype.Explicit}
 	snapshot := false
 	if _, err := (scalarRenderer{commentSnapshot: &snapshot}).sql(context.Background(), e.CatalogRead(), runtime); err != nil || !snapshot {
 		t.Fatal("stored runtime input omitted statement snapshot demand", snapshot, err)
@@ -138,7 +139,7 @@ func TestRegroleStoredLiteral(t *testing.T) {
 		if got := validateRegroleStoredLiteral(value); !reflect.DeepEqual(got, want) {
 			t.Fatal("complete stored diagnostic", got)
 		}
-		literal := literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: value}
+		literal := plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: value}
 		if _, err := (scalarRenderer{}).sql(context.Background(), view, literal); !reflect.DeepEqual(err, want) {
 			t.Fatal("renderer boundary", err)
 		}
@@ -174,19 +175,19 @@ func TestRegroleStoredLiteral(t *testing.T) {
 			t.Fatal("non-scalar-Const rejected", err)
 		}
 	}
-	literal := literalExpression{Info: expr.Info{Usage: d.Usage()}, Value: value}
+	literal := plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: value}
 	textType := aclUnitType(t, e, sqltype.Text)
 	coercionPlan, err := sqltype.PlanCoercion(d.Usage(), textType.Usage(), sqltype.Explicit)
 	if err != nil {
 		t.Fatal(err)
 	}
-	outer := coercionExpression{Info: expr.Info{Usage: textType.Usage()}, Child: literal, Plan: coercionPlan, Mode: sqltype.Explicit}
+	outer := plan.CoercionExpr{Info: expr.Info{Usage: textType.Usage()}, Child: literal, Plan: coercionPlan, Mode: sqltype.Explicit}
 	if _, err := (scalarRenderer{}).sql(context.Background(), view, outer); !reflect.DeepEqual(err, want) {
 		t.Fatal("outer cast hid prohibited child", err)
 	}
-	arrayLiteral := literalExpression{Info: expr.Info{Usage: arrayType.Usage()}, Value: array}
+	arrayLiteral := plan.LiteralExpr{Info: expr.Info{Usage: arrayType.Usage()}, Value: array}
 	renderer := viewRenderer{viewDefinition: &viewDefinition{
-		literals:   map[viewLiteralPath]literalExpression{{node: 1}: arrayLiteral},
+		literals:   map[viewLiteralPath]plan.LiteralExpr{{node: 1}: arrayLiteral},
 		castUsages: map[viewLiteralPath]sqltype.Usage{{}: arrayType.Usage()},
 	}}
 	raw := parser.CastExpr{Child: parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue}}}

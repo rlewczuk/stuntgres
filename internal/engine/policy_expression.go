@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
 
@@ -37,10 +38,10 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	if err = b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil {
 		return nil, err
 	}
-	source := &sourceNode{QuerySchema: d.Columns, Ref: ref, Occurrence: 0}
-	root := &projectNode{Child: source, Expressions: []expr.Expr{node}, Frame: 1, QuerySchema: []catalog.Column{{Usage: node.ResultUsage()}}}
+	source := &plan.SourceNode{QuerySchema: d.Columns, Ref: ref, Occurrence: 0}
+	root := &plan.ProjectNode{Child: source, Expressions: []expr.Expr{node}, Frame: 1, QuerySchema: []catalog.Column{{Usage: node.ResultUsage()}}}
 	capture := binding{
-		query:        &BoundQuery{Root: root},
+		query:        &plan.Query{Root: root},
 		dependencies: b.dependencies,
 		querySources: b.query.sources,
 		capture:      b.capture,

@@ -3,12 +3,13 @@ package engine
 import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 )
 
 // sqlJSONResult retains enclosing casts at a protocol constructor's
 // representation boundary. Ordinary callable spelling conveys no such identity.
 func sqlJSONResult(node expr.Expr) bool {
-	if conversion, ok := node.(coercionExpression); ok && conversion.Plan.IsJSONReturning() {
+	if conversion, ok := node.(plan.CoercionExpr); ok && conversion.Plan.IsJSONReturning() {
 		node = conversion.Child
 	}
 	renderable, ok := node.(expr.Renderable)
@@ -32,7 +33,7 @@ func jsonReturningRendering(node expr.Expr) (expr.Rendering, bool, error) {
 }
 
 func sqlJSONSource(arg expr.Expr) expr.Expr {
-	if conversion, ok := arg.(coercionExpression); ok && conversion.Plan.IsJSONFormattedInput() {
+	if conversion, ok := arg.(plan.CoercionExpr); ok && conversion.Plan.IsJSONFormattedInput() {
 		return conversion.Child
 	}
 	return arg

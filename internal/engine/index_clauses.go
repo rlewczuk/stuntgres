@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -257,7 +258,7 @@ func (e *Engine) bindIndexAttributes(op *Operation, input sqltype.InputEnvironme
 			if err != nil {
 				return fail(err)
 			}
-			if column, ok := derived.Definition.(columnExpression); ok {
+			if column, ok := derived.Definition.(plan.ColumnExpr); ok {
 				key.Attribute = column.Origin.Address.SubID
 				columns[i] = parent.Columns[column.Slot]
 			} else {

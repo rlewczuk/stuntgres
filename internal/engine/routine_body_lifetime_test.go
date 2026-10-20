@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -114,7 +115,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 		def := table.ColumnMeta.Defaults[table.Attributes[0]]
 		return []recipe{
 			{consumer: table, node: def.Expression, refs: def.Dependencies},
-			{consumer: stored, node: viewOf(stored).query.Root.(*projectNode).Expressions[0], checks: viewOf(stored).dependencies},
+			{consumer: stored, node: viewOf(stored).query.Root.(*plan.ProjectNode).Expressions[0], checks: viewOf(stored).dependencies},
 		}
 	}
 	authority := func(e *Engine) AuthorizationView {

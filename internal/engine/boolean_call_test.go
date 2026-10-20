@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -46,7 +47,7 @@ func TestBooleanCallPredicateBinding(t *testing.T) {
 			if err != nil || null.ResultUsage() != b.typ(sqltype.Bool).Usage() {
 				t.Fatal(name, null, err)
 			}
-			literal, ok := null.(literalExpression)
+			literal, ok := null.(plan.LiteralExpr)
 			if !ok || !literal.Value.IsNull() {
 				t.Fatal("strict NULL did not retain typed BOOL", name, null)
 			}

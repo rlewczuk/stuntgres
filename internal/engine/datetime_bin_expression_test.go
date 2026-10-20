@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -110,7 +111,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 		}
 		for i := range e.Args {
 			null := e
-			null.Args[i] = literalExpression{Info: b.info(e.Args[i].ResultUsage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.Null(e.Args[i].ResultUsage().Type)}
+			null.Args[i] = plan.LiteralExpr{Info: b.info(e.Args[i].ResultUsage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.Null(e.Args[i].ResultUsage().Type)}
 			simplified, changed, err := simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, null, false)
 			if err != nil || !changed || !generationImmutable(simplified) {
 				t.Fatal(simplified, changed, err)
@@ -146,7 +147,7 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 		t.Fatal(err)
 	}
 	e := node.(functions.DatetimeBin)
-	column := columnExpression{Info: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}, Slot: 0}
+	column := plan.ColumnExpr{Info: b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}, Slot: 0}
 	e.Args[1] = column
 	e.Property.RowDependent = true
 	var children []expr.Expr
@@ -163,25 +164,25 @@ func TestDatetimeBinStoredTraversal(t *testing.T) {
 	if err != nil || !rewritten.Properties().StageDependent {
 		t.Fatal(rewritten, err)
 	}
-	if _, ok := rewritten.(functions.DatetimeBin).Args[1].(groupExpression); !ok {
+	if _, ok := rewritten.(functions.DatetimeBin).Args[1].(plan.GroupExpr); !ok {
 		t.Fatal("group child not rewritten")
 	}
 	mapped, err := remapBoundExpression(e, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID = 456; return ref }, map[int32]int{1: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
-	remapped := mapped.(functions.DatetimeBin).Args[1].(columnExpression)
+	remapped := mapped.(functions.DatetimeBin).Args[1].(plan.ColumnExpr)
 	if remapped.Origin.Address.ObjectID != 456 || remapped.Slot != 2 {
 		t.Fatal(remapped)
 	}
 	// Preflight must traverse a child codec conversion rather than attempting
 	// date_bin on a mismatched descriptor or bypassing coercion failures.
-	text := literalExpression{Info: b.info(b.typ(sqltype.Text).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.String(b.typ(sqltype.Text), "not-a-timestamp")}
+	text := plan.LiteralExpr{Info: b.info(b.typ(sqltype.Text).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.String(b.typ(sqltype.Text), "not-a-timestamp")}
 	coercionPlan, err := sqltype.PlanCoercion(text.ResultUsage(), b.typ(sqltype.Timestamp).Usage(), sqltype.Explicit)
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.Args[1] = coercionExpression{b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), text, coercionPlan, sqltype.Explicit, false}
+	e.Args[1] = plan.CoercionExpr{b.info(b.typ(sqltype.Timestamp).Usage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), text, coercionPlan, sqltype.Explicit, false}
 	_, _, err = preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, e)
 	var d *sqlstate.Error
 	if !errors.As(err, &d) || d.Code != "22007" {

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
 )
@@ -32,7 +33,7 @@ func TestPGDependDefaultReplayDeferrable(t *testing.T) {
 	oid, _ := view.LookupType(sqltype.Oid)
 	boolean, _ := view.LookupType(sqltype.Bool)
 	ref := roleTableRef(t, e, "provider")
-	literal := literalExpression{Info: expr.Info{Usage: regclass.Usage(), RegclassRef: ref}, Value: sqltype.String(regclass, "10000")}
+	literal := plan.LiteralExpr{Info: expr.Info{Usage: regclass.Usage(), RegclassRef: ref}, Value: sqltype.String(regclass, "10000")}
 	definition := catalog.ColumnDefault{Expression: literal, Dependencies: []ids.ObjectRef{ref}}
 	if !defaultReplayDeferrable(definition) {
 		t.Fatal("genuine scalar Const not deferrable")
@@ -45,10 +46,10 @@ func TestPGDependDefaultReplayDeferrable(t *testing.T) {
 			t.Fatalf("nonclosed scalar properties %#v admitted", properties)
 		}
 	}
-	for _, mutate := range []func(*literalExpression){
-		func(n *literalExpression) { n.RegclassRef.Epoch++ },
-		func(n *literalExpression) { n.RegclassRef.Address.SubID = 1 },
-		func(n *literalExpression) {
+	for _, mutate := range []func(*plan.LiteralExpr){
+		func(n *plan.LiteralExpr) { n.RegclassRef.Epoch++ },
+		func(n *plan.LiteralExpr) { n.RegclassRef.Address.SubID = 1 },
+		func(n *plan.LiteralExpr) {
 			n.Usage = oid.Usage()
 			value, err := sqltype.OIDValue(oid, 10000)
 			if err != nil {
@@ -56,13 +57,13 @@ func TestPGDependDefaultReplayDeferrable(t *testing.T) {
 			}
 			n.Value = value
 		},
-		func(n *literalExpression) { n.Value = sqltype.Null(regclass) },
+		func(n *plan.LiteralExpr) { n.Value = sqltype.Null(regclass) },
 	} {
 		changed := literal
 		mutate(&changed)
 		// These mutations must not create captured authority for a pure BOOL
 		// result. REGCLASS results independently belong to the selected subset.
-		definition.Expression = nullTestExpression{Info: expr.Info{Usage: boolean.Usage()}, Child: changed, Not: true}
+		definition.Expression = plan.NullTestExpr{Info: expr.Info{Usage: boolean.Usage()}, Child: changed, Not: true}
 		if defaultReplayDeferrable(definition) {
 			t.Fatal("noncaptured, mismatched, nonscalar or NULL reference admitted")
 		}

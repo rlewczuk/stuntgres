@@ -19,12 +19,12 @@ func TestArrayOrderOwnerRebinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	operand := literalExpression{Info: b.info(array.Usage(), parser.Position{}, expr.Properties{}), Value: value}
+	operand := plan.LiteralExpr{Info: b.info(array.Usage(), parser.Position{}, expr.Properties{}), Value: value}
 	predicate, err := sqltype.BindComparisonPredicate(sqltype.CompareEqual, array, array, boolean, sqltype.CollationRef{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	original := comparisonExpression{Info: b.info(boolean.Usage(), parser.Position{}, expr.Properties{}), Left: operand, Right: operand, Predicate: predicate, Operator: "="}
+	original := plan.ComparisonExpr{Info: b.info(boolean.Usage(), parser.Position{}, expr.Properties{}), Left: operand, Right: operand, Predicate: predicate, Operator: "="}
 	target := New()
 	fresh := map[sqltype.ID]*sqltype.Descriptor{
 		1007:         eType(t, target, 1007),
@@ -40,13 +40,13 @@ func TestArrayOrderOwnerRebinding(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal("comparison remap", changed, err)
 	}
-	rebound := mapped.(comparisonExpression)
+	rebound := mapped.(plan.ComparisonExpr)
 	if rebound.ResultUsage().Type != fresh[sqltype.Bool] || rebound.Left.ResultUsage().Type != fresh[1007] || predicate.Equal(rebound.Predicate) {
 		t.Fatal("comparison retained old authority")
 	}
 	for _, entry := range []struct {
 		owner *Engine
-		node  comparisonExpression
+		node  plan.ComparisonExpr
 	}{{e, original}, {target, rebound}} {
 		node := entry.node
 		result, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})

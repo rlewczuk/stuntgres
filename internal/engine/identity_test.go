@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -192,8 +193,8 @@ func TestIdentityDiscardedRuntimeConversionDemandBinding(t *testing.T) {
 			if bound.parameters.Count != 1 || bound.parameters.Types[0].Type.ID() != sqltype.Text {
 				t.Fatal("discard erased inferred import signature", bound.parameters)
 			}
-			project := bound.query.Root.(*projectNode)
-			output, isLiteral := project.Expressions[0].(literalExpression)
+			project := bound.query.Root.(*plan.ProjectNode)
+			output, isLiteral := project.Expressions[0].(plan.LiteralExpr)
 			if got := isLiteral && output.Value.IsNull(); got != tc.outputNull {
 				t.Fatal("output demand", got, tc.outputNull)
 			}

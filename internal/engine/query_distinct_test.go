@@ -6,14 +6,15 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
 func TestQueryDistinctProjectedSlotsAndMetadata(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT DISTINCT v AS shown FROM t ORDER BY shown,shown DESC")
-	project := query.Root.(*projectNode)
-	sort := project.Child.(*sortNode)
-	node := sort.Child.(*distinctNode)
+	project := query.Root.(*plan.ProjectNode)
+	sort := project.Child.(*plan.SortNode)
+	node := sort.Child.(*plan.DistinctNode)
 	if len(node.Expressions) != 1 || len(node.Grouping) != 1 || project.Schema()[0].OriginTable == 0 || project.Schema()[0].OriginAttribute != 2 || !project.Schema()[0].Nullable || !project.Schema()[0].NullabilityKnown {
 		t.Fatal(project.Schema(), node)
 	}
@@ -47,7 +48,7 @@ func TestQueryDistinctProjectedSlotsAndMetadata(t *testing.T) {
 func TestQueryDistinctCollisionCandidates(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT DISTINCT v FROM t")
 	defer source.close()
-	node := query.Root.(*projectNode).Child.(*distinctNode)
+	node := query.Root.(*plan.ProjectNode).Child.(*plan.DistinctNode)
 	d := node.Schema()[0].Usage.Type
 	one, _ := sqltype.Integer(d, 1)
 	two, _ := sqltype.Integer(d, 2)
@@ -68,8 +69,8 @@ func TestQueryDistinctFailureAndCancellationFrontiers(t *testing.T) {
 	for _, phase := range []string{"projection", "late failure", "prepublication", "hash"} {
 		t.Run(phase, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT DISTINCT v FROM t")
-			project := query.Root.(*projectNode)
-			node := project.Child.(*distinctNode)
+			project := query.Root.(*plan.ProjectNode)
+			node := project.Child.(*plan.DistinctNode)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			original := node.Expressions[0]
@@ -129,7 +130,7 @@ func TestQueryDistinctFailureAndCancellationFrontiers(t *testing.T) {
 
 func TestQueryDistinctInsertNoBatchOnLateProjectionFailure(t *testing.T) {
 	b, source := insertSelectEvaluationFixture(t, "SELECT DISTINCT v FROM t")
-	node := b.query.Root.(*projectNode).Child.(*distinctNode)
+	node := b.query.Root.(*plan.ProjectNode).Child.(*plan.DistinctNode)
 	original := node.Expressions[0]
 	calls := 0
 	sentinel := errors.New("late distinct INSERT source")

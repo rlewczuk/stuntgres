@@ -3,6 +3,7 @@ package engine
 import (
 	"slices"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 )
 
@@ -28,7 +29,7 @@ func (b *expressionBinder) sameQueryTarget(a, c expr.Expr) bool {
 func (b *expressionBinder) sameSubqueryTarget(a, c expr.Expr) bool {
 	found := false
 	walkBoundExpression(a, func(e expr.Expr) {
-		if _, ok := e.(subqueryExpression); ok {
+		if _, ok := e.(plan.SubqueryExpr); ok {
 			found = true
 		}
 	})
@@ -79,7 +80,7 @@ func (c *queryTargetComparison) expressions(b *expressionBinder, a, d []expr.Exp
 	}
 	return true
 }
-func (c *queryTargetComparison) order(b *expressionBinder, a, d []sortKey) bool {
+func (c *queryTargetComparison) order(b *expressionBinder, a, d []plan.SortKey) bool {
 	if len(a) != len(d) {
 		return false
 	}
@@ -91,7 +92,7 @@ func (c *queryTargetComparison) order(b *expressionBinder, a, d []sortKey) bool 
 	}
 	return true
 }
-func (c *queryTargetComparison) window(b *expressionBinder, a, d boundWindowSpec) bool {
+func (c *queryTargetComparison) window(b *expressionBinder, a, d plan.WindowSpec) bool {
 	return a.Definition == d.Definition && a.Explicit == d.Explicit && a.Frame.Unit == d.Frame.Unit && a.Frame.Exclusion == d.Frame.Exclusion && a.Frame.Start.Kind == d.Frame.Start.Kind && a.Frame.End.Kind == d.Frame.End.Kind && b.sameGroupExpressionIn(a.Frame.Start.Offset, d.Frame.Start.Offset, c) && b.sameGroupExpressionIn(a.Frame.End.Offset, d.Frame.End.Offset, c) && len(a.Grouping) == len(d.Grouping) && c.expressions(b, a.Partition, d.Partition) && c.order(b, a.Order, d.Order)
 }
 
@@ -99,7 +100,7 @@ func (c *queryTargetComparison) window(b *expressionBinder, a, d boundWindowSpec
 // source character offsets, or arbitrary frame/source allocation numbers.
 // Grouping/aggregate providers are deterministically bound from the compared
 // typed arguments and operations in this same catalog/type universe.
-func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d LogicalNode) bool {
+func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d plan.Node) bool {
 	if a == nil || d == nil {
 		return a == nil && d == nil
 	}
@@ -111,8 +112,8 @@ func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d LogicalNode)
 			return false
 		}
 	}
-	if n, ok := a.(*projectNode); ok {
-		o, ok := d.(*projectNode)
+	if n, ok := a.(*plan.ProjectNode); ok {
+		o, ok := d.(*plan.ProjectNode)
 		if !ok || !c.pairFrame(n.Frame, o.Frame) {
 			return false
 		}
@@ -135,8 +136,8 @@ func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d LogicalNode)
 	}
 	same := func(a, d expr.Expr) bool { return b.sameGroupExpressionIn(a, d, c) }
 	switch n := a.(type) {
-	case *functionFromNode:
-		o, ok := d.(*functionFromNode)
+	case *plan.FunctionFromNode:
+		o, ok := d.(*plan.FunctionFromNode)
 		if !ok || n.Ordinality != o.Ordinality || n.Correlated != o.Correlated || len(n.Calls) != len(o.Calls) {
 			return false
 		}
@@ -146,8 +147,8 @@ func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d LogicalNode)
 			}
 		}
 		return true
-	case *setProjectNode:
-		o, ok := d.(*setProjectNode)
+	case *plan.SetProjectNode:
+		o, ok := d.(*plan.SetProjectNode)
 		if !ok || n.BaseWidth != o.BaseWidth || n.MarkerWidth != o.MarkerWidth ||
 			len(n.Calls) != len(o.Calls) || !slices.Equal(n.CallSlots, o.CallSlots) || !slices.Equal(n.ScalarSlots, o.ScalarSlots) || !slices.Equal(n.Steps, o.Steps) || !c.expressions(b, n.Scalars, o.Scalars) {
 			return false
@@ -165,20 +166,20 @@ func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d LogicalNode)
 			}
 		}
 		return true
-	case *projectNode:
-		o, ok := d.(*projectNode)
+	case *plan.ProjectNode:
+		o, ok := d.(*plan.ProjectNode)
 		if !ok || n.FrozenValues != o.FrozenValues || n.HasTargetSet != o.HasTargetSet {
 			return false
 		}
 		return c.expressions(b, n.Expressions, o.Expressions) && c.expressions(b, n.AnalysisExpressions, o.AnalysisExpressions)
-	case *sourceNode:
-		o, ok := d.(*sourceNode)
+	case *plan.SourceNode:
+		o, ok := d.(*plan.SourceNode)
 		return ok && n.Ref == o.Ref && c.pairOccurrence(n.Occurrence, o.Occurrence)
-	case *singletonNode:
-		_, ok := d.(*singletonNode)
+	case *plan.SingletonNode:
+		_, ok := d.(*plan.SingletonNode)
 		return ok
-	case *valuesNode:
-		o, ok := d.(*valuesNode)
+	case *plan.ValuesNode:
+		o, ok := d.(*plan.ValuesNode)
 		if !ok || len(n.Rows) != len(o.Rows) || !slices.Equal(n.IdentityOrderDemand, o.IdentityOrderDemand) {
 			return false
 		}
@@ -188,61 +189,61 @@ func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d LogicalNode)
 			}
 		}
 		return true
-	case *filterNode:
-		o, ok := d.(*filterNode)
+	case *plan.FilterNode:
+		o, ok := d.(*plan.FilterNode)
 		if !ok || !same(n.Predicate, o.Predicate) {
 			return false
 		}
-	case *sortNode:
-		o, ok := d.(*sortNode)
+	case *plan.SortNode:
+		o, ok := d.(*plan.SortNode)
 		if !ok || n.CacheWidth != o.CacheWidth || n.PresenceOnly != o.PresenceOnly || !c.order(b, n.Keys, o.Keys) || !c.expressions(b, n.Outputs, o.Outputs) {
 			return false
 		}
-	case *evaluationNode:
-		o, ok := d.(*evaluationNode)
+	case *plan.EvaluationNode:
+		o, ok := d.(*plan.EvaluationNode)
 		if !ok || !c.expressions(b, n.Expressions, o.Expressions) {
 			return false
 		}
-	case *distinctNode:
-		o, ok := d.(*distinctNode)
+	case *plan.DistinctNode:
+		o, ok := d.(*plan.DistinctNode)
 		if !ok || n.PresenceOnly != o.PresenceOnly || len(n.Grouping) != len(o.Grouping) || !c.expressions(b, n.Expressions, o.Expressions) {
 			return false
 		}
-	case *distinctOnNode:
-		o, ok := d.(*distinctOnNode)
+	case *plan.DistinctOnNode:
+		o, ok := d.(*plan.DistinctOnNode)
 		if !ok || n.PresenceOnly != o.PresenceOnly || len(n.Grouping) != len(o.Grouping) || !c.expressions(b, n.Expressions, o.Expressions) {
 			return false
 		}
-	case *limitNode:
-		o, ok := d.(*limitNode)
+	case *plan.LimitNode:
+		o, ok := d.(*plan.LimitNode)
 		if !ok || n.WithTies != o.WithTies || n.PresenceOnly != o.PresenceOnly || !same(n.Offset, o.Offset) || !same(n.Count, o.Count) || !c.order(b, n.PeerKeys, o.PeerKeys) {
 			return false
 		}
-	case *joinNode:
-		o, ok := d.(*joinNode)
+	case *plan.JoinNode:
+		o, ok := d.(*plan.JoinNode)
 		if !ok || n.Kind != o.Kind || n.LeftWidth != o.LeftWidth || n.RightWidth != o.RightWidth || n.CorrelatedRight != o.CorrelatedRight || n.CorrelationPrefix != o.CorrelationPrefix || !same(n.Predicate, o.Predicate) || !c.expressions(b, n.Merges, o.Merges) {
 			return false
 		}
-	case *derivedNode:
-		o, ok := d.(*derivedNode)
+	case *plan.DerivedNode:
+		o, ok := d.(*plan.DerivedNode)
 		if !ok || n.CTE != o.CTE || !slices.Equal(n.Demand, o.Demand) || (n.Query == nil) != (o.Query == nil) {
 			return false
 		}
 		if n.Query != nil && (n.Query.RegclassOutput != o.Query.RegclassOutput || n.Query.VisibilitySnapshot != o.Query.VisibilitySnapshot) {
 			return false
 		}
-	case *setNode:
-		o, ok := d.(*setNode)
+	case *plan.SetNode:
+		o, ok := d.(*plan.SetNode)
 		if !ok || n.Operation != o.Operation || n.All != o.All || len(n.Grouping) != len(o.Grouping) || !c.expressions(b, n.LeftExpressions, o.LeftExpressions) || !c.expressions(b, n.RightExpressions, o.RightExpressions) {
 			return false
 		}
-	case *rowLockNode:
-		o, ok := d.(*rowLockNode)
+	case *plan.RowLockNode:
+		o, ok := d.(*plan.RowLockNode)
 		if !ok || n.FirstMode != o.FirstMode || !slices.Equal(n.Marks, o.Marks) {
 			return false
 		}
-	case *aggregateNode:
-		o, ok := d.(*aggregateNode)
+	case *plan.AggregateNode:
+		o, ok := d.(*plan.AggregateNode)
 		if !ok || n.GroupingActive != o.GroupingActive || n.PresenceOnly != o.PresenceOnly || len(n.Grouping) != len(o.Grouping) || len(n.Sets) != len(o.Sets) || len(n.Calls) != len(o.Calls) || !c.expressions(b, n.Keys, o.Keys) {
 			return false
 		}
@@ -257,8 +258,8 @@ func (c *queryTargetComparison) sameQuery(b *expressionBinder, a, d LogicalNode)
 				return false
 			}
 		}
-	case *windowNode:
-		o, ok := d.(*windowNode)
+	case *plan.WindowNode:
+		o, ok := d.(*plan.WindowNode)
 		if !ok || len(n.Specs) != len(o.Specs) || len(n.Calls) != len(o.Calls) || !slices.Equal(n.SpecIndices, o.SpecIndices) {
 			return false
 		}
