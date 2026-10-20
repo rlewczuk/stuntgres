@@ -216,6 +216,6 @@ func frozenViewSource(scope *StatementScope, source *querySource, attributes, li
 		}
 	}
 	bridge := &querySource{ref: source.ref, input: source, layout: layout, scratch: make([]sqltype.Value, len(layout)), authority: scope.authority, locks: source.locks, occurrence: source.occurrence}
-	bridge.borrowAuthority(scope)
+	borrowQueryAuthority(bridge, scope)
 	return bridge
 }

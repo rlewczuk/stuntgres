@@ -18,7 +18,7 @@ type cursorExpressionData struct {
 	statementStart time.Time
 }
 
-func (s *querySource) borrowAuthority(scope *StatementScope) {
+func borrowQueryAuthority(s *querySource, scope *StatementScope) {
 	s.authority = scope.authority
 	s.host = nil
 	if s.authority == nil {

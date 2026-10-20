@@ -311,7 +311,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 	}
 	if len(leaves) == 0 {
 		source := &querySource{singleton: singleton, locks: locks}
-		source.borrowAuthority(scope)
+		borrowQueryAuthority(source, scope)
 		return source, nil
 	}
 	var single [1]ids.ObjectRef
@@ -351,7 +351,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 	for i, leaf := range leaves {
 		if leaf.analysisOnly {
 			source := &querySource{ref: leaf.ref, materialized: true, flatWidth: len(leaf.relation.Columns)}
-			source.borrowAuthority(scope)
+			borrowQueryAuthority(source, scope)
 			if first == nil {
 				first = source
 			}
@@ -436,7 +436,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 			e.closeQuerySourceSetLocked(scope.op.Context(), first, sources)
 			return nil, err
 		}
-		source.borrowAuthority(scope)
+		borrowQueryAuthority(source, scope)
 		source.occurrence = i
 		source.locks = locks
 		if locks != nil && source.lineage == nil {

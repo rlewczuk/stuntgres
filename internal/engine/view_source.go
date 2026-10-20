@@ -51,7 +51,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 			return nil, err
 		}
 		bridge := &querySource{ref: ref, authority: scope.authority, locks: locks, nestedRoot: root, nestedInputs: source, materialized: true, flatWidth: len(root.Schema()), inherited: mark}
-		bridge.borrowAuthority(scope)
+		borrowQueryAuthority(bridge, scope)
 		if locks != nil {
 			occurrences := queryTreeOccurrences(root, source, nil)
 			bridge.lineage = &queryLockLineage{root: root, inputs: source, stage: &querySource{materialized: true, occurrences: occurrences}}

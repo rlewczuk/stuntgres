@@ -108,7 +108,7 @@ func TestRLSBaseDecision(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		source.borrowAuthority(scope)
+		borrowQueryAuthority(source, scope)
 		defer source.close()
 		if source.view == nil || !source.rlsDenied || len(source.committed) != 0 || len(source.own) != 0 || source.hashIndexes != nil || source.partialMask != nil {
 			t.Fatal("denied source lost ownership or captured physical rows/indexes")

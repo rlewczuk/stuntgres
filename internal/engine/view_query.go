@@ -113,7 +113,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 				}
 			}
 			child = &querySource{ref: leaves[i].ref, input: child, layout: layout, scratch: make([]sqltype.Value, len(layout)), authority: scope.authority, locks: child.locks, occurrence: child.occurrence}
-			child.borrowAuthority(scope)
+			borrowQueryAuthority(child, scope)
 		}
 		if leaf.ref != leaves[i].ref {
 			child.storedRef = leaf.ref
@@ -128,7 +128,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 		source = sources[0]
 		source.sources = sources
 	}
-	source.borrowAuthority(scope)
+	borrowQueryAuthority(source, scope)
 	// Only this opaque stored tree borrows its defining recipe. User/grafted
 	// replacements retain their existing per-node ancestry rules.
 	source.routineRecipe = consumer

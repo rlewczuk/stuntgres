@@ -21,9 +21,31 @@ type execPreparation interface {
 	DomainCatalog(c *EvalContext) catalog.Read
 }
 
-type enginePreparation struct{}
+// preparation is installed by the engine at package initialization; until
+// then every call fails loudly instead of skipping preparation.
+var preparation execPreparation = missingPreparation{}
 
-var preparation execPreparation = enginePreparation{}
+// installPreparation sets the preparation value. It runs from init, before
+// any statement executes.
+func installPreparation(p execPreparation) { preparation = p }
+
+type missingPreparation struct{}
+
+func (missingPreparation) PreflightCoercions(*EvalContext, expr.Expr) (expr.Expr, bool, error) {
+	panic("exec: preparation not installed")
+}
+
+func (missingPreparation) CheckDomain(context.Context, *EvalContext, *sqltype.Descriptor, sqltype.Value) error {
+	panic("exec: preparation not installed")
+}
+
+func (missingPreparation) DomainCatalog(*EvalContext) catalog.Read {
+	panic("exec: preparation not installed")
+}
+
+func init() { installPreparation(enginePreparation{}) }
+
+type enginePreparation struct{}
 
 func (enginePreparation) PreflightCoercions(c *EvalContext, e expr.Expr) (expr.Expr, bool, error) {
 	return preflightCoercions(c, e)

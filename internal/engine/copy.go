@@ -449,7 +449,7 @@ func (s *StatementScope) copyTableRows(b binding, auth AuthorizationView) (*fina
 	if err != nil {
 		return nil, err
 	}
-	source.borrowAuthority(s)
+	borrowQueryAuthority(source, s)
 	if err = selectQuerySources(s.op.Context(), source); err != nil {
 		return nil, err
 	}
