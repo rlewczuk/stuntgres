@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/functions"
 	"testing"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 
 type advisoryScopeOutcome struct{ err, finish error }
 
-func advisoryUnitScopeWait(t *testing.T, s *Session, key lock.Resource, lifetime advisoryLifetime) (*lock.Ticket, ids.TxRef, <-chan advisoryScopeOutcome) {
+func advisoryUnitScopeWait(t *testing.T, s *Session, key lock.Resource, lifetime functions.AdvisoryLifetime) (*lock.Ticket, ids.TxRef, <-chan advisoryScopeOutcome) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	op, err := s.Acquire(ctx)
@@ -126,7 +127,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 			advisoryUnitGrant(t, a, ra, key, lock.AdvisoryShare)
 			advisoryUnitGrant(t, b, rb, key, lock.AdvisoryShare)
 			transactionEnd(t, b, rb, false)
-			ticket, provenance, done := advisoryUnitScopeWait(t, b, key, advisorySession)
+			ticket, provenance, done := advisoryUnitScopeWait(t, b, key, functions.AdvisorySession)
 			m := e.locks
 			lockState := m.Inspect(ticket)
 			waiter := lockState.Resources[key].Pending[0]
@@ -210,7 +211,7 @@ func TestAdvisorySessionLifecycleReplacement(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		ticket, _, done := advisoryUnitScopeWait(t, b, key, advisorySession)
+		ticket, _, done := advisoryUnitScopeWait(t, b, key, functions.AdvisorySession)
 		b.RequestEnd(CleanClose)
 		advisoryUnitScopeResult(t, done, context.Canceled)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"stuntgres/internal/engine/functions"
 	"testing"
 
 	"stuntgres/internal/engine/ids"
@@ -204,7 +205,7 @@ func TestAdvisoryXactSavepointLifecycle(t *testing.T) {
 			persistent := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 88}
 			advisoryUnitGrant(t, a, ra, persistent, lock.AdvisoryShare)
 			transactionEnd(t, b, rb, false)
-			ticket, _, done := advisoryUnitScopeWait(t, b, key, advisoryTransaction)
+			ticket, _, done := advisoryUnitScopeWait(t, b, key, functions.AdvisoryTransaction)
 			if grantBeforeFence {
 				e.replacementMu.Lock()
 				reserved := true

@@ -58,11 +58,8 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 	if parser.NetworkFormatFunctionName(name) {
 		return b.bindNetworkFormat(raw)
 	}
-	if parser.BlockingInquiryFunctionName(name) {
-		return b.bindBlockingInquiry(raw)
-	}
 	// Shared syntax must never silently discard labels in adjacent providers.
-	if len(raw.ArgNames) != 0 && !parser.AdvisoryFunctionName(name) {
+	if len(raw.ArgNames) != 0 {
 		return nil, b.functionSignatureError(raw)
 	}
 	if raw.ResolutionOnly {
@@ -87,8 +84,6 @@ func (b *expressionBinder) bindFunctionProvider(raw parser.FunctionExpr) (expr.E
 		return e, nil
 	case "pg_size_bytes", "pg_size_pretty":
 		return b.bindSize(raw, visible)
-	case "pg_advisory_lock", "pg_advisory_lock_shared", "pg_advisory_unlock", "pg_advisory_unlock_shared", "pg_advisory_unlock_all", "pg_try_advisory_lock", "pg_try_advisory_lock_shared", "pg_advisory_xact_lock", "pg_advisory_xact_lock_shared", "pg_try_advisory_xact_lock", "pg_try_advisory_xact_lock_shared":
-		return b.bindAdvisory(raw, visible)
 	default:
 		kind = functions.NullCountFunctionKind(name)
 		if kind != 0 {

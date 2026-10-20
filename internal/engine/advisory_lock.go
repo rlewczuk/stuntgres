@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 )
@@ -23,11 +24,11 @@ func (a *sessionAdvisory) EndSession(token ids.SessionToken, _ EndReason) error 
 	return nil
 }
 
-func (s *StatementScope) acquireAdvisory(ctx context.Context, ref lock.Resource, mode lock.Mode, lifetime advisoryLifetime, try bool) (bool, error) {
+func (s *StatementScope) acquireAdvisory(ctx context.Context, ref lock.Resource, mode lock.Mode, lifetime functions.AdvisoryLifetime, try bool) (bool, error) {
 	e := s.op.session.Engine()
 	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, NoWait: try, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext, Provenance: s.txRef}
 	ticket := s.op.session.advisory.ticket
-	if lifetime == advisoryTransaction {
+	if lifetime == functions.AdvisoryTransaction {
 		ticket = s.ticket
 	}
 	request, err := e.locks.StartAcquire(ctx, ticket, ref, mode, policy)

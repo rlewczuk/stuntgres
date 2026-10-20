@@ -595,12 +595,6 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			b.captureViewComposite(path, compositeSelection, n.base, []int32{n.attribute})
 			return child(r.Args[0], n.base)
 		}
-		if n, ok := bound.(advisoryExpression); ok {
-			return children(r.Args, n.args)
-		}
-		if n, ok := bound.(blockingInquiryExpression); ok {
-			return children(r.Args, n.arguments())
-		}
 		if n, ok := bound.(literalExpression); ok && n.value.IsNull() {
 			switch r.Name.Parts[len(r.Name.Parts)-1].Text {
 			case "pg_indexam_has_property", "pg_index_has_property", "pg_index_column_has_property":

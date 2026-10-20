@@ -2,12 +2,10 @@ package engine
 
 import (
 	"context"
-	"errors"
-	"reflect"
 	"strings"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -25,20 +23,20 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				node := bound.(advisoryExpression)
-				if node.lifetime != advisoryTransaction || !node.validStored() || node.Properties().Volatility != expr.Volatile || node.Properties().ParameterDependent != strings.Contains(arguments, "$") {
+				node := bound.(functions.Advisory)
+				if node.Lifetime != functions.AdvisoryTransaction || !node.ValidStored() || node.Properties().Volatility != expr.Volatile || node.Properties().ParameterDependent != strings.Contains(arguments, "$") {
 					t.Fatal("lost transaction identity", node)
 				}
 				bad := node
-				bad.lifetime = advisorySession
-				if bad.validStored() {
+				bad.Lifetime = functions.AdvisorySession
+				if bad.ValidStored() {
 					t.Fatal("accepted name/lifetime mismatch")
 				}
 				id := sqltype.Int8
-				if len(node.args) == 2 {
+				if len(node.Args) == 2 {
 					id = sqltype.Int4
 				}
-				for _, child := range node.args {
+				for _, child := range node.Args {
 					if child.ResultUsage().Type.ID() != id {
 						t.Fatal("wrong formal", child.ResultUsage())
 					}
@@ -50,18 +48,18 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 						t.Fatal("persisted a runtime parameter")
 					}
 				} else {
-					last := len(node.args) - 1
-					column := columnExpression{Info: expr.Info{Usage: node.args[last].ResultUsage(), Property: expr.Properties{RowDependent: true}}, scope: 1, slot: 1, origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}}
+					last := len(node.Args) - 1
+					column := columnExpression{Info: expr.Info{Usage: node.Args[last].ResultUsage(), Property: expr.Properties{RowDependent: true}}, scope: 1, slot: 1, origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}}
 					stored := node
-					stored.args = append([]expr.Expr(nil), node.args...)
-					stored.args[last] = column
+					stored.Args = append([]expr.Expr(nil), node.Args...)
+					stored.Args[last] = column
 					remapped, err := remapBoundExpression(stored, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID++; return ref }, map[int32]int{1: 7})
 					if err != nil {
 						t.Fatal("remapping stored column", err)
 					}
-					mapped := remapped.(advisoryExpression)
-					child := mapped.args[last].(columnExpression)
-					if mapped.lifetime != advisoryTransaction || !mapped.validStored() || child.origin.Address.ObjectID != 124 || child.slot != 7 || stored.args[last].(columnExpression).slot != 1 {
+					mapped := remapped.(functions.Advisory)
+					child := mapped.Args[last].(columnExpression)
+					if mapped.Lifetime != functions.AdvisoryTransaction || !mapped.ValidStored() || child.origin.Address.ObjectID != 124 || child.slot != 7 || stored.Args[last].(columnExpression).slot != 1 {
 						t.Fatal("stored remap lost lifetime/column identity or mutated source", mapped, child)
 					}
 					// Only stored literal consumers have a catalog deparse
@@ -74,8 +72,8 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					reboundNode := rebound.(advisoryExpression)
-					if reboundNode.lifetime != advisoryTransaction || reboundNode.mode != node.mode || reboundNode.action != node.action || reboundNode.ResultUsage() != node.ResultUsage() {
+					reboundNode := rebound.(functions.Advisory)
+					if reboundNode.Lifetime != functions.AdvisoryTransaction || reboundNode.Mode != node.Mode || reboundNode.Action != node.Action || reboundNode.ResultUsage() != node.ResultUsage() {
 						t.Fatal("deparse changed lock semantics", reboundNode)
 					}
 				}
@@ -107,25 +105,5 @@ func TestAdvisoryXactBindingTraversal(t *testing.T) {
 				t.Fatal("constant NULL failed to suppress volatile sibling or lost result type", value, err)
 			}
 		}
-	}
-	types := formatUnitTypes()
-	var order []int
-	value, err := sqltype.Integer(types[sqltype.Int4], 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	node := advisoryExpression{Info: expr.Info{Usage: types[sqltype.Bool].Usage()}, name: "pg_try_advisory_xact_lock", lifetime: advisoryTransaction, mode: lock.AdvisoryExclusive, action: advisoryTry, args: []expr.Expr{
-		mathObservedArgument{Info: expr.Info{Usage: types[sqltype.Int4].Usage()}, value: sqltype.Null(types[sqltype.Int4]), order: &order, index: 0},
-		mathObservedArgument{Info: expr.Info{Usage: types[sqltype.Int4].Usage()}, value: value, order: &order, index: 1},
-	}}
-	got, err := node.Eval(&EvalContext{Context: ctx})
-	if err != nil || !got.IsNull() || !reflect.DeepEqual(order, []int{0, 1}) {
-		t.Fatal("runtime strict demand", got, order, err)
-	}
-	failure := errors.New("demanded xact sibling")
-	order = nil
-	node.args[1] = mathObservedArgument{Info: expr.Info{Usage: types[sqltype.Int4].Usage()}, order: &order, index: 1, err: failure}
-	if _, err := node.Eval(&EvalContext{Context: ctx}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
-		t.Fatal("suppressed runtime sibling", order, err)
 	}
 }

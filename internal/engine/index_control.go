@@ -228,9 +228,7 @@ func pgIndexFunctionExpression(node expr.Expr) bool {
 		return false
 	case extensionPathsExpression:
 		return true
-	case blockingInquiryExpression:
-		return true
-	case advisoryExpression, sequenceCallExpression, conditionalExpression:
+	case sequenceCallExpression, conditionalExpression:
 		return true
 	case expr.FunctionSyntax:
 		return n.LooksLikeFunction()

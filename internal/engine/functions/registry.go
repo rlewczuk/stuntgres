@@ -86,6 +86,8 @@ var definitions = [...]Definition{
 	{Names: []string{"current_catalog", "current_database", "current_role", "current_user", "session_user", "user", "system_user", "current_schema"}, Claims: parser.IdentityFunctionName, SharedGates: true, Bind: bindIdentityFunction},
 	{Names: []string{"current_schemas"}, ExactSpelling: true, SharedGates: true, Bind: bindCurrentSchemas},
 	{Names: []string{"pg_my_temp_schema", "pg_is_other_temp_schema"}, Claims: parser.NamespaceInquiryFunctionName, SharedGates: true, OwnsSpelling: true, Bind: bindNamespaceInquiry},
+	{Names: []string{"pg_advisory_lock", "pg_advisory_lock_shared", "pg_advisory_unlock", "pg_advisory_unlock_shared", "pg_advisory_unlock_all", "pg_try_advisory_lock", "pg_try_advisory_lock_shared", "pg_advisory_xact_lock", "pg_advisory_xact_lock_shared", "pg_try_advisory_xact_lock", "pg_try_advisory_xact_lock_shared"}, SharedGates: true, OwnsLabels: true, Bind: bindAdvisory},
+	{Names: []string{"pg_blocking_pids", "pg_safe_snapshot_blocking_pids"}, Bind: bindBlockingInquiry},
 }
 
 // Lookup returns the definition that claims an unqualified function name.

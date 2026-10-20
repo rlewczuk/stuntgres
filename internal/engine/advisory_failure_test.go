@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/functions"
 	"testing"
 	"time"
 
@@ -54,7 +55,7 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryShare)
 		advisoryUnitGrant(t, b, rb, key, lock.AdvisoryShare)
 		transactionEnd(t, b, rb, false)
-		source, provenance, done := advisoryUnitScopeWait(t, b, key, advisorySession)
+		source, provenance, done := advisoryUnitScopeWait(t, b, key, functions.AdvisorySession)
 		lockState := e.locks.Inspect()
 		oldManagerEpoch := lockState.Epoch
 		ctx, cancel := context.WithCancel(context.Background())
@@ -85,7 +86,7 @@ func TestAdvisorySessionLifecycleFailuresAndClose(t *testing.T) {
 		b := sessionStart(t, e, nil)
 		key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 21}
 		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryExclusive)
-		_, provenance, done := advisoryUnitScopeWait(t, b, key, advisorySession)
+		_, provenance, done := advisoryUnitScopeWait(t, b, key, functions.AdvisorySession)
 		advisoryUnitUnlock(t, a, key, lock.AdvisoryExclusive, true)
 		advisoryUnitScopeResult(t, done, nil)
 		if advisoryUnitHold(b, key).Exclusive != 1 {

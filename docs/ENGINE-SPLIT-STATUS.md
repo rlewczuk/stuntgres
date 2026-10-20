@@ -142,7 +142,8 @@ Steps 1, 2 and 4–7 and `access` are done.
     - [x] catalog inquiry, with session identity (ten-node protocol/runtime cutover;
       selected dual-mode, quickcheck, bounded-CPU racecheck and public replay smoke)
     - [x] transaction identity and commit timestamps *(this commit; selected dual-mode, quickcheck, racecheck and driver smoke passed)*
-    - [ ] advisory locks, with blocking inquiry
+    - [x] advisory locks, with blocking inquiry *(extraction complete in candidate;
+      quickcheck-only waiver; synchronized proof, review and integration pending)*
     - [ ] sequence calls
 - [x] **Step 4 — `lock`** ([prompt](ENGINE-SPLIT-lock.md); needs 1)
   - [x] 4a — Cut 11, `EndReason`, mutex encapsulation, lock-order audit
@@ -338,8 +339,12 @@ in the prompt file's Status section.
    Startup5152 steady allocations; three of five after samples exceeded1ms.
 8. [x] Tier C: transaction identity and commit timestamps —
    [functions](ENGINE-SPLIT-functions.md) Tier C · needs — · this commit; verified
-9. [ ] Tier C: advisory locks, with blocking inquiry —
-   [functions](ENGINE-SPLIT-functions.md) Tier C · needs —
+9. [x] Tier C: advisory locks, with blocking inquiry — extraction complete in candidate;
+   [functions](ENGINE-SPLIT-functions.md) Tier C · needs — · historical selected
+   native/real/race, smoke and quickcheck passed; full racecheck attempts failed
+   or expired, not passed. User waived racecheck/race-based finalcheck;
+   synchronized quickcheck/public smoke, independent review and integration
+   remain root-owned gates, not completion claims.
 10. [ ] Tier C: sequence calls — [functions](ENGINE-SPLIT-functions.md)
     Tier C · needs 7, 8, 9
 11. [ ] Catalog 5h (optional) — [catalog](ENGINE-SPLIT-catalog.md) 5h ·

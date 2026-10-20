@@ -349,6 +349,14 @@ it with a compile-time assertion. `expr.Context` does not grow per family.
   address resolution, deparse engines and serial ownership remain engine-owned.
   Nodes retain no Session/Engine/StatementScope or executable authority cache.
   Missing runtime/context and foreign-owner failures remain ordinary Go errors.
+- `AdvisoryRuntime` (`advisory_runtime.go`) accepts evaluated signed keys,
+  key-space, action, mode, lifetime and result type. The engine builds canonical
+  resources, selects the current session/transaction ticket and retains admission,
+  wait/readmission and unmatched-unlock notices. `BlockingRuntime`
+  (`blocking_runtime.go`) accepts only kind, evaluated PID and result type.
+  Engine authorization is checked under `Engine.mu`; safe-snapshot capture stays
+  there, but ordinary manager reads run after releasing it. Neither capability
+  passes managers, scopes, tickets, callbacks or captured owners into this leaf.
 
 ## Registry
 
@@ -384,6 +392,13 @@ a name list:
   keeps each predicate's own comparison (exact, case-folded or lowercased,
   which differ for spellings such as `ſ`). `Names` still lists every claimed
   name; the registry tests check that each satisfies `Claims`.
+
+Advisory names are case-insensitive claims with `SharedGates` and `OwnsLabels`:
+visibility precedes DEFAULT rejection, and the family rejects labels after all
+children have been analyzed. Blocking inquiries deliberately have no shared gates:
+all children and the argument limit precede visibility and exact signature
+checks, as in their former early engine branch. SQL-overload competition remains
+engine-owned and precedes registry lookup.
 
 Registered families:
 
@@ -644,6 +659,25 @@ nodes keep argument slots beyond `Children`; nodes without a provider
 (`Format`, `NullCount`, `Random`, the three leaves) only take the new metadata
 and children. Engine wrappers that embed a node override `Rebuild` to keep
 their routine identity.
+
+`Advisory` and `BlockingInquiry` rebuild immutable recipes with mapped usages,
+positions, routine references and children, retaining action/mode/lifetime/kind.
+Blocking reconstruction refreshes only Property from its child plus VOLATILE,
+matching its old conditional simplifier; its `Substitute` preserves the supplied
+Info exactly for statement preflight and grouping/stage substitution. Scalar
+type-generation retagging and view remapping use reconstruction, refreshing
+blocking child-derived properties while retaining mapped descriptors.
+Both are intrinsically VOLATILE, never planning-evaluated, and own capture,
+group identity, function syntax and exact SQL/tree presentation. Advisory uses
+`StrictAfterBare`/`PreflightNullBare`: demanded immutable child errors precede
+bare-NULL folding. Runtime NULL still evaluates every child once in written
+order using fixed two-value scratch. Blocking keeps its live carrier during
+planning and reports known nullable array metadata. Replay validates stored
+signatures; advisory remains relation-only. These hooks do not widen DEFAULT,
+generated/index, source or parallel admission. The existing
+`BareFormalArgument.PreserveProperties` request preserves advisory's old bare
+cast properties without adding a cast routine identity; other callers are
+unchanged.
 
 Nodes also implement the optional `expr` hooks that the engine's switches ask
 (the `expr` README defines them):
@@ -1080,6 +1114,57 @@ dual-mode, full-suite, race and review gates are not claimed by that observation
 
 
 ### Shared integration and protocol selections
+
+### Advisory and blocking inquiry cutover
+
+Private node units live here; real analyzer, lock, replacement and SSI units
+remain in their owning engine/manager packages. Existing public SQL golden
+definitions in `reference/locking_transactions` and `reference/sessions` are
+unchanged. Selected commands (each external deadline 900 seconds):
+
+`TestAdvisoryBlockingDomainInput` uses admitted immutable domain declarations
+and substitutes a real Binder-built recipe only in the private context's detached
+programme. Normal `CheckDomain` supplies/restores the active VALUE/input frame;
+nested checked conversions and moved-node NULL/pruned demand are exercised
+without publishing or admitting volatile domain CHECK definitions.
+
+```sh
+make check RUN='^Test(AdvisoryNode(RuntimeDemand|Protocols)|BlockingInquiryNodeProtocols|AdvisoryBlockingDomainInput|AdvisorySession(BindingTraversal|CheckPreparationCache|CheckPrepareAllBeforeEvaluation)|AdvisoryXactBindingTraversal|BlockingPids(BindingAndIdentity|TraversalReplay)|CaptureOperandsNoAllocations)$'
+make check RUN='^TestReferenceAdvisorySession(Signatures|DiagnosticsConsumers|ReviewQuotedArgumentLimit)$'
+make check RUN='^TestReferenceAdvisorySession(Signatures|DiagnosticsConsumers|ReviewQuotedArgumentLimit)$' REFERENCE=1
+make check RUN='^TestReferenceAdvisoryXact(Signatures|DiagnosticsStrictness)$'
+make check RUN='^TestReferenceAdvisoryXact(Signatures|DiagnosticsStrictness)$' REFERENCE=1
+make check RUN='^TestReferenceBlockingPids(Signatures|Diagnostics)$'
+make check RUN='^TestReferenceBlockingPids(Signatures|Diagnostics)$' REFERENCE=1
+```
+
+Run the additional bounded lifecycle/contention/prepared/safe-snapshot cohorts
+specified by the living part plan in both modes, selected race proof, then full
+Docker-free quickcheck/racecheck, build/deps and five-run startup bench.
+Observed for this cutover: all 13 bounded cohorts passed in quick and pinned
+PostgreSQL 18.6 modes, selected race and private node checks passed, and full
+quickcheck, build, dependency and import-layer checks passed. Historical full
+racecheck attempts exceeded the 900-second deadline or failed unchanged scenario
+contexts under observed host contention; they are not passing evidence.
+The user subsequently requested quickcheck-only verification, waiving racecheck
+and the race-based finalcheck. Fresh quickcheck and public smoke remain required
+after synchronization, followed by independent review and safe integration.
+
+Actual-node Eval allocations are unchanged at 0/3/1/1 for NULL, balanced session
+acquire/unlock, ordinary empty and safe empty inquiries. Startup already missed
+the <1ms target at baseline (1.047–1.284ms/op); post-cutover samples were
+3.639–16.814ms/op under substantial observed host CPU pressure. Neither meets
+the target; wall-time change cannot be attributed to the extraction from these
+measurements. Numbered part verification reports retain commands and output.
+
+The temporary public consumer is session artifact
+`local://advisory-blocking-feature-smoke.go`, materialized outside the repository
+and run as `go run /tmp/pg18-advisory-blocking-smoke/main.go`. It checks exact
+metadata/results, pinned owners, genuinely held wait/cancel/reuse, counted
+session rollback survival, transaction savepoint release and live stored-view
+Dump/Restore without serializing locks. All five phases passed. The materialized
+source and unchanged temporary allocation probe were removed after observation.
+
 
 Function-source private binding/scheduling/authority units remain engine-owned:
 their fixtures require the real analyzer and installed/catalog identities.

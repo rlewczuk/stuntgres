@@ -254,14 +254,6 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 		}
 		r.record(n.origin)
 		return catalog.QuoteIdentifier(r.owner.Columns[n.slot].Name), nil
-	case advisoryExpression:
-		if r.owner == nil {
-			return "", fmt.Errorf("stuntgres: volatile stored default")
-		}
-		if !n.validStored() {
-			return "", fmt.Errorf("stuntgres: invalid stored advisory signature")
-		}
-		return r.functionSQL(ctx, view, "pg_catalog."+n.name, n.args)
 	case sqlRoutineExpression, extensionPathsExpression, installedFunctionExpression, installedUUIDOsspFunctionExpression, installedCryptoFunctionExpression, installedSoundexFunctionExpression, installedMetaphoneFunctionExpression, installedLevenshteinFunctionExpression:
 		return r.scalarFunctionSQL(ctx, view, node)
 	case functions.ObjectACL:
@@ -274,11 +266,6 @@ func (r scalarRenderer) sql(ctx context.Context, view catalog.Read, node expr.Ex
 			return "", fmt.Errorf("stuntgres: access inquiries are unsupported in stored defaults")
 		}
 		return r.scalarFunctionSQL(ctx, view, n)
-	case blockingInquiryExpression:
-		if err := n.validateStored(); err != nil {
-			return "", err
-		}
-		return r.functionSQL(ctx, view, "pg_catalog."+n.kind.name(), n.arguments())
 	case sequenceCallExpression:
 		if r.owner == nil && !closedSequenceDefault(n) {
 			return "", fmt.Errorf("stuntgres: invalid stored sequence default")

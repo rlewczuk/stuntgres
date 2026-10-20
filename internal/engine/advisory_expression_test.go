@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/parser"
@@ -34,7 +35,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				node, ok := bound.(advisoryExpression)
+				node, ok := bound.(functions.Advisory)
 				if !ok {
 					t.Fatalf("wrong producer %T", bound)
 				}
@@ -45,10 +46,10 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 				if node.ResultUsage().Type.ID() != id || node.Properties().Volatility != expr.Volatile || generationImmutable(node) || !pgIndexFunctionExpression(node) {
 					t.Fatal("fixed identity/volatility", node.ResultUsage(), node.Properties())
 				}
-				if !node.validStored() {
+				if !node.ValidStored() {
 					t.Fatal("bound producer lost stored signature")
 				}
-				if err = b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil || len(b.viewLiterals) != len(node.args) {
+				if err = b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil || len(b.viewLiterals) != len(node.Args) {
 					t.Fatal("view literal children", len(b.viewLiterals), err)
 				}
 				text, err := (pgRenderer{view: e.CatalogRead()}).sql(ctx, node, pgRenderParent{})
@@ -79,12 +80,12 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			if err != nil {
 				t.Fatal(query, err)
 			}
-			node := bound.(advisoryExpression)
+			node := bound.(functions.Advisory)
 			id := sqltype.Int8
-			if len(node.args) == 2 {
+			if len(node.Args) == 2 {
 				id = sqltype.Int4
 			}
-			for _, child := range node.args {
+			for _, child := range node.Args {
 				if child.ResultUsage().Type.ID() != id {
 					t.Fatal("signature inference", query, child.ResultUsage())
 				}
@@ -143,15 +144,15 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		deferred := bound.(advisoryExpression)
+		deferred := bound.(functions.Advisory)
 		textUsage, integerUsage := b.typ(sqltype.Text).Usage(), b.typ(sqltype.Int4).Usage()
 		plan, err := sqltype.PlanCoercion(textUsage, integerUsage, sqltype.Explicit)
 		if err != nil {
 			t.Fatal(err)
 		}
 		child := literalExpression{Info: b.info(textUsage, parser.Position{}, expr.Properties{Volatility: expr.Immutable}), value: sqltype.String(textUsage.Type, "bad")}
-		deferred.args = append([]expr.Expr(nil), deferred.args...)
-		deferred.args[1] = coercionExpression{b.info(integerUsage, parser.Position{}, expr.Properties{Volatility: expr.Immutable}), child, plan, sqltype.Explicit, false}
+		deferred.Args = append([]expr.Expr(nil), deferred.Args...)
+		deferred.Args[1] = coercionExpression{b.info(integerUsage, parser.Position{}, expr.Properties{Volatility: expr.Immutable}), child, plan, sqltype.Explicit, false}
 		bound = deferred
 		for _, preflight := range []bool{false, true} {
 			if preflight {
@@ -161,26 +162,6 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			}
 			nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "22P02", Message: "invalid input syntax for type integer: \"bad\""})
 		}
-		types := formatUnitTypes()
-		var order []int
-		one, err := sqltype.Integer(types[sqltype.Int4], 1)
-		if err != nil {
-			t.Fatal(err)
-		}
-		node := advisoryExpression{Info: expr.Info{Usage: types[sqltype.Bool].Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, name: "pg_try_advisory_lock", mode: lock.AdvisoryExclusive, action: advisoryTry, args: []expr.Expr{
-			mathObservedArgument{Info: expr.Info{Usage: types[sqltype.Int4].Usage()}, value: sqltype.Null(types[sqltype.Int4]), order: &order, index: 0},
-			mathObservedArgument{Info: expr.Info{Usage: types[sqltype.Int4].Usage()}, value: one, order: &order, index: 1},
-		}}
-		v, err := node.Eval(&EvalContext{Context: ctx})
-		if err != nil || !v.IsNull() || v.Type().ID() != sqltype.Bool || !reflect.DeepEqual(order, []int{0, 1}) {
-			t.Fatal("runtime children exactly once left to right", v, order, err)
-		}
-		failure := errors.New("demanded advisory sibling")
-		order = nil
-		node.args[1] = mathObservedArgument{Info: expr.Info{Usage: types[sqltype.Int4].Usage()}, order: &order, index: 1, err: failure}
-		if _, err = node.Eval(&EvalContext{Context: ctx}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
-			t.Fatal("runtime NULL suppressed demanded error", order, err)
-		}
 	})
 	t.Run("lexical group aggregate remap and retained descriptors", func(t *testing.T) {
 		b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
@@ -188,9 +169,9 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := bound.(advisoryExpression)
-		column := columnExpression{Info: expr.Info{Usage: node.args[0].ResultUsage(), Pos: parser.Position{Character: 99}, Property: expr.Properties{RowDependent: true}}, scope: 1, frame: b.frameID(), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999, SubID: 1}}}
-		node.args = []expr.Expr{node.args[0], column}
+		node := bound.(functions.Advisory)
+		column := columnExpression{Info: expr.Info{Usage: node.Args[0].ResultUsage(), Pos: parser.Position{Character: 99}, Property: expr.Properties{RowDependent: true}}, scope: 1, frame: b.frameID(), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 999, SubID: 1}}}
+		node.Args = []expr.Expr{node.Args[0], column}
 		node.Property.RowDependent = true
 		visits := 0
 		walkBoundExpression(node, func(expr.Expr) { visits++ })
@@ -201,17 +182,17 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, ok := grouped.(advisoryExpression).args[1].(groupExpression); !ok {
+		if _, ok := grouped.(functions.Advisory).Args[1].(groupExpression); !ok {
 			t.Fatal("group descendant not rewritten")
 		}
-		if _, ok := node.args[1].(columnExpression); !ok {
+		if _, ok := node.Args[1].(columnExpression); !ok {
 			t.Fatal("group rewrite mutated shared source")
 		}
 		if !b.sameGroupExpression(node, node) {
 			t.Fatal("group structural identity")
 		}
 		other := node
-		other.args = []expr.Expr{node.args[1], node.args[0]}
+		other.Args = []expr.Expr{node.Args[1], node.Args[0]}
 		if b.sameGroupExpression(node, other) {
 			t.Fatal("group identity ignored argument order")
 		}
@@ -219,8 +200,8 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		mappedColumn := remapped.(advisoryExpression).args[1].(columnExpression)
-		if mappedColumn.origin.Address.ObjectID != 1000 || mappedColumn.slot != 7 || node.args[1].(columnExpression).origin.Address.ObjectID != 999 {
+		mappedColumn := remapped.(functions.Advisory).Args[1].(columnExpression)
+		if mappedColumn.origin.Address.ObjectID != 1000 || mappedColumn.slot != 7 || node.Args[1].(columnExpression).origin.Address.ObjectID != 999 {
 			t.Fatal("view child identity/slot remap", mappedColumn)
 		}
 		types := formatUnitTypes()
@@ -228,12 +209,12 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal(retained, changed, err)
 		}
-		fresh := retained.(advisoryExpression)
-		if fresh.ResultUsage().Type != types[sqltype.Bool] || fresh.args[1].ResultUsage().Type != types[sqltype.Int4] || fresh.mode != node.mode || fresh.action != node.action || node.ResultUsage().Type == fresh.ResultUsage().Type {
+		fresh := retained.(functions.Advisory)
+		if fresh.ResultUsage().Type != types[sqltype.Bool] || fresh.Args[1].ResultUsage().Type != types[sqltype.Int4] || fresh.Mode != node.Mode || fresh.Action != node.Action || node.ResultUsage().Type == fresh.ResultUsage().Type {
 			t.Fatal("retained generation/compiled action")
 		}
-		aggregate := aggregateExpression{Info: expr.Info{Usage: node.args[0].ResultUsage(), Property: expr.Properties{StageDependent: true}}, slot: 7}
-		node.args = []expr.Expr{node.args[0], aggregate}
+		aggregate := aggregateExpression{Info: expr.Info{Usage: node.Args[0].ResultUsage(), Property: expr.Properties{StageDependent: true}}, slot: 7}
+		node.Args = []expr.Expr{node.Args[0], aggregate}
 		if found := aggregateOccurrence(node); found == nil || found.slot != 7 {
 			t.Fatal("aggregate descendant lost")
 		}
@@ -250,7 +231,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		node := bound.(advisoryExpression)
+		node := bound.(functions.Advisory)
 		text, err := (scalarRenderer{owner: owner}).sql(ctx, view, node)
 		if err != nil || !strings.Contains(text, "pg_catalog.pg_try_advisory_lock(") {
 			t.Fatal("stored CHECK/view symbolic rendering", text, err)
@@ -262,8 +243,8 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			t.Fatal("DEFAULT binding widened")
 		}
 		damaged := node
-		damaged.action = advisoryUnlock
-		if damaged.validStored() {
+		damaged.Action = functions.AdvisoryUnlock
+		if damaged.ValidStored() {
 			t.Fatal("inconsistent compiled action admitted")
 		}
 		if _, err = (scalarRenderer{owner: owner}).sql(ctx, view, damaged); err == nil {

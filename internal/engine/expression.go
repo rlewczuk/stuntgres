@@ -587,15 +587,6 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 		}
 		e.arg = arg
 		return e, changed, nil
-	case blockingInquiryExpression:
-		arg, changed, err := preflightCoercionsWithPolicy(c, e.arg, decisiveDefaults)
-		if err != nil {
-			return nil, false, err
-		}
-		if changed {
-			e.arg = arg
-		}
-		return e, changed, nil
 	case caseExpression:
 		return simplifyConditional(c, expression, decisiveDefaults)
 	case conditionalExpression:
@@ -974,27 +965,6 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			e.args = args
 			return e, true, nil
 		}
-	case advisoryExpression:
-		var args []expr.Expr
-		for i, arg := range e.args {
-			folded, changed, err := preflightCoercionsWithPolicy(c, arg, decisiveDefaults)
-			if err != nil {
-				return nil, false, err
-			}
-			if changed {
-				if args == nil {
-					args = append([]expr.Expr(nil), e.args...)
-				}
-				args[i] = folded
-			}
-		}
-		if args != nil {
-			e.args = args
-		}
-		if folded, changed := foldAdvisoryNull(e); changed {
-			return folded, true, nil
-		}
-		return e, args != nil, nil
 	case expr.Composite:
 		// Function nodes name their fold; installed-routine wrappers keep
 		// their cases above.

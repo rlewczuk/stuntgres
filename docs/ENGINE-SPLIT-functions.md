@@ -1644,6 +1644,38 @@ Item7 catalog/session ownership record:
   lifecycle gates, not covered by neighboring waivers.
 
 
+Current advisory/blocking cutover implementation (quickcheck-only verification):
+the real `Advisory` and `BlockingInquiry` nodes, Binder-based family binding,
+static registry entries and immutable protocols now live in `functions`.
+The actual edit sequence introduced value capabilities and engine adapters,
+switched the original engine nodes to those seams, ported binding against the
+existing Binder while still in place, then moved the families and removed
+their concrete central-switch cases. Advisory retains shared gates with label
+ownership; blocking retains its early all-child analysis before shared gates.
+Engine adapters retain canonical lock/SSI authority, live scope/ticket choice,
+notices and the ordinary-read versus safe-snapshot mutex boundary. No other
+Tier C family, provider-alias cleanup or SQL admission surface is completed.
+The later-wave concrete consumer inventory below is historical for these two
+families; blocking nullability was already a node hook before this move.
+
+Private node demand/protocol units move with the implementation; integrated
+analyzer, CHECK context, lock ownership, replacement and SSI units remain at
+their seams. Public reference/smoke goldens are unchanged. See the functions
+README Testing section and living part plan for selected native/real/race,
+outside-tests smoke and unchanged actual-node allocation comparison commands.
+Root observed all 13 bounded cohorts passing in native and pinned PostgreSQL
+18.6 modes, selected race/private units and the complete public smoke passing,
+and full quickcheck/build/layering/dependencies passing. Eval allocations stayed
+0/3/1/1. Startup missed <1ms before (1.047–1.284ms/op) and after
+(3.639–16.814ms/op under substantial host CPU pressure).
+
+Historical full racecheck attempts exceeded the 900-second deadline or failed
+unchanged scenario contexts; none is reclassified as passing. The user
+subsequently waived racecheck and the race-based finalcheck, requesting only
+quickcheck. Fresh synchronized quickcheck/public smoke, independent review and
+safe integration remain required before completing Item 9.
+
+
 Tier C ACL record, measured at its start on `5cc6fe6e5` and rebased onto
 `6f71c048e` (F2 session 4 and the access-names cleanup):
 

@@ -184,13 +184,6 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 		}
 		out.WriteString("ExtensionPaths")
 		err = child(n.arg)
-	case advisoryExpression:
-		if n.lifetime == advisoryTransaction {
-			out.WriteString("AdvisoryTransaction " + n.name)
-		} else {
-			out.WriteString("AdvisorySession " + n.name)
-		}
-		err = args(n.args)
 	case installedSoundexFunctionExpression:
 		fmt.Fprintf(out, "InstalledSoundex %d %s", n.ref.Address.ObjectID, n.procedure.Signature)
 		err = args(n.Args)
@@ -211,12 +204,6 @@ func appendBoundTree(ctx context.Context, out *strings.Builder, node expr.Expr) 
 	case installedFunctionExpression:
 		fmt.Fprintf(out, "InstalledFunction %d", n.ref.Address.ObjectID)
 		err = args([]expr.Expr{n.Arg})
-	case blockingInquiryExpression:
-		if err := n.validateStored(); err != nil {
-			return err
-		}
-		fmt.Fprintf(out, "BlockingInquiry %d", n.kind)
-		err = child(n.arg)
 	case sequenceCallExpression:
 		fmt.Fprintf(out, "Sequence %s oid %d", n.name, n.ref.Address.ObjectID)
 		err = args(n.args)

@@ -102,6 +102,23 @@ and sibling demand in both orders, including persisted-manifest validation.
 Review, integration and post-integration finalcheck are separate lifecycle gates,
 recorded in the catalog part's reports; no neighboring waiver applies.
 
+### Advisory and blocking inquiry authority
+
+`functions.Advisory` and `functions.BlockingInquiry` own SQL binding, immutable
+node operations and argument demand. Engine `advisory_runtime.go` and
+`blocking_runtime.go` implement their narrow value capabilities with compile-time
+checks. Resource construction, current physical-session/transaction selection,
+admission/wait/readmission, notices, canonical manager reads and SSI safe waits
+remain here. Ordinary blocking reads never nest Engine.mu and manager mutexes;
+safe-snapshot capture remains under Engine.mu. No prepared node caches an owner.
+
+Run `make check RUN='^Test(AdvisoryBlockingDomainInput|AdvisorySession(BindingTraversal|CheckPreparationCache|CheckPrepareAllBeforeEvaluation)|AdvisoryXactBindingTraversal|BlockingPids(BindingAndIdentity|TraversalReplay))$'`
+for actual binder/context/traversal/replay units. Node-only units and the
+public selected proof/smoke instructions are in the functions README. Existing
+manager ownership, savepoint/prepared transfer, replacement and SSI tests remain
+at their canonical seams; moving SQL nodes does not move their authority.
+
+
 ### Closed function-source protocol
 
 `string_set_query.go` owns invocation scheduling, zip/lateral demand, layout,

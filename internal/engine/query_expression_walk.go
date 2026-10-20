@@ -65,8 +65,6 @@ func boundExpressionChildren(node expr.Expr, walk func(expr.Expr)) {
 		walk(e.child)
 	case collationExpression:
 		walk(e.child)
-	case blockingInquiryExpression:
-		walk(e.arg)
 	case arithmeticExpression:
 		walk(e.left)
 		walk(e.right)
@@ -108,8 +106,6 @@ func boundExpressionChildren(node expr.Expr, walk func(expr.Expr)) {
 		walk(e.Arg)
 	case extensionPathsExpression:
 		walk(e.arg)
-	case advisoryExpression:
-		args(e.args)
 	case sequenceCallExpression:
 		args(e.args)
 	case caseExpression:

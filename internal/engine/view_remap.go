@@ -310,9 +310,6 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 	case extensionPathsExpression:
 		n.arg = child(n.arg)
 		next = n
-	case blockingInquiryExpression:
-		n.arg = child(n.arg)
-		next = n
 	case installedSoundexFunctionExpression:
 		n.Args = args(n.Args)
 		if ref != nil {
@@ -359,9 +356,6 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 		if ref != nil {
 			n.ref = ref(n.ref)
 		}
-		next = n
-	case advisoryExpression:
-		n.args = args(n.args)
 		next = n
 	case sequenceCallExpression:
 		if ref != nil {

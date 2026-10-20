@@ -410,39 +410,6 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 		e.arg = arg
 		changed = changed || did
 		expression = e
-	case advisoryExpression:
-		var args []expr.Expr
-		for i, old := range e.args {
-			node, did, failure := simplifyConditional(c, old, decisiveDefaults)
-			if failure != nil {
-				return nil, false, failure
-			}
-			if did {
-				if args == nil {
-					args = append([]expr.Expr(nil), e.args...)
-				}
-				args[i] = node
-				changed = true
-			}
-		}
-		if args != nil {
-			e.args = args
-		}
-		if folded, did := foldAdvisoryNull(e); did {
-			return folded, true, nil
-		}
-		expression = e
-	case blockingInquiryExpression:
-		node, did, failure := simplifyConditional(c, e.arg, decisiveDefaults)
-		if failure != nil {
-			return nil, false, failure
-		}
-		if did {
-			e.arg, changed = node, true
-		}
-		e.Property = e.arg.Properties()
-		e.Property.Volatility = expr.Volatile
-		expression = e
 	case installedSoundexFunctionExpression:
 		var args []expr.Expr
 		for i, old := range e.Args {

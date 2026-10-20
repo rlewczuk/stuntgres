@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"testing"
 )
 
@@ -10,8 +11,8 @@ func TestResultNullabilityEngine(t *testing.T) {
 		name string
 		node expr.ResultNullability
 	}{
-		{"blocking", blockingInquiryExpression{kind: ordinaryBlockingInquiry}},
-		{"safe_snapshot", blockingInquiryExpression{kind: safeSnapshotBlockingInquiry}},
+		{"blocking", functions.BlockingInquiry{Kind: functions.OrdinaryBlockingInquiry}},
+		{"safe_snapshot", functions.BlockingInquiry{Kind: functions.SafeSnapshotBlockingInquiry}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, site := range []expr.ResultSite{expr.ResultReturning, expr.ResultSelect, expr.ResultReturning} {

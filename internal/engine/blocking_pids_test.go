@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"sort"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/sqltype"
@@ -61,8 +62,8 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 	query := domainUnitBindSelect(t, e, op, "SELECT pg_blocking_pids($1),pg_safe_snapshot_blocking_pids(NULL)")
 	expressions := query.Root.(*projectNode).expressions
 	for i, raw := range expressions {
-		n, ok := raw.(blockingInquiryExpression)
-		if !ok || n.kind != blockingInquiryKind(i) || n.arg.ResultUsage().Type != blockingUnitType(e) || n.ResultUsage().Type.ID() != 1007 || n.ResultUsage().Type.Element() != n.arg.ResultUsage().Type || n.Properties().Volatility != expr.Volatile || n.validateStored() != nil {
+		n, ok := raw.(functions.BlockingInquiry)
+		if !ok || n.Kind != functions.BlockingKind(i) || n.Arg.ResultUsage().Type != blockingUnitType(e) || n.ResultUsage().Type.ID() != 1007 || n.ResultUsage().Type.Element() != n.Arg.ResultUsage().Type || n.Properties().Volatility != expr.Volatile || n.Validate() != nil {
 			t.Fatal("typed inquiry", raw)
 		}
 		if i == 0 && !n.Properties().ParameterDependent {
@@ -92,9 +93,9 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer scope.Finish(context.Canceled)
-	inquiry := expressions[0].(blockingInquiryExpression)
+	inquiry := expressions[0].(functions.BlockingInquiry)
 	input, _ := sqltype.Integer(blockingUnitType(e), int64(waiter.token.ID()))
-	inquiry.arg = literalExpression{Info: expr.Info{Usage: input.Type().Usage()}, value: input}
+	inquiry.Arg = literalExpression{Info: expr.Info{Usage: input.Type().Usage()}, value: input}
 	inquiry.Property = expr.Properties{Volatility: expr.Volatile}
 	evaluation := &EvalContext{Context: context.Background(), statementScope: scope}
 	before, err := inquiry.Eval(evaluation)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -21,11 +22,11 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 	b := newTestExpressionBinder(t, ctx, e, sqltype.InputEnvironment{}, nil)
 	for _, name := range []string{"pg_blocking_pids", "pg_safe_snapshot_blocking_pids"} {
 		raw := datetimeMakeRaw(name, datetimeMakeInteger(0))
-		bound, err := b.bindBlockingInquiry(raw)
+		bound, err := b.bindFunctionProvider(raw)
 		if err != nil {
 			t.Fatal(err)
 		}
-		n := bound.(blockingInquiryExpression)
+		n := bound.(functions.BlockingInquiry)
 		if err := b.captureViewLiterals(raw, n, viewTargetLiteral, 0); err != nil {
 			t.Fatal("literal recipe pairing", err)
 		}
@@ -45,7 +46,7 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 			t.Fatal("lost intrinsic live volatility")
 		}
 		other := n
-		other.kind = blockingInquiryKind(1 - int(n.kind))
+		other.Kind = functions.BlockingKind(1 - int(n.Kind))
 		if b.sameGroupExpression(n, other) {
 			t.Fatal("different inquiries collapsed")
 		}
@@ -54,7 +55,7 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 			if err != nil || next.Properties().Volatility != expr.Volatile {
 				t.Fatal("live recipe precomputed", next, err)
 			}
-			if _, ok := next.(blockingInquiryExpression); !ok {
+			if _, ok := next.(functions.BlockingInquiry); !ok {
 				t.Fatal("replaced live carrier", next)
 			}
 		}
@@ -69,15 +70,15 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 		if err != nil || !changed {
 			t.Fatal("descriptor replay", mapped, changed, err)
 		}
-		fresh := mapped.(blockingInquiryExpression)
-		if fresh.validateStored() != nil || fresh.ResultUsage().Type == n.ResultUsage().Type || fresh.arg.ResultUsage().Type == n.arg.ResultUsage().Type {
+		fresh := mapped.(functions.BlockingInquiry)
+		if fresh.Validate() != nil || fresh.ResultUsage().Type == n.ResultUsage().Type || fresh.Arg.ResultUsage().Type == n.Arg.ResultUsage().Type {
 			t.Fatal("foreign recipe generations", fresh)
 		}
-		if n.validateStored() != nil {
+		if n.Validate() != nil {
 			t.Fatal("retag mutated original")
 		}
 		column := columnExpression{Info: b.info(b.typ(sqltype.Int4).Usage(), parser.Position{}, expr.Properties{RowDependent: true}), origin: ids.ObjectRef{Address: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 123, SubID: 1}}, slot: 0}
-		n.arg = column
+		n.Arg = column
 		n.Property.RowDependent = true
 		visited := 0
 		walkBoundExpression(n, func(child expr.Expr) {
@@ -92,30 +93,30 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 		if err != nil || !grouped.Properties().StageDependent || grouped.Properties().Volatility != expr.Volatile {
 			t.Fatal("aggregate rewrite", grouped, err)
 		}
-		if _, ok := grouped.(blockingInquiryExpression).arg.(groupExpression); !ok {
+		if _, ok := grouped.(functions.BlockingInquiry).Arg.(groupExpression); !ok {
 			t.Fatal("aggregate child not reconstructed")
 		}
 		remapped, err := remapBoundExpression(n, func(ref ids.ObjectRef) ids.ObjectRef { ref.Address.ObjectID = 456; return ref }, map[int32]int{1: 2})
 		if err != nil {
 			t.Fatal(err)
 		}
-		child := remapped.(blockingInquiryExpression).arg.(columnExpression)
+		child := remapped.(functions.BlockingInquiry).Arg.(columnExpression)
 		if child.origin.Address.ObjectID != 456 || child.slot != 2 || remapped.Properties().Volatility != expr.Volatile {
 			t.Fatal("view slot/reference remap", child)
 		}
 		bad := n
-		bad.arg = nil
-		if bad.validateStored() == nil {
+		bad.Arg = nil
+		if bad.Validate() == nil {
 			t.Fatal("missing mandatory child accepted")
 		}
 		bad = n
 		bad.Property.Volatility = expr.Stable
-		if bad.validateStored() == nil {
+		if bad.Validate() == nil {
 			t.Fatal("lost intrinsic volatility accepted")
 		}
 		bad = n
 		bad.Usage = b.typ(sqltype.Int4).Usage()
-		if bad.validateStored() == nil {
+		if bad.Validate() == nil {
 			t.Fatal("scalar result accepted")
 		}
 	}

@@ -246,6 +246,8 @@ func TestCaptureOperandsNoAllocations(t *testing.T) {
 		{"safe_slice", ArrayTransform{Args: a[:3], Slots: [3]uint8{2, 0, 1}}, expr.CaptureFunction, a[:3]},
 		{"inline_timezone", Timezone{Zone: a[1], Value: a[0], Function: true}, expr.CaptureFunction, []expr.Expr{a[1], a[0]}},
 		{"zero_leaf", CurrentDateTime{}, expr.CaptureCurrentDateTime, nil},
+		{"advisory", Advisory{Args: a[:2]}, expr.CaptureFunction, a[:2]},
+		{"blocking", BlockingInquiry{Arg: a[0]}, expr.CaptureFunction, a[:1]},
 	}
 	defer func() { captureOperandsSink = expr.CaptureOperands{} }()
 	for _, tc := range cases {

@@ -760,8 +760,6 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 	case extensionPathsExpression:
 		args := [1]expr.Expr{n.arg}
 		return function("pg_extension_update_paths", args[:], true)
-	case advisoryExpression:
-		return function(n.name, n.args, true)
 	case installedSoundexFunctionExpression:
 		namespace, ok := r.view.Namespace(n.procedure.Namespace())
 		if !ok {
@@ -801,11 +799,6 @@ func (r pgRenderer) sql(ctx context.Context, node expr.Expr, parent pgRenderPare
 			return "", fmt.Errorf("stuntgres: missing installed function namespace")
 		}
 		return function(r.identifier(namespace.Name())+"."+r.identifier(n.procedure.Name()), []expr.Expr{n.Arg}, true)
-	case blockingInquiryExpression:
-		if err := n.validateStored(); err != nil {
-			return "", err
-		}
-		return function(n.kind.name(), n.arguments(), true)
 	case sequenceCallExpression:
 		return function(n.name, n.args, true)
 	case expr.Renderable:

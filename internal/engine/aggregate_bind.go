@@ -150,9 +150,6 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 	case groupExpression:
 		o, ok := other.(groupExpression)
 		return ok && e.slot == o.slot && comparison.sameFrame(e.frame, o.frame)
-	case blockingInquiryExpression:
-		o, ok := other.(blockingInquiryExpression)
-		return ok && e.kind == o.kind && same(e.arg, o.arg)
 	case literalExpression:
 		o, ok := other.(literalExpression)
 		if !ok {
@@ -292,17 +289,6 @@ func (b *expressionBinder) sameGroupExpressionIn(a, other expr.Expr, comparison 
 	case extensionPathsExpression:
 		o, ok := other.(extensionPathsExpression)
 		return ok && same(e.arg, o.arg)
-	case advisoryExpression:
-		o, ok := other.(advisoryExpression)
-		if !ok || e.name != o.name || len(e.args) != len(o.args) {
-			return false
-		}
-		for i := range e.args {
-			if !same(e.args[i], o.args[i]) {
-				return false
-			}
-		}
-		return true
 	case installedSoundexFunctionExpression:
 		o, ok := other.(installedSoundexFunctionExpression)
 		if !ok || e.ref != o.ref || e.procedure.Revision() != o.procedure.Revision() || e.Function != o.Function || len(e.Args) != len(o.Args) {
@@ -414,10 +400,6 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 			}
 			e.comparisons = comparisons
 		}
-		bound = e
-	case blockingInquiryExpression:
-		e.arg = rewrite(e.arg)
-		stage(&e.Info)
 		bound = e
 	case aggregateExpression:
 		if e.frame != 0 && e.frame != b.frameID() {
@@ -587,13 +569,6 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		e.arg = rewrite(e.arg)
 		stage(&e.Info)
 		bound = e
-	case advisoryExpression:
-		e.args = append([]expr.Expr(nil), e.args...)
-		for i := range e.args {
-			e.args[i] = rewrite(e.args[i])
-		}
-		stage(&e.Info)
-		bound = e
 	case installedSoundexFunctionExpression:
 		e.Args = append([]expr.Expr(nil), e.Args...)
 		for i := range e.Args {
@@ -689,8 +664,6 @@ func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
 			walk(s.lower)
 			walk(s.upper)
 		}
-	case blockingInquiryExpression:
-		walk(e.arg)
 	case aggregateExpression:
 		return &e
 	case collationExpression:
@@ -756,10 +729,6 @@ func aggregateOccurrence(bound expr.Expr) *aggregateExpression {
 		}
 	case extensionPathsExpression:
 		walk(e.arg)
-	case advisoryExpression:
-		for _, arg := range e.args {
-			walk(arg)
-		}
 	case installedSoundexFunctionExpression:
 		for _, arg := range e.Args {
 			walk(arg)
