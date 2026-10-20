@@ -322,8 +322,8 @@ func (o *cteInvocation) completeMutation(definition *plan.CTEDefinition, result 
 
 func (s *queryState) inheritCTEs() {
 	if s.ctes == nil && s.source != nil {
-		if scope := scopeOf(s.source.liveHost()); scope != nil {
-			s.ctes = scope.cteInvocation
+		if host := s.source.liveHost(); host != nil {
+			s.ctes = host.CTEInvocation()
 		}
 	}
 }

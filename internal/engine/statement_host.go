@@ -32,6 +32,8 @@ type execHost interface {
 	Context() context.Context
 	Environments() (sqltype.InputEnvironment, sqltype.OutputEnvironment)
 	StatementStart() time.Time
+	// CTEInvocation is the innermost data-modifying CTE owner of the statement.
+	CTEInvocation() *cteInvocation
 
 	// Row locks: lock waits and current row versions at grant time.
 	AcquireQueryRow(leaf queryLeaf, row ids.RowID, mark plan.RowMark) (bool, error)
@@ -139,7 +141,8 @@ func (h *statementHost) Environments() (sqltype.InputEnvironment, sqltype.Output
 	return h.input, h.output
 }
 
-func (h *statementHost) StatementStart() time.Time { return h.statementStart }
+func (h *statementHost) StatementStart() time.Time     { return h.statementStart }
+func (h *statementHost) CTEInvocation() *cteInvocation { return h.cteInvocation }
 
 // QueryLocks is the statement's row-lock context, read at recheck time.
 func (h *statementHost) QueryLocks() *queryLockContext { return h.queryLocks }
