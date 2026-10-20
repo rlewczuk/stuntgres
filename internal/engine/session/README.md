@@ -5,8 +5,9 @@ Session-layer state of the engine, at layer L9 of
 Step 13d moves it here in several sessions
 ([ENGINE-SPLIT-session.md](../../../docs/ENGINE-SPLIT-session.md)); so far
 (13d.1) it holds the transaction catalog journal and the interfaces that let
-the journal carry feature state. Sessions, operations, the transaction owner,
-timeouts and the settings store follow in 13d.3–13d.6.
+the journal carry feature state, and (13d.3) the `Host` interface through
+which session code calls back into the engine. Sessions, operations, the
+transaction owner, timeouts and the settings store follow in 13d.4–13d.6.
 
 The package imports only `ids`, `authorization`, `catalog`, `storage`,
 `access` and `sqltype` (later also `exec` and `settings`). It never imports
@@ -29,6 +30,14 @@ slot interfaces, so either import would form a cycle.
   (implemented by `typedef.EnumJournal` and `typedef.DomainJournal`) and
   `IndexSlot` (the root's index journal). Each has an exported marker method
   and `Clone`.
+- **The engine host** (`host.go`): `Host`, what session code needs from the
+  engine that owns a session: `EndMaintenance` (TEMP collation teardown,
+  called after the Transaction resource callback returns, without
+  `Session.mu` and never from inside a `SessionResource` callback) and
+  `Unregister` (called under `Session.mu`; takes only `Engine.sessionMu`).
+  Both take the session as an `ids.SessionOwner`. The root implements it with
+  `sessionHost`, a pointer conversion of `*Engine`, and recovers the engine
+  with `engineOf(session)`.
 
 ## Invariants
 
@@ -61,5 +70,6 @@ aliases in `session_aliases.go` (removed in 13e).
 
 ```sh
 make check RUN='^TestJournal'
+make check RACE=1 RUN='^TestSessionHost'
 make check RUN='^(TestCatalogFences|TestCatalogTypeJournalSlotsCopyOnWrite|TestEnumProvenanceSavepoints)'
 ```

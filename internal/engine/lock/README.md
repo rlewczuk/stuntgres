@@ -69,7 +69,11 @@ under it. The order below was audited in engine-split step 4a.
 
 For reference, the surrounding engine order takes `replacementMu` and
 `transactionOwner.mu` before `Engine.mu`, and `Engine.mu` before `Session.mu`,
-`sessionSettings.mu` and `Engine.sessionMu`.
+`sessionSettings.mu` and `Engine.sessionMu`; `Session.mu` comes before
+`Engine.sessionMu`. Session code reaches the engine only through
+`session.Host`: `Unregister` runs under `Session.mu` and takes only
+`Engine.sessionMu`; `EndMaintenance` runs with no session lock held, outside
+every `SessionResource` callback, and may take `Engine.mu`.
 
 Ticket atomics (`AssignedPublicXID`, `OwnershipEnded`, `CompletionState`) are
 readable without `mu`; the engine updates them under `Engine.mu`, which is why

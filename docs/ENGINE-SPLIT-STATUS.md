@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `96460e8a2`. The later-wave plans
+Last verified against `master` at `3438acb6a`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,12 +15,12 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 13 `session`** — 13d.3, the engine edges (item 44c) **broad**.
+- **Step 13 `session`** — 13d.4, the root payloads (item 44d).
 
 Steps 1, 2 and 4–12 and `access` (A1–B5) are done. Step 13's in-place
 untangling (13a, 13b) and its refine (13c) are done; 13d runs in six sessions
-(44a–44f), of which 44a (`session` created, journal moved) and 44b
-(statement lease) are done. Step 16 Part A (16a, 16b) is done; 16c (item 50)
+(44a–44f), of which 44a (`session` created, journal moved), 44b
+(statement lease) and 44c (engine edges) are done. Step 16 Part A (16a, 16b) is done; 16c (item 50)
 waits for 13d (item 44). Step 17 Part A (17a, 17b) is done; 17c (item 52)
 waits for 13d (item 44).
 
@@ -323,7 +323,7 @@ waits for 13d (item 44).
   - [ ] 13d — `session` created and moved (several sessions)
     - [x] 13d.1 — Journal, creates `session` *(broad)*
     - [x] 13d.2 — Statement lease and small cuts (in place)
-    - [ ] 13d.3 — Engine edges *(broad)*
+    - [x] 13d.3 — Engine edges *(broad)*
     - [ ] 13d.4 — Root payloads (in place)
     - [ ] 13d.5 — File splits and exports *(broad)*
     - [ ] 13d.6 — Move *(broad)*
@@ -597,7 +597,11 @@ in the prompt file's Status section.
       parallel with 44a (`d31baeb58`, `00fec2882`, then the docs commit) ·
       selected unit/`RACE=1` and dual-mode proof and quickcheck passed;
       racecheck/finalcheck skipped at user request
-    - 44c. [ ] 13d.3 engine edges · needs 44a, 44b · **broad**
+    - 44c. [x] 13d.3 engine edges · needs 44a, 44b · **broad**
+      (`41dc92a34`, `12273fdb0`, `ff9eaf1a6`, `0ae40ee4e`, then the docs
+      commit) · `session.Host`, `engineOf`, owner root functions · selected
+      unit/`RACE=1` and dual-mode proof and quickcheck passed;
+      racecheck/finalcheck skipped at user request
     - 44d. [ ] 13d.4 root payloads · needs 44c
     - 44e. [ ] 13d.5 file splits and exports · needs 44d · **broad**
     - 44f. [ ] 13d.6 move · needs 44e · **broad** (may merge with 44e)

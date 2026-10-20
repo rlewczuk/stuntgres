@@ -489,6 +489,51 @@ call sites).
 3. Owner methods that reach the engine, FDW or cursor code become root
    functions; the owner's `EndSession` becomes a root session resource.
 
+**13d.3 result** (measured at `3438acb6a` with `frontier` over the decision 1
+types). `session.Host` (`session/host.go`) has two methods:
+`EndMaintenance(ids.SessionOwner) error` (TEMP collations; after the
+Transaction callback, without `Session.mu`, never inside a `SessionResource`
+callback) and `Unregister(ids.SessionToken, ids.SessionOwner)` (under
+`Session.mu`, takes only `Engine.sessionMu`). The root implements it with
+`sessionHost` (`session_host.go`), a pointer conversion of `*Engine` (no
+state, no allocation, works for test `&Engine{}` literals); `Session.engine`
+became `host session.Host`. `engineOf(session)` (nil for a host-less test
+session, as `Engine()` returned) and `StatementScope.engine()` replace
+`Session.Engine()`, which is gone: 316 engine call sites rewritten with
+`meth2fn`, 204 of them to `s.engine()`/`scope.engine()`. The driver's `conn`
+and the `cmd/stuntgres` client (`c.db.engine`) and `bootstrapExecute` keep
+their own engine. Root functions (`meth2fn`): `clearTransaction`,
+`drainCursorCleanup`, `commitForeign`, `foreignPending`, `foreignSavepoint`,
+`retireProtocolPortalsAfter`, `captureSavepoint`, `restoreSavepoint`,
+`finishNotificationBoundary`, `syncCharacteristics`. The owner's session end
+is `transactionSessionEnd` (a pointer conversion of the owner, attached as the
+Transaction resource) calling `endTransactionSession`. `validate` and
+`acquireAdmission` compare against `t.session.token.Domain()`, which is the
+engine's domain by construction; `validateSessionOperation(domain, op)` holds
+the body of `Engine.validateOperation`. Bench unchanged (about 820 µs/op,
+5014 allocs).
+
+Deviations: the Host has no serializable enrolment, lock manager or setting
+definitions: after the cuts no moving code needs them
+(`syncCharacteristics` and savepoint capture became root functions,
+`sessionAdvisory` holds the lock manager, `sessionSettings.initialize` takes
+the definitions). Exporting the session and owner mutexes stays in 13d.5.
+
+Remaining engine edges of the moving types, for 13d.4: `Session.operation`
+builds the operation's `bindingHost` with `engineOf` (the analysis slot), and
+`Session.pollNotification` (with `WaitForNotification` and
+`PollProtocolNotification`, which the driver and `cmd/stuntgres` call) reads
+the listener queue under `Engine.mu`: it is listener code and stays with the
+root notification payload.
+
+Tests: new `session_host_test.go` (`TestSessionHostRecoversEngine`,
+`TestSessionHostUnregisterKeepsOtherOwner`). Adapted in place, none moved or
+deleted: the `engineOf`/`meth2fn` rewrites across engine tests,
+`session_test.go` (a `Session` literal sets `host`), `savepoints_test.go` and
+`settings_local_lifecycle_test.go` (call `endTransactionSession`), and the
+root `session_adapter_mechanics_test.go` and `transaction_terminal_test.go`
+(compare the connection's engine field).
+
 #### 13d.4 — Root payloads (in place)
 
 1. The root session payload: cursors, prepared registry, `sqlRoutines`,
@@ -611,7 +656,11 @@ facade, the statement scope, dispatch and the root payloads of 13c decision
   - [x] 13d.2 — Statement lease and small cuts (`d31baeb58`, `00fec2882`,
     then the docs commit) *(same proof as 13d.1, run on the combined
     branch)*
-  - [ ] 13d.3 — Engine edges
+  - [x] 13d.3 — Engine edges (`41dc92a34`, `12273fdb0`, `ff9eaf1a6`,
+    `0ae40ee4e`, then the docs commit) *(selected unit/`RACE=1` and dual-mode
+    proof (60 `REFERENCE=1` tests: timeouts, COPY, savepoints, 2PC,
+    LISTEN/NOTIFY, FDW transactions, TEMP collation teardown) and quickcheck
+    passed; bench unchanged; racecheck/finalcheck skipped at user request)*
   - [ ] 13d.4 — Root payloads
   - [ ] 13d.5 — File splits and exports
   - [ ] 13d.6 — Move
@@ -628,6 +677,13 @@ Notes for later steps:
 - 13d.2, for 13d.4–13d.6: `StatementLease.Statement` is the only route from
   session-layer state back to the scope (`scopeOfLease`). `copyDone` stays
   next to `copyLease` on the owner.
+- 13d.3, for 13d.4–13d.6: moving code reaches the engine only through
+  `Session.host`; root code uses `engineOf`. When `Session` moves, tighten the
+  `Host` parameters from `ids.SessionOwner` to `*session.Session`. Notification
+  polling (`pollNotification`, `WaitForNotification`,
+  `PollProtocolNotification`) must leave `Session` with the listener payload
+  (13d.4), so the driver and `cmd/stuntgres` call sites change then.
+  `validateSessionOperation` moves with `Session`.
 
 - Part B of the feature steps (14c–17d) and the postponed packages need 13d.
   After the 13c refine their handlers do not name `StatementScope` (it
