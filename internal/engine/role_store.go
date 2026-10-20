@@ -20,7 +20,7 @@ import (
 // Engine holds the store by value and never replaces it whole:
 // catalog.Owner.Principals, catalog.Owner.ACLAuthority and
 // Root.Reprovenance keep pointers to its domain and ACL authority.
-// Transaction overlays of the role publication live in catalogChanges, not
+// Transaction overlays of the role publication live in session.Journal, not
 // here; published is only the committed record.
 type roleStore struct {
 	domain        authorization.Domain

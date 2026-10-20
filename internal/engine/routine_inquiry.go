@@ -8,7 +8,7 @@ import (
 )
 
 // All SQL query/cursor evaluation borrowing exec.Authority is serialized by the
-// existing transactionOwner.admission lease through StatementScope.Finish (and
+// existing session.TransactionOwner.Admission lease through StatementScope.Finish (and
 // message End). Query pipelines do not dispatch parallel expression workers.
 // Thus first-body initialization has that existing single owner, including lazy
 // sources/retained cursors; no metadata mutex, sync.Once or new cell is needed.
