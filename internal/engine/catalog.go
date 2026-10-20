@@ -348,12 +348,6 @@ type CatalogStage struct {
 	catalog.Candidate
 	rowShapes           map[ids.ObjectAddress]catalogRowShape
 	partitionReads      []partitionReadFence
-	indexRebuilds       map[ids.ObjectAddress]*catalog.Relation
-	indexCandidates     map[ids.ObjectAddress]indexRootCandidate
-	indexLayouts        map[ids.ObjectAddress]indexLayoutLineage
-	indexParents        map[ids.ObjectAddress]*catalog.Relation
-	indexSets           map[ids.ObjectAddress]int
-	indexOutput         sqltype.OutputEnvironment
 	sequence            *sequenceStage
 	typed               *typedef.TypedStage
 	lifecycle           catalogLifecycle
@@ -384,6 +378,7 @@ type CatalogStage struct {
 	querySources            []catalog.Descriptor
 	materializedSourceView  *visibility.Data
 	likeSources             []catalog.Descriptor // CREATE-only exact descriptor captures, not dependencies.
+	indexesSlot             *indexStage
 }
 
 // Only terminal dependency removal can saturate. Other DDL retains its ordinary
@@ -890,7 +885,8 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				return ChangeSet{}, err
 			}
 		}
-		for address, candidate := range s.indexCandidates {
+		stageIndexes := s.indexesOrZero()
+		for address, candidate := range stageIndexes.candidates {
 			index, ok := s.Get(address).(*catalog.Relation)
 			if !ok {
 				index, ok = current.Relation(address)
@@ -1026,12 +1022,12 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			buildStores[a] = relations[a]
 		}
 		sourceRoots := indexPredecessors
-		if len(s.indexCandidates) != 0 {
-			sourceRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(indexPredecessors)+len(s.indexCandidates))
+		if len(stageIndexes.candidates) != 0 {
+			sourceRoots = make(map[ids.ObjectAddress]*storage.IndexRoot, len(indexPredecessors)+len(stageIndexes.candidates))
 			for a, root := range indexPredecessors {
 				sourceRoots[a] = root
 			}
-			for a, candidate := range s.indexCandidates {
+			for a, candidate := range stageIndexes.candidates {
 				sourceRoots[a] = candidate.root
 			}
 		}
@@ -1045,7 +1041,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		} else if op != nil {
 			evaluation.Input, evaluation.Output = sessionPresentation(op.session)
 		}
-		indexRoots, indexErr := e.prepareIndexCatalog(&evaluation, current, next, buildStores, sourceRoots, rebuildIndexes, s.indexRebuilds, s.indexOutput, disclosure, runtimeOwners, s.indexCandidates)
+		indexRoots, indexErr := e.prepareIndexCatalog(&evaluation, current, next, buildStores, sourceRoots, rebuildIndexes, stageIndexes.rebuilds, stageIndexes.output, disclosure, runtimeOwners, stageIndexes.candidates)
 		if indexErr != nil {
 			return ChangeSet{}, indexErr
 		}

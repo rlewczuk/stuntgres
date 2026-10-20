@@ -55,8 +55,8 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 	if err != nil {
 		return err
 	}
-	if stage.indexCandidates == nil {
-		stage.indexCandidates = make(map[ids.ObjectAddress]indexRootCandidate, len(roots))
+	if stage.indexesOrZero().candidates == nil {
+		stage.indexes().candidates = make(map[ids.ObjectAddress]indexRootCandidate, len(roots))
 	}
 	domain := stage.domainAlterState()
 	if domain.IndexRoots == nil {
@@ -65,7 +65,7 @@ func (e *Engine) stageDomainIndexGenerationsLocked(stage *CatalogStage, next *ca
 	for address, root := range roots {
 		index := next.MustRelation(address)
 		store := stores[index.SQLIndex.Parent]
-		stage.indexCandidates[address] = indexRootCandidate{index: index, root: root, storage: store.IndexIdentity(), generation: store.Generation, ends: store.Ends, length: len(store.Versions)}
+		stage.indexes().candidates[address] = indexRootCandidate{index: index, root: root, storage: store.IndexIdentity(), generation: store.Generation, ends: store.Ends, length: len(store.Versions)}
 		domain.IndexRoots[address] = snapshot.sources[address].root
 	}
 	return nil

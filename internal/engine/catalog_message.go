@@ -191,12 +191,13 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 			}
 		}
 	}
-	for a, d := range s.indexParents {
+	stageIndexes := s.indexesOrZero()
+	for a, d := range stageIndexes.parents {
 		if err := observe(a, d); err != nil {
 			return err
 		}
 	}
-	for a, d := range s.indexRebuilds {
+	for a, d := range stageIndexes.rebuilds {
 		if err := observe(a, d); err != nil {
 			return err
 		}
@@ -213,7 +214,7 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 			c.names[k] = e.catalog.state.NameAddress(k)
 		}
 	}
-	for parent := range s.indexSets {
+	for parent := range stageIndexes.sets {
 		for address, descriptor := range current.Descriptors() {
 			index, ok := descriptor.(*catalog.Relation)
 			if ok && index.SQLIndex != nil && index.SQLIndex.Parent == parent {
@@ -255,10 +256,10 @@ func (e *Engine) captureCatalogStageLocked(s *CatalogStage, c *catalogChanges, c
 	for _, f := range s.partitionReads {
 		captureStorage(f.address)
 	}
-	for _, d := range s.indexParents {
+	for _, d := range stageIndexes.parents {
 		captureStorage(d.Address())
 	}
-	for a, candidate := range s.indexCandidates {
+	for a, candidate := range stageIndexes.candidates {
 		index, ok := s.Get(a).(*catalog.Relation)
 		if !ok {
 			index, ok = current.Relation(a)

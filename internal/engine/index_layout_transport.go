@@ -71,7 +71,7 @@ func indexLayoutSlotsUnchanged(index, oldParent, parent *catalog.Relation) bool 
 // A layout projection preserves surviving cells and exact row/version order.
 // Both baseline entries and private row outputs therefore travel without SQL.
 func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes *catalogChanges, parent *catalog.Relation, sourceStore, targetStore *storage.Relation, sourceWrites, writes []storage.RowVersion) ([]storage.RowVersion, bool, error) {
-	if len(stage.indexLayouts) == 0 {
+	if len(stage.indexesOrZero().layouts) == 0 {
 		return writes, false, nil
 	}
 	type capture struct {
@@ -85,7 +85,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 		e.mu.Unlock()
 		return nil, false, ids.ErrCatalogReplaced
 	}
-	for address, lineage := range stage.indexLayouts {
+	for address, lineage := range stage.indexesOrZero().layouts {
 		if lineage.source == nil || lineage.target == nil || lineage.sourceParent == nil || lineage.targetParent == nil {
 			e.mu.Unlock()
 			return nil, false, ids.ErrCatalogReplaced
@@ -313,10 +313,10 @@ func transportEmptyIndexStorage(ctx context.Context, snapshot *catalog.State, ch
 		}
 		retainIndexBuild(changes, index, store, root)
 		if stage != nil {
-			if stage.indexCandidates == nil {
-				stage.indexCandidates = make(map[ids.ObjectAddress]indexRootCandidate)
+			if stage.indexesOrZero().candidates == nil {
+				stage.indexes().candidates = make(map[ids.ObjectAddress]indexRootCandidate)
 			}
-			stage.indexCandidates[index.Address()] = changes.indexesOrZero().candidates[index.Address()]
+			stage.indexes().candidates[index.Address()] = changes.indexesOrZero().candidates[index.Address()]
 		}
 	}
 	return ctx.Err()

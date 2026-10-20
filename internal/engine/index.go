@@ -630,7 +630,7 @@ func (e *Engine) executeCreateIndex(scope *StatementScope, s *parser.CreateIndex
 		base := auth.Catalog
 		stage := e.BeginCatalogStage(base)
 		stage.authorizeLocked(auth, scope.op.session)
-		stage.indexOutput = scope.output
+		stage.indexes().output = scope.output
 		err = stage.Create(d)
 		if err == nil && parent.Partition != nil {
 			if s.Only {

@@ -203,7 +203,7 @@ func partitionConstraintDropActions(table *catalog.Relation, actions []parser.Al
 func (e *Engine) executePartitionConstraintDropLocked(scope *StatementScope, auth AuthorizationView, table *catalog.Relation, syntax *parser.AlterTable) (Result, error) {
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.session)
-	stage.indexOutput = scope.output
+	stage.indexes().output = scope.output
 	for _, observed := range scope.partitionRelations {
 		stage.domainBases = append(stage.domainBases, observed)
 	}

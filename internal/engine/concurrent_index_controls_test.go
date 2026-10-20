@@ -344,8 +344,8 @@ func TestConcurrentIndexU1U6DetachedCandidateSourceAndFinalVeto(t *testing.T) {
 			}
 			stage := e.BeginCatalogStage(base)
 			defer e.DiscardCatalogStage(stage)
-			stage.indexParents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
-			stage.indexCandidates = map[ids.ObjectAddress]indexRootCandidate{next.Address(): {index: &next, root: root, storage: store, generation: snapshot.Generation, ends: snapshot.Ends, length: len(snapshot.Versions)}}
+			stage.indexes().parents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
+			stage.indexes().candidates = map[ids.ObjectAddress]indexRootCandidate{next.Address(): {index: &next, root: root, storage: store, generation: snapshot.Generation, ends: snapshot.Ends, length: len(snapshot.Versions)}}
 			if err := stage.Replace(&next); err != nil {
 				t.Fatal(err)
 			}

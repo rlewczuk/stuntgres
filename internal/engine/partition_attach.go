@@ -146,7 +146,7 @@ func (e *Engine) attachPartitionLocked(scope *StatementScope, op *Operation, aut
 	e.DiscardCatalogStage(pending.stage)
 	stage = e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, op.session)
-	stage.indexOutput = scope.output
+	stage.indexes().output = scope.output
 	pending.stage, pending.auth, pending.child = stage, auth, child
 	for address := range scope.partitionRelations {
 		stage.domainBases = append(stage.domainBases, auth.Catalog.Get(address))

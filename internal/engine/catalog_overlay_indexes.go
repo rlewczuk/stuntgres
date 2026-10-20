@@ -32,6 +32,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 	auth.Catalog = view
 	auth.Recapture(auth.Catalog)
 	var captures []catalogOverlayIndex
+	stageIndexes := stage.indexesOrZero()
 	for a, d := range view.Descriptors() {
 		index, ok := d.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil {
@@ -45,7 +46,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		old, existed := stage.Base.Relation(parent.Address())
 		shape, replaced := c.storage[parent.Address()]
 		storageChanged := replaced && shape.replacement != e.privateStorageLocked(scope.owner.catalog, parent.Address())
-		if !storageChanged && stage.Get(a) == nil && stage.indexRebuilds[a] == nil && (!existed || slices.Equal(old.Attributes, parent.Attributes)) {
+		if !storageChanged && stage.Get(a) == nil && stageIndexes.rebuilds[a] == nil && (!existed || slices.Equal(old.Attributes, parent.Attributes)) {
 			continue
 		}
 		if !index.SQLIndex.Ready {
@@ -59,7 +60,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 		}
 		// Unchanged key semantics permit root reuse only on the same storage
 		// incarnation; a replacement heap needs its own physical baseline.
-		if previous, ok := stage.Base.Relation(a); !storageChanged && ok && previous.SQLIndex != nil && previous.SQLIndex.Ready && stage.indexRebuilds[a] == nil && existed && slices.Equal(old.Attributes, parent.Attributes) && sameIndexKeySemantics(previous, index) {
+		if previous, ok := stage.Base.Relation(a); !storageChanged && ok && previous.SQLIndex != nil && previous.SQLIndex.Ready && stageIndexes.rebuilds[a] == nil && existed && slices.Equal(old.Attributes, parent.Attributes) && sameIndexKeySemantics(previous, index) {
 			continue
 		}
 		store := e.privateStorageLocked(c, parent.Address())
@@ -67,7 +68,7 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 			e.mu.Unlock()
 			return catalog.Conflict{}
 		}
-		if _, produced := stage.indexCandidates[a]; produced {
+		if _, produced := stageIndexes.candidates[a]; produced {
 			candidate, exists := c.indexesOrZero().candidates[a]
 			if !exists || !candidate.matchesIndex(index, store) {
 				e.mu.Unlock()
@@ -75,8 +76,8 @@ func (e *Engine) prepareCatalogOverlayIndexes(scope *StatementScope, stage *Cata
 			}
 			continue
 		}
-		if _, transported := stage.indexLayouts[a]; transported {
-			if candidate, exists := c.indexesOrZero().candidates[a]; exists && candidate.matchesIndex(index, store) && stage.indexRebuilds[a] == nil {
+		if _, transported := stageIndexes.layouts[a]; transported {
+			if candidate, exists := c.indexesOrZero().candidates[a]; exists && candidate.matchesIndex(index, store) && stageIndexes.rebuilds[a] == nil {
 				continue
 			}
 		}

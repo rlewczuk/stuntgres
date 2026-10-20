@@ -718,7 +718,7 @@ func (p *dropProvider) terminalCleanup() bool {
 
 func (p *dropProvider) indexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
 	if p.stage != nil {
-		lineage, present := p.stage.indexLayouts[address]
+		lineage, present := p.stage.indexesOrZero().layouts[address]
 		return lineage, present
 	}
 	for prepared := p.prepared; prepared != nil; prepared = prepared.prior {
@@ -736,10 +736,10 @@ func (p *dropProvider) indexLayout(address ids.ObjectAddress) (indexLayoutLineag
 
 func (p *dropProvider) recordIndexLayout(address ids.ObjectAddress, lineage indexLayoutLineage) {
 	if p.stage != nil {
-		if p.stage.indexLayouts == nil {
-			p.stage.indexLayouts = make(map[ids.ObjectAddress]indexLayoutLineage)
+		if p.stage.indexesOrZero().layouts == nil {
+			p.stage.indexes().layouts = make(map[ids.ObjectAddress]indexLayoutLineage)
 		}
-		p.stage.indexLayouts[address] = lineage
+		p.stage.indexes().layouts[address] = lineage
 		return
 	}
 	p.observe(address)

@@ -109,7 +109,7 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 	child = catalog.MustRelation(candidate.Address)
 	stage := e.BeginCatalogStage(catalog)
 	stage.authorizeLocked(auth, op.session)
-	stage.indexOutput = scope.output
+	stage.indexes().output = scope.output
 	for address := range scope.partitionRelations {
 		stage.domainBases = append(stage.domainBases, catalog.Get(address))
 	}

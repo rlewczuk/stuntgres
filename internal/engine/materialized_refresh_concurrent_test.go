@@ -497,7 +497,7 @@ func TestMaterializedRefreshConcurrentIndexSetIntent(t *testing.T) {
 		t.Fatal(err)
 	}
 	stage.materializedReplacement.concurrent = true
-	if len(stage.indexRebuilds) != 0 {
+	if len(stage.indexesOrZero().rebuilds) != 0 {
 		t.Fatal("replacement forged REINDEX intent")
 	}
 	if err := stage.validateIndexMaintenance(e.catalog.state); err != nil {
@@ -505,7 +505,7 @@ func TestMaterializedRefreshConcurrentIndexSetIntent(t *testing.T) {
 	}
 	maintenance := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(maintenance)
-	maintenance.indexSets = map[ids.ObjectAddress]int{d.Address(): 1}
+	maintenance.indexes().sets = map[ids.ObjectAddress]int{d.Address(): 1}
 	if err := maintenance.validateIndexMaintenance(e.catalog.state); !errors.As(err, new(catalog.Conflict)) {
 		t.Fatal("ordinary maintenance accepted missing rebuild intent", err)
 	}

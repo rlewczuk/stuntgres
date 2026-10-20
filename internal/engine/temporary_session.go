@@ -231,7 +231,7 @@ func (e *Engine) temporaryCleanupStale(stage *CatalogStage, indexes *temporarySe
 			return true
 		}
 	}
-	for address, candidate := range stage.indexCandidates {
+	for address, candidate := range stage.indexesOrZero().candidates {
 		if index, ok := stage.Get(address).(*catalog.Relation); ok && index.SQLIndex != nil && !candidate.matches(e.storage.Relations[index.SQLIndex.Parent]) {
 			return true
 		}

@@ -302,7 +302,7 @@ func (e *Engine) stageCatalogChangesLocked(stage *CatalogStage, changes *catalog
 			changes.storage[a] = catalogStorageChange{replacement: &storage.Relation{}, relation: table}
 		}
 	}
-	for address, candidate := range stage.indexCandidates {
+	for address, candidate := range stage.indexesOrZero().candidates {
 		if changes.indexesOrZero().candidates == nil {
 			changes.indexes().candidates = make(map[ids.ObjectAddress]indexRootCandidate)
 		}

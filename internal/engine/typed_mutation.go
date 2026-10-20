@@ -235,10 +235,10 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 			return err
 		}
 		for _, build := range builds {
-			if stage.indexCandidates == nil {
-				stage.indexCandidates = make(map[ids.ObjectAddress]indexRootCandidate)
+			if stage.indexesOrZero().candidates == nil {
+				stage.indexes().candidates = make(map[ids.ObjectAddress]indexRootCandidate)
 			}
-			stage.indexCandidates[build.index.Address()] = indexRootCandidate{index: build.index, root: build.root, storage: replacement.IndexIdentity(), generation: replacement.Generation, ends: replacement.Ends, length: len(replacement.Versions)}
+			stage.indexes().candidates[build.index.Address()] = indexRootCandidate{index: build.index, root: build.root, storage: replacement.IndexIdentity(), generation: replacement.Generation, ends: replacement.Ends, length: len(replacement.Versions)}
 		}
 	}
 	if replacement != store {
@@ -247,17 +247,17 @@ func (e *Engine) stageTypedRows(scope *StatementScope, auth AuthorizationView, s
 		}
 		stage.rowShapes[old.Address()] = catalogRowShape{original: store, replacement: replacement, observedLength: len(store.Versions), observedEnds: store.Ends, generation: store.Generation}
 	}
-	if !rewrite && len(stage.indexLayouts) != 0 {
+	if !rewrite && len(stage.indexesOrZero().layouts) != 0 {
 		evaluation := EvalContext{evalStatement: evalStatement{Context: scope.op.Context(), statementScope: scope, Input: scope.input, Output: scope.output, catalog: e.stageRead(stage)}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 		transported := newCatalogChanges()
 		if _, _, err := transportIndexLayouts(&evaluation, stage, transported, next, store, replacement, nil, nil); err != nil {
 			return err
 		}
 		for address, candidate := range transported.indexesOrZero().candidates {
-			if stage.indexCandidates == nil {
-				stage.indexCandidates = make(map[ids.ObjectAddress]indexRootCandidate)
+			if stage.indexesOrZero().candidates == nil {
+				stage.indexes().candidates = make(map[ids.ObjectAddress]indexRootCandidate)
 			}
-			stage.indexCandidates[address] = candidate
+			stage.indexes().candidates[address] = candidate
 		}
 	}
 	return nil

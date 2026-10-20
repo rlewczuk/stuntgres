@@ -162,7 +162,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 	stage.authorizeLocked(caller, scope.op.session)
 	stage.querySources = scope.materializedOrZero().sources
 	stage.materializedSourceView = scope.materializedOrZero().sourceView
-	stage.indexOutput = scope.output
+	stage.indexes().output = scope.output
 	defer e.DiscardCatalogStage(stage)
 	var rows [][]sqltype.Value
 	if stmt.NoData {
@@ -322,10 +322,10 @@ func (e *Engine) stageMaterializedRows(ctx context.Context, s *CatalogStage, d *
 			s.materializedReplacement.indexCount++
 		}
 	}
-	if s.indexSets == nil {
-		s.indexSets = make(map[ids.ObjectAddress]int)
+	if s.indexesOrZero().sets == nil {
+		s.indexes().sets = make(map[ids.ObjectAddress]int)
 	}
-	s.indexSets[d.Address()] = s.materializedReplacement.indexCount
+	s.indexes().sets[d.Address()] = s.materializedReplacement.indexCount
 	s.initialTx = tx
 	return nil
 }

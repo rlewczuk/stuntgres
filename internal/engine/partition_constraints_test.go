@@ -772,7 +772,7 @@ func partitionConstraintAttachStage(t *testing.T, e *Engine, op *Operation) *Cat
 	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	parent := base.MustRelation(roleTableRef(t, e, "parent_idx").Address)
 	child := base.MustRelation(roleTableRef(t, e, "child_idx").Address)
-	stage.indexParents = map[ids.ObjectAddress]*catalog.Relation{parent.SQLIndex.Parent: base.MustRelation(parent.SQLIndex.Parent), child.SQLIndex.Parent: base.MustRelation(child.SQLIndex.Parent)}
+	stage.indexes().parents = map[ids.ObjectAddress]*catalog.Relation{parent.SQLIndex.Parent: base.MustRelation(parent.SQLIndex.Parent), child.SQLIndex.Parent: base.MustRelation(child.SQLIndex.Parent)}
 	stage.domainBases = []catalog.Descriptor{parent, child}
 	op.session.mu.Lock()
 	stage.authSession, stage.authRevision = op.session, op.session.authorization.revision
@@ -1167,11 +1167,11 @@ func partitionConstraintDropPublicationStage(t *testing.T, key bool) (*Engine, *
 	base := e.CatalogRead()
 	stage := e.BeginCatalogStage(base)
 	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
-	stage.indexParents = make(map[ids.ObjectAddress]*catalog.Relation)
+	stage.indexes().parents = make(map[ids.ObjectAddress]*catalog.Relation)
 	for _, name := range names {
 		index := base.MustRelation(roleTableRef(t, e, name).Address)
 		stage.domainBases = append(stage.domainBases, index)
-		stage.indexParents[index.SQLIndex.Parent] = base.MustRelation(index.SQLIndex.Parent)
+		stage.indexes().parents[index.SQLIndex.Parent] = base.MustRelation(index.SQLIndex.Parent)
 	}
 	op.session.mu.Lock()
 	stage.authSession, stage.authRevision = op.session, op.session.authorization.revision

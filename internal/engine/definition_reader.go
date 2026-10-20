@@ -202,7 +202,7 @@ func (a AuthorizationView) definitionRelation(address ids.ObjectAddress) (*catal
 }
 
 func (r stageDefinitionReader) indexLayout(address ids.ObjectAddress) (indexLayoutLineage, bool) {
-	lineage, ok := r.stage.indexLayouts[address]
+	lineage, ok := r.stage.indexesOrZero().layouts[address]
 	return lineage, ok
 }
 

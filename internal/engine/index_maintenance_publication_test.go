@@ -16,11 +16,11 @@ func indexMaintenanceStage(t *testing.T, e *Engine, table string, indexes ...str
 	stage := e.BeginCatalogStage(base)
 	t.Cleanup(func() { e.DiscardCatalogStage(stage) })
 	parent := roleTableRef(t, e, table)
-	stage.indexParents = map[ids.ObjectAddress]*catalog.Relation{parent.Address: base.MustRelation(parent.Address)}
-	stage.indexRebuilds = make(map[ids.ObjectAddress]*catalog.Relation, len(indexes))
+	stage.indexes().parents = map[ids.ObjectAddress]*catalog.Relation{parent.Address: base.MustRelation(parent.Address)}
+	stage.indexes().rebuilds = make(map[ids.ObjectAddress]*catalog.Relation, len(indexes))
 	for _, name := range indexes {
 		ref := roleTableRef(t, e, name)
-		stage.indexRebuilds[ref.Address] = base.MustRelation(ref.Address)
+		stage.indexes().rebuilds[ref.Address] = base.MustRelation(ref.Address)
 	}
 	return stage
 }
@@ -59,8 +59,8 @@ func TestIndexMaintenanceStageIncarnationAndIndexSetFences(t *testing.T) {
 				run(t, e, q)
 			}
 			stage := indexMaintenanceStage(t, e, "t", "a")
-			for parent := range stage.indexParents {
-				stage.indexSets = map[ids.ObjectAddress]int{parent: 1}
+			for parent := range stage.indexesOrZero().parents {
+				stage.indexes().sets = map[ids.ObjectAddress]int{parent: 1}
 			}
 			prepared, err := e.ValidateCatalogStage(context.Background(), stage)
 			if err != nil {

@@ -133,7 +133,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 		}
 		stage := e.BeginCatalogStage(auth.Catalog)
 		stage.authorizeLocked(auth, scope.op.session)
-		stage.indexParents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
+		stage.indexes().parents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
 		namespace := auth.Catalog.Get(parent.Namespace()).Name()
 		e.mu.Unlock()
 		evaluation := EvalContext{evalStatement: evalStatement{Context: scope.op.Context(), statementScope: scope, Input: scope.input, Output: scope.output, catalog: auth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
@@ -146,7 +146,7 @@ func (e *Engine) publishConcurrentIndexRoot(scope *StatementScope, syntax *parse
 			e.DiscardCatalogStage(stage)
 			return 0, err
 		}
-		stage.indexCandidates = map[ids.ObjectAddress]indexRootCandidate{address: {root: root, index: &next, storage: store, generation: snapshot.Generation, ends: snapshot.Ends, length: len(snapshot.Versions)}}
+		stage.indexes().candidates = map[ids.ObjectAddress]indexRootCandidate{address: {root: root, index: &next, storage: store, generation: snapshot.Generation, ends: snapshot.Ends, length: len(snapshot.Versions)}}
 		err = stage.Replace(&next)
 		if err == nil {
 			var prepared *PreparedCatalogPublication
@@ -200,7 +200,7 @@ func (e *Engine) publishConcurrentIndexValid(scope *StatementScope, syntax *pars
 		}
 		stage := e.BeginCatalogStage(auth.Catalog)
 		stage.authorizeLocked(auth, scope.op.session)
-		stage.indexParents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
+		stage.indexes().parents = map[ids.ObjectAddress]*catalog.Relation{parent.Address(): parent}
 		e.mu.Unlock()
 		err = stage.Replace(&next)
 		if err == nil {
