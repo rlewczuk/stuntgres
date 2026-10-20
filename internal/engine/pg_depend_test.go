@@ -68,7 +68,7 @@ func TestPGDependShape(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := e.catalog.Domain.Ref(view.State().Epoch(), address)
-	rows, err := capturePGDepend(context.Background(), view, ref, source)
+	rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDepend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestPGDependConstructionBags(t *testing.T) {
 	for _, d := range []*catalog.Relation{simple, expression, backing, standalone, sequence, identity} {
 		view.State().SetDescriptor(d.Address(), d)
 	}
-	got, err := collectPGDepend(context.Background(), view)
+	got, err := collectPGDepend(context.Background(), view, engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestPGDependConstructionBags(t *testing.T) {
 	}
 	pgDependUnitBag(t, got, want)
 	source := view.MustRelation(pgDependUnitAddress(1259, 2608, 0))
-	captured, err := capturePGDepend(context.Background(), view, ids.ObjectRef{}, source)
+	captured, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Ref: ids.ObjectRef{}, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDepend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +188,7 @@ func TestPGDependDomainTopologyAndPinning(t *testing.T) {
 	if !pgDependPinned(view, nil, pgDependUnitAddress(1247, 23, 0)) || !pgDependPinned(view, nil, pgDependUnitAddress(2615, 11, 0)) || pgDependPinned(view, nil, pgDependUnitAddress(2615, 2200, 0)) || pgDependPinned(view, nil, pgDependUnitAddress(1247, 47003, 0)) {
 		t.Fatal("pin authorities")
 	}
-	got, err := collectPGDepend(context.Background(), view)
+	got, err := collectPGDepend(context.Background(), view, engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +222,7 @@ func TestPGDependDomainCheckDependencies(t *testing.T) {
 	}
 	assertEdges := func(view catalog.Read, present bool) {
 		t.Helper()
-		edges, err := collectPGDepend(context.Background(), view)
+		edges, err := collectPGDepend(context.Background(), view, engineCatalogRuntime{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -259,7 +259,7 @@ func TestPGDependDomainCheckDependencies(t *testing.T) {
 	assertEdges(before, true)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if edges, err := collectPGDepend(ctx, before); !errors.Is(err, context.Canceled) || edges != nil {
+	if edges, err := collectPGDepend(ctx, before, engineCatalogRuntime{}); !errors.Is(err, context.Canceled) || edges != nil {
 		t.Fatal("canceled CHECK collection exposed partial rows", edges, err)
 	}
 }
@@ -270,10 +270,10 @@ func TestPGDependCanceledCapture(t *testing.T) {
 	source := catalog.MustRelation(pgDependUnitAddress(1259, 2608, 0))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if edges, err := collectPGDepend(ctx, catalog); !errors.Is(err, context.Canceled) || edges != nil {
+	if edges, err := collectPGDepend(ctx, catalog, engineCatalogRuntime{}); !errors.Is(err, context.Canceled) || edges != nil {
 		t.Fatal(edges, err)
 	}
-	if rows, err := capturePGDepend(ctx, catalog, ids.ObjectRef{}, source); !errors.Is(err, context.Canceled) || rows != nil {
+	if rows, err := captureCatalogSourceRows(catalogSourceInput{Context: ctx, Catalog: catalog, Ref: ids.ObjectRef{}, Source: source, Owner: (catalog).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDepend); !errors.Is(err, context.Canceled) || rows != nil {
 		t.Fatal(rows, err)
 	}
 }
@@ -296,11 +296,11 @@ func TestPGDependCancellationDuringWalk(t *testing.T) {
 	catalog := e.CatalogRead()
 	source := catalog.MustRelation(pgDependUnitAddress(1259, 2608, 0))
 	ctx := &pgDependUnitWalkContext{Context: context.Background(), remaining: 4}
-	if edges, err := collectPGDepend(ctx, catalog); !errors.Is(err, context.Canceled) || edges != nil {
+	if edges, err := collectPGDepend(ctx, catalog, engineCatalogRuntime{}); !errors.Is(err, context.Canceled) || edges != nil {
 		t.Fatal("partial collection published", edges, err)
 	}
 	ctx = &pgDependUnitWalkContext{Context: context.Background(), remaining: 4}
-	if rows, err := capturePGDepend(ctx, catalog, ids.ObjectRef{}, source); !errors.Is(err, context.Canceled) || rows != nil {
+	if rows, err := captureCatalogSourceRows(catalogSourceInput{Context: ctx, Catalog: catalog, Ref: ids.ObjectRef{}, Source: source, Owner: (catalog).Owner(), Runtime: engineCatalogRuntime{}}, capturePGDepend); !errors.Is(err, context.Canceled) || rows != nil {
 		t.Fatal("partial source published", rows, err)
 	}
 }

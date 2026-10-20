@@ -1,9 +1,7 @@
 package engine
 
 import (
-	"context"
 	"fmt"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -24,7 +22,10 @@ var pgAMMethods = [...]struct {
 	{783, "gist", 332, "i"},
 }
 
-func capturePGAM(ctx context.Context, catalog catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGAM(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx := in.Context
+	catalog := in.Catalog
+	source := in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -57,5 +58,5 @@ func capturePGAM(ctx context.Context, catalog catalog.Read, ref ids.ObjectRef, s
 		row[3] = sqltype.String(source.Columns[3].Usage.Type, fact.kind)
 		rows[i] = row
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }

@@ -62,7 +62,7 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 	rows := newFinalRows([]catalog.Column{{Name: "a", Usage: d.Usage()}, {Name: "aa", Usage: array.Usage()}}, 1)
 	rows.values = []sqltype.Value{value, arrayValue}
 	defer rows.Close()
-	output := capturedACLItemOutput{owner: e, roles: oldRoles}
+	output := capturedACLItemOutput{owner: e.catalog.owner(), roles: oldRoles}
 	for _, v := range rows.values {
 		if err := captureACLItemOutputValue(rows, output, v); err != nil {
 			t.Fatal(err)
@@ -75,7 +75,7 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 	putFixtureRole(next, a)
 	e.roles.published = next
 	e.mu.Unlock()
-	fresh := capturedACLItemOutput{owner: e, roles: e.Roles()}
+	fresh := capturedACLItemOutput{owner: e.catalog.owner(), roles: e.Roles()}
 	text, err := d.OutputWithEnvironment(context.Background(), value, sqltype.OutputEnvironment{ACLItem: fresh})
 	if err != nil || text != "acl_unit_renamed=rw*/acl_unit_b" {
 		t.Fatal("new spelling", text, err)
@@ -131,7 +131,7 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 		putFixtureRole(next, role)
 		bootstrapEngine.roles.published = next
 		bootstrapEngine.mu.Unlock()
-		output := capturedACLItemOutput{owner: bootstrapEngine, roles: bootstrapEngine.Roles()}
+		output := capturedACLItemOutput{owner: bootstrapEngine.catalog.owner(), roles: bootstrapEngine.Roles()}
 		text, err := typeACL.OutputWithEnvironment(context.Background(), value, sqltype.OutputEnvironment{ACLItem: output})
 		if err != nil || text != "=r/acl_unit_bootstrap" {
 			t.Fatal("default grantor followed a name rather than identity10", text, err)

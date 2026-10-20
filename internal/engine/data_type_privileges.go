@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 
@@ -14,45 +13,16 @@ import (
 // Reserved native relation identity, independent of PostgreSQL's allocator.
 const dataTypePrivilegesOID ids.OID = 16201
 
-func (e *Engine) initializeDataTypePrivileges() error {
-	d := e.catalogSourceDescriptor(dataTypePrivilegesOID, ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}, "data_type_privileges", 5)
-	d.VirtualView = true
-	for i, name := range []string{"object_catalog", "object_schema", "object_name", "object_type", "dtd_identifier"} {
-		id := sqltype.Name
-		if i == 3 {
-			id = sqltype.VarChar
-		}
-		typ, ok := (e.catalog.read(e.catalog.state)).LookupType(id)
-		if !ok {
-			return fmt.Errorf("stuntgres: missing data type privilege carrier")
-		}
-		usage := typ.Usage()
-		if i == 3 {
-			usage.Collation.ID = 950
-		}
-		d.Columns[i] = catalog.Column{Name: name, Usage: usage, Nullable: true, NullabilityKnown: true, OriginTable: uint32(d.Address().ObjectID), OriginAttribute: int16(i + 1)}
-		d.Index[name] = i
-		d.Attributes[i] = int32(i + 1)
-	}
-	e.registerCatalogSource(d)
-	return nil
-}
-
 // Capture uses only the statement's coherent catalog, role and physical-session
 // authority. The caller holds Engine.mu; no live authority is resampled here.
-func captureDataTypePrivileges(ctx context.Context, view catalog.Read, auth AuthorizationView, database string, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func captureDataTypePrivileges(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx, view, ref, source := in.Context, in.Catalog, in.Ref, in.Source
+	database := in.Runtime.DatabaseName()
+
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if view.Owner() == nil || view.State() == nil || auth.Owner != view.Owner() || auth.Catalog != view || auth.RoleRecord == nil || source == nil || source.Address() != ref.Address || source.Address().ObjectID != dataTypePrivilegesOID || view.Get(ref.Address) != source {
-		return nil, fmt.Errorf("stuntgres: invalid data_type_privileges capture")
-	}
-	// Validate paired roles/catalog/ref even if the inventory contains only
-	// seeded domains, whose absent owner is deliberately not an ACL authority.
-	if _, err := auth.Object(ref); err != nil {
-		return nil, err
-	}
-	if err := auth.Roles.ValidatePrincipal(auth.State.CurrentUser); err != nil {
+	if err := in.Runtime.ValidateCapture(view, in.Roles, ref, source, dataTypePrivilegesOID); err != nil {
 		return nil, err
 	}
 	var rows [][]sqltype.Value
@@ -65,11 +35,11 @@ func captureDataTypePrivileges(ctx context.Context, view catalog.Read, auth Auth
 		rows = append(rows, row)
 	}
 	visible := func(address ids.ObjectAddress, owner authorization.PrincipalRef, mask authorization.Privileges) (bool, error) {
-		owns, err := auth.Roles.InheritsRole(auth.State.CurrentUser, owner)
+		owns, err := in.Roles.InheritsRole(in.Runtime.CurrentPrincipal(), owner)
 		if err != nil || owns {
 			return owns, err
 		}
-		rights, err := auth.Effective(ref.Domain().Ref(ref.Epoch, address), false)
+		rights, err := in.Runtime.Effective(ref.Domain().Ref(ref.Epoch, address), false)
 		return rights&mask != 0, err
 	}
 	for _, descriptor := range view.Descriptors() {
@@ -100,13 +70,13 @@ func captureDataTypePrivileges(ctx context.Context, view catalog.Read, auth Auth
 				if !allowed {
 					continue
 				}
-			} else if ns.Temporary != (ids.SessionToken{}) && (auth.session == nil || ns.Temporary != auth.session.token) {
+			} else if ns.Temporary != (ids.SessionToken{}) && ns.Temporary != in.Runtime.TemporaryOwner() {
 				continue
 			}
 			ownerVisible := kind == "c"
 			if !ownerVisible {
 				var err error
-				ownerVisible, err = auth.Roles.InheritsRole(auth.State.CurrentUser, d.Owner)
+				ownerVisible, err = in.Roles.InheritsRole(in.Runtime.CurrentPrincipal(), d.Owner)
 				if err != nil {
 					return nil, err
 				}
@@ -122,7 +92,7 @@ func captureDataTypePrivileges(ctx context.Context, view catalog.Read, auth Auth
 				if !ownerVisible {
 					address := d.Address()
 					address.SubID = attribute
-					rights, err := auth.Effective(ref.Domain().Ref(ref.Epoch, address), false)
+					rights, err := in.Runtime.Effective(ref.Domain().Ref(ref.Epoch, address), false)
 					if err != nil {
 						return nil, err
 					}
@@ -162,5 +132,5 @@ func captureDataTypePrivileges(ctx context.Context, view catalog.Read, auth Auth
 			emit(ns.Name(), d.Name(), "DOMAIN", "1")
 		}
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }

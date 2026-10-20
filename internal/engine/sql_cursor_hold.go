@@ -255,13 +255,13 @@ func (s *StatementScope) captureSQLCursorOutput(rows *finalRows, catalog catalog
 		return err
 	}
 	for _, value := range rows.values {
-		if err := captureRegroleOutputValue(rows, capturedRegroleOutput{owner: e, roles: auth.Roles, quoteAll: rows.output.QuoteAllIdentifiers}, value); err != nil {
+		if err := captureRegroleOutputValue(rows, capturedRegroleOutput{owner: e.catalog.owner(), roles: auth.Roles, quoteAll: rows.output.QuoteAllIdentifiers}, value); err != nil {
 			return err
 		}
 		if err := captureRegObjectOutputValue(rows, catalog, collationPath, value); err != nil {
 			return err
 		}
-		if err := captureACLItemOutputValue(rows, capturedACLItemOutput{owner: e, roles: auth.Roles}, value); err != nil {
+		if err := captureACLItemOutputValue(rows, capturedACLItemOutput{owner: e.catalog.owner(), roles: auth.Roles}, value); err != nil {
 			return err
 		}
 		if err := captureRegclassOutputValue(rows, catalog, path, value); err != nil {

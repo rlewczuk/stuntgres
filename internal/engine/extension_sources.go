@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"sort"
 	"stuntgres/internal/engine/catalog"
@@ -10,7 +9,10 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func captureExtensionCatalog(ctx context.Context, view catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func captureExtensionCatalog(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx := in.Context
+	view := in.Catalog
+	source := in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -111,5 +113,5 @@ func captureExtensionCatalog(ctx context.Context, view catalog.Read, ref ids.Obj
 		}
 		rows = append(rows, row)
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }

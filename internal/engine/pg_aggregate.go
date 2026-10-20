@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -17,7 +16,11 @@ var aggregateColumnTypes = [...]sqltype.ID{
 	sqltype.Oid, sqltype.Oid, sqltype.Int4, sqltype.Oid, sqltype.Int4, sqltype.Text, sqltype.Text,
 }
 
-func capturePGAggregate(ctx context.Context, view catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGAggregate(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx := in.Context
+	view := in.Catalog
+	ref := in.Ref
+	source := in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -105,5 +108,5 @@ func capturePGAggregate(ctx context.Context, view catalog.Read, ref ids.ObjectRe
 			}
 		}
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }

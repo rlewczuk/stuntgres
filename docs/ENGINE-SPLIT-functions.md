@@ -1820,7 +1820,7 @@ moves in this historical inventory.
     `query_bind.go` and `returning.go`;
   - sequence calls: `default_replay.go`, `expression_volatility.go`,
     `insert_binding.go`, `serial.go`, `view_write_insert.go`,
-    `pg_depend_expression.go`.
+    `expression_references.go`.
 - **State authority retained by runtime capabilities** (historical Eval reads):
   username borrows captured roles/catalog; namespace/current_schemas borrow
   physical session token, paths and rule/FK authority; Identity borrows statement

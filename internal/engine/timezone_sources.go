@@ -1,18 +1,19 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 // Called after releasing the engine mutex. The immutable descriptor and captured
 // input belong to this execution; provider loading never extends catalog locks.
-func captureTimezoneSource(ctx context.Context, ref ids.ObjectRef, d *catalog.Relation, input sqltype.InputEnvironment) (*querySource, error) {
+func captureTimezoneSource(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx := in.Context
+	d := in.Source
+	input := in.Runtime.TimezoneInput()
 	var rows [][]sqltype.Value
 	offsetIndex := len(d.Columns) - 2
 	appendFact := func(name, abbrev string, east int32, daylight bool) error {
@@ -46,7 +47,7 @@ func captureTimezoneSource(ctx context.Context, ref ids.ObjectRef, d *catalog.Re
 	if err != nil {
 		return nil, err
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }
 
 func timezoneViewWriteError(d *catalog.Relation, operation string) error {

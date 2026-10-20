@@ -1,17 +1,16 @@
 package engine
 
 import (
-	"context"
 	"math"
-	"stuntgres/internal/engine/authorization"
-	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 // Project the statement's immutable role root. All role attributes are direct;
 // neither membership edges nor credential material participate in this view.
-func capturePGRoles(ctx context.Context, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGRoles(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx := in.Context
+	roles := in.Roles
+	source := in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -55,5 +54,5 @@ func capturePGRoles(ctx context.Context, roles authorization.Read, ref ids.Objec
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }

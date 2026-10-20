@@ -524,7 +524,7 @@ func TestUsingIndexIncludeLifecycle(t *testing.T) {
 			t.Fatal("INCLUDE entered equality root")
 		}
 	}
-	edges, err := collectPGDepend(context.Background(), e.CatalogRead())
+	edges, err := collectPGDepend(context.Background(), e.CatalogRead(), engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}

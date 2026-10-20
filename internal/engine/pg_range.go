@@ -1,16 +1,17 @@
 package engine
 
 import (
-	"context"
 	"fmt"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 const pgRangeOID ids.OID = 3541
 
-func capturePGRange(ctx context.Context, catalog catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGRange(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx := in.Context
+	catalog := in.Catalog
+	source := in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -66,5 +67,5 @@ func capturePGRange(ctx context.Context, catalog catalog.Read, ref ids.ObjectRef
 		}
 		rows[i] = row
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }

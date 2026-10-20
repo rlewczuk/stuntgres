@@ -1,16 +1,17 @@
 package engine
 
 import (
-	"context"
 	"fmt"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 const pgLanguageOID ids.OID = 2612
 
-func capturePGLanguage(ctx context.Context, catalog catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGLanguage(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx := in.Context
+	catalog := in.Catalog
+	source := in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -47,5 +48,5 @@ func capturePGLanguage(ctx context.Context, catalog catalog.Read, ref ids.Object
 	row[3] = sqltype.Boolean(source.Columns[3].Usage.Type, false)
 	row[4] = sqltype.Boolean(source.Columns[4].Usage.Type, false)
 	row[8] = sqltype.Null(source.Columns[8].Usage.Type)
-	return &querySource{ref: ref, anonymous: [][]sqltype.Value{row}}, nil
+	return [][]sqltype.Value{row}, nil
 }

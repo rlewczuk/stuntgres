@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -11,7 +10,11 @@ import (
 // The initialization-only registry supplies availability; the captured catalog
 // supplies installed state. Neither target-schema visibility nor provider calls
 // participate in this metadata projection.
-func captureAvailableExtensions(ctx context.Context, registry map[string]catalog.ExtensionImplementation, catalog catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func captureAvailableExtensions(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx := in.Context
+	registry := in.Owner.Extensions
+	catalog := in.Catalog
+	source := in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -60,7 +63,7 @@ func captureAvailableExtensions(ctx context.Context, registry map[string]catalog
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }
 
 // Metadata-only component seam: fixed control schema is not the installed

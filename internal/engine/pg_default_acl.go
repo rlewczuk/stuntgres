@@ -2,7 +2,6 @@ package engine
 
 import (
 	"cmp"
-	"context"
 	"fmt"
 	"math"
 	"slices"
@@ -15,11 +14,16 @@ import (
 
 // Caller holds e.mu. Policy inventory is public catalog data, not an effective
 // privilege expansion or a schema-USAGE-filtered list of the actor's grants.
-func (e *Engine) capturePGDefaultACL(ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGDefaultACL(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx := in.Context
+	view := in.Catalog
+	roles := in.Roles
+	ref := in.Ref
+	source := in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if view.Owner() != e.catalog.owner() || view.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 826}) || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() || ref.Address != source.Address() || view.Get(source.Address()) != source {
+	if view.Owner() != in.Owner || view.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 826}) || ref.Domain() != in.Owner.Domain || ref.Epoch != view.Epoch() || ref.Address != source.Address() || view.Get(source.Address()) != source {
 		return nil, fmt.Errorf("stuntgres: foreign default ACL source authority")
 	}
 	types := [...]sqltype.ID{26, 26, 26, 18, 1034}
@@ -33,7 +37,7 @@ func (e *Engine) capturePGDefaultACL(ctx context.Context, view catalog.Read, rol
 		}
 	}
 	database, ok := view.Database(catalog.CurrentDatabaseAddress)
-	if !ok || database == nil || !roles.BelongsTo(&e.roles.domain) || roles.DatabaseOwner() != database.Owner {
+	if !ok || database == nil || !roles.BelongsTo(in.Owner.Principals) || roles.DatabaseOwner() != database.Owner {
 		return nil, fmt.Errorf("stuntgres: foreign default ACL owner authority")
 	}
 	if err := catalog.ValidateDefaultACLs(roles, view); err != nil {
@@ -69,7 +73,7 @@ func (e *Engine) capturePGDefaultACL(ctx context.Context, view catalog.Read, rol
 			acl.Entries = slices.Clone(acl.Entries)
 			slices.SortFunc(acl.Entries, defaultACLEntryCompare)
 		}
-		value, err := e.pgClassACL(roles, source.Columns[4].Usage.Type, acl)
+		value, err := pgClassACL(in.Owner, roles, source.Columns[4].Usage.Type, acl)
 		if err != nil {
 			return nil, err
 		}
@@ -87,7 +91,7 @@ func (e *Engine) capturePGDefaultACL(ctx context.Context, view catalog.Read, rol
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }
 
 func defaultACLEntryCompare(a, b authorization.ACLEntry) int {

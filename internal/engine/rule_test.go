@@ -477,7 +477,7 @@ func TestRuleDefinitionDependencies(t *testing.T) {
 	}
 	r.references = refs
 	src.Rules = rulesPayloadOf([]ruleDefinition{r})
-	edges, err := collectPGDepend(context.Background(), auth.Catalog)
+	edges, err := collectPGDepend(context.Background(), auth.Catalog, engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}

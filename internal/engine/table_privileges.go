@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -12,52 +11,24 @@ import (
 // Reserved native source identity; not a claim about the oracle's view OID.
 const tablePrivilegesOID ids.OID = 16200
 
-func (e *Engine) initializeTablePrivileges() error {
-	namespace := ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 13229}
-	d := e.catalogSourceDescriptor(tablePrivilegesOID, namespace, "table_privileges", 8)
-	d.VirtualView = true
-	for i, name := range []string{"grantor", "grantee", "table_catalog", "table_schema", "table_name", "privilege_type", "is_grantable", "with_hierarchy"} {
-		id := sqltype.Name
-		if i >= 5 {
-			id = sqltype.VarChar
-		}
-		typ, ok := (e.catalog.read(e.catalog.state)).LookupType(id)
-		if !ok {
-			return fmt.Errorf("stuntgres: missing privilege source type")
-		}
-		usage := typ.Usage()
-		if i >= 5 {
-			usage.Collation.ID = 950
-		}
-		if i >= 6 {
-			usage.Typmod = 7
-		}
-		d.Columns[i] = catalog.Column{Name: name, Usage: usage, Nullable: true, NullabilityKnown: true, OriginTable: uint32(d.Address().ObjectID), OriginAttribute: int16(i + 1)}
-		d.Index[name] = i
-		d.Attributes[i] = int32(i + 1)
-	}
-	e.registerCatalogSource(d)
-	return nil
-}
-
 // This is an ACL-origin projection, not an effective-rights summary: owner
 // authority supplies grantability, never an invented origin on an explicit ACL.
 // All catalog, roles and actor inputs belong to the same immutable statement.
-func captureTablePrivileges(ctx context.Context, view catalog.Read, auth AuthorizationView, database string, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func captureTablePrivileges(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx, view, ref, source := in.Context, in.Catalog, in.Ref, in.Source
+	database := in.Runtime.DatabaseName()
+
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if view.Owner() == nil || view.State() == nil || auth.Owner != view.Owner() || auth.Catalog.State() != view.State() || auth.RoleRecord == nil || ref.Domain() != view.Owner().Domain || ref.Epoch != view.Epoch() || source == nil || source.Address() != ref.Address || source.Address().ObjectID != tablePrivilegesOID || view.Get(ref.Address) != source {
-		return nil, fmt.Errorf("stuntgres: invalid table_privileges capture")
-	}
-	if err := auth.Roles.ValidatePrincipal(auth.State.CurrentUser); err != nil {
+	if err := in.Runtime.ValidateCapture(view, in.Roles, ref, source, tablePrivilegesOID); err != nil {
 		return nil, err
 	}
-	actor, actorExists := auth.Roles.Find(auth.State.CurrentUser)
+	actor, actorExists := in.Roles.Find(in.Runtime.CurrentPrincipal())
 	var principals []authorization.PrincipalRef
 	if actorExists && !actor.Superuser {
 		var err error
-		principals, err = auth.Roles.RoleClosure(ctx, actor.Ref, true)
+		principals, err = in.Roles.RoleClosure(ctx, actor.Ref, true)
 		if err != nil {
 			return nil, err
 		}
@@ -76,7 +47,7 @@ func captureTablePrivileges(ctx context.Context, view catalog.Read, auth Authori
 		if namespace == nil {
 			return nil, fmt.Errorf("stuntgres: missing privilege namespace")
 		}
-		owner, err := auth.Roles.Descriptor(relation.Owner)
+		owner, err := in.Roles.Descriptor(relation.Owner)
 		if err != nil {
 			return nil, err
 		}
@@ -87,7 +58,7 @@ func captureTablePrivileges(ctx context.Context, view catalog.Read, auth Authori
 			entries = baseline[:]
 		}
 		for _, entry := range entries {
-			grantor, err := auth.Roles.Descriptor(entry.Grantor)
+			grantor, err := in.Roles.Descriptor(entry.Grantor)
 			if err != nil {
 				return nil, err
 			}
@@ -103,7 +74,7 @@ func captureTablePrivileges(ctx context.Context, view catalog.Read, auth Authori
 			}
 			ownerGrantee := false
 			if !entry.Grantee.Public {
-				grantee, err := auth.Roles.Descriptor(entry.Grantee.Role)
+				grantee, err := in.Roles.Descriptor(entry.Grantee.Role)
 				if err != nil {
 					return nil, err
 				}
@@ -112,11 +83,11 @@ func captureTablePrivileges(ctx context.Context, view catalog.Read, auth Authori
 					ownerGrantee = grantee.Ref == owner.Ref || grantee.Superuser
 					if !ownerGrantee {
 						closure := principals
-						if grantee.Ref != auth.State.CurrentUser {
+						if grantee.Ref != in.Runtime.CurrentPrincipal() {
 							var known bool
 							closure, known = granteeClosures[grantee.Ref]
 							if !known {
-								closure, err = auth.Roles.RoleClosure(ctx, grantee.Ref, true)
+								closure, err = in.Roles.RoleClosure(ctx, grantee.Ref, true)
 								if err != nil {
 									return nil, err
 								}
@@ -161,5 +132,5 @@ func captureTablePrivileges(ctx context.Context, view catalog.Read, auth Authori
 			}
 		}
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }

@@ -85,7 +85,7 @@ func TestPrimaryKeyRealMetadataAndDependencies(t *testing.T) {
 	if rendered, err := (pgRenderer{view: view}).uniqueConstraintSQL(parent, &parent.Constraints.Unique[0]); err != nil || rendered != "PRIMARY KEY (a, b)" {
 		t.Fatal(rendered, err)
 	}
-	edges, err := collectPGDepend(context.Background(), view)
+	edges, err := collectPGDepend(context.Background(), view, engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}

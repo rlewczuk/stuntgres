@@ -26,7 +26,7 @@ func pgConstraintUnitCapture(t *testing.T, e *Engine, view catalog.Read) map[str
 	address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2606}
 	source := view.MustRelation(address)
 	ref := e.catalog.Domain.Ref(view.Epoch(), address)
-	got, err := capturePGConstraint(context.Background(), view, ref, source)
+	got, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGConstraint)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,12 +139,12 @@ func TestPGConstraintShapeAndOwnership(t *testing.T) {
 	pgConstraintUnitCapture(t, e, view)
 	invalid := *source
 	invalid.Columns = slices.Clone(source.Columns[:9])
-	if got, err := capturePGConstraint(context.Background(), view, ref, &invalid); got != nil || err == nil {
+	if got, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Ref: ref, Source: &invalid, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGConstraint); got != nil || err == nil {
 		t.Fatal("old shape admitted", got, err)
 	}
 	foreign := New()
 	foreignSource, _ := pgConstraintUnitSource(t, foreign)
-	if got, err := capturePGConstraint(context.Background(), view, ref, foreignSource); got != nil || err == nil {
+	if got, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Ref: ref, Source: foreignSource, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGConstraint); got != nil || err == nil {
 		t.Fatal("foreign generation admitted", got, err)
 	}
 }
@@ -264,7 +264,7 @@ func TestPGConstraintCapture(t *testing.T) {
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, ctx := range []context.Context{canceled, &pgEnumCancelDuringCapture{Context: context.Background(), after: view.DescriptorCount() + 2}} {
-		if got, err := capturePGConstraint(ctx, view, ref, source); got != nil || !errors.Is(err, context.Canceled) {
+		if got, err := captureCatalogSourceRows(catalogSourceInput{Context: ctx, Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGConstraint); got != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("cancellation published partial capture", got, err)
 		}
 	}

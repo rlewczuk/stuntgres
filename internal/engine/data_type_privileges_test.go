@@ -27,7 +27,7 @@ func dtpUnitAuthority(t *testing.T, f defaultUnitFixture, catalog catalog.Read) 
 func dtpUnitCapture(ctx context.Context, catalog catalog.Read, auth AuthorizationView) (*querySource, error) {
 	source := catalog.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: dataTypePrivilegesOID})
 	ref := catalog.Owner().Domain.Ref(catalog.Epoch(), source.Address())
-	return captureDataTypePrivileges(ctx, catalog, auth, "unit_database", ref, source)
+	return captureCatalogSourceRows(catalogSourceInput{Context: ctx, Catalog: catalog, Ref: ref, Source: source, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: engineCatalogRuntime{auth: auth, temporary: catalogSourceTemporaryOwner(auth), database: "unit_database"}}, captureDataTypePrivileges)
 }
 
 // A deterministic cancellation point inside enumeration, without timing races.
@@ -71,11 +71,11 @@ func TestDataTypePrivilegesCapture(t *testing.T) {
 	ref := f.e.catalog.Domain.Ref(view.Epoch(), source.Address())
 	stale := ref
 	stale.Epoch++
-	if rows, err := captureDataTypePrivileges(context.Background(), view, auth, "unit_database", stale, source); rows != nil || err == nil {
+	if rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Ref: stale, Source: source, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: engineCatalogRuntime{auth: auth, temporary: catalogSourceTemporaryOwner(auth), database: "unit_database"}}, captureDataTypePrivileges); rows != nil || err == nil {
 		t.Fatal("stale ref accepted", rows, err)
 	}
 	copySource := *source
-	if rows, err := captureDataTypePrivileges(context.Background(), view, auth, "unit_database", ref, &copySource); rows != nil || err == nil {
+	if rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Ref: ref, Source: &copySource, Roles: (auth).Roles, Owner: (auth).Owner, Runtime: engineCatalogRuntime{auth: auth, temporary: catalogSourceTemporaryOwner(auth), database: "unit_database"}}, captureDataTypePrivileges); rows != nil || err == nil {
 		t.Fatal("foreign source accepted", rows, err)
 	}
 	for i, column := range source.Columns {

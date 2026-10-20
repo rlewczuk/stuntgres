@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
@@ -10,7 +9,10 @@ import (
 
 // Hierarchy owners publish these edges with their descriptors. Capture only the
 // caller's immutable generation, including its transaction-private overlay.
-func capturePGInherits(ctx context.Context, view catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGInherits(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx := in.Context
+	view := in.Catalog
+	source := in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -98,5 +100,5 @@ func capturePGInherits(ctx context.Context, view catalog.Read, ref ids.ObjectRef
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }

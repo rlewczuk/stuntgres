@@ -1,14 +1,14 @@
 package engine
 
 import (
-	"context"
 	"fmt"
-	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func capturePGCast(ctx context.Context, catalog catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGCast(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx := in.Context
+	catalog := in.Catalog
+	source := in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func capturePGCast(ctx context.Context, catalog catalog.Read, ref ids.ObjectRef,
 		row[5] = sqltype.String(source.Columns[5].Usage.Type, method)
 		rows[i] = row
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }
 
 // Return static strings rather than allocate a string for each projected byte.

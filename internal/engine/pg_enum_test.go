@@ -134,7 +134,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if len(d.Security.ACL.Entries) != 1 || !d.Security.ACL.Entries[0].Grantee.Public || d.Security.ACL.Entries[0].Privileges != authorization.SelectPrivilege {
 		t.Fatal("PUBLIC SELECT", d.Security.ACL)
 	}
-	captured, err := capturePGEnum(context.Background(), e.CatalogRead(), ref, d)
+	captured, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner()}, capturePGEnum)
 	if err != nil || captured == nil || captured.ref != ref || captured.anonymous == nil || len(captured.anonymous) != 0 {
 		t.Fatal("fresh empty source", captured, err)
 	}
@@ -215,18 +215,18 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	if err := stage.Replace(&next); err != nil {
 		t.Fatal(err)
 	}
-	private, err := capturePGEnum(context.Background(), e.stageRead(stage), ref, d)
+	private, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.stageRead(stage), Ref: ref, Source: d, Owner: (e.stageRead(stage)).Owner()}, capturePGEnum)
 	if err != nil || reflect.DeepEqual(private.anonymous, before) || !reflect.DeepEqual(captured.anonymous, before) {
 		t.Fatal("capture generation lifetime", err)
 	}
 	invalid := *d
 	invalid.Columns = append([]catalog.Column(nil), d.Columns...)
 	invalid.Columns[0].Usage.Type, _ = New().CatalogRead().LookupType(sqltype.Oid)
-	if rows, err := capturePGEnum(context.Background(), e.CatalogRead(), ref, &invalid); err == nil || rows != nil {
+	if rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: &invalid, Owner: (e.CatalogRead()).Owner()}, capturePGEnum); err == nil || rows != nil {
 		t.Fatal("foreign source type", rows, err)
 	}
 	invalid.Columns = invalid.Columns[:3]
-	if rows, err := capturePGEnum(context.Background(), e.CatalogRead(), ref, &invalid); err == nil || rows != nil {
+	if rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: &invalid, Owner: (e.CatalogRead()).Owner()}, capturePGEnum); err == nil || rows != nil {
 		t.Fatal("invalid shape", rows, err)
 	}
 	invalidOwner := *e.catalog.state
@@ -238,16 +238,16 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	wrongAddress := mood.Address()
 	wrongAddress.ObjectID++
 	invalidOwner.SetDescriptor(wrongAddress, mood)
-	if rows, err := capturePGEnum(context.Background(), e.catalog.read(&invalidOwner), ref, d); err == nil || rows != nil {
+	if rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.catalog.read(&invalidOwner), Ref: ref, Source: d, Owner: (e.catalog.read(&invalidOwner)).Owner()}, capturePGEnum); err == nil || rows != nil {
 		t.Fatal("mismatched owner identity", rows, err)
 	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if rows, err := capturePGEnum(canceled, e.CatalogRead(), ref, d); !errors.Is(err, context.Canceled) || rows != nil {
+	if rows, err := captureCatalogSourceRows(catalogSourceInput{Context: canceled, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner()}, capturePGEnum); !errors.Is(err, context.Canceled) || rows != nil {
 		t.Fatal("canceled capture", rows, err)
 	}
 	during := &pgEnumCancelDuringCapture{Context: context.Background(), after: e.catalog.state.DescriptorCount() + 2}
-	if rows, err := capturePGEnum(during, e.CatalogRead(), ref, d); !errors.Is(err, context.Canceled) || rows != nil {
+	if rows, err := captureCatalogSourceRows(catalogSourceInput{Context: during, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner()}, capturePGEnum); !errors.Is(err, context.Canceled) || rows != nil {
 		t.Fatal("traversal cancellation", rows, err)
 	}
 }

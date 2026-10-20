@@ -26,13 +26,13 @@ func aclItemContextFormatter(ctx context.Context) sqltype.ACLItemFormatter {
 
 // Captured role roots are immutable; formatting never consults a live Engine.
 type capturedACLItemOutput struct {
-	owner    *Engine
+	owner    *catalog.Owner
 	roles    authorization.Read
 	lossless bool
 }
 
 func (r capturedACLItemOutput) FormatACLRole(authority *sqltype.ACLAuthority, id uint32) (string, error) {
-	if r.owner == nil || authority != &r.owner.roles.aclAuthority || !r.roles.BelongsTo(&r.owner.roles.domain) {
+	if r.owner == nil || authority != r.owner.ACLAuthority || !r.roles.BelongsTo(r.owner.Principals) {
 		return "", fmt.Errorf("stuntgres: foreign ACL identity")
 	}
 	if id == 0 {
@@ -41,7 +41,7 @@ func (r capturedACLItemOutput) FormatACLRole(authority *sqltype.ACLAuthority, id
 		}
 		return "0", nil
 	}
-	role, ok := r.roles.Find(r.owner.roles.domain.Principal(uint64(id)))
+	role, ok := r.roles.Find(r.owner.Principals.Principal(uint64(id)))
 	if !ok {
 		if r.lossless {
 			return "", fmt.Errorf("stuntgres: dump cannot serialize stale ACL identity %d", id)
@@ -67,7 +67,7 @@ func (s *StatementScope) FormatACLRole(authority *sqltype.ACLAuthority, id uint3
 	if s == nil || s.commentCatalog.Owner() == nil {
 		return "", fmt.Errorf("stuntgres: missing ACL output snapshot")
 	}
-	return (capturedACLItemOutput{owner: s.commentEngine(), roles: s.commentRoles}).FormatACLRole(authority, id)
+	return (capturedACLItemOutput{owner: s.commentCatalog.Owner(), roles: s.commentRoles}).FormatACLRole(authority, id)
 }
 
 func (r *finalRows) FormatACLRole(authority *sqltype.ACLAuthority, id uint32) (string, error) {
@@ -105,7 +105,7 @@ func captureACLItemOutputValue(rows *finalRows, output capturedACLItemOutput, va
 	if err != nil {
 		return err
 	}
-	if output.owner == nil || authority != &output.owner.roles.aclAuthority {
+	if output.owner == nil || authority != output.owner.ACLAuthority {
 		return fmt.Errorf("stuntgres: foreign ACL result identity")
 	}
 	for _, id := range [2]uint32{grantee, grantor} {

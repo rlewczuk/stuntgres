@@ -24,8 +24,8 @@ func (e *Engine) captureRegclassOutput(op *Operation, rows *finalRows) error {
 		return err
 	}
 	var collationPath []ids.ObjectAddress
-	aclOutput := capturedACLItemOutput{owner: e, roles: auth.Roles}
-	roleOutput := capturedRegroleOutput{owner: e, roles: auth.Roles, quoteAll: rows.output.QuoteAllIdentifiers}
+	aclOutput := capturedACLItemOutput{owner: e.catalog.owner(), roles: auth.Roles}
+	roleOutput := capturedRegroleOutput{owner: e.catalog.owner(), roles: auth.Roles, quoteAll: rows.output.QuoteAllIdentifiers}
 	for _, value := range rows.values {
 		if err := e.captureRegObjectRowsValueLocked(rows, auth, &collationPath, value); err != nil {
 			return err

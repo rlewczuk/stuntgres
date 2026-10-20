@@ -1,20 +1,20 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"strings"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 // Capture from the statement's immutable role root, never from live engine roles.
 // Password verifiers are deliberately not consulted: the public value is constant.
-func capturePGUser(ctx context.Context, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGUser(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx := in.Context
+	roles := in.Roles
+	source := in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func capturePGUser(ctx context.Context, roles authorization.Read, ref ids.Object
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }
 
 // Target slots are already resolved by ordinary mutation binding. Readonly

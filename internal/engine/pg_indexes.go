@@ -1,24 +1,23 @@
 package engine
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 // The SQL source owns disclosure, not the ACL-neutral structural projections.
 // Authorization and deparsing both read the exact immutable statement capture.
-func capturePGIndexes(ctx context.Context, view catalog.Read, auth AuthorizationView, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGIndexes(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx, view, ref, source := in.Context, in.Catalog, in.Ref, in.Source
+
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if view.Owner() == nil || view.State() == nil || auth.Owner != view.Owner() || auth.Catalog.State() != view.State() || auth.Catalog.Owner() != view.Owner() || ref.Domain() != view.Owner().Domain || ref.Epoch != view.Epoch() || ref.Address.SubID != 0 || source == nil || source.Address() != ref.Address || source.Address().ObjectID != 12002 || view.Get(ref.Address) != source {
-		return nil, fmt.Errorf("stuntgres: invalid pg_indexes capture")
+	if err := in.Runtime.ValidateCapture(view, in.Roles, ref, source, 12002); err != nil {
+		return nil, err
 	}
 	rows := make([][]sqltype.Value, 0)
 	for _, descriptor := range view.Descriptors() {
@@ -38,9 +37,9 @@ func capturePGIndexes(ctx context.Context, view catalog.Read, auth Authorization
 			return nil, fmt.Errorf("stuntgres: missing index namespace")
 		}
 		schemaRef := ref.Domain().Ref(ref.Epoch, parent.Namespace())
-		err := auth.CanUse(schemaRef)
+		err := in.Runtime.CanUse(schemaRef)
 		if err == nil {
-			err = auth.checkColumns(binding{ref: ref.Domain().Ref(ref.Epoch, parent.Address()), relation: parent}, authorization.SelectPrivilege, nil)
+			err = in.Runtime.SelectColumns(ref.Domain().Ref(ref.Epoch, parent.Address()), parent)
 		}
 		if err != nil {
 			var diagnostic *sqlstate.Error
@@ -49,7 +48,7 @@ func capturePGIndexes(ctx context.Context, view catalog.Read, auth Authorization
 			}
 			return nil, err
 		}
-		definition, err := indexDefinitionSQL(ctx, view, index, indexPresentation{})
+		definition, err := in.Runtime.IndexDefinition(ctx, view, index)
 		if err != nil {
 			return nil, err
 		}
@@ -61,5 +60,5 @@ func capturePGIndexes(ctx context.Context, view catalog.Read, auth Authorization
 			sqltype.String(source.Columns[4].Usage.Type, definition),
 		})
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }

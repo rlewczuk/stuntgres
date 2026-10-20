@@ -120,7 +120,7 @@ func extensionTemporaryGoneUnit(t *testing.T, e *Engine, ext *catalog.Extension)
 			t.Fatal("retired signature/name retained", key)
 		}
 	}
-	edges, err := collectPGDepend(context.Background(), e.CatalogRead())
+	edges, err := collectPGDepend(context.Background(), e.CatalogRead(), engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -54,7 +54,7 @@ func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironme
 		return nil, "", sqlError("42P17", "functions in index expression must be marked IMMUTABLE")
 	}
 	key := &catalog.DerivedIndexKey{Definition: definition, Execution: execution, Attributes: parent.Attributes}
-	if _, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.engine, roles: auth.Roles}, owner: parent, dependencies: &key.Dependencies}).sql(op.Context(), auth.Catalog, definition); err != nil {
+	if _, err = (scalarRenderer{aclOutput: capturedACLItemOutput{owner: auth.Owner, roles: auth.Roles}, owner: parent, dependencies: &key.Dependencies}).sql(op.Context(), auth.Catalog, definition); err != nil {
 		return nil, "", err
 	}
 	label := "expr"

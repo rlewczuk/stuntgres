@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"stuntgres/internal/engine/authorization"
@@ -72,7 +71,8 @@ func pgClassPersistence(catalog catalog.Read, relation *catalog.Relation) string
 	return "p"
 }
 
-func (e *Engine) pgClassRow(ctx context.Context, view catalog.Read, roles authorization.Read, source, relation *catalog.Relation) ([]sqltype.Value, error) {
+func pgClassRow(in catalogSourceInput, relation *catalog.Relation) ([]sqltype.Value, error) {
+	ctx, view, roles, source := in.Context, in.Catalog, in.Roles, in.Source
 	var failure error
 	checked := func(value sqltype.Value, err error) sqltype.Value {
 		if failure == nil {
@@ -111,14 +111,14 @@ func (e *Engine) pgClassRow(ctx context.Context, view catalog.Read, roles author
 	if relation.RelationKind != catalog.CatalogRelation && (kind == "r" || kind == "m" || kind == "p") {
 		replica = "d"
 	}
-	acl, err := e.pgClassACL(roles, source.Columns[31].Usage.Type, relation.Security.ACL)
+	acl, err := pgClassACL(in.Owner, roles, source.Columns[31].Usage.Type, relation.Security.ACL)
 	if err != nil {
 		return nil, err
 	}
 	options := sqltype.Null(source.Columns[32].Usage.Type)
-	if relation.View != nil && len(viewOf(relation).options) != 0 {
-		elements := make([]sqltype.Value, len(viewOf(relation).options))
-		for i, option := range viewOf(relation).options {
+	if relation.View != nil && len(in.Runtime.ViewOptions(relation)) != 0 {
+		elements := make([]sqltype.Value, len(in.Runtime.ViewOptions(relation)))
+		for i, option := range in.Runtime.ViewOptions(relation) {
 			elements[i] = sqltype.String(options.Type().Element(), option)
 		}
 		options = checked(sqltype.OwnedArrayValue(options.Type(), []sqltype.ArrayDimension{{Lower: 1, Length: int32(len(elements))}}, elements))
@@ -137,7 +137,7 @@ func (e *Engine) pgClassRow(ctx context.Context, view catalog.Read, roles author
 		oid(6, method), oid(7, 0), oid(8, tablespace), integer(9, 0), checked(sqltype.Float(source.Columns[10].Usage.Type, tuples)),
 		integer(11, 0), integer(12, 0), oid(13, 0), boolean(14, relation.History.HasIndexes), boolean(15, shared),
 		text(16, pgClassPersistence(view, relation)), text(17, kind), integer(18, int64(relation.ColumnMeta.HighWater)), integer(19, int64(len(relation.Constraints.Check))),
-		boolean(20, len(rulesOf(relation)) != 0 || relation.View != nil || relation.RelationKind == catalog.CatalogRelation && kind == "v"), boolean(21, false), boolean(22, relation.History.HasSubclasses),
+		boolean(20, in.Runtime.HasRules(relation) || relation.View != nil || relation.RelationKind == catalog.CatalogRelation && kind == "v"), boolean(21, false), boolean(22, relation.History.HasSubclasses),
 		boolean(23, relation.Security.RLSEnabled), boolean(24, relation.Security.RLSForced), boolean(25, relation.RelationKind != catalog.MaterializedViewRelation || relation.Populated),
 		text(26, replica), boolean(27, relation.Membership != nil || relation.SQLIndex != nil && relation.SQLIndex.PartitionParent != (ids.ObjectAddress{})), oid(28, 0),
 		checked(sqltype.XIDValue(source.Columns[29].Usage.Type, 0)), checked(sqltype.XIDValue(source.Columns[30].Usage.Type, 0)), acl, options, bound,
@@ -148,11 +148,11 @@ func (e *Engine) pgClassRow(ctx context.Context, view catalog.Read, roles author
 	return row, failure
 }
 
-func (e *Engine) pgClassACL(roles authorization.Read, array *sqltype.Descriptor, acl authorization.ACLValue) (sqltype.Value, error) {
+func pgClassACL(owner *catalog.Owner, roles authorization.Read, array *sqltype.Descriptor, acl authorization.ACLValue) (sqltype.Value, error) {
 	if !acl.Explicit {
 		return sqltype.Null(array), nil
 	}
-	if !roles.BelongsTo(&e.roles.domain) {
+	if !roles.BelongsTo(owner.Principals) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: foreign catalog ACL authority")
 	}
 	elements := make([]sqltype.Value, len(acl.Entries))
@@ -181,7 +181,7 @@ func (e *Engine) pgClassACL(roles authorization.Read, array *sqltype.Descriptor,
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		elements[i], err = sqltype.ACLItemValue(array.Element(), &e.roles.aclAuthority, grantee, uint32(entry.Grantor.ID()), mask, options)
+		elements[i], err = sqltype.ACLItemValue(array.Element(), owner.ACLAuthority, grantee, uint32(entry.Grantor.ID()), mask, options)
 		if err != nil {
 			return sqltype.Value{}, err
 		}

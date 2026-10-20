@@ -125,7 +125,7 @@ func TestExtensionProviderIdentity(t *testing.T) {
 	if text == (ids.ObjectAddress{}) || dictionary == (ids.ObjectAddress{}) || text == dictionary {
 		t.Fatal("overloads collapsed")
 	}
-	edges, err := collectPGDepend(context.Background(), view)
+	edges, err := collectPGDepend(context.Background(), view, engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}

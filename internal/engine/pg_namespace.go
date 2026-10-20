@@ -1,10 +1,8 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"math"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -12,11 +10,16 @@ import (
 
 // Caller owns e.mu. Catalog and paired roles are immutable captured authority;
 // inventory visibility is independent of the actor's schema USAGE privileges.
-func (e *Engine) capturePGNamespace(ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGNamespace(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx := in.Context
+	view := in.Catalog
+	roles := in.Roles
+	ref := in.Ref
+	source := in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if view.Owner() != e.catalog.owner() || view.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.NamespaceClassID}) || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() || ref.Address != source.Address() || view.Get(source.Address()) != source {
+	if view.Owner() != in.Owner || view.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.NamespaceClassID}) || ref.Domain() != in.Owner.Domain || ref.Epoch != view.Epoch() || ref.Address != source.Address() || view.Get(source.Address()) != source {
 		return nil, fmt.Errorf("stuntgres: foreign namespace source authority")
 	}
 	ids := [...]sqltype.ID{26, 19, 26, 1034}
@@ -30,7 +33,7 @@ func (e *Engine) capturePGNamespace(ctx context.Context, view catalog.Read, role
 		}
 	}
 	database, ok := view.Database(catalog.CurrentDatabaseAddress)
-	if !ok || database == nil || !roles.BelongsTo(&e.roles.domain) || roles.DatabaseOwner() != database.Owner {
+	if !ok || database == nil || !roles.BelongsTo(in.Owner.Principals) || roles.DatabaseOwner() != database.Owner {
 		return nil, fmt.Errorf("stuntgres: foreign namespace owner authority")
 	}
 	count := 0
@@ -68,7 +71,7 @@ func (e *Engine) capturePGNamespace(ctx context.Context, view catalog.Read, role
 		if err != nil {
 			return nil, err
 		}
-		acl, err := e.pgClassACL(roles, source.Columns[3].Usage.Type, ns.ACL)
+		acl, err := pgClassACL(in.Owner, roles, source.Columns[3].Usage.Type, ns.ACL)
 		if err != nil {
 			return nil, err
 		}
@@ -77,5 +80,5 @@ func (e *Engine) capturePGNamespace(ctx context.Context, view catalog.Read, role
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }

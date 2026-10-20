@@ -1,14 +1,14 @@
 package engine
 
 import (
-	"context"
 	"fmt"
-	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func capturePGOpclass(ctx context.Context, catalog catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGOpclass(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx := in.Context
+	catalog := in.Catalog
+	source := in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -54,5 +54,5 @@ func capturePGOpclass(ctx context.Context, catalog catalog.Read, ref ids.ObjectR
 		row[7] = sqltype.Boolean(source.Columns[7].Usage.Type, fact.Default)
 		rows[i] = row
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }

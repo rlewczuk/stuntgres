@@ -121,7 +121,7 @@ func TestInheritanceGraphDirectDependEdges(t *testing.T) {
 	c := inheritanceLifecycleTable(e, 20001, "c", p.Address())
 	leaf := inheritanceLifecycleTable(e, 20002, "leaf", c.Address())
 	inheritanceLifecycleInstall(e, p, c, leaf)
-	edges, err := collectPGDepend(context.Background(), e.CatalogRead())
+	edges, err := collectPGDepend(context.Background(), e.CatalogRead(), engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}

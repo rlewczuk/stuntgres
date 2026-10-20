@@ -49,7 +49,7 @@ func pgDependPinned(view catalog.Read, reader definitionReader, address ids.Obje
 	return false
 }
 
-func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, error) {
+func collectPGDepend(ctx context.Context, view catalog.Read, runtime catalogSourceRuntime) ([]pgDependEdge, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, er
 	}
 	attribute := func(relation ids.ObjectAddress, sub int32) ids.ObjectAddress { relation.SubID = sub; return relation }
 	expression := func(owner ids.ObjectAddress, expr expr.Expr, parent ids.ObjectAddress, localFlavor byte) error {
-		refs, err := pgDependExpressionRefs(ctx, view, expr)
+		refs, err := runtime.ExpressionReferences(ctx, view, expr)
 		if err != nil {
 			return err
 		}
@@ -179,12 +179,10 @@ func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, er
 			for _, policy := range d.Security.Policies {
 				owner := ids.ObjectAddress{ClassID: ids.PolicyClassID, ObjectID: policy.OID}
 				add(owner, d.Address(), 'a')
-				for _, condition := range []*policyExpression{policyExpressionOf(policy.Using), policyExpressionOf(policy.Check)} {
-					if condition != nil {
-						if err := expression(owner, condition.expression, d.Address(), 'n'); err != nil {
-							return nil, err
-						}
-					}
+				if err := runtime.VisitPolicyExpressions(policy, func(condition expr.Expr) error {
+					return expression(owner, condition, d.Address(), 'n')
+				}); err != nil {
+					return nil, err
 				}
 			}
 			add(d.Address(), d.OfType, 'n')
@@ -204,12 +202,9 @@ func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, er
 					if err := ctx.Err(); err != nil {
 						return nil, err
 					}
-					if key.Derived == nil {
-						attrs[key.Attribute] = struct{}{}
-					} else if column, ok := key.Derived.Definition.(columnExpression); ok && column.origin.Address.ClassID == definition.Parent.ClassID && column.origin.Address.ObjectID == definition.Parent.ObjectID {
-						// Parentheses around a direct Var do not make an
-						// expression-only PostgreSQL index key.
-						attrs[column.origin.Address.SubID] = struct{}{}
+					if sub, simple := runtime.IndexSimpleAttribute(definition.Parent, key); simple {
+						// Parenthesized direct Vars retain simple-key ownership.
+						attrs[sub] = struct{}{}
 					}
 				}
 				for _, sub := range definition.Include {
@@ -229,17 +224,7 @@ func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, er
 				}
 				// All expression keys share one collection, so repeated inputs
 				// across keys do not create repeated dependency records.
-				refs := pgDependRefs{ctx: ctx, catalog: view}
-				for _, key := range definition.Keys {
-					if err := ctx.Err(); err != nil {
-						return nil, err
-					}
-					if key.Derived != nil {
-						refs.expression(key.Derived.Definition)
-					}
-					refs.add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Collation)})
-				}
-				addresses, err := refs.finish()
+				addresses, err := runtime.IndexReferences(ctx, view, definition)
 				if err != nil {
 					return nil, err
 				}
@@ -272,19 +257,7 @@ func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, er
 				add(d.Address(), d.Membership.Parent, 'a')
 			}
 			if d.Partition != nil {
-				refs := pgDependRefs{ctx: ctx, catalog: view}
-				for _, key := range d.Partition.Keys {
-					if key.Attribute != 0 {
-						refs.add(attribute(d.Address(), key.Attribute))
-					}
-					if key.Derived != nil {
-						refs.expression(key.Derived.Definition)
-					}
-					refs.add(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(key.Usage.Type.ID())})
-					refs.add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Collation)})
-					refs.add(ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(key.Usage.Collation.ID)})
-				}
-				addresses, err := refs.finish()
+				addresses, err := runtime.PartitionReferences(ctx, view, d)
 				if err != nil {
 					return nil, err
 				}
@@ -356,7 +329,7 @@ func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, er
 						add(owner, attribute(d.Address(), key.Attribute), 'a')
 						continue
 					}
-					refs, err := pgDependExpressionRefs(ctx, view, key.Derived.Definition)
+					refs, err := runtime.ExpressionReferences(ctx, view, key.Derived.Definition)
 					if err != nil {
 						return nil, err
 					}
@@ -371,7 +344,7 @@ func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, er
 					add(owner, attribute(d.Address(), sub), 'a')
 				}
 				if predicate := index.SQLIndex.Predicate; predicate != nil {
-					refs, err := pgDependExpressionRefs(ctx, view, predicate.Definition)
+					refs, err := runtime.ExpressionReferences(ctx, view, predicate.Definition)
 					if err != nil {
 						return nil, err
 					}
@@ -385,7 +358,7 @@ func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, er
 			}
 			for _, c := range d.Constraints.Check {
 				owner := ids.ObjectAddress{ClassID: 2606, ObjectID: c.OID}
-				refs, err := pgDependExpressionRefs(ctx, view, c.Expression)
+				refs, err := runtime.ExpressionReferences(ctx, view, c.Expression)
 				if err != nil {
 					return nil, err
 				}
@@ -424,17 +397,20 @@ func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, er
 					return nil, err
 				}
 			}
-			for _, rule := range rulesOf(d) {
+			if err := runtime.VisitRules(d, func(rule catalogRuleFact) error {
 				owner := ids.ObjectAddress{ClassID: 2618, ObjectID: rule.OID}
 				add(owner, d.Address(), 'a')
-				for _, ref := range rule.references {
+				for _, ref := range rule.References {
 					add(owner, ref, 'n')
 				}
+				return nil
+			}); err != nil {
+				return nil, err
 			}
 			if d.View != nil {
 				owner := ids.ObjectAddress{ClassID: 2618, ObjectID: d.View.RuleOID()}
 				add(owner, d.Address(), 'i')
-				refs, err := pgDependQueryRefs(ctx, view, nil, viewOf(d).query)
+				refs, err := runtime.ViewReferences(ctx, view, d)
 				if err != nil {
 					return nil, err
 				}
@@ -453,8 +429,9 @@ func collectPGDepend(ctx context.Context, view catalog.Read) ([]pgDependEdge, er
 	return edges, nil
 }
 
-func capturePGDepend(ctx context.Context, catalog catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
-	edges, err := collectPGDepend(ctx, catalog)
+func capturePGDepend(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx, catalog, source := in.Context, in.Catalog, in.Source
+	edges, err := collectPGDepend(ctx, catalog, in.Runtime)
 	if err != nil {
 		return nil, err
 	}
@@ -480,5 +457,5 @@ func capturePGDepend(ctx context.Context, catalog catalog.Read, ref ids.ObjectRe
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }

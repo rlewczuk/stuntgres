@@ -71,7 +71,7 @@ func TestIntaggProviderManifest(t *testing.T) {
 			t.Fatal("corrupt member inventory", members)
 		}
 	}
-	edges, err := collectPGDepend(context.Background(), view)
+	edges, err := collectPGDepend(context.Background(), view, engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}

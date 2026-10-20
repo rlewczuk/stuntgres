@@ -21,10 +21,10 @@ System relation producers become a package of pure functions from a captured
 catalog (plus a narrow runtime capability) to rows. The engine keeps one
 registry lookup that wraps those rows into a query source.
 
-## Inventory (measured at `75fe0d710`)
+## Historical inventory (before 9a, measured at `75fe0d710`)
 
-Re-measure first; new `PG18-CAT-*` parts add producers often (for example
-`pg_default_acl.go` landed just before this measurement).
+This records the pre-cutover seams, not the current file/dispatch layout.
+The implemented 9a layout is described below and in the engine README.
 
 **Producers.** 35 `pg_*.go` files (4.2k lines) plus `catalog_sources.go`
 (586, the spec table and the second dispatcher), `view_source.go` (237, the
@@ -106,75 +106,67 @@ through `*querySource`, which holds `scope *StatementScope`. With
 
 ### 9a — One producer contract and one registry, in place
 
-1. **Move the non-producers out of `pg_*`** (file moves and renames only):
-   `pg_class_history.go` and the history half of `table_view_summary.go` to
-   `catalog_relation_history.go`; `pg_sequences_admission.go` to
-   `query_pg_sequences_admission.go`; `pg_depend_expression.go` to
-   `expression_references.go` (rename `pgDependRefs` to `expressionRefs` if
-   it reads better; keep behavior).
-2. **Input record.** Add an engine-local `catalogSourceInput` with `Context`,
-   `Catalog catalog.Read`, `Roles authorization.Read`, `Owner
-   *catalog.Owner`, `Ref ids.ObjectRef`, `Source *catalog.Relation` and
+**In-place code cutover implemented and verified in `internal/engine`.**
+No `pgcatalog` package is created by 9a. The six outcomes are:
+
+1. **Separate non-producers.** `catalog_relation_history.go` now owns subclass
+   publication history and the index-history functions formerly mixed into
+   `table_view_summary.go`. `query_pg_sequences_admission.go` owns sequence
+   predicate admission. `expression_references.go` owns the shared expression/
+   plan walker (`pgDependRefs`), including rule/policy consumers.
+2. **One seven-field input.** `catalogSourceInput` contains exactly `Context
+   context.Context`, `Catalog catalog.Read`, `Roles authorization.Read`,
+   `Owner *catalog.Owner`, `Ref ids.ObjectRef`, `Source *catalog.Relation` and
    `Runtime catalogSourceRuntime`.
-3. **Producers return rows.** Change every producer to
-   `func(in catalogSourceInput) ([][]sqltype.Value, error)`. The dispatcher
-   builds the `querySource{ref, anonymous}` that producers build today. Keep
-   each producer's own provenance checks, but compare against `in.Owner`
-   (`view.Owner() != in.Owner`, `ref.Domain() != in.Owner.Domain`,
-   `roles.BelongsTo(in.Owner.Principals)`), and pass `in.Owner.ACLAuthority`
-   where `e.roles.aclAuthority` is read today. Verify that these are the same
-   pointers the engine compares today (`catalogStore.owner()` returns
-   `&s.Owner`; check the role domain against `Owner.Principals` before
-   relying on it). `Engine.pgClassACL` becomes `pgClassACL(owner, roles,
-   array, acl)`.
-4. **Capability.** Add an engine-local interface `catalogSourceRuntime` with
-   value-taking methods only, implemented by a small engine adapter built per
-   call (not by `*Engine` itself):
-   - `Cursors() []cursorRow` for `pg_cursors` (plain data, built under the
-     session's cursor registry);
-   - `SessionSettings()` for `pg_settings` (plain rows built under the
-     session settings mutex; the store itself stays in the engine until step
-     13);
-   - `PreparedTransactions()` for `pg_prepared_xacts` (plain data built from
-     `e.prepared`, `AssignedXIDLocked` and the published roles);
-   - `TimezoneInput() sqltype.InputEnvironment`;
-   - `DatabaseName() string`;
-   - `ColumnsVisible(ref ids.ObjectRef, relation *catalog.Relation) bool` and
-     `OwnsTemporaryNamespace(token ids.SessionToken) bool` for the privilege
-     views and `pg_indexes`, replacing their `AuthorizationView` use;
-   - `ExpressionReferences(expr.Expr)` and `QueryReferences(...)` for
-     `pg_depend` and `pg_constraint`;
-   - `ViewDefinition(...)` and `IndexDefinition(...)` for `pg_views`,
-     `pg_matviews` and `pg_indexes`;
-   - `Settings() settingsRegistry` for `pg_parameter_acl`.
+3. **Rows-only producers.** Eligible producers are free functions with
+   `func(catalogSourceInput) ([][]sqltype.Value, error)`. This includes extracted
+   `pg_db_role_setting`, `pg_index`, `pg_attrdef`, `pg_class`, `pg_rewrite` and
+   prepared-transaction production. The engine's `captureCatalogSourceRows`
+   wraps success as `querySource{ref, anonymous}` and preserves nil/error
+   behavior. Producers do not construct query sources or retain statement
+   scopes. Provenance uses the same Owner/Domain/Principals/ACLAuthority
+   pointers as before, not numeric identity substitutes.
+   `pgClassACL(owner, roles, array, acl)` and hidden
+   `capturedRegroleOutput`/`capturedACLItemOutput` formatters now use
+   `*catalog.Owner` plus immutable roles, not Engine. Absent/explicit-empty ACL,
+   retained-root and type-generation checks keep their original meanings.
+4. **Demand-only per-call capability.** `engineCatalogRuntime` privately retains
+   only the selected handles/cheap facts at construction. Value-taking methods
+   expose no Engine, StatementScope, AuthorizationView or binding. Cursor
+   visitors do not fetch; settings read one coherent physical-session tuple
+   after unlock; prepared visitors read the actual registry, assigned XID and
+   published owner, with entry cancellation before those lookups. Error-bearing
+   privilege/provenance operations, physical TEMP ownership, parameter
+   definition validation, shared expression/query walks, rule facts and
+   view/index presentation remain adapter-owned. Sequence definition visitors
+   preserve base/overlay order without generator reads. Foreign disclosure
+   retains deliberate boolean denials and native missing-server errors.
+5. **One immutable registry.** `catalogSourceProducers` is a process-initialized,
+   OID-sorted fixed array with binary-search lookup, shared by both engine
+   entry paths. All five foreign metadata relations are registry producers:
+   `pg_foreign_data_wrapper`, `pg_foreign_server`, `pg_user_mapping`,
+   `pg_foreign_table` and `pg_user_mappings`, with fresh paired authorization.
+   **Only `pg_locks` and lazy `pg_sequences` are explicit handlers.**
+   `catalog_source_capture.go` selects per-OID input roots, runtime handles,
+   presentation and unlock policy; it is not another producer dispatcher.
+   Comment snapshots, index authorization recapture, physical ownership and
+   the statement-only `pg_sequence` journal overlay remain caller policy.
+   Lock capture preserves unlock/capture/relock epoch fencing and never takes
+   the lock-manager mutex under Engine.mu; sequence completion stays lazy.
+6. **Pure ordered specs, engine registration.** `catalog_source_specs.go` holds
+   process-initialized pure metadata, including foreign, privilege and settings
+   definitions. The engine still resolves owned types, builds fresh descriptors
+   and registers them through `initializeCatalogSources`,
+   `catalogSourceDescriptor` and `registerCatalogSource`. Spec order is not
+   sorted lookup order. OIDs, column/carrier/typmod/dimension/nullability/
+   collation/origin metadata, flags and actual row/array links are preserved;
+   startup allocation/performance impact still requires measurement.
 
-   Measure before adding each method; prefer passing a value in the input
-   record when it is cheap to compute up front. The interface must not return
-   `*Engine`, `*StatementScope`, `AuthorizationView` or `binding`.
-5. **Registry.** Replace both chains with one table keyed by OID
-   (`catalogSourceProducers`, a sorted slice or a map built once). Keep the
-   explicit cases that cannot be producers in front of the lookup, in the
-   current order:
-   - `pg_locks` (it releases `Engine.mu`); move its row building
-     (`pgLockRows`, `pgLockRow`, `pgLockModes`, `virtualTransaction`) out of
-     the `Locked` method;
-   - `pg_sequences` (lazy completion through `scope.acquireSequence`);
-   - the foreign catalogs if their `AuthorizationView` use does not fit the
-     capability.
-
-   The caller still chooses the catalog and roles per OID exactly as today
-   (comment snapshot for 2609, 3079 and parameter ACLs; journal overlay for
-   2224 only on the statement path). Write a table test that every OID
-   registered by `initializeCatalogSources` has exactly one producer.
-6. **Spec tables.** Split `initializeCatalogSources` (371 lines on `Engine`)
-   into pure spec data (OID, name, columns, nullability and collation
-   overrides, `VirtualView` flags) and the engine loop that registers
-   descriptors (`registerCatalogSource`, `catalogSourceDescriptor`). Do the
-   same for `initializeForeignCatalogSources`, `initializeTablePrivileges` and
-   `initializeDataTypePrivileges`.
-
-Commit in this order: file moves; input record and rows (mechanical, one
-commit per producer group); capability; registry; spec tables.
+The four actual new units are `TestCatalogSourceProducerCoverage`,
+`TestCatalogSourceInputProvenance`, `TestCatalogSourceRuntimeCapture` and
+`TestCatalogSourceSpecMetadata`. See
+[engine Testing](../internal/engine/README.md#system-catalog-producer-contract)
+for selected native, unchanged dual-mode reference and race commands.
 
 ### 9b — Create `pgcatalog` and move
 
@@ -222,7 +214,8 @@ namespace and domain seeding (`engine.go:219`, `domain_check.go`);
 - `pg_locks` keeps its lock order: the lock manager's mutex is never taken
   under `Engine.mu` (see the `lock` README).
 - Catalog seeding keeps the same OIDs, column types, nullability and
-  registration order, so startup allocations do not change.
+  registration order. Startup allocation/performance preservation must be
+  established by before/after measurements, not inferred from this structure.
 
 ## Targeted tests
 
@@ -240,12 +233,14 @@ namespace and domain seeding (`engine.go:219`, `domain_check.go`);
 
 ## Documentation
 
+- For 9a, update the existing engine README, including Testing and current
+  moved-name references. Do not create a package README before 9b.
 - Create `internal/engine/pgcatalog/README.md` (9b): the producer contract,
   the capability and why each method exists, the registry and how to add a
   system relation, provenance rules, what stays in the engine, `## Testing`.
 - `docs/design/PG18-EXPR-COMPOSITE.md` names `querySource`; check it. Grep
   `docs/` for the moved file names.
-- `AGENTS.md`: add `pgcatalog` to the shared subpackage bullet; nothing else.
+- In 9b only, add `pgcatalog` to the `AGENTS.md` subpackage bullet.
 
 ## Done when
 
@@ -255,11 +250,24 @@ catalog relations through one registry lookup, and no producer builds a
 
 ## Status
 
-- [ ] 9a — One producer contract and one registry, in place
+- [x] 9a — One producer contract and one registry, in place
 - [ ] 9b — `pgcatalog` created and producers moved
 - [ ] 9c — Aliases removed
 
 Outstanding aliases: none yet.
+
+Observed 9a evidence: the four new contract units passed and the root's external
+public `database/sql` smoke passed dispatch, direct/new/SAME-held DDL metadata,
+definition/link presentation, bounded runtime rows, retained unadvanced
+Rows/types across Dump/Reset, and Restore live compact slots/data.
+Selected unchanged native/PostgreSQL18.6 definitions, selected race checks,
+build, dependencies and full quickcheck passed. Full racecheck and the
+race-containing post-integration finalcheck were waived for this cutover.
+Steady startup allocations fell from 5152 to 5100. Latest current-base samples
+measured 880449–1214836ns/op: three below the 1ms target and two above it.
+Earlier samples and overload failures remain evidence; no controlled timing
+speedup or consistently sub-millisecond startup is claimed.
+`reference/` and `smoke/` are unchanged; 9b/9c remain pending.
 
 Notes for later steps:
 

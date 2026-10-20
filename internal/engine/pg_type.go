@@ -93,11 +93,12 @@ func (s pgTypeDefaultTree) StructuralOutput(ctx context.Context) (string, error)
 }
 
 // Caller owns e.mu. Captures own their rows and retain only immutable roots.
-func (e *Engine) capturePGType(ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGType(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx, view, roles, ref, source := in.Context, in.Catalog, in.Roles, in.Ref, in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if view.Owner() != e.catalog.owner() || view.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgTypeOID}) || source.RelationKind != catalog.CatalogRelation || ref.Domain() != e.catalog.Domain || ref.Epoch != view.Epoch() || ref.Address != source.Address() || view.Get(source.Address()) != source {
+	if view.Owner() != in.Owner || view.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgTypeOID}) || source.RelationKind != catalog.CatalogRelation || ref.Domain() != in.Owner.Domain || ref.Epoch != view.Epoch() || ref.Address != source.Address() || view.Get(source.Address()) != source {
 		return nil, fmt.Errorf("stuntgres: foreign type source authority")
 	}
 	if len(source.Columns) != len(pgTypeColumnIDs) {
@@ -110,7 +111,7 @@ func (e *Engine) capturePGType(ctx context.Context, view catalog.Read, roles aut
 		}
 	}
 	database, ok := view.Database(catalog.CurrentDatabaseAddress)
-	if !ok || database == nil || !roles.BelongsTo(&e.roles.domain) || roles.DatabaseOwner() != database.Owner {
+	if !ok || database == nil || !roles.BelongsTo(in.Owner.Principals) || roles.DatabaseOwner() != database.Owner {
 		return nil, fmt.Errorf("stuntgres: foreign type owner authority")
 	}
 	count := 0
@@ -147,8 +148,8 @@ func (e *Engine) capturePGType(ctx context.Context, view catalog.Read, roles aut
 		}
 		f, err := pgTypeFacts(ctx, view, d, sqltype.OutputEnvironment{
 			Regclass: catalogRegclassOutput{view: view},
-			Regrole:  capturedRegroleOutput{owner: e, roles: roles},
-			ACLItem:  capturedACLItemOutput{owner: e, roles: roles},
+			Regrole:  capturedRegroleOutput{owner: in.Owner, roles: roles},
+			ACLItem:  capturedACLItemOutput{owner: in.Owner, roles: roles},
 		})
 		if err != nil {
 			return nil, err
@@ -223,7 +224,7 @@ func (e *Engine) capturePGType(ctx context.Context, view catalog.Read, roles aut
 				var acl authorization.ACLValue
 				acl, err = access.RawObjectACL(view, address)
 				if err == nil {
-					row[i], err = e.pgClassACL(roles, column.Usage.Type, acl)
+					row[i], err = pgClassACL(in.Owner, roles, column.Usage.Type, acl)
 				}
 			}
 			if err != nil {
@@ -236,5 +237,5 @@ func (e *Engine) capturePGType(ctx context.Context, view catalog.Read, roles aut
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }

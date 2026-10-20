@@ -1,14 +1,15 @@
 package engine
 
 import (
-	"context"
 	"sort"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func capturePGCollation(ctx context.Context, view catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGCollation(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx := in.Context
+	view := in.Catalog
+	source := in.Source
 	var definitions []*catalog.Collation
 	for _, d := range view.Descriptors() {
 		if c, ok := d.(*catalog.Collation); ok {
@@ -51,5 +52,5 @@ func capturePGCollation(ctx context.Context, view catalog.Read, ref ids.ObjectRe
 		}
 		rows = append(rows, row)
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }

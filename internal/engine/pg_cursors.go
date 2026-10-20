@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"context"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -11,32 +9,37 @@ const pgCursorsOID ids.OID = 12077
 
 // Session admission protects this registry. Only registry membership determines
 // visibility: producer teardown and HOLD promotion do not remove metadata.
-func capturePGCursors(ctx context.Context, ref ids.ObjectRef, d *catalog.Relation, cursors *cursorRegistry) (*querySource, error) {
+func capturePGCursors(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx, d := in.Context, in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	rows := make([][]sqltype.Value, 0, len(cursors.entries))
-	for name, cursor := range cursors.entries {
+	rows := make([][]sqltype.Value, 0, in.Runtime.CursorCount())
+	err := in.Runtime.VisitCursors(func(cursor catalogCursorFact) error {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return err
 		}
 		// Immutable builtin timestamp data outlives catalog replacement. Give
 		// this observation its current descriptor without rebinding the cursor.
-		created, err := cursor.created.Retag(d.Columns[5].Usage.Type)
+		created, err := cursor.Created.Retag(d.Columns[5].Usage.Type)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		rows = append(rows, []sqltype.Value{
-			sqltype.String(d.Columns[0].Usage.Type, name),
-			sqltype.String(d.Columns[1].Usage.Type, cursor.statement),
-			sqltype.Boolean(d.Columns[2].Usage.Type, cursor.hold),
+			sqltype.String(d.Columns[0].Usage.Type, cursor.Name),
+			sqltype.String(d.Columns[1].Usage.Type, cursor.Statement),
+			sqltype.Boolean(d.Columns[2].Usage.Type, cursor.Hold),
 			sqltype.Boolean(d.Columns[3].Usage.Type, false),
-			sqltype.Boolean(d.Columns[4].Usage.Type, cursor.scroll),
+			sqltype.Boolean(d.Columns[4].Usage.Type, cursor.Scroll),
 			created,
 		})
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }

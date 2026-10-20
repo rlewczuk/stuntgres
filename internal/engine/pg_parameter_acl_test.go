@@ -109,7 +109,7 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 		t.Fatal("discovery")
 	}
 	class := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1259})
-	facts, err := e.pgClassRow(context.Background(), view, e.Roles(), class, d)
+	facts, err := pgClassRow(catalogSourceInput{Context: context.Background(), Catalog: view, Roles: e.Roles(), Owner: e.catalog.owner(), Source: class, Runtime: engineCatalogRuntime{}}, d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +173,7 @@ func TestPGParameterACLCapture(t *testing.T) {
 		t.Fatal("capture mutated owner roots/frontiers")
 	}
 	d, ref := pgParameterACLUnitSource(t, e, view)
-	if rows, err := e.capturePGParameterACL(context.Background(), view, New().Roles(), ref, d); err == nil || rows != nil {
+	if rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: view, Roles: New().Roles(), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGParameterACL); err == nil || rows != nil {
 		t.Fatal("foreign roles accepted", err)
 	}
 	address := view.NameAddress(ids.NameKey{ClassID: ids.ParameterClassID, Name: "lc_messages"})
@@ -181,13 +181,13 @@ func TestPGParameterACLCapture(t *testing.T) {
 	corrupt.Owner = authorization.PrincipalRef{}
 	broken := catalog.CloneState(view.State())
 	broken.SetDescriptor(address, &corrupt)
-	if rows, err := e.capturePGParameterACL(context.Background(), e.catalog.read(broken), roles, ref, d); err == nil || rows != nil {
+	if rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.catalog.read(broken), Roles: roles, Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGParameterACL); err == nil || rows != nil {
 		t.Fatal("invalid owner accepted", err)
 	}
 	corrupt.Owner = e.roles.domain.Principal(10)
 	corrupt.ACL.Entries = append([]authorization.ACLEntry(nil), corrupt.ACL.Entries...)
 	corrupt.ACL.Entries[0].Grantor = New().roles.domain.Principal(10)
-	if rows, err := e.capturePGParameterACL(context.Background(), e.catalog.read(broken), roles, ref, d); err == nil || rows != nil {
+	if rows, err := captureCatalogSourceRows(catalogSourceInput{Context: context.Background(), Catalog: e.catalog.read(broken), Roles: roles, Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGParameterACL); err == nil || rows != nil {
 		t.Fatal("foreign grantor accepted", err)
 	}
 	// Real owner operations, not synthetic parameter rows, produce explicit {}.
@@ -232,7 +232,7 @@ func TestPGParameterACLCapture(t *testing.T) {
 	if _, exists := e.catalog.state.Find(emptyAddress); exists {
 		t.Fatal("baseline not removed")
 	}
-	implicit, err := e.pgClassACL(roles, d.Columns[2].Usage.Type, authorization.ACLValue{})
+	implicit, err := pgClassACL(e.catalog.owner(), roles, d.Columns[2].Usage.Type, authorization.ACLValue{})
 	if err != nil || !implicit.IsNull() {
 		t.Fatal("implicit carrier", implicit, err)
 	}
@@ -292,7 +292,7 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 		t.Fatal("immutable identity/root")
 	}
 	retained := &finalRows{}
-	if err := captureACLItemOutputValue(retained, capturedACLItemOutput{owner: e, roles: roles}, captured.anonymous[0][2]); err != nil {
+	if err := captureACLItemOutputValue(retained, capturedACLItemOutput{owner: e.catalog.owner(), roles: roles}, captured.anonymous[0][2]); err != nil {
 		t.Fatal(err)
 	}
 	request.Revoke, request.GrantOption = true, false
@@ -355,7 +355,7 @@ func TestPGParameterACLCancellation(t *testing.T) {
 			cancel()
 		}
 		during := &aclValuesScanContext{Context: ctx, cancel: cancel, after: after}
-		rows, err := e.capturePGParameterACL(during, catalog, roles, ref, d)
+		rows, err := captureCatalogSourceRows(catalogSourceInput{Context: during, Catalog: catalog, Roles: roles, Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGParameterACL)
 		cancel()
 		if rows != nil || !errors.Is(err, context.Canceled) {
 			t.Fatal("partial/canceled capture", after, rows, err)

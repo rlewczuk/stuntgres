@@ -11,7 +11,7 @@ import (
 )
 
 type capturedRegroleOutput struct {
-	owner    *Engine
+	owner    *catalog.Owner
 	roles    authorization.Read
 	quoteAll bool
 }
@@ -20,10 +20,10 @@ func (r capturedRegroleOutput) FormatRegrole(id uint32) (string, error) {
 	if id == 0 {
 		return "-", nil
 	}
-	if r.owner == nil || !r.roles.BelongsTo(&r.owner.roles.domain) {
+	if r.owner == nil || !r.roles.BelongsTo(r.owner.Principals) {
 		return "", fmt.Errorf("stuntgres: missing regrole output authority")
 	}
-	role, ok := r.roles.Find(r.owner.roles.domain.Principal(uint64(id)))
+	role, ok := r.roles.Find(r.owner.Principals.Principal(uint64(id)))
 	if !ok {
 		return strconv.FormatUint(uint64(id), 10), nil
 	}
@@ -46,7 +46,7 @@ func (s *StatementScope) FormatRegrole(id uint32) (string, error) {
 	if s == nil {
 		return "", fmt.Errorf("stuntgres: missing regrole output snapshot")
 	}
-	return (capturedRegroleOutput{owner: s.commentEngine(), roles: s.commentRoles, quoteAll: s.output.QuoteAllIdentifiers}).FormatRegrole(id)
+	return (capturedRegroleOutput{owner: s.commentCatalog.Owner(), roles: s.commentRoles, quoteAll: s.output.QuoteAllIdentifiers}).FormatRegrole(id)
 }
 
 func (r *finalRows) FormatRegrole(id uint32) (string, error) {

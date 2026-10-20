@@ -136,7 +136,7 @@ func pgCollationUnitCapture(t *testing.T, e *Engine, view catalog.Read) *querySo
 	unchanged()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if got, err := capturePGCollation(ctx, view, ref, d); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := captureCatalogSourceRows(catalogSourceInput{Context: ctx, Catalog: view, Ref: ref, Source: d, Owner: (view).Owner()}, capturePGCollation); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture published partial source", got, err)
 	}
 	unchanged()

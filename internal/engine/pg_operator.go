@@ -1,15 +1,16 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"sort"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
-func capturePGOperator(ctx context.Context, view catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGOperator(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx := in.Context
+	view := in.Catalog
+	source := in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -78,5 +79,5 @@ func capturePGOperator(ctx context.Context, view catalog.Read, ref ids.ObjectRef
 		row[6] = sqltype.Boolean(source.Columns[6].Usage.Type, identity.Hash)
 		rows[i] = row
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }

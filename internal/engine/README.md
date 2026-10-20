@@ -20,6 +20,67 @@ emission stay in `notices.go`. Physical-session values, journals, timeout
 publication and their existing locks remain engine-owned. This is only settings
 8a: no settings subpackage, type migration or alias cleanup.
 
+## System catalog producers
+
+The 9a cutover stays in this package; `pgcatalog` extraction is not implemented.
+Every eligible system relation uses one rows-only contract:
+
+```go
+type catalogSourceInput struct {
+    Context context.Context
+    Catalog catalog.Read
+    Roles   authorization.Read
+    Owner   *catalog.Owner
+    Ref     ids.ObjectRef
+    Source  *catalog.Relation
+    Runtime catalogSourceRuntime
+}
+type catalogSourceProducer func(catalogSourceInput) ([][]sqltype.Value, error)
+```
+
+Producers own rows, not `querySource` or `StatementScope`.
+`catalog_source_producers.go` holds the process-initialized, immutable,
+OID-sorted registry and binary-search lookup. `captureCatalogSourceRows` alone
+wraps successful producer rows as `querySource{ref, anonymous}`; private units
+may use that same production wrapper to retain source-carrier assertions.
+All five foreign metadata relations (`pg_foreign_data_wrapper`,
+`pg_foreign_server`, `pg_user_mapping`, `pg_foreign_table`, `pg_user_mappings`)
+use this registry with fresh paired authorization. Only `pg_locks` and lazy
+`pg_sequences` have explicit non-producer handlers.
+
+`catalog_source_capture.go` chooses per-OID immutable catalog/role roots,
+presentation and unlock timing, not a second producer dispatcher.
+`engineCatalogRuntime` is a per-call, demand-only adapter: construction retains
+handles and cheap facts without enumerating unrelated runtime state. Its
+value-taking operations expose neither Engine, StatementScope, AuthorizationView
+nor bindings. Cursors are observed without fetching; settings capture one
+coherent physical-session `row_security` tuple after unlocking; prepared rows
+use the actual registry, assigned XID and currently published owner name.
+Expression/query walkers, deparsers and error-bearing privilege operations stay
+adapter-owned. Physical TEMP ownership, sequence journal overlays, cancellation
+boundaries and foreign disclosure booleans retain their existing semantics.
+Lock capture retains its unlock/capture/relock epoch fence and never takes the
+lock manager mutex under `Engine.mu`; lazy sequence completion alone demands
+sequence locks and generator state.
+
+Provenance is same-pointer authority, not equal names/OIDs/epochs:
+`catalogStore.owner()` supplies the stable `*catalog.Owner`, whose Domain,
+Principals and ACLAuthority are the engine's exact paired authorities.
+`pgClassACL(owner, roles, array, acl)` and the existing hidden
+`capturedRegroleOutput`/`capturedACLItemOutput` formatters use that Owner and
+immutable role reads, not Engine. Retained roots, type-generation checks,
+absent versus explicit-empty ACLs and ordinary error stages remain significant.
+
+`catalog_source_specs.go` contains process-initialized pure ordered specs,
+separate from sorted producer lookup. Engine-owned `initializeCatalogSources`,
+`catalogSourceDescriptor` and `registerCatalogSource` resolve owned types and
+allocate/register fresh descriptors, preserving registration order, OIDs,
+columns, typmods, dimensions, nullability, collation, origins, flags and actual
+row/array links. Publication/index history lives in
+`catalog_relation_history.go`, sequence predicate admission in
+`query_pg_sequences_admission.go`, and shared expression/plan reference walking
+in `expression_references.go`; those are not producer ownership.
+
 ## Testing
 
 Follow the [shared testing guide](../../docs/TESTING.md) for common policy and
@@ -154,6 +215,44 @@ failed evidence; further racecheck and race-containing finalcheck are explicitly
 user-waived, not passing. Post-integration quickcheck replaces finalcheck.
 The preexisting <1ms startup target miss remains; warm allocations stayed 5152.
 No startup optimization or timing-equivalence claim is made.
+
+### System catalog producer contract
+
+The new private contract units cover actual producer/explicit-handler ownership
+and unknown errors, independent Owner/root provenance, real runtime capture and
+ordered descriptor metadata. Existing units retain their source/ACL/lifetime
+assertions through the real engine wrapper.
+
+```sh
+make check RUN='^(TestCatalogSourceProducerCoverage|TestCatalogSourceInputProvenance|TestCatalogSourceRuntimeCapture|TestCatalogSourceSpecMetadata)$'
+make check RUN='^(TestPGAttributeCapture|TestPGTypeCaptureOwnership|TestDataTypePrivilegesCapture|TestPgClassACLTranslation)$'
+make check RUN='^(TestPGIndexesCaptureRetentionAndStableColumnACL|TestPGIndexesSourceInvokerAndFreshAuthorization|TestPGParameterACLSnapshot|TestPGParameterACLCancellation)$'
+make check RUN='^(TestReferencePGAttributeSmoke|TestReferencePGCursorsMetadata|TestReferencePGCursorsSourcesAndTime|TestReferenceDataTypePrivilegesKindsAndTemp)$'
+make check REFERENCE=1 RUN='^(TestReferencePGAttributeSmoke|TestReferencePGCursorsMetadata|TestReferencePGCursorsSourcesAndTime|TestReferenceDataTypePrivilegesKindsAndTemp)$'
+make check RACE=1 RUN='^(TestPGLocksWaitDependencies|TestPGLocksSnapshotOwnership|TestPGCursorsSource|TestPGSequencesCancellation)$'
+make check RACE=1 RUN='^(TestReferenceViewLocksTransitions|TestReferenceViewLocksCancellation|TestReferencePGCursorsMetadata|TestReferencePGCursorsSourcesAndTime)$'
+make check RACE=1 REFERENCE=1 RUN='^(TestReferenceViewLocksTransitions|TestReferenceViewLocksCancellation|TestReferencePGCursorsMetadata|TestReferencePGCursorsSourcesAndTime)$'
+```
+
+Use an external 900-second deadline for each selected check. The unchanged
+reference definitions independently cover direct/new/SAME-held DDL metadata,
+actual cursor lifecycle/time and physical TEMP visibility; selected races cover
+real lock waits, ownership and cancellation. Full supplements remain in the
+living implementation plan; these selectors are not a substitute for full gates.
+
+Observed after cutover: the four new contract units passed, and the root's
+outside-repository public `database/sql` smoke passed dispatch, direct/new/held
+DDL metadata, table/view/index/type links and definition presentation, bounded
+runtime rows, retained unadvanced Rows/ColumnTypes across Dump/Reset, and
+Restore with compact live slots and data. Selected unchanged native and pinned
+PostgreSQL18.6 definitions, selected races, build, dependencies and full quickcheck
+also passed. Full racecheck and the race-containing post-integration finalcheck
+were waived for this cutover; neither is claimed passing. Steady startup
+allocations fell from 5152 to 5100. Latest current-base samples measured
+880449–1214836ns/op: three below the 1ms target and two above it. Earlier
+samples and overload failures remain in part evidence. These measurements
+do not establish full compatibility, a controlled timing speedup, or
+consistently sub-millisecond startup.
 
 ### Closed function-source protocol
 

@@ -1,10 +1,8 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"math"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -23,11 +21,16 @@ func databaseCollationActualVersion() (*string, error) {
 
 // Caller owns e.mu. Only the supplied catalog and paired role read participate;
 // neither session identity nor the live engine catalog replaces captured facts.
-func (e *Engine) capturePGDatabase(ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGDatabase(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx := in.Context
+	view := in.Catalog
+	roles := in.Roles
+	ref := in.Ref
+	source := in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if view.Owner() != e.catalog.owner() || view.State() == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1262}) || ref.Domain() != e.catalog.Domain || ref.Epoch != view.State().Epoch() || ref.Address != source.Address() {
+	if view.Owner() != in.Owner || view.State() == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1262}) || ref.Domain() != in.Owner.Domain || ref.Epoch != view.State().Epoch() || ref.Address != source.Address() {
 		return nil, fmt.Errorf("stuntgres: foreign database source authority")
 	}
 	ids := [...]sqltype.ID{26, 19, 26, 23, 18, 16, 16, 16, 23, 28, 28, 26, 25, 25, 25, 25, 25, 1034}
@@ -47,7 +50,7 @@ func (e *Engine) capturePGDatabase(ctx context.Context, view catalog.Read, roles
 	if err := (catalog.DatabaseProvider{}).Validate(view, database); err != nil {
 		return nil, err
 	}
-	if !roles.BelongsTo(&e.roles.domain) {
+	if !roles.BelongsTo(in.Owner.Principals) {
 		return nil, fmt.Errorf("stuntgres: foreign database owner authority")
 	}
 	if _, err := roles.Descriptor(database.Owner); err != nil {
@@ -56,7 +59,7 @@ func (e *Engine) capturePGDatabase(ctx context.Context, view catalog.Read, roles
 	if database.Owner.ID() > math.MaxUint32 {
 		return nil, fmt.Errorf("stuntgres: unrepresentable database owner")
 	}
-	acl, err := e.pgClassACL(roles, source.Columns[17].Usage.Type, database.ACL)
+	acl, err := pgClassACL(in.Owner, roles, source.Columns[17].Usage.Type, database.ACL)
 	if err != nil {
 		return nil, err
 	}
@@ -84,5 +87,5 @@ func (e *Engine) capturePGDatabase(ctx context.Context, view catalog.Read, roles
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return &querySource{ref: ref, anonymous: [][]sqltype.Value{row}}, nil
+	return [][]sqltype.Value{row}, nil
 }

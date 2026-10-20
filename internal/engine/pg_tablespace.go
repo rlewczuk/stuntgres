@@ -1,11 +1,9 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 
 	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
@@ -13,7 +11,11 @@ import (
 
 // Capture descriptors and ACLs from the same immutable root as the query's
 // other catalog sources. Later grants cannot mutate already captured rows.
-func (e *Engine) capturePGTablespace(ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGTablespace(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx := in.Context
+	view := in.Catalog
+	roles := in.Roles
+	source := in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -34,7 +36,7 @@ func (e *Engine) capturePGTablespace(ctx context.Context, view catalog.Read, rol
 		if err != nil {
 			return nil, err
 		}
-		acl, err := e.pgClassACL(roles, source.Columns[3].Usage.Type, d.ACL)
+		acl, err := pgClassACL(in.Owner, roles, source.Columns[3].Usage.Type, d.ACL)
 		if err != nil {
 			return nil, err
 		}
@@ -43,5 +45,5 @@ func (e *Engine) capturePGTablespace(ctx context.Context, view catalog.Read, rol
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }

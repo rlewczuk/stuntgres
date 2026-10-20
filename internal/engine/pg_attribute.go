@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"context"
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
@@ -66,14 +65,19 @@ func hasSystemAttributes(catalog catalog.Read, relation *catalog.Relation) bool 
 
 // Caller owns e.mu. Capture uses exactly the statement's selected relation and
 // paired role roots, not the live catalog, source origins or stored row data.
-func (e *Engine) capturePGAttribute(ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGAttribute(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx := in.Context
+	view := in.Catalog
+	roles := in.Roles
+	ref := in.Ref
+	source := in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if view.Owner() != e.catalog.owner() || view.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAttributeOID}) || ref.Domain() != e.catalog.Domain || ref.Epoch != view.State().Epoch() || ref.Address != source.Address() || view.Get(source.Address()) != source {
+	if view.Owner() != in.Owner || view.State() == nil || source == nil || source.Address() != (ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgAttributeOID}) || ref.Domain() != in.Owner.Domain || ref.Epoch != view.State().Epoch() || ref.Address != source.Address() || view.Get(source.Address()) != source {
 		return nil, fmt.Errorf("stuntgres: foreign attribute source authority")
 	}
-	if !roles.BelongsTo(&e.roles.domain) {
+	if !roles.BelongsTo(in.Owner.Principals) {
 		return nil, fmt.Errorf("stuntgres: foreign attribute ACL authority")
 	}
 	if len(source.Columns) != len(pgAttributeTypeIDs) {
@@ -110,7 +114,7 @@ func (e *Engine) capturePGAttribute(ctx context.Context, view catalog.Read, role
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			row, err := e.pgAttributeRow(roles, source, relation, metadata)
+			row, err := pgAttributeRow(in.Owner, roles, source, relation, metadata)
 			if err != nil {
 				return err
 			}
@@ -145,10 +149,10 @@ func (e *Engine) capturePGAttribute(ctx context.Context, view catalog.Read, role
 			}
 		}
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }
 
-func (e *Engine) pgAttributeRow(roles authorization.Read, source, relation *catalog.Relation, metadata catalog.AttributeMetadata) ([]sqltype.Value, error) {
+func pgAttributeRow(owner *catalog.Owner, roles authorization.Read, source, relation *catalog.Relation, metadata catalog.AttributeMetadata) ([]sqltype.Value, error) {
 	var failure error
 	checked := func(value sqltype.Value, err error) sqltype.Value {
 		if failure == nil {
@@ -164,7 +168,7 @@ func (e *Engine) pgAttributeRow(roles authorization.Read, source, relation *cata
 	acl := null(21)
 	if metadata.Number > 0 && !metadata.Dropped {
 		if value, exists := relation.Security.ColumnACL[metadata.Number]; exists {
-			acl = checked(e.pgClassACL(roles, source.Columns[21].Usage.Type, value))
+			acl = checked(pgClassACL(owner, roles, source.Columns[21].Usage.Type, value))
 		}
 	}
 	row := []sqltype.Value{

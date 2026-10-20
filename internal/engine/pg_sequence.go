@@ -1,9 +1,7 @@
 package engine
 
 import (
-	"context"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
@@ -11,7 +9,8 @@ import (
 // snapshot and current owner's overlay are distinct authorities: an override
 // replaces (or deletes) its base row, and private additions contribute new rows.
 // Caller holds Engine.mu and statement admission; no generator is accessed.
-func capturePGSequence(ctx context.Context, base *catalog.State, own *catalogChanges, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGSequence(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx, source := in.Context, in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -45,25 +44,8 @@ func capturePGSequence(ctx context.Context, base *catalog.State, own *catalogCha
 		rows = append(rows, row)
 		return nil
 	}
-	for address, descriptor := range base.Descriptors() {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		if own != nil {
-			if _, overridden := own.descriptors[address]; overridden {
-				continue
-			}
-		}
-		if err := appendDefinition(descriptor); err != nil {
-			return nil, err
-		}
+	if err := in.Runtime.VisitSequenceDefinitions(ctx, appendDefinition); err != nil {
+		return nil, err
 	}
-	if own != nil {
-		for _, descriptor := range own.descriptors {
-			if err := appendDefinition(descriptor); err != nil {
-				return nil, err
-			}
-		}
-	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }

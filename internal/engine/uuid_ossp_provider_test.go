@@ -55,7 +55,7 @@ func TestUUIDOsspProviderIdentity(t *testing.T) {
 	if err := e.catalog.Providers[ids.ProcedureClassID].Validate(view, proc); err != nil {
 		t.Fatal(err)
 	}
-	edges, err := collectPGDepend(context.Background(), view)
+	edges, err := collectPGDepend(context.Background(), view, engineCatalogRuntime{})
 	if err != nil {
 		t.Fatal(err)
 	}

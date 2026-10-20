@@ -1,18 +1,18 @@
 package engine
 
 import (
-	"context"
-
 	"stuntgres/internal/engine/access"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
 
 // Parameter identities and sparse membership belong to the grant owner. Read
 // only actual descriptors, using the statement's matching catalog/role roots.
-func (e *Engine) capturePGParameterACL(ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGParameterACL(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx := in.Context
+	view := in.Catalog
+	roles := in.Roles
+	source := in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -25,7 +25,7 @@ func (e *Engine) capturePGParameterACL(ctx context.Context, view catalog.Read, r
 		if !ok {
 			continue
 		}
-		if err := (parameterProvider{&e.settings}).Validate(view, d); err != nil {
+		if err := in.Runtime.ValidateParameter(view, d); err != nil {
 			return nil, err
 		}
 		if err := access.ValidateACL(roles, d); err != nil {
@@ -35,7 +35,7 @@ func (e *Engine) capturePGParameterACL(ctx context.Context, view catalog.Read, r
 		if err != nil {
 			return nil, err
 		}
-		acl, err := e.pgClassACL(roles, source.Columns[2].Usage.Type, d.ACL)
+		acl, err := pgClassACL(in.Owner, roles, source.Columns[2].Usage.Type, d.ACL)
 		if err != nil {
 			return nil, err
 		}
@@ -44,5 +44,5 @@ func (e *Engine) capturePGParameterACL(ctx context.Context, view catalog.Read, r
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }

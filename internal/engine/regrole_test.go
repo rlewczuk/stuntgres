@@ -53,7 +53,7 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	}
 	rows := newFinalRows([]catalog.Column{{Name: "r", Usage: d.Usage()}}, 1)
 	defer rows.Close()
-	output := capturedRegroleOutput{owner: e, roles: old}
+	output := capturedRegroleOutput{owner: e.catalog.owner(), roles: old}
 	if err := captureRegroleOutputValue(rows, output, array); err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	if text, err := rows.FormatRegrole(20000); err != nil || text != "unit_role" {
 		t.Fatal("retained output", text, err)
 	}
-	current := capturedRegroleOutput{owner: e, roles: e.Roles()}
+	current := capturedRegroleOutput{owner: e.catalog.owner(), roles: e.Roles()}
 	for _, tc := range []struct {
 		id   uint32
 		text string
@@ -87,7 +87,7 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	if text, err := current.FormatRegrole(30000); err != nil || text != `"unit_role"` {
 		t.Fatal("forced quoting", text, err)
 	}
-	foreign := capturedRegroleOutput{owner: New(), roles: old}
+	foreign := capturedRegroleOutput{owner: New().catalog.owner(), roles: old}
 	if _, err := foreign.FormatRegrole(20000); err == nil {
 		t.Fatal("foreign output authority admitted")
 	}

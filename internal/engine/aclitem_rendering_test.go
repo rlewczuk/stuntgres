@@ -18,7 +18,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 	value := aclUnitValue(t, e, "acl_render_a=r*/acl_render_b")
 	view := e.CatalogRead()
 	literal := literalExpression{Info: expr.Info{Usage: value.Type().Usage()}, value: value}
-	captured := capturedACLItemOutput{owner: e, roles: e.Roles()}
+	captured := capturedACLItemOutput{owner: e.catalog.owner(), roles: e.Roles()}
 	text, err := (scalarRenderer{aclOutput: captured}).sql(context.Background(), view, literal)
 	if err != nil || text != "CAST('acl_render_a=r*/acl_render_b' AS ACLITEM)" {
 		t.Fatal("explicit construction authority", text, err)
@@ -68,7 +68,7 @@ func TestACLItemRenderingAuthority(t *testing.T) {
 	if _, err := validation.sql(context.Background(), view, literal); err != nil {
 		t.Fatal("stale structural validation", err)
 	}
-	ordinary := capturedACLItemOutput{owner: e, roles: e.Roles()}
+	ordinary := capturedACLItemOutput{owner: e.catalog.owner(), roles: e.Roles()}
 	text, err = (scalarRenderer{aclOutput: ordinary}).sql(context.Background(), view, literal)
 	if err != nil || !strings.Contains(text, "20000=r*/acl_render_b") {
 		t.Fatal("ordinary stale presentation", text, err)

@@ -905,28 +905,34 @@ name `settings.` directly. Prompt file:
 (`initializeCatalogSources` and the smaller spec tables) and their pure helpers
 (`pgLockRows`, `pgConstraintBuilder`, `pgTypeFacts`, `pgDependPinned`, ...).
 
-**In-place port (9a).**
+**In-place port (9a): implemented and verified; 9b/9c remain pending.**
 
-- Files in `pg_*` that are not producers move out first:
-  `pg_class_history.go` and the index-history half of `table_view_summary.go`
-  (catalog publication), `pg_sequences_admission.go` (query admission) and
-  `pg_depend_expression.go` (an expression and plan walker that rules and
-  policies also use).
-- One producer contract replaces the five signatures in use today: a
-  function from an input record (`catalog.Read`, `authorization.Read`,
-  `*catalog.Owner`, the relation ref and descriptor, and a runtime capability)
-  to rows (`[][]sqltype.Value`). Producers no longer build `*querySource`;
-  the engine wraps the rows.
-- One OID registry replaces the two dispatch chains (`openRelationSourceLocked`
-  in `view_source.go` and `captureCatalogSourceLocked` in
-  `catalog_sources.go`), keeping the current precedence.
-- Producers that check provenance against `e.catalog` and `e.roles` take the
-  `*catalog.Owner` from the input; `Engine.pgClassACL` becomes a function.
-- A capability (pattern 3) serves the producers that need more than the
-  catalog: cursors, prepared transactions, the timezone input environment,
-  the database name, column privilege checks for the privilege views,
-  expression references for `pg_depend` and `pg_constraint`, and view and
-  index definition SQL.
+- Non-producer publication/index history now lives in
+  `catalog_relation_history.go`, sequence predicate admission in
+  `query_pg_sequences_admission.go`, and shared expression/plan reference
+  walking in `expression_references.go`. `table_view_summary.go` owns rows,
+  not publication history.
+- One seven-field `catalogSourceInput` (`Context`, `Catalog`, `Roles`, `Owner`,
+  `Ref`, `Source`, `Runtime`) feeds free rows-only producers:
+  `func(catalogSourceInput) ([][]sqltype.Value, error)`. The engine's
+  `captureCatalogSourceRows` alone wraps rows into `querySource`.
+- `catalog_source_producers.go` holds one process-initialized, immutable,
+  OID-sorted registry with binary-search lookup, replacing both selection
+  chains. All five foreign metadata relations use it with fresh paired
+  authorization; only locks and lazy sequences retain explicit handlers.
+- Provenance compares the same Owner/Domain/Principals/ACLAuthority pointers,
+  not equal names or numbers. `pgClassACL` and hidden regrole/ACL-item output
+  formatters use `*catalog.Owner` and immutable roles instead of Engine.
+- The per-call `engineCatalogRuntime` adapter is demand-only, not eager
+  capture or a service locator. Value operations expose no Engine, scope,
+  authorization view or binding. It supplies actual cursors, coherent bounded
+  settings, actual prepared XID/published-owner facts, timezone/database/TEMP
+  facts, error-bearing privilege checks, expression/query walks and definition
+  presentation without changing capture/unlock or cancellation boundaries.
+- Pure process-initialized ordered `catalog_source_specs.go` data is separate
+  from engine type resolution and descriptor registration. Registration order,
+  metadata and actual row/array links remain the contract; startup impact is
+  pending measurement, not assumed unchanged.
 
 **Stays in the engine.** The `querySource` wrapping and view-source
 authorization; `pg_locks` capture, which releases and retakes `Engine.mu`;
@@ -1230,7 +1236,7 @@ package-specific scope. This section holds the rules every session follows.
 | 7 | [`ENGINE-SPLIT-visibility.md`](ENGINE-SPLIT-visibility.md) | 4, 6 | done (7a–7c) |
 | A/B | [`ENGINE-SPLIT-authorization.md`](ENGINE-SPLIT-authorization.md) | A: —; B: 5 | done (A1, B0–B4, names cleanup); B5 after 12d |
 | 8 | [`ENGINE-SPLIT-settings.md`](ENGINE-SPLIT-settings.md) | — | 8a implementation/proof complete, review/integration pending; 8b–8c planned |
-| 9 | [`ENGINE-SPLIT-pgcatalog.md`](ENGINE-SPLIT-pgcatalog.md) | 5, B4; 8b for 9b | planned (9a–9c) |
+| 9 | [`ENGINE-SPLIT-pgcatalog.md`](ENGINE-SPLIT-pgcatalog.md) | 5, B4; 8b for 9b | 9a done in place; 9b–9c planned |
 | 10 | [`ENGINE-SPLIT-plan.md`](ENGINE-SPLIT-plan.md) | 2, 3 F1, 5 | planned (10a–10d) |
 | 11 | [`ENGINE-SPLIT-exec.md`](ENGINE-SPLIT-exec.md) | 10c, 13a | planned (11a–11d) |
 | 12 | [`ENGINE-SPLIT-analyze.md`](ENGINE-SPLIT-analyze.md) | 12a–12b: —; 12c: 10c | planned (12a–12e) |

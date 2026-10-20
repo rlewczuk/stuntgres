@@ -1,79 +1,10 @@
 package engine
 
 import (
-	"context"
-	"fmt"
-	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
-
-// Index publication and parent history are one immutable catalog candidate.
-// DROP deliberately never clears this flag (PostgreSQL18 pg_class lazy flags).
-func (e *Engine) markStageIndexHistoryLocked(stage *CatalogStage) error {
-	for _, descriptor := range stage.Descriptors() {
-		index, ok := descriptor.(*catalog.Relation)
-		if !ok || index.SQLIndex == nil {
-			continue
-		}
-		address := index.SQLIndex.Parent
-		descriptor, staged := stage.Find(address)
-		if !staged {
-			descriptor = stage.Base.Get(address)
-		}
-		parent, ok := descriptor.(*catalog.Relation)
-		if !ok || (parent.RelationKind != catalog.TableRelation && parent.RelationKind != catalog.MaterializedViewRelation && parent.RelationKind != catalog.PartitionedRelation) {
-			return fmt.Errorf("stuntgres: invalid index parent")
-		}
-		if parent.History.HasIndexes {
-			continue
-		}
-		next := *parent
-		next.History.HasIndexes = true
-		if staged {
-			// Preserve the complete already-staged parent and its revision/rowtype;
-			// UNIQUE can create the parent and its indexes in this same candidate.
-			stage.UpdateDescriptor(&next)
-		} else {
-			revision, err := e.catalog.revisionLocked()
-			if err != nil {
-				return err
-			}
-			next.ObjectRevision = revision
-			if err := stage.Replace(&next); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-// Replacement admission owns private descriptor maps, but its descriptors still
-// belong to retained source snapshots. Normalize represented indexes into that
-// candidate without mutating source roots or clearing history-only true flags.
-// Structural index validation remains independent of this publication metadata.
-func normalizeReplacementIndexHistory(ctx context.Context, view catalog.Read) error {
-	for _, descriptor := range view.Descriptors() {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		index, ok := descriptor.(*catalog.Relation)
-		if !ok || index.SQLIndex == nil {
-			continue
-		}
-		parent, ok := view.Relation(index.SQLIndex.Parent)
-		if !ok || (parent.RelationKind != catalog.TableRelation && parent.RelationKind != catalog.MaterializedViewRelation && parent.RelationKind != catalog.PartitionedRelation) {
-			return fmt.Errorf("stuntgres: invalid index parent")
-		}
-		if !parent.History.HasIndexes {
-			next := *parent
-			next.History.HasIndexes = true
-			view.State().SetDescriptor(parent.Address(), &next)
-		}
-	}
-	return nil
-}
 
 // Only the represented builtins are classified here. catalogRelation is a
 // virtual-source implementation kind, not a PostgreSQL table/view classifier.
@@ -85,7 +16,8 @@ func representedSummaryTable(oid ids.OID) bool {
 	return false
 }
 
-func (e *Engine) captureTableViewSummary(ctx context.Context, view catalog.Read, roles authorization.Read, ref ids.ObjectRef, source *catalog.Relation, presentation viewPresentation) (*querySource, error) {
+func captureTableViewSummary(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx, view, roles, source := in.Context, in.Catalog, in.Roles, in.Source
 	var rows [][]sqltype.Value
 	text := func(i int, value string) sqltype.Value { return sqltype.String(source.Columns[i].Usage.Type, value) }
 	boolean := func(i int, value bool) sqltype.Value { return sqltype.Boolean(source.Columns[i].Usage.Type, value) }
@@ -131,11 +63,7 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, view catalog.Read,
 			if relation.View != nil {
 				// Follow current physical names without changing the caller's
 				// replay/display policy or the view's frozen output labels.
-				presentation.columns = relation.Columns
-				renderer := newViewRenderer(viewOf(relation))
-				renderer.presentation = presentation
-				renderer.currentNames = true
-				definition, err = renderer.selectQuerySQL(ctx, view, viewOf(relation).syntax, viewOf(relation).queries[viewOf(relation).syntax])
+				definition, err = in.Runtime.ViewDefinition(ctx, view, relation)
 				if err != nil {
 					return nil, err
 				}
@@ -148,7 +76,7 @@ func (e *Engine) captureTableViewSummary(ctx context.Context, view catalog.Read,
 			}
 		}
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }
 
 // Compatibility metadata sourced from the CREATE VIEW sections of

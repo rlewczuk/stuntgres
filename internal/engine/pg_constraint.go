@@ -22,7 +22,10 @@ var pgConstraintTypeIDs = [28]sqltype.ID{
 
 // Each capture projects the caller's immutable owner generation, including its
 // transaction overlay. There is no independently mutable constraint registry.
-func capturePGConstraint(ctx context.Context, view catalog.Read, ref ids.ObjectRef, source *catalog.Relation) (*querySource, error) {
+func capturePGConstraint(in catalogSourceInput) ([][]sqltype.Value, error) {
+	ctx := in.Context
+	view := in.Catalog
+	source := in.Source
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -115,7 +118,7 @@ func capturePGConstraint(ctx context.Context, view catalog.Read, ref ids.ObjectR
 			builder.boolean(row, 16, local)
 			builder.integer(row, 17, count)
 			builder.boolean(row, 18, c.NoInherit)
-			builder.checkKeys(ctx, row, table, c.Expression)
+			builder.checkKeys(ctx, in.Runtime, row, table, c.Expression)
 			row[27], err = catalogTree(types[27], c.Expression)
 			if err != nil {
 				return nil, err
@@ -192,7 +195,7 @@ func capturePGConstraint(ctx context.Context, view catalog.Read, ref ids.ObjectR
 				if err := ctx.Err(); err != nil {
 					return nil, err
 				}
-				attribute, _, err := indexCatalogKey(table, key)
+				attribute, _, err := in.Runtime.IndexKey(table, key)
 				if err != nil {
 					return nil, err
 				}
@@ -224,7 +227,7 @@ func capturePGConstraint(ctx context.Context, view catalog.Read, ref ids.ObjectR
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return rows, nil
 }
 
 type pgConstraintBuilder struct {
@@ -297,33 +300,26 @@ func (b *pgConstraintBuilder) keys(row []sqltype.Value, i int, attributes []int3
 	}
 	b.vector(row, i, values)
 }
-func (b *pgConstraintBuilder) checkKeys(ctx context.Context, row []sqltype.Value, table *catalog.Relation, expression expr.Expr) {
+func (b *pgConstraintBuilder) checkKeys(ctx context.Context, runtime catalogSourceRuntime, row []sqltype.Value, table *catalog.Relation, expression expr.Expr) {
 	var values []sqltype.Value
-	walkBoundExpression(expression, func(node expr.Expr) {
-		if b.err != nil {
-			return
-		}
-		if err := ctx.Err(); err != nil {
-			b.err = err
-			return
-		}
-		column, ok := node.(columnExpression)
-		if !ok || column.origin.Address.ClassID != ids.RelationClassID || column.origin.Address.ObjectID != table.Address().ObjectID {
-			return
-		}
-		attribute := column.origin.Address.SubID
+	if b.err != nil {
+		b.vector(row, 20, values)
+		return
+	}
+	err := runtime.VisitCheckAttributes(ctx, table, expression, func(attribute int32) error {
 		for _, value := range values {
 			n, _ := value.Integer()
 			if n == int64(attribute) {
-				return
+				return nil
 			}
 		}
 		value, err := sqltype.Integer(b.types[20].Element(), int64(attribute))
-		if b.err == nil {
-			b.err = err
-		}
 		values = append(values, value)
+		return err
 	})
+	if b.err == nil {
+		b.err = err
+	}
 	b.vector(row, 20, values)
 }
 

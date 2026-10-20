@@ -235,7 +235,7 @@ Steps 1, 2 and 4–7 and `access` are done.
   - [ ] 8c — Aliases removed
 - [ ] **Step 9 — `pgcatalog`** ([prompt](ENGINE-SPLIT-pgcatalog.md); needs
   5, B4; 9b also 8b)
-  - [ ] 9a — One producer contract and one registry, in place
+  - [x] 9a — One producer contract and one registry, in place
   - [ ] 9b — `pgcatalog` created and producers moved
   - [ ] 9c — Aliases removed
 - [ ] **Step 10 — `plan`** ([prompt](ENGINE-SPLIT-plan.md); needs 2, 3 F1, 5)
@@ -360,7 +360,7 @@ in the prompt file's Status section.
 13. [x] Settings 8a — [settings](ENGINE-SPLIT-settings.md) 8a · needs — *(implementation/proof complete; review/integration pending)*
 14. [ ] Settings 8b — [settings](ENGINE-SPLIT-settings.md) 8b · needs 13
 15. [ ] Settings 8c — [settings](ENGINE-SPLIT-settings.md) 8c · needs 14
-16. [ ] pgcatalog 9a — [pgcatalog](ENGINE-SPLIT-pgcatalog.md) 9a · needs —
+16. [x] pgcatalog 9a — [pgcatalog](ENGINE-SPLIT-pgcatalog.md) 9a · needs —
 17. [ ] pgcatalog 9b — [pgcatalog](ENGINE-SPLIT-pgcatalog.md) 9b · needs
     16, 14
 18. [ ] pgcatalog 9c — [pgcatalog](ENGINE-SPLIT-pgcatalog.md) 9c · needs 17
