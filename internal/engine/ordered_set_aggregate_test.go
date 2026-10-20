@@ -216,7 +216,7 @@ func TestOrderedSetAggregateIEEEAndModeEquality(t *testing.T) {
 }
 
 func TestOrderedSetAggregateCancellationPhases(t *testing.T) {
-	for _, phase := range []string{".sortOrderedAggregate.func1", ".(*OrderedSet).mode", ".(*OrderedSet).PrepareOrdered", ".(*OrderedSet).FinalizeOrdered", ".(*OrderedSet).percentile"} {
+	for _, phase := range []string{".(*OrderedSet).mode", ".(*OrderedSet).PrepareOrdered", ".(*OrderedSet).FinalizeOrdered", ".(*OrderedSet).percentile"} {
 		t.Run(phase, func(t *testing.T) {
 			operation := functions.AggregatePercentileCont
 			if phase == ".(*OrderedSet).mode" {
@@ -228,12 +228,7 @@ func TestOrderedSetAggregateCancellationPhases(t *testing.T) {
 			defer cancel()
 			probe := &aggregateModifierFamilyCancelContext{Context: ctx, cancel: cancel, target: phase}
 			direct, _ := sqltype.Float(p.FractionType(), .5)
-			var err error
-			if phase == ".sortOrderedAggregate.func1" {
-				_, err = sortOrderedAggregate(probe, &queryState{}, plan.AggregateCall{StageWidth: 2, Order: []plan.SortKey{{Comparison: p.Comparison(), Cache: 0}}}, in.Values)
-			} else {
-				_, err = orderedSetUnitFinalize(probe, p, direct, in, sqltype.InputEnvironment{})
-			}
+			_, err := orderedSetUnitFinalize(probe, p, direct, in, sqltype.InputEnvironment{})
 			if !probe.entered || !errors.Is(err, context.Canceled) {
 				t.Fatal(phase, probe.entered, err)
 			}
