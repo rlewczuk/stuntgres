@@ -20,7 +20,7 @@ func blockingUnitOwner(t *testing.T, e *Engine) (*Session, *lock.Ticket) {
 	t.Helper()
 	s := sessionStart(t, e, nil)
 	transactionBegin(t, s)
-	return s, s.transactions.ticket
+	return s, s.Transactions.ticket
 }
 
 func blockingUnitResource(e *Engine) lock.Resource {
@@ -96,7 +96,7 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 	}
 	defer scope.Finish(context.Canceled)
 	inquiry := expressions[0].(functions.BlockingInquiry)
-	input, _ := sqltype.Integer(blockingUnitType(e), int64(waiter.token.ID()))
+	input, _ := sqltype.Integer(blockingUnitType(e), int64(waiter.SessionToken.ID()))
 	inquiry.Arg = plan.LiteralExpr{Info: expr.Info{Usage: input.Type().Usage()}, Value: input}
 	inquiry.Property = expr.Properties{Volatility: expr.Volatile}
 	evaluation := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(scope)}}
@@ -105,7 +105,7 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 		t.Fatal("live inquiry", before, err)
 	}
 	pid, _ := before.ArrayElement(0).Integer()
-	if pid != int64(owner.token.ID()) {
+	if pid != int64(owner.SessionToken.ID()) {
 		t.Fatal("physical blocker mapping", pid)
 	}
 	e.endLockOwner(holder)
@@ -162,12 +162,12 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		if ar == nil || cr == nil {
 			t.Fatal("missing actual upgrade queue")
 		}
-		before := blockingUnitWant(t, e, c.token.ID(), int64(a.token.ID()), int64(b.token.ID()))
+		before := blockingUnitWant(t, e, c.SessionToken.ID(), int64(a.SessionToken.ID()), int64(b.SessionToken.ID()))
 		e.endLockOwner(bt)
 		if err := deadlockResult(t, ar); err != nil {
 			t.Fatal(err)
 		}
-		blockingUnitWant(t, e, c.token.ID(), int64(a.token.ID()))
+		blockingUnitWant(t, e, c.SessionToken.ID(), int64(a.SessionToken.ID()))
 		if len(before) != 2 {
 			t.Fatal("snapshot aliases manager", before)
 		}
@@ -175,7 +175,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		if err := deadlockResult(t, cr); err != nil {
 			t.Fatal(err)
 		}
-		blockingUnitWant(t, e, c.token.ID())
+		blockingUnitWant(t, e, c.SessionToken.ID())
 	})
 	t.Run("compatible_holder_soft_predecessor", func(t *testing.T) {
 		e := New()
@@ -191,8 +191,8 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		if br == nil || cr == nil {
 			t.Fatal("missing soft queue")
 		}
-		blockingUnitWant(t, e, b.token.ID(), int64(a.token.ID()))
-		blockingUnitWant(t, e, c.token.ID(), int64(b.token.ID()))
+		blockingUnitWant(t, e, b.SessionToken.ID(), int64(a.SessionToken.ID()))
+		blockingUnitWant(t, e, c.SessionToken.ID(), int64(b.SessionToken.ID()))
 		e.endLockOwner(bt)
 		if !errors.Is(deadlockResult(t, br), lock.ErrOwnerEnded) {
 			t.Fatal("ended requester not terminated")
@@ -200,7 +200,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		if err := deadlockResult(t, cr); err != nil {
 			t.Fatal(err)
 		}
-		blockingUnitWant(t, e, c.token.ID())
+		blockingUnitWant(t, e, c.SessionToken.ID())
 	})
 	t.Run("prepared_zeros_and_origin_reuse", func(t *testing.T) {
 		e := New()
@@ -218,15 +218,15 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 		if cr == nil {
 			t.Fatal("prepared owners did not block")
 		}
-		blockingUnitWant(t, e, c.token.ID(), 0, 0)
-		blockingUnitWant(t, e, a.token.ID())
+		blockingUnitWant(t, e, c.SessionToken.ID(), 0, 0)
+		blockingUnitWant(t, e, a.SessionToken.ID())
 		e.endLockOwner(at)
-		blockingUnitWant(t, e, c.token.ID(), 0)
+		blockingUnitWant(t, e, c.SessionToken.ID(), 0)
 		e.endLockOwner(bt)
 		if err := deadlockResult(t, cr); err != nil {
 			t.Fatal(err)
 		}
-		blockingUnitWant(t, e, c.token.ID())
+		blockingUnitWant(t, e, c.SessionToken.ID())
 	})
 	t.Run("full_width_target_and_blocker_identity", func(t *testing.T) {
 		e := New()
@@ -242,7 +242,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 			}
 		})
 		transactionBegin(t, high)
-		ht := high.transactions.ticket
+		ht := high.Transactions.ticket
 		resource := blockingUnitResource(e)
 		if err := e.locks.Acquire(context.Background(), lt, resource, lock.AccessExclusive); err != nil {
 			t.Fatal(err)
@@ -252,7 +252,7 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 			t.Fatal("high identity did not queue")
 		}
 		blockingUnitWant(t, e, math.MaxInt32) // must not truncate high target
-		blockingUnitWant(t, e, high.token.ID(), int64(low.token.ID()))
+		blockingUnitWant(t, e, high.SessionToken.ID(), int64(low.SessionToken.ID()))
 		e.endLockOwner(lt)
 		if err := deadlockResult(t, request); err != nil {
 			t.Fatal(err)
@@ -298,12 +298,12 @@ func TestBlockingPidsOrdinaryAuthority(t *testing.T) {
 				if cr == nil {
 					t.Fatal("missing completion waiter")
 				}
-				blockingUnitWant(t, e, c.token.ID(), int64(a.token.ID()))
+				blockingUnitWant(t, e, c.SessionToken.ID(), int64(a.SessionToken.ID()))
 			} else {
 				if cr != nil {
 					t.Fatal("NO KEY UPDATE incorrectly soft blocked")
 				}
-				blockingUnitWant(t, e, c.token.ID())
+				blockingUnitWant(t, e, c.SessionToken.ID())
 			}
 			e.endLockOwner(at)
 			e.endLockOwner(bt)

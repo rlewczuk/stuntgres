@@ -82,14 +82,14 @@ type transactionOwner struct {
 }
 
 func (s *Session) TransactionState() TxState {
-	t := s.transactions
+	t := s.Transactions
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.state
 }
 
 func (t *transactionOwner) validate(ref ids.TxRef) error {
-	if ref.Domain() != t.session.token.Domain() || ref.Session() != t.session.token || ref.ID() == 0 || ref.Attachment() != ids.TxOwner(t) {
+	if ref.Domain() != t.session.SessionToken.Domain() || ref.Session() != t.session.SessionToken || ref.ID() == 0 || ref.Attachment() != ids.TxOwner(t) {
 		return errors.New("stuntgres: foreign or missing transaction reference")
 	}
 	if t.state == TxIdle || ref != t.ref {
@@ -106,7 +106,7 @@ func (t *transactionOwner) acquireAdmission(ctx context.Context, op *Operation) 
 		t.admission.Lock()
 		if t.copyLease == nil {
 			if waited && op != nil {
-				if err := validateSessionOperation(t.session.token.Domain(), op); err != nil {
+				if err := validateSessionOperation(t.session.SessionToken.Domain(), op); err != nil {
 					t.admission.Unlock()
 					return err
 				}

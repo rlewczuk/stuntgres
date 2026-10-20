@@ -22,7 +22,7 @@ func TestAdvisorySessionCompatibleCohortTerminalOrder(t *testing.T) {
 		advisoryUnitGrant(t, b, rb, prior, lock.AdvisoryExclusive)
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
-		writer, err := e.locks.StartAcquire(ctx, b.advisory.ticket, key, lock.AdvisoryExclusive, lock.Policy{Source: ctx, Provenance: rb})
+		writer, err := e.locks.StartAcquire(ctx, b.Advisory.ticket, key, lock.AdvisoryExclusive, lock.Policy{Source: ctx, Provenance: rb})
 		if err != nil || writer == nil {
 			t.Fatal(writer, err)
 		}
@@ -61,14 +61,14 @@ func TestAdvisorySessionCompatibleCohortTerminalOrder(t *testing.T) {
 		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryExclusive)
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
-		request, err := e.locks.StartAcquire(ctx, b.advisory.ticket, key, lock.AdvisoryExclusive, lock.Policy{Source: ctx, Provenance: rb, Timeout: time.Second})
+		request, err := e.locks.StartAcquire(ctx, b.Advisory.ticket, key, lock.AdvisoryExclusive, lock.Policy{Source: ctx, Provenance: rb, Timeout: time.Second})
 		if err != nil || request == nil {
 			t.Fatal(request, err)
 		}
 		advisoryUnitUnlock(t, a, key, lock.AdvisoryExclusive, true)
 		terminal := request.Terminal()
 		requestError := request.Err()
-		count := e.locks.Inspect().Resources[key].Holders[b.advisory.ticket].Exclusive
+		count := e.locks.Inspect().Resources[key].Holders[b.Advisory.ticket].Exclusive
 		if !terminal || requestError != nil || count != 1 {
 			t.Fatal("grant publication boundary", terminal, requestError, count)
 		}

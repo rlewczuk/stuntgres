@@ -31,8 +31,8 @@ func collationPrivateSession(t *testing.T, e *Engine) *Session {
 func TestCollationPrivateSessionIdentity(t *testing.T) {
 	e := New()
 	a, b := collationPrivateSession(t, e), collationPrivateSession(t, e)
-	if a.token.ID() != 0 || b.token.ID() != 0 || privateSessionOf(a.token) != a || privateSessionOf(b.token) != b || a.token == b.token {
-		t.Fatal("private sessions alias numeric identity", a.token, b.token)
+	if a.SessionToken.ID() != 0 || b.SessionToken.ID() != 0 || privateSessionOf(a.SessionToken) != a || privateSessionOf(b.SessionToken) != b || a.SessionToken == b.SessionToken {
+		t.Fatal("private sessions alias numeric identity", a.SessionToken, b.SessionToken)
 	}
 	op, err := a.Acquire(context.Background())
 	if err != nil {
@@ -57,11 +57,11 @@ func TestCollationTemporaryCleanupAX(t *testing.T) {
 	sessionSQL(t, owner, `CREATE TEMP TABLE coll_cleanup_local(id SERIAL,v TEXT COLLATE pg_temp.coll_cleanup)`)
 	sessionSQL(t, owner, `CREATE INDEX coll_cleanup_local_ix ON coll_cleanup_local(v)`)
 	sessionSQL(t, owner, `INSERT INTO coll_cleanup_local(v) VALUES('a')`)
-	namespace := owner.temporaryNamespace
+	namespace := owner.TemporaryNamespace
 	before := e.CatalogRead()
 	tx := transactionBegin(t, peer)
 	ref := catalogRef(t, e, before, "coll_cleanup_t")
-	if err := e.locks.Acquire(context.Background(), peer.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
+	if err := e.locks.Acquire(context.Background(), peer.Transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
 	owner.RequestEnd(CleanClose)
@@ -78,7 +78,7 @@ func TestCollationTemporaryCleanupAX(t *testing.T) {
 	if err := owner.WaitEnd(ctx); err != nil {
 		t.Fatal(err)
 	}
-	assertTemporaryNamespacePair(t, e, owner.token, namespace)
+	assertTemporaryNamespacePair(t, e, owner.SessionToken, namespace)
 	for address, descriptor := range before.Descriptors() {
 		if descriptor.Namespace() == namespace {
 			if _, ok := e.CatalogRead().Descriptor(address); ok || e.storage.Relations[address] != nil || e.storage.Sequences[address] != nil || e.storage.IndexRoots[address] != nil {
@@ -98,7 +98,7 @@ func TestCollationTemporaryCleanupCompletenessFence(t *testing.T) {
 	owner := sessionStart(t, e, nil)
 	sessionSQL(t, owner, `CREATE COLLATION pg_temp.coll_cleanup_first FROM pg_catalog."C"`)
 	base := e.CatalogRead()
-	ns := base.MustNamespace(owner.temporaryNamespace)
+	ns := base.MustNamespace(owner.TemporaryNamespace)
 	var children []ids.ObjectAddress
 	for a, d := range base.Descriptors() {
 		if d.Namespace() == ns.Address() {
@@ -108,7 +108,7 @@ func TestCollationTemporaryCleanupCompletenessFence(t *testing.T) {
 	sessionSQL(t, owner, `CREATE COLLATION pg_temp.coll_cleanup_late FROM pg_catalog."POSIX"`)
 	current := e.CatalogRead()
 	private := collationPrivateSession(t, e)
-	if _, err := e.removeTemporaryNamespaceCandidate(private, base, []*catalog.Namespace{ns}, children, owner.token); err == nil {
+	if _, err := e.removeTemporaryNamespaceCandidate(private, base, []*catalog.Namespace{ns}, children, owner.SessionToken); err == nil {
 		t.Fatal("late owned child was blind-deleted")
 	}
 	if e.CatalogRead().State() != current.State() {
@@ -137,7 +137,7 @@ func TestCollationTemporaryCleanupExhaustion(t *testing.T) {
 	e.catalog.state = state
 	e.mu.Unlock()
 	before := e.CatalogRead()
-	namespace := owner.temporaryNamespace
+	namespace := owner.TemporaryNamespace
 	owner.RequestEnd(CleanClose)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -146,10 +146,10 @@ func TestCollationTemporaryCleanupExhaustion(t *testing.T) {
 		t.Fatal("child-only cleanup failed at namespace-generation exhaustion", err)
 	}
 	after := e.CatalogRead()
-	if after.State() == before.State() || after.State().NamespaceGeneration() != ^uint64(0) || owner.temporaryNamespace != (ids.ObjectAddress{}) {
+	if after.State() == before.State() || after.State().NamespaceGeneration() != ^uint64(0) || owner.TemporaryNamespace != (ids.ObjectAddress{}) {
 		t.Fatal("cleanup fabricated namespace event or retained active authority")
 	}
-	assertTemporaryNamespacePair(t, e, owner.token, namespace)
+	assertTemporaryNamespacePair(t, e, owner.SessionToken, namespace)
 	for address, descriptor := range before.Descriptors() {
 		if descriptor.Namespace() == namespace && (after.Get(address) != nil || e.storage.Relations[address] != nil || e.storage.Sequences[address] != nil || e.storage.IndexRoots[address] != nil) {
 			t.Fatal("exhausted cleanup retained TEMP child", address)

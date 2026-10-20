@@ -40,7 +40,7 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 			step("INSERT INTO public.stored VALUES(2)")
 			step("ALTER DOMAIN public.d ADD CONSTRAINT counted CHECK(nextval('public.calls')>0) NOT VALID")
 			step("ALTER DOMAIN public.d VALIDATE CONSTRAINT counted")
-			changes := s.transactions.catalog
+			changes := s.Transactions.catalog
 			if len(domainJournalOf(changes.Domain).ValidationFences()) != 1 || len(domainJournalOf(changes.Clone().Domain).ValidationFences()) != 1 || domainJournalOf(changes.Clone().Domain).ValidationFences()[0] != domainJournalOf(changes.Domain).ValidationFences()[0] {
 				t.Fatal("immutable validation observation lost during clone")
 			}
@@ -61,7 +61,7 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 			if kind == "multiple_validations" {
 				first := domainJournalOf(changes.Domain).ValidationFences()[0]
 				step("ALTER DOMAIN public.d VALIDATE CONSTRAINT counted")
-				latest := s.transactions.catalog
+				latest := s.Transactions.catalog
 				if len(domainJournalOf(latest.Domain).ValidationFences()) != 2 || domainJournalOf(latest.Domain).ValidationFences()[0] != first || len(domainJournalOf(changes.Domain).ValidationFences()) != 1 {
 					t.Fatal("repeated validation replaced earliest or sibling fence")
 				}
@@ -209,7 +209,7 @@ func domainAlterMessageIndexOutputs(t *testing.T) {
 			index := catalogRef(t, e, e.CatalogRead(), "checked_idx").Address
 			sequence := catalogRef(t, e, e.CatalogRead(), "calls").Address
 			oldIndex := e.catalog.state.MustRelation(index)
-			original := s.transactions.writes[parent][0]
+			original := s.Transactions.writes[parent][0]
 			output, ok := original.IndexOutputs[index]
 			// Only actual executable conversions need frozen producer outputs;
 			// loading a plain domain-valued column is not a fresh conversion.
@@ -221,9 +221,9 @@ func domainAlterMessageIndexOutputs(t *testing.T) {
 				t.Fatal("setup CHECK event count")
 			}
 			step("ALTER DOMAIN public.d ADD CONSTRAINT never_replay CHECK(FALSE) NOT VALID")
-			view := e.privateCatalogLocked(s.transactions.catalog)
+			view := e.privateCatalogLocked(s.Transactions.catalog)
 			currentIndex := view.MustRelation(index)
-			pending := s.transactions.writes[parent]
+			pending := s.Transactions.writes[parent]
 			if len(pending) != 1 || pending[0].Row != original.Row || pending[0].Version != original.Version {
 				t.Fatal("pending version identity changed")
 			}

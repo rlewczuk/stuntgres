@@ -164,7 +164,7 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 					t.Fatal("orphan command view")
 				}
 				if explicit {
-					if writer.TransactionState() != TxAborted || writer.transactions.writes != nil || writer.transactions.deletes != nil {
+					if writer.TransactionState() != TxAborted || writer.Transactions.writes != nil || writer.Transactions.deletes != nil {
 						t.Fatal("private work survived abort")
 					}
 					transactionEnd(t, writer, tx, false)

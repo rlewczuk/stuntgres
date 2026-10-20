@@ -136,7 +136,7 @@ func TestPreparedTemporarySemanticDescriptionIsSticky(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !s.transactions.accessedTemporary {
+	if !s.Transactions.accessedTemporary {
 		t.Fatal("semantic description omitted actual temporary namespace access")
 	}
 	if err := preparedUnitControl(t, e, s, parser.KindPrepareTransaction, "semantic"); err == nil {

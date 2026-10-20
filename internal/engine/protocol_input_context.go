@@ -44,10 +44,10 @@ func (c *protocolCopyInputContext) effectiveLocked(op *Operation) context.Contex
 			}
 			c.masked, c.timerCancel = context.WithDeadlineCause(c.masked, deadline, cause)
 		}
-		if op.Released || op.Session.state != live {
+		if op.Released || op.Session.State != live {
 			var cause error
-			if op.Session.timeouts.fatal != nil {
-				cause = op.Session.timeouts.fatal
+			if op.Session.Timeouts.Fatal != nil {
+				cause = op.Session.Timeouts.Fatal
 			}
 			c.cancel(cause)
 		}
@@ -59,12 +59,12 @@ func (c *protocolCopyInputContext) effectiveLocked(op *Operation) context.Contex
 }
 
 func (op *Operation) StopCopyInput() {
-	op.Session.mu.Lock()
+	op.Session.Mu.Lock()
 	op.CopyInput.active.Store(false)
 	op.CopyInput.decoding.Store(false)
 	cancel, timerCancel := op.CopyInput.cancel, op.CopyInput.timerCancel
 	op.CopyInput.masked, op.CopyInput.cancel, op.CopyInput.timerCancel = nil, nil, nil
-	op.Session.mu.Unlock()
+	op.Session.Mu.Unlock()
 	if cancel != nil {
 		cancel(nil)
 	}
@@ -79,8 +79,8 @@ func (op *Operation) PendingCopyInputError() error {
 	if !op.CopyInput.active.Load() {
 		return nil
 	}
-	op.Session.mu.Lock()
-	defer op.Session.mu.Unlock()
+	op.Session.Mu.Lock()
+	defer op.Session.Mu.Unlock()
 	if err := op.CopyInput.effectiveLocked(op).Err(); err != nil {
 		return err
 	}

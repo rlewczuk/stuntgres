@@ -48,7 +48,7 @@ func TestProtocolSimpleDisposalFence(t *testing.T) {
 	if scope.txRef != (ids.TxRef{}) {
 		t.Fatal("control unexpectedly admitted a transaction")
 	}
-	owner := session.transactions
+	owner := session.Transactions
 	ref, command := owner.ref, owner.command
 	e.replacementMu.RLock()
 	scope.replacementRead = true

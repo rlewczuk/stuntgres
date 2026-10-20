@@ -13,34 +13,34 @@ import (
 // Callbacks never inspect transaction, settings, catalog or lock-manager state.
 // Transaction admission publishes transitions in the existing owner lock order.
 type sessionTimeout struct {
-	timer      *time.Timer
-	generation uint64
-	deadline   time.Time
-	lease      *StatementLease
-	ref        ids.TxRef
+	Timer      *time.Timer
+	Generation uint64
+	Deadline   time.Time
+	Lease      *StatementLease
+	Ref        ids.TxRef
 }
 
 type sessionTimeouts struct {
-	transaction          sessionTimeout
-	idle                 sessionTimeout
-	transactionLimit     time.Duration
-	idleTransactionLimit time.Duration
-	idleSessionLimit     time.Duration
-	explicit             bool
-	authority            ids.TxRef
-	sqlLeases            int
-	fatal                *sqlstate.Error
+	Transaction          sessionTimeout
+	Idle                 sessionTimeout
+	TransactionLimit     time.Duration
+	IdleTransactionLimit time.Duration
+	IdleSessionLimit     time.Duration
+	Explicit             bool
+	Authority            ids.TxRef
+	SQLLeases            int
+	Fatal                *sqlstate.Error
 }
 
-func (slot *sessionTimeout) stop() {
-	slot.generation++
-	if slot.timer != nil {
-		slot.timer.Stop()
-		slot.timer = nil
+func (slot *sessionTimeout) Stop() {
+	slot.Generation++
+	if slot.Timer != nil {
+		slot.Timer.Stop()
+		slot.Timer = nil
 	}
-	slot.deadline = time.Time{}
-	slot.lease = nil
-	slot.ref = ids.TxRef{}
+	slot.Deadline = time.Time{}
+	slot.Lease = nil
+	slot.Ref = ids.TxRef{}
 }
 
 func timeoutFatal(code string) *sqlstate.Error {
@@ -55,59 +55,59 @@ func timeoutFatal(code string) *sqlstate.Error {
 }
 
 func (s *Session) armTimeoutLocked(slot *sessionTimeout, deadline time.Time, code string) {
-	slot.generation++
-	slot.deadline = deadline
-	generation, token := slot.generation, s.token
-	slot.timer = time.AfterFunc(time.Until(deadline), func() {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		s.expireTimeoutLocked(slot, generation, token, code, time.Now())
+	slot.Generation++
+	slot.Deadline = deadline
+	generation, token := slot.Generation, s.SessionToken
+	slot.Timer = time.AfterFunc(time.Until(deadline), func() {
+		s.Mu.Lock()
+		defer s.Mu.Unlock()
+		s.ExpireTimeoutLocked(slot, generation, token, code, time.Now())
 	})
 }
 
 // Explicit timestamps/generations make stale-callback transitions testable
 // without a scheduler abstraction or timing-dependent unit tests.
-func (s *Session) expireTimeoutLocked(slot *sessionTimeout, generation uint64, token ids.SessionToken, code string, now time.Time) {
-	if s.state != live || token != s.token || slot.generation != generation || slot.deadline.IsZero() || now.Before(slot.deadline) {
+func (s *Session) ExpireTimeoutLocked(slot *sessionTimeout, generation uint64, token ids.SessionToken, code string, now time.Time) {
+	if s.State != live || token != s.SessionToken || slot.Generation != generation || slot.Deadline.IsZero() || now.Before(slot.Deadline) {
 		return
 	}
-	if slot == &s.timeouts.transaction {
-		if s.timeouts.transactionLimit == 0 {
+	if slot == &s.Timeouts.Transaction {
+		if s.Timeouts.TransactionLimit == 0 {
 			return
 		}
-		if slot.lease == nil && (slot.ref == (ids.TxRef{}) || slot.ref != s.timeouts.authority) {
+		if slot.Lease == nil && (slot.Ref == (ids.TxRef{}) || slot.Ref != s.Timeouts.Authority) {
 			return
 		}
 		// Released ProcessInterrupts handles already-pending statement ERROR
 		// before session FATAL. ERROR recovery will keep this budget stopped.
-		for op := range s.operations {
+		for op := range s.Operations {
 			lease := op.Lease
-			if lease != nil && !op.SQLFinished && (slot.lease == lease || (slot.ref != (ids.TxRef{}) && lease.TimeoutRef == slot.ref)) &&
+			if lease != nil && !op.SQLFinished && (slot.Lease == lease || (slot.Ref != (ids.TxRef{}) && lease.TimeoutRef == slot.Ref)) &&
 				(op.LockWait.Pending(now) || (!op.StatementDeadline.IsZero() && !now.Before(op.StatementDeadline)) ||
 					errors.Is(context.Cause(op.Ctx), statementTimeoutCause)) {
-				slot.stop()
+				slot.Stop()
 				return
 			}
 		}
 		// An idle-in-transaction flag is processed before the transaction flag
 		// when both are already due, not according to callback scheduling.
-		idle := &s.timeouts.idle
-		if s.timeouts.sqlLeases == 0 && s.timeouts.explicit && s.timeouts.idleTransactionLimit > 0 &&
-			!idle.deadline.IsZero() && !now.Before(idle.deadline) {
+		idle := &s.Timeouts.Idle
+		if s.Timeouts.SQLLeases == 0 && s.Timeouts.Explicit && s.Timeouts.IdleTransactionLimit > 0 &&
+			!idle.Deadline.IsZero() && !now.Before(idle.Deadline) {
 			code = "25P03"
 		}
 	} else {
-		if s.timeouts.sqlLeases != 0 {
+		if s.Timeouts.SQLLeases != 0 {
 			return
 		}
-		if code == "25P03" && (!s.timeouts.explicit || s.timeouts.idleTransactionLimit == 0) {
+		if code == "25P03" && (!s.Timeouts.Explicit || s.Timeouts.IdleTransactionLimit == 0) {
 			return
 		}
-		if code == "57P05" && (s.timeouts.explicit || s.timeouts.idleSessionLimit == 0) {
+		if code == "57P05" && (s.Timeouts.Explicit || s.Timeouts.IdleSessionLimit == 0) {
 			return
 		}
 	}
-	s.timeouts.fatal = timeoutFatal(code)
+	s.Timeouts.Fatal = timeoutFatal(code)
 	s.requestEndLocked(Terminated)
 }
 
@@ -115,105 +115,105 @@ func (s *Session) expireTimeoutLocked(slot *sessionTimeout, generation uint64, t
 // by new work. Keep the callback's authority and pending-interrupt priorities.
 // Session.mu is held, and both slots are observed at the same instant.
 func (s *Session) observeTimeoutsLocked(now time.Time) {
-	slot := &s.timeouts.transaction
-	s.expireTimeoutLocked(slot, slot.generation, s.token, "25P04", now)
+	slot := &s.Timeouts.Transaction
+	s.ExpireTimeoutLocked(slot, slot.Generation, s.SessionToken, "25P04", now)
 	code := "57P05"
-	if s.timeouts.explicit {
+	if s.Timeouts.Explicit {
 		code = "25P03"
 	}
-	slot = &s.timeouts.idle
-	s.expireTimeoutLocked(slot, slot.generation, s.token, code, now)
+	slot = &s.Timeouts.Idle
+	s.ExpireTimeoutLocked(slot, slot.Generation, s.SessionToken, code, now)
 }
 
-func (s *Session) readyTimeoutLocked(now time.Time) {
-	if s.state != live || s.timeouts.sqlLeases != 0 {
+func (s *Session) ReadyTimeoutLocked(now time.Time) {
+	if s.State != live || s.Timeouts.SQLLeases != 0 {
 		return
 	}
-	s.timeouts.idle.stop()
-	limit, code := s.timeouts.idleSessionLimit, "57P05"
-	if s.timeouts.explicit {
-		limit, code = s.timeouts.idleTransactionLimit, "25P03"
-		if s.timeouts.transactionLimit != 0 && limit >= s.timeouts.transactionLimit {
+	s.Timeouts.Idle.Stop()
+	limit, code := s.Timeouts.IdleSessionLimit, "57P05"
+	if s.Timeouts.Explicit {
+		limit, code = s.Timeouts.IdleTransactionLimit, "25P03"
+		if s.Timeouts.TransactionLimit != 0 && limit >= s.Timeouts.TransactionLimit {
 			limit = 0
 		}
 	}
 	if limit > 0 {
-		s.armTimeoutLocked(&s.timeouts.idle, now.Add(limit), code)
+		s.armTimeoutLocked(&s.Timeouts.Idle, now.Add(limit), code)
 	}
 }
 
 // settings.mu and Session.mu are held. Ordinary assignment and journal
 // restoration are distinct: restoring a positive value must not rearm a budget
 // retired by SET0 or ERROR. Explicit assignment can arm an inactive live owner.
-func (s *Session) publishTimeoutSettingsLocked(settings *sessionSettings, assignment bool, now time.Time) {
-	s.timeouts.transactionLimit = time.Duration(settings.typedValue("transaction_timeout").Number) * time.Millisecond
-	s.timeouts.idleTransactionLimit = time.Duration(settings.typedValue("idle_in_transaction_session_timeout").Number) * time.Millisecond
-	s.timeouts.idleSessionLimit = time.Duration(settings.typedValue("idle_session_timeout").Number) * time.Millisecond
-	if s.timeouts.transactionLimit == 0 {
-		s.timeouts.transaction.stop()
-	} else if assignment && s.state == live && s.timeouts.transaction.deadline.IsZero() && s.timeouts.authority != (ids.TxRef{}) {
-		s.timeouts.transaction.ref = s.timeouts.authority
-		s.armTimeoutLocked(&s.timeouts.transaction, now.Add(s.timeouts.transactionLimit), "25P04")
+func (s *Session) PublishTimeoutSettingsLocked(settings *sessionSettings, assignment bool, now time.Time) {
+	s.Timeouts.TransactionLimit = time.Duration(settings.typedValue("transaction_timeout").Number) * time.Millisecond
+	s.Timeouts.IdleTransactionLimit = time.Duration(settings.typedValue("idle_in_transaction_session_timeout").Number) * time.Millisecond
+	s.Timeouts.IdleSessionLimit = time.Duration(settings.typedValue("idle_session_timeout").Number) * time.Millisecond
+	if s.Timeouts.TransactionLimit == 0 {
+		s.Timeouts.Transaction.Stop()
+	} else if assignment && s.State == live && s.Timeouts.Transaction.Deadline.IsZero() && s.Timeouts.Authority != (ids.TxRef{}) {
+		s.Timeouts.Transaction.Ref = s.Timeouts.Authority
+		s.armTimeoutLocked(&s.Timeouts.Transaction, now.Add(s.Timeouts.TransactionLimit), "25P04")
 	}
 }
 
 // startProvisionalTimeout makes lease op's current statement and, before a
 // transaction is born, arms the transaction timeout from transactionStart.
-func (s *Session) startProvisionalTimeout(lease *StatementLease, op *Operation, transactionStart time.Time) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	lease.TimeoutRef = s.timeouts.authority
+func (s *Session) StartProvisionalTimeout(lease *StatementLease, op *Operation, transactionStart time.Time) {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	lease.TimeoutRef = s.Timeouts.Authority
 	if op != nil {
 		op.Lease = lease
 	}
-	if s.state != live || s.timeouts.authority != (ids.TxRef{}) || s.timeouts.transactionLimit == 0 {
+	if s.State != live || s.Timeouts.Authority != (ids.TxRef{}) || s.Timeouts.TransactionLimit == 0 {
 		return
 	}
-	s.timeouts.transaction.lease = lease
-	s.armTimeoutLocked(&s.timeouts.transaction, transactionStart.Add(s.timeouts.transactionLimit), "25P04")
+	s.Timeouts.Transaction.Lease = lease
+	s.armTimeoutLocked(&s.Timeouts.Transaction, transactionStart.Add(s.Timeouts.TransactionLimit), "25P04")
 }
 
 // Called under Session.mu at canonical birth; adopting the provisional slot
 // neither mints a TxRef early nor restarts or allocates another runtime timer.
-func (s *Session) beginTimeoutLocked(ref ids.TxRef, explicit bool, now time.Time) {
-	s.timeouts.authority, s.timeouts.explicit = ref, explicit
-	slot := &s.timeouts.transaction
-	if slot.lease != nil && !slot.deadline.IsZero() {
-		slot.lease.TimeoutRef = ref
-		slot.lease, slot.ref = nil, ref
+func (s *Session) BeginTimeoutLocked(ref ids.TxRef, explicit bool, now time.Time) {
+	s.Timeouts.Authority, s.Timeouts.Explicit = ref, explicit
+	slot := &s.Timeouts.Transaction
+	if slot.Lease != nil && !slot.Deadline.IsZero() {
+		slot.Lease.TimeoutRef = ref
+		slot.Lease, slot.Ref = nil, ref
 		return
 	}
-	slot.stop()
-	if s.state == live && s.timeouts.transactionLimit > 0 {
-		slot.ref = ref
-		s.armTimeoutLocked(slot, now.Add(s.timeouts.transactionLimit), "25P04")
+	slot.Stop()
+	if s.State == live && s.Timeouts.TransactionLimit > 0 {
+		slot.Ref = ref
+		s.armTimeoutLocked(slot, now.Add(s.Timeouts.TransactionLimit), "25P04")
 	}
 }
 
-func (s *Session) retireTransactionTimeoutLocked() {
-	s.timeouts.transaction.stop()
-	s.timeouts.authority = ids.TxRef{}
-	s.timeouts.explicit = false
+func (s *Session) RetireTransactionTimeoutLocked() {
+	s.Timeouts.Transaction.Stop()
+	s.Timeouts.Authority = ids.TxRef{}
+	s.Timeouts.Explicit = false
 }
-func (s *Session) retireTransactionTimeout() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.retireTransactionTimeoutLocked()
+func (s *Session) RetireTransactionTimeout() {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	s.RetireTransactionTimeoutLocked()
 }
 
 // finishScopeTimeout ends lease's statement timeout state. op, message and
 // txRef are the finishing statement's operation, message flag and
 // transaction.
-func (s *Session) finishScopeTimeout(lease *StatementLease, op *Operation, message bool, txRef ids.TxRef, failed bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	slot := &s.timeouts.transaction
+func (s *Session) FinishScopeTimeout(lease *StatementLease, op *Operation, message bool, txRef ids.TxRef, failed bool) {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	slot := &s.Timeouts.Transaction
 	if op != nil && op.Lease == lease {
 		op.SQLFinished = !message
 		op.LockWait.Reset()
 	}
-	if slot.lease == lease || (failed && slot.ref != (ids.TxRef{}) && (slot.ref == lease.TimeoutRef || slot.ref == txRef)) {
-		slot.stop()
+	if slot.Lease == lease || (failed && slot.Ref != (ids.TxRef{}) && (slot.Ref == lease.TimeoutRef || slot.Ref == txRef)) {
+		slot.Stop()
 	}
 }
 
@@ -223,12 +223,12 @@ func (s *Session) Check(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
 	s.observeTimeoutsLocked(time.Now())
-	if s.state != live {
-		if s.timeouts.fatal != nil {
-			copy := *s.timeouts.fatal
+	if s.State != live {
+		if s.Timeouts.Fatal != nil {
+			copy := *s.Timeouts.Fatal
 			return &copy
 		}
 		return errors.New("stuntgres: session unavailable")
@@ -244,8 +244,8 @@ func (op *Operation) fatalError(err error) error {
 		return err
 	}
 	s := op.Session
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
 	return op.FatalErrorLocked(err)
 }
 
@@ -255,8 +255,8 @@ func (op *Operation) FatalErrorLocked(err error) error {
 		return err
 	}
 	s := op.Session
-	if s.timeouts.fatal != nil {
-		copy := *s.timeouts.fatal
+	if s.Timeouts.Fatal != nil {
+		copy := *s.Timeouts.Fatal
 		return &copy
 	}
 	return err

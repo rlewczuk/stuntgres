@@ -135,7 +135,7 @@ func TestSQLCursorSavepointOrdinalAndStaleIncarnation(t *testing.T) {
 	if payloadOf(s).cursors.entries["parent"] != nil {
 		t.Fatal("rollback resurrects CLOSE")
 	}
-	old := s.transactions.ref
+	old := s.Transactions.ref
 	sessionSQL(t, s, "COMMIT")
 	sessionSQL(t, s, "BEGIN")
 	sessionSQL(t, s, "DECLARE parent NO SCROLL CURSOR FOR SELECT 4")
@@ -336,7 +336,7 @@ func TestSQLCursorForeignRegistryAndEmptyAuthority(t *testing.T) {
 	s := cursorUnitSetup(t)
 	sessionSQL(t, s, "DECLARE c NO SCROLL CURSOR FOR SELECT i FROM unit_rows")
 	cursor := payloadOf(s).cursors.entries["c"]
-	foreign := engineOf(s).catalog.Domain.Session(s.token.ID() + 1)
+	foreign := engineOf(s).catalog.Domain.Session(s.SessionToken.ID() + 1)
 	if err := payloadOf(s).cursors.EndSession(foreign, CleanClose); err == nil || payloadOf(s).cursors.entries["c"] != cursor {
 		t.Fatal("foreign cleanup consumed cursor", err)
 	}
@@ -380,8 +380,8 @@ func TestSQLCursorCompletedPublicationBoundary(t *testing.T) {
 		if err := scope.Finish(nil); err != nil {
 			t.Fatalf("%s: repeated Finish changes success: %v", query, err)
 		}
-		if s.transactions.state != TxActive {
-			t.Fatalf("%s aborts completed explicit transaction: %v", query, s.transactions.state)
+		if s.Transactions.state != TxActive {
+			t.Fatalf("%s aborts completed explicit transaction: %v", query, s.Transactions.state)
 		}
 		return result
 	}

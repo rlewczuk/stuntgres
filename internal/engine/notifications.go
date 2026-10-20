@@ -218,7 +218,7 @@ func (s *StatementScope) executeNotification(stmt parser.Statement, count int) (
 		if len(raw.Payload) >= 8000 {
 			return Result{}, sqlError("22023", "payload string too long")
 		}
-		s.notificationEvents = append(s.notificationEvents, Notification{PID: uint64(s.op.Session.token.ID()), Channel: raw.Channel.Text, Payload: raw.Payload})
+		s.notificationEvents = append(s.notificationEvents, Notification{PID: uint64(s.op.Session.SessionToken.ID()), Channel: raw.Channel.Text, Payload: raw.Payload})
 	case *parser.Listen:
 		s.notificationActions = append(s.notificationActions, notificationAction{channel: raw.Channel.Text, listen: true})
 	case *parser.Unlisten:

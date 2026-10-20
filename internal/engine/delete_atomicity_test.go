@@ -176,7 +176,7 @@ func TestDeleteCoreExplicitFailure(t *testing.T) {
 	if err = scope.Finish(err); err != sentinel {
 		t.Fatal(err)
 	}
-	if a.TransactionState() != TxAborted || a.transactions.writes != nil || a.transactions.deletes != nil || a.transactions.ticket != nil {
+	if a.TransactionState() != TxAborted || a.Transactions.writes != nil || a.Transactions.deletes != nil || a.Transactions.ticket != nil {
 		t.Fatal("failure did not discard earlier commands")
 	}
 	op := transactionOperation(t, a)
@@ -292,15 +292,15 @@ func TestDeleteCoreCombinedPreflight(t *testing.T) {
 			frontier := e.visibility.CommitSeq()
 			switch failure {
 			case "wrong_version":
-				for id, candidate := range a.transactions.deletes[target.Address].Rows {
+				for id, candidate := range a.Transactions.deletes[target.Address].Rows {
 					candidate.Version++
-					a.transactions.deletes[target.Address].Rows[id] = candidate
+					a.Transactions.deletes[target.Address].Rows[id] = candidate
 				}
 			case "copied_storage":
-				for id, candidate := range a.transactions.deletes[target.Address].Rows {
+				for id, candidate := range a.Transactions.deletes[target.Address].Rows {
 					copied := *candidate.Storage
 					candidate.Storage = &copied
-					a.transactions.deletes[target.Address].Rows[id] = candidate
+					a.Transactions.deletes[target.Address].Rows[id] = candidate
 				}
 			case "replaced_shape":
 				// Preserve payload and width: only the exact shape generation changes.

@@ -99,7 +99,7 @@ func TestInheritanceUsingIndexPreparedDiagnostics(t *testing.T) {
 					holder := sessionStart(t, e, nil)
 					tx := transactionBegin(t, holder)
 					ref := catalogRef(t, e, e.CatalogRead(), "c")
-					if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
+					if err := e.locks.Acquire(context.Background(), holder.Transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 						t.Fatal(err)
 					}
 					done := make(chan error, 1)

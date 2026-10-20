@@ -27,7 +27,7 @@ func (e *Engine) captureRegTSInput(auth AuthorizationView) (capturedRegTSInput, 
 	}
 	r := capturedRegTSInput{auth: auth, path: path, temporary: temporaryNamespace(auth)}
 	if auth.session != nil {
-		r.database = auth.session.databaseName
+		r.database = auth.session.DatabaseName
 	}
 	r.auth.session, r.auth.settings = nil, nil
 	return r, nil

@@ -299,7 +299,7 @@ func TestAuthorizationExhaustionAndCancellationDoNotPublish(t *testing.T) {
 	if e.roles.published != before {
 		t.Fatal("drop exhaustion publication")
 	}
-	op.Session.authorization.revision = ^uint64(0)
+	op.Session.Authorization.revision = ^uint64(0)
 	state := op.RoleState()
 	if _, err := e.Execute(op, statement(t, "SET SESSION AUTHORIZATION retained"), 0, nil); err == nil {
 		t.Fatal("session revision exhaustion")
@@ -330,7 +330,7 @@ func TestAuthorizationCancellationAtRoleInstall(t *testing.T) {
 			roleExecute(t, e, op, "CREATE ROLE retained")
 			beforeRoles, beforeCatalog, beforePrincipal := e.roles.published, e.catalog.state, e.roles.nextPrincipal
 			beforeIdentity := op.RoleState()
-			beforeRevision := op.Session.authorization.revision
+			beforeRevision := op.Session.Authorization.revision
 			original := op.Ctx
 			ctx := &roleCommitContext{Context: original}
 			op.Ctx = ctx
@@ -340,7 +340,7 @@ func TestAuthorizationCancellationAtRoleInstall(t *testing.T) {
 				t.Fatal("final cancellation checkpoint", ctx.checks, err)
 			}
 			if e.roles.published != beforeRoles || e.catalog.state != beforeCatalog || e.roles.nextPrincipal != beforePrincipal ||
-				op.RoleState() != beforeIdentity || op.Session.authorization.revision != beforeRevision {
+				op.RoleState() != beforeIdentity || op.Session.Authorization.revision != beforeRevision {
 				t.Fatal("canceled install published a partial change")
 			}
 		})

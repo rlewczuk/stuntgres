@@ -49,7 +49,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 			}
 			id := temporaryNamespace(auth)
 			candidate := scope.catalog
-			if id == (ids.ObjectAddress{}) || len(path) != 2 || path[0] != id || candidate == nil || e.catalog.state != base || s.temporaryNamespace != (ids.ObjectAddress{}) {
+			if id == (ids.ObjectAddress{}) || len(path) != 2 || path[0] != id || candidate == nil || e.catalog.state != base || s.TemporaryNamespace != (ids.ObjectAddress{}) {
 				e.mu.Unlock()
 				t.Fatal("private first-use candidate", id, path)
 			}
@@ -67,7 +67,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 			boolType, _ := auth.Catalog.LookupType(sqltype.Bool)
 			var toast ids.ObjectAddress
 			for a, d := range candidate.Descriptors {
-				if n, ok := d.(*catalog.Namespace); ok && n.TemporaryToast && n.Temporary == s.token {
+				if n, ok := d.(*catalog.Namespace); ok && n.TemporaryToast && n.Temporary == s.SessionToken {
 					toast = a
 				}
 			}
@@ -97,7 +97,7 @@ func TestNamespaceIdentityStagedAuthorityAndFinishVeto(t *testing.T) {
 			if err := scope.Finish(failure); !errors.Is(err, failure) {
 				t.Fatal(err)
 			}
-			if e.catalog.state != base || s.temporaryNamespace != (ids.ObjectAddress{}) || s.transactions.catalog != nil {
+			if e.catalog.state != base || s.TemporaryNamespace != (ids.ObjectAddress{}) || s.Transactions.catalog != nil {
 				t.Fatal("Finish veto published namespace")
 			}
 		})

@@ -73,9 +73,9 @@ func (e *Engine) alterDefaultLocked(scope *StatementScope, op *Operation, auth A
 			return fail(err)
 		}
 	} else if _, present := old.ColumnMeta.Defaults[attr]; !present {
-		op.Session.mu.Lock()
+		op.Session.Mu.Lock()
 		err = publicationOperationLocked(e, op)
-		op.Session.mu.Unlock()
+		op.Session.Mu.Unlock()
 		if err == nil {
 			err = op.Context().Err()
 		}

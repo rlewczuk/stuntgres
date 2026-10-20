@@ -144,7 +144,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 		}
 		auth.Catalog = e.privateCatalogLocked(changes)
 		auth.Recapture(auth.Catalog)
-		if table, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.Session.token {
+		if table, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.Session.SessionToken {
 			auth.stagedTemporary = table.Address()
 		}
 		if err = auth.CheckCreate(ns); err != nil && !operationReplayOrZero(op).tableDestination {
@@ -156,7 +156,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			e.mu.Unlock()
 			return Result{}, err
 		}
-		if nsd, ok := auth.Catalog.Namespace(ns.Address); ok && nsd.Temporary == op.Session.token {
+		if nsd, ok := auth.Catalog.Namespace(ns.Address); ok && nsd.Temporary == op.Session.SessionToken {
 			scope.owner.accessedTemporary = true
 		}
 		name := s.Name.Parts[len(s.Name.Parts)-1].Text
@@ -354,7 +354,7 @@ func (e *Engine) executeSequenceDDL(scope *StatementScope, stmt parser.Statement
 			// against that same private catalog, without publishing on rejection.
 			auth.Catalog = e.privateCatalogLocked(changes)
 			auth.Recapture(auth.Catalog)
-			if table, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.Session.token {
+			if table, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.Session.SessionToken {
 				auth.stagedTemporary = table.Address()
 			}
 			if err = auth.CheckCreate(ns); err != nil {

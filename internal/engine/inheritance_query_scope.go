@@ -136,7 +136,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 			}
 		}
 		var pending []exec.Leaf
-		err := inheritanceQueryLeaves(view, roots, s.op.Session.token, func(leaf exec.Leaf) error {
+		err := inheritanceQueryLeaves(view, roots, s.op.Session.SessionToken, func(leaf exec.Leaf) error {
 			if leaf.Relation.RelationKind != catalog.TableRelation {
 				return nil
 			}

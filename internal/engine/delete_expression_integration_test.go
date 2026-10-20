@@ -40,9 +40,9 @@ func TestDeleteCoreExpressionPreflightAuthority(t *testing.T) {
 				}
 				switch mode {
 				case "authority":
-					op.Session.mu.Lock()
-					op.Session.authorization.state.CurrentUser = actor.Ref
-					op.Session.mu.Unlock()
+					op.Session.Mu.Lock()
+					op.Session.Authorization.state.CurrentUser = actor.Ref
+					op.Session.Mu.Unlock()
 				case "metadata":
 					address := scope.lockedRef.Address
 					original := e.catalog.state.Get(address)

@@ -186,7 +186,7 @@ func TestInheritanceProspectiveRetirement(t *testing.T) {
 				}
 				lockEmpty(t, e)
 			}()
-			scope := &StatementScope{op: op, owner: op.Session.transactions, txRef: tx, ticket: op.Session.transactions.ticket}
+			scope := &StatementScope{op: op, owner: op.Session.Transactions, txRef: tx, ticket: op.Session.Transactions.ticket}
 			base := e.CatalogRead()
 			stage := e.BeginCatalogStage(base)
 			defer e.DiscardCatalogStage(stage)

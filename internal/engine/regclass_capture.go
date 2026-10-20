@@ -45,7 +45,7 @@ func (e *Engine) regclassLocked(auth AuthorizationView, text string) (ids.Object
 	}
 	database := ""
 	if auth.session != nil {
-		database = auth.session.databaseName
+		database = auth.session.DatabaseName
 	}
 	name, err = regclassQualifiedName(name, text, database)
 	if err != nil {
@@ -84,8 +84,8 @@ func (e *Engine) captureRegclassInput(auth AuthorizationView) (sqltype.RegclassR
 	}
 	input := capturedRegclassInput{auth: auth, path: path, temporary: temporaryNamespace(auth)}
 	if auth.session != nil {
-		input.token = auth.session.token
-		input.database = auth.session.databaseName
+		input.token = auth.session.SessionToken
+		input.database = auth.session.DatabaseName
 	}
 	input.auth.session = nil
 	input.auth.settings = nil

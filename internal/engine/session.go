@@ -72,36 +72,36 @@ type resourceEntry struct {
 }
 type Session struct {
 	ids.SessionOwnerMarker
-	mu    sync.Mutex
-	cond  *sync.Cond
-	host  session.Host // Immutable after construction; engineOf recovers the engine.
-	token ids.SessionToken
+	Mu           sync.Mutex
+	Cond         *sync.Cond
+	Host         session.Host // Immutable after construction; engineOf recovers the engine.
+	SessionToken ids.SessionToken
 	// Written before registry publication, never changed by identity switches.
-	countedAuthenticated   authorization.PrincipalRef
-	state                  sessionState
-	completed              chan struct{}
+	CountedAuthenticated   authorization.PrincipalRef
+	State                  sessionState
+	Completed              chan struct{}
 	endRequested           chan struct{} // Lazy wake projection of ending, not a lease or completion.
-	leases                 int
-	operations             map[*Operation]struct{}
+	Leases                 int
+	Operations             map[*Operation]struct{}
 	detaching              bool
-	serial                 uint64
-	resources              [resourceKinds]*resourceEntry
-	removed                map[ResourceHandle]bool
-	reason                 EndReason
+	Serial                 uint64
+	Resources              [resourceKinds]*resourceEntry
+	Removed                map[ResourceHandle]bool
+	Reason                 EndReason
 	cleanupErrors          []error
 	result                 error
-	settings               *sessionSettings
-	transactions           *transactionOwner
-	advisory               sessionAdvisory
-	authorization          *sessionAuthorization
-	discardPlansGeneration uint64 // serialized by physical-owner statement admission
-	temporaryNamespace     ids.ObjectAddress
-	random                 randomState
-	arrayRandom            randomState // independent of random()/setseed()
-	uuid                   uuidClock
-	databaseName           string
-	timeouts               sessionTimeouts
-	payload                session.PayloadSlot // Root payload; set before publication, never changed. See payloadOf.
+	Settings               *sessionSettings
+	Transactions           *transactionOwner
+	Advisory               sessionAdvisory
+	Authorization          *sessionAuthorization
+	DiscardPlansGeneration uint64 // serialized by physical-owner statement admission
+	TemporaryNamespace     ids.ObjectAddress
+	Random                 randomState
+	ArrayRandom            randomState // independent of random()/setseed()
+	UUID                   uuidClock
+	DatabaseName           string
+	Timeouts               sessionTimeouts
+	Payload                session.PayloadSlot // Root payload; set before publication, never changed. See payloadOf.
 }
 
 // Operation is pointer-owned; copying it is invalid. Done releases its lease once.
@@ -134,17 +134,17 @@ type Operation struct {
 	Analysis           session.AnalysisSlot    // Immutable after creation; see newSessionOperation.
 }
 
-func (s *Session) Token() ids.SessionToken { return s.token }
-func (s *Session) operation(ctx context.Context, private bool) *Operation {
+func (s *Session) Token() ids.SessionToken { return s.SessionToken }
+func (s *Session) Operation(ctx context.Context, private bool) *Operation {
 	// Caller cancellation propagates through this child context. RequestEnd
 	// cancels every admitted child under the same admission lock; Done removes it.
 	combined, cancel := context.WithCancelCause(ctx)
 	op := newSessionOperation(s)
 	op.Ctx, op.CommandContext, op.SourceContext, op.Cancel, op.private = combined, combined, ctx, cancel, private
-	if s.operations == nil {
-		s.operations = make(map[*Operation]struct{})
+	if s.Operations == nil {
+		s.Operations = make(map[*Operation]struct{})
 	}
-	s.operations[op] = struct{}{}
+	s.Operations[op] = struct{}{}
 	return op
 }
 func (s *Session) Acquire(ctx context.Context) (*Operation, error) {
@@ -154,30 +154,30 @@ func (s *Session) acquire(ctx context.Context, activity bool) (*Operation, error
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
 	s.observeTimeoutsLocked(time.Now())
-	if s.state != live || s.detaching {
-		if s.timeouts.fatal != nil {
-			copy := *s.timeouts.fatal
+	if s.State != live || s.detaching {
+		if s.Timeouts.Fatal != nil {
+			copy := *s.Timeouts.Fatal
 			return nil, &copy
 		}
 		return nil, errors.New("stuntgres: session unavailable")
 	}
-	s.leases++
-	op := s.operation(ctx, false)
+	s.Leases++
+	op := s.Operation(ctx, false)
 	op.sqlActivity = activity
 	if activity {
-		s.timeouts.sqlLeases++
-		s.timeouts.idle.stop()
+		s.Timeouts.SQLLeases++
+		s.Timeouts.Idle.Stop()
 	}
 	return op, nil
 }
 func (op *Operation) Context() context.Context {
 	if op.CopyInput.held() {
-		op.Session.mu.Lock()
+		op.Session.Mu.Lock()
 		ctx := op.CopyInput.effectiveLocked(op)
-		op.Session.mu.Unlock()
+		op.Session.Mu.Unlock()
 		return ctx
 	}
 	return op.Ctx
@@ -187,41 +187,41 @@ func (op *Operation) Done() {
 		return
 	}
 	s := op.Session
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
 	if op.Released {
 		return
 	}
 	op.Released = true
 	op.LockWait.Reset()
-	delete(s.operations, op)
+	delete(s.Operations, op)
 	op.Cancel(nil)
 	if op.TimerCancel != nil {
 		op.TimerCancel()
 	}
-	s.leases--
+	s.Leases--
 	if op.sqlActivity {
-		s.timeouts.sqlLeases--
+		s.Timeouts.SQLLeases--
 	}
 	if op.sqlActivity || op.private {
-		s.readyTimeoutLocked(time.Now())
+		s.ReadyTimeoutLocked(time.Now())
 	}
-	s.cond.Broadcast()
+	s.Cond.Broadcast()
 }
 
 // validateSessionOperation reports whether op is a live operation of a session
 // in domain. A session's token carries its engine's domain, so session code
 // passes its own token's domain.
 func validateSessionOperation(domain *ids.Domain, op *Operation) error {
-	if op == nil || op.Self != op || op.Session == nil || op.Session.token.Domain() != domain {
+	if op == nil || op.Self != op || op.Session == nil || op.Session.SessionToken.Domain() != domain {
 		return errors.New("stuntgres: foreign or missing operation")
 	}
 	s := op.Session
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if op.Released || s.state != live {
-		if s.timeouts.fatal != nil {
-			copy := *s.timeouts.fatal
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	if op.Released || s.State != live {
+		if s.Timeouts.Fatal != nil {
+			copy := *s.Timeouts.Fatal
 			return &copy
 		}
 		return errors.New("stuntgres: inactive operation")
@@ -247,72 +247,72 @@ func (op *Operation) Attach(kind ResourceKind, owner SessionResource) (ResourceH
 		return ResourceHandle{}, errors.New("stuntgres: invalid session attachment")
 	}
 	s := op.Session
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
 	if err := op.Ctx.Err(); err != nil {
 		return ResourceHandle{}, err
 	}
-	if op.Released || (s.state != live && !(op.private && s.state == initializing)) || s.detaching {
+	if op.Released || (s.State != live && !(op.private && s.State == initializing)) || s.detaching {
 		return ResourceHandle{}, errors.New("stuntgres: inactive attachment lease")
 	}
-	if s.resources[kind] != nil {
+	if s.Resources[kind] != nil {
 		return ResourceHandle{}, errors.New("stuntgres: duplicate session attachment")
 	}
-	if s.serial == ^uint64(0) {
+	if s.Serial == ^uint64(0) {
 		return ResourceHandle{}, errors.New("stuntgres: resource identity exhausted")
 	}
-	s.serial++
-	h := ResourceHandle{s.token, kind, s.serial}
-	s.resources[kind] = &resourceEntry{h, owner}
+	s.Serial++
+	h := ResourceHandle{s.SessionToken, kind, s.Serial}
+	s.Resources[kind] = &resourceEntry{h, owner}
 	return h, nil
 }
 func (s *Session) Detach(h ResourceHandle, reason EndReason) error {
-	s.mu.Lock()
-	if h.session != s.token || h.kind >= resourceKinds || h.serial == 0 {
-		s.mu.Unlock()
+	s.Mu.Lock()
+	if h.session != s.SessionToken || h.kind >= resourceKinds || h.serial == 0 {
+		s.Mu.Unlock()
 		return errors.New("stuntgres: foreign resource handle")
 	}
-	if s.removed[h] {
-		s.mu.Unlock()
+	if s.Removed[h] {
+		s.Mu.Unlock()
 		return nil
 	}
-	entry := s.resources[h.kind]
+	entry := s.Resources[h.kind]
 	if entry == nil || entry.handle != h {
-		s.mu.Unlock()
+		s.Mu.Unlock()
 		return errors.New("stuntgres: stale resource handle")
 	}
-	if s.state != live || s.leases != 0 || s.detaching {
-		s.mu.Unlock()
+	if s.State != live || s.Leases != 0 || s.detaching {
+		s.Mu.Unlock()
 		return errors.New("stuntgres: session detach requires quiescence")
 	}
 	s.detaching = true
-	s.resources[h.kind] = nil
-	s.mu.Unlock()
-	err := entry.owner.EndSession(s.token, reason)
-	s.mu.Lock()
-	s.removed[h] = true
+	s.Resources[h.kind] = nil
+	s.Mu.Unlock()
+	err := entry.owner.EndSession(s.SessionToken, reason)
+	s.Mu.Lock()
+	s.Removed[h] = true
 	if err != nil {
 		s.cleanupErrors = append(s.cleanupErrors, err)
 	}
 	s.detaching = false
-	s.cond.Broadcast()
-	s.mu.Unlock()
+	s.Cond.Broadcast()
+	s.Mu.Unlock()
 	return err
 }
 func (s *Session) RequestEnd(reason EndReason) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
 	s.requestEndLocked(reason)
 }
 
 // EndRequested wakes observers as soon as ending is requested, before leases
 // drain. Check reports the authoritative reason; WaitEnd still joins cleanup.
 func (s *Session) EndRequested() <-chan struct{} {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
 	if s.endRequested == nil {
 		s.endRequested = make(chan struct{})
-		if s.state == ending || s.state == ended {
+		if s.State == ending || s.State == ended {
 			close(s.endRequested)
 		}
 	}
@@ -320,21 +320,21 @@ func (s *Session) EndRequested() <-chan struct{} {
 }
 
 func (s *Session) requestEndLocked(reason EndReason) {
-	if s.state == ending || s.state == ended {
+	if s.State == ending || s.State == ended {
 		return
 	}
-	s.state = ending
+	s.State = ending
 	if s.endRequested != nil {
 		close(s.endRequested)
 	}
-	s.reason = reason
-	s.timeouts.transaction.stop()
-	s.timeouts.idle.stop()
+	s.Reason = reason
+	s.Timeouts.Transaction.Stop()
+	s.Timeouts.Idle.Stop()
 	var cause error
-	if s.timeouts.fatal != nil {
-		cause = s.timeouts.fatal
+	if s.Timeouts.Fatal != nil {
+		cause = s.Timeouts.Fatal
 	}
-	for op := range s.operations {
+	for op := range s.Operations {
 		op.Cancel(cause)
 		if op.CopyInput.cancel != nil {
 			op.CopyInput.cancel(cause)
@@ -343,42 +343,42 @@ func (s *Session) requestEndLocked(reason EndReason) {
 	go s.end()
 }
 func (s *Session) end() {
-	s.mu.Lock()
-	for s.leases != 0 || s.detaching {
-		s.cond.Wait()
+	s.Mu.Lock()
+	for s.Leases != 0 || s.detaching {
+		s.Cond.Wait()
 	}
 	for _, kind := range [...]ResourceKind{Transaction, Notifications, Cursors, PreparedSQL, Temporary, AdvisorySession, Settings, Authorization} {
-		entry := s.resources[kind]
+		entry := s.Resources[kind]
 		if entry == nil {
 			continue
 		}
-		s.resources[kind] = nil
-		s.mu.Unlock()
-		err := entry.owner.EndSession(s.token, s.reason)
+		s.Resources[kind] = nil
+		s.Mu.Unlock()
+		err := entry.owner.EndSession(s.SessionToken, s.Reason)
 		if kind == Transaction {
 			// The transaction callback has returned and released its admission
 			// lock. Maintenance never runs inside a SessionResource callback.
-			err = errors.Join(err, s.host.EndMaintenance(s))
+			err = errors.Join(err, s.Host.EndMaintenance(s))
 		}
-		s.mu.Lock()
-		s.removed[entry.handle] = true
+		s.Mu.Lock()
+		s.Removed[entry.handle] = true
 		if err != nil {
 			s.cleanupErrors = append(s.cleanupErrors, err)
 		}
 	}
 	s.result = errors.Join(s.cleanupErrors...)
-	s.host.Unregister(s.token, s)
-	s.state = ended
-	close(s.completed)
-	s.mu.Unlock()
+	s.Host.Unregister(s.SessionToken, s)
+	s.State = ended
+	close(s.Completed)
+	s.Mu.Unlock()
 }
 func (s *Session) WaitEnd(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-s.completed:
-		s.mu.Lock()
-		defer s.mu.Unlock()
+	case <-s.Completed:
+		s.Mu.Lock()
+		defer s.Mu.Unlock()
 		return s.result
 	}
 }
@@ -386,11 +386,11 @@ func (s *Session) Reuse(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.state != live {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	if s.State != live {
 		return fmt.Errorf("stuntgres: session is not reusable")
 	}
 	return nil
 }
-func (s *Session) IsLive() bool { s.mu.Lock(); defer s.mu.Unlock(); return s.state == live }
+func (s *Session) IsLive() bool { s.Mu.Lock(); defer s.Mu.Unlock(); return s.State == live }

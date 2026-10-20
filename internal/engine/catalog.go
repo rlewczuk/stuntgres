@@ -719,7 +719,7 @@ func (e *Engine) PublishCatalog(p *PreparedCatalogPublication, token Publication
 	return e.publishCatalog(nil, nil, p, token)
 }
 func (e *Engine) publishCatalogOperation(op *Operation, scope *StatementScope, p *PreparedCatalogPublication, token PublicationToken) (ChangeSet, error) {
-	if op != nil && op.Session.transactions.retainsTransaction() {
+	if op != nil && op.Session.Transactions.retainsTransaction() {
 		return e.stageMessageCatalog(op, p, token)
 	}
 	if scope != nil && scope.owner.state == TxActive {
@@ -1100,25 +1100,25 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		}
 		e.mu.Lock()
 		if op != nil {
-			op.Session.mu.Lock()
+			op.Session.Mu.Lock()
 		}
 		if e.catalog.state != current {
 			if op != nil {
-				op.Session.mu.Unlock()
+				op.Session.Mu.Unlock()
 			}
 			e.mu.Unlock()
 			continue
 		}
 		if !indexStoresUnchanged(e.storage.Relations, indexStores, current, next, indexRoots, indexPredecessors) {
 			if op != nil {
-				op.Session.mu.Unlock()
+				op.Session.Mu.Unlock()
 			}
 			e.mu.Unlock()
 			continue
 		}
 		if !e.partitionReadsValidLocked(s) {
 			if op != nil {
-				op.Session.mu.Unlock()
+				op.Session.Mu.Unlock()
 			}
 			e.mu.Unlock()
 			return ChangeSet{}, catalog.Conflict{}
@@ -1126,7 +1126,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		for a, shape := range s.rowShapes {
 			if e.storage.Relations[a] != shape.original || len(shape.original.Versions) != shape.observedLength || shape.original.Generation != shape.generation || shape.original.Ends != shape.observedEnds {
 				if op != nil {
-					op.Session.mu.Unlock()
+					op.Session.Mu.Unlock()
 				}
 				e.mu.Unlock()
 				return ChangeSet{}, catalog.Conflict{}
@@ -1135,7 +1135,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		if r := s.materializedOrZero().replacement; r != nil {
 			if err := s.materializedReplacementCurrent(e.catalog.state, e.storage.Relations[r.original.Address()]); err != nil {
 				if op != nil {
-					op.Session.mu.Unlock()
+					op.Session.Mu.Unlock()
 				}
 				e.mu.Unlock()
 				return ChangeSet{}, err
@@ -1173,12 +1173,12 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		if err == nil && s.authSession != nil {
 			// SQL stages use the operation's session, already locked above.
 			if op == nil || s.authSession != op.Session {
-				s.authSession.mu.Lock()
+				s.authSession.Mu.Lock()
 			}
-			auth := s.authSession.authorization
+			auth := s.authSession.Authorization
 			valid := auth != nil && auth.revision == s.authRevision && e.roles.published.Revision == s.roleRevision
 			if op == nil || s.authSession != op.Session {
-				s.authSession.mu.Unlock()
+				s.authSession.Mu.Unlock()
 			}
 			if !valid {
 				err = fmt.Errorf("stuntgres: authorization changed before publication")
@@ -1186,12 +1186,12 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		}
 		if err == nil && s.materializedOrZero().replacement != nil && s.authSession != nil {
 			if op == nil || s.authSession != op.Session {
-				s.authSession.mu.Lock()
+				s.authSession.Mu.Lock()
 			}
-			auth := AuthorizationView{View: access.View{Owner: e.catalog.owner(), PairedCatalog: e.catalog.read(e.catalog.state), RoleRecord: e.roles.published, Catalog: e.catalog.read(e.catalog.state), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), State: s.authSession.authorization.state}, engine: e}
+			auth := AuthorizationView{View: access.View{Owner: e.catalog.owner(), PairedCatalog: e.catalog.read(e.catalog.state), RoleRecord: e.roles.published, Catalog: e.catalog.read(e.catalog.state), Roles: e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), State: s.authSession.Authorization.state}, engine: e}
 			err = auth.Check(access.Requirement{Object: e.catalog.Domain.Ref(e.catalog.state.Epoch(), s.materializedOrZero().replacement.original.Address()), Privileges: authorization.MaintainPrivilege})
 			if op == nil || s.authSession != op.Session {
-				s.authSession.mu.Unlock()
+				s.authSession.Mu.Unlock()
 			}
 		}
 		if err == nil {
@@ -1275,7 +1275,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 			s.lifecycle = catalogPublished
 		}
 		if op != nil {
-			op.Session.mu.Unlock()
+			op.Session.Mu.Unlock()
 		}
 		e.mu.Unlock()
 		if err != nil {

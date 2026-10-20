@@ -107,9 +107,9 @@ func TestFormatEncodingCurrentRoleAndResetAll(t *testing.T) {
 	if !ok {
 		t.Fatal("real ordinary role missing")
 	}
-	op.Session.mu.Lock()
-	op.Session.authorization.state.CurrentUser = reader.Ref
-	op.Session.mu.Unlock()
+	op.Session.Mu.Lock()
+	op.Session.Authorization.state.CurrentUser = reader.Ref
+	op.Session.Mu.Unlock()
 	if op.RoleState().SessionUser == reader.Ref {
 		t.Fatal("fixture lost superuser session identity")
 	}
@@ -117,13 +117,13 @@ func TestFormatEncodingCurrentRoleAndResetAll(t *testing.T) {
 	if err := settingAccess(messages, op); !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != `permission denied to set parameter "lc_messages"` {
 		t.Fatal("current ordinary role admitted", err)
 	}
-	if op.Session.settings.value("lc_messages") != "POSIX" {
+	if op.Session.Settings.value("lc_messages") != "POSIX" {
 		t.Fatal("access check mutated setting")
 	}
 	if _, err := e.executeSetting(op, &parser.Reset{All: true}, 0, false); err != nil {
 		t.Fatal("all-reset incorrectly reused individual permission", err)
 	}
-	if op.Session.settings.value("lc_messages") != "C" {
+	if op.Session.Settings.value("lc_messages") != "C" {
 		t.Fatal("all-reset retained privileged override")
 	}
 }
@@ -191,7 +191,7 @@ func TestFormatEncodingValidationNotices(t *testing.T) {
 		} else if len(notices) != 2 || notices[0].Code != "25P01" || notices[0].Message != "SET LOCAL can only be used in transaction blocks" || notices[1].Code != "22023" || notices[1].Severity != "WARNING" || notices[1].Message != `locale name "é🙂" contains non-ASCII characters` {
 			t.Fatal("failed validation lost or reordered actual warnings", notices)
 		}
-		if op.Session.settings.value("lc_time") != "C" {
+		if op.Session.Settings.value("lc_time") != "C" {
 			t.Fatal("failed locale validation published candidate")
 		}
 		if len(op.DetachNotices()) != 0 {

@@ -27,22 +27,22 @@ func timeoutMechanicsDueAdmission(t *testing.T, s *Session, code string) {
 		t.Fatal("unknown timeout category", code)
 	}
 	timeoutMechanicsSettings(s, transaction, idleTransaction, idleSession, false, now)
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
 	if code != "57P05" {
-		s.beginTimeoutLocked(timeoutMechanicsRef(s, 1), true, now)
+		s.BeginTimeoutLocked(timeoutMechanicsRef(s, 1), true, now)
 	}
-	s.readyTimeoutLocked(now)
-	slot := &s.timeouts.idle
+	s.ReadyTimeoutLocked(now)
+	slot := &s.Timeouts.Idle
 	if code == "25P04" {
-		slot = &s.timeouts.transaction
+		slot = &s.Timeouts.Transaction
 	}
-	if slot.timer == nil || slot.deadline.IsZero() {
+	if slot.Timer == nil || slot.Deadline.IsZero() {
 		t.Fatal("timeout category did not arm a budget", code)
 	}
-	slot.timer.Stop()
-	slot.timer = nil
-	slot.deadline = now.Add(-time.Second)
+	slot.Timer.Stop()
+	slot.Timer = nil
+	slot.Deadline = now.Add(-time.Second)
 }
 
 func TestSessionTimeoutAdmissionMechanics(t *testing.T) {
@@ -70,11 +70,11 @@ func TestSessionTimeoutAdmissionMechanics(t *testing.T) {
 				if !errors.As(err, &diagnostic) || *diagnostic != *timeoutFatal(code) {
 					t.Fatalf("overdue admission = %#v, %v; want exact %s FATAL", diagnostic, err, code)
 				}
-				s.mu.Lock()
-				if s.state == live || s.reason != Terminated || s.leases != 0 || s.timeouts.sqlLeases != 0 || len(s.operations) != 0 {
-					t.Error("fatal admission retained live owner or published a lease", s.state, s.reason, s.leases, s.timeouts.sqlLeases, len(s.operations))
+				s.Mu.Lock()
+				if s.State == live || s.Reason != Terminated || s.Leases != 0 || s.Timeouts.SQLLeases != 0 || len(s.Operations) != 0 {
+					t.Error("fatal admission retained live owner or published a lease", s.State, s.Reason, s.Leases, s.Timeouts.SQLLeases, len(s.Operations))
 				}
-				s.mu.Unlock()
+				s.Mu.Unlock()
 			})
 		}
 	}
@@ -85,13 +85,13 @@ func TestSessionTimeoutRetiredAdmissionMechanics(t *testing.T) {
 		t.Run(code, func(t *testing.T) {
 			s := timeoutMechanicsSession(t)
 			timeoutMechanicsDueAdmission(t, s, code)
-			s.mu.Lock()
+			s.Mu.Lock()
 			if code == "25P04" {
-				s.retireTransactionTimeoutLocked()
+				s.RetireTransactionTimeoutLocked()
 			} else {
-				s.timeouts.idle.stop()
+				s.Timeouts.Idle.Stop()
 			}
-			s.mu.Unlock()
+			s.Mu.Unlock()
 			if err := s.Check(context.Background()); err != nil {
 				t.Fatal("retired budget rejected owner check", err)
 			}
@@ -100,11 +100,11 @@ func TestSessionTimeoutRetiredAdmissionMechanics(t *testing.T) {
 				t.Fatal("retired budget rejected activity", err)
 			}
 			op.Done()
-			s.mu.Lock()
-			if s.state != live || s.timeouts.fatal != nil {
+			s.Mu.Lock()
+			if s.State != live || s.Timeouts.Fatal != nil {
 				t.Error("retired budget terminated owner")
 			}
-			s.mu.Unlock()
+			s.Mu.Unlock()
 		})
 	}
 }
@@ -130,11 +130,11 @@ func TestSessionTimeoutCanceledAdmissionMechanics(t *testing.T) {
 			if err != context.Canceled {
 				t.Fatal("caller cancellation became session fatal", err)
 			}
-			s.mu.Lock()
-			if s.state != live || s.timeouts.fatal != nil || s.leases != 0 {
+			s.Mu.Lock()
+			if s.State != live || s.Timeouts.Fatal != nil || s.Leases != 0 {
 				t.Error("canceled admission changed owner state")
 			}
-			s.mu.Unlock()
+			s.Mu.Unlock()
 		})
 	}
 }

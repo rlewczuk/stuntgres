@@ -139,7 +139,7 @@ func TestRoleAttributesConnectionLimitLifecycle(t *testing.T) {
 	e.sessionMu.Lock()
 	count := e.roleSessionCountLocked(other.Ref)
 	e.sessionMu.Unlock()
-	if count != 1 || physical.countedAuthenticated != e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
+	if count != 1 || physical.CountedAuthenticated != e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres") {
 		t.Fatal("identity switch changed accounting", count)
 	}
 }
@@ -334,7 +334,7 @@ func TestRoleAttributesConnectionLimitRaces(t *testing.T) {
 		defer done()
 		d := roleAttributeCreate(t, e, admin, "peer", true, parser.RoleOptions{Present: parser.RoleConnectionLimit, ConnectionLimit: 2})
 		first := roleLimitOpen(t, e, d.Ref)
-		first.mu.Lock()
+		first.Mu.Lock()
 		results := make(chan roleLimitStartResult, 1)
 		go func() {
 			s, err := roleLimitStart(e, d.Ref, ids.SessionID(testSessionID.Add(1)), nil)
@@ -342,13 +342,13 @@ func TestRoleAttributesConnectionLimitRaces(t *testing.T) {
 		}()
 		select {
 		case r := <-results:
-			first.mu.Unlock()
+			first.Mu.Unlock()
 			if r.err != nil {
 				t.Fatal(r.err)
 			}
 			roleLimitClose(t, r.s)
 		case <-time.After(5 * time.Second):
-			first.mu.Unlock()
+			first.Mu.Unlock()
 			r := roleLimitReceive(t, results)
 			if r.s != nil {
 				roleLimitClose(t, r.s)
@@ -366,11 +366,11 @@ func TestRoleAttributesConnectionLimitRaces(t *testing.T) {
 		var release sync.Once
 		unblock := func() { release.Do(func() { close(gate.release) }) }
 		t.Cleanup(unblock)
-		s.mu.Lock()
-		entry := s.resources[Authorization]
+		s.Mu.Lock()
+		entry := s.Resources[Authorization]
 		gate.owner = entry.owner
 		entry.owner = gate
-		s.mu.Unlock()
+		s.Mu.Unlock()
 		s.RequestEnd(CleanClose)
 		select {
 		case <-gate.entered:

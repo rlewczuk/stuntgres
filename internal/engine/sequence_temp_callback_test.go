@@ -44,7 +44,7 @@ func TestSequencePreparedPeerTemporaryNamespace(t *testing.T) {
 			sessionSQL(t, b, "BEGIN")
 			sessionSQL(t, b, "CREATE TEMP SEQUENCE unrelated_temp")
 			e.mu.Lock()
-			private := e.privateCatalogLocked(b.transactions.catalog).State()
+			private := e.privateCatalogLocked(b.Transactions.catalog).State()
 			e.mu.Unlock()
 			if scenario == "Rollback" {
 				sessionSQL(t, b, "ROLLBACK")
@@ -59,7 +59,7 @@ func TestSequencePreparedPeerTemporaryNamespace(t *testing.T) {
 				if err == nil || err.Error() != "stuntgres: namespace invalidation generation exhausted" {
 					t.Fatal("exhausted namespace accepted combined publication", err)
 				}
-				if e.catalog.state != before || b.temporaryNamespace != (ids.ObjectAddress{}) {
+				if e.catalog.state != before || b.TemporaryNamespace != (ids.ObjectAddress{}) {
 					t.Fatal("failed commit published catalog/session namespace")
 				}
 				if got := tuples(sessionSQL(t, a, "SELECT v FROM public.sentinel")); len(got) != 0 {
@@ -107,7 +107,7 @@ func TestSequenceTemporaryRetirementPreservesPeerAnalysis(t *testing.T) {
 	e.catalog.state = state
 	_, bd := sequencePreparedDescription(t, e, b, "SELECT nextval('owned_temp')")
 	owned := bd.sequences.Constants[0].Ref.Address
-	namespace := b.temporaryNamespace
+	namespace := b.TemporaryNamespace
 	retained := e.CatalogRead()
 	generators, storage := e.storage.Sequences, e.storage.Relations
 	snapshot := sessionSQL(t, b, "SELECT last_value FROM owned_temp")
@@ -134,7 +134,7 @@ func TestSequenceTemporaryRetirementPreservesPeerAnalysis(t *testing.T) {
 	if e.catalog.state.Epoch() != state.Epoch() || e.catalog.state.NamespaceGeneration() != state.NamespaceGeneration() {
 		t.Fatal("logical retirement changed global callback or epoch authority")
 	}
-	assertTemporaryNamespacePair(t, e, b.token, namespace)
+	assertTemporaryNamespacePair(t, e, b.SessionToken, namespace)
 	if _, ok := e.catalog.state.Find(owned); ok || e.storage.Sequences[owned] != nil || e.storage.Relations[owned] != nil {
 		t.Fatal("ended session leaked temporary relation or generator")
 	}

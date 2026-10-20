@@ -47,7 +47,7 @@ func TestExclusionEagerPeerOutcome(t *testing.T) {
 				lockState := e.locks.Inspect()
 				matched := false
 				for resource, entry := range lockState.Resources {
-					if resource.Key() != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.UniqueClaim && entry.Pending[0].Ticket.Session() == b.token {
+					if resource.Key() != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.UniqueClaim && entry.Pending[0].Ticket.Session() == b.SessionToken {
 						matched = true
 					}
 				}
@@ -88,7 +88,7 @@ func TestExclusionProvisionalDeletion(t *testing.T) {
 					sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 					ar := transactionBegin(t, a)
 					sessionSQL(t, a, "DELETE FROM t")
-					at := a.transactions.ticket
+					at := a.Transactions.ticket
 					projection := e.exclusionPending[at]
 					parent := roleTableRef(t, e, "public.t")
 					index := e.catalog.state.MustRelation(parent.Address).Constraints.Exclusion[0].Index
@@ -101,12 +101,12 @@ func TestExclusionProvisionalDeletion(t *testing.T) {
 					matched := false
 					if deferrable {
 						entry := lockState.Resources[lock.CompletionOf(at)]
-						matched = entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.TransactionCompletion && entry.Pending[0].Ticket.Session() == b.token && entry.Holders[at].Mode&lock.TransactionCompletion != 0
+						matched = entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.TransactionCompletion && entry.Pending[0].Ticket.Session() == b.SessionToken && entry.Holders[at].Mode&lock.TransactionCompletion != 0
 					} else {
 						// DELETE retains the existing exact-key grant. The eager
 						// admission waits here before its dirty completion probe.
 						for resource, entry := range lockState.Resources {
-							if resource.Key() != nil && resource.Address == index && len(resource.Key().Value().([]sqltype.Value)) == 1 && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.UniqueClaim && entry.Pending[0].Ticket.Session() == b.token && entry.Holders[at].Mode&lock.UniqueClaim != 0 {
+							if resource.Key() != nil && resource.Address == index && len(resource.Key().Value().([]sqltype.Value)) == 1 && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.UniqueClaim && entry.Pending[0].Ticket.Session() == b.SessionToken && entry.Holders[at].Mode&lock.UniqueClaim != 0 {
 								matched = true
 							}
 						}
@@ -139,8 +139,8 @@ func TestExclusionCompletionDeadlock(t *testing.T) {
 	sessionSQL(t, b, "INSERT INTO t VALUES(2)")
 	sessionSQL(t, a, "INSERT INTO t VALUES(2)")
 	sessionSQL(t, b, "INSERT INTO t VALUES(1)")
-	at, bt := a.transactions.ticket, b.transactions.ticket
-	if len(ownerExtensionOrZero(a.transactions).exclusionModes.events) != 1 || len(ownerExtensionOrZero(b.transactions).exclusionModes.events) != 1 {
+	at, bt := a.Transactions.ticket, b.Transactions.ticket
+	if len(ownerExtensionOrZero(a.Transactions).exclusionModes.events) != 1 || len(ownerExtensionOrZero(b.Transactions).exclusionModes.events) != 1 {
 		t.Fatal("crossed admissions must independently enlist both owners")
 	}
 	first := exclusionCommitWorker(t, a, ar)

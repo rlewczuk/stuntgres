@@ -32,7 +32,7 @@ func arrayRelationalUnitCall(t *testing.T, name, input string, n int64) (functio
 		t.Fatal(err)
 	}
 	session := &Session{}
-	session.arrayRandom.SeedWords(1, 2)
+	session.ArrayRandom.SeedWords(1, 2)
 	c := &exec.Context{EvalStatement: exec.EvalStatement{Context: context.Background(), Host: hostOf(&StatementScope{op: &Operation{Session: session}})}}
 	return node.(functions.ArrayRandom), c
 }
@@ -133,7 +133,7 @@ func TestArrayRelationalSampleCounts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if owner == expr.RandomOwner(&scopeOf(c.Host).op.Session.random) {
+	if owner == expr.RandomOwner(&scopeOf(c.Host).op.Session.Random) {
 		t.Fatal("seedable stream reused")
 	}
 }
@@ -551,7 +551,7 @@ func TestArrayRelationalCancellation(t *testing.T) {
 	call.Args[0] = plan.LiteralExpr{Info: expr.Info{Usage: call.Usage}, Value: value}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	boundary := &arrayRelationalLoopContext{Context: ctx, cancel: cancel, owner: &scopeOf(c.Host).op.Session.arrayRandom}
+	boundary := &arrayRelationalLoopContext{Context: ctx, cancel: cancel, owner: &scopeOf(c.Host).op.Session.ArrayRandom}
 	c.Context = boundary
 	if result, err := call.Eval(c); !errors.Is(err, context.Canceled) || result.Type() != nil || boundary.calls < 2 {
 		t.Fatal("loop cancellation published result", result, err, boundary.calls)

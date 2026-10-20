@@ -171,9 +171,9 @@ func (e *Engine) executePolicy(scope *StatementScope, stmt parser.Statement, cou
 // success observes final cancellation/session/epoch fences before its notice.
 func (e *Engine) finishPolicyNoticeLocked(scope *StatementScope, message string) (Result, error) {
 	op := scope.op
-	op.Session.mu.Lock()
+	op.Session.Mu.Lock()
 	err := publicationOperationLocked(e, op)
-	op.Session.mu.Unlock()
+	op.Session.Mu.Unlock()
 	if err == nil {
 		err = op.Context().Err()
 	}

@@ -81,12 +81,12 @@ func TestTransactionUtilityCompletionBoundary(t *testing.T) {
 				}
 				// Inspect before releasing the lease: terminal cleanup cannot erase
 				// the evidence of whether pre-install admission prevented mutation.
-				s.settings.mu.Lock()
-				got, ok := s.settings.values["application_name"]
+				s.Settings.mu.Lock()
+				got, ok := s.Settings.values["application_name"]
 				if !ok {
-					got = s.settings.defaults["application_name"]
+					got = s.Settings.defaults["application_name"]
 				}
-				s.settings.mu.Unlock()
+				s.Settings.mu.Unlock()
 				if got != want {
 					t.Fatalf("setting got %q want %q", got, want)
 				}

@@ -37,7 +37,7 @@ func (e *Engine) clearPersistentSequenceMemoryLocked() {
 				return false
 			}
 			ns, ok := e.catalog.state.Namespace(r.Namespace())
-			return ok && ns.Temporary == s.token
+			return ok && ns.Temporary == s.SessionToken
 		})
 	}
 }

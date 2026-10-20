@@ -31,7 +31,7 @@ func TestLockModesSavepoints(t *testing.T) {
 	lockAwait(t, done, nil)
 	joined = true
 	// Transaction identity survives contribution restoration.
-	if a.transactions.ticket == nil {
+	if a.Transactions.ticket == nil {
 		t.Fatal("rollback-to ended outer lock owner")
 	}
 	sessionSQL(t, a, "SAVEPOINT alive")

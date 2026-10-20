@@ -31,7 +31,7 @@ func TestRowLockViewAggregateComposition(t *testing.T) {
 				sessionSQL(t, c, "CREATE VIEW hidden AS SELECT count(*) AS n FROM stored HAVING FALSE")
 				ar := transactionBegin(t, a)
 				rowLockViewRows(t, e, a, tc.query, prepared, tc.want...)
-				rowLockViewGrants(t, e, a.transactions.ticket, "t", tc.ids...)
+				rowLockViewGrants(t, e, a.Transactions.ticket, "t", tc.ids...)
 				transactionEnd(t, a, ar, false)
 				lockEmpty(t, e)
 				sessionSQL(t, b, "DELETE FROM t WHERE id=1")
@@ -60,7 +60,7 @@ func TestRowLockViewAggregateComposition(t *testing.T) {
 			transactionRows(t, a, "SELECT v FROM t WHERE id=1 FOR UPDATE", 10)
 			sessionSQL(t, a, tc.change)
 			done := rowLockViewAsync(t, b, context.Background(), tc.query)
-			rowLockQueued(t, e, a.transactions.ticket, lock.ForUpdate)
+			rowLockQueued(t, e, a.Transactions.ticket, lock.ForUpdate)
 			// A newly qualifying row is not in the already captured aggregate input.
 			sessionSQL(t, c, "INSERT INTO t VALUES(3,10)")
 			transactionEnd(t, a, ar, tc.commit)

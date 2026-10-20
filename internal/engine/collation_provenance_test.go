@@ -17,15 +17,15 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	sessionSQL(t, peer, `CREATE COLLATION pg_temp.foreign_provider FROM pg_catalog.pg_c_utf8`)
 	sessionSQL(t, owner, `CREATE COLLATION pg_temp.expired_provider FROM pg_catalog.pg_unicode_fast`)
 	before := e.CatalogRead()
-	consumer := before.MustRelation(before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: "retained_provider_local"}))
-	address := before.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: owner.temporaryNamespace, Name: "retained_provider"})
+	consumer := before.MustRelation(before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.TemporaryNamespace, Name: "retained_provider_local"}))
+	address := before.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: owner.TemporaryNamespace, Name: "retained_provider"})
 	provider := before.MustCollation(address)
 	capability, err := provider.Usage()
 	if err != nil {
 		t.Fatal(err)
 	}
 	ref := e.catalog.Domain.Ref(before.Epoch(), address)
-	expiredAddress := before.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: owner.temporaryNamespace, Name: "expired_provider"})
+	expiredAddress := before.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: owner.TemporaryNamespace, Name: "expired_provider"})
 	expiredCapability, err := before.MustCollation(expiredAddress).Usage()
 	if err != nil {
 		t.Fatal(err)
@@ -51,7 +51,7 @@ func TestCollationRetainedProviderProvenance(t *testing.T) {
 	if !storedCollationReferenceValid(view, consumer, seedRef, seedCapability) {
 		t.Fatal("lawful retained actual pinned seed rejected")
 	}
-	foreignAddress := before.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: peer.temporaryNamespace, Name: "foreign_provider"})
+	foreignAddress := before.NameAddress(ids.NameKey{ClassID: ids.CollationClassID, Namespace: peer.TemporaryNamespace, Name: "foreign_provider"})
 	foreignCapability, err := before.MustCollation(foreignAddress).Usage()
 	if err != nil {
 		t.Fatal(err)

@@ -24,17 +24,17 @@ func TestSessionHostRecoversEngine(t *testing.T) {
 func TestSessionHostUnregisterKeepsOtherOwner(t *testing.T) {
 	e := NewWithSettings(nil, "", false)
 	s := sessionStart(t, e, nil)
-	host := s.host
-	other := &Session{token: s.token}
+	host := s.Host
+	other := &Session{SessionToken: s.SessionToken}
 	e.sessionMu.Lock()
-	registered := e.sessions[s.token] == s
+	registered := e.sessions[s.SessionToken] == s
 	e.sessionMu.Unlock()
 	if !registered {
 		t.Fatal("live session is not registered")
 	}
-	host.Unregister(s.token, other)
+	host.Unregister(s.SessionToken, other)
 	e.sessionMu.Lock()
-	kept := e.sessions[s.token] == s
+	kept := e.sessions[s.SessionToken] == s
 	e.sessionMu.Unlock()
 	if !kept {
 		t.Fatal("Unregister with another owner removed the registered session")
@@ -44,7 +44,7 @@ func TestSessionHostUnregisterKeepsOtherOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.sessionMu.Lock()
-	_, stays := e.sessions[s.token]
+	_, stays := e.sessions[s.SessionToken]
 	e.sessionMu.Unlock()
 	if stays {
 		t.Fatal("ended session is still registered")

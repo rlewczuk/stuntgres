@@ -10,13 +10,13 @@ import (
 
 func localOwnerValue(t *testing.T, s *Session, name, want string) {
 	t.Helper()
-	s.settings.mu.Lock()
-	defer s.settings.mu.Unlock()
-	if got := s.settings.value(name); got != want {
+	s.Settings.mu.Lock()
+	defer s.Settings.mu.Unlock()
+	if got := s.Settings.value(name); got != want {
 		t.Fatalf("%s got=%q want=%q", name, got, want)
 	}
-	if len(s.settings.actions) != 0 {
-		t.Fatal("retained transactional actions", s.settings.actions)
+	if len(s.Settings.actions) != 0 {
+		t.Fatal("retained transactional actions", s.Settings.actions)
 	}
 }
 func TestSettingsLocalLifecycle(t *testing.T) {
@@ -80,15 +80,15 @@ func TestSettingsLocalLifecycle(t *testing.T) {
 				if err == nil {
 					t.Fatal("foreign accepted")
 				}
-				s.settings.mu.Lock()
-				got := s.settings.value("application_name")
-				s.settings.mu.Unlock()
+				s.Settings.mu.Lock()
+				got := s.Settings.value("application_name")
+				s.Settings.mu.Unlock()
 				if got != "l" {
 					t.Fatal("foreign ended live tx", got)
 				}
 				transactionEnd(t, s, ref, false)
 			case "cleanup":
-				if err := endTransactionSession(s.transactions, s.Token()); err != nil {
+				if err := endTransactionSession(s.Transactions, s.Token()); err != nil {
 					t.Fatal(err)
 				}
 			}

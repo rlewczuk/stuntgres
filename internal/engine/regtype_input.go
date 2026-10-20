@@ -40,8 +40,8 @@ func (e *Engine) captureRegtypeInput(auth AuthorizationView, op *Operation) (cap
 	}
 	r := capturedRegtypeInput{auth: auth, path: path, temporary: temporaryNamespace(auth), op: op}
 	if auth.session != nil {
-		r.database = auth.session.databaseName
-		r.token = auth.session.token
+		r.database = auth.session.DatabaseName
+		r.token = auth.session.SessionToken
 	}
 	r.auth.session = nil
 	r.auth.settings = nil

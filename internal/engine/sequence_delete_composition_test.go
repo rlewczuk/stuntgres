@@ -41,9 +41,9 @@ func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
 			case "frontier":
 				e.visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
 			case "predecessor":
-				for id, candidate := range s.transactions.deletes[table.Address].Rows {
+				for id, candidate := range s.Transactions.deletes[table.Address].Rows {
 					candidate.Version++
-					s.transactions.deletes[table.Address].Rows[id] = candidate
+					s.Transactions.deletes[table.Address].Rows[id] = candidate
 					break
 				}
 			case "shape":
@@ -55,7 +55,7 @@ func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
 			}
 			assertSequenceDeletePrivateBatch(t, s, table.Address, sequence.Address, phase == "namespace")
 			before := captureSequenceDeletePublication(e, s, table.Address)
-			ticket := s.transactions.ticket
+			ticket := s.Transactions.ticket
 			if ticket == nil || len(e.locks.Inspect(ticket).Journals[ticket]) == 0 {
 				t.Fatal("mixed staging did not acquire transaction resources")
 			}

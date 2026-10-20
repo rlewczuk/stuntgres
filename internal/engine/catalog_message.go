@@ -57,14 +57,14 @@ func (f catalogNamespaceFence) currentLocked(e *Engine, _ *catalogChanges) error
 }
 
 func (e *Engine) stageCatalogBaseLocked(s *CatalogStage) *catalog.State {
-	if s.authSession != nil && s.authSession.transactions.retainsTransaction() {
-		return e.privateCatalogLocked(s.authSession.transactions.catalog).State()
+	if s.authSession != nil && s.authSession.Transactions.retainsTransaction() {
+		return e.privateCatalogLocked(s.authSession.Transactions.catalog).State()
 	}
 	return e.catalog.state
 }
 func (e *Engine) stageStorageLocked(s *CatalogStage, a ids.ObjectAddress) *storage.Relation {
-	if s.authSession != nil && s.authSession.transactions.retainsTransaction() {
-		return e.privateStorageLocked(s.authSession.transactions.catalog, a)
+	if s.authSession != nil && s.authSession.Transactions.retainsTransaction() {
+		return e.privateStorageLocked(s.authSession.Transactions.catalog, a)
 	}
 	return e.storage.Relations[a]
 }
@@ -303,10 +303,10 @@ func (e *Engine) stageMessageCatalog(op *Operation, p *PreparedCatalogPublicatio
 	if p == nil || p.stage == nil || p.stage.owner != e || p.stage.lifecycle != catalogValidated {
 		return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
 	}
-	op.Session.mu.Lock()
+	op.Session.Mu.Lock()
 	scope := scopeOfLease(op.Lease)
-	op.Session.mu.Unlock()
-	if scope == nil || scope.op != op || scope.owner != op.Session.transactions || !scope.ownsMessageScope() || !scope.owner.retainsTransaction() {
+	op.Session.Mu.Unlock()
+	if scope == nil || scope.op != op || scope.owner != op.Session.Transactions || !scope.ownsMessageScope() || !scope.owner.retainsTransaction() {
 		return ChangeSet{}, fmt.Errorf("stuntgres: missing message scope")
 	}
 	if token.Epoch != p.epoch {

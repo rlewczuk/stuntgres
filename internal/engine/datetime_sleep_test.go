@@ -118,7 +118,7 @@ func TestDatetimeSleepCleanup(t *testing.T) {
 			t.Fatal("execution resources retained")
 		}
 		if explicit {
-			if s.TransactionState() != TxAborted || s.transactions.ticket != nil {
+			if s.TransactionState() != TxAborted || s.Transactions.ticket != nil {
 				t.Fatal("explicit abort owner retained")
 			}
 			transactionEnd(t, s, ref, false)

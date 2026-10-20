@@ -20,12 +20,12 @@ func TestMergeDeleteRepeatableReadLineage(t *testing.T) {
 			original := e.storage.Relations[ref.Address].Versions[0]
 			sessionSQL(t, worker, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 			transactionRows(t, worker, "SELECT v FROM t WHERE id=1", 10)
-			frontier := worker.transactions.frontier
+			frontier := worker.Transactions.frontier
 			sessionSQL(t, worker, "UPDATE t SET v=21 WHERE id=2")
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "UPDATE t SET v=11 WHERE id=1")
 			done := mergeUpdatePendingExecute(t, worker, "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED THEN UPDATE SET v=100")
-			mergeUpdatePendingRow(t, e, ref, original.Row, worker, holder.transactions.ticket, lock.ForNoKeyUpdate)
+			mergeUpdatePendingRow(t, e, ref, original.Row, worker, holder.Transactions.ticket, lock.ForNoKeyUpdate)
 			transactionEnd(t, holder, tx, true)
 			mergeUpdatePendingOutcome(t, done, 1, nil)
 			transactionRows(t, worker, "SELECT v FROM t ORDER BY id,v", 10, 100, 21)
@@ -48,7 +48,7 @@ func TestMergeDeleteRepeatableReadLineage(t *testing.T) {
 					t.Fatal("RR own-head deletion", result, err, n)
 				}
 			}
-			if worker.transactions.frontier != frontier {
+			if worker.Transactions.frontier != frontier {
 				t.Fatal("deletion replaced pinned RR frontier")
 			}
 			if condition == " AND t.v=100" {
@@ -76,7 +76,7 @@ func TestMergeDeleteRepeatableReadLineage(t *testing.T) {
 			tx := transactionBegin(t, holder)
 			sessionSQL(t, holder, "DELETE FROM t")
 			done := mergeUpdatePendingExecute(t, worker, "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED THEN DELETE")
-			mergeUpdatePendingRow(t, e, ref, row, worker, holder.transactions.ticket, lock.ForUpdate)
+			mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.ticket, lock.ForUpdate)
 			transactionEnd(t, holder, tx, commit)
 			if commit {
 				mergeUpdatePendingOutcome(t, done, 0, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "40001", Message: "could not serialize access due to concurrent delete"})

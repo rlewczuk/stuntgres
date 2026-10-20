@@ -142,9 +142,9 @@ func TestDriverBatchOwnerCounterExhaustion(t *testing.T) {
 				if _, err := m.step(statement(t, "INSERT INTO t VALUES(1)")); err != nil {
 					t.Fatal(err)
 				}
-				s.transactions.command = ids.CommandID(^uint64(0))
+				s.Transactions.command = ids.CommandID(^uint64(0))
 			} else if counter == "tx" {
-				s.transactions.next = ids.TxID(^uint64(0))
+				s.Transactions.next = ids.TxID(^uint64(0))
 			} else {
 				e.visibility.SetDiagnosticTxLocked(^uint32(0))
 			}
@@ -157,10 +157,10 @@ func TestDriverBatchOwnerCounterExhaustion(t *testing.T) {
 			if end := m.end(err); end != err {
 				t.Fatal("counter primary replaced", end)
 			}
-			if e.visibility.CommitSeq() != frontier || s.TransactionState() != TxIdle || s.transactions.ticket != nil || s.transactions.retainedMessage {
+			if e.visibility.CommitSeq() != frontier || s.TransactionState() != TxIdle || s.Transactions.ticket != nil || s.Transactions.retainedMessage {
 				t.Fatal("counter failure published or retained admission")
 			}
-			if counter == "tx" && s.transactions.next != ids.TxID(^uint64(0)) || counter == "diagnostic" && e.visibility.DiagnosticTx() != ^uint32(0) {
+			if counter == "tx" && s.Transactions.next != ids.TxID(^uint64(0)) || counter == "diagnostic" && e.visibility.DiagnosticTx() != ^uint32(0) {
 				t.Fatal("identity counter wrapped")
 			}
 			if got := len(e.storage.Relations[catalogRef(t, e, e.CatalogRead(), "t").Address].Versions); got != 0 {

@@ -75,7 +75,7 @@ func TestQueryLimitLocks(t *testing.T) {
 					sessionSQL(t, a, change)
 					br := transactionBegin(t, b)
 					done := queryLimitAsync(t, e, b, q, prepared)
-					rowLockQueued(t, e, a.transactions.ticket, lock.ForUpdate)
+					rowLockQueued(t, e, a.Transactions.ticket, lock.ForUpdate)
 					transactionEnd(t, a, ar, true)
 					rowLockAwait(t, done, 30)
 					if source != "join" {
@@ -83,11 +83,11 @@ func TestQueryLimitLocks(t *testing.T) {
 						if source == "stored" {
 							ids = append(ids, 4)
 						}
-						rowLockViewGrants(t, e, b.transactions.ticket, "t", ids...)
+						rowLockViewGrants(t, e, b.Transactions.ticket, "t", ids...)
 					} else {
 						// Both joined physical occurrences are due only through the
 						// skipped, rejected and surviving candidate frontier.
-						queryLimitGrants(t, e, b.transactions.ticket, map[string][]int{"t": {1, 2, 3}, "u": {1, 2, 3}})
+						queryLimitGrants(t, e, b.Transactions.ticket, map[string][]int{"t": {1, 2, 3}, "u": {1, 2, 3}})
 					}
 					transactionEnd(t, b, br, false)
 					lockEmpty(t, e)
@@ -118,7 +118,7 @@ func TestQueryLimitLocalMarkBoundaries(t *testing.T) {
 				sessionSQL(t, c, "CREATE VIEW marked AS "+tc.definition)
 				br := transactionBegin(t, b)
 				rowLockViewRows(t, e, b, tc.query, prepared, tc.want...)
-				rowLockViewGrants(t, e, b.transactions.ticket, "t", tc.holds...)
+				rowLockViewGrants(t, e, b.Transactions.ticket, "t", tc.holds...)
 				transactionEnd(t, b, br, false)
 				lockEmpty(t, e)
 			})
@@ -134,7 +134,7 @@ func TestQueryLimitLockCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := rowLockViewAsync(t, b, ctx, "SELECT v FROM t ORDER BY id OFFSET 1 LIMIT 1 FOR UPDATE")
-	rowLockQueued(t, e, a.transactions.ticket, lock.ForUpdate)
+	rowLockQueued(t, e, a.Transactions.ticket, lock.ForUpdate)
 	cancel()
 	select {
 	case outcome := <-done:

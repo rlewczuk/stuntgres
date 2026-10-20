@@ -43,9 +43,9 @@ func TestInsertSelectCancellationBeforeFinish(t *testing.T) {
 		}
 		op.Done()
 		transactionRows(t, observer, "SELECT i FROM t", 9)
-		worker.transactions.mu.Lock()
-		state := worker.transactions.state
-		worker.transactions.mu.Unlock()
+		worker.Transactions.mu.Lock()
+		state := worker.Transactions.state
+		worker.Transactions.mu.Unlock()
 		want := TxIdle
 		if explicit {
 			want = TxAborted

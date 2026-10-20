@@ -31,7 +31,7 @@ func temporaryCatalogCandidate(t *testing.T, action parser.OnCommitAction) (*Eng
 	}
 	t.Cleanup(op.Done)
 	c := session.NewJournal()
-	namespace := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, ObjectName: "pg_temp_candidate", ObjectRevision: 1, Owner: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Temporary: s.token}
+	namespace := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20000}, ObjectName: "pg_temp_candidate", ObjectRevision: 1, Owner: e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres"), Temporary: s.SessionToken}
 	table := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, ObjectNamespace: namespace.Address(), ObjectName: "candidate", ObjectRevision: 1, Owner: namespace.Owner, OnCommit: action, Columns: []catalog.Column{{Name: "v", Usage: testUsage(e, sqltype.Int4), Nullable: true, NullabilityKnown: true}}, Index: map[string]int{"v": 0}, Attributes: []int32{1}, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}}
 	e.mu.Lock()
 	e.catalogChangeLocked(c, namespace.Address(), namespace)
@@ -139,10 +139,10 @@ func TestTemporaryRelationRetainedProvenance(t *testing.T) {
 		t.Fatal("future incarnation accepted")
 	}
 	foreign := *advanced.MustNamespace(table.Namespace())
-	foreign.Temporary = e.catalog.Domain.Session(op.Session.token.ID() + 1)
+	foreign.Temporary = e.catalog.Domain.Session(op.Session.SessionToken.ID() + 1)
 	consumer := *table
 	consumer.ObjectNamespace = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20002}
-	advanced.SetDescriptor(consumer.Namespace(), &catalog.Namespace{ObjectAddress: consumer.Namespace(), Temporary: op.Session.token})
+	advanced.SetDescriptor(consumer.Namespace(), &catalog.Namespace{ObjectAddress: consumer.Namespace(), Temporary: op.Session.SessionToken})
 	advanced.SetDescriptor(table.Namespace(), &foreign)
 	if storedReferenceEpochValid(retained, &consumer, old) {
 		t.Fatal("peer provenance accepted")
@@ -194,7 +194,7 @@ func TestTemporaryTableStagedNamespaceAuthority(t *testing.T) {
 	if err != nil || ref.Address != table.Namespace() || temporaryNamespace(auth) != table.Namespace() {
 		t.Fatal("owned stage namespace unresolved", err)
 	}
-	if op.Session.temporaryNamespace != (ids.ObjectAddress{}) || op.Session.transactions.catalog != nil {
+	if op.Session.TemporaryNamespace != (ids.ObjectAddress{}) || op.Session.Transactions.catalog != nil {
 		t.Fatal("stage namespace published before CREATE success")
 	}
 	auth.stagedTemporary = ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}
@@ -288,11 +288,11 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		return nil
 	}
 	before := e.CatalogRead()
-	provider := lookup(before, "live_provider", owner.token)
-	providerIndex := lookup(before, "live_provider_index", owner.token)
-	consumer := lookup(before, "live_consumer", owner.token)
+	provider := lookup(before, "live_provider", owner.SessionToken)
+	providerIndex := lookup(before, "live_provider_index", owner.SessionToken)
+	consumer := lookup(before, "live_consumer", owner.SessionToken)
 	persistent := lookup(before, "persistent_consumer", ids.SessionToken{})
-	foreign := lookup(before, "live_provider", peer.token)
+	foreign := lookup(before, "live_provider", peer.SessionToken)
 	store := e.storage.Relations[consumer.Address()]
 	indexRoot := e.storage.IndexRoots[providerIndex.Address()]
 	if store == nil || len(store.Versions) != 1 || indexRoot == nil {
@@ -339,7 +339,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 		if err := e.ValidateObjectRef(retained, ref); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal("generic object reference gained old-epoch authority", err)
 		}
-		if temporarySequenceEpochValid(retained, ref, owner.token) {
+		if temporarySequenceEpochValid(retained, ref, owner.SessionToken) {
 			t.Fatal("non-sequence gained sequence runtime authority")
 		}
 		for _, bad := range []ids.ObjectRef{
@@ -440,7 +440,7 @@ func TestTemporaryTableRetainedLiveRelationProviders(t *testing.T) {
 	sessionSQL(t, owner, "CREATE TEMP TABLE live_provider(v INT)")
 	sessionSQL(t, owner, "CREATE INDEX live_provider_index ON live_provider(v)")
 	current := e.CatalogRead()
-	if lookup(current, "live_provider", owner.token).Address() == provider.Address() || lookup(current, "live_provider_index", owner.token).Address() == providerIndex.Address() || storedReferenceEpochValid(current, consumer, captured) || storedReferenceEpochValid(current, consumer, capturedIndex) {
+	if lookup(current, "live_provider", owner.SessionToken).Address() == provider.Address() || lookup(current, "live_provider_index", owner.SessionToken).Address() == providerIndex.Address() || storedReferenceEpochValid(current, consumer, captured) || storedReferenceEpochValid(current, consumer, capturedIndex) {
 		t.Fatal("same-name recreated provider rebound old identity")
 	}
 	for attribute, manifest := range dependencies {

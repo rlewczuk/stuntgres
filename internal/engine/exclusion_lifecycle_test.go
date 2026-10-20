@@ -91,16 +91,16 @@ func TestExclusionPeerCompletion(t *testing.T) {
 	sessionSQL(t, a, "CREATE TABLE t(k INT,CONSTRAINT ex EXCLUDE USING btree(k WITH =) DEFERRABLE INITIALLY DEFERRED)")
 	ar, br := transactionBegin(t, a), transactionBegin(t, b)
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-	at := a.transactions.ticket
-	if len(ownerExtensionOrZero(a.transactions).exclusionModes.events) != 0 {
+	at := a.Transactions.ticket
+	if len(ownerExtensionOrZero(a.Transactions).exclusionModes.events) != 0 {
 		t.Fatal("uncontested first admission invented a deferred obligation")
 	}
 	sessionSQL(t, b, "INSERT INTO t VALUES(1)")
-	bt := b.transactions.ticket
-	if len(ownerExtensionOrZero(b.transactions).exclusionModes.events) != 1 {
+	bt := b.Transactions.ticket
+	if len(ownerExtensionOrZero(b.Transactions).exclusionModes.events) != 1 {
 		t.Fatal("peer admission did not enlist its actual row/version")
 	}
-	event := ownerExtensionOrZero(b.transactions).exclusionModes.events[0]
+	event := ownerExtensionOrZero(b.Transactions).exclusionModes.events[0]
 	projection := e.exclusionPending[bt]
 	entries := projection.entries[event.index.Address]
 	if len(entries) != 1 || event.row != entries[0].row.Row || event.version != entries[0].row.Version {
@@ -122,7 +122,7 @@ func TestExclusionPendingLifecycle(t *testing.T) {
 	sessionSQL(t, a, "CREATE TABLE t(k INT,CONSTRAINT ex EXCLUDE USING hash(k WITH =) DEFERRABLE INITIALLY DEFERRED)")
 	transactionBegin(t, a)
 	sessionSQL(t, a, "INSERT INTO t VALUES(1)")
-	at := a.transactions.ticket
+	at := a.Transactions.ticket
 	before := e.exclusionPending[at]
 	sessionSQL(t, a, "SAVEPOINT m")
 	sessionSQL(t, a, "SET CONSTRAINTS ex IMMEDIATE")
@@ -131,17 +131,17 @@ func TestExclusionPendingLifecycle(t *testing.T) {
 		t.Fatal("dirty projection was mutated rather than replaced")
 	}
 	sessionSQL(t, a, "ROLLBACK TO m")
-	if e.exclusionPending[at] != before || len(ownerExtensionOrZero(a.transactions).exclusionModes.byConstraint) != 0 {
+	if e.exclusionPending[at] != before || len(ownerExtensionOrZero(a.Transactions).exclusionModes.byConstraint) != 0 {
 		t.Fatal("savepoint did not restore projection and constraint modes")
 	}
 	sessionSQL(t, a, "PREPARE TRANSACTION 'exclusion_unit'")
 	prepared := e.prepared["exclusion_unit"]
-	if prepared == nil || prepared.ticket != at || a.transactions.ticket != nil || e.exclusionPending[at] != before {
+	if prepared == nil || prepared.ticket != at || a.Transactions.ticket != nil || e.exclusionPending[at] != before {
 		t.Fatal("PREPARE did not retain the detached dirty owner")
 	}
 	br := transactionBegin(t, b)
 	sessionSQL(t, b, "INSERT INTO t VALUES(1)")
-	bt := b.transactions.ticket
+	bt := b.Transactions.ticket
 	done := exclusionCommitWorker(t, b, br)
 	exclusionCompletionQueued(t, e, at, bt, done)
 	sessionSQL(t, a, "ROLLBACK PREPARED 'exclusion_unit'")

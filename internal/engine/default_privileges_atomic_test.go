@@ -120,9 +120,9 @@ func TestDefaultPrivilegesPublicationFence(t *testing.T) {
 	f.op.Session.RequestEnd(CleanClose)
 	// Isolate the terminal publication gate from the earlier cancellation gate:
 	// a fully staged candidate still cannot install into an ending physical owner.
-	f.op.Session.mu.Lock()
+	f.op.Session.Mu.Lock()
 	f.op.Ctx = context.Background()
-	f.op.Session.mu.Unlock()
+	f.op.Session.Mu.Unlock()
 	f.e.mu.Lock()
 	_, err = f.e.alterDefaultPrivilegesLocked(f.op, auth, defaultUnitStatement("tables", "select", []string{"default_owner"}, nil, []string{"default_reader"}))
 	f.e.mu.Unlock()

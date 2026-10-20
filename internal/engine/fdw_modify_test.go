@@ -103,7 +103,7 @@ func TestFDWModifyCapabilities(t *testing.T) {
 			session := sessionStart(t, New(), nil)
 			op := transactionOperation(t, session)
 			defer op.Done()
-			s := newStatementScope(op, session.transactions, statementOperationStart(op))
+			s := newStatementScope(op, session.Transactions, statementOperationStart(op))
 			m := &foreignModification{source: &exec.ForeignQuerySource{Wrapper: tc.wrapper}}
 			count, err := m.insertRows(context.Background(), s, make([][]sqltype.Value, 5), false, nil)
 			if (err != nil) != tc.bad || count != tc.count {
@@ -241,10 +241,10 @@ func TestFDWModifyLifecycle(t *testing.T) {
 			} else {
 				s.owner.mu.Unlock()
 			}
-			if !session.mu.TryLock() {
+			if !session.Mu.TryLock() {
 				t.Error("session locked")
 			} else {
-				session.mu.Unlock()
+				session.Mu.Unlock()
 			}
 			if !e.replacementMu.TryLock() {
 				t.Error("replacement reservation held")

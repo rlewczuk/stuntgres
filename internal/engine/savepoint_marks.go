@@ -51,11 +51,11 @@ func (s *sessionSettings) savepoint() settingsMark {
 	defer s.mu.Unlock()
 	m := settingsMark{values: s.values, typed: s.typed, actions: s.actions, roleAction: s.roleAction}
 	if s.session != nil {
-		s.session.mu.Lock()
-		if s.session.authorization != nil {
-			m.currentRole = s.session.authorization.state.CurrentUser
+		s.session.Mu.Lock()
+		if s.session.Authorization != nil {
+			m.currentRole = s.session.Authorization.state.CurrentUser
 		}
-		s.session.mu.Unlock()
+		s.session.Mu.Unlock()
 	}
 	return m.clone()
 }
@@ -68,11 +68,11 @@ func (s *sessionSettings) restoreSavepoint(candidate settingsMark, identity auth
 	s.values, s.typed, s.actions = candidate.values, candidate.typed, candidate.actions
 	s.roleAction = candidate.roleAction
 	if s.session != nil {
-		s.session.mu.Lock()
+		s.session.Mu.Lock()
 		identity.CurrentUser = candidate.currentRole
 		s.restoreIdentityLocked(identity)
-		s.session.publishTimeoutSettingsLocked(s, false, time.Now())
-		s.session.mu.Unlock()
+		s.session.PublishTimeoutSettingsLocked(s, false, time.Now())
+		s.session.Mu.Unlock()
 	}
 }
 

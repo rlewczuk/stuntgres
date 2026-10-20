@@ -13,7 +13,7 @@ func (e *Engine) markTemporaryAccessLocked(scope *StatementScope, ref ids.Object
 	if !ok {
 		return
 	}
-	if ns, ok := catalog.Namespace(d.Namespace()); ok && ns.Temporary == scope.op.Session.token {
+	if ns, ok := catalog.Namespace(d.Namespace()); ok && ns.Temporary == scope.op.Session.SessionToken {
 		scope.owner.accessedTemporary = true
 	}
 }

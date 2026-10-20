@@ -293,8 +293,8 @@ func TestCatalogSourceRuntimeCapture(t *testing.T) {
 			next := cloneRoleFixture(auth.RoleRecord)
 			owner.Name = "producer_runtime_renamed"
 			putFixtureRole(next, owner)
-			admin.Session.mu.Lock()
-			defer admin.Session.mu.Unlock()
+			admin.Session.Mu.Lock()
+			defer admin.Session.Mu.Unlock()
 			if err := publicationOperationLocked(e, admin); err != nil {
 				return err
 			}

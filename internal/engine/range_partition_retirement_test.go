@@ -144,7 +144,7 @@ func TestRangePartitionRetirementCommitPrivateRoots(t *testing.T) {
 	ref := transactionBegin(t, s)
 	sessionSQL(t, s, "INSERT INTO rp_retire_root(k,v) VALUES(NULL,1),(NULL,2)")
 	sessionSQL(t, s, "DELETE FROM rp_retire_provider WHERE v=9")
-	owner := s.transactions
+	owner := s.Transactions
 	op, err := s.Acquire(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -233,7 +233,7 @@ func TestRangePartitionRetirementPhysicalState(t *testing.T) {
 	peerStorage := make(map[ids.ObjectAddress]*storage.Relation)
 	peerIndexes := make(map[ids.ObjectAddress]*storage.IndexRoot)
 	for a, d := range base.Descriptors() {
-		if ns, ok := base.Namespace(d.Namespace()); ok && ns.Temporary == peer.token {
+		if ns, ok := base.Namespace(d.Namespace()); ok && ns.Temporary == peer.SessionToken {
 			peerDescriptors[a], peerStorage[a], peerIndexes[a] = d, e.storage.Relations[a], e.storage.IndexRoots[a]
 		}
 	}

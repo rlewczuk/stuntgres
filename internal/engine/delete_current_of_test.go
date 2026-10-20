@@ -122,7 +122,7 @@ func TestDeleteCurrentOfPublication(t *testing.T) {
 		op.Done()
 		t.Fatal("positioned DELETE bypasses ordinary write staging", result, err)
 	}
-	if len(s.transactions.deletes) != 0 {
+	if len(s.Transactions.deletes) != 0 {
 		scope.Finish(context.Canceled)
 		op.Done()
 		t.Fatal("Execute prematurely publishes deletion")
@@ -130,7 +130,7 @@ func TestDeleteCurrentOfPublication(t *testing.T) {
 	cancel()
 	err = scope.Finish(nil)
 	op.Done()
-	if !errors.Is(err, context.Canceled) || len(s.transactions.deletes) != 0 {
+	if !errors.Is(err, context.Canceled) || len(s.Transactions.deletes) != 0 {
 		t.Fatal("canceled Finish published private deletion", err)
 	}
 	sessionSQL(t, s, "ROLLBACK TO recover")
@@ -173,7 +173,7 @@ func TestDeleteCurrentOfArbitration(t *testing.T) {
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	lockState := e.locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: identity.Row}]
-	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == worker.transactions.ticket && entry.Pending[0].Mode == lock.ForUpdate
+	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == worker.Transactions.ticket && entry.Pending[0].Mode == lock.ForUpdate
 	if !queued {
 		t.Fatal("positioned DELETE did not wait on exact captured duplicate identity")
 	}

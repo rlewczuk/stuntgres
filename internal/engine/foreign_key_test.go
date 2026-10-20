@@ -94,21 +94,21 @@ func TestForeignKeyCanonicalRowAdmission(t *testing.T) {
 				}()
 				if parentFirst {
 					sessionSQL(t, a, "UPDATE p SET id=2 WHERE id=1")
-					foreignKeyHeldMode(t, e, ref, row, a.transactions.ticket, lock.ForNoKeyUpdate|lock.ForUpdate)
+					foreignKeyHeldMode(t, e, ref, row, a.Transactions.ticket, lock.ForNoKeyUpdate|lock.ForUpdate)
 					statement(t, "INSERT INTO c VALUES(1)")
 					done = lockAsync(e, b, ctx, "INSERT INTO c VALUES(1)", false)
-					foreignKeyQueuedMode(t, e, ref, row, a.transactions.ticket, lock.ForKeyShare)
+					foreignKeyQueuedMode(t, e, ref, row, a.Transactions.ticket, lock.ForKeyShare)
 				} else {
 					sessionSQL(t, a, "INSERT INTO c VALUES(1)")
-					foreignKeyHeldMode(t, e, ref, row, a.transactions.ticket, lock.ForKeyShare)
+					foreignKeyHeldMode(t, e, ref, row, a.Transactions.ticket, lock.ForKeyShare)
 					other := transactionBegin(t, b)
 					sessionSQL(t, b, "UPDATE p SET note=11 WHERE id=1")
-					foreignKeyHeldMode(t, e, ref, row, b.transactions.ticket, lock.ForNoKeyUpdate)
-					foreignKeyHeldMode(t, e, ref, row, a.transactions.ticket, lock.ForKeyShare)
+					foreignKeyHeldMode(t, e, ref, row, b.Transactions.ticket, lock.ForNoKeyUpdate)
+					foreignKeyHeldMode(t, e, ref, row, a.Transactions.ticket, lock.ForKeyShare)
 					transactionEnd(t, b, other, true)
 					statement(t, "UPDATE p SET id=2 WHERE id=1")
 					done = lockAsync(e, b, ctx, "UPDATE p SET id=2 WHERE id=1", false)
-					foreignKeyQueuedMode(t, e, ref, row, a.transactions.ticket, lock.ForUpdate)
+					foreignKeyQueuedMode(t, e, ref, row, a.Transactions.ticket, lock.ForUpdate)
 				}
 				transactionEnd(t, a, tx, commit)
 				ended = true
@@ -148,7 +148,7 @@ func TestForeignKeyQueuedCancellationAndReplacement(t *testing.T) {
 			e, a, b, c, ref, row := foreignKeyLockFixture(t)
 			tx := transactionBegin(t, a)
 			sessionSQL(t, a, "DELETE FROM p WHERE id=1")
-			foreignKeyHeldMode(t, e, ref, row, a.transactions.ticket, lock.ForUpdate)
+			foreignKeyHeldMode(t, e, ref, row, a.Transactions.ticket, lock.ForUpdate)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			statement(t, "INSERT INTO c VALUES(1)")
@@ -163,7 +163,7 @@ func TestForeignKeyQueuedCancellationAndReplacement(t *testing.T) {
 					lockAwait(t, done, context.Canceled)
 				}
 			}()
-			foreignKeyQueuedMode(t, e, ref, row, a.transactions.ticket, lock.ForKeyShare)
+			foreignKeyQueuedMode(t, e, ref, row, a.Transactions.ticket, lock.ForKeyShare)
 			if replace {
 				if err := e.Reset(context.Background()); err != nil {
 					t.Fatal(err)
@@ -202,7 +202,7 @@ func TestForeignKeySavepointGrantRestoration(t *testing.T) {
 	tx := transactionBegin(t, a)
 	defer transactionEnd(t, a, tx, false)
 	sessionSQL(t, a, "INSERT INTO c VALUES(1)")
-	ticket := a.transactions.ticket
+	ticket := a.Transactions.ticket
 	sessionSQL(t, a, "SAVEPOINT mark")
 	sessionSQL(t, a, "INSERT INTO c VALUES(2)")
 	op, err := a.Acquire(context.Background())
@@ -395,8 +395,8 @@ func TestForeignKeyQueuedNonKeyCompatibility(t *testing.T) {
 					lockAwait(t, done, context.Canceled)
 				}
 			}()
-			foreignKeyHeldMode(t, e, ref, row, a.transactions.ticket, lock.ForKeyShare)
-			foreignKeyQueuedMode(t, e, ref, row, a.transactions.ticket, lock.ForUpdate)
+			foreignKeyHeldMode(t, e, ref, row, a.Transactions.ticket, lock.ForKeyShare)
+			foreignKeyQueuedMode(t, e, ref, row, a.Transactions.ticket, lock.ForUpdate)
 			other := transactionBegin(t, c)
 			otherEnded := false
 			defer func() {
@@ -416,9 +416,9 @@ func TestForeignKeyQueuedNonKeyCompatibility(t *testing.T) {
 			if err != nil || result.Count != 1 {
 				t.Fatal("compatible non-key write waited behind pending DELETE", result.Count, err)
 			}
-			foreignKeyHeldMode(t, e, ref, row, c.transactions.ticket, lock.ForNoKeyUpdate)
-			foreignKeyHeldMode(t, e, ref, row, a.transactions.ticket, lock.ForKeyShare)
-			foreignKeyQueuedMode(t, e, ref, row, a.transactions.ticket, lock.ForUpdate)
+			foreignKeyHeldMode(t, e, ref, row, c.Transactions.ticket, lock.ForNoKeyUpdate)
+			foreignKeyHeldMode(t, e, ref, row, a.Transactions.ticket, lock.ForKeyShare)
+			foreignKeyQueuedMode(t, e, ref, row, a.Transactions.ticket, lock.ForUpdate)
 			transactionEnd(t, c, other, true)
 			otherEnded = true
 			transactionEnd(t, a, tx, commit)

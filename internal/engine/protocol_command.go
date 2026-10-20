@@ -3,7 +3,7 @@ package engine
 import "errors"
 
 func (e *Engine) StartProtocolCommand(op *Operation, cycle *ProtocolCycle) (*StatementScope, error) {
-	if op == nil || cycle == nil || cycle.owner != op.Session.transactions || engineOf(op.Session) != e {
+	if op == nil || cycle == nil || cycle.owner != op.Session.Transactions || engineOf(op.Session) != e {
 		return nil, errors.New("stuntgres: foreign protocol cycle")
 	}
 	s, err := e.StartStatement(op)
@@ -37,7 +37,7 @@ func (s *StatementScope) ProtocolSimpleQuery(statements int) {
 }
 
 func (e *Engine) SyncProtocolCycle(op *Operation, cycle *ProtocolCycle) error {
-	if op == nil || cycle == nil || cycle.owner != op.Session.transactions || engineOf(op.Session) != e {
+	if op == nil || cycle == nil || cycle.owner != op.Session.Transactions || engineOf(op.Session) != e {
 		return errors.New("stuntgres: foreign protocol cycle")
 	}
 	s, err := e.StartStatement(op)

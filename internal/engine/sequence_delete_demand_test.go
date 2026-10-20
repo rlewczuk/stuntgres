@@ -34,7 +34,7 @@ func TestSequenceDeleteUndemandedLocks(t *testing.T) {
 				} else {
 					deleteCount(t, a, q, 0)
 				}
-				ticket := a.transactions.ticket
+				ticket := a.Transactions.ticket
 				lockState := e.locks.Inspect(ticket)
 				entry := lockState.Resources[lock.Resource{ObjectRef: sequence}]
 				sequenceHeld := entry != nil && entry.Holders[ticket].Mode != 0
@@ -83,7 +83,7 @@ func TestSequenceDeleteDecisiveFalseDemand(t *testing.T) {
 		} else {
 			deleteCount(t, a, q, 0)
 		}
-		ticket := a.transactions.ticket
+		ticket := a.Transactions.ticket
 		lockState := e.locks.Inspect(ticket)
 		entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
 		held := entry != nil && entry.Holders[ticket].Mode == lock.RowExclusive

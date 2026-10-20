@@ -26,7 +26,7 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 	}
 	session := s.op.Session
 	if raw.Category == parser.DiscardPlans || raw.Category == parser.DiscardAll {
-		if session.discardPlansGeneration == ^uint64(0) {
+		if session.DiscardPlansGeneration == ^uint64(0) {
 			return Result{}, fmt.Errorf("stuntgres: discard plan generation exhausted")
 		}
 	}
@@ -67,11 +67,11 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 			return Result{}, err
 		}
 		e.mu.Lock()
-		session.settings.mu.Lock()
-		session.mu.Lock()
+		session.Settings.mu.Lock()
+		session.Mu.Lock()
 		e.resetAllSettingsLocked(session)
-		session.mu.Unlock()
-		session.settings.mu.Unlock()
+		session.Mu.Unlock()
+		session.Settings.mu.Unlock()
 		e.mu.Unlock()
 		if s.replacementRead {
 			e.replacementMu.RUnlock()
@@ -83,10 +83,10 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 		clear(payloadOf(session).preparedSQL.entries)
 		// The persistent ticket was validated before publication and cannot end
 		// while this operation lease is live. Manager callbacks run unlocked.
-		e.locks.DiscardAdvisoryHolds(session.advisory.ticket)
+		e.locks.DiscardAdvisoryHolds(session.Advisory.ticket)
 	}
 	if raw.Category == parser.DiscardPlans || raw.Category == parser.DiscardAll {
-		session.discardPlansGeneration++
+		session.DiscardPlansGeneration++
 		e := engineOf(session)
 		e.mu.Lock()
 		payloadOf(session).sqlRoutines = nil
@@ -104,26 +104,26 @@ func (s *StatementScope) executeDiscard(raw *parser.Discard, count int) (Result,
 
 func (s *StatementScope) discardAllPreflight() (authorization.RoleState, error) {
 	session, e := s.op.Session, s.engine()
-	ticket := session.advisory.ticket
-	if !e.locks.ValidSession(ticket, session.token) {
+	ticket := session.Advisory.ticket
+	if !e.locks.ValidSession(ticket, session.SessionToken) {
 		return authorization.RoleState{}, fmt.Errorf("stuntgres: invalid advisory session")
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	session.settings.mu.Lock()
-	defer session.settings.mu.Unlock()
-	session.mu.Lock()
-	defer session.mu.Unlock()
+	session.Settings.mu.Lock()
+	defer session.Settings.mu.Unlock()
+	session.Mu.Lock()
+	defer session.Mu.Unlock()
 	if err := publicationOperationLocked(e, s.op); err != nil {
 		return authorization.RoleState{}, err
 	}
-	if session.settings.ended {
+	if session.Settings.ended {
 		return authorization.RoleState{}, fmt.Errorf("stuntgres: settings attachment ended")
 	}
-	if err := roleRevisionHeadroom(session.authorization, 3); err != nil {
+	if err := roleRevisionHeadroom(session.Authorization, 3); err != nil {
 		return authorization.RoleState{}, err
 	}
-	reset := session.authorization.state
+	reset := session.Authorization.state
 	reset.SessionUser, reset.CurrentUser = reset.Authenticated, reset.Authenticated
 	if reset.ResetRole != (authorization.PrincipalRef{}) {
 		reset.CurrentUser = reset.ResetRole
@@ -143,7 +143,7 @@ func (e *Engine) discardResetPreflightLocked(op *Operation) error {
 	if op.DiscardRoleReset.Authenticated == (authorization.PrincipalRef{}) {
 		return nil
 	}
-	if err := roleRevisionHeadroom(op.Session.authorization, 3); err != nil {
+	if err := roleRevisionHeadroom(op.Session.Authorization, 3); err != nil {
 		return err
 	}
 	roles := e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)
@@ -157,15 +157,15 @@ func (e *Engine) discardResetPreflightLocked(op *Operation) error {
 
 func (e *Engine) finishDiscardRoleResetLocked(op *Operation) {
 	if op.DiscardRoleReset.Authenticated != (authorization.PrincipalRef{}) {
-		op.Session.authorization.state = op.DiscardRoleReset
-		op.Session.authorization.revision++
+		op.Session.Authorization.state = op.DiscardRoleReset
+		op.Session.Authorization.revision++
 	}
 }
 
 // Caller holds Engine -> settings -> session locks. Defaults and placeholder
 // recognition remain intact; the default provider is never invoked again.
 func (e *Engine) resetAllSettingsLocked(session *Session) {
-	owner := session.settings
+	owner := session.Settings
 	timeoutChanged, transactionAssignment := false, false
 	for key := range owner.values {
 		if d, ok := e.settings.Definitions()[key]; ok && d.Access != settings.Session && d.Name != "lc_messages" {
@@ -182,7 +182,7 @@ func (e *Engine) resetAllSettingsLocked(session *Session) {
 		}
 	}
 	if timeoutChanged {
-		session.publishTimeoutSettingsLocked(owner, transactionAssignment, time.Now())
+		session.PublishTimeoutSettingsLocked(owner, transactionAssignment, time.Now())
 	}
 }
 
@@ -197,7 +197,7 @@ func (s *StatementScope) stageDiscardTemporary(closeCursors bool) error {
 	base := auth.Catalog
 	owned := make(map[ids.ObjectAddress]bool)
 	for address, d := range base.Descriptors() {
-		if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary == session.token {
+		if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary == session.SessionToken {
 			owned[address] = true
 		}
 	}

@@ -280,7 +280,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 		if err != nil || finish != nil || v.IsNull() || v.Type().ID() != sqltype.Void || advisoryUnitHold(s, lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 42}).Exclusive != 1 {
 			t.Fatal("actual VOID grant", v, err, finish)
 		}
-		if err = e.locks.UnlockAdvisoryAll(s.advisory.ticket); err != nil {
+		if err = e.locks.UnlockAdvisoryAll(s.Advisory.ticket); err != nil {
 			t.Fatal(err)
 		}
 	})

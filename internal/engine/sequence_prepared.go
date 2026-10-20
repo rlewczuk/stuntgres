@@ -17,8 +17,8 @@ func journalOf(c *catalogChanges) sequence.JournalIdentity {
 
 func (e *Engine) sequenceEnvironmentLocked(auth AuthorizationView) (sequence.Environment, error) {
 	key := sequence.PathKey{Role: auth.State.CurrentUser, Authorization: auth.Revision, Roles: auth.RoleRecord.Revision, Namespace: auth.Catalog.State().NamespaceGeneration(), Epoch: auth.Catalog.Epoch(), Temp: temporaryNamespace(auth), Prefix: auth.pathPrefix, Database: auth.Catalog.Get(catalog.CurrentDatabaseAddress)}
-	if auth.session != nil && auth.session.transactions != nil {
-		key.Private = journalOf(auth.session.transactions.catalog)
+	if auth.session != nil && auth.session.Transactions != nil {
+		key.Private = journalOf(auth.session.Transactions.catalog)
 	}
 	if auth.settings != nil {
 		auth.settings.mu.Lock()
@@ -51,7 +51,7 @@ func (e *Engine) sequenceAnalysisLocked(auth AuthorizationView, constants []sequ
 	if err != nil {
 		return sequence.Analysis{}, err
 	}
-	return sequence.Analysis{Constants: constants, Path: path, Private: journalOf(auth.session.transactions.catalog), Session: auth.session.token, Namespace: auth.Catalog.State().NamespaceGeneration()}, nil
+	return sequence.Analysis{Constants: constants, Path: path, Private: journalOf(auth.session.Transactions.catalog), Session: auth.session.SessionToken, Namespace: auth.Catalog.State().NamespaceGeneration()}, nil
 }
 func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *sequence.Analysis) (bool, error) {
 	if analysis == nil || len(analysis.Constants) == 0 {
@@ -61,19 +61,19 @@ func (e *Engine) sequenceAnalysisValidLocked(auth AuthorizationView, analysis *s
 	if err != nil {
 		return false, err
 	}
-	changed := analysis.Session != auth.session.token || analysis.Private != journalOf(auth.session.transactions.catalog) || analysis.Namespace != auth.Catalog.State().NamespaceGeneration() || !sequence.SameEnvironment(path, analysis.Path)
+	changed := analysis.Session != auth.session.SessionToken || analysis.Private != journalOf(auth.session.Transactions.catalog) || analysis.Namespace != auth.Catalog.State().NamespaceGeneration() || !sequence.SameEnvironment(path, analysis.Path)
 	for _, constant := range analysis.Constants {
 		ref := constant.Ref
 		if ref.Domain() != e.catalog.Domain {
 			return false, ids.ErrCatalogReplaced
 		}
-		if constant.Temporary != (ids.SessionToken{}) && constant.Temporary != auth.session.token {
+		if constant.Temporary != (ids.SessionToken{}) && constant.Temporary != auth.session.SessionToken {
 			return false, ids.ErrCatalogReplaced
 		}
 		if ref.Epoch != auth.Catalog.Epoch() {
 			// Native replacement permits only the original owner's exact live temp.
 			d, ok := auth.Catalog.Relation(ref.Address)
-			if !ok || constant.Temporary != auth.session.token || d.RelationKind != catalog.SequenceRelation {
+			if !ok || constant.Temporary != auth.session.SessionToken || d.RelationKind != catalog.SequenceRelation {
 				return false, ids.ErrCatalogReplaced
 			}
 			ns, ok := auth.Catalog.Namespace(d.Namespace())
@@ -113,7 +113,7 @@ func (e *Engine) pinSequenceReplacementLocked(auth AuthorizationView, previous *
 			if current.Offset != old.Offset {
 				continue
 			}
-			if old.Temporary != auth.session.token || current.Temporary != old.Temporary || current.Ref.Domain() != old.Ref.Domain() || current.Ref.Address != old.Ref.Address {
+			if old.Temporary != auth.session.SessionToken || current.Temporary != old.Temporary || current.Ref.Domain() != old.Ref.Domain() || current.Ref.Address != old.Ref.Address {
 				return ids.ErrCatalogReplaced
 			}
 			current.Ref.Epoch = old.Ref.Epoch

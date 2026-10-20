@@ -16,22 +16,22 @@ import (
 )
 
 func temporaryNamespace(auth AuthorizationView) ids.ObjectAddress {
-	if auth.session == nil || auth.Catalog.State() == nil || auth.session.token == (ids.SessionToken{}) || auth.session.token.Domain() != domainOf(auth.engine) || privateSessionOf(auth.session.token) != nil {
+	if auth.session == nil || auth.Catalog.State() == nil || auth.session.SessionToken == (ids.SessionToken{}) || auth.session.SessionToken.Domain() != domainOf(auth.engine) || privateSessionOf(auth.session.SessionToken) != nil {
 		return ids.ObjectAddress{}
 	}
 	table := func(a ids.ObjectAddress) bool {
 		ns, ok := auth.Catalog.Namespace(a)
-		return ok && !ns.TemporaryToast && ns.Temporary == auth.session.token
+		return ok && !ns.TemporaryToast && ns.Temporary == auth.session.SessionToken
 	}
 	if table(auth.stagedTemporary) {
 		return auth.stagedTemporary
 	}
-	if table(auth.session.temporaryNamespace) {
-		return auth.session.temporaryNamespace
+	if table(auth.session.TemporaryNamespace) {
+		return auth.session.TemporaryNamespace
 	}
-	if owner := auth.session.transactions; owner != nil && owner.catalog != nil {
+	if owner := auth.session.Transactions; owner != nil && owner.catalog != nil {
 		for a, d := range auth.Catalog.Descriptors() {
-			if ns, ok := d.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == auth.session.token {
+			if ns, ok := d.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == auth.session.SessionToken {
 				return a
 			}
 		}
@@ -66,10 +66,10 @@ func (e *Engine) creationNamespaceStagedLocked(auth AuthorizationView, name pars
 
 // Engine.mu is held. The caller owns the candidate and its publication.
 func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catalogChanges) (ids.ObjectRef, error) {
-	if auth.session == nil || privateSessionOf(auth.session.token) != nil {
+	if auth.session == nil || privateSessionOf(auth.session.SessionToken) != nil {
 		return ids.ObjectRef{}, fmt.Errorf("stuntgres: private maintenance cannot create a temporary namespace")
 	}
-	auth.session.transactions.accessedTemporary = true
+	auth.session.Transactions.accessedTemporary = true
 	if a := temporaryNamespace(auth); a != (ids.ObjectAddress{}) {
 		return e.catalog.Domain.Ref(e.catalog.state.Epoch(), a), nil
 	}
@@ -98,8 +98,8 @@ func (e *Engine) temporaryNamespaceStagedLocked(auth AuthorizationView, c *catal
 		return ids.ObjectRef{}, err
 	}
 	owner := e.roles.domain.Principal(10)
-	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}, ObjectName: fmt.Sprintf("pg_temp_%d", auth.session.token.ID()), ObjectRevision: rev, Owner: owner, Temporary: auth.session.token}
-	toast := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: toastOID}, ObjectName: fmt.Sprintf("pg_toast_temp_%d", auth.session.token.ID()), ObjectRevision: toastRevision, Owner: owner, Temporary: auth.session.token, TemporaryToast: true}
+	ns := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: oid}, ObjectName: fmt.Sprintf("pg_temp_%d", auth.session.SessionToken.ID()), ObjectRevision: rev, Owner: owner, Temporary: auth.session.SessionToken}
+	toast := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: toastOID}, ObjectName: fmt.Sprintf("pg_toast_temp_%d", auth.session.SessionToken.ID()), ObjectRevision: toastRevision, Owner: owner, Temporary: auth.session.SessionToken, TemporaryToast: true}
 	if c.Originals == nil {
 		c.Originals = make(map[ids.ObjectAddress]catalog.Descriptor)
 		c.Descriptors = make(map[ids.ObjectAddress]catalog.Descriptor)
@@ -146,7 +146,7 @@ func adjustRelationCreationPersistence(auth AuthorizationView, ref ids.ObjectRef
 // physical backend exit preserves pg_namespace and cleans only temp relations.
 // Keep peer analysis generation/epoch unchanged, including at scalar exhaustion.
 func (e *Engine) endTemporarySession(s *Session) error {
-	if privateSessionOf(s.token) != nil {
+	if privateSessionOf(s.SessionToken) != nil {
 		return nil
 	}
 	for {
@@ -156,7 +156,7 @@ func (e *Engine) endTemporarySession(s *Session) error {
 			if _, ok := d.(*catalog.Collation); !ok {
 				continue
 			}
-			if ns, ok := base.Namespace(d.Namespace()); ok && ns.Temporary == s.token {
+			if ns, ok := base.Namespace(d.Namespace()); ok && ns.Temporary == s.SessionToken {
 				e.mu.Unlock()
 				return nil
 			}
@@ -164,14 +164,14 @@ func (e *Engine) endTemporarySession(s *Session) error {
 		var namespaces []ids.ObjectAddress
 		owned := make(map[ids.ObjectAddress]bool)
 		for a, d := range base.Descriptors() {
-			if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary == s.token {
+			if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary == s.SessionToken {
 				namespaces = append(namespaces, a)
 				owned[a] = true
 			}
 		}
 		if len(namespaces) == 0 {
 			payloadOf(s).sequences.ForgetLocked()
-			s.temporaryNamespace = ids.ObjectAddress{}
+			s.TemporaryNamespace = ids.ObjectAddress{}
 			e.mu.Unlock()
 			return nil
 		}
@@ -258,7 +258,7 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 	}
 	for _, address := range namespaces {
 		namespace, ok := e.catalog.state.Namespace(address)
-		if !ok || namespace.Temporary != s.token {
+		if !ok || namespace.Temporary != s.SessionToken {
 			return false, nil
 		}
 	}
@@ -318,7 +318,7 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 	stage.lifecycle = catalogPublished
 	e.catalog.nextRevision = nextRevision
 	payloadOf(s).sequences.ForgetLocked()
-	s.temporaryNamespace = ids.ObjectAddress{}
+	s.TemporaryNamespace = ids.ObjectAddress{}
 	return true, nil
 }
 

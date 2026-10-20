@@ -32,6 +32,6 @@ type sessionAllocation struct {
 // payloadOf returns the root payload of s, or nil for a session built without
 // one (unit-test literals).
 func payloadOf(s *Session) *sessionPayload {
-	p, _ := s.payload.(*sessionPayload)
+	p, _ := s.Payload.(*sessionPayload)
 	return p
 }

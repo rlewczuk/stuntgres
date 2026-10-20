@@ -34,7 +34,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 	unlockBefore := false
 	switch oid {
 	case pgcatalog.SettingsOID:
-		runtime.settings = scope.op.Session.settings
+		runtime.settings = scope.op.Session.Settings
 		unlockBefore = true
 	case pgcatalog.CursorsOID:
 		runtime.cursors = payloadOf(scope.op.Session).cursors
@@ -50,7 +50,7 @@ func (e *Engine) openCatalogSourceLocked(scope *StatementScope, ref ids.ObjectRe
 		unlockBefore = true
 	case pgcatalog.TablePrivilegesOID, pgcatalog.DataTypePrivilegesOID:
 		in.Catalog, in.Roles = scope.inquiry.commentCatalog, scope.inquiry.deparseAuth.Roles
-		runtime.auth, runtime.database = scope.inquiry.deparseAuth, scope.op.Session.databaseName
+		runtime.auth, runtime.database = scope.inquiry.deparseAuth, scope.op.Session.DatabaseName
 		runtime.temporary = catalogSourceTemporaryOwner(scope.inquiry.deparseAuth)
 	case ids.ForeignWrapperClassID, ids.ForeignServerClassID, ids.ForeignMappingClassID, ids.ForeignTableClassID, pgcatalog.UserMappingsOID:
 		auth, err := e.authorizationLocked(scope.op)

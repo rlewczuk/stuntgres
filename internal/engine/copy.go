@@ -126,7 +126,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	} else if err = copyRelationKind(b.Relation, false); err != nil {
 		return 0, err
 	}
-	if err := checkTemporaryStorageAccess(auth.Catalog, b.Relation, s.op.Session.token); err != nil {
+	if err := checkTemporaryStorageAccess(auth.Catalog, b.Relation, s.op.Session.SessionToken); err != nil {
 		return 0, err
 	}
 	options, err = parseCopyOptions(syntax)

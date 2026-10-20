@@ -243,7 +243,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 	var collectErr error
 	collectAuth := scope.inquiry.deparseAuth
 	collectAuth.Recapture(scope.partitionCaptureCatalog(scope.inheritanceRead(scope.inquiry.commentCatalog)))
-	refs, collectErr = e.queryTableRefsLocked(collectAuth, invoker, leaves, refs, scope.op.Session.token, inherited)
+	refs, collectErr = e.queryTableRefsLocked(collectAuth, invoker, leaves, refs, scope.op.Session.SessionToken, inherited)
 	if collectErr != nil {
 		return nil, collectErr
 	}
@@ -325,7 +325,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 					source, err = capturePartitionQueryPrefix(scope.partitionCaptureCatalog(scope.inquiry.commentCatalog), view, leaf.Ref, leaf.Relation)
 				}
 			case catalog.TableRelation:
-				source, err = captureInheritanceQueryPrefix(scope.inheritanceRead(scope.inquiry.commentCatalog), view, leaf, scope.op.Session.token)
+				source, err = captureInheritanceQueryPrefix(scope.inheritanceRead(scope.inquiry.commentCatalog), view, leaf, scope.op.Session.SessionToken)
 				if err == nil {
 					err = e.captureHashIndexesLocked(scope, leaf, source, mark)
 					if err != nil {

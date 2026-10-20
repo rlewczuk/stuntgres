@@ -29,7 +29,7 @@ func TestEnumTypeDeadlockRetirement(t *testing.T) {
 	var pending [2]*lock.Request
 	for i, s := range sessions {
 		refs[i] = transactionBegin(t, s)
-		tickets[i] = s.transactions.ticket
+		tickets[i] = s.Transactions.ticket
 		t.Cleanup(func() { e.endLockOwner(tickets[i]) })
 		if r := deadlockRequest(t, e, tickets[i], resources[i], lock.TypeExclusive); r != nil {
 			t.Fatal("initial type grant queued")
@@ -86,7 +86,7 @@ func TestEnumTypeDeadlockRetirement(t *testing.T) {
 	for _, s := range sessions {
 		ref := transactionBegin(t, s)
 		for _, resource := range resources {
-			if err := e.locks.Acquire(context.Background(), s.transactions.ticket, resource, lock.TypeExclusive); err != nil {
+			if err := e.locks.Acquire(context.Background(), s.Transactions.ticket, resource, lock.TypeExclusive); err != nil {
 				t.Fatal("retired cycle blocked fresh owner", err)
 			}
 		}

@@ -28,7 +28,7 @@ func evalSerialSequence(c *exec.Context, values [3]sqltype.Value, result *sqltyp
 	}
 	database := ""
 	if scope.inquiry.deparseAuth.session != nil {
-		database = scope.inquiry.deparseAuth.session.databaseName
+		database = scope.inquiry.deparseAuth.session.DatabaseName
 	}
 	name, err = regclassQualifiedName(name, table, database)
 	if err != nil {

@@ -226,7 +226,7 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 	sessionSQL(t, session, "CREATE TEMP SEQUENCE temporary_s")
 	sessionSQL(t, session, "CREATE TEMP TABLE eligibility(v INT)")
 	view := e.CatalogRead()
-	matches := view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: session.temporaryNamespace, Name: "eligibility"})
+	matches := view.Lookup(ids.NameKey{ClassID: ids.RelationClassID, Namespace: session.TemporaryNamespace, Name: "eligibility"})
 	if len(matches) != 1 {
 		t.Fatal("actual owner TEMP table missing", matches)
 	}
@@ -245,19 +245,19 @@ func TestSerializableEvidenceActualTemporaryNamespaceAndSequenceProviders(t *tes
 			result.Rows.Close()
 		}
 		e.mu.Lock()
-		node := e.visibility.Serializable.Nodes[session.transactions.ref]
+		node := e.visibility.Serializable.Nodes[session.Transactions.ref]
 		if node == nil || !node.Captured || len(node.Reads) != 0 || len(node.Writes) != 0 || node.DidWrite || len(node.Incoming) != 0 || len(node.Outgoing) != 0 {
 			t.Fatal("actual sequence/catalog provider registered SSI evidence", query)
 		}
 		e.mu.Unlock()
 	}
 	e.mu.Lock()
-	node := e.visibility.Serializable.Nodes[session.transactions.ref]
-	namespace := e.catalog.state.MustNamespace(session.temporaryNamespace)
-	if namespace.Temporary != session.token {
+	node := e.visibility.Serializable.Nodes[session.Transactions.ref]
+	namespace := e.catalog.state.MustNamespace(session.TemporaryNamespace)
+	if namespace.Temporary != session.SessionToken {
 		t.Fatal("fixture did not create actual session-owned temporary namespace")
 	}
-	scope := &StatementScope{owner: session.transactions, txRef: session.transactions.ref}
+	scope := &StatementScope{owner: session.Transactions, txRef: session.Transactions.ref}
 	if e.serializableEligibleLocked(relation, nil) {
 		t.Fatal("temporary stored relation enrolled")
 	}

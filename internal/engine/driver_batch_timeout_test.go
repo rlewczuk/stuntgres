@@ -76,11 +76,11 @@ func TestDriverBatchFreshSegmentBudgetAndNoIdle(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = result.Rows.Close()
-	ref, start, stamp := s.transactions.ref, s.transactions.start, m.scope.statementStart
-	s.mu.Lock()
-	deadline := s.timeouts.transaction.deadline
-	idle := !s.timeouts.idle.deadline.IsZero()
-	s.mu.Unlock()
+	ref, start, stamp := s.Transactions.ref, s.Transactions.start, m.scope.statementStart
+	s.Mu.Lock()
+	deadline := s.Timeouts.Transaction.Deadline
+	idle := !s.Timeouts.Idle.Deadline.IsZero()
+	s.Mu.Unlock()
 	if deadline.IsZero() || idle || m.op.SQLFinished {
 		t.Fatal("retained prefix armed idle or lost transaction budget")
 	}
@@ -92,20 +92,20 @@ func TestDriverBatchFreshSegmentBudgetAndNoIdle(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = result.Rows.Close()
-	s.mu.Lock()
-	later := s.timeouts.transaction.deadline
-	idle = !s.timeouts.idle.deadline.IsZero()
-	s.mu.Unlock()
-	if s.transactions.ref == ref || !s.transactions.start.After(start) || !later.After(deadline) || m.scope.statementStart != stamp || m.scope.transactionStart != s.transactions.start || idle || m.op.SQLFinished {
+	s.Mu.Lock()
+	later := s.Timeouts.Transaction.Deadline
+	idle = !s.Timeouts.Idle.Deadline.IsZero()
+	s.Mu.Unlock()
+	if s.Transactions.ref == ref || !s.Transactions.start.After(start) || !later.After(deadline) || m.scope.statementStart != stamp || m.scope.transactionStart != s.Transactions.start || idle || m.op.SQLFinished {
 		t.Fatal("fresh segment reused prior birth/budget or message admission ended")
 	}
 	if err = m.end(nil); err != nil {
 		t.Fatal(err)
 	}
-	s.mu.Lock()
-	retired := s.timeouts.transaction.deadline.IsZero()
-	idleSession := s.timeouts.idle.deadline
-	s.mu.Unlock()
+	s.Mu.Lock()
+	retired := s.Timeouts.Transaction.Deadline.IsZero()
+	idleSession := s.Timeouts.Idle.Deadline
+	s.Mu.Unlock()
 	if !retired || idleSession.IsZero() || s.TransactionState() != TxIdle {
 		t.Fatal("whole-message completion did not retire/arm correct timers")
 	}
@@ -121,15 +121,15 @@ func TestDriverBatchFatalTransactionBudget(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer result.Rows.Close()
-	s.mu.Lock()
-	slot := &s.timeouts.transaction
-	generation, deadline := slot.generation, slot.deadline
+	s.Mu.Lock()
+	slot := &s.Timeouts.Transaction
+	generation, deadline := slot.Generation, slot.Deadline
 	if deadline.IsZero() {
-		s.mu.Unlock()
+		s.Mu.Unlock()
 		t.Fatal("retained segment has no actual timeout authority")
 	}
-	s.expireTimeoutLocked(slot, generation, s.token, "25P04", deadline)
-	s.mu.Unlock()
+	s.ExpireTimeoutLocked(slot, generation, s.SessionToken, "25P04", deadline)
+	s.Mu.Unlock()
 	_, err = m.scope.NextStatement()
 	if err == nil {
 		t.Fatal("fatal message admitted suffix")
@@ -143,7 +143,7 @@ func TestDriverBatchFatalTransactionBudget(t *testing.T) {
 	if err = s.WaitEnd(wait); err != nil {
 		t.Fatal(err)
 	}
-	if s.IsLive() || s.transactions.retainedMessage || s.transactions.ticket != nil || s.TransactionState() != TxIdle {
+	if s.IsLive() || s.Transactions.retainedMessage || s.Transactions.ticket != nil || s.TransactionState() != TxIdle {
 		t.Fatal("fatal message retained owner resources")
 	}
 	lockEmpty(t, e)

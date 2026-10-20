@@ -97,14 +97,14 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 			}
 		}
 		session := op.Session
-		settings := session.settings
+		settings := session.Settings
 		settings.mu.Lock()
 		defer settings.mu.Unlock()
-		session.mu.Lock()
-		defer session.mu.Unlock()
-		a := session.authorization
+		session.Mu.Lock()
+		defer session.Mu.Unlock()
+		a := session.Authorization
 		// Reserve failure unwind, retained savepoints and outer restoration.
-		if err := roleRevisionHeadroom(a, uint64(len(session.transactions.savepoints))+3); err != nil {
+		if err := roleRevisionHeadroom(a, uint64(len(session.Transactions.savepoints))+3); err != nil {
 			return Result{}, err
 		}
 		if err := publicationOperationLocked(e, op); err != nil {
@@ -129,13 +129,13 @@ func (e *Engine) executeRole(op *Operation, stmt parser.Statement, count int, im
 			return Result{}, sqlError("42501", fmt.Sprintf("permission denied to set session authorization \"%s\"", s.Name))
 		}
 		session := op.Session
-		settings := session.settings
+		settings := session.Settings
 		settings.mu.Lock()
 		defer settings.mu.Unlock()
-		session.mu.Lock()
-		defer session.mu.Unlock()
-		a := session.authorization
-		if err := roleRevisionHeadroom(a, uint64(len(session.transactions.savepoints))+3); err != nil {
+		session.Mu.Lock()
+		defer session.Mu.Unlock()
+		a := session.Authorization
+		if err := roleRevisionHeadroom(a, uint64(len(session.Transactions.savepoints))+3); err != nil {
 			return Result{}, err
 		}
 		if err := publicationOperationLocked(e, op); err != nil {
@@ -333,13 +333,13 @@ func (e *Engine) dropRolesLocked(op *Operation, v AuthorizationView, s *parser.D
 		return Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
 	n := v.RoleRecord.Root.Retire(targets)
-	op.Session.mu.Lock()
-	defer op.Session.mu.Unlock()
+	op.Session.Mu.Lock()
+	defer op.Session.Mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
 	e.installOperationRolesLocked(op, &access.RoleRecord{Root: n, Revision: v.RoleRecord.Revision + 1})
-	if t := op.Session.transactions; t.retainsTransaction() {
+	if t := op.Session.Transactions; t.retainsTransaction() {
 		// installOperationRolesLocked cloned the same catalog owner; no saved
 		// candidate shares this mutable set. Standalone publication needs none.
 		if t.catalog.RetiredRoles == nil {

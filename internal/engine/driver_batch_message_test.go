@@ -66,12 +66,12 @@ func TestDriverBatchOwnerPromotionAndAdmission(t *testing.T) {
 	if _, err := m.step(statement(t, "INSERT INTO t VALUES(1)")); err != nil {
 		t.Fatal(err)
 	}
-	ref, ticket, start := a.transactions.ref, a.transactions.ticket, a.transactions.start
-	if a.TransactionState() != TxImplicit || ref == (ids.TxRef{}) || ticket == nil || a.transactions.command != 1 {
+	ref, ticket, start := a.Transactions.ref, a.Transactions.ticket, a.Transactions.start
+	if a.TransactionState() != TxImplicit || ref == (ids.TxRef{}) || ticket == nil || a.Transactions.command != 1 {
 		t.Fatal("retained implicit owner")
 	}
-	if a.transactions.admission.TryLock() {
-		a.transactions.admission.Unlock()
+	if a.Transactions.admission.TryLock() {
+		a.Transactions.admission.Unlock()
 		t.Fatal("message released admission between statements")
 	}
 	transactionRows(t, b, "SELECT v FROM t")
@@ -91,7 +91,7 @@ func TestDriverBatchOwnerPromotionAndAdmission(t *testing.T) {
 	if _, err := m.step(statement(t, "BEGIN")); err != nil {
 		t.Fatal(err)
 	}
-	if a.transactions.ref != ref || a.transactions.ticket != ticket || a.transactions.start != start || a.TransactionState() != TxActive {
+	if a.Transactions.ref != ref || a.Transactions.ticket != ticket || a.Transactions.start != start || a.TransactionState() != TxActive {
 		t.Fatal("promotion replaced authority")
 	}
 	if err := first.FinishMessage(nil); err == nil {
@@ -110,7 +110,7 @@ func TestDriverBatchOwnerPromotionAndAdmission(t *testing.T) {
 	if _, err := final.NextStatement(); err == nil {
 		t.Fatal("ended message admitted work")
 	}
-	if a.transactions.retainedMessage || a.TransactionState() != TxActive {
+	if a.Transactions.retainedMessage || a.TransactionState() != TxActive {
 		t.Fatal("message end incorrectly ended explicit block")
 	}
 	transactionRows(t, b, "SELECT v FROM t")
@@ -153,17 +153,17 @@ func TestDriverBatchQueuedPrefixCancellation(t *testing.T) {
 			e.mu.Lock()
 			published := len(e.storage.Relations[address].Versions)
 			e.mu.Unlock()
-			if published != 0 || len(a.transactions.writes[address]) != 1 {
+			if published != 0 || len(a.Transactions.writes[address]) != 1 {
 				t.Fatal("prefix was not staged before wait")
 			}
-			ref, ticket := a.transactions.ref, a.transactions.ticket
+			ref, ticket := a.Transactions.ref, a.Transactions.ticket
 			stmt := statement(t, "INSERT INTO blocked VALUES(2)")
 			started = true
 			go func() { _, err := m.step(stmt); err = m.end(err); result <- err; close(joined) }()
 			lockPending(t, e, 1)
-			a.transactions.mu.Lock()
-			same := a.transactions.ref == ref && a.transactions.ticket == ticket && a.transactions.command == 1
-			a.transactions.mu.Unlock()
+			a.Transactions.mu.Lock()
+			same := a.Transactions.ref == ref && a.Transactions.ticket == ticket && a.Transactions.command == 1
+			a.Transactions.mu.Unlock()
 			if !same {
 				t.Fatal("queued command changed prefix owner")
 			}
@@ -181,7 +181,7 @@ func TestDriverBatchQueuedPrefixCancellation(t *testing.T) {
 			if explicit {
 				want = TxAborted
 			}
-			if a.TransactionState() != want || a.transactions.writes != nil || a.transactions.catalog != nil || a.transactions.retainedMessage {
+			if a.TransactionState() != want || a.Transactions.writes != nil || a.Transactions.catalog != nil || a.Transactions.retainedMessage {
 				t.Fatal("cancellation retained private effects")
 			}
 			transactionRows(t, b, "SELECT v FROM prefix")
@@ -224,7 +224,7 @@ func TestDriverBatchCanceledBetweenStatements(t *testing.T) {
 			if explicit {
 				want = TxAborted
 			}
-			if s.TransactionState() != want || s.transactions.writes != nil {
+			if s.TransactionState() != want || s.Transactions.writes != nil {
 				t.Fatal("between-statement error disposition")
 			}
 			if explicit {

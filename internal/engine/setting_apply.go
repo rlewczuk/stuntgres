@@ -74,8 +74,8 @@ func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d settings.
 	defer e.mu.Unlock()
 	owner.mu.Lock()
 	defer owner.mu.Unlock()
-	op.Session.mu.Lock()
-	defer op.Session.mu.Unlock()
+	op.Session.Mu.Lock()
+	defer op.Session.Mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {
 		return "", err
 	}
@@ -94,7 +94,7 @@ func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d settings.
 		owner.typed[d.Name] = v
 	}
 	if d.Name == "transaction_timeout" || d.Name == "idle_in_transaction_session_timeout" || d.Name == "idle_session_timeout" {
-		op.Session.publishTimeoutSettingsLocked(owner, d.Name == "transaction_timeout", time.Now())
+		op.Session.PublishTimeoutSettingsLocked(owner, d.Name == "transaction_timeout", time.Now())
 	}
 	if notice != nil {
 		op.EmitNotice(levelNotice, *notice)
@@ -106,7 +106,7 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 	if count != 0 {
 		return Result{}, errors.New("stuntgres: settings expect zero arguments")
 	}
-	owner := op.Session.settings
+	owner := op.Session.Settings
 	var name string
 	var input *string
 	var all, write bool
@@ -153,9 +153,9 @@ func (e *Engine) executeSetting(op *Operation, stmt parser.Statement, count int,
 	}
 	e.mu.Lock()
 	owner.mu.Lock()
-	op.Session.mu.Lock()
+	op.Session.Mu.Lock()
 	locked := true
-	unlock := func() { op.Session.mu.Unlock(); owner.mu.Unlock(); e.mu.Unlock() }
+	unlock := func() { op.Session.Mu.Unlock(); owner.mu.Unlock(); e.mu.Unlock() }
 	defer func() {
 		if locked {
 			unlock()

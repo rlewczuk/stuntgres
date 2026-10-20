@@ -120,14 +120,14 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 			return lock.Waiter{}
 		}()
 		// The request's timeout slot identifies the worker's admitted operation.
-		worker.mu.Lock()
+		worker.Mu.Lock()
 		var scope *StatementScope
-		for operation := range worker.operations {
+		for operation := range worker.Operations {
 			if &operation.LockWait == request.Policy.TimeoutSlot {
 				scope = scopeOfLease(operation.Lease)
 			}
 		}
-		worker.mu.Unlock()
+		worker.Mu.Unlock()
 		if scope == nil || scope.lockedRef != ref || scope.view == nil ||
 			scope.insertConflict == nil || len(scope.insertConflict.selected) != 1 ||
 			request.Resource.Address != scope.insertConflict.selected[0] || request.Resource.Epoch != ref.Epoch {
@@ -317,7 +317,7 @@ func TestInsertConflictUpdateLockOrdering(t *testing.T) {
 			id := e.storage.Relations[ref.Address].Versions[0].Row
 			workerTx := transactionBegin(t, worker)
 			sessionSQL(t, worker, "INSERT INTO t VALUES(4,40)")
-			baseline := e.locks.CheckpointUnique(worker.transactions.ticket, nil)
+			baseline := e.locks.CheckpointUnique(worker.Transactions.ticket, nil)
 			holderTx := transactionBegin(t, holder)
 			transactionRows(t, holder, "SELECT v FROM t FOR UPDATE", 10)
 			running := conflictUpdateStartWorker(t, e, worker, "INSERT INTO t VALUES(2,20),(1,1) ON CONFLICT(k) DO UPDATE SET "+set+" WHERE FALSE")

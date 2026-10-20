@@ -63,7 +63,7 @@ func TestNotificationPublicationAtomicity(t *testing.T) {
 				receiver, sender := sessionStart(t, e, nil), sessionStart(t, e, nil)
 				notificationUnitListen(t, receiver)
 				ref := transactionBegin(t, sender)
-				sender.transactions.notificationEvents = []Notification{{PID: uint64(sender.token.ID()), Channel: "unit", Payload: "published"}}
+				sender.Transactions.notificationEvents = []Notification{{PID: uint64(sender.SessionToken.ID()), Channel: "unit", Payload: "published"}}
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				op, err := sender.AcquireActivity(ctx)
@@ -147,7 +147,7 @@ func TestNotificationPublicationRoots(t *testing.T) {
 			r, s := sessionStart(t, e, nil), sessionStart(t, e, nil)
 			notificationUnitListen(t, r)
 			ref := transactionBegin(t, s)
-			s.transactions.notificationEvents = []Notification{{PID: uint64(s.token.ID()), Channel: "unit", Payload: "after"}}
+			s.Transactions.notificationEvents = []Notification{{PID: uint64(s.SessionToken.ID()), Channel: "unit", Payload: "after"}}
 			replacement := *payloadOf(r).notifications.state
 			replacement.ready = replacement.ready.append([]Notification{{PID: 999, Channel: "unit", Payload: "before"}})
 			ctx := &notificationRootContext{Context: context.Background(), engine: e, resource: &payloadOf(r).notifications, replacement: &replacement}
@@ -179,7 +179,7 @@ func TestNotificationPublicationRoots(t *testing.T) {
 	e := New()
 	r, s := sessionStart(t, e, nil), sessionStart(t, e, nil)
 	notificationUnitListen(t, r)
-	event := []Notification{{PID: uint64(s.token.ID()), Channel: "unit", Payload: "candidate"}}
+	event := []Notification{{PID: uint64(s.SessionToken.ID()), Channel: "unit", Payload: "candidate"}}
 	for _, change := range []string{"busy", "dequeue", "registration", "retire"} {
 		t.Run(change, func(t *testing.T) {
 			candidate := e.prepareNotificationPublication(s, nil, event)
@@ -191,13 +191,13 @@ func TestNotificationPublicationRoots(t *testing.T) {
 				next := *payloadOf(r).notifications.state
 				payloadOf(r).notifications.state = &next
 			case "registration":
-				delete(e.notifications, r.token)
+				delete(e.notifications, r.SessionToken)
 			case "retire":
 				payloadOf(r).notifications.ended = true
 			}
 			unchanged := e.notificationPublicationUnchangedLocked(candidate)
 			if change == "registration" {
-				e.notifications[r.token] = &payloadOf(r).notifications
+				e.notifications[r.SessionToken] = &payloadOf(r).notifications
 			}
 			if change == "retire" {
 				payloadOf(r).notifications.ended = false
@@ -214,10 +214,10 @@ func TestNotificationSavepointRoots(t *testing.T) {
 	e := New()
 	s := sessionStart(t, e, nil)
 	transactionBegin(t, s)
-	owner := s.transactions
+	owner := s.Transactions
 	owner.mu.Lock()
 	defer owner.mu.Unlock()
-	parent := Notification{PID: uint64(s.token.ID()), Channel: "unit", Payload: "parent"}
+	parent := Notification{PID: uint64(s.SessionToken.ID()), Channel: "unit", Payload: "parent"}
 	owner.notificationActions = make([]notificationAction, 1, 8)
 	owner.notificationActions[0] = notificationAction{channel: "unit", listen: true}
 	owner.notificationEvents = make([]Notification, 1, 8)
@@ -260,7 +260,7 @@ func TestNotificationIdentityAndAssignment(t *testing.T) {
 		t.Fatal("subscription-only commit assigned XID")
 	}
 	notificationUnitNotify(t, s, "wide")
-	if got := notificationUnitReceive(t, s); got.PID != uint64(s.token.ID()) || got.PID <= uint64(^uint32(0)) {
+	if got := notificationUnitReceive(t, s); got.PID != uint64(s.SessionToken.ID()) || got.PID <= uint64(^uint32(0)) {
 		t.Fatal("sender identity narrowed", got)
 	}
 	if e.visibility.LastAssignedXID() != before+1 {
@@ -344,7 +344,7 @@ func TestNotificationPreparedOriginProgress(t *testing.T) {
 			// A committed positive sentinel checks absence without a timeout.
 			notificationUnitNotify(t, finisher, "before-origin-end")
 			for _, recipient := range []*Session{receiver, finisher} {
-				if got := notificationUnitReceive(t, recipient); got.Payload != "before-origin-end" || got.PID != uint64(finisher.token.ID()) {
+				if got := notificationUnitReceive(t, recipient); got.Payload != "before-origin-end" || got.PID != uint64(finisher.SessionToken.ID()) {
 					t.Fatal("detached completion published live-origin effects", got)
 				}
 			}
@@ -375,7 +375,7 @@ func TestNotificationEffectsOwnership(t *testing.T) {
 	notificationUnitNotify(t, origin, "live")
 	op := transactionOperation(t, origin)
 	defer op.Done()
-	for _, ref := range []ids.TxRef{old, e.catalog.Domain.Tx(other.token, live.ID(), 0, other.transactions, 0)} {
+	for _, ref := range []ids.TxRef{old, e.catalog.Domain.Tx(other.SessionToken, live.ID(), 0, other.Transactions, 0)} {
 		actions, events, err := notificationEffects(op, ref, nil, nil)
 		if err == nil || len(actions) != 0 || len(events) != 0 {
 			t.Fatal("foreign or stale transaction exposed live effects", err, actions, events)

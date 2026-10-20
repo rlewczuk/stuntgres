@@ -25,7 +25,7 @@ func serializableUnitAcquisition(t *testing.T, e *Engine, parent context.Context
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &StatementScope{owner: session.transactions, op: op, txRef: ref}, e.visibility.Serializable.Nodes[ref]
+	return &StatementScope{owner: session.Transactions, op: op, txRef: ref}, e.visibility.Serializable.Nodes[ref]
 }
 func serializableUnitAwaitCandidate(t *testing.T, e *Engine, node *visibility.SerializableTx) {
 	t.Helper()
@@ -406,10 +406,10 @@ func TestSerializableGoBirthDeferrableOverridePresence(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if session.transactions.deferrable == override || !session.transactions.entryDeferrable {
+		if session.Transactions.deferrable == override || !session.Transactions.entryDeferrable {
 			t.Fatal("Go birth confused omitted and explicit deferrability overrides")
 		}
-		scope := &StatementScope{owner: session.transactions, op: op, txRef: ref}
+		scope := &StatementScope{owner: session.Transactions, op: op, txRef: ref}
 		scope.owner.mu.Lock()
 		err = scope.acquireSerializableSnapshot()
 		scope.owner.mu.Unlock()

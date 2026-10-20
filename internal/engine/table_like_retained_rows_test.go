@@ -24,7 +24,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 			sessionSQL(t, owner, "CREATE INDEX source_expression ON src((a+1))")
 			sessionSQL(t, owner, "CREATE INDEX source_partial ON src((10/n)) WHERE active")
 			sessionSQL(t, owner, "INSERT INTO src(a,n,active) VALUES(3,2,true)")
-			source := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "src")
+			source := tableLikeTemporaryRelation(t, e, owner.TemporaryNamespace, "src")
 			oldEpoch := e.CatalogRead().Epoch()
 			generations := maps.Clone(source.ColumnMeta.Generations)
 			for attribute, generation := range generations {
@@ -33,7 +33,7 @@ func TestTableLikeTemporaryRetainedRows(t *testing.T) {
 			}
 			check := source.Constraints.Check[0]
 			originalChecks := slices.Clone(check.Dependencies)
-			indexes := []*catalog.Relation{tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "source_expression"), tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "source_partial")}
+			indexes := []*catalog.Relation{tableLikeTemporaryRelation(t, e, owner.TemporaryNamespace, "source_expression"), tableLikeTemporaryRelation(t, e, owner.TemporaryNamespace, "source_partial")}
 			sourceTrees := []expr.Expr{generations[3].Expression, generations[3].Planned, generations[4].Expression, generations[4].Planned, check.Expression, indexes[0].SQLIndex.Keys[0].Derived.Definition, indexes[0].SQLIndex.Keys[0].Derived.Execution, indexes[1].SQLIndex.Keys[0].Derived.Definition, indexes[1].SQLIndex.Keys[0].Derived.Execution, indexes[1].SQLIndex.Predicate.Definition, indexes[1].SQLIndex.Predicate.Execution}
 			rowRefs := func(nodes []expr.Expr) []ids.ObjectRef {
 				var refs []ids.ObjectRef
@@ -193,12 +193,12 @@ func TestTableLikeTemporaryRetainedLiterals(t *testing.T) {
 	sessionSQL(t, owner, "CREATE TEMP TABLE anchor(a INT)")
 	sessionSQL(t, owner, "CREATE TEMP TABLE src(a INT,r BOOL GENERATED ALWAYS AS(a>0 AND ('pg_temp.anchor'::regclass IS NOT NULL)) STORED,active BOOL,CONSTRAINT positive CHECK(a>0 AND ('pg_temp.anchor'::regclass IS NOT NULL)))")
 	sessionSQL(t, owner, "CREATE INDEX source_partial ON src(a) WHERE active AND ('pg_temp.anchor'::regclass IS NOT NULL)")
-	source := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "src")
-	anchor := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "anchor")
+	source := tableLikeTemporaryRelation(t, e, owner.TemporaryNamespace, "src")
+	anchor := tableLikeTemporaryRelation(t, e, owner.TemporaryNamespace, "anchor")
 	oldRef := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), anchor.Address())
 	oldGeneration := source.ColumnMeta.Generations[2]
 	oldCheck := source.Constraints.Check[0]
-	oldIndex := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "source_partial")
+	oldIndex := tableLikeTemporaryRelation(t, e, owner.TemporaryNamespace, "source_partial")
 	oldManifest := slices.Clone(oldIndex.SQLIndex.Predicate.Dependencies)
 	if !slices.Contains(oldGeneration.Dependencies, oldRef) || !slices.Contains(oldManifest, oldRef) {
 		t.Fatal("fixture lacks retained external literal provider")

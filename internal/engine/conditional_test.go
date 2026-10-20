@@ -589,9 +589,9 @@ func TestConditionalInsertPlanningLockBoundary(t *testing.T) {
 				}
 				switch mode {
 				case "authority":
-					op.Session.mu.Lock()
-					op.Session.authorization.state.CurrentUser = actor.Ref
-					op.Session.mu.Unlock()
+					op.Session.Mu.Lock()
+					op.Session.Authorization.state.CurrentUser = actor.Ref
+					op.Session.Mu.Unlock()
 				case "teardown":
 					op.Session.RequestEnd(CleanClose)
 				case "descriptor", "shape":
@@ -759,9 +759,9 @@ func TestConditionalInsertPlanningPriorityAtomicity(t *testing.T) {
 			t.Fatal(err)
 		}
 		if denied {
-			op.Session.mu.Lock()
-			op.Session.authorization.state.CurrentUser = actor.Ref
-			op.Session.mu.Unlock()
+			op.Session.Mu.Lock()
+			op.Session.Authorization.state.CurrentUser = actor.Ref
+			op.Session.Mu.Unlock()
 		}
 		scope, err := e.StartStatement(op)
 		if err != nil {

@@ -122,7 +122,7 @@ func TestSerializablePublicationDoomedCatalogIndexSequenceProviderAtomicity(t *t
 	sessionSQL(t, a, "ALTER TABLE indexed ADD COLUMN marker INT DEFAULT 7")
 	sessionSQL(t, a, "CREATE SEQUENCE private_s START WITH 100")
 	sessionSQL(t, a, "ALTER SEQUENCE existing_s RESTART 100")
-	node := e.visibility.Serializable.Nodes[a.transactions.ref]
+	node := e.visibility.Serializable.Nodes[a.Transactions.ref]
 	peer := serializableUnitCycle(t, e, node)
 	e.mu.Lock()
 	if err := e.visibility.SerializablePrecommitLocked(peer.Ref); err != nil {
@@ -136,7 +136,7 @@ func TestSerializablePublicationDoomedCatalogIndexSequenceProviderAtomicity(t *t
 	e.mu.Unlock()
 	validatedBefore := validations.Load()
 	op := transactionOperation(t, a)
-	err := e.publishRows(op, node.Ref, a.transactions.writes, a.transactions.deletes, a.transactions.catalog, nil, nil)
+	err := e.publishRows(op, node.Ref, a.Transactions.writes, a.Transactions.deletes, a.Transactions.catalog, nil, nil)
 	serializableUnitDiagnostic(t, err, "Canceled on identification as a pivot, during commit attempt.")
 	if validations.Load() <= validatedBefore {
 		t.Fatal("real provider did not validate nonempty private catalog preparation")
@@ -160,7 +160,7 @@ func TestSerializablePublicationNonemptyLateOrdinaryFailureCannotDoomPeer(t *tes
 	sessionSQL(t, a, "INSERT INTO indexed VALUES(7)")
 	sessionSQL(t, a, "CREATE SEQUENCE private_s")
 	sessionSQL(t, a, "ALTER SEQUENCE existing_s RESTART 100")
-	node := e.visibility.Serializable.Nodes[a.transactions.ref]
+	node := e.visibility.Serializable.Nodes[a.Transactions.ref]
 	peer := serializableUnitCycle(t, e, node)
 	address := catalogRef(t, e, e.CatalogRead(), "indexed").Address
 	e.mu.Lock()
@@ -168,7 +168,7 @@ func TestSerializablePublicationNonemptyLateOrdinaryFailureCannotDoomPeer(t *tes
 	before := serializableSnapshotPublication(e)
 	e.mu.Unlock()
 	op := transactionOperation(t, a)
-	err := e.publishRows(op, node.Ref, a.transactions.writes, a.transactions.deletes, a.transactions.catalog, nil, nil)
+	err := e.publishRows(op, node.Ref, a.Transactions.writes, a.Transactions.deletes, a.Transactions.catalog, nil, nil)
 	if err == nil || err.Error() != "stuntgres: storage generation exhausted" {
 		t.Fatal("nonempty final ordinary veto", err)
 	}
@@ -238,7 +238,7 @@ func TestSerializablePublicationRealChangedPredecessorRetry(t *testing.T) {
 			index := catalogRef(t, e, e.CatalogRead(), "indexed_idx").Address
 			sessionSQL(t, a, "BEGIN ISOLATION LEVEL SERIALIZABLE")
 			sessionSQL(t, a, "INSERT INTO indexed VALUES(7)")
-			node := e.visibility.Serializable.Nodes[a.transactions.ref]
+			node := e.visibility.Serializable.Nodes[a.Transactions.ref]
 			peer := serializableUnitCycle(t, e, node)
 			base, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -260,7 +260,7 @@ func TestSerializablePublicationRealChangedPredecessorRetry(t *testing.T) {
 			op.Ctx = barrier
 			done := make(chan error, 1)
 			go func() {
-				done <- e.publishRows(op, node.Ref, a.transactions.writes, a.transactions.deletes, nil, nil, nil)
+				done <- e.publishRows(op, node.Ref, a.Transactions.writes, a.Transactions.deletes, nil, nil, nil)
 			}()
 			released, joined := false, false
 			t.Cleanup(func() {

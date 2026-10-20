@@ -12,7 +12,7 @@ import (
 func (s *StatementScope) acquireAdvisory(ctx context.Context, ref lock.Resource, mode lock.Mode, lifetime functions.AdvisoryLifetime, try bool) (bool, error) {
 	e := s.engine()
 	policy := lock.Policy{TimeoutSlot: &s.op.LockWait, NoWait: try, Timeout: s.op.LockTimeout, StatementDeadline: s.op.StatementDeadline, Source: s.op.SourceContext, Provenance: s.txRef}
-	ticket := s.op.Session.advisory.ticket
+	ticket := s.op.Session.Advisory.ticket
 	if lifetime == functions.AdvisoryTransaction {
 		ticket = s.ticket
 	}

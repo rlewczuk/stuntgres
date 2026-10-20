@@ -244,7 +244,7 @@ func TestTransactionTimeCommandOwnership(t *testing.T) {
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal(err)
 	}
-	if !session.transactions.start.IsZero() {
+	if !session.Transactions.start.IsZero() {
 		t.Error("ended transaction retained clock")
 	}
 	op.CommandStart = time.Time{}
@@ -277,7 +277,7 @@ func TestTransactionTimeCommandOwnership(t *testing.T) {
 	if err := scope.Finish(err); err != nil {
 		t.Fatal(err)
 	}
-	if !session.transactions.start.Equal(fixed) {
+	if !session.Transactions.start.Equal(fixed) {
 		t.Error("SQL BEGIN discarded command clock")
 	}
 	op.CommandStart = fixed.Add(time.Second)
@@ -303,10 +303,10 @@ func TestTransactionTimeCommandOwnership(t *testing.T) {
 	if err := scope.Finish(err); err != nil {
 		t.Fatal(err)
 	}
-	if !session.transactions.start.Equal(op.CommandStart) {
+	if !session.Transactions.start.Equal(op.CommandStart) {
 		t.Error("CHAIN discarded command clock")
 	}
-	transactionEnd(t, session, session.transactions.ref, false)
+	transactionEnd(t, session, session.Transactions.ref, false)
 }
 
 func TestTransactionTimeAdmissionWait(t *testing.T) {
@@ -314,7 +314,7 @@ func TestTransactionTimeAdmissionWait(t *testing.T) {
 	session := sessionStart(t, e, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	session.settings.mu.Lock()
+	session.Settings.mu.Lock()
 	locked := true
 	type acquired struct {
 		op  *Operation
@@ -325,7 +325,7 @@ func TestTransactionTimeAdmissionWait(t *testing.T) {
 	defer func() {
 		cancel()
 		if locked {
-			session.settings.mu.Unlock()
+			session.Settings.mu.Unlock()
 		}
 		if !joined {
 			result := <-done
@@ -336,9 +336,9 @@ func TestTransactionTimeAdmissionWait(t *testing.T) {
 	}()
 	go func() { op, _, err := session.AcquireCommand(ctx); done <- acquired{op, err} }()
 	for {
-		session.mu.Lock()
-		registered := len(session.operations) > 0
-		session.mu.Unlock()
+		session.Mu.Lock()
+		registered := len(session.Operations) > 0
+		session.Mu.Unlock()
 		if registered {
 			break
 		}
@@ -349,7 +349,7 @@ func TestTransactionTimeAdmissionWait(t *testing.T) {
 	}
 	separation := time.Now()
 	transactionTimeUnitAdvance(t, separation)
-	session.settings.mu.Unlock()
+	session.Settings.mu.Unlock()
 	locked = false
 	result := <-done
 	joined = true

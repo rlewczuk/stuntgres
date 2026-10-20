@@ -288,7 +288,7 @@ func (r engineCatalogRuntime) TypeProviderProcedure(d *catalog.Procedure) bool {
 }
 func catalogSourceTemporaryOwner(auth AuthorizationView) ids.SessionToken {
 	if auth.session != nil {
-		return auth.session.token
+		return auth.session.SessionToken
 	}
 	return ids.SessionToken{}
 }

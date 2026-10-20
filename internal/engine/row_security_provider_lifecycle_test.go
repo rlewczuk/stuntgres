@@ -54,7 +54,7 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 				if got, ok := session.Setting("row_security"); !ok || got != value {
 					t.Fatal("effective setting", got, ok, value)
 				}
-				rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: session.settings}}, capturePGSettings)
+				rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: session.Settings}}, capturePGSettings)
 				if err != nil || len(rows.Anonymous) != 1 {
 					t.Fatal(rows, err)
 				}
@@ -93,20 +93,20 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer op.Done()
-				if _, err := e.applySetting(op, s.settings, e.settings.Definitions()["row_security"], input, local); err != nil {
+				if _, err := e.applySetting(op, s.Settings, e.settings.Definitions()["row_security"], input, local); err != nil {
 					t.Fatal(err)
 				}
 			}
 			reset := func() {
 				t.Helper()
 				apply(nil, false)
-				s.settings.finishTransaction(true)
+				s.Settings.finishTransaction(true)
 			}
 			for _, ending := range []string{"COMMIT", "ROLLBACK"} {
 				for _, kind := range []string{"SESSION", "LOCAL"} {
 					apply(&other, kind == "LOCAL")
 					check(s, other, tc.value, "session")
-					s.settings.finishTransaction(ending == "COMMIT")
+					s.Settings.finishTransaction(ending == "COMMIT")
 					if kind == "SESSION" && ending == "COMMIT" {
 						check(s, other, tc.value, "session")
 					} else {
@@ -121,13 +121,13 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 				apply(&other, false)
 				apply(&tc.value, true)
 				check(s, tc.value, tc.value, "session")
-				mark := s.settings.savepoint()
-				identity := s.authorization.state
+				mark := s.Settings.savepoint()
+				identity := s.Authorization.state
 				apply(nil, false)
 				baseline()
-				s.settings.restoreSavepoint(mark.clone(), identity)
+				s.Settings.restoreSavepoint(mark.clone(), identity)
 				check(s, tc.value, tc.value, "session")
-				s.settings.finishTransaction(ending == "COMMIT")
+				s.Settings.finishTransaction(ending == "COMMIT")
 				if ending == "COMMIT" {
 					check(s, other, tc.value, "session")
 				} else {
@@ -139,13 +139,13 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 			// A mark before either kind must recover absent override provenance,
 			// including explicit boot-equal provider values.
 			for _, kind := range []string{"SESSION", "LOCAL"} {
-				mark := s.settings.savepoint()
-				identity := s.authorization.state
+				mark := s.Settings.savepoint()
+				identity := s.Authorization.state
 				apply(&other, kind == "LOCAL")
 				check(s, other, tc.value, "session")
-				s.settings.restoreSavepoint(mark.clone(), identity)
+				s.Settings.restoreSavepoint(mark.clone(), identity)
 				baseline()
-				s.settings.finishTransaction(true)
+				s.Settings.finishTransaction(true)
 				baseline()
 			}
 			if !tc.noProvider && provider.calls["row_security"] != 1 {

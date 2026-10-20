@@ -83,15 +83,15 @@ func TestRelationLockWaitsUntimedGrant(t *testing.T) {
 	ra, rb := transactionBegin(t, a), transactionBegin(t, b)
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	policy := lock.Policy{Timeout: 20 * time.Millisecond}
-	if r, err := e.locks.StartAcquire(context.Background(), a.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive, policy); r != nil || err != nil {
+	if r, err := e.locks.StartAcquire(context.Background(), a.Transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive, policy); r != nil || err != nil {
 		t.Fatal(r, err)
 	}
-	if r, err := e.locks.StartAcquire(context.Background(), a.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare, policy); r != nil || err != nil {
+	if r, err := e.locks.StartAcquire(context.Background(), a.Transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare, policy); r != nil || err != nil {
 		t.Fatal("immediate grant retained timer", r, err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	r, err := e.locks.StartAcquire(ctx, b.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare, lock.Policy{})
+	r, err := e.locks.StartAcquire(ctx, b.Transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare, lock.Policy{})
 	if r == nil || err != nil {
 		t.Fatal(r, err)
 	}
@@ -110,7 +110,7 @@ func TestRelationLockWaitsUntimedGrant(t *testing.T) {
 	if err := e.locks.ExpireWait(r, at.Add(time.Hour)); err != nil || !r.Terminal() {
 		t.Fatal("grant changed after later expiration", err)
 	}
-	if repeated, err := e.locks.StartAcquire(context.Background(), b.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare, policy); repeated != nil || err != nil {
+	if repeated, err := e.locks.StartAcquire(context.Background(), b.Transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare, policy); repeated != nil || err != nil {
 		t.Fatal(repeated, err)
 	}
 	transactionEnd(t, b, rb, false)

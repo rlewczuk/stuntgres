@@ -31,7 +31,7 @@ func TestUniqueKeyHistoryPublicationAndProjection(t *testing.T) {
 	initialCopy := uniqueHistoryCopy(initialPrefix)
 	tx := transactionBegin(t, s)
 	sessionSQL(t, s, "UPDATE t SET k=2")
-	pendingPrefix := s.transactions.writes[ref.Address]
+	pendingPrefix := s.Transactions.writes[ref.Address]
 	pendingCopy := uniqueHistoryCopy(pendingPrefix)
 	if len(pendingPrefix) != 1 || !pendingPrefix[0].PendingKeyChange || pendingPrefix[0].KeyChangedAt != 0 {
 		t.Fatal("missing private transition", pendingPrefix)
@@ -39,14 +39,14 @@ func TestUniqueKeyHistoryPublicationAndProjection(t *testing.T) {
 	sessionSQL(t, s, "SAVEPOINT history_mark")
 	sessionSQL(t, s, "UPDATE t SET k=1")
 	sessionSQL(t, s, "UPDATE t SET v=20")
-	if !s.transactions.writes[ref.Address][0].PendingKeyChange {
+	if !s.Transactions.writes[ref.Address][0].PendingKeyChange {
 		t.Fatal("restoration erased pending transition")
 	}
 	if !reflect.DeepEqual(pendingPrefix, pendingCopy) {
 		t.Fatal("replacement mutated saved private prefix")
 	}
 	sessionSQL(t, s, "ROLLBACK TO SAVEPOINT history_mark")
-	if !reflect.DeepEqual(s.transactions.writes[ref.Address], pendingCopy) {
+	if !reflect.DeepEqual(s.Transactions.writes[ref.Address], pendingCopy) {
 		t.Fatal("savepoint did not restore transition metadata")
 	}
 	transactionEnd(t, s, tx, false)
@@ -113,7 +113,7 @@ func TestUniqueKeyHistoryFailedBatchAndSavepoint(t *testing.T) {
 	committedCopy := uniqueHistoryCopy(committed)
 	tx := transactionBegin(t, s)
 	sessionSQL(t, s, "UPDATE t SET k=3 WHERE k=1")
-	pending := s.transactions.writes[ref.Address]
+	pending := s.Transactions.writes[ref.Address]
 	pendingCopy := uniqueHistoryCopy(pending)
 	sessionSQL(t, s, "SAVEPOINT history_mark")
 	op, err := s.Acquire(context.Background())
@@ -130,7 +130,7 @@ func TestUniqueKeyHistoryFailedBatchAndSavepoint(t *testing.T) {
 		t.Fatal("failed batch mutated retained history")
 	}
 	sessionSQL(t, s, "ROLLBACK TO SAVEPOINT history_mark")
-	if !reflect.DeepEqual(s.transactions.writes[ref.Address], pendingCopy) {
+	if !reflect.DeepEqual(s.Transactions.writes[ref.Address], pendingCopy) {
 		t.Fatal("failed batch polluted savepoint prefix")
 	}
 	sessionSQL(t, s, "UPDATE t SET v=30 WHERE k=3")

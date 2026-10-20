@@ -20,7 +20,7 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 				a, _ := advisoryUnitOwner(t, e)
 				b, _ := advisoryUnitOwner(t, e)
 				m := e.locks
-				at, bt := a.transactions.ticket, b.transactions.ticket
+				at, bt := a.Transactions.ticket, b.Transactions.ticket
 				key := lock.Resource{Kind: lock.AdvisoryPairResource, High: 19, Low: 20}
 				advisoryXactUnitGrant(t, a, key, lock.AdvisoryExclusive, true)
 				ctx, cancel := context.WithCancel(context.Background())
@@ -105,7 +105,7 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 		key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 66}
 		advisoryXactUnitGrant(t, a, key, lock.AdvisoryExclusive, true)
 		ctx, cancel := context.WithCancel(context.Background())
-		request, err := e.locks.StartAcquire(ctx, b.transactions.ticket, key, lock.AdvisoryExclusive, lock.Policy{Timeout: time.Hour})
+		request, err := e.locks.StartAcquire(ctx, b.Transactions.ticket, key, lock.AdvisoryExclusive, lock.Policy{Timeout: time.Hour})
 		if err != nil || request == nil {
 			cancel()
 			t.Fatal(request, err)
@@ -114,7 +114,7 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 		var joined sync.WaitGroup
 		joined.Add(2)
 		go func() { defer joined.Done(); <-start; cancel() }()
-		go func() { defer joined.Done(); <-start; e.endLockOwner(a.transactions.ticket) }()
+		go func() { defer joined.Done(); <-start; e.endLockOwner(a.Transactions.ticket) }()
 		close(start)
 		joined.Wait()
 		err = deadlockResult(t, request)
@@ -122,6 +122,6 @@ func TestAdvisoryXactTerminalRaces(t *testing.T) {
 		if err == nil && held != lock.AdvisoryExclusive || err != nil && (!errors.Is(err, context.Canceled) || held != 0) {
 			t.Fatal("inconsistent terminal publication", err, held)
 		}
-		e.endLockOwner(b.transactions.ticket)
+		e.endLockOwner(b.Transactions.ticket)
 	}
 }

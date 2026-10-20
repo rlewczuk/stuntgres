@@ -73,9 +73,9 @@ func TestTransactionIsolationRetainedResults(t *testing.T) {
 			if err != nil || ok {
 				t.Fatal("retained result changed", ok, err)
 			}
-			a.transactions.mu.Lock()
-			retained := a.transactions.roots != nil
-			a.transactions.mu.Unlock()
+			a.Transactions.mu.Lock()
+			retained := a.Transactions.roots != nil
+			a.Transactions.mu.Unlock()
 			if retained {
 				t.Fatal("owner roots retained after disposal")
 			}
@@ -137,18 +137,18 @@ func TestTransactionIsolationAbortCharacteristics(t *testing.T) {
 				_, err = e.Execute(op, statement(t, "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"), 0, nil)
 				op.Done()
 				waitsDiagnostic(t, err, "25001", "SET TRANSACTION ISOLATION LEVEL must be called before any query")
-				owner := a.transactions
+				owner := a.Transactions
 				owner.mu.Lock()
 				state, isolation, readOnly := owner.state, owner.isolation, owner.readOnly
 				owner.mu.Unlock()
 				if state != TxAborted || isolation != baseline.isolation || readOnly != baseline.readOnly {
 					t.Fatal(state, isolation, readOnly)
 				}
-				a.settings.mu.Lock()
-				defaultIsolation := isolationFromText(a.settings.value("default_transaction_isolation"))
-				defaultReadOnly := a.settings.value("default_transaction_read_only") == "on"
-				projectedIsolation, projectedReadOnly := a.settings.currentIsolation, a.settings.currentReadOnly
-				a.settings.mu.Unlock()
+				a.Settings.mu.Lock()
+				defaultIsolation := isolationFromText(a.Settings.value("default_transaction_isolation"))
+				defaultReadOnly := a.Settings.value("default_transaction_read_only") == "on"
+				projectedIsolation, projectedReadOnly := a.Settings.currentIsolation, a.Settings.currentReadOnly
+				a.Settings.mu.Unlock()
 				if defaultIsolation != baseline.isolation || defaultReadOnly != baseline.readOnly ||
 					projectedIsolation != isolationText(baseline.isolation) || projectedReadOnly != baseline.readOnly {
 					t.Fatal(defaultIsolation, defaultReadOnly, projectedIsolation, projectedReadOnly)

@@ -64,7 +64,7 @@ func TestIndexMaintenanceDropParentAddressOrdering(t *testing.T) {
 	a, b := roleTableRef(t, e, "a"), roleTableRef(t, e, "b")
 	ai, ai2, bi := roleTableRef(t, e, "ai"), roleTableRef(t, e, "ai2"), roleTableRef(t, e, "bi")
 	tx := transactionBegin(t, holder)
-	if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lock.Resource{ObjectRef: b}, lock.AccessShare); err != nil {
+	if err := e.locks.Acquire(context.Background(), holder.Transactions.ticket, lock.Resource{ObjectRef: b}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
 	before := indexMaintenanceCapture(e)
@@ -116,7 +116,7 @@ func TestIndexMaintenanceExactLockModes(t *testing.T) {
 			ref := roleTableRef(t, e, c.resource)
 			sibling := roleTableRef(t, e, "sibling")
 			tx := transactionBegin(t, holder)
-			if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lock.Resource{ObjectRef: ref}, c.held); err != nil {
+			if err := e.locks.Acquire(context.Background(), holder.Transactions.ticket, lock.Resource{ObjectRef: ref}, c.held); err != nil {
 				t.Fatal(err)
 			}
 			cancel, await := indexMaintenanceAsync(t, e, utility, c.q)

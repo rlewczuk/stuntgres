@@ -33,7 +33,7 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 				if _, err := m.step(statement(t, q)); err != nil {
 					t.Fatal(q, err)
 				}
-				private = s.transactions.catalog.Descriptors[ownerRef.Address].(*catalog.Relation)
+				private = s.Transactions.catalog.Descriptors[ownerRef.Address].(*catalog.Relation)
 				if len(private.Security.Policies) != 1 || private.Security.Policies[0].OID == 0 {
 					t.Fatal("missing actual private policy identity", private.Security.Policies)
 				}
@@ -50,7 +50,7 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 				t.Fatal("ALTER/rename lost private policy definition", private.Security.Policies)
 			}
 			e.mu.Lock()
-			view := e.privateCatalogLocked(s.transactions.catalog)
+			view := e.privateCatalogLocked(s.Transactions.catalog)
 			e.mu.Unlock()
 			stage := e.BeginCatalogStage(view)
 			defer e.DiscardCatalogStage(stage)
@@ -82,8 +82,8 @@ func TestDriverBatchPolicyIdentityPublication(t *testing.T) {
 				if _, err := m.step(statement(t, "DROP SEQUENCE policy_dependency CASCADE")); err != nil {
 					t.Fatal(err)
 				}
-				candidate := s.transactions.catalog.Descriptors[ownerRef.Address].(*catalog.Relation)
-				if len(candidate.Security.Policies) != 0 || s.transactions.catalog.Descriptors[dependency.Address] != nil || e.catalog.state != base || e.catalog.state.Get(dependency.Address) == nil {
+				candidate := s.Transactions.catalog.Descriptors[ownerRef.Address].(*catalog.Relation)
+				if len(candidate.Security.Policies) != 0 || s.Transactions.catalog.Descriptors[dependency.Address] != nil || e.catalog.state != base || e.catalog.state.Get(dependency.Address) == nil {
 					t.Fatal("private cascade omitted policy pruning or published early")
 				}
 			}

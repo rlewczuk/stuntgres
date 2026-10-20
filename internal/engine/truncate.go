@@ -96,12 +96,12 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 					err = ids.ErrCatalogReplaced
 				} else {
 					if !privilege {
-						otherTemporary, err = truncateOtherTemporary(auth.Catalog, before, s.op.Session.token)
+						otherTemporary, err = truncateOtherTemporary(auth.Catalog, before, s.op.Session.SessionToken)
 					}
 					if err == nil && !otherTemporary {
 						err = checkTruncate(auth, ref, before, privilege && !cascade, only)
 						if err == nil && privilege {
-							err = checkTemporaryStorageAccess(auth.Catalog, before, s.op.Session.token)
+							err = checkTemporaryStorageAccess(auth.Catalog, before, s.op.Session.SessionToken)
 						}
 						if err == nil {
 							store = e.privateStorageLocked(s.owner.catalog, ref.Address)
@@ -152,7 +152,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 				err = e.truncateNameCurrent(auth, *name)
 			}
 			if err == nil && !privilege {
-				otherTemporary, err = truncateOtherTemporary(auth.Catalog, d, s.op.Session.token)
+				otherTemporary, err = truncateOtherTemporary(auth.Catalog, d, s.op.Session.SessionToken)
 				if err == nil && otherTemporary {
 					err = ids.ErrCatalogReplaced
 				}
@@ -168,7 +168,7 @@ func (s *StatementScope) acquireTruncate(stmt *parser.Truncate) error {
 				err = s.relationCursorPreflight(auth.Catalog, ref.Address, "TRUNCATE")
 			}
 			if err == nil {
-				if namespace, ok := auth.Catalog.Namespace(d.Namespace()); ok && namespace.Temporary == s.op.Session.token {
+				if namespace, ok := auth.Catalog.Namespace(d.Namespace()); ok && namespace.Temporary == s.op.Session.SessionToken {
 					s.owner.accessedTemporary = true
 				}
 				if index := selected[ref.Address]; index == 0 {

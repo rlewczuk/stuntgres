@@ -37,7 +37,7 @@ func isolationText(level Isolation) string {
 	}
 }
 func syncCharacteristics(t *transactionOwner) {
-	settings := t.session.settings
+	settings := t.session.Settings
 	settings.mu.Lock()
 	settings.currentIsolation = isolationText(t.isolation)
 	settings.currentReadOnly = t.readOnly
@@ -95,7 +95,7 @@ func (e *Engine) applyCurrentCharacteristic(op *Operation, d settings.Definition
 	if err != nil {
 		return "", err
 	}
-	t := op.Session.transactions
+	t := op.Session.Transactions
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if err := e.endPreflight(op); err != nil {
@@ -156,7 +156,7 @@ func (s *StatementScope) executeCharacteristics(stmt *parser.TransactionCharacte
 			e.mu.Lock()
 			d := e.settings.Definitions()[name]
 			e.mu.Unlock()
-			if _, err := e.applySetting(s.op, t.session.settings, d, &value, false); err != nil {
+			if _, err := e.applySetting(s.op, t.session.Settings, d, &value, false); err != nil {
 				return Result{}, err
 			}
 		}
@@ -211,7 +211,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 	}
 	session := s.op.Session
 	e.mu.Lock()
-	session.mu.Lock()
+	session.Mu.Lock()
 	check := func() error {
 		if err := publicationOperationLocked(e, s.op); err != nil {
 			return err
@@ -222,7 +222,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 		return nil
 	}
 	if err := check(); err != nil {
-		session.mu.Unlock()
+		session.Mu.Unlock()
 		e.mu.Unlock()
 		return err
 	}
@@ -230,7 +230,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 	sequenceCatalog := t.sequenceCatalog
 	if !t.snapshotSet && stableIsolation(t.isolation) {
 		if _, err := e.visibilitySnapshotLocked(t.ref, false); err != nil {
-			session.mu.Unlock()
+			session.Mu.Unlock()
 			e.mu.Unlock()
 			return err
 		}
@@ -247,12 +247,12 @@ func (s *StatementScope) snapshotDataPhase() error {
 		t.roots, t.frontier = roots, frontier
 		t.sequenceCatalog = sequenceCatalog
 		t.snapshotSet = true
-		session.mu.Unlock()
+		session.Mu.Unlock()
 		e.mu.Unlock()
 		return nil
 	}
 	catalog := t.catalog
-	session.mu.Unlock()
+	session.Mu.Unlock()
 	e.mu.Unlock()
 	// Raw roots remain the committed authority. Dense private projections are
 	// prepared outside metadata locks and attached only after final admission.
@@ -261,7 +261,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 		return err
 	}
 	e.mu.Lock()
-	session.mu.Lock()
+	session.Mu.Lock()
 	err = check()
 	if err == nil {
 		t.catalog = projected
@@ -269,7 +269,7 @@ func (s *StatementScope) snapshotDataPhase() error {
 		t.sequenceCatalog = sequenceCatalog
 		t.snapshotSet = true
 	}
-	session.mu.Unlock()
+	session.Mu.Unlock()
 	e.mu.Unlock()
 	return err
 }

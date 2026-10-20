@@ -151,11 +151,11 @@ func TestTypedPublicationFinalAuthorizationFence(t *testing.T) {
 				t.Fatal(err)
 			}
 			if change == "session" {
-				op.Session.mu.Lock()
-				next := *op.Session.authorization
+				op.Session.Mu.Lock()
+				next := *op.Session.Authorization
 				next.revision++
-				op.Session.authorization = &next
-				op.Session.mu.Unlock()
+				op.Session.Authorization = &next
+				op.Session.Mu.Unlock()
 			} else {
 				e.mu.Lock()
 				next := *e.roles.published

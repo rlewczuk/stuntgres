@@ -40,7 +40,7 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 		t.Fatal(err)
 	}
 	tempAddress := tempDescription.sequences.Constants[0].Ref.Address
-	tempNamespace, tempToken := op.Session.temporaryNamespace, op.Session.token
+	tempNamespace, tempToken := op.Session.TemporaryNamespace, op.Session.SessionToken
 	tempDescriptor, tempNamespaceDescriptor := e.catalog.state.Get(tempAddress), e.catalog.state.Get(tempNamespace)
 	tempDemand := func(want int64) {
 		t.Helper()
@@ -98,7 +98,7 @@ func TestRangePartitionRemapSelfCatalogAndRetainedCursor(t *testing.T) {
 	if err != nil || !changes.Replacement || e.CatalogRead().Epoch() != retained.Epoch()+1 {
 		t.Fatal(changes, err)
 	}
-	if op.Session.token != tempToken || op.Session.temporaryNamespace != tempNamespace || e.catalog.state.Get(tempAddress) != tempDescriptor || e.catalog.state.Get(tempNamespace) != tempNamespaceDescriptor || e.storage.Sequences[tempAddress] != tempGenerator || payloadOf(op.Session).sequences.Memory(tempAddress) != tempMemory || *tempGenerator != tempGeneratorState || *tempMemory != tempMemoryState {
+	if op.Session.SessionToken != tempToken || op.Session.TemporaryNamespace != tempNamespace || e.catalog.state.Get(tempAddress) != tempDescriptor || e.catalog.state.Get(tempNamespace) != tempNamespaceDescriptor || e.storage.Sequences[tempAddress] != tempGenerator || payloadOf(op.Session).sequences.Memory(tempAddress) != tempMemory || *tempGenerator != tempGeneratorState || *tempMemory != tempMemoryState {
 		t.Fatal("hierarchy self remap changed exact live TEMP identity/cache")
 	}
 	tempDemand(3)

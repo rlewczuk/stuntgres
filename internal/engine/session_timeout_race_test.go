@@ -37,7 +37,7 @@ func TestSessionTimeoutPendingGrantRace(t *testing.T) {
 			})
 			timeoutPendingRequest(t, engineOf(s), op)
 			peer := timeoutPendingOperation(t, holder)
-			peerRef := holder.transactions.ref
+			peerRef := holder.Transactions.ref
 			start, callbacksDone := make(chan struct{}), make(chan struct{})
 			expired, released := make(chan error, 1), make(chan error, 1)
 			var callbacks sync.WaitGroup
@@ -45,10 +45,10 @@ func TestSessionTimeoutPendingGrantRace(t *testing.T) {
 			go func() {
 				defer callbacks.Done()
 				<-start
-				s.mu.Lock()
-				slot := &s.timeouts.transaction
-				s.expireTimeoutLocked(slot, slot.generation, s.token, "25P04", slot.deadline.Add(time.Minute))
-				s.mu.Unlock()
+				s.Mu.Lock()
+				slot := &s.Timeouts.Transaction
+				s.ExpireTimeoutLocked(slot, slot.Generation, s.SessionToken, "25P04", slot.Deadline.Add(time.Minute))
+				s.Mu.Unlock()
 				expired <- nil
 			}()
 			go func() {
@@ -72,16 +72,16 @@ func TestSessionTimeoutPendingGrantRace(t *testing.T) {
 			}
 			peer.Done()
 			result := timeoutPendingReceive(t, returned)
-			s.mu.Lock()
-			survived := s.state == live
+			s.Mu.Lock()
+			survived := s.State == live
 			if survived {
-				if !s.timeouts.transaction.deadline.IsZero() || s.timeouts.fatal != nil {
+				if !s.Timeouts.Transaction.Deadline.IsZero() || s.Timeouts.Fatal != nil {
 					t.Error("SQL ERROR claim did not stop budget without FATAL")
 				}
-			} else if s.state != ending || s.timeouts.fatal == nil || s.timeouts.fatal.Code != "25P04" {
+			} else if s.State != ending || s.Timeouts.Fatal == nil || s.Timeouts.Fatal.Code != "25P04" {
 				t.Error("grant winner did not retain exact genuine FATAL")
 			}
-			s.mu.Unlock()
+			s.Mu.Unlock()
 			result = scope.Finish(result)
 			if survived {
 				timeoutPendingDiagnostic(t, op.CommandError(result), "55P03")
@@ -102,7 +102,7 @@ func TestSessionTimeoutPendingGrantRace(t *testing.T) {
 func TestSessionTimeoutPendingImmediateProjection(t *testing.T) {
 	s, holder, _, _ := timeoutPendingFixture(t, false)
 	manager := engineOf(s).locks
-	ticket := holder.transactions.ticket
+	ticket := holder.Transactions.ticket
 	var resource lock.Resource
 	for ref := range manager.Inspect().Journals[ticket] {
 		resource = ref
@@ -132,7 +132,7 @@ func TestSessionTimeoutPendingImmediateProjection(t *testing.T) {
 	blocked := timeoutPendingOperation(t, s)
 	policy := lock.Policy{TimeoutSlot: &blocked.LockWait, NoWait: true, Timeout: time.Hour}
 	if allocations := testing.AllocsPerRun(100, func() {
-		request, err := manager.StartAcquire(blocked.Context(), s.transactions.ticket, resource, lock.AccessShare, policy)
+		request, err := manager.StartAcquire(blocked.Context(), s.Transactions.ticket, resource, lock.AccessShare, policy)
 		if request != nil || err != lock.ErrUnavailable {
 			panic("NOWAIT queued or granted conflicting request")
 		}
@@ -142,7 +142,7 @@ func TestSessionTimeoutPendingImmediateProjection(t *testing.T) {
 	if blocked.LockWait.Request() != nil || blocked.LockWait.Failed() {
 		t.Fatal("NOWAIT published pending timeout")
 	}
-	request, err := manager.StartAcquire(blocked.Context(), s.transactions.ticket, resource, lock.AccessShare, lock.Policy{TimeoutSlot: &blocked.LockWait})
+	request, err := manager.StartAcquire(blocked.Context(), s.Transactions.ticket, resource, lock.AccessShare, lock.Policy{TimeoutSlot: &blocked.LockWait})
 	if request == nil || err != nil {
 		t.Fatal("disabled timeout request", request, err)
 	}

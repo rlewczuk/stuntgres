@@ -31,7 +31,7 @@ func (e *Engine) captureRegObjectInput(auth AuthorizationView) (capturedRegObjec
 func captureRegObjectsOnPath(auth AuthorizationView, path []ids.ObjectAddress) capturedRegObjectInput {
 	r := capturedRegObjectInput{auth: auth, path: path, temporary: temporaryNamespace(auth)}
 	if auth.session != nil {
-		r.database, r.token = auth.session.databaseName, auth.session.token
+		r.database, r.token = auth.session.DatabaseName, auth.session.SessionToken
 	}
 	r.auth.session, r.auth.settings = nil, nil
 	return r

@@ -105,9 +105,9 @@ func TestRoleOwnershipPublicationFences(t *testing.T) {
 					t.Fatal(err)
 				}
 			case "session":
-				stage.authSession.mu.Lock()
-				stage.authSession.authorization.revision++
-				stage.authSession.mu.Unlock()
+				stage.authSession.Mu.Lock()
+				stage.authSession.Authorization.revision++
+				stage.authSession.Mu.Unlock()
 			case "namespace-headroom":
 				next := catalog.CloneState(e.catalog.state)
 				next.SetNamespaceGeneration(^uint64(0))

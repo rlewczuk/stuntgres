@@ -25,7 +25,7 @@ func TestRowLockRelationAuthority(t *testing.T) {
 			rowHolds := 0
 			relationHolds := 0
 			for resource, entry := range lockState.Resources {
-				held := entry.Holders[a.transactions.ticket].Mode
+				held := entry.Holders[a.Transactions.ticket].Mode
 				if resource.Row != 0 && held != 0 {
 					rowHolds++
 				}
@@ -108,7 +108,7 @@ func TestRowLockDeadlock(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	first := deleteAsync(t, a, ctx, "SELECT v FROM t WHERE id=2 FOR KEY SHARE")
-	rowLockQueued(t, e, b.transactions.ticket, lock.ForKeyShare)
+	rowLockQueued(t, e, b.Transactions.ticket, lock.ForKeyShare)
 	second := deleteAsync(t, b, ctx, "SELECT v FROM t WHERE id=1 FOR UPDATE")
 	var outcome deleteOutcome
 	var remaining <-chan deleteOutcome

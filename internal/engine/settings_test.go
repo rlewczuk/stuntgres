@@ -38,7 +38,7 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 	if err := scope.Finish(execErr); err != nil {
 		t.Fatal(err)
 	}
-	if !scope.completed || session.transactions.state != TxIdle {
+	if !scope.completed || session.Transactions.state != TxIdle {
 		t.Fatal("utility retained implicit transaction ownership")
 	}
 	actual, ok := result.Rows.(*exec.FinalRows)
@@ -51,9 +51,9 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 	}
 	cancel()
 	op.Done()
-	session.settings.mu.Lock()
-	session.settings.values["application_name"] = "changed"
-	session.settings.mu.Unlock()
+	session.Settings.mu.Lock()
+	session.Settings.values["application_name"] = "changed"
+	session.Settings.mu.Unlock()
 	session.RequestEnd(CleanClose)
 	if err := session.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
@@ -197,7 +197,7 @@ func TestSettingProviderDefaultsAndDescriptorOwnership(t *testing.T) {
 			t.Fatal(name, p.calls)
 		}
 	}
-	if a.settings.defaultTyped["demo.ratio"].Number != 1.23456789 {
+	if a.Settings.defaultTyped["demo.ratio"].Number != 1.23456789 {
 		t.Fatal("default lost precision")
 	}
 	if got := tuples(sessionSQL(t, a, "SHOW demo.mode"))[0][0]; got != "fast" {
@@ -238,8 +238,8 @@ func TestSettingExactDecimalDefaultCapture(t *testing.T) {
 	e := NewWithSettings([]settings.Definition{def}, "", false)
 	p := &settingsDefaultProviderForTest{values: map[string]string{"demo.ratio": "-" + exact}, calls: map[string]int{}}
 	a := sessionStart(t, e, p)
-	if p.calls["demo.ratio"] != 1 || a.settings.defaultTyped["demo.ratio"].Number != -0x1p-1023 {
-		t.Fatal("provider default lost exactness", p.calls, a.settings.defaultTyped)
+	if p.calls["demo.ratio"] != 1 || a.Settings.defaultTyped["demo.ratio"].Number != -0x1p-1023 {
+		t.Fatal("provider default lost exactness", p.calls, a.Settings.defaultTyped)
 	}
 	p.values["demo.ratio"] = "1"
 	sessionSQL(t, a, "SET demo.ratio TO '2'")
@@ -247,11 +247,11 @@ func TestSettingExactDecimalDefaultCapture(t *testing.T) {
 	if got := tuples(sessionSQL(t, a, "SHOW demo.ratio"))[0][0]; got != "-1.11254e-308" {
 		t.Fatal(got)
 	}
-	if a.settings.typedValue("demo.ratio").Number != -0x1p-1023 {
+	if a.Settings.typedValue("demo.ratio").Number != -0x1p-1023 {
 		t.Fatal("reset reparsed rounded display")
 	}
 	b := sessionStart(t, e, p)
-	if b.settings.defaultTyped["demo.ratio"].Number != 1 {
+	if b.Settings.defaultTyped["demo.ratio"].Number != 1 {
 		t.Fatal("replacement did not capture new default")
 	}
 }

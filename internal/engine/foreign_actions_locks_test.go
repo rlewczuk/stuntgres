@@ -54,10 +54,10 @@ func TestForeignActionsLocks(t *testing.T) {
 					transactionEnd(t, b, waiter, false)
 				}
 			}()
-			foreignKeyQueuedMode(t, e, ref, row, a.transactions.ticket, tc.queued)
-			b.transactions.mu.Lock()
-			ticket := b.transactions.ticket
-			b.transactions.mu.Unlock()
+			foreignKeyQueuedMode(t, e, ref, row, a.Transactions.ticket, tc.queued)
+			b.Transactions.mu.Lock()
+			ticket := b.Transactions.ticket
+			b.Transactions.mu.Unlock()
 			foreignKeyHeldMode(t, e, ref, 0, ticket, lock.RowExclusive)
 			// A real canonical queued request must not retain either metadata mutex.
 			deadline := time.Now().Add(time.Second)
@@ -68,39 +68,39 @@ func TestForeignActionsLocks(t *testing.T) {
 				runtime.Gosched()
 			}
 			e.mu.Unlock()
-			for !b.transactions.mu.TryLock() {
+			for !b.Transactions.mu.TryLock() {
 				if time.Now().After(deadline) {
 					t.Fatal("action wait retained owner metadata")
 				}
 				runtime.Gosched()
 			}
-			b.transactions.mu.Unlock()
+			b.Transactions.mu.Unlock()
 			transactionEnd(t, a, holder, true)
 			holderEnded = true
 			latest := e.storage.Relations[ref.Address].Versions[0]
 			lockAwait(t, done, nil)
 			joined = true
 			foreignKeyHeldMode(t, e, ref, row, ticket, tc.held)
-			b.transactions.mu.Lock()
+			b.Transactions.mu.Lock()
 			if tc.name == "delete" {
-				root := b.transactions.deletes[ref.Address]
+				root := b.Transactions.deletes[ref.Address]
 				if root == nil || root.Rows[row].Version != latest.Version || root.Rows[row].Storage != e.storage.Relations[ref.Address] {
-					b.transactions.mu.Unlock()
+					b.Transactions.mu.Unlock()
 					t.Fatal("delete failed latest physical predecessor")
 				}
 			} else {
-				writes := b.transactions.writes[ref.Address]
+				writes := b.Transactions.writes[ref.Address]
 				if len(writes) != 1 || writes[0].Row != row || writes[0].Base != latest.Version {
-					b.transactions.mu.Unlock()
+					b.Transactions.mu.Unlock()
 					t.Fatal("action failed latest update lineage", writes, latest)
 				}
 				text, err := writes[0].Values[1].Text()
 				if err != nil || text != "latest" {
-					b.transactions.mu.Unlock()
+					b.Transactions.mu.Unlock()
 					t.Fatal("action overwrote non-key payload", text, err)
 				}
 			}
-			b.transactions.mu.Unlock()
+			b.Transactions.mu.Unlock()
 			transactionEnd(t, b, waiter, false)
 			waiterEnded = true
 			lockEmpty(t, e)
@@ -127,7 +127,7 @@ func TestForeignActionsCancellation(t *testing.T) {
 					lockAwait(t, done, context.Canceled)
 				}
 			}()
-			foreignKeyQueuedMode(t, e, ref, row, a.transactions.ticket, lock.ForUpdate)
+			foreignKeyQueuedMode(t, e, ref, row, a.Transactions.ticket, lock.ForUpdate)
 			if replace {
 				if err := e.Reset(ctx); err != nil {
 					t.Fatal(err)
@@ -222,13 +222,13 @@ func TestForeignActionsLocksTwoPhase(t *testing.T) {
 		t.Run(map[bool]string{false: "rollback", true: "commit"}[commit], func(t *testing.T) {
 			e, a, b, c, ref, row := foreignActionLockFixture(t, "REFERENCES p ON DELETE CASCADE")
 			origin := transactionBegin(t, a)
-			ticket := a.transactions.ticket
+			ticket := a.Transactions.ticket
 			sessionSQL(t, a, "DELETE FROM p")
 			foreignKeyHeldMode(t, e, ref, 0, ticket, lock.RowExclusive)
 			foreignKeyHeldMode(t, e, ref, row, ticket, lock.ForUpdate)
 			sessionSQL(t, a, "PREPARE TRANSACTION 'action_unit'")
 			prepared := e.prepared["action_unit"]
-			if prepared == nil || prepared.ref != origin || prepared.ticket != ticket || a.transactions.ticket != nil || prepared.deletes[ref.Address] == nil {
+			if prepared == nil || prepared.ref != origin || prepared.ticket != ticket || a.Transactions.ticket != nil || prepared.deletes[ref.Address] == nil {
 				t.Fatal("action deletion/grants did not transfer to prepared owner")
 			}
 			foreignKeyHeldMode(t, e, ref, row, ticket, lock.ForUpdate)

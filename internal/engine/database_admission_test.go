@@ -123,7 +123,7 @@ func TestDatabaseAdmissionRetainedSession(t *testing.T) {
 		t.Fatal("CONNECT revoke terminated admitted session", err)
 	}
 	op.Done()
-	if !live.IsLive() || live.countedAuthenticated != login || e.roleSessionCountLocked(login) != 1 {
+	if !live.IsLive() || live.CountedAuthenticated != login || e.roleSessionCountLocked(login) != 1 {
 		t.Fatal("revocation changed physical lifetime or authenticated count")
 	}
 	fresh, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Authenticated: login})
@@ -173,8 +173,8 @@ func TestDatabaseAdmissionAuthenticatedNotResetRole(t *testing.T) {
 		if err != nil {
 			t.Fatal("authenticated CONNECT denied by effective reset role", err)
 		}
-		if s.authorization.state.CurrentUser != reset || s.countedAuthenticated != login {
-			t.Fatal("startup role or physical identity changed", s.authorization.state)
+		if s.Authorization.state.CurrentUser != reset || s.CountedAuthenticated != login {
+			t.Fatal("startup role or physical identity changed", s.Authorization.state)
 		}
 		s.RequestEnd(CleanClose)
 		if err := s.WaitEnd(context.Background()); err != nil {

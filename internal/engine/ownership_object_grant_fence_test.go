@@ -33,7 +33,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				message := batchUnitStart(t, session, ctx)
 				defer message.end(context.Canceled)
 				if private {
-					session.transactions.catalog = changes
+					session.Transactions.catalog = changes
 				}
 				auth, err := operationAuthorization(message.op)
 				if err != nil {
@@ -71,7 +71,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				}
 				checkReader(auth, false)
 				oldRoles, oldCatalog := e.roles.published, e.catalog.state
-				sessionRevision, epoch := session.authorization.revision, oldCatalog.Epoch()
+				sessionRevision, epoch := session.Authorization.revision, oldCatalog.Epoch()
 				oldACL := authorization.ACLValue{Explicit: table.Security.ACL.Explicit, Entries: append([]authorization.ACLEntry(nil), table.Security.ACL.Entries...)}
 				oldKeys := append([]catalog.UniqueConstraint(nil), table.Constraints.Unique...)
 				before := indexMaintenanceCapture(e)
@@ -93,7 +93,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 					t.Fatal(err)
 				}
 				pending := retained.Catalog.MustRelation(root.Address)
-				if pending == table || retained.RoleRecord == oldRoles || retained.PairedCatalog != retained.Catalog || session.transactions.catalog.Descriptors[root.Address] != pending {
+				if pending == table || retained.RoleRecord == oldRoles || retained.PairedCatalog != retained.Catalog || session.Transactions.catalog.Descriptors[root.Address] != pending {
 					t.Fatal("utility did not stage real paired ACL/role/catalog roots")
 				}
 				found := false
@@ -133,7 +133,7 @@ func TestRoleOwnershipObjectGrantMessageDatabaseFence(t *testing.T) {
 				} else if outcome == "cancel" {
 					cancel()
 				}
-				if e.roles.published != oldRoles || e.catalog.state.Epoch() != epoch || session.authorization.revision != sessionRevision {
+				if e.roles.published != oldRoles || e.catalog.state.Epoch() != epoch || session.Authorization.revision != sessionRevision {
 					t.Fatal("replacement changed role/session/epoch authority")
 				}
 				err = message.end(nil)

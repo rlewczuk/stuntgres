@@ -30,7 +30,7 @@ func TestUpdateCoreMultiRelationCanceledFencedCommit(t *testing.T) {
 			tx := transactionBegin(t, a)
 			sessionSQL(t, a, "UPDATE t SET v=7")
 			sessionSQL(t, a, "UPDATE u SET v=8")
-			oldTicket := a.transactions.ticket
+			oldTicket := a.Transactions.ticket
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			op, err := a.Acquire(ctx)

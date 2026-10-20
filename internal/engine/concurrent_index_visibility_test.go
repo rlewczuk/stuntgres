@@ -89,17 +89,17 @@ func TestConcurrentIndexU3SnapshotLifetimeAndGlobalXID(t *testing.T) {
 	stable.Rows.Close()
 	transient := sessionSQL(t, rc, "SELECT n FROM t ORDER BY n")
 	e.mu.Lock()
-	v, held := e.visibility.Entries[reader.transactions.ref]
-	rcState, rcAssociated := e.visibility.Entries[rc.transactions.ref]
+	v, held := e.visibility.Entries[reader.Transactions.ref]
+	rcState, rcAssociated := e.visibility.Entries[rc.Transactions.ref]
 	rcHeld := rcState.Snapshot || rcState.Xmin != 0 || rcState.XID != 0 || rcState.AssignedXID != 0 || rcState.SafeBuilder
 	e.mu.Unlock()
-	if !held || !v.Snapshot || v.XID != 0 || v.Xmin != counter+1 || rcHeld || !rcAssociated || rcState.Ticket != rc.transactions.ticket {
+	if !held || !v.Snapshot || v.XID != 0 || v.Xmin != counter+1 || rcHeld || !rcAssociated || rcState.Ticket != rc.Transactions.ticket {
 		t.Fatal("stable/RC eager result snapshot ownership", v, rcHeld)
 	}
 	// An uncommitted real write advances global XID, not the committed row frontier.
 	sessionSQL(t, writer, "INSERT INTO t VALUES(2)")
 	e.mu.Lock()
-	w := e.visibility.Entries[writer.transactions.ref]
+	w := e.visibility.Entries[writer.Transactions.ref]
 	sameFrontier := e.visibility.CommitSeq() == frontier
 	advanced := w.XID > counter
 	e.mu.Unlock()
@@ -108,7 +108,7 @@ func TestConcurrentIndexU3SnapshotLifetimeAndGlobalXID(t *testing.T) {
 	}
 	other := New()
 	other.mu.Lock()
-	_, foreignErr := other.visibilitySnapshotLocked(reader.transactions.ref, false)
+	_, foreignErr := other.visibilitySnapshotLocked(reader.Transactions.ref, false)
 	other.mu.Unlock()
 	if foreignErr == nil {
 		t.Fatal("other engine accepted snapshot owner")
@@ -155,14 +155,14 @@ func TestConcurrentIndexU3LateEndangeredEqualFrontier(t *testing.T) {
 	rows := sessionSQL(t, late, "SELECT n FROM u")
 	rows.Rows.Close()
 	e.mu.Lock()
-	snapshot := e.visibility.Entries[late.transactions.ref]
+	snapshot := e.visibility.Entries[late.Transactions.ref]
 	equalFrontier := e.visibility.CommitSeq() == frontier
 	e.mu.Unlock()
 	if !snapshot.Snapshot || snapshot.Xmin > boundary || !equalFrontier {
 		t.Fatal("late equal-frontier snapshot was not actually endangered", snapshot, boundary)
 	}
 	await := concurrentUnitOlderWait(t, scope, boundary, cancel)
-	concurrentUnitCompletion(t, e, late.transactions.ticket, builder)
+	concurrentUnitCompletion(t, e, late.Transactions.ticket, builder)
 	e.mu.Lock()
 	self, associated := e.visibility.Entries[scope.txRef]
 	mirroredXID := scope.ticket.AssignedPublicXID()
@@ -175,7 +175,7 @@ func TestConcurrentIndexU3LateEndangeredEqualFrontier(t *testing.T) {
 	}
 	sessionSQL(t, writer, "ROLLBACK")
 	lockState := e.locks.Inspect()
-	entry := lockState.Resources[lock.CompletionOf(late.transactions.ticket)]
+	entry := lockState.Resources[lock.CompletionOf(late.Transactions.ticket)]
 	pending := entry != nil && len(entry.Pending) == 1
 	if !pending {
 		t.Fatal("ending XID owner released another transaction's persistent snapshot")
@@ -200,7 +200,7 @@ func TestConcurrentIndexU3GenuinelyNewerXminNotCommitSeq(t *testing.T) {
 	sessionSQL(t, writer, "BEGIN ISOLATION LEVEL READ COMMITTED")
 	sessionSQL(t, writer, "INSERT INTO t VALUES(2)")
 	e.mu.Lock()
-	boundary := e.visibility.Entries[writer.transactions.ref].XID
+	boundary := e.visibility.Entries[writer.Transactions.ref].XID
 	frontier := e.visibility.CommitSeq()
 	e.mu.Unlock()
 	sessionSQL(t, writer, "ROLLBACK")
@@ -208,7 +208,7 @@ func TestConcurrentIndexU3GenuinelyNewerXminNotCommitSeq(t *testing.T) {
 	rows := sessionSQL(t, newer, "SELECT n FROM t")
 	rows.Rows.Close()
 	e.mu.Lock()
-	v := e.visibility.Entries[newer.transactions.ref]
+	v := e.visibility.Entries[newer.Transactions.ref]
 	equalFrontier := frontier == e.visibility.CommitSeq()
 	e.mu.Unlock()
 	if v.Xmin <= boundary || !equalFrontier {
@@ -246,14 +246,14 @@ func TestConcurrentIndexU3SafeBuilderClassification(t *testing.T) {
 			sessionSQL(t, owner, "BEGIN ISOLATION LEVEL READ COMMITTED")
 			scope, op, cancel := concurrentUnitSnapshotScope(t, e, builder)
 			e.mu.Lock()
-			xmin, err := e.visibilitySnapshotLocked(owner.transactions.ref, safe)
+			xmin, err := e.visibilitySnapshotLocked(owner.Transactions.ref, safe)
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
 			await := concurrentUnitOlderWait(t, scope, xmin, cancel)
 			if !tc.safe {
-				concurrentUnitCompletion(t, e, owner.transactions.ticket, builder)
+				concurrentUnitCompletion(t, e, owner.Transactions.ticket, builder)
 				sessionSQL(t, owner, "ROLLBACK")
 			}
 			if err := await(); err != nil {

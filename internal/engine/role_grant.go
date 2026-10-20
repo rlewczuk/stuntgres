@@ -439,13 +439,13 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 		return Result{}, fmt.Errorf("stuntgres: authorization revision exhausted")
 	}
 	roles := v.RoleRecord.Advance()
-	op.Session.mu.Lock()
-	defer op.Session.mu.Unlock()
+	op.Session.Mu.Lock()
+	defer op.Session.Mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}
-	if op.Session.transactions.retainsTransaction() {
-		changes := op.Session.transactions.catalog.Clone()
+	if op.Session.Transactions.retainsTransaction() {
+		changes := op.Session.Transactions.catalog.Clone()
 		// Completed grant utilities retain their consulted DB predecessor in
 		// the candidate, not a scope authority with a pre-advance role revision.
 		if err := e.catalogAuthorityPreflightLocked(v.catalogAuthorityLocked(ids.ObjectRef{}, nil), changes); err != nil {
@@ -454,7 +454,7 @@ func (e *Engine) objectGrantLocked(op *Operation, v AuthorizationView, s *parser
 		for address, change := range changed {
 			e.catalogChangeLocked(changes, address, change.descriptor)
 		}
-		op.Session.transactions.catalog = changes
+		op.Session.Transactions.catalog = changes
 	} else {
 		e.catalog.state = candidate
 	}

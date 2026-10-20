@@ -29,7 +29,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	result.Rows.Close()
-	if len(description.quotes) != 1 || description.quoteGeneration != s.discardPlansGeneration || description.planOwner != s.token {
+	if len(description.quotes) != 1 || description.quoteGeneration != s.DiscardPlansGeneration || description.planOwner != s.SessionToken {
 		t.Fatal("missing owner-qualified capture")
 	}
 	original := description
@@ -50,7 +50,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		t.Fatal(err)
 	}
 	result.Rows.Close()
-	if &original.quotes[0] == &description.quotes[0] || description.quoteGeneration != s.discardPlansGeneration {
+	if &original.quotes[0] == &description.quotes[0] || description.quoteGeneration != s.DiscardPlansGeneration {
 		t.Fatal("discard did not recollect quotes")
 	}
 	if original.quotes[0] != description.quotes[0] {
@@ -320,7 +320,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		if !errors.As(err, &diagnostic) || *diagnostic != (sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22012", Message: "division by zero"}) || result.Rows != nil {
 			t.Fatal("demanded fold failure", result, err)
 		}
-		if description.planOwner != session.token || description.planGeneration != session.discardPlansGeneration || description.planGeneration == before.planGeneration || description.analysis == before.analysis || len(description.temporals) == 0 || &description.temporals[0] == &before.temporals[0] {
+		if description.planOwner != session.SessionToken || description.planGeneration != session.DiscardPlansGeneration || description.planGeneration == before.planGeneration || description.analysis == before.analysis || len(description.temporals) == 0 || &description.temporals[0] == &before.temporals[0] {
 			t.Fatal("failure did not occur after temporal/analysis generation advance")
 		}
 		if description.quoteGeneration != before.quoteGeneration || len(description.quotes) != len(source) || &description.quotes[0] != &before.quotes[0] {
@@ -344,7 +344,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		if err != nil || result.Count != 1 {
 			t.Fatal("successful stale retry", result.Count, err)
 		}
-		if description.quoteGeneration != session.discardPlansGeneration || description.planGeneration != session.discardPlansGeneration || description.planOwner != session.token || len(description.quotes) != 3 || &description.quotes[0] == &before.quotes[0] {
+		if description.quoteGeneration != session.DiscardPlansGeneration || description.planGeneration != session.DiscardPlansGeneration || description.planOwner != session.SessionToken || len(description.quotes) != 3 || &description.quotes[0] == &before.quotes[0] {
 			t.Fatal("retry did not publish fresh owner-qualified group and stamps")
 		}
 		relation := primaryKeyUnitRelation(t, engine, "sv_retry")

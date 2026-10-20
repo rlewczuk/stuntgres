@@ -20,9 +20,9 @@ func (e *Engine) detachPartitionLocked(scope *StatementScope, op *Operation, aut
 		return fail(fmt.Errorf("stuntgres: got %d arguments, want 0", count))
 	}
 	if scope.lockedRef.Domain() == nil {
-		op.Session.mu.Lock()
+		op.Session.Mu.Lock()
 		err := publicationOperationLocked(e, op)
-		op.Session.mu.Unlock()
+		op.Session.Mu.Unlock()
 		e.mu.Unlock()
 		if err != nil {
 			return Result{}, err

@@ -29,9 +29,9 @@ func (e *Engine) renameRelationLocked(scope *StatementScope, op *Operation, auth
 		return fail(ids.ErrCatalogReplaced)
 	}
 	if ifExists && renameMissing(err) {
-		op.Session.mu.Lock()
+		op.Session.Mu.Lock()
 		err = publicationOperationLocked(e, op)
-		op.Session.mu.Unlock()
+		op.Session.Mu.Unlock()
 		if err == nil {
 			err = op.Context().Err()
 		}

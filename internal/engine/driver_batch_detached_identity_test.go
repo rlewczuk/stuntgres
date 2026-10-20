@@ -27,7 +27,7 @@ func TestDriverBatchDetachedPrincipalAuthority(t *testing.T) {
 			sessionSQL(t, owner, "CREATE TABLE t(v INT)")
 			sessionSQL(t, owner, "INSERT INTO t VALUES(7)")
 			table := catalogRef(t, e, e.CatalogRead(), "t")
-			original := owner.authorization.state
+			original := owner.Authorization.state
 			m := batchUnitStart(t, owner, context.Background())
 			defer m.end(context.Canceled)
 			t.Cleanup(func() {
@@ -49,7 +49,7 @@ func TestDriverBatchDetachedPrincipalAuthority(t *testing.T) {
 				t.Fatal(err)
 			}
 			entry := e.prepared["batch_detached"]
-			if entry == nil || entry.catalog == nil || entry.catalog.Roles == nil || owner.authorization.state.CurrentUser != entry.owner || owner.authorization.state.SessionUser != original.SessionUser || owner.transactions.catalog != nil {
+			if entry == nil || entry.catalog == nil || entry.catalog.Roles == nil || owner.Authorization.state.CurrentUser != entry.owner || owner.Authorization.state.SessionUser != original.SessionUser || owner.Transactions.catalog != nil {
 				t.Fatal("prepared role authority was lost or retained by session")
 			}
 			op, err := owner.Acquire(context.Background())
@@ -104,7 +104,7 @@ func TestDriverBatchDetachedPrincipalAuthority(t *testing.T) {
 				batchUnitDiagnostic(t, controlsExecute(t, owner, "SELECT v FROM t"), "42501", "permission denied for table t")
 			}
 			controlsRequire(t, owner, "SET ROLE NONE")
-			if owner.authorization.state != original {
+			if owner.Authorization.state != original {
 				t.Fatal("NONE recovered a fabricated identity")
 			}
 			transactionRows(t, owner, "SELECT v FROM t", 7)

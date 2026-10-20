@@ -25,7 +25,7 @@ func TestQueryLockArbiterSkipRetainsAcquiredContributor(t *testing.T) {
 	e.mu.Lock()
 	tRow, uRow := e.storage.Relations[tRef.Address].Versions[0].Row, e.storage.Relations[uRef.Address].Versions[0].Row
 	e.mu.Unlock()
-	if err := e.locks.Acquire(context.Background(), a.transactions.ticket, lock.Resource{ObjectRef: uRef, Row: uRow}, lock.ForUpdate); err != nil {
+	if err := e.locks.Acquire(context.Background(), a.Transactions.ticket, lock.Resource{ObjectRef: uRef, Row: uRow}, lock.ForUpdate); err != nil {
 		t.Fatal(err)
 	}
 	op, err := b.Acquire(context.Background())
@@ -85,7 +85,7 @@ func TestQueryLockArbiterSkipRetainsAcquiredContributor(t *testing.T) {
 	}
 	lockState := e.locks.Inspect()
 	first, second := lockState.Resources[lock.Resource{ObjectRef: tRef, Row: tRow}], lockState.Resources[lock.Resource{ObjectRef: uRef, Row: uRow}]
-	bad := first == nil || first.Holders[b.transactions.ticket].Mode != lock.ForUpdate || second == nil || second.Holders[b.transactions.ticket].Mode != 0 || second.Holders[a.transactions.ticket].Mode != lock.ForUpdate || len(second.Pending) != 0
+	bad := first == nil || first.Holders[b.Transactions.ticket].Mode != lock.ForUpdate || second == nil || second.Holders[b.Transactions.ticket].Mode != 0 || second.Holders[a.Transactions.ticket].Mode != lock.ForUpdate || len(second.Pending) != 0
 	if bad {
 		t.Fatal("SKIP undid an acquired contributor, acquired unavailable source, or left a waiter")
 	}

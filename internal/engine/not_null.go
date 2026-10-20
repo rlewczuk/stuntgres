@@ -40,9 +40,9 @@ func (e *Engine) alterTableLocked(scope *StatementScope, op *Operation, auth Aut
 	}
 	ref, err := e.resolveRelationReference(auth, s.Name, true)
 	if s.IfExists && renameMissing(err) {
-		op.Session.mu.Lock()
+		op.Session.Mu.Lock()
 		err = publicationOperationLocked(e, op)
-		op.Session.mu.Unlock()
+		op.Session.Mu.Unlock()
 		if err == nil {
 			err = op.Context().Err()
 		}

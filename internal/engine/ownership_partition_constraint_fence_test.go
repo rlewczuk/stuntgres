@@ -75,7 +75,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 				message := batchUnitStart(t, session, context.Background())
 				defer message.end(context.Canceled)
 				if private {
-					session.transactions.catalog = changes
+					session.Transactions.catalog = changes
 				}
 				auth, err := operationAuthorization(message.op)
 				if err != nil {
@@ -96,7 +96,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 				if err := auth.Check(access.Requirement{Object: root, OwnerOnly: true}); err != nil {
 					t.Fatal("selected DB owner did not authorize actual partition", err)
 				}
-				oldRoles, sessionRevision, epoch := e.roles.published, session.authorization.revision, e.catalog.state.Epoch()
+				oldRoles, sessionRevision, epoch := e.roles.published, session.Authorization.revision, e.catalog.state.Epoch()
 				before := indexMaintenanceCapture(e)
 				leaf := roleTableRef(t, e, "leaf").Address
 				rows := append([]storage.RowVersion(nil), e.storage.Relations[leaf].Versions...)
@@ -130,7 +130,7 @@ func TestRoleOwnershipPartitionConstraintDatabaseFence(t *testing.T) {
 					}
 					ownershipUnitPublish(t, e, stage)
 					e.DiscardCatalogStage(stage)
-					if e.roles.published != oldRoles || session.authorization.revision != sessionRevision || e.catalog.state.Epoch() != epoch {
+					if e.roles.published != oldRoles || session.Authorization.revision != sessionRevision || e.catalog.state.Epoch() != epoch {
 						t.Fatal("DB-only replacement changed unrelated authority")
 					}
 					for address, descriptor := range before.catalog.Descriptors() {

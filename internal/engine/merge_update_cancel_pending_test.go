@@ -66,7 +66,7 @@ func mergeUpdatePendingCancellation(t *testing.T, targetOnly bool) {
 			t.Error("cancelled mixed worker did not retire")
 		}
 	})
-	mergeUpdatePendingRow(t, e, ref, row, worker, holder.transactions.ticket, lock.ForNoKeyUpdate)
+	mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.ticket, lock.ForNoKeyUpdate)
 	transactionRows(t, peer, "SELECT v FROM t", 10)
 	cancel()
 	select {
@@ -83,14 +83,14 @@ func mergeUpdatePendingCancellation(t *testing.T, targetOnly bool) {
 	if targetOnly {
 		sessionSQL(t, worker, "ROLLBACK TO before_cancel")
 		resource := lock.Resource{ObjectRef: ref, Row: row}
-		lockState := e.locks.Inspect(worker.transactions.ticket)
+		lockState := e.locks.Inspect(worker.Transactions.ticket)
 		entry := lockState.Resources[resource]
-		held := entry != nil && entry.Holders[worker.transactions.ticket].Mode != 0
-		_, journaled := lockState.Journals[worker.transactions.ticket][resource]
+		held := entry != nil && entry.Holders[worker.Transactions.ticket].Mode != 0
+		_, journaled := lockState.Journals[worker.Transactions.ticket][resource]
 		pending := false
 		if entry != nil {
 			for _, request := range entry.Pending {
-				pending = pending || !request.Terminal && request.Ticket.Ref().Session() == worker.token
+				pending = pending || !request.Terminal && request.Ticket.Ref().Session() == worker.SessionToken
 			}
 		}
 		if held || journaled || pending {

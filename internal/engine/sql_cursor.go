@@ -252,7 +252,7 @@ func (c *sqlCursor) admit(s *StatementScope) {
 	s.routineAuth = c.routineAuth
 	s.inquiry.deparseAuth, s.inquiry.deparsePath = c.deparseAuth, c.deparsePath
 	s.inquiry.collationPath = c.collationPath
-	s.inquiry.deparseAuth.session, s.inquiry.deparseAuth.settings = s.op.Session, s.op.Session.settings
+	s.inquiry.deparseAuth.session, s.inquiry.deparseAuth.settings = s.op.Session, s.op.Session.Settings
 	s.inquiry.visibilityCatalog = c.visibilityCatalog
 	s.inquiry.visibilityRelationPath, s.inquiry.visibilityOtherPath = c.visibilityRelationPath, c.visibilityOtherPath
 	c.authority.Host = hostOf(s)
@@ -264,8 +264,8 @@ func (s *StatementScope) sessionPublicationPreflight() error {
 	defer s.owner.mu.Unlock()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	s.op.Session.mu.Lock()
-	defer s.op.Session.mu.Unlock()
+	s.op.Session.Mu.Lock()
+	defer s.op.Session.Mu.Unlock()
 	if err := publicationOperationLocked(e, s.op); err != nil {
 		return err
 	}

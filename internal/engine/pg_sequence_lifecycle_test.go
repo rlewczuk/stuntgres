@@ -19,7 +19,7 @@ func TestPGSequenceSnapshotTerminalRelease(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			owner := op.Session.transactions
+			owner := op.Session.Transactions
 			scope := &StatementScope{op: op, owner: owner, txRef: ref}
 			if err := scope.snapshotPhase(&parser.Select{}); err != nil {
 				t.Fatal(err)

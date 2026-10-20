@@ -231,14 +231,14 @@ func TestSQLCursorHoldAuthority(t *testing.T) {
 			t.Run(fmt.Sprintf("native=%t/prior=%t", native, before), func(t *testing.T) {
 				s := cursorUnitSetup(t)
 				sessionSQL(t, s, "DECLARE h CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
-				c, ref := payloadOf(s).cursors.entries["h"], s.transactions.ref
+				c, ref := payloadOf(s).cursors.entries["h"], s.Transactions.ref
 				cell := c.authority
 				original := c.root.Expressions[0]
 				phase, calls := "fetch", 0
 				var first *exec.CursorExpressionData
 				c.root.Expressions[0] = queryProbe(original.ResultUsage(), func(ctx *exec.Context) (sqltype.Value, error) {
 					scope := scopeOf(ctx.LiveHost())
-					if scope == nil || scope.finished || scope.txRef != ref || scope.ticket != s.transactions.ticket || ctx.Context.Value(cursorUnitContextKey{}) != phase || scope.op.Released {
+					if scope == nil || scope.finished || scope.txRef != ref || scope.ticket != s.Transactions.ticket || ctx.Context.Value(cursorUnitContextKey{}) != phase || scope.op.Released {
 						return sqltype.Value{}, errors.New("producer borrows stale commit authority")
 					}
 					if !scope.owner.mu.TryLock() {
@@ -249,10 +249,10 @@ func TestSQLCursorHoldAuthority(t *testing.T) {
 						return sqltype.Value{}, errors.New("projection holds engine mutex")
 					}
 					engineOf(s).mu.Unlock()
-					if !s.mu.TryLock() {
+					if !s.Mu.TryLock() {
 						return sqltype.Value{}, errors.New("projection holds session mutex")
 					}
-					s.mu.Unlock()
+					s.Mu.Unlock()
 					if first == nil {
 						first = cell.Expression
 					} else if cell.Expression != first {

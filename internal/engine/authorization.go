@@ -187,15 +187,15 @@ func operationAuthorization(op *Operation) (AuthorizationView, error) {
 // Lock order is Engine.mu then Session.mu. Views retain only immutable values.
 func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 	s := op.Session
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	a := s.authorization
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	a := s.Authorization
 	if a == nil {
 		return AuthorizationView{}, fmt.Errorf("stuntgres: missing authorization")
 	}
 	view := e.catalog.read(e.catalog.state)
-	if s.transactions != nil {
-		view = e.privateCatalogLocked(s.transactions.catalog)
+	if s.Transactions != nil {
+		view = e.privateCatalogLocked(s.Transactions.catalog)
 	}
 	r := e.roles.read(e.catalog.owner(), view, e.operationRolesLocked(op))
 	if _, err := r.Descriptor(a.state.Authenticated); err != nil {
@@ -215,7 +215,7 @@ func (e *Engine) authorizationLocked(op *Operation) (AuthorizationView, error) {
 		}
 		identity.CurrentUser = operationReplayOrZero(op).materializedOwner
 	}
-	authorization := AuthorizationView{View: access.View{Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.operationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.catalog.state.Get(catalog.CurrentDatabaseAddress), State: identity, SessionRoleState: a.state, Revision: a.revision}, engine: e, definition: op.Definition, settings: s.settings, session: s, materializedPopulation: operationReplayOrZero(op).materializedPopulation}
+	authorization := AuthorizationView{View: access.View{Owner: e.catalog.owner(), PairedCatalog: view, RoleRecord: e.operationRolesLocked(op), Catalog: view, Roles: r, DatabasePredecessor: e.catalog.state.Get(catalog.CurrentDatabaseAddress), State: identity, SessionRoleState: a.state, Revision: a.revision}, engine: e, definition: op.Definition, settings: s.Settings, session: s, materializedPopulation: operationReplayOrZero(op).materializedPopulation}
 	if _, exists := r.Find(identity.CurrentUser); !exists {
 		authorization.MissingCurrent = identity.CurrentUser
 	}

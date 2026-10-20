@@ -45,7 +45,7 @@ func captureSequenceDeletePublication(e *Engine, s *Session, table ids.ObjectAdd
 		generators:      make(map[ids.ObjectAddress]*storage.SequenceGenerator),
 		generatorValues: make(map[ids.ObjectAddress]storage.SequenceGenerator),
 		store:           e.storage.Relations[table], frontier: e.visibility.CommitSeq(),
-		temporary: s.temporaryNamespace, last: payloadOf(s).sequences.Last(),
+		temporary: s.TemporaryNamespace, last: payloadOf(s).sequences.Last(),
 		memory: make(map[ids.ObjectAddress]*sequence.Memory), memoryValues: make(map[ids.ObjectAddress]sequence.Memory),
 	}
 	for a, d := range e.catalog.state.Descriptors() {
@@ -101,7 +101,7 @@ func (p sequenceDeletePublicationSnapshot) assertUnchanged(t *testing.T, e *Engi
 	if p.ends != nil && !reflect.DeepEqual(p.ends.Rows, p.endValues) {
 		t.Fatal("changed committed deletion entries")
 	}
-	if s.temporaryNamespace != p.temporary || payloadOf(s).sequences.Last() != p.last || payloadOf(s).sequences.Len() != len(p.memory) {
+	if s.TemporaryNamespace != p.temporary || payloadOf(s).sequences.Last() != p.last || payloadOf(s).sequences.Len() != len(p.memory) {
 		t.Fatal("failed combined publication changed session temporary handle or sequence memory container")
 	}
 	for a, m := range p.memory {
@@ -113,7 +113,7 @@ func (p sequenceDeletePublicationSnapshot) assertUnchanged(t *testing.T, e *Engi
 
 func assertSequenceDeletePrivateBatch(t *testing.T, s *Session, table, sequence ids.ObjectAddress, firstTemp bool) {
 	t.Helper()
-	tx := s.transactions
+	tx := s.Transactions
 	if tx.state != TxActive || len(tx.writes[table]) != 2 || tx.deletes[table] == nil || len(tx.deletes[table].Rows) != 3 || tx.catalog == nil {
 		t.Fatal("fixture must contain private appended rows, committed/own deletions and sequence overlay")
 	}
@@ -122,12 +122,12 @@ func assertSequenceDeletePrivateBatch(t *testing.T, s *Session, table, sequence 
 		t.Fatal("fixture must contain a private restarted generator")
 	}
 	if firstTemp {
-		if s.temporaryNamespace != (ids.ObjectAddress{}) {
+		if s.TemporaryNamespace != (ids.ObjectAddress{}) {
 			t.Fatal("fixture reused a published TEMP namespace")
 		}
 		var namespaces, temps int
 		for a, d := range tx.catalog.Descriptors {
-			if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary == s.token {
+			if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary == s.SessionToken {
 				namespaces++
 				if tx.catalog.Originals[a] != nil || engineOf(s).catalog.state.Get(a) != nil {
 					t.Fatal("TEMP namespace was not genuinely new")
@@ -148,7 +148,7 @@ func assertSequenceDeletePrivateBatch(t *testing.T, s *Session, table, sequence 
 
 func assertSequenceDeleteEndCleanup(t *testing.T, e *Engine, s *Session, old *lock.Ticket) {
 	t.Helper()
-	tx := s.transactions
+	tx := s.Transactions
 	if tx.state != TxIdle || tx.ref != (ids.TxRef{}) || tx.command != 0 || !tx.start.IsZero() || tx.writes != nil || tx.deletes != nil || tx.catalog != nil || tx.ticket != nil {
 		t.Fatal("failed native Commit did not discard the complete private transaction incarnation")
 	}

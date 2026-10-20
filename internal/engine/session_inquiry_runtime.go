@@ -60,5 +60,5 @@ func (h *statementHost) OtherTempNamespace(oid uint32) (bool, error) {
 		return false, err
 	}
 	ns, _ := auth.Catalog.Namespace(ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.OID(oid)})
-	return ns != nil && ns.Temporary != (ids.SessionToken{}) && ns.Temporary != auth.session.token, nil
+	return ns != nil && ns.Temporary != (ids.SessionToken{}) && ns.Temporary != auth.session.SessionToken, nil
 }

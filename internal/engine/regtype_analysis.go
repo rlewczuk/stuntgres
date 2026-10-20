@@ -24,7 +24,7 @@ func (e *Engine) regtypeAnalysisLocked(auth AuthorizationView, constants []analy
 	if len(constants) == 0 {
 		return nil, nil
 	}
-	cell := &regtypeAnalysis{constants: slices.Clone(constants), role: auth.State.CurrentUser, database: auth.session.databaseName}
+	cell := &regtypeAnalysis{constants: slices.Clone(constants), role: auth.State.CurrentUser, database: auth.session.DatabaseName}
 	for _, constant := range constants {
 		if constant.Operator != 0 || constant.Value.Type() == nil || constant.Value.Type().ContainsRegtype() || constant.Value.Type().ContainsOperatorAlias() || constant.Value.Type().ContainsRegproc() {
 			cell.types = true
@@ -55,7 +55,7 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 		if err != nil {
 			return false, err
 		}
-		if cell.role != auth.State.CurrentUser || cell.database != auth.session.databaseName || !sequence.SameEnvironment(cell.path, path) {
+		if cell.role != auth.State.CurrentUser || cell.database != auth.session.DatabaseName || !sequence.SameEnvironment(cell.path, path) {
 			return false, nil
 		}
 	}
@@ -64,7 +64,7 @@ func (e *Engine) regtypeAnalysisValidLocked(auth AuthorizationView, cell *regtyp
 		if err != nil {
 			return false, err
 		}
-		if cell.role != auth.State.CurrentUser || cell.database != auth.session.databaseName || !slices.Equal(cell.collationPath, path) {
+		if cell.role != auth.State.CurrentUser || cell.database != auth.session.DatabaseName || !slices.Equal(cell.collationPath, path) {
 			return false, nil
 		}
 	}

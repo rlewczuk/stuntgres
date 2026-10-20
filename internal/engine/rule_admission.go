@@ -84,7 +84,7 @@ func (e *Engine) admitRuleCommandsLocked(scope *StatementScope, statement parser
 			}
 			collectAuth.State.CurrentUser = invoker
 			var err error
-			queryRefs, err = e.queryTableRefsLocked(collectAuth, invoker, command.binding.QuerySources[start:end], queryRefs, scope.op.Session.token, plan.RowMark{})
+			queryRefs, err = e.queryTableRefsLocked(collectAuth, invoker, command.binding.QuerySources[start:end], queryRefs, scope.op.Session.SessionToken, plan.RowMark{})
 			if err != nil {
 				e.mu.Unlock()
 				return nil, err

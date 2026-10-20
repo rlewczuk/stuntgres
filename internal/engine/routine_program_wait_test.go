@@ -245,7 +245,7 @@ func routinePendingUniqueIndex(t *testing.T, e *Engine, index ids.ObjectRef, wor
 				continue
 			}
 			for _, request := range entry.Pending {
-				if !request.Terminal && request.Ticket.Ref().Session() == worker.token && request.Mode == lock.UniqueClaim {
+				if !request.Terminal && request.Ticket.Ref().Session() == worker.SessionToken && request.Mode == lock.UniqueClaim {
 					found = true
 					break
 				}

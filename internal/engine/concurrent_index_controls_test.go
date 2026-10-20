@@ -80,7 +80,7 @@ func TestConcurrentIndexU6ReadyCancellationReleasesSUE(t *testing.T) {
 	rows := sessionSQL(t, reader, "SELECT n FROM u")
 	rows.Rows.Close()
 	cancel, await := indexMaintenanceAsync(t, e, builder, "CREATE UNIQUE INDEX CONCURRENTLY ui ON t(n)")
-	concurrentUnitCompletion(t, e, reader.transactions.ticket, builder)
+	concurrentUnitCompletion(t, e, reader.Transactions.ticket, builder)
 	ready, root := concurrentUnitIndex(t, e, "ui", true, false)
 	_, _, _, waiting, writers, inspectErr := e.InspectIndex(context.Background(), "public", "ui")
 	if inspectErr != nil || !waiting || writers {
@@ -140,12 +140,12 @@ func TestConcurrentIndexU6BeforeDescriptorAndWriterCancellation(t *testing.T) {
 					t.Fatal("predescriptor SUE acquisition not actually pending")
 				}
 			} else {
-				concurrentUnitCompletion(t, e, a.transactions.ticket, b)
+				concurrentUnitCompletion(t, e, a.Transactions.ticket, b)
 				if phase == "second_writer" {
 					sessionSQL(t, d, "BEGIN ISOLATION LEVEL READ COMMITTED")
 					sessionSQL(t, d, "INSERT INTO t VALUES(3)")
 					sessionSQL(t, a, "COMMIT")
-					concurrentUnitCompletion(t, e, d.transactions.ticket, b)
+					concurrentUnitCompletion(t, e, d.Transactions.ticket, b)
 					concurrentUnitIndex(t, e, "ui", true, false)
 				} else {
 					concurrentUnitIndex(t, e, "ui", false, false)
@@ -292,7 +292,7 @@ func TestConcurrentIndexU7RetainedInvalidTempIsNotImportedOrHealed(t *testing.T)
 	for _, descriptor := range e.catalog.state.Descriptors() {
 		if index, ok := descriptor.(*catalog.Relation); ok && index.Name() == "retained_ci_temp_index" {
 			namespace := e.catalog.state.MustNamespace(index.Namespace())
-			if namespace.Temporary == s.token {
+			if namespace.Temporary == s.SessionToken {
 				original = index
 			}
 		}
@@ -389,7 +389,7 @@ func TestConcurrentIndexU7OlderAdmissionEpochFence(t *testing.T) {
 	rows := sessionSQL(t, reader, "SELECT n FROM u")
 	rows.Rows.Close()
 	_, await := indexMaintenanceAsync(t, e, builder, "CREATE INDEX CONCURRENTLY ix ON t(n)")
-	concurrentUnitCompletion(t, e, reader.transactions.ticket, builder)
+	concurrentUnitCompletion(t, e, reader.Transactions.ticket, builder)
 	_, _, _, waiting, writers, err := e.InspectIndex(context.Background(), "public", "ix")
 	if err != nil || !waiting || writers {
 		t.Fatal("actual older admission absent or mixed with writer admission", waiting, writers, err)

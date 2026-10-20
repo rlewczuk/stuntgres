@@ -309,7 +309,7 @@ func TestAlterAddConstraintLocks(t *testing.T) {
 	queued := false
 	if entry != nil {
 		for _, request := range entry.Pending {
-			queued = queued || !request.Terminal && request.Mode == lock.ShareRowExclusive && request.Ticket != a.transactions.ticket
+			queued = queued || !request.Terminal && request.Mode == lock.ShareRowExclusive && request.Ticket != a.Transactions.ticket
 		}
 	}
 	if !queued {
@@ -325,8 +325,8 @@ func TestAlterAddConstraintLocks(t *testing.T) {
 	lockEmpty(t, e)
 	tx = transactionBegin(t, b)
 	sessionSQL(t, b, "ALTER TABLE t ADD CONSTRAINT fk FOREIGN KEY(a) REFERENCES p NOT VALID")
-	foreignKeyHeldMode(t, e, ref, 0, b.transactions.ticket, lock.ShareRowExclusive)
-	foreignKeyHeldMode(t, e, catalogRef(t, e, e.CatalogRead(), "p"), 0, b.transactions.ticket, lock.ShareRowExclusive)
+	foreignKeyHeldMode(t, e, ref, 0, b.Transactions.ticket, lock.ShareRowExclusive)
+	foreignKeyHeldMode(t, e, catalogRef(t, e, e.CatalogRead(), "p"), 0, b.Transactions.ticket, lock.ShareRowExclusive)
 	transactionEnd(t, b, tx, false)
 	lockEmpty(t, e)
 }

@@ -71,14 +71,14 @@ func endTransactionSession(t *transactionOwner, token ids.SessionToken) error {
 	}
 	defer t.admission.Unlock()
 	t.mu.Lock()
-	if token != t.session.token {
+	if token != t.session.SessionToken {
 		t.mu.Unlock()
 		return errors.New("stuntgres: foreign transaction session")
 	}
 	engineOf(t.session).endSerializable(t.ref, false)
-	t.session.settings.finishTransaction(false)
+	t.session.Settings.finishTransaction(false)
 	clearTransaction(t)
-	t.session.retireTransactionTimeout()
+	t.session.RetireTransactionTimeout()
 	ticket := t.ticket
 	t.ticket = nil
 	t.mu.Unlock()
@@ -99,11 +99,11 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState, 
 	session := op.Session
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	settings := session.settings
+	settings := session.Settings
 	settings.mu.Lock()
 	defer settings.mu.Unlock()
-	session.mu.Lock()
-	defer session.mu.Unlock()
+	session.Mu.Lock()
+	defer session.Mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {
 		return err
 	}
@@ -112,7 +112,7 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState, 
 		return err
 	}
 	t.next++
-	t.ref = e.catalog.Domain.Tx(t.session.token, t.next, e.catalog.state.Epoch(), t, diagnostic)
+	t.ref = e.catalog.Domain.Tx(t.session.SessionToken, t.next, e.catalog.state.Epoch(), t, diagnostic)
 	t.state = state
 	payloadOf(session).notifications.busy = true
 	t.isolation = isolationFromText(settings.value("default_transaction_isolation"))
@@ -128,7 +128,7 @@ func (e *Engine) beginLocked(op *Operation, t *transactionOwner, state TxState, 
 	if t.retainedMessage {
 		t.messageBorn = true
 	}
-	session.beginTimeoutLocked(t.ref, state == TxActive, start)
+	session.BeginTimeoutLocked(t.ref, state == TxActive, start)
 	return nil
 }
 
@@ -140,7 +140,7 @@ func (e *Engine) Begin(op *Operation, options TxOptions) (ids.TxRef, error) {
 	if err := e.transactionAdmission(op); err != nil {
 		return ids.TxRef{}, err
 	}
-	t := op.Session.transactions
+	t := op.Session.Transactions
 	if err := t.acquireAdmission(op.Context(), op); err != nil {
 		return ids.TxRef{}, err
 	}
@@ -165,7 +165,7 @@ func (e *Engine) Rollback(op *Operation, ref ids.TxRef) (EndResult, error) {
 	if err := e.transactionAdmission(op); err != nil {
 		return EndResult{}, err
 	}
-	t := op.Session.transactions
+	t := op.Session.Transactions
 	if err := t.acquireAdmission(op.Context(), op); err != nil {
 		return EndResult{}, err
 	}
@@ -182,7 +182,7 @@ func (e *Engine) Commit(op *Operation, ref ids.TxRef) (EndResult, error) {
 	if admissionErr != nil && !errors.Is(admissionErr, context.Canceled) && !errors.Is(admissionErr, context.DeadlineExceeded) {
 		return EndResult{}, admissionErr
 	}
-	t := op.Session.transactions
+	t := op.Session.Transactions
 	if err := t.acquireAdmission(op.Context(), op); err != nil {
 		return EndResult{}, err
 	}
@@ -287,7 +287,7 @@ func (e *Engine) StartStatement(op *Operation) (*StatementScope, error) {
 	if err := e.transactionAdmission(op); err != nil {
 		return nil, err
 	}
-	t := op.Session.transactions
+	t := op.Session.Transactions
 	if err := t.acquireAdmission(op.Context(), op); err != nil {
 		return nil, err
 	}
@@ -307,7 +307,7 @@ func newStatementScope(op *Operation, owner *transactionOwner, start time.Time) 
 	s.stage.scope = s
 	s.stage.self = &s.stage
 	s.input, s.output = sessionPresentation(op.Session)
-	settings := op.Session.settings
+	settings := op.Session.Settings
 	settings.mu.Lock()
 	s.rowSecurity = settings.value("row_security") == "on"
 	settings.mu.Unlock()
@@ -324,7 +324,7 @@ func statementOperationStart(op *Operation) time.Time {
 // Admission serializes session settings; publication uses the same typed
 // presentation capture when formatting its supplementary integrity fence.
 func sessionPresentation(session *Session) (input sqltype.InputEnvironment, output sqltype.OutputEnvironment) {
-	settings := session.settings
+	settings := session.Settings
 	settings.mu.Lock()
 	defer settings.mu.Unlock()
 	if settings.value("bytea_output") == "escape" {

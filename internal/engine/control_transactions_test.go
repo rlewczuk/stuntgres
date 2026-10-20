@@ -20,14 +20,14 @@ func TestControlTransactionsEndMatrix(t *testing.T) {
 					t.Run(replacement+"/"+map[bool]string{false: "reader", true: "writer"}[writer]+"/"+state+"/"+end, func(t *testing.T) {
 						e := New()
 						a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
-						token := a.token
+						token := a.SessionToken
 						sessionSQL(t, b, "CREATE TABLE t(v INT NOT NULL)")
 						sessionSQL(t, b, "INSERT INTO t VALUES(77)")
 						controlsRequire(t, a, "BEGIN")
 						if writer {
 							sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 						}
-						old := a.transactions.ref
+						old := a.Transactions.ref
 						if state == "sql_failure" {
 							controlsAbort(t, a)
 						}
@@ -61,15 +61,15 @@ func TestControlTransactionsEndMatrix(t *testing.T) {
 							t.Fatal(err)
 						}
 						chain := !commit && strings.HasSuffix(end, "AND CHAIN")
-						if a.token != token || a.transactions.writes != nil || e.visibility.CommitSeq() != frontier {
+						if a.SessionToken != token || a.Transactions.writes != nil || e.visibility.CommitSeq() != frontier {
 							t.Fatal("replacement/end mutated identity/private writes/frontier")
 						}
 						if chain {
-							if a.TransactionState() != TxActive || a.transactions.ref.Epoch() != e.CatalogRead().Epoch() || a.transactions.ref.ID() <= old.ID() {
+							if a.TransactionState() != TxActive || a.Transactions.ref.Epoch() != e.CatalogRead().Epoch() || a.Transactions.ref.ID() <= old.ID() {
 								t.Fatal("rollback chain not current")
 							}
 							controlsRequire(t, a, "ROLLBACK")
-						} else if a.TransactionState() != TxIdle || a.transactions.ref != (ids.TxRef{}) || a.transactions.ticket != nil {
+						} else if a.TransactionState() != TxIdle || a.Transactions.ref != (ids.TxRef{}) || a.Transactions.ticket != nil {
 							t.Fatal("end retained owner/installed commit chain")
 						}
 						lockEmpty(t, e)

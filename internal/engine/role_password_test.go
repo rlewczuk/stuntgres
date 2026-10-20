@@ -135,10 +135,10 @@ func TestRoleAttributesPasswordStorage(t *testing.T) {
 				t.Fatal("random I/O holds engine mutex")
 			}
 			e.mu.Unlock()
-			if !op.Session.mu.TryLock() {
+			if !op.Session.Mu.TryLock() {
 				t.Fatal("random I/O holds session mutex")
 			}
-			op.Session.mu.Unlock()
+			op.Session.Mu.Unlock()
 			return 0, failure
 		})
 		beforePublication := e.roles.published
@@ -159,10 +159,10 @@ func TestRoleAttributesPasswordStorage(t *testing.T) {
 				t.Fatal("password preparation holds engine mutex")
 			}
 			e.mu.Unlock()
-			if !actor.Session.mu.TryLock() {
+			if !actor.Session.Mu.TryLock() {
 				t.Fatal("password preparation holds session mutex")
 			}
-			actor.Session.mu.Unlock()
+			actor.Session.Mu.Unlock()
 			roleAttributeApply(t, e, op, roleAttributeAlter("preparing_actor", parser.RoleOptions{Present: parser.RoleCreateRole}))
 			for i := range p {
 				p[i] = byte(i)

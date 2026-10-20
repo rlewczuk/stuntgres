@@ -88,7 +88,7 @@ func TestUpdateCoreDeleteRowContention(t *testing.T) {
 				resource := lock.Resource{ObjectRef: ref, Row: e.storage.Relations[ref.Address].Versions[0].Row}
 				lockState := e.locks.Inspect()
 				entry := lockState.Resources[resource]
-				actual := entry != nil && len(entry.Pending) == 1 && entry.Holders[holder.transactions.ticket].Mode&(lock.ForUpdate|lock.ForNoKeyUpdate) != 0
+				actual := entry != nil && len(entry.Pending) == 1 && entry.Holders[holder.Transactions.ticket].Mode&(lock.ForUpdate|lock.ForNoKeyUpdate) != 0
 				if !actual {
 					t.Fatal("not a shared logical-row arbitration wait")
 				}
@@ -209,7 +209,7 @@ func TestUpdateCoreDeleteCancellation(t *testing.T) {
 				sessionSQL(t, owner, "UPDATE t SET v=20 WHERE id=1")
 				sessionSQL(t, owner, "DELETE FROM t WHERE id=2")
 			}
-			ticket := owner.transactions.ticket
+			ticket := owner.Transactions.ticket
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			await := updateDeleteAsync(t, e, owner, ctx, q)
@@ -219,7 +219,7 @@ func TestUpdateCoreDeleteCancellation(t *testing.T) {
 			if !errors.Is(err, context.Canceled) || result.Count != 0 || result.Rows != nil {
 				t.Fatal(result, err)
 			}
-			if owner.TransactionState() != TxAborted || len(owner.transactions.writes) != 0 || len(owner.transactions.deletes) != 0 {
+			if owner.TransactionState() != TxAborted || len(owner.Transactions.writes) != 0 || len(owner.Transactions.deletes) != 0 {
 				t.Fatal("mixed private work survived abort")
 			}
 			lockState := e.locks.Inspect(ticket)
@@ -267,7 +267,7 @@ func TestUpdateCoreDeletePublication(t *testing.T) {
 			tx := transactionBegin(t, owner)
 			sessionSQL(t, owner, "UPDATE t SET v=11")
 			sessionSQL(t, owner, "DELETE FROM u")
-			ticket := owner.transactions.ticket
+			ticket := owner.Transactions.ticket
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			op, err := owner.Acquire(ctx)
@@ -470,7 +470,7 @@ func TestUpdateCoreDeleteFailedReplacement(t *testing.T) {
 			tx := transactionBegin(t, owner)
 			sessionSQL(t, owner, "UPDATE t SET v=11 WHERE id=1")
 			sessionSQL(t, owner, "DELETE FROM t WHERE id=2")
-			writes, deletes, ticket := owner.transactions.writes[ref.Address], owner.transactions.deletes[ref.Address], owner.transactions.ticket
+			writes, deletes, ticket := owner.Transactions.writes[ref.Address], owner.Transactions.deletes[ref.Address], owner.Transactions.ticket
 			sentinel := errors.New("mixed replacement reader")
 			var err error
 			switch mode {
@@ -489,7 +489,7 @@ func TestUpdateCoreDeleteFailedReplacement(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if err == nil || e.catalog.state.Epoch() != epoch || e.visibility.CommitSeq() != frontier || e.storage.Relations[ref.Address] != store || store.Ends != ends || &store.Versions[0] != &root[0] || owner.TransactionState() != TxActive || owner.transactions.ticket != ticket || owner.transactions.deletes[ref.Address] != deletes || &owner.transactions.writes[ref.Address][0] != &writes[0] {
+			if err == nil || e.catalog.state.Epoch() != epoch || e.visibility.CommitSeq() != frontier || e.storage.Relations[ref.Address] != store || store.Ends != ends || &store.Versions[0] != &root[0] || owner.TransactionState() != TxActive || owner.Transactions.ticket != ticket || owner.Transactions.deletes[ref.Address] != deletes || &owner.Transactions.writes[ref.Address][0] != &writes[0] {
 				t.Fatal("failed replacement changed mixed authority", err)
 			}
 			transactionRows(t, owner, "SELECT v FROM t", 11)

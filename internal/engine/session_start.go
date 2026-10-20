@@ -47,30 +47,30 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 		return nil, roleLoginError(role.Name)
 	}
 	// One allocation holds the session, its root payload and the owner extension.
-	allocation := &sessionAllocation{session: Session{host: (*sessionHost)(e), token: e.catalog.Domain.Session(start.ID), countedAuthenticated: authenticated, state: initializing, completed: make(chan struct{}), leases: 1, removed: make(map[ResourceHandle]bool)}}
+	allocation := &sessionAllocation{session: Session{Host: (*sessionHost)(e), SessionToken: e.catalog.Domain.Session(start.ID), CountedAuthenticated: authenticated, State: initializing, Completed: make(chan struct{}), Leases: 1, Removed: make(map[ResourceHandle]bool)}}
 	s, payload := &allocation.session, &allocation.payload
-	s.payload = payload
+	s.Payload = payload
 	if private {
-		s.token = e.catalog.Domain.PrivateSession(s)
+		s.SessionToken = e.catalog.Domain.PrivateSession(s)
 	}
-	s.databaseName = e.databaseName
-	s.cond = sync.NewCond(&s.mu)
-	op := s.operation(ctx, true)
+	s.DatabaseName = e.databaseName
+	s.Cond = sync.NewCond(&s.Mu)
+	op := s.Operation(ctx, true)
 	auth := &sessionAuthorization{session: s, state: authorization.RoleState{Authenticated: authenticated, SessionUser: authenticated, CurrentUser: authenticated}, revision: 1}
 	_, authErr = op.Attach(Authorization, auth)
 	if authErr == nil {
-		s.authorization = auth
+		s.Authorization = auth
 	}
 	owner := &sessionSettings{session: s, values: make(map[string]string), defaults: make(map[string]string)}
 	_, err := op.Attach(Settings, owner)
 	if err == nil {
-		s.settings = owner
+		s.Settings = owner
 		err = owner.initialize(op.Context(), e.settings.Definitions(), e.settings.Order(), start.Defaults)
 		if err == nil {
 			owner.mu.Lock()
-			s.mu.Lock()
-			s.publishTimeoutSettingsLocked(owner, false, time.Now())
-			s.mu.Unlock()
+			s.Mu.Lock()
+			s.PublishTimeoutSettingsLocked(owner, false, time.Now())
+			s.Mu.Unlock()
 			owner.mu.Unlock()
 		}
 	}
@@ -85,38 +85,38 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 		transactions := &transactionOwner{session: s, extension: &allocation.owner}
 		_, err = op.Attach(Transaction, (*transactionSessionEnd)(transactions))
 		if err == nil {
-			s.transactions = transactions
+			s.Transactions = transactions
 		}
 	}
 	if err == nil {
-		payload.notifications.engine, payload.notifications.token = e, s.token
+		payload.notifications.engine, payload.notifications.token = e, s.SessionToken
 		_, err = op.Attach(Notifications, &payload.notifications)
 	}
 	if err == nil {
 		var ticket *lock.Ticket
-		if sessionTokenAttached(s.token) {
-			ticket, err = e.locks.RegisterSession(s.token)
+		if sessionTokenAttached(s.SessionToken) {
+			ticket, err = e.locks.RegisterSession(s.SessionToken)
 		} else {
 			err = errors.New("stuntgres: invalid advisory session")
 		}
 		if err == nil {
-			s.advisory.ticket, s.advisory.locks = ticket, e.locks
-			_, err = op.Attach(AdvisorySession, &s.advisory)
+			s.Advisory.ticket, s.Advisory.locks = ticket, e.locks
+			_, err = op.Attach(AdvisorySession, &s.Advisory)
 			if err != nil {
 				e.endLockOwner(ticket)
-				s.advisory.ticket = nil
+				s.Advisory.ticket = nil
 			}
 		}
 	}
 	if err == nil {
-		cursors := &cursorRegistry{entries: make(map[string]*sqlCursor), token: s.token}
+		cursors := &cursorRegistry{entries: make(map[string]*sqlCursor), token: s.SessionToken}
 		_, err = op.Attach(Cursors, cursors)
 		if err == nil {
 			payload.cursors = cursors
 		}
 	}
 	if err == nil {
-		prepared := &sqlPreparedRegistry{entries: make(map[string]*sqlPreparedStatement), token: s.token}
+		prepared := &sqlPreparedRegistry{entries: make(map[string]*sqlPreparedStatement), token: s.SessionToken}
 		_, err = op.Attach(PreparedSQL, prepared)
 		if err == nil {
 			payload.preparedSQL = prepared
@@ -135,11 +135,11 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 			err = e.checkDatabaseConnectLocked(ctx, authenticated)
 		}
 	}
-	s.mu.Lock()
+	s.Mu.Lock()
 	if err == nil {
 		err = ctx.Err()
 	}
-	if err == nil && s.state != initializing {
+	if err == nil && s.State != initializing {
 		err = errors.New("stuntgres: session initialization ended")
 	}
 	if err == nil {
@@ -147,7 +147,7 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 		if e.sessions == nil {
 			e.sessions = make(map[ids.SessionToken]*Session)
 		}
-		if e.sessions[s.token] != nil {
+		if e.sessions[s.SessionToken] != nil {
 			err = errors.New("stuntgres: duplicate session identity")
 		} else if !role.Superuser && role.ConnectionLimit >= 0 && e.roleSessionCountLocked(authenticated) >= int(role.ConnectionLimit) {
 			err = roleConnectionLimitError(role.Name)
@@ -155,12 +155,12 @@ func (e *Engine) startSession(ctx context.Context, start SessionStart, private b
 			if resetRole != (authorization.PrincipalRef{}) {
 				auth.state.CurrentUser, auth.state.ResetRole = resetRole, resetRole
 			}
-			s.state = live
-			e.sessions[s.token] = s
+			s.State = live
+			e.sessions[s.SessionToken] = s
 		}
 		e.sessionMu.Unlock()
 	}
-	s.mu.Unlock()
+	s.Mu.Unlock()
 	e.mu.Unlock()
 	if err != nil {
 		s.RequestEnd(InitFailure)

@@ -34,9 +34,9 @@ func (e *Engine) executeIndexMaintenance(scope *StatementScope, stmt parser.Stat
 	}
 	_, reindex := stmt.(*parser.Reindex)
 	if len(g.targets) == 0 || reindex && len(g.indexes) == 0 {
-		scope.op.Session.mu.Lock()
+		scope.op.Session.Mu.Lock()
 		err := publicationOperationLocked(e, scope.op)
-		scope.op.Session.mu.Unlock()
+		scope.op.Session.Mu.Unlock()
 		e.mu.Unlock()
 		if err != nil {
 			return Result{}, err

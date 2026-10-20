@@ -37,7 +37,7 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 		if !ok {
 			return fmt.Errorf("stuntgres: sequence namespace missing")
 		}
-		if ns.Temporary != (ids.SessionToken{}) && ns.Temporary != scope.op.Session.token {
+		if ns.Temporary != (ids.SessionToken{}) && ns.Temporary != scope.op.Session.SessionToken {
 			return nil
 		}
 		owner, err := scope.inquiry.commentRoles.Descriptor(relation.Owner)

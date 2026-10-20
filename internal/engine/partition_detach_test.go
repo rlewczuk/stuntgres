@@ -179,9 +179,9 @@ func TestPartitionDetachPublication(t *testing.T) {
 				t.Fatal(err)
 			}
 			if authority != nil {
-				authority.mu.Lock()
-				authority.authorization.revision++
-				authority.mu.Unlock()
+				authority.Mu.Lock()
+				authority.Authorization.revision++
+				authority.Mu.Unlock()
 			}
 			if veto == "revision" {
 				next := catalog.CloneState(f.e.catalog.state)

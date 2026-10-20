@@ -65,18 +65,18 @@ func TestPreparedSQLSessionOwner(t *testing.T) {
 	e := New()
 	a, b := sessionStart(t, e, nil), sessionStart(t, e, nil)
 	r := payloadOf(a).preparedSQL
-	if r == nil || a.resources[PreparedSQL] == nil || a.resources[PreparedSQL].owner != r || r.token != a.token {
+	if r == nil || a.Resources[PreparedSQL] == nil || a.Resources[PreparedSQL].owner != r || r.token != a.SessionToken {
 		t.Fatal("missing attached session owner")
 	}
 	entry := &sqlPreparedStatement{body: &parser.Select{}}
 	r.entries["p"] = entry
-	if err := r.EndSession(b.token, CleanClose); err == nil || r.entries["p"] != entry {
+	if err := r.EndSession(b.SessionToken, CleanClose); err == nil || r.entries["p"] != entry {
 		t.Fatal("foreign end mutated registry", err)
 	}
-	if err := r.EndSession(a.token, InitFailure); err != nil || len(r.entries) != 0 {
+	if err := r.EndSession(a.SessionToken, InitFailure); err != nil || len(r.entries) != 0 {
 		t.Fatal("end did not clear definitions", err)
 	}
-	if a.resources[PreparedSQL].owner != r {
+	if a.Resources[PreparedSQL].owner != r {
 		t.Fatal("clearing detached owner")
 	}
 	r.entries["p"] = entry

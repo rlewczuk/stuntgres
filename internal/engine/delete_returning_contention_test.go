@@ -41,7 +41,7 @@ func TestDeleteReturningCurrentPredecessor(t *testing.T) {
 			resource := lock.Resource{ObjectRef: ref, Row: e.storage.Relations[ref.Address].Versions[0].Row}
 			lockState := e.locks.Inspect()
 			entry := lockState.Resources[resource]
-			actual := entry != nil && len(entry.Pending) == 1 && entry.Holders[holder.transactions.ticket].Mode&(lock.ForUpdate|lock.ForNoKeyUpdate) != 0
+			actual := entry != nil && len(entry.Pending) == 1 && entry.Holders[holder.Transactions.ticket].Mode&(lock.ForUpdate|lock.ForNoKeyUpdate) != 0
 			if !actual {
 				t.Fatal("not actual predecessor contention")
 			}

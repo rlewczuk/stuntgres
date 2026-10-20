@@ -141,7 +141,7 @@ func TestConstraintRenamePrivateOverlay(t *testing.T) {
 	store, root := e.storage.Relations[ref.Address], e.storage.IndexRoots[index]
 	sessionSQL(t, s, "BEGIN")
 	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
-	tx := s.transactions
+	tx := s.Transactions
 	first := tx.catalog
 	if first == nil || first.Originals[ref.Address] != old || e.catalog.state.Get(ref.Address) != old {
 		t.Fatal("private overlay/original authority absent")
@@ -270,13 +270,13 @@ func TestConstraintRenameDeferredIdentity(t *testing.T) {
 	sessionSQL(t, s, "SET CONSTRAINTS old DEFERRED")
 	sessionSQL(t, s, "INSERT INTO t VALUES(1)")
 	sessionSQL(t, s, "SAVEPOINT saved")
-	modes := ownerExtensionOrZero(s.transactions).exclusionModes
+	modes := ownerExtensionOrZero(s.Transactions).exclusionModes
 	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
-	if !ownerExtensionOrZero(s.transactions).exclusionModes.byConstraint[oid] || len(ownerExtensionOrZero(s.transactions).exclusionModes.events) != 1 || ownerExtensionOrZero(s.transactions).exclusionModes.events[0].constraint != oid {
+	if !ownerExtensionOrZero(s.Transactions).exclusionModes.byConstraint[oid] || len(ownerExtensionOrZero(s.Transactions).exclusionModes.events) != 1 || ownerExtensionOrZero(s.Transactions).exclusionModes.events[0].constraint != oid {
 		t.Fatal("rename reset selected mode/event")
 	}
 	sessionSQL(t, s, "ROLLBACK TO saved")
-	if !reflect.DeepEqual(ownerExtensionOrZero(s.transactions).exclusionModes, modes) {
+	if !reflect.DeepEqual(ownerExtensionOrZero(s.Transactions).exclusionModes, modes) {
 		t.Fatal("rollback lost deferred obligation")
 	}
 	sessionSQL(t, s, "ROLLBACK")
@@ -346,7 +346,7 @@ func TestConstraintRenamePrivateRoots(t *testing.T) {
 	ref := roleTableRef(t, e, "t")
 	sessionSQL(t, s, "BEGIN")
 	sessionSQL(t, s, "ALTER TABLE t ALTER k TYPE BIGINT")
-	earlier := s.transactions.catalog
+	earlier := s.Transactions.catalog
 	parent := earlier.Descriptors[ref.Address].(*catalog.Relation)
 	index := parent.Constraints.Unique[0].Index
 	root := journalIndexesOrZero(earlier).uniqueRoots[index]
@@ -356,12 +356,12 @@ func TestConstraintRenamePrivateRoots(t *testing.T) {
 	}
 	sessionSQL(t, s, "SAVEPOINT saved")
 	sessionSQL(t, s, "ALTER TABLE t RENAME CONSTRAINT old TO new")
-	renamed := s.transactions.catalog
+	renamed := s.Transactions.catalog
 	if renamed == earlier || journalIndexesOrZero(renamed).uniqueRoots[index] != root || renamed.Storage[ref.Address].Replacement != storage || earlier.Descriptors[index].Name() != "old" {
 		t.Fatal("rename copied/mutated prior private roots")
 	}
 	sessionSQL(t, s, "ROLLBACK TO saved")
-	if s.transactions.catalog != earlier {
+	if s.Transactions.catalog != earlier {
 		t.Fatal("private root savepoint pointer lost")
 	}
 	sessionSQL(t, s, "ROLLBACK")

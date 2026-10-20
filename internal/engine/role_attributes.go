@@ -90,8 +90,8 @@ func (e *Engine) executeRoleAttributes(scope *StatementScope, stmt parser.Statem
 	if err != nil {
 		return Result{}, err
 	}
-	op.Session.mu.Lock()
-	defer op.Session.mu.Unlock()
+	op.Session.Mu.Lock()
+	defer op.Session.Mu.Unlock()
 	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}

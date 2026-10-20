@@ -10,5 +10,5 @@ func (h *statementHost) FunctionRandomOwner() (expr.RandomOwner, error) {
 	if scope.op == nil || scope.op.Session == nil {
 		return nil, fmt.Errorf("stuntgres: missing random session scope")
 	}
-	return &scope.op.Session.random, nil
+	return &scope.op.Session.Random, nil
 }

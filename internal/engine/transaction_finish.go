@@ -37,7 +37,7 @@ func (s *StatementScope) Finish(err error) error {
 	// ERROR recovery stops the budget before rollback/root cleanup. Restoring
 	// a positive setting below is not an explicit assignment and cannot rearm it.
 	if err != nil {
-		s.op.Session.finishScopeTimeout(&s.lease, s.op, s.message, s.txRef, true)
+		s.op.Session.FinishScopeTimeout(&s.lease, s.op, s.message, s.txRef, true)
 	}
 	if s.controlOutcome == controlExecuted || (s.controlOutcome == controlDescribed && err == nil) {
 		// A control has no stage/view. In particular, do not advance or recheck
@@ -54,7 +54,7 @@ func (s *StatementScope) Finish(err error) error {
 		// the new incarnation installed by CHAIN after its linearization.
 		s.finished = true
 		s.result = err
-		s.op.Session.finishScopeTimeout(&s.lease, s.op, s.message, s.txRef, err != nil)
+		s.op.Session.FinishScopeTimeout(&s.lease, s.op, s.message, s.txRef, err != nil)
 		s.releaseCopyReservation()
 		if !s.message {
 			s.owner.admission.Unlock()
@@ -140,7 +140,7 @@ func (s *StatementScope) Finish(err error) error {
 				session := s.op.Session
 			privateForeignFence:
 				e.mu.Lock()
-				session.mu.Lock()
+				session.Mu.Lock()
 				err = publicationOperationLocked(e, s.op)
 				if err == nil && t.ref.Epoch() != e.catalog.state.Epoch() {
 					err = ids.ErrCatalogReplaced
@@ -152,7 +152,7 @@ func (s *StatementScope) Finish(err error) error {
 					err = e.catalogAuthorityPreflightLocked(s.catalogAuthority, catalog)
 				}
 				if err == nil && len(s.foreignTablesOrZero().statements) != 0 {
-					session.mu.Unlock()
+					session.Mu.Unlock()
 					e.mu.Unlock()
 					t.mu.Unlock()
 					settleErr := s.finishForeignStatements(nil)
@@ -162,7 +162,7 @@ func (s *StatementScope) Finish(err error) error {
 					}
 					err = settleErr
 					e.mu.Lock()
-					session.mu.Lock()
+					session.Mu.Lock()
 				}
 				if err == nil {
 					for a, rows := range s.stage.rows {
@@ -180,7 +180,7 @@ func (s *StatementScope) Finish(err error) error {
 					}
 					e.reconcileSerializableWritesLocked(t)
 				}
-				session.mu.Unlock()
+				session.Mu.Unlock()
 				e.mu.Unlock()
 			}
 		}
@@ -209,18 +209,18 @@ func (s *StatementScope) Finish(err error) error {
 		}
 	}
 	if err != nil {
-		s.op.Session.finishScopeTimeout(&s.lease, s.op, s.message, s.txRef, true)
+		s.op.Session.FinishScopeTimeout(&s.lease, s.op, s.message, s.txRef, true)
 	}
 	var diagnostic *sqlstate.Error
 	admittedFailure := s.worked || errors.As(err, &diagnostic) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 	var endedTicket *lock.Ticket
 	if t.state == TxImplicit && (!t.retainsTransaction() || err != nil) {
-		t.session.settings.finishTransaction(err == nil)
+		t.session.Settings.finishTransaction(err == nil)
 		e.endSerializable(t.ref, err == nil)
 		endedTicket = t.ticket
 		t.ticket = nil
 		clearTransaction(t)
-		t.session.retireTransactionTimeout()
+		t.session.RetireTransactionTimeout()
 	} else if err != nil && admittedFailure && (t.state == TxActive || t.state == TxAborted) {
 		if errors.Is(err, ids.ErrCatalogReplaced) {
 			ownerExtensionOf(t).detachCursors(payloadOf(t.session).cursors.clear())
@@ -241,7 +241,7 @@ func (s *StatementScope) Finish(err error) error {
 			t.state = TxAborted
 		} else {
 			ownerExtensionOf(t).retireForeign()
-			t.session.settings.finishTransaction(false)
+			t.session.Settings.finishTransaction(false)
 			e.endSerializable(t.ref, false)
 			t.isolation, t.readOnly = t.entryIsolation, t.entryReadOnly
 			t.deferrable = t.entryDeferrable
@@ -285,7 +285,7 @@ func (s *StatementScope) Finish(err error) error {
 	s.activeMutation = 0
 	s.cteInvocation = nil
 	s.finished = true
-	s.op.Session.finishScopeTimeout(&s.lease, s.op, s.message, s.txRef, err != nil)
+	s.op.Session.FinishScopeTimeout(&s.lease, s.op, s.message, s.txRef, err != nil)
 	s.result = err
 	finishNotificationBoundary(t)
 	t.mu.Unlock()

@@ -26,7 +26,7 @@ func TestRowLockRepeatableRead(t *testing.T) {
 					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 					defer cancel()
 					done := deleteAsync(t, b, ctx, "SELECT v FROM t WHERE id=1 "+clause)
-					rowLockQueued(t, e, a.transactions.ticket, analyze.RowLockMode(clause))
+					rowLockQueued(t, e, a.Transactions.ticket, analyze.RowLockMode(clause))
 					transactionEnd(t, a, ar, commit)
 					if commit && !(clause == "FOR KEY SHARE" && change[0] == 'U') {
 						select {
@@ -60,7 +60,7 @@ func TestRowLockControls(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			done := deleteAsync(t, b, ctx, "SELECT v FROM t ORDER BY v FOR SHARE")
-			rowLockQueued(t, e, a.transactions.ticket, lock.ForShare)
+			rowLockQueued(t, e, a.Transactions.ticket, lock.ForShare)
 			if restore {
 				if err := e.Restore(ctx, strings.NewReader("CREATE TABLE t(id INT,v INT);INSERT INTO t VALUES(1,99)")); err != nil {
 					t.Fatal(err)

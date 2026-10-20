@@ -102,7 +102,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			t.Fatal(err)
 		}
 		firstOp.Done()
-		frontier, roots := owner.transactions.frontier, maps.Clone(owner.transactions.roots)
+		frontier, roots := owner.Transactions.frontier, maps.Clone(owner.Transactions.roots)
 		partitionAttachUnitWrite(t, e, writer, ref, 3)
 		partitionAttachUnitWrite(t, e, owner, ref, 2)
 		deleting, deleteOp := partitionAttachUnitScope(t, e, owner)
@@ -147,7 +147,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 		if got := partitionAttachUnitValues(t, latest, ref); !reflect.DeepEqual(got, []int64{3, 2}) {
 			t.Fatal("latest view lost peer row/owner write/delete", got)
 		}
-		if owner.transactions.frontier != frontier || !reflect.DeepEqual(owner.transactions.roots, roots) {
+		if owner.Transactions.frontier != frontier || !reflect.DeepEqual(owner.Transactions.roots, roots) {
 			t.Fatal("validation advanced ordinary snapshot roots")
 		}
 		retained := latest.Retain()
@@ -201,7 +201,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 				t.Fatal(err)
 			}
 			attachOp.Done()
-			private := e.privateCatalogLocked(owner.transactions.catalog)
+			private := e.privateCatalogLocked(owner.Transactions.catalog)
 			if private.MustRelation(child.Address()).Membership == nil || e.catalog.state.Get(child.Address()) != child || len(parent.Partition.Children) != 0 {
 				t.Fatal("overlay was not private and reciprocal")
 			}
@@ -215,13 +215,13 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 					t.Fatal(err)
 				}
 				rollbackOp.Done()
-				if e.privateCatalogLocked(owner.transactions.catalog).Get(child.Address()) != child {
+				if e.privateCatalogLocked(owner.Transactions.catalog).Get(child.Address()) != child {
 					t.Fatal("savepoint retained attachment overlay")
 				}
 				lockState := e.locks.Inspect()
-				parentMode := lockState.Resources[lock.Resource{ObjectRef: parentRef}].Holders[owner.transactions.ticket].Mode
+				parentMode := lockState.Resources[lock.Resource{ObjectRef: parentRef}].Holders[owner.Transactions.ticket].Mode
 				childEntry := lockState.Resources[lock.Resource{ObjectRef: childRef}]
-				childHeld := childEntry != nil && childEntry.Holders[owner.transactions.ticket].Mode != 0
+				childHeld := childEntry != nil && childEntry.Holders[owner.Transactions.ticket].Mode != 0
 				if parentMode != lock.AccessShare || childHeld {
 					t.Fatal("savepoint did not restore earlier lock contribution", parentMode, childHeld)
 				}
@@ -243,7 +243,7 @@ func TestPartitionAttachTransactionOverlay(t *testing.T) {
 			if attached != (end == "commit") {
 				t.Fatal("transaction end published wrong topology", attached)
 			}
-			if owner.transactions.catalog != nil {
+			if owner.Transactions.catalog != nil {
 				t.Fatal("transaction end leaked private overlay")
 			}
 			lockEmpty(t, e)

@@ -124,8 +124,8 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 		t.Fatal(err)
 	}
 	gate := &generatedRepairSource{entered: make(chan struct{}), release: make(chan struct{})}
-	session.random.rand = *rand.New(gate)
-	session.random.initialized = true
+	session.Random.rand = *rand.New(gate)
+	session.Random.initialized = true
 	f := &generatedRepairFixture{target: e, stage: stage, session: session, op: op, next: next, storage: map[ids.ObjectAddress]*storage.Relation{d.Address(): {Versions: []storage.RowVersion{{Values: source}}}}, sequences: map[ids.ObjectAddress]*storage.SequenceGenerator{{ClassID: ids.RelationClassID, ObjectID: 28000}: {Last: 77, Called: true}}, mapping: map[ids.ObjectAddress]ids.ObjectAddress{oldAddress: d.Address()}, imported: d.Address(), temp: tempAddress, source: source, tempValues: tempValues, gate: gate}
 	t.Cleanup(func() {
 		op.Done()
@@ -173,10 +173,10 @@ func (f *generatedRepairFixture) assertJoined(t *testing.T) {
 	if err := f.session.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	f.session.mu.Lock()
-	defer f.session.mu.Unlock()
-	if f.session.state != ended || f.session.leases != 0 || len(f.session.operations) != 0 {
-		t.Fatal("session cleanup did not join operations", f.session.state, f.session.leases, len(f.session.operations))
+	f.session.Mu.Lock()
+	defer f.session.Mu.Unlock()
+	if f.session.State != ended || f.session.Leases != 0 || len(f.session.Operations) != 0 {
+		t.Fatal("session cleanup did not join operations", f.session.State, f.session.Leases, len(f.session.Operations))
 	}
 }
 

@@ -11,7 +11,7 @@ func (e *Engine) newStatementScope(op *Operation, t *transactionOwner, start tim
 	if t.retainedMessage && t.messageBorn && t.state == TxIdle {
 		s.transactionStart = time.Now().UTC().Truncate(time.Microsecond)
 	}
-	op.Session.startProvisionalTimeout(&s.lease, op, s.transactionStart)
+	op.Session.StartProvisionalTimeout(&s.lease, op, s.transactionStart)
 	return s
 }
 
@@ -104,21 +104,21 @@ func (s *StatementScope) FinishMessage(err error) error {
 	t.retainedMessage = false
 	finishNotificationBoundary(t)
 	t.mu.Unlock()
-	s.op.Session.mu.Lock()
+	s.op.Session.Mu.Lock()
 	s.op.SQLFinished = true
-	s.op.Session.mu.Unlock()
+	s.op.Session.Mu.Unlock()
 	s.messageEnded = true
 	s.messageResult = err
 	t.admission.Unlock()
 	return err
 }
 func (s *StatementScope) ownsMessageScope() bool {
-	if s.op == nil || s.op.Self != s.op || s.op.Session == nil || s.owner != s.op.Session.transactions {
+	if s.op == nil || s.op.Self != s.op || s.op.Session == nil || s.owner != s.op.Session.Transactions {
 		return false
 	}
-	s.op.Session.mu.Lock()
-	_, registered := s.op.Session.operations[s.op]
+	s.op.Session.Mu.Lock()
+	_, registered := s.op.Session.Operations[s.op]
 	owned := registered && !s.op.Released && s.op.Lease == &s.lease
-	s.op.Session.mu.Unlock()
+	s.op.Session.Mu.Unlock()
 	return owned
 }

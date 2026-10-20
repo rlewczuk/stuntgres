@@ -31,7 +31,7 @@ func (h *statementHost) Sequence(request functions.SequenceRequest) (int64, erro
 		before.Catalog = e.privateCatalogLocked(scope.catalog)
 		before.Recapture(before.Catalog)
 	}
-	if beforeErr == nil && ref.Epoch != before.Catalog.Epoch() && request.Temporary == scope.op.Session.token && temporarySequenceEpochValid(before.Catalog, ref, request.Temporary) {
+	if beforeErr == nil && ref.Epoch != before.Catalog.Epoch() && request.Temporary == scope.op.Session.SessionToken && temporarySequenceEpochValid(before.Catalog, ref, request.Temporary) {
 		ref.Epoch = before.Catalog.Epoch()
 	}
 	if beforeErr == nil && (ref.Domain() != e.catalog.Domain || ref.Epoch != before.Catalog.Epoch()) {
@@ -76,7 +76,7 @@ func (h *statementHost) Sequence(request functions.SequenceRequest) (int64, erro
 	if err = sequence.CheckKind(d); err != nil {
 		return 0, err
 	}
-	if ns, ok := auth.Catalog.Namespace(d.Namespace()); ok && ns.Temporary == scope.op.Session.token {
+	if ns, ok := auth.Catalog.Namespace(d.Namespace()); ok && ns.Temporary == scope.op.Session.SessionToken {
 		scope.owner.accessedTemporary = true
 	}
 	mask := authorization.UsagePrivilege | authorization.SelectPrivilege
@@ -93,7 +93,7 @@ func (h *statementHost) Sequence(request functions.SequenceRequest) (int64, erro
 	}
 	if scope.owner.readOnly && (request.Name == "nextval" || request.Name == "setval") {
 		ns, _ := auth.Catalog.Namespace(d.Namespace())
-		if ns == nil || ns.Temporary != scope.op.Session.token {
+		if ns == nil || ns.Temporary != scope.op.Session.SessionToken {
 			return 0, sqlError("25006", "cannot execute "+request.Name+"() in a read-only transaction")
 		}
 	}

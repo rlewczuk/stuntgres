@@ -161,9 +161,9 @@ func TestAlterGeneratedExpressionProviderFences(t *testing.T) {
 						t.Fatal(err)
 					}
 				case "principal":
-					op.Session.mu.Lock()
-					op.Session.authorization.revision++
-					op.Session.mu.Unlock()
+					op.Session.Mu.Lock()
+					op.Session.Authorization.revision++
+					op.Session.Mu.Unlock()
 				case "role":
 					if _, err := e.Execute(admin, &parser.CreateRole{Name: parser.Identifier{Text: "generation_changed_role"}}, 0, nil); err != nil {
 						t.Fatal(err)

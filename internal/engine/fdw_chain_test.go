@@ -29,7 +29,7 @@ func fdwChainReadmission(t *testing.T) {
 	sessionSQL(t, session, "INSERT INTO chain_local VALUES(7)")
 	sessionSQL(t, session, "DECLARE chain_hold NO SCROLL CURSOR WITH HOLD FOR SELECT v FROM chain_local")
 	promoted := payloadOf(session).cursors.entries["chain_hold"]
-	owner := session.transactions
+	owner := session.Transactions
 	ref := owner.ref
 	address := e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}, Name: "chain_local"})
 	entered := make(chan struct{})
@@ -120,9 +120,9 @@ func fdwChainReadmission(t *testing.T) {
 	if payloadOf(session).cursors.entries["chain_hold"] != promoted || promoted == nil || !promoted.promoted || promoted.count != 1 {
 		t.Fatal("CHAIN readmission failure discarded a committed HOLD promotion")
 	}
-	session.settings.mu.Lock()
-	application := session.settings.value("application_name")
-	session.settings.mu.Unlock()
+	session.Settings.mu.Lock()
+	application := session.Settings.value("application_name")
+	session.Settings.mu.Unlock()
 	if application != "committed-old" {
 		t.Fatal("old committed settings were rolled back", application)
 	}

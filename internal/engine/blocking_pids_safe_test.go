@@ -46,8 +46,8 @@ func TestBlockingPidsSafeAuthority(t *testing.T) {
 	e.mu.Lock()
 	e.visibility.Serializable.Nodes = map[ids.TxRef]*visibility.SerializableTx{r.Ref: r, w.Ref: w, w2.Ref: w2}
 	e.mu.Unlock()
-	blockingUnitSafeWant(t, e, reader.token.ID(), int64(writer.token.ID()), int64(second.Session().ID()))
-	blockingUnitWant(t, e, reader.token.ID()) // SSI must never invent ordinary locks.
+	blockingUnitSafeWant(t, e, reader.SessionToken.ID(), int64(writer.SessionToken.ID()), int64(second.Session().ID()))
+	blockingUnitWant(t, e, reader.SessionToken.ID()) // SSI must never invent ordinary locks.
 	for _, mutate := range []func(){
 		func() { r.Deferrable = false }, func() { r.ReadOnly = false }, func() { r.Captured = false },
 		func() { r.Resolved = true }, func() { r.Aborted = true }, func() { r.Ended = true },
@@ -57,7 +57,7 @@ func TestBlockingPidsSafeAuthority(t *testing.T) {
 		original := *r
 		mutate()
 		e.mu.Unlock()
-		blockingUnitSafeWant(t, e, reader.token.ID())
+		blockingUnitSafeWant(t, e, reader.SessionToken.ID())
 		e.mu.Lock()
 		*r = original
 		e.mu.Unlock()
@@ -67,15 +67,15 @@ func TestBlockingPidsSafeAuthority(t *testing.T) {
 	e.mu.Lock()
 	w.Prepared, w2.Prepared = true, true
 	e.mu.Unlock()
-	blockingUnitSafeWant(t, e, reader.token.ID(), 0, 0)
+	blockingUnitSafeWant(t, e, reader.SessionToken.ID(), 0, 0)
 	e.mu.Lock()
 	e.endSerializableLocked(w.Ref, false)
 	e.mu.Unlock()
-	blockingUnitSafeWant(t, e, reader.token.ID(), 0)
+	blockingUnitSafeWant(t, e, reader.SessionToken.ID(), 0)
 	e.mu.Lock()
 	e.endSerializableLocked(w2.Ref, false)
 	e.mu.Unlock()
-	blockingUnitSafeWant(t, e, reader.token.ID())
+	blockingUnitSafeWant(t, e, reader.SessionToken.ID())
 	select {
 	case <-r.Ready:
 	default:
@@ -88,14 +88,14 @@ func TestBlockingPidsSafeAuthority(t *testing.T) {
 	r.Possible = map[*visibility.SerializableTx]struct{}{w: {}}
 	e.visibility.Serializable.Nodes[r.Ref] = r
 	e.mu.Unlock()
-	blockingUnitSafeWant(t, e, reader.token.ID())
+	blockingUnitSafeWant(t, e, reader.SessionToken.ID())
 	// Full-width session identity must not alias an int4 target on lookup.
 	e.mu.Lock()
 	delete(e.visibility.Serializable.Nodes, r.Ref)
 	r.Ref = withTxSession(r.Ref, withSessionID(r.Ref.Session(), r.Ref.Session().ID()+ids.SessionID(uint64(1)<<32)))
 	e.visibility.Serializable.Nodes[r.Ref] = r
 	e.mu.Unlock()
-	blockingUnitSafeWant(t, e, reader.token.ID())
+	blockingUnitSafeWant(t, e, reader.SessionToken.ID())
 	// Exercise native overflow separately from prepared zero classification.
 	e.mu.Lock()
 	w.Aborted, w.Ended, w.Prepared = false, false, false
@@ -103,10 +103,10 @@ func TestBlockingPidsSafeAuthority(t *testing.T) {
 	w.Ref = withTxSession(w.Ref, withSessionID(w.Ref.Session(), math.MaxInt32+1))
 	e.visibility.Serializable.Nodes[w.Ref] = w
 	delete(e.visibility.Serializable.Nodes, r.Ref)
-	r.Ref = withTxSession(r.Ref, reader.token)
+	r.Ref = withTxSession(r.Ref, reader.SessionToken)
 	e.visibility.Serializable.Nodes[r.Ref] = r
 	r.Possible = map[*visibility.SerializableTx]struct{}{w: {}}
-	_, err := e.safeSnapshotBlockingPidsLocked(reader.token.ID(), typ)
+	_, err := e.safeSnapshotBlockingPidsLocked(reader.SessionToken.ID(), typ)
 	e.mu.Unlock()
 	if err == nil || err.Error() != "stuntgres: blocking session identity exceeds integer range" {
 		t.Fatal("safe PID overflow", err)
@@ -114,5 +114,5 @@ func TestBlockingPidsSafeAuthority(t *testing.T) {
 	e.mu.Lock()
 	e.fenceSerializableLocked()
 	e.mu.Unlock()
-	blockingUnitSafeWant(t, e, reader.token.ID())
+	blockingUnitSafeWant(t, e, reader.SessionToken.ID())
 }

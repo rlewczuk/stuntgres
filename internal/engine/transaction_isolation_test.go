@@ -108,7 +108,7 @@ func TestTransactionIsolationRootLifecycle(t *testing.T) {
 	sessionSQL(t, b, "INSERT INTO t VALUES(1)")
 	sessionSQL(t, a, "BEGIN ISOLATION LEVEL REPEATABLE READ")
 	transactionRows(t, a, "SELECT v FROM t", 1)
-	tOwner := a.transactions
+	tOwner := a.Transactions
 	tOwner.mu.Lock()
 	roots := tOwner.roots
 	frontier := tOwner.frontier
@@ -182,7 +182,7 @@ func TestTransactionIsolationStatementTimeout(t *testing.T) {
 		}
 	})
 	request := timeoutPendingRequest(t, e, op)
-	rowLockQueued(t, e, b.transactions.ticket, lock.ForNoKeyUpdate)
+	rowLockQueued(t, e, b.Transactions.ticket, lock.ForNoKeyUpdate)
 	timeoutPendingPublish(t, e, request, op.StatementDeadline)
 	select {
 	case err := <-done:

@@ -47,7 +47,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			}
 		}
 		var pending []exec.Leaf
-		err := inheritanceQueryClosure(view, root, s.op.Session.token, func(child *catalog.Relation) error {
+		err := inheritanceQueryClosure(view, root, s.op.Session.SessionToken, func(child *catalog.Relation) error {
 			if child.Address() == root.Address() {
 				return nil
 			}

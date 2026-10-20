@@ -23,20 +23,20 @@ const (
 // Context remains a separate check: an accepted Go commit canceled after
 // admission must retain its existing failed-end/discard disposition.
 func (e *Engine) transactionAuthority(op *Operation) error {
-	if op == nil || op.Self != op || op.Session == nil || op.Session.token.Domain() != domainOf(e) {
+	if op == nil || op.Self != op || op.Session == nil || op.Session.SessionToken.Domain() != domainOf(e) {
 		return errors.New("stuntgres: foreign or missing operation")
 	}
 	session := op.Session
-	session.mu.Lock()
-	defer session.mu.Unlock()
-	if op.Released || session.state != live {
-		if session.timeouts.fatal != nil {
-			copy := *session.timeouts.fatal
+	session.Mu.Lock()
+	defer session.Mu.Unlock()
+	if op.Released || session.State != live {
+		if session.Timeouts.Fatal != nil {
+			copy := *session.Timeouts.Fatal
 			return &copy
 		}
 		return errors.New("stuntgres: inactive operation")
 	}
-	if _, ok := session.operations[op]; !ok {
+	if _, ok := session.Operations[op]; !ok {
 		return errors.New("stuntgres: inactive operation")
 	}
 	return nil
@@ -72,7 +72,7 @@ func (e *Engine) beginAdmitted(op *Operation, t *transactionOwner, start time.Ti
 	t.mu.Lock()
 	if err != nil {
 		clearTransaction(t)
-		t.session.retireTransactionTimeout()
+		t.session.RetireTransactionTimeout()
 		return ids.TxRef{}, err
 	}
 	t.ticket = ticket
@@ -84,8 +84,8 @@ func (e *Engine) beginAdmitted(op *Operation, t *transactionOwner, start time.Ti
 func (e *Engine) endPreflight(op *Operation) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	op.Session.mu.Lock()
-	defer op.Session.mu.Unlock()
+	op.Session.Mu.Lock()
+	defer op.Session.Mu.Unlock()
 	return publicationOperationLocked(e, op)
 }
 
@@ -129,10 +129,10 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 			if commit {
 				old = t.ticket
 				t.ticket = nil
-				t.session.settings.finishTransaction(false)
+				t.session.Settings.finishTransaction(false)
 				e.endSerializable(t.ref, false)
 				clearTransaction(t)
-				t.session.retireTransactionTimeout()
+				t.session.RetireTransactionTimeout()
 			}
 			return EndResult{}, err
 		}
@@ -149,7 +149,7 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 			return EndResult{}, errors.New("stuntgres: transaction identity exhausted")
 		}
 		e.mu.Lock()
-		op.Session.mu.Lock()
+		op.Session.Mu.Lock()
 		err := publicationOperationLocked(e, op)
 		var diagnostic uint32
 		if err == nil {
@@ -157,10 +157,10 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 		}
 		if err == nil {
 			t.next++
-			next = e.catalog.Domain.Tx(t.session.token, t.next, e.catalog.state.Epoch(), t, diagnostic)
+			next = e.catalog.Domain.Tx(t.session.SessionToken, t.next, e.catalog.state.Epoch(), t, diagnostic)
 			e.enrollSerializableLocked(next, isolation)
 		}
-		op.Session.mu.Unlock()
+		op.Session.Mu.Unlock()
 		e.mu.Unlock()
 		if err != nil {
 			return EndResult{}, err
@@ -281,10 +281,10 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 	}
 	old = t.ticket
 	t.ticket = nil
-	t.session.settings.finishTransaction(committed)
+	t.session.Settings.finishTransaction(committed)
 	e.endSerializable(t.ref, committed)
 	clearTransaction(t)
-	t.session.retireTransactionTimeout()
+	t.session.RetireTransactionTimeout()
 	if err != nil {
 		return EndResult{Committed: committed}, err
 	}
@@ -304,9 +304,9 @@ func (e *Engine) endAdmitted(op *Operation, t *transactionOwner, ref ids.TxRef, 
 		t.ticket = candidate
 		candidate = nil
 		installedNext = true
-		t.session.mu.Lock()
-		t.session.beginTimeoutLocked(next, true, time.Now())
-		t.session.mu.Unlock()
+		t.session.Mu.Lock()
+		t.session.BeginTimeoutLocked(next, true, time.Now())
+		t.session.Mu.Unlock()
 	}
 	return EndResult{Committed: committed}, nil
 }
@@ -351,9 +351,9 @@ func (s *StatementScope) executeControl(control *parser.TransactionControl, coun
 				t.state = TxActive
 				err = assignModes(t, control.Modes)
 				t.mu.Unlock()
-				t.session.mu.Lock()
-				t.session.timeouts.explicit = true
-				t.session.mu.Unlock()
+				t.session.Mu.Lock()
+				t.session.Timeouts.Explicit = true
+				t.session.Mu.Unlock()
 			}
 		} else {
 			err = e.endPreflight(s.op)

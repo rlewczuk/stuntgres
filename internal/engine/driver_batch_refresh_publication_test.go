@@ -33,7 +33,7 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 					}
 				}
 				e.mu.Lock()
-				view := e.privateCatalogLocked(s.transactions.catalog)
+				view := e.privateCatalogLocked(s.Transactions.catalog)
 				e.mu.Unlock()
 				target := catalogRef(t, e, view, name)
 				original := e.storage.Relations[target.Address]
@@ -50,16 +50,16 @@ func TestDriverBatchMaterializedReplacementRoots(t *testing.T) {
 				var previous *storage.Relation
 				for _, suffix := range []string{"WITH DATA", "WITH NO DATA", "WITH DATA"} {
 					e.mu.Lock()
-					entry := e.privateStorageLocked(s.transactions.catalog, target.Address)
+					entry := e.privateStorageLocked(s.Transactions.catalog, target.Address)
 					e.mu.Unlock()
 					if _, err := m.step(statement(t, "REFRESH MATERIALIZED VIEW "+name+" "+suffix)); err != nil {
 						t.Fatal(err)
 					}
-					shape := s.transactions.catalog.Storage[target.Address]
-					if shape.Original != original || !sameVersionRoot(shape.Root, root) || shape.Ends != ends || shape.Generation != generation || shape.Replacement == entry || shape.Replacement == previous || shape.Replacement.Generation != entry.Generation+1 || !shape.Rewritten || shape.HasSnapshot || shape.Relation != s.transactions.catalog.Descriptors[target.Address] {
+					shape := s.Transactions.catalog.Storage[target.Address]
+					if shape.Original != original || !sameVersionRoot(shape.Root, root) || shape.Ends != ends || shape.Generation != generation || shape.Replacement == entry || shape.Replacement == previous || shape.Replacement.Generation != entry.Generation+1 || !shape.Rewritten || shape.HasSnapshot || shape.Relation != s.Transactions.catalog.Descriptors[target.Address] {
 						t.Fatal("replacement lost first committed or immediate private predecessor", shape)
 					}
-					if len(s.transactions.writes[target.Address]) != 0 {
+					if len(s.Transactions.writes[target.Address]) != 0 {
 						t.Fatal("private CREATE initial rows appended to replacement")
 					}
 					want := 2
@@ -136,10 +136,10 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 				}
 			}
 			e.mu.Lock()
-			view := e.privateCatalogLocked(s.transactions.catalog)
+			view := e.privateCatalogLocked(s.Transactions.catalog)
 			e.mu.Unlock()
 			pending := catalogRef(t, e, view, "refresh_pending_idx")
-			replacement := s.transactions.catalog.Storage[target.Address].Replacement
+			replacement := s.Transactions.catalog.Storage[target.Address].Replacement
 			var err error
 			switch fence {
 			case "cancel":
@@ -149,9 +149,9 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 				next.SetEpoch(next.Epoch() + 1)
 				e.catalog.state = next
 			case "ref":
-				stale := s.transactions.ref
+				stale := s.Transactions.ref
 				stale = withTxID(stale, stale.ID()+1)
-				err = e.publishWrites(m.op, stale, s.transactions.writes, s.transactions.deletes, nil)
+				err = e.publishWrites(m.op, stale, s.Transactions.writes, s.Transactions.deletes, nil)
 				if err == nil {
 					t.Fatal("foreign incarnation admitted materialized replacement")
 				}
@@ -210,20 +210,20 @@ func TestDriverBatchMaterializedPromotionSavepoint(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	shape := s.transactions.catalog.Storage[target.Address]
-	ref, ticket, start := s.transactions.ref, s.transactions.ticket, s.transactions.start
+	shape := s.Transactions.catalog.Storage[target.Address]
+	ref, ticket, start := s.Transactions.ref, s.Transactions.ticket, s.Transactions.start
 	for _, q := range []string{"BEGIN", "SAVEPOINT kept", "INSERT INTO refresh_source VALUES(3)"} {
 		if _, err := m.step(statement(t, q)); err != nil {
 			t.Fatal(err)
 		}
 	}
 	_, err := m.step(statement(t, "SELECT missing"))
-	if err == nil || m.end(err) != err || s.transactions.state != TxAborted {
+	if err == nil || m.end(err) != err || s.Transactions.state != TxAborted {
 		t.Fatal("promoted mark did not preserve failed-block recovery", err)
 	}
 	sessionSQL(t, s, "ROLLBACK TO kept")
-	restored := s.transactions.catalog.Storage[target.Address]
-	if s.transactions.state != TxActive || s.transactions.ref != ref || s.transactions.ticket != ticket || s.transactions.start != start || restored.Original != shape.Original || restored.Replacement != shape.Replacement || restored.Generation != shape.Generation || restored.Ends != shape.Ends || !restored.Rewritten || len(s.transactions.writes[source.Address]) != 1 || e.storage.Relations[target.Address] != original || e.visibility.CommitSeq() != frontier {
+	restored := s.Transactions.catalog.Storage[target.Address]
+	if s.Transactions.state != TxActive || s.Transactions.ref != ref || s.Transactions.ticket != ticket || s.Transactions.start != start || restored.Original != shape.Original || restored.Replacement != shape.Replacement || restored.Generation != shape.Generation || restored.Ends != shape.Ends || !restored.Rewritten || len(s.Transactions.writes[source.Address]) != 1 || e.storage.Relations[target.Address] != original || e.visibility.CommitSeq() != frontier {
 		t.Fatal("savepoint recovery rebuilt or published retained replacement authority")
 	}
 	sessionSQL(t, s, "COMMIT")

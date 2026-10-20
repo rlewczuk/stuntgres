@@ -249,7 +249,7 @@ func (h *bindingHost) PlanOwner() (ids.SessionToken, uint64, bool) {
 	if h.op == nil {
 		return ids.SessionToken{}, 0, false
 	}
-	return h.op.Session.token, h.op.Session.discardPlansGeneration, true
+	return h.op.Session.SessionToken, h.op.Session.DiscardPlansGeneration, true
 }
 
 func (h *bindingHost) EmitWarning(diagnostic sqlstate.Error) {

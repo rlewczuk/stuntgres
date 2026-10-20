@@ -51,7 +51,7 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 	definition.namespaces = b.Capture.Namespaces
 	definition.sequenceRefs = make(map[int]ids.ObjectRef, len(b.Prepared.SequenceConstants))
 	for _, constant := range b.Prepared.SequenceConstants {
-		if constant.Temporary != (ids.SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || auth.session == nil || constant.Temporary != auth.session.token) {
+		if constant.Temporary != (ids.SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || auth.session == nil || constant.Temporary != auth.session.SessionToken) {
 			return nil, sqlError("0A000", temporaryMessage)
 		}
 		definition.sequenceRefs[constant.Offset] = constant.Ref
@@ -89,12 +89,12 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 		for _, slot := range source.Uses {
 			leaf.reads = append(leaf.reads, source.Relation.Attributes[slot])
 		}
-		if ns := auth.Catalog.MustNamespace(source.Relation.Namespace()); ns.Temporary != (ids.SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || auth.session == nil || ns.Temporary != auth.session.token) {
+		if ns := auth.Catalog.MustNamespace(source.Relation.Namespace()); ns.Temporary != (ids.SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || auth.session == nil || ns.Temporary != auth.session.SessionToken) {
 			return nil, sqlError("0A000", temporaryMessage)
 		}
 	}
 	if temporaryConsumer {
-		definition.temporary = auth.session.token
+		definition.temporary = auth.session.SessionToken
 		definition.references = make(map[ids.ObjectRef]catalog.Descriptor, len(definition.sources)+len(definition.dependencies))
 		capture := func(ref ids.ObjectRef) {
 			address := ref.Address

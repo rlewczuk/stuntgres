@@ -24,26 +24,26 @@ func TestUpdateCoreRowResourceAuthority(t *testing.T) {
 	acquire := func(ticket *lock.Ticket, r lock.Resource) (*lock.Request, error) {
 		return e.locks.StartAcquire(context.Background(), ticket, r, lock.ForNoKeyUpdate, lock.Policy{})
 	}
-	if request, err := acquire(a.transactions.ticket, resource); request != nil || err != nil {
+	if request, err := acquire(a.Transactions.ticket, resource); request != nil || err != nil {
 		t.Fatal(request, err)
 	}
-	if request, err := acquire(a.transactions.ticket, resource); request != nil || err != nil {
+	if request, err := acquire(a.Transactions.ticket, resource); request != nil || err != nil {
 		t.Fatal("self reentry", request, err)
 	}
-	if request, err := acquire(b.transactions.ticket, other); request != nil || err != nil {
+	if request, err := acquire(b.Transactions.ticket, other); request != nil || err != nil {
 		t.Fatal("duplicate-valued row conflicted", request, err)
 	}
 	for _, invalid := range []lock.Resource{{ObjectRef: ref}, {ObjectRef: New().catalog.Domain.Ref(ref.Epoch, ref.Address), Row: versions[0].Row}} {
-		if request, err := acquire(b.transactions.ticket, invalid); request != nil || err == nil {
+		if request, err := acquire(b.Transactions.ticket, invalid); request != nil || err == nil {
 			t.Fatal("invalid resource admitted", request, err)
 		}
 	}
-	copied := *a.transactions.ticket
+	copied := *a.Transactions.ticket
 	if request, err := acquire(&copied, resource); request != nil || !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("copied ticket admitted", request, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	request, err := e.locks.StartAcquire(ctx, b.transactions.ticket, resource, lock.ForNoKeyUpdate, lock.Policy{})
+	request, err := e.locks.StartAcquire(ctx, b.Transactions.ticket, resource, lock.ForNoKeyUpdate, lock.Policy{})
 	if err != nil || request == nil {
 		t.Fatal("missing exact queued row request", request, err)
 	}
@@ -53,12 +53,12 @@ func TestUpdateCoreRowResourceAuthority(t *testing.T) {
 	}
 	lockState := e.locks.Inspect()
 	entry := lockState.Resources[resource]
-	held := entry.Holders[a.transactions.ticket].Mode
+	held := entry.Holders[a.Transactions.ticket].Mode
 	pending := len(entry.Pending)
 	if held != lock.ForNoKeyUpdate || pending != 0 {
 		t.Fatal("cancel damaged holder", held, pending)
 	}
-	request, err = acquire(b.transactions.ticket, resource)
+	request, err = acquire(b.Transactions.ticket, resource)
 	if err != nil || request == nil {
 		t.Fatal(request, err)
 	}

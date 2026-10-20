@@ -86,7 +86,7 @@ func BenchmarkInsertConflictUpdateDistinctStage(b *testing.B) {
 					if result.Count != int64(size) {
 						b.Fatal("exact mixed action count", result.Count, size)
 					}
-					rows := s.transactions.writes[ref]
+					rows := s.Transactions.writes[ref]
 					if len(rows) != size {
 						b.Fatal("exact staged rows", len(rows), size)
 					}

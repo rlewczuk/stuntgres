@@ -226,7 +226,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	var candidate StatementDescription
 	quoteCapturesChanged := false
 	valid := true
-	replan := scope.prepared.invalid || expected != nil && expected.planOwner == op.Session.token && expected.planGeneration != op.Session.discardPlansGeneration
+	replan := scope.prepared.invalid || expected != nil && expected.planOwner == op.Session.SessionToken && expected.planGeneration != op.Session.DiscardPlansGeneration
 	if expected != nil && expected.analysis != nil {
 		path, er := e.sequenceEnvironmentLocked(auth)
 		if er != nil {
@@ -251,7 +251,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		if expected.Parameters.Count != 0 {
 			// Parameterized executions never borrow a retained quote group.
 			candidate.quotes = nil
-		} else if expected.quoteGeneration != op.Session.discardPlansGeneration {
+		} else if expected.quoteGeneration != op.Session.DiscardPlansGeneration {
 			candidate.quotes = nil
 			quoteCapturesChanged = true
 		}
@@ -441,7 +441,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 				if preparableBody(stmt) {
 					scope.Expected.analysis = prepared
 				}
-				scope.Expected.planGeneration = op.Session.discardPlansGeneration
+				scope.Expected.planGeneration = op.Session.DiscardPlansGeneration
 			}
 		}
 	}

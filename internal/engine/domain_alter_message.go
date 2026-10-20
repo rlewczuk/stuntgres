@@ -57,8 +57,8 @@ func (e *Engine) captureDomainStageLocked(stage *CatalogStage, changes *catalogC
 }
 
 func (e *Engine) domainStageIndexRootLocked(stage *CatalogStage, address ids.ObjectAddress) *storage.IndexRoot {
-	if stage.authSession != nil && stage.authSession.transactions.retainsTransaction() {
-		if changes := stage.authSession.transactions.catalog; changes != nil {
+	if stage.authSession != nil && stage.authSession.Transactions.retainsTransaction() {
+		if changes := stage.authSession.Transactions.catalog; changes != nil {
 			if root := journalIndexesOrZero(changes).uniqueRoots[address]; root != nil {
 				return root
 			}

@@ -30,13 +30,13 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 		sessionSQL(t, owner, q)
 	}
 	before := e.CatalogRead()
-	baseAddress := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: "retained_base"})
-	viewAddress := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: "retained_w"})
+	baseAddress := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.TemporaryNamespace, Name: "retained_base"})
+	viewAddress := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.TemporaryNamespace, Name: "retained_w"})
 	original := before.MustRelation(viewAddress)
 	oldBase := e.catalog.Domain.Ref(before.Epoch(), baseAddress)
 	providers := make(map[ids.ObjectAddress]*catalog.Relation)
 	for _, name := range []string{"retained_catalog", "retained_summary"} {
-		address := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: name})
+		address := before.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.TemporaryNamespace, Name: name})
 		consumer := before.MustRelation(address)
 		source := viewOf(consumer).sources[0].ref.Address
 		providers[source] = before.MustRelation(source)
@@ -70,7 +70,7 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 			auth := namespaceCapturedAuthorization(t, owner)
 			auth.Recapture(current)
 			e.mu.Lock()
-			refs, err := e.queryTableRefsLocked(auth, auth.State.CurrentUser, []exec.Leaf{{Ref: use, Relation: original}}, nil, owner.token, plan.RowMark{})
+			refs, err := e.queryTableRefsLocked(auth, auth.State.CurrentUser, []exec.Leaf{{Ref: use, Relation: original}}, nil, owner.SessionToken, plan.RowMark{})
 			_, staleErr := e.queryTableRefsLocked(auth, auth.State.CurrentUser, []exec.Leaf{{Ref: oldBase, Relation: current.MustRelation(baseAddress)}}, nil, ids.SessionToken{}, plan.RowMark{})
 			e.mu.Unlock()
 			if err != nil || len(refs) != 1 || refs[0].Address != baseAddress || refs[0].Epoch != current.Epoch() {

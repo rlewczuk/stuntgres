@@ -196,8 +196,8 @@ func TestSessionDetachEndInterleaving(t *testing.T) {
 	if err = s.WaitEnd(context.Background()); !errors.Is(err, failure) {
 		t.Fatal(err)
 	}
-	if calls != 1 || s.reason != Terminated {
-		t.Fatalf("calls/reason %d %d", calls, s.reason)
+	if calls != 1 || s.Reason != Terminated {
+		t.Fatalf("calls/reason %d %d", calls, s.Reason)
 	}
 	if err = s.Detach(h, CleanClose); err != nil {
 		t.Fatal(err)
@@ -210,7 +210,7 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Replace the production SQL-name owner only in this callback-order unit.
-	if err = s.Detach(s.resources[PreparedSQL].handle, CleanClose); err != nil {
+	if err = s.Detach(s.Resources[PreparedSQL].handle, CleanClose); err != nil {
 		t.Fatal(err)
 	}
 	op, _ := s.Acquire(context.Background())
@@ -277,7 +277,7 @@ func TestSessionTransferDrainAndOrder(t *testing.T) {
 		t.Fatal(order)
 	}
 	lockState := e.locks.Inspect()
-	advisoryLive := lockState.Valid(s.advisory.ticket)
+	advisoryLive := lockState.Valid(s.Advisory.ticket)
 	if advisoryLive {
 		t.Fatal("built-in advisory delegate survived session cleanup")
 	}
@@ -334,12 +334,12 @@ func TestSessionCancellationAndStaleHandles(t *testing.T) {
 	if _, err = s.Acquire(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if err = s.Detach(s.resources[PreparedSQL].handle, CleanClose); err != nil {
+	if err = s.Detach(s.Resources[PreparedSQL].handle, CleanClose); err != nil {
 		t.Fatal(err)
 	}
-	s.mu.Lock()
-	s.serial = ^uint64(0)
-	s.mu.Unlock()
+	s.Mu.Lock()
+	s.Serial = ^uint64(0)
+	s.Mu.Unlock()
 	op, _ = s.Acquire(context.Background())
 	if _, err = op.Attach(PreparedSQL, owner); err == nil {
 		t.Fatal("serial wrap")
@@ -354,7 +354,7 @@ func TestSessionTerminalElectionAndJoinedErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	// This unit injects cleanup errors rather than exercising SQL definitions.
-	if err = s.Detach(s.resources[PreparedSQL].handle, CleanClose); err != nil {
+	if err = s.Detach(s.Resources[PreparedSQL].handle, CleanClose); err != nil {
 		t.Fatal(err)
 	}
 	op, _ := s.Acquire(context.Background())
@@ -367,7 +367,7 @@ func TestSessionTerminalElectionAndJoinedErrors(t *testing.T) {
 		}
 		if _, err = op.Attach(kind, &sessionOwner{fn: func(token ids.SessionToken, reason EndReason) error {
 			calls++
-			if token != s.Token() || reason != s.reason {
+			if token != s.Token() || reason != s.Reason {
 				t.Error("terminal ownership/reason")
 			}
 			return failure
@@ -397,9 +397,9 @@ func TestSessionTerminalElectionAndJoinedErrors(t *testing.T) {
 
 func TestSessionPrivateInitializationUnwind(t *testing.T) {
 	e := New()
-	s := &Session{host: (*sessionHost)(e), token: e.catalog.Domain.Session(1), state: initializing, completed: make(chan struct{}), leases: 1, removed: make(map[ResourceHandle]bool)}
-	s.cond = sync.NewCond(&s.mu)
-	op := s.operation(context.Background(), true)
+	s := &Session{Host: (*sessionHost)(e), SessionToken: e.catalog.Domain.Session(1), State: initializing, Completed: make(chan struct{}), Leases: 1, Removed: make(map[ResourceHandle]bool)}
+	s.Cond = sync.NewCond(&s.Mu)
+	op := s.Operation(context.Background(), true)
 	calls := 0
 	for _, kind := range []ResourceKind{Settings, Authorization} {
 		if _, err := op.Attach(kind, &sessionOwner{fn: func(_ ids.SessionToken, reason EndReason) error {

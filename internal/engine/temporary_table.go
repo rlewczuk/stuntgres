@@ -30,7 +30,7 @@ func (e *Engine) createTableLocked(scope *StatementScope, op *Operation, auth Au
 	}
 	auth.Catalog = e.privateCatalogLocked(changes)
 	auth.Recapture(auth.Catalog)
-	if table, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.Session.token {
+	if table, ok := changes.Descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.Session.SessionToken {
 		auth.stagedTemporary = table.Address()
 	}
 	if operationReplayOrZero(op).tableDestination {
@@ -234,12 +234,12 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 		return err
 	}
 	e.mu.Lock()
-	scope.op.Session.mu.Lock()
+	scope.op.Session.Mu.Lock()
 	err = publicationOperationLocked(e, scope.op)
 	if err == nil && scope.txRef.Epoch() != e.catalog.state.Epoch() {
 		err = ids.ErrCatalogReplaced
 	}
-	if err == nil && stage.authSession != nil && (stage.authSession != scope.op.Session || scope.op.Session.authorization.revision != stage.authRevision || e.operationRolesLocked(scope.op).Revision != stage.roleRevision) {
+	if err == nil && stage.authSession != nil && (stage.authSession != scope.op.Session || scope.op.Session.Authorization.revision != stage.authRevision || e.operationRolesLocked(scope.op).Revision != stage.roleRevision) {
 		err = fmt.Errorf("stuntgres: authorization changed before publication")
 	}
 	if err == nil {
@@ -252,7 +252,7 @@ func (e *Engine) stageCatalogOverlay(scope *StatementScope, stage *CatalogStage,
 		scope.catalog = changes
 		stage.lifecycle = catalogPublished
 	}
-	scope.op.Session.mu.Unlock()
+	scope.op.Session.Mu.Unlock()
 	e.mu.Unlock()
 	return err
 }

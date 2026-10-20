@@ -94,8 +94,8 @@ func (e *Engine) stageCommentLocked(scope *StatementScope, s *parser.Comment) (*
 		if err != nil {
 			return nil, err
 		}
-		op.Session.mu.Lock()
-		defer op.Session.mu.Unlock()
+		op.Session.Mu.Lock()
+		defer op.Session.Mu.Unlock()
 		if err := publicationOperationLocked(e, op); err != nil {
 			return nil, err
 		}

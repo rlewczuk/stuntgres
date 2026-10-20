@@ -80,10 +80,10 @@ func TestFDWTransactionParticipants(t *testing.T) {
 		} else {
 			s.owner.mu.Unlock()
 		}
-		if !session.mu.TryLock() {
+		if !session.Mu.TryLock() {
 			t.Error("transaction callback holds Session.mu")
 		} else {
-			session.mu.Unlock()
+			session.Mu.Unlock()
 		}
 		if !e.replacementMu.TryLock() {
 			t.Error("transaction callback holds replacement reservation")

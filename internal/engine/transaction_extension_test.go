@@ -8,11 +8,11 @@ import (
 func TestOwnerExtensionAllocatedWithSession(t *testing.T) {
 	e := NewWithSettings(nil, "", false)
 	s := sessionStart(t, e, nil)
-	x, _ := s.transactions.extension.(*ownerExtension)
+	x, _ := s.Transactions.extension.(*ownerExtension)
 	if x == nil {
 		t.Fatal("session owner has no root extension")
 	}
-	if got := ownerExtensionOf(s.transactions); got != x {
+	if got := ownerExtensionOf(s.Transactions); got != x {
 		t.Fatalf("ownerExtensionOf = %p, want the session's extension %p", got, x)
 	}
 	s.RequestEnd(CleanClose)

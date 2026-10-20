@@ -58,27 +58,27 @@ func TestSessionIdentityRolePublicationAndSessionAuthority(t *testing.T) {
 		}
 	}
 	before := op.RoleState()
-	revision := op.Session.authorization.revision
+	revision := op.Session.Authorization.revision
 	catalogRevision := e.roles.published.Revision
 	execute("SET ROLE b")
 	after := op.RoleState()
 	b, _ := e.Roles().Lookup("b")
-	if after.CurrentUser != b.Ref || after.SessionUser != before.SessionUser || after.Authenticated != before.Authenticated || after.ResetRole != before.ResetRole || op.Session.authorization.revision != revision+1 || e.roles.published.Revision != catalogRevision {
+	if after.CurrentUser != b.Ref || after.SessionUser != before.SessionUser || after.Authenticated != before.Authenticated || after.ResetRole != before.ResetRole || op.Session.Authorization.revision != revision+1 || e.roles.published.Revision != catalogRevision {
 		t.Fatal(before, after)
 	}
 	// A session superuser is still authoritative while CurrentUser is ordinary.
 	execute("SET ROLE c")
 	execute("SET SESSION AUTHORIZATION a")
 	before = op.RoleState()
-	revision = op.Session.authorization.revision
+	revision = op.Session.Authorization.revision
 	_, err = e.Execute(op, statement(t, "SET ROLE b"), 0, nil)
 	state(t, err, "42501")
-	if op.RoleState() != before || op.Session.authorization.revision != revision {
+	if op.RoleState() != before || op.Session.Authorization.revision != revision {
 		t.Fatal("denied mutation")
 	}
 	_, err = e.Execute(op, statement(t, "SET ROLE absent_identity_role"), 0, nil)
 	state(t, err, "22023")
-	if op.RoleState() != before || op.Session.authorization.revision != revision {
+	if op.RoleState() != before || op.Session.Authorization.revision != revision {
 		t.Fatal("missing mutation")
 	}
 	a, _ := e.Roles().Lookup("a")
@@ -235,8 +235,8 @@ type identityRolePublicationContext struct {
 }
 
 func (c *identityRolePublicationContext) Err() error {
-	if c.session.mu.TryLock() {
-		c.session.mu.Unlock()
+	if c.session.Mu.TryLock() {
+		c.session.Mu.Unlock()
 	} else {
 		c.observed = true
 		c.cancel()
@@ -250,7 +250,7 @@ func TestSessionIdentityCanceledRolePublication(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	before := op.RoleState()
-	revision, roles, catalog := op.Session.authorization.revision, e.roles.published, e.catalog.state
+	revision, roles, catalog := op.Session.Authorization.revision, e.roles.published, e.catalog.state
 	ctx, cancel := context.WithCancel(op.Context())
 	defer cancel()
 	boundary := &identityRolePublicationContext{Context: ctx, session: op.Session, cancel: cancel}
@@ -259,7 +259,7 @@ func TestSessionIdentityCanceledRolePublication(t *testing.T) {
 	if !boundary.observed || ctx.Err() != context.Canceled || !errors.Is(err, context.Canceled) {
 		t.Fatal(boundary.observed, err)
 	}
-	if op.RoleState() != before || op.Session.authorization.revision != revision || e.roles.published != roles || e.catalog.state != catalog {
+	if op.RoleState() != before || op.Session.Authorization.revision != revision || e.roles.published != roles || e.catalog.state != catalog {
 		t.Fatal("canceled role selection published state")
 	}
 }

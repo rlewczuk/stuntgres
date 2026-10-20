@@ -169,7 +169,7 @@ func TestPGSequencesDemand(t *testing.T) {
 				ref := catalogRef(t, e, e.CatalogRead(), name)
 				lockState := e.locks.Inspect()
 				entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
-				held := entry != nil && entry.Holders[a.transactions.ticket].Mode != 0
+				held := entry != nil && entry.Holders[a.Transactions.ticket].Mode != 0
 				if held {
 					t.Fatal("Prepare invoked helper", name)
 				}
@@ -180,7 +180,7 @@ func TestPGSequencesDemand(t *testing.T) {
 				ref := catalogRef(t, e, e.CatalogRead(), name)
 				lockState := e.locks.Inspect()
 				entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
-				held := entry != nil && entry.Holders[a.transactions.ticket].Mode == lock.RowExclusive
+				held := entry != nil && entry.Holders[a.Transactions.ticket].Mode == lock.RowExclusive
 				want := (name == "a" && query != "SELECT last_value FROM pg_sequences WHERE FALSE" && query != "SELECT last_value FROM pg_sequences WHERE FALSE FOR UPDATE") || query == "SELECT count(*) FROM pg_sequences"
 				if held != want {
 					t.Fatal(name, "RX", held, "want", want)
@@ -190,7 +190,7 @@ func TestPGSequencesDemand(t *testing.T) {
 			lockState := e.locks.Inspect()
 			tableMarked := false
 			for resource, entry := range lockState.Resources {
-				if resource.ObjectRef == tableRef && resource.Row != 0 && entry.Holders[a.transactions.ticket].Mode == lock.ForUpdate {
+				if resource.ObjectRef == tableRef && resource.Row != 0 && entry.Holders[a.Transactions.ticket].Mode == lock.ForUpdate {
 					tableMarked = true
 				}
 			}

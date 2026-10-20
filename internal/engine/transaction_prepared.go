@@ -59,7 +59,7 @@ func (e *Engine) preparedPublicationPreflightLocked(op *Operation, p *preparedPu
 // Engine.mu and the finishing Session.mu are held at final installation.
 func (e *Engine) preparedActorLocked(op *Operation, entry *preparedTransaction) error {
 	roles := e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published)
-	current := op.Session.authorization.state.CurrentUser
+	current := op.Session.Authorization.state.CurrentUser
 	if err := roles.ValidatePrincipal(current); err != nil {
 		return err
 	}
@@ -77,7 +77,7 @@ func (e *Engine) installPreparedLocked(p *preparedPublication) {
 	e.prepared[p.entry.gid] = p.entry
 	p.origin.ticket = nil
 	clearTransaction(p.origin)
-	p.origin.session.retireTransactionTimeoutLocked()
+	p.origin.session.RetireTransactionTimeoutLocked()
 }
 
 func (e *Engine) finishPreparedLocked(p *preparedPublication) {
@@ -135,7 +135,7 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 		auth, authErr := operationAuthorization(s.op)
 		err = authErr
 		if err == nil {
-			entry = &preparedTransaction{gid: control.GID, owner: auth.State.CurrentUser, ref: ref, prepared: time.Now().UTC().Truncate(time.Microsecond), database: s.op.Session.databaseName, ticket: t.ticket, writes: t.writes, deletes: t.deletes, catalog: t.catalog, roots: t.roots, frontier: t.frontier, options: TxOptions{Isolation: t.isolation, ReadOnly: t.readOnly, Deferrable: t.deferrable}}
+			entry = &preparedTransaction{gid: control.GID, owner: auth.State.CurrentUser, ref: ref, prepared: time.Now().UTC().Truncate(time.Microsecond), database: s.op.Session.DatabaseName, ticket: t.ticket, writes: t.writes, deletes: t.deletes, catalog: t.catalog, roots: t.roots, frontier: t.frontier, options: TxOptions{Isolation: t.isolation, ReadOnly: t.readOnly, Deferrable: t.deferrable}}
 			e.mu.Lock()
 			if e.prepared == nil {
 				e.prepared = make(map[string]*preparedTransaction)
@@ -158,13 +158,13 @@ func (s *StatementScope) executePrepared(control *parser.TransactionControl, sta
 		t.ticket = nil
 		e.endSerializable(ref, false)
 		clearTransaction(t)
-		t.session.retireTransactionTimeout()
-		t.session.settings.finishTransaction(false)
+		t.session.RetireTransactionTimeout()
+		t.session.Settings.finishTransaction(false)
 		t.mu.Unlock()
 		e.endLockOwner(ticket)
 		return err
 	}
-	t.session.settings.finishTransaction(true)
+	t.session.Settings.finishTransaction(true)
 	t.mu.Unlock()
 	e.locks.DetachPrepared(entry.ticket)
 	return nil
@@ -197,7 +197,7 @@ func (e *Engine) completePrepared(op *Operation, gid string, commit bool) error 
 		err = e.publishRowsPrepared(op, entry.ref, entry.writes, entry.deletes, entry.catalog, nil, &preparedPublication{entry: entry}, nil)
 	} else {
 		e.mu.Lock()
-		op.Session.mu.Lock()
+		op.Session.Mu.Lock()
 		err = publicationOperationLocked(e, op)
 		if err == nil {
 			err = e.preparedPublicationPreflightLocked(op, &preparedPublication{entry: entry})
@@ -206,7 +206,7 @@ func (e *Engine) completePrepared(op *Operation, gid string, commit bool) error 
 			delete(e.prepared, gid)
 			e.endSerializableLocked(entry.ref, false)
 		}
-		op.Session.mu.Unlock()
+		op.Session.Mu.Unlock()
 		e.mu.Unlock()
 	}
 	if err != nil {

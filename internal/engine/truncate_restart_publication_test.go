@@ -98,10 +98,10 @@ func TestTruncateRestartPublication(t *testing.T) {
 	tx := transactionBegin(t, s)
 	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 3)
 	truncateUnitExecute(t, e, s, truncateRestartUnitAST("p", "q"))
-	first := s.transactions.catalog
+	first := s.Transactions.catalog
 	sequenceScalar(t, s, "SELECT nextval('p_id_seq')", 1)
 	truncateUnitExecute(t, e, s, truncateRestartUnitAST("p", "q"))
-	second := s.transactions.catalog
+	second := s.Transactions.catalog
 	if first.Generators[ps.Address] == second.Generators[ps.Address] || second.Originals[ps.Address] != oldD || second.Storage[p.Address].Original != oldP || second.Storage[q.Address].Original != oldQ || e.storage.Sequences[ps.Address] != oldPS || oldPS.Last != 3 || e.storage.Sequences[qs.Address] != oldQS {
 		t.Fatal("repeat lost originals or mutated live binding")
 	}
@@ -133,9 +133,9 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 			case "Context":
 				cancel()
 			case "Authorization":
-				s.mu.Lock()
-				s.authorization.revision++
-				s.mu.Unlock()
+				s.Mu.Lock()
+				s.Authorization.revision++
+				s.Mu.Unlock()
 			case "Roles":
 				peer := sessionStart(t, e, nil)
 				sessionSQL(t, peer, "CREATE ROLE restart_changed_authority")
@@ -183,7 +183,7 @@ func TestTruncateRestartFinalVeto(t *testing.T) {
 				t.Fatal("descriptor replaced on veto")
 			}
 			sessionSQL(t, s, "ROLLBACK TO preserve")
-			if s.transactions.catalog != nil {
+			if s.Transactions.catalog != nil {
 				t.Fatal("failed statement leaked overlay past savepoint")
 			}
 			transactionEnd(t, s, tx, false)

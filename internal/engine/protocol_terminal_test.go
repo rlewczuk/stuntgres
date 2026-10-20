@@ -170,7 +170,7 @@ func TestProtocolEndRequestedWake(t *testing.T) {
 				t.Fatal("request wake preceded authoritative ending state")
 			}
 			select {
-			case <-session.completed:
+			case <-session.Completed:
 				t.Fatal("completion overtook outstanding operation lease")
 			default:
 			}

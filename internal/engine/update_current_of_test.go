@@ -80,7 +80,7 @@ func TestUpdateCurrentOfPublication(t *testing.T) {
 		op.Done()
 		t.Fatal("no real replacement version for original identity")
 	}
-	for _, rows := range s.transactions.writes {
+	for _, rows := range s.Transactions.writes {
 		for _, row := range rows {
 			if row.Row == identity.Row {
 				scope.Finish(context.Canceled)
@@ -89,7 +89,7 @@ func TestUpdateCurrentOfPublication(t *testing.T) {
 			}
 		}
 	}
-	if len(s.transactions.deletes) != 0 {
+	if len(s.Transactions.deletes) != 0 {
 		scope.Finish(context.Canceled)
 		op.Done()
 		t.Fatal("Execute published replacement")
@@ -97,10 +97,10 @@ func TestUpdateCurrentOfPublication(t *testing.T) {
 	cancel()
 	err = scope.Finish(nil)
 	op.Done()
-	if !errors.Is(err, context.Canceled) || len(s.transactions.deletes) != 0 {
+	if !errors.Is(err, context.Canceled) || len(s.Transactions.deletes) != 0 {
 		t.Fatal("canceled Finish installed replacement", err)
 	}
-	for _, rows := range s.transactions.writes {
+	for _, rows := range s.Transactions.writes {
 		for _, row := range rows {
 			if row.Row == identity.Row {
 				t.Fatal("canceled Finish merged replacement into transaction roots")
@@ -131,14 +131,14 @@ func TestUpdateCurrentOfArbitration(t *testing.T) {
 		deleteCount(t, s, "UPDATE keyed SET v=v+1 WHERE CURRENT OF c", 1)
 		lockState := e.locks.Inspect()
 		entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: identity.Row}]
-		ordinary := entry != nil && entry.Holders[s.transactions.ticket].Mode&lock.ForNoKeyUpdate != 0
+		ordinary := entry != nil && entry.Holders[s.Transactions.ticket].Mode&lock.ForNoKeyUpdate != 0
 		if !ordinary {
 			t.Fatal("FETCH key-share skipped automatic UPDATE grant")
 		}
 		deleteCount(t, s, "UPDATE keyed SET id=3 WHERE CURRENT OF c", 1)
 		lockState = e.locks.Inspect()
 		entry = lockState.Resources[lock.Resource{ObjectRef: ref, Row: identity.Row}]
-		escalated := entry != nil && entry.Holders[s.transactions.ticket].Mode&lock.ForUpdate != 0
+		escalated := entry != nil && entry.Holders[s.Transactions.ticket].Mode&lock.ForUpdate != 0
 		if !escalated {
 			t.Fatal("positioned unique-key change skipped rowUpdate escalation")
 		}
@@ -174,7 +174,7 @@ func TestUpdateCurrentOfArbitration(t *testing.T) {
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
 	lockState := e.locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: identity.Row}]
-	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == worker.transactions.ticket && entry.Pending[0].Mode == lock.ForNoKeyUpdate
+	queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Ticket == worker.Transactions.ticket && entry.Pending[0].Mode == lock.ForNoKeyUpdate
 	if !queued {
 		t.Fatal("UPDATE did not request original duplicate RowID with automatic mode")
 	}

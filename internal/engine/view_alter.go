@@ -55,9 +55,9 @@ func (e *Engine) executeAlterView(scope *StatementScope, s *parser.AlterView, co
 	}
 	ref, err := e.resolveRelationReference(auth, s.Name, true)
 	if s.IfExists && renameMissing(err) {
-		scope.op.Session.mu.Lock()
+		scope.op.Session.Mu.Lock()
 		err = publicationOperationLocked(e, scope.op)
-		scope.op.Session.mu.Unlock()
+		scope.op.Session.Mu.Unlock()
 		if err == nil {
 			err = scope.op.Context().Err()
 		}

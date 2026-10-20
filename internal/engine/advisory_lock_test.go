@@ -17,7 +17,7 @@ func advisoryUnitOwner(t *testing.T, e *Engine) (*Session, ids.TxRef) {
 }
 func advisoryUnitAcquire(t *testing.T, s *Session, provenance ids.TxRef, key lock.Resource, mode lock.Mode, nowait bool) (*lock.Request, error) {
 	t.Helper()
-	return engineOf(s).locks.StartAcquire(context.Background(), s.advisory.ticket, key, mode, lock.Policy{Provenance: provenance, NoWait: nowait})
+	return engineOf(s).locks.StartAcquire(context.Background(), s.Advisory.ticket, key, mode, lock.Policy{Provenance: provenance, NoWait: nowait})
 }
 func advisoryUnitGrant(t *testing.T, s *Session, provenance ids.TxRef, key lock.Resource, mode lock.Mode) {
 	t.Helper()
@@ -30,13 +30,13 @@ func advisoryUnitHold(s *Session, key lock.Resource) lock.Hold {
 	m := engineOf(s).locks
 	lockState := m.Inspect()
 	if entry := lockState.Resources[key]; entry != nil {
-		return entry.Holders[s.advisory.ticket]
+		return entry.Holders[s.Advisory.ticket]
 	}
 	return lock.Hold{}
 }
 func advisoryUnitUnlock(t *testing.T, s *Session, key lock.Resource, mode lock.Mode, want bool) {
 	t.Helper()
-	got, err := engineOf(s).locks.UnlockAdvisory(s.advisory.ticket, key, mode)
+	got, err := engineOf(s).locks.UnlockAdvisory(s.Advisory.ticket, key, mode)
 	if err != nil || got != want {
 		t.Fatal("exact mode unlock", got, err, want)
 	}
@@ -73,7 +73,7 @@ func TestAdvisorySessionKeysCountsCompatibility(t *testing.T) {
 		object := catalogRef(t, e, e.CatalogRead(), "t")
 		ordinary := lock.Resource{ObjectRef: object}
 		key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: uint32(object.Address.ObjectID)}
-		ticket := a.transactions.ticket
+		ticket := a.Transactions.ticket
 		m := e.locks
 		if err := m.Acquire(context.Background(), ticket, ordinary, lock.AccessShare); err != nil {
 			t.Fatal(err)
@@ -85,13 +85,13 @@ func TestAdvisorySessionKeysCountsCompatibility(t *testing.T) {
 		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryExclusive)
 		advisoryUnitGrant(t, a, ra, key, lock.AdvisoryExclusive)
 		m.Restore(ticket, checkpoint)
-		lockState := m.Inspect(a.advisory.ticket)
+		lockState := m.Inspect(a.Advisory.ticket)
 		ordinaryHold := lockState.Resources[ordinary].Holders[ticket]
-		persistentJournal := len(lockState.Journals[a.advisory.ticket])
+		persistentJournal := len(lockState.Journals[a.Advisory.ticket])
 		if ordinaryHold.Mode != lock.AccessShare || ordinaryHold.Shared != 0 || ordinaryHold.Exclusive != 0 || persistentJournal != 1 || advisoryUnitHold(a, key).Exclusive != 2 {
 			t.Fatal("checkpoint crossed count domain", ordinaryHold, persistentJournal)
 		}
-		if err := m.UnlockAdvisoryAll(a.advisory.ticket); err != nil {
+		if err := m.UnlockAdvisoryAll(a.Advisory.ticket); err != nil {
 			t.Fatal(err)
 		}
 		lockState = m.Inspect()

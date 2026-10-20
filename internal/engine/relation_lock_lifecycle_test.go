@@ -90,7 +90,7 @@ func lockObservedRequest(t *testing.T, e *Engine, s *Session, resource lock.Reso
 		for _, request := range entry.Pending {
 			if !request.Terminal && request.Mode == mode && request.Policy.Source != nil &&
 				request.Ticket == state.Owners[request.Ticket.Ref()] &&
-				request.Ticket.Ref().Session() == s.token {
+				request.Ticket.Ref().Session() == s.SessionToken {
 				return
 			}
 		}

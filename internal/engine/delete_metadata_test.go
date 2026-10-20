@@ -25,7 +25,7 @@ func TestDeleteCoreMetadataQueuedComment(t *testing.T) {
 				deleteCount(t, a, "DELETE FROM t WHERE v=1", 1)
 				br := transactionBegin(t, b)
 				sessionSQL(t, b, "INSERT INTO t VALUES(7)")
-				waiter := b.transactions.ticket
+				waiter := b.Transactions.ticket
 				target := catalogRef(t, e, e.CatalogRead(), "t")
 				e.mu.Lock()
 				row := e.storage.Relations[target.Address].Versions[0].Row
@@ -41,7 +41,7 @@ func TestDeleteCoreMetadataQueuedComment(t *testing.T) {
 				if entry != nil && len(entry.Pending) == 1 {
 					request = &entry.Pending[0]
 				}
-				queued := request != nil && request.Ticket == waiter && request.Resource == resource && request.Mode == lock.ForUpdate && !request.Terminal && entry.Holders[a.transactions.ticket].Mode == lock.ForUpdate
+				queued := request != nil && request.Ticket == waiter && request.Resource == resource && request.Mode == lock.ForUpdate && !request.Terminal && entry.Holders[a.Transactions.ticket].Mode == lock.ForUpdate
 				if !queued {
 					t.Fatal("DELETE not actually queued on the original row resource")
 				}

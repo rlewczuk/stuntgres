@@ -164,8 +164,8 @@ func TestTruncateGraphTemporarySessions(t *testing.T) {
 	sessionSQL(t, peer, "CREATE TEMP TABLE peer_child() INHERITS(p)")
 	sessionSQL(t, peer, "INSERT INTO peer_child VALUES(3)")
 	view := e.CatalogRead()
-	ownAddress := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.temporaryNamespace, Name: "own_child"})
-	peerAddress := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: peer.temporaryNamespace, Name: "peer_child"})
+	ownAddress := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: owner.TemporaryNamespace, Name: "own_child"})
+	peerAddress := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: peer.TemporaryNamespace, Name: "peer_child"})
 	persistent := roleTableRef(t, e, "persistent_child")
 	if ownAddress == (ids.ObjectAddress{}) || peerAddress == (ids.ObjectAddress{}) || ownAddress == peerAddress {
 		t.Fatal("fixture did not create distinct session-owned temporary descendants")
@@ -225,7 +225,7 @@ func TestTruncateLocks(t *testing.T) {
 		_, prefixJournal := lockState.Journals[ticket][lock.Resource{ObjectRef: p}]
 		_, pendingJournal := lockState.Journals[ticket][lock.Resource{ObjectRef: q}]
 		grant, held := prefix.Holders[ticket]
-		valid = held && grant.Mode == lock.AccessExclusive && request.Mode == lock.AccessExclusive && request.Resource == (lock.Resource{ObjectRef: q}) && request.Provenance.Session() == waiter.token && lockState.Owners[request.Provenance] == ticket && prefixJournal && pendingJournal
+		valid = held && grant.Mode == lock.AccessExclusive && request.Mode == lock.AccessExclusive && request.Resource == (lock.Resource{ObjectRef: q}) && request.Provenance.Session() == waiter.SessionToken && lockState.Owners[request.Provenance] == ticket && prefixJournal && pendingJournal
 	}
 	if !valid {
 		t.Fatal("missing real AX prefix/second-target pending request")
@@ -385,7 +385,7 @@ func TestTruncateFinalVeto(t *testing.T) {
 				sessionSQL(t, s, "INSERT INTO p VALUES(3)")
 				sessionSQL(t, s, "SAVEPOINT recover")
 			}
-			priorWrites := s.transactions.writes[p.Address]
+			priorWrites := s.Transactions.writes[p.Address]
 			oldP, oldQ := e.storage.Relations[p.Address], e.storage.Relations[q.Address]
 			ctx, cancel := context.WithCancel(context.Background())
 			scope, op := truncateUnitScope(t, e, s, ctx)
@@ -402,7 +402,7 @@ func TestTruncateFinalVeto(t *testing.T) {
 			}
 			if explicit {
 				sessionSQL(t, s, "ROLLBACK TO recover")
-				if !sameVersionRoot(s.transactions.writes[p.Address], priorWrites) || s.transactions.catalog != nil && len(s.transactions.catalog.Storage) != 0 {
+				if !sameVersionRoot(s.Transactions.writes[p.Address], priorWrites) || s.Transactions.catalog != nil && len(s.Transactions.catalog.Storage) != 0 {
 					t.Fatal("failed statement/savepoint lost prior private root")
 				}
 				transactionEnd(t, s, tx, false)

@@ -118,7 +118,7 @@ func TestQueryTiesLockFrontier(t *testing.T) {
 			sessionSQL(t, c, "INSERT INTO t VALUES(3,20),(4,30),(5,40)")
 			br := transactionBegin(t, b)
 			rowLockViewRows(t, e, b, "SELECT v FROM t ORDER BY v "+tc.suffix, false, tc.want...)
-			rowLockViewGrants(t, e, b.transactions.ticket, "t", tc.holds...)
+			rowLockViewGrants(t, e, b.Transactions.ticket, "t", tc.holds...)
 			transactionEnd(t, b, br, false)
 			lockEmpty(t, e)
 		})

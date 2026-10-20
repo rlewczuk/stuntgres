@@ -219,10 +219,10 @@ func TestTemporaryTableIndexDefinitionOwnNamespace(t *testing.T) {
 			continue
 		}
 		namespace := view.MustNamespace(index.Namespace())
-		if namespace.Temporary == owner.token {
+		if namespace.Temporary == owner.SessionToken {
 			own = index
 		}
-		if namespace.Temporary == peer.token {
+		if namespace.Temporary == peer.SessionToken {
 			foreign = index
 		}
 	}

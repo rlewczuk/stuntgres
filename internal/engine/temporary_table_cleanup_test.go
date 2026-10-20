@@ -23,7 +23,7 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 	class, _ := sqltype.DefaultIndexClass(table.Columns[0].Usage.Type)
 	index := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20004}, ObjectNamespace: table.Namespace(), ObjectName: "backing", ObjectRevision: 1, Owner: table.Owner, Columns: table.Columns, Index: table.Index, Attributes: table.Attributes, ColumnMeta: catalog.ColumnMetadata{HighWater: 1}, RelationKind: catalog.IndexRelation, SQLIndex: &catalog.IndexDefinition{Parent: table.Address(), Keys: []catalog.IndexKey{{Attribute: 1, Class: class}}}}
 	peer := sessionStart(t, e, nil)
-	peerNamespace := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20005}, ObjectName: "pg_temp_peer", ObjectRevision: 1, Owner: table.Owner, Temporary: peer.token}
+	peerNamespace := &catalog.Namespace{ObjectAddress: ids.ObjectAddress{ClassID: ids.NamespaceClassID, ObjectID: 20005}, ObjectName: "pg_temp_peer", ObjectRevision: 1, Owner: table.Owner, Temporary: peer.SessionToken}
 	peerTable := *table
 	peerTable.ObjectAddress.ObjectID = 20006
 	peerTable.ObjectNamespace = peerNamespace.Address()
@@ -31,7 +31,7 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 		e.catalogChangeLocked(c, d.Address(), d)
 	}
 	e.catalog.state = e.privateCatalogLocked(c).State()
-	op.Session.temporaryNamespace = table.Namespace()
+	op.Session.TemporaryNamespace = table.Namespace()
 	rows := []storage.RowVersion{{Row: 1, Version: 1, Values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}
 	store := &storage.Relation{Versions: rows}
 	peerStore := &storage.Relation{}
@@ -59,7 +59,7 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 			t.Fatal("orphan owner dependency", a)
 		}
 	}
-	if ns, ok := e.catalog.state.Namespace(table.Namespace()); !ok || ns.Temporary != op.Session.token {
+	if ns, ok := e.catalog.state.Namespace(table.Namespace()); !ok || ns.Temporary != op.Session.SessionToken {
 		t.Fatal("cleanup lost retained namespace identity")
 	}
 	if e.catalog.state.Get(peerTable.Address()) != &peerTable || e.storage.Relations[peerTable.Address()] != peerStore || e.catalog.state.Epoch() != epoch {
@@ -85,8 +85,8 @@ func temporaryCleanupConsumer(t *testing.T) (*Engine, *Operation, *catalog.Relat
 	t.Cleanup(done)
 	roleExecute(t, e, op, "CREATE TEMP TABLE cleanup_owner(v INT)")
 	roleExecute(t, e, op, "CREATE TEMP SEQUENCE cleanup_owned OWNED BY cleanup_owner.v")
-	namespace := op.Session.temporaryNamespace
-	assertTemporaryNamespacePair(t, e, op.Session.token, namespace)
+	namespace := op.Session.TemporaryNamespace
+	assertTemporaryNamespacePair(t, e, op.Session.SessionToken, namespace)
 	owner := e.catalog.state.MustRelation(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "cleanup_owner"}))
 	sequence := e.catalog.state.MustRelation(e.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: "cleanup_owned"}))
 	roleExecute(t, e, op, "CREATE TABLE public.cleanup_survivor(v INT CHECK(nextval('cleanup_owned')>0))")
@@ -123,7 +123,7 @@ func TestTemporaryTableCleanupPublication(t *testing.T) {
 		e.mu.Lock()
 		installed, err := e.installTemporarySessionStageLocked(op.Session, stage, []ids.ObjectAddress{owner.Namespace()}, nil)
 		e.mu.Unlock()
-		if err != nil || installed || e.catalog.state != current || e.catalog.state.Get(survivor.Address()) != survivor || e.storage.Sequences[sequence.Address()] == nil || op.Session.temporaryNamespace != owner.Namespace() {
+		if err != nil || installed || e.catalog.state != current || e.catalog.state.Get(survivor.Address()) != survivor || e.storage.Sequences[sequence.Address()] == nil || op.Session.TemporaryNamespace != owner.Namespace() {
 			t.Fatal("stale preparation installed", installed, err)
 		}
 		e.DiscardCatalogStage(stage)
@@ -163,7 +163,7 @@ func TestTemporaryTableCleanupPublication(t *testing.T) {
 		if err != nil || !installed || e.storage.Relations[survivor.Address()] != currentStore || e.storage.IndexRoots[index] != currentRoot || e.storage.Sequences[unrelated] != currentGenerator || e.catalog.state.Epoch() != epoch || e.catalog.state.NamespaceGeneration() != generation {
 			t.Fatal("current DML or unrelated roots lost", installed, err)
 		}
-		assertTemporaryNamespacePair(t, e, op.Session.token, owner.Namespace())
+		assertTemporaryNamespacePair(t, e, op.Session.SessionToken, owner.Namespace())
 		if len(survivor.Constraints.Check) != 1 || len(e.catalog.state.MustRelation(survivor.Address()).Constraints.Check) != 0 || e.storage.Relations[owner.Address()] != nil || e.storage.Sequences[sequence.Address()] != nil {
 			t.Fatal("incomplete terminal stage")
 		}
@@ -230,7 +230,7 @@ func TestTemporaryTableTerminalMaximumPublication(t *testing.T) {
 	if replacement == &maximum || replacement.Revision() != maximum.Revision() || len(replacement.Constraints.Check) != 0 || len(maximum.Constraints.Check) != 1 || e.catalog.nextRevision != maximum.Revision() {
 		t.Fatal("saturated replacement identity/frontier")
 	}
-	assertTemporaryNamespacePair(t, e, op.Session.token, owner.Namespace())
+	assertTemporaryNamespacePair(t, e, op.Session.SessionToken, owner.Namespace())
 	if e.storage.Relations[survivor.Address()] != store || e.storage.IndexRoots[index] != root || e.catalog.state.Epoch() != epoch || e.catalog.state.NamespaceGeneration() != generation || e.storage.Sequences[sequence.Address()] != nil {
 		t.Fatal("maximum cleanup changed rows/roots/peer analysis or kept provider")
 	}

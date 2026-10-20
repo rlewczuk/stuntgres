@@ -32,11 +32,11 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 					sequenceScalar(t, a, "SELECT nextval('seed')", 30)
 				}
 				sequenceScalar(t, b, "SELECT nextval('seed')", 40)
-				peerNamespace := b.temporaryNamespace
+				peerNamespace := b.TemporaryNamespace
 				peerName := e.catalog.state.MustNamespace(peerNamespace).Name()
 				ownName := ""
 				if !fresh {
-					ownName = e.catalog.state.MustNamespace(a.temporaryNamespace).Name()
+					ownName = e.catalog.state.MustNamespace(a.TemporaryNamespace).Name()
 				}
 				query := "CREATE TEMP SEQUENCE created START 60 CACHE 3"
 				code, message := "42P16", "only temporary relations may be created in temporary schemas"
@@ -94,7 +94,7 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 					t.Fatal("initial held allocation", got)
 				}
 				r.Rows.Close()
-				catalogSnapshot, namespace, cell := e.catalog.state, a.temporaryNamespace, held.sequences
+				catalogSnapshot, namespace, cell := e.catalog.state, a.TemporaryNamespace, held.sequences
 				retained := catalog.CloneState(catalogSnapshot)
 				generators := make(map[ids.ObjectAddress]storage.SequenceGenerator, len(e.storage.Sequences))
 				for address, g := range e.storage.Sequences {
@@ -110,7 +110,7 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 				err = sequenceTempMoveCommand(t, e, a, query, prepared)
 				if !success {
 					sequenceOwnerDiagnostic(t, err, code, message, "")
-					if e.catalog.state != catalogSnapshot || !reflect.DeepEqual(catalogSnapshot, retained) || a.temporaryNamespace != namespace || b.temporaryNamespace != peerNamespace || payloadOf(a).sequences.Last() != last || payloadOf(b).sequences.Last() != peerLast || held.sequences != cell || len(e.storage.Sequences) != len(generators) || payloadOf(a).sequences.Len() != len(memories) {
+					if e.catalog.state != catalogSnapshot || !reflect.DeepEqual(catalogSnapshot, retained) || a.TemporaryNamespace != namespace || b.TemporaryNamespace != peerNamespace || payloadOf(a).sequences.Last() != last || payloadOf(b).sequences.Last() != peerLast || held.sequences != cell || len(e.storage.Sequences) != len(generators) || payloadOf(a).sequences.Len() != len(memories) {
 						t.Fatal("creation rejection published catalog, namespace event, generator, memory or held analysis")
 					}
 					for address, want := range generators {
@@ -127,11 +127,11 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 					if err != nil {
 						t.Fatal("valid own temporary creation", err)
 					}
-					ns := e.catalog.state.MustNamespace(a.temporaryNamespace)
-					if ns.Temporary != a.token || ns.TemporaryToast || ns.Owner.ID() != 10 || (namespace != (ids.ObjectAddress{}) && ns.Address() != namespace) {
+					ns := e.catalog.state.MustNamespace(a.TemporaryNamespace)
+					if ns.Temporary != a.SessionToken || ns.TemporaryToast || ns.Owner.ID() != 10 || (namespace != (ids.ObjectAddress{}) && ns.Address() != namespace) {
 						t.Fatal("creation lost exact namespace/session/bootstrap ownership")
 					}
-					assertTemporaryNamespacePair(t, e, a.token, ns.Address())
+					assertTemporaryNamespacePair(t, e, a.SessionToken, ns.Address())
 					address := NameAddressForTempMove(t, e, ns.Address(), "created")
 					d := e.catalog.state.MustRelation(address)
 					want := catalog.SequenceOptions{SQLType: sqltype.Int8, Increment: 1, Min: 1, Max: 9223372036854775807, Start: 60, Cache: 3, Persistence: "temporary"}
@@ -156,7 +156,7 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 					t.Fatal("creation disturbed held cache progression", got)
 				}
 				r.Rows.Close()
-				ownedNamespace := a.temporaryNamespace
+				ownedNamespace := a.TemporaryNamespace
 				a.RequestEnd(CleanClose)
 				if err := a.WaitEnd(context.Background()); err != nil {
 					t.Fatal(err)
@@ -167,9 +167,9 @@ func TestSequenceTemporaryCreationAuthority(t *testing.T) {
 					}
 				}
 				if ownedNamespace != (ids.ObjectAddress{}) {
-					assertTemporaryNamespacePair(t, e, a.token, ownedNamespace)
+					assertTemporaryNamespacePair(t, e, a.SessionToken, ownedNamespace)
 				}
-				if a.temporaryNamespace != (ids.ObjectAddress{}) || payloadOf(a).sequences.Len() != 0 || payloadOf(a).sequences.Last() != (ids.ObjectAddress{}) || e.catalog.state.Get(peerAddress) != peerDescriptor || b.temporaryNamespace != peerNamespace || *payloadOf(b).sequences.Memory(peerAddress) != peerMemory {
+				if a.TemporaryNamespace != (ids.ObjectAddress{}) || payloadOf(a).sequences.Len() != 0 || payloadOf(a).sequences.Last() != (ids.ObjectAddress{}) || e.catalog.state.Get(peerAddress) != peerDescriptor || b.TemporaryNamespace != peerNamespace || *payloadOf(b).sequences.Memory(peerAddress) != peerMemory {
 					t.Fatal("cleanup retained own state or changed peer identity/cache")
 				}
 				sequenceScalar(t, b, "SELECT nextval('seed')", 41)
@@ -197,7 +197,7 @@ func TestSequenceTemporaryCreationPermissionPrecedence(t *testing.T) {
 				sequenceScalar(t, s, "SELECT nextval('own_temp')", 1)
 				_, held := sequencePreparedDescription(t, e, s, "SELECT nextval('own_temp')")
 				ref := held.sequences.Constants[0].Ref
-				catalog, namespace, cell := e.catalog.state, s.temporaryNamespace, held.sequences
+				catalog, namespace, cell := e.catalog.state, s.TemporaryNamespace, held.sequences
 				generator, memory := *e.storage.Sequences[ref.Address], *payloadOf(s).sequences.Memory(ref.Address)
 				query := "CREATE TEMP SEQUENCE denied.created"
 				if existing {
@@ -205,7 +205,7 @@ func TestSequenceTemporaryCreationPermissionPrecedence(t *testing.T) {
 				}
 				err := sequenceTempMoveCommand(t, e, s, query, prepared)
 				sequenceOwnerDiagnostic(t, err, "42501", "permission denied for schema denied", "")
-				if e.catalog.state != catalog || s.temporaryNamespace != namespace || held.sequences != cell || *e.storage.Sequences[ref.Address] != generator || *payloadOf(s).sequences.Memory(ref.Address) != memory {
+				if e.catalog.state != catalog || s.TemporaryNamespace != namespace || held.sequences != cell || *e.storage.Sequences[ref.Address] != generator || *payloadOf(s).sequences.Memory(ref.Address) != memory {
 					t.Fatal("CREATE permission rejection changed authority/state")
 				}
 				sequenceScalar(t, s, "SELECT nextval('own_temp')", 2)

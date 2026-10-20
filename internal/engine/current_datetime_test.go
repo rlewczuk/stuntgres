@@ -135,12 +135,12 @@ func TestCurrentDateTimeTransactionBirthQuantization(t *testing.T) {
 	first := implicit.input.TransactionStart
 	assertClock(first)
 	finish(implicit, nil)
-	if !session.transactions.start.IsZero() {
+	if !session.Transactions.start.IsZero() {
 		t.Fatal("implicit clock retained after end")
 	}
 	advance(first)
 	ref := transactionBegin(t, session)
-	owner := session.transactions
+	owner := session.Transactions
 	outer := owner.start
 	assertClock(outer)
 	if !outer.After(first) {

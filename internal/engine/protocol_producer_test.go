@@ -37,7 +37,7 @@ func TestProtocolPortalProducer(t *testing.T) {
 	// Savepoint retirement uses the canonical birth frontier without rewinding
 	// older demand or disposing a different transaction's exported owner.
 	session := sessionStart(t, e, nil)
-	owner := session.transactions
+	owner := session.Transactions
 	p.tx, p.born = owner.ref, 1
 	newRows, foreignRows := exec.NewFinalRows(nil, 0), exec.NewFinalRows(nil, 0)
 	newPortal := &protocolPortal{tx: owner.ref, born: 2, rows: newRows}

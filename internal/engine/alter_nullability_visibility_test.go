@@ -20,7 +20,7 @@ func TestAlterNullabilityPeerCommitVisibility(t *testing.T) {
 			tx := transactionBegin(t, a)
 			sessionSQL(t, a, "INSERT INTO t VALUES(8,10)")
 			sessionSQL(t, a, "ALTER TABLE t DROP b, ALTER a SET NOT NULL")
-			private := e.privateCatalogLocked(a.transactions.catalog).MustRelation(ref.Address)
+			private := e.privateCatalogLocked(a.Transactions.catalog).MustRelation(ref.Address)
 			if len(private.Columns) != 1 || private.Columns[0].Nullable || e.catalog.state.Get(ref.Address) != original || e.storage.Relations[ref.Address] != store {
 				t.Fatal("private descriptor published early")
 			}

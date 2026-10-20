@@ -420,7 +420,7 @@ func TestFDWScanState(t *testing.T) {
 func testFDWCursorCleanupOwner(t *testing.T) {
 	e := New()
 	s := sessionStart(t, e, nil)
-	txn := s.transactions
+	txn := s.Transactions
 	failure := errors.New("owned cursor cleanup")
 	var blocked []string
 	scan := &fdwUnitScan{onEnd: func(context.Context) error {
@@ -432,8 +432,8 @@ func testFDWCursorCleanupOwner(t *testing.T) {
 			}
 		}
 		check("engine", e.mu.TryLock, e.mu.Unlock)
-		check("session", s.mu.TryLock, s.mu.Unlock)
-		check("settings", s.settings.mu.TryLock, s.settings.mu.Unlock)
+		check("session", s.Mu.TryLock, s.Mu.Unlock)
+		check("settings", s.Settings.mu.TryLock, s.Settings.mu.Unlock)
 		check("transaction", txn.mu.TryLock, txn.mu.Unlock)
 		check("replacement", e.replacementMu.TryLock, e.replacementMu.Unlock)
 		return failure
@@ -445,14 +445,14 @@ func testFDWCursorCleanupOwner(t *testing.T) {
 	payloadOf(s).cursors.entries = map[string]*sqlCursor{"child": cursor}
 	e.replacementMu.RLock()
 	e.mu.Lock()
-	s.settings.mu.Lock()
-	s.mu.Lock()
+	s.Settings.mu.Lock()
+	s.Mu.Lock()
 	txn.mu.Lock()
 	ownerExtensionOf(txn).cursorCleanup = append(ownerExtensionOrZero(txn).cursorCleanup, payloadOf(s).cursors.rollback(0)...)
 	premature := scan.ends
 	txn.mu.Unlock()
-	s.mu.Unlock()
-	s.settings.mu.Unlock()
+	s.Mu.Unlock()
+	s.Settings.mu.Unlock()
 	e.mu.Unlock()
 	e.replacementMu.RUnlock()
 	if premature != 0 {

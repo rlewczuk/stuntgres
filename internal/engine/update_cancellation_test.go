@@ -112,7 +112,7 @@ func TestUpdateCoreMidExecutionCancellation(t *testing.T) {
 					t.Fatal("retained root changed")
 				}
 				if explicit {
-					if a.TransactionState() != TxAborted || a.transactions.writes != nil {
+					if a.TransactionState() != TxAborted || a.Transactions.writes != nil {
 						t.Fatal("prior private effects not discarded")
 					}
 					op := transactionOperation(t, a)

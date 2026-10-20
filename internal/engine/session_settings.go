@@ -34,7 +34,7 @@ type sessionSettings struct {
 // It reads only settings-protected state, including transaction projections.
 func (s *Session) Setting(name string) (string, bool) {
 	name = settings.FoldName(name)
-	store := s.settings
+	store := s.Settings
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	if store.ended {
@@ -101,7 +101,7 @@ func (s *sessionSettings) touchRole(current authorization.PrincipalRef, local bo
 
 // Install a complete boundary state once; admission reserves revision capacity.
 func (s *sessionSettings) restoreIdentityLocked(target authorization.RoleState) {
-	a := s.session.authorization
+	a := s.session.Authorization
 	if a != nil && a.state != target {
 		a.state = target
 		a.revision++
@@ -156,9 +156,9 @@ func (s *sessionSettings) finishTransaction(commit bool) {
 		}
 	}
 	if s.session != nil {
-		s.session.mu.Lock()
-		t := s.session.transactions
-		target := s.session.authorization.state
+		s.session.Mu.Lock()
+		t := s.session.Transactions
+		target := s.session.Authorization.state
 		if !commit && t.identityCaptured {
 			target.Authenticated = t.identityEntry.Authenticated
 			target.SessionUser = t.identityEntry.SessionUser
@@ -174,8 +174,8 @@ func (s *sessionSettings) finishTransaction(commit bool) {
 		s.restoreIdentityLocked(target)
 		t.identityEntry = authorization.RoleState{}
 		t.identityCaptured = false
-		s.session.publishTimeoutSettingsLocked(s, false, time.Now())
-		s.session.mu.Unlock()
+		s.session.PublishTimeoutSettingsLocked(s, false, time.Now())
+		s.session.Mu.Unlock()
 	}
 	s.actions = nil
 	s.roleAction = roleSettingAction{}

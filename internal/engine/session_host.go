@@ -9,7 +9,7 @@ type sessionHost Engine
 
 // engineOf returns the engine that hosts s, or nil for a host-less session.
 func engineOf(s *Session) *Engine {
-	h, _ := s.host.(*sessionHost)
+	h, _ := s.Host.(*sessionHost)
 	return (*Engine)(h)
 }
 

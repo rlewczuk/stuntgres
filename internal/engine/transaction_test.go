@@ -295,13 +295,13 @@ func TestTransactionReferencesCountersAndPrecancel(t *testing.T) {
 	if _, err := e.Begin(op, TxOptions{Isolation: Isolation(99)}); err == nil || a.TransactionState() != TxIdle {
 		t.Fatal("option mutation")
 	}
-	a.transactions.next = ids.TxID(^uint64(0))
+	a.Transactions.next = ids.TxID(^uint64(0))
 	if _, err := e.Begin(op, TxOptions{}); err == nil || a.TransactionState() != TxIdle {
 		t.Fatal("identity wrapped")
 	}
-	a.transactions.next = next.ID()
+	a.Transactions.next = next.ID()
 	ref = transactionBegin(t, a)
-	a.transactions.command = ids.CommandID(^uint64(0))
+	a.Transactions.command = ids.CommandID(^uint64(0))
 	_, err := e.Execute(op, statement(t, "INSERT INTO t VALUES(1)"), 0, nil)
 	if err == nil {
 		t.Fatal("command wrapped")
@@ -383,9 +383,9 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 			ref := transactionBegin(t, a)
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			sessionSQL(t, a, "INSERT INTO u VALUES(9)")
-			staged := [2]storage.RowVersion{a.transactions.writes[addresses[0]][0], a.transactions.writes[addresses[1]][0]}
+			staged := [2]storage.RowVersion{a.Transactions.writes[addresses[0]][0], a.Transactions.writes[addresses[1]][0]}
 			for i, root := range roots {
-				size := len(root) + len(a.transactions.writes[addresses[i]])
+				size := len(root) + len(a.Transactions.writes[addresses[i]])
 				if len(root) != [2]int{3, 1}[i] || cap(root) != [2]int{4, 1}[i] || (size <= cap(root)) != (i == 0) {
 					t.Fatalf("relation %d does not select mixed spare/growth: len=%d cap=%d staged=%d", i, len(root), cap(root), size-len(root))
 				}
@@ -444,7 +444,7 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				// Keep the admitted lease and private batch alive. Exercise the
 				// publication seam after terminal admission, so both buffers are
 				// prepared and the final live-operation check rejects installation.
-				err = e.publishWrites(op, ref, a.transactions.writes, a.transactions.deletes, nil)
+				err = e.publishWrites(op, ref, a.Transactions.writes, a.Transactions.deletes, nil)
 			case "epoch_before":
 				// Isolate epoch rejection from replacement's own storage/frontier
 				// effects; the mixed roots remain installed as the no-write witness.
@@ -515,13 +515,13 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 					if row.Row == 0 || row.Version == 0 || row.Row != staged[i].Row || row.Version != staged[i].Version || row.Born != frontier+1 || !reflect.DeepEqual(row.Values, staged[i].Values) || len(row.Values) != 1 || testExport(row.Values[0]) != [2]int64{1, 9}[i] {
 						t.Fatal("new row lacks common publication frontier/payload", row)
 					}
-					if len(a.transactions.writes[addresses[i]]) != 0 {
+					if len(a.Transactions.writes[addresses[i]]) != 0 {
 						t.Fatal("successful commit retained private writes")
 					}
 				}
 			}
 			if boundary == "ref_before" {
-				if a.TransactionState() != TxActive || len(a.transactions.writes) != 2 {
+				if a.TransactionState() != TxActive || len(a.Transactions.writes) != 2 {
 					t.Fatal("invalid reference discarded current incarnation")
 				}
 				transactionEnd(t, a, ref, false)
@@ -555,7 +555,7 @@ func TestTransactionTerminalCleanupAndEndFence(t *testing.T) {
 			op := transactionOperation(t, a)
 			a.RequestEnd(reason)
 			<-op.Context().Done()
-			if len(a.transactions.writes) == 0 {
+			if len(a.Transactions.writes) == 0 {
 				t.Fatal("cleanup before drain")
 			}
 			op.Done()

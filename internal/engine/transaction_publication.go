@@ -28,7 +28,7 @@ type rowPublication struct {
 
 func (e *Engine) publishWrites(op *Operation, ref ids.TxRef, writes map[ids.ObjectAddress][]storage.RowVersion, deletes map[ids.ObjectAddress]*visibility.PrivateDeletes, scope *StatementScope) error {
 	owner := txOwnerOf(ref)
-	if op == nil || op.Self != op || op.Session == nil || op.Session.transactions == nil || owner == nil || ref.Domain() != domainOf(e) || ref.Session() != op.Session.token || owner != op.Session.transactions || ref.ID() == 0 || ref != owner.ref {
+	if op == nil || op.Self != op || op.Session == nil || op.Session.Transactions == nil || owner == nil || ref.Domain() != domainOf(e) || ref.Session() != op.Session.SessionToken || owner != op.Session.Transactions || ref.ID() == 0 || ref != owner.ref {
 		return errors.New("stuntgres: foreign or stale publication transaction")
 	}
 	if owner.state != TxActive && owner.state != TxImplicit {
@@ -90,7 +90,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			notifications := e.prepareNotificationPublication(op.Session, actions, events)
 		emptyFence:
 			e.mu.Lock()
-			op.Session.mu.Lock()
+			op.Session.Mu.Lock()
 			err := publicationOperationLocked(e, op)
 			if err == nil && ref.Epoch() != e.catalog.state.Epoch() {
 				err = ids.ErrCatalogReplaced
@@ -108,12 +108,12 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				err = e.visibility.SerializablePrecommitLocked(ref)
 			}
 			if err != nil {
-				op.Session.mu.Unlock()
+				op.Session.Mu.Unlock()
 				e.mu.Unlock()
 				return err
 			}
 			if !e.notificationPublicationUnchangedLocked(notifications) {
-				op.Session.mu.Unlock()
+				op.Session.Mu.Unlock()
 				e.mu.Unlock()
 				if remoteSettled {
 					return catalog.Conflict{}
@@ -121,7 +121,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				continue
 			}
 			if phase == nil && !remoteSettled && foreignPending(txOwnerOf(ref)) {
-				op.Session.mu.Unlock()
+				op.Session.Mu.Unlock()
 				e.mu.Unlock()
 				if scope != nil {
 					if err := scope.finishForeignStatements(nil); err != nil {
@@ -144,7 +144,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				e.finishPreparedLocked(phase)
 				e.finishDiscardRoleResetLocked(op)
 			}
-			op.Session.mu.Unlock()
+			op.Session.Mu.Unlock()
 			e.mu.Unlock()
 			return nil
 		}
@@ -349,7 +349,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 	publicationFence:
 		session := op.Session
 		e.mu.Lock()
-		session.mu.Lock()
+		session.Mu.Lock()
 		err = publicationOperationLocked(e, op)
 		if err == nil && ref.Epoch() != e.catalog.state.Epoch() {
 			err = ids.ErrCatalogReplaced
@@ -396,12 +396,12 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			err = e.discardResetPreflightLocked(op)
 		}
 		if err != nil {
-			session.mu.Unlock()
+			session.Mu.Unlock()
 			e.mu.Unlock()
 			return err
 		}
 		if changed {
-			session.mu.Unlock()
+			session.Mu.Unlock()
 			e.mu.Unlock()
 			if remoteSettled {
 				return catalog.Conflict{}
@@ -417,18 +417,18 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			}
 		}
 		if err := e.visibility.SerializablePrecommitLocked(ref); err != nil {
-			session.mu.Unlock()
+			session.Mu.Unlock()
 			e.mu.Unlock()
 			return err
 		}
 		if phase != nil && phase.preparing {
 			e.installPreparedLocked(phase)
-			session.mu.Unlock()
+			session.Mu.Unlock()
 			e.mu.Unlock()
 			return nil
 		}
 		if phase == nil && !remoteSettled && foreignPending(txOwnerOf(ref)) {
-			session.mu.Unlock()
+			session.Mu.Unlock()
 			e.mu.Unlock()
 			if scope != nil {
 				if err := scope.finishForeignStatements(nil); err != nil {
@@ -493,8 +493,8 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 				e.roles.published = c.Roles
 			}
 			for a, d := range c.Descriptors {
-				if ns, ok := d.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == session.token {
-					session.temporaryNamespace = a
+				if ns, ok := d.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == session.SessionToken {
+					session.TemporaryNamespace = a
 				}
 			}
 		}
@@ -505,7 +505,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 		e.visibility.SerializableCommittedLocked(ref, e.visibility.CommitSeq())
 		e.finishPreparedLocked(phase)
 		e.finishDiscardRoleResetLocked(op)
-		session.mu.Unlock()
+		session.Mu.Unlock()
 		e.mu.Unlock()
 		return nil
 	}
@@ -513,17 +513,17 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 
 // Caller holds Session.mu; row/catalog publication additionally holds Engine.mu.
 func publicationOperationLocked(e *Engine, op *Operation) error {
-	if op == nil || op.Self != op || op.Session == nil || op.Session.token.Domain() != domainOf(e) {
+	if op == nil || op.Self != op || op.Session == nil || op.Session.SessionToken.Domain() != domainOf(e) {
 		return errors.New("stuntgres: foreign or missing operation")
 	}
-	if op.Released || op.Session.state != live {
-		if op.Session.timeouts.fatal != nil {
-			copy := *op.Session.timeouts.fatal
+	if op.Released || op.Session.State != live {
+		if op.Session.Timeouts.Fatal != nil {
+			copy := *op.Session.Timeouts.Fatal
 			return &copy
 		}
 		return errors.New("stuntgres: inactive operation")
 	}
-	if _, ok := op.Session.operations[op]; !ok {
+	if _, ok := op.Session.Operations[op]; !ok {
 		return errors.New("stuntgres: inactive operation")
 	}
 	return op.FatalErrorLocked(op.Ctx.Err())

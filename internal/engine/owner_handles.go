@@ -14,7 +14,7 @@ func txOwnerOf(ref ids.TxRef) *transactionOwner {
 func sessionTokenAttached(token ids.SessionToken) bool {
 	private := privateSessionOf(token)
 	if token.ID() == 0 {
-		return private != nil && private.token == token
+		return private != nil && private.SessionToken == token
 	}
 	return private == nil
 }

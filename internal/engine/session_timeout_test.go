@@ -33,25 +33,25 @@ func timeoutMechanicsSession(t *testing.T) *Session {
 }
 
 func timeoutMechanicsSettings(s *Session, transaction, idleTransaction, idleSession time.Duration, assignment bool, now time.Time) {
-	s.settings.mu.Lock()
-	defer s.settings.mu.Unlock()
-	if s.settings.typed == nil {
-		s.settings.typed = make(map[string]settings.Value)
+	s.Settings.mu.Lock()
+	defer s.Settings.mu.Unlock()
+	if s.Settings.typed == nil {
+		s.Settings.typed = make(map[string]settings.Value)
 	}
 	for name, duration := range map[string]time.Duration{
 		"transaction_timeout":                 transaction,
 		"idle_in_transaction_session_timeout": idleTransaction,
 		"idle_session_timeout":                idleSession,
 	} {
-		s.settings.typed[name] = settings.Value{Number: float64(duration / time.Millisecond)}
+		s.Settings.typed[name] = settings.Value{Number: float64(duration / time.Millisecond)}
 	}
-	s.mu.Lock()
-	s.publishTimeoutSettingsLocked(s.settings, assignment, now)
-	s.mu.Unlock()
+	s.Mu.Lock()
+	s.PublishTimeoutSettingsLocked(s.Settings, assignment, now)
+	s.Mu.Unlock()
 }
 
 func timeoutMechanicsRef(s *Session, id ids.TxID) ids.TxRef {
-	return engineOf(s).catalog.Domain.Tx(s.Token(), id, 0, s.transactions, 0)
+	return engineOf(s).catalog.Domain.Tx(s.Token(), id, 0, s.Transactions, 0)
 }
 
 func TestSessionTimeoutGenerationMechanics(t *testing.T) {
@@ -64,41 +64,41 @@ func TestSessionTimeoutGenerationMechanics(t *testing.T) {
 	now := time.Now()
 	timeoutMechanicsSettings(s, time.Hour, 0, 0, false, now)
 	scope := &StatementScope{statementStart: now, transactionStart: now}
-	s.startProvisionalTimeout(&scope.lease, scope.op, scope.transactionStart)
-	s.transactions.mu.Lock()
-	if s.transactions.next != 0 || s.transactions.state != TxIdle {
+	s.StartProvisionalTimeout(&scope.lease, scope.op, scope.transactionStart)
+	s.Transactions.mu.Lock()
+	if s.Transactions.next != 0 || s.Transactions.state != TxIdle {
 		t.Error("provisional budget minted transaction state")
 	}
-	s.transactions.mu.Unlock()
-	s.mu.Lock()
-	slot := &s.timeouts.transaction
-	deadline, generation := slot.deadline, slot.generation
+	s.Transactions.mu.Unlock()
+	s.Mu.Lock()
+	slot := &s.Timeouts.Transaction
+	deadline, generation := slot.Deadline, slot.Generation
 	first := timeoutMechanicsRef(s, 1)
-	s.beginTimeoutLocked(first, true, now.Add(time.Minute))
-	if slot.lease != nil || slot.ref != first || slot.deadline != deadline || slot.generation != generation {
+	s.BeginTimeoutLocked(first, true, now.Add(time.Minute))
+	if slot.Lease != nil || slot.Ref != first || slot.Deadline != deadline || slot.Generation != generation {
 		t.Error("transaction birth did not adopt the same provisional budget")
 	}
-	foreign := s.token
+	foreign := s.SessionToken
 	foreign = withSessionID(foreign, foreign.ID()+1)
-	s.expireTimeoutLocked(slot, generation, foreign, "25P04", deadline)
-	s.timeouts.authority = timeoutMechanicsRef(s, 2)
-	s.expireTimeoutLocked(slot, generation, s.token, "25P04", deadline)
-	if s.state != live {
+	s.ExpireTimeoutLocked(slot, generation, foreign, "25P04", deadline)
+	s.Timeouts.Authority = timeoutMechanicsRef(s, 2)
+	s.ExpireTimeoutLocked(slot, generation, s.SessionToken, "25P04", deadline)
+	if s.State != live {
 		t.Error("foreign identity expired the owner")
 	}
-	s.retireTransactionTimeoutLocked()
+	s.RetireTransactionTimeoutLocked()
 	second := timeoutMechanicsRef(s, 2)
-	s.beginTimeoutLocked(second, true, now.Add(time.Minute))
-	s.expireTimeoutLocked(slot, generation, s.token, "25P04", slot.deadline)
-	s.expireTimeoutLocked(slot, slot.generation, s.token, "25P04", slot.deadline.Add(-time.Nanosecond))
-	if s.state != live {
+	s.BeginTimeoutLocked(second, true, now.Add(time.Minute))
+	s.ExpireTimeoutLocked(slot, generation, s.SessionToken, "25P04", slot.Deadline)
+	s.ExpireTimeoutLocked(slot, slot.Generation, s.SessionToken, "25P04", slot.Deadline.Add(-time.Nanosecond))
+	if s.State != live {
 		t.Error("stale or early callback expired the next incarnation")
 	}
-	s.expireTimeoutLocked(slot, slot.generation, s.token, "25P04", slot.deadline)
-	if s.state != ending || s.reason != Terminated {
+	s.ExpireTimeoutLocked(slot, slot.Generation, s.SessionToken, "25P04", slot.Deadline)
+	if s.State != ending || s.Reason != Terminated {
 		t.Error("current expiry did not request canonical physical end")
 	}
-	s.mu.Unlock()
+	s.Mu.Unlock()
 	if !errors.Is(op.Context().Err(), context.Canceled) {
 		t.Fatal("accepted lease was not canceled")
 	}
@@ -117,64 +117,64 @@ func TestSessionTimeoutGenerationMechanics(t *testing.T) {
 	if err := s.WaitEnd(ctx); err != nil {
 		t.Fatal(err)
 	}
-	s.mu.Lock()
-	if s.reason != Terminated || s.state != ended {
-		t.Error("late close replaced fatal first reason", s.reason, s.state)
+	s.Mu.Lock()
+	if s.Reason != Terminated || s.State != ended {
+		t.Error("late close replaced fatal first reason", s.Reason, s.State)
 	}
-	s.mu.Unlock()
+	s.Mu.Unlock()
 }
 
 func TestSessionTimeoutAssignmentMechanics(t *testing.T) {
 	s := timeoutMechanicsSession(t)
 	now := time.Now()
 	timeoutMechanicsSettings(s, time.Hour, 0, 0, false, now)
-	s.mu.Lock()
-	s.beginTimeoutLocked(timeoutMechanicsRef(s, 1), true, now)
-	original, generation := s.timeouts.transaction.deadline, s.timeouts.transaction.generation
-	s.mu.Unlock()
+	s.Mu.Lock()
+	s.BeginTimeoutLocked(timeoutMechanicsRef(s, 1), true, now)
+	original, generation := s.Timeouts.Transaction.Deadline, s.Timeouts.Transaction.Generation
+	s.Mu.Unlock()
 	for _, limit := range []time.Duration{time.Hour, 2 * time.Hour} {
 		timeoutMechanicsSettings(s, limit, 0, 0, true, now.Add(time.Minute))
-		s.mu.Lock()
-		if s.timeouts.transaction.deadline != original || s.timeouts.transaction.generation != generation {
+		s.Mu.Lock()
+		if s.Timeouts.Transaction.Deadline != original || s.Timeouts.Transaction.Generation != generation {
 			t.Error("positive assignment extended current budget")
 		}
-		s.mu.Unlock()
+		s.Mu.Unlock()
 	}
 	timeoutMechanicsSettings(s, 0, 0, 0, true, now)
 	timeoutMechanicsSettings(s, time.Hour, 0, 0, false, now.Add(time.Minute))
-	s.mu.Lock()
-	if !s.timeouts.transaction.deadline.IsZero() {
+	s.Mu.Lock()
+	if !s.Timeouts.Transaction.Deadline.IsZero() {
 		t.Error("savepoint/transaction restoration armed a budget")
 	}
-	s.mu.Unlock()
+	s.Mu.Unlock()
 	timeoutMechanicsSettings(s, time.Hour, 0, 0, true, now.Add(2*time.Minute))
-	s.mu.Lock()
-	if s.timeouts.transaction.deadline != now.Add(2*time.Minute+time.Hour) {
+	s.Mu.Lock()
+	if s.Timeouts.Transaction.Deadline != now.Add(2*time.Minute+time.Hour) {
 		t.Error("explicit assignment did not rearm stopped budget")
 	}
-	s.mu.Unlock()
-	s.finishScopeTimeout(&StatementLease{TimeoutRef: timeoutMechanicsRef(s, 1)}, nil, false, ids.TxRef{}, true)
+	s.Mu.Unlock()
+	s.FinishScopeTimeout(&StatementLease{TimeoutRef: timeoutMechanicsRef(s, 1)}, nil, false, ids.TxRef{}, true)
 	timeoutMechanicsSettings(s, time.Hour, 0, 0, false, now.Add(3*time.Minute))
-	s.mu.Lock()
-	if !s.timeouts.transaction.deadline.IsZero() {
+	s.Mu.Lock()
+	if !s.Timeouts.Transaction.Deadline.IsZero() {
 		t.Error("ERROR restoration restarted the transaction timer")
 	}
-	s.retireTransactionTimeoutLocked()
-	s.beginTimeoutLocked(timeoutMechanicsRef(s, 2), true, now.Add(4*time.Minute))
-	if s.timeouts.transaction.deadline != now.Add(4*time.Minute+time.Hour) {
+	s.RetireTransactionTimeoutLocked()
+	s.BeginTimeoutLocked(timeoutMechanicsRef(s, 2), true, now.Add(4*time.Minute))
+	if s.Timeouts.Transaction.Deadline != now.Add(4*time.Minute+time.Hour) {
 		t.Error("next incarnation did not receive a fresh restored budget")
 	}
-	s.mu.Unlock()
-	s.finishScopeTimeout(&StatementLease{TimeoutRef: timeoutMechanicsRef(s, 1)}, nil, false, ids.TxRef{}, true)
-	s.mu.Lock()
-	if s.timeouts.transaction.deadline != now.Add(4*time.Minute+time.Hour) {
+	s.Mu.Unlock()
+	s.FinishScopeTimeout(&StatementLease{TimeoutRef: timeoutMechanicsRef(s, 1)}, nil, false, ids.TxRef{}, true)
+	s.Mu.Lock()
+	if s.Timeouts.Transaction.Deadline != now.Add(4*time.Minute+time.Hour) {
 		t.Error("late previous scope stopped the new CHAIN budget")
 	}
-	s.retireTransactionTimeoutLocked()
-	if !s.timeouts.transaction.deadline.IsZero() || s.timeouts.authority != (ids.TxRef{}) {
+	s.RetireTransactionTimeoutLocked()
+	if !s.Timeouts.Transaction.Deadline.IsZero() || s.Timeouts.Authority != (ids.TxRef{}) {
 		t.Error("transaction retirement retained runtime authority")
 	}
-	s.mu.Unlock()
+	s.Mu.Unlock()
 }
 
 func TestSessionTimeoutIdleMechanics(t *testing.T) {
@@ -196,43 +196,43 @@ func TestSessionTimeoutIdleMechanics(t *testing.T) {
 			s := timeoutMechanicsSession(t)
 			now := time.Now()
 			timeoutMechanicsSettings(s, tc.transaction, tc.idleTransaction, tc.idleSession, false, now)
-			s.mu.Lock()
-			s.timeouts.explicit = tc.explicit
-			s.readyTimeoutLocked(now)
-			if s.timeouts.idle.deadline.IsZero() != (tc.code == "") {
+			s.Mu.Lock()
+			s.Timeouts.Explicit = tc.explicit
+			s.ReadyTimeoutLocked(now)
+			if s.Timeouts.Idle.Deadline.IsZero() != (tc.code == "") {
 				t.Error("wrong idle category or configured suppression")
 			}
-			if tc.code == "" && s.timeouts.idle.timer != nil {
+			if tc.code == "" && s.Timeouts.Idle.Timer != nil {
 				t.Error("disabled/suppressed idle allocated a timer")
 			}
-			generation, deadline := s.timeouts.idle.generation, s.timeouts.idle.deadline
-			s.mu.Unlock()
+			generation, deadline := s.Timeouts.Idle.Generation, s.Timeouts.Idle.Deadline
+			s.Mu.Unlock()
 			op, err := s.AcquireActivity(context.Background())
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer op.Done()
-			s.mu.Lock()
-			if !s.timeouts.idle.deadline.IsZero() || s.timeouts.sqlLeases != 1 {
+			s.Mu.Lock()
+			if !s.Timeouts.Idle.Deadline.IsZero() || s.Timeouts.SQLLeases != 1 {
 				t.Error("active SQL retained idle budget")
 			}
-			s.expireTimeoutLocked(&s.timeouts.idle, generation, s.token, tc.code, deadline)
-			if s.state != live {
+			s.ExpireTimeoutLocked(&s.Timeouts.Idle, generation, s.SessionToken, tc.code, deadline)
+			if s.State != live {
 				t.Error("old idle callback expired active work")
 			}
-			s.mu.Unlock()
+			s.Mu.Unlock()
 			op.Done()
-			s.mu.Lock()
-			if s.timeouts.sqlLeases != 0 || s.timeouts.idle.deadline.IsZero() != (tc.code == "") {
+			s.Mu.Lock()
+			if s.Timeouts.SQLLeases != 0 || s.Timeouts.Idle.Deadline.IsZero() != (tc.code == "") {
 				t.Error("ready boundary did not restore exclusive idle category")
 			}
 			if tc.code != "" {
-				s.expireTimeoutLocked(&s.timeouts.idle, s.timeouts.idle.generation, s.token, tc.code, s.timeouts.idle.deadline)
-				if s.timeouts.fatal == nil || s.timeouts.fatal.Code != tc.code {
+				s.ExpireTimeoutLocked(&s.Timeouts.Idle, s.Timeouts.Idle.Generation, s.SessionToken, tc.code, s.Timeouts.Idle.Deadline)
+				if s.Timeouts.Fatal == nil || s.Timeouts.Fatal.Code != tc.code {
 					t.Error("wrong idle fatal")
 				}
 			}
-			s.mu.Unlock()
+			s.Mu.Unlock()
 		})
 	}
 }
@@ -246,18 +246,18 @@ func TestSessionTimeoutCancellationMechanics(t *testing.T) {
 	}
 	defer op.Done()
 	cancel()
-	s.mu.Lock()
-	s.timeouts.fatal = timeoutFatal("25P04")
-	s.mu.Unlock()
+	s.Mu.Lock()
+	s.Timeouts.Fatal = timeoutFatal("25P04")
+	s.Mu.Unlock()
 	if got := op.CommandError(context.Canceled); got != context.Canceled {
 		t.Error("caller cancellation became SQL fatal", got)
 	}
 	s.RequestEnd(CleanClose)
-	s.mu.Lock()
-	if s.reason != CleanClose {
+	s.Mu.Lock()
+	if s.Reason != CleanClose {
 		t.Error("clean close lost first reason")
 	}
-	s.mu.Unlock()
+	s.Mu.Unlock()
 }
 
 func TestSessionTimeoutPendingOrderMechanics(t *testing.T) {
@@ -276,27 +276,27 @@ func TestSessionTimeoutPendingOrderMechanics(t *testing.T) {
 			now := time.Now()
 			timeoutMechanicsSettings(s, time.Hour, 0, 0, false, now)
 			scope := &StatementScope{op: op, statementStart: now, transactionStart: now}
-			s.startProvisionalTimeout(&scope.lease, scope.op, scope.transactionStart)
+			s.StartProvisionalTimeout(&scope.lease, scope.op, scope.transactionStart)
 			timed, expireStatement := context.WithCancelCause(op.Ctx)
-			s.mu.Lock()
+			s.Mu.Lock()
 			op.Ctx = timed
-			s.beginTimeoutLocked(timeoutMechanicsRef(s, 1), true, now)
-			s.mu.Unlock()
+			s.BeginTimeoutLocked(timeoutMechanicsRef(s, 1), true, now)
+			s.Mu.Unlock()
 			if completed {
-				s.finishScopeTimeout(&scope.lease, scope.op, scope.message, scope.txRef, false)
+				s.FinishScopeTimeout(&scope.lease, scope.op, scope.message, scope.txRef, false)
 			}
 			expireStatement(statementTimeoutCause)
-			s.mu.Lock()
-			slot := &s.timeouts.transaction
-			s.expireTimeoutLocked(slot, slot.generation, s.token, "25P04", slot.deadline)
+			s.Mu.Lock()
+			slot := &s.Timeouts.Transaction
+			s.ExpireTimeoutLocked(slot, slot.Generation, s.SessionToken, "25P04", slot.Deadline)
 			if completed {
-				if s.state != ending || s.timeouts.fatal == nil || s.timeouts.fatal.Code != "25P04" {
+				if s.State != ending || s.Timeouts.Fatal == nil || s.Timeouts.Fatal.Code != "25P04" {
 					t.Error("late completed statement timer suppressed transaction fatal")
 				}
-			} else if s.state != live || !slot.deadline.IsZero() || s.timeouts.fatal != nil {
+			} else if s.State != live || !slot.Deadline.IsZero() || s.Timeouts.Fatal != nil {
 				t.Error("already-pending statement ERROR lost released priority")
 			}
-			s.mu.Unlock()
+			s.Mu.Unlock()
 			if !completed {
 				var diagnostic *sqlstate.Error
 				if err := op.CommandError(op.Context().Err()); !errors.As(err, &diagnostic) || diagnostic.Code != "57014" || diagnostic.Message != "canceling statement due to statement timeout" {
@@ -309,15 +309,15 @@ func TestSessionTimeoutPendingOrderMechanics(t *testing.T) {
 		s := timeoutMechanicsSession(t)
 		now := time.Now()
 		timeoutMechanicsSettings(s, time.Hour, 30*time.Minute, 0, false, now)
-		s.mu.Lock()
-		s.beginTimeoutLocked(timeoutMechanicsRef(s, 1), true, now)
-		s.readyTimeoutLocked(now.Add(50 * time.Minute))
-		slot := &s.timeouts.transaction
-		s.expireTimeoutLocked(slot, slot.generation, s.token, "25P04", now.Add(90*time.Minute))
-		if s.timeouts.fatal == nil || s.timeouts.fatal.Code != "25P03" {
+		s.Mu.Lock()
+		s.BeginTimeoutLocked(timeoutMechanicsRef(s, 1), true, now)
+		s.ReadyTimeoutLocked(now.Add(50 * time.Minute))
+		slot := &s.Timeouts.Transaction
+		s.ExpireTimeoutLocked(slot, slot.Generation, s.SessionToken, "25P04", now.Add(90*time.Minute))
+		if s.Timeouts.Fatal == nil || s.Timeouts.Fatal.Code != "25P03" {
 			t.Error("already-pending idle-in-transaction FATAL lost released priority")
 		}
-		s.mu.Unlock()
+		s.Mu.Unlock()
 	})
 	t.Run("pending-lock-and-statement-before-fatal", func(t *testing.T) {
 		ctx, cancel := context.WithCancelCause(context.Background())
@@ -359,12 +359,12 @@ func TestSessionTimeoutNoBirthFinishMechanics(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			s.mu.Lock()
-			generation, deadline := s.timeouts.transaction.generation, s.timeouts.transaction.deadline
-			if s.timeouts.transaction.lease != &scope.lease || deadline.IsZero() {
+			s.Mu.Lock()
+			generation, deadline := s.Timeouts.Transaction.Generation, s.Timeouts.Transaction.Deadline
+			if s.Timeouts.Transaction.Lease != &scope.lease || deadline.IsZero() {
 				t.Error("missing preparse scope budget")
 			}
-			s.mu.Unlock()
+			s.Mu.Unlock()
 			var expected error
 			if failed {
 				expected = errors.New("ordinary parser failure")
@@ -373,20 +373,20 @@ func TestSessionTimeoutNoBirthFinishMechanics(t *testing.T) {
 				t.Error("finish changed original failure", err)
 			}
 			op.Done()
-			s.transactions.mu.Lock()
-			if s.transactions.next != 0 || s.transactions.state != TxIdle {
+			s.Transactions.mu.Lock()
+			if s.Transactions.next != 0 || s.Transactions.state != TxIdle {
 				t.Error("no-birth finish minted transaction state")
 			}
-			s.transactions.mu.Unlock()
-			s.mu.Lock()
-			if !s.timeouts.transaction.deadline.IsZero() || s.timeouts.transaction.timer != nil {
+			s.Transactions.mu.Unlock()
+			s.Mu.Lock()
+			if !s.Timeouts.Transaction.Deadline.IsZero() || s.Timeouts.Transaction.Timer != nil {
 				t.Error("no-birth finish retained runtime timer")
 			}
-			s.expireTimeoutLocked(&s.timeouts.transaction, generation, s.token, "25P04", deadline)
-			if s.state != live {
+			s.ExpireTimeoutLocked(&s.Timeouts.Transaction, generation, s.SessionToken, "25P04", deadline)
+			if s.State != live {
 				t.Error("retired provisional callback terminated ready owner")
 			}
-			s.mu.Unlock()
+			s.Mu.Unlock()
 		})
 	}
 }
@@ -397,7 +397,7 @@ func TestSessionTimeoutCleanupErrorMechanics(t *testing.T) {
 		t.Fatal(err)
 	}
 	// This mechanics unit substitutes a failing callback for the SQL-name owner.
-	if err := s.Detach(s.resources[PreparedSQL].handle, CleanClose); err != nil {
+	if err := s.Detach(s.Resources[PreparedSQL].handle, CleanClose); err != nil {
 		t.Fatal(err)
 	}
 	cleanupError := errors.New("independent cleanup result")
@@ -417,7 +417,7 @@ func TestSessionTimeoutCleanupErrorMechanics(t *testing.T) {
 	calls := 0
 	if _, err := op.Attach(PreparedSQL, &sessionOwner{fn: func(token ids.SessionToken, reason EndReason) error {
 		calls++
-		if token != s.token || reason != Terminated {
+		if token != s.SessionToken || reason != Terminated {
 			t.Error("wrong cleanup authority", token, reason)
 		}
 		return cleanupError
@@ -426,14 +426,14 @@ func TestSessionTimeoutCleanupErrorMechanics(t *testing.T) {
 	}
 	now := time.Now()
 	timeoutMechanicsSettings(s, time.Hour, 0, 0, false, now)
-	s.mu.Lock()
-	s.beginTimeoutLocked(timeoutMechanicsRef(s, 1), true, now)
-	slot := &s.timeouts.transaction
-	s.expireTimeoutLocked(slot, slot.generation, s.token, "25P04", slot.deadline)
-	if s.state != ending || s.leases != 1 {
+	s.Mu.Lock()
+	s.BeginTimeoutLocked(timeoutMechanicsRef(s, 1), true, now)
+	slot := &s.Timeouts.Transaction
+	s.ExpireTimeoutLocked(slot, slot.Generation, s.SessionToken, "25P04", slot.Deadline)
+	if s.State != ending || s.Leases != 1 {
 		t.Error("canonical end failed to retain accepted lease drain")
 	}
-	s.mu.Unlock()
+	s.Mu.Unlock()
 	s.RequestEnd(CleanClose)
 	op.Done()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -451,15 +451,15 @@ func TestSessionTimeoutResetAllMechanics(t *testing.T) {
 	s := timeoutMechanicsSession(t)
 	now := time.Now()
 	timeoutMechanicsSettings(s, time.Hour, 2*time.Hour, 3*time.Hour, false, now)
-	s.settings.mu.Lock()
+	s.Settings.mu.Lock()
 	for name, value := range map[string]string{
 		"transaction_timeout":                 "1h",
 		"idle_in_transaction_session_timeout": "2h",
 		"idle_session_timeout":                "3h",
 	} {
-		s.settings.values[name] = value
+		s.Settings.values[name] = value
 	}
-	s.settings.mu.Unlock()
+	s.Settings.mu.Unlock()
 	op, err := s.AcquireActivity(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -469,44 +469,44 @@ func TestSessionTimeoutResetAllMechanics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.mu.Lock()
-	generation, deadline := s.timeouts.transaction.generation, s.timeouts.transaction.deadline
-	if deadline.IsZero() || s.timeouts.transaction.ref != ref {
+	s.Mu.Lock()
+	generation, deadline := s.Timeouts.Transaction.Generation, s.Timeouts.Transaction.Deadline
+	if deadline.IsZero() || s.Timeouts.Transaction.Ref != ref {
 		t.Error("canonical BEGIN did not arm transaction budget")
 	}
-	s.mu.Unlock()
+	s.Mu.Unlock()
 
 	// Invoke the existing batch mutation seam, not a SQL parser/response test.
 	if _, err := engineOf(s).executeSetting(op, &parser.Reset{All: true}, 0, false); err != nil {
 		t.Fatal(err)
 	}
-	s.mu.Lock()
-	if s.timeouts.transactionLimit != 0 || s.timeouts.idleTransactionLimit != 0 || s.timeouts.idleSessionLimit != 0 ||
-		!s.timeouts.transaction.deadline.IsZero() || s.timeouts.transaction.timer != nil || s.timeouts.authority != ref {
+	s.Mu.Lock()
+	if s.Timeouts.TransactionLimit != 0 || s.Timeouts.IdleTransactionLimit != 0 || s.Timeouts.IdleSessionLimit != 0 ||
+		!s.Timeouts.Transaction.Deadline.IsZero() || s.Timeouts.Transaction.Timer != nil || s.Timeouts.Authority != ref {
 		t.Error("batch reset did not publish disabled limits while retaining canonical transaction")
 	}
-	s.expireTimeoutLocked(&s.timeouts.transaction, generation, s.token, "25P04", deadline)
-	if s.state != live {
+	s.ExpireTimeoutLocked(&s.Timeouts.Transaction, generation, s.SessionToken, "25P04", deadline)
+	if s.State != live {
 		t.Error("retired pre-reset callback terminated owner")
 	}
-	s.mu.Unlock()
-	s.settings.mu.Lock()
+	s.Mu.Unlock()
+	s.Settings.mu.Lock()
 	for _, name := range []string{"transaction_timeout", "idle_in_transaction_session_timeout", "idle_session_timeout"} {
-		_, text := s.settings.values[name]
-		_, typed := s.settings.typed[name]
-		_, journal := s.settings.actions[name]
+		_, text := s.Settings.values[name]
+		_, typed := s.Settings.typed[name]
+		_, journal := s.Settings.actions[name]
 		if text || typed || !journal {
 			t.Error("batch reset bypassed canonical journal/cache", name)
 		}
 	}
-	s.settings.mu.Unlock()
+	s.Settings.mu.Unlock()
 	if _, err := engineOf(s).Rollback(op, ref); err != nil {
 		t.Fatal(err)
 	}
-	s.mu.Lock()
-	if s.timeouts.transactionLimit != time.Hour || s.timeouts.idleTransactionLimit != 2*time.Hour ||
-		s.timeouts.idleSessionLimit != 3*time.Hour || !s.timeouts.transaction.deadline.IsZero() || s.timeouts.authority != (ids.TxRef{}) {
+	s.Mu.Lock()
+	if s.Timeouts.TransactionLimit != time.Hour || s.Timeouts.IdleTransactionLimit != 2*time.Hour ||
+		s.Timeouts.IdleSessionLimit != 3*time.Hour || !s.Timeouts.Transaction.Deadline.IsZero() || s.Timeouts.Authority != (ids.TxRef{}) {
 		t.Error("rollback did not restore settings without rearming retired transaction")
 	}
-	s.mu.Unlock()
+	s.Mu.Unlock()
 }

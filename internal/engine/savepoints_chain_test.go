@@ -38,9 +38,9 @@ func TestSavepointsChainCharacteristics(t *testing.T) {
 					t.Fatal("failure witness", err)
 				}
 			}
-			ref, ticket := a.transactions.ref, a.transactions.ticket
+			ref, ticket := a.Transactions.ref, a.Transactions.ticket
 			controlsRequire(t, a, tc.end)
-			owner := a.transactions
+			owner := a.Transactions
 			if owner.readOnly != tc.readOnly {
 				t.Fatalf("chained readonly %v want %v", owner.readOnly, tc.readOnly)
 			}

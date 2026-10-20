@@ -121,7 +121,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		if err = e.captureCommentSnapshotLocked(s); err == nil {
 			collectAuth := s.inquiry.deparseAuth
 			collectAuth.Recapture(catalogView)
-			physical, err = e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, leaves, nil, s.op.Session.token, plan.RowMark{})
+			physical, err = e.queryTableRefsLocked(collectAuth, collectAuth.State.CurrentUser, leaves, nil, s.op.Session.SessionToken, plan.RowMark{})
 		}
 		if err == nil {
 			var view *visibility.View

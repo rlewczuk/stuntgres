@@ -88,7 +88,7 @@ func TestUpdateFromCancelledTraversalAndPublicationCleanup(t *testing.T) {
 					t.Fatal("orphan captured statement")
 				}
 				if explicit {
-					if writer.TransactionState() != TxAborted || writer.transactions.writes != nil {
+					if writer.TransactionState() != TxAborted || writer.Transactions.writes != nil {
 						t.Fatal("prior private write survived abort")
 					}
 					transactionEnd(t, writer, tx, false)

@@ -23,9 +23,9 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		return fail(ids.ErrCatalogReplaced)
 	}
 	if s.IfExists && renameMissing(err) {
-		op.Session.mu.Lock()
+		op.Session.Mu.Lock()
 		err = publicationOperationLocked(e, op)
-		op.Session.mu.Unlock()
+		op.Session.Mu.Unlock()
 		if err == nil {
 			err = op.Context().Err()
 		}
@@ -61,9 +61,9 @@ func (e *Engine) alterSchemaLocked(scope *StatementScope, op *Operation, auth Au
 		return fail(sqlError("0A000", "cannot move objects into or out of temporary schemas"))
 	}
 	if destination.Address == old.Namespace() {
-		op.Session.mu.Lock()
+		op.Session.Mu.Lock()
 		err = publicationOperationLocked(e, op)
-		op.Session.mu.Unlock()
+		op.Session.Mu.Unlock()
 		if err == nil {
 			err = op.Context().Err()
 		}

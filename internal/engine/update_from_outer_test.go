@@ -134,7 +134,7 @@ func TestUpdateFromQueuedFrozenOuterAbsence(t *testing.T) {
 			lockPending(t, e, 1)
 			lockState := e.locks.Inspect()
 			entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: original.Row}]
-			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.ForNoKeyUpdate && entry.Holders[holder.transactions.ticket].Mode == lock.ForNoKeyUpdate
+			queued := entry != nil && len(entry.Pending) == 1 && entry.Pending[0].Mode == lock.ForNoKeyUpdate && entry.Holders[holder.Transactions.ticket].Mode == lock.ForNoKeyUpdate
 			sourcesHeld := false
 			if queued {
 				ticket := entry.Pending[0].Ticket

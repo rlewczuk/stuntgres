@@ -302,13 +302,13 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 	case *parser.Show:
 		e.mu.Lock()
 		defer e.mu.Unlock()
-		op.Session.settings.mu.Lock()
-		defer op.Session.settings.mu.Unlock()
+		op.Session.Settings.mu.Lock()
+		defer op.Session.Settings.mu.Unlock()
 		typ, _ := (e.catalog.read(e.catalog.state)).LookupType(sqltype.Text)
 		if s.All {
 			return StatementDescription{Results: settingColumns(typ, "name", "setting", "description")}, nil
 		}
-		d, err := e.sessionSetting(op.Session.settings, s.Name.Text, false)
+		d, err := e.sessionSetting(op.Session.Settings, s.Name.Text, false)
 		if err != nil {
 			return StatementDescription{}, err
 		}
@@ -402,7 +402,7 @@ func (e *Engine) describeOperation(scope *StatementScope, stmt parser.Statement)
 			return StatementDescription{}, err
 		}
 	}
-	return StatementDescription{Parameters: b.Parameters, Results: results, catalogOwner: auth.Catalog.Owner(), catalogEpoch: auth.Catalog.Epoch(), temporals: b.Prepared.Temporals, composites: b.Prepared.Composites, sequences: cell, regtypes: regtypes, analysis: prepared, planOwner: op.Session.token, planGeneration: op.Session.discardPlansGeneration}, nil
+	return StatementDescription{Parameters: b.Parameters, Results: results, catalogOwner: auth.Catalog.Owner(), catalogEpoch: auth.Catalog.Epoch(), temporals: b.Prepared.Temporals, composites: b.Prepared.Composites, sequences: cell, regtypes: regtypes, analysis: prepared, planOwner: op.Session.SessionToken, planGeneration: op.Session.DiscardPlansGeneration}, nil
 }
 
 // requiredRef is the exact acquired DML/utility target; query source occurrences
@@ -488,8 +488,8 @@ func (e *Engine) resolveRelationSnapshot(auth AuthorizationView, name parser.Obj
 	}
 	if auth.session != nil {
 		namespace, _ := auth.definitionDescriptor(d.Namespace())
-		if ns, ok := namespace.(*catalog.Namespace); ok && ns.Temporary == auth.session.token {
-			auth.session.transactions.accessedTemporary = true
+		if ns, ok := namespace.(*catalog.Namespace); ok && ns.Temporary == auth.session.SessionToken {
+			auth.session.Transactions.accessedTemporary = true
 		}
 	}
 	return e.catalog.Domain.Ref(view.Epoch(), a), nil

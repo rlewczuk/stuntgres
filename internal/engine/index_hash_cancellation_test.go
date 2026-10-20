@@ -174,7 +174,7 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 	for _, q := range changes {
 		sessionSQL(t, writer, q)
 	}
-	writes, deletes := writer.transactions.writes, writer.transactions.deletes
+	writes, deletes := writer.Transactions.writes, writer.Transactions.deletes
 	if len(writes[parent.Address()]) != 3 || deletes[parent.Address()] == nil {
 		t.Fatal("fixture did not stage a genuine multirow change")
 	}

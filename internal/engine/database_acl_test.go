@@ -155,13 +155,13 @@ func TestDatabaseTemporaryDeniedAllocation(t *testing.T) {
 	}
 	auth.State.CurrentUser = reader
 	base, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
-	changes := s.transactions.catalog.Clone()
+	changes := s.Transactions.catalog.Clone()
 	ref, err := e.relationCreationNamespaceLocked(auth, parser.ObjectName{Parts: []parser.Identifier{{Text: "database_denied"}}}, "temporary", changes)
 	e.mu.Unlock()
 	if err == nil || ref != (ids.ObjectRef{}) {
 		t.Fatal("lazy TEMP denial allocated namespace", ref, err)
 	}
-	if e.catalog.state != base || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || len(changes.Descriptors) != 0 || len(changes.Names) != 0 || s.temporaryNamespace != (ids.ObjectAddress{}) {
+	if e.catalog.state != base || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || len(changes.Descriptors) != 0 || len(changes.Names) != 0 || s.TemporaryNamespace != (ids.ObjectAddress{}) {
 		t.Fatal("TEMP denial consumed catalog identity or staged objects")
 	}
 }

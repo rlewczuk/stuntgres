@@ -60,10 +60,10 @@ func TestProtocolPreparedRegistry(t *testing.T) {
 	if p.entry.body != entry.body || p.context.Source != "original" {
 		t.Fatal("definition removal lost retained portal recipe")
 	}
-	if err := r.EndSession(b.token, CleanClose); err == nil || p.retired {
+	if err := r.EndSession(b.SessionToken, CleanClose); err == nil || p.retired {
 		t.Fatal("foreign retirement modified registry", err)
 	}
-	if err := r.EndSession(a.token, CleanClose); err != nil || !p.retired || len(r.portals) != 0 {
+	if err := r.EndSession(a.SessionToken, CleanClose); err != nil || !p.retired || len(r.portals) != 0 {
 		t.Fatal("owned retirement retained portal", err)
 	}
 	if protocolHasRows(&parser.Select{}, nil) != true || protocolHasRows(&parser.CreateTable{}, nil) {
@@ -186,7 +186,7 @@ func TestProtocolCycleRetention(t *testing.T) {
 		op.Done()
 		t.Fatal(err)
 	}
-	if scope.message || !s.transactions.retainsTransaction() {
+	if scope.message || !s.Transactions.retainsTransaction() {
 		t.Fatal("cycle borrowed simple-message admission")
 	}
 	if err = scope.Finish(nil); err != nil {
@@ -233,9 +233,9 @@ func TestProtocolNotificationPoll(t *testing.T) {
 	if err != nil || available || wake == nil {
 		t.Fatal(available, wake, err)
 	}
-	s.mu.Lock()
-	leases := s.timeouts.sqlLeases
-	s.mu.Unlock()
+	s.Mu.Lock()
+	leases := s.Timeouts.SQLLeases
+	s.Mu.Unlock()
 	if leases != 0 {
 		t.Fatal("idle poll acquired SQL activity lease")
 	}
@@ -258,7 +258,7 @@ func TestProtocolNotificationPoll(t *testing.T) {
 	if err != nil || available || wake == nil {
 		t.Fatal("drained queue lacked new wake", err)
 	}
-	if err = payloadOf(s).notifications.EndSession(s.token, CleanClose); err != nil {
+	if err = payloadOf(s).notifications.EndSession(s.SessionToken, CleanClose); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -284,9 +284,9 @@ func TestProtocolFunctionInvocation(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Foreign/missing physical authority never consumes even the OID field.
-	s.transactions.mu.Lock()
-	s.transactions.state = TxAborted
-	s.transactions.mu.Unlock()
+	s.Transactions.mu.Lock()
+	s.Transactions.state = TxAborted
+	s.Transactions.mu.Unlock()
 	input := &protocolUnitInput{}
 	_, err = scope.CallProtocolFunction(input)
 	if err == nil || input.position != 0 {
@@ -318,10 +318,10 @@ func TestProtocolCopyHooks(t *testing.T) {
 		e.mu.Unlock()
 		count, err := scope.CopyProtocol(copyUnitSyntax(), bytes.NewBufferString("1\n\\.\nignored"), nil, CopyProtocolHooks{FinishInput: func() error {
 			called = true
-			if !s.transactions.admission.TryLock() {
+			if !s.Transactions.admission.TryLock() {
 				t.Fatal("terminal hook held owner admission")
 			}
-			s.transactions.admission.Unlock()
+			s.Transactions.admission.Unlock()
 			if len(scope.stage.rows) != 0 {
 				t.Fatal("input rows applied before terminal veto")
 			}
@@ -365,10 +365,10 @@ func TestProtocolCopyHooks(t *testing.T) {
 		if !meta.From || meta.Format != 1 || len(meta.ColumnFormats) != 2 || meta.ColumnFormats[0] != 1 || meta.ColumnFormats[1] != 1 {
 			t.Fatal(meta)
 		}
-		if !s.transactions.admission.TryLock() {
+		if !s.Transactions.admission.TryLock() {
 			t.Fatal("COPY Start held owner admission")
 		}
-		s.transactions.admission.Unlock()
+		s.Transactions.admission.Unlock()
 		return sentinel
 	}}, true, copyOptions{format: copyFormatBinary}, 2)
 	if !called || !errors.Is(err, sentinel) {

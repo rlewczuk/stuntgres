@@ -24,10 +24,10 @@ func captureSavepoint(t *transactionOwner, name string) savepointMark {
 	e.mu.Lock()
 	projection := e.exclusionPending[t.ticket]
 	e.mu.Unlock()
-	t.session.mu.Lock()
-	identity := t.session.authorization.state
-	t.session.mu.Unlock()
-	return savepointMark{name: name, serial: t.savepointSerial, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, deferrable: t.deferrable, locks: e.locks.Checkpoint(t.ticket), cursors: payloadOf(t.session).cursors.ordinal, exclusion: exclusionMarkSlotOf(ownerExtensionOrZero(t).exclusionModes, projection), identity: identity, notificationActions: t.notificationActions[:len(t.notificationActions):len(t.notificationActions)], notificationEvents: t.notificationEvents[:len(t.notificationEvents):len(t.notificationEvents)]}
+	t.session.Mu.Lock()
+	identity := t.session.Authorization.state
+	t.session.Mu.Unlock()
+	return savepointMark{name: name, serial: t.savepointSerial, writes: writes, deletes: t.deletes, catalog: t.catalog, settings: t.session.Settings.savepoint(), isolation: t.isolation, readOnly: t.readOnly, deferrable: t.deferrable, locks: e.locks.Checkpoint(t.ticket), cursors: payloadOf(t.session).cursors.ordinal, exclusion: exclusionMarkSlotOf(ownerExtensionOrZero(t).exclusionModes, projection), identity: identity, notificationActions: t.notificationActions[:len(t.notificationActions):len(t.notificationActions)], notificationEvents: t.notificationEvents[:len(t.notificationEvents):len(t.notificationEvents)]}
 }
 
 func restoreSavepoint(t *transactionOwner, mark savepointMark, settings settingsMark) {
@@ -35,7 +35,7 @@ func restoreSavepoint(t *transactionOwner, mark savepointMark, settings settings
 	retireProtocolPortalsAfter(t, mark.cursors)
 	t.writes, t.deletes, t.catalog = mark.writes, mark.deletes, mark.catalog
 	t.notificationActions, t.notificationEvents = mark.notificationActions, mark.notificationEvents
-	t.session.settings.restoreSavepoint(settings, mark.identity)
+	t.session.Settings.restoreSavepoint(settings, mark.identity)
 	t.isolation, t.readOnly = mark.isolation, mark.readOnly
 	t.deferrable = mark.deferrable
 	syncCharacteristics(t)
@@ -142,10 +142,10 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 	result, err := func() (Result, error) {
 		e.mu.Lock()
 		defer e.mu.Unlock()
-		t.session.settings.mu.Lock()
-		defer t.session.settings.mu.Unlock()
-		s.op.Session.mu.Lock()
-		defer s.op.Session.mu.Unlock()
+		t.session.Settings.mu.Lock()
+		defer t.session.Settings.mu.Unlock()
+		s.op.Session.Mu.Lock()
+		defer s.op.Session.Mu.Unlock()
 		if err := publicationOperationLocked(e, s.op); err != nil {
 			return Result{}, err
 		}
@@ -158,9 +158,9 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 		if control.Kind != parser.CreateSavepoint && index < 0 {
 			return Result{}, sqlError("3B001", fmt.Sprintf("savepoint \"%s\" does not exist", control.Name.Text))
 		}
-		if (t.identityCaptured || t.session.settings.roleAction.present) && (control.Kind == parser.CreateSavepoint || control.Kind == parser.RollbackSavepoint) {
+		if (t.identityCaptured || t.session.Settings.roleAction.present) && (control.Kind == parser.CreateSavepoint || control.Kind == parser.RollbackSavepoint) {
 			// Reserve failed-preflight restoration and remaining boundaries.
-			if err := roleRevisionHeadroom(t.session.authorization, uint64(len(t.savepoints))+3); err != nil {
+			if err := roleRevisionHeadroom(t.session.Authorization, uint64(len(t.savepoints))+3); err != nil {
 				return Result{}, err
 			}
 		}
@@ -174,15 +174,15 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 			t.notificationActions, t.notificationEvents = mark.notificationActions, mark.notificationEvents
 			targetIdentity := mark.identity
 			targetIdentity.CurrentUser = settings.currentRole
-			t.session.settings.restoreIdentityLocked(targetIdentity)
-			t.session.settings.values, t.session.settings.typed, t.session.settings.actions = settings.values, settings.typed, settings.actions
-			t.session.settings.roleAction = settings.roleAction
-			t.session.publishTimeoutSettingsLocked(t.session.settings, false, time.Now())
+			t.session.Settings.restoreIdentityLocked(targetIdentity)
+			t.session.Settings.values, t.session.Settings.typed, t.session.Settings.actions = settings.values, settings.typed, settings.actions
+			t.session.Settings.roleAction = settings.roleAction
+			t.session.PublishTimeoutSettingsLocked(t.session.Settings, false, time.Now())
 			t.isolation, t.readOnly = mark.isolation, mark.readOnly
 			t.deferrable = mark.deferrable
-			t.session.settings.currentIsolation = isolationText(t.isolation)
-			t.session.settings.currentReadOnly = t.readOnly
-			t.session.settings.currentDeferrable = t.deferrable
+			t.session.Settings.currentIsolation = isolationText(t.isolation)
+			t.session.Settings.currentReadOnly = t.readOnly
+			t.session.Settings.currentDeferrable = t.deferrable
 			exclusion := exclusionMarkOrZero(mark.exclusion)
 			ownerExtensionOf(t).exclusionModes = exclusion.modes
 			if exclusion.projection == nil {
@@ -199,7 +199,7 @@ func (s *StatementScope) executeSavepoint(control *parser.SavepointControl, coun
 			// PostgreSQL restores the parent's access mode on subcommit, unlike
 			// ordinary SESSION/LOCAL settings, whose effects are retained.
 			t.readOnly = mark.readOnly
-			t.session.settings.currentReadOnly = t.readOnly
+			t.session.Settings.currentReadOnly = t.readOnly
 			t.truncateSavepoints(index)
 		}
 		s.controlOutcome = controlExecuted

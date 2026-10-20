@@ -132,7 +132,7 @@ func objectLookupPath(scope *StatementScope, names []string) (analyze.NamespaceS
 		return analyze.NamespaceSelection{}, sqlError("42601", "improper qualified name (too many dotted names): "+strings.Join(names, "."))
 	}
 	if len(names) == 3 {
-		if names[0] != scope.op.Session.databaseName {
+		if names[0] != scope.op.Session.DatabaseName {
 			return analyze.NamespaceSelection{}, sqlError("0A000", "cross-database references are not implemented: "+strings.Join(names, "."))
 		}
 		names = names[1:]
@@ -181,7 +181,7 @@ func lookupObjectAddress(ctx context.Context, scope *StatementScope, values [3]s
 		return ids.ObjectAddress{}, objectListLength("name", 1, false)
 	}
 	view := scope.inquiry.commentCatalog
-	types := capturedRegtypeInput{auth: scope.inquiry.deparseAuth, path: scope.inquiry.deparsePath, database: scope.op.Session.databaseName, temporary: temporaryNamespace(scope.inquiry.deparseAuth), token: scope.op.Session.token, op: scope.op}
+	types := capturedRegtypeInput{auth: scope.inquiry.deparseAuth, path: scope.inquiry.deparsePath, database: scope.op.Session.DatabaseName, temporary: temporaryNamespace(scope.inquiry.deparseAuth), token: scope.op.Session.SessionToken, op: scope.op}
 	parseSyntax := func(input string) (parser.TypeName, error) {
 		return parser.ParseTypeName(ctx, input, func(notice sqlstate.Error) { scope.op.EmitNotice(levelNotice, notice) })
 	}

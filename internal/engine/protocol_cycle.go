@@ -9,7 +9,7 @@ type ProtocolCycle struct {
 }
 
 func (s *Session) NewProtocolCycle() *ProtocolCycle {
-	t := s.transactions
+	t := s.Transactions
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.protocolCycle == nil {

@@ -54,13 +54,13 @@ func (s *StatementScope) selectPreparedAnalysis(stmt parser.Statement) error {
 		return err
 	}
 	s.prepared.namespace = auth.Catalog.State().NamespaceGeneration()
-	s.prepared.private = auth.session.transactions.catalog
+	s.prepared.private = auth.session.Transactions.catalog
 	s.prepared.epoch = auth.Catalog.Epoch()
 	if s.Expected == nil {
 		return nil
 	}
 	valid := e.preparedAnalysisValidLocked(auth, s.Expected.analysis, s.prepared.path)
-	s.prepared.invalid = !valid || s.Expected.planOwner == s.op.Session.token && s.Expected.planGeneration != s.op.Session.discardPlansGeneration
+	s.prepared.invalid = !valid || s.Expected.planOwner == s.op.Session.SessionToken && s.Expected.planGeneration != s.op.Session.DiscardPlansGeneration
 	if !s.prepared.invalid {
 		s.prepared.reuse = s.Expected.analysis
 	}
@@ -68,7 +68,7 @@ func (s *StatementScope) selectPreparedAnalysis(stmt parser.Statement) error {
 }
 
 func (e *Engine) preparedAnalysisValidLocked(auth AuthorizationView, analysis *preparedAnalysis, path sequence.Environment) bool {
-	if analysis == nil || analysis.needsReanalysis || analysis.domain != e.catalog.Domain || analysis.epoch != auth.Catalog.Epoch() || analysis.session != auth.session.token || analysis.private != auth.session.transactions.catalog || analysis.namespace != auth.Catalog.State().NamespaceGeneration() || !sequence.SameEnvironment(analysis.path, path) {
+	if analysis == nil || analysis.needsReanalysis || analysis.domain != e.catalog.Domain || analysis.epoch != auth.Catalog.Epoch() || analysis.session != auth.session.SessionToken || analysis.private != auth.session.Transactions.catalog || analysis.namespace != auth.Catalog.State().NamespaceGeneration() || !sequence.SameEnvironment(analysis.path, path) {
 		return false
 	}
 	for _, dep := range analysis.dependencies {
@@ -104,7 +104,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 	if b.ViewWrite != nil {
 		target = viewWriteOf(b.ViewWrite).logical.Ref
 	}
-	cell := &preparedAnalysis{domain: e.catalog.Domain, epoch: s.prepared.epoch, session: s.op.Session.token, private: s.prepared.private, path: s.prepared.path, namespace: s.prepared.namespace, target: target, needsReanalysis: s.prepared.changedDuringAdmission}
+	cell := &preparedAnalysis{domain: e.catalog.Domain, epoch: s.prepared.epoch, session: s.op.Session.SessionToken, private: s.prepared.private, path: s.prepared.path, namespace: s.prepared.namespace, target: target, needsReanalysis: s.prepared.changedDuringAdmission}
 	seen := make(map[ids.ObjectRef]bool)
 	var visit func(ids.ObjectRef) error
 	visit = func(ref ids.ObjectRef) error {
@@ -205,8 +205,8 @@ func (e *Engine) admittedReference(auth AuthorizationView, name parser.ObjectNam
 		return ids.ObjectRef{}, err
 	}
 	if auth.session != nil {
-		if namespace, ok := auth.Catalog.Namespace(d.Namespace()); ok && namespace.Temporary == auth.session.token {
-			auth.session.transactions.accessedTemporary = true
+		if namespace, ok := auth.Catalog.Namespace(d.Namespace()); ok && namespace.Temporary == auth.session.SessionToken {
+			auth.session.Transactions.accessedTemporary = true
 		}
 	}
 	return ref, nil

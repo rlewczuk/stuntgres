@@ -12,7 +12,7 @@ func (h *statementHost) FunctionArrayRandomOwner() (expr.RandomOwner, error) {
 	if scope.op == nil || scope.op.Session == nil {
 		return nil, fmt.Errorf("stuntgres: missing array random session scope")
 	}
-	return &scope.op.Session.arrayRandom, nil
+	return &scope.op.Session.ArrayRandom, nil
 }
 
 func (h *statementHost) FunctionBinaryConversion(source, destination int) (*sqltype.EncodingConversionHandler, error) {

@@ -50,8 +50,8 @@ func collationRenameBootstrapFixture(e *Engine, op *Operation, name string) erro
 	d.Name = name
 	putFixtureRole(n, d)
 
-	op.Session.mu.Lock()
-	defer op.Session.mu.Unlock()
+	op.Session.Mu.Lock()
+	defer op.Session.Mu.Unlock()
 	if err = publicationOperationLocked(e, op); err != nil {
 		return err
 	}

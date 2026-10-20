@@ -17,7 +17,7 @@ func TestTypedAdmissionCreateSourceRevisionConflict(t *testing.T) {
 			holder, creator := sessionStart(t, e, nil), sessionStart(t, e, nil)
 			tx := transactionBegin(t, holder)
 			ref := roleTableRef(t, e, "pair")
-			if err := e.locks.Acquire(context.Background(), holder.transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
+			if err := e.locks.Acquire(context.Background(), holder.Transactions.ticket, lock.Resource{ObjectRef: ref}, lock.AccessExclusive); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

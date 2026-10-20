@@ -37,7 +37,7 @@ func checkPersistentCreationNamespace(catalog catalog.Read, namespace ids.Object
 func (e *Engine) schemaTableLocked(op *Operation, auth AuthorizationView, stage *CatalogStage, s *parser.CreateTable, ns ids.ObjectAddress, owner authorization.PrincipalRef, input sqltype.InputEnvironment, foreignTargets []ids.ObjectRef) error {
 	auth.Catalog = stage.Base
 	auth.Recapture(auth.Catalog)
-	if namespace, ok := auth.Catalog.Namespace(ns); ok && !namespace.TemporaryToast && auth.session != nil && namespace.Temporary == auth.session.token {
+	if namespace, ok := auth.Catalog.Namespace(ns); ok && !namespace.TemporaryToast && auth.session != nil && namespace.Temporary == auth.session.SessionToken {
 		auth.stagedTemporary = ns
 	}
 	if stage.DescriptorCount() != 0 || stage.RemovalCount() != 0 || stage.OldNameCount() != 0 {
@@ -316,8 +316,8 @@ func (e *Engine) executeSchema(scope *StatementScope, op *Operation, stmt parser
 	_, err = e.publishCatalogOperation(op, scope, prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 	if err == nil {
 		for _, descriptor := range stage.Descriptors() {
-			if ns, ok := descriptor.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == op.Session.token {
-				op.Session.temporaryNamespace = ns.Address()
+			if ns, ok := descriptor.(*catalog.Namespace); ok && !ns.TemporaryToast && ns.Temporary == op.Session.SessionToken {
+				op.Session.TemporaryNamespace = ns.Address()
 			}
 		}
 		if cascade {

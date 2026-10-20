@@ -42,14 +42,14 @@ func TestMergeNothingRowAdmission(t *testing.T) {
 	mergeNothingPendingOutput(t, done, 0, nil)
 	lockState := e.locks.Inspect()
 	entry := lockState.Resources[lock.Resource{ObjectRef: ref, Row: row}]
-	retained := entry != nil && entry.Holders[holder.transactions.ticket].Mode != 0
+	retained := entry != nil && entry.Holders[holder.Transactions.ticket].Mode != 0
 	workerAdmission := false
 	if entry != nil {
 		for ticket := range entry.Holders {
-			workerAdmission = workerAdmission || ticket.Ref().Session() == worker.token
+			workerAdmission = workerAdmission || ticket.Ref().Session() == worker.SessionToken
 		}
 		for _, request := range entry.Pending {
-			workerAdmission = workerAdmission || !request.Terminal && request.Ticket.Ref().Session() == worker.token
+			workerAdmission = workerAdmission || !request.Terminal && request.Ticket.Ref().Session() == worker.SessionToken
 		}
 	}
 	if !retained || workerAdmission {
@@ -73,7 +73,7 @@ func TestMergeNothingRowRecheck(t *testing.T) {
 	tx := transactionBegin(t, holder)
 	sessionSQL(t, holder, "UPDATE t SET v=40")
 	done := mergeUpdatePendingExecute(t, worker, "MERGE INTO t USING source s ON t.id=s.id WHEN MATCHED AND t.v=40 AND s.v=7 THEN DO NOTHING WHEN MATCHED THEN UPDATE SET v=t.v+s.v RETURNING merge_action(),t.v")
-	mergeUpdatePendingRow(t, e, ref, row, worker, holder.transactions.ticket, lock.ForNoKeyUpdate)
+	mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.ticket, lock.ForNoKeyUpdate)
 	sessionSQL(t, peer, "UPDATE source SET v=99")
 	transactionEnd(t, holder, tx, true)
 	mergeNothingPendingOutput(t, done, 0, nil)
@@ -94,7 +94,7 @@ func TestMergeNothingSourceAfter(t *testing.T) {
 	tx := transactionBegin(t, holder)
 	sessionSQL(t, holder, "UPDATE t SET id=2,v=40")
 	done := mergeUpdatePendingExecute(t, worker, "MERGE INTO t USING source s ON t.id=s.id WHEN MATCHED THEN UPDATE SET v=s.v WHEN NOT MATCHED BY SOURCE THEN DO NOTHING WHEN NOT MATCHED BY TARGET THEN INSERT VALUES(s.id,s.v) RETURNING merge_action(),t.id,t.v")
-	mergeUpdatePendingRow(t, e, ref, row, worker, holder.transactions.ticket, lock.ForNoKeyUpdate)
+	mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.ticket, lock.ForNoKeyUpdate)
 	sessionSQL(t, peer, "UPDATE source SET v=99")
 	transactionEnd(t, holder, tx, true)
 	mergeNothingPendingOutput(t, done, 1, [][]driver.Value{{"INSERT", int64(1), int64(7)}})
@@ -152,7 +152,7 @@ func TestMergeNothingCancellation(t *testing.T) {
 			t.Error("cancelled omission worker did not retire")
 		}
 	})
-	mergeUpdatePendingRow(t, e, ref, row, worker, holder.transactions.ticket, lock.ForNoKeyUpdate)
+	mergeUpdatePendingRow(t, e, ref, row, worker, holder.Transactions.ticket, lock.ForNoKeyUpdate)
 	if got := tuples(sessionSQL(t, peer, "SELECT id,v FROM t")); !reflect.DeepEqual(got, [][]driver.Value{{int64(3), int64(30)}}) {
 		t.Fatalf("pending survivors got %v", got)
 	}

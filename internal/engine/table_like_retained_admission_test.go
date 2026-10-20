@@ -20,8 +20,8 @@ func TestTableLikeTemporaryRetainedProviderAdmission(t *testing.T) {
 			owner := sessionStart(t, e, nil)
 			sessionSQL(t, owner, "CREATE TEMP SEQUENCE seed START 31 CACHE 1")
 			sessionSQL(t, owner, "CREATE TEMP TABLE src(v BIGINT DEFAULT nextval('pg_temp.seed'))")
-			source := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "src")
-			provider := tableLikeTemporaryRelation(t, e, owner.temporaryNamespace, "seed")
+			source := tableLikeTemporaryRelation(t, e, owner.TemporaryNamespace, "src")
+			provider := tableLikeTemporaryRelation(t, e, owner.TemporaryNamespace, "seed")
 			original := source.ColumnMeta.Defaults[1]
 			manifest := slices.Clone(original.Dependencies)
 			if err := e.Reset(context.Background()); err != nil {

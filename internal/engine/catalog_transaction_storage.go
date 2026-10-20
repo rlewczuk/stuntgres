@@ -33,7 +33,7 @@ func (e *Engine) catalogAuthorityPreflightLocked(a *catalogAuthority, c *catalog
 	if a == nil {
 		return nil
 	}
-	if a.session.authorization.revision != a.authorization || e.sessionRolesLocked(a.session).Revision != a.roles || e.catalog.state.Get(a.ref.Address) != a.descriptor {
+	if a.session.Authorization.revision != a.authorization || e.sessionRolesLocked(a.session).Revision != a.roles || e.catalog.state.Get(a.ref.Address) != a.descriptor {
 		return catalog.Conflict{}
 	}
 	if a.databasePredecessor != nil {
@@ -81,8 +81,8 @@ func (e *Engine) privateStorageLocked(c *catalogChanges, a ids.ObjectAddress) *s
 }
 
 func (e *Engine) authorizationStorageLocked(auth AuthorizationView, a ids.ObjectAddress) *storage.Relation {
-	if auth.session != nil && auth.session.transactions != nil {
-		return e.privateStorageLocked(auth.session.transactions.catalog, a)
+	if auth.session != nil && auth.session.Transactions != nil {
+		return e.privateStorageLocked(auth.session.Transactions.catalog, a)
 	}
 	return e.storage.Relations[a]
 }

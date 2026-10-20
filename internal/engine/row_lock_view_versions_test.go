@@ -57,13 +57,13 @@ func TestRowLockViewRecheckModes(t *testing.T) {
 					if clause == "FOR UPDATE" {
 						mode = lock.ForUpdate
 					}
-					rowLockQueued(t, e, a.transactions.ticket, mode)
+					rowLockQueued(t, e, a.Transactions.ticket, mode)
 					sessionSQL(t, c, "INSERT INTO t VALUES(3,10)")
 					transactionEnd(t, a, ar, tc.commit)
 					rowLockAwait(t, done, tc.want...)
 					if tc.commit && (tc.name == "definition_reject" || tc.name == "outer_reject" || tc.name == "on_reject") {
 						done = rowLockViewAsync(t, c, context.Background(), "DELETE FROM t WHERE id=1")
-						rowLockQueued(t, e, b.transactions.ticket, lock.ForUpdate)
+						rowLockQueued(t, e, b.Transactions.ticket, lock.ForUpdate)
 						transactionEnd(t, b, br, false)
 						deleteAwait(t, done, 1, nil)
 					} else {

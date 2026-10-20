@@ -248,15 +248,15 @@ func TestDeleteCoreReplacementWaitingPhases(t *testing.T) {
 					deleteCount(t, waiter, "DELETE FROM t WHERE v=3", 1)
 				}
 				scope, ticket, done := deleteReplacementScope(t, e, waiter)
-				request := deleteReplacementQueued(t, e, resource, holder.transactions.ticket, ticket)
+				request := deleteReplacementQueued(t, e, resource, holder.Transactions.ticket, ticket)
 				root := scope.stage.deletes[ref.Address]
 				first := oldStorage.Versions[0].Row
 				if root == nil || len(root.Rows) != 1 || root.Rows[first].Row != first {
 					t.Fatal("earlier matching row was not privately staged before wait")
 				}
 				if explicit {
-					prior := waiter.transactions.deletes[ref.Address]
-					if len(waiter.transactions.writes[ref.Address]) != 1 || prior == nil || len(prior.Rows) != 1 {
+					prior := waiter.Transactions.deletes[ref.Address]
+					if len(waiter.Transactions.writes[ref.Address]) != 1 || prior == nil || len(prior.Rows) != 1 {
 						t.Fatal("explicit prior INSERT/DELETE work absent before replacement")
 					}
 				}
@@ -312,7 +312,7 @@ func TestDeleteCoreReplacementGrantedReadmission(t *testing.T) {
 	hr := transactionBegin(t, holder)
 	deleteCount(t, holder, "DELETE FROM t WHERE v=2", 1)
 	scope, ticket, done := deleteReplacementScope(t, e, waiter)
-	request := deleteReplacementQueued(t, e, resource, holder.transactions.ticket, ticket)
+	request := deleteReplacementQueued(t, e, resource, holder.Transactions.ticket, ticket)
 	// Use the existing final-install seam with a genuine independently seeded
 	// foreign generation. Whole Reset/Restore calls are covered above; invoking
 	// them while already holding this writer reservation would be reentrant.

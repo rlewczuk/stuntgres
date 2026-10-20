@@ -56,7 +56,7 @@ func TestNotificationSessionLifecycle(t *testing.T) {
 				t.Fatal("receiver held end lease", ctx.Err())
 			}
 			select {
-			case <-receiver.completed:
+			case <-receiver.Completed:
 				t.Fatal("end bypassed live blocker lease")
 			default:
 			}
@@ -65,7 +65,7 @@ func TestNotificationSessionLifecycle(t *testing.T) {
 				t.Fatal(err)
 			}
 			e.mu.Lock()
-			retired := payloadOf(receiver).notifications.ended && payloadOf(receiver).notifications.state == nil && e.notifications[receiver.token] == nil
+			retired := payloadOf(receiver).notifications.ended && payloadOf(receiver).notifications.state == nil && e.notifications[receiver.SessionToken] == nil
 			e.mu.Unlock()
 			if !retired {
 				t.Fatal("physical recipient state retained")
@@ -82,16 +82,16 @@ func TestNotificationSessionLifecycle(t *testing.T) {
 		notificationUnitListen(t, s)
 		// Duplicate identity fails after normal resource attachment; initialized
 		// resources must unwind without retiring the existing exact token owner.
-		if duplicate, err := e.StartSession(context.Background(), SessionStart{ID: s.token.ID()}); duplicate != nil || err == nil {
+		if duplicate, err := e.StartSession(context.Background(), SessionStart{ID: s.SessionToken.ID()}); duplicate != nil || err == nil {
 			t.Fatal("duplicate initialization succeeded")
 		}
 		notificationUnitNotify(t, s, "still-owned")
 		if got := notificationUnitReceive(t, s); got.Payload != "still-owned" {
 			t.Fatal(got)
 		}
-		s.mu.Lock()
-		handle := s.resources[Notifications].handle
-		s.mu.Unlock()
+		s.Mu.Lock()
+		handle := s.Resources[Notifications].handle
+		s.Mu.Unlock()
 		if err := s.Detach(handle, CleanClose); err != nil {
 			t.Fatal(err)
 		}
@@ -99,7 +99,7 @@ func TestNotificationSessionLifecycle(t *testing.T) {
 			t.Fatal("repeat detach", err)
 		}
 		e.mu.Lock()
-		retired := payloadOf(s).notifications.ended && payloadOf(s).notifications.state == nil && e.notifications[s.token] == nil
+		retired := payloadOf(s).notifications.ended && payloadOf(s).notifications.state == nil && e.notifications[s.SessionToken] == nil
 		e.mu.Unlock()
 		if !retired {
 			t.Fatal("detach retained queue/registration")
@@ -203,9 +203,9 @@ func TestNotificationBatchOwnership(t *testing.T) {
 	notificationUnitListen(t, a)
 	notificationUnitListen(t, b)
 	ref := transactionBegin(t, sender)
-	sender.transactions.notificationEvents = []Notification{
-		{PID: uint64(sender.token.ID()), Channel: "unit", Payload: "first"},
-		{PID: uint64(sender.token.ID()), Channel: "unit", Payload: "second"},
+	sender.Transactions.notificationEvents = []Notification{
+		{PID: uint64(sender.SessionToken.ID()), Channel: "unit", Payload: "first"},
+		{PID: uint64(sender.SessionToken.ID()), Channel: "unit", Payload: "second"},
 	}
 	transactionEnd(t, sender, ref, true)
 	e.mu.Lock()

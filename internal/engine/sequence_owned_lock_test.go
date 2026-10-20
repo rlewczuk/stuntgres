@@ -96,7 +96,7 @@ func TestSequenceOwnedTableLock(t *testing.T) {
 				lockAwait(t, done, nil)
 				lockState := e.locks.Inspect()
 				entry := lockState.Resources[lock.Resource{ObjectRef: ref}]
-				retained := entry != nil && entry.Holders[b.transactions.ticket].Mode&lock.AccessShare != 0
+				retained := entry != nil && entry.Holders[b.Transactions.ticket].Mode&lock.AccessShare != 0
 				if !retained {
 					t.Fatal("ownership table AS not retained to transaction end")
 				}
@@ -256,7 +256,7 @@ func TestSequenceOwnedLockCycleCleanup(t *testing.T) {
 				description = &d
 			}
 			br := transactionBegin(t, b)
-			bticket := b.transactions.ticket
+			bticket := b.Transactions.ticket
 			sessionSQL(t, b, "CREATE SEQUENCE victim_staged START 31")
 			before := e.CatalogRead()
 			sequence := catalogRef(t, e, before, "late")

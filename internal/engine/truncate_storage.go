@@ -181,7 +181,7 @@ func (s *StatementScope) stageTruncate() error {
 		sequences, err = s.stageTruncateSequences(auth, stage)
 	}
 	if err == nil {
-		changes.AddFence(truncateGraphFence{base: auth.Catalog.State(), targets: s.truncateOrZero().selected, token: s.op.Session.token, restart: s.truncateOrZero().restart, sequences: sequences})
+		changes.AddFence(truncateGraphFence{base: auth.Catalog.State(), targets: s.truncateOrZero().selected, token: s.op.Session.SessionToken, restart: s.truncateOrZero().restart, sequences: sequences})
 	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)

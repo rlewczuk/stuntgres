@@ -309,7 +309,7 @@ func TestMaterializedAlterPublication(t *testing.T) {
 			defer e.DiscardCatalogStage(stage)
 			stage.querySources = []catalog.Descriptor{ext}
 			stage.authSession = op.Session
-			stage.authRevision = op.Session.authorization.revision
+			stage.authRevision = op.Session.Authorization.revision
 			stage.roleRevision = e.roles.published.Revision
 			if err := stage.Replace(&next); err != nil {
 				t.Fatal(err)
@@ -330,7 +330,7 @@ func TestMaterializedAlterPublication(t *testing.T) {
 			case "role":
 				e.roles.published.Revision++
 			case "authorization":
-				op.Session.authorization.revision++
+				op.Session.Authorization.revision++
 			}
 			_, err = e.PublishCatalog(prepared, PublicationToken{Epoch: stage.Base.Epoch()})
 			if err == nil {
@@ -404,7 +404,7 @@ func TestMaterializedAlterControlRemap(t *testing.T) {
 	defer done()
 	roleExecute(t, target, targetOp, "CREATE TEMP TABLE remap_retained(i INT)")
 	roleExecute(t, target, targetOp, "INSERT INTO remap_retained VALUES(99)")
-	temporary := target.catalog.state.Get(targetOp.Session.temporaryNamespace)
+	temporary := target.catalog.state.Get(targetOp.Session.TemporaryNamespace)
 	retained := target.catalog.state.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: temporary.Address(), Name: "remap_retained"})
 	retainedStore := target.storage.Relations[retained]
 	if temporary.Address().ObjectID != ext.Address().ObjectID {

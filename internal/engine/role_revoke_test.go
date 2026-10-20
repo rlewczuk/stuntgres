@@ -146,13 +146,13 @@ func TestObjectRevokePublicationFence(t *testing.T) {
 				saturated.Revision = ^uint64(0)
 				e.roles.published = &saturated
 			} else {
-				op.Session.mu.Lock()
-				delete(op.Session.operations, op)
-				op.Session.mu.Unlock()
+				op.Session.Mu.Lock()
+				delete(op.Session.Operations, op)
+				op.Session.Mu.Unlock()
 				defer func() {
-					op.Session.mu.Lock()
-					op.Session.operations[op] = struct{}{}
-					op.Session.mu.Unlock()
+					op.Session.Mu.Lock()
+					op.Session.Operations[op] = struct{}{}
+					op.Session.Mu.Unlock()
 				}()
 			}
 			before, roles := e.catalog.state, e.roles.published

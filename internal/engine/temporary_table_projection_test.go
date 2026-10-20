@@ -228,7 +228,7 @@ func TestTemporaryTablePrivateProjectionRoots(t *testing.T) {
 	sessionSQL(t, owner, "CREATE TEMP TABLE private_shape_provider(v INT)")
 	sessionSQL(t, owner, "CREATE TEMP TABLE private_shape(a INT,g BOOL GENERATED ALWAYS AS('private_shape_provider'::regclass IS NOT NULL) STORED,z INT UNIQUE)")
 	sessionSQL(t, owner, "INSERT INTO private_shape(a,z) VALUES(7,9)")
-	before := owner.transactions.catalog.Clone()
+	before := owner.Transactions.catalog.Clone()
 	var address ids.ObjectAddress
 	for a, d := range before.Descriptors {
 		if relation, ok := d.(*catalog.Relation); ok && relation.Name() == "private_shape" {
@@ -236,14 +236,14 @@ func TestTemporaryTablePrivateProjectionRoots(t *testing.T) {
 			break
 		}
 	}
-	originalRows := owner.transactions.writes[address]
+	originalRows := owner.Transactions.writes[address]
 	sessionSQL(t, owner, "SAVEPOINT before_shape")
 	sessionSQL(t, owner, "DROP TABLE private_shape_provider CASCADE")
-	shape := owner.transactions.catalog.Storage[address]
+	shape := owner.Transactions.catalog.Storage[address]
 	if shape.Original != nil || e.storage.Relations[address] != nil || len(shape.Relation.Columns) != 2 {
 		t.Fatal("invented committed predecessor")
 	}
-	rows := owner.transactions.writes[address]
+	rows := owner.Transactions.writes[address]
 	if len(rows) != 1 || len(rows[0].Values) != 2 || len(originalRows[0].Values) != 3 || rows[0].Row != originalRows[0].Row || rows[0].Version != originalRows[0].Version || rows[0].Born != originalRows[0].Born {
 		t.Fatal("private write shape/identity")
 	}
@@ -252,7 +252,7 @@ func TestTemporaryTablePrivateProjectionRoots(t *testing.T) {
 		t.Fatal("private projected z", value, err)
 	}
 	sessionSQL(t, owner, "ROLLBACK TO before_shape")
-	if len(owner.transactions.writes[address][0].Values) != 3 || owner.transactions.catalog.Storage[address].Relation != before.Storage[address].Relation {
+	if len(owner.Transactions.writes[address][0].Values) != 3 || owner.Transactions.catalog.Storage[address].Relation != before.Storage[address].Relation {
 		t.Fatal("savepoint shape root not restored")
 	}
 	sessionSQL(t, owner, "ROLLBACK")

@@ -89,9 +89,9 @@ func TestCastCoercionSelectPreflightAuthorityIdentityCancellation(t *testing.T) 
 				}
 				switch mode {
 				case "authority":
-					op.Session.mu.Lock()
-					op.Session.authorization.state.CurrentUser = actor.Ref
-					op.Session.mu.Unlock()
+					op.Session.Mu.Lock()
+					op.Session.Authorization.state.CurrentUser = actor.Ref
+					op.Session.Mu.Unlock()
 				case "teardown":
 					op.Session.RequestEnd(CleanClose)
 				case "descriptor":

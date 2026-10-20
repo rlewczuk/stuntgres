@@ -13,13 +13,13 @@ import (
 
 func advisoryXactUnitTicket(s *Session, xact bool) *lock.Ticket {
 	if xact {
-		return s.transactions.ticket
+		return s.Transactions.ticket
 	}
-	return s.advisory.ticket
+	return s.Advisory.ticket
 }
 func advisoryXactUnitAcquire(t *testing.T, s *Session, key lock.Resource, mode lock.Mode, xact, nowait bool) (*lock.Request, error) {
 	t.Helper()
-	return engineOf(s).locks.StartAcquire(context.Background(), advisoryXactUnitTicket(s, xact), key, mode, lock.Policy{Provenance: s.transactions.ref, NoWait: nowait})
+	return engineOf(s).locks.StartAcquire(context.Background(), advisoryXactUnitTicket(s, xact), key, mode, lock.Policy{Provenance: s.Transactions.ref, NoWait: nowait})
 }
 func advisoryXactUnitGrant(t *testing.T, s *Session, key lock.Resource, mode lock.Mode, xact bool) {
 	t.Helper()
@@ -32,7 +32,7 @@ func advisoryXactUnitHold(s *Session, key lock.Resource) lock.Hold {
 	m := engineOf(s).locks
 	lockState := m.Inspect()
 	if e := lockState.Resources[key]; e != nil {
-		return e.Holders[s.transactions.ticket]
+		return e.Holders[s.Transactions.ticket]
 	}
 	return lock.Hold{}
 }
@@ -83,12 +83,12 @@ func TestAdvisoryXactOwnershipCompatibility(t *testing.T) {
 			}
 			advisoryXactUnitGrant(t, a, key, lock.AdvisoryShare, !xact)
 			advisoryXactUnitGrant(t, a, key, lock.AdvisoryExclusive, !xact)
-			e.endLockOwner(b.transactions.ticket)
+			e.endLockOwner(b.Transactions.ticket)
 			if err := r.Wait(); err == nil {
 				t.Fatal("ended waiter granted")
 			}
-			transactionEnd(t, a, a.transactions.ref, false)
-			if err := e.locks.UnlockAdvisoryAll(a.advisory.ticket); err != nil {
+			transactionEnd(t, a, a.Transactions.ref, false)
+			if err := e.locks.UnlockAdvisoryAll(a.Advisory.ticket); err != nil {
 				t.Fatal(err)
 			}
 			transactionBegin(t, a)
@@ -112,7 +112,7 @@ func TestAdvisoryXactOwnershipCompatibility(t *testing.T) {
 		advisoryXactUnitGrant(t, b, key, lock.AdvisoryShare, true)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		r, err := e.locks.StartAcquire(ctx, a.advisory.ticket, key, lock.AdvisoryExclusive, lock.Policy{Provenance: ra})
+		r, err := e.locks.StartAcquire(ctx, a.Advisory.ticket, key, lock.AdvisoryExclusive, lock.Policy{Provenance: ra})
 		if err != nil || r == nil {
 			t.Fatal(r, err)
 		}
@@ -120,12 +120,12 @@ func TestAdvisoryXactOwnershipCompatibility(t *testing.T) {
 		if err := r.Wait(); !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
-		lockState := e.locks.Inspect(a.transactions.ticket)
-		_, journaled := lockState.Journals[a.transactions.ticket][key]
+		lockState := e.locks.Inspect(a.Transactions.ticket)
+		_, journaled := lockState.Journals[a.Transactions.ticket][key]
 		if !journaled {
 			t.Fatal("session terminal erased transaction hold journal")
 		}
-		e.endLockOwner(a.transactions.ticket)
+		e.endLockOwner(a.Transactions.ticket)
 		if _, err := advisoryXactUnitAcquire(t, b, key, lock.AdvisoryExclusive, true, true); err != nil {
 			t.Fatal("transaction hold leaked", err)
 		}
@@ -146,10 +146,10 @@ func TestAdvisoryXactOwnershipCompatibility(t *testing.T) {
 		}
 		other := New()
 		foreign, _ := advisoryUnitOwner(t, other)
-		if _, err := e.locks.StartAcquire(context.Background(), foreign.transactions.ticket, key, lock.AdvisoryExclusive, lock.Policy{}); !errors.Is(err, ids.ErrCatalogReplaced) {
+		if _, err := e.locks.StartAcquire(context.Background(), foreign.Transactions.ticket, key, lock.AdvisoryExclusive, lock.Policy{}); !errors.Is(err, ids.ErrCatalogReplaced) {
 			t.Fatal("foreign owner", err)
 		}
-		e.locks.DetachPrepared(a.transactions.ticket)
+		e.locks.DetachPrepared(a.Transactions.ticket)
 		if _, err := advisoryXactUnitAcquire(t, a, pair, lock.AdvisoryShare, true, true); err == nil {
 			t.Fatal("detached requester admitted")
 		}
@@ -162,7 +162,7 @@ func TestAdvisoryXactSavepointLifecycle(t *testing.T) {
 		a, _ := advisoryUnitOwner(t, e)
 		b, _ := advisoryUnitOwner(t, e)
 		m := e.locks
-		ticket := a.transactions.ticket
+		ticket := a.Transactions.ticket
 		key := lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 1}
 		child := lock.Resource{Kind: lock.AdvisoryPairResource, Low: 1}
 		advisoryXactUnitGrant(t, a, key, outer, true)
@@ -214,7 +214,7 @@ func TestAdvisoryXactSavepointLifecycle(t *testing.T) {
 						e.replacementMu.Unlock()
 					}
 				})
-				e.endLockOwner(a.transactions.ticket)
+				e.endLockOwner(a.Transactions.ticket)
 				lockState := e.locks.Inspect()
 				granted := lockState.Resources[key].Holders[ticket].Mode == lock.AdvisoryExclusive
 				if !granted {

@@ -52,9 +52,9 @@ func roleSwitchAssert(t *testing.T, s *Session, before authorization.RoleState, 
 	if !ok {
 		t.Fatal(name)
 	}
-	s.mu.Lock()
-	after := s.authorization.state
-	s.mu.Unlock()
+	s.Mu.Lock()
+	after := s.Authorization.state
+	s.Mu.Unlock()
 	before.CurrentUser = role.Ref
 	if after != before {
 		t.Fatalf("role state %+v want %+v", after, before)
@@ -86,14 +86,14 @@ func TestRoleSwitchJournalTransitions(t *testing.T) {
 		for _, commit := range []bool{false, true} {
 			t.Run(strings.Join(tc.commands, ";")+map[bool]string{false: "/rollback", true: "/commit"}[commit], func(t *testing.T) {
 				e, s := roleSwitchUnitSession(t)
-				before := s.authorization.state
+				before := s.Authorization.state
 				graph, catalog := e.roles.published, e.catalog.state
 				sessionSQL(t, s, "BEGIN")
 				for _, q := range tc.commands {
 					sessionSQL(t, s, q)
 				}
 				roleSwitchAssert(t, s, before, tc.inside)
-				revision := s.authorization.revision
+				revision := s.Authorization.revision
 				end := "ROLLBACK"
 				want := "switch_login"
 				if commit {
@@ -102,11 +102,11 @@ func TestRoleSwitchJournalTransitions(t *testing.T) {
 				}
 				sessionSQL(t, s, end)
 				roleSwitchAssert(t, s, before, want)
-				if s.settings.roleAction.present || e.roles.published != graph || e.catalog.state != catalog {
+				if s.Settings.roleAction.present || e.roles.published != graph || e.catalog.state != catalog {
 					t.Fatal("journal/catalog changed")
 				}
-				if want != tc.inside && s.authorization.revision != revision+1 {
-					t.Fatal("restoration stamp", revision, s.authorization.revision)
+				if want != tc.inside && s.Authorization.revision != revision+1 {
+					t.Fatal("restoration stamp", revision, s.Authorization.revision)
 				}
 			})
 		}
@@ -115,17 +115,17 @@ func TestRoleSwitchJournalTransitions(t *testing.T) {
 
 func TestRoleSwitchSavepointAndFailureRestoration(t *testing.T) {
 	_, s := roleSwitchUnitSession(t)
-	before := s.authorization.state
+	before := s.Authorization.state
 	sessionSQL(t, s, "BEGIN")
 	sessionSQL(t, s, "SET ROLE switch_a")
 	sessionSQL(t, s, "SET LOCAL ROLE switch_b")
 	sessionSQL(t, s, "SAVEPOINT x")
-	retained := s.settings.roleAction
+	retained := s.Settings.roleAction
 	sessionSQL(t, s, "SET ROLE switch_c")
-	revision := s.authorization.revision
+	revision := s.Authorization.revision
 	state(t, roleSwitchUnitExec(t, s, "SET ROLE absent"), "22023")
 	roleSwitchAssert(t, s, before, "switch_b")
-	if s.authorization.revision != revision+1 || s.settings.roleAction != retained {
+	if s.Authorization.revision != revision+1 || s.Settings.roleAction != retained {
 		t.Fatal("failure checkpoint journal/stamp")
 	}
 	state(t, roleSwitchUnitExec(t, s, "SET ROLE switch_a"), "25P02")
@@ -171,7 +171,7 @@ func TestRoleSwitchInitializationAndCachedReset(t *testing.T) {
 	if count != 1 {
 		t.Fatal("role provider calls", count)
 	}
-	before := s.authorization.state
+	before := s.Authorization.state
 	roleSwitchAssert(t, s, before, "switch_a")
 	if before.ResetRole != before.CurrentUser {
 		t.Fatal(before)
@@ -231,8 +231,8 @@ func TestRoleSwitchInitializationFailures(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if s.authorization.state.CurrentUser != login.Ref || s.authorization.state.ResetRole != (authorization.PrincipalRef{}) {
-			t.Fatal(s.authorization.state)
+		if s.Authorization.state.CurrentUser != login.Ref || s.Authorization.state.ResetRole != (authorization.PrincipalRef{}) {
+			t.Fatal(s.Authorization.state)
 		}
 		s.RequestEnd(CleanClose)
 		if err := s.WaitEnd(context.Background()); err != nil {
@@ -244,18 +244,18 @@ func TestRoleSwitchInitializationFailures(t *testing.T) {
 func TestRoleSwitchRevisionHeadroom(t *testing.T) {
 	t.Run("mutation preflight", func(t *testing.T) {
 		e, s := roleSwitchUnitSession(t)
-		before := s.authorization.state
-		s.authorization.revision = ^uint64(0) - 2
+		before := s.Authorization.state
+		s.Authorization.revision = ^uint64(0) - 2
 		err := roleSwitchUnitExec(t, s, "SET LOCAL ROLE switch_a")
-		if err == nil || !strings.Contains(err.Error(), "revision exhausted") || s.authorization.state != before || s.settings.roleAction.present || s.authorization.revision != ^uint64(0)-2 {
-			t.Fatal(err, s.authorization)
+		if err == nil || !strings.Contains(err.Error(), "revision exhausted") || s.Authorization.state != before || s.Settings.roleAction.present || s.Authorization.revision != ^uint64(0)-2 {
+			t.Fatal(err, s.Authorization)
 		}
 		_ = e
 	})
 	t.Run("nested failure unwind and outer rollback", func(t *testing.T) {
 		_, s := roleSwitchUnitSession(t)
-		before := s.authorization.state
-		s.authorization.revision = ^uint64(0) - 10
+		before := s.Authorization.state
+		s.Authorization.revision = ^uint64(0) - 10
 		sessionSQL(t, s, "BEGIN")
 		sessionSQL(t, s, "SET ROLE switch_a")
 		sessionSQL(t, s, "SAVEPOINT x")
@@ -268,14 +268,14 @@ func TestRoleSwitchRevisionHeadroom(t *testing.T) {
 		roleSwitchAssert(t, s, before, "switch_a")
 		sessionSQL(t, s, "ROLLBACK")
 		roleSwitchAssert(t, s, before, "switch_login")
-		if s.authorization.revision == 0 {
+		if s.Authorization.revision == 0 {
 			t.Fatal("revision wrapped")
 		}
 	})
 	t.Run("rollback-to preflight preserves unwind reserve", func(t *testing.T) {
 		_, s := roleSwitchUnitSession(t)
-		before := s.authorization.state
-		s.authorization.revision = ^uint64(0) - 5
+		before := s.Authorization.state
+		s.Authorization.revision = ^uint64(0) - 5
 		sessionSQL(t, s, "BEGIN")
 		sessionSQL(t, s, "SET ROLE switch_a")
 		sessionSQL(t, s, "SAVEPOINT x")
@@ -286,7 +286,7 @@ func TestRoleSwitchRevisionHeadroom(t *testing.T) {
 		}
 		sessionSQL(t, s, "ROLLBACK")
 		roleSwitchAssert(t, s, before, "switch_login")
-		if s.authorization.revision == 0 {
+		if s.Authorization.revision == 0 {
 			t.Fatal("revision wrapped")
 		}
 	})
@@ -301,18 +301,18 @@ func TestRoleSwitchCanceledJournalPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer op.Done()
-	before, action, revision := op.RoleState(), s.settings.roleAction, s.authorization.revision
+	before, action, revision := op.RoleState(), s.Settings.roleAction, s.Authorization.revision
 	ctx, cancel := context.WithCancel(op.Context())
 	defer cancel()
 	boundary := &identityRolePublicationContext{Context: ctx, session: s, cancel: cancel}
 	op.Ctx = boundary
 	_, err = e.executeRole(op, &parser.RoleSelection{Name: "switch_b", Local: true}, 0, false)
-	if !boundary.observed || !errors.Is(err, context.Canceled) || op.RoleState() != before || s.settings.roleAction != action || s.authorization.revision != revision {
+	if !boundary.observed || !errors.Is(err, context.Canceled) || op.RoleState() != before || s.Settings.roleAction != action || s.Authorization.revision != revision {
 		t.Fatal("canceled publication", err)
 	}
 	op.Done()
 	sessionSQL(t, s, "COMMIT")
-	if !reflect.DeepEqual(s.authorization.state, before) {
+	if !reflect.DeepEqual(s.Authorization.state, before) {
 		t.Fatal("canceled LOCAL damaged SESSION candidate")
 	}
 }
@@ -336,32 +336,32 @@ func TestRoleSwitchPrincipalValidation(t *testing.T) {
 	op, done := roleOperation(t, e, "postgres")
 	defer done()
 	for _, target := range []authorization.PrincipalRef{foreign.Ref, stale.Ref} {
-		op.Session.mu.Lock()
-		op.Session.authorization.state.ResetRole = target
-		before := op.Session.authorization.state
-		revision := op.Session.authorization.revision
-		op.Session.mu.Unlock()
+		op.Session.Mu.Lock()
+		op.Session.Authorization.state.ResetRole = target
+		before := op.Session.Authorization.state
+		revision := op.Session.Authorization.revision
+		op.Session.Mu.Unlock()
 		if _, err := e.Execute(op, statement(t, "RESET ROLE"), 0, nil); err == nil {
 			t.Fatal("invalid cached reset", target)
 		}
-		if op.RoleState() != before || op.Session.authorization.revision != revision {
+		if op.RoleState() != before || op.Session.Authorization.revision != revision {
 			t.Fatal("invalid reset published")
 		}
 	}
-	op.Session.mu.Lock()
-	op.Session.authorization.state.ResetRole = authorization.PrincipalRef{}
-	op.Session.mu.Unlock()
+	op.Session.Mu.Lock()
+	op.Session.Authorization.state.ResetRole = authorization.PrincipalRef{}
+	op.Session.Mu.Unlock()
 }
 
 func TestRoleSwitchFinishConsumers(t *testing.T) {
 	e, s := roleSwitchUnitSession(t)
-	before := s.authorization.state
+	before := s.Authorization.state
 	sessionSQL(t, s, "BEGIN")
 	sessionSQL(t, s, "SET ROLE switch_a")
 	sessionSQL(t, s, "SET LOCAL ROLE switch_b")
 	sessionSQL(t, s, "PREPARE TRANSACTION 'role_switch_unit'")
 	roleSwitchAssert(t, s, before, "switch_a")
-	if s.settings.roleAction.present {
+	if s.Settings.roleAction.present {
 		t.Fatal("PREPARE retained role journal")
 	}
 	run(t, e, "COMMIT PREPARED 'role_switch_unit'")
@@ -372,13 +372,13 @@ func TestRoleSwitchFinishConsumers(t *testing.T) {
 	if err := s.WaitEnd(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if s.settings.roleAction.present {
+	if s.Settings.roleAction.present {
 		t.Fatal("physical teardown retained role journal")
 	}
 	// A separate physical session did not acquire the ended owner's identity.
 	peer := sessionStart(t, e, nil)
 	admin, _ := e.Roles().Lookup("postgres")
-	if peer.authorization.state.CurrentUser != admin.Ref {
-		t.Fatal(peer.authorization.state)
+	if peer.Authorization.state.CurrentUser != admin.Ref {
+		t.Fatal(peer.Authorization.state)
 	}
 }

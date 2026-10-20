@@ -22,11 +22,11 @@ func TestUpdateCoreVersionsAndPrivateHeads(t *testing.T) {
 	saved := transactionRows(t, b, "SELECT v FROM t", 1, 1)
 	tx := transactionBegin(t, a)
 	sessionSQL(t, a, "UPDATE t SET v=2")
-	first := append([]storage.RowVersion(nil), a.transactions.writes[ref.Address]...)
+	first := append([]storage.RowVersion(nil), a.Transactions.writes[ref.Address]...)
 	transactionRows(t, a, "SELECT v FROM t", 2, 2)
 	transactionRows(t, b, "SELECT v FROM t", 1, 1)
 	sessionSQL(t, a, "UPDATE t SET v=3")
-	for i, row := range a.transactions.writes[ref.Address] {
+	for i, row := range a.Transactions.writes[ref.Address] {
 		if row.Row != original[i].Row || row.Base != original[i].Version || row.Version <= first[i].Version {
 			t.Fatal("replacement provenance", row, original[i], first[i])
 		}

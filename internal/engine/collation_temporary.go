@@ -25,7 +25,7 @@ func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage
 	if len(changes.Descriptors) != 0 {
 		auth.Catalog = e.stageRead(stage)
 		auth.Recapture(auth.Catalog)
-		if ns, ok := auth.Catalog.Namespace(ref.Address); ok && !ns.TemporaryToast && auth.session != nil && ns.Temporary == auth.session.token {
+		if ns, ok := auth.Catalog.Namespace(ref.Address); ok && !ns.TemporaryToast && auth.session != nil && ns.Temporary == auth.session.SessionToken {
 			auth.stagedTemporary = ns.Address()
 		}
 	}
@@ -47,7 +47,7 @@ func (e *Engine) collationCreationNamespaceLocked(auth *AuthorizationView, stage
 // Engine.mu also owns the ending session's sequence memories and TEMP pointer:
 // command drain does not exclude concurrent catalog replacement of live peers.
 func (e *Engine) endTemporaryCollations(source *Session) (err error) {
-	if privateSessionOf(source.token) != nil {
+	if privateSessionOf(source.SessionToken) != nil {
 		return nil
 	}
 	var maintenance *Session
@@ -56,13 +56,13 @@ func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 		base := e.catalog.read(e.catalog.state)
 		var namespaces []*catalog.Namespace
 		for _, d := range base.Descriptors() {
-			if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary == source.token {
+			if ns, ok := d.(*catalog.Namespace); ok && ns.Temporary == source.SessionToken {
 				namespaces = append(namespaces, ns)
 			}
 		}
 		if len(namespaces) == 0 {
 			payloadOf(source).sequences.ForgetLocked()
-			source.temporaryNamespace = ids.ObjectAddress{}
+			source.TemporaryNamespace = ids.ObjectAddress{}
 			e.mu.Unlock()
 			return nil
 		}
@@ -85,7 +85,7 @@ func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 				err = errors.Join(err, maintenance.WaitEnd(context.Background()))
 			}()
 		}
-		stale, attemptErr := e.removeTemporaryNamespaceCandidate(maintenance, base, namespaces, children, source.token)
+		stale, attemptErr := e.removeTemporaryNamespaceCandidate(maintenance, base, namespaces, children, source.SessionToken)
 		if stale {
 			continue
 		}
@@ -94,7 +94,7 @@ func (e *Engine) endTemporaryCollations(source *Session) (err error) {
 		}
 		e.mu.Lock()
 		payloadOf(source).sequences.ForgetLocked()
-		source.temporaryNamespace = ids.ObjectAddress{}
+		source.TemporaryNamespace = ids.ObjectAddress{}
 		e.mu.Unlock()
 		return nil
 	}

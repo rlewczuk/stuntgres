@@ -113,7 +113,7 @@ func TestTruncateIndexes(t *testing.T) {
 		t.Fatal(err)
 	}
 	scope.op.Done()
-	shape := s.transactions.catalog.Storage[p.Address]
+	shape := s.Transactions.catalog.Storage[p.Address]
 	if e.storage.Relations[p.Address] == shape.Replacement {
 		t.Fatal("explicit generation published before commit")
 	}
@@ -128,12 +128,12 @@ func TestTruncatePrivateRoots(t *testing.T) {
 	for _, q := range []string{"UPDATE p SET id=11 WHERE id=1", "DELETE FROM p WHERE id=2", "INSERT INTO p VALUES(3)", "INSERT INTO q VALUES(8)"} {
 		sessionSQL(t, s, q)
 	}
-	pWrites, pDeletes := s.transactions.writes[p.Address], s.transactions.deletes[p.Address]
-	qWrites := s.transactions.writes[q.Address]
+	pWrites, pDeletes := s.Transactions.writes[p.Address], s.Transactions.deletes[p.Address]
+	qWrites := s.Transactions.writes[q.Address]
 	original := e.storage.Relations[p.Address]
 	truncateUnitExecute(t, e, s, truncateUnitAST("p"))
-	first := s.transactions.catalog.Storage[p.Address]
-	if len(s.transactions.writes[p.Address]) != 0 || s.transactions.deletes[p.Address] != nil || !sameVersionRoot(s.transactions.writes[q.Address], qWrites) {
+	first := s.Transactions.catalog.Storage[p.Address]
+	if len(s.Transactions.writes[p.Address]) != 0 || s.Transactions.deletes[p.Address] != nil || !sameVersionRoot(s.Transactions.writes[q.Address], qWrites) {
 		t.Fatal("selected roots not retired or unrelated roots lost")
 	}
 	if len(pWrites) == 0 || pDeletes == nil {
@@ -141,8 +141,8 @@ func TestTruncatePrivateRoots(t *testing.T) {
 	}
 	sessionSQL(t, s, "INSERT INTO p VALUES(4)")
 	truncateUnitExecute(t, e, s, truncateUnitAST("p"))
-	second := s.transactions.catalog.Storage[p.Address]
-	if second.Original != original || second.Replacement == first.Replacement || second.Replacement.TruncateLineage != first.Replacement.TruncateLineage || !sameVersionRoot(second.Root, first.Root) || second.Ends != first.Ends || second.Generation != first.Generation || len(s.transactions.writes[p.Address]) != 0 {
+	second := s.Transactions.catalog.Storage[p.Address]
+	if second.Original != original || second.Replacement == first.Replacement || second.Replacement.TruncateLineage != first.Replacement.TruncateLineage || !sameVersionRoot(second.Root, first.Root) || second.Ends != first.Ends || second.Generation != first.Generation || len(s.Transactions.writes[p.Address]) != 0 {
 		t.Fatal("repeat did not retain first committed fences/retire latest writes")
 	}
 	transactionEnd(t, s, tx, false)
@@ -155,19 +155,19 @@ func TestTruncateSavepoints(t *testing.T) {
 	tx := transactionBegin(t, s)
 	sessionSQL(t, s, "INSERT INTO p VALUES(3)")
 	sessionSQL(t, s, "SAVEPOINT before")
-	beforeWrites := s.transactions.writes[p.Address]
-	beforeCatalog := s.transactions.catalog
+	beforeWrites := s.Transactions.writes[p.Address]
+	beforeCatalog := s.Transactions.catalog
 	truncateUnitExecute(t, e, s, truncateUnitAST("p"))
-	first := s.transactions.catalog.Storage[p.Address].Replacement
+	first := s.Transactions.catalog.Storage[p.Address].Replacement
 	sessionSQL(t, s, "SAVEPOINT empty")
 	sessionSQL(t, s, "INSERT INTO p VALUES(4)")
 	truncateUnitExecute(t, e, s, truncateUnitAST("p"))
 	sessionSQL(t, s, "ROLLBACK TO empty")
-	if s.transactions.catalog.Storage[p.Address].Replacement != first || len(s.transactions.writes[p.Address]) != 0 {
+	if s.Transactions.catalog.Storage[p.Address].Replacement != first || len(s.Transactions.writes[p.Address]) != 0 {
 		t.Fatal("private empty incarnation not restored")
 	}
 	sessionSQL(t, s, "ROLLBACK TO before")
-	if s.transactions.catalog != beforeCatalog || !sameVersionRoot(s.transactions.writes[p.Address], beforeWrites) {
+	if s.Transactions.catalog != beforeCatalog || !sameVersionRoot(s.Transactions.writes[p.Address], beforeWrites) {
 		t.Fatal("savepoint did not restore exact prior catalog/write roots")
 	}
 	transactionEnd(t, s, tx, false)

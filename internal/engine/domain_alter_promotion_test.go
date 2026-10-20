@@ -21,8 +21,8 @@ func domainAlterMessagePromotion(t *testing.T) {
 			if _, err := message.step(statement(t, "INSERT INTO public.stored VALUES(2)")); err != nil {
 				t.Fatal(err)
 			}
-			ref, ticket, start := s.transactions.ref, s.transactions.ticket, s.transactions.start
-			if ref == (ids.TxRef{}) || ticket == nil || s.transactions.state != TxImplicit {
+			ref, ticket, start := s.Transactions.ref, s.Transactions.ticket, s.Transactions.start
+			if ref == (ids.TxRef{}) || ticket == nil || s.Transactions.state != TxImplicit {
 				t.Fatal("retained prefix did not acquire actual transaction ownership")
 			}
 			for _, q := range []string{"ALTER DOMAIN public.d ADD CONSTRAINT counted CHECK(nextval('public.calls')>0) NOT VALID", "ALTER DOMAIN public.d VALIDATE CONSTRAINT counted", "BEGIN", "SAVEPOINT keep_prefix"} {
@@ -30,14 +30,14 @@ func domainAlterMessagePromotion(t *testing.T) {
 					t.Fatal(q, err)
 				}
 			}
-			if s.transactions.ref != ref || s.transactions.ticket != ticket || s.transactions.start != start || s.transactions.state != TxActive || len(domainJournalOf(s.transactions.catalog.Domain).ValidationFences()) != 1 {
+			if s.Transactions.ref != ref || s.Transactions.ticket != ticket || s.Transactions.start != start || s.Transactions.state != TxActive || len(domainJournalOf(s.Transactions.catalog.Domain).ValidationFences()) != 1 {
 				t.Fatal("promotion lost original ownership/observation")
 			}
-			observation := domainJournalOf(s.transactions.catalog.Domain).ValidationFences()[0]
-			clone := s.transactions.catalog.Clone()
+			observation := domainJournalOf(s.Transactions.catalog.Domain).ValidationFences()[0]
+			clone := s.Transactions.catalog.Clone()
 			journal := domainWritable(clone)
 			journal.Validations = append(journal.Validations, observation)
-			if len(domainJournalOf(s.transactions.catalog.Domain).ValidationFences()) != 1 {
+			if len(domainJournalOf(s.Transactions.catalog.Domain).ValidationFences()) != 1 {
 				t.Fatal("clone mutated sibling observation slice")
 			}
 			_, failure := message.step(statement(t, "SELECT missing"))
@@ -45,7 +45,7 @@ func domainAlterMessagePromotion(t *testing.T) {
 				t.Fatal("promoted primary/recovery disposition", failure)
 			}
 			sessionSQL(t, s, "ROLLBACK TO keep_prefix")
-			if len(domainJournalOf(s.transactions.catalog.Domain).ValidationFences()) != 1 || domainJournalOf(s.transactions.catalog.Domain).ValidationFences()[0] != observation {
+			if len(domainJournalOf(s.Transactions.catalog.Domain).ValidationFences()) != 1 || domainJournalOf(s.Transactions.catalog.Domain).ValidationFences()[0] != observation {
 				t.Fatal("savepoint recovery lost passive observation")
 			}
 			sessionSQL(t, s, "INSERT INTO public.stored VALUES(3)")

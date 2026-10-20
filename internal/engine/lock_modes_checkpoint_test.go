@@ -20,7 +20,7 @@ func TestLockModesCheckpointContributions(t *testing.T) {
 	table := lock.Resource{ObjectRef: ref}
 	row := table
 	row.Row = 1
-	ta, tb := a.transactions.ticket, b.transactions.ticket
+	ta, tb := a.Transactions.ticket, b.Transactions.ticket
 	acquire := func(resource lock.Resource, mode lock.Mode) {
 		t.Helper()
 		if err := e.locks.Acquire(context.Background(), ta, resource, mode); err != nil {

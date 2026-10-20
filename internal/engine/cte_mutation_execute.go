@@ -189,7 +189,7 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 	}
 	collectAuth := auth
 	collectAuth.Recapture(scope.inheritanceRead(auth.Catalog))
-	refs, err := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, leaves, normalizedRefs, scope.op.Session.token, plan.RowMark{})
+	refs, err := e.queryTableRefsLocked(collectAuth, auth.State.CurrentUser, leaves, normalizedRefs, scope.op.Session.SessionToken, plan.RowMark{})
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err

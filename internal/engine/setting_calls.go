@@ -149,16 +149,16 @@ func (e *Engine) executeSettingCall(op *Operation, s *parser.SettingCall, count 
 		e.mu.Unlock()
 		return Result{}, catalog.Conflict{}
 	}
-	owner := op.Session.settings
+	owner := op.Session.Settings
 	locked := true
-	unlock := func() { op.Session.mu.Unlock(); owner.mu.Unlock(); e.mu.Unlock() }
+	unlock := func() { op.Session.Mu.Unlock(); owner.mu.Unlock(); e.mu.Unlock() }
 	defer func() {
 		if locked {
 			unlock()
 		}
 	}()
 	owner.mu.Lock()
-	op.Session.mu.Lock()
+	op.Session.Mu.Lock()
 	if err := publicationOperationLocked(e, op); err != nil {
 		return Result{}, err
 	}

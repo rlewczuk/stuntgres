@@ -52,7 +52,7 @@ func TestAnalysisHostWithOperation(t *testing.T) {
 		t.Fatal("a copied operation binds through the original operation's host")
 	}
 	owner, generation, ok := host.PlanOwner()
-	if !ok || owner != op.Session.token || generation != op.Session.discardPlansGeneration {
+	if !ok || owner != op.Session.SessionToken || generation != op.Session.DiscardPlansGeneration {
 		t.Fatalf("PlanOwner() = %v, %d, %v; want the session's token and generation", owner, generation, ok)
 	}
 	warning := sqlstate.Error{Code: "01000", Message: "kept"}

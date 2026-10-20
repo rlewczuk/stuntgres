@@ -10,7 +10,7 @@ import (
 func (e *Engine) roleSessionCountLocked(ref authorization.PrincipalRef) int {
 	n := 0
 	for _, s := range e.sessions {
-		if s.countedAuthenticated == ref {
+		if s.CountedAuthenticated == ref {
 			n++
 		}
 	}

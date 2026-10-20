@@ -29,7 +29,7 @@ func TestRowLockAggregateStatementOwner(t *testing.T) {
 						rowLockViewRows(t, e, a, query, prepared, want...)
 					}
 					transactionRows(t, a, "SELECT currval('s')", int64(len(want)))
-					rowLockViewGrants(t, e, a.transactions.ticket, "t", 1, 2)
+					rowLockViewGrants(t, e, a.Transactions.ticket, "t", 1, 2)
 					if joined {
 						sessionSQL(t, b, "DELETE FROM u WHERE id=2")
 					}

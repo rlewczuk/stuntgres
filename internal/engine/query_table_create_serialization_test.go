@@ -37,7 +37,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 			session := sessionStart(t, e, nil)
 			op := transactionOperation(t, session)
 			isolation := "serializable"
-			if _, err := e.applySetting(op, session.settings, e.settings.Definitions()["default_transaction_isolation"], &isolation, false); err != nil {
+			if _, err := e.applySetting(op, session.Settings, e.settings.Definitions()["default_transaction_isolation"], &isolation, false); err != nil {
 				t.Fatal(err)
 			}
 			scope, err := e.StartStatement(op)

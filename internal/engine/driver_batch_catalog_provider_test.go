@@ -29,15 +29,15 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 					}
 					e.mu.Unlock()
 				}
-				if !s.mu.TryLock() {
+				if !s.Mu.TryLock() {
 					t.Error("catalog provider under Session.mu")
 				} else {
-					s.mu.Unlock()
+					s.Mu.Unlock()
 				}
-				if !s.transactions.mu.TryLock() {
+				if !s.Transactions.mu.TryLock() {
 					t.Error("catalog provider under transaction owner mutex")
 				} else {
-					s.transactions.mu.Unlock()
+					s.Transactions.mu.Unlock()
 				}
 				if candidate.State() == before {
 					t.Error("provider received committed root instead of full private candidate")
@@ -55,10 +55,10 @@ func TestDriverBatchCatalogInitialTablesAndProviders(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer result.Rows.Close()
-			s.transactions.mu.Lock()
-			c := s.transactions.catalog
-			writes := s.transactions.writes
-			s.transactions.mu.Unlock()
+			s.Transactions.mu.Lock()
+			c := s.Transactions.catalog
+			writes := s.Transactions.writes
+			s.Transactions.mu.Unlock()
 			e.mu.Lock()
 			private := e.privateCatalogLocked(c)
 			e.mu.Unlock()

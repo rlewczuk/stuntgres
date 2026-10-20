@@ -19,7 +19,7 @@ func TestAdvisorySessionPhysicalSoftCycle(t *testing.T) {
 	x := lock.Resource{Kind: lock.AdvisoryBigintResource, High: 21, Low: 22}
 	y := lock.Resource{ObjectRef: catalogRef(t, e, e.CatalogRead(), "advisory_soft_relation")}
 	advisoryUnitGrant(t, a, ra, x, lock.AdvisoryShare)
-	if err := e.locks.Acquire(context.Background(), c.transactions.ticket, y, lock.AccessExclusive); err != nil {
+	if err := e.locks.Acquire(context.Background(), c.Transactions.ticket, y, lock.AccessExclusive); err != nil {
 		t.Fatal(err)
 	}
 	writer, err := advisoryUnitAcquire(t, b, rb, x, lock.AdvisoryExclusive, false)
@@ -36,7 +36,7 @@ func TestAdvisorySessionPhysicalSoftCycle(t *testing.T) {
 	if !ordered {
 		t.Fatal("exact soft predecessor queue absent")
 	}
-	ordinaryWait := deadlockRequest(t, e, a.transactions.ticket, y, lock.AccessShare)
+	ordinaryWait := deadlockRequest(t, e, a.Transactions.ticket, y, lock.AccessShare)
 	if ordinaryWait == nil {
 		t.Fatal("ordinary holder dependency absent")
 	}

@@ -70,7 +70,7 @@ func TestUpdateCoreRowResourceLifetime(t *testing.T) {
 	sessionSQL(t, b, "UPDATE t SET v=4")
 	c := sessionStart(t, e, nil)
 	oldTx := transactionBegin(t, c)
-	oldTicket := c.transactions.ticket
+	oldTicket := c.Transactions.ticket
 	oldCtx, oldCancel := context.WithCancel(context.Background())
 	defer oldCancel()
 	ref := catalogRef(t, e, e.CatalogRead(), "t")
@@ -89,7 +89,7 @@ func TestUpdateCoreRowResourceLifetime(t *testing.T) {
 	transactionEnd(t, c, oldTx, false)
 	fresh := transactionBegin(t, c)
 	sessionSQL(t, c, "UPDATE t SET v=10")
-	newTicket := c.transactions.ticket
+	newTicket := c.Transactions.ticket
 	newRef := catalogRef(t, e, e.CatalogRead(), "t")
 	newResource := lock.Resource{ObjectRef: newRef, Row: e.storage.Relations[newRef.Address].Versions[0].Row}
 	oldCancel()
@@ -126,7 +126,7 @@ func TestUpdateCoreRestoreRowWaitLifecycle(t *testing.T) {
 			saved := e.storage.Relations[ref.Address].Versions
 			tx := transactionBegin(t, a)
 			sessionSQL(t, a, "UPDATE t SET v=2")
-			oldTicket := a.transactions.ticket
+			oldTicket := a.Transactions.ticket
 			join := updateRowWorker(t, e, b, "UPDATE t SET v=3")
 			lockPending(t, e, 1)
 			restoreCtx, restoreCancel := context.WithTimeout(context.Background(), 5*time.Second)

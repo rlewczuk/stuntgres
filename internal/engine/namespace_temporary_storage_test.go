@@ -32,8 +32,8 @@ func namespaceTemporaryStorageFixture(t *testing.T) (*Engine, *Session, *Session
 		sessionSQL(t, owner, q)
 	}
 	view := e.CatalogRead()
-	namespace := owner.temporaryNamespace
-	assertTemporaryNamespacePair(t, e, owner.token, namespace)
+	namespace := owner.TemporaryNamespace
+	assertTemporaryNamespacePair(t, e, owner.SessionToken, namespace)
 	lookup := func(namespace ids.ObjectAddress, name string) *catalog.Relation {
 		address := view.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: name})
 		return view.MustRelation(address)
@@ -63,7 +63,7 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 		t.Helper()
 		leaf := exec.Leaf{Ref: e.catalog.Domain.Ref(view.Epoch(), relation.Address()), Relation: relation, Only: only, AnalysisOnly: analysis}
 		auth := peerAuth
-		if token == owner.token {
+		if token == owner.SessionToken {
 			auth = ownerAuth
 		}
 		auth.Recapture(view)
@@ -77,38 +77,38 @@ func TestPGNamespaceForeignTemporaryStorageCapture(t *testing.T) {
 		relation *catalog.Relation
 		only     bool
 	}{{foreign, false}, {foreign, true}, {chain, false}} {
-		refs, err := collect(catalogView, tc.relation, tc.only, false, peer.token)
+		refs, err := collect(catalogView, tc.relation, tc.only, false, peer.SessionToken)
 		defaultUnitDiagnostic(t, err, "0A000", "cannot access temporary tables of other sessions")
-		if len(refs) != 0 || e.catalog.state != before || e.visibility.CommitSeq() != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || peer.temporaryNamespace != (ids.ObjectAddress{}) || peer.transactions.accessedTemporary {
+		if len(refs) != 0 || e.catalog.state != before || e.visibility.CommitSeq() != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || peer.TemporaryNamespace != (ids.ObjectAddress{}) || peer.Transactions.accessedTemporary {
 			t.Fatal("rejected physical source changed capture frontier or TEMP footprint", refs, err)
 		}
 	}
 	e.mu.Lock()
-	seeded, seededErr := e.queryTableRefsLocked(peerAuth, peerAuth.State.CurrentUser, nil, []ids.ObjectRef{e.catalog.Domain.Ref(catalogView.Epoch(), foreign.Address())}, peer.token, plan.RowMark{})
+	seeded, seededErr := e.queryTableRefsLocked(peerAuth, peerAuth.State.CurrentUser, nil, []ids.ObjectRef{e.catalog.Domain.Ref(catalogView.Epoch(), foreign.Address())}, peer.SessionToken, plan.RowMark{})
 	e.mu.Unlock()
 	defaultUnitDiagnostic(t, seededErr, "0A000", "cannot access temporary tables of other sessions")
 	if len(seeded) != 0 {
 		t.Fatal("preseeded target bypassed physical admission", seeded)
 	}
-	refs, err := collect(catalogView, foreign, false, true, peer.token)
+	refs, err := collect(catalogView, foreign, false, true, peer.SessionToken)
 	if err != nil || len(refs) != 0 {
 		t.Fatal("metadata-only leaf admitted physical storage", refs, err)
 	}
-	refs, err = collect(catalogView, foreign, false, false, owner.token)
+	refs, err = collect(catalogView, foreign, false, false, owner.SessionToken)
 	if err != nil || len(refs) != 1 || refs[0].Address != foreign.Address() {
 		t.Fatal("own TEMP storage denied", refs, err)
 	}
-	refs, err = collect(catalogView, persistent, false, false, peer.token)
+	refs, err = collect(catalogView, persistent, false, false, peer.SessionToken)
 	if err != nil || len(refs) != 1 || refs[0].Address != persistent.Address() {
 		t.Fatal("persistent ancestor did not skip foreign TEMP child", refs, err)
 	}
-	refs, err = collect(catalogView, persistent, false, false, owner.token)
+	refs, err = collect(catalogView, persistent, false, false, owner.SessionToken)
 	if err != nil || len(refs) != 2 {
 		t.Fatal("own inherited TEMP child omitted", refs, err)
 	}
 	missing := catalog.CloneState(catalogView.State())
 	missing.RemoveDescriptor(foreign.Namespace())
-	_, err = collect(e.catalog.read(missing), foreign, true, false, owner.token)
+	_, err = collect(e.catalog.read(missing), foreign, true, false, owner.SessionToken)
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("missing captured namespace accepted", err)
 	}
@@ -138,7 +138,7 @@ func TestPGNamespaceForeignTemporaryStorageExecution(t *testing.T) {
 			}
 			var diagnostic *sqlstate.Error
 			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot access temporary tables of other sessions"}
-			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.catalog.state != before || e.visibility.CommitSeq() != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || peer.temporaryNamespace != (ids.ObjectAddress{}) || peer.transactions.accessedTemporary {
+			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.catalog.state != before || e.visibility.CommitSeq() != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || peer.TemporaryNamespace != (ids.ObjectAddress{}) || peer.Transactions.accessedTemporary {
 				t.Fatal("foreign physical execution boundary/atomicity", prepared, err)
 			}
 		}
@@ -181,7 +181,7 @@ func TestPGNamespaceForeignTemporaryStorageTargets(t *testing.T) {
 			}
 			var diagnostic *sqlstate.Error
 			want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot access temporary tables of other sessions"}
-			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.catalog.state != before || e.visibility.CommitSeq() != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[foreign.Address()] != store || !sameVersionRoot(store.Versions, root) || store.Ends != ends || peer.transactions.accessedTemporary {
+			if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || e.catalog.state != before || e.visibility.CommitSeq() != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[foreign.Address()] != store || !sameVersionRoot(store.Versions, root) || store.Ends != ends || peer.Transactions.accessedTemporary {
 				t.Fatal("foreign target changed owner state or rejection boundary", query, prepared, err)
 			}
 		}
@@ -203,7 +203,7 @@ func TestPGNamespaceForeignTemporaryStorageTargets(t *testing.T) {
 		op.Done()
 		var diagnostic *sqlstate.Error
 		want := &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "0A000", Message: "cannot access temporary tables of other sessions"}
-		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || count != 0 || output.Len() != 0 || e.catalog.state != before || e.visibility.CommitSeq() != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[foreign.Address()] != store || !sameVersionRoot(store.Versions, root) || store.Ends != ends || peer.transactions.accessedTemporary {
+		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) || count != 0 || output.Len() != 0 || e.catalog.state != before || e.visibility.CommitSeq() != sequence || e.catalog.nextOID != oid || e.catalog.nextRevision != revision || e.storage.Relations[foreign.Address()] != store || !sameVersionRoot(store.Versions, root) || store.Ends != ends || peer.Transactions.accessedTemporary {
 			t.Fatal("foreign COPY changed owner state or emitted rows", query, count, err)
 		}
 	}

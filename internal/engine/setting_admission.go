@@ -20,23 +20,23 @@ func (s *Session) AcquireCommand(ctx context.Context) (*Operation, parser.Option
 	if err != nil {
 		return nil, parser.Options{}, err
 	}
-	s.settings.mu.Lock()
-	standard := s.settings.typedValue("standard_conforming_strings").Boolean
+	s.Settings.mu.Lock()
+	standard := s.Settings.typedValue("standard_conforming_strings").Boolean
 	op.NonstandardStrings = !standard
-	timeout := s.settings.typedValue("statement_timeout").Number
-	op.LockTimeout = time.Duration(s.settings.typedValue("lock_timeout").Number) * time.Millisecond
-	op.ParallelWorkers = int(s.settings.typedValue("max_parallel_workers_per_gather").Number)
-	transactionTimeout := s.settings.typedValue("transaction_timeout").Number
-	op.NoticeThreshold, _ = messageLevel(s.settings.value(settings.ClientMinMessages.Name))
+	timeout := s.Settings.typedValue("statement_timeout").Number
+	op.LockTimeout = time.Duration(s.Settings.typedValue("lock_timeout").Number) * time.Millisecond
+	op.ParallelWorkers = int(s.Settings.typedValue("max_parallel_workers_per_gather").Number)
+	transactionTimeout := s.Settings.typedValue("transaction_timeout").Number
+	op.NoticeThreshold, _ = messageLevel(s.Settings.value(settings.ClientMinMessages.Name))
 	op.CommandAdmission = true
 	op.CommandStart = start
-	s.settings.mu.Unlock()
+	s.Settings.mu.Unlock()
 	if timeout > 0 && (transactionTimeout == 0 || timeout < transactionTimeout) {
 		deadline := time.Now().Add(time.Duration(timeout) * time.Millisecond)
 		timed, cancel := context.WithDeadlineCause(op.Ctx, deadline, statementTimeoutCause)
-		s.mu.Lock()
+		s.Mu.Lock()
 		op.StatementDeadline, op.Ctx, op.TimerCancel = deadline, timed, cancel
-		s.mu.Unlock()
+		s.Mu.Unlock()
 	}
 	return op, parser.Options{StandardConformingStrings: standard, Context: op.Ctx, Notice: op.ParseNotice}, nil
 }
@@ -58,15 +58,15 @@ func (op *Operation) RefreshStatementBudget() error {
 	if err := op.CommandContext.Err(); err != nil {
 		return err
 	}
-	store := op.Session.settings
+	store := op.Session.Settings
 	store.mu.Lock()
 	timeout := store.typedValue("statement_timeout").Number
 	transactionTimeout := store.typedValue("transaction_timeout").Number
 	lockTimeout := store.typedValue("lock_timeout").Number
 	threshold, _ := messageLevel(store.value(settings.ClientMinMessages.Name))
 	store.mu.Unlock()
-	op.Session.mu.Lock()
-	defer op.Session.mu.Unlock()
+	op.Session.Mu.Lock()
+	defer op.Session.Mu.Unlock()
 	if op.TimerCancel != nil {
 		op.TimerCancel()
 		op.TimerCancel = nil

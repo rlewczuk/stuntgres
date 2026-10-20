@@ -164,9 +164,9 @@ func copyOwnerReservation(t *testing.T, format copyFormat) {
 			case <-time.After(5 * time.Second):
 				t.Fatal("reservation waiter could not cancel")
 			}
-			session.transactions.mu.Lock()
-			ref, command := session.transactions.ref, session.transactions.command
-			session.transactions.mu.Unlock()
+			session.Transactions.mu.Lock()
+			ref, command := session.Transactions.ref, session.Transactions.command
+			session.Transactions.mu.Unlock()
 			if ref != before || command != scope.command {
 				t.Fatal("waiter mutated reserved owner")
 			}
@@ -435,9 +435,9 @@ func TestCopyTextOwnerWaitCompletion(t *testing.T) {
 			case err := <-finished:
 				t.Fatal("owner entry bypassed reserved COPY", entry, err)
 			}
-			session.transactions.mu.Lock()
-			ref, command := session.transactions.ref, session.transactions.command
-			session.transactions.mu.Unlock()
+			session.Transactions.mu.Lock()
+			ref, command := session.Transactions.ref, session.Transactions.command
+			session.Transactions.mu.Unlock()
 			if ref != before || command != scope.command {
 				t.Fatal("waiting command changed reserved owner")
 			}
