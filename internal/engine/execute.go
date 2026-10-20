@@ -224,7 +224,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 	var candidate StatementDescription
 	quoteCapturesChanged := false
 	valid := true
-	replan := scope.preparedInvalid || expected != nil && expected.planOwner == op.session.token && expected.planGeneration != op.session.discardPlansGeneration
+	replan := scope.prepared.invalid || expected != nil && expected.planOwner == op.session.token && expected.planGeneration != op.session.discardPlansGeneration
 	if expected != nil && expected.analysis != nil {
 		path, er := e.sequenceEnvironmentLocked(auth)
 		if er != nil {
@@ -234,8 +234,8 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		// Evolution during a wait can invalidate captures, but admission has
 		// already fixed this attempt's identities. Never resolve them again.
 		current := e.preparedAnalysisValidLocked(auth, expected.analysis, path)
-		if !current && !scope.preparedInvalid {
-			scope.preparedChangedDuringAdmission = true
+		if !current && !scope.prepared.invalid {
+			scope.prepared.changedDuringAdmission = true
 		}
 		replan = replan || !current
 	}

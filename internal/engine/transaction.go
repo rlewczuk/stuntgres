@@ -10,7 +10,6 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
-	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -288,80 +287,73 @@ type StatementScope struct {
 	// Borrowed only during this statement's admission/execution. Admission
 	// refreshes this coherent snapshot serially before publishing parallel reads;
 	// it is neither prepared-plan state nor a cached permission decision.
-	routineAuth                    AuthorizationView
-	stage                          WriteStage
-	notificationActions            []notificationAction
-	notificationEvents             []Notification
-	view                           *visibility.View
-	partitionValidationView        *visibility.View // Latest DDL scan, same owner; never the retained query snapshot.
-	finished                       bool
-	message                        bool
-	messageEnded                   bool
-	messageResult                  error
-	result                         error
-	worked                         bool
-	completed                      bool
-	sessionCompleted               bool // Successful session utilities have no private stage to merge.
-	controlOutcome                 controlOutcome
-	replacementRead                bool
-	ticket                         *lock.Ticket
-	multiEvents                    []lock.MultiEvent
-	viewCreationNamespace          ids.ObjectRef
-	viewPersistence                string
-	viewBinding                    binding
-	viewChanges                    *catalogChanges
-	indexMaintenance               *indexMaintenanceGrant
-	materializedRefresh            bool
-	materializedSources            []catalog.Descriptor
-	materializedSourceView         *visibility.Data
-	querySources                   []queryLeaf
-	foreignOwner                   *foreignScanOwner
-	foreignStatements              []*foreignParticipant
-	foreignModifications           []*foreignModification
-	foreignHoldPromotions          []*sqlCursor // Exact new promotions owned by this completion.
-	foreignCursor                  *sqlCursor
-	queryLockAdmission             queryLockAdmission
-	queryLocks                     *queryLockContext
-	activeViews                    []ids.ObjectAddress
-	txRef                          ids.TxRef
-	command                        ids.CommandID
-	ownWrites                      map[ids.ObjectAddress][]storage.RowVersion
-	ownDeletes                     map[ids.ObjectAddress]*visibility.PrivateDeletes
-	existingIndexOutputs           map[ids.ObjectAddress]map[indexRowIdentity]storage.IndexOutput
-	exclusionModes                 exclusionModes
-	exclusionStarted               bool
-	inheritanceRelations           []queryLeaf  // Exact physical SELECT grants, separate from SQL occurrences.
-	inheritanceCatalog             catalog.Read // Immutable topology after the last grant/wait reconciliation.
-	inheritanceAlter               *inheritanceAlterState
-	consumedColumnDrops            map[*preparedDrop]struct{}
-	truncateRelations              []truncateRelation
-	truncateSequences              []truncateSequence
-	truncateRestart                bool
-	foreignTruncateCascade         bool
-	truncateNames                  []truncateName
-	truncateSelected               map[ids.ObjectAddress]int
-	Expected                       *StatementDescription
-	preparedReuse                  *preparedAnalysis
-	preparedInvalid                bool
-	preparedPath                   sequence.Environment
-	preparedNamespace              uint64
-	preparedPrivate                *catalogChanges
-	preparedEpoch                  ids.CatalogEpoch
-	preparedChangedDuringAdmission bool
-	admissionWaited                bool
-	implicit                       bool
-	input                          sqltype.InputEnvironment
-	domainEvaluation               *EvalContext
-	domainPreparedChecks           map[*catalog.Type]domainCheckProgram
-	partitionPrograms              map[partitionRoutineIdentity][]expr.Expr
-	routinePrograms                []commandRoutineProgram // Consumed command graphs; same admission lease as queryAuthority.
-	domainInputCatalog             catalog.Read
-	statementStart                 time.Time
-	transactionStart               time.Time
-	timeoutRef                     ids.TxRef // admission projection for preparse ERROR timer retirement
-	output                         sqltype.OutputEnvironment
-	initialParameters              []sqltype.Usage
-	activeSQLRoutineDepth          int // Root invocation owner; never saved/reset as lexical scratch.
+	routineAuth             AuthorizationView
+	stage                   WriteStage
+	notificationActions     []notificationAction
+	notificationEvents      []Notification
+	view                    *visibility.View
+	partitionValidationView *visibility.View // Latest DDL scan, same owner; never the retained query snapshot.
+	finished                bool
+	message                 bool
+	messageEnded            bool
+	messageResult           error
+	result                  error
+	worked                  bool
+	completed               bool
+	sessionCompleted        bool // Successful session utilities have no private stage to merge.
+	controlOutcome          controlOutcome
+	replacementRead         bool
+	ticket                  *lock.Ticket
+	multiEvents             []lock.MultiEvent
+	viewCreationNamespace   ids.ObjectRef
+	viewPersistence         string
+	viewBinding             binding
+	viewChanges             *catalogChanges
+	indexMaintenance        *indexMaintenanceGrant
+	materializedRefresh     bool
+	materializedSources     []catalog.Descriptor
+	materializedSourceView  *visibility.Data
+	querySources            []queryLeaf
+	foreignOwner            *foreignScanOwner
+	foreignStatements       []*foreignParticipant
+	foreignModifications    []*foreignModification
+	foreignHoldPromotions   []*sqlCursor // Exact new promotions owned by this completion.
+	foreignCursor           *sqlCursor
+	queryLockAdmission      queryLockAdmission
+	queryLocks              *queryLockContext
+	activeViews             []ids.ObjectAddress
+	txRef                   ids.TxRef
+	command                 ids.CommandID
+	ownWrites               map[ids.ObjectAddress][]storage.RowVersion
+	ownDeletes              map[ids.ObjectAddress]*visibility.PrivateDeletes
+	existingIndexOutputs    map[ids.ObjectAddress]map[indexRowIdentity]storage.IndexOutput
+	exclusionModes          exclusionModes
+	exclusionStarted        bool
+	inheritanceRelations    []queryLeaf  // Exact physical SELECT grants, separate from SQL occurrences.
+	inheritanceCatalog      catalog.Read // Immutable topology after the last grant/wait reconciliation.
+	inheritanceAlter        *inheritanceAlterState
+	consumedColumnDrops     map[*preparedDrop]struct{}
+	truncateRelations       []truncateRelation
+	truncateSequences       []truncateSequence
+	truncateRestart         bool
+	foreignTruncateCascade  bool
+	truncateNames           []truncateName
+	truncateSelected        map[ids.ObjectAddress]int
+	Expected                *StatementDescription
+	admissionWaited         bool
+	implicit                bool
+	input                   sqltype.InputEnvironment
+	domainEvaluation        *EvalContext
+	domainPreparedChecks    map[*catalog.Type]domainCheckProgram
+	partitionPrograms       map[partitionRoutineIdentity][]expr.Expr
+	routinePrograms         []commandRoutineProgram // Consumed command graphs; same admission lease as queryAuthority.
+	domainInputCatalog      catalog.Read
+	statementStart          time.Time
+	transactionStart        time.Time
+	timeoutRef              ids.TxRef // admission projection for preparse ERROR timer retirement
+	output                  sqltype.OutputEnvironment
+	initialParameters       []sqltype.Usage
+	activeSQLRoutineDepth   int // Root invocation owner; never saved/reset as lexical scratch.
 	// Statement execution has a single evaluator owner; this cache never belongs
 	// to a held plan and is discarded with the statement scope.
 	pgRegex                     sqltype.PGRegexExecution
@@ -387,6 +379,7 @@ type StatementScope struct {
 	inquiry                     inquirySnapshot
 	sqlRoutine                  sqlRoutineDemand
 	protocolSlot                *protocolScope
+	prepared                    preparedRebind
 }
 
 type WriteStage struct {

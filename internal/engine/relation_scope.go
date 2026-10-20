@@ -339,13 +339,13 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			if table, ok := selection.From.(*parser.TableReference); ok {
 				ref = s.queryLockAdmission.tableQueries[table].ref
 			}
-		} else if s.preparedReuse != nil {
+		} else if s.prepared.reuse != nil {
 			switch stmt.(type) {
 			case *parser.Insert, *parser.Update, *parser.Delete, *parser.Merge:
-				if s.preparedReuse.targets != nil {
-					ref = s.preparedReuse.targets[stmt]
+				if s.prepared.reuse.targets != nil {
+					ref = s.prepared.reuse.targets[stmt]
 				} else {
-					ref = s.preparedReuse.target
+					ref = s.prepared.reuse.target
 				}
 			}
 		}
@@ -581,7 +581,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		return ids.ErrCatalogReplaced
 	}
 	if preparedDefinitionStamp(descriptor, s.op.session) != definitionStamp {
-		s.preparedChangedDuringAdmission = true
+		s.prepared.changedDuringAdmission = true
 	}
 	if source {
 		s.querySources = append(s.querySources, queryLeaf{ref: ref, relation: descriptor, only: sourceOnly(stmt), storage: e.privateStorageLocked(s.owner.catalog, ref.Address)})

@@ -4,7 +4,6 @@ import (
 	"maps"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/sequence"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
@@ -33,43 +32,38 @@ func (s *StatementScope) leaveSQLRoutine() {
 // existing waits/providers alone release/reacquire it and Finish sees its real flag.
 // It is balanced on every nested success/error/cancellation, never concurrent.
 type sqlRoutineScratch struct {
-	command                                         ruleCommandScratch
-	mutations                                       []statementMutation
-	activeMutation                                  int
-	cteInvocation                                   *cteInvocation
-	activeViews                                     []ids.ObjectAddress
-	inheritanceRelations                            []queryLeaf
-	inheritanceCatalog                              catalog.Read
-	authority                                       *queryAuthority
-	routineAuth                                     AuthorizationView
-	expected                                        *StatementDescription
-	preparedReuse                                   *preparedAnalysis
-	preparedInvalid                                 bool
-	preparedPath                                    sequence.Environment
-	preparedNamespace                               uint64
-	preparedPrivate                                 *catalogChanges
-	preparedEpoch                                   ids.CatalogEpoch
-	preparedChangedDuringAdmission, admissionWaited bool
-	sqlRoutine                                      sqlRoutineDemand
-	inquiry                                         inquirySnapshot
-	initialParameters                               []sqltype.Usage
-	protocol                                        *protocolScope // Swapped as a unit: a nested body starts with no protocol slot.
-	input                                           sqltype.InputEnvironment
-	output                                          sqltype.OutputEnvironment
-	view, partitionView                             *visibility.View
-	ownWrites                                       map[ids.ObjectAddress][]storage.RowVersion
-	ownDeletes                                      map[ids.ObjectAddress]*visibility.PrivateDeletes
-	domainEvaluation                                *EvalContext
-	domainInputCatalog                              catalog.Read
-	foreignOwner                                    *foreignScanOwner
-	foreignCursor                                   *sqlCursor
-	pgRegex                                         sqltype.PGRegexExecution
-	conversionDefaults                              map[[2]int]conversionDefault
-	regprocOutput, regprocedureOutput               map[uint32]string
-	identity                                        identitySnapshot
-	operatorOutput                                  map[operatorOutputKey]string
-	operatorGroups                                  operatorGroups
-	regTSOutput                                     map[regTSOutputKey]string
+	command                           ruleCommandScratch
+	mutations                         []statementMutation
+	activeMutation                    int
+	cteInvocation                     *cteInvocation
+	activeViews                       []ids.ObjectAddress
+	inheritanceRelations              []queryLeaf
+	inheritanceCatalog                catalog.Read
+	authority                         *queryAuthority
+	routineAuth                       AuthorizationView
+	expected                          *StatementDescription
+	prepared                          preparedRebind
+	admissionWaited                   bool
+	sqlRoutine                        sqlRoutineDemand
+	inquiry                           inquirySnapshot
+	initialParameters                 []sqltype.Usage
+	protocol                          *protocolScope // Swapped as a unit: a nested body starts with no protocol slot.
+	input                             sqltype.InputEnvironment
+	output                            sqltype.OutputEnvironment
+	view, partitionView               *visibility.View
+	ownWrites                         map[ids.ObjectAddress][]storage.RowVersion
+	ownDeletes                        map[ids.ObjectAddress]*visibility.PrivateDeletes
+	domainEvaluation                  *EvalContext
+	domainInputCatalog                catalog.Read
+	foreignOwner                      *foreignScanOwner
+	foreignCursor                     *sqlCursor
+	pgRegex                           sqltype.PGRegexExecution
+	conversionDefaults                map[[2]int]conversionDefault
+	regprocOutput, regprocedureOutput map[uint32]string
+	identity                          identitySnapshot
+	operatorOutput                    map[operatorOutputKey]string
+	operatorGroups                    operatorGroups
+	regTSOutput                       map[regTSOutputKey]string
 }
 
 func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
@@ -77,8 +71,7 @@ func (s *StatementScope) sqlRoutineScratch() sqlRoutineScratch {
 		command: s.ruleScratch(), mutations: s.mutations, activeMutation: s.activeMutation, cteInvocation: s.cteInvocation,
 		activeViews: s.activeViews, inheritanceRelations: s.inheritanceRelations, inheritanceCatalog: s.inheritanceCatalog,
 		authority: s.authority, routineAuth: s.routineAuth, expected: s.Expected,
-		preparedReuse: s.preparedReuse, preparedInvalid: s.preparedInvalid, preparedPath: s.preparedPath, preparedNamespace: s.preparedNamespace,
-		preparedPrivate: s.preparedPrivate, preparedEpoch: s.preparedEpoch, preparedChangedDuringAdmission: s.preparedChangedDuringAdmission, admissionWaited: s.admissionWaited,
+		prepared: s.prepared, admissionWaited: s.admissionWaited,
 		initialParameters: s.initialParameters, input: s.input, output: s.output,
 		sqlRoutine: s.sqlRoutine, inquiry: s.inquiry,
 		protocol: s.protocolSlot,
@@ -93,9 +86,7 @@ func (s *StatementScope) installSQLRoutineScratch(c sqlRoutineScratch) {
 	s.mutations, s.activeMutation, s.cteInvocation = c.mutations, c.activeMutation, c.cteInvocation
 	s.activeViews, s.inheritanceRelations, s.inheritanceCatalog = c.activeViews, c.inheritanceRelations, c.inheritanceCatalog
 	s.authority, s.routineAuth, s.Expected = c.authority, c.routineAuth, c.expected
-	s.preparedReuse, s.preparedInvalid, s.preparedPath = c.preparedReuse, c.preparedInvalid, c.preparedPath
-	s.preparedNamespace, s.preparedPrivate, s.preparedEpoch = c.preparedNamespace, c.preparedPrivate, c.preparedEpoch
-	s.preparedChangedDuringAdmission, s.admissionWaited = c.preparedChangedDuringAdmission, c.admissionWaited
+	s.prepared, s.admissionWaited = c.prepared, c.admissionWaited
 	s.initialParameters, s.sqlRoutine, s.inquiry = c.initialParameters, c.sqlRoutine, c.inquiry
 	s.protocolSlot = c.protocol
 	s.input, s.output = c.input, c.output

@@ -204,7 +204,7 @@ func (s *StatementScope) acquireBoundViewRelationModes(refs []ids.ObjectRef, mod
 		current, exists := e.privateCatalogLocked(s.owner.catalog).Find(ref.Address)
 		valid := ref.Domain() == e.catalog.Domain && ref.Epoch == e.catalog.state.Epoch() && exists
 		if valid && d != nil && preparedDefinitionStamp(current, s.op.session) != preparedDefinitionStamp(d, s.op.session) {
-			s.preparedChangedDuringAdmission = true
+			s.prepared.changedDuringAdmission = true
 		}
 		e.mu.Unlock()
 		if !valid {

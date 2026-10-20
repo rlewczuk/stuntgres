@@ -53,20 +53,20 @@ func (s *StatementScope) selectPreparedAnalysis(stmt parser.Statement) error {
 	if err != nil {
 		return err
 	}
-	s.preparedPath, err = e.sequenceEnvironmentLocked(auth)
+	s.prepared.path, err = e.sequenceEnvironmentLocked(auth)
 	if err != nil {
 		return err
 	}
-	s.preparedNamespace = auth.Catalog.State().NamespaceGeneration()
-	s.preparedPrivate = auth.session.transactions.catalog
-	s.preparedEpoch = auth.Catalog.Epoch()
+	s.prepared.namespace = auth.Catalog.State().NamespaceGeneration()
+	s.prepared.private = auth.session.transactions.catalog
+	s.prepared.epoch = auth.Catalog.Epoch()
 	if s.Expected == nil {
 		return nil
 	}
-	valid := e.preparedAnalysisValidLocked(auth, s.Expected.analysis, s.preparedPath)
-	s.preparedInvalid = !valid || s.Expected.planOwner == s.op.session.token && s.Expected.planGeneration != s.op.session.discardPlansGeneration
-	if !s.preparedInvalid {
-		s.preparedReuse = s.Expected.analysis
+	valid := e.preparedAnalysisValidLocked(auth, s.Expected.analysis, s.prepared.path)
+	s.prepared.invalid = !valid || s.Expected.planOwner == s.op.session.token && s.Expected.planGeneration != s.op.session.discardPlansGeneration
+	if !s.prepared.invalid {
+		s.prepared.reuse = s.Expected.analysis
 	}
 	return nil
 }
@@ -108,7 +108,7 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 	if b.viewWrite != nil {
 		target = b.viewWrite.logical.ref
 	}
-	cell := &preparedAnalysis{domain: e.catalog.Domain, epoch: s.preparedEpoch, session: s.op.session.token, private: s.preparedPrivate, path: s.preparedPath, namespace: s.preparedNamespace, target: target, needsReanalysis: s.preparedChangedDuringAdmission}
+	cell := &preparedAnalysis{domain: e.catalog.Domain, epoch: s.prepared.epoch, session: s.op.session.token, private: s.prepared.private, path: s.prepared.path, namespace: s.prepared.namespace, target: target, needsReanalysis: s.prepared.changedDuringAdmission}
 	seen := make(map[ids.ObjectRef]bool)
 	var visit func(ids.ObjectRef) error
 	visit = func(ref ids.ObjectRef) error {
@@ -269,4 +269,18 @@ func (s *StatementScope) validateAdmissionNamesLocked(e *Engine, auth Authorizat
 		}
 	}
 	return nil
+}
+
+// preparedRebind is the statement's prepared-analysis rebind state: the reused
+// analysis and the resolution environment captured before any relation wait.
+// Every SELECT/DML statement and SQL routine body writes it, so it is a value
+// group rather than a pointer slot.
+type preparedRebind struct {
+	reuse                  *preparedAnalysis
+	invalid                bool
+	path                   sequence.Environment
+	namespace              uint64
+	private                *catalogChanges
+	epoch                  ids.CatalogEpoch
+	changedDuringAdmission bool
 }

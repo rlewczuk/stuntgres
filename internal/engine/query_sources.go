@@ -108,8 +108,8 @@ func (s *StatementScope) acquireAdmittedQueryRelations(admission queryLockAdmiss
 		if mark.mode != 0 {
 			selection.Locking = []parser.RowLockClause{{Mode: queryRowClause(mark.mode), Wait: mark.wait}}
 		}
-		if s.preparedReuse != nil {
-			prior, ok := s.preparedReuse.sources[table]
+		if s.prepared.reuse != nil {
+			prior, ok := s.prepared.reuse.sources[table]
 			if !ok || prior.query != admission.retainedQuery(table) {
 				return ids.ErrCatalogReplaced
 			}
