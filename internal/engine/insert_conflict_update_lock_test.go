@@ -124,7 +124,7 @@ func TestInsertConflictUpdateRowRecheck(t *testing.T) {
 		var scope *StatementScope
 		for operation := range worker.operations {
 			if &operation.lockWait == request.Policy.TimeoutSlot {
-				scope = operation.timeoutScope
+				scope = scopeOfLease(operation.lease)
 			}
 		}
 		worker.mu.Unlock()

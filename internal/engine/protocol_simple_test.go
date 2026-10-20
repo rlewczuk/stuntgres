@@ -76,7 +76,7 @@ func TestProtocolSimpleDisposalFence(t *testing.T) {
 	if err := scope.beginProtocolSimplePortal(); err != nil {
 		t.Fatal(err)
 	}
-	if calls != 1 || !rows.Closed || scope.txRef != ref || scope.command != command || owner.ref != ref || owner.command != command || !scope.replacementRead || owner.copyScope != nil {
+	if calls != 1 || !rows.Closed || scope.txRef != ref || scope.command != command || owner.ref != ref || owner.command != command || !scope.replacementRead || owner.copyLease != nil {
 		t.Fatal("disposal changed incarnation, lost fence or retained reservation", calls)
 	}
 	// The same attached owner must support subsequent real output reservation;

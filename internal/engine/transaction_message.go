@@ -14,7 +14,7 @@ func (e *Engine) newStatementScope(op *Operation, t *transactionOwner, start tim
 	if t.retainedMessage && t.messageBorn && t.state == TxIdle {
 		s.transactionStart = time.Now().UTC().Truncate(time.Microsecond)
 	}
-	op.session.startProvisionalTimeout(s)
+	op.session.startProvisionalTimeout(&s.lease, op, s.transactionStart)
 	return s
 }
 
@@ -121,7 +121,7 @@ func (s *StatementScope) ownsMessageScope() bool {
 	}
 	s.op.session.mu.Lock()
 	_, registered := s.op.session.operations[s.op]
-	owned := registered && !s.op.done && s.op.timeoutScope == s
+	owned := registered && !s.op.done && s.op.lease == &s.lease
 	s.op.session.mu.Unlock()
 	return owned
 }

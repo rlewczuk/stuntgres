@@ -266,7 +266,7 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 					}
 					s.mu.Lock()
 					slot := &s.timeouts.transaction
-					if op.timeoutScope != scope || op.sqlFinished || scope.timeoutRef != ref || slot.ref != ref {
+					if op.lease != &scope.lease || op.sqlFinished || scope.lease.TimeoutRef != ref || slot.ref != ref {
 						t.Error("statement callback lacks exact unfinished operation/scope/incarnation authority")
 					}
 					s.expireTimeoutLocked(slot, slot.generation, s.token, "25P04", observed)
@@ -312,7 +312,7 @@ func TestSessionTimeoutPendingLifecycle(t *testing.T) {
 					}
 					s.mu.Lock()
 					slot := &s.timeouts.transaction
-					if op.timeoutScope != scope || op.sqlFinished || scope.timeoutRef != ref || slot.ref != ref {
+					if op.lease != &scope.lease || op.sqlFinished || scope.lease.TimeoutRef != ref || slot.ref != ref {
 						t.Error("lock callback lacks exact unfinished operation/scope/incarnation authority")
 					}
 					s.expireTimeoutLocked(slot, slot.generation, s.token, "25P04", observed)
@@ -505,7 +505,7 @@ func TestSessionTimeoutResidualBeforeStatement(t *testing.T) {
 			op.lockWait.Request() != request {
 			t.Fatalf("active mutation lost exact queue/owner/mode: %#v", state)
 		}
-		if scope.timeoutRef != ref || scope.txRef != ref {
+		if scope.lease.TimeoutRef != ref || scope.txRef != ref {
 			t.Fatal("queued mutation lost original transaction incarnation")
 		}
 		time.Sleep(199 * time.Millisecond)

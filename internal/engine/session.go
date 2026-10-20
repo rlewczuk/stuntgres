@@ -128,7 +128,7 @@ type Operation struct {
 	commandAdmission   bool
 	sqlActivity        bool
 	sqlFinished        bool // Session.mu: ERROR/completion fence, not transaction state
-	timeoutScope       *StatementScope
+	lease              *StatementLease
 	definition         catalog.DefinitionReader // Scoped once-only DDL cooking, restored before evaluation.
 	lockWait           lock.TimeoutSlot         // queued lock request's SQL-deadline projection
 	nonstandardStrings bool

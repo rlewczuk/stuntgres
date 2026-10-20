@@ -64,7 +64,7 @@ func TestProtocolCopyQuerySignatureScope(t *testing.T) {
 				t.Fatal("COPY left borrowed preparation or producer authority attached")
 			}
 			if !test.innerError {
-				if lease == nil || scope.owner.copyDone != lease || scope.owner.copyScope != scope {
+				if lease == nil || scope.owner.copyDone != lease || scope.owner.copyLease != &scope.lease {
 					t.Fatal("query disposal replaced or released COPY's active reservation")
 				}
 				select {

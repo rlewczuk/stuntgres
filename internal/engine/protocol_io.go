@@ -6,7 +6,7 @@ import "errors"
 // output. A logical reservation prevents owner mutation until the callback ends.
 // It is valid after Finish but before NextStatement/FinishMessage.
 func (s *StatementScope) ProtocolOutput(write func() error) (err error) {
-	if s == nil || s.self != s || !s.finished || !s.message || s.messageEnded || !s.ownsMessageScope() || s.owner.copyScope != nil {
+	if s == nil || s.self != s || !s.finished || !s.message || s.messageEnded || !s.ownsMessageScope() || s.owner.copyLease != nil {
 		return errors.New("stuntgres: inactive protocol output admission")
 	}
 	err = s.protocolTerminalIO(write)
@@ -19,13 +19,13 @@ func (s *StatementScope) ProtocolOutput(write func() error) (err error) {
 // Terminal cleanup must run even after cancellation. This reserves only owner
 // lifetime: it does not resume an executor or authorize publication afterward.
 func (s *StatementScope) protocolTerminalIO(call func() error) error {
-	if s == nil || s.self != s || s.owner.copyScope != nil && s.owner.copyScope != s {
+	if s == nil || s.self != s || s.owner.copyLease != nil && s.owner.copyLease != &s.lease {
 		return errors.New("stuntgres: invalid protocol terminal reservation")
 	}
 	t := s.owner
-	borrowed := t.copyScope == s
+	borrowed := t.copyLease == &s.lease
 	if !borrowed {
-		t.copyScope, t.copyDone = s, make(chan struct{})
+		t.copyLease, t.copyDone = &s.lease, make(chan struct{})
 	}
 	e := s.op.session.Engine()
 	fenced := s.replacementRead

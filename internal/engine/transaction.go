@@ -50,7 +50,7 @@ type EndResult struct{ Committed bool }
 type transactionOwner struct {
 	ids.TxOwnerMarker
 	admission       sync.Mutex
-	copyScope       *StatementScope
+	copyLease       *StatementLease // the statement holding the COPY reservation
 	copyDone        chan struct{}
 	ticket          *lock.Ticket
 	mu              sync.Mutex
@@ -317,7 +317,7 @@ type StatementScope struct {
 	routinePrograms       []commandRoutineProgram // Consumed command graphs; same admission lease as exec.Authority.
 	statementStart        time.Time
 	transactionStart      time.Time
-	timeoutRef            ids.TxRef // admission projection for preparse ERROR timer retirement
+	lease                 StatementLease // identity for session-layer state; never copied on purpose
 	output                sqltype.OutputEnvironment
 	initialParameters     []sqltype.Usage
 	activeSQLRoutineDepth int                         // Root invocation owner; never saved/reset as lexical scratch.
@@ -378,6 +378,7 @@ func (e *Engine) StartStatement(op *Operation) (*StatementScope, error) {
 func newStatementScope(op *Operation, owner *transactionOwner, start time.Time) *StatementScope {
 	s := &StatementScope{owner: owner, op: op, statementStart: start}
 	s.self = s
+	s.lease.Statement = s
 	s.stage.scope = s
 	s.stage.self = &s.stage
 	s.input, s.output = sessionPresentation(op.session)

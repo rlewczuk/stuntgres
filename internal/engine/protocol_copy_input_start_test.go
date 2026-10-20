@@ -61,7 +61,7 @@ func TestProtocolCopyInputStartOwnership(t *testing.T) {
 			if finish := scope.Finish(err); finish == nil {
 				t.Fatal("failed COPY finished successfully")
 			}
-			if scope.owner.copyScope != nil {
+			if scope.owner.copyLease != nil {
 				t.Fatal("failed COPY retained reservation")
 			}
 		})

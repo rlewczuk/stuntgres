@@ -16,7 +16,7 @@ type sessionTimeout struct {
 	timer      *time.Timer
 	generation uint64
 	deadline   time.Time
-	scope      *StatementScope
+	lease      *StatementLease
 	ref        ids.TxRef
 }
 
@@ -39,7 +39,7 @@ func (slot *sessionTimeout) stop() {
 		slot.timer = nil
 	}
 	slot.deadline = time.Time{}
-	slot.scope = nil
+	slot.lease = nil
 	slot.ref = ids.TxRef{}
 }
 
@@ -75,14 +75,14 @@ func (s *Session) expireTimeoutLocked(slot *sessionTimeout, generation uint64, t
 		if s.timeouts.transactionLimit == 0 {
 			return
 		}
-		if slot.scope == nil && (slot.ref == (ids.TxRef{}) || slot.ref != s.timeouts.authority) {
+		if slot.lease == nil && (slot.ref == (ids.TxRef{}) || slot.ref != s.timeouts.authority) {
 			return
 		}
 		// Released ProcessInterrupts handles already-pending statement ERROR
 		// before session FATAL. ERROR recovery will keep this budget stopped.
 		for op := range s.operations {
-			scope := op.timeoutScope
-			if scope != nil && !op.sqlFinished && (slot.scope == scope || (slot.ref != (ids.TxRef{}) && scope.timeoutRef == slot.ref)) &&
+			lease := op.lease
+			if lease != nil && !op.sqlFinished && (slot.lease == lease || (slot.ref != (ids.TxRef{}) && lease.TimeoutRef == slot.ref)) &&
 				(op.lockWait.Pending(now) || (!op.statementDeadline.IsZero() && !now.Before(op.statementDeadline)) ||
 					errors.Is(context.Cause(op.ctx), statementTimeoutCause)) {
 				slot.stop()
@@ -157,18 +157,20 @@ func (s *Session) publishTimeoutSettingsLocked(settings *sessionSettings, assign
 	}
 }
 
-func (s *Session) startProvisionalTimeout(scope *StatementScope) {
+// startProvisionalTimeout makes lease op's current statement and, before a
+// transaction is born, arms the transaction timeout from transactionStart.
+func (s *Session) startProvisionalTimeout(lease *StatementLease, op *Operation, transactionStart time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	scope.timeoutRef = s.timeouts.authority
-	if scope.op != nil {
-		scope.op.timeoutScope = scope
+	lease.TimeoutRef = s.timeouts.authority
+	if op != nil {
+		op.lease = lease
 	}
 	if s.state != live || s.timeouts.authority != (ids.TxRef{}) || s.timeouts.transactionLimit == 0 {
 		return
 	}
-	s.timeouts.transaction.scope = scope
-	s.armTimeoutLocked(&s.timeouts.transaction, scope.transactionStart.Add(s.timeouts.transactionLimit), "25P04")
+	s.timeouts.transaction.lease = lease
+	s.armTimeoutLocked(&s.timeouts.transaction, transactionStart.Add(s.timeouts.transactionLimit), "25P04")
 }
 
 // Called under Session.mu at canonical birth; adopting the provisional slot
@@ -176,9 +178,9 @@ func (s *Session) startProvisionalTimeout(scope *StatementScope) {
 func (s *Session) beginTimeoutLocked(ref ids.TxRef, explicit bool, now time.Time) {
 	s.timeouts.authority, s.timeouts.explicit = ref, explicit
 	slot := &s.timeouts.transaction
-	if slot.scope != nil && !slot.deadline.IsZero() {
-		slot.scope.timeoutRef = ref
-		slot.scope, slot.ref = nil, ref
+	if slot.lease != nil && !slot.deadline.IsZero() {
+		slot.lease.TimeoutRef = ref
+		slot.lease, slot.ref = nil, ref
 		return
 	}
 	slot.stop()
@@ -198,15 +200,19 @@ func (s *Session) retireTransactionTimeout() {
 	defer s.mu.Unlock()
 	s.retireTransactionTimeoutLocked()
 }
-func (s *Session) finishScopeTimeout(scope *StatementScope, failed bool) {
+
+// finishScopeTimeout ends lease's statement timeout state. op, message and
+// txRef are the finishing statement's operation, message flag and
+// transaction.
+func (s *Session) finishScopeTimeout(lease *StatementLease, op *Operation, message bool, txRef ids.TxRef, failed bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	slot := &s.timeouts.transaction
-	if scope.op != nil && scope.op.timeoutScope == scope {
-		scope.op.sqlFinished = !scope.message
-		scope.op.lockWait.Reset()
+	if op != nil && op.lease == lease {
+		op.sqlFinished = !message
+		op.lockWait.Reset()
 	}
-	if slot.scope == scope || (failed && slot.ref != (ids.TxRef{}) && (slot.ref == scope.timeoutRef || slot.ref == scope.txRef)) {
+	if slot.lease == lease || (failed && slot.ref != (ids.TxRef{}) && (slot.ref == lease.TimeoutRef || slot.ref == txRef)) {
 		slot.stop()
 	}
 }

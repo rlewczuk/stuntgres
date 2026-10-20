@@ -176,7 +176,7 @@ func copyOwnerReservation(t *testing.T, format copyFormat) {
 				t.Fatal(err)
 			}
 			scope.owner.admission.Lock()
-			reserved := scope.owner.copyScope != nil
+			reserved := scope.owner.copyLease != nil
 			scope.owner.admission.Unlock()
 			if reserved {
 				t.Fatal("reservation leaked")
@@ -243,7 +243,7 @@ func copyReplacement(t *testing.T, format copyFormat) {
 			if err := <-done; !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("COPY rebound replacement", err)
 			}
-			if scope.stage.rows != nil || scope.owner.copyScope != nil {
+			if scope.stage.rows != nil || scope.owner.copyLease != nil {
 				t.Fatal("replacement retained COPY stage/reservation")
 			}
 			deleteReplacementAdmissionEmpty(t, e)
@@ -308,7 +308,7 @@ func TestCopyTextPanicCleanup(t *testing.T) {
 		}()
 		_, _ = scope.Copy(copyUnitSyntax(), reader, nil)
 	}()
-	if scope.owner.copyScope != nil || scope.stage.rows != nil {
+	if scope.owner.copyLease != nil || scope.stage.rows != nil {
 		t.Fatal("panic leaked reservation/private rows")
 	}
 	deleteReplacementAdmissionEmpty(t, e)
@@ -325,7 +325,7 @@ func TestCopyTextCopiedReservation(t *testing.T) {
 	}
 	copied := *scope
 	copied.releaseCopyReservation()
-	if scope.owner.copyScope != scope {
+	if scope.owner.copyLease != &scope.lease {
 		t.Fatal("copied scope released reservation")
 	}
 	if _, err := copied.copyIO(func() (int, error) { t.Fatal("copied scope invoked I/O"); return 0, nil }); err == nil {
@@ -375,7 +375,7 @@ func copyFinalCancellationVeto(t *testing.T, csv bool) {
 	if rows.Count != 0 {
 		t.Fatal("canceled COPY published rows", rows.Count)
 	}
-	if scope.stage.rows != nil || scope.owner.copyScope != nil {
+	if scope.stage.rows != nil || scope.owner.copyLease != nil {
 		t.Fatal("final cancellation leaked COPY stage")
 	}
 }
@@ -531,7 +531,7 @@ func TestCopyTextOutputReplacement(t *testing.T) {
 			if err = <-done; !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal("output rebound replaced catalog", err)
 			}
-			if scope.owner.copyScope != nil {
+			if scope.owner.copyLease != nil {
 				t.Fatal("output replacement reservation leaked")
 			}
 			deleteReplacementAdmissionEmpty(t, e)
@@ -612,7 +612,7 @@ func copyTimeoutTest(t *testing.T, csv bool) {
 			if *record != want {
 				t.Fatalf("timeout diagnostic: %#v", record)
 			}
-			if scope.owner.copyScope != nil || scope.stage.rows != nil {
+			if scope.owner.copyLease != nil || scope.stage.rows != nil {
 				t.Fatal("timeout leaked COPY reservation/stage")
 			}
 			if setting == "transaction_timeout" {

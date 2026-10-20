@@ -304,7 +304,7 @@ func (e *Engine) stageMessageCatalog(op *Operation, p *PreparedCatalogPublicatio
 		return ChangeSet{}, fmt.Errorf("stuntgres: invalid catalog publication")
 	}
 	op.session.mu.Lock()
-	scope := op.timeoutScope
+	scope := scopeOfLease(op.lease)
 	op.session.mu.Unlock()
 	if scope == nil || scope.op != op || scope.owner != op.session.transactions || !scope.ownsMessageScope() || !scope.owner.retainsTransaction() {
 		return ChangeSet{}, fmt.Errorf("stuntgres: missing message scope")

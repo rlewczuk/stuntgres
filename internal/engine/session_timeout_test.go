@@ -64,7 +64,7 @@ func TestSessionTimeoutGenerationMechanics(t *testing.T) {
 	now := time.Now()
 	timeoutMechanicsSettings(s, time.Hour, 0, 0, false, now)
 	scope := &StatementScope{statementStart: now, transactionStart: now}
-	s.startProvisionalTimeout(scope)
+	s.startProvisionalTimeout(&scope.lease, scope.op, scope.transactionStart)
 	s.transactions.mu.Lock()
 	if s.transactions.next != 0 || s.transactions.state != TxIdle {
 		t.Error("provisional budget minted transaction state")
@@ -75,7 +75,7 @@ func TestSessionTimeoutGenerationMechanics(t *testing.T) {
 	deadline, generation := slot.deadline, slot.generation
 	first := timeoutMechanicsRef(s, 1)
 	s.beginTimeoutLocked(first, true, now.Add(time.Minute))
-	if slot.scope != nil || slot.ref != first || slot.deadline != deadline || slot.generation != generation {
+	if slot.lease != nil || slot.ref != first || slot.deadline != deadline || slot.generation != generation {
 		t.Error("transaction birth did not adopt the same provisional budget")
 	}
 	foreign := s.token
@@ -153,7 +153,7 @@ func TestSessionTimeoutAssignmentMechanics(t *testing.T) {
 		t.Error("explicit assignment did not rearm stopped budget")
 	}
 	s.mu.Unlock()
-	s.finishScopeTimeout(&StatementScope{timeoutRef: timeoutMechanicsRef(s, 1)}, true)
+	s.finishScopeTimeout(&StatementLease{TimeoutRef: timeoutMechanicsRef(s, 1)}, nil, false, ids.TxRef{}, true)
 	timeoutMechanicsSettings(s, time.Hour, 0, 0, false, now.Add(3*time.Minute))
 	s.mu.Lock()
 	if !s.timeouts.transaction.deadline.IsZero() {
@@ -165,7 +165,7 @@ func TestSessionTimeoutAssignmentMechanics(t *testing.T) {
 		t.Error("next incarnation did not receive a fresh restored budget")
 	}
 	s.mu.Unlock()
-	s.finishScopeTimeout(&StatementScope{timeoutRef: timeoutMechanicsRef(s, 1)}, true)
+	s.finishScopeTimeout(&StatementLease{TimeoutRef: timeoutMechanicsRef(s, 1)}, nil, false, ids.TxRef{}, true)
 	s.mu.Lock()
 	if s.timeouts.transaction.deadline != now.Add(4*time.Minute+time.Hour) {
 		t.Error("late previous scope stopped the new CHAIN budget")
@@ -276,14 +276,14 @@ func TestSessionTimeoutPendingOrderMechanics(t *testing.T) {
 			now := time.Now()
 			timeoutMechanicsSettings(s, time.Hour, 0, 0, false, now)
 			scope := &StatementScope{op: op, statementStart: now, transactionStart: now}
-			s.startProvisionalTimeout(scope)
+			s.startProvisionalTimeout(&scope.lease, scope.op, scope.transactionStart)
 			timed, expireStatement := context.WithCancelCause(op.ctx)
 			s.mu.Lock()
 			op.ctx = timed
 			s.beginTimeoutLocked(timeoutMechanicsRef(s, 1), true, now)
 			s.mu.Unlock()
 			if completed {
-				s.finishScopeTimeout(scope, false)
+				s.finishScopeTimeout(&scope.lease, scope.op, scope.message, scope.txRef, false)
 			}
 			expireStatement(statementTimeoutCause)
 			s.mu.Lock()
@@ -361,7 +361,7 @@ func TestSessionTimeoutNoBirthFinishMechanics(t *testing.T) {
 			}
 			s.mu.Lock()
 			generation, deadline := s.timeouts.transaction.generation, s.timeouts.transaction.deadline
-			if s.timeouts.transaction.scope != scope || deadline.IsZero() {
+			if s.timeouts.transaction.lease != &scope.lease || deadline.IsZero() {
 				t.Error("missing preparse scope budget")
 			}
 			s.mu.Unlock()

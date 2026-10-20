@@ -14,7 +14,7 @@ func (t *transactionOwner) acquireAdmission(ctx context.Context, op *Operation) 
 	waited := false
 	for {
 		t.admission.Lock()
-		if t.copyScope == nil {
+		if t.copyLease == nil {
 			if waited && op != nil {
 				if err := t.session.Engine().validateOperation(op); err != nil {
 					t.admission.Unlock()
@@ -37,23 +37,23 @@ func (s *StatementScope) reserveCopy() error {
 	if err := s.active(); err != nil {
 		return err
 	}
-	if s.owner.copyScope != nil {
+	if s.owner.copyLease != nil {
 		return errors.New("stuntgres: COPY owner is already reserved")
 	}
-	s.owner.copyScope = s
+	s.owner.copyLease = &s.lease
 	s.owner.copyDone = make(chan struct{})
 	return nil
 }
 func (s *StatementScope) releaseCopyReservation() {
-	if s.self == s && s.owner.copyScope == s {
+	if s.self == s && s.owner.copyLease == &s.lease {
 		done := s.owner.copyDone
-		s.owner.copyScope = nil
+		s.owner.copyLease = nil
 		s.owner.copyDone = nil
 		close(done)
 	}
 }
 func (s *StatementScope) copyIO(call func() (int, error)) (n int, err error) {
-	if s == nil || s.self != s || s.finished || s.owner.copyScope != s {
+	if s == nil || s.self != s || s.finished || s.owner.copyLease != &s.lease {
 		return 0, errors.New("stuntgres: invalid COPY reservation")
 	}
 	if err = s.active(); err != nil {
@@ -73,7 +73,7 @@ func (s *StatementScope) copyIO(call func() (int, error)) (n int, err error) {
 			s.replacementRead = true
 		}
 		resume := s.active()
-		if resume == nil && s.owner.copyScope != s {
+		if resume == nil && s.owner.copyLease != &s.lease {
 			resume = errors.New("stuntgres: lost COPY reservation")
 		}
 		s.owner.mu.Lock()
