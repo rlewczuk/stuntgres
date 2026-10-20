@@ -57,7 +57,7 @@ func openJoinNode(ctx context.Context, state *queryState, n *plan.JoinNode) (ind
 	// other operand yields no candidate; this does not produce either child.
 	if n.Predicate != nil {
 		evaluation := state.evaluation(ctx)
-		predicate, changed, err := preflightCoercions(&evaluation, n.Predicate)
+		predicate, changed, err := preparation.PreflightCoercions(&evaluation, n.Predicate)
 		if err != nil {
 			return indexedStage{}, err
 		}

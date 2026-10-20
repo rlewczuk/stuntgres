@@ -98,6 +98,12 @@ func (c *EvalContext) CheckDomain(ctx context.Context, target *sqltype.Descripto
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	return preparation.CheckDomain(ctx, c, target, candidate)
+}
+
+// CheckDomain prepares the domain's CHECK programme for the context's phase
+// and evaluates it. The context may have no statement scope (DDL admission).
+func (enginePreparation) CheckDomain(ctx context.Context, c *EvalContext, target *sqltype.Descriptor, candidate sqltype.Value) error {
 	view := c.domainCatalog()
 	if view.State() == nil {
 		return fmt.Errorf("stuntgres: missing domain CHECK catalog")
