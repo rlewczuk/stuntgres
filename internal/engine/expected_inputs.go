@@ -34,8 +34,8 @@ func expectedOf(d *StatementDescription) analyze.Expected {
 // checkExpectedLifetime applies the held signature check to a catalog owner
 // or epoch replacement of the held description.
 func checkExpectedLifetime(e analyze.Expected, owner *catalog.Owner, epoch ids.CatalogEpoch) error {
-	expected := StatementDescription{Parameters: e.Parameters, Results: e.Results, catalogOwner: e.CatalogOwner, catalogEpoch: e.CatalogEpoch}
+	expected := statementSignature{parameters: e.Parameters, results: e.Results, owner: e.CatalogOwner, epoch: e.CatalogEpoch}
 	actual := expected
-	actual.catalogOwner, actual.catalogEpoch = owner, epoch
-	return checkStatementSignature(expected, actual)
+	actual.owner, actual.epoch = owner, epoch
+	return checkSignature(expected, actual)
 }
