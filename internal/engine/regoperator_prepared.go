@@ -24,7 +24,7 @@ func (b *expressionBinder) operatorConstant(text string, typ *sqltype.Descriptor
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		input, err := b.engine.captureOperatorInput(auth, b.op)
+		input, err := b.host.CaptureOperatorInput(auth)
 		if err != nil {
 			return sqltype.Value{}, err
 		}

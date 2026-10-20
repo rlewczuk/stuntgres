@@ -62,11 +62,11 @@ func (b *expressionBinder) completeFunctionDefinitions(raw parser.FunctionExpr, 
 // Both record providers resolve members through the same captured input
 // authority. Duplicate-name ordering remains with each provider's member loop.
 func (b *expressionBinder) resolveFunctionColumnUsage(definition parser.FunctionColumnDefinition, unknownNull bool) (sqltype.Usage, error) {
-	u, err := b.engine.resolveAnnotationType(definition.Type, b.op, unknownNull)
+	u, err := b.host.ResolveAnnotationType(definition.Type, unknownNull)
 	if err != nil {
 		return sqltype.Usage{}, err
 	}
-	u, err = b.engine.resolveColumnCollation(u, definition.Collation, b.op)
+	u, err = b.host.ResolveColumnCollation(u, definition.Collation)
 	if err != nil {
 		return sqltype.Usage{}, err
 	}

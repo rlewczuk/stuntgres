@@ -30,7 +30,7 @@ func collationDisplayName(view catalog.Read, id uint32, path []ids.ObjectAddress
 }
 
 func (b *expressionBinder) collationName(id uint32) string {
-	view := b.engine.catalog.read(b.engine.catalog.state)
+	view := b.host.CurrentCatalog()
 	if b.query.auth != nil {
 		view = b.query.auth.Catalog
 	}

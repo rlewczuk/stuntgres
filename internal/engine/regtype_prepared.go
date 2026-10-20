@@ -146,7 +146,7 @@ func (b *expressionBinder) regtypeConstant(text string, pos parser.Position) (sq
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		input, err := b.engine.captureRegtypeInput(auth, b.op)
+		input, err := b.host.CaptureRegtypeInput(auth)
 		if err != nil {
 			return sqltype.Value{}, err
 		}

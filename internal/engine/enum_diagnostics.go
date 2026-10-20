@@ -29,7 +29,7 @@ func (b *expressionBinder) diagnosticTypeName(typ *sqltype.Descriptor) string {
 	if !ok {
 		return typ.DiagnosticName()
 	}
-	path, err := b.engine.referencePath(auth)
+	path, err := b.host.ReferencePath(auth)
 	if err != nil {
 		return typ.DiagnosticName()
 	}
@@ -82,7 +82,7 @@ func (e *Engine) captureEnumOperationInput(auth AuthorizationView, input *sqltyp
 
 func (b *expressionBinder) captureTypeDiagnosticInput(typ *sqltype.Descriptor) error {
 	if sqltype.IsFTS(typ.BaseType().ID()) && b.input.FTS == nil {
-		b.input.FTS = capturedFTSInput{op: b.op}
+		b.input.FTS = b.host.FTSInput()
 	}
 	acl := typ.ContainsACLItem() && b.input.ACLItem == nil
 	naming := b.input.TypeDiagnosticName == nil && needsTypeDiagnosticInput(typ)
@@ -93,7 +93,7 @@ func (b *expressionBinder) captureTypeDiagnosticInput(typ *sqltype.Descriptor) e
 	if err != nil {
 		return err
 	}
-	return b.engine.captureTypeDiagnosticInput(auth, b.op, &b.input, typ)
+	return b.host.CaptureTypeDiagnosticInput(auth, &b.input, typ)
 }
 
 func (e *Engine) captureTypeDiagnosticInput(auth AuthorizationView, op *Operation, input *sqltype.InputEnvironment, typ *sqltype.Descriptor) error {
@@ -121,7 +121,7 @@ func (b *expressionBinder) captureComparisonDiagnosticInput(typ *sqltype.Descrip
 	if err != nil {
 		return err
 	}
-	b.input.TypeDiagnosticName, err = b.engine.captureTypeDiagnosticName(auth)
+	b.input.TypeDiagnosticName, err = b.host.CaptureTypeDiagnosticName(auth)
 	return err
 }
 

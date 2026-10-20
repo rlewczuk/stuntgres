@@ -52,7 +52,7 @@ func (b *expressionBinder) sqlFunctionCastShortcut(raw parser.CastExpr, operand 
 	// An unresolved external Param does not take the unknown-literal shortcut.
 	// Exact typed functions won already; literal/IO/relabel casts precede the
 	// ordinary implicit/unknown best-match phase (PostgreSQL10.3 step3).
-	target, err := b.engine.resolveAnnotationType(raw.TypeName, b.op, false)
+	target, err := b.host.ResolveAnnotationType(raw.TypeName, false)
 	if err != nil {
 		return false
 	}

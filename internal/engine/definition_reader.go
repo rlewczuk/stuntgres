@@ -167,8 +167,8 @@ func (a AuthorizationView) definitionNamespace(address ids.ObjectAddress) (*cata
 }
 
 func (b *expressionBinder) definitionReader() definitionReader {
-	if b.op != nil && b.op.definition != nil {
-		return b.op.definition
+	if definition := b.host.Definition(); definition != nil {
+		return definition
 	}
 	if b.query.auth != nil {
 		return b.query.auth.definition

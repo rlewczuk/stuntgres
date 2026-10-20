@@ -41,12 +41,12 @@ func (b *expressionBinder) bindRegclass(raw parser.Expr) (expr.Expr, ids.ObjectR
 		if !found {
 			// Resolve only uncaptured literals; held constants retain their exact
 			// provider identity rather than following a later name replacement.
-			ref, err = b.engine.regclassLocked(auth, literal.Value.Text)
+			ref, err = b.host.Regclass(auth, literal.Value.Text)
 			if err != nil {
 				return nil, ref, sequenceInputError(err, literal.Value.Pos, "", 0)
 			}
 			if d, ok := auth.definitionRelation(ref.Address); ok {
-				if ns, ok := auth.definitionNamespace(d.Namespace()); ok && ns.Temporary == b.op.session.token {
+				if ns, ok := auth.definitionNamespace(d.Namespace()); ok && ns.Temporary == bindingSessionToken(b.host) {
 					temporary = ns.Temporary
 				}
 			}

@@ -397,7 +397,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 				}
 			}
 		}
-		ref, err := b.engine.admittedReference(*b.query.auth, n.Name, b.query.lockAdmission.tableQueries[n].ref)
+		ref, err := b.host.AdmittedReference(*b.query.auth, n.Name, b.query.lockAdmission.tableQueries[n].ref)
 		if err != nil {
 			return nil, queryNamespace{}, futureCTEError(err, b.query.lockAdmission.futureCTE[n])
 		}
@@ -419,7 +419,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			}
 		}
 		leaf := len(b.query.sources)
-		b.query.sources = append(b.query.sources, queryLeaf{ref: ref, relation: relation, only: n.Only, storage: b.engine.authorizationStorageLocked(*b.query.auth, ref.Address), mark: b.query.lockAdmission.tableMark(n), table: n, query: b.query.lockAdmission.tableQueries[n].query, deleteReference: b.target.deleteUsingSources && len(b.query.scopes) == 0})
+		b.query.sources = append(b.query.sources, queryLeaf{ref: ref, relation: relation, only: n.Only, storage: b.host.AuthorizationStorage(*b.query.auth, ref.Address), mark: b.query.lockAdmission.tableMark(n), table: n, query: b.query.lockAdmission.tableQueries[n].query, deleteReference: b.target.deleteUsingSources && len(b.query.scopes) == 0})
 		columns := make([]queryColumn, len(relation.Columns))
 		for i, c := range relation.Columns {
 			columns[i] = queryColumn{descriptor: c, slot: i, leaf: leaf, physical: i}

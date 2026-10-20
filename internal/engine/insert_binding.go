@@ -119,7 +119,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 			// Analyze source occurrences once before destination types constrain
 			// shared parameters. Unknown literals retain destination authority.
 			for j, v := range row {
-				if captured, handled, err := b.capturedDomainReplayCell(binder.op, s, rowIndex, j); handled || err != nil {
+				if captured, handled, err := binder.host.ReplayDomainCell(b, s, rowIndex, j); handled || err != nil {
 					if err != nil {
 						return err
 					}
@@ -178,7 +178,7 @@ func (e *Engine) bindInsertInput(b *binding, binder *expressionBinder, auth Auth
 			}
 			var plan expr.Expr
 			var err error
-			if captured, handled, captureErr := b.capturedDomainReplayCell(binder.op, s, rowIndex, j); handled || captureErr != nil {
+			if captured, handled, captureErr := binder.host.ReplayDomainCell(b, s, rowIndex, j); handled || captureErr != nil {
 				plan, err = captured, captureErr
 			} else if expanded != nil && expanded[j] != nil {
 				plan, err = binder.assignOutput(expanded[j], c)

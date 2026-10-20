@@ -977,12 +977,12 @@ func (b *expressionBinder) seedParameters(types []sqltype.Usage) {
 func (b *expressionBinder) bindingAuthorization() (AuthorizationView, error) {
 	if b.query.auth != nil {
 		auth := *b.query.auth
-		if b.op != nil && b.op.definition != nil {
-			auth.definition = b.op.definition
+		if definition := b.host.Definition(); definition != nil {
+			auth.definition = definition
 		}
 		return auth, nil
 	}
-	return b.engine.authorizationLocked(b.op)
+	return b.host.Authorization()
 }
 func (b *expressionBinder) typ(id sqltype.ID) *sqltype.Descriptor {
 	d, _ := b.definitionType(id)
@@ -1000,7 +1000,7 @@ func (b *expressionBinder) bindingCatalog() catalog.Read {
 	if b.query.auth != nil {
 		return b.query.auth.Catalog
 	}
-	return b.engine.catalog.read(b.engine.catalog.state)
+	return b.host.CurrentCatalog()
 }
 
 func (b *expressionBinder) info(u sqltype.Usage, pos parser.Position, p expr.Properties) expr.Info {
@@ -1010,11 +1010,11 @@ func (b *expressionBinder) info(u sqltype.Usage, pos parser.Position, p expr.Pro
 	if descriptor, ok := b.definitionDescriptor(address); ok {
 		revision = descriptor.Revision()
 	}
-	b.dependency(b.engine.catalog.Domain.Ref(view.Epoch(), address), revision)
+	b.dependency(b.host.CatalogOwner().Domain.Ref(view.Epoch(), address), revision)
 	if u.Collation.ID != 0 {
 		address := ids.ObjectAddress{ClassID: ids.CollationClassID, ObjectID: ids.OID(u.Collation.ID)}
 		if d, ok := b.definitionDescriptor(address); ok {
-			b.dependency(b.engine.catalog.Domain.Ref(view.Epoch(), address), d.Revision())
+			b.dependency(b.host.CatalogOwner().Domain.Ref(view.Epoch(), address), d.Revision())
 		}
 	}
 	return expr.Info{Usage: u, Pos: pos, Property: p}
@@ -1320,8 +1320,8 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			}
 			// A held description already analyzed this syntax. Execute must
 			// still bind fresh descriptors and evaluate fresh values.
-			if warning != nil && b.op != nil && b.expected == nil {
-				b.op.emitNotice(levelWarning, *warning)
+			if warning != nil && b.expected == nil {
+				b.host.EmitWarning(*warning)
 			}
 		case parser.ForbiddenGenerationExpr:
 			return nil, expr.ErrorAt(r.Code, r.Message, r.Pos)
@@ -1637,7 +1637,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				}
 				address := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: ids.OID(oid)}
 				if descriptor, exists := auth.Catalog.Descriptor(address); exists {
-					b.dependency(b.engine.catalog.Domain.Ref(auth.Catalog.Epoch(), address), descriptor.Revision())
+					b.dependency(b.host.CatalogOwner().Domain.Ref(auth.Catalog.Epoch(), address), descriptor.Revision())
 				}
 			}
 		case parser.TypedLiteralExpr:
@@ -1649,7 +1649,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			if found {
 				rawType.Modifiers = nil
 			}
-			u, err := b.engine.resolveType(rawType, b.op)
+			u, err := b.host.ResolveType(rawType)
 			if err != nil {
 				return nil, err
 			}
@@ -1699,7 +1699,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			name := r.Name
 			name.Parts = append([]parser.Identifier(nil), name.Parts...)
 			name.Parts[0].Pos = r.Pos
-			usage, err := b.engine.resolveColumnCollation(child.ResultUsage(), &name, b.op)
+			usage, err := b.host.ResolveColumnCollation(child.ResultUsage(), &name)
 			if err != nil {
 				return nil, err
 			}
@@ -1895,11 +1895,11 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		}
 	}
 	if outerPolicy.thresholdArrayInput {
-		target, err = b.engine.resolveAnnotationTypeInput(annotation, b.op, unknownNull, false, false, false, true)
+		target, err = b.host.ResolveAnnotationTypeInput(annotation, unknownNull, false, false, false, true)
 	} else if outerPolicy.stringInput {
-		target, err = b.engine.resolveStringAnnotationType(annotation, b.op, unknownNull)
+		target, err = b.host.ResolveStringAnnotationType(annotation, unknownNull)
 	} else {
-		target, err = b.engine.resolveAnnotationType(annotation, b.op, unknownNull)
+		target, err = b.host.ResolveAnnotationType(annotation, unknownNull)
 	}
 	if err != nil {
 		return nil, err
@@ -2215,7 +2215,11 @@ func literalInputError(err error, raw parser.LiteralExpr) error {
 // Full analysis invalidation recollects temporal scalar/array captures while the
 // candidate still supplies fixed signatures and immutable native logical values.
 func (b *expressionBinder) collectTemporalConstants() bool {
-	return b.expected == nil || b.expected.refreshTemporals || b.op != nil && b.expected.planOwner == b.op.session.token && b.expected.planGeneration != b.op.session.discardPlansGeneration
+	if b.expected == nil || b.expected.refreshTemporals {
+		return true
+	}
+	owner, generation, ok := b.host.PlanOwner()
+	return ok && b.expected.planOwner == owner && b.expected.planGeneration != generation
 }
 
 // Explicit typed literals use this only to discover their frozen modifier
@@ -2411,7 +2415,7 @@ func (b *expressionBinder) captureElementInput() error {
 	if err != nil {
 		return err
 	}
-	return b.engine.captureElementInput(auth, b.op, &b.input)
+	return b.host.CaptureElementInput(auth, &b.input)
 }
 
 // Capture recursive catalog input from one coherent authorization snapshot.
@@ -2661,11 +2665,11 @@ func (b *expressionBinder) comparisonOperandPolicy(raw parser.Expr, policy expre
 		var target sqltype.Usage
 		var err error
 		if policy.thresholdArrayInput {
-			target, err = b.engine.resolveAnnotationTypeInput(annotation.TypeName, b.op, true, false, false, false, true)
+			target, err = b.host.ResolveAnnotationTypeInput(annotation.TypeName, true, false, false, false, true)
 		} else if policy.stringInput {
-			target, err = b.engine.resolveStringAnnotationType(annotation.TypeName, b.op, true)
+			target, err = b.host.ResolveStringAnnotationType(annotation.TypeName, true)
 		} else {
-			target, err = b.engine.resolveAnnotationType(annotation.TypeName, b.op, true)
+			target, err = b.host.ResolveAnnotationType(annotation.TypeName, true)
 		}
 		if err != nil {
 			return comparisonOperand{}, err

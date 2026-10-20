@@ -225,7 +225,7 @@ func (b *expressionBinder) builtinVisible(name parser.ObjectName, kind lookupKin
 	if err != nil {
 		return false, err
 	}
-	path, err := b.engine.lookupNamespaces(auth, name, kind)
+	path, err := b.host.LookupNamespaces(auth, name, kind)
 	if err != nil {
 		return false, err
 	}

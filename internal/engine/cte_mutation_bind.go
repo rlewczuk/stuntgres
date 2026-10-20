@@ -14,7 +14,6 @@ import (
 // Parameter finishing, dependencies and source occurrence ordinals stay outer.
 func (e *Engine) bindMutationCommand(binder *expressionBinder, auth AuthorizationView, requiredRef ids.ObjectRef, statement parser.Statement) (binding, error) {
 	b := binding{}
-	op := binder.op
 	switch s := statement.(type) {
 	case *parser.Insert:
 		var err error
@@ -38,7 +37,7 @@ func (e *Engine) bindMutationCommand(binder *expressionBinder, auth Authorizatio
 			binder.query.frame = 1
 			// SELECT frame allocation stays monotonic across stored modifiers.
 		}
-		if op != nil && op.replayOrZero().insertAuthority && len(b.relation.ColumnMeta.Identities) != 0 && s.Override != parser.OverrideSystem {
+		if binder.host.ReplayInsertAuthority() && len(b.relation.ColumnMeta.Identities) != 0 && s.Override != parser.OverrideSystem {
 			return b, sqlError("0A000", "restore identity rows require OVERRIDING SYSTEM VALUE")
 		}
 		if !b.relation.VirtualView {
@@ -246,7 +245,7 @@ func (b *expressionBinder) bindCTEMutation(statement parser.Statement) (binding,
 			name = s.Name
 		}
 		var err error
-		required, err = b.engine.resolveReference(*b.query.auth, name)
+		required, err = b.host.ResolveReference(*b.query.auth, name)
 		if err != nil {
 			return binding{}, err
 		}

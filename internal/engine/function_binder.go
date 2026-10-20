@@ -207,7 +207,7 @@ func (b *expressionBinder) domainTypeName(typ *sqltype.Descriptor) (string, erro
 	if err != nil {
 		return "", err
 	}
-	path, err := b.engine.lookupPath(auth, typeLookup)
+	path, err := b.host.LookupPath(auth, typeLookup)
 	if err != nil {
 		return "", err
 	}
@@ -216,7 +216,7 @@ func (b *expressionBinder) domainTypeName(typ *sqltype.Descriptor) (string, erro
 }
 
 func (b *expressionBinder) JSONReturningType(raw parser.TypeName) (sqltype.Usage, error) {
-	return b.engine.resolveAnnotationTypeInput(raw, b.op, false, false, true, true, false)
+	return b.host.ResolveAnnotationTypeInput(raw, false, false, true, true, false)
 }
 
 // SequenceArgument shares regclass input, with its prepared sequence-literal

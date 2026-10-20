@@ -65,7 +65,7 @@ func (r installedExtensionRoutine) intaggIdentity() (*catalog.Procedure, ids.Obj
 	if extension.IntaggProviderOf(p) != extension.StockIntagg {
 		return nil, ids.ObjectRef{}, fmt.Errorf("stuntgres: invalid installed intagg routine")
 	}
-	ref := r.binder.engine.catalog.Domain.Ref(r.catalog.Epoch(), p.Address())
+	ref := r.binder.host.CatalogOwner().Domain.Ref(r.catalog.Epoch(), p.Address())
 	r.binder.dependencies = append(r.binder.dependencies, catalog.ExpressionDependency{Ref: ref, Revision: p.Revision()})
 	return p, ref, nil
 }

@@ -72,7 +72,7 @@ func (b *expressionBinder) operatorCandidates(name parser.ObjectName, unary bool
 	if err != nil {
 		return operatorCandidateSet{}, err
 	}
-	path, err := b.engine.lookupNamespaces(auth, name, operatorLookup)
+	path, err := b.host.LookupNamespaces(auth, name, operatorLookup)
 	if err != nil {
 		return operatorCandidateSet{}, err
 	}
@@ -246,7 +246,7 @@ func (b *expressionBinder) bindCatalogOperator(raw parser.OperatorExpr, policy e
 	if err != nil {
 		return nil, err
 	}
-	ref := b.engine.catalog.Domain.Ref(set.catalog.Epoch(), d.Address())
+	ref := b.host.CatalogOwner().Domain.Ref(set.catalog.Epoch(), d.Address())
 	b.dependency(ref, d.Revision())
 	info := expr.InfoOf(provider)
 	info.Pos = raw.Pos

@@ -55,7 +55,7 @@ func (b *expressionBinder) selectSQLCallable(raw parser.FunctionExpr, cast *pars
 	if err != nil {
 		return selection, true, err
 	}
-	path, err := b.engine.lookupNamespaces(auth, raw.Name, functionLookup)
+	path, err := b.host.LookupNamespaces(auth, raw.Name, functionLookup)
 	if err != nil {
 		return selection, true, err
 	}
@@ -357,7 +357,7 @@ func (b *expressionBinder) finishSQLCallable(raw parser.FunctionExpr, selected s
 		if raw.Star || len(raw.Order) != 0 {
 			return nil, expr.ErrorAt("0A000", "SQL scalar function call modifiers are unsupported", raw.Pos)
 		}
-		ref := b.engine.catalog.Domain.Ref(selected.auth.Catalog.Epoch(), d.Address())
+		ref := b.host.CatalogOwner().Domain.Ref(selected.auth.Catalog.Epoch(), d.Address())
 		b.dependency(ref, d.Revision())
 		result, _ := selected.auth.definitionType(sqltype.ID(d.Result))
 		info := b.info(result.Usage(), raw.Pos, selected.properties)

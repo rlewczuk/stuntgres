@@ -62,31 +62,7 @@ func (b *expressionBinder) decodeLiteralInput(text string, typ *sqltype.Descript
 	if !sqltype.ContainsDomainConstraints(typ) {
 		return typ.InputWithEnvironment(b.ctx, text, typmod, input)
 	}
-	owner, ok := input.LockedDomainInput.(*StatementScope)
-	if !ok {
-		return sqltype.Value{}, fmt.Errorf("stuntgres: missing locked domain literal input boundary")
-	}
-	var auth AuthorizationView
-	if b.query.auth != nil {
-		auth = *b.query.auth
-	} else {
-		var err error
-		auth, err = b.engine.authorizationLocked(b.op)
-		if err != nil {
-			return sqltype.Value{}, err
-		}
-	}
-	if owner.routineAuth.engine != nil && owner.foreignActionAuth == nil {
-		auth.State.CurrentUser = owner.routineAuth.State.CurrentUser
-		if err := auth.Roles.ValidatePrincipal(auth.State.CurrentUser); err != nil {
-			return sqltype.Value{}, err
-		}
-	} else if owner.routineAuth.engine == nil {
-		owner.routineAuth = auth
-	}
-	eval := EvalContext{evalStatement: evalStatement{Context: b.ctx, host: hostOf(owner), catalog: b.bindingCatalog(), Input: input, Output: owner.output}, evalAdmission: evalAdmission{routineAuthority: &auth}}
-	input.DomainChecks = &eval
-	return owner.DecodeLockedDomainInput(b.ctx, typ, text, typmod, input)
+	return b.host.DecodeDomainLiteral(b.ctx, b.query.auth, b.bindingCatalog(), typ, text, typmod, input)
 }
 
 // domainScope is the statement's domain group: the lazily built domain check

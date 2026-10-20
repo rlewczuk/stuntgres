@@ -158,7 +158,7 @@ func (e *Engine) bindInsertConflict(b *binding, shared *expressionBinder, auth A
 			c.keys[i].expression = expression
 		}
 		if key.Collation != nil {
-			id, err := e.lookupCollation(*key.Collation, shared.op)
+			id, err := shared.host.LookupCollation(*key.Collation)
 			if err != nil {
 				return expr.WithPosition(err, raw.Pos)
 			}

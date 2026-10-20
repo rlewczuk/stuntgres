@@ -27,7 +27,7 @@ func (b *expressionBinder) captureSQLRoutineReference(path viewLiteralPath, n pl
 		return err
 	}
 	read := b.bindingCatalog()
-	if n.Ref != b.engine.catalog.Domain.Ref(read.Epoch(), n.Procedure.Address()) {
+	if n.Ref != b.host.CatalogOwner().Domain.Ref(read.Epoch(), n.Procedure.Address()) {
 		return fmt.Errorf("stuntgres: invalid frozen SQL routine reference")
 	}
 	if _, err := routine.ValidateStoredRoutineDescriptor(read, n.Procedure); err != nil {

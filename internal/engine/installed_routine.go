@@ -20,7 +20,7 @@ func (b *expressionBinder) InstalledRoutine(name parser.ObjectName, family funct
 	if err != nil {
 		return nil, err
 	}
-	path, err := b.engine.lookupNamespacesSnapshot(auth, name, installedFunctionLookup)
+	path, err := b.host.LookupNamespacesSnapshot(auth, name, installedFunctionLookup)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func (r installedExtensionRoutine) Validate() error {
 // Levenshtein, Metaphone and Soundex calls, which always appended.
 func (r installedExtensionRoutine) Attach(call expr.Expr) (expr.Expr, error) {
 	p, b := r.procedure, r.binder
-	ref := b.engine.catalog.Domain.Ref(r.catalog.Epoch(), p.Address())
+	ref := b.host.CatalogOwner().Domain.Ref(r.catalog.Epoch(), p.Address())
 	appended := catalog.ExpressionDependency{Ref: ref, Revision: p.Revision()}
 	switch c := call.(type) {
 	case functions.UUIDGeneration:

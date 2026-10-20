@@ -258,3 +258,10 @@ func (h *bindingHost) DecodeDomainLiteral(ctx context.Context, auth *Authorizati
 func (h *bindingHost) BindViewWrite(b *binding, auth AuthorizationView, stmt parser.Statement, consumed ...ids.ObjectRef) error {
 	return h.engine.bindViewWrite(b, auth, stmt, consumed...)
 }
+
+// bindingSessionToken is the binding session's token, or the zero token without an
+// operation.
+func bindingSessionToken(host analyzeHost) ids.SessionToken {
+	owner, _, _ := host.PlanOwner()
+	return owner
+}
