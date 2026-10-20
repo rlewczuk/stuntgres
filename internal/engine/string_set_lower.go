@@ -9,7 +9,7 @@ import (
 )
 
 func sameQuerySetOccurrence(a, b expr.Expr) bool {
-	if !sourceReturnsSet(a) || !sourceReturnsSet(b) || a.SourcePosition() != b.SourcePosition() {
+	if !SourceReturnsSet(a) || !SourceReturnsSet(b) || a.SourcePosition() != b.SourcePosition() {
 		return false
 	}
 	if occurrence, ok := a.(expr.SourceOccurrence); ok {
@@ -33,7 +33,7 @@ func (b *expressionBinder) lowerQuerySets(root plan.Node, requests []expr.Expr, 
 	for level := range maxDepth {
 		for _, bound := range requests {
 			plan.WalkExpression(bound, func(e expr.Expr) {
-				if !sourceReturnsSet(e) || querySetDepth(e) != level+1 {
+				if !SourceReturnsSet(e) || QuerySetDepth(e) != level+1 {
 					return
 				}
 				for _, previous := range template.Origins {
@@ -47,7 +47,7 @@ func (b *expressionBinder) lowerQuerySets(root plan.Node, requests []expr.Expr, 
 	}
 	if attempts {
 		for i, expr := range requests {
-			if !sourceReturnsSet(expr) && expr.ResultUsage().Type != nil {
+			if !SourceReturnsSet(expr) && expr.ResultUsage().Type != nil {
 				template.Scalars = append(template.Scalars, expr)
 				template.ScalarRequests = append(template.ScalarRequests, i)
 			}
@@ -56,7 +56,7 @@ func (b *expressionBinder) lowerQuerySets(root plan.Node, requests []expr.Expr, 
 	for request, expression := range requests {
 		for i, scalarRequest := range template.ScalarRequests {
 			if request == scalarRequest {
-				template.Steps = append(template.Steps, plan.SetStep{Kind: querySetScalarStep, Index: i})
+				template.Steps = append(template.Steps, plan.SetStep{Kind: QuerySetScalarStep, Index: i})
 			}
 		}
 		plan.WalkExpression(expression, func(marker expr.Expr) {
@@ -64,7 +64,7 @@ func (b *expressionBinder) lowerQuerySets(root plan.Node, requests []expr.Expr, 
 				if !sameQuerySetOccurrence(marker, original) {
 					continue
 				}
-				step := plan.SetStep{Kind: querySetCallStep, Index: i}
+				step := plan.SetStep{Kind: QuerySetCallStep, Index: i}
 				for _, previous := range template.Steps {
 					if previous == step {
 						return
@@ -90,7 +90,7 @@ func (b *expressionBinder) lowerQuerySets(root plan.Node, requests []expr.Expr, 
 	rewrite := func(bound expr.Expr, sql99 bool, beforeDepth int) (expr.Expr, error) {
 		return b.mapQuerySetStage(bound, func(e expr.Expr) (expr.Expr, bool, error) {
 			for i, original := range template.Origins {
-				if (sameQuerySetOccurrence(e, original) || sql99 && sourceReturnsSet(e) && b.sameGroupExpression(e, original)) && querySetDepth(e) < beforeDepth {
+				if (sameQuerySetOccurrence(e, original) || sql99 && SourceReturnsSet(e) && b.sameGroupExpression(e, original)) && QuerySetDepth(e) < beforeDepth {
 					return column(original, i), true, nil
 				}
 			}
@@ -101,7 +101,7 @@ func (b *expressionBinder) lowerQuerySets(root plan.Node, requests []expr.Expr, 
 		node := &plan.SetProjectNode{Child: root, QuerySchema: schema, Frame: b.frameID(), Template: template,
 			BaseWidth: base, MarkerWidth: len(template.Origins)}
 		for i, original := range template.Origins {
-			if querySetDepth(original) != level+1 {
+			if QuerySetDepth(original) != level+1 {
 				continue
 			}
 			call := original
@@ -126,7 +126,7 @@ func (b *expressionBinder) lowerQuerySets(root plan.Node, requests []expr.Expr, 
 				if err != nil {
 					return nil, err
 				}
-				if querySetDepth(effective) == 0 {
+				if QuerySetDepth(effective) == 0 {
 					node.AppendScalar(effective, i, len(template.Scalars))
 				}
 			}
@@ -138,7 +138,7 @@ func (b *expressionBinder) lowerQuerySets(root plan.Node, requests []expr.Expr, 
 	for i, expr := range requests {
 		cached := false
 		for local := range owner.Scalars {
-			scalar := querySetScalarSlot(owner.ScalarSlots, local)
+			scalar := QuerySetScalarSlot(owner.ScalarSlots, local)
 			if template.ScalarRequests[scalar] == i {
 				requests[i] = column(template.Scalars[scalar], len(template.Origins)+scalar)
 				cached = true
@@ -208,7 +208,7 @@ func preflightQuerySet(c *EvalContext, n *plan.SetProjectNode) (plan.Node, error
 	if !template.Attempts {
 		maxDepth = 0
 		for _, marker := range live {
-			maxDepth = max(maxDepth, querySetDepth(marker))
+			maxDepth = max(maxDepth, QuerySetDepth(marker))
 		}
 	}
 	base := n.Child
@@ -230,10 +230,10 @@ func preflightQuerySet(c *EvalContext, n *plan.SetProjectNode) (plan.Node, error
 		return plan.ColumnExpr{Info: info, Scope: 1, Frame: n.Frame, Slot: n.BaseWidth + slot}
 	}
 	rewrite := func(bound expr.Expr, beforeDepth int) (expr.Expr, error) {
-		next, _, err := mapBoundExpressionReader(c.catalog, nil, bound, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d },
+		next, _, err := mapBoundExpressionReader(c.Catalog, nil, bound, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d },
 			func(root plan.Node) (plan.Node, error) { return root, nil }, nil, true, func(e expr.Expr) (expr.Expr, bool, error) {
 				for i, original := range template.Origins {
-					if sameQuerySetOccurrence(e, original) && querySetDepth(e) < beforeDepth {
+					if sameQuerySetOccurrence(e, original) && QuerySetDepth(e) < beforeDepth {
 						return column(original, i), true, nil
 					}
 				}
@@ -255,7 +255,7 @@ func preflightQuerySet(c *EvalContext, n *plan.SetProjectNode) (plan.Node, error
 		if err != nil {
 			return nil, err
 		}
-		scheduled := !scalarUpper && querySetDepth(effective) == 0
+		scheduled := !scalarUpper && QuerySetDepth(effective) == 0
 		if !scalarUpper && !scheduled {
 			effective, err = rewrite(roots[request], maxDepth+1)
 			if err != nil {
@@ -269,7 +269,7 @@ func preflightQuerySet(c *EvalContext, n *plan.SetProjectNode) (plan.Node, error
 		node := &plan.SetProjectNode{Child: root, QuerySchema: n.QuerySchema, Frame: n.Frame,
 			BaseWidth: n.BaseWidth, MarkerWidth: n.MarkerWidth}
 		for i, marker := range live {
-			if marker == nil || querySetDepth(marker) != level+1 {
+			if marker == nil || QuerySetDepth(marker) != level+1 {
 				continue
 			}
 			call := marker
@@ -304,7 +304,7 @@ func preflightQuerySet(c *EvalContext, n *plan.SetProjectNode) (plan.Node, error
 func querySetStageSteps(original []plan.SetStep, callSlots, scalarSlots []int, scalars int) []plan.SetStep {
 	steps := make([]plan.SetStep, 0, len(callSlots)+scalars)
 	for _, step := range original {
-		if local, present := stringSetLocalStep(step, callSlots, scalarSlots, scalars); present {
+		if local, present := StringSetLocalStep(step, callSlots, scalarSlots, scalars); present {
 			steps = append(steps, local)
 		}
 	}
@@ -314,10 +314,10 @@ func querySetStageSteps(original []plan.SetStep, callSlots, scalarSlots []int, s
 func querySetProjectionDepth(expressions []expr.Expr) (int, bool) {
 	depth, upper := 0, false
 	for _, expression := range expressions {
-		current := querySetDepth(expression)
+		current := QuerySetDepth(expression)
 		if current > depth {
-			depth, upper = current, !sourceReturnsSet(expression)
-		} else if current > 0 && current == depth && !sourceReturnsSet(expression) {
+			depth, upper = current, !SourceReturnsSet(expression)
+		} else if current > 0 && current == depth && !SourceReturnsSet(expression) {
 			upper = true
 		}
 	}
@@ -368,7 +368,7 @@ func queryScalarOwner(child plan.Node, expression expr.Expr) (expr.Expr, bool) {
 func querySetPeerClosure(requests []expr.Expr, companions [][]expr.Expr) ([]expr.Expr, []expr.Expr) {
 	depth := 0
 	for _, expression := range requests {
-		depth = max(depth, querySetDepth(expression))
+		depth = max(depth, QuerySetDepth(expression))
 	}
 	if depth == 0 {
 		return requests, nil
@@ -378,7 +378,7 @@ func querySetPeerClosure(requests []expr.Expr, companions [][]expr.Expr) ([]expr
 		templates = append(templates, expressions...)
 		for _, expression := range expressions {
 			plan.WalkExpression(expression, func(marker expr.Expr) {
-				if sourceReturnsSet(marker) && querySetDepth(marker) <= depth {
+				if SourceReturnsSet(marker) && QuerySetDepth(marker) <= depth {
 					requests = append(requests, marker)
 				}
 			})

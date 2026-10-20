@@ -339,7 +339,7 @@ func (e *Engine) importMaterializedSnapshotRow(ctx context.Context, op *Operatio
 	environment.FTS = b.resolvers.fts
 	environment.TypeDiagnosticName, environment.EnumMemberSafe = b.resolvers.typeDiagnosticName, b.resolvers.enumMemberSafe
 	scope.routineDependencies = b.dependencies
-	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, host: hostOf(scope), Input: environment, Output: scope.output, catalog: auth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}, evalAdmission: evalAdmission{routineAuthority: &auth, routineRecipe: true, routineChecks: b.dependencies}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Host: hostOf(scope), Input: environment, Output: scope.output, Catalog: auth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}, evalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.dependencies}}
 	evaluation.Input.DomainChecks = &evaluation
 	for _, expressions := range b.expressions {
 		values := make([]sqltype.Value, len(d.Columns))

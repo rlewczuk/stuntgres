@@ -73,18 +73,18 @@ func captureRegroleOutputValue(rows *finalRows, output capturedRegroleOutput, va
 	if err != nil {
 		return err
 	}
-	if _, ok := rows.regroleOutput[id]; ok {
+	if _, ok := rows.RegroleOutput[id]; ok {
 		return nil
 	}
 	text, err := output.FormatRegrole(id)
 	if err != nil {
 		return err
 	}
-	if rows.regroleOutput == nil {
-		rows.regroleOutput = make(map[uint32]string)
+	if rows.RegroleOutput == nil {
+		rows.RegroleOutput = make(map[uint32]string)
 	}
-	rows.regroleOutput[id] = text
-	rows.output.Regrole = rows
+	rows.RegroleOutput[id] = text
+	rows.Output.Regrole = rows
 	return nil
 }
 

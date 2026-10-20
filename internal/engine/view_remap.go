@@ -1158,9 +1158,9 @@ func remapQuoteOwner(node expr.Expr, ref func(ids.ObjectRef) ids.ObjectRef) expr
 		return node
 	}
 	origin, _ := annotated.Annotation().(quoteOrigin)
-	if origin.owner == (ids.ObjectRef{}) {
+	if origin.Owner == (ids.ObjectRef{}) {
 		return node
 	}
-	origin.owner = ref(origin.owner)
+	origin.Owner = ref(origin.Owner)
 	return annotated.WithAnnotation(origin)
 }

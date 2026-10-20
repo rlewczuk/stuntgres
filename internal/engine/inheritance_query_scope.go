@@ -50,11 +50,11 @@ func inheritanceQueryLeaves(view catalog.Read, roots []queryLeaf, token ids.Sess
 	var active []ids.ObjectAddress
 	var walk func(queryLeaf) error
 	walk = func(leaf queryLeaf) error {
-		d, ok := view.Relation(leaf.ref.Address)
-		if !ok || leaf.ref.Epoch != view.Epoch() {
+		d, ok := view.Relation(leaf.Ref.Address)
+		if !ok || leaf.Ref.Epoch != view.Epoch() {
 			return ids.ErrCatalogReplaced
 		}
-		leaf.relation = d
+		leaf.Relation = d
 		if d.RelationKind == catalog.ViewRelation {
 			for _, address := range active {
 				if address == d.Address() {
@@ -71,23 +71,23 @@ func inheritanceQueryLeaves(view catalog.Read, roots []queryLeaf, token ids.Sess
 				if err != nil {
 					return err
 				}
-				if err := walk(queryLeaf{ref: ref, only: child.only, mark: viewLeafRowMark(viewOf(d), i, leaf.mark)}); err != nil {
+				if err := walk(queryLeaf{Ref: ref, Only: child.only, Mark: viewLeafRowMark(viewOf(d), i, leaf.Mark)}); err != nil {
 					return err
 				}
 			}
 			return nil
 		}
-		if d.RelationKind != catalog.TableRelation || leaf.only {
+		if d.RelationKind != catalog.TableRelation || leaf.Only {
 			return visit(leaf)
 		}
 		return inheritanceQueryClosure(view, d, token, func(physical *catalog.Relation) error {
 			child := leaf
-			child.ref.Address, child.relation = physical.Address(), physical
+			child.Ref.Address, child.Relation = physical.Address(), physical
 			return visit(child)
 		})
 	}
 	for _, leaf := range roots {
-		if !leaf.analysisOnly {
+		if !leaf.AnalysisOnly {
 			if err := walk(leaf); err != nil {
 				return err
 			}
@@ -121,7 +121,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 				e.mu.Unlock()
 				return err
 			}
-			roots = append(roots, queryLeaf{ref: ref, only: leaf.only})
+			roots = append(roots, queryLeaf{Ref: ref, Only: leaf.only})
 		}
 		e.mu.Unlock()
 	}
@@ -136,41 +136,41 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 		}
 		var pending []queryLeaf
 		err := inheritanceQueryLeaves(view, roots, s.op.session.token, func(leaf queryLeaf) error {
-			if leaf.relation.RelationKind != catalog.TableRelation {
+			if leaf.Relation.RelationKind != catalog.TableRelation {
 				return nil
 			}
 			mode := lock.AccessShare
-			if leaf.mark.Mode != 0 {
+			if leaf.Mark.Mode != 0 {
 				mode = lock.RowShare
 			}
 			// Named query roots already have exact-identity grants. Leave the
 			// ordinary single-table path allocation- and reacquisition-free.
 			for _, root := range roots {
-				if root.ref == leaf.ref && root.relation != nil && root.relation.RelationKind == catalog.TableRelation && (root.mark.Mode != 0 || mode == lock.AccessShare) {
+				if root.Ref == leaf.Ref && root.Relation != nil && root.Relation.RelationKind == catalog.TableRelation && (root.Mark.Mode != 0 || mode == lock.AccessShare) {
 					return nil
 				}
 			}
 			// Stored-base admission uses query rowmark modes: a present zero
 			// entry already holds AccessShare, any nonzero entry holds RowShare.
-			prior, granted := grants[leaf.ref]
+			prior, granted := grants[leaf.Ref]
 			if granted && (prior != 0 || mode == lock.AccessShare) {
 				return nil
 			}
 			if granted {
 				for i := range pending {
-					if pending[i].ref == leaf.ref {
-						pending[i].mark = leaf.mark
-						grants[leaf.ref] = leaf.mark.Mode
+					if pending[i].Ref == leaf.Ref {
+						pending[i].Mark = leaf.Mark
+						grants[leaf.Ref] = leaf.Mark.Mode
 						return nil
 					}
 				}
 			}
-			leaf.storage = e.privateStorageLocked(s.owner.catalog, leaf.ref.Address)
+			leaf.Storage = e.privateStorageLocked(s.owner.catalog, leaf.Ref.Address)
 			pending = append(pending, leaf)
 			if grants == nil {
 				grants = make(map[ids.ObjectRef]lock.Mode)
 			}
-			grants[leaf.ref] = leaf.mark.Mode
+			grants[leaf.Ref] = leaf.Mark.Mode
 			return nil
 		})
 		if err == nil && len(pending) == 0 {
@@ -185,11 +185,11 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 		}
 		for _, leaf := range pending {
 			mode := lock.AccessShare
-			if grants[leaf.ref] != 0 {
+			if grants[leaf.Ref] != 0 {
 				mode = lock.RowShare
 			}
 			policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
-			request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: leaf.ref}, mode, policy)
+			request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: leaf.Ref}, mode, policy)
 			if request != nil {
 				s.admissionWaited = true
 				if s.replacementRead {
@@ -211,7 +211,7 @@ func (s *StatementScope) acquireInheritanceSources(grants map[ids.ObjectRef]lock
 			e.mu.Lock()
 			_, err = currentQuerySourceLocked(e, e.privateCatalogLocked(s.owner.catalog), s.owner.catalog, leaf)
 			if err == nil {
-				e.markTemporaryAccessLocked(s, leaf.ref)
+				e.markTemporaryAccessLocked(s, leaf.Ref)
 				s.inheritance.relations = append(s.inheritance.relations, leaf)
 			}
 			e.mu.Unlock()

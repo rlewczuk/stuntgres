@@ -36,10 +36,10 @@ func foreignCapabilityError() error {
 // allocate another mark for each row in the same eager batch.
 func (h *statementHost) TouchForeignScan(ctx context.Context, source *foreignQuerySource) error {
 	s := h.scope()
-	if _, ok := source.wrapper.(catalog.ForeignTransactionProvider); !ok {
+	if _, ok := source.Wrapper.(catalog.ForeignTransactionProvider); !ok {
 		return nil
 	}
-	r := source.request
+	r := source.Request
 	key := foreignParticipantKey{r.HandlerOID, r.ServerOID, r.MappingOID, r.RoleOID}
 	for _, p := range s.foreignTablesOrZero().statements {
 		if p.key == key {
@@ -49,7 +49,7 @@ func (h *statementHost) TouchForeignScan(ctx context.Context, source *foreignQue
 			return nil
 		}
 	}
-	_, err := s.enlistForeign(ctx, source.wrapper, r, false)
+	_, err := s.enlistForeign(ctx, source.Wrapper, r, false)
 	return err
 }
 func (s *StatementScope) foreignUnlocked() {
@@ -87,9 +87,9 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 	marks := t.savepoints // Borrowed immutable roots under retained owner admission.
 	t.mu.Unlock()
 	if participant == nil {
-		capabilities, err := provider.ForeignTransactionCapabilities(ctx, copyForeignRequest(request))
+		capabilities, err := provider.ForeignTransactionCapabilities(ctx, CopyForeignRequest(request))
 		if err != nil {
-			return nil, foreignCallbackError(err)
+			return nil, ForeignCallbackError(err)
 		}
 		if !capabilities.StatementRollback || !capabilities.TransactionRollback {
 			return nil, foreignCapabilityError()
@@ -97,12 +97,12 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 		if len(marks) != 0 && !capabilities.Savepoints {
 			return nil, sqlError("0A000", "foreign transaction does not support savepoints")
 		}
-		tx, err := provider.BeginForeignTransaction(ctx, copyForeignRequest(request))
+		tx, err := provider.BeginForeignTransaction(ctx, CopyForeignRequest(request))
 		if err != nil {
 			if tx != nil {
 				_ = tx.Rollback(context.WithoutCancel(ctx))
 			}
-			return nil, foreignCallbackError(err)
+			return nil, ForeignCallbackError(err)
 		}
 		if tx == nil {
 			return nil, errors.New("stuntgres: foreign provider returned no transaction")
@@ -117,7 +117,7 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 			for _, mark := range marks {
 				if err := sp.Savepoint(ctx, foreignMarkName(mark.foreignID)); err != nil {
 					_ = tx.Rollback(context.WithoutCancel(ctx))
-					return nil, foreignCallbackError(err)
+					return nil, ForeignCallbackError(err)
 				}
 			}
 		}
@@ -142,7 +142,7 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 		// Record before entry: a partial BeginStatement must be rolled back.
 		s.foreignTables().statements = append(s.foreignTablesOrZero().statements, participant)
 		if err := participant.tx.BeginStatement(ctx); err != nil {
-			return nil, foreignCallbackError(err)
+			return nil, ForeignCallbackError(err)
 		}
 	}
 	return participant.tx, nil
@@ -173,7 +173,7 @@ func (s *StatementScope) finishForeignStatements(primary error) error {
 		}
 		if err := p.tx.EndStatement(ctx, primary == nil); err != nil {
 			if primary == nil {
-				primary = foreignCallbackError(err)
+				primary = ForeignCallbackError(err)
 			}
 			// A failed release is not a reusable transaction; abort it, once.
 			p.closed = true
@@ -191,7 +191,7 @@ func rollbackForeign(ctx context.Context, participants []*foreignParticipant) er
 		}
 		p.closed = true
 		if err := p.tx.Rollback(context.WithoutCancel(ctx)); first == nil {
-			first = foreignCallbackError(err)
+			first = ForeignCallbackError(err)
 		}
 	}
 	return first
@@ -212,7 +212,7 @@ func (t *transactionOwner) commitForeign(ctx context.Context, ref ids.TxRef) err
 		p.closed = true
 		if err := p.tx.Commit(ctx); err != nil {
 			_ = rollbackForeign(ctx, participants)
-			return foreignCallbackError(err)
+			return ForeignCallbackError(err)
 		}
 	}
 	return nil
@@ -249,7 +249,7 @@ func (t *transactionOwner) foreignSavepoint(ctx context.Context, kind int, id ui
 		}
 		if err != nil {
 			_ = rollbackForeign(ctx, t.foreign.participants)
-			return foreignCallbackError(err)
+			return ForeignCallbackError(err)
 		}
 	}
 	return nil

@@ -40,7 +40,7 @@ func pgGroupUnitRows(t *testing.T, source *querySource, d *catalog.Relation) map
 		t.Fatal("missing capture")
 	}
 	bag := make(map[uint32][]sqltype.Value)
-	for _, row := range source.anonymous {
+	for _, row := range source.Anonymous {
 		if len(row) != 3 {
 			t.Fatal("group width", len(row))
 		}
@@ -250,11 +250,11 @@ func TestPGGroupRoleRoot(t *testing.T) {
 	inner := addView(20010, "pg_group_inner", ref)
 	outer := addView(20011, "pg_group_outer", inner)
 	nested := open(scope, outer)
-	defer nested.close()
-	if nested.nestedInputs == nil || nested.nestedInputs.nestedInputs == nil {
+	defer nested.Close()
+	if nested.NestedInputs == nil || nested.NestedInputs.NestedInputs == nil {
 		t.Fatal("nested source not opened")
 	}
-	pgGroupUnitMembers(t, pgGroupUnitRows(t, nested.nestedInputs.nestedInputs, d)[20000], 20001)
+	pgGroupUnitMembers(t, pgGroupUnitRows(t, nested.NestedInputs.NestedInputs, d)[20000], 20001)
 	fresh := &StatementScope{op: op, owner: op.session.transactions}
 	capture(fresh)
 	pgGroupUnitMembers(t, pgGroupUnitRows(t, open(fresh, ref), d)[20000])

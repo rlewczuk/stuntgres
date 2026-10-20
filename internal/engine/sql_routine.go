@@ -107,9 +107,9 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 // Query demand is selected before opening producers. Sort/aggregate semantics
 // remain query-owned; only unnecessary later projected output is not requested.
 func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *querySource, parameters []sqltype.Value) (rows RowResult, count int, err error) {
-	defer source.close()
+	defer source.Close()
 	defer func() {
-		finishErr := finishForeignSources(ctx, source)
+		finishErr := FinishForeignSources(ctx, source)
 		if err == nil {
 			err = finishErr
 		}
@@ -118,12 +118,12 @@ func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *queryS
 	if !ok || len(project.Schema()) != 1 {
 		return nil, 0, fmt.Errorf("invalid SQL routine projection")
 	}
-	state := queryState{source: source, parameters: parameters, locking: source.locks != nil, hashFilter: hashQueryFilter(root)}
-	defer state.releaseMemberships()
-	if scope := scopeOf(source.liveHost()); scope != nil {
-		state.input, state.output = scope.input, scope.output
+	state := queryState{Source: source, Parameters: parameters, Locking: source.Locks != nil, HashFilter: HashQueryFilter(root)}
+	defer state.ReleaseMemberships()
+	if scope := scopeOf(source.LiveHost()); scope != nil {
+		state.Input, state.Output = scope.input, scope.output
 	}
-	stage, err := openQueryProjectStage(ctx, &state, project)
+	stage, err := OpenQueryProjectStage(ctx, &state, project)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -134,17 +134,17 @@ func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *queryS
 		}
 	}()
 	row := make([]sqltype.Value, 1)
-	present, err := stage.nextProjected(ctx, row)
+	present, err := stage.NextProjected(ctx, row)
 	if err != nil {
 		return nil, 0, err
 	}
 	if present {
 		count = 1
 	}
-	result := newFinalRows(project.Schema(), count)
-	result.output = state.output
+	result := NewFinalRows(project.Schema(), count)
+	result.Output = state.Output
 	if present {
-		result.values = row
+		result.Values = row
 	}
 	return result, count, nil
 }

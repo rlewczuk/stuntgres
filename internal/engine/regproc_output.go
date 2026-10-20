@@ -121,9 +121,9 @@ func captureRegprocOutputValue(rows *finalRows, view catalog.Read, path []ids.Ob
 		return err
 	}
 	signature := value.Type().BaseType().ID() == sqltype.Regprocedure
-	output := rows.regprocOutput
+	output := rows.RegprocOutput
 	if signature {
-		output = rows.regprocedureOutput
+		output = rows.RegprocedureOutput
 	}
 	if _, ok := output[id]; ok {
 		return nil
@@ -131,13 +131,13 @@ func captureRegprocOutputValue(rows *finalRows, view catalog.Read, path []ids.Ob
 	if output == nil {
 		output = make(map[uint32]string)
 		if signature {
-			rows.regprocedureOutput = output
+			rows.RegprocedureOutput = output
 		} else {
-			rows.regprocOutput = output
+			rows.RegprocOutput = output
 		}
 	}
 	output[id] = routineSpelling(view, path, ids.OID(id), signature, false)
-	rows.output.Regproc = rows
+	rows.Output.Regproc = rows
 	return nil
 }
 

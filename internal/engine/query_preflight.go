@@ -9,7 +9,7 @@ import (
 // preflightQuery retains schemas and source identity from analysis. Only paths
 // containing folded coercions are copied for this execution.
 func preflightQuery(c *EvalContext, node plan.Node) (plan.Node, error) {
-	if err := evaluationContext(c); err != nil {
+	if err := EvaluationContext(c); err != nil {
 		return nil, err
 	}
 	switch n := node.(type) {
@@ -55,7 +55,7 @@ func preflightQuery(c *EvalContext, node plan.Node) (plan.Node, error) {
 	case *plan.DerivedNode:
 		// Ordinary queries retain their runtime projection frontier. Rule
 		// programs prepare only the child payload retained by producer demand.
-		if !c.planStaticOperators || n.Query == nil {
+		if !c.PlanStaticOperators || n.Query == nil {
 			return n, nil
 		}
 		root, err := preflightQuery(c, n.Query.Root)
@@ -339,7 +339,7 @@ func preflightQuery(c *EvalContext, node plan.Node) (plan.Node, error) {
 			return nil, err
 		}
 		n, node = pruned, pruned
-		if c.planStaticOperators {
+		if c.PlanStaticOperators {
 			// Use surviving scalar recipes, not dead conditional branches, to
 			// choose child payload demand. Scalar preparation keeps its usual
 			// precedence over opening/preparing the source.
@@ -547,14 +547,14 @@ func preflightFunctionFrom(c *EvalContext, n *plan.FunctionFromNode) (plan.Node,
 	source := planned.(*plan.FunctionFromNode)
 	var scalarNull []bool
 	for i, call := range source.Calls {
-		if !strictScalarFunctionSource(call) {
+		if !StrictScalarFunctionSource(call) {
 			continue
 		}
 		next, _, err := simplifyConditional(c, call, false)
 		if err != nil {
 			return nil, err
 		}
-		if randomLiteralNull(next) {
+		if RandomLiteralNull(next) {
 			if scalarNull == nil {
 				scalarNull = make([]bool, len(source.Calls))
 			}

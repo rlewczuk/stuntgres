@@ -51,7 +51,7 @@ func TestPGInheritsShapeAndOwnership(t *testing.T) {
 		t.Fatal("PUBLIC SELECT", acl)
 	}
 	captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGInherits)
-	if err != nil || captured == nil || captured.ref != ref || len(captured.anonymous) != 0 {
+	if err != nil || captured == nil || captured.Ref != ref || len(captured.Anonymous) != 0 {
 		t.Fatal("fresh projection", captured, err)
 	}
 	invalid := *source
@@ -95,7 +95,7 @@ func pgInheritsUnitGraph(t *testing.T, e *Engine) catalog.Read {
 func pgInheritsUnitEdges(t *testing.T, captured *querySource, view catalog.Read) map[[3]int64]int {
 	t.Helper()
 	got := make(map[[3]int64]int)
-	for _, row := range captured.anonymous {
+	for _, row := range captured.Anonymous {
 		if len(row) != 4 || cap(row) != 4 {
 			t.Fatal("bounded row", len(row), cap(row))
 		}

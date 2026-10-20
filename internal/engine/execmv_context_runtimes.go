@@ -22,7 +22,7 @@ import (
 var _ functions.ACLRuntime = (*EvalContext)(nil)
 
 func (c *EvalContext) ACLAuthority() *sqltype.ACLAuthority {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return nil
 	}
@@ -30,7 +30,7 @@ func (c *EvalContext) ACLAuthority() *sqltype.ACLAuthority {
 }
 
 func (c *EvalContext) ObjectACL(address ids.ObjectAddress, result *sqltype.Descriptor) (sqltype.Value, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: object ACL inquiry lacks statement authority")
 	}
@@ -38,7 +38,7 @@ func (c *EvalContext) ObjectACL(address ids.ObjectAddress, result *sqltype.Descr
 }
 
 func (c *EvalContext) RoleMembership(actor *functions.AccessRole, target functions.AccessRole, privilege string) (bool, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return false, fmt.Errorf("stuntgres: access inquiry lacks statement authority")
 	}
@@ -46,7 +46,7 @@ func (c *EvalContext) RoleMembership(actor *functions.AccessRole, target functio
 }
 
 func (c *EvalContext) RowSecurityActive(relation functions.AccessRelation) (bool, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return false, fmt.Errorf("stuntgres: access inquiry lacks statement authority")
 	}
@@ -57,7 +57,7 @@ var _ functions.AdvisoryRuntime = (*EvalContext)(nil)
 
 // Advisory resolves the current statement owner, never a prepared owner.
 func (c *EvalContext) Advisory(action functions.AdvisoryAction, mode functions.AdvisoryMode, lifetime functions.AdvisoryLifetime, first, second int64, pair bool, result *sqltype.Descriptor) (sqltype.Value, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return sqltype.Value{}, errors.New("stuntgres: missing advisory session scope")
 	}
@@ -67,7 +67,7 @@ func (c *EvalContext) Advisory(action functions.AdvisoryAction, mode functions.A
 var _ functions.BlockingRuntime = (*EvalContext)(nil)
 
 func (c *EvalContext) BlockingInquiry(kind functions.BlockingKind, pid int64, result *sqltype.Descriptor) (sqltype.Value, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: blocking inquiry lacks statement authority")
 	}
@@ -77,7 +77,7 @@ func (c *EvalContext) BlockingInquiry(kind functions.BlockingKind, pid int64, re
 var _ functions.CatalogInquiryRuntime = (*EvalContext)(nil)
 
 func (c *EvalContext) CatalogUserName(oid uint32, result *sqltype.Descriptor) (sqltype.Value, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing catalog role-name snapshot")
 	}
@@ -85,7 +85,7 @@ func (c *EvalContext) CatalogUserName(oid uint32, result *sqltype.Descriptor) (s
 }
 
 func (c *EvalContext) CommentInquiry(kind functions.CommentInquiryKind, values [2]sqltype.Value, provenance expr.Info, result *sqltype.Descriptor) (sqltype.Value, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing comment snapshot")
 	}
@@ -94,7 +94,7 @@ func (c *EvalContext) CommentInquiry(kind functions.CommentInquiryKind, values [
 
 // Imported parameters remain Execute-owned. This predicate inspects structure
 // and availability only, never evaluates a child again or freezes its value.
-func overlapsExecutionConstant(node expr.Expr, c *EvalContext) bool {
+func OverlapsExecutionConstant(node expr.Expr, c *EvalContext) bool {
 	switch n := node.(type) {
 	case plan.LiteralExpr:
 		return true
@@ -103,16 +103,16 @@ func overlapsExecutionConstant(node expr.Expr, c *EvalContext) bool {
 	case plan.ColumnExpr, plan.GroupExpr, plan.AggregateExpr, plan.GroupingExpr, plan.SubqueryExpr:
 		return false
 	}
-	if plannedVolatility(node) != expr.Immutable {
+	if PlannedVolatility(node) != expr.Immutable {
 		return false
 	}
 	found, constant := false, true
-	plan.ExpressionChildren(node, func(child expr.Expr) { found = true; constant = constant && overlapsExecutionConstant(child, c) })
+	plan.ExpressionChildren(node, func(child expr.Expr) { found = true; constant = constant && OverlapsExecutionConstant(child, c) })
 	return found && constant
 }
 
 func (c *EvalContext) DeparseInquiry(signature functions.DeparseSignature, values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing deparse catalog snapshot")
 	}
@@ -121,17 +121,17 @@ func (c *EvalContext) DeparseInquiry(signature functions.DeparseSignature, value
 
 // plannedVolatility inspects the physical surviving tree. Analysis properties
 // deliberately retain dependence from eliminated CASE/COALESCE arms.
-func plannedVolatility(node expr.Expr) expr.Volatility {
-	return plannedPhysicalVolatility(node, false)
+func PlannedVolatility(node expr.Expr) expr.Volatility {
+	return PlannedPhysicalVolatility(node, false)
 }
 
 // COPY's supported nextval defaults are batch-safe, but their argument trees
 // are still inspected. Other consumers retain ordinary physical volatility.
-func plannedPhysicalVolatility(node expr.Expr, copyNextval bool) expr.Volatility {
-	return plannedNodeVolatility(node, copyNextval, false)
+func PlannedPhysicalVolatility(node expr.Expr, copyNextval bool) expr.Volatility {
+	return PlannedNodeVolatility(node, copyNextval, false)
 }
 
-func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr.Volatility {
+func PlannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr.Volatility {
 	if node == nil {
 		return expr.Immutable
 	}
@@ -147,7 +147,7 @@ func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 		}
 		v := expr.Immutable
 		for _, a := range args {
-			v = merge(v, plannedPhysicalVolatility(a, copyNextval))
+			v = merge(v, PlannedPhysicalVolatility(a, copyNextval))
 		}
 		return v
 	}
@@ -180,7 +180,7 @@ func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 		return children(n.Elements...)
 	case plan.SubscriptExpr:
 		var storage [13]expr.Expr
-		return children(subscriptChildren(n, &storage)...)
+		return children(SubscriptChildren(n, &storage)...)
 	case plan.DomainValueExpr, plan.LiteralExpr, plan.ColumnExpr:
 		return expr.Immutable
 	case plan.CollationExpr:
@@ -191,9 +191,9 @@ func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 		v := expr.Immutable
 		for _, pair := range n.Comparisons {
 			if intrinsicOnly {
-				v = merge(v, plannedNodeVolatility(pair, false, true))
+				v = merge(v, PlannedNodeVolatility(pair, false, true))
 			} else {
-				v = merge(v, plannedVolatility(pair))
+				v = merge(v, PlannedVolatility(pair))
 			}
 		}
 		return v
@@ -261,7 +261,7 @@ func plannedNodeVolatility(node expr.Expr, copyNextval, intrinsicOnly bool) expr
 
 // EvalInstalledText checks the captured provider, then runs the kernel.
 func (c *EvalContext) EvalInstalledText(n plan.InstalledTextExpr) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
+	if err := EvaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
 	if !preparation.ValidInstalledText(n) {
@@ -273,7 +273,7 @@ func (c *EvalContext) EvalInstalledText(n plan.InstalledTextExpr) (sqltype.Value
 // OpenExtensionPaths lists every ordered version pair of the named extension
 // with its update path (NULL when no path exists).
 func (c *EvalContext) OpenExtensionPaths(n plan.ExtensionPathsExpr) ([]sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
+	if err := EvaluationContext(c); err != nil {
 		return nil, err
 	}
 	if err := n.Validate(); err != nil {
@@ -293,7 +293,7 @@ func (c *EvalContext) OpenExtensionPaths(n plan.ExtensionPathsExpr) ([]sqltype.V
 	if detail := catalog.ExtensionNameDetail(name, false); detail != "" {
 		return nil, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22023", Message: fmt.Sprintf(`invalid extension name: "%s"`, name), Detail: detail}
 	}
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return nil, fmt.Errorf("stuntgres: missing extension paths snapshot")
 	}
@@ -301,7 +301,7 @@ func (c *EvalContext) OpenExtensionPaths(n plan.ExtensionPathsExpr) ([]sqltype.V
 }
 
 func (c *EvalContext) IndexProperty(kind functions.IndexPropertyKind, oid uint32, ordinalValue sqltype.Value, property string) (value, known bool, err error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return false, false, fmt.Errorf("stuntgres: missing index property catalog snapshot")
 	}
@@ -309,7 +309,7 @@ func (c *EvalContext) IndexProperty(kind functions.IndexPropertyKind, oid uint32
 }
 
 func (c *EvalContext) LookupObjectAddress(values [3]sqltype.Value) (ids.ObjectAddress, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return ids.ObjectAddress{}, fmt.Errorf("stuntgres: missing object address snapshot")
 	}
@@ -317,7 +317,7 @@ func (c *EvalContext) LookupObjectAddress(values [3]sqltype.Value) (ids.ObjectAd
 }
 
 func (c *EvalContext) IdentifyObject(values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing object address snapshot")
 	}
@@ -325,7 +325,7 @@ func (c *EvalContext) IdentifyObject(values [3]sqltype.Value, result *sqltype.De
 }
 
 func (c *EvalContext) IdentifyObjectAddress(values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing object address snapshot")
 	}
@@ -333,7 +333,7 @@ func (c *EvalContext) IdentifyObjectAddress(values [3]sqltype.Value, result *sql
 }
 
 func (c *EvalContext) DescribeObject(values [3]sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing object address snapshot")
 	}
@@ -351,21 +351,21 @@ func (c *EvalContext) FunctionPgcryptoEntropy(bytes []byte) error {
 func (c *EvalContext) FunctionPgcryptoFIPSMode() bool { return fips140.Enabled() }
 
 func (c *EvalContext) FunctionRandomOwner() (expr.RandomOwner, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return nil, fmt.Errorf("stuntgres: missing random session scope")
 	}
 	return host.FunctionRandomOwner()
 }
 
-func randomLiteralNull(arg expr.Expr) bool {
+func RandomLiteralNull(arg expr.Expr) bool {
 	switch e := arg.(type) {
 	case plan.LiteralExpr:
 		return e.Value.IsNull()
 	case plan.CollationExpr:
-		return randomLiteralNull(e.Child)
+		return RandomLiteralNull(e.Child)
 	case plan.CoercionExpr:
-		return randomLiteralNull(e.Child)
+		return RandomLiteralNull(e.Child)
 	}
 	return false
 }
@@ -373,10 +373,10 @@ func randomLiteralNull(arg expr.Expr) bool {
 // FunctionRegexExecution is the expr.Context capability that lends regex
 // nodes the statement's physical regex executor.
 func (c *EvalContext) FunctionRegexExecution() *sqltype.PGRegexExecution {
-	if host := c.liveHost(); host != nil {
+	if host := c.LiveHost(); host != nil {
 		return host.FunctionRegexExecution()
 	}
-	return &c.pgRegex
+	return &c.PGRegex
 }
 
 var _ functions.SequenceRuntime = (*EvalContext)(nil)
@@ -385,10 +385,10 @@ var _ functions.SequenceRuntime = (*EvalContext)(nil)
 // active domain-check input) and requires the current statement's authority
 // before a sequence call demands its arguments.
 func (c *EvalContext) SequenceAuthority() error {
-	if err := evaluationContext(c); err != nil {
+	if err := EvaluationContext(c); err != nil {
 		return err
 	}
-	if c.liveHost() == nil {
+	if c.LiveHost() == nil {
 		return fmt.Errorf("stuntgres: sequence call lacks statement authority")
 	}
 	return nil
@@ -399,7 +399,7 @@ func (c *EvalContext) SequenceAuthority() error {
 // RowExclusive lock; ACL, read-only admission, the generator and the
 // physical-session memory are read under Engine.mu after the lock is held.
 func (c *EvalContext) Sequence(request functions.SequenceRequest) (int64, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return 0, fmt.Errorf("stuntgres: sequence call lacks statement authority")
 	}
@@ -407,13 +407,13 @@ func (c *EvalContext) Sequence(request functions.SequenceRequest) (int64, error)
 }
 
 type identitySnapshot struct {
-	database, current, session, system sqltype.Value
-	currentMissing, sessionMissing     authorization.PrincipalRef
-	currentPrincipal                   authorization.PrincipalRef
+	Database, Current, Session, System sqltype.Value
+	CurrentMissing, SessionMissing     authorization.PrincipalRef
+	CurrentPrincipal                   authorization.PrincipalRef
 }
 
 func (c *EvalContext) IdentityValue(kind functions.IdentityKind, result *sqltype.Descriptor) (sqltype.Value, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: identity lacks statement authority")
 	}
@@ -423,7 +423,7 @@ func (c *EvalContext) IdentityValue(kind functions.IdentityKind, result *sqltype
 var _ functions.SessionInquiryRuntime = (*EvalContext)(nil)
 
 func (c *EvalContext) CurrentSchemas(implicit bool, result *sqltype.Descriptor) (sqltype.Value, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: current_schemas lacks statement authority")
 	}
@@ -431,7 +431,7 @@ func (c *EvalContext) CurrentSchemas(implicit bool, result *sqltype.Descriptor) 
 }
 
 func (c *EvalContext) MyTempNamespace() (uint32, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return 0, fmt.Errorf("stuntgres: namespace inquiry lacks statement authority")
 	}
@@ -439,7 +439,7 @@ func (c *EvalContext) MyTempNamespace() (uint32, error) {
 }
 
 func (c *EvalContext) OtherTempNamespace(oid uint32) (bool, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return false, fmt.Errorf("stuntgres: namespace inquiry lacks statement authority")
 	}
@@ -448,17 +448,17 @@ func (c *EvalContext) OtherTempNamespace(oid uint32) (bool, error) {
 
 var _ functions.TransactionInquiryRuntime = (*EvalContext)(nil)
 
-func (c *EvalContext) CheckTransactionInquiryContext() error { return evaluationContext(c) }
+func (c *EvalContext) CheckTransactionInquiryContext() error { return EvaluationContext(c) }
 
 func (c *EvalContext) RequireTransactionIdentityScope() error {
-	if c.liveHost() == nil {
+	if c.LiveHost() == nil {
 		return fmt.Errorf("stuntgres: transaction identity lacks statement scope")
 	}
 	return nil
 }
 
 func (c *EvalContext) TransactionAge(xid uint32) (int32, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return 0, fmt.Errorf("stuntgres: transaction identity lacks statement scope")
 	}
@@ -466,7 +466,7 @@ func (c *EvalContext) TransactionAge(xid uint32) (int32, error) {
 }
 
 func (c *EvalContext) MultiTransactionAge(xid uint32) (int32, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return 0, fmt.Errorf("stuntgres: transaction identity lacks statement scope")
 	}
@@ -474,7 +474,7 @@ func (c *EvalContext) MultiTransactionAge(xid uint32) (int32, error) {
 }
 
 func (c *EvalContext) CurrentTransactionID(assign bool) (uint64, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return 0, fmt.Errorf("stuntgres: transaction identity lacks statement scope")
 	}
@@ -482,7 +482,7 @@ func (c *EvalContext) CurrentTransactionID(assign bool) (uint64, error) {
 }
 
 func (c *EvalContext) TransactionStatus(full uint64) (string, bool, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return "", false, fmt.Errorf("stuntgres: transaction identity lacks statement scope")
 	}
@@ -490,7 +490,7 @@ func (c *EvalContext) TransactionStatus(full uint64) (string, bool, error) {
 }
 
 func (c *EvalContext) TransactionMembers(xid uint32, result *sqltype.Descriptor) ([]sqltype.Value, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return nil, fmt.Errorf("stuntgres: MultiXact lacks statement scope")
 	}
@@ -498,7 +498,7 @@ func (c *EvalContext) TransactionMembers(xid uint32, result *sqltype.Descriptor)
 }
 
 func (c *EvalContext) CommitTimestamp(xid uint32) (time.Time, uint32, bool, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return time.Time{}, 0, false, fmt.Errorf("stuntgres: missing commit timestamp scope")
 	}
@@ -506,7 +506,7 @@ func (c *EvalContext) CommitTimestamp(xid uint32) (time.Time, uint32, bool, erro
 }
 
 func (c *EvalContext) LastCommittedTransaction() (uint32, time.Time, uint32, bool, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return 0, time.Time{}, 0, false, fmt.Errorf("stuntgres: missing commit timestamp scope")
 	}
@@ -514,13 +514,13 @@ func (c *EvalContext) LastCommittedTransaction() (uint32, time.Time, uint32, boo
 }
 
 func (c *EvalContext) FunctionStatementTime() (time.Time, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return time.Time{}, fmt.Errorf("stuntgres: missing statement time scope")
 	}
 	// A held cursor keeps its declaring statement's clock.
-	if c.query != nil && c.query.source.authority != nil && c.query.source.authority.expression != nil {
-		return c.query.source.authority.expression.statementStart, nil
+	if c.Query != nil && c.Query.Source.Authority != nil && c.Query.Source.Authority.Expression != nil {
+		return c.Query.Source.Authority.Expression.StatementStart, nil
 	}
 	return host.StatementStart(), nil
 }
@@ -542,19 +542,19 @@ func (c *EvalContext) FunctionSleepClock(usage sqltype.Usage) (sqltype.Value, er
 func (c *EvalContext) FunctionSleepArgumentPresent(arg expr.Expr) bool { return arg != nil }
 
 func (c *EvalContext) FunctionUUIDReady() error {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return fmt.Errorf("stuntgres: missing UUID session scope")
 	}
 	return host.FunctionUUIDReady()
 }
 
-func (c *EvalContext) FunctionUUIDTime() int64 { return c.liveHost().FunctionUUIDTime() }
+func (c *EvalContext) FunctionUUIDTime() int64 { return c.LiveHost().FunctionUUIDTime() }
 
 func (c *EvalContext) FunctionUUIDEntropy(bytes []byte) error { _, err := rand.Read(bytes); return err }
 
 func (c *EvalContext) VisibilityInquiry(kind functions.VisibilityInquiryKind, value sqltype.Value, result *sqltype.Descriptor) (sqltype.Value, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing statement authority")
 	}

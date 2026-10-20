@@ -36,7 +36,7 @@ func TestJSONBSetViewReplayCastBoundaries(t *testing.T) {
 				if err != nil {
 					t.Fatal(round, err)
 				}
-				eval := EvalContext{evalStatement: evalStatement{Context: ctx, catalog: engine.CatalogRead()}}
+				eval := EvalContext{evalStatement: evalStatement{Context: ctx, Catalog: engine.CatalogRead()}}
 				eval.Input.DomainChecks = &eval
 				value, err := node.Eval(&eval)
 				if tc.domainError {

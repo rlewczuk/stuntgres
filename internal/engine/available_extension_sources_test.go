@@ -79,7 +79,7 @@ func availableUnitExpected(t *testing.T, e *Engine, catalog catalog.Read, versio
 		if oid == 12085 {
 			wantCount = 8
 		}
-		if err != nil || source == nil || source.count() != wantCount || source.ref != ref {
+		if err != nil || source == nil || source.Count() != wantCount || source.Ref != ref {
 			t.Fatal("capture", source, err)
 		}
 		expected := map[string][]any{
@@ -106,7 +106,7 @@ func availableUnitExpected(t *testing.T, e *Engine, catalog catalog.Read, versio
 			expected = versions
 			expected["fuzzystrmatch\x001.1"] = []any{"fuzzystrmatch", "1.1", false, true, true, true, nil, nil, "determine similarities and distance between strings"}
 		}
-		for _, row := range source.anonymous {
+		for _, row := range source.Anonymous {
 			name, err := row[0].Text()
 			if err != nil {
 				t.Fatal(err)
@@ -262,7 +262,7 @@ func TestAvailableExtensionsCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	var installedRow []sqltype.Value
-	for _, row := range old.anonymous {
+	for _, row := range old.Anonymous {
 		if name, err := row[0].Text(); err == nil && name == "unaccent" {
 			installedRow = row
 		}

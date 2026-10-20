@@ -33,7 +33,7 @@ func TestCatalogInquiryRetainedVolatility(t *testing.T) {
 	if err != nil || value {
 		t.Fatal(literal.Value, err)
 	}
-	if plannedVolatility(simplified) != expr.Volatile || plannedIntrinsicVolatility(simplified) != expr.Volatile {
+	if PlannedVolatility(simplified) != expr.Volatile || plannedIntrinsicVolatility(simplified) != expr.Volatile {
 		t.Fatal("physical/intrinsic inquiry inspection changed the historical analyzed fallback")
 	}
 }

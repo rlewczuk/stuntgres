@@ -200,7 +200,7 @@ func TestViewWriteDemand(t *testing.T) {
 	guard := plan.LiteralExpr{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, false)}
 	expression := viewWritePredicate([]expr.Expr{guard}, unsafe)
 	eval := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
-	matched, err := updateMatches(&eval, expression)
+	matched, err := UpdateMatches(&eval, expression)
 	if err != nil || matched || calls != 0 {
 		t.Fatal("hidden row demanded user work", matched, err, calls)
 	}
@@ -249,29 +249,29 @@ func TestViewWriteDemand(t *testing.T) {
 		store := f.e.storage.Relations[f.base.Address()]
 		store.Ends = &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{1: {Version: 1, End: 2}}}
 		scope, op := f.scope(t)
-		leaves := []queryLeaf{{ref: f.baseRef, relation: f.base, storage: store, frozenAttributes: []int32{11, 7}}}
+		leaves := []queryLeaf{{Ref: f.baseRef, Relation: f.base, Storage: store, FrozenAttributes: []int32{11, 7}}}
 		f.e.mu.Lock()
 		source, err := f.e.captureQuerySourcesLocked(scope, leaves, false)
 		f.e.mu.Unlock()
 		if err != nil {
 			t.Fatal(err)
 		}
-		if source.input != nil || source.count() != 2 {
-			source.close()
+		if source.Input != nil || source.Count() != 2 {
+			source.Close()
 			t.Fatal("raw capture installed a bridge or selected prematurely")
 		}
-		if err := selectQuerySources(op.Context(), source); err != nil {
+		if err := SelectQuerySources(op.Context(), source); err != nil {
 			t.Fatal(err)
 		}
 		source = freezeViewWriteSources(scope, source, leaves)
-		if source.input == nil || source.count() != 1 {
-			source.close()
+		if source.Input == nil || source.Count() != 1 {
+			source.Close()
 			t.Fatal("frozen bridge exposed a deleted version")
 		}
-		row := source.row(0)
+		row := source.Row(0)
 		a, aErr := row[0].Integer()
 		id, idErr := row[1].Integer()
-		source.close()
+		source.Close()
 		if aErr != nil || idErr != nil || a != 20 || id != 2 {
 			t.Fatal("selected source lost frozen attribute identities", a, id, aErr, idErr)
 		}
@@ -320,7 +320,7 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 		return sqltype.Boolean(f.boolean, n > 5), nil
 	})
 	eval := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: current.Values}}
-	matched, err := updateMatches(&eval, viewWritePredicate([]expr.Expr{predicate}, nil))
+	matched, err := UpdateMatches(&eval, viewWritePredicate([]expr.Expr{predicate}, nil))
 	if err != nil || matched {
 		t.Fatal("latest predecessor bypassed view qualification", matched, err)
 	}

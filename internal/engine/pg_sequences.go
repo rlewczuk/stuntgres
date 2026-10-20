@@ -17,7 +17,7 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 	}
 	own := scope.owner.catalog
 	rows := make([][]sqltype.Value, 0)
-	provider := &pgSequencesSource{host: hostOf(scope)}
+	provider := &pgSequencesSource{Host: hostOf(scope)}
 	appendDefinition := func(descriptor catalog.Descriptor) error {
 		if err := scope.op.Context().Err(); err != nil {
 			return err
@@ -64,7 +64,7 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 		}
 		row[10] = sqltype.Null(source.Columns[10].Usage.Type)
 		rows = append(rows, row)
-		provider.refs = append(provider.refs, e.catalog.Domain.Ref(base.Epoch(), relation.Address()))
+		provider.Refs = append(provider.Refs, e.catalog.Domain.Ref(base.Epoch(), relation.Address()))
 		return nil
 	}
 	for address, descriptor := range base.Descriptors() {
@@ -84,7 +84,7 @@ func (e *Engine) capturePGSequencesLocked(scope *StatementScope, ref ids.ObjectR
 			}
 		}
 	}
-	return &querySource{ref: ref, anonymous: rows, pgSequences: provider}, nil
+	return &querySource{Ref: ref, Anonymous: rows, PGSequences: provider}, nil
 }
 
 // CompletePGSequence fills a pg_sequences row's last_value: it acquires the

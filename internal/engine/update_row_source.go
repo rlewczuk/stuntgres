@@ -10,11 +10,11 @@ import (
 // The statement's captured source, frames, CTEs, locks and hash owner are borrowed
 // exactly as for scalar subqueries; no output is admitted before cardinality.
 func (c *EvalContext) subqueryUpdateOutputs(e plan.SubqueryExpr) (value sqltype.Value, err error) {
-	if len(c.updateOutputs) != e.UpdateWidth {
+	if len(c.UpdateOutputs) != e.UpdateWidth {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing UPDATE tuple output owner")
 	}
-	state := queryState{source: c.query.source, parameters: c.Parameters, input: c.Input, output: c.Output, locking: c.query.locking, outer: c, ctes: c.query.ctes, hashOwner: c.query.membershipOwner()}
-	stage, err := openQueryProjectStage(c.Context, &state, e.QueryPlan.Root.(*plan.ProjectNode))
+	state := queryState{Source: c.Query.Source, Parameters: c.Parameters, Input: c.Input, Output: c.Output, Locking: c.Query.Locking, Outer: c, Ctes: c.Query.Ctes, hashOwner: c.Query.membershipOwner()}
+	stage, err := OpenQueryProjectStage(c.Context, &state, e.QueryPlan.Root.(*plan.ProjectNode))
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -23,19 +23,19 @@ func (c *EvalContext) subqueryUpdateOutputs(e plan.SubqueryExpr) (value sqltype.
 			err = closeErr
 		}
 		if err != nil {
-			c.updateOutputsReady = false
+			c.UpdateOutputsReady = false
 		}
 	}()
-	present, err := stage.Next(c.Context, c.updateOutputs)
+	present, err := stage.Next(c.Context, c.UpdateOutputs)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
 	if !present {
 		for i, column := range stage.Schema() {
-			c.updateOutputs[i] = sqltype.ResultNull(column.Usage)
+			c.UpdateOutputs[i] = sqltype.ResultNull(column.Usage)
 		}
 	} else {
-		extra, failure := stage.nextProjected(c.Context, nil)
+		extra, failure := stage.NextProjected(c.Context, nil)
 		if failure != nil {
 			return sqltype.Value{}, failure
 		}
@@ -43,6 +43,6 @@ func (c *EvalContext) subqueryUpdateOutputs(e plan.SubqueryExpr) (value sqltype.
 			return sqltype.Value{}, sqlError("21000", "more than one row returned by a subquery used as an expression")
 		}
 	}
-	c.updateOutputsReady = true
-	return c.updateOutputs[0], nil
+	c.UpdateOutputsReady = true
+	return c.UpdateOutputs[0], nil
 }

@@ -8,7 +8,7 @@ import (
 )
 
 // Retention is an execution demand, independent of row-lock admission.
-func queryHasVirtualReads(root plan.Node) bool {
+func QueryHasVirtualReads(root plan.Node) bool {
 	found := false
 	plan.VisitExecutableQuery(root, func(plan.Node) {}, func(expr expr.Expr) {
 		if lexicalHasVirtualReads(expr) {
@@ -18,11 +18,11 @@ func queryHasVirtualReads(root plan.Node) bool {
 	return found
 }
 
-func boundHasVirtualReads(bound expr.Expr) bool {
+func BoundHasVirtualReads(bound expr.Expr) bool {
 	found := lexicalHasVirtualReads(bound)
 	plan.WalkExpression(bound, func(node expr.Expr) {
 		if query, ok := node.(plan.SubqueryExpr); !found && ok && !query.CTEEdge {
-			found = queryHasVirtualReads(query.QueryPlan.Root)
+			found = QueryHasVirtualReads(query.QueryPlan.Root)
 		}
 	})
 	return found
@@ -40,72 +40,72 @@ func lexicalHasVirtualReads(bound expr.Expr) bool {
 
 // Identity belongs to this frame, including when it is captured as Outer. The
 // backing buffers are producer-owned and reused only when advancing this frame.
-func (c *EvalContext) bindQueryRow(source *querySource, index int) {
-	c.Row = source.row(index)
-	c.bindQueryIdentity(source, index)
+func (c *EvalContext) BindQueryRow(source *querySource, index int) {
+	c.Row = source.Row(index)
+	c.BindQueryIdentity(source, index)
 }
 
-func (c *EvalContext) bindQueryIdentity(source *querySource, index int) {
+func (c *EvalContext) BindQueryIdentity(source *querySource, index int) {
 	c.setQueryPresence(source, index)
-	if c.query == nil || !c.query.virtualReads {
+	if c.Query == nil || !c.Query.VirtualReads {
 		return
 	}
 	if c.queryRowSource != source {
-		c.queryOccurrences = appendQueryOccurrences(c.queryOccurrences[:0], source)
+		c.QueryOccurrences = AppendQueryOccurrences(c.QueryOccurrences[:0], source)
 		c.queryRowSource = source
 	}
-	setQueryLineage(source, index)
-	c.queryProvenance = appendQueryProvenance(c.queryProvenance[:0], source, index)
+	SetQueryLineage(source, index)
+	c.QueryProvenance = AppendQueryProvenance(c.QueryProvenance[:0], source, index)
 }
 
 func (c *EvalContext) queryOperandAbsent(local int) (bool, error) {
-	if c.query == nil || c.query.source == nil || local < 0 || len(c.queryOccurrences) != len(c.queryProvenance) {
+	if c.Query == nil || c.Query.Source == nil || local < 0 || len(c.QueryOccurrences) != len(c.QueryProvenance) {
 		return false, fmt.Errorf("stuntgres: invalid virtual query identity")
 	}
-	bundle := c.query.source
-	if bundle.sources != nil {
-		if local >= len(bundle.sources) || bundle.sources[local] == nil {
+	bundle := c.Query.Source
+	if bundle.Sources != nil {
+		if local >= len(bundle.Sources) || bundle.Sources[local] == nil {
 			return false, fmt.Errorf("stuntgres: invalid virtual query source")
 		}
 	} else if local != 0 {
 		return false, fmt.Errorf("stuntgres: invalid virtual query source")
 	}
-	source := querySourceAt(bundle, local)
-	for source.input != nil {
-		source = source.input
+	source := QuerySourceAt(bundle, local)
+	for source.Input != nil {
+		source = source.Input
 	}
-	physical := source.occurrence
+	physical := source.Occurrence
 	if physical < 0 {
 		return false, fmt.Errorf("stuntgres: invalid virtual query occurrence")
 	}
-	for i, occurrence := range c.queryOccurrences {
+	for i, occurrence := range c.QueryOccurrences {
 		if occurrence == physical {
-			return c.queryProvenance[i] == absentQueryIndex, nil
+			return c.QueryProvenance[i] == AbsentQueryIndex, nil
 		}
 	}
 	return false, fmt.Errorf("stuntgres: missing virtual query occurrence")
 }
 
 func (c *EvalContext) queryOperandSource(local int) (*querySource, int, error) {
-	if c.query == nil || c.query.source == nil || local < 0 || len(c.queryOccurrences) != len(c.queryProvenance) {
+	if c.Query == nil || c.Query.Source == nil || local < 0 || len(c.QueryOccurrences) != len(c.QueryProvenance) {
 		return nil, 0, fmt.Errorf("stuntgres: invalid virtual query identity")
 	}
-	bundle := c.query.source
-	if bundle.sources != nil && (local >= len(bundle.sources) || bundle.sources[local] == nil) || bundle.sources == nil && local != 0 {
+	bundle := c.Query.Source
+	if bundle.Sources != nil && (local >= len(bundle.Sources) || bundle.Sources[local] == nil) || bundle.Sources == nil && local != 0 {
 		return nil, 0, fmt.Errorf("stuntgres: invalid virtual query source")
 	}
-	source := querySourceAt(bundle, local)
-	for source.input != nil {
-		source = source.input
+	source := QuerySourceAt(bundle, local)
+	for source.Input != nil {
+		source = source.Input
 	}
-	physical := source.occurrence
-	for i, occurrence := range c.queryOccurrences {
+	physical := source.Occurrence
+	for i, occurrence := range c.QueryOccurrences {
 		if occurrence != physical {
 			continue
 		}
-		index := c.queryProvenance[i]
-		if index != absentQueryIndex && bundle.locks != nil && occurrence >= 0 && occurrence < len(bundle.locks.leaves) {
-			source = bundle.locks.leaves[occurrence].source
+		index := c.QueryProvenance[i]
+		if index != AbsentQueryIndex && bundle.Locks != nil && occurrence >= 0 && occurrence < len(bundle.Locks.Leaves) {
+			source = bundle.Locks.Leaves[occurrence].Source
 		}
 		return source, index, nil
 	}

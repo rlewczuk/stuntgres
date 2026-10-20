@@ -29,7 +29,7 @@ func pgRolesUnitRows(t *testing.T, source *querySource) map[uint32][]sqltype.Val
 		t.Fatal("missing pg_roles capture")
 	}
 	bag := make(map[uint32][]sqltype.Value)
-	for _, row := range source.anonymous {
+	for _, row := range source.Anonymous {
 		if len(row) != 13 {
 			t.Fatal("wrong pg_roles width")
 		}
@@ -154,11 +154,11 @@ func TestPGRolesRoleRoot(t *testing.T) {
 	inner := addView(20010, "pg_roles_inner", ref)
 	outer := addView(20011, "pg_roles_outer", inner)
 	nested := open(outer)
-	defer nested.close()
-	if nested.nestedInputs == nil || nested.nestedInputs.nestedInputs == nil {
+	defer nested.Close()
+	if nested.NestedInputs == nil || nested.NestedInputs.NestedInputs == nil {
 		t.Fatal("nested provider not opened")
 	}
-	flag, _ := pgRolesUnitRows(t, nested.nestedInputs.nestedInputs)[20000][4].Boolean()
+	flag, _ := pgRolesUnitRows(t, nested.NestedInputs.NestedInputs)[20000][4].Boolean()
 	if flag {
 		t.Fatal("nested provider resampled roles")
 	}

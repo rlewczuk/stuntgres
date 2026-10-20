@@ -81,7 +81,7 @@ func infoCardinalNumberUnitEvaluate(t *testing.T, view catalog.Read, d *catalog.
 	t.Helper()
 	base := d.SQLType.DomainBase().Type
 	ctx := context.Background()
-	eval := EvalContext{evalStatement: evalStatement{Context: ctx, catalog: view}}
+	eval := EvalContext{evalStatement: evalStatement{Context: ctx, Catalog: view}}
 	eval.Input.DomainChecks = &eval
 	plan, err := sqltype.PlanCoercion(base.Usage(), d.SQLType.Usage(), sqltype.Assignment)
 	if err != nil {
@@ -99,7 +99,7 @@ func infoCardinalNumberUnitEvaluate(t *testing.T, view catalog.Read, d *catalog.
 	if !errors.As(err, &diagnostic) || *diagnostic != want {
 		t.Fatal("real FALSE recipe diagnostic", err)
 	}
-	if eval.domainValueActive {
+	if eval.DomainValueActive {
 		t.Fatal("VALUE frame leaked after conversion")
 	}
 }

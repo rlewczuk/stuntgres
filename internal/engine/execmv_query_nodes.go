@@ -12,13 +12,13 @@ import (
 
 func openDistinctNode(ctx context.Context, state *queryState, n *plan.DistinctNode) (out indexedStage, err error) {
 	if n.PresenceOnly {
-		return openQueryNode(ctx, state, n.Child)
+		return OpenNode(ctx, state, n.Child)
 	}
-	child, err := openQueryNode(ctx, state, n.Child)
+	child, err := OpenNode(ctx, state, n.Child)
 	if err != nil {
 		return indexedStage{}, err
 	}
-	child, err = settlePendingQueryMarks(ctx, state, n.Child, child)
+	child, err = SettlePendingQueryMarks(ctx, state, n.Child, child)
 	if err != nil {
 		return indexedStage{}, err
 	}
@@ -31,12 +31,12 @@ func openDistinctNode(ctx context.Context, state *queryState, n *plan.DistinctNo
 	if width == 0 || len(n.Grouping) != width || len(n.Schema()) != width {
 		return indexedStage{}, fmt.Errorf("stuntgres: invalid DISTINCT schema")
 	}
-	source := &querySource{flatWidth: width, materialized: true, authority: state.source.authority, host: state.source.host}
+	source := &querySource{FlatWidth: width, Materialized: true, Authority: state.Source.Authority, Host: state.Source.Host}
 	scratch := make([]sqltype.Value, width)
 	buckets := make(map[uint64][]int)
-	evaluation := state.evaluation(nil)
+	evaluation := state.Evaluation(nil)
 	for {
-		i, present, failure := child.nextOccurrence(ctx)
+		i, present, failure := child.NextOccurrence(ctx)
 		if failure != nil {
 			return indexedStage{}, failure
 		}
@@ -44,9 +44,9 @@ func openDistinctNode(ctx context.Context, state *queryState, n *plan.DistinctNo
 			break
 		}
 		evaluation.Context = ctx
-		evaluation.bindQueryRow(child.source, child.index(i))
-		if child.cacheWidth != 0 {
-			evaluation.orderValues = child.orderRow(i)
+		evaluation.BindQueryRow(child.Source, child.Index(i))
+		if child.CacheWidth != 0 {
+			evaluation.OrderValues = child.OrderRow(i)
 		}
 		hash := uint64(14695981039346656037)
 		for k, expression := range n.Expressions {
@@ -54,7 +54,7 @@ func openDistinctNode(ctx context.Context, state *queryState, n *plan.DistinctNo
 			if failure != nil {
 				return indexedStage{}, failure
 			}
-			if failure := validateProducedValue(value, n.Schema()[k].Usage); failure != nil {
+			if failure := ValidateProducedValue(value, n.Schema()[k].Usage); failure != nil {
 				return indexedStage{}, failure
 			}
 			value, failure = n.Grouping[k].PrepareKey(ctx, value)
@@ -68,24 +68,24 @@ func openDistinctNode(ctx context.Context, state *queryState, n *plan.DistinctNo
 			}
 			hash = (hash ^ h) * 1099511628211
 		}
-		index, failure := findDistinctTuple(ctx, n.Grouping, scratch, source.flat, buckets[hash])
+		index, failure := FindDistinctTuple(ctx, n.Grouping, scratch, source.Flat, buckets[hash])
 		if failure != nil {
 			return indexedStage{}, failure
 		}
 		if index < 0 {
-			buckets[hash] = append(buckets[hash], source.flatCount)
-			source.flat = append(source.flat, scratch...)
-			source.flatCount++
+			buckets[hash] = append(buckets[hash], source.FlatCount)
+			source.Flat = append(source.Flat, scratch...)
+			source.FlatCount++
 		}
 	}
 	if err := ctx.Err(); err != nil {
 		return indexedStage{}, err
 	}
-	return indexedStage{source: source, schema: n.Schema()}, nil
+	return indexedStage{Source: source, Columns: n.Schema()}, nil
 }
 
 // Hash collisions are candidate lists, never evidence of tuple equality.
-func findDistinctTuple[G interface {
+func FindDistinctTuple[G interface {
 	Equal(context.Context, sqltype.Value, sqltype.Value) (bool, error)
 }](ctx context.Context, grouping []G, tuple, flat []sqltype.Value, candidates []int) (int, error) {
 	for _, index := range candidates {
@@ -113,13 +113,13 @@ func findDistinctTuple[G interface {
 
 func openDistinctOnNode(ctx context.Context, state *queryState, n *plan.DistinctOnNode) (out indexedStage, err error) {
 	if n.PresenceOnly {
-		return openQueryNode(ctx, state, n.Child)
+		return OpenNode(ctx, state, n.Child)
 	}
-	child, err := openQueryNode(ctx, state, n.Child)
+	child, err := OpenNode(ctx, state, n.Child)
 	if err != nil {
 		return indexedStage{}, err
 	}
-	child, err = settlePendingQueryMarks(ctx, state, n.Child, child)
+	child, err = SettlePendingQueryMarks(ctx, state, n.Child, child)
 	if err != nil {
 		return indexedStage{}, err
 	}
@@ -132,28 +132,28 @@ func openDistinctOnNode(ctx context.Context, state *queryState, n *plan.Distinct
 	if width == 0 || len(n.Grouping) != width {
 		return indexedStage{}, fmt.Errorf("stuntgres: invalid DISTINCT ON keys")
 	}
-	out = producingStage(&child, n.Schema())
+	out = ProducingStage(&child, n.Schema())
 	scratch := make([]sqltype.Value, width)
 	var flat []sqltype.Value
 	buckets := make(map[uint64][]int)
-	evaluation := state.evaluation(nil)
+	evaluation := state.Evaluation(nil)
 	for {
-		i, present, failure := child.nextOccurrence(ctx)
+		i, present, failure := child.NextOccurrence(ctx)
 		if failure != nil {
 			return indexedStage{}, failure
 		}
 		if !present {
 			break
 		}
-		evaluation.Context, evaluation.orderValues = ctx, child.orderRow(i)
-		evaluation.bindQueryRow(child.source, child.index(i))
+		evaluation.Context, evaluation.OrderValues = ctx, child.OrderRow(i)
+		evaluation.BindQueryRow(child.Source, child.Index(i))
 		hash := uint64(14695981039346656037)
 		for k, e := range n.Expressions {
 			value, failure := e.Eval(&evaluation)
 			if failure != nil {
 				return indexedStage{}, failure
 			}
-			if failure = validateProducedValue(value, e.ResultUsage()); failure != nil {
+			if failure = ValidateProducedValue(value, e.ResultUsage()); failure != nil {
 				return indexedStage{}, failure
 			}
 			value, failure = n.Grouping[k].PrepareKey(ctx, value)
@@ -167,14 +167,14 @@ func openDistinctOnNode(ctx context.Context, state *queryState, n *plan.Distinct
 			}
 			hash = (hash ^ h) * 1099511628211
 		}
-		found, failure := findDistinctTuple(ctx, n.Grouping, scratch, flat, buckets[hash])
+		found, failure := FindDistinctTuple(ctx, n.Grouping, scratch, flat, buckets[hash])
 		if failure != nil {
 			return indexedStage{}, failure
 		}
 		if found < 0 {
 			buckets[hash] = append(buckets[hash], len(flat)/width)
 			flat = append(flat, scratch...)
-			retainOccurrence(&out, &child, i)
+			RetainOccurrence(&out, &child, i)
 		}
 	}
 	if err = ctx.Err(); err != nil {
@@ -183,23 +183,23 @@ func openDistinctOnNode(ctx context.Context, state *queryState, n *plan.Distinct
 	return out, nil
 }
 
-func (s *queryState) evaluation(ctx context.Context) EvalContext {
+func (s *queryState) Evaluation(ctx context.Context) EvalContext {
 	s.inheritCTEs()
-	frame := s.frame
+	frame := s.Frame
 	if frame == 0 {
 		frame = 1
 	}
-	evaluation := EvalContext{evalFrame: evalFrame{Scope: 1, Frame: frame, Outer: s.outer, query: s}, evalStatement: evalStatement{Parameters: s.parameters, Input: s.input, Output: s.output}}
-	if s.outer != nil {
-		evaluation.catalog = s.outer.catalog
+	evaluation := EvalContext{evalFrame: evalFrame{Scope: 1, Frame: frame, Outer: s.Outer, Query: s}, evalStatement: evalStatement{Parameters: s.Parameters, Input: s.Input, Output: s.Output}}
+	if s.Outer != nil {
+		evaluation.Catalog = s.Outer.Catalog
 	}
-	if s.source != nil && s.source.view != nil {
-		evaluation.catalog = s.source.view.Catalog()
+	if s.Source != nil && s.Source.View != nil {
+		evaluation.Catalog = s.Source.View.Catalog()
 	}
-	if s.source != nil && s.source.routineRecipe != nil {
-		recipe := s.source.routineRecipe
-		evaluation.routineRecipe = true
-		evaluation.routineChecks, evaluation.routineConsumer = s.source.routineChecks, recipe
+	if s.Source != nil && s.Source.RoutineRecipe != nil {
+		recipe := s.Source.RoutineRecipe
+		evaluation.RoutineRecipe = true
+		evaluation.RoutineChecks, evaluation.RoutineConsumer = s.Source.RoutineChecks, recipe
 	}
 	evaluation.setContext(ctx)
 	return evaluation
@@ -209,7 +209,7 @@ func queryBoundValue(ctx context.Context, state *queryState, expr expr.Expr, cla
 	if expr == nil {
 		return 0, false, nil
 	}
-	evaluation := state.evaluation(ctx)
+	evaluation := state.Evaluation(ctx)
 	value, err := expr.Eval(&evaluation)
 	if err != nil {
 		return 0, false, err
@@ -234,58 +234,58 @@ func queryBoundValue(ctx context.Context, state *queryState, expr expr.Expr, cla
 // Producers append only demanded occurrence identities. Blocking stages drain
 // this same seam; the public boundary still publishes only finalized results.
 func (s *indexedStage) ensure(ctx context.Context, i int) (bool, error) {
-	if s.terminal != nil {
-		return false, s.terminal
+	if s.Terminal != nil {
+		return false, s.Terminal
 	}
-	if s.closed {
+	if s.Closed {
 		return false, nil
 	}
 	if err := ctx.Err(); err != nil {
 		return false, s.fail(err)
 	}
-	for s.produce != nil && !s.done && i >= len(s.selection) {
+	for s.Produce != nil && !s.Done && i >= len(s.Selection) {
 		if err := ctx.Err(); err != nil {
 			return false, s.fail(err)
 		}
-		present, err := s.produce(ctx, s)
+		present, err := s.Produce(ctx, s)
 		if err != nil {
 			return false, s.fail(err)
 		}
 		if !present {
-			s.done = true
+			s.Done = true
 		}
 	}
 	if err := ctx.Err(); err != nil {
 		return false, s.fail(err)
 	}
-	return i < s.count(), nil
+	return i < s.Count(), nil
 }
 
-func (s *indexedStage) nextOccurrence(ctx context.Context) (int, bool, error) {
-	present, err := s.ensure(ctx, s.position)
+func (s *indexedStage) NextOccurrence(ctx context.Context) (int, bool, error) {
+	present, err := s.ensure(ctx, s.Position)
 	if err != nil || !present {
 		return 0, present, err
 	}
-	i := s.position
-	s.position++
+	i := s.Position
+	s.Position++
 	return i, true, nil
 }
 
-func (s *indexedStage) drain(ctx context.Context) error {
-	if s.terminal != nil {
-		return s.terminal
+func (s *indexedStage) Drain(ctx context.Context) error {
+	if s.Terminal != nil {
+		return s.Terminal
 	}
-	if s.closed {
+	if s.Closed {
 		return nil
 	}
-	if s.produce == nil {
+	if s.Produce == nil {
 		if err := ctx.Err(); err != nil {
 			return s.fail(err)
 		}
 		return nil
 	}
-	for !s.done {
-		if _, err := s.ensure(ctx, len(s.selection)); err != nil {
+	for !s.Done {
+		if _, err := s.ensure(ctx, len(s.Selection)); err != nil {
 			return err
 		}
 	}
@@ -295,54 +295,54 @@ func (s *indexedStage) drain(ctx context.Context) error {
 	return nil
 }
 
-func retainOccurrence(out *indexedStage, child *indexedStage, i int) {
-	out.source = child.source
-	out.selection = append(out.selection, child.index(i))
-	out.cacheWidth, out.orderValues = child.cacheWidth, child.orderValues
-	if child.cacheWidth != 0 {
-		out.cacheOccurrences = append(out.cacheOccurrences, child.orderOccurrence(i))
+func RetainOccurrence(out *indexedStage, child *indexedStage, i int) {
+	out.Source = child.Source
+	out.Selection = append(out.Selection, child.Index(i))
+	out.CacheWidth, out.OrderValues = child.CacheWidth, child.OrderValues
+	if child.CacheWidth != 0 {
+		out.CacheOccurrences = append(out.CacheOccurrences, child.orderOccurrence(i))
 	}
 }
 
-func producingStage(child *indexedStage, schema []catalog.Column) indexedStage {
-	return indexedStage{source: child.source, schema: schema, selection: []int{}, cacheWidth: child.cacheWidth, pending: child.pending, finish: child.Close,
-		reset: func(ctx context.Context, out *indexedStage) (bool, error) {
-			position := child.position
-			changed, err := child.rewind(ctx)
+func ProducingStage(child *indexedStage, schema []catalog.Column) indexedStage {
+	return indexedStage{Source: child.Source, Columns: schema, Selection: []int{}, CacheWidth: child.CacheWidth, Pending: child.Pending, Finish: child.Close,
+		Reset: func(ctx context.Context, out *indexedStage) (bool, error) {
+			position := child.Position
+			changed, err := child.Rewind(ctx)
 			if err != nil {
 				return false, err
 			}
 			if !changed {
 				// Cached parent occurrences still own this child's demand frontier.
-				child.position = position
+				child.Position = position
 				return false, nil
 			}
-			out.selection, out.cacheOccurrences, out.orderValues = out.selection[:0], out.cacheOccurrences[:0], out.orderValues[:0]
-			out.done = false
+			out.Selection, out.CacheOccurrences, out.OrderValues = out.Selection[:0], out.CacheOccurrences[:0], out.OrderValues[:0]
+			out.Done = false
 			return true, nil
 		}}
 }
 
-func openEvaluationNode(ctx context.Context, state *queryState, n *plan.EvaluationNode) (indexedStage, error) {
-	child, err := openQueryNode(ctx, state, n.Child)
+func OpenEvaluationNode(ctx context.Context, state *queryState, n *plan.EvaluationNode) (indexedStage, error) {
+	child, err := OpenNode(ctx, state, n.Child)
 	if err != nil {
 		return indexedStage{}, err
 	}
-	out := producingStage(&child, n.Schema())
-	out.cacheWidth = n.Base + len(n.Expressions)
-	evaluation := state.evaluation(nil)
-	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
-		i, present, err := child.nextOccurrence(ctx)
+	out := ProducingStage(&child, n.Schema())
+	out.CacheWidth = n.Base + len(n.Expressions)
+	evaluation := state.Evaluation(nil)
+	out.Produce = func(ctx context.Context, out *indexedStage) (bool, error) {
+		i, present, err := child.NextOccurrence(ctx)
 		if err != nil || !present {
 			return present, err
 		}
-		start := len(out.orderValues)
-		out.orderValues = append(out.orderValues, make([]sqltype.Value, out.cacheWidth)...)
-		values := out.orderValues[start:]
-		copy(values, child.orderRow(i))
+		start := len(out.OrderValues)
+		out.OrderValues = append(out.OrderValues, make([]sqltype.Value, out.CacheWidth)...)
+		values := out.OrderValues[start:]
+		copy(values, child.OrderRow(i))
 		evaluation.setContext(ctx)
-		evaluation.bindQueryRow(child.source, child.index(i))
-		evaluation.orderValues = values
+		evaluation.BindQueryRow(child.Source, child.Index(i))
+		evaluation.OrderValues = values
 		for j, expr := range n.Expressions {
 			value, err := expr.Eval(&evaluation)
 			if err != nil {
@@ -350,16 +350,16 @@ func openEvaluationNode(ctx context.Context, state *queryState, n *plan.Evaluati
 			}
 			values[n.Base+j] = value
 		}
-		out.source = child.source
-		out.selection = append(out.selection, child.index(i))
+		out.Source = child.Source
+		out.Selection = append(out.Selection, child.Index(i))
 		return true, ctx.Err()
 	}
 	return out, nil
 }
 
-func openLimitNode(ctx context.Context, state *queryState, n *plan.LimitNode) (indexedStage, error) {
+func OpenLimitNode(ctx context.Context, state *queryState, n *plan.LimitNode) (indexedStage, error) {
 	if n.PresenceOnly {
-		return openQueryNode(ctx, state, n.Child)
+		return OpenNode(ctx, state, n.Child)
 	}
 	offset, _, err := queryBoundValue(ctx, state, n.Offset, "OFFSET")
 	if err != nil {
@@ -370,31 +370,31 @@ func openLimitNode(ctx context.Context, state *queryState, n *plan.LimitNode) (i
 		return indexedStage{}, err
 	}
 	if finite && count == 0 {
-		return indexedStage{source: state.source, schema: n.Schema(), selection: []int{}}, nil
+		return indexedStage{Source: state.Source, Columns: n.Schema(), Selection: []int{}}, nil
 	}
-	child, err := openQueryNode(ctx, state, n.Child)
+	child, err := OpenNode(ctx, state, n.Child)
 	if err != nil {
 		return indexedStage{}, err
 	}
 	// A bounded view cannot defer inherited rowmarks past its own survivor
 	// count. Plain scalar views still defer until enclosing qualification.
-	if state.inherited.Mode != 0 && state.source.locks != nil {
-		occurrences := queryTreeOccurrences(n.Child, state.source, nil)
+	if state.inherited.Mode != 0 && state.Source.Locks != nil {
+		occurrences := QueryTreeOccurrences(n.Child, state.Source, nil)
 		if len(occurrences) != 0 {
-			child.pending = append(child.pending, queryPendingMark{occurrences: occurrences, mark: state.inherited})
+			child.Pending = append(child.Pending, queryPendingMark{Occurrences: occurrences, Mark: state.inherited})
 		}
 	}
-	child, err = settlePendingQueryMarks(ctx, state, n.Child, child)
+	child, err = SettlePendingQueryMarks(ctx, state, n.Child, child)
 	if err != nil {
 		return indexedStage{}, err
 	}
 	if offset == 0 && !finite {
 		return child, nil
 	}
-	out := producingStage(&child, n.Schema())
+	out := ProducingStage(&child, n.Schema())
 	initialOffset, initialCount := offset, count
-	baseReset := out.reset
-	out.reset = func(ctx context.Context, out *indexedStage) (bool, error) {
+	baseReset := out.Reset
+	out.Reset = func(ctx context.Context, out *indexedStage) (bool, error) {
 		changed, err := baseReset(ctx, out)
 		if err != nil || !changed {
 			return changed, err
@@ -406,15 +406,15 @@ func openLimitNode(ctx context.Context, state *queryState, n *plan.LimitNode) (i
 	if finite && n.WithTies {
 		boundary = make([]sqltype.Value, len(n.PeerKeys))
 	}
-	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
+	out.Produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 		if finite && count == 0 && !n.WithTies {
-			if state.retain {
+			if state.Retain {
 				return false, nil
 			}
 			return false, child.Close()
 		}
 		for {
-			i, present, err := child.nextOccurrence(ctx)
+			i, present, err := child.NextOccurrence(ctx)
 			if err != nil || !present {
 				return present, err
 			}
@@ -423,22 +423,22 @@ func openLimitNode(ctx context.Context, state *queryState, n *plan.LimitNode) (i
 				continue
 			}
 			if finite && count == 0 {
-				peer, err := queryTiesPeer(ctx, &child, i, n.PeerKeys, boundary, state.input)
+				peer, err := QueryTiesPeer(ctx, &child, i, n.PeerKeys, boundary, state.Input)
 				if err != nil {
 					return false, err
 				}
 				if !peer {
-					if state.retain {
+					if state.Retain {
 						return false, nil
 					}
 					return false, child.Close()
 				}
 			}
-			retainOccurrence(out, &child, i)
+			RetainOccurrence(out, &child, i)
 			if finite && count > 0 {
 				count--
 				if count == 0 && n.WithTies {
-					captureQueryTiesBoundary(&child, i, n.PeerKeys, boundary)
+					CaptureQueryTiesBoundary(&child, i, n.PeerKeys, boundary)
 				}
 			}
 			return true, ctx.Err()
@@ -447,7 +447,7 @@ func openLimitNode(ctx context.Context, state *queryState, n *plan.LimitNode) (i
 	return out, nil
 }
 
-func validateProducedValue(value sqltype.Value, usage sqltype.Usage) error {
+func ValidateProducedValue(value sqltype.Value, usage sqltype.Usage) error {
 	if !value.ValidResult(usage) {
 		return fmt.Errorf("stuntgres: invalid produced query value")
 	}
@@ -456,7 +456,7 @@ func validateProducedValue(value sqltype.Value, usage sqltype.Usage) error {
 
 // Exclusions leave at most three ordered intervals. Count admitted rows, not
 // nonnull values, without allocating or walking the whole frame for each result.
-func windowValueMember(mode parser.FrameExclusion, head, tail, current, peerStart, peerEnd int, ordinal int64, reverse bool) (int, bool) {
+func WindowValueMember(mode parser.FrameExclusion, head, tail, current, peerStart, peerEnd int, ordinal int64, reverse bool) (int, bool) {
 	if head >= tail || ordinal < 0 {
 		return 0, false
 	}
@@ -498,12 +498,12 @@ func evaluateWindowValue(ctx context.Context, evaluation *EvalContext, child *in
 	usage := call.Expression.ResultUsage()
 	ordinal := int64(0)
 	if call.Operation == plan.WindowNth {
-		evaluation.bindQueryRow(child.source, child.index(rows[current]))
+		evaluation.BindQueryRow(child.Source, child.Index(rows[current]))
 		value, err := call.Ordinal.Eval(evaluation)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		if err := validateProducedValue(value, call.Ordinal.ResultUsage()); err != nil {
+		if err := ValidateProducedValue(value, call.Ordinal.ResultUsage()); err != nil {
 			return sqltype.Value{}, err
 		}
 		if err := ctx.Err(); err != nil {
@@ -521,19 +521,19 @@ func evaluateWindowValue(ctx context.Context, evaluation *EvalContext, child *in
 		}
 		ordinal--
 	}
-	member, present := windowValueMember(frame.Exclusion, head, tail, current, peerStart, peerEnd, ordinal, call.Operation == plan.WindowLast)
+	member, present := WindowValueMember(frame.Exclusion, head, tail, current, peerStart, peerEnd, ordinal, call.Operation == plan.WindowLast)
 	if !present {
 		return sqltype.Null(usage.Type), nil
 	}
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}
-	evaluation.bindQueryRow(child.source, child.index(rows[member]))
+	evaluation.BindQueryRow(child.Source, child.Index(rows[member]))
 	value, err := call.Argument.Eval(evaluation)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if err := validateProducedValue(value, usage); err != nil {
+	if err := ValidateProducedValue(value, usage); err != nil {
 		return sqltype.Value{}, err
 	}
 	// Value owns immutable payloads; retaining it in the output overlay neither

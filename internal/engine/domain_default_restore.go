@@ -221,10 +221,10 @@ func restoreDomainReplayNode(c *EvalContext, e *Engine, op *Operation, auth Auth
 	local := *c
 	local.Input = binder.input
 	local.Input.DomainChecks = &local
-	local.routineRecipe = true
-	local.routineChecks = binder.dependencies
-	local.routineReferences = nil
-	local.routineConsumer = nil
+	local.RoutineRecipe = true
+	local.RoutineChecks = binder.dependencies
+	local.RoutineReferences = nil
+	local.RoutineConsumer = nil
 	node, _, err = preflightCoercionsWithPolicy(&local, node, false)
 	if err != nil {
 		return sqltype.Value{}, 0, err
@@ -278,7 +278,7 @@ func (e *Engine) captureDomainReplay(scope *StatementScope, s *parser.Insert, re
 			}
 		}
 	}
-	c := EvalContext{evalStatement: evalStatement{Context: scope.op.Context(), host: hostOf(scope), catalog: auth.Catalog, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}, evalAdmission: evalAdmission{routineAuthority: &auth}}
+	c := EvalContext{evalStatement: evalStatement{Context: scope.op.Context(), Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}, evalAdmission: evalAdmission{RoutineAuthority: &auth}}
 	c.Input.ExactSnapshot = true
 	c.Input.DomainChecks = &c
 	scope.routineAuth = auth

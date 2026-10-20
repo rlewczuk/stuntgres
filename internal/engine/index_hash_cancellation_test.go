@@ -37,25 +37,25 @@ func TestHashIndexLookupCancellation(t *testing.T) {
 	index, root := hashRoot(t, e, "hn")
 	query, source, release := hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=2")
 	defer release()
-	if len(source.hashIndexes) != 1 || source.hashIndexes[0].root != root {
+	if len(source.HashIndexes) != 1 || source.HashIndexes[0].Root != root {
 		t.Fatal("cancellation fixture did not retain the real root")
 	}
-	filter := hashQueryFilter(query.Root)
+	filter := HashQueryFilter(query.Root)
 	if filter == nil {
 		t.Fatal("missing real filter")
 	}
-	state := &queryState{source: source, hashFilter: filter, frame: query.Root.(*plan.ProjectNode).Frame}
-	if scope := scopeOf(source.liveHost()); scope != nil {
-		state.input, state.output = scope.input, scope.output
+	state := &queryState{Source: source, HashFilter: filter, Frame: query.Root.(*plan.ProjectNode).Frame}
+	if scope := scopeOf(source.LiveHost()); scope != nil {
+		state.Input, state.Output = scope.input, scope.output
 	}
-	view, data := source.view, source.view.Data()
-	rows, visible := hashCancellationRows(source.committed), append([]int(nil), source.visible...)
-	first := &source.committed[0]
+	view, data := source.View, source.View.Data()
+	rows, visible := hashCancellationRows(source.Committed), append([]int(nil), source.Visible...)
+	first := &source.Committed[0]
 	buckets := hashCancellationBuckets(root)
 	before := indexMaintenanceCapture(e)
 	unchanged := func() {
 		indexMaintenanceUnchanged(t, e, before)
-		if source.view != view || source.view.Data() != data || &source.committed[0] != first || !reflect.DeepEqual(source.committed, rows) || !reflect.DeepEqual(source.visible, visible) || len(source.hashIndexes) != 1 || source.hashIndexes[0].root != root || !reflect.DeepEqual(root.Buckets, buckets) || e.storage.IndexRoots[index.Address()].Hash != root {
+		if source.View != view || source.View.Data() != data || &source.Committed[0] != first || !reflect.DeepEqual(source.Committed, rows) || !reflect.DeepEqual(source.Visible, visible) || len(source.HashIndexes) != 1 || source.HashIndexes[0].Root != root || !reflect.DeepEqual(root.Buckets, buckets) || e.storage.IndexRoots[index.Address()].Hash != root {
 			t.Fatal("canceled lookup changed retained source/root authority")
 		}
 	}
@@ -65,12 +65,12 @@ func TestHashIndexLookupCancellation(t *testing.T) {
 	calibration, stop := context.WithCancel(context.Background())
 	defer stop()
 	counting := &cancelAtErrCheck{Context: calibration, cancel: stop}
-	opened, err := openQueryNode(counting, state, filter)
+	opened, err := OpenNode(counting, state, filter)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if opened.hashCandidates == nil || opened.hashCandidates.root != root || len(opened.hashCandidates.occurrences) != 3 {
-		t.Fatal("calibration did not execute the duplicate bucket", opened.hashCandidates)
+	if opened.HashCandidates == nil || opened.HashCandidates.Root != root || len(opened.HashCandidates.Occurrences) != 3 {
+		t.Fatal("calibration did not execute the duplicate bucket", opened.HashCandidates)
 	}
 	polls := counting.checks.Load()
 	opened.Close()
@@ -80,8 +80,8 @@ func TestHashIndexLookupCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	duringProbe := &cancelAtErrCheck{Context: ctx, cancel: cancel, at: polls - 1}
-	failed, err := openQueryNode(duringProbe, state, filter)
-	if !errors.Is(err, context.Canceled) || duringProbe.checks.Load() != duringProbe.at || failed.source != nil || failed.produce != nil || failed.hashCandidates != nil {
+	failed, err := OpenNode(duringProbe, state, filter)
+	if !errors.Is(err, context.Canceled) || duringProbe.checks.Load() != duringProbe.at || failed.Source != nil || failed.Produce != nil || failed.HashCandidates != nil {
 		failed.Close()
 		t.Fatal("canceled probe returned a successful/partial stage", err, duringProbe.checks.Load(), failed)
 	}
@@ -89,35 +89,35 @@ func TestHashIndexLookupCancellation(t *testing.T) {
 
 	// Also cancel the real residual consumer after one admitted occurrence. Its
 	// terminal error must survive a later drain with a fresh context.
-	warm, err := openQueryNode(context.Background(), state, filter)
+	warm, err := OpenNode(context.Background(), state, filter)
 	if err != nil {
 		t.Fatal(err)
 	}
 	firstContext, firstCancel := context.WithCancel(context.Background())
 	defer firstCancel()
 	firstCounting := &cancelAtErrCheck{Context: firstContext, cancel: firstCancel}
-	if _, present, err := warm.nextOccurrence(firstCounting); err != nil || !present || warm.hashCandidates.position != 1 {
+	if _, present, err := warm.NextOccurrence(firstCounting); err != nil || !present || warm.HashCandidates.Position != 1 {
 		warm.Close()
 		t.Fatal("residual calibration did not consume one candidate", present, err)
 	}
 	firstPolls := firstCounting.checks.Load()
 	warm.Close()
-	consuming, err := openQueryNode(context.Background(), state, filter)
+	consuming, err := OpenNode(context.Background(), state, filter)
 	if err != nil {
 		t.Fatal(err)
 	}
-	candidates := consuming.hashCandidates
-	if candidates == nil || candidates.root != root {
+	candidates := consuming.HashCandidates
+	if candidates == nil || candidates.Root != root {
 		t.Fatal("consumer fell back to scan")
 	}
 	consumeContext, consumeCancel := context.WithCancel(context.Background())
 	defer consumeCancel()
 	duringConsumption := &cancelAtErrCheck{Context: consumeContext, cancel: consumeCancel, at: firstPolls + 1}
-	if err := consuming.drain(duringConsumption); !errors.Is(err, context.Canceled) || candidates.position != 1 || !errors.Is(consuming.terminal, context.Canceled) {
+	if err := consuming.Drain(duringConsumption); !errors.Is(err, context.Canceled) || candidates.Position != 1 || !errors.Is(consuming.Terminal, context.Canceled) {
 		consuming.Close()
-		t.Fatal("residual cancellation exposed a successful finite result", err, candidates.position)
+		t.Fatal("residual cancellation exposed a successful finite result", err, candidates.Position)
 	}
-	if err := consuming.drain(context.Background()); !errors.Is(err, context.Canceled) {
+	if err := consuming.Drain(context.Background()); !errors.Is(err, context.Canceled) {
 		consuming.Close()
 		t.Fatal("fresh context revived a canceled stage", err)
 	}
@@ -125,10 +125,10 @@ func TestHashIndexLookupCancellation(t *testing.T) {
 	unchanged()
 	fresh := hashFilterStage(t, query, source, nil)
 	defer fresh.Close()
-	if fresh.hashCandidates == nil || fresh.hashCandidates.root != root || len(fresh.hashCandidates.occurrences) != 3 {
+	if fresh.HashCandidates == nil || fresh.HashCandidates.Root != root || len(fresh.HashCandidates.Occurrences) != 3 {
 		t.Fatal("fresh lookup did not reuse retained authority")
 	}
-	if err := fresh.drain(context.Background()); err != nil || fresh.count() != 3 || fresh.hashCandidates.position != 3 {
+	if err := fresh.Drain(context.Background()); err != nil || fresh.Count() != 3 || fresh.HashCandidates.Position != 3 {
 		t.Fatal("fresh lookup did not recover", err)
 	}
 }

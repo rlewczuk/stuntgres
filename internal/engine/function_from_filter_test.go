@@ -15,7 +15,7 @@ func TestJSONEachPredecessorFilterPlacement(t *testing.T) {
 	right := &plan.FunctionFromNode{QuerySchema: plan.QuerySchema{{Usage: types[sqltype.Text].Usage()}, {Usage: types[sqltype.JSON].Usage()}}, Correlated: true, Frame: 7}
 	join := &plan.JoinNode{QuerySchema: append(append(plan.QuerySchema(nil), left.Schema()...), right.Schema()...), Left: left, Right: right, LeftWidth: 1, RightWidth: 2, Kind: parser.JoinInner, CorrelatedRight: true, Frame: 7}
 	predicate := plan.ColumnExpr{Info: expr.Info{Usage: types[sqltype.Bool].Usage(), Property: expr.Properties{RowDependent: true}}, Frame: 7, Scope: 1, Slot: 0}
-	moved := functionFromWhere(join, predicate)
+	moved := FunctionFromWhere(join, predicate)
 	if moved == nil || moved == join || moved.Right != right || moved.Frame != join.Frame || moved.LeftWidth != 1 || moved.RightWidth != 2 {
 		t.Fatal("incorrect copied join", moved)
 	}
@@ -25,7 +25,7 @@ func TestJSONEachPredecessorFilterPlacement(t *testing.T) {
 	}
 	unchanged := func(label string, root plan.Node, predicate expr.Expr) {
 		t.Helper()
-		if functionFromWhere(root, predicate) != nil {
+		if FunctionFromWhere(root, predicate) != nil {
 			t.Fatal("unsafe predicate moved", label)
 		}
 	}

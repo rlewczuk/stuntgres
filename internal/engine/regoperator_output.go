@@ -103,16 +103,16 @@ func captureOperatorOutputValue(rows *finalRows, view catalog.Read, path []ids.O
 		return err
 	}
 	key := operatorOutputKey{id, value.Type().BaseType().ID()}
-	if _, ok := rows.operatorOutput[key]; ok {
+	if _, ok := rows.OperatorOutput[key]; ok {
 		return nil
 	}
 	if rows.operatorGroups == nil {
 		rows.operatorGroups = collectOperatorGroups(view)
 	}
-	if rows.operatorOutput == nil {
-		rows.operatorOutput = make(map[operatorOutputKey]string)
+	if rows.OperatorOutput == nil {
+		rows.OperatorOutput = make(map[operatorOutputKey]string)
 	}
-	rows.operatorOutput[key] = operatorSpelling(view, path, rows.operatorGroups, ids.OID(id), key.alias)
-	rows.output.Operator = rows
+	rows.OperatorOutput[key] = operatorSpelling(view, path, rows.operatorGroups, ids.OID(id), key.Alias)
+	rows.Output.Operator = rows
 	return nil
 }

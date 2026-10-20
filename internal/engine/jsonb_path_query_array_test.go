@@ -28,7 +28,7 @@ func TestJSONBPathQueryArrayDeclaration(t *testing.T) {
 		t.Fatal(err)
 	}
 	call := node.(functions.JSONBPathQueryArray)
-	if call.ResultUsage().Type.ID() != sqltype.JSONB || call.Properties().Volatility != expr.Immutable || sourceReturnsSet(call) {
+	if call.ResultUsage().Type.ID() != sqltype.JSONB || call.Properties().Volatility != expr.Immutable || SourceReturnsSet(call) {
 		t.Fatal("scalar immutable JSONB contract", call)
 	}
 	captured, err := routine.ExpressionRoutineDescriptor(call)

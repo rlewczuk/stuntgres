@@ -217,7 +217,7 @@ func inheritanceMetadataAssert(t *testing.T, e *Engine, action string, old, curr
 		if action == "set_default" {
 			want = 7
 		}
-		value, err := definition.Expression.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: e.CatalogRead()}})
+		value, err := definition.Expression.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Catalog: e.CatalogRead()}})
 		if err != nil || !reflect.DeepEqual(value, inheritanceQueryInt(e, want)) {
 			t.Fatal("wrong independent physical default value", current.Name(), value, err)
 		}
@@ -267,7 +267,7 @@ func TestInheritanceMetadataAdmissionGrowth(t *testing.T) {
 					if !present {
 						t.Fatal("queued metadata provider exposed a partial default removal", old.Name())
 					}
-					value, err := definition.Expression.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: grown}})
+					value, err := definition.Expression.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Catalog: grown}})
 					if err != nil || !reflect.DeepEqual(value, inheritanceQueryInt(e, 9)) {
 						t.Fatal("queued metadata provider exposed a partial default change", old.Name(), value, err)
 					}

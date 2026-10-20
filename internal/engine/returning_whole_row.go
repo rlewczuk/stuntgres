@@ -15,14 +15,14 @@ func (b *expressionBinder) returningWholeRow(name string, relation *catalog.Rela
 		return nil, false, nil
 	}
 	old := false
-	side := mergeDefaultSide
+	side := MergeDefaultSide
 	switch {
 	case name == aliases.target:
 	case aliases.old != "" && name == aliases.old:
 		old = true
-		side = mergeOldSide
+		side = MergeOldSide
 	case aliases.new != "" && name == aliases.new:
-		side = mergeNewSide
+		side = MergeNewSide
 	default:
 		return nil, false, nil
 	}
@@ -35,7 +35,7 @@ func (b *expressionBinder) returningWholeRow(name string, relation *catalog.Rela
 	members := make([]expr.Expr, len(relation.Columns))
 	scope := &queryBindingScope{relation: relation, frame: frame, returning: aliases}
 	for i := range members {
-		if aliases.mode == returningMerge && side == mergeDefaultSide {
+		if aliases.mode == returningMerge && side == MergeDefaultSide {
 			column := b.columnAtOf(relation, i, pos).(plan.ColumnExpr)
 			column.Frame = frame
 			members[i] = column

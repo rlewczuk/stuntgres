@@ -83,7 +83,7 @@ func TestTIDRoutineAuthority(t *testing.T) {
 			if procedures != 1 {
 				t.Fatal("exact original routine manifest", binder.dependencies)
 			}
-			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalAdmission: evalAdmission{routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies}}
+			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("original authority", err)
 			}
@@ -105,7 +105,7 @@ func TestTIDRoutineAuthority(t *testing.T) {
 					}
 					checks = append(checks, dependency)
 				}
-				evaluation.routineChecks = checks
+				evaluation.RoutineChecks = checks
 				if err := admitRoutineCall(&evaluation, node, true, false); err == nil {
 					t.Fatal("accepted invalid original routine lifetime", mode)
 				}
@@ -117,11 +117,11 @@ func TestTIDRoutineAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			evaluation.routineChecks = []catalog.ExpressionDependency{}
+			evaluation.RoutineChecks = []catalog.ExpressionDependency{}
 			if err := admitRoutineCall(&evaluation, remapped, true, false); err == nil {
 				t.Fatal("foreign retag manufactured original lifetime")
 			}
-			evaluation.routineChecks = binder.dependencies
+			evaluation.RoutineChecks = binder.dependencies
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("negative probes changed source authority", err)
 			}

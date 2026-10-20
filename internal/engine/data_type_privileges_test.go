@@ -115,7 +115,7 @@ func TestDataTypePrivilegesVisibility(t *testing.T) {
 	}
 	selectIDs := func(source *querySource) []string {
 		var ids []string
-		for _, row := range source.anonymous {
+		for _, row := range source.Anonymous {
 			name, _ := row[2].Text()
 			if name == "dtp_unit" {
 				id, _ := row[4].Text()
@@ -127,8 +127,8 @@ func TestDataTypePrivilegesVisibility(t *testing.T) {
 	if got := selectIDs(held); !reflect.DeepEqual(got, []string{"3"}) {
 		t.Fatal("stable column-only identity", got)
 	}
-	before := make([][]sqltype.Value, len(held.anonymous))
-	for i, row := range held.anonymous {
+	before := make([][]sqltype.Value, len(held.Anonymous))
+	for i, row := range held.Anonymous {
 		before[i] = append([]sqltype.Value(nil), row...)
 	}
 	changed := catalog.CloneState(state)
@@ -137,7 +137,7 @@ func TestDataTypePrivilegesVisibility(t *testing.T) {
 	changed.SetDescriptor(relation.Address(), &revoked)
 	auth.Recapture(f.e.catalog.read(changed))
 	fresh, err := dtpUnitCapture(context.Background(), auth.Catalog, auth)
-	if err != nil || len(selectIDs(fresh)) != 0 || !reflect.DeepEqual(before, held.anonymous) {
+	if err != nil || len(selectIDs(fresh)) != 0 || !reflect.DeepEqual(before, held.Anonymous) {
 		t.Fatal("capture lifetime", err)
 	}
 	auth.State.CurrentUser = f.owner

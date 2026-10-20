@@ -74,7 +74,7 @@ func TestHashPartitionRetainedCheckPolicy(t *testing.T) {
 	if _, err := history.nextRow(context.Background(), &position, storage.RowVersion{Row: 9, Version: 9}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("mismatched source identity accepted", err)
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: view}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), Catalog: view}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	var policy partitionRetainedChecks
 	validate := func(values []sqltype.Value, want string) {
 		t.Helper()

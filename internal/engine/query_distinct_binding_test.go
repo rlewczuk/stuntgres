@@ -15,7 +15,7 @@ import (
 
 func TestQueryDistinctPhysicalDescriptorsAndRemap(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT DISTINCT id AS shown,v,id+1 AS computed FROM t WHERE FALSE")
-	defer source.close()
+	defer source.Close()
 	schema := query.Root.Schema()
 	if len(schema) != 3 || schema[0].Name != "shown" || schema[0].OriginTable == 0 || schema[0].OriginAttribute != 1 || !schema[0].NullabilityKnown || schema[0].Nullable || schema[1].OriginAttribute != 2 || !schema[1].NullabilityKnown || !schema[1].Nullable || schema[2].OriginTable != 0 || schema[2].OriginAttribute != 0 || schema[2].NullabilityKnown {
 		t.Fatal(schema)
@@ -67,7 +67,7 @@ func TestQueryDistinctSecondOutputOccurrence(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal(err)
 			}
-			b, err := describe(op.ctx, e.analysisHost(op), ast, auth, source.ref, sqltype.InputEnvironment{}, nil, nil)
+			b, err := describe(op.ctx, e.analysisHost(op), ast, auth, source.Ref, sqltype.InputEnvironment{}, nil, nil)
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
@@ -82,7 +82,7 @@ func TestQueryDistinctSecondOutputOccurrence(t *testing.T) {
 				t.Fatal("view froze wrong output ordinal", frozen, ok)
 			}
 		}()
-		source.close()
+		source.Close()
 	}
 }
 
@@ -129,17 +129,17 @@ func TestQueryDistinctInsertSourceDescriptorOwnership(t *testing.T) {
 					e.mu.Unlock()
 					t.Fatal(err)
 				}
-				view, err := scope.acquireDataViewLocked(e, b.querySources[0].ref)
+				view, err := scope.acquireDataViewLocked(e, b.querySources[0].Ref)
 				e.mu.Unlock()
 				if err != nil {
 					t.Fatal(err)
 				}
-				source, err := captureQuerySource(op.ctx, view, b.querySources[0].ref)
+				source, err := captureQuerySource(op.ctx, view, b.querySources[0].Ref)
 				if err != nil {
 					t.Fatal(err)
 				}
 				borrowQueryAuthority(source, scope)
-				defer source.close()
+				defer source.Close()
 				project := b.query.Root.(*plan.ProjectNode)
 				node := project.Child
 				var expressions []expr.Expr
@@ -161,8 +161,8 @@ func TestQueryDistinctInsertSourceDescriptorOwnership(t *testing.T) {
 				calls := 0
 				expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return original.Eval(c) })
 				rows, err := evaluateInsertQuery(op.ctx, b, source, nil, "public", scope.input, scope.output, scope)
-				if err != nil || len(rows.values) != 2 || calls != 4 || source.view != nil {
-					t.Fatal(rows, calls, err, source.view)
+				if err != nil || len(rows.values) != 2 || calls != 4 || source.View != nil {
+					t.Fatal(rows, calls, err, source.View)
 				}
 				for i, row := range rows.values {
 					value, err := row[0].Integer()

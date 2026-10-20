@@ -81,19 +81,19 @@ func TestQueryJoinsStatementFrontierAndNoWidening(t *testing.T) {
 		scope.Finish(errors.New("view widened"))
 		t.Fatal("retained statement view widened")
 	}
-	defer source.close()
-	data := source.view.Data()
-	if source.sources[1].view.Data() != data || data.Frontier != frontier || len(data.Committed) != 2 || data.GenerationAt(binding.querySources[0].ref.Address) != binding.querySources[0].storage || data.GenerationAt(binding.querySources[1].ref.Address) != binding.querySources[1].storage {
+	defer source.Close()
+	data := source.View.Data()
+	if source.Sources[1].View.Data() != data || data.Frontier != frontier || len(data.Committed) != 2 || data.GenerationAt(binding.querySources[0].Ref.Address) != binding.querySources[0].Storage || data.GenerationAt(binding.querySources[1].Ref.Address) != binding.querySources[1].Storage {
 		t.Fatal(data)
 	}
 	peer := transactionBegin(t, b)
 	sessionSQL(t, b, "INSERT INTO a VALUES(2)")
 	sessionSQL(t, b, "INSERT INTO b VALUES(2)")
 	transactionEnd(t, b, peer, true)
-	if err = selectQuerySources(op.ctx, source); err != nil {
+	if err = SelectQuerySources(op.ctx, source); err != nil {
 		t.Fatal(err)
 	}
-	rows, n, err := finalizeQuery(op.ctx, binding.query.Root, source, nil)
+	rows, n, err := Finalize(op.ctx, binding.query.Root, source, nil)
 	if err != nil || n != 1 {
 		t.Fatal(rows, n, err)
 	}
@@ -175,7 +175,7 @@ func TestQueryJoinsSelfLockAndInsertDestination(t *testing.T) {
 func TestQueryJoinsGrantIdentityReplacement(t *testing.T) {
 	e, query, source, release := queryJoinsAdmittedFixture(t, "SELECT a.k FROM a JOIN b USING(k)", true)
 	defer release()
-	old := source.sources[1].ref
+	old := source.Sources[1].Ref
 	// Snapshot genuine admission evidence while its statement is still live.
 	op, done, err := testOperation(e, context.Background())
 	if err != nil {
@@ -194,7 +194,7 @@ func TestQueryJoinsGrantIdentityReplacement(t *testing.T) {
 	if _, err = scope.Describe(statement(t, "SELECT a.k FROM a JOIN b USING(k)")); err != nil {
 		t.Fatal(err)
 	}
-	if len(scope.querySources) != 2 || scope.querySources[1].ref != old {
+	if len(scope.querySources) != 2 || scope.querySources[1].Ref != old {
 		t.Fatal(scope.querySources, old)
 	}
 	grant := scope.querySources[1]
@@ -216,7 +216,7 @@ func TestQueryJoinsGrantIdentityReplacement(t *testing.T) {
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(old, err)
 	}
-	rows, n, err := finalizeQuery(context.Background(), query.Root, source, nil)
+	rows, n, err := Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || n != 4 {
 		t.Fatal(rows, n, err)
 	}
@@ -430,7 +430,7 @@ func TestQueryJoinsEarlierLeafMetadataDuringWait(t *testing.T) {
 				} else if err != nil || result.Count != 1 || (result.Rows != nil) == inserting {
 					t.Fatal(result, err)
 				}
-				if capturedScope == nil || len(capturedSources) != 2 || capturedSources[0].relation == old || capturedSources[0].relation.Comment != "join wait metadata" || len(capturedScope.querySources) != 0 {
+				if capturedScope == nil || len(capturedSources) != 2 || capturedSources[0].Relation == old || capturedSources[0].Relation.Comment != "join wait metadata" || len(capturedScope.querySources) != 0 {
 					t.Fatal("earlier grant metadata was not refreshed or cleanup retained grants", capturedSources, capturedScope)
 				}
 				wantCount := int64(0)
@@ -523,7 +523,7 @@ func TestQueryJoinsSelectedPrivateRoots(t *testing.T) {
 			}
 			e.mu.Unlock()
 			if err == nil {
-				err = selectQuerySources(op.ctx, source)
+				err = SelectQuerySources(op.ctx, source)
 			}
 			if err != nil {
 				finish(err)
@@ -532,8 +532,8 @@ func TestQueryJoinsSelectedPrivateRoots(t *testing.T) {
 			query = bound.query
 			return source, finish
 		}()
-		defer source.close()
-		data := source.view.Data()
+		defer source.Close()
+		data := source.View.Data()
 		ownCount, deleteCount := 0, 0
 		if private {
 			ownCount, deleteCount = 2, 1
@@ -541,7 +541,7 @@ func TestQueryJoinsSelectedPrivateRoots(t *testing.T) {
 		if len(data.Committed) != 2 || len(data.Own) != ownCount || len(data.Deleted) != deleteCount || len(data.Own[unrelated.Address]) != 0 || data.Deleted[unrelated.Address] != nil {
 			t.Fatal("unrelated private roots retained", data)
 		}
-		rows, n, err := finalizeQuery(context.Background(), query.Root, source, nil)
+		rows, n, err := Finalize(context.Background(), query.Root, source, nil)
 		err = finish(err)
 		if err != nil || n != 1 {
 			t.Fatal(rows, n, err)

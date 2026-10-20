@@ -72,7 +72,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 	b.query.auth = &auth
 	b.query.namespace = ns
 	ref := e.catalog.Domain.Ref(auth.Catalog.Epoch(), d.Address())
-	b.query.sources = []queryLeaf{{ref: ref, relation: d}}
+	b.query.sources = []queryLeaf{{Ref: ref, Relation: d}}
 	column := d.Columns[slot]
 	kind := d.ColumnMeta.Generations[d.Attributes[slot]].Kind
 	if kind == catalog.GenerationVirtual {
@@ -90,7 +90,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 			return catalog.ColumnGeneration{}, err
 		}
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: b.input, catalog: auth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}, evalAdmission: evalAdmission{routineAuthority: &auth, routineRecipe: true, routineChecks: b.dependencies}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: b.input, Catalog: auth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}, evalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.dependencies}}
 	node, _, err = simplifyConditional(&evaluation, node, true)
 	if err != nil {
 		return catalog.ColumnGeneration{}, err
@@ -161,7 +161,7 @@ func generationImmutable(node expr.Expr) bool {
 		return args(n.Elements)
 	case plan.SubscriptExpr:
 		var storage [13]expr.Expr
-		return args(subscriptChildren(n, &storage))
+		return args(SubscriptChildren(n, &storage))
 	case plan.LiteralExpr, plan.ColumnExpr, plan.TableOIDExpr:
 		return true
 	case plan.CollationExpr:
@@ -246,7 +246,7 @@ func generationRecipeExpression(definition catalog.ColumnGeneration) expr.Expr {
 // ALTER borrows its existing selected-slot vector; ordinary writes demand all
 // stored slots. Neither path admits unused recipes or checks rights per row.
 func prepareGenerationProgram(c *EvalContext, d *catalog.Relation, selected []int, consumer *catalog.Relation) ([]expr.Expr, error) {
-	program, prepared := c.preparedGenerations[d]
+	program, prepared := c.PreparedGenerations[d]
 	if prepared {
 		return program, nil
 	}
@@ -266,16 +266,16 @@ func prepareGenerationProgram(c *EvalContext, d *catalog.Relation, selected []in
 		}
 		stored = true
 		recipe := *c
-		recipe.routineRecipe, recipe.routineGraft = true, false
-		recipe.routineChecks = nil
-		recipe.routineReferences = definition.Dependencies
-		recipe.routineConsumer = consumer
+		recipe.RoutineRecipe, recipe.RoutineGraft = true, false
+		recipe.RoutineChecks = nil
+		recipe.RoutineReferences = definition.Dependencies
+		recipe.RoutineConsumer = consumer
 		node, changed, err := preflightCoercionsWithPolicy(&recipe, generationRecipeExpression(definition), true)
-		c.preparedDomainChecks = recipe.preparedDomainChecks
+		c.PreparedDomainChecks = recipe.PreparedDomainChecks
 		if err != nil {
 			return nil, err
 		}
-		if err := validateExpressionJoinExecution(&recipe, node, recipe.catalog); err != nil {
+		if err := validateExpressionJoinExecution(&recipe, node, recipe.Catalog); err != nil {
 			return nil, err
 		}
 		if changed {
@@ -289,10 +289,10 @@ func prepareGenerationProgram(c *EvalContext, d *catalog.Relation, selected []in
 		}
 	}
 	if stored {
-		if c.preparedGenerations == nil {
-			c.preparedGenerations = make(map[*catalog.Relation][]expr.Expr)
+		if c.PreparedGenerations == nil {
+			c.PreparedGenerations = make(map[*catalog.Relation][]expr.Expr)
 		}
-		c.preparedGenerations[d] = program
+		c.PreparedGenerations[d] = program
 	}
 	return program, nil
 }
@@ -354,7 +354,7 @@ func generationHasTableOID(node expr.Expr) bool {
 		return args(n.Elements)
 	case plan.SubscriptExpr:
 		var storage [13]expr.Expr
-		return args(subscriptChildren(n, &storage))
+		return args(SubscriptChildren(n, &storage))
 	case plan.TableOIDExpr:
 		return true
 	case plan.CollationExpr:
@@ -453,7 +453,7 @@ func recomputeRemappedGenerations(ctx context.Context, next *catalog.State, rela
 		schema := next.Get(descriptor.Namespace()).Name()
 		historical := validCheckTraversal(descriptor)
 		requiredNotNull := newAlterRowValidator(descriptor, schema).notNull
-		if scope := scopeOf(eval.host); scope != nil {
+		if scope := scopeOf(eval.Host); scope != nil {
 			stage := scope.op.session.Engine()
 			stage.mu.Lock()
 			err := stage.captureCheckCommentSnapshotLocked(scope, historical)
@@ -675,7 +675,7 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 		return args(n.Elements)
 	case plan.SubscriptExpr:
 		var storage [13]expr.Expr
-		return args(subscriptChildren(n, &storage))
+		return args(SubscriptChildren(n, &storage))
 	case plan.ColumnExpr:
 		if _, generated := d.ColumnMeta.Generations[n.Origin.Address.SubID]; generated || n.Virtual != nil {
 			return fmt.Errorf("stuntgres: generated reference in generation plan")

@@ -6,5 +6,5 @@ import (
 
 // Use the same provider/signature authority without walking operand recipes.
 func plannedIntrinsicVolatility(node expr.Expr) expr.Volatility {
-	return plannedNodeVolatility(node, false, true)
+	return PlannedNodeVolatility(node, false, true)
 }

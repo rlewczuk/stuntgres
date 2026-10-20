@@ -92,7 +92,7 @@ func TestExpressionArithmeticCastOrigins(t *testing.T) {
 		if schema[3].Name != "v" || schema[3].OriginTable == 0 || schema[3].OriginAttribute == 0 {
 			t.Fatal("identity column origin lost", schema[3])
 		}
-		rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

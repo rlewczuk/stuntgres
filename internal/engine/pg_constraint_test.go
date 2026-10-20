@@ -34,8 +34,8 @@ func pgConstraintUnitCapture(t *testing.T, e *Engine, view catalog.Read) map[str
 	if got == nil {
 		t.Fatal("missing constraint capture")
 	}
-	out := make(map[string][]sqltype.Value, len(got.anonymous))
-	for _, row := range got.anonymous {
+	out := make(map[string][]sqltype.Value, len(got.Anonymous))
+	for _, row := range got.Anonymous {
 		name, err := row[1].Text()
 		if err != nil {
 			t.Fatal(err)

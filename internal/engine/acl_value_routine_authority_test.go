@@ -49,11 +49,11 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			if got := call.Properties().Volatility; got != tc.volatility {
 				t.Fatalf("physical volatility: got %v, want %v", got, tc.volatility)
 			}
-			if got := sourceReturnsSet(call); got != tc.set {
+			if got := SourceReturnsSet(call); got != tc.set {
 				t.Fatalf("sourceReturnsSet: got %t, want %t", got, tc.set)
 			}
 			// Containment is deliberately not a function-source capability.
-			if got, want := sourceAdmitted(call), tc.kind != functions.ACLContains; got != want {
+			if got, want := SourceAdmitted(call), tc.kind != functions.ACLContains; got != want {
 				t.Fatalf("sourceAdmitted: got %t, want %t", got, want)
 			}
 			// bindACLValue returns the bare carrier directly, without setting
@@ -87,7 +87,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			if declaration.Identity != identity || declaration.Kind != catalog.FunctionRoutine || declaration.Result != tc.result || !declaration.Strict || declaration.Volatility != tc.volatility || declaration.Parallel != 's' || declaration.ReturnsSet != tc.set || declaration.Defaults != 0 || declaration.Variadic != 0 || declaration.Providers != tc.provider {
 				t.Fatal("independent released full-IN declaration", declaration)
 			}
-			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != tc.name || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != catalog.FunctionRoutine || !captured.Strict || captured.Volatility != tc.volatility || captured.Revision() == 0 || len(captured.Body) != 0 || evaluation.catalog.Get(address) != captured {
+			if captured.Address() != address || captured.Namespace() != (ids.ObjectAddress{ids.NamespaceClassID, 11, 0}) || captured.Name() != tc.name || string(captured.Signature) != tc.signature || captured.Result != tc.result || captured.RoutineKind != catalog.FunctionRoutine || !captured.Strict || captured.Volatility != tc.volatility || captured.Revision() == 0 || len(captured.Body) != 0 || evaluation.Catalog.Get(address) != captured {
 				t.Fatal("selected owned descriptor/no SQL helper body", captured)
 			}
 			original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
@@ -96,7 +96,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
 					selected++
-					if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != evaluation.catalog.Epoch() || dependency.Revision != captured.Revision() {
+					if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != evaluation.Catalog.Epoch() || dependency.Revision != captured.Revision() {
 						t.Fatal("original selected lifetime", dependency)
 					}
 				} else {
@@ -116,7 +116,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			}
 			for _, manifest := range [][]catalog.ExpressionDependency{nil, {}, missing} {
 				probe := evaluation
-				probe.routineChecks = manifest
+				probe.RoutineChecks = manifest
 				if err := admitRoutineCall(&probe, call, false, false); err == nil {
 					t.Fatal("missing original lifetime repaired from current OID")
 				}
@@ -136,13 +136,13 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 					}
 				}
 				probe := evaluation
-				probe.routineChecks = checks
+				probe.RoutineChecks = checks
 				if err := admitRoutineCall(&probe, call, false, false); err == nil {
 					t.Fatal("invalid selected original lifetime admitted", mode)
 				}
 			}
 			probe := evaluation
-			probe.routineAuthority = foreign.routineAuthority
+			probe.RoutineAuthority = foreign.RoutineAuthority
 			if err := admitRoutineCall(&probe, call, false, false); err == nil {
 				t.Fatal("equal-OID foreign authority admitted")
 			}
@@ -158,11 +158,11 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			}
 			mapped := remapped.(functions.ACLValue)
 			mappedDescriptor, err := routine.ExpressionRoutineDescriptor(mapped)
-			if err != nil || mappedDescriptor == captured || mappedDescriptor != foreign.catalog.Get(address) || mapped.Kind != call.Kind || mapped.Named != call.Named || mapped.Namespace != call.Namespace || mapped.SourcePosition() != call.SourcePosition() || mapped.Properties() != call.Properties() {
+			if err != nil || mappedDescriptor == captured || mappedDescriptor != foreign.Catalog.Get(address) || mapped.Kind != call.Kind || mapped.Named != call.Named || mapped.Namespace != call.Namespace || mapped.SourcePosition() != call.SourcePosition() || mapped.Properties() != call.Properties() {
 				t.Fatal("retag lost selected carrier contract", mapped, err)
 			}
 			for _, manifest := range [][]catalog.ExpressionDependency{original, nil, {}} {
-				probe.routineChecks = manifest
+				probe.RoutineChecks = manifest
 				if err := admitRoutineCall(&probe, mapped, false, false); err == nil {
 					t.Fatal("retag manufactured original destination authority")
 				}
@@ -173,7 +173,7 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			replacement.Strict = false
 			changed.Catalog.State().SetDescriptor(address, &replacement)
 			probe = evaluation
-			probe.routineAuthority = &changed
+			probe.RoutineAuthority = &changed
 			if err := admitRoutineCall(&probe, call, false, false); err == nil {
 				t.Fatal("incompatible current declaration admitted")
 			}

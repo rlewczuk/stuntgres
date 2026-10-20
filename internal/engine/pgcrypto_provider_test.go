@@ -156,7 +156,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	n := node.(plan.InstalledCryptoExpr)
-	if n.Ref.Address != ext.Members[2] || plannedVolatility(n) != expr.Immutable || n.ResultUsage().Type.ID() != sqltype.Bytea {
+	if n.Ref.Address != ext.Members[2] || PlannedVolatility(n) != expr.Immutable || n.ResultUsage().Type.ID() != sqltype.Bytea {
 		t.Fatal(n)
 	}
 	value, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
@@ -258,7 +258,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 			t.Fatal(v.name, err)
 		}
 		call := bound.(plan.InstalledCryptoExpr)
-		if call.ResultUsage().Type.ID() != v.result || plannedVolatility(call) != expr.Volatile || !closedPgcryptoDefault(call) {
+		if call.ResultUsage().Type.ID() != v.result || PlannedVolatility(call) != expr.Volatile || !closedPgcryptoDefault(call) {
 			t.Fatal("random/FIPS properties", call)
 		}
 		if err := validateInstalledCrypto(call, e.CatalogRead()); err != nil {
@@ -277,7 +277,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 		if err := validateInstalledCrypto(actual, e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
-		if plannedVolatility(actual) != expr.Volatile || !closedPgcryptoDefault(actual) {
+		if PlannedVolatility(actual) != expr.Volatile || !closedPgcryptoDefault(actual) {
 			t.Fatal("lost reconstructed volatility")
 		}
 		rendered, err := (scalarRenderer{}).sql(context.Background(), e.CatalogRead(), actual)

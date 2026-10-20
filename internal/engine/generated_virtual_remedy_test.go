@@ -33,10 +33,10 @@ func TestGeneratedVirtualOccurrenceAliasesAndOuterFrame(t *testing.T) {
 	probe := generatedOccurrenceProbe{Info: expr.Info{Usage: typ.Usage()}, calls: &calls, value: one, err: failure}
 	column := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 4, Slot: 1, Virtual: probe, RowWidth: 2, QueryOccurrence: 1}
 	// Local aliases 0/1 map to global physical ordinals 3/7 under locks.
-	physical := &querySource{occurrence: 3}
-	state := &queryState{source: &querySource{sources: []*querySource{{input: physical}, {occurrence: 7}}}, virtualReads: true}
-	outer := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{sqltype.Null(typ), sqltype.Null(typ)}, query: state, queryOccurrences: []int{3, 7}, queryProvenance: []int{absentQueryIndex, 0}}}
-	inner := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 8, Outer: &outer, queryOccurrences: []int{3, 7}, queryProvenance: []int{0, absentQueryIndex}}}
+	physical := &querySource{Occurrence: 3}
+	state := &queryState{Source: &querySource{Sources: []*querySource{{Input: physical}, {Occurrence: 7}}}, VirtualReads: true}
+	outer := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{sqltype.Null(typ), sqltype.Null(typ)}, Query: state, QueryOccurrences: []int{3, 7}, QueryProvenance: []int{AbsentQueryIndex, 0}}}
+	inner := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 8, Outer: &outer, QueryOccurrences: []int{3, 7}, QueryProvenance: []int{0, AbsentQueryIndex}}}
 	value, err := column.Eval(&inner)
 	if err != nil || !value.IsNull() || value.Type() != typ || calls != 0 {
 		t.Fatal("absent outer alias demanded recipe", value, err, calls)
@@ -148,7 +148,7 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	consumer := *d
 	consumer.View = viewPayloadOf(definition)
 	w := &viewWrite{layers: []viewWriteLayer{{relation: &consumer}}}
-	b := binding{querySources: []queryLeaf{{ref: ref, relation: d}}}
+	b := binding{querySources: []queryLeaf{{Ref: ref, Relation: d}}}
 	mapped, err := w.graftQuery(&b, view, project, func(expr expr.Expr) (expr.Expr, bool, error) { return expr, false, nil })
 	if err != nil {
 		t.Fatal(err)
@@ -165,12 +165,12 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	if wrapped.Left.(plan.ColumnExpr).QueryOccurrence != 2 || nullTest.Child.(plan.ColumnExpr).QueryOccurrence != 3 || nextChoice.Arms[0].Condition.(plan.NullTestExpr).Child.(plan.ColumnExpr).QueryOccurrence != 3 || next.Expressions[5].(plan.ColumnExpr).QueryOccurrence != 1 {
 		t.Fatal("compound or outside lexical occurrence remap")
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{sqltype.Null(typ), sqltype.Null(typ), sqltype.Null(typ), sqltype.Null(typ)}, query: &queryState{source: &querySource{sources: []*querySource{{occurrence: 9}, {occurrence: 4}, {occurrence: 7}}}}, queryOccurrences: []int{4, 7}, queryProvenance: []int{absentQueryIndex, 0}}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{sqltype.Null(typ), sqltype.Null(typ), sqltype.Null(typ), sqltype.Null(typ)}, Query: &queryState{Source: &querySource{Sources: []*querySource{{Occurrence: 9}, {Occurrence: 4}, {Occurrence: 7}}}}, QueryOccurrences: []int{4, 7}, QueryProvenance: []int{AbsentQueryIndex, 0}}}
 	value, err := wrapped.Eval(&evaluation)
 	if err != nil || !value.IsNull() {
 		t.Fatal("absent compound graft recomputed recipe", value, err)
 	}
-	evaluation.queryProvenance = []int{0, absentQueryIndex}
+	evaluation.QueryProvenance = []int{0, AbsentQueryIndex}
 	value, err = nextChoice.Eval(&evaluation)
 	if n, access := value.Integer(); err != nil || access != nil || n != 2 {
 		t.Fatal("present CASE graft evaluation", value, err)
@@ -195,7 +195,7 @@ func TestGeneratedVirtualGraftedAliasOccurrences(t *testing.T) {
 	if n, access := value.Integer(); err != nil || access != nil || n != 2 {
 		t.Fatal("derived present graft evaluation", value, err)
 	}
-	evaluation.queryProvenance[0] = absentQueryIndex
+	evaluation.QueryProvenance[0] = AbsentQueryIndex
 	value, err = nextInner.Expressions[0].Eval(&evaluation)
 	if err != nil || !value.IsNull() {
 		t.Fatal("derived absent graft evaluation", value, err)
@@ -213,26 +213,26 @@ func TestGeneratedVirtualJoinIdentityBeforeMerge(t *testing.T) {
 		calls := 0
 		probe := generatedOccurrenceProbe{Info: expr.Info{Usage: typ.Usage()}, calls: &calls, value: one}
 		column := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 1, Slot: 2, Virtual: probe, RowStart: 1, RowWidth: 2, QueryOccurrence: 2}
-		left := &querySource{anonymous: [][]sqltype.Value{{one}}, occurrence: 0}
-		right := &querySource{anonymous: [][]sqltype.Value{}, occurrence: 1}
+		left := &querySource{Anonymous: [][]sqltype.Value{{one}}, Occurrence: 0}
+		right := &querySource{Anonymous: [][]sqltype.Value{}, Occurrence: 1}
 		if present {
-			right.anonymous = [][]sqltype.Value{{sqltype.Null(typ), sqltype.Null(typ)}}
+			right.Anonymous = [][]sqltype.Value{{sqltype.Null(typ), sqltype.Null(typ)}}
 		}
-		state := &queryState{source: &querySource{sources: []*querySource{left, right}}, virtualReads: true}
+		state := &queryState{Source: &querySource{Sources: []*querySource{left, right}}, VirtualReads: true}
 		schema := plan.QuerySchema{d.Columns[0], d.Columns[0], d.Columns[1], d.Columns[1]}
 		join := &plan.JoinNode{QuerySchema: schema, Kind: parser.JoinLeft, Left: &plan.SourceNode{QuerySchema: schema[:1], Occurrence: 0}, Right: &plan.SourceNode{QuerySchema: schema[1:3], Occurrence: 1}, LeftWidth: 1, RightWidth: 2, Merges: []expr.Expr{column}}
-		stage, err := openJoinNode(context.Background(), state, join)
+		stage, err := OpenJoinNode(context.Background(), state, join)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := stage.drain(context.Background()); err != nil || stage.count() != 1 {
-			t.Fatal("join production", err, stage.count())
+		if err := stage.Drain(context.Background()); err != nil || stage.Count() != 1 {
+			t.Fatal("join production", err, stage.Count())
 		}
-		evaluation := state.evaluation(context.Background())
-		evaluation.bindQueryRow(stage.source, stage.index(0))
+		evaluation := state.Evaluation(context.Background())
+		evaluation.BindQueryRow(stage.Source, stage.Index(0))
 		value, err := column.Eval(&evaluation)
-		if err != nil || value.IsNull() == present || stage.source.row(0)[3].IsNull() == present {
-			t.Fatal("transient merge/saved projection identity", present, value, err, stage.source.row(0))
+		if err != nil || value.IsNull() == present || stage.Source.Row(0)[3].IsNull() == present {
+			t.Fatal("transient merge/saved projection identity", present, value, err, stage.Source.Row(0))
 		}
 		wantCalls := 0
 		if present {

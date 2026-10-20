@@ -309,7 +309,7 @@ func TestCommitTimeExpression(t *testing.T) {
 		if err := n.(expr.StoredProvider).ValidateStoredProvider(); err != nil {
 			t.Fatal(err)
 		}
-		if n.Properties().Volatility != expr.Volatile || plannedVolatility(n) != expr.Volatile || generationImmutable(n) || conditionalConstantInputs(n) || !sameGroupExpression(n, n) {
+		if n.Properties().Volatility != expr.Volatile || PlannedVolatility(n) != expr.Volatile || generationImmutable(n) || conditionalConstantInputs(n) || !sameGroupExpression(n, n) {
 			t.Fatal("volatile expression lifecycle")
 		}
 		count := 0

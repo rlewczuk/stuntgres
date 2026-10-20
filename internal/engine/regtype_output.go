@@ -105,14 +105,14 @@ func captureRegtypeOutputValue(rows *finalRows, view catalog.Read, path []ids.Ob
 	if err != nil {
 		return err
 	}
-	if _, ok := rows.regtypeOutput[id]; ok {
+	if _, ok := rows.RegtypeOutput[id]; ok {
 		return nil
 	}
-	if rows.regtypeOutput == nil {
-		rows.regtypeOutput = make(map[uint32]string)
+	if rows.RegtypeOutput == nil {
+		rows.RegtypeOutput = make(map[uint32]string)
 	}
-	rows.regtypeOutput[id] = regtypeSpelling(view, path, ids.OID(id))
-	rows.output.Regtype = rows
+	rows.RegtypeOutput[id] = regtypeSpelling(view, path, ids.OID(id))
+	rows.Output.Regtype = rows
 	return nil
 }
 

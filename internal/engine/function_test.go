@@ -147,7 +147,7 @@ func TestNullCountDependenciesAndAuthorization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(bound.querySources) != 1 || bound.querySources[0].ref != ref || !reflect.DeepEqual(bound.querySources[0].uses, []int{1, 2}) {
+	if len(bound.querySources) != 1 || bound.querySources[0].Ref != ref || !reflect.DeepEqual(bound.querySources[0].Uses, []int{1, 2}) {
 		t.Fatal(bound.querySources)
 	}
 	project := bound.query.Root.(*plan.ProjectNode)

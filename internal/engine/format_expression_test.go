@@ -25,7 +25,7 @@ func TestFormatBoundMetadataAndRuntimeOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	node, ok := bound.(functions.Format)
-	if !ok || node.ResultUsage().Type.ID() != sqltype.Text || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != expr.Stable || plannedVolatility(node) != expr.Stable {
+	if !ok || node.ResultUsage().Type.ID() != sqltype.Text || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != expr.Stable || PlannedVolatility(node) != expr.Stable {
 		t.Fatalf("format metadata: %#v", bound)
 	}
 	for _, rewrite := range []struct {

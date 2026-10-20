@@ -31,8 +31,8 @@ func (s *StatementScope) prepareCopyQueryRows(query *parser.Select) (RowResult, 
 	}
 	rows := &protocolCopyQueryRows{scope: s, producer: capture.producer, schema: capture.producer.schema}
 	capture.producer = nil
-	rows.output = newFinalRows(rows.schema, 0)
-	rows.output.output = s.output
+	rows.output = NewFinalRows(rows.schema, 0)
+	rows.output.Output = s.output
 	err = func() error {
 		s.enterProtocolProducer(rows.producer)
 		defer s.leaveProtocolProducer(rows.producer)
@@ -53,7 +53,7 @@ type protocolCopyQueryRows struct {
 }
 
 func (r *protocolCopyQueryRows) Schema() []catalog.Column                     { return r.schema }
-func (r *protocolCopyQueryRows) OutputEnvironment() sqltype.OutputEnvironment { return r.output.output }
+func (r *protocolCopyQueryRows) OutputEnvironment() sqltype.OutputEnvironment { return r.output.Output }
 func (r *protocolCopyQueryRows) RegclassText(v sqltype.Value) (string, error) {
 	return r.output.RegclassText(v)
 }

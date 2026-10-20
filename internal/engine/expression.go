@@ -71,23 +71,23 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression expr.Expr, decisive
 }
 
 func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
-	if err := evaluationContext(c); err != nil {
+	if err := EvaluationContext(c); err != nil {
 		return nil, false, err
 	}
 	recipe, err := routine.ExpressionRecipeDescriptor(expression)
 	if err != nil {
 		return nil, false, err
 	}
-	if recipe != nil && (!c.routineGraft || c.routineConsumer != recipe) || recipe == nil && c.routineGraft {
+	if recipe != nil && (!c.RoutineGraft || c.RoutineConsumer != recipe) || recipe == nil && c.RoutineGraft {
 		parent := c
 		local := *c
 		if err := selectExpressionRecipe(&local, recipe); err != nil {
 			return nil, false, err
 		}
 		c = &local
-		defer func() { parent.preparedDomainChecks = c.preparedDomainChecks }()
+		defer func() { parent.PreparedDomainChecks = c.PreparedDomainChecks }()
 	}
-	if c.specializeRuleParameters && expression != nil && expression.Properties().ParameterDependent {
+	if c.SpecializeRuleParameters && expression != nil && expression.Properties().ParameterDependent {
 		specialized, changed, err := specializeRuleParameterExpression(c, expression)
 		if err != nil {
 			return nil, false, err
@@ -99,7 +99,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 	}
 	switch e := expression.(type) {
 	case plan.SubqueryExpr:
-		if !c.planStaticOperators || e.CTEEdge || e.QueryPlan == nil {
+		if !c.PlanStaticOperators || e.CTEEdge || e.QueryPlan == nil {
 			return e, false, nil
 		}
 		input := e.QueryPlan.Root
@@ -385,7 +385,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			return nil, false, err
 		}
 		e.Left, e.Right = left, right
-		if randomLiteralNull(left) || randomLiteralNull(right) {
+		if RandomLiteralNull(left) || RandomLiteralNull(right) {
 			return preflightValue(c, e.Info, sqltype.Null(e.Usage.Type), nil)
 		}
 		p := e.Properties()
@@ -527,7 +527,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			value, err := evaluatePlanningExpression(c, e)
 			return preflightValue(c, e.Info, value, err)
 		}
-		if decisiveDefaults || c.planStaticOperators {
+		if decisiveDefaults || c.PlanStaticOperators {
 			// Dependence belongs to the original analyzed recipe: an imported
 			// cast may now be a literal without making its parameter static.
 			p := expression.Properties()
@@ -643,7 +643,7 @@ func preflightValue(c *EvalContext, info expr.Info, value sqltype.Value, err err
 	if err != nil {
 		return nil, false, err
 	}
-	if err := evaluationContext(c); err != nil {
+	if err := EvaluationContext(c); err != nil {
 		return nil, false, err
 	}
 	info.RoutineReference = nil
@@ -842,7 +842,7 @@ func (b *expressionBinder) column(raw parser.ColumnExpr) (expr.Expr, error) {
 		qualified := len(raw.Name.Parts) == 1 || len(raw.Name.Parts) == 2 && raw.Name.Parts[0].Text == owner.Name() || len(raw.Name.Parts) == 3 && raw.Name.Parts[1].Text == owner.Name() && raw.Name.Parts[0].Text == b.query.namespace.qualifiers[0].schema
 		if qualified {
 			if name == "tableoid" {
-				ref := b.query.sources[0].ref
+				ref := b.query.sources[0].Ref
 				return plan.TableOIDExpr{Info: b.info(b.typ(sqltype.Oid).Usage(), raw.Pos, expr.Properties{RowDependent: true}), Owner: ref}, nil
 			}
 			if isSystemColumn(name) {
@@ -1533,7 +1533,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 	if _, logical := node.(plan.LogicalExpr); policy.booleanConstruct != "" && !logical {
 		returnsSet := false
 		plan.WalkExpression(node, func(child expr.Expr) {
-			returnsSet = returnsSet || sourceReturnsSet(child)
+			returnsSet = returnsSet || SourceReturnsSet(child)
 		})
 		if returnsSet {
 			return nil, expr.ErrorAt("42804", fmt.Sprintf("argument of %s must not return a set", policy.booleanConstruct), parser.ExpressionStart(raw))
@@ -2582,7 +2582,7 @@ func (b *expressionBinder) bindComparisonOperandCandidates(raw parser.OperatorEx
 // and imported parameter NULLs retain their existing execution-owned behavior.
 func arithmeticSetConstantNull(original, current plan.ArithmeticExpr) bool {
 	return (bitwiseConstantNull(current.Left) || bitwiseConstantNull(current.Right)) &&
-		(querySetDepth(original) != 0 || querySetDepth(current) != 0)
+		(QuerySetDepth(original) != 0 || QuerySetDepth(current) != 0)
 }
 
 func arithmeticName(name string) bool {

@@ -95,9 +95,9 @@ func TestTruncateBuffers(t *testing.T) {
 	t.Cleanup(func() { result.Rows.Close() })
 	rows := result.Rows.(*finalRows)
 	schema := rows.Schema()
-	count := rows.count
+	count := rows.Count
 	truncateUnitExecute(t, e, s, truncateUnitAST("p"))
-	if e.storage.Relations[p.Address] == old || !sameVersionRoot(old.Versions, root) || old.Ends != ends || rows.count != count || !reflect.DeepEqual(rows.Schema(), schema) {
+	if e.storage.Relations[p.Address] == old || !sameVersionRoot(old.Versions, root) || old.Ends != ends || rows.Count != count || !reflect.DeepEqual(rows.Schema(), schema) {
 		t.Fatal("generation swap damaged retained eager buffer/codec")
 	}
 	if got := tuples(result); !reflect.DeepEqual(got, [][]driver.Value{{int64(1)}, {int64(2)}}) {
@@ -198,19 +198,19 @@ func TestTruncateSnapshotsBirthFilter(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if source.needsBirthFilter != test.filter {
-			source.close()
+		if source.NeedsBirthFilter != test.filter {
+			source.Close()
 			t.Fatal("source dropped capture birth provenance")
 		}
-		source, err = selectQuerySource(context.Background(), source, data.FrontierAt(test.ref.Address), data.Ends[test.ref.Address], data.Deleted[test.ref.Address])
+		source, err = SelectQuerySource(context.Background(), source, data.FrontierAt(test.ref.Address), data.Ends[test.ref.Address], data.Deleted[test.ref.Address])
 		if err != nil {
 			t.Fatal(err)
 		}
-		if source.count() != test.count || !test.filter && source.visible != nil {
-			source.close()
+		if source.Count() != test.count || !test.filter && source.Visible != nil {
+			source.Close()
 			t.Fatal("selector skipped birth filtering or lost frozen allocation-free path")
 		}
-		source.close()
+		source.Close()
 	}
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal(err)

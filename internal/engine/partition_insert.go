@@ -57,7 +57,7 @@ func (s *StatementScope) capturePartitionInsertLocked(e *Engine, auth Authorizat
 			if state.layouts == nil {
 				state.layouts = make(map[ids.ObjectAddress]*inheritanceQuerySegment)
 			}
-			state.layouts[d.Address()] = &inheritanceQuerySegment{layout: layout, scratch: make([]sqltype.Value, len(layout))}
+			state.layouts[d.Address()] = &inheritanceQuerySegment{Layout: layout, Scratch: make([]sqltype.Value, len(layout))}
 		}
 		return nil
 	}
@@ -259,7 +259,7 @@ func (state *partitionInsertState) missingPartition(ctx context.Context, parent 
 
 func (state *partitionInsertState) rowFor(d *catalog.Relation, row []sqltype.Value) []sqltype.Value {
 	if segment := state.layouts[d.Address()]; segment != nil {
-		return segment.mapValues(row)
+		return segment.MapValues(row)
 	}
 	return row
 }

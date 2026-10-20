@@ -185,7 +185,7 @@ func bindInsertConflict(b *binding, shared *expressionBinder, auth Authorization
 		}
 		c.predicate = predicate
 	}
-	c.reads = binder.query.sources[0].uses
+	c.reads = binder.query.sources[0].Uses
 	shared.params.anyParameters = append(shared.params.anyParameters, binder.params.anyParameters...)
 	for _, dep := range binder.dependencies {
 		shared.dependency(dep.Ref, dep.Revision)

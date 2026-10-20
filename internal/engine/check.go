@@ -79,7 +79,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		binder.consumer.checkConsumer, binder.params.noParameters = true, true
 		binder.query.auth = &auth
 		binder.query.namespace = &ns
-		binder.query.sources = []queryLeaf{{ref: ref, relation: d}}
+		binder.query.sources = []queryLeaf{{Ref: ref, Relation: d}}
 		if altering {
 			e.mu.Lock()
 			if auth.Catalog.Epoch() != e.catalog.state.Epoch() {
@@ -100,7 +100,7 @@ func (e *Engine) bindColumnChecks(op *Operation, auth AuthorizationView, raw []*
 		name := c.Name.Text
 		if name == "" {
 			column := ""
-			uses := binder.query.sources[0].uses
+			uses := binder.query.sources[0].Uses
 			if len(uses) == 1 {
 				column = d.Columns[uses[0]].Name
 			}
@@ -455,23 +455,23 @@ func validateCheckRow(d *catalog.Relation, row []sqltype.Value, eval *EvalContex
 	oldRow, oldScope, oldFrame := eval.Row, eval.Scope, eval.Frame
 	eval.Row, eval.Scope, eval.Frame = row, 1, 1
 	defer func() { eval.Row, eval.Scope, eval.Frame = oldRow, oldScope, oldFrame }()
-	expressions, prepared := eval.preparedChecks[d]
+	expressions, prepared := eval.PreparedChecks[d]
 	if !prepared {
 		// Prepare every CHECK before any volatile row evaluation, matching
 		// ExecRelCheck. Keep descriptors/dependencies untouched and copy the
 		// executable expression slice only when a branch actually changes.
 		for i := range d.Constraints.Check {
 			checkEvaluation := *eval
-			checkEvaluation.routineRecipe, checkEvaluation.routineGraft = true, false
-			checkEvaluation.routineChecks = d.Constraints.Check[i].Dependencies
-			checkEvaluation.routineReferences = nil
-			checkEvaluation.routineConsumer = d
+			checkEvaluation.RoutineRecipe, checkEvaluation.RoutineGraft = true, false
+			checkEvaluation.RoutineChecks = d.Constraints.Check[i].Dependencies
+			checkEvaluation.RoutineReferences = nil
+			checkEvaluation.RoutineConsumer = d
 			node, changed, err := preflightCoercionsWithPolicy(&checkEvaluation, d.Constraints.Check[i].Expression, true)
-			eval.preparedDomainChecks = checkEvaluation.preparedDomainChecks
+			eval.PreparedDomainChecks = checkEvaluation.PreparedDomainChecks
 			if err != nil {
 				return nil, err
 			}
-			if err := validateExpressionJoinExecution(&checkEvaluation, node, checkEvaluation.catalog); err != nil {
+			if err := validateExpressionJoinExecution(&checkEvaluation, node, checkEvaluation.Catalog); err != nil {
 				return nil, err
 			}
 			if changed {
@@ -484,24 +484,24 @@ func validateCheckRow(d *catalog.Relation, row []sqltype.Value, eval *EvalContex
 				expressions[i] = node
 			}
 		}
-		if eval.preparedChecks == nil {
-			eval.preparedChecks = make(map[*catalog.Relation][]expr.Expr)
+		if eval.PreparedChecks == nil {
+			eval.PreparedChecks = make(map[*catalog.Relation][]expr.Expr)
 		}
-		eval.preparedChecks[d] = expressions
+		eval.PreparedChecks[d] = expressions
 	}
 	// Lazy SQL-body demand happens during truth, after preflight's stack
 	// context has ended. Keep this actual CHECK's original recipe for Eval;
 	// the shared statement manifest cannot stand in for a stored constraint.
-	oldRecipe, oldGraft := eval.routineRecipe, eval.routineGraft
-	oldChecks, oldReferences, oldConsumer := eval.routineChecks, eval.routineReferences, eval.routineConsumer
+	oldRecipe, oldGraft := eval.RoutineRecipe, eval.RoutineGraft
+	oldChecks, oldReferences, oldConsumer := eval.RoutineChecks, eval.RoutineReferences, eval.RoutineConsumer
 	defer func() {
-		eval.routineRecipe, eval.routineGraft = oldRecipe, oldGraft
-		eval.routineChecks, eval.routineReferences, eval.routineConsumer = oldChecks, oldReferences, oldConsumer
+		eval.RoutineRecipe, eval.RoutineGraft = oldRecipe, oldGraft
+		eval.RoutineChecks, eval.RoutineReferences, eval.RoutineConsumer = oldChecks, oldReferences, oldConsumer
 	}()
 	for i := range d.Constraints.Check {
 		c := &d.Constraints.Check[i]
-		eval.routineRecipe, eval.routineGraft = true, false
-		eval.routineChecks, eval.routineReferences, eval.routineConsumer = c.Dependencies, nil, d
+		eval.RoutineRecipe, eval.RoutineGraft = true, false
+		eval.RoutineChecks, eval.RoutineReferences, eval.RoutineConsumer = c.Dependencies, nil, d
 		expression := c.Expression
 		if expressions != nil {
 			expression = expressions[i]

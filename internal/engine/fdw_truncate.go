@@ -24,10 +24,10 @@ func (s *StatementScope) prepareForeignTruncate() ([]foreignTruncateGroup, error
 		if err != nil {
 			return nil, err
 		}
-		f := source.foreign
+		f := source.Foreign
 		index := -1
 		for i, g := range groups {
-			if g.source.request.ServerOID == f.request.ServerOID {
+			if g.source.Request.ServerOID == f.Request.ServerOID {
 				index = i
 				break
 			}
@@ -36,12 +36,12 @@ func (s *StatementScope) prepareForeignTruncate() ([]foreignTruncateGroup, error
 			index = len(groups)
 			groups = append(groups, foreignTruncateGroup{source: f, request: catalog.ForeignTruncateRequest{Cascade: s.truncateOrZero().foreignCascade, RestartIdentity: s.truncateOrZero().restart}})
 		}
-		groups[index].request.Tables = append(groups[index].request.Tables, copyForeignRequest(f.request))
+		groups[index].request.Tables = append(groups[index].request.Tables, CopyForeignRequest(f.Request))
 	}
 	// Admit every participant before any selected server is truncated.
 	for i := range groups {
 		g := &groups[i]
-		tx, err := s.enlistForeign(s.op.Context(), g.source.wrapper, g.source.request, true)
+		tx, err := s.enlistForeign(s.op.Context(), g.source.Wrapper, g.source.Request, true)
 		if err != nil {
 			return nil, err
 		}
@@ -55,8 +55,8 @@ func (s *StatementScope) prepareForeignTruncate() ([]foreignTruncateGroup, error
 func (s *StatementScope) executeForeignTruncate(groups []foreignTruncateGroup) error {
 	s.foreignUnlocked()
 	for _, g := range groups {
-		if err := g.source.wrapper.(catalog.ForeignTruncater).ExecForeignTruncate(s.op.Context(), g.request); err != nil {
-			return foreignCallbackError(err)
+		if err := g.source.Wrapper.(catalog.ForeignTruncater).ExecForeignTruncate(s.op.Context(), g.request); err != nil {
+			return ForeignCallbackError(err)
 		}
 	}
 	return nil

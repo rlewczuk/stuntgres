@@ -157,15 +157,15 @@ func TestCheckReviewScalarInquiryStatementSnapshot(t *testing.T) {
 	if captureErr != nil {
 		t.Fatal(captureErr)
 	}
-	defer source.close()
+	defer source.Close()
 	if scope.inquiry.commentCatalog != catalog || scope.inquiry.commentRoles != roles {
 		t.Fatal("query opening replaced the statement comment snapshot")
 	}
-	query := queryState{source: source, input: scope.input, output: scope.output}
-	evaluation := query.evaluation(ctx)
-	evaluation.routineRecipe = true
-	evaluation.routineChecks = relation.Constraints.Check[0].Dependencies
-	evaluation.routineConsumer = relation
+	query := queryState{Source: source, Input: scope.input, Output: scope.output}
+	evaluation := query.Evaluation(ctx)
+	evaluation.RoutineRecipe = true
+	evaluation.RoutineChecks = relation.Constraints.Check[0].Dependencies
+	evaluation.RoutineConsumer = relation
 	if err := admitRoutineCall(&evaluation, inquiry, true, false); err != nil {
 		t.Fatal(err)
 	}

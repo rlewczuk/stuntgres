@@ -77,7 +77,7 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 	// The borrowed stage closes before actions, but executeMerge's input owner
 	// keeps the source namespace and any action-subquery leaves live until exit.
 	var stage *indexedStage
-	if state.virtualReads {
+	if state.VirtualReads {
 		var ok bool
 		stage, ok = cursor.(*indexedStage)
 		if !ok {
@@ -103,15 +103,15 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 			return nil, err
 		}
 		sources = append(sources, scratch...)
-		if state.virtualReads {
+		if state.VirtualReads {
 			if sourceCount == 0 {
-				occurrences = appendQueryOccurrences(nil, stage.source)
+				occurrences = AppendQueryOccurrences(nil, stage.Source)
 			}
-			provenance = appendQueryProvenance(provenance, stage.source, stage.index(stage.position-1))
+			provenance = AppendQueryProvenance(provenance, stage.Source, stage.Index(stage.Position-1))
 		}
-		if stage, ok := cursor.(*indexedStage); ok && stage.source.presenceCount != 0 {
-			presenceSlots, presenceCount = stage.source.presenceSlots, stage.source.presenceCount
-			presence = append(presence, stage.source.presenceRow(stage.index(stage.position-1))...)
+		if stage, ok := cursor.(*indexedStage); ok && stage.Source.PresenceCount != 0 {
+			presenceSlots, presenceCount = stage.Source.PresenceSlots, stage.Source.PresenceCount
+			presence = append(presence, stage.Source.PresenceRow(stage.Index(stage.Position-1))...)
 		}
 		sourceCount++
 	}
@@ -122,40 +122,40 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 		return nil, err
 	}
 	frame := make([]sqltype.Value, len(b.relation.Columns)+width)
-	evaluation := state.evaluation(ctx)
+	evaluation := state.Evaluation(ctx)
 	evaluation.Row = frame
-	evaluation.presenceSlots = presenceSlots
-	evaluation.queryOccurrences = occurrences
+	evaluation.PresenceSlots = presenceSlots
+	evaluation.QueryOccurrences = occurrences
 	bindIdentity := func(index int) {
-		if state.virtualReads {
+		if state.VirtualReads {
 			width := len(occurrences)
-			evaluation.queryProvenance = provenance[index*width : (index+1)*width]
+			evaluation.QueryProvenance = provenance[index*width : (index+1)*width]
 		}
 	}
 	var pairs []mergeCandidate
 	var targetMatched []bool
 	if b.merge.hasBySource {
-		targetMatched = make([]bool, target.count())
+		targetMatched = make([]bool, target.Count())
 	}
 	capture := func(i int, class parser.MergeMatch, source int) mergeCandidate {
-		slot := target.rawIndex(i)
-		old := target.versionAt(slot)
+		slot := target.RawIndex(i)
+		old := target.VersionAt(slot)
 		deletion := visibility.DeleteCandidate{Ref: b.ref, Storage: b.storage, Row: old.Row, Version: old.Version, Ordinal: slot}
-		if slot >= len(target.committed) {
+		if slot >= len(target.Committed) {
 			deletion.Own = true
-			deletion.Ordinal -= len(target.committed)
+			deletion.Ordinal -= len(target.Committed)
 		}
 		return mergeCandidate{updateCandidate: updateCandidate{RowVersion: old, slot: slot, sourceIndex: source}, class: class, deletion: deletion}
 	}
 	for j := range sourceCount {
 		if presenceCount != 0 {
-			evaluation.presence = presence[j*presenceCount : (j+1)*presenceCount]
+			evaluation.Presence = presence[j*presenceCount : (j+1)*presenceCount]
 		}
 		copy(frame[len(b.relation.Columns):], sources[j*width:(j+1)*width])
 		bindIdentity(j)
 		matched := false
-		for i := range target.count() {
-			old := target.versionAt(target.rawIndex(i))
+		for i := range target.Count() {
+			old := target.VersionAt(target.RawIndex(i))
 			copy(frame, old.Values)
 			truth, err := mergeMatches(&evaluation, b.merge.on)
 			if err != nil {
@@ -211,11 +211,11 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 			copy(frame[len(b.relation.Columns):], source)
 			bindIdentity(candidate.sourceIndex)
 			if presenceCount != 0 {
-				evaluation.presence = presence[candidate.sourceIndex*presenceCount : (candidate.sourceIndex+1)*presenceCount]
+				evaluation.Presence = presence[candidate.sourceIndex*presenceCount : (candidate.sourceIndex+1)*presenceCount]
 			}
 		} else {
-			evaluation.presence = nil
-			evaluation.queryProvenance = nil
+			evaluation.Presence = nil
+			evaluation.QueryProvenance = nil
 		}
 		old, class := candidate.RowVersion, candidate.class
 		setFrame := func() {
@@ -482,7 +482,7 @@ func (merge *boundMerge) selectArm(evaluation *EvalContext, class parser.MergeMa
 		if arm.match != class {
 			continue
 		}
-		selected, err := updateMatches(evaluation, arm.condition)
+		selected, err := UpdateMatches(evaluation, arm.condition)
 		if err != nil {
 			return nil, err
 		}

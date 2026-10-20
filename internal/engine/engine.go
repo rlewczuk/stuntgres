@@ -758,7 +758,7 @@ func describeWithFormals(ctx context.Context, host analyzeHost, stmt parser.Stat
 			return b, sqlError("0A000", "materialized views may not be defined using bound parameters")
 		}
 		for _, source := range binder.query.sources {
-			if ns := auth.Catalog.MustNamespace(source.relation.Namespace()); ns.Temporary != (ids.SessionToken{}) {
+			if ns := auth.Catalog.MustNamespace(source.Relation.Namespace()); ns.Temporary != (ids.SessionToken{}) {
 				return b, sqlError("0A000", "materialized views must not use temporary tables or views")
 			}
 		}

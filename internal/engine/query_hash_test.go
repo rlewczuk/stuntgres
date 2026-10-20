@@ -38,7 +38,7 @@ func hashCaptureQuery(t *testing.T, e *Engine, op *Operation, q string) (*plan.Q
 	}
 	e.mu.Unlock()
 	if err == nil {
-		err = selectQuerySources(op.ctx, source)
+		err = SelectQuerySources(op.ctx, source)
 	}
 	if err != nil {
 		scope.Finish(err)
@@ -50,7 +50,7 @@ func hashCaptureQuery(t *testing.T, e *Engine, op *Operation, q string) (*plan.Q
 			return
 		}
 		released = true
-		source.close()
+		source.Close()
 		if err := scope.Finish(nil); err != nil {
 			t.Error(err)
 		}
@@ -73,15 +73,15 @@ func hashImplicitQuery(t *testing.T, e *Engine, q string) (*plan.Query, *querySo
 }
 func hashFilterStage(t *testing.T, query *plan.Query, source *querySource, parameters []sqltype.Value) indexedStage {
 	t.Helper()
-	filter := hashQueryFilter(query.Root)
+	filter := HashQueryFilter(query.Root)
 	if filter == nil {
 		t.Fatal("fixture has no top-level filter")
 	}
-	state := &queryState{source: source, parameters: parameters, hashFilter: filter, frame: query.Root.(*plan.ProjectNode).Frame}
-	if scope := scopeOf(source.liveHost()); scope != nil {
-		state.input, state.output = scope.input, scope.output
+	state := &queryState{Source: source, Parameters: parameters, HashFilter: filter, Frame: query.Root.(*plan.ProjectNode).Frame}
+	if scope := scopeOf(source.LiveHost()); scope != nil {
+		state.Input, state.Output = scope.input, scope.output
 	}
-	stage, err := openQueryNode(context.Background(), state, filter)
+	stage, err := OpenNode(context.Background(), state, filter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,18 +99,18 @@ func TestHashIndexLookupFeatureSmoke(t *testing.T) {
 	}
 	for _, q := range []string{"SELECT n FROM t WHERE n=2", "SELECT n FROM t WHERE 2=n"} {
 		query, source, release := hashImplicitQuery(t, e, q)
-		if len(source.hashIndexes) != 1 || source.hashIndexes[0].root != root {
-			t.Fatal("live capture did not retain actual root", source.hashIndexes)
+		if len(source.HashIndexes) != 1 || source.HashIndexes[0].Root != root {
+			t.Fatal("live capture did not retain actual root", source.HashIndexes)
 		}
 		stage := hashFilterStage(t, query, source, nil)
-		if stage.hashCandidates == nil || stage.hashCandidates.root != root || len(stage.hashCandidates.occurrences) != 2 {
-			t.Fatal("real filter did not prune to duplicate bucket", stage.hashCandidates)
+		if stage.HashCandidates == nil || stage.HashCandidates.Root != root || len(stage.HashCandidates.Occurrences) != 2 {
+			t.Fatal("real filter did not prune to duplicate bucket", stage.HashCandidates)
 		}
-		if err := stage.drain(context.Background()); err != nil {
+		if err := stage.Drain(context.Background()); err != nil {
 			t.Fatal(err)
 		}
-		if stage.count() != 2 || stage.hashCandidates.position != 2 {
-			t.Fatal("candidates were not consumed by original predicate", stage.count(), stage.hashCandidates)
+		if stage.Count() != 2 || stage.HashCandidates.Position != 2 {
+			t.Fatal("candidates were not consumed by original predicate", stage.Count(), stage.HashCandidates)
 		}
 		stage.Close()
 		release()
@@ -131,11 +131,11 @@ func TestHashIndexLookupParametersResidualAndFallback(t *testing.T) {
 	} {
 		query, source, release := hashImplicitQuery(t, e, tc.q)
 		stage := hashFilterStage(t, query, source, nil)
-		if stage.hashCandidates != nil {
+		if stage.HashCandidates != nil {
 			t.Fatal("unsupported predicate probed", tc.q)
 		}
-		if err := stage.drain(context.Background()); err != nil || stage.count() != tc.count {
-			t.Fatal(tc.q, stage.count(), err)
+		if err := stage.Drain(context.Background()); err != nil || stage.Count() != tc.count {
+			t.Fatal(tc.q, stage.Count(), err)
 		}
 		stage.Close()
 		release()
@@ -145,7 +145,7 @@ func TestHashIndexLookupParametersResidualAndFallback(t *testing.T) {
 		count int
 	}{{"2", 2}, {"1", 1}, {"99", 0}, {"NULL", 0}} {
 		query, source, release := hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=$1")
-		u := source.hashIndexes[0].usage
+		u := source.HashIndexes[0].Usage
 		value := sqltype.Null(u.Type)
 		if tc.probe != "NULL" {
 			var err error
@@ -155,35 +155,35 @@ func TestHashIndexLookupParametersResidualAndFallback(t *testing.T) {
 			}
 		}
 		stage := hashFilterStage(t, query, source, []sqltype.Value{value})
-		if stage.hashCandidates == nil || len(stage.hashCandidates.occurrences) != tc.count {
-			t.Fatal("parameter was not rebound per execution", tc, stage.hashCandidates)
+		if stage.HashCandidates == nil || len(stage.HashCandidates.Occurrences) != tc.count {
+			t.Fatal("parameter was not rebound per execution", tc, stage.HashCandidates)
 		}
-		if err := stage.drain(context.Background()); err != nil || stage.count() != tc.count {
-			t.Fatal(tc, stage.count(), err)
+		if err := stage.Drain(context.Background()); err != nil || stage.Count() != tc.count {
+			t.Fatal(tc, stage.Count(), err)
 		}
 		stage.Close()
 		release()
 	}
 	query, source, release := hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=2")
-	original := source.hashIndexes[0].root
+	original := source.HashIndexes[0].Root
 	clone := *original
 	clone.Buckets = maps.Clone(original.Buckets)
-	probe := source.committed[0].Values[0]
+	probe := source.Committed[0].Values[0]
 	h, err := clone.Binding.Provider.Hash(context.Background(), probe)
 	if err != nil {
 		t.Fatal(err)
 	}
-	one := source.committed[1]
+	one := source.Committed[1]
 	// One forced hash collision is rejected by class equality; a false-positive
 	// stored key passes that guard but must fail the original SQL comparison.
 	clone.Buckets[h] = append(append([]storage.HashEntry(nil), clone.Buckets[h]...), storage.HashEntry{Key: one.Values[0], Row: one.Row, Version: one.Version, Position: 1}, storage.HashEntry{Key: probe, Row: one.Row, Version: one.Version, Position: 1})
-	source.hashIndexes[0].root = &clone
+	source.HashIndexes[0].Root = &clone
 	stage := hashFilterStage(t, query, source, nil)
-	if stage.hashCandidates == nil || len(stage.hashCandidates.occurrences) != 3 {
-		t.Fatal("collision/equality guard not exercised", stage.hashCandidates)
+	if stage.HashCandidates == nil || len(stage.HashCandidates.Occurrences) != 3 {
+		t.Fatal("collision/equality guard not exercised", stage.HashCandidates)
 	}
-	if err := stage.drain(context.Background()); err != nil || stage.count() != 2 {
-		t.Fatal("residual predicate not exercised", stage.count(), err)
+	if err := stage.Drain(context.Background()); err != nil || stage.Count() != 2 {
+		t.Fatal("residual predicate not exercised", stage.Count(), err)
 	}
 	stage.Close()
 	release()
@@ -192,7 +192,7 @@ func TestHashIndexLookupParametersResidualAndFallback(t *testing.T) {
 	}
 	for _, q := range []string{"SELECT n FROM t ORDER BY n", "SELECT n FROM (SELECT n FROM t WHERE n=2) d", "SELECT a.n FROM t a JOIN t b ON a.n=b.n WHERE a.n=2"} {
 		query, _, release := hashImplicitQuery(t, e, q)
-		if hashQueryFilter(query.Root) != nil {
+		if HashQueryFilter(query.Root) != nil {
 			t.Fatal("order/derived/join filter admitted", q)
 		}
 		release()

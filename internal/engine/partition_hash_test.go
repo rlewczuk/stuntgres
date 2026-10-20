@@ -168,7 +168,7 @@ func TestHashPartitionIndexRepairTransport(t *testing.T) {
 		sourceIndex.Address():      {index: sourceIndex, parent: source, frontier: 1},
 		destinationIndex.Address(): {index: destinationIndex, parent: &destination, frontier: 1},
 	}}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: view}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), Catalog: view}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	dirty := map[ids.ObjectAddress]bool{source.Address(): true, destination.Address(): true}
 	if err := snapshot.repair(evaluation.Context, &evaluation, relations, nil, dirty, AuthorizationView{}); err != nil {
 		t.Fatal(err)

@@ -84,7 +84,7 @@ func preflightUpdateWithPlanning(c *EvalContext, original *boundUpdate, planCons
 	}
 	if original.from != nil {
 		from := original.from
-		if c.planStaticOperators && len(sourceDemand) != 0 {
+		if c.PlanStaticOperators && len(sourceDemand) != 0 {
 			from, err = sourceDemand[0](result)
 			if err != nil {
 				return nil, err
@@ -253,11 +253,11 @@ func (e *Engine) latestUpdateRow(s *StatementScope, ref ids.ObjectRef, candidate
 }
 
 func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding, source, from *querySource, parameters []sqltype.Value, schema string) (Result, error) {
-	defer source.close()
-	source.host = hostOf(s)
-	if b.storage == nil || b.storage != s.lockedStorage || b.storage != source.view.Data().GenerationAt(b.ref.Address) {
+	defer source.Close()
+	source.Host = hostOf(s)
+	if b.storage == nil || b.storage != s.lockedStorage || b.storage != source.View.Data().GenerationAt(b.ref.Address) {
 		if from != nil {
-			from.close()
+			from.Close()
 		}
 		return Result{}, ids.ErrCatalogReplaced
 	}
@@ -267,31 +267,31 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		positioned, err = s.positionedMutationRow(b)
 		if err != nil {
 			if from != nil {
-				from.close()
+				from.Close()
 			}
 			return Result{}, err
 		}
 	}
 	inputs := source
 	if from != nil {
-		if err := selectQuerySources(ctx, from); err != nil {
+		if err := SelectQuerySources(ctx, from); err != nil {
 			return Result{}, err
 		}
 		if b.viewWrite != nil || b.rule.template {
 			from = freezeViewWriteSources(s, from, b.querySources)
 		}
-		defer from.close()
+		defer from.Close()
 		inputs = from
 	}
-	state := queryState{source: inputs, parameters: parameters, input: s.input, output: s.output, locking: inputs.locks != nil}
-	defer state.releaseMemberships()
-	eval := state.evaluation(ctx)
+	state := queryState{Source: inputs, Parameters: parameters, Input: s.input, Output: s.output, Locking: inputs.Locks != nil}
+	defer state.ReleaseMemberships()
+	eval := state.Evaluation(ctx)
 	var smallUpdateOutputs [4]sqltype.Value
 	if b.update.outputWidth != 0 {
 		if b.update.outputWidth <= len(smallUpdateOutputs) {
-			eval.updateOutputScratch = smallUpdateOutputs[:b.update.outputWidth]
+			eval.UpdateOutputScratch = smallUpdateOutputs[:b.update.outputWidth]
 		} else {
-			eval.updateOutputScratch = make([]sqltype.Value, b.update.outputWidth)
+			eval.UpdateOutputScratch = make([]sqltype.Value, b.update.outputWidth)
 		}
 	}
 	var stage indexedStage
@@ -299,32 +299,32 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	var updated map[mutationRowIdentity]bool
 	sourceCount := 1
 	if b.update.from != nil {
-		state.virtualReads = queryHasVirtualReads(b.update.from) || boundHasVirtualReads(b.update.predicate)
+		state.VirtualReads = QueryHasVirtualReads(b.update.from) || BoundHasVirtualReads(b.update.predicate)
 		for _, expression := range b.update.assignments {
-			state.virtualReads = state.virtualReads || boundHasVirtualReads(expression)
+			state.VirtualReads = state.VirtualReads || BoundHasVirtualReads(expression)
 		}
 		for _, target := range b.update.arrayTargets {
-			state.virtualReads = state.virtualReads || assignmentTargetHasVirtualReads(target)
+			state.VirtualReads = state.VirtualReads || assignmentTargetHasVirtualReads(target)
 		}
 		if b.returning != nil {
 			for _, expression := range b.returning.expressions {
-				state.virtualReads = state.virtualReads || boundHasVirtualReads(expression)
+				state.VirtualReads = state.VirtualReads || BoundHasVirtualReads(expression)
 			}
 		}
 		var err error
-		stage, err = openQueryNode(ctx, &state, b.update.from)
+		stage, err = OpenNode(ctx, &state, b.update.from)
 		if err != nil {
 			return Result{}, err
 		}
-		stage, err = settlePendingQueryMarks(ctx, &state, b.update.from, stage)
+		stage, err = SettlePendingQueryMarks(ctx, &state, b.update.from, stage)
 		if err != nil {
 			return Result{}, err
 		}
 		defer stage.Close()
-		if err := stage.drain(ctx); err != nil {
+		if err := stage.Drain(ctx); err != nil {
 			return Result{}, err
 		}
-		sourceCount = stage.count()
+		sourceCount = stage.Count()
 		if sourceCount != 0 {
 			frame = make([]sqltype.Value, len(b.relation.Columns)+b.update.sourceWidth)
 			updated = make(map[mutationRowIdentity]bool)
@@ -333,8 +333,8 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	var output *finalRows
 	keep := false
 	if b.returning != nil {
-		output = newFinalRows(b.returning.schema, 0)
-		output.output = s.output
+		output = NewFinalRows(b.returning.schema, 0)
+		output.Output = s.output
 		defer func() {
 			if !keep {
 				output.Close()
@@ -344,30 +344,30 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	// The candidate set is frozen before the first row wait. Rechecks can remove
 	// candidates but never discover rows that did not qualify in this snapshot.
 	var candidates []updateCandidate
-	for i := range source.count() {
+	for i := range source.Count() {
 		physical := mutationPhysicalRow(source, i, b)
-		old := physical.version
-		if b.currentOf != "" && (positioned.ref != physical.leaf.ref || old.Row != positioned.row) {
+		old := physical.Version
+		if b.currentOf != "" && (positioned.ref != physical.Leaf.Ref || old.Row != positioned.row) {
 			continue
 		}
 		for j := range sourceCount {
 			if err := ctx.Err(); err != nil {
 				return Result{}, err
 			}
-			eval.Row = physical.values(old)
-			eval.physicalTable = physical.leaf.ref
+			eval.Row = physical.Values(old)
+			eval.PhysicalTable = physical.Leaf.Ref
 			if b.update.from != nil {
 				copy(frame, eval.Row)
-				copy(frame[len(b.relation.Columns):], stage.source.row(stage.index(j)))
+				copy(frame[len(b.relation.Columns):], stage.Source.Row(stage.Index(j)))
 				eval.Row = frame
-				eval.bindQueryIdentity(stage.source, stage.index(j))
+				eval.BindQueryIdentity(stage.Source, stage.Index(j))
 			}
-			matches, err := updateMatches(&eval, b.update.predicate)
+			matches, err := UpdateMatches(&eval, b.update.predicate)
 			if err != nil {
 				return Result{}, err
 			}
 			if matches {
-				candidates = append(candidates, updateCandidate{RowVersion: old, slot: physical.hint, sourceIndex: j, physical: physical})
+				candidates = append(candidates, updateCandidate{RowVersion: old, slot: physical.Hint, sourceIndex: j, physical: physical})
 			}
 		}
 	}
@@ -381,7 +381,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	var single physicalBatch
 	single.ref = b.ref
 	if len(s.inheritedTargets) == 0 {
-		capacity := min(len(candidates), source.count())
+		capacity := min(len(candidates), source.Count())
 		single.old = make([]storage.RowVersion, 0, capacity)
 		single.rows.values = make([][]sqltype.Value, 0, capacity)
 	}
@@ -390,10 +390,10 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		batches = make([]physicalBatch, len(s.inheritedTargets)+1)
 		batches[0].ref = b.ref
 		for i, target := range s.inheritedTargets {
-			batches[i+1].ref = target.ref
+			batches[i+1].ref = target.Ref
 		}
 		for i := range batches {
-			capacity := min(len(candidates), source.inheritance[i].prefix.count())
+			capacity := min(len(candidates), source.Inheritance[i].Prefix.Count())
 			batches[i].old = make([]storage.RowVersion, 0, capacity)
 			batches[i].rows.values = make([][]sqltype.Value, 0, capacity)
 		}
@@ -403,7 +403,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		if err := ctx.Err(); err != nil {
 			return Result{}, err
 		}
-		ref := candidate.physical.leaf.ref
+		ref := candidate.physical.Leaf.Ref
 		if err := s.acquireUpdateRow(ref, candidate.Row); err != nil {
 			return Result{}, err
 		}
@@ -414,21 +414,21 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		if !live {
 			continue
 		}
-		oldValues := candidate.physical.values(old)
+		oldValues := candidate.physical.Values(old)
 		eval.Row = oldValues
-		eval.physicalTable = ref
+		eval.PhysicalTable = ref
 		eval.OldRow = nil
 		if b.update.from != nil {
 			copy(frame, oldValues)
-			copy(frame[len(b.relation.Columns):], stage.source.row(stage.index(candidate.sourceIndex)))
+			copy(frame[len(b.relation.Columns):], stage.Source.Row(stage.Index(candidate.sourceIndex)))
 			eval.Row = frame
-			eval.bindQueryIdentity(stage.source, stage.index(candidate.sourceIndex))
+			eval.BindQueryIdentity(stage.Source, stage.Index(candidate.sourceIndex))
 		}
 		if old.Version != candidate.Version {
 			if err := s.physicalRowEvent(ref, old, lock.MultiNoKeyLock, 0); err != nil {
 				return Result{}, err
 			}
-			matches, err := updateMatches(&eval, b.update.predicate)
+			matches, err := UpdateMatches(&eval, b.update.predicate)
 			if err != nil {
 				return Result{}, err
 			}
@@ -490,8 +490,8 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 		if err := e.checkViewRow(s, &b, row, &eval); err != nil {
 			return Result{}, err
 		}
-		if candidate.physical.segment != nil && candidate.physical.segment.layout != nil {
-			for i, slot := range candidate.physical.segment.layout {
+		if candidate.physical.Segment != nil && candidate.physical.Segment.Layout != nil {
+			for i, slot := range candidate.physical.Segment.Layout {
 				row[i] = physicalRow[slot]
 			}
 		}
@@ -532,19 +532,19 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 				if err != nil {
 					return Result{}, err
 				}
-				if value.Type() == nil || !value.Type().Concrete() || value.Type() != output.schema[i].Usage.Type {
+				if value.Type() == nil || !value.Type().Concrete() || value.Type() != output.Columns[i].Usage.Type {
 					return Result{}, errors.New("stuntgres: invalid finalized UPDATE value")
 				}
-				output.values = append(output.values, value)
+				output.Values = append(output.Values, value)
 			}
-			output.count++
+			output.Count++
 		}
 		count++
 		if b.update.from != nil {
 			updated[identity] = true
 		}
 	}
-	if output != nil && b.returning.regclassOutput && output.count != 0 {
+	if output != nil && b.returning.regclassOutput && output.Count != 0 {
 		if err := e.captureRegclassOutput(s.op, output); err != nil {
 			return Result{}, err
 		}

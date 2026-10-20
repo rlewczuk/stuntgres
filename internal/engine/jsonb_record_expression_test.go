@@ -42,7 +42,7 @@ func TestJSONBRecordBinding(t *testing.T) {
 		t.Fatal("lost definition usage", node, ns)
 	}
 	call := source.Calls[0].(functions.JSONBRecord)
-	if sourceReturnsSet(call) || !sourceAdmitted(call) || !call.Definitions || call.Unresolved || call.Properties().Volatility != expr.Stable {
+	if SourceReturnsSet(call) || !SourceAdmitted(call) || !call.Definitions || call.Unresolved || call.Properties().Volatility != expr.Stable {
 		t.Fatal("invalid scalar properties", call)
 	}
 	eval := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
@@ -80,7 +80,7 @@ func TestJSONBRecordBinding(t *testing.T) {
 	if !sameGroupExpression(call, call) {
 		t.Fatal("record equality lost")
 	}
-	if plannedVolatility(call) != expr.Stable {
+	if PlannedVolatility(call) != expr.Stable {
 		t.Fatal("record incorrectly immutable")
 	}
 	raw.Name.Parts[0].Text = "jsonb_to_recordset"
@@ -90,10 +90,10 @@ func TestJSONBRecordBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	set := node.(*plan.FunctionFromNode).Calls[0]
-	if !sourceReturnsSet(set) || functionFromCallWidth(set) != 2 || !set.Properties().StageDependent {
+	if !SourceReturnsSet(set) || FunctionFromCallWidth(set) != 2 || !set.Properties().StageDependent {
 		t.Fatal("recordset placement/width", set)
 	}
-	cursor, err := openFunctionSource(eval, set)
+	cursor, err := OpenFunctionSource(eval, set)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +134,7 @@ func TestJSONBRecordDomainErrors(t *testing.T) {
 		domainUnitPublish(t, e, domainUnitStage(t, e, op, q))
 	}
 	view := e.CatalogRead()
-	eval := &EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: view}}
+	eval := &EvalContext{evalStatement: evalStatement{Context: context.Background(), Catalog: view}}
 	parent := domainUnitType(t, view, "jbr_parent").SQLType
 	child := domainUnitType(t, view, "jbr_child").SQLType
 	castDefinition := domainUnitType(t, view, "jbr_cast")
@@ -301,7 +301,7 @@ func TestJSONBRecordSourceProjection(t *testing.T) {
 			t.Fatal("unrelated slot, alias, or ordinal changed", out)
 		}
 	}
-	if call.ResultUsage().Type != current || functionFromCallWidth(node.Calls[0]) != 3 || len(currentColumns) != 5 {
+	if call.ResultUsage().Type != current || FunctionFromCallWidth(node.Calls[0]) != 3 || len(currentColumns) != 5 {
 		t.Fatal("projection truncated current source authority")
 	}
 	// A second lexical star has its own analyzed target list.
@@ -355,7 +355,7 @@ func TestJSONBRecordReplay(t *testing.T) {
 				if err != nil {
 					t.Fatal(round, err)
 				}
-				value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, catalog: engine.CatalogRead()}})
+				value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, Catalog: engine.CatalogRead()}})
 				if err != nil {
 					t.Fatal(round, err)
 				}
@@ -429,7 +429,7 @@ func TestJSONBRecordArgumentIdentity(t *testing.T) {
 			if err != nil || next.clause.jsonbRecordBase {
 				t.Fatal("retained base rebound by stale name or leaked scope", err)
 			}
-			value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, catalog: view}})
+			value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, Catalog: view}})
 			if err != nil || value.Type() != original {
 				t.Fatal(value, err)
 			}
@@ -495,7 +495,7 @@ func TestJSONBRecordLayout(t *testing.T) {
 		} else if call.Args[0].ResultUsage().Type.CompositeMember(0).Name != "f1" {
 			t.Fatal("caller labels replaced runtime field names")
 		}
-		value, err := call.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, catalog: auth.Catalog}})
+		value, err := call.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, Catalog: auth.Catalog}})
 		if err != nil || value.Type() != call.ResultUsage().Type {
 			t.Fatal(value, err)
 		}
@@ -511,7 +511,7 @@ func TestJSONBRecordLayout(t *testing.T) {
 	if err != nil || !jsonbRecordUnresolved(base) {
 		t.Fatal("lost transitive static layout state", base, err)
 	}
-	if _, err := base.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, catalog: auth.Catalog}}); err == nil {
+	if _, err := base.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, Catalog: auth.Catalog}}); err == nil {
 		t.Fatal("inner unresolved expression was erased")
 	}
 }

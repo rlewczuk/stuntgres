@@ -57,7 +57,7 @@ func admitRoutineCall(c *EvalContext, node expr.Expr, scalarPlanning, constantCo
 	if recipeErr != nil {
 		return recipeErr
 	}
-	if recipe != nil && (!c.routineGraft || c.routineConsumer != recipe) || recipe == nil && c.routineGraft {
+	if recipe != nil && (!c.RoutineGraft || c.RoutineConsumer != recipe) || recipe == nil && c.RoutineGraft {
 		local := *c
 		if err := selectExpressionRecipe(&local, recipe); err != nil {
 			return err
@@ -72,7 +72,7 @@ func admitRoutineCall(c *EvalContext, node expr.Expr, scalarPlanning, constantCo
 	case plan.SubqueryExpr:
 		pairs, ordering = expression.Comparisons, expression.Ordering
 	case plan.CaseExpr:
-		if expression.Test != nil && !randomLiteralNull(expression.Test) {
+		if expression.Test != nil && !RandomLiteralNull(expression.Test) {
 			for _, arm := range expression.Arms {
 				if err := admitCaseEquality(c, arm); err != nil {
 					return err
@@ -103,7 +103,7 @@ func admitRoutineCall(c *EvalContext, node expr.Expr, scalarPlanning, constantCo
 	if strictScalarRoutine(captured) {
 		null := false
 		strictRoutineArguments(node, func(child expr.Expr) {
-			if child != nil && randomLiteralNull(child) {
+			if child != nil && RandomLiteralNull(child) {
 				null = true
 			}
 		})
@@ -121,7 +121,7 @@ func admitRoutineCall(c *EvalContext, node expr.Expr, scalarPlanning, constantCo
 }
 
 func admitCaseEquality(c *EvalContext, arm plan.CaseBranch) error {
-	if arm.Routine == nil || arm.Routine.Strict && randomLiteralNull(arm.Condition) {
+	if arm.Routine == nil || arm.Routine.Strict && RandomLiteralNull(arm.Condition) {
 		return nil
 	}
 	auth, dependencies, err := routineAdmissionAuthority(c)
@@ -142,18 +142,18 @@ func admitRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, depend
 }
 
 func checkRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies []catalog.ExpressionDependency, captured *catalog.Procedure) error {
-	if c.routineChecks != nil {
-		return admitRoutineDescriptor(auth, c.routineChecks, captured, c.routineConsumer)
+	if c.RoutineChecks != nil {
+		return admitRoutineDescriptor(auth, c.RoutineChecks, captured, c.RoutineConsumer)
 	}
-	if c.routineReferences != nil {
+	if c.RoutineReferences != nil {
 		if _, err := routine.ValidateRoutineDescriptor(auth.Catalog, auth.Roles, captured); err != nil {
 			return err
 		}
-		for _, ref := range c.routineReferences {
+		for _, ref := range c.RoutineReferences {
 			if ref.Address != captured.Address() {
 				continue
 			}
-			if !storedReferenceEpochValid(auth.Catalog, c.routineConsumer, ref) {
+			if !storedReferenceEpochValid(auth.Catalog, c.RoutineConsumer, ref) {
 				return ids.ErrCatalogReplaced
 			}
 			// This exact retained recipe's established epoch bridge does not
@@ -163,7 +163,7 @@ func checkRecipeRoutineDescriptor(c *EvalContext, auth AuthorizationView, depend
 		}
 		return fmt.Errorf("stuntgres: missing stored routine lifetime manifest")
 	}
-	if c.routineRecipe {
+	if c.RoutineRecipe {
 		return fmt.Errorf("stuntgres: empty owning routine lifetime manifest")
 	}
 	return admitRoutineDescriptor(auth, dependencies, captured, nil)
@@ -174,7 +174,7 @@ func routineAdmissionAuthority(c *EvalContext) (AuthorizationView, []catalog.Exp
 	var dependencies []catalog.ExpressionDependency
 	if routineAuth := routineAuthorityView(c); routineAuth != nil {
 		auth = *routineAuth
-	} else if scope := scopeOf(c.liveHost()); scope != nil {
+	} else if scope := scopeOf(c.LiveHost()); scope != nil {
 		if scope.finished {
 			return auth, nil, fmt.Errorf("stuntgres: ended routine admission authority")
 		}
@@ -186,8 +186,8 @@ func routineAdmissionAuthority(c *EvalContext) (AuthorizationView, []catalog.Exp
 	if auth.engine == nil {
 		return auth, nil, fmt.Errorf("stuntgres: missing live routine admission authority")
 	}
-	if c.routineRecipe {
-		dependencies = c.routineChecks
+	if c.RoutineRecipe {
+		dependencies = c.RoutineChecks
 	}
 	return auth, dependencies, nil
 }
@@ -207,8 +207,8 @@ func admitRoutineReference(c *EvalContext, ref ids.ObjectRef, noun string) error
 		if dependency.Ref != ref {
 			continue
 		}
-		if c.routineConsumer != nil {
-			if !storedReferenceEpochValid(auth.Catalog, c.routineConsumer, ref) {
+		if c.RoutineConsumer != nil {
+			if !storedReferenceEpochValid(auth.Catalog, c.RoutineConsumer, ref) {
 				return ids.ErrCatalogReplaced
 			}
 			ref.Epoch = auth.Catalog.Epoch()

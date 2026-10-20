@@ -79,18 +79,18 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 		if err != nil || source == nil {
 			t.Fatal(d.Name(), err)
 		}
-		if source.ref != ref {
+		if source.Ref != ref {
 			t.Fatal("wrapper lost ref", d.Name())
 		}
 		if oid == 12048 {
-			if source.pgSequences == nil || len(source.anonymous) != 1 || !source.anonymous[0][10].IsNull() {
+			if source.PGSequences == nil || len(source.Anonymous) != 1 || !source.Anonymous[0][10].IsNull() {
 				t.Fatal("sequence source lost lazy ownership")
 			}
-			source.close()
+			source.Close()
 			seen[oid] = true
 			continue
 		}
-		for _, row := range source.anonymous {
+		for _, row := range source.Anonymous {
 			if len(row) != len(d.Columns) {
 				t.Fatal("source row shape", d.Name(), len(row))
 			}
@@ -103,20 +103,20 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 		switch oid {
 		case 1259, 1249, 2610, 2604, 2618, 12000, 12002, 12003, 2224,
 			ids.ForeignWrapperClassID, ids.ForeignServerClassID, ids.ForeignMappingClassID, ids.ForeignTableClassID:
-			if len(source.anonymous) == 0 {
+			if len(source.Anonymous) == 0 {
 				t.Fatal("real fixture missing from producer", d.Name())
 			}
 		case pgcatalog.UserMappingsOID:
-			if len(source.anonymous) != 1 || source.anonymous[0][5].IsNull() || source.anonymous[0][5].ArrayLen() != 1 {
+			if len(source.Anonymous) != 1 || source.Anonymous[0][5].IsNull() || source.Anonymous[0][5].ArrayLen() != 1 {
 				t.Fatal("fresh mapping disclosure lost")
 			}
-			option, err := source.anonymous[0][5].ArrayElement(0).Text()
+			option, err := source.Anonymous[0][5].ArrayElement(0).Text()
 			if err != nil || option != "token=private" {
 				t.Fatal("foreign mapping option", option, err)
 			}
 		case 1247:
 			found := false
-			for _, row := range source.anonymous {
+			for _, row := range source.Anonymous {
 				if id, _ := row[0].OID(); id == 23 {
 					name, _ := row[1].Text()
 					found = name == "int4"
@@ -126,13 +126,13 @@ func TestCatalogSourceProducerCoverage(t *testing.T) {
 				t.Fatal("pg_type lost builtin identity")
 			}
 		case pgcatalog.SettingsOID:
-			name, _ := source.anonymous[0][0].Text()
-			value, _ := source.anonymous[0][1].Text()
+			name, _ := source.Anonymous[0][0].Text()
+			value, _ := source.Anonymous[0][1].Text()
 			if name != "row_security" || value != "on" {
 				t.Fatal("physical setting route", name, value)
 			}
 		}
-		source.close()
+		source.Close()
 		seen[oid] = true
 	}
 	for _, entry := range pgcatalog.Registrations() {
@@ -207,7 +207,7 @@ func TestCatalogSourceInputProvenance(t *testing.T) {
 		t.Fatal("old source paired with new generation", err)
 	}
 	wrapped, err := captureCatalogSourceRows(in, capturePGType)
-	if err != nil || wrapped.ref != in.Ref || len(wrapped.anonymous) != len(rows) {
+	if err != nil || wrapped.Ref != in.Ref || len(wrapped.Anonymous) != len(rows) {
 		t.Fatal("actual row wrapper ownership", err)
 	}
 }
@@ -238,19 +238,19 @@ func TestCatalogSourceRuntimeCapture(t *testing.T) {
 				t.Fatal(err)
 			}
 			if oid == pgcatalog.CursorsOID {
-				name, _ := source.anonymous[0][0].Text()
+				name, _ := source.Anonymous[0][0].Text()
 				if name != "producer_runtime" || cursor.position != cursorBefore || cursor.stage != nil {
 					t.Fatal("metadata dispatch demanded or replaced cursor")
 				}
 			} else {
-				value, _ := source.anonymous[0][1].Text()
-				provenance, _ := source.anonymous[0][8].Text()
-				reset, _ := source.anonymous[0][13].Text()
+				value, _ := source.Anonymous[0][1].Text()
+				provenance, _ := source.Anonymous[0][8].Text()
+				reset, _ := source.Anonymous[0][13].Text()
 				if value != "on" || reset != "on" || provenance != "session" {
 					t.Fatal("override presence/coherent tuple", value, reset, provenance)
 				}
 			}
-			source.close()
+			source.Close()
 		}
 	})
 	t.Run("prepared_published_owner", func(t *testing.T) {

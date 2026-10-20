@@ -215,7 +215,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 		b.capture.routineRefs = binder.capture.routineRefs
 		b.capture.operatorRefs = binder.capture.operatorRefs
 		for i := range b.querySources {
-			b.querySources[i].frozenAttributes = slices.Clone(b.querySources[i].relation.Attributes)
+			b.querySources[i].FrozenAttributes = slices.Clone(b.querySources[i].Relation.Attributes)
 		}
 		r.conditionBinding = &b
 		r.conditionPresentation, err = e.freezeQueryPresentationLocked(auth, query, b, false, false, 0, "", false)
@@ -261,7 +261,7 @@ func (e *Engine) bindRuleDefinitionLocked(scope *StatementScope, auth Authorizat
 			return r, sqlError("42P02", "there is no parameter $1")
 		}
 		for i := range b.querySources {
-			b.querySources[i].frozenAttributes = slices.Clone(b.querySources[i].relation.Attributes)
+			b.querySources[i].FrozenAttributes = slices.Clone(b.querySources[i].Relation.Attributes)
 		}
 		if b.returning != nil {
 			if r.condition != nil {

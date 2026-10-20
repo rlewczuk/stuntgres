@@ -72,7 +72,7 @@ func validateMutationJoinExecution(c *EvalContext, b *binding, expressions [][]e
 		for _, target := range targets {
 			for path := target; path != nil; path = path.Next {
 				var storage [13]expr.Expr
-				for _, child := range subscriptChildren(path.Node, &storage) {
+				for _, child := range SubscriptChildren(path.Node, &storage) {
 					if err := validateExpressionJoinExecution(&owner, child, catalog); err != nil {
 						return err
 					}
@@ -131,7 +131,7 @@ func validateExpressionJoinExecution(c *EvalContext, expression expr.Expr, catal
 	if err != nil {
 		return err
 	}
-	if recipe != nil && (!c.routineGraft || c.routineConsumer != recipe) || recipe == nil && c.routineGraft {
+	if recipe != nil && (!c.RoutineGraft || c.RoutineConsumer != recipe) || recipe == nil && c.RoutineGraft {
 		local := *c
 		if err := selectExpressionRecipe(&local, recipe); err != nil {
 			return err
@@ -153,7 +153,7 @@ func validateExpressionJoinExecution(c *EvalContext, expression expr.Expr, catal
 		project := subquery.QueryPlan.Root.(*plan.ProjectNode)
 		child := *c
 		child.Scope, child.Frame = 1, project.Frame
-		child.Row, child.orderValues, child.Outer = nil, nil, c
+		child.Row, child.OrderValues, child.Outer = nil, nil, c
 		var ignored *plan.ProjectNode
 		if subquery.PresenceOnly {
 			ignored = project
@@ -318,9 +318,9 @@ func validateMarkedQueryJoin(c *EvalContext, node plan.Node, view catalog.Read, 
 				return err
 			}
 			child := *c
-			child.quoteOrigin = quoteOrigin{owner: n.Ref, definition: viewOf(d).rule, revision: viewOf(d).quoteRevision}
-			child.routineChecks, child.routineReferences, child.routineConsumer = viewOf(d).dependencies, nil, d
-			child.routineRecipe, child.routineGraft = true, false
+			child.quoteOrigin = quoteOrigin{Owner: n.Ref, Definition: viewOf(d).rule, Revision: viewOf(d).quoteRevision}
+			child.RoutineChecks, child.RoutineReferences, child.RoutineConsumer = viewOf(d).dependencies, nil, d
+			child.RoutineRecipe, child.RoutineGraft = true, false
 			root, storedReads, err := prepareStoredExecutionRoot(&child, viewOf(d), outputUses)
 			if err != nil {
 				return err
@@ -342,7 +342,7 @@ func validateMarkedQueryJoin(c *EvalContext, node plan.Node, view catalog.Read, 
 		}
 		child := *c
 		child.Scope, child.Frame = 1, project.Frame
-		child.Row, child.orderValues, child.Outer = nil, nil, c.Outer
+		child.Row, child.OrderValues, child.Outer = nil, nil, c.Outer
 		root, err := preflightQuery(&child, project)
 		if err != nil {
 			return err
@@ -379,7 +379,7 @@ func validateMarkedQueryJoin(c *EvalContext, node plan.Node, view catalog.Read, 
 			local := make([]plan.RowMark, width)
 			copy(local, marks)
 			for i, mark := range n.Marks {
-				local[i] = mergeQueryRowMark(local[i], mark)
+				local[i] = MergeQueryRowMark(local[i], mark)
 			}
 			marks = local
 		}
@@ -387,7 +387,7 @@ func validateMarkedQueryJoin(c *EvalContext, node plan.Node, view catalog.Read, 
 		// Prune only this input's proven dead FROM path, using this execution's
 		// parameter frame. Nullable rowmark legality still applies.
 		if !emptyInput {
-			rejects, err := queryPredicateRejectsAll(c, n.Predicate)
+			rejects, err := QueryPredicateRejectsAll(c, n.Predicate)
 			if err != nil {
 				return err
 			}

@@ -24,13 +24,13 @@ func TestCountExpressionArgumentVeto(t *testing.T) {
 			}
 			return sqltype.Value{}, sentinel
 		})
-		rows, count, err := finalizeQuery(ctx, query.Root, source, nil)
+		rows, count, err := Finalize(ctx, query.Root, source, nil)
 		cancel()
 		want := error(sentinel)
 		if cancelArgument {
 			want = context.Canceled
 		}
-		if rows != nil || count != 0 || err != want || calls != 1 || source.view != nil || source.anonymous != nil {
+		if rows != nil || count != 0 || err != want || calls != 1 || source.View != nil || source.Anonymous != nil {
 			t.Fatal(rows, count, err, calls, source)
 		}
 	}
@@ -47,7 +47,7 @@ func TestCountExpressionSlotsAndMetadata(t *testing.T) {
 			t.Fatal(column)
 		}
 	}
-	rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || count != 1 || rows == nil {
 		t.Fatal(rows, count, err)
 	}
@@ -79,7 +79,7 @@ func TestCountExpressionInsertArgumentFailure(t *testing.T) {
 		return original.Eval(c)
 	})
 	rows, err := evaluateInsertQuery(context.Background(), b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
-	if rows.values != nil || err != sentinel || calls != 3 || source.view != nil || source.anonymous != nil {
+	if rows.values != nil || err != sentinel || calls != 3 || source.View != nil || source.Anonymous != nil {
 		t.Fatal(rows, err, calls, source)
 	}
 }
@@ -103,7 +103,7 @@ func TestCountExpressionVolatileCalls(t *testing.T) {
 	}
 	defer scope.Finish(context.Canceled)
 	borrowQueryAuthority(source, scope)
-	rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || count != 1 || rows == nil {
 		t.Fatal(rows, count, err)
 	}

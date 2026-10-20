@@ -71,7 +71,7 @@ func TestArrayAggregateColumnACL(t *testing.T) {
 			if len(query.Root.Schema()) != 1 || !query.Root.Schema()[0].Usage.Type.IsArray() || len(b.query.sources) != 1 {
 				t.Fatal("aggregate result/source shape", query.Root.Schema(), b.query.sources)
 			}
-			reads := b.query.sources[0].uses
+			reads := b.query.sources[0].Uses
 			if len(reads) != len(tc.reads) {
 				t.Fatalf("source reads %v; want exactly %v", reads, tc.reads)
 			}

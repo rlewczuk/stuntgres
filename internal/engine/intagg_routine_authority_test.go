@@ -78,7 +78,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				}
 			} else {
 				enum, ok := node.(plan.UnnestExpr)
-				if !ok || !sourceAdmitted(enum) || !binder.clause.queryHasTargetSet {
+				if !ok || !SourceAdmitted(enum) || !binder.clause.queryHasTargetSet {
 					t.Fatal("lost genuine set carrier")
 				}
 				captured, ref = enum.Procedure, enum.Ref
@@ -94,7 +94,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					}
 				}
 				if tc.name == "enum_null" || tc.name == "enum_parameter" {
-					cursor, err := openFunctionSource(&evaluation, enum)
+					cursor, err := OpenFunctionSource(&evaluation, enum)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -109,8 +109,8 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 			if aggregate {
 				expectedName = "int_array_aggregate"
 			}
-			ext := evaluation.catalog.MustExtension(captured.Extension)
-			if captured.Name() != expectedName || captured.Signature != catalog.ProcedureSignature(tc.signature) || captured.RoutineKind != tc.kind || captured.Result != tc.result || captured.Strict != tc.strict || captured.Volatility != expr.Immutable || extension.IntaggProviderOf(captured) != extension.StockIntagg || captured.Builtin != nil || captured.Revision() == 0 || len(captured.Body) != 0 || ext.Name() != "intagg" || ext.Version != "1.1" || len(ext.Members) != 2 || captured.Namespace() != ext.TargetNamespace || evaluation.catalog.Get(ref.Address) != captured || ref.Domain() != e.catalog.Domain || ref.Epoch != evaluation.catalog.Epoch() {
+			ext := evaluation.Catalog.MustExtension(captured.Extension)
+			if captured.Name() != expectedName || captured.Signature != catalog.ProcedureSignature(tc.signature) || captured.RoutineKind != tc.kind || captured.Result != tc.result || captured.Strict != tc.strict || captured.Volatility != expr.Immutable || extension.IntaggProviderOf(captured) != extension.StockIntagg || captured.Builtin != nil || captured.Revision() == 0 || len(captured.Body) != 0 || ext.Name() != "intagg" || ext.Version != "1.1" || len(ext.Members) != 2 || captured.Namespace() != ext.TargetNamespace || evaluation.Catalog.Get(ref.Address) != captured || ref.Domain() != e.catalog.Domain || ref.Epoch != evaluation.Catalog.Epoch() {
 				t.Fatal("released full identity/original installation", captured, ref)
 			}
 			original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
@@ -176,13 +176,13 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 						}
 					}
 				}
-				probe.routineChecks = deps
+				probe.RoutineChecks = deps
 				if err := admit(&probe, node, ref); err == nil {
 					t.Fatal("repaired absent/stale original authority", mode)
 				}
 			}
 			probe := evaluation
-			probe.routineAuthority = foreign.routineAuthority
+			probe.RoutineAuthority = foreign.RoutineAuthority
 			if err := admit(&probe, node, ref); err == nil {
 				t.Fatal("foreign engine became original authority")
 			}
@@ -203,19 +203,19 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				}
 				if !aggregate {
 					probe = evaluation
-					probe.routineAuthority = &auth
+					probe.RoutineAuthority = &auth
 					if err := admit(&probe, node, ref); err == nil {
 						t.Fatal("enum admitted incompatible current declaration")
 					}
 				}
 			}
 			if !aggregate {
-				grafted, _, err := mapBoundExpression(evaluation.catalog, node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, recipe, nil)
+				grafted, _, err := mapBoundExpression(evaluation.Catalog, node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, recipe, nil)
 				if err != nil {
 					t.Fatal("graft real selected enum", err)
 				}
 				graftProbe := evaluation
-				graftProbe.routineChecks = nil
+				graftProbe.RoutineChecks = nil
 				if err := admitRoutineCall(&graftProbe, grafted, false, false); err != nil {
 					t.Fatal("graft did not select actual owning manifest", err)
 				}
@@ -226,7 +226,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					if _, err := remapBoundExpression(node, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil); err == nil || !strings.Contains(err.Error(), "unpersistable scalar expression plan.ParameterExpr") {
 						t.Fatal("parameter persistence boundary changed", err)
 					}
-					rewritten, _, err := mapBoundExpression(evaluation.catalog, node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, nil)
+					rewritten, _, err := mapBoundExpression(evaluation.Catalog, node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, nil, nil)
 					if err != nil || !reflect.DeepEqual(rewritten, node) {
 						t.Fatal("structural parameter rewrite lost original carrier", err)
 					}
@@ -235,24 +235,24 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					}
 					foreignEnum := node.(plan.UnnestExpr)
 					foreignEnum.Ref = other.catalog.Domain.Ref(foreignEnum.Ref.Epoch, foreignEnum.Ref.Address)
-					foreignEnum.Ref.Epoch = foreign.catalog.Epoch()
-					foreignNode, _, err := retagBoundTypes(foreign.catalog, foreignEnum, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+					foreignEnum.Ref.Epoch = foreign.Catalog.Epoch()
+					foreignNode, _, err := retagBoundTypes(foreign.Catalog, foreignEnum, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 						if d == nil {
 							return nil
 						}
-						current, _ := foreign.catalog.LookupType(d.ID())
+						current, _ := foreign.Catalog.LookupType(d.ID())
 						return current
 					})
 					if err != nil {
 						t.Fatal("structural foreign parameter retag", err)
 					}
 					probe = evaluation
-					probe.routineAuthority = foreign.routineAuthority
+					probe.RoutineAuthority = foreign.RoutineAuthority
 					if err := admitRoutineCall(&probe, foreignNode, false, false); err == nil {
 						t.Fatal("foreign parameter retag acquired original authority")
 					}
 				} else {
-					text, err := (pgRenderer{view: evaluation.catalog}).sql(context.Background(), node, pgRenderParent{})
+					text, err := (pgRenderer{view: evaluation.Catalog}).sql(context.Background(), node, pgRenderParent{})
 					if err != nil {
 						t.Fatal("literal enum rendering", err)
 					}
@@ -270,13 +270,13 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					for i, a := range ext.Members {
 						mapping[a] = ids.ObjectAddress{ids.ProcedureClassID, ids.OID(900001 + i), 0}
 					}
-					state := catalog.CloneState(evaluation.catalog.State())
+					state := catalog.CloneState(evaluation.Catalog.State())
 					for a := range mapping {
 						state.UnbindName(catalog.DescriptorNameKey(state.Get(a)))
 						state.RemoveDescriptor(a)
 					}
 					for a, dest := range mapping {
-						d := extension.RemapDescriptor(evaluation.catalog.Get(a), mapping)
+						d := extension.RemapDescriptor(evaluation.Catalog.Get(a), mapping)
 						state.SetDescriptor(dest, d)
 						state.BindName(catalog.DescriptorNameKey(d), dest)
 					}
@@ -305,8 +305,8 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					// catalog and role read must both belong to this relocated root.
 					auth := catalogAuthorization(e, view)
 					probe = evaluation
-					probe.catalog = view
-					probe.routineAuthority = &auth
+					probe.Catalog = view
+					probe.RoutineAuthority = &auth
 					if err := admitRoutineCall(&probe, relocated, false, false); err == nil {
 						t.Fatal("retag manufactured original manifest")
 					}
@@ -314,30 +314,30 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					for i := range deps {
 						deps[i].Ref = remap(deps[i].Ref)
 					}
-					probe.routineChecks = deps
+					probe.RoutineChecks = deps
 					if err := admitRoutineCall(&probe, relocated, false, false); err != nil {
 						t.Fatal("transferred original authority", err)
 					}
 					foreignNode, err := remapBoundExpression(node, func(r ids.ObjectRef) ids.ObjectRef {
 						r = other.catalog.Domain.Ref(r.Epoch, r.Address)
-						r.Epoch = foreign.catalog.Epoch()
+						r.Epoch = foreign.Catalog.Epoch()
 						return r
 					}, nil)
 					if err != nil {
 						t.Fatal(err)
 					}
-					foreignNode, _, err = retagBoundTypes(foreign.catalog, foreignNode, func(d *sqltype.Descriptor) *sqltype.Descriptor {
+					foreignNode, _, err = retagBoundTypes(foreign.Catalog, foreignNode, func(d *sqltype.Descriptor) *sqltype.Descriptor {
 						if d == nil {
 							return nil
 						}
-						v, _ := foreign.catalog.LookupType(d.ID())
+						v, _ := foreign.Catalog.LookupType(d.ID())
 						return v
 					})
 					if err != nil {
 						t.Fatal("foreign retag fixture", err)
 					}
 					probe = evaluation
-					probe.routineAuthority = foreign.routineAuthority
+					probe.RoutineAuthority = foreign.RoutineAuthority
 					if err := admitRoutineCall(&probe, foreignNode, false, false); err == nil {
 						t.Fatal("foreign retag acquired original authority")
 					}

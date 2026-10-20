@@ -29,7 +29,7 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 	b.clause.aggregateClause = "policy expressions"
 	b.target.relation = d
 	b.query.auth, b.query.namespace = &auth, &ns
-	b.query.sources = []queryLeaf{{ref: ref, relation: d}}
+	b.query.sources = []queryLeaf{{Ref: ref, Relation: d}}
 	node, err := b.bindBoolean(raw, projectionContext, "POLICY")
 	if err != nil {
 		return nil, alterCookingError(err)

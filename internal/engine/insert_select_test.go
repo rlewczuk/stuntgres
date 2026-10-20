@@ -177,11 +177,11 @@ func TestInsertSelectEagerFailureAndCancellation(t *testing.T) {
 			if phase == "late source" {
 				want = sentinel
 			}
-			if rows.values != nil || err != want || source.view != nil {
-				t.Fatal(rows, err, want, source.view)
+			if rows.values != nil || err != want || source.View != nil {
+				t.Fatal(rows, err, want, source.View)
 			}
-			source.close()
-			source.close()
+			source.Close()
+			source.Close()
 		})
 	}
 }
@@ -204,7 +204,7 @@ func (c *insertCloseCursor) Close() error {
 func TestInsertSelectRequiredClose(t *testing.T) {
 	for _, primary := range []bool{false, true} {
 		b, source := insertSelectEvaluationFixture(t, "SELECT id FROM t")
-		stage, err := openQueryNode(context.Background(), &queryState{source: source}, b.query.Root)
+		stage, err := OpenNode(context.Background(), &queryState{Source: source}, b.query.Root)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -216,7 +216,7 @@ func TestInsertSelectRequiredClose(t *testing.T) {
 			cancel()
 			ctx = cancelled
 		}
-		rows, err := assembleInsertRows(ctx, b, cursor, stage.count(), "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil, false, nil, nil)
+		rows, err := assembleInsertRows(ctx, b, cursor, stage.Count(), "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil, false, nil, nil)
 		want := error(closeErr)
 		if primary {
 			want = context.Canceled
@@ -224,25 +224,25 @@ func TestInsertSelectRequiredClose(t *testing.T) {
 		if rows.values != nil || err != want || cursor.closes != 1 {
 			t.Fatal(rows, err, cursor.closes)
 		}
-		source.close()
+		source.Close()
 	}
 }
 
 func TestInsertSelectCancellationOnRequiredClose(t *testing.T) {
 	b, source := insertSelectEvaluationFixture(t, "SELECT id FROM t")
-	defer source.close()
+	defer source.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	stage, err := openQueryNode(ctx, &queryState{source: source}, b.query.Root)
+	stage, err := OpenNode(ctx, &queryState{Source: source}, b.query.Root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	closing := &insertCloseCursor{RowCursor: &stage, cancel: cancel}
-	rows, err := assembleInsertRows(ctx, b, closing, stage.count(), "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil, false, nil, nil)
+	rows, err := assembleInsertRows(ctx, b, closing, stage.Count(), "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil, false, nil, nil)
 	if !errors.Is(err, context.Canceled) || rows.values != nil || closing.closes != 1 {
 		t.Fatal(rows, err, closing.closes)
 	}
-	source.close()
+	source.Close()
 }
 
 func TestInsertSelectSourceLockIdentity(t *testing.T) {

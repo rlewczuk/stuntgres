@@ -54,7 +54,7 @@ func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root plan.Node, re
 			if err != nil {
 				return 0, err
 			}
-			b.querySources = append(b.querySources, queryLeaf{ref: use, relation: relation, frozenAttributes: leaf.attributes, mark: leaf.mark})
+			b.querySources = append(b.querySources, queryLeaf{Ref: use, Relation: relation, FrozenAttributes: leaf.attributes, Mark: leaf.mark})
 			b.subqueryDemand = true
 		}
 		return slot, nil
@@ -115,7 +115,7 @@ func (w *viewWrite) graftQuery(b *binding, view catalog.Read, root plan.Node, re
 		}
 		copy := *source
 		copy.Occurrence = slot
-		copy.Ref = b.querySources[slot].ref
+		copy.Ref = b.querySources[slot].Ref
 		return &copy, nil
 	})
 }
@@ -140,7 +140,7 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *binding)
 			continue
 		}
 		source := &b.querySources[i]
-		source.storage = e.privateStorageLocked(scope.owner.catalog, source.ref.Address)
+		source.Storage = e.privateStorageLocked(scope.owner.catalog, source.Ref.Address)
 		for key, ordinal := range b.viewWrite.queryOccurrences {
 			if ordinal != i {
 				continue
@@ -150,9 +150,9 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *binding)
 					continue
 				}
 				current := auth.Catalog.MustRelation(layer.ref.Address)
-				source.principal = current.Owner
+				source.Principal = current.Owner
 				if viewOf(current).invoker {
-					source.principal = auth.State.CurrentUser
+					source.Principal = auth.State.CurrentUser
 				}
 				break
 			}
@@ -168,14 +168,14 @@ func (e *Engine) attachViewWriteSourcesLocked(scope *StatementScope, b *binding)
 // Detach bundle ownership while replacing occurrences, as stored view opening
 // does; the returned head owns every input and each bridge's private scratch.
 func freezeViewWriteSources(scope *StatementScope, source *querySource, leaves []queryLeaf) *querySource {
-	sources := source.sources
-	source.sources = nil
+	sources := source.Sources
+	source.Sources = nil
 	for i, leaf := range leaves {
 		child := source
 		if sources != nil {
 			child = sources[i]
 		}
-		child = frozenViewSource(scope, child, leaf.frozenAttributes, leaf.relation.Attributes)
+		child = frozenViewSource(scope, child, leaf.FrozenAttributes, leaf.Relation.Attributes)
 		if sources != nil {
 			sources[i] = child
 		} else {
@@ -184,7 +184,7 @@ func freezeViewWriteSources(scope *StatementScope, source *querySource, leaves [
 	}
 	if sources != nil {
 		source = sources[0]
-		source.sources = sources
+		source.Sources = sources
 	}
 	return source
 }
@@ -215,7 +215,7 @@ func frozenViewSource(scope *StatementScope, source *querySource, attributes, li
 			}
 		}
 	}
-	bridge := &querySource{ref: source.ref, input: source, layout: layout, scratch: make([]sqltype.Value, len(layout)), authority: scope.authority, locks: source.locks, occurrence: source.occurrence}
+	bridge := &querySource{Ref: source.Ref, Input: source, Layout: layout, Scratch: make([]sqltype.Value, len(layout)), Authority: scope.authority, Locks: source.Locks, Occurrence: source.Occurrence}
 	borrowQueryAuthority(bridge, scope)
 	return bridge
 }

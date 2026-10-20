@@ -60,7 +60,7 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 			if !reflect.DeepEqual(found, map[ids.OID]bool{tc.id: true}) {
 				t.Fatal("exact selected dependencies", found)
 			}
-			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalAdmission: evalAdmission{routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies}}
+			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal(err)
 			}
@@ -80,7 +80,7 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 					}
 					checks = append(checks, dep)
 				}
-				evaluation.routineChecks = checks
+				evaluation.RoutineChecks = checks
 				if err := admitRoutineCall(&evaluation, node, true, false); err == nil {
 					t.Fatal("accepted invalid authority", mode)
 				}
@@ -92,11 +92,11 @@ func TestNetworkFormatOriginalAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			evaluation.routineChecks = []catalog.ExpressionDependency{}
+			evaluation.RoutineChecks = []catalog.ExpressionDependency{}
 			if err := admitRoutineCall(&evaluation, remapped, true, false); err == nil {
 				t.Fatal("retag manufactured authority")
 			}
-			evaluation.routineChecks = binder.dependencies
+			evaluation.RoutineChecks = binder.dependencies
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("source authority mutated", err)
 			}
@@ -112,7 +112,7 @@ func TestNetworkFormatStrictParameterNull(t *testing.T) {
 			evaluation.Parameters = []sqltype.Value{sqltype.Null(b.params.parameters[1].Type)}
 			// No original routine manifest is available for computation. A known-NULL
 			// formal must prune without invoking/admitting the selected routine.
-			evaluation.routineChecks = []catalog.ExpressionDependency{}
+			evaluation.RoutineChecks = []catalog.ExpressionDependency{}
 			planned, changed, err := preflightCoercionsWithPolicy(&evaluation, node, false)
 			if err != nil || !changed {
 				t.Fatal("known NULL was not pruned before admission", changed, err)
@@ -128,7 +128,7 @@ func TestNetworkFormatStrictParameterNull(t *testing.T) {
 			evaluation.Parameters[0] = input
 			// The original analyzed expression and its manifest are not replaced by
 			// the execution-local NULL result. Restoring authority permits real work.
-			evaluation.routineChecks = b.dependencies
+			evaluation.RoutineChecks = b.dependencies
 			again, _, err := preflightCoercionsWithPolicy(&evaluation, node, false)
 			if err != nil {
 				t.Fatal(err)

@@ -16,12 +16,12 @@ func TestQueryLimitViewCancellation(t *testing.T) {
 	bt, _ := e.CatalogRead().LookupType(sqltype.Bool)
 	calls := 0
 	filter.Predicate = queryProbe(bt.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; cancel(); return sqltype.Boolean(bt, false), nil })
-	bridge := &querySource{ref: input.ref, nestedRoot: inner, nestedInputs: input, materialized: true, flatWidth: 1}
-	leaf := &plan.SourceNode{QuerySchema: inner.Schema(), Ref: input.ref}
+	bridge := &querySource{Ref: input.Ref, NestedRoot: inner, NestedInputs: input, Materialized: true, FlatWidth: 1}
+	leaf := &plan.SourceNode{QuerySchema: inner.Schema(), Ref: input.Ref}
 	limit := &plan.LimitNode{QuerySchema: inner.Schema(), Child: leaf, Count: queryLimitBound(t, e, 1)}
 	outer := &plan.ProjectNode{QuerySchema: inner.Schema(), Child: limit, Expressions: inner.Expressions}
-	rows, n, err := finalizeQuery(ctx, outer, bridge, nil)
-	if rows != nil || n != 0 || err != context.Canceled || calls != 1 || input.view != nil || bridge.nestedStage != nil {
-		t.Fatal(rows, n, err, calls, input.view, bridge.nestedStage)
+	rows, n, err := Finalize(ctx, outer, bridge, nil)
+	if rows != nil || n != 0 || err != context.Canceled || calls != 1 || input.View != nil || bridge.NestedStage != nil {
+		t.Fatal(rows, n, err, calls, input.View, bridge.NestedStage)
 	}
 }

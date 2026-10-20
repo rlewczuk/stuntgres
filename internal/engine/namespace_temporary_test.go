@@ -135,9 +135,9 @@ func TestSequenceTemporaryNamespacePairPrivate(t *testing.T) {
 				}
 			}
 		}
-		if count != 2 || committed.count() != 4 {
+		if count != 2 || committed.Count() != 4 {
 			op.Done()
-			t.Fatal("private paired inventory", count, committed.count())
+			t.Fatal("private paired inventory", count, committed.Count())
 		}
 		op.Done()
 		if commit {
@@ -145,7 +145,7 @@ func TestSequenceTemporaryNamespacePairPrivate(t *testing.T) {
 			assertTemporaryNamespacePair(t, e, creator.token, creator.temporaryNamespace)
 		} else {
 			sessionSQL(t, creator, "ROLLBACK")
-			if namespaceUnitCapture(t, e, e.CatalogRead()).count() != 4 {
+			if namespaceUnitCapture(t, e, e.CatalogRead()).Count() != 4 {
 				t.Fatal("rollback published TEMP pair")
 			}
 		}
@@ -209,7 +209,7 @@ func TestSequenceTemporaryNamespacePairAllocationFailure(t *testing.T) {
 		if err == nil || ref != (ids.ObjectRef{}) || e.catalog.state != base || s.temporaryNamespace != (ids.ObjectAddress{}) || len(changes.descriptors) != 0 || len(changes.names) != 0 {
 			t.Fatal("partial TEMP pair on second allocation failure", identity, ref, err, changes)
 		}
-		if namespaceUnitCapture(t, e, e.CatalogRead()).count() != 4 {
+		if namespaceUnitCapture(t, e, e.CatalogRead()).Count() != 4 {
 			t.Fatal("failed pair published namespace")
 		}
 	}

@@ -122,7 +122,7 @@ func TestRegclassConstructorShapeOwnershipAndWalkers(t *testing.T) {
 	if count != 2 {
 		t.Fatal(count)
 	}
-	if plannedVolatility(node) != expr.Immutable || !generationImmutable(node) || !defaultReplayDeferrable(catalog.ColumnDefault{Expression: node}) || !b.sameGroupExpression(node, node) {
+	if PlannedVolatility(node) != expr.Immutable || !generationImmutable(node) || !defaultReplayDeferrable(catalog.ColumnDefault{Expression: node}) || !b.sameGroupExpression(node, node) {
 		t.Fatal("constructor properties/walkers")
 	}
 	ctx, cancel := context.WithCancel(context.Background())

@@ -34,8 +34,8 @@ func TestExpressionArithmeticCancellationBeforePublication(t *testing.T) {
 		cancel()
 		return v, nil
 	})
-	rows, _, err := finalizeQuery(ctx, query.Root, source, nil)
-	if !evaluated || rows != nil || !errors.Is(err, context.Canceled) || source.view != nil {
+	rows, _, err := Finalize(ctx, query.Root, source, nil)
+	if !evaluated || rows != nil || !errors.Is(err, context.Canceled) || source.View != nil {
 		t.Fatal(evaluated, rows, err)
 	}
 }
@@ -115,7 +115,7 @@ func TestExpressionArithmeticNullAndEmptyOrigins(t *testing.T) {
 		if schema.Name != "?column?" || schema.Usage.Type.ID() != sqltype.Int2 || schema.NullabilityKnown || schema.OriginTable != 0 || schema.OriginAttribute != 0 {
 			t.Fatal(q, schema)
 		}
-		rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

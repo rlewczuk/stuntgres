@@ -33,7 +33,7 @@ func pgDBRoleSettingUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) {
 	e.mu.Lock()
 	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.roles.read(e.catalog.owner(), catalog, e.roles.published), ref, d)
 	e.mu.Unlock()
-	if err != nil || rows == nil || rows.ref != ref || rows.count() != 0 || rows.anonymous == nil || len(rows.anonymous) != 0 {
+	if err != nil || rows == nil || rows.Ref != ref || rows.Count() != 0 || rows.Anonymous == nil || len(rows.Anonymous) != 0 {
 		t.Fatal("empty owned capture", rows, err)
 	}
 }

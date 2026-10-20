@@ -34,7 +34,7 @@ func TestSoundexExpressionIdentity(t *testing.T) {
 	for i, name := range []string{"soundex", "difference"} {
 		t.Run(name, func(t *testing.T) {
 			n := soundexUnitExpression(t, e, name)
-			if n.Ref.Address != ext.Members[8+i] || n.Procedure != e.catalog.state.Get(n.Ref.Address) || plannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
+			if n.Ref.Address != ext.Members[8+i] || n.Procedure != e.catalog.state.Get(n.Ref.Address) || PlannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
 				t.Fatal("identity/properties", n)
 			}
 			value, err := n.Eval(ctx)
@@ -200,7 +200,7 @@ func TestSoundexExpressionProperties(t *testing.T) {
 			modified.Args = append([]expr.Expr(nil), n.Args...)
 			modified.Args[0] = plan.ParameterExpr{Info: expr.Info{Usage: n.Args[0].ResultUsage(), Property: property}, Number: 1}
 			modified.Property = property
-			if plannedVolatility(modified) != property.Volatility {
+			if PlannedVolatility(modified) != property.Volatility {
 				t.Fatal("child volatility lost", property)
 			}
 			if property.Volatility != expr.Immutable && generationImmutable(modified) {

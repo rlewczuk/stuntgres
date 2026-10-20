@@ -78,11 +78,11 @@ func TestTimezoneSourceCapturedInstantAndOwnership(t *testing.T) {
 			t.Fatal(err)
 		}
 		input.TransactionStart = boundary.Add(24 * time.Hour)
-		if rows.ref != ref {
+		if rows.Ref != ref {
 			t.Fatal("lost source identity")
 		}
 		found := false
-		for _, row := range rows.anonymous {
+		for _, row := range rows.Anonymous {
 			for i, value := range row {
 				if value.Type() != d.Columns[i].Usage.Type || value.IsNull() {
 					t.Fatal("unowned/null fact", i, value)
@@ -146,7 +146,7 @@ func TestTimezoneSourceScopeRetainsClockAndSettings(t *testing.T) {
 				t.Fatal(err)
 			}
 			found := false
-			for _, row := range rows.anonymous {
+			for _, row := range rows.Anonymous {
 				label, _ := row[0].Text()
 				if label != tc.label {
 					continue

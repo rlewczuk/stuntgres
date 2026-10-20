@@ -14,7 +14,7 @@ import (
 
 func assignmentTargetHasVirtualReads(target *plan.ArrayAssignmentTarget) bool {
 	for ; target != nil; target = target.Next {
-		if target.Attribute == 0 && boundHasVirtualReads(target.Node) {
+		if target.Attribute == 0 && BoundHasVirtualReads(target.Node) {
 			return true
 		}
 	}

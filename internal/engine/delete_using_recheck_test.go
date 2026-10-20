@@ -36,7 +36,7 @@ func TestDeleteUsingLateRecheckFailureDiscardsStage(t *testing.T) {
 	if r.Rows != nil {
 		t.Cleanup(func() { r.Rows.Close() })
 	}
-	target.close()
+	target.Close()
 	if !failed || !errors.Is(err, sentinel) || r.Count != 0 || r.Rows != nil {
 		t.Fatal(r, err, failed)
 	}

@@ -46,15 +46,15 @@ func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		source.occurrence = 0
+		source.Occurrence = 0
 		if err := scope.Finish(nil); err != nil {
-			source.close()
+			source.Close()
 			t.Fatal(err)
 		}
 		return source
 	}
 	previous := capture()
-	defer previous.close()
+	defer previous.Close()
 	origin := ref
 	origin.Address.SubID = 2
 	frozen := plan.ColumnExpr{Info: expr.Info{Usage: old.Columns[1].Usage}, Origin: origin, Scope: 1, Frame: 1, Slot: 1, QueryOccurrence: 1}.WithGeneration(old, 1, 0)
@@ -64,17 +64,17 @@ func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
 		t.Fatal(err)
 	}
 	current := capture()
-	defer current.close()
+	defer current.Close()
 	// The persisted view exposes its original two slots even though the current
 	// recipe needs the third physical input. Its captured raw source owns that input.
-	bridge := &querySource{input: current, layout: []int{0, 1}, scratch: make([]sqltype.Value, 2), occurrence: 0}
+	bridge := &querySource{Input: current, Layout: []int{0, 1}, Scratch: make([]sqltype.Value, 2), Occurrence: 0}
 	evaluate := func(source *querySource, want int64, latest [][]sqltype.Value) {
 		t.Helper()
-		state := &queryState{source: source, virtualReads: true}
-		frame := state.evaluation(context.Background())
-		frame.bindQueryRow(source, 0)
-		frame.queryCurrentRows = latest
-		outer := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 2, Frame: 2, Outer: &frame, queryCurrentRows: [][]sqltype.Value{}}}
+		state := &queryState{Source: source, VirtualReads: true}
+		frame := state.Evaluation(context.Background())
+		frame.BindQueryRow(source, 0)
+		frame.QueryCurrentRows = latest
+		outer := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 2, Frame: 2, Outer: &frame, QueryCurrentRows: [][]sqltype.Value{}}}
 		value, err := frozen.Eval(&outer)
 		n, numberErr := value.Integer()
 		if err != nil || numberErr != nil || n != want {
@@ -94,21 +94,21 @@ func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
 	latest := [][]sqltype.Value{{three, sqltype.Null(old.Columns[1].Usage.Type), five}}
 	evaluate(bridge, 8, latest)
 	evaluate(bridge, 7, nil)
-	if len(old.Columns) != 2 || previous.view.Load().Catalog.Get(ref.Address) != old || !reflect.DeepEqual(frozen.Virtual, old.ColumnMeta.Generations[2].Planned) {
+	if len(old.Columns) != 2 || previous.View.Load().Catalog.Get(ref.Address) != old || !reflect.DeepEqual(frozen.Virtual, old.ColumnMeta.Generations[2].Planned) {
 		t.Fatal("frozen source recipe changed")
 	}
 	recipeContext := EvalContext{}
 	if allocations := testing.AllocsPerRun(10, func() {
-		recipe, row, err := recipeContext.columnCapturedGeneration(frozen, current, 0, nil)
+		recipe, row, err := recipeContext.ColumnCapturedGeneration(frozen, current, 0, nil)
 		if err != nil || recipe == nil || len(row) != 3 {
 			t.Fatal(recipe, row, err)
 		}
 	}); allocations != 0 {
 		t.Fatal("captured recipe resolution allocated", allocations)
 	}
-	capturedOwner := current.view.Load().Catalog.MustRelation(ref.Address)
-	if recipeContext.routineConsumer != capturedOwner || !recipeContext.routineRecipe || recipeContext.routineGraft ||
-		!reflect.DeepEqual(recipeContext.routineReferences, capturedOwner.ColumnMeta.Generations[2].Dependencies) {
+	capturedOwner := current.View.Load().Catalog.MustRelation(ref.Address)
+	if recipeContext.RoutineConsumer != capturedOwner || !recipeContext.RoutineRecipe || recipeContext.RoutineGraft ||
+		!reflect.DeepEqual(recipeContext.RoutineReferences, capturedOwner.ColumnMeta.Generations[2].Dependencies) {
 		t.Fatal("captured generation borrowed frozen or enclosing provenance")
 	}
 	if err := e.Reset(context.Background()); err != nil {
@@ -151,11 +151,11 @@ func TestVirtualGenerationOriginalAdmission(t *testing.T) {
 	if !ok || column.VirtualOwner == nil {
 		t.Fatal("bound virtual column lost owning generation", node)
 	}
-	authority := evaluation.routineAuthority
-	if err := validateExpressionJoinExecution(&evaluation, column, evaluation.catalog); err != nil {
+	authority := evaluation.RoutineAuthority
+	if err := validateExpressionJoinExecution(&evaluation, column, evaluation.Catalog); err != nil {
 		t.Fatal("original generation admission", err)
 	}
-	if evaluation.routineAuthority != authority {
+	if evaluation.RoutineAuthority != authority {
 		t.Fatal("generation admission changed current invoker")
 	}
 	owner := *column.VirtualOwner
@@ -165,26 +165,26 @@ func TestVirtualGenerationOriginalAdmission(t *testing.T) {
 	missing.VirtualOwner = &owner
 	definition.Dependencies = nil
 	owner.ColumnMeta.Generations[column.VirtualAttribute] = definition
-	if err := validateExpressionJoinExecution(&evaluation, missing, evaluation.catalog); err == nil {
+	if err := validateExpressionJoinExecution(&evaluation, missing, evaluation.Catalog); err == nil {
 		t.Fatal("generation recovered a missing original manifest from enclosing query or current OID")
 	}
 	missing.VirtualOwner = nil
-	if err := validateExpressionJoinExecution(&evaluation, missing, evaluation.catalog); err == nil {
+	if err := validateExpressionJoinExecution(&evaluation, missing, evaluation.Catalog); err == nil {
 		t.Fatal("SQL virtual column admitted without its original owner")
 	}
 	// Context selection is evaluator-local and cannot borrow a definer view's
 	// references or replace the original current-invoker authority.
 	local := evaluation
-	local.routineGraft = true
-	local.routineChecks = []catalog.ExpressionDependency{{}}
-	selectVirtualGenerationRecipe(&local, column.VirtualOwner, column.VirtualOwner.ColumnMeta.Generations[column.VirtualAttribute])
-	if local.routineAuthority != authority || local.routineConsumer != column.VirtualOwner ||
-		local.routineGraft || !local.routineRecipe || local.routineChecks != nil ||
-		!reflect.DeepEqual(local.routineReferences, column.VirtualOwner.ColumnMeta.Generations[column.VirtualAttribute].Dependencies) {
+	local.RoutineGraft = true
+	local.RoutineChecks = []catalog.ExpressionDependency{{}}
+	SelectVirtualGenerationRecipe(&local, column.VirtualOwner, column.VirtualOwner.ColumnMeta.Generations[column.VirtualAttribute])
+	if local.RoutineAuthority != authority || local.RoutineConsumer != column.VirtualOwner ||
+		local.RoutineGraft || !local.RoutineRecipe || local.RoutineChecks != nil ||
+		!reflect.DeepEqual(local.RoutineReferences, column.VirtualOwner.ColumnMeta.Generations[column.VirtualAttribute].Dependencies) {
 		t.Fatal("virtual generation retained enclosing recipe authority")
 	}
 	invoker := evaluation
-	invoker.routineAuthority = &readerAuthority
+	invoker.RoutineAuthority = &readerAuthority
 	err = validateExpressionJoinExecution(&invoker, column, readerAuthority.Catalog)
 	var denied interface{ SQLState() string }
 	if !errors.As(err, &denied) || denied.SQLState() != "42501" {

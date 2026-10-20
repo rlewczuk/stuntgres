@@ -267,7 +267,7 @@ func (p *partitionRetainedChecks) forRow(ctx context.Context, h partitionRowHist
 	}
 	p.descriptor.Constraints.Check = checks[:count]
 	if changed || count != oldCount {
-		delete(evaluation.preparedChecks, &p.descriptor)
+		delete(evaluation.PreparedChecks, &p.descriptor)
 	}
 	return &p.descriptor, nil
 }

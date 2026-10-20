@@ -106,7 +106,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 		t.Fatal("PUBLIC SELECT", d.Security.ACL)
 	}
 	captured, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, capturePGEnum)
-	if err != nil || captured == nil || captured.ref != ref || captured.anonymous == nil || len(captured.anonymous) != 0 {
+	if err != nil || captured == nil || captured.Ref != ref || captured.Anonymous == nil || len(captured.Anonymous) != 0 {
 		t.Fatal("fresh empty source", captured, err)
 	}
 	op, done := roleOperation(t, e, "postgres")
@@ -148,11 +148,11 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 	}
 	mood := domainUnitType(t, e.CatalogRead(), "mood")
 	captured, err = e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.read(e.catalog.owner(), e.CatalogRead(), e.roles.published), ref, d)
-	if err != nil || len(captured.anonymous) != 2 {
+	if err != nil || len(captured.Anonymous) != 2 {
 		t.Fatal("enum-only capture", captured, err)
 	}
-	before := append([][]sqltype.Value(nil), captured.anonymous...)
-	for _, values := range captured.anonymous {
+	before := append([][]sqltype.Value(nil), captured.Anonymous...)
+	for _, values := range captured.Anonymous {
 		for i, v := range values {
 			if v.IsNull() || v.Type() != d.Columns[i].Usage.Type {
 				t.Fatal("unowned capture cell", i, v)
@@ -187,7 +187,7 @@ func TestPGEnumShapeAndCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	private, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.stageRead(stage), Ref: ref, Source: d, Owner: (e.stageRead(stage)).Owner(), Runtime: engineCatalogRuntime{}}, capturePGEnum)
-	if err != nil || reflect.DeepEqual(private.anonymous, before) || !reflect.DeepEqual(captured.anonymous, before) {
+	if err != nil || reflect.DeepEqual(private.Anonymous, before) || !reflect.DeepEqual(captured.Anonymous, before) {
 		t.Fatal("capture generation lifetime", err)
 	}
 	invalid := *d

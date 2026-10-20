@@ -8,10 +8,10 @@ import (
 )
 
 func (r *finalRows) FormatACLRole(authority *sqltype.ACLAuthority, id uint32) (string, error) {
-	if authority == nil || authority != r.aclAuthority {
+	if authority == nil || authority != r.ACLAuthority {
 		return "", fmt.Errorf("stuntgres: foreign ACL output identity")
 	}
-	name, ok := r.aclitemOutput[id]
+	name, ok := r.AclitemOutput[id]
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing ACL output snapshot")
 	}
@@ -27,7 +27,7 @@ func (r *finalRows) FormatRegnamespace(id uint32) (string, error) {
 }
 
 func (r *finalRows) regObjectText(class ids.OID, id uint32) (string, error) {
-	text, exists := r.regobjectOutput[ids.ObjectAddress{ClassID: class, ObjectID: ids.OID(id)}]
+	text, exists := r.RegobjectOutput[ids.ObjectAddress{ClassID: class, ObjectID: ids.OID(id)}]
 	if !exists {
 		return "", fmt.Errorf("stuntgres: missing collation/namespace output snapshot")
 	}
@@ -37,12 +37,12 @@ func (r *finalRows) regObjectText(class ids.OID, id uint32) (string, error) {
 type operatorGroups map[string][]*catalog.Operator
 
 type operatorOutputKey struct {
-	id    uint32
-	alias sqltype.ID
+	ID    uint32
+	Alias sqltype.ID
 }
 
 func (r *finalRows) formatOperator(id uint32, alias sqltype.ID) (string, error) {
-	text, ok := r.operatorOutput[operatorOutputKey{id, alias}]
+	text, ok := r.OperatorOutput[operatorOutputKey{id, alias}]
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing operator output snapshot")
 	}
@@ -58,7 +58,7 @@ func (r *finalRows) FormatRegoperator(id uint32) (string, error) {
 }
 
 func (r *finalRows) FormatRegproc(id uint32) (string, error) {
-	text, ok := r.regprocOutput[id]
+	text, ok := r.RegprocOutput[id]
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing retained regproc presentation")
 	}
@@ -66,7 +66,7 @@ func (r *finalRows) FormatRegproc(id uint32) (string, error) {
 }
 
 func (r *finalRows) FormatRegprocedure(id uint32) (string, error) {
-	text, ok := r.regprocedureOutput[id]
+	text, ok := r.RegprocedureOutput[id]
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing retained regprocedure presentation")
 	}
@@ -74,7 +74,7 @@ func (r *finalRows) FormatRegprocedure(id uint32) (string, error) {
 }
 
 func (r *finalRows) FormatRegrole(id uint32) (string, error) {
-	text, ok := r.regroleOutput[id]
+	text, ok := r.RegroleOutput[id]
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing regrole output snapshot")
 	}
@@ -82,12 +82,12 @@ func (r *finalRows) FormatRegrole(id uint32) (string, error) {
 }
 
 type regTSOutputKey struct {
-	id    uint32
-	alias sqltype.ID
+	ID    uint32
+	Alias sqltype.ID
 }
 
 func (r *finalRows) formatRegTS(id uint32, alias sqltype.ID) (string, error) {
-	text, ok := r.regTSOutput[regTSOutputKey{id, alias}]
+	text, ok := r.RegTSOutput[regTSOutputKey{id, alias}]
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing text search output snapshot")
 	}
@@ -103,7 +103,7 @@ func (r *finalRows) FormatRegdictionary(id uint32) (string, error) {
 }
 
 func (r *finalRows) FormatRegtype(id uint32) (string, error) {
-	text, ok := r.regtypeOutput[id]
+	text, ok := r.RegtypeOutput[id]
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing regtype output snapshot")
 	}

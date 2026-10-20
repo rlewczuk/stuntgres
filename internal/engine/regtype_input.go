@@ -79,7 +79,7 @@ func (r capturedRegtypeInput) resolveTypeName(ctx context.Context, text string) 
 	op := r.op
 	if r.authority != nil {
 		op = nil
-		if scope := scopeOf(r.authority.host); scope != nil {
+		if scope := scopeOf(r.authority.Host); scope != nil {
 			op = scope.op
 		}
 	}

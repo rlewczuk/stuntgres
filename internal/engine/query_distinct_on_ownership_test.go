@@ -32,7 +32,7 @@ func TestQueryDistinctOnComputedKeyCacheOwnership(t *testing.T) {
 		case *plan.SortNode:
 			input.Keys[0].Expression = probe
 		}
-		rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
 		if err != nil || count != 3 || calls != 4 {
 			t.Fatal(suffix, rows, count, calls, err)
 		}
@@ -49,8 +49,8 @@ func TestQueryDistinctOnComputedKeyCacheOwnership(t *testing.T) {
 			n++
 		}
 		rows.Close()
-		if n != 3 || calls != 4 || source.view != nil {
-			t.Fatal("final projection reevaluated key or retained pins", suffix, n, calls, source.view)
+		if n != 3 || calls != 4 || source.View != nil {
+			t.Fatal("final projection reevaluated key or retained pins", suffix, n, calls, source.View)
 		}
 	}
 }
@@ -68,7 +68,7 @@ func TestQueryDistinctOnScratchKeyMutation(t *testing.T) {
 		scratch[0], err = sqltype.Integer(usage.Type, id%2)
 		return scratch[0], err
 	})
-	rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || count != 2 {
 		t.Fatal("seen key retained mutable scratch headers", rows, count, err)
 	}
@@ -100,9 +100,9 @@ func TestQueryDistinctOnRequiredCloseAndPrimaryError(t *testing.T) {
 		closeFailure := errors.New("ON child close")
 		primary := errors.New("ON key or sort primary")
 		closed := 0
-		inner := &indexedStage{source: &querySource{anonymous: [][]sqltype.Value{{one}}}, schema: schema, expressions: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: one}}, evaluation: EvalContext{}, finish: func() error { closed++; return closeFailure }}
-		bridge := &querySource{materialized: true, flatWidth: 1, nestedRoot: &plan.ProjectNode{QuerySchema: schema, Child: &plan.SingletonNode{}}, nestedStage: inner}
-		source := &querySource{sources: []*querySource{bridge}}
+		inner := &indexedStage{Source: &querySource{Anonymous: [][]sqltype.Value{{one}}}, Columns: schema, Expressions: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: one}}, Evaluation: EvalContext{}, Finish: func() error { closed++; return closeFailure }}
+		bridge := &querySource{Materialized: true, FlatWidth: 1, NestedRoot: &plan.ProjectNode{QuerySchema: schema, Child: &plan.SingletonNode{}}, NestedStage: inner}
+		source := &querySource{Sources: []*querySource{bridge}}
 		key := queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) {
 			if phase == "key" {
 				return sqltype.Value{}, primary
@@ -119,7 +119,7 @@ func TestQueryDistinctOnRequiredCloseAndPrimaryError(t *testing.T) {
 		}
 		node := &plan.DistinctOnNode{QuerySchema: schema, Child: child, Expressions: []expr.Expr{key}, Grouping: []plan.Grouping{{Grouping: family}}}
 		root := &plan.ProjectNode{QuerySchema: schema, Child: node, Expressions: []expr.Expr{plan.ColumnExpr{Info: expr.Info{Usage: usage}, Scope: 1, Frame: 1, Slot: 0}}}
-		rows, count, err := finalizeQuery(context.Background(), root, source, nil)
+		rows, count, err := Finalize(context.Background(), root, source, nil)
 		want := error(primary)
 		if phase == "close" {
 			want = closeFailure

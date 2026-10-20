@@ -51,8 +51,8 @@ func TestQuerySubquerySecondProjectedTuple(t *testing.T) {
 					}
 					bound.Comparisons = []plan.ComparisonExpr{{Left: plan.LiteralExpr{Info: expr.Info{Usage: usage}, Value: subqueryTestInteger(t, usage.Type, 1)}, Right: plan.ColumnExpr{Info: expr.Info{Usage: usage}, Scope: 1, Frame: project.Frame, Slot: 0}, Predicate: predicate}}
 				}
-				parent := queryState{source: source}
-				c := parent.evaluation(ctx)
+				parent := queryState{Source: source}
+				c := parent.Evaluation(ctx)
 				_, err := bound.Eval(&c)
 				if calls != 2 {
 					t.Fatal("must project exactly two tuples", calls, err)
@@ -168,12 +168,12 @@ func TestQuerySubqueryPresenceGraphRetention(t *testing.T) {
 		if !seen {
 			t.Fatal("ignored analyzed graph lost or original mutated", sql)
 		}
-		state := queryState{source: source}
-		stage, err := openQueryProjectStage(context.Background(), &state, queryPlan.Root.(*plan.ProjectNode))
+		state := queryState{Source: source}
+		stage, err := OpenQueryProjectStage(context.Background(), &state, queryPlan.Root.(*plan.ProjectNode))
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, present, err := stage.nextOccurrence(context.Background())
+		_, present, err := stage.NextOccurrence(context.Background())
 		if err != nil || !present || calls != 0 {
 			t.Fatal("ignored execution retained", present, err, calls)
 		}
@@ -191,14 +191,14 @@ func TestQuerySubquerySortedProjectionCacheOnce(t *testing.T) {
 		calls++
 		return sqltype.Integer(project.Schema()[0].Usage.Type, int64(calls))
 	}))
-	state := queryState{source: source}
-	stage, err := openQueryProjectStage(context.Background(), &state, project)
+	state := queryState{Source: source}
+	stage, err := OpenQueryProjectStage(context.Background(), &state, project)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer stage.Close()
 	for range 2 {
-		present, err := stage.nextProjected(context.Background(), nil)
+		present, err := stage.NextProjected(context.Background(), nil)
 		if err != nil || !present || calls != 4 {
 			t.Fatal("sort input projection was skipped or reevaluated", present, err, calls)
 		}
@@ -295,8 +295,8 @@ func TestQuerySubqueryLiteralDemandBoundary(t *testing.T) {
 		{"not", parser.LogicalNot, child, nil, false, "21000"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			parent := queryState{source: source}
-			c := parent.evaluation(context.Background())
+			parent := queryState{Source: source}
+			c := parent.Evaluation(context.Background())
 			c.Parameters = []sqltype.Value{sqltype.Boolean(typ, false)}
 			expression := plan.LogicalExpr{Info: info, Op: tc.op, Left: tc.left, Right: tc.right, QueryRight: tc.right != nil}
 			value, err := expression.Eval(&c)
@@ -328,8 +328,8 @@ func TestQuerySubqueryLiteralDemandBoundary(t *testing.T) {
 
 func TestQuerySubqueryLiteralDemandPreflight(t *testing.T) {
 	e, query, source := queryJoinsFixture(t, "SELECT FALSE AND ((SELECT TRUE) AND ($1::TEXT)::BOOL)")
-	parent := queryState{source: source}
-	c := parent.evaluation(context.Background())
+	parent := queryState{Source: source}
+	c := parent.Evaluation(context.Background())
 	typ, _ := e.CatalogRead().LookupType(sqltype.Text)
 	c.Parameters = []sqltype.Value{sqltype.String(typ, "invalid")}
 	_, _, err := preflightCoercions(&c, query.Root.(*plan.ProjectNode).Expressions[0])
@@ -359,7 +359,7 @@ func TestQuerySubqueryLogicalDemandFrames(t *testing.T) {
 			if expression.QueryRight != tc.queryRight {
 				t.Fatal("logical demand does not match allocated child frames", expression.QueryRight)
 			}
-			rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+			rows, count, err := Finalize(context.Background(), query.Root, source, nil)
 			if tc.state != "" {
 				var diagnostic *sqlstate.Error
 				if !errors.As(err, &diagnostic) || diagnostic.Code != tc.state {

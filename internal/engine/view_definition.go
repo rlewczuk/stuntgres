@@ -77,13 +77,13 @@ func (e *Engine) freezeQueryPresentationLocked(auth AuthorizationView, syntax *p
 	definition.sources = make([]viewLeaf, len(b.querySources))
 	for occurrence, source := range b.querySources {
 		leaf := &definition.sources[occurrence]
-		leaf.ref, leaf.mark, leaf.only = source.ref, source.mark, source.only
-		leaf.analysisOnly = source.analysisOnly
-		leaf.attributes = append([]int32(nil), source.relation.Attributes...)
-		for _, slot := range source.uses {
-			leaf.reads = append(leaf.reads, source.relation.Attributes[slot])
+		leaf.ref, leaf.mark, leaf.only = source.Ref, source.Mark, source.Only
+		leaf.analysisOnly = source.AnalysisOnly
+		leaf.attributes = append([]int32(nil), source.Relation.Attributes...)
+		for _, slot := range source.Uses {
+			leaf.reads = append(leaf.reads, source.Relation.Attributes[slot])
 		}
-		if ns := auth.Catalog.MustNamespace(source.relation.Namespace()); ns.Temporary != (ids.SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || auth.session == nil || ns.Temporary != auth.session.token) {
+		if ns := auth.Catalog.MustNamespace(source.Relation.Namespace()); ns.Temporary != (ids.SessionToken{}) && temporaryMessage != "" && (!temporaryConsumer || auth.session == nil || ns.Temporary != auth.session.token) {
 			return nil, sqlError("0A000", temporaryMessage)
 		}
 	}

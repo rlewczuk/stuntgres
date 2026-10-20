@@ -46,8 +46,8 @@ func TestInsertSelectValuesOccurrenceEvaluation(t *testing.T) {
 		query := &plan.Query{Root: &plan.ProjectNode{QuerySchema: schema, Child: sorted, Expressions: []expr.Expr{projection}}}
 		source := &querySource{}
 		rows, err := evaluateInsertQuery(context.Background(), binding{relation: relation, ref: ref, targets: []int{0}, query: query}, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
-		if err != nil || len(rows.values) != count || source.anonymous != nil {
-			t.Fatal(rows, err, source.anonymous)
+		if err != nil || len(rows.values) != count || source.Anonymous != nil {
+			t.Fatal(rows, err, source.Anonymous)
 		}
 		for i, call := range calls {
 			if call != 1 {

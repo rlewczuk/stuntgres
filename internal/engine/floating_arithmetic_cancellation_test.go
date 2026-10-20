@@ -34,8 +34,8 @@ func TestExpressionFloatingArithmeticCancellationBeforePublication(t *testing.T)
 		cancel()
 		return v, nil
 	})
-	rows, _, err := finalizeQuery(ctx, query.Root, source, nil)
-	if !evaluated || rows != nil || !errors.Is(err, context.Canceled) || source.view != nil {
+	rows, _, err := Finalize(ctx, query.Root, source, nil)
+	if !evaluated || rows != nil || !errors.Is(err, context.Canceled) || source.View != nil {
 		t.Fatal(evaluated, rows, err)
 	}
 }

@@ -10,7 +10,7 @@ import (
 
 func TestIntervalAvgSlotsAndMetadata(t *testing.T) {
 	_, q, source := queryCoreFixture(t, "SELECT avg(INTERVAL '1 day'),avg(INTERVAL '1 day'),count(*),bool_and(f) FROM t")
-	defer source.close()
+	defer source.Close()
 	node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	if len(node.Calls) != 3 {
 		t.Fatal("operation sharing", len(node.Calls))
@@ -24,7 +24,7 @@ func TestIntervalAvgSlotsAndMetadata(t *testing.T) {
 		}
 	}
 	// The actual provider remains execution-owned even when immutable calls share.
-	rows, n, err := finalizeQuery(context.Background(), q.Root, source, nil)
+	rows, n, err := Finalize(context.Background(), q.Root, source, nil)
 	if err != nil || n != 1 {
 		t.Fatal(n, err)
 	}
@@ -41,7 +41,7 @@ func TestIntervalAvgSlotsAndMetadata(t *testing.T) {
 		}
 	}
 	_, volatile, owner := queryCoreFixture(t, "SELECT avg(CASE WHEN nextval($1)>0 THEN INTERVAL '1 day' ELSE INTERVAL '0' END),avg(CASE WHEN nextval($1)>0 THEN INTERVAL '1 day' ELSE INTERVAL '0' END) FROM t")
-	defer owner.close()
+	defer owner.Close()
 	if len(volatile.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode).Calls) != 2 {
 		t.Fatal("volatile average arguments shared")
 	}

@@ -78,7 +78,7 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 	source := view.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2600})
 	ref := e.catalog.Domain.Ref(view.Epoch(), source.Address())
 	rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: view, Ref: ref, Source: source, Owner: (view).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAggregate)
-	if err != nil || len(rows.anonymous) != 145 {
+	if err != nil || len(rows.Anonymous) != 145 {
 		t.Fatal("installed aggregate source", err)
 	}
 	removed := catalog.CloneState(view.State())
@@ -91,7 +91,7 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 		}
 	}
 	// Old capture ownership remains intact independently of current owner removal.
-	if id, err := rows.anonymous[len(rows.anonymous)-1][0].ProcedureOID(); err != nil || id != uint32(proc.Address().ObjectID) {
+	if id, err := rows.Anonymous[len(rows.Anonymous)-1][0].ProcedureOID(); err != nil || id != uint32(proc.Address().ObjectID) {
 		t.Fatal("retained aggregate row lost owner", id, err)
 	}
 }

@@ -102,7 +102,7 @@ func TestArrayInspectStoredRemap(t *testing.T) {
 		if err != nil || nerr != nil || n != 3 || v.Type() != call.ResultUsage().Type {
 			t.Fatal(v, err, nerr)
 		}
-		if !sameGroupExpression(call, call) || !closedTransactionTimeDefault(call) || !closedUUIDDefault(call) || plannedPhysicalVolatility(call, false) != expr.Immutable {
+		if !sameGroupExpression(call, call) || !closedTransactionTimeDefault(call) || !closedUUIDDefault(call) || PlannedPhysicalVolatility(call, false) != expr.Immutable {
 			t.Fatal("lost scalar traversal")
 		}
 		visited := 0
@@ -144,7 +144,7 @@ func TestArrayInspectClosedDefaults(t *testing.T) {
 		if producer == "uuidv4" {
 			valid = closedUUIDDefault(node)
 		}
-		if !valid || plannedPhysicalVolatility(node, false) != expr.Volatile {
+		if !valid || PlannedPhysicalVolatility(node, false) != expr.Volatile {
 			t.Fatal("lost nested producer", producer)
 		}
 	}

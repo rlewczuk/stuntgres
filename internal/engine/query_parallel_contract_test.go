@@ -31,15 +31,15 @@ func parallelTransactionOccurrences(t *testing.T) {
 				want = map[int64]int{7: 1, 8: 1}
 			}
 			captured := sessionSQL(t, s, "SELECT id FROM t").Rows.(*finalRows)
-			input, err := captureQuerySource(context.Background(), captured.source.view, captured.source.ref)
+			input, err := captureQuerySource(context.Background(), captured.Source.View, captured.Source.Ref)
 			if err != nil {
 				t.Fatal(err)
 			}
 			captured.Close()
-			if _, _, ok := parallelQueryPlan(query.Root, input); !ok {
+			if _, _, ok := ParallelQueryPlan(query.Root, input); !ok {
 				t.Fatal("selected own-write physical scan not eligible")
 			}
-			rows, n, err := finalizeSelectQuery(context.Background(), query.Root, input, nil, 2)
+			rows, n, err := FinalizeSelect(context.Background(), query.Root, input, nil, 2)
 			if err != nil || n != len(want) {
 				t.Fatal(n, err)
 			}
@@ -97,8 +97,8 @@ func parallelAdmissionAndTemporary(t *testing.T) {
 	captured := sessionSQL(t, s, "SELECT id FROM parallel_temp").Rows.(*finalRows)
 	defer captured.Close()
 	project := *query.Root.(*plan.ProjectNode)
-	project.Child = &plan.SourceNode{QuerySchema: captured.Schema(), Ref: captured.source.ref, Occurrence: captured.source.occurrence}
-	if _, _, ok := parallelQueryPlan(&project, captured.source); ok {
+	project.Child = &plan.SourceNode{QuerySchema: captured.Schema(), Ref: captured.Source.Ref, Occurrence: captured.Source.Occurrence}
+	if _, _, ok := ParallelQueryPlan(&project, captured.Source); ok {
 		t.Fatal("temporary physical source admitted")
 	}
 }
@@ -122,7 +122,7 @@ func parallelCachedOrderProof(t *testing.T) {
 		outputCalls.Add(1)
 		return output.Eval(c)
 	})
-	rows, n, err := finalizeParallelQuery(context.Background(), project, ordered, source, nil, 2)
+	rows, n, err := FinalizeParallelQuery(context.Background(), project, ordered, source, nil, 2)
 	if err != nil || n != 4 {
 		t.Fatal(n, err)
 	}
@@ -141,7 +141,7 @@ func parallelMergeCancellationProof(t *testing.T) {
 	ordered := project.Child.(*plan.SortNode)
 	var runs []queryParallelRun
 	for i := range 2 {
-		run, err := runParallelQuery(context.Background(), project, source, nil, i*2, (i+1)*2, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, true)
+		run, err := RunParallelQuery(context.Background(), project, source, nil, i*2, (i+1)*2, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -149,7 +149,7 @@ func parallelMergeCancellationProof(t *testing.T) {
 	}
 	// Cancellation in the actual leader comparator must veto the whole output.
 	ctx := &queryCountingContext{Context: context.Background(), remaining: 3}
-	rows, err := gatherQueryRuns(ctx, project, ordered, source, runs, []int{0}, true, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	rows, err := GatherQueryRuns(ctx, project, ordered, source, runs, []int{0}, true, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	if rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal(rows, err)
 	}
@@ -158,14 +158,14 @@ func parallelMergeCancellationProof(t *testing.T) {
 		key := ordered.Keys[0]
 		key.Slot = 1
 		ctx := &queryCountingContext{Context: context.Background(), remaining: 2}
-		_, err := compareQueryOrder(ctx, []plan.SortKey{key}, sqltype.InputEnvironment{}, querySortRow{source: source, index: pair[0]}, querySortRow{source: source, index: pair[1]})
+		_, err := CompareQueryOrder(ctx, []plan.SortKey{key}, sqltype.InputEnvironment{}, querySortRow{Source: source, Index: pair[0]}, querySortRow{Source: source, Index: pair[1]})
 		if !errors.Is(err, context.Canceled) {
 			t.Fatal("NULL shortcut ignored cancellation", err)
 		}
 	}
 	// No rows are needed to reach the final publication fence.
 	ctx = &queryCountingContext{Context: context.Background(), remaining: 1}
-	rows, err = gatherQueryRuns(ctx, project, nil, source, nil, []int{0}, true, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	rows, err = GatherQueryRuns(ctx, project, nil, source, nil, []int{0}, true, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	if rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("final publication fence ignored cancellation", rows, err)
 	}
@@ -176,8 +176,8 @@ func parallelOpenFailureProof(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT id FROM t")
 	project := query.Root.(*plan.ProjectNode)
 	project.Child.(*plan.SourceNode).Ref = ids.ObjectRef{}
-	rows, n, err := finalizeParallelQuery(context.Background(), project, nil, source, nil, 2)
-	if rows != nil || n != 0 || err == nil || err.Error() != "stuntgres: invalid query source target" || source.view != nil {
+	rows, n, err := FinalizeParallelQuery(context.Background(), project, nil, source, nil, 2)
+	if rows != nil || n != 0 || err == nil || err.Error() != "stuntgres: invalid query source target" || source.View != nil {
 		t.Fatal("failed worker open exposed output/retained pin", rows, n, err)
 	}
 }
@@ -190,14 +190,14 @@ func parallelSerialEntryProof(t *testing.T) {
 	project := query.Root.(*plan.ProjectNode)
 	calls := 0
 	project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
-		if c.query.executionContext != nil || c.query.scanRange {
+		if c.Query.ExecutionContext != nil || c.Query.ScanRange {
 			return sqltype.Value{}, errors.New("generic producer dispatched a worker")
 		}
 		calls++
 		return c.Row[0], nil
 	})
-	state := &queryState{source: source}
-	stage, err := openQueryNode(context.Background(), state, project)
+	state := &queryState{Source: source}
+	stage, err := OpenNode(context.Background(), state, project)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,7 +211,7 @@ func parallelSerialEntryProof(t *testing.T) {
 	}
 	stage.Close()
 	calls = 0
-	rows, n, err := finalizeQuery(context.Background(), query.Root, source, nil)
+	rows, n, err := Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || n != 4 || calls != 4 {
 		t.Fatal("generic finalizer stopped being serial", n, err, calls)
 	}

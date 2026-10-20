@@ -247,9 +247,9 @@ func (b *expressionBinder) returningQualifier(name parser.ObjectName, pos parser
 func (b *expressionBinder) returningColumnAt(slot int, pos parser.Position, newValues bool) expr.Expr {
 	column := b.columnAt(slot, pos).(plan.ColumnExpr)
 	if b.target.returningAliases.mode == returningMerge {
-		side := mergeOldSide
+		side := MergeOldSide
 		if newValues {
-			side = mergeNewSide
+			side = MergeNewSide
 		}
 		return plan.ReturningColumnExpr{ColumnExpr: column, Old: !newValues, Merge: true, Side: side}
 	}
@@ -396,9 +396,9 @@ func (b *expressionBinder) outerReturningColumnAt(scope *queryBindingScope, slot
 	column := b.columnAtOf(scope.relation, slot, pos).(plan.ColumnExpr)
 	column.Frame = scope.frame
 	if scope.returning.mode == returningMerge {
-		side := mergeOldSide
+		side := MergeOldSide
 		if newValues {
-			side = mergeNewSide
+			side = MergeNewSide
 		}
 		return plan.ReturningColumnExpr{ColumnExpr: column, Old: !newValues, Merge: true, Side: side}
 	}

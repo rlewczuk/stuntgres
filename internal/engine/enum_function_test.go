@@ -99,7 +99,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	if err != nil || !projection.Concrete() || projection.Element() != wrapped {
 		t.Fatal("domain-over-enum projection regressed", err)
 	}
-	if plannedVolatility(bound) != expr.Stable {
+	if PlannedVolatility(bound) != expr.Stable {
 		t.Fatal("intrinsic volatility")
 	}
 	for _, signature := range []struct {
@@ -127,7 +127,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 			t.Fatal(err)
 		}
 		call := functions.Enum{Info: expr.Info{Usage: result}, Plan: provider, Args: arguments, EnumName: "mood"}
-		if generationImmutable(call) || plannedVolatility(call) != expr.Stable {
+		if generationImmutable(call) || PlannedVolatility(call) != expr.Stable {
 			t.Fatalf("%s/%d lost intrinsic STABLE admission", signature.name, signature.arity)
 		}
 	}
@@ -146,7 +146,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	unary := functions.Enum{Info: expr.Info{Usage: mood.Usage()}, Plan: first, Args: []expr.Expr{mathObservedArgument{Info: expr.Info{Usage: mood.Usage()}, value: sqltype.Null(mood), order: &order, index: 0}}, EnumName: "mood"}
 	volatile := unary
 	volatile.Args = []expr.Expr{mathObservedArgument{Info: expr.Info{Usage: mood.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, value: sqltype.Null(mood), order: &order}}
-	if plannedVolatility(volatile) != expr.Volatile {
+	if PlannedVolatility(volatile) != expr.Volatile {
 		t.Fatal("child volatility lost")
 	}
 }

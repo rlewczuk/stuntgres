@@ -10,10 +10,10 @@ func TestStatementHostNilScopeIsUntypedNil(t *testing.T) {
 	if host := hostOf(nil); host != nil {
 		t.Fatalf("hostOf(nil) = %#v, want untyped nil", host)
 	}
-	if host := (&EvalContext{}).liveHost(); host != nil {
+	if host := (&EvalContext{}).LiveHost(); host != nil {
 		t.Fatalf("scope-less EvalContext host = %#v, want untyped nil", host)
 	}
-	if host := (&querySource{}).liveHost(); host != nil {
+	if host := (&querySource{}).LiveHost(); host != nil {
 		t.Fatalf("scope-less querySource host = %#v, want untyped nil", host)
 	}
 	if scope := scopeOf(nil); scope != nil {
@@ -57,7 +57,7 @@ func TestStatementHostDetachedPresentation(t *testing.T) {
 		"detached":      detachedPresentation{},
 		"nil scope":     (*StatementScope)(nil),
 		"no snapshot":   &StatementScope{},
-		"scope-less ev": (&EvalContext{}).presentation(),
+		"scope-less ev": (&EvalContext{}).Presentation(),
 	}
 	for _, tc := range cases {
 		for name, p := range formatters {

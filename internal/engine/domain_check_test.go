@@ -99,7 +99,7 @@ func TestDomainCheckEvaluationFrameInternal(t *testing.T) {
 	integer, _ := view.LookupType(sqltype.Int4)
 	boolean, _ := view.LookupType(sqltype.Bool)
 	sentinel := sqltype.Boolean(boolean, true)
-	eval := EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: view}, evalFrame: evalFrame{domainValue: sentinel, domainValueActive: true}}
+	eval := EvalContext{evalStatement: evalStatement{Context: context.Background(), Catalog: view}, evalFrame: evalFrame{DomainValue: sentinel, DomainValueActive: true}}
 	eval.Input.DomainChecks = &eval
 	for _, tc := range []struct {
 		domain            string
@@ -133,7 +133,7 @@ func TestDomainCheckEvaluationFrameInternal(t *testing.T) {
 				t.Fatal("domain/ancestor error identity", diagnostic)
 			}
 		}
-		if eval.domainValue != sentinel || !eval.domainValueActive {
+		if eval.DomainValue != sentinel || !eval.DomainValueActive {
 			t.Fatal("nested/error VALUE frame leaked", tc)
 		}
 	}
@@ -141,7 +141,7 @@ func TestDomainCheckEvaluationFrameInternal(t *testing.T) {
 	if _, err := leaf.Eval(&eval); err == nil {
 		t.Fatal("wrong VALUE frame type accepted")
 	}
-	eval.domainValueActive = false
+	eval.DomainValueActive = false
 	if _, err := leaf.Eval(&eval); err == nil {
 		t.Fatal("missing VALUE frame accepted")
 	}
@@ -155,15 +155,15 @@ func TestDomainCheckEvaluationFrameInternal(t *testing.T) {
 		t.Fatal(err)
 	}
 	textLeaf := plan.DomainValueExpr{Info: expr.Info{Usage: short, Property: expr.Properties{DomainDependent: true}}}
-	eval.domainValue, eval.domainFrameUsage, eval.domainValueActive = sqltype.String(varchar, "abc"), long, true
+	eval.DomainValue, eval.DomainFrameUsage, eval.DomainValueActive = sqltype.String(varchar, "abc"), long, true
 	if _, err := textLeaf.Eval(&eval); err == nil {
 		t.Fatal("foreign immediate-base typmod accepted")
 	}
-	eval.domainFrameUsage = short
-	if value, err := textLeaf.Eval(&eval); err != nil || value != eval.domainValue {
+	eval.DomainFrameUsage = short
+	if value, err := textLeaf.Eval(&eval); err != nil || value != eval.DomainValue {
 		t.Fatal("matching VALUE frame", value, err)
 	}
-	eval.domainValue, eval.domainFrameUsage, eval.domainValueActive = sentinel, sqltype.Usage{}, false
+	eval.DomainValue, eval.DomainFrameUsage, eval.DomainValueActive = sentinel, sqltype.Usage{}, false
 	ctx, cancel := context.WithCancel(eval.Context)
 	cancel()
 	eval.Context = ctx
@@ -171,7 +171,7 @@ func TestDomainCheckEvaluationFrameInternal(t *testing.T) {
 	if err := eval.CheckDomain(ctx, child.SQLType, sqltype.Null(integer)); !errors.Is(err, context.Canceled) {
 		t.Fatal("cancellation", err)
 	}
-	if eval.domainValue != sentinel || eval.domainValueActive {
+	if eval.DomainValue != sentinel || eval.DomainValueActive {
 		t.Fatal("canceled conversion changed frame")
 	}
 	if _, err := (scalarRenderer{}).sql(context.Background(), view, leaf); err == nil {

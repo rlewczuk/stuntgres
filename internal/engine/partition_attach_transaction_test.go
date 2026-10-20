@@ -68,10 +68,10 @@ func partitionAttachUnitValues(t *testing.T, view *visibility.View, ref ids.Obje
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer source.close()
+	defer source.Close()
 	var values []int64
-	for i := range source.count() {
-		value, err := source.row(i)[0].Integer()
+	for i := range source.Count() {
+		value, err := source.Row(i)[0].Integer()
 		if err != nil {
 			t.Fatal(err)
 		}

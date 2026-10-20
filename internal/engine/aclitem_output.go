@@ -98,19 +98,19 @@ func captureACLItemOutputValue(rows *finalRows, output capturedACLItemOutput, va
 		return fmt.Errorf("stuntgres: foreign ACL result identity")
 	}
 	for _, id := range [2]uint32{grantee, grantor} {
-		if _, ok := rows.aclitemOutput[id]; ok {
+		if _, ok := rows.AclitemOutput[id]; ok {
 			continue
 		}
 		name, err := output.FormatACLRole(authority, id)
 		if err != nil {
 			return err
 		}
-		if rows.aclitemOutput == nil {
-			rows.aclitemOutput = make(map[uint32]string)
-			rows.aclAuthority = authority
-			rows.output.ACLItem = rows
+		if rows.AclitemOutput == nil {
+			rows.AclitemOutput = make(map[uint32]string)
+			rows.ACLAuthority = authority
+			rows.Output.ACLItem = rows
 		}
-		rows.aclitemOutput[id] = name
+		rows.AclitemOutput[id] = name
 	}
 	return nil
 }

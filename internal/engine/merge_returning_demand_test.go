@@ -20,19 +20,19 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 		}
 		op, scope, b, target, inputs := updateFromBoundSources(t, e, s, context.Background(), "MERGE INTO t USING source src ON t.id=src.id WHEN MATCHED THEN UPDATE SET v=t.v+1 WHEN NOT MATCHED BY SOURCE THEN UPDATE SET v=t.v+1 RETURNING t.id,src.g,old.g,new.g,src")
 		defer op.Done()
-		defer target.close()
-		defer inputs.close()
-		if err := selectQuerySources(op.Context(), inputs); err != nil {
+		defer target.Close()
+		defer inputs.Close()
+		if err := SelectQuerySources(op.Context(), inputs); err != nil {
 			t.Fatal(err)
 		}
-		state := &queryState{source: inputs, input: scope.input, output: scope.output}
+		state := &queryState{Source: inputs, Input: scope.input, Output: scope.output}
 		for _, expr := range b.returning.expressions {
-			state.virtualReads = state.virtualReads || boundHasVirtualReads(expr)
+			state.VirtualReads = state.VirtualReads || BoundHasVirtualReads(expr)
 		}
-		if !state.virtualReads {
+		if !state.VirtualReads {
 			t.Fatal("output-only virtual demand absent")
 		}
-		cursor, err := openQueryNode(op.Context(), state, b.merge.source)
+		cursor, err := OpenNode(op.Context(), state, b.merge.source)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -132,12 +132,12 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 		sessionSQL(t, s, "INSERT INTO t DEFAULT VALUES")
 		op, scope, b, target, inputs := updateFromBoundSources(t, e, s, context.Background(), "MERGE INTO t USING (VALUES(1)) src(x) ON TRUE WHEN MATCHED THEN DELETE RETURNING old,new,t")
 		defer op.Done()
-		defer target.close()
-		defer inputs.close()
+		defer target.Close()
+		defer inputs.Close()
 		if !b.returning.readRequired {
 			t.Fatal("zero-member target whole row lost SELECT demand")
 		}
-		c := EvalContext{evalStatement: evalStatement{Context: op.Context()}, evalFrame: evalFrame{Scope: 1, Frame: 1, mergeReturning: true, mergeAction: b.merge.arms[0].action}}
+		c := EvalContext{evalStatement: evalStatement{Context: op.Context()}, evalFrame: evalFrame{Scope: 1, Frame: 1, MergeReturning: true, MergeAction: b.merge.arms[0].action}}
 		for i, expr := range b.returning.expressions {
 			v, err := expr.Eval(&c)
 			if err != nil || v.IsNull() != (i == 1) || v.Type().CompositeLen() != 0 {
@@ -157,8 +157,8 @@ func TestMergeReturningOutputDemand(t *testing.T) {
 		value, _ := sqltype.Integer(typ, 1)
 		calls := 0
 		expr := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 4, Slot: 0, MergeSource: true, Virtual: queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; return value, nil })}
-		parent := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{sqltype.Null(typ)}, mergeReturning: true}}
-		child := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 8, Outer: &parent, mergeSourcePresent: true}}
+		parent := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{sqltype.Null(typ)}, MergeReturning: true}}
+		child := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 8, Outer: &parent, MergeSourcePresent: true}}
 		v, err := expr.Eval(&child)
 		if err != nil || !v.IsNull() || calls != 0 {
 			t.Fatal("absent source recipe invoked", v, err, calls)

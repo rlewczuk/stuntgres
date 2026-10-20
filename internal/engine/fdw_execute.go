@@ -45,7 +45,7 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if err = foreignOperationSupported(target.foreign.wrapper, op, b.relation.Name()); err != nil {
+	if err = foreignOperationSupported(target.Foreign.Wrapper, op, b.relation.Name()); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
 	}
@@ -55,33 +55,33 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 	}
 	e.mu.Unlock()
 	if inputs != nil {
-		defer inputs.close()
+		defer inputs.Close()
 	}
 	if err != nil {
 		return Result{}, err
 	}
 	s.foreignUnlocked()
-	m, err := s.planForeignModification(s.op.Context(), target.foreign, op, false)
+	m, err := s.planForeignModification(s.op.Context(), target.Foreign, op, false)
 	if err != nil {
 		return Result{}, err
 	}
-	state := &queryState{source: inputs, parameters: parameters, input: s.input, output: s.output, ctes: s.cteInvocation}
-	defer state.releaseMemberships()
-	m.request.Parameters, err = foreignParameters(s.op.Context(), state, target.foreign)
+	state := &queryState{Source: inputs, Parameters: parameters, Input: s.input, Output: s.output, Ctes: s.cteInvocation}
+	defer state.ReleaseMemberships()
+	m.request.Parameters, err = ForeignParameters(s.op.Context(), state, target.Foreign)
 	if err != nil {
 		return Result{}, err
 	}
 	if err = m.begin(s.op.Context(), s); err != nil {
 		return Result{}, err
 	}
-	if err = selectQuerySources(s.op.Context(), inputs); err != nil {
+	if err = SelectQuerySources(s.op.Context(), inputs); err != nil {
 		return Result{}, err
 	}
 	evaluation := execution.evaluation
-	evaluation.query = state
+	evaluation.Query = state
 	evaluation.Scope, evaluation.Frame = 1, 1
-	evaluation.host = hostOf(s)
-	evaluation.physicalTable = b.ref // Actual relation identity, never a fabricated row ID.
+	evaluation.Host = hostOf(s)
+	evaluation.PhysicalTable = b.ref // Actual relation identity, never a fabricated row ID.
 	if op == catalog.ForeignInsert {
 		var rows [][]sqltype.Value
 		if b.commandQuery {
@@ -150,8 +150,8 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 func (s *StatementScope) foreignInsertResult(m *foreignModification, b binding, rows [][]sqltype.Value, evaluation *EvalContext) (Result, error) {
 	var output *finalRows
 	if b.returning != nil {
-		output = newFinalRows(b.returning.schema, 0)
-		output.output = s.output
+		output = NewFinalRows(b.returning.schema, 0)
+		output.Output = s.output
 	}
 	rowByRow := b.returning != nil || b.viewWrite != nil && len(b.viewWrite.checks) != 0
 	count, err := m.insertRows(s.op.Context(), s, rows, rowByRow, func(row []sqltype.Value) error {
@@ -186,12 +186,12 @@ func projectForeignReturning(b binding, output *finalRows, row, old []sqltype.Va
 		if err != nil {
 			return err
 		}
-		if value.Type() == nil || value.Type() != output.schema[i].Usage.Type {
+		if value.Type() == nil || value.Type() != output.Columns[i].Usage.Type {
 			return errors.New("stuntgres: invalid foreign RETURNING value")
 		}
-		output.values = append(output.values, value)
+		output.Values = append(output.Values, value)
 	}
-	output.count++
+	output.Count++
 	return nil
 }
 func (s *StatementScope) finishForeignResult(b binding, output *finalRows, count int64) (Result, error) {
@@ -220,19 +220,19 @@ type foreignMutationRow struct {
 
 func (m *foreignModification) targetRows(ctx context.Context, s *StatementScope) ([]foreignMutationRow, error) {
 	f := m.source
-	r := copyForeignRequest(m.request.ForeignRequest)
+	r := CopyForeignRequest(m.request.ForeignRequest)
 	r.Identity = &m.request.Targets
 	execution := &foreignExecution{}
-	planning := copyForeignRequest(r)
+	planning := CopyForeignRequest(r)
 	planning.Transaction = nil
-	if err := f.plan(ctx, planning, execution); err != nil {
+	if err := f.Plan(ctx, planning, execution); err != nil {
 		return nil, err
 	}
-	f.executions = append(f.executions, execution)
-	scan, err := f.wrapper.BeginForeignScan(ctx, copyForeignRequest(r), execution.plan)
-	execution.scan = scan
+	f.Executions = append(f.Executions, execution)
+	scan, err := f.Wrapper.BeginForeignScan(ctx, CopyForeignRequest(r), execution.Plan)
+	execution.Scan = scan
 	if err != nil {
-		return nil, foreignCallbackError(err)
+		return nil, ForeignCallbackError(err)
 	}
 	identityScan, ok := scan.(catalog.ForeignIdentityScan)
 	if !ok {
@@ -245,7 +245,7 @@ func (m *foreignModification) targetRows(ctx context.Context, s *StatementScope)
 		}
 		row, identity, present, err := identityScan.IterateForeignIdentity(ctx)
 		if err != nil {
-			return nil, foreignCallbackError(err)
+			return nil, ForeignCallbackError(err)
 		}
 		if !present {
 			break
@@ -261,11 +261,11 @@ func (m *foreignModification) targetRows(ctx context.Context, s *StatementScope)
 				return nil, errors.New("stuntgres: foreign row identity contains a noncomparable driver value")
 			}
 		}
-		values, err := f.importValues(ctx, row, execution.slots, s.input, s.output, nil)
+		values, err := f.ImportValues(ctx, row, execution.Slots, s.input, s.output, nil)
 		if err != nil {
 			return nil, err
 		}
-		rows = append(rows, foreignMutationRow{row: values, identity: copyForeignCells(identity)})
+		rows = append(rows, foreignMutationRow{row: values, identity: CopyForeignCells(identity)})
 	}
 	return rows, nil
 }
@@ -303,29 +303,29 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b bin
 	var frame []sqltype.Value
 	sourceCount := 1
 	if from != nil {
-		state.virtualReads = queryHasVirtualReads(from) || boundHasVirtualReads(predicate)
+		state.VirtualReads = QueryHasVirtualReads(from) || BoundHasVirtualReads(predicate)
 		if b.update != nil {
 			for _, expression := range b.update.assignments {
-				state.virtualReads = state.virtualReads || boundHasVirtualReads(expression)
+				state.VirtualReads = state.VirtualReads || BoundHasVirtualReads(expression)
 			}
 			for _, target := range b.update.arrayTargets {
-				state.virtualReads = state.virtualReads || assignmentTargetHasVirtualReads(target)
+				state.VirtualReads = state.VirtualReads || assignmentTargetHasVirtualReads(target)
 			}
 		}
 		if b.returning != nil {
 			for _, expression := range b.returning.expressions {
-				state.virtualReads = state.virtualReads || boundHasVirtualReads(expression)
+				state.VirtualReads = state.VirtualReads || BoundHasVirtualReads(expression)
 			}
 		}
-		stage, err = openQueryNode(ctx, state, from)
+		stage, err = OpenNode(ctx, state, from)
 		if err != nil {
 			return Result{}, err
 		}
 		defer stage.Close()
-		if err := stage.drain(ctx); err != nil {
+		if err := stage.Drain(ctx); err != nil {
 			return Result{}, err
 		}
-		sourceCount = stage.count()
+		sourceCount = stage.Count()
 		if sourceCount != 0 {
 			frame = make([]sqltype.Value, len(b.relation.Columns)+sourceWidth)
 		}
@@ -333,8 +333,8 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b bin
 	var output *finalRows
 	keep := false
 	if b.returning != nil {
-		output = newFinalRows(b.returning.schema, 0)
-		output.output = s.output
+		output = NewFinalRows(b.returning.schema, 0)
+		output.Output = s.output
 		defer func() {
 			if !keep {
 				output.Close()
@@ -352,11 +352,11 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b bin
 			evaluation.Row = candidate.row
 			if from != nil {
 				copy(frame, candidate.row)
-				copy(frame[len(b.relation.Columns):], stage.source.row(stage.index(i)))
+				copy(frame[len(b.relation.Columns):], stage.Source.Row(stage.Index(i)))
 				evaluation.Row = frame
-				evaluation.bindQueryIdentity(stage.source, stage.index(i))
+				evaluation.BindQueryIdentity(stage.Source, stage.Index(i))
 			}
-			matches, err := updateMatches(evaluation, predicate)
+			matches, err := UpdateMatches(evaluation, predicate)
 			if err != nil {
 				return Result{}, err
 			}
@@ -384,19 +384,19 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b bin
 				if err != nil {
 					return Result{}, err
 				}
-				returned, present, err = m.source.wrapper.(catalog.ForeignUpdater).ExecForeignUpdate(ctx, m.callbackRequest(), m.state, copyForeignCells(candidate.identity), input)
+				returned, present, err = m.source.Wrapper.(catalog.ForeignUpdater).ExecForeignUpdate(ctx, m.callbackRequest(), m.state, CopyForeignCells(candidate.identity), input)
 				if err != nil {
-					return Result{}, foreignCallbackError(err)
+					return Result{}, ForeignCallbackError(err)
 				}
 			} else {
 				input, exportErr := m.export(ctx, candidate.row, s)
 				if exportErr != nil {
 					return Result{}, exportErr
 				}
-				returned, present, err = m.source.wrapper.(catalog.ForeignDeleter).ExecForeignDelete(ctx, m.callbackRequest(), m.state, copyForeignCells(candidate.identity), input)
+				returned, present, err = m.source.Wrapper.(catalog.ForeignDeleter).ExecForeignDelete(ctx, m.callbackRequest(), m.state, CopyForeignCells(candidate.identity), input)
 			}
 			if err != nil {
-				return Result{}, foreignCallbackError(err)
+				return Result{}, ForeignCallbackError(err)
 			}
 			if !present {
 				continue

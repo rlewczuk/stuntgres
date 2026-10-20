@@ -49,7 +49,7 @@ func TestHashIndexImmutableBatchAndCapturedPrefixes(t *testing.T) {
 	}
 	_, old := hashRoot(t, e, "hn")
 	query, source, release := hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=2")
-	value := source.committed[1].Values[0]
+	value := source.Committed[1].Values[0]
 	h, err := old.Binding.Provider.Hash(context.Background(), value)
 	if err != nil {
 		t.Fatal(err)
@@ -68,11 +68,11 @@ func TestHashIndexImmutableBatchAndCapturedPrefixes(t *testing.T) {
 	run(t, e, "DELETE FROM t WHERE n=2")
 	run(t, e, "INSERT INTO t VALUES(2),(NULL)")
 	stage := hashFilterStage(t, query, source, nil)
-	if stage.hashCandidates == nil || stage.hashCandidates.root != old || len(stage.hashCandidates.occurrences) != 2 {
+	if stage.HashCandidates == nil || stage.HashCandidates.Root != old || len(stage.HashCandidates.Occurrences) != 2 {
 		t.Fatal("probe reread latest generation/root")
 	}
-	if err := stage.drain(context.Background()); err != nil || stage.count() != 2 {
-		t.Fatal("retained prefix lost old identities", stage.count(), err)
+	if err := stage.Drain(context.Background()); err != nil || stage.Count() != 2 {
+		t.Fatal("retained prefix lost old identities", stage.Count(), err)
 	}
 	stage.Close()
 	release()
@@ -82,7 +82,7 @@ func TestHashIndexImmutableBatchAndCapturedPrefixes(t *testing.T) {
 	}
 	freshQuery, freshSource, releaseFresh := hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=2")
 	fresh := hashFilterStage(t, freshQuery, freshSource, nil)
-	if fresh.hashCandidates == nil || len(fresh.hashCandidates.occurrences) != 1 {
+	if fresh.HashCandidates == nil || len(fresh.HashCandidates.Occurrences) != 1 {
 		t.Fatal("new capture used old candidates")
 	}
 	fresh.Close()
@@ -137,15 +137,15 @@ func TestHashIndexEmptyBindingCancellationAndPrivateFallback(t *testing.T) {
 	op := transactionOperation(t, s)
 	t.Cleanup(op.Done)
 	query, source, release := hashCaptureQuery(t, e, op, "SELECT n FROM t WHERE n=2")
-	if len(source.hashIndexes) != 0 {
+	if len(source.HashIndexes) != 0 {
 		t.Fatal("private/explicit view acquired current root")
 	}
 	stage := hashFilterStage(t, query, source, nil)
-	if stage.hashCandidates != nil {
+	if stage.HashCandidates != nil {
 		t.Fatal("private view probed")
 	}
-	if err := stage.drain(context.Background()); err != nil || stage.count() != 3 {
-		t.Fatal(stage.count(), err)
+	if err := stage.Drain(context.Background()); err != nil || stage.Count() != 3 {
+		t.Fatal(stage.Count(), err)
 	}
 	stage.Close()
 	release()
@@ -160,7 +160,7 @@ func TestHashIndexEmptyBindingCancellationAndPrivateFallback(t *testing.T) {
 	e.storage.Relations[parent.Address()].Generation++
 	e.mu.Unlock()
 	_, source, release = hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=2")
-	if len(source.hashIndexes) != 0 {
+	if len(source.HashIndexes) != 0 {
 		t.Fatal("mismatched generation admitted")
 	}
 	release()

@@ -87,13 +87,13 @@ func captureRegTSOutputValue(rows *finalRows, view catalog.Read, path []ids.Obje
 		return err
 	}
 	key := regTSOutputKey{id, value.Type().BaseType().ID()}
-	if _, ok := rows.regTSOutput[key]; ok {
+	if _, ok := rows.RegTSOutput[key]; ok {
 		return nil
 	}
-	if rows.regTSOutput == nil {
-		rows.regTSOutput = make(map[regTSOutputKey]string)
+	if rows.RegTSOutput == nil {
+		rows.RegTSOutput = make(map[regTSOutputKey]string)
 	}
-	rows.regTSOutput[key] = regTSSpelling(view, path, id, key.alias, false)
-	rows.output.RegTS = rows
+	rows.RegTSOutput[key] = regTSSpelling(view, path, id, key.Alias, false)
+	rows.Output.RegTS = rows
 	return nil
 }

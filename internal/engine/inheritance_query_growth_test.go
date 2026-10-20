@@ -64,9 +64,9 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	if err = scope.gate(&parser.Select{}); err != nil {
 		t.Fatal(err)
 	}
-	parent := queryLeaf{ref: ref(p), relation: p, storage: e.storage.Relations[p.Address()]}
+	parent := queryLeaf{Ref: ref(p), Relation: p, Storage: e.storage.Relations[p.Address()]}
 	scope.querySources = []queryLeaf{parent}
-	if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: parent.ref}, lock.AccessShare); err != nil {
+	if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: parent.Ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
 	}
 	joined := false
@@ -115,7 +115,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	}
 	admitted := map[ids.ObjectRef]bool{}
 	for _, leaf := range scope.inheritance.relations {
-		admitted[leaf.ref] = true
+		admitted[leaf.Ref] = true
 	}
 	if len(admitted) != 2 || !admitted[originalRef] || !admitted[lateRef] {
 		t.Fatal("late identity omitted from final physical manifest", admitted)
@@ -146,16 +146,16 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer source.close()
-	if len(refs) != 3 || view != scope.view || source.view.Data() != view.Data() {
+	defer source.Close()
+	if len(refs) != 3 || view != scope.view || source.View.Data() != view.Data() {
 		t.Fatal("growth did not use sole complete statement snapshot", refs)
 	}
-	if err = selectQuerySources(op.Context(), source); err != nil {
+	if err = SelectQuerySources(op.Context(), source); err != nil {
 		t.Fatal(err)
 	}
 	got := map[int64]int{}
-	for i := range source.count() {
-		n, valueErr := source.row(i)[0].Integer()
+	for i := range source.Count() {
+		n, valueErr := source.Row(i)[0].Integer()
 		if valueErr != nil {
 			t.Fatal(valueErr)
 		}
@@ -164,12 +164,12 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	if len(got) != 3 || got[10] != 1 || got[20] != 1 || got[9] != 1 {
 		t.Fatal("wait reconciliation omitted late committed row", got)
 	}
-	for _, segment := range source.inheritance {
-		if segment.prefix.view.Data() != view.Data() || &segment.prefix.committed[0] != &e.storage.Relations[segment.leaf.ref.Address].Versions[0] {
+	for _, segment := range source.Inheritance {
+		if segment.Prefix.View.Data() != view.Data() || &segment.Prefix.Committed[0] != &e.storage.Relations[segment.Leaf.Ref.Address].Versions[0] {
 			t.Fatal("capture copied roots or minted another snapshot")
 		}
 	}
-	source.close()
+	source.Close()
 	scope.Finish(nil)
 	lockEmpty(t, e)
 }

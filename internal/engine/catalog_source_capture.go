@@ -111,5 +111,5 @@ func captureCatalogSourceRows(in pgcatalog.Input, produce pgcatalog.Producer) (*
 	if err != nil {
 		return nil, err
 	}
-	return &querySource{ref: in.Ref, anonymous: rows}, nil
+	return &querySource{Ref: in.Ref, Anonymous: rows}, nil
 }

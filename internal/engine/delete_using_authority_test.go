@@ -17,8 +17,8 @@ func TestDeleteUsingCandidateAuthorityRemainsStrict(t *testing.T) {
 		sessionSQL(t, session, q)
 	}
 	op, scope, b, target, inputs := updateFromBoundSources(t, e, session, context.Background(), "DELETE FROM t USING s WHERE id=k")
-	v := target.versionAt(target.rawIndex(0))
-	candidate := visibility.DeleteCandidate{Ref: b.ref, Storage: b.storage, Row: v.Row, Version: v.Version, Ordinal: target.rawIndex(0)}
+	v := target.VersionAt(target.RawIndex(0))
+	candidate := visibility.DeleteCandidate{Ref: b.ref, Storage: b.storage, Row: v.Row, Version: v.Version, Ordinal: target.RawIndex(0)}
 	if err := scope.acquireRow(candidate); err != nil {
 		t.Fatal(err)
 	}
@@ -46,8 +46,8 @@ func TestDeleteUsingCandidateAuthorityRemainsStrict(t *testing.T) {
 	if finishErr := scope.Finish(err); finishErr != err {
 		t.Fatal(finishErr)
 	}
-	target.close()
-	inputs.close()
+	target.Close()
+	inputs.Close()
 	op.Done()
 	transactionRows(t, session, "SELECT id FROM t", 1, 1)
 	lockEmpty(t, e)
@@ -75,7 +75,7 @@ func TestDeleteUsingRejectedPairsDoNotAllocatePerPair(t *testing.T) {
 			if r.Rows != nil {
 				defer r.Rows.Close()
 			}
-			target.close()
+			target.Close()
 			if err != nil || r.Count != 0 || r.Rows != nil {
 				t.Fatal(r, err)
 			}
@@ -112,14 +112,14 @@ func TestDeleteUsingReferenceKindDoesNotConferSourceLocks(t *testing.T) {
 	ref := catalogRef(t, e, e.CatalogRead(), "seq")
 	e.mu.Lock()
 	relation := e.catalog.state.MustRelation(ref.Address)
-	err = e.initializeQueryLocksLocked(scope, nil, []queryLeaf{{ref: ref, relation: relation, deleteReference: true}})
+	err = e.initializeQueryLocksLocked(scope, nil, []queryLeaf{{Ref: ref, Relation: relation, DeleteReference: true}})
 	e.mu.Unlock()
 	waitsDiagnostic(t, err, "42809", `cannot lock rows in sequence "seq"`)
 	if scope.queryLocks != nil {
 		t.Fatal("reference-kind rejection created tuple-lock authority")
 	}
 	e.mu.Lock()
-	err = e.initializeQueryLocksLocked(scope, nil, []queryLeaf{{ref: ref, relation: relation}})
+	err = e.initializeQueryLocksLocked(scope, nil, []queryLeaf{{Ref: ref, Relation: relation}})
 	e.mu.Unlock()
 	if err != nil || scope.queryLocks != nil {
 		t.Fatal("DELETE kind policy leaked into ordinary source reads", err)

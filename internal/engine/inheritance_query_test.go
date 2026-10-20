@@ -73,21 +73,21 @@ func TestInheritanceQueryLayout(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(layout, []int{1, 2}) {
 		t.Fatal(layout, err)
 	}
-	segment := inheritanceQuerySegment{layout: layout, scratch: make([]sqltype.Value, 2)}
+	segment := inheritanceQuerySegment{Layout: layout, Scratch: make([]sqltype.Value, 2)}
 	values := []sqltype.Value{inheritanceQueryInt(e, 9), inheritanceQueryInt(e, 2), inheritanceQueryInt(e, 3), inheritanceQueryInt(e, 8)}
-	mapped := segment.mapValues(values)
-	if !reflect.DeepEqual(mapped, values[1:3]) || &mapped[0] != &segment.scratch[0] {
+	mapped := segment.MapValues(values)
+	if !reflect.DeepEqual(mapped, values[1:3]) || &mapped[0] != &segment.Scratch[0] {
 		t.Fatal(mapped)
 	}
 	values[1] = inheritanceQueryInt(e, 4)
-	if next := segment.mapValues(values); &next[0] != &mapped[0] || !reflect.DeepEqual(next, values[1:3]) {
+	if next := segment.MapValues(values); &next[0] != &mapped[0] || !reflect.DeepEqual(next, values[1:3]) {
 		t.Fatal(next)
 	}
 	identity, err := inheritanceQueryLayout(parent, parent)
 	if err != nil || identity != nil {
 		t.Fatal(identity, err)
 	}
-	borrowed := (&inheritanceQuerySegment{}).mapValues(values)
+	borrowed := (&inheritanceQuerySegment{}).MapValues(values)
 	if &borrowed[0] != &values[0] {
 		t.Fatal("identity mapping copied rows")
 	}
@@ -96,7 +96,7 @@ func TestInheritanceQueryLayout(t *testing.T) {
 	if err != nil || zero == nil || len(zero) != 0 {
 		t.Fatal("zero-column projection lost nonidentity mapping", zero, err)
 	}
-	if values := (&inheritanceQuerySegment{layout: zero}).mapValues(values); len(values) != 0 {
+	if values := (&inheritanceQuerySegment{Layout: zero}).MapValues(values); len(values) != 0 {
 		t.Fatal(values)
 	}
 	child.Columns[1].Usage = testUsage(e, sqltype.Int8)
@@ -115,27 +115,27 @@ func TestInheritanceQueryLocator(t *testing.T) {
 	one := storage.RowVersion{Row: 1, Version: 1, Values: []sqltype.Value{inheritanceQueryInt(e, 1)}}
 	two := storage.RowVersion{Row: 1, Version: 2, Values: []sqltype.Value{inheritanceQueryInt(e, 9), inheritanceQueryInt(e, 2)}}
 	ps, cs := &storage.Relation{}, &storage.Relation{}
-	parent := queryLeaf{ref: ref(p), relation: p, storage: ps}
-	child := queryLeaf{ref: ref(c), relation: c, storage: cs}
-	source := &querySource{ref: parent.ref, inheritance: []inheritanceQuerySegment{
-		{leaf: parent, prefix: &querySource{committed: []storage.RowVersion{one}}},
-		{leaf: child, prefix: &querySource{committed: []storage.RowVersion{{}, two}, visible: []int{1}}, layout: []int{1}, scratch: make([]sqltype.Value, 1)},
-	}, inheritanceEnds: []int{1, 2}}
-	first := source.physicalRow(0, parent, one)
-	second := source.physicalRow(1, parent, two)
-	if first.leaf.ref == second.leaf.ref || first.version.Row != second.version.Row || second.leaf.storage != cs || second.hint != 1 {
+	parent := queryLeaf{Ref: ref(p), Relation: p, Storage: ps}
+	child := queryLeaf{Ref: ref(c), Relation: c, Storage: cs}
+	source := &querySource{Ref: parent.Ref, Inheritance: []inheritanceQuerySegment{
+		{Leaf: parent, Prefix: &querySource{Committed: []storage.RowVersion{one}}},
+		{Leaf: child, Prefix: &querySource{Committed: []storage.RowVersion{{}, two}, Visible: []int{1}}, Layout: []int{1}, Scratch: make([]sqltype.Value, 1)},
+	}, InheritanceEnds: []int{1, 2}}
+	first := source.PhysicalRow(0, parent, one)
+	second := source.PhysicalRow(1, parent, two)
+	if first.Leaf.Ref == second.Leaf.Ref || first.Version.Row != second.Version.Row || second.Leaf.Storage != cs || second.Hint != 1 {
 		t.Fatal(first, second)
 	}
-	if lockResourceForFirst, lockResourceForSecond := (lock.Resource{ObjectRef: first.leaf.ref, Row: first.version.Row}), (lock.Resource{ObjectRef: second.leaf.ref, Row: second.version.Row}); lockResourceForFirst == lockResourceForSecond {
+	if lockResourceForFirst, lockResourceForSecond := (lock.Resource{ObjectRef: first.Leaf.Ref, Row: first.Version.Row}), (lock.Resource{ObjectRef: second.Leaf.Ref, Row: second.Version.Row}); lockResourceForFirst == lockResourceForSecond {
 		t.Fatal("equal RowID aliased physical resources")
 	}
 	latest := two
 	latest.Version = 3
 	latest.Values = []sqltype.Value{inheritanceQueryInt(e, 9), inheritanceQueryInt(e, 4)}
-	if values := second.values(latest); len(values) != 1 || !reflect.DeepEqual(values, latest.Values[1:]) {
+	if values := second.Values(latest); len(values) != 1 || !reflect.DeepEqual(values, latest.Values[1:]) {
 		t.Fatal(values)
 	}
-	if source.versionAt(1).Version != 2 || source.physicalRef(1) != child.ref || source.row(absentQueryIndex) != nil {
+	if source.VersionAt(1).Version != 2 || source.PhysicalRef(1) != child.Ref || source.Row(AbsentQueryIndex) != nil {
 		t.Fatal("physical/absent provenance lost")
 	}
 }
@@ -162,7 +162,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), p.Address())
-	leaf := queryLeaf{ref: ref, relation: p, storage: e.storage.Relations[p.Address()]}
+	leaf := queryLeaf{Ref: ref, Relation: p, Storage: e.storage.Relations[p.Address()]}
 	scope.querySources = []queryLeaf{leaf}
 	if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: ref}, lock.AccessShare); err != nil {
 		t.Fatal(err)
@@ -189,11 +189,11 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer source.close()
-	if err = selectQuerySources(op.Context(), source); err != nil || source.count() != 3 {
-		t.Fatal(source.count(), err)
+	defer source.Close()
+	if err = SelectQuerySources(op.Context(), source); err != nil || source.Count() != 3 {
+		t.Fatal(source.Count(), err)
 	}
-	if source.view.Data() != view.Data() || source.inheritance[1].prefix.view.Data() != view.Data() || &source.inheritance[1].prefix.committed[0] != &e.storage.Relations[c.Address()].Versions[0] {
+	if source.View.Data() != view.Data() || source.Inheritance[1].Prefix.View.Data() != view.Data() || &source.Inheritance[1].Prefix.Committed[0] != &e.storage.Relations[c.Address()].Versions[0] {
 		t.Fatal("hierarchy acquired a second visibility owner or copied immutable rows")
 	}
 	e.mu.Lock()
@@ -202,8 +202,8 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 	if err != nil || same != view {
 		t.Fatal("statement did not reuse sole view", err)
 	}
-	retained := source.inheritance[1].prefix.view
-	source.close()
+	retained := source.Inheritance[1].Prefix.View
+	source.Close()
 	if retained.Load() != nil || view.Load() == nil {
 		t.Fatal("capture release consumed statement authority")
 	}
@@ -281,7 +281,7 @@ func TestInheritanceQueryScanMode(t *testing.T) {
 			t.Fatal("replacement lost source mode or mutated frozen authority")
 		}
 		var got []ids.ObjectAddress
-		err = inheritanceQueryLeaves(e.CatalogRead(), []queryLeaf{{ref: remapped.ref, only: remapped.only}}, ids.SessionToken{}, func(leaf queryLeaf) error { got = append(got, leaf.ref.Address); return nil })
+		err = inheritanceQueryLeaves(e.CatalogRead(), []queryLeaf{{Ref: remapped.ref, Only: remapped.only}}, ids.SessionToken{}, func(leaf queryLeaf) error { got = append(got, leaf.Ref.Address); return nil })
 		want := []ids.ObjectAddress{p.Address()}
 		if !only {
 			want = append(want, c.Address())

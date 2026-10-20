@@ -27,7 +27,7 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 	}
 	node := bind("pi()")
 	original, ok := node.(functions.Math)
-	if !ok || len(original.Args) != 0 || original.Plan.Name() != "pi" || plannedVolatility(node) != expr.Immutable {
+	if !ok || len(original.Args) != 0 || original.Plan.Name() != "pi" || PlannedVolatility(node) != expr.Immutable {
 		t.Fatal(node)
 	}
 	if !b.sameGroupExpression(node, bind("pg_catalog.pi()")) {

@@ -74,7 +74,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			if tc.base >= 0 {
 				arity = 2
 			}
-			if len(call.Args) != arity || call.Plan.BaseIndex() != tc.base || call.Defined || call.Plan.ResultUsage() != call.ResultUsage() || call.Plan.ReturnsSet() != tc.set || sourceReturnsSet(call) != tc.set || !sourceAdmitted(call) || binder.clause.queryHasTargetSet != tc.set {
+			if len(call.Args) != arity || call.Plan.BaseIndex() != tc.base || call.Defined || call.Plan.ResultUsage() != call.ResultUsage() || call.Plan.ReturnsSet() != tc.set || SourceReturnsSet(call) != tc.set || !SourceAdmitted(call) || binder.clause.queryHasTargetSet != tc.set {
 				t.Fatal("physical arity/base/defined/source/project identity", call)
 			}
 			if call.Properties().Volatility != expr.Stable || call.Properties().StageDependent != tc.set || call.Properties().DomainDependent || call.Properties().RuntimeDomainConversion {
@@ -102,7 +102,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			if declaration.Kind != catalog.FunctionRoutine || declaration.Result != tc.result || declaration.Strict != tc.strict || declaration.Volatility != expr.Stable || declaration.Parallel != 's' || declaration.ReturnsSet != tc.set || declaration.Variadic != 0 || int(declaration.Defaults) != tc.defaults || declaration.Providers&functions.JSONRoutineProvider == 0 {
 				t.Fatal("independent released full-IN/default/strict/set metadata", declaration)
 			}
-			if evaluation.catalog.Get(address) != captured {
+			if evaluation.Catalog.Get(address) != captured {
 				t.Fatal("call did not borrow the original owned descriptor")
 			}
 			original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
@@ -110,7 +110,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
 					selected++
-					if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != evaluation.catalog.Epoch() || dependency.Revision != captured.Revision() {
+					if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != evaluation.Catalog.Epoch() || dependency.Revision != captured.Revision() {
 						t.Fatal("original canonical ref/revision", dependency)
 					}
 				} else if dependency.Ref.Address.ClassID == ids.ProcedureClassID {
@@ -167,7 +167,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			}
 			for _, manifest := range [][]catalog.ExpressionDependency{nil, {}, missing} {
 				probe := evaluation
-				probe.routineChecks = manifest
+				probe.RoutineChecks = manifest
 				if err := admitRoutineCall(&probe, call, false, false); err == nil {
 					t.Fatal("missing original authority repaired from equal OID")
 				}
@@ -184,13 +184,13 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 					}
 				}
 				probe := evaluation
-				probe.routineChecks = stale
+				probe.RoutineChecks = stale
 				if err := admitRoutineCall(&probe, call, false, false); err == nil {
 					t.Fatal("stale epoch/revision admitted")
 				}
 			}
 			probe := evaluation
-			probe.routineAuthority = foreign.routineAuthority
+			probe.RoutineAuthority = foreign.RoutineAuthority
 			if err := admitRoutineCall(&probe, call, false, false); err == nil {
 				t.Fatal("foreign equal-OID authority admitted")
 			}
@@ -209,7 +209,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("foreign retag changed physical call contract", mapped)
 			}
 			for _, manifest := range [][]catalog.ExpressionDependency{original, nil, {}} {
-				probe.routineChecks = manifest
+				probe.RoutineChecks = manifest
 				if err := admitRoutineCall(&probe, mapped, false, false); err == nil {
 					t.Fatal("foreign retag manufactured original destination manifest")
 				}
@@ -220,7 +220,7 @@ func TestJSONRecordRoutineOriginalAuthority(t *testing.T) {
 			replacement.Strict = !captured.Strict
 			changed.Catalog.State().SetDescriptor(address, &replacement)
 			probe = evaluation
-			probe.routineAuthority = &changed
+			probe.RoutineAuthority = &changed
 			if err := admitRoutineCall(&probe, call, false, false); err == nil {
 				t.Fatal("incompatible declaration replacement admitted")
 			}

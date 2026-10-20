@@ -13,8 +13,8 @@ func TestProtocolPortalProducer(t *testing.T) {
 	original := root.Expressions[0]
 	calls := 0
 	root.Expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return original.Eval(c) })
-	state := queryState{source: source, hashFilter: hashQueryFilter(root)}
-	stage, err := openQueryProjectStage(context.Background(), &state, root)
+	state := queryState{Source: source, HashFilter: HashQueryFilter(root)}
+	stage, err := OpenQueryProjectStage(context.Background(), &state, root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +38,7 @@ func TestProtocolPortalProducer(t *testing.T) {
 	session := sessionStart(t, e, nil)
 	owner := session.transactions
 	p.tx, p.born = owner.ref, 1
-	newRows, foreignRows := newFinalRows(nil, 0), newFinalRows(nil, 0)
+	newRows, foreignRows := NewFinalRows(nil, 0), NewFinalRows(nil, 0)
 	newPortal := &protocolPortal{tx: owner.ref, born: 2, rows: newRows}
 	foreign := &protocolPortal{tx: owner.ref, born: 3, rows: foreignRows}
 	foreign.tx = withTxID(foreign.tx, foreign.tx.ID()+1)
@@ -52,13 +52,13 @@ func TestProtocolPortalProducer(t *testing.T) {
 	if err := owner.drainCursorCleanup(context.Background(), nil); err != nil {
 		t.Fatal(err)
 	}
-	if !newRows.closed || foreignRows.closed || p.producer == nil || stage.closed || calls != 4 {
+	if !newRows.Closed || foreignRows.Closed || p.producer == nil || stage.Closed || calls != 4 {
 		t.Fatal("savepoint retirement leaked new rows or disposed retained producer")
 	}
 	if err = p.close(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if !stage.closed || cursor.root != nil || cursor.source != nil || cursor.stage != nil || p.producer != nil {
+	if !stage.Closed || cursor.root != nil || cursor.source != nil || cursor.stage != nil || p.producer != nil {
 		t.Fatal("terminal close retained producer")
 	}
 	if err = p.close(context.Background()); err != nil || calls != 4 {

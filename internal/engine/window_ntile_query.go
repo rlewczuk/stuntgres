@@ -11,39 +11,39 @@ import (
 // initialization has not succeeded; NULL inputs leave that state untouched.
 // Counters use the full partition size, including any initial NULL results.
 type windowNtileState struct {
-	bucket                       int32
-	members, boundary, remainder int64
+	Bucket                       int32
+	Members, Boundary, Remainder int64
 }
 
-func (s *windowNtileState) initialize(total, buckets int64) error {
+func (s *windowNtileState) Initialize(total, buckets int64) error {
 	if buckets <= 0 {
 		return sqlError("22014", "argument of ntile must be greater than zero")
 	}
-	s.bucket, s.members = 1, 0
-	s.boundary = total / buckets
-	s.remainder = 0
-	if s.boundary == 0 {
-		s.boundary = 1
+	s.Bucket, s.Members = 1, 0
+	s.Boundary = total / buckets
+	s.Remainder = 0
+	if s.Boundary == 0 {
+		s.Boundary = 1
 	} else {
-		s.remainder = total % buckets
-		if s.remainder != 0 {
-			s.boundary++
+		s.Remainder = total % buckets
+		if s.Remainder != 0 {
+			s.Boundary++
 		}
 	}
 	return nil
 }
 
-func (s *windowNtileState) next() int64 {
-	s.members++
-	if s.members > s.boundary {
-		s.bucket++
-		if s.remainder != 0 && int64(s.bucket) == s.remainder+1 {
-			s.remainder = 0
-			s.boundary--
+func (s *windowNtileState) Next() int64 {
+	s.Members++
+	if s.Members > s.Boundary {
+		s.Bucket++
+		if s.Remainder != 0 && int64(s.Bucket) == s.Remainder+1 {
+			s.Remainder = 0
+			s.Boundary--
 		}
-		s.members = 1
+		s.Members = 1
 	}
-	return int64(s.bucket)
+	return int64(s.Bucket)
 }
 
 func (s *windowNtileState) evaluate(ctx context.Context, evaluation *EvalContext, child *indexedStage, call plan.WindowCall, rows []int, current int) (sqltype.Value, error) {
@@ -51,13 +51,13 @@ func (s *windowNtileState) evaluate(ctx context.Context, evaluation *EvalContext
 		return sqltype.Value{}, err
 	}
 	usage := call.Expression.ResultUsage()
-	if s.bucket == 0 {
-		evaluation.bindQueryRow(child.source, child.index(rows[current]))
+	if s.Bucket == 0 {
+		evaluation.BindQueryRow(child.Source, child.Index(rows[current]))
 		value, err := call.Argument.Eval(evaluation)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		if err := validateProducedValue(value, call.Argument.ResultUsage()); err != nil {
+		if err := ValidateProducedValue(value, call.Argument.ResultUsage()); err != nil {
 			return sqltype.Value{}, err
 		}
 		if err := ctx.Err(); err != nil {
@@ -70,9 +70,9 @@ func (s *windowNtileState) evaluate(ctx context.Context, evaluation *EvalContext
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		if err := s.initialize(int64(len(rows)), buckets); err != nil {
+		if err := s.Initialize(int64(len(rows)), buckets); err != nil {
 			return sqltype.Value{}, err
 		}
 	}
-	return sqltype.Integer(usage.Type, s.next())
+	return sqltype.Integer(usage.Type, s.Next())
 }

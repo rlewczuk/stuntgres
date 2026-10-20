@@ -85,11 +85,11 @@ func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalConte
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		index, ok := evaluation.catalog.Relation(snapshot.destination(address))
+		index, ok := evaluation.Catalog.Relation(snapshot.destination(address))
 		if !ok || index.SQLIndex == nil || !index.SQLIndex.Ready || !index.SQLIndex.Live {
 			return ids.ErrCatalogReplaced
 		}
-		parent, ok := evaluation.catalog.Relation(parentAddress)
+		parent, ok := evaluation.Catalog.Relation(parentAddress)
 		if !ok || parent.Partition != nil || index.SQLIndex.Parent != parentAddress {
 			return ids.ErrCatalogReplaced
 		}
@@ -101,7 +101,7 @@ func (snapshot *indexSnapshot) repair(ctx context.Context, evaluation *EvalConte
 		if err != nil {
 			return err
 		}
-		schema := evaluation.catalog.Get(parent.Namespace()).Name()
+		schema := evaluation.Catalog.Get(parent.Namespace()).Name()
 		if err := validateUniqueRoot(ctx, parent, index, root, schema, evaluation.Output, &auth, true); err != nil {
 			return err
 		}

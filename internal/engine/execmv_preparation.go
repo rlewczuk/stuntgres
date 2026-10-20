@@ -31,7 +31,7 @@ var preparation execPreparation = missingPreparation{}
 
 // installPreparation sets the preparation value. It runs from init, before
 // any statement executes.
-func installPreparation(p execPreparation) { preparation = p }
+func InstallPreparation(p execPreparation) { preparation = p }
 
 type missingPreparation struct{}
 

@@ -267,7 +267,7 @@ func (h *bindingHost) DecodeDomainLiteral(ctx context.Context, auth *Authorizati
 	} else if owner.routineAuth.engine == nil {
 		owner.routineAuth = authority
 	}
-	eval := EvalContext{evalStatement: evalStatement{Context: ctx, host: hostOf(owner), catalog: read, Input: input, Output: owner.output}, evalAdmission: evalAdmission{routineAuthority: &authority}}
+	eval := EvalContext{evalStatement: evalStatement{Context: ctx, Host: hostOf(owner), Catalog: read, Input: input, Output: owner.output}, evalAdmission: evalAdmission{RoutineAuthority: &authority}}
 	input.DomainChecks = &eval
 	return owner.DecodeLockedDomainInput(ctx, typ, text, typmod, input)
 }

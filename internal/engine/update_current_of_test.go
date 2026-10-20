@@ -27,7 +27,7 @@ func TestUpdateCurrentOfIdentity(t *testing.T) {
 	}
 	deleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
 	deleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
-	if c.currentSource != source || c.currentIndex != index || c.root != root || c.position != cursorOn || c.authority.host != nil || cursorOccurrenceVersion(source, index, 0, c.locks).Row != want {
+	if c.currentSource != source || c.currentIndex != index || c.root != root || c.position != cursorOn || c.authority.Host != nil || cursorOccurrenceVersion(source, index, 0, c.locks).Row != want {
 		t.Fatal("UPDATE consumed or replaced borrowed cursor authority")
 	}
 	transactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 1, 3, 22)
@@ -108,7 +108,7 @@ func TestUpdateCurrentOfPublication(t *testing.T) {
 		}
 	}
 	sessionSQL(t, s, "ROLLBACK TO recover")
-	if s.cursors.entries["c"] != c || c.position != cursorOn || c.authority.host != nil {
+	if s.cursors.entries["c"] != c || c.position != cursorOn || c.authority.Host != nil {
 		t.Fatal("mutation cancellation invalidated healthy cursor")
 	}
 	transactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 1, 2, 3, 4)
@@ -201,7 +201,7 @@ func TestUpdateCurrentOfLifetime(t *testing.T) {
 	deleteCount(t, s, "UPDATE unit_rows SET i=i+10 WHERE CURRENT OF c", 1)
 	transactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 2, 3, 11)
 	sessionSQL(t, s, "CLOSE c")
-	if old.currentSource != nil || old.source != nil || old.authority.host != nil {
+	if old.currentSource != nil || old.source != nil || old.authority.Host != nil {
 		t.Fatal("disposed cursor retains authority")
 	}
 	sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT i FROM unit_rows")

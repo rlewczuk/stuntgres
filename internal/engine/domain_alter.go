@@ -154,7 +154,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		chosen := next
 		chosen.DomainChecks = []catalog.DomainCheckConstraint{next.DomainChecks[selected]}
 		scope.routineDependencies = chosen.DomainChecks[0].Dependencies
-		evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), host: hostOf(scope), catalog: auth.Catalog, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+		evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 		evaluation.Input.TypeDiagnosticName, err = e.captureTypeDiagnosticName(auth)
 		if err != nil {
 			return Result{}, err
@@ -256,7 +256,7 @@ func validateSelectedDomainRows(c *EvalContext, view catalog.Read, selected *cat
 				continue
 			}
 			for i, column := range use.Columns {
-				if err := c.evaluateSelectedDomainCheck(view, selected, row.Values[column], violations[i]); err != nil {
+				if err := c.EvaluateSelectedDomainCheck(view, selected, row.Values[column], violations[i]); err != nil {
 					return err
 				}
 			}

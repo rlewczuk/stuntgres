@@ -31,7 +31,7 @@ func arrayRelationalUnitCall(t *testing.T, name, input string, n int64) (functio
 	}
 	session := &Session{}
 	session.arrayRandom.SeedWords(1, 2)
-	c := &EvalContext{evalStatement: evalStatement{Context: context.Background(), host: hostOf(&StatementScope{op: &Operation{session: session}})}}
+	c := &EvalContext{evalStatement: evalStatement{Context: context.Background(), Host: hostOf(&StatementScope{op: &Operation{session: session}})}}
 	return node.(functions.ArrayRandom), c
 }
 func arrayRelationalUnitText(t *testing.T, v sqltype.Value) string {
@@ -131,7 +131,7 @@ func TestArrayRelationalSampleCounts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if owner == expr.RandomOwner(&scopeOf(c.host).op.session.random) {
+	if owner == expr.RandomOwner(&scopeOf(c.Host).op.session.random) {
 		t.Fatal("seedable stream reused")
 	}
 }
@@ -152,12 +152,12 @@ func TestArrayRelationalUnnestCursor(t *testing.T) {
 	var evaluations int
 	input, _ := e.Args[0].Eval(c)
 	e.Args[0] = queryProbe(e.Args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { evaluations++; return input, nil })
-	first, err := openFunctionSource(c, e)
+	first, err := OpenFunctionSource(c, e)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer first.Close()
-	second, err := openFunctionSource(c, e)
+	second, err := OpenFunctionSource(c, e)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +195,7 @@ func TestArrayRelationalUnnestCursor(t *testing.T) {
 		if input == "{1}" {
 			e.Args[0] = plan.LiteralExpr{Info: expr.Info{Usage: e.Args[0].ResultUsage()}, Value: sqltype.Null(e.Args[0].ResultUsage().Type)}
 		}
-		cursor, err := openFunctionSource(c, e)
+		cursor, err := OpenFunctionSource(c, e)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -229,16 +229,16 @@ func TestArrayRelationalCompositeNull(t *testing.T) {
 		}
 		e := plan.UnnestExpr{Info: expr.Info{Usage: element.Usage(), Property: expr.Properties{StageDependent: true}}, Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: array.Usage()}, Value: value}}}
 		node := &plan.FunctionFromNode{QuerySchema: plan.QuerySchema{{Name: "id", Usage: integer.Usage()}, {Name: "label", Usage: text.Usage()}}, Calls: []expr.Expr{e}}
-		if err := validateFunctionFromLayout(node); err != nil {
+		if err := ValidateFunctionFromLayout(node); err != nil {
 			t.Fatal(err)
 		}
-		invocation, err := openFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, node)
+		invocation, err := OpenFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, node)
 		if err != nil {
 			t.Fatal(err)
 		}
 		row := make([]sqltype.Value, 2)
 		for i := range 3 {
-			present, err := invocation.nextFrom(context.Background(), node.Calls, row)
+			present, err := invocation.NextFrom(context.Background(), node.Calls, row)
 			if err != nil || !present {
 				t.Fatal(i, present, err)
 			}
@@ -249,10 +249,10 @@ func TestArrayRelationalCompositeNull(t *testing.T) {
 				t.Fatal("NULL element not present NULL-member row")
 			}
 		}
-		if present, err := invocation.nextFrom(context.Background(), node.Calls, row); err != nil || present || !row[0].IsNull() || !row[1].IsNull() {
+		if present, err := invocation.NextFrom(context.Background(), node.Calls, row); err != nil || present || !row[0].IsNull() || !row[1].IsNull() {
 			t.Fatal("exhaustion", present, err)
 		}
-		invocation.close()
+		invocation.Close()
 	}
 }
 
@@ -281,36 +281,36 @@ func TestArrayRelationalZeroWidthComposite(t *testing.T) {
 			}
 			call := plan.UnnestExpr{Info: expr.Info{Usage: element.Usage(), Property: expr.Properties{StageDependent: true}}, Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: array.Usage()}, Value: value}}}
 			node := &plan.FunctionFromNode{Calls: []expr.Expr{call}}
-			if err := validateFunctionFromLayout(node); err != nil {
+			if err := ValidateFunctionFromLayout(node); err != nil {
 				t.Fatal("valid zero-column layout", err)
 			}
-			invocation, err := openFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: ctx}}, node)
+			invocation, err := OpenFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: ctx}}, node)
 			if err != nil {
 				t.Fatal(err)
 			}
 			for i := range value.ArrayLen() + 1 {
-				present, err := invocation.nextFrom(ctx, node.Calls, nil)
+				present, err := invocation.NextFrom(ctx, node.Calls, nil)
 				if err != nil || present != (i < value.ArrayLen()) {
 					t.Fatal("zero-field row presence", input, i, present, err)
 				}
 			}
-			invocation.close()
+			invocation.Close()
 			node.Ordinality = true
 			node.QuerySchema = plan.QuerySchema{{Name: "n", Usage: ordinal.Usage()}}
-			if err := validateFunctionFromLayout(node); err != nil {
+			if err := ValidateFunctionFromLayout(node); err != nil {
 				t.Fatal("valid zero-field ordinality", err)
 			}
 			node.QuerySchema[0].Usage = integer.Usage()
-			if err := validateFunctionFromLayout(node); err == nil {
+			if err := ValidateFunctionFromLayout(node); err == nil {
 				t.Fatal("accepted non-INT8 ordinality")
 			}
 			node.Ordinality = false
-			if err := validateFunctionFromLayout(node); err == nil {
+			if err := ValidateFunctionFromLayout(node); err == nil {
 				t.Fatal("accepted unowned schema column")
 			}
 			node.Calls = []expr.Expr{arrayRelationalUnitUnnest(t, "{1}")}
 			node.QuerySchema = nil
-			if err := validateFunctionFromLayout(node); err == nil {
+			if err := ValidateFunctionFromLayout(node); err == nil {
 				t.Fatal("accepted missing scalar column")
 			}
 		}
@@ -449,7 +449,7 @@ func TestArrayRelationalExpressionOwners(t *testing.T) {
 	call, c := arrayRelationalUnitCall(t, "array_sample", "{1,2}", 1)
 	visits := 0
 	plan.ExpressionChildren(call, func(expr.Expr) { visits++ })
-	if visits != 2 || plannedPhysicalVolatility(call, false) != expr.Volatile || generationImmutable(call) || !closedTransactionTimeDefault(call) || !closedUUIDDefault(call) {
+	if visits != 2 || PlannedPhysicalVolatility(call, false) != expr.Volatile || generationImmutable(call) || !closedTransactionTimeDefault(call) || !closedUUIDDefault(call) {
 		t.Fatal("missing closed owner")
 	}
 	qualified := call
@@ -463,7 +463,7 @@ func TestArrayRelationalExpressionOwners(t *testing.T) {
 	}
 	for _, f := range []func(*EvalContext, expr.Expr, bool) (expr.Expr, bool, error){simplifyConditional, preflightCoercionsWithPolicy} {
 		mapped, _, err := f(c, call, false)
-		if err != nil || plannedPhysicalVolatility(mapped, false) != expr.Volatile {
+		if err != nil || PlannedPhysicalVolatility(mapped, false) != expr.Volatile {
 			t.Fatal("lost volatile provider", err)
 		}
 	}
@@ -549,7 +549,7 @@ func TestArrayRelationalCancellation(t *testing.T) {
 	call.Args[0] = plan.LiteralExpr{Info: expr.Info{Usage: call.Usage}, Value: value}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	boundary := &arrayRelationalLoopContext{Context: ctx, cancel: cancel, owner: &scopeOf(c.host).op.session.arrayRandom}
+	boundary := &arrayRelationalLoopContext{Context: ctx, cancel: cancel, owner: &scopeOf(c.Host).op.session.arrayRandom}
 	c.Context = boundary
 	if result, err := call.Eval(c); !errors.Is(err, context.Canceled) || result.Type() != nil || boundary.calls < 2 {
 		t.Fatal("loop cancellation published result", result, err, boundary.calls)
@@ -566,7 +566,7 @@ func TestArrayRelationalCancellation(t *testing.T) {
 	if result, err := call.Eval(c); err != nil || result.ArrayLen() != 1024 {
 		t.Fatal("owner did not recover", result, err)
 	}
-	cursor, err := openFunctionSource(c, arrayRelationalUnitUnnest(t, "{1,2}"))
+	cursor, err := OpenFunctionSource(c, arrayRelationalUnitUnnest(t, "{1,2}"))
 	if err != nil {
 		t.Fatal(err)
 	}

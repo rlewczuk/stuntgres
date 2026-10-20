@@ -98,7 +98,7 @@ func TestRLSBaseDecision(t *testing.T) {
 			e.mu.Unlock()
 			t.Fatal(err)
 		}
-		ref := b.querySources[0].ref
+		ref := b.querySources[0].Ref
 		view, err := scope.acquireDataViewLocked(e, ref)
 		e.mu.Unlock()
 		if err != nil {
@@ -109,19 +109,19 @@ func TestRLSBaseDecision(t *testing.T) {
 			t.Fatal(err)
 		}
 		borrowQueryAuthority(source, scope)
-		defer source.close()
-		if source.view == nil || !source.rlsDenied || len(source.committed) != 0 || len(source.own) != 0 || source.hashIndexes != nil || source.partialMask != nil {
+		defer source.Close()
+		if source.View == nil || !source.RlsDenied || len(source.Committed) != 0 || len(source.Own) != 0 || source.HashIndexes != nil || source.PartialMask != nil {
 			t.Fatal("denied source lost ownership or captured physical rows/indexes")
 		}
-		stage, err := openQueryNode(op.ctx, &queryState{source: source}, b.query.Root.(*plan.ProjectNode).Child)
+		stage, err := OpenNode(op.ctx, &queryState{Source: source}, b.query.Root.(*plan.ProjectNode).Child)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if stage.source != source {
+		if stage.Source != source {
 			t.Fatal("denied input lost its owned source")
 		}
-		selected, err := selectQuerySource(op.ctx, source, 0, nil, nil)
-		if err != nil || selected != source || selected.visible != nil {
+		selected, err := SelectQuerySource(op.ctx, source, 0, nil, nil)
+		if err != nil || selected != source || selected.Visible != nil {
 			t.Fatal("live selection revived denied input", err)
 		}
 	})

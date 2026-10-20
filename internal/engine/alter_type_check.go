@@ -92,7 +92,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 		binder.consumer.checkConsumer, binder.params.noParameters, binder.query.auth = true, true, &auth
 		binder.stored.checkLiterals = pending.literals
 		binder.query.namespace = &namespace
-		binder.query.sources = []queryLeaf{{ref: ref, relation: &replacement}}
+		binder.query.sources = []queryLeaf{{Ref: ref, Relation: &replacement}}
 		node, err := binder.bindBoolean(syntax[0].(*parser.CreateTable).Elements[0].Check.Expression, projectionContext, "CHECK")
 		e.mu.Unlock()
 		if err != nil {

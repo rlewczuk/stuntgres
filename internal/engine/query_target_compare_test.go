@@ -28,7 +28,7 @@ func TestQueryDistinctOnSubquerySemanticIdentity(t *testing.T) {
 		project := query.Root.(*plan.ProjectNode)
 		a, b := project.Expressions[0], project.Expressions[1]
 		got := (*expressionBinder)(nil).sameSubqueryTarget(a, b)
-		source.close()
+		source.Close()
 		if got != tc.same {
 			t.Fatal(tc.left, tc.right, got, tc.same)
 		}
@@ -43,7 +43,7 @@ func TestQueryDistinctOnSubquerySemanticIdentity(t *testing.T) {
 
 func TestQueryDistinctOnSameSubqueryTargetAndRemap(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON((SELECT max(v) FROM t)) id FROM t ORDER BY (SELECT /* λ */ max(t.v) FROM t),id DESC")
-	defer source.close()
+	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.DistinctOnNode)
 	sorted := node.Child.(*plan.SortNode)
 	key := node.Expressions[0].(plan.CachedOrderExpr)
@@ -72,7 +72,7 @@ func TestQueryDistinctOnSubqueryFrameAndSourceGuards(t *testing.T) {
 		t.Fatal("non-bijective child/outer frame identity", c)
 	}
 	_, query, source := queryCoreFixture(t, "SELECT (SELECT v FROM t) FROM t")
-	defer source.close()
+	defer source.Close()
 	root := query.Root.(*plan.ProjectNode).Expressions[0].(plan.SubqueryExpr).QueryPlan.Root.(*plan.ProjectNode)
 	leaf := root.Child.(*plan.SourceNode)
 	changed := *leaf

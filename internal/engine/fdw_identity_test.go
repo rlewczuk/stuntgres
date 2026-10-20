@@ -85,7 +85,7 @@ func fdwIdentityMembership(t *testing.T) {
 			t.Fatal("typed membership grew on repeats")
 		}
 		original := []byte("borrowed")
-		owned := copyForeignCells(catalog.ForeignRowIdentity{original})
+		owned := CopyForeignCells(catalog.ForeignRowIdentity{original})
 		if !set.add(owned) {
 			t.Fatal("owned identity was not distinct")
 		}

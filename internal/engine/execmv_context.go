@@ -34,26 +34,26 @@ type evalFrame struct {
 	Scope, Frame                       uint32
 	Row                                []sqltype.Value
 	OldRow                             []sqltype.Value
-	mergeReturning, mergeSourcePresent bool
-	mergeAction                        parser.MergeAction
-	orderValues                        []sqltype.Value
+	MergeReturning, MergeSourcePresent bool
+	MergeAction                        parser.MergeAction
+	OrderValues                        []sqltype.Value
 	// Reused by the current UPDATE execution; nested owners save/restore it.
-	updateOutputScratch []sqltype.Value
-	updateOutputs       []sqltype.Value
-	updateOutputsReady  bool
+	UpdateOutputScratch []sqltype.Value
+	UpdateOutputs       []sqltype.Value
+	UpdateOutputsReady  bool
 	Outer               *EvalContext
-	query               *queryState
-	queryOccurrences    []int
-	queryProvenance     []int
+	Query               *queryState
+	QueryOccurrences    []int
+	QueryProvenance     []int
 	queryRowSource      *querySource
 	// Borrowed full logical tuples only while rechecking locked occurrences.
-	queryCurrentRows  [][]sqltype.Value
-	physicalTable     ids.ObjectRef // Existing generated recipe's containing physical row.
-	presenceSlots     []int
-	presence          []bool
-	domainValue       sqltype.Value
-	domainFrameUsage  sqltype.Usage
-	domainValueActive bool
+	QueryCurrentRows  [][]sqltype.Value
+	PhysicalTable     ids.ObjectRef // Existing generated recipe's containing physical row.
+	PresenceSlots     []int
+	Presence          []bool
+	DomainValue       sqltype.Value
+	DomainFrameUsage  sqltype.Usage
+	DomainValueActive bool
 }
 
 // evalStatement is the statement runtime: cancellation context, bound
@@ -66,24 +66,24 @@ type evalFrame struct {
 type evalStatement struct {
 	Context    context.Context
 	Parameters []sqltype.Value
-	host       execHost
+	Host       execHost
 	Input      sqltype.InputEnvironment
 	Output     sqltype.OutputEnvironment
-	catalog    catalog.Read // Current imported request/view authority for local lowering.
+	Catalog    catalog.Read // Current imported request/view authority for local lowering.
 	// Stored CHECK syntax stays immutable; detached executable expressions
 	// belong only to this command. A cached nil slice means no nodes changed.
-	preparedChecks       map[*catalog.Relation][]expr.Expr
-	preparedDomainChecks map[*catalog.Type]domainCheckProgram
-	preparedGenerations  map[*catalog.Relation][]expr.Expr // First actual tuple prepares executable recipes, not permission results.
-	pgRegex              sqltype.PGRegexExecution
-	quoteCaptures        *quoteCaptureCandidate
+	PreparedChecks       map[*catalog.Relation][]expr.Expr
+	PreparedDomainChecks map[*catalog.Type]domainCheckProgram
+	PreparedGenerations  map[*catalog.Relation][]expr.Expr // First actual tuple prepares executable recipes, not permission results.
+	PGRegex              sqltype.PGRegexExecution
+	QuoteCaptures        *quoteCaptureCandidate
 	quoteOrigin          quoteOrigin
 	// Preparation admits closed immutable scalar operators for plain SELECTs
 	// and rule programs, without widening parameter or row-dependent demand.
-	planStaticOperators bool
+	PlanStaticOperators bool
 	// Separate rule-program permission: actual supplied Param leaves may become
 	// typed constants during preparation. Ordinary imported-param barriers stay.
-	specializeRuleParameters bool
+	SpecializeRuleParameters bool
 }
 
 // evalAdmission is routine admission state for local serial DDL/recipe
@@ -92,15 +92,15 @@ type evalStatement struct {
 // zero. Recipe-owned manifests are borrowed only by a local admission copy and
 // never replace the live scope's authority or another recipe's owner.
 type evalAdmission struct {
-	routineAuthority   admissionAuthority // Borrowed local serial DDL admission only; never retained.
-	routineRecipe      bool               // Distinguishes an empty owning manifest from the statement manifest.
-	routineGraft       bool               // Local ancestry phase only; nil user nodes resume the statement manifest.
-	routineChecks      []catalog.ExpressionDependency
-	routineReferences  []ids.ObjectRef
-	routineConsumer    *catalog.Relation
-	routineProgram     admissionProgram // Borrowed serial preparation footprint, never row-owned.
+	RoutineAuthority   admissionAuthority // Borrowed local serial DDL admission only; never retained.
+	RoutineRecipe      bool               // Distinguishes an empty owning manifest from the statement manifest.
+	RoutineGraft       bool               // Local ancestry phase only; nil user nodes resume the statement manifest.
+	RoutineChecks      []catalog.ExpressionDependency
+	RoutineReferences  []ids.ObjectRef
+	RoutineConsumer    *catalog.Relation
+	RoutineProgram     admissionProgram // Borrowed serial preparation footprint, never row-owned.
 	routineBodyContext routineBodyContext
-	domainPhase        ids.CommandIdentity // Existing transaction/command identity, not a permission result.
+	DomainPhase        ids.CommandIdentity // Existing transaction/command identity, not a permission result.
 }
 
 func (c *EvalContext) FunctionContext() context.Context {
@@ -111,7 +111,7 @@ func (c *EvalContext) FunctionContext() context.Context {
 }
 
 func (c *EvalContext) FunctionArrayRandomOwner() (expr.RandomOwner, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return nil, fmt.Errorf("stuntgres: missing array random session scope")
 	}
@@ -123,10 +123,10 @@ func (c *EvalContext) FunctionInput() sqltype.InputEnvironment { return c.Input 
 func (c *EvalContext) FunctionOutput() sqltype.OutputEnvironment { return c.Output }
 
 func (c *EvalContext) FunctionOverlapsConstant(node expr.Expr) bool {
-	return overlapsExecutionConstant(node, c)
+	return OverlapsExecutionConstant(node, c)
 }
 
-func (c *EvalContext) FunctionLiteralNull(node expr.Expr) bool { return randomLiteralNull(node) }
+func (c *EvalContext) FunctionLiteralNull(node expr.Expr) bool { return RandomLiteralNull(node) }
 
 func (c *EvalContext) WholeRowNullPresence(node expr.Expr) (handled, absent bool, err error) {
 	row, ok := node.(plan.RowExpr)
@@ -147,7 +147,7 @@ func (c *EvalContext) FunctionStringOutput() sqltype.OutputEnvironment { return 
 func (c *EvalContext) FunctionFormatOutput() sqltype.OutputEnvironment { return c.presentedOutput() }
 
 func (c *EvalContext) FunctionBinaryConversion(source, destination int) (*sqltype.EncodingConversionHandler, error) {
-	host := c.liveHost()
+	host := c.LiveHost()
 	if host == nil {
 		return nil, fmt.Errorf("stuntgres: missing conversion execution snapshot")
 	}
@@ -158,11 +158,11 @@ func (c *EvalContext) FunctionPropertiesMatch(properties expr.Properties, rule e
 	return expr.PropertiesMatch(properties, rule)
 }
 
-func evaluationContext(c *EvalContext) error {
+func EvaluationContext(c *EvalContext) error {
 	if c == nil || c.Context == nil {
 		return fmt.Errorf("stuntgres: missing expression context")
 	}
-	if c.domainValueActive {
+	if c.DomainValueActive {
 		c.Input.DomainChecks = c
 	}
 	return c.Context.Err()
@@ -171,7 +171,7 @@ func evaluationContext(c *EvalContext) error {
 // frameRow runs the node prologue and returns the evaluation frame that owns
 // (scope, frame), after checking that slot holds a value valid for usage.
 func (c *EvalContext) frameRow(scope, frame uint32, slot int, usage sqltype.Usage) (*EvalContext, error) {
-	if err := evaluationContext(c); err != nil {
+	if err := EvaluationContext(c); err != nil {
 		return nil, err
 	}
 	for c != nil && (c.Scope != scope || c.Frame != frame) {
@@ -200,7 +200,7 @@ func (c *EvalContext) EvalColumn(e plan.ColumnExpr) (sqltype.Value, error) {
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.MergeSource && !row.mergeSourcePresent {
+	if e.MergeSource && !row.MergeSourcePresent {
 		return sqltype.ResultNull(e.Usage), nil
 	}
 	if e.Virtual == nil {
@@ -224,7 +224,7 @@ func (c *EvalContext) EvalColumn(e plan.ColumnExpr) (sqltype.Value, error) {
 	local.Row = row.Row[e.RowStart : e.RowStart+e.RowWidth]
 	recipe := e.Virtual
 	if e.VirtualOwner != nil {
-		selectVirtualGenerationRecipe(&local, e.VirtualOwner, e.VirtualOwner.ColumnMeta.Generations[e.VirtualAttribute])
+		SelectVirtualGenerationRecipe(&local, e.VirtualOwner, e.VirtualOwner.ColumnMeta.Generations[e.VirtualAttribute])
 	} else if e.Origin != (ids.ObjectRef{}) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing virtual generation owner")
 	}
@@ -233,16 +233,16 @@ func (c *EvalContext) EvalColumn(e plan.ColumnExpr) (sqltype.Value, error) {
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		local.physicalTable = source.physicalRef(index)
-		if source.view != nil && e.Origin.Address.SubID != 0 {
+		local.PhysicalTable = source.PhysicalRef(index)
+		if source.View != nil && e.Origin.Address.SubID != 0 {
 			var current []sqltype.Value
-			if row.queryCurrentRows != nil {
-				if source.occurrence < 0 || source.occurrence >= len(row.queryCurrentRows) || row.queryCurrentRows[source.occurrence] == nil {
+			if row.QueryCurrentRows != nil {
+				if source.Occurrence < 0 || source.Occurrence >= len(row.QueryCurrentRows) || row.QueryCurrentRows[source.Occurrence] == nil {
 					return sqltype.Value{}, fmt.Errorf("stuntgres: missing virtual recheck occurrence")
 				}
-				current = row.queryCurrentRows[source.occurrence]
+				current = row.QueryCurrentRows[source.Occurrence]
 			}
-			recipe, local.Row, err = local.columnCapturedGeneration(e, source, index, current)
+			recipe, local.Row, err = local.ColumnCapturedGeneration(e, source, index, current)
 			if err != nil {
 				return sqltype.Value{}, err
 			}
@@ -252,7 +252,7 @@ func (c *EvalContext) EvalColumn(e plan.ColumnExpr) (sqltype.Value, error) {
 }
 
 func (c *EvalContext) ParameterValue(number int, usage sqltype.Usage) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
+	if err := EvaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
 	if number <= 0 || number > len(c.Parameters) {
@@ -270,53 +270,53 @@ func (c *EvalContext) ParameterValue(number int, usage sqltype.Usage) (sqltype.V
 // Session transaction admission serializes internal access. This slot must not
 // implement context.Context: callbacks may retain a context after admission ends.
 type queryAuthority struct {
-	host       execHost
-	expression *cursorExpressionData
+	Host       execHost
+	Expression *cursorExpressionData
 }
 
 type cursorExpressionData struct {
-	identity       identitySnapshot
-	statementStart time.Time
+	Identity       identitySnapshot
+	StatementStart time.Time
 }
 
 // liveHost is the runtime's only route to statement, session and engine
 // state. It returns an untyped nil when no statement scope is attached.
-func (c *EvalContext) liveHost() execHost {
+func (c *EvalContext) LiveHost() execHost {
 	if c == nil {
 		return nil
 	}
-	if c.query != nil {
-		return c.query.source.liveHost()
+	if c.Query != nil {
+		return c.Query.Source.LiveHost()
 	}
-	return c.host
+	return c.Host
 }
 
-func (s *querySource) liveHost() execHost {
+func (s *querySource) LiveHost() execHost {
 	if s == nil {
 		return nil
 	}
-	if s.authority != nil {
-		return s.authority.host
+	if s.Authority != nil {
+		return s.Authority.Host
 	}
-	return s.host // Standalone internal query fixtures have no admission slot.
+	return s.Host // Standalone internal query fixtures have no admission slot.
 }
 
 // presentation formats reg* and aclitem output from the statement snapshot,
 // or reports the missing snapshot when the record is detached.
-func (c *EvalContext) presentation() presentationFormatters {
-	if host := c.liveHost(); host != nil {
+func (c *EvalContext) Presentation() presentationFormatters {
+	if host := c.LiveHost(); host != nil {
 		return host
 	}
 	return detachedPresentation{}
 }
 
 func (c *EvalContext) setContext(ctx context.Context) {
-	if c.query != nil && c.query.executionContext != nil {
-		c.Context = c.query.executionContext
-	} else if ctx == nil && c.query != nil && c.query.source != nil && c.query.source.authority != nil && c.query.source.authority.host != nil {
+	if c.Query != nil && c.Query.ExecutionContext != nil {
+		c.Context = c.Query.ExecutionContext
+	} else if ctx == nil && c.Query != nil && c.Query.Source != nil && c.Query.Source.Authority != nil && c.Query.Source.Authority.Host != nil {
 		// Initial evaluators may be constructed without a pull context. Capture
 		// the admitted request itself, never the mutable authority that owns it.
-		c.Context = c.query.source.authority.host.Context()
+		c.Context = c.Query.Source.Authority.Host.Context()
 	} else {
 		c.Context = ctx
 	}

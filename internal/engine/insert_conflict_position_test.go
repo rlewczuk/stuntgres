@@ -166,7 +166,7 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			}
 			insertConflictWantHints(t, prepared[index.Address()], &shaped, want)
 			changes := &catalogChanges{descriptors: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): &index}, originals: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): f.index}}
-			if err := prepareAlterIndexRoots(&EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: f.e.CatalogRead()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, changes, f.e.CatalogRead(), &parent, &shaped, nil, false); err != nil {
+			if err := prepareAlterIndexRoots(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Catalog: f.e.CatalogRead()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, changes, f.e.CatalogRead(), &parent, &shaped, nil, false); err != nil {
 				t.Fatal("private reconstruction", err)
 			}
 			insertConflictWantHints(t, changes.indexesOrZero().uniqueRoots[index.Address()], &shaped, want)
@@ -226,14 +226,14 @@ func TestInsertConflictIndexPositionHintsReusableTypeBaseline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	validated, err := validateAlterIndexBuilds(&EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: f.e.CatalogRead()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, auth, f.e.CatalogRead(), f.parent, f.store, nil, nil, "public", sqltype.OutputEnvironment{}, []columnTransformation{{attribute: 10, rewrite: true}}, nil, nil, true)
+	validated, err := validateAlterIndexBuilds(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Catalog: f.e.CatalogRead()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, auth, f.e.CatalogRead(), f.parent, f.store, nil, nil, "public", sqltype.OutputEnvironment{}, []columnTransformation{{attribute: 10, rewrite: true}}, nil, nil, true)
 	if err != nil || validated[f.index.Name()] == nil {
 		t.Fatal("no-overlay type validation", validated, err)
 	}
 	index := *f.index
 	index.ObjectRevision++
 	changes := &catalogChanges{descriptors: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): &index}, originals: map[ids.ObjectAddress]catalog.Descriptor{index.Address(): f.index}}
-	if err := prepareAlterIndexRoots(&EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: f.e.CatalogRead()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, changes, f.e.CatalogRead(), f.parent, f.store, validated, false); err != nil {
+	if err := prepareAlterIndexRoots(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Catalog: f.e.CatalogRead()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, changes, f.e.CatalogRead(), f.parent, f.store, validated, false); err != nil {
 		t.Fatal(err)
 	}
 	root := changes.indexesOrZero().uniqueRoots[index.Address()]

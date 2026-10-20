@@ -33,7 +33,7 @@ func TestNodeRuntimePrologue(t *testing.T) {
 
 	// The prologue wires domain checks before nodes read their input.
 	c = &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
-	c.domainValueActive = true
+	c.DomainValueActive = true
 	if _, err := plan.BeginEvaluation(c); err != nil {
 		t.Fatal(err)
 	}

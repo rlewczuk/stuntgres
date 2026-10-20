@@ -26,19 +26,19 @@ func TestQuerySetStoredInheritedMarks(t *testing.T) {
 		if got := viewLeafRowMark(view, i, outer); got != want {
 			t.Fatalf("set source %d inherited mark: got %+v want %+v", i, got, want)
 		}
-		if !queryHasPhysicalInput([]plan.Node{left, right}[i]) {
+		if !QueryHasPhysicalInput([]plan.Node{left, right}[i]) {
 			t.Fatal("fixture source lost")
 		}
 	}
 	// General input/dependency traversal must retain both children; only the
 	// mark-specific traversal has a boundary. Admission still sees all sources.
 	l, r := plan.QueryInputs(set)
-	if l != set.Left || r != set.Right || !queryHasPhysicalInput(wrapped) {
+	if l != set.Left || r != set.Right || !QueryHasPhysicalInput(wrapped) {
 		t.Fatal("set barrier pruned general source traversal")
 	}
 	ordinary := *view
 	ordinary.query = &plan.Query{Root: &plan.ProjectNode{Child: &plan.JoinNode{Left: left, Right: right}}}
-	for i, want := range []plan.RowMark{outer, mergeQueryRowMark(outer, local)} {
+	for i, want := range []plan.RowMark{outer, MergeQueryRowMark(outer, local)} {
 		if got := viewLeafRowMark(&ordinary, i, outer); got != want {
 			t.Fatalf("ordinary source %d inherited mark: got %+v want %+v", i, got, want)
 		}
@@ -60,7 +60,7 @@ func TestQuerySetStoredInheritedMarks(t *testing.T) {
 func querySetLockAuthorityFixture(t *testing.T) (*Engine, authorization.PrincipalRef, authorization.PrincipalRef, ids.ObjectRef, ids.ObjectRef, map[string]ids.ObjectRef) {
 	t.Helper()
 	e, query, source := queryCoreFixture(t, "SELECT v FROM t")
-	base := source.ref
+	base := source.Ref
 	owner := e.roles.domain.Principal(1000000)
 	reader := e.roles.domain.Principal(1000001)
 	roles := cloneRoleFixture(e.roles.published)
@@ -223,7 +223,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	} {
 		d := e.catalog.state.MustRelation(tc.ref.Address)
 		scope := &StatementScope{owner: &transactionOwner{}}
-		leaf := queryLeaf{ref: tc.ref, relation: d, mark: tc.mark, query: &parser.Select{Locking: []parser.RowLockClause{{}}}}
+		leaf := queryLeaf{Ref: tc.ref, Relation: d, Mark: tc.mark, Query: &parser.Select{Locking: []parser.RowLockClause{{}}}}
 		e.mu.Lock()
 		err := e.initializeQueryLocksLocked(scope, nil, []queryLeaf{leaf})
 		e.mu.Unlock()
@@ -258,7 +258,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	e.catalog.state.SetDescriptor(set.Address, &d)
 	scope := &StatementScope{owner: &transactionOwner{}}
 	e.mu.Lock()
-	err := e.initializeQueryLocksLocked(scope, nil, []queryLeaf{{ref: set, relation: &d, mark: localMark}})
+	err := e.initializeQueryLocksLocked(scope, nil, []queryLeaf{{Ref: set, Relation: &d, Mark: localMark}})
 	e.mu.Unlock()
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("set boundary skipped stale arm admission", err)
@@ -266,7 +266,7 @@ func TestQuerySetStoredReferenceKinds(t *testing.T) {
 	// First-mode discovery still finds locally stored marks beneath a set when
 	// there is no inherited outer diagnostic, without granting marks to arms.
 	e.mu.Lock()
-	mode, err := e.firstQueryRowModeLocked(&StatementScope{owner: &transactionOwner{}}, nil, []queryLeaf{{ref: refs["local_set"], relation: e.catalog.state.MustRelation(refs["local_set"].Address)}})
+	mode, err := e.firstQueryRowModeLocked(&StatementScope{owner: &transactionOwner{}}, nil, []queryLeaf{{Ref: refs["local_set"], Relation: e.catalog.state.MustRelation(refs["local_set"].Address)}})
 	e.mu.Unlock()
 	if err != nil || mode != lock.ForUpdate {
 		t.Fatal("local first diagnostic lost", mode, err)
@@ -298,7 +298,7 @@ func TestQuerySetStoredRelationModes(t *testing.T) {
 		}
 		ref := refs[tc.name]
 		scope.lockedRef = ref
-		scope.querySources = []queryLeaf{{ref: ref, relation: e.catalog.state.MustRelation(ref.Address), mark: plan.RowMark{Mode: lock.ForUpdate}}}
+		scope.querySources = []queryLeaf{{Ref: ref, Relation: e.catalog.state.MustRelation(ref.Address), Mark: plan.RowMark{Mode: lock.ForUpdate}}}
 		err = scope.acquireViewSources()
 		if err == nil {
 			for _, want := range []struct {

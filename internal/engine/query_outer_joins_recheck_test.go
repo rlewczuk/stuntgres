@@ -53,8 +53,8 @@ func TestQueryOuterJoinsAbsentRecheck(t *testing.T) {
 				outer.Right = wrapped
 			}
 			outer.Predicate = queryProbe(boolType.Usage(), fail)
-			locks := &queryLockContext{leaves: make([]queryLockLeaf, len(inputs.sources))}
-			rows := make([][]sqltype.Value, len(inputs.sources))
+			locks := &queryLockContext{Leaves: make([]queryLockLeaf, len(inputs.Sources))}
+			rows := make([][]sqltype.Value, len(inputs.Sources))
 			parentMerges := 0
 			for i := range outer.Merges {
 				usage := outer.Merges[i].ResultUsage()
@@ -63,20 +63,20 @@ func TestQueryOuterJoinsAbsentRecheck(t *testing.T) {
 					return sqltype.Null(usage.Type), nil
 				})
 			}
-			for i, source := range inputs.sources {
-				locks.leaves[i].absent = true
-				rows[i] = source.row(0)
+			for i, source := range inputs.Sources {
+				locks.Leaves[i].Absent = true
+				rows[i] = source.Row(0)
 			}
 			physical := present.(*plan.SourceNode).Occurrence
-			locks.leaves[physical] = queryLockLeaf{changed: true}
+			locks.Leaves[physical] = queryLockLeaf{Changed: true}
 			rows[physical] = append([]sqltype.Value(nil), rows[physical]...)
 			// This is replacement data, not the captured original candidate.
 			key := rows[physical][1]
 			rows[physical][1] = sqltype.Null(key.Type())
-			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), host: hostOf(&StatementScope{queryLocks: locks})}, evalFrame: evalFrame{Scope: 1, Frame: 1, orderValues: []sqltype.Value{sqltype.Boolean(boolType, true)}}}
-			scratch := make([]sqltype.Value, queryLockRecheckWidth(outer, inputs))
+			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), Host: hostOf(&StatementScope{queryLocks: locks})}, evalFrame: evalFrame{Scope: 1, Frame: 1, OrderValues: []sqltype.Value{sqltype.Boolean(boolType, true)}}}
+			scratch := make([]sqltype.Value, QueryLockRecheckWidth(outer, inputs))
 			offset := 0
-			got, ok, err := recheckLockedQuery(outer, inputs, rows, &evaluation, scratch, &offset, make([]sqltype.Value, len(outer.Schema())))
+			got, ok, err := RecheckLockedQuery(outer, inputs, rows, &evaluation, scratch, &offset, make([]sqltype.Value, len(outer.Schema())))
 			if err != nil || !ok || forbidden != 0 || len(got) != len(outer.Schema()) {
 				t.Fatal(got, ok, err, forbidden)
 			}
@@ -109,16 +109,16 @@ func TestQueryOuterJoinsAbsentRecheck(t *testing.T) {
 				schema[0] = catalog.Column{Usage: intType.Usage()}
 				row[0] = sqltype.Null(intType)
 			}
-			inputs := &querySource{sources: []*querySource{{occurrence: 0}, {occurrence: 1}}}
-			locks := &queryLockContext{leaves: []queryLockLeaf{{changed: true}, {changed: true}}}
+			inputs := &querySource{Sources: []*querySource{{Occurrence: 0}, {Occurrence: 1}}}
+			locks := &queryLockContext{Leaves: []queryLockLeaf{{Changed: true}, {Changed: true}}}
 			calls := 0
 			join := &plan.JoinNode{QuerySchema: schema, Left: &plan.SourceNode{QuerySchema: schema, Occurrence: 0}, Right: &plan.SourceNode{Occurrence: 1}, LeftWidth: width, Kind: parser.JoinLeft, Predicate: queryProbe(boolType.Usage(), func(*EvalContext) (sqltype.Value, error) {
 				calls++
 				return sqltype.Boolean(boolType, false), nil
 			})}
-			evaluation := EvalContext{evalStatement: evalStatement{host: hostOf(&StatementScope{queryLocks: locks})}}
+			evaluation := EvalContext{evalStatement: evalStatement{Host: hostOf(&StatementScope{queryLocks: locks})}}
 			offset := 0
-			got, ok, err := recheckLockedQuery(join, inputs, [][]sqltype.Value{row, {}}, &evaluation, make([]sqltype.Value, width), &offset, make([]sqltype.Value, width))
+			got, ok, err := RecheckLockedQuery(join, inputs, [][]sqltype.Value{row, {}}, &evaluation, make([]sqltype.Value, width), &offset, make([]sqltype.Value, width))
 			if err != nil || ok || got != nil || calls != 1 {
 				t.Fatal("real occurrence mistaken for absent extension", width, got, ok, err, calls)
 			}
@@ -133,21 +133,21 @@ func TestQueryOuterJoinsAbsentRecheck(t *testing.T) {
 			calls++
 			return sqltype.Value{}, errors.New("absent lineage recipe evaluated")
 		})
-		stage := &querySource{materialized: true}
-		inner := &querySource{lineage: &queryLockLineage{stage: stage, currentIndex: 0, currentOrder: []sqltype.Value{sqltype.Boolean(boolType, true)}, root: &plan.ProjectNode{Child: &plan.SingletonNode{}, Expressions: []expr.Expr{recipe}}}}
-		bridge := &querySource{lineage: &queryLockLineage{stage: inner, currentIndex: 0, currentOrder: []sqltype.Value{sqltype.Boolean(boolType, true)}}}
-		setQueryLineage(bridge, absentQueryIndex)
-		if bridge.lineage.currentOrder != nil || inner.lineage.currentOrder != nil || inner.lineage.currentIndex != absentQueryIndex {
-			t.Fatal("stale nested order lineage", bridge.lineage, inner.lineage)
+		stage := &querySource{Materialized: true}
+		inner := &querySource{Lineage: &queryLockLineage{Stage: stage, CurrentIndex: 0, CurrentOrder: []sqltype.Value{sqltype.Boolean(boolType, true)}, Root: &plan.ProjectNode{Child: &plan.SingletonNode{}, Expressions: []expr.Expr{recipe}}}}
+		bridge := &querySource{Lineage: &queryLockLineage{Stage: inner, CurrentIndex: 0, CurrentOrder: []sqltype.Value{sqltype.Boolean(boolType, true)}}}
+		SetQueryLineage(bridge, AbsentQueryIndex)
+		if bridge.Lineage.CurrentOrder != nil || inner.Lineage.CurrentOrder != nil || inner.Lineage.CurrentIndex != AbsentQueryIndex {
+			t.Fatal("stale nested order lineage", bridge.Lineage, inner.Lineage)
 		}
-		inputs := &querySource{sources: []*querySource{bridge}}
-		evaluation := EvalContext{evalStatement: evalStatement{host: hostOf(&StatementScope{queryLocks: &queryLockContext{}})}}
+		inputs := &querySource{Sources: []*querySource{bridge}}
+		evaluation := EvalContext{evalStatement: evalStatement{Host: hostOf(&StatementScope{queryLocks: &queryLockContext{}})}}
 		offset := 0
-		got, ok, err := recheckLockedQuery(&plan.SourceNode{Occurrence: 0}, inputs, nil, &evaluation, nil, &offset, nil)
+		got, ok, err := RecheckLockedQuery(&plan.SourceNode{Occurrence: 0}, inputs, nil, &evaluation, nil, &offset, nil)
 		if err != nil || !ok || got != nil || calls != 0 || offset != 0 {
 			t.Fatal(got, ok, err, calls, offset)
 		}
-		got, ok, err = recheckLockedSource(bridge, nil, &evaluation, nil, &offset)
+		got, ok, err = RecheckLockedSource(bridge, nil, &evaluation, nil, &offset)
 		if err != nil || !ok || got != nil || calls != 0 || offset != 0 {
 			t.Fatal("absent source lineage dereferenced", got, ok, err, calls, offset)
 		}
@@ -159,11 +159,11 @@ func TestQueryOuterJoinsChangedPairRecheck(t *testing.T) {
 		_, query, inputs := queryJoinsFixture(t, "SELECT * FROM a LEFT JOIN b ON a.k=b.k")
 		join := query.Root.(*plan.ProjectNode).Child.(*plan.JoinNode)
 		join.Kind = kind
-		rows := [][]sqltype.Value{inputs.sources[0].row(0), inputs.sources[1].row(2)}
-		locks := &queryLockContext{leaves: []queryLockLeaf{{changed: true}, {}}}
-		evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), host: hostOf(&StatementScope{queryLocks: locks})}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+		rows := [][]sqltype.Value{inputs.Sources[0].Row(0), inputs.Sources[1].Row(2)}
+		locks := &queryLockContext{Leaves: []queryLockLeaf{{Changed: true}, {}}}
+		evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), Host: hostOf(&StatementScope{queryLocks: locks})}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 		offset := 0
-		got, ok, err := recheckLockedQuery(join, inputs, rows, &evaluation, make([]sqltype.Value, queryLockRecheckWidth(join, inputs)), &offset, make([]sqltype.Value, len(join.Schema())))
+		got, ok, err := RecheckLockedQuery(join, inputs, rows, &evaluation, make([]sqltype.Value, QueryLockRecheckWidth(join, inputs)), &offset, make([]sqltype.Value, len(join.Schema())))
 		if err != nil || ok || got != nil {
 			t.Fatal("changed real pair fabricated extension or searched another matching captured row", kind, got, ok, err)
 		}

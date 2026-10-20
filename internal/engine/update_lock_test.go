@@ -91,7 +91,7 @@ func TestUpdateCoreImmediateGrantRecheck(t *testing.T) {
 			sessionSQL(t, a, "CREATE TABLE t(id INT,a INT,b INT)")
 			sessionSQL(t, a, "INSERT INTO t VALUES(1,10,0),(2,20,0)")
 			op, scope, bound, source := updateBoundSource(t, e, b, context.Background(), "UPDATE t SET b=a WHERE id=1")
-			original := source.versionAt(source.rawIndex(0))
+			original := source.VersionAt(source.RawIndex(0))
 			if predicateChanged {
 				sessionSQL(t, a, "UPDATE t SET id=3,a=11 WHERE id=1")
 				sessionSQL(t, a, "UPDATE t SET id=1 WHERE id=2")

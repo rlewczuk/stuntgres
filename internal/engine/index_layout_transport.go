@@ -97,7 +97,7 @@ func transportIndexLayouts(evaluation *EvalContext, stage *CatalogStage, changes
 			e.mu.Unlock()
 			return nil, false, ids.ErrCatalogReplaced
 		}
-		target, ok := evaluation.catalog.Relation(address)
+		target, ok := evaluation.Catalog.Relation(address)
 		if !ok || !sameIndexKeySemantics(target, lineage.target) {
 			e.mu.Unlock()
 			return nil, false, ids.ErrCatalogReplaced

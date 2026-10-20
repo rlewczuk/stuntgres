@@ -164,7 +164,7 @@ func TestVisibilityInquiryCapturedFrontier(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer source.close()
+	defer source.Close()
 	if scope.inquiry.visibilityCatalog != catalog {
 		t.Fatal("later provider replaced captured catalog")
 	}
@@ -175,7 +175,7 @@ func TestVisibilityInquiryCapturedFrontier(t *testing.T) {
 		t.Fatal(err)
 	}
 	n := functions.VisibilityInquiry{Info: expr.Info{Usage: boolean.Usage()}, Kind: functions.TableVisibility, Arg: plan.LiteralExpr{Info: expr.Info{Usage: oid.Usage()}, Value: value}}
-	got, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, host: hostOf(scope)}})
+	got, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, Host: hostOf(scope)}})
 	if err != nil {
 		t.Fatal(err)
 	}

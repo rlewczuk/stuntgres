@@ -272,7 +272,7 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 			op.Done()
 			t.Fatal(err)
 		}
-		v, err := bound.Eval(&EvalContext{evalStatement: evalStatement{Context: op.Context(), host: hostOf(scope)}})
+		v, err := bound.Eval(&EvalContext{evalStatement: evalStatement{Context: op.Context(), Host: hostOf(scope)}})
 		finish := scope.Finish(err)
 		op.Done()
 		if err != nil || finish != nil || v.IsNull() || v.Type().ID() != sqltype.Void || advisoryUnitHold(s, lock.Resource{Kind: lock.AdvisoryBigintResource, Low: 42}).Exclusive != 1 {
@@ -320,7 +320,7 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 			t.Fatal("prepared constant NULL must not demand a session", failed, err)
 		}
 	}
-	cached, ok := eval.preparedChecks[d]
+	cached, ok := eval.PreparedChecks[d]
 	if !ok || len(cached) != 2 || !reflect.DeepEqual(cached[0], column) {
 		t.Fatal("unchanged CHECK references or descriptor cache lost", cached, ok)
 	}
@@ -329,7 +329,7 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 	}
 	first := &cached[0]
 	failed, err := validateCheckRow(d, []sqltype.Value{falseValue}, eval)
-	if err != nil || failed != &d.Constraints.Check[0] || &eval.preparedChecks[d][0] != first {
+	if err != nil || failed != &d.Constraints.Check[0] || &eval.PreparedChecks[d][0] != first {
 		t.Fatal("row changes must reuse preparation and return original constraint", failed, err)
 	}
 	if eval.Scope != 9 || eval.Frame != 7 || &eval.Row[0] != &oldRow[0] {
@@ -342,22 +342,22 @@ func TestAdvisorySessionCheckPreparationCache(t *testing.T) {
 	// Descriptor identity, not a relation name/address, bounds cache reuse;
 	// fresh command contexts never inherit a previous command's preparation.
 	other := *d
-	if failed, err := validateCheckRow(&other, []sqltype.Value{trueValue}, eval); err != nil || failed != nil || &eval.preparedChecks[&other][0] == first {
+	if failed, err := validateCheckRow(&other, []sqltype.Value{trueValue}, eval); err != nil || failed != nil || &eval.PreparedChecks[&other][0] == first {
 		t.Fatal("distinct descriptor reused executable cache", failed, err)
 	}
 	fresh := &EvalContext{evalStatement: evalStatement{Context: ctx}}
-	if failed, err := validateCheckRow(d, []sqltype.Value{trueValue}, fresh); err != nil || failed != nil || &fresh.preparedChecks[d][0] == first {
+	if failed, err := validateCheckRow(d, []sqltype.Value{trueValue}, fresh); err != nil || failed != nil || &fresh.PreparedChecks[d][0] == first {
 		t.Fatal("new command inherited executable CHECK cache", failed, err)
 	}
 	plain := &catalog.Relation{Constraints: catalog.RelationConstraints{Check: []catalog.CheckConstraint{{Name: "plain", Expression: trueNode}}}}
 	if failed, err := validateCheckRow(plain, nil, eval); err != nil || failed != nil {
 		t.Fatal(failed, err)
 	}
-	if nodes, ok := eval.preparedChecks[plain]; !ok || nodes != nil {
+	if nodes, ok := eval.PreparedChecks[plain]; !ok || nodes != nil {
 		t.Fatal("unchanged CHECK preparation allocated an expression slice", nodes, ok)
 	}
 	emptyEval := &EvalContext{}
-	if failed, err := validateCheckRow(&catalog.Relation{}, nil, emptyEval); err != nil || failed != nil || emptyEval.preparedChecks != nil {
+	if failed, err := validateCheckRow(&catalog.Relation{}, nil, emptyEval); err != nil || failed != nil || emptyEval.PreparedChecks != nil {
 		t.Fatal("no-CHECK path initialized preparation state", failed, err)
 	}
 }
@@ -378,7 +378,7 @@ func TestAdvisorySessionCheckPrepareAllBeforeEvaluation(t *testing.T) {
 	eval := &EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{Scope: 9, Frame: 7}}
 	failed, err := validateCheckRow(d, nil, eval)
 	nullCountUnitDiagnostic(t, err, sqlstate.Error{Code: "22012", Message: "division by zero"})
-	if failed != nil || eval.preparedChecks != nil || eval.Scope != 9 || eval.Frame != 7 {
+	if failed != nil || eval.PreparedChecks != nil || eval.Scope != 9 || eval.Frame != 7 {
 		t.Fatal("failed preparation cached a partial set or leaked a frame", failed)
 	}
 	// If volatile evaluation had started, the first producer would require an

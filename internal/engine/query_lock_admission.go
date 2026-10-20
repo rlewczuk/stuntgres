@@ -80,7 +80,7 @@ func (e *Engine) firstQueryRowModeLocked(scope *StatementScope, root plan.Node, 
 		return 0, nil
 	}
 	for _, leaf := range leaves {
-		first, err := visit(leaf.relation, leaf.mark, queryRowDiagnostic(leaf.mark))
+		first, err := visit(leaf.Relation, leaf.Mark, queryRowDiagnostic(leaf.Mark))
 		if err != nil || first != 0 {
 			return first, err
 		}
@@ -206,7 +206,7 @@ func queryRowLockLegality(root plan.Node, mode lock.Mode) error {
 			if n.CTE != nil {
 				return queryRowLockLegality(n.Query.Root, queryRootRowMode(n.Query.Root))
 			}
-			return queryRowLockLegality(n.Query.Root, strongerQueryRowMode(mode, queryRootRowMode(n.Query.Root)))
+			return queryRowLockLegality(n.Query.Root, StrongerQueryRowMode(mode, queryRootRowMode(n.Query.Root)))
 		case *plan.JoinNode:
 			if err := from(n.Left); err != nil {
 				return err
@@ -263,7 +263,7 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root plan.Nod
 			}
 			return nil
 		}
-		if isPGSequencesRelation(d) {
+		if IsPGSequencesRelation(d) {
 			return nil // Expanded catalog view: no represented physical tuple input.
 		}
 		if (referenceMarked || inherited.Mode != 0) && d.RelationKind == catalog.MaterializedViewRelation {
@@ -284,7 +284,7 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root plan.Nod
 		return nil
 	}
 	for _, leaf := range leaves {
-		if err := visit(leaf.relation, leaf.mark, leaf.deleteReference || leaf.query != nil && len(leaf.query.Locking) != 0); err != nil {
+		if err := visit(leaf.Relation, leaf.Mark, leaf.DeleteReference || leaf.Query != nil && len(leaf.Query.Locking) != 0); err != nil {
 			return err
 		}
 	}
@@ -295,7 +295,7 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root plan.Nod
 }
 
 func (v AuthorizationView) checkViewRowMarks(d *catalog.Relation, inherited plan.RowMark, invoker authorization.PrincipalRef) error {
-	if _, err := validateViewReadGraph(v.Catalog, []queryLeaf{{relation: d}}); err != nil {
+	if _, err := validateViewReadGraph(v.Catalog, []queryLeaf{{Relation: d}}); err != nil {
 		return err
 	}
 	return v.checkViewRowMarksExpanded(d, inherited, invoker)
@@ -340,7 +340,7 @@ func (v AuthorizationView) checkViewRowMarksExpanded(d *catalog.Relation, inheri
 		if err := v.checkColumns(binding{ref: use, relation: child}, authorization.SelectPrivilege, indices); err != nil {
 			return err
 		}
-		if effectiveQueryRowMark(child, mark).Mode != 0 {
+		if EffectiveQueryRowMark(child, mark).Mode != 0 {
 			if err := v.checkColumns(binding{ref: use, relation: child}, authorization.UpdatePrivilege, nil); err != nil {
 				return err
 			}
@@ -371,7 +371,7 @@ func queryRowMarkReachesSource(node plan.Node, occurrence int) bool {
 func viewLeafRowMark(view *viewDefinition, occurrence int, inherited plan.RowMark) plan.RowMark {
 	mark := view.sources[occurrence].mark
 	if inherited.Mode != 0 && queryRowMarkReachesSource(view.query.Root, occurrence) {
-		mark = mergeQueryRowMark(inherited, mark)
+		mark = MergeQueryRowMark(inherited, mark)
 	}
 	return mark
 }
@@ -418,7 +418,7 @@ func queryRootRowMarks(node plan.Node) []plan.RowMark {
 
 func queryOccurrenceMark(marks []plan.RowMark, occurrence int, inherited plan.RowMark) plan.RowMark {
 	if occurrence < len(marks) {
-		return mergeQueryRowMark(inherited, marks[occurrence])
+		return MergeQueryRowMark(inherited, marks[occurrence])
 	}
 	return inherited
 }
@@ -509,7 +509,7 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virt
 						order++
 						mark.Order = order
 					}
-					marks[i] = mergeQueryRowMark(marks[i], mark)
+					marks[i] = MergeQueryRowMark(marks[i], mark)
 				}
 			}
 			continue
@@ -541,7 +541,7 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virt
 						order++
 						mark.Order = order
 					}
-					marks[occurrence] = mergeQueryRowMark(marks[occurrence], mark)
+					marks[occurrence] = MergeQueryRowMark(marks[occurrence], mark)
 				}
 				break
 			}

@@ -10,9 +10,9 @@ import (
 )
 
 func (s *queryState) inheritCTEs() {
-	if s.ctes == nil && s.source != nil {
-		if host := s.source.liveHost(); host != nil {
-			s.ctes = host.CTEInvocation()
+	if s.Ctes == nil && s.Source != nil {
+		if host := s.Source.LiveHost(); host != nil {
+			s.Ctes = host.CTEInvocation()
 		}
 	}
 }
@@ -21,21 +21,21 @@ func (s *queryState) inheritCTEs() {
 // Neither a pass nor a worktable reader copies the accumulated tuple payload.
 type recursiveUnionStage struct {
 	state          queryState
-	node           *plan.RecursiveUnionNode
-	source         *querySource
-	current, next  []int
-	seen           map[uint64][]int
-	arm            setArm
+	Node           *plan.RecursiveUnionNode
+	Source         *querySource
+	Current, next  []int
+	Seen           map[uint64][]int
+	Arm            setArm
 	scratch        []sqltype.Value
 	mark, fallback sqltype.Value
 	marksReady     bool
-	phase          uint8
-	opened, closed bool
+	Phase          uint8
+	Opened, closed bool
 }
 
 func recursiveCTEOwner(state *queryState, d *plan.CTEDefinition) *cteInvocation {
-	for owner := state.ctes; owner != nil; owner = owner.parent {
-		if owner.frame == d.Owner {
+	for owner := state.Ctes; owner != nil; owner = owner.Parent {
+		if owner.Frame == d.Owner {
 			return owner
 		}
 	}
@@ -47,16 +47,16 @@ func openRecursiveUnion(ctx context.Context, state *queryState, n *plan.Recursiv
 		return indexedStage{}, err
 	}
 	owner := recursiveCTEOwner(state, n.Definition)
-	if owner == nil || owner.closed || owner.producers[n.Definition] == nil {
+	if owner == nil || owner.Closed || owner.Producers[n.Definition] == nil {
 		return indexedStage{}, fmt.Errorf("stuntgres: missing recursive CTE producer")
 	}
-	producer := owner.producers[n.Definition]
-	stage := &recursiveUnionStage{state: *state, node: n, source: producer.source}
+	producer := owner.Producers[n.Definition]
+	stage := &recursiveUnionStage{state: *state, Node: n, Source: producer.Source}
 	if !n.All && len(n.Schema()) > 0 {
-		stage.seen = make(map[uint64][]int)
+		stage.Seen = make(map[uint64][]int)
 	}
-	producer.recursion = stage
-	return indexedStage{source: stage.source, schema: n.Schema(), selection: []int{}, produce: stage.produce, finish: stage.close}, nil
+	producer.Recursion = stage
+	return indexedStage{Source: stage.Source, Columns: n.Schema(), Selection: []int{}, Produce: stage.produce, Finish: stage.close}, nil
 }
 
 func (s *recursiveUnionStage) close() error {
@@ -64,33 +64,33 @@ func (s *recursiveUnionStage) close() error {
 		return nil
 	}
 	s.closed = true
-	s.current, s.next, s.seen = nil, nil, nil
+	s.Current, s.next, s.Seen = nil, nil, nil
 	s.scratch = nil
-	if s.opened {
-		s.opened = false
-		return s.arm.Close()
+	if s.Opened {
+		s.Opened = false
+		return s.Arm.Close()
 	}
 	return nil
 }
 
 func (s *recursiveUnionStage) produce(ctx context.Context, out *indexedStage) (bool, error) {
-	for s.phase < 2 {
+	for s.Phase < 2 {
 		if err := ctx.Err(); err != nil {
 			return false, err
 		}
-		if !s.opened {
-			project, expressions := s.node.Left, s.node.LeftExpressions
-			if s.phase == 1 {
-				project, expressions = s.node.Right, s.node.RightExpressions
+		if !s.Opened {
+			project, expressions := s.Node.Left, s.Node.LeftExpressions
+			if s.Phase == 1 {
+				project, expressions = s.Node.Right, s.Node.RightExpressions
 			}
-			arm, err := openSetArmScratch(ctx, &s.state, project, expressions, s.node.Schema(), s.scratch)
+			arm, err := openSetArmScratch(ctx, &s.state, project, expressions, s.Node.Schema(), s.scratch)
 			if err != nil {
 				return false, err
 			}
-			s.arm, s.opened = arm, true
+			s.Arm, s.Opened = arm, true
 			s.scratch = arm.row
-			if c := s.node.Cycle; c != nil && !s.marksReady {
-				evaluation := &s.arm.inner.evaluation
+			if c := s.Node.Cycle; c != nil && !s.marksReady {
+				evaluation := &s.Arm.Inner.Evaluation
 				evaluation.setContext(ctx)
 				s.mark, err = c.Mark.Eval(evaluation)
 				if err != nil {
@@ -103,29 +103,29 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *indexedStage) (b
 				s.marksReady = true
 			}
 		}
-		row, present, err := s.arm.next(ctx)
+		row, present, err := s.Arm.Next(ctx)
 		if err != nil {
 			return false, err
 		}
 		if !present {
-			s.opened = false
-			if err := s.arm.Close(); err != nil {
+			s.Opened = false
+			if err := s.Arm.Close(); err != nil {
 				return false, err
 			}
-			if s.phase == 0 {
-				s.phase = 1
+			if s.Phase == 0 {
+				s.Phase = 1
 			} else {
-				s.current, s.next = s.next, s.current[:0]
+				s.Current, s.next = s.next, s.Current[:0]
 			}
-			if len(s.current) == 0 {
-				s.phase = 2
+			if len(s.Current) == 0 {
+				s.Phase = 2
 				return false, nil
 			}
 			continue
 		}
-		cycle, search := s.node.Cycle, s.node.Search
+		cycle, search := s.Node.Cycle, s.Node.Search
 		var parentSearch, parentCycle sqltype.Value
-		if s.phase == 1 {
+		if s.Phase == 1 {
 			if search != nil {
 				parentSearch = row[search.Slot]
 			}
@@ -147,9 +147,9 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *indexedStage) (b
 			}
 		}
 		hash := uint64(14695981039346656037)
-		if s.seen != nil {
-			for i, family := range s.node.Grouping {
-				slot := s.node.GroupingSlot(i)
+		if s.Seen != nil {
+			for i, family := range s.Node.Grouping {
+				slot := s.Node.GroupingSlot(i)
 				value, err := family.PrepareKey(ctx, row[slot])
 				if err != nil {
 					return false, err
@@ -175,7 +175,7 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *indexedStage) (b
 				}
 				hash = (hash ^ part) * 1099511628211
 			}
-			index, err := s.findTuple(ctx, row, s.seen[hash])
+			index, err := s.FindTuple(ctx, row, s.Seen[hash])
 			if err != nil {
 				return false, err
 			}
@@ -186,15 +186,15 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *indexedStage) (b
 		if err := ctx.Err(); err != nil {
 			return false, err
 		}
-		index := s.source.flatCount
-		s.source.flat = append(s.source.flat, row...)
-		s.source.flatCount++
-		if s.seen != nil {
-			s.seen[hash] = append(s.seen[hash], index)
+		index := s.Source.FlatCount
+		s.Source.Flat = append(s.Source.Flat, row...)
+		s.Source.FlatCount++
+		if s.Seen != nil {
+			s.Seen[hash] = append(s.Seen[hash], index)
 		}
 		expand := true
 		if cycle != nil {
-			value, err := cycle.Inequality.Evaluate(ctx, row[cycle.MarkSlot], s.mark, s.state.input)
+			value, err := cycle.Inequality.Evaluate(ctx, row[cycle.MarkSlot], s.mark, s.state.Input)
 			if err != nil {
 				return false, err
 			}
@@ -207,13 +207,13 @@ func (s *recursiveUnionStage) produce(ctx context.Context, out *indexedStage) (b
 			}
 		}
 		if expand {
-			if s.phase == 0 {
-				s.current = append(s.current, index)
+			if s.Phase == 0 {
+				s.Current = append(s.Current, index)
 			} else {
 				s.next = append(s.next, index)
 			}
 		}
-		out.selection = append(out.selection, index)
+		out.Selection = append(out.Selection, index)
 		return true, nil
 	}
 	return false, ctx.Err()
@@ -224,34 +224,34 @@ func openWorktableScan(ctx context.Context, state *queryState, n *plan.Worktable
 		return indexedStage{}, err
 	}
 	owner := recursiveCTEOwner(state, n.CTE)
-	if owner == nil || owner.closed {
+	if owner == nil || owner.Closed {
 		return indexedStage{}, fmt.Errorf("stuntgres: missing recursive worktable owner")
 	}
-	producer := owner.producers[n.CTE]
-	if producer == nil || producer.recursion == nil {
+	producer := owner.Producers[n.CTE]
+	if producer == nil || producer.Recursion == nil {
 		return indexedStage{}, fmt.Errorf("stuntgres: missing current recursive generation")
 	}
-	stage := producer.recursion
-	source := stage.source
+	stage := producer.Recursion
+	source := stage.Source
 	if n.PresenceSlot != 0 {
 		borrowed := *source
 		source = &borrowed
-		establishSourcePresence(source, n.PresenceSlot)
+		EstablishSourcePresence(source, n.PresenceSlot)
 	}
-	return indexedStage{source: source, schema: n.Schema(), selection: stage.current}, nil
+	return indexedStage{Source: source, Columns: n.Schema(), Selection: stage.Current}, nil
 }
 
-func (s *recursiveUnionStage) findTuple(ctx context.Context, row []sqltype.Value, candidates []int) (int, error) {
-	c, search := s.node.Cycle, s.node.Search
+func (s *recursiveUnionStage) FindTuple(ctx context.Context, row []sqltype.Value, candidates []int) (int, error) {
+	c, search := s.Node.Cycle, s.Node.Search
 	if c == nil && search == nil {
-		return findDistinctTuple(ctx, s.node.Grouping, row, s.source.flat, candidates)
+		return FindDistinctTuple(ctx, s.Node.Grouping, row, s.Source.Flat, candidates)
 	}
-	width := len(s.node.Schema())
+	width := len(s.Node.Schema())
 	for _, index := range candidates {
-		other := s.source.flat[index*width : (index+1)*width]
+		other := s.Source.Flat[index*width : (index+1)*width]
 		equal := true
-		for i, g := range s.node.Grouping {
-			slot := s.node.GroupingSlot(i)
+		for i, g := range s.Node.Grouping {
+			slot := s.Node.GroupingSlot(i)
 			same, err := g.Equal(ctx, row[slot], other[slot])
 			if err != nil {
 				return -1, err
@@ -282,7 +282,7 @@ func (s *recursiveUnionStage) findTuple(ctx context.Context, row []sqltype.Value
 	return -1, ctx.Err()
 }
 
-func setMultiplicity(operation string, all bool, left, right int) int {
+func SetMultiplicity(operation string, all bool, left, right int) int {
 	switch operation {
 	case "union":
 		if all {
@@ -310,7 +310,7 @@ func setMultiplicity(operation string, all bool, left, right int) int {
 }
 
 type setArm struct {
-	inner       indexedStage
+	Inner       indexedStage
 	expressions []expr.Expr
 	schema      []catalog.Column
 	row         []sqltype.Value
@@ -321,38 +321,38 @@ func openSetArm(ctx context.Context, state *queryState, project *plan.ProjectNod
 }
 
 func openSetArmScratch(ctx context.Context, state *queryState, project *plan.ProjectNode, expressions []expr.Expr, schema []catalog.Column, scratch []sqltype.Value) (setArm, error) {
-	innerState := &queryState{source: state.source, parameters: state.parameters, input: state.input, output: state.output, locking: state.locking, outer: state.outer, ctes: state.ctes, hashOwner: state.membershipOwner()}
-	inner, err := openQueryProjectStage(ctx, innerState, project)
+	innerState := &queryState{Source: state.Source, Parameters: state.Parameters, Input: state.Input, Output: state.Output, Locking: state.Locking, Outer: state.Outer, Ctes: state.Ctes, hashOwner: state.membershipOwner()}
+	inner, err := OpenQueryProjectStage(ctx, innerState, project)
 	if err != nil {
 		return setArm{}, err
 	}
 	if scratch == nil {
 		scratch = make([]sqltype.Value, len(schema))
 	}
-	return setArm{inner: inner, expressions: expressions, schema: schema, row: scratch}, nil
+	return setArm{Inner: inner, expressions: expressions, schema: schema, row: scratch}, nil
 }
 
-func (a *setArm) Close() error { return a.inner.Close() }
+func (a *setArm) Close() error { return a.Inner.Close() }
 
 // The arm scratch is reused on every pull; only unique keys or demanded UNION
 // ALL outputs are retained by the parent. Arm-local clauses execute first.
-func (a *setArm) next(ctx context.Context) ([]sqltype.Value, bool, error) {
-	i, present, err := a.inner.nextOccurrence(ctx)
+func (a *setArm) Next(ctx context.Context) ([]sqltype.Value, bool, error) {
+	i, present, err := a.Inner.NextOccurrence(ctx)
 	if err != nil || !present {
 		return nil, present, err
 	}
-	a.inner.evaluation.setContext(ctx)
-	a.inner.evaluation.bindQueryRow(a.inner.source, a.inner.index(i))
-	a.inner.evaluation.orderValues = a.inner.orderRow(i)
+	a.Inner.Evaluation.setContext(ctx)
+	a.Inner.Evaluation.BindQueryRow(a.Inner.Source, a.Inner.Index(i))
+	a.Inner.Evaluation.OrderValues = a.Inner.OrderRow(i)
 	for j, expression := range a.expressions {
 		if err := ctx.Err(); err != nil {
 			return nil, false, err
 		}
-		value, err := expression.Eval(&a.inner.evaluation)
+		value, err := expression.Eval(&a.Inner.Evaluation)
 		if err != nil {
 			return nil, false, err
 		}
-		if err := validateProducedValue(value, a.schema[j].Usage); err != nil {
+		if err := ValidateProducedValue(value, a.schema[j].Usage); err != nil {
 			return nil, false, err
 		}
 		a.row[j] = value
@@ -360,14 +360,14 @@ func (a *setArm) next(ctx context.Context) ([]sqltype.Value, bool, error) {
 	return a.row, true, ctx.Err()
 }
 
-func openSetNode(ctx context.Context, state *queryState, n *plan.SetNode) (out indexedStage, err error) {
+func OpenSetNode(ctx context.Context, state *queryState, n *plan.SetNode) (out indexedStage, err error) {
 	if n.Operation == "union" && n.All {
 		return openUnionAll(ctx, state, n)
 	}
 	if len(n.Grouping) != len(n.Schema()) {
 		return out, fmt.Errorf("stuntgres: invalid set grouping schema")
 	}
-	source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, host: state.source.host}
+	source := &querySource{FlatWidth: len(n.Schema()), Materialized: true, Authority: state.Source.Authority, Host: state.Source.Host}
 	buckets := make(map[uint64][]int)
 	var counts [][2]int
 	for side, arm := range [2]*plan.ProjectNode{n.Left, n.Right} {
@@ -386,7 +386,7 @@ func openSetNode(ctx context.Context, state *queryState, n *plan.SetNode) (out i
 				}
 			}()
 			for {
-				row, present, err := child.next(ctx)
+				row, present, err := child.Next(ctx)
 				if err != nil {
 					return err
 				}
@@ -406,15 +406,15 @@ func openSetNode(ctx context.Context, state *queryState, n *plan.SetNode) (out i
 					}
 					hash = (hash ^ h) * 1099511628211
 				}
-				index, err := findDistinctTuple(ctx, n.Grouping, row, source.flat, buckets[hash])
+				index, err := FindDistinctTuple(ctx, n.Grouping, row, source.Flat, buckets[hash])
 				if err != nil {
 					return err
 				}
 				if index < 0 {
-					index = source.flatCount
+					index = source.FlatCount
 					buckets[hash] = append(buckets[hash], index)
-					source.flat = append(source.flat, row...)
-					source.flatCount++
+					source.Flat = append(source.Flat, row...)
+					source.FlatCount++
 					counts = append(counts, [2]int{})
 				}
 				counts[index][side]++
@@ -428,30 +428,30 @@ func openSetNode(ctx context.Context, state *queryState, n *plan.SetNode) (out i
 			return indexedStage{}, failure
 		}
 	}
-	out = indexedStage{source: source, schema: n.Schema(), selection: []int{}}
+	out = indexedStage{Source: source, Columns: n.Schema(), Selection: []int{}}
 	for i, count := range counts {
-		for copies := setMultiplicity(n.Operation, n.All, count[0], count[1]); copies > 0; copies-- {
+		for copies := SetMultiplicity(n.Operation, n.All, count[0], count[1]); copies > 0; copies-- {
 			if err := ctx.Err(); err != nil {
 				return indexedStage{}, err
 			}
-			out.selection = append(out.selection, i)
+			out.Selection = append(out.Selection, i)
 		}
 	}
 	return out, ctx.Err()
 }
 
 func openUnionAll(ctx context.Context, state *queryState, n *plan.SetNode) (indexedStage, error) {
-	out := indexedStage{source: &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, host: state.source.host}, schema: n.Schema(), selection: []int{}}
+	out := indexedStage{Source: &querySource{FlatWidth: len(n.Schema()), Materialized: true, Authority: state.Source.Authority, Host: state.Source.Host}, Columns: n.Schema(), Selection: []int{}}
 	var child setArm
 	opened, side := false, 0
-	out.finish = func() error {
+	out.Finish = func() error {
 		if opened {
 			opened = false
 			return child.Close()
 		}
 		return nil
 	}
-	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
+	out.Produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 		for side < 2 {
 			if !opened {
 				arm, expressions := n.Left, n.LeftExpressions
@@ -465,7 +465,7 @@ func openUnionAll(ctx context.Context, state *queryState, n *plan.SetNode) (inde
 				}
 				opened = true
 			}
-			row, present, err := child.next(ctx)
+			row, present, err := child.Next(ctx)
 			if err != nil {
 				return false, err
 			}
@@ -477,9 +477,9 @@ func openUnionAll(ctx context.Context, state *queryState, n *plan.SetNode) (inde
 				side++
 				continue
 			}
-			out.source.flat = append(out.source.flat, row...)
-			out.selection = append(out.selection, out.source.flatCount)
-			out.source.flatCount++
+			out.Source.Flat = append(out.Source.Flat, row...)
+			out.Selection = append(out.Selection, out.Source.FlatCount)
+			out.Source.FlatCount++
 			return true, ctx.Err()
 		}
 		return false, ctx.Err()

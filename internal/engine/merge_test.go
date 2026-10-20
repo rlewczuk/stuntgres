@@ -25,8 +25,8 @@ func TestMergeInsertBinding(t *testing.T) {
 	if !reflect.DeepEqual(first.targets, []int{1, 0}) || !reflect.DeepEqual(second.targets, []int{0}) || first.insert.defaults != nil || len(second.insert.defaults) != 3 || second.insert.defaults[1] == nil {
 		t.Fatal("independent arm schedules", first, second)
 	}
-	data := target.view.Data()
-	if inputs.view.Data() != data || len(data.Committed) != 2 {
+	data := target.View.Data()
+	if inputs.View.Data() != data || len(data.Committed) != 2 {
 		t.Fatal("target/source did not share frontier")
 	}
 	r, err := e.executeMerge(op.ctx, scope, b, target, inputs, nil, "public")
@@ -88,7 +88,7 @@ func TestMergeInsertPublication(t *testing.T) {
 			if phase == "close" || phase == "primary_wins_close" {
 				cursor.closeError = cleanup
 			}
-			state := &queryState{source: inputs, input: scope.input, output: scope.output}
+			state := &queryState{Source: inputs, Input: scope.input, Output: scope.output}
 			rows, err := e.assembleMergeRows(op.ctx, scope, b, target, cursor, state, "public", false)
 			if cursor.closed != 1 || len(scope.stage.rows) != 0 {
 				t.Fatal("producer published or did not close exactly once", cursor.closed, scope.stage.rows)
@@ -114,8 +114,8 @@ func TestMergeInsertPublication(t *testing.T) {
 				scope.Finish(err)
 			}
 			op.Done()
-			target.close()
-			inputs.close()
+			target.Close()
+			inputs.Close()
 			if phase == "complete" {
 				transactionRows(t, s, "SELECT id FROM t", 7, 7)
 			} else {
@@ -167,13 +167,13 @@ func TestMergeInsertCancellation(t *testing.T) {
 				} else {
 					cursor.beforeClose = cancel
 				}
-				state := &queryState{source: inputs, input: scope.input, output: scope.output}
+				state := &queryState{Source: inputs, Input: scope.input, Output: scope.output}
 				_, err = e.assembleMergeRows(ctx, scope, b, target, cursor, state, "public", false)
 				if cursor.closed != 1 {
 					t.Fatal("canceled source not closed")
 				}
-				target.close()
-				inputs.close()
+				target.Close()
+				inputs.Close()
 			} else {
 				result, err = e.executeMerge(ctx, scope, b, target, inputs, nil, "public")
 			}

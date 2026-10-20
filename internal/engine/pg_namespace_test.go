@@ -29,7 +29,7 @@ func namespaceUnitCapture(t *testing.T, e *Engine, c catalog.Read) *querySource 
 	e.mu.Lock()
 	rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: c, Roles: e.roles.read(e.catalog.owner(), c, e.roles.published), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGNamespace)
 	e.mu.Unlock()
-	if err != nil || rows == nil || rows.ref != ref {
+	if err != nil || rows == nil || rows.Ref != ref {
 		t.Fatal(rows, err)
 	}
 	return rows
@@ -37,7 +37,7 @@ func namespaceUnitCapture(t *testing.T, e *Engine, c catalog.Read) *querySource 
 func namespaceUnitRow(t *testing.T, rows *querySource, id uint32) []sqltype.Value {
 	t.Helper()
 	var found []sqltype.Value
-	for _, row := range rows.anonymous {
+	for _, row := range rows.Anonymous {
 		oid, err := row[0].OID()
 		if err != nil {
 			t.Fatal(err)
@@ -95,8 +95,8 @@ func TestPGNamespaceCapture(t *testing.T) {
 	oid, revision := e.catalog.nextOID, e.catalog.nextRevision
 	descriptors, names := maps.Collect(c.State().Descriptors()), maps.Collect(c.State().Names())
 	old := namespaceUnitCapture(t, e, c)
-	if old.count() != 4 {
-		t.Fatal("pristine namespace inventory", old.count())
+	if old.Count() != 4 {
+		t.Fatal("pristine namespace inventory", old.Count())
 	}
 	for id, name := range map[uint32]string{11: "pg_catalog", 99: "pg_toast", 2200: "public", 13229: "information_schema"} {
 		row := namespaceUnitRow(t, old, id)
@@ -332,7 +332,7 @@ func TestPGNamespaceCancellation(t *testing.T) {
 			t.Fatal("cancellation published partial capture", at, rows, err)
 		}
 	}
-	if namespaceUnitCapture(t, e, c).count() != 4 {
+	if namespaceUnitCapture(t, e, c).Count() != 4 {
 		t.Fatal("capture unusable after cancellation")
 	}
 }

@@ -28,7 +28,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 			e := New()
 			project, anonymous := queryCreateBoundSource(t, e, 1)
 			sourceStage, sourceDescriptor := queryCreateStage(t, e, "source", 1)
-			if err := e.stageQueryTableRows(context.Background(), sourceStage, sourceDescriptor, anonymous.anonymous, ids.TxRef{}); err != nil {
+			if err := e.stageQueryTableRows(context.Background(), sourceStage, sourceDescriptor, anonymous.Anonymous, ids.TxRef{}); err != nil {
 				t.Fatal(err)
 			}
 			queryCreatePublish(t, e, sourceStage)
@@ -59,14 +59,14 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				t.Fatal("missing actual implicit serializable consumer")
 			}
 			e.mu.Lock()
-			source, err := e.captureQuerySourcesLocked(scope, []queryLeaf{{ref: sourceRef, relation: sourceDescriptor, storage: e.storage.Relations[sourceRef.Address]}}, false)
+			source, err := e.captureQuerySourcesLocked(scope, []queryLeaf{{Ref: sourceRef, Relation: sourceDescriptor, Storage: e.storage.Relations[sourceRef.Address]}}, false)
 			e.mu.Unlock()
 			if err != nil {
 				outcome = err
 				t.Fatal(err)
 			}
-			if err = selectQuerySources(op.Context(), source); err != nil {
-				source.close()
+			if err = SelectQuerySources(op.Context(), source); err != nil {
+				source.Close()
 				outcome = err
 				t.Fatal(err)
 			}
@@ -83,12 +83,12 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				}
 				return sqltype.Boolean(testUsage(e, sqltype.Bool).Type, value >= threshold), nil
 			})}
-			result, count, err := finalizeQuery(op.Context(), project, source, nil)
+			result, count, err := Finalize(op.Context(), project, source, nil)
 			if err != nil {
 				outcome = err
 				t.Fatal(err)
 			}
-			rows, err := result.(*finalRows).takeTableRows(op.Context())
+			rows, err := result.(*finalRows).TakeTableRows(op.Context())
 			wanted := 2
 			if tc.empty {
 				wanted = 0

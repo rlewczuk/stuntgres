@@ -14,12 +14,12 @@ func TestMergeSourceUpdateCapture(t *testing.T) {
 	}
 	op, scope, b, target, inputs := updateFromBoundSources(t, e, s, context.Background(), "MERGE INTO t USING source s ON t.id=s.id WHEN NOT MATCHED BY SOURCE THEN UPDATE SET v=t.v+100")
 	defer op.Done()
-	if target.count() != 3 {
+	if target.Count() != 3 {
 		scope.Finish(context.Canceled)
-		t.Fatal(target.count())
+		t.Fatal(target.Count())
 	}
-	first := target.versionAt(target.rawIndex(1))
-	second := target.versionAt(target.rawIndex(2))
+	first := target.VersionAt(target.RawIndex(1))
+	second := target.VersionAt(target.RawIndex(2))
 	if first.Row == second.Row {
 		scope.Finish(context.Canceled)
 		t.Fatal("distinct equal targets lost identity")

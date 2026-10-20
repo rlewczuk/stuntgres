@@ -69,9 +69,9 @@ func TestDomainProgramInvokerAndRIOwnerPhases(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			invoker := EvalContext{evalStatement: evalStatement{Context: context.Background(), host: hostOf(scope), catalog: view, Input: scope.input, Output: scope.output}}
+			invoker := EvalContext{evalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: view, Input: scope.input, Output: scope.output}}
 			local := invoker
-			local.routineAuthority = &ownerAuth
+			local.RoutineAuthority = &ownerAuth
 			check := func(evaluation *EvalContext) error {
 				// Use the same command-local owner phase slot as real RI
 				// planning/execution, then restore the original caller context.
@@ -179,9 +179,9 @@ func TestRoutineInquiryBodyInvokerAndRIOwnerPhases(t *testing.T) {
 			if !ok {
 				t.Fatalf("actual inquiry provider %T", node)
 			}
-			invoker := EvalContext{evalStatement: evalStatement{Context: context.Background(), host: hostOf(scope), catalog: view, Input: scope.input, Output: scope.output}, evalAdmission: evalAdmission{routineRecipe: true, routineChecks: binder.dependencies}}
+			invoker := EvalContext{evalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: view, Input: scope.input, Output: scope.output}, evalAdmission: evalAdmission{RoutineRecipe: true, RoutineChecks: binder.dependencies}}
 			local := invoker
-			local.routineAuthority = &ownerAuth
+			local.RoutineAuthority = &ownerAuth
 			enter := func(evaluation *EvalContext) error {
 				if evaluation == &local {
 					scope.foreignActionAuth = &ownerAuth

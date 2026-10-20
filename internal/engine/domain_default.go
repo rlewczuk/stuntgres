@@ -106,11 +106,11 @@ func columnDefault(view catalog.Read, d *catalog.Relation, slot int) (expr.Expr,
 	attribute := d.Attributes[slot]
 	usage := d.Columns[slot].Usage
 	if definition, ok := d.ColumnMeta.Defaults[attribute]; ok {
-		return definition.Expression, defaultOrigin{definition: definition, consumer: d, quote: quoteOrigin{owner: view.Owner().Domain.Ref(view.Epoch(), d.Address()), attribute: attribute, definition: definition.OID}}
+		return definition.Expression, defaultOrigin{definition: definition, consumer: d, quote: quoteOrigin{Owner: view.Owner().Domain.Ref(view.Epoch(), d.Address()), Attribute: attribute, Definition: definition.OID}}
 	}
 	if definition := typedef.TypeDefault(view, usage.Type); definition != nil {
 		owner := view.Owner().Domain.Ref(view.Epoch(), ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
-		return defaultDestination(definition.Expression, usage), defaultOrigin{definition: *definition, quote: quoteOrigin{owner: owner}}
+		return defaultDestination(definition.Expression, usage), defaultOrigin{definition: *definition, quote: quoteOrigin{Owner: owner}}
 	}
 	if usage.Type.HasDomainConstraints() {
 		return domainNullInputExpression(usage), defaultOrigin{}
@@ -120,9 +120,9 @@ func columnDefault(view catalog.Read, d *catalog.Relation, slot int) (expr.Expr,
 
 func (o defaultOrigin) apply(c *EvalContext) {
 	c.quoteOrigin = o.quote
-	c.routineRecipe, c.routineGraft = true, false
-	c.routineChecks = nil
-	c.routineReferences, c.routineConsumer = o.definition.Dependencies, o.consumer
+	c.RoutineRecipe, c.RoutineGraft = true, false
+	c.RoutineChecks = nil
+	c.RoutineReferences, c.RoutineConsumer = o.definition.Dependencies, o.consumer
 }
 
 func validateDomainDefault(view catalog.Read, d *catalog.Type) error {
@@ -191,16 +191,16 @@ func (b *binding) defaultOriginAt(slot int) defaultOrigin {
 	if definition.Expression == nil {
 		return defaultOrigin{}
 	}
-	return defaultOrigin{definition: definition, consumer: physical.relation, quote: quoteOrigin{owner: physical.ref, attribute: attribute, definition: definition.OID}}
+	return defaultOrigin{definition: definition, consumer: physical.relation, quote: quoteOrigin{Owner: physical.ref, Attribute: attribute, Definition: definition.OID}}
 }
 
 func evalDefaultExpression(c *EvalContext, node expr.Expr, origin defaultOrigin) (sqltype.Value, error) {
-	quote, recipe, graft := c.quoteOrigin, c.routineRecipe, c.routineGraft
-	checks, refs, consumer := c.routineChecks, c.routineReferences, c.routineConsumer
+	quote, recipe, graft := c.quoteOrigin, c.RoutineRecipe, c.RoutineGraft
+	checks, refs, consumer := c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer
 	origin.apply(c)
 	defer func() {
-		c.quoteOrigin, c.routineRecipe, c.routineGraft = quote, recipe, graft
-		c.routineChecks, c.routineReferences, c.routineConsumer = checks, refs, consumer
+		c.quoteOrigin, c.RoutineRecipe, c.RoutineGraft = quote, recipe, graft
+		c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer = checks, refs, consumer
 	}()
 	return node.Eval(c)
 }

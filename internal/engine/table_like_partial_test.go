@@ -58,7 +58,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 		if index.Address() == old.Address() || index.Revision() == old.Revision() || index.SQLIndex.Parent != destination.Address() || !index.SQLIndex.Ready || !index.SQLIndex.Valid || !index.SQLIndex.Live {
 			t.Fatal("index identity/parent/state copied", index)
 		}
-		if predicate.Definition.ResultUsage() != old.SQLIndex.Predicate.Definition.ResultUsage() || predicate.Execution.ResultUsage() != old.SQLIndex.Predicate.Execution.ResultUsage() || predicate.Definition.Properties() != old.SQLIndex.Predicate.Definition.Properties() || predicate.Execution.Properties() != old.SQLIndex.Predicate.Execution.Properties() || plannedVolatility(predicate.Execution) != expr.Immutable {
+		if predicate.Definition.ResultUsage() != old.SQLIndex.Predicate.Definition.ResultUsage() || predicate.Execution.ResultUsage() != old.SQLIndex.Predicate.Execution.ResultUsage() || predicate.Definition.Properties() != old.SQLIndex.Predicate.Definition.Properties() || predicate.Execution.Properties() != old.SQLIndex.Predicate.Execution.Properties() || PlannedVolatility(predicate.Execution) != expr.Immutable {
 			t.Fatal("typed predicate properties changed", predicate)
 		}
 		if !slices.Contains(predicate.Dependencies, local) {

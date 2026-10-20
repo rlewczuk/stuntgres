@@ -413,16 +413,16 @@ func preparedBoundaryPublished(t *testing.T, e *Engine, entry *preparedTransacti
 		t.Fatal("catalogue shape did not publish")
 	}
 	store := e.storage.Relations[parent]
-	selected, err := selectQuerySource(context.Background(), &querySource{committed: store.Versions}, e.visibility.CommitSeq(), store.Ends, nil)
+	selected, err := SelectQuerySource(context.Background(), &querySource{Committed: store.Versions}, e.visibility.CommitSeq(), store.Ends, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer selected.close()
-	if selected.count() != 2 {
-		t.Fatal("UPDATE/insert/delete roots did not publish", selected.count())
+	defer selected.Close()
+	if selected.Count() != 2 {
+		t.Fatal("UPDATE/insert/delete roots did not publish", selected.Count())
 	}
 	for i, expected := range []int64{3, 7} {
-		row := selected.versionAt(selected.rawIndex(i))
+		row := selected.VersionAt(selected.RawIndex(i))
 		value, err := row.Values[0].Integer()
 		if err != nil || value != expected {
 			t.Fatal("staged coupled UPDATE/insert outcome", i, value, err)
@@ -576,16 +576,16 @@ func TestPreparedCompetingGIDDisposesWholeLoser(t *testing.T) {
 	}
 	for address := range entry.writes {
 		store := e.storage.Relations[address]
-		selected, err := selectQuerySource(context.Background(), &querySource{committed: store.Versions}, e.visibility.CommitSeq(), store.Ends, nil)
+		selected, err := SelectQuerySource(context.Background(), &querySource{Committed: store.Versions}, e.visibility.CommitSeq(), store.Ends, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if selected.count() != 1 {
-			selected.close()
+		if selected.Count() != 1 {
+			selected.Close()
 			t.Fatal("losing GID row survived")
 		}
-		value, err := selected.versionAt(selected.rawIndex(0)).Values[0].Integer()
-		selected.close()
+		value, err := selected.VersionAt(selected.RawIndex(0)).Values[0].Integer()
+		selected.Close()
 		if err != nil || value != int64(winner.owner+1) {
 			t.Fatal("winning GID row outcome", value, err)
 		}

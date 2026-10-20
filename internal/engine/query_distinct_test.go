@@ -26,9 +26,9 @@ func TestQueryDistinctProjectedSlotsAndMetadata(t *testing.T) {
 	original := node.Expressions[0]
 	calls := 0
 	node.Expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return original.Eval(c) })
-	rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
-	if err != nil || count != 3 || calls != 4 || source.view != nil {
-		t.Fatal(rows, count, calls, err, source.view)
+	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	if err != nil || count != 3 || calls != 4 || source.View != nil {
+		t.Fatal(rows, count, calls, err, source.View)
 	}
 	defer rows.Close()
 	scratch := make([]sqltype.Value, 1)
@@ -47,20 +47,20 @@ func TestQueryDistinctProjectedSlotsAndMetadata(t *testing.T) {
 
 func TestQueryDistinctCollisionCandidates(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT DISTINCT v FROM t")
-	defer source.close()
+	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.DistinctNode)
 	d := node.Schema()[0].Usage.Type
 	one, _ := sqltype.Integer(d, 1)
 	two, _ := sqltype.Integer(d, 2)
 	flat := []sqltype.Value{one, two}
-	if index, err := findDistinctTuple(context.Background(), node.Grouping, []sqltype.Value{two}, flat, []int{0}); err != nil || index != -1 {
+	if index, err := FindDistinctTuple(context.Background(), node.Grouping, []sqltype.Value{two}, flat, []int{0}); err != nil || index != -1 {
 		t.Fatal("collision suppressed unequal tuple", index, err)
 	}
-	if index, err := findDistinctTuple(context.Background(), node.Grouping, []sqltype.Value{two}, flat, []int{0, 1}); err != nil || index != 1 {
+	if index, err := FindDistinctTuple(context.Background(), node.Grouping, []sqltype.Value{two}, flat, []int{0, 1}); err != nil || index != 1 {
 		t.Fatal(index, err)
 	}
 	ctx := &aggregateCancelContext{Context: context.Background(), armed: true, at: 4}
-	if _, err := findDistinctTuple(ctx, node.Grouping, []sqltype.Value{two}, flat, []int{0, 1}); !errors.Is(err, context.Canceled) {
+	if _, err := FindDistinctTuple(ctx, node.Grouping, []sqltype.Value{two}, flat, []int{0, 1}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }
@@ -116,13 +116,13 @@ func TestQueryDistinctFailureAndCancellationFrontiers(t *testing.T) {
 					})
 				}
 			}
-			rows, count, err := finalizeQuery(evaluationContext, query.Root, source, nil)
+			rows, count, err := Finalize(evaluationContext, query.Root, source, nil)
 			want := error(context.Canceled)
 			if phase == "late failure" {
 				want = sentinel
 			}
-			if rows != nil || count != 0 || !errors.Is(err, want) || source.view != nil {
-				t.Fatal(rows, count, err, want, source.view)
+			if rows != nil || count != 0 || !errors.Is(err, want) || source.View != nil {
+				t.Fatal(rows, count, err, want, source.View)
 			}
 		})
 	}
@@ -142,7 +142,7 @@ func TestQueryDistinctInsertNoBatchOnLateProjectionFailure(t *testing.T) {
 		return original.Eval(c)
 	})
 	rows, err := evaluateInsertQuery(context.Background(), b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
-	if rows.values != nil || err != sentinel || source.view != nil || source.anonymous != nil {
+	if rows.values != nil || err != sentinel || source.View != nil || source.Anonymous != nil {
 		t.Fatal(rows, err, source)
 	}
 }

@@ -144,7 +144,7 @@ func (s *StatementScope) authorizeSQLCursor(c *sqlCursor) error {
 	if err := s.readmitPreparedPrograms(auth); err != nil {
 		return err
 	}
-	evaluation := c.state.evaluation(s.op.Context())
+	evaluation := c.state.Evaluation(s.op.Context())
 	return validateQueryJoinExecution(&evaluation, c.root, auth.Catalog, 0)
 }
 
@@ -152,9 +152,9 @@ func (c *sqlCursor) openProducer(s *StatementScope) error {
 	if c.stage != nil {
 		return nil
 	}
-	c.authority.expression = &cursorExpressionData{identity: s.identity, statementStart: s.statementStart}
-	c.state.retain = c.scroll
-	stage, err := openQueryProjectStage(s.op.Context(), &c.state, c.root)
+	c.authority.Expression = &cursorExpressionData{Identity: s.identity, StatementStart: s.statementStart}
+	c.state.Retain = c.scroll
+	stage, err := OpenQueryProjectStage(s.op.Context(), &c.state, c.root)
 	if err != nil {
 		return err
 	}
@@ -171,7 +171,7 @@ func (s *StatementScope) materializeHeldCursor(c *sqlCursor) (err error) {
 	defer func() {
 		s.routineAuth = AuthorizationView{}
 		s.routineDependencies = nil
-		authority.host = nil
+		authority.Host = nil
 		if err != nil {
 			c.position = cursorFailed
 			_ = c.dispose(s.op.Context())
@@ -242,7 +242,7 @@ func (s *StatementScope) captureSQLCursorOutput(rows *finalRows, catalog catalog
 	}
 	var collationPath []ids.ObjectAddress
 	if err == nil {
-		for _, value := range rows.values {
+		for _, value := range rows.Values {
 			if !value.IsNull() && value.Type().ContainsRegcollation() {
 				collationPath, err = e.lookupPath(auth, collationLookup)
 				break
@@ -253,8 +253,8 @@ func (s *StatementScope) captureSQLCursorOutput(rows *finalRows, catalog catalog
 	if err != nil {
 		return err
 	}
-	for _, value := range rows.values {
-		if err := captureRegroleOutputValue(rows, capturedRegroleOutput{owner: e.catalog.owner(), roles: auth.Roles, quoteAll: rows.output.QuoteAllIdentifiers}, value); err != nil {
+	for _, value := range rows.Values {
+		if err := captureRegroleOutputValue(rows, capturedRegroleOutput{owner: e.catalog.owner(), roles: auth.Roles, quoteAll: rows.Output.QuoteAllIdentifiers}, value); err != nil {
 			return err
 		}
 		if err := captureRegObjectOutputValue(rows, catalog, collationPath, value); err != nil {
@@ -279,8 +279,8 @@ func (s *StatementScope) fetchHeldCursor(c *sqlCursor, fetch *parser.FetchCursor
 	}()
 	var rows *finalRows
 	if !fetch.Move {
-		rows = newFinalRows(c.schema, 0)
-		rows.output = s.output
+		rows = NewFinalRows(c.schema, 0)
+		rows.Output = s.output
 	}
 	moved, err := c.motion(fetch, rows, s)
 	if err != nil {

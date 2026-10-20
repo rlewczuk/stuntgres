@@ -17,8 +17,8 @@ func TestMergeReturningFrames(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(id INT,v INT)")
 	op, scope, b, target, inputs := updateFromBoundSources(t, e, s, context.Background(), "MERGE INTO t USING (VALUES(1,7)) src(id,delta) ON t.id=src.id WHEN MATCHED THEN UPDATE SET v=t.v+src.delta RETURNING merge_action(),old.v,new.v,t,old,new,src")
 	defer op.Done()
-	defer target.close()
-	defer inputs.close()
+	defer target.Close()
+	defer inputs.Close()
 	integer := func(n int64) sqltype.Value {
 		v, err := sqltype.Integer(b.relation.Columns[0].Usage.Type, n)
 		if err != nil {
@@ -28,10 +28,10 @@ func TestMergeReturningFrames(t *testing.T) {
 	}
 	row := []sqltype.Value{integer(1), integer(17), integer(1), integer(7)}
 	old := []sqltype.Value{integer(1), integer(10)}
-	owner := EvalContext{evalStatement: evalStatement{Context: op.Context()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: row, OldRow: old, mergeReturning: true, mergeSourcePresent: true}}
-	child := EvalContext{evalStatement: evalStatement{Context: op.Context()}, evalFrame: evalFrame{Scope: 1, Frame: 8, Outer: &owner, mergeReturning: true, mergeAction: parser.MergeDeleteAction}}
+	owner := EvalContext{evalStatement: evalStatement{Context: op.Context()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: row, OldRow: old, MergeReturning: true, MergeSourcePresent: true}}
+	child := EvalContext{evalStatement: evalStatement{Context: op.Context()}, evalFrame: evalFrame{Scope: 1, Frame: 8, Outer: &owner, MergeReturning: true, MergeAction: parser.MergeDeleteAction}}
 	for _, action := range []parser.MergeAction{parser.MergeInsertAction, parser.MergeUpdateAction, parser.MergeDeleteAction} {
-		owner.mergeAction = action
+		owner.MergeAction = action
 		owner.OldRow = old
 		if action == parser.MergeInsertAction {
 			owner.OldRow = nil
@@ -48,25 +48,25 @@ func TestMergeReturningFrames(t *testing.T) {
 			}
 		}
 	}
-	owner.mergeAction = parser.MergeUpdateAction
+	owner.MergeAction = parser.MergeUpdateAction
 	owner.OldRow = old
 	whole := b.returning.expressions[4].(plan.ReturningWholeRowExpr)
 	calls := 0
 	member := whole.Members[0]
 	whole.Members[0] = queryProbe(member.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return member.Eval(c) })
-	owner.mergeAction = parser.MergeInsertAction
+	owner.MergeAction = parser.MergeInsertAction
 	owner.OldRow = nil
 	v, err := whole.Eval(&child)
 	if err != nil || !v.IsNull() || calls != 0 {
 		t.Fatal("absent transition evaluated recipe", v, err, calls)
 	}
-	owner.mergeAction = parser.MergeUpdateAction
+	owner.MergeAction = parser.MergeUpdateAction
 	owner.OldRow = []sqltype.Value{sqltype.Null(row[0].Type()), sqltype.Null(row[1].Type())}
 	v, err = whole.Eval(&child)
 	if err != nil || v.IsNull() || calls != 1 {
 		t.Fatal("present all-NULL row collapsed", v, err, calls)
 	}
-	owner.mergeSourcePresent = false
+	owner.MergeSourcePresent = false
 	v, err = b.returning.expressions[6].Eval(&child)
 	if err != nil || !v.IsNull() {
 		t.Fatal("missing source whole row", v, err)
@@ -94,8 +94,8 @@ func TestMergeReturningPublication(t *testing.T) {
 			}
 			op, scope, b, target, inputs := updateFromBoundSources(t, e, s, context.Background(), q)
 			defer op.Done()
-			defer target.close()
-			defer inputs.close()
+			defer target.Close()
+			defer inputs.Close()
 			one, _ := sqltype.Integer(b.relation.Columns[0].Usage.Type, 1)
 			two, _ := sqltype.Integer(one.Type(), 2)
 			injected := errors.New("private output/producer veto")
@@ -107,7 +107,7 @@ func TestMergeReturningPublication(t *testing.T) {
 			if b.returning != nil {
 				b.returning.expressions[1] = queryProbe(b.returning.schema[1].Usage, func(c *EvalContext) (sqltype.Value, error) {
 					calls++
-					if cursor.closed != 1 || len(scope.stage.rows) != 0 || c.mergeAction != parser.MergeUpdateAction {
+					if cursor.closed != 1 || len(scope.stage.rows) != 0 || c.MergeAction != parser.MergeUpdateAction {
 						t.Fatal("projection crossed source/publication boundary", cursor.closed, calls)
 					}
 					if phase == "outputLate" && calls == 2 {
@@ -119,7 +119,7 @@ func TestMergeReturningPublication(t *testing.T) {
 					return c.Row[1], nil
 				})
 			}
-			state := &queryState{source: inputs, input: scope.input, output: scope.output}
+			state := &queryState{Source: inputs, Input: scope.input, Output: scope.output}
 			rows, err := e.assembleMergeRows(op.Context(), scope, b, target, cursor, state, "public", false)
 			if phase == "producerClose" || phase == "outputLate" || phase == "typeDrift" {
 				if rows != nil || err == nil {
@@ -145,8 +145,8 @@ func TestMergeReturningPublication(t *testing.T) {
 				}
 			} else {
 				defer rows.returning.Close()
-				if rows.returning.count != 2 || calls != 2 {
-					t.Fatal("accepted output count", calls, rows.returning.count)
+				if rows.returning.Count != 2 || calls != 2 {
+					t.Fatal("accepted output count", calls, rows.returning.Count)
 				}
 			}
 			if err = rows.stage(scope.Writes(), b.ref); err != nil {

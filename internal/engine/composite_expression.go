@@ -563,7 +563,7 @@ func (c *clauseState) noteFunctionSignature(name parser.ObjectName, pos parser.P
 func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (result expr.Expr, failure error) {
 	before := b.clause.fromSetObservation
 	defer func() {
-		if failure != nil || b.clause.aggregateClause != "FROM" || !sourceReturnsSet(result) {
+		if failure != nil || b.clause.aggregateClause != "FROM" || !SourceReturnsSet(result) {
 			return
 		}
 		if b.clause.fromSetObservation != before {

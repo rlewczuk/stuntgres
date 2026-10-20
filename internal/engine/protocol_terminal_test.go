@@ -37,8 +37,8 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	columns := []catalog.Column{{Name: "v", Usage: typ}}
-	rows := newFinalRows(columns, 1)
-	rows.values = []sqltype.Value{value}
+	rows := NewFinalRows(columns, 1)
+	rows.Values = []sqltype.Value{value}
 	disposals := 0
 	p := &protocolPortal{tx: scope.txRef, born: 1, entry: sqlPreparedStatement{body: &parser.Select{}}, columns: columns, started: true, context: ProtocolContext{Source: "retained source"}}
 	p.rows = protocolDisposalProbe{RowResult: rows, close: func() error {
@@ -73,7 +73,7 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 		cancel()
 		return primary
 	}, nil, nil, CopyProtocolHooks{})
-	if !errors.Is(err, primary) || disposals != 1 || !rows.closed {
+	if !errors.Is(err, primary) || disposals != 1 || !rows.Closed {
 		t.Fatal("failed executor lost primary or retained resources", err, disposals)
 	}
 	if p.retired || session.preparedSQL.portals["p"] != p || p.context.Source != "retained source" || len(p.columns) != 1 || p.rows != nil || p.producer != nil || p.row != nil || p.scratch != nil {

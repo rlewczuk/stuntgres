@@ -368,10 +368,10 @@ func TestTemporaryTableRetainedOwnerProjection(t *testing.T) {
 		copy := independentFinalRows(frozen)
 		decoded := tuples(Result{Rows: copy})
 		if len(decoded) != 2 || decoded[0][1] != true || decoded[0][2] != int64(9) || decoded[1][1] != true || decoded[1][2] != int64(10) {
-			t.Fatal(phase, "retained extraction", decoded, frozen.slots)
+			t.Fatal(phase, "retained extraction", decoded, frozen.Slots)
 		}
 		for i, want := range []int64{9, 10} {
-			row := frozen.source.row(i)
+			row := frozen.Source.Row(i)
 			if len(row) != 3 {
 				t.Fatal(phase, "retained source width", len(row))
 			}

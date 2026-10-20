@@ -24,12 +24,12 @@ func (s *StatementScope) positionedMutationRow(b binding) (mutationRowIdentity, 
 	occurrence := -1
 	marked := false
 	if c.locks != nil {
-		for i, leaf := range c.locks.leaves {
-			if leaf.mark.Mode == 0 {
+		for i, leaf := range c.locks.Leaves {
+			if leaf.Mark.Mode == 0 {
 				continue
 			}
 			marked = true
-			if leaf.leaf.ref != b.ref {
+			if leaf.Leaf.Ref != b.ref {
 				continue
 			}
 			if occurrence != -1 {
@@ -44,30 +44,30 @@ func (s *StatementScope) positionedMutationRow(b binding) (mutationRowIdentity, 
 		}
 	} else {
 		scan := cursorSimpleScan(c.root, c.source)
-		if scan == nil || scan.ref != b.ref {
+		if scan == nil || scan.Ref != b.ref {
 			return mutationRowIdentity{}, sqlError("24000", fmt.Sprintf("cursor \"%s\" is not a simply updatable scan of table \"%s\"", b.currentOf, b.relation.Name()))
 		}
-		occurrence = scan.occurrence
+		occurrence = scan.Occurrence
 	}
 	if c.position != cursorOn {
 		return mutationRowIdentity{}, sqlError("24000", fmt.Sprintf("cursor \"%s\" is not positioned on a row", b.currentOf))
 	}
-	if c.locks == nil || occurrence < 0 || occurrence >= len(c.locks.leaves) {
+	if c.locks == nil || occurrence < 0 || occurrence >= len(c.locks.Leaves) {
 		return mutationRowIdentity{}, ids.ErrCatalogReplaced
 	}
 	physical := cursorOccurrencePhysicalRow(c.currentSource, c.currentIndex, occurrence, c.locks)
-	if physical.version.Row == 0 {
+	if physical.Version.Row == 0 {
 		return mutationRowIdentity{}, nil
 	}
-	storage := s.mutationStorage(physical.leaf.ref)
+	storage := s.mutationStorage(physical.Leaf.Ref)
 	if storage == nil {
 		// ONLY excludes a positioned descendant, without changing its cursor.
 		return mutationRowIdentity{}, nil
 	}
-	if storage != physical.leaf.storage {
+	if storage != physical.Leaf.Storage {
 		return mutationRowIdentity{}, ids.ErrCatalogReplaced
 	}
-	return mutationRowIdentity{physical.leaf.ref, physical.version.Row}, nil
+	return mutationRowIdentity{physical.Leaf.Ref, physical.Version.Row}, nil
 }
 
 // Only occurrence-preserving nodes may expose an unlocked physical scan.
@@ -85,14 +85,14 @@ func cursorSimpleScan(node plan.Node, inputs *querySource) *querySource {
 	case *plan.DerivedNode:
 		return cursorSimpleScan(n.Query.Root, inputs)
 	case *plan.SourceNode:
-		source := querySourceAt(inputs, n.Occurrence)
-		for source.input != nil {
-			source = source.input
+		source := QuerySourceAt(inputs, n.Occurrence)
+		for source.Input != nil {
+			source = source.Input
 		}
-		if source.nestedRoot != nil {
-			return cursorSimpleScan(source.nestedRoot, source.nestedInputs)
+		if source.NestedRoot != nil {
+			return cursorSimpleScan(source.NestedRoot, source.NestedInputs)
 		}
-		if source.view == nil || source.materialized || source.anonymous != nil || source.singleton {
+		if source.View == nil || source.Materialized || source.Anonymous != nil || source.Singleton {
 			return nil
 		}
 		return source
@@ -104,76 +104,76 @@ func cursorSimpleScan(node plan.Node, inputs *querySource) *querySource {
 // Resolve one occurrence directly, without allocating the all-leaf vector used
 // by locking rechecks. Cached effective versions win over DECLARE-era versions.
 func cursorOccurrenceVersion(source *querySource, index, occurrence int, locks *queryLockContext) storage.RowVersion {
-	if source == nil || index == absentQueryIndex {
+	if source == nil || index == AbsentQueryIndex {
 		return storage.RowVersion{}
 	}
-	width := len(source.occurrences)
-	if width > 0 && (index+1)*width <= len(source.versions) && (source.versionValid == nil || index < len(source.versionValid) && source.versionValid[index]) {
-		for j, id := range source.occurrences {
+	width := len(source.Occurrences)
+	if width > 0 && (index+1)*width <= len(source.Versions) && (source.VersionValid == nil || index < len(source.VersionValid) && source.VersionValid[index]) {
+		for j, id := range source.Occurrences {
 			if id == occurrence {
-				return source.versions[index*width+j]
+				return source.Versions[index*width+j]
 			}
 		}
 		return storage.RowVersion{}
 	}
-	if source.input != nil {
-		return cursorOccurrenceVersion(source.input, index, occurrence, locks)
+	if source.Input != nil {
+		return cursorOccurrenceVersion(source.Input, index, occurrence, locks)
 	}
-	if source.lineage != nil {
-		return cursorOccurrenceVersion(source.lineage.stage, source.lineage.selection[index], occurrence, locks)
+	if source.Lineage != nil {
+		return cursorOccurrenceVersion(source.Lineage.Stage, source.Lineage.Selection[index], occurrence, locks)
 	}
-	if source.materialized {
-		for j, id := range source.occurrences {
+	if source.Materialized {
+		for j, id := range source.Occurrences {
 			if id != occurrence {
 				continue
 			}
-			visible := source.provenance[index*width+j]
-			if visible == absentQueryIndex {
+			visible := source.Provenance[index*width+j]
+			if visible == AbsentQueryIndex {
 				return storage.RowVersion{}
 			}
-			leaf := locks.leaves[id].source
-			if leaf.anonymous != nil {
+			leaf := locks.Leaves[id].Source
+			if leaf.Anonymous != nil {
 				return storage.RowVersion{}
 			}
-			return leaf.versionAt(leaf.rawIndex(visible))
+			return leaf.VersionAt(leaf.RawIndex(visible))
 		}
 		return storage.RowVersion{}
 	}
-	if source.singleton || source.anonymous != nil || source.occurrence != occurrence {
+	if source.Singleton || source.Anonymous != nil || source.Occurrence != occurrence {
 		return storage.RowVersion{}
 	}
-	return source.versionAt(source.rawIndex(index))
+	return source.VersionAt(source.RawIndex(index))
 }
 
 func cursorOccurrencePhysicalRow(source *querySource, index, occurrence int, locks *queryLockContext) queryPhysicalRow {
-	if source == nil || index == absentQueryIndex {
+	if source == nil || index == AbsentQueryIndex {
 		return queryPhysicalRow{}
 	}
-	if source.input != nil {
-		return cursorOccurrencePhysicalRow(source.input, source.inputIndex(index), occurrence, locks)
+	if source.Input != nil {
+		return cursorOccurrencePhysicalRow(source.Input, source.InputIndex(index), occurrence, locks)
 	}
-	if source.lineage != nil {
-		if source.lineage.selection != nil {
-			index = source.lineage.selection[index]
+	if source.Lineage != nil {
+		if source.Lineage.Selection != nil {
+			index = source.Lineage.Selection[index]
 		}
-		return cursorOccurrencePhysicalRow(source.lineage.stage, index, occurrence, locks)
+		return cursorOccurrencePhysicalRow(source.Lineage.Stage, index, occurrence, locks)
 	}
 	visible := index
-	if source.materialized {
-		visible = absentQueryIndex
-		for j, id := range source.occurrences {
+	if source.Materialized {
+		visible = AbsentQueryIndex
+		for j, id := range source.Occurrences {
 			if id == occurrence {
-				visible = source.provenance[index*len(source.occurrences)+j]
+				visible = source.Provenance[index*len(source.Occurrences)+j]
 				break
 			}
 		}
-	} else if source.occurrence != occurrence {
+	} else if source.Occurrence != occurrence {
 		return queryPhysicalRow{}
 	}
-	if visible == absentQueryIndex || occurrence < 0 || occurrence >= len(locks.leaves) {
+	if visible == AbsentQueryIndex || occurrence < 0 || occurrence >= len(locks.Leaves) {
 		return queryPhysicalRow{}
 	}
-	leaf := locks.leaves[occurrence]
+	leaf := locks.Leaves[occurrence]
 	version := cursorOccurrenceVersion(source, index, occurrence, locks)
-	return leaf.source.physicalRow(visible, leaf.leaf, version)
+	return leaf.Source.PhysicalRow(visible, leaf.Leaf, version)
 }

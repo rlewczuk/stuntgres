@@ -215,7 +215,7 @@ func TestControlTransactionsReplacementCancellationBoundary(t *testing.T) {
 				controlsRequire(t, a, "COMMIT")
 				transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 77)
 			}
-			if retained.count != 1 || retained.source.view.Data().Catalog.State() != before.State() || testExport(stored.Versions[0].Values[0]) != int64(77) {
+			if retained.Count != 1 || retained.Source.View.Data().Catalog.State() != before.State() || testExport(stored.Versions[0].Values[0]) != int64(77) {
 				t.Fatal("retained generation changed")
 			}
 		})

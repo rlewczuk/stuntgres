@@ -59,7 +59,7 @@ func (s *StatementScope) planForeignAction(auth AuthorizationView, job *foreignK
 		}
 		plan.input.TypeDiagnosticName = name
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: s.op.Context(), host: hostOf(s), catalog: auth.Catalog, Input: plan.input, Output: s.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}, evalAdmission: evalAdmission{routineAuthority: &auth}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: auth.Catalog, Input: plan.input, Output: s.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}, evalAdmission: evalAdmission{RoutineAuthority: &auth}}
 	if plan.domainChecks {
 		evaluation.Input.DomainChecks = &evaluation
 	}
@@ -240,7 +240,7 @@ func (s *StatementScope) applyForeignAction(auth AuthorizationView, job *foreign
 	if plan != nil {
 		input = plan.input
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: s.op.Context(), host: hostOf(s), catalog: ownerAuth.Catalog, Input: input, Output: s.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}, evalAdmission: evalAdmission{routineAuthority: &ownerAuth}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: s.op.Context(), Host: hostOf(s), Catalog: ownerAuth.Catalog, Input: input, Output: s.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}, evalAdmission: evalAdmission{RoutineAuthority: &ownerAuth}}
 	if plan != nil && plan.domainChecks {
 		evaluation.Input.DomainChecks = &evaluation
 	}

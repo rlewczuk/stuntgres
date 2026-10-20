@@ -90,23 +90,23 @@ func TestInheritanceDMLLocator(t *testing.T) {
 		return e.catalog.Domain.Ref(e.CatalogRead().Epoch(), d.Address())
 	}
 	old := storage.RowVersion{Row: 7, Version: 11, Base: 5, Born: 3, Values: []sqltype.Value{inheritanceQueryInt(e, 99), inheritanceQueryInt(e, 2), inheritanceQueryInt(e, 1)}}
-	physical := queryPhysicalRow{leaf: queryLeaf{ref: ref(c), relation: c, storage: &storage.Relation{}}, version: old, hint: 6, segment: &inheritanceQuerySegment{layout: layout, scratch: make([]sqltype.Value, 2)}}
+	physical := queryPhysicalRow{Leaf: queryLeaf{Ref: ref(c), Relation: c, Storage: &storage.Relation{}}, Version: old, Hint: 6, Segment: &inheritanceQuerySegment{Layout: layout, Scratch: make([]sqltype.Value, 2)}}
 	proposed := []sqltype.Value{inheritanceQueryInt(e, 8), inheritanceQueryInt(e, 2)}
 	scattered := scatterMutationRow(physical, old, proposed, []int{0})
 	want := []sqltype.Value{old.Values[0], old.Values[1], proposed[0]}
 	if !reflect.DeepEqual(scattered, want) || !reflect.DeepEqual(old.Values, []sqltype.Value{inheritanceQueryInt(e, 99), inheritanceQueryInt(e, 2), inheritanceQueryInt(e, 1)}) {
 		t.Fatal("scatter lost child-only values or mutated predecessor", scattered, old)
 	}
-	deletion := physical.deletion()
-	if deletion.Ref != ref(c) || deletion.Storage != physical.leaf.storage || deletion.Row != 7 || deletion.Version != 11 || deletion.Base != 5 || deletion.Ordinal != 6 || deletion.Own {
+	deletion := physical.Deletion()
+	if deletion.Ref != ref(c) || deletion.Storage != physical.Leaf.Storage || deletion.Row != 7 || deletion.Version != 11 || deletion.Base != 5 || deletion.Ordinal != 6 || deletion.Own {
 		t.Fatal("delete lost physical provenance", deletion)
 	}
 	if (mutationRowIdentity{ref(p), 7}) == (mutationRowIdentity{ref(c), 7}) {
 		t.Fatal("equal RowID aliased relations")
 	}
 	own := physical
-	own.version.Born = 0
-	if !own.deletion().Own {
+	own.Version.Born = 0
+	if !own.Deletion().Own {
 		t.Fatal("prior-own provenance lost")
 	}
 	identity := queryPhysicalRow{}
@@ -127,15 +127,15 @@ func TestInheritanceDMLAuthority(t *testing.T) {
 		t.Fatal(err)
 	}
 	child := s.inheritedTargets[0]
-	if s.mutationStorage(child.ref) != e.storage.Relations[c.Address()] || s.mutationStorage(s.lockedRef) != e.storage.Relations[p.Address()] {
+	if s.mutationStorage(child.Ref) != e.storage.Relations[c.Address()] || s.mutationStorage(s.lockedRef) != e.storage.Relations[p.Address()] {
 		t.Fatal("manifest lost stores")
 	}
-	foreign := child.ref
+	foreign := child.Ref
 	foreign.Address = outsider.Address()
 	if s.mutationStorage(foreign) != nil {
 		t.Fatal("unrelated live table gained mutation authority")
 	}
-	foreign = child.ref
+	foreign = child.Ref
 	foreign.Epoch++
 	if s.mutationStorage(foreign) != nil {
 		t.Fatal("wrong epoch gained mutation authority")
@@ -149,7 +149,7 @@ func TestInheritanceDMLAuthority(t *testing.T) {
 	if err := s.acquireInheritedMutationTargets(&parser.Update{}); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("changed descendant silently rebound", err)
 	}
-	if s.inheritedTargets[0].ref != before.ref || s.inheritedTargets[0].relation != before.relation || s.inheritedTargets[0].storage != before.storage {
+	if s.inheritedTargets[0].Ref != before.Ref || s.inheritedTargets[0].Relation != before.Relation || s.inheritedTargets[0].Storage != before.Storage {
 		t.Fatal("failed admission retargeted frozen manifest")
 	}
 }

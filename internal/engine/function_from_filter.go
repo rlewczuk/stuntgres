@@ -10,7 +10,7 @@ import (
 // excluded predecessor rows must not open its cursor. Move the complete predicate
 // once in an execution-private copy, without changing canonical/view literal
 // paths, outer joins, merged columns or expression boundaries. Nil declines.
-func functionFromWhere(root plan.Node, predicate expr.Expr) *plan.JoinNode {
+func FunctionFromWhere(root plan.Node, predicate expr.Expr) *plan.JoinNode {
 	join, ok := root.(*plan.JoinNode)
 	if !ok || join.Kind != parser.JoinInner || !join.CorrelatedRight || len(join.Merges) != 0 {
 		return nil

@@ -28,7 +28,7 @@ func TestUpdateFromCancelledTraversalAndPublicationCleanup(t *testing.T) {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				op, scope, b, target, from := updateFromBoundSources(t, e, writer, ctx, "UPDATE t SET v=s.k FROM s JOIN r ON s.k=r.k WHERE t.id=s.k RETURNING s.k")
-				children := append([]*querySource(nil), from.sources...)
+				children := append([]*querySource(nil), from.Sources...)
 				calls := 0
 				switch phase {
 				case "source_rejected":
@@ -79,11 +79,11 @@ func TestUpdateFromCancelledTraversalAndPublicationCleanup(t *testing.T) {
 				}
 				op.Done()
 				for _, child := range children {
-					if child.view != nil || child.committed != nil || child.own != nil {
+					if child.View != nil || child.Committed != nil || child.Own != nil {
 						t.Fatal("orphan source view", child)
 					}
 				}
-				if target.view != nil || from.sources != nil || len(scope.querySources) != 0 {
+				if target.View != nil || from.Sources != nil || len(scope.querySources) != 0 {
 					t.Fatal("orphan captured statement")
 				}
 				if explicit {

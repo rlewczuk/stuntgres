@@ -31,7 +31,7 @@ func normalizeConflictPredicate(ctx *EvalContext, node expr.Expr) (expr.Expr, er
 		return nil, nil
 	}
 	p := node.Properties()
-	if !p.RowDependent && !p.StageDependent && !p.RuntimeDomainConversion && plannedVolatility(node) == expr.Immutable {
+	if !p.RowDependent && !p.StageDependent && !p.RuntimeDomainConversion && PlannedVolatility(node) == expr.Immutable {
 		value, err := node.Eval(ctx)
 		if err != nil {
 			return nil, err
@@ -159,7 +159,7 @@ func negateConflictPredicate(n plan.LogicalExpr) expr.Expr {
 	return n
 }
 func conflictPredicateProof(ctx *EvalContext, a, b expr.Expr) (bool, error) {
-	if plannedVolatility(a) != expr.Immutable || plannedVolatility(b) != expr.Immutable {
+	if PlannedVolatility(a) != expr.Immutable || PlannedVolatility(b) != expr.Immutable {
 		return false, nil
 	}
 	if truth, ok := conflictLiteralTruth(b); ok && truth == plan.True {

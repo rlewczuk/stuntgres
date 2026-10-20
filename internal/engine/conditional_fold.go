@@ -51,7 +51,7 @@ func planningFold(node expr.Expr) expr.Fold {
 
 func anyRandomLiteralNull(children []expr.Expr) bool {
 	for _, child := range children {
-		if randomLiteralNull(child) {
+		if RandomLiteralNull(child) {
 			return true
 		}
 	}

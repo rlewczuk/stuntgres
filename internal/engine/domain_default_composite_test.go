@@ -70,7 +70,7 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 	if !ok || originalRow.FieldProjection != nil {
 		t.Fatal("fresh constructor allocated retained associations", originalField.Base)
 	}
-	initialContext := EvalContext{evalStatement: evalStatement{Context: op.Context(), catalog: before}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	initialContext := EvalContext{evalStatement: evalStatement{Context: op.Context(), Catalog: before}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	initialValue, initialErr := originalRow.Eval(&initialContext)
 	if initialErr != nil || initialValue.CompositeLen() != 3 {
 		t.Fatal("normal row changed its declared shape", initialValue, initialErr)
@@ -116,7 +116,7 @@ func TestDomainDefaultCompositeFieldDependenciesInternal(t *testing.T) {
 	if !found || !constructor || selected.Index != 1 || len(row.Fields) != 3 || len(row.FieldProjection) != 3 || row.FieldProjection[0].Slot != -1 || row.FieldProjection[1].Slot != 0 || row.FieldProjection[2].Slot != -1 {
 		t.Fatal("lost original written child association", selected, row)
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), catalog: after}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Catalog: after}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	value, err := selected.Eval(&evaluation)
 	if err != nil {
 		t.Fatal(err)

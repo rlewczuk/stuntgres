@@ -41,7 +41,7 @@ func TestQueryWindowValueMemberSelection(t *testing.T) {
 					}
 					for _, reverse := range []bool{false, true} {
 						for _, ordinal := range []int64{-1, 0, 1, 2, 3, 4, 5, math.MaxInt64} {
-							member, present := windowValueMember(mode, head, tail, current, peerStart, peerEnd, ordinal, reverse)
+							member, present := WindowValueMember(mode, head, tail, current, peerStart, peerEnd, ordinal, reverse)
 							wantPresent := ordinal >= 0 && ordinal < int64(len(admitted))
 							if present != wantPresent {
 								t.Fatal(mode, head, tail, current, ordinal, reverse, present, admitted)
@@ -65,7 +65,7 @@ func TestQueryWindowValueMemberSelection(t *testing.T) {
 
 func TestQueryWindowValueGraphAndMetadata(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT first_value(v) OVER w,nth_value(v,id) OVER w,nth_value(v,id+1) OVER w FROM t WINDOW w AS(ORDER BY id ROWS CURRENT ROW)")
-	defer source.close()
+	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	for _, column := range query.Root.Schema() {
 		if !column.Nullable || !column.NullabilityKnown || column.OriginTable != 0 || column.OriginAttribute != 0 || column.Usage.Typmod != -1 || column.Usage.Type.ID() != sqltype.Int4 {
@@ -165,13 +165,13 @@ func TestQueryWindowValueEvaluationCancellation(t *testing.T) {
 			} else {
 				call.Ordinal = probe
 			}
-			rows, count, err := finalizeQuery(ctx, query.Root, source, nil)
+			rows, count, err := Finalize(ctx, query.Root, source, nil)
 			if rows != nil {
 				rows.Close()
 			}
 			var d *sqlstate.Error
-			if !entered || rows != nil || count != 0 || !errors.Is(err, context.Canceled) || errors.As(err, &d) || source.view != nil {
-				t.Fatal("canceled value window published/leaked", entered, count, err, source.view)
+			if !entered || rows != nil || count != 0 || !errors.Is(err, context.Canceled) || errors.As(err, &d) || source.View != nil {
+				t.Fatal("canceled value window published/leaked", entered, count, err, source.View)
 			}
 		})
 	}
@@ -244,7 +244,7 @@ func TestQueryWindowValueCurrentOrdinalAndSelectedEvaluation(t *testing.T) {
 		selected = append(selected, id)
 		return argument.Eval(c)
 	})
-	rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +279,7 @@ func TestQueryWindowValueSortOwnerSlots(t *testing.T) {
 	} {
 		t.Run(tc.order, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT first_value(nextval($1)) OVER w AS a,first_value(nextval($1)) OVER w AS b FROM t WINDOW w AS(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)"+tc.order)
-			defer source.close()
+			defer source.Close()
 			project := query.Root.(*plan.ProjectNode)
 			child := project.Child
 			if sorted, ok := child.(*plan.SortNode); ok {
@@ -304,7 +304,7 @@ func TestQueryWindowValueSortOwnerSlots(t *testing.T) {
 	}
 	t.Run("retained-wrapper-is-not-a-leaf-owner", func(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT first_value(nextval($1)) OVER w+1 AS a,first_value(nextval($1)) OVER w AS b FROM t WINDOW w AS(ORDER BY id) ORDER BY a")
-		defer source.close()
+		defer source.Close()
 		node := query.Root.(*plan.ProjectNode).Child.(*plan.SortNode).Child.(*plan.WindowNode)
 		if len(node.Calls) != 2 || node.Calls[0].Expression.Slot == node.Calls[1].Expression.Slot {
 			t.Fatal("retained wrapper donated nested leaf", node.Calls)
@@ -316,23 +316,23 @@ func TestQueryWindowValueOutputPublicationCancellation(t *testing.T) {
 	for _, phase := range []string{"output", "prepublication"} {
 		t.Run(phase, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT nth_value(v,id) OVER w,count(*) OVER w FROM t WINDOW w AS(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE CURRENT ROW)")
-			continuation, err := captureQuerySource(context.Background(), source.view, source.ref)
+			continuation, err := captureQuerySource(context.Background(), source.View, source.Ref)
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer continuation.close()
+			defer continuation.Close()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			probe := &windowCancelContext{Context: ctx, cancel: cancel, phase: phase}
-			rows, count, err := finalizeQuery(probe, query.Root, source, nil)
+			rows, count, err := Finalize(probe, query.Root, source, nil)
 			if rows != nil {
 				rows.Close()
 			}
 			var diagnostic *sqlstate.Error
-			if !probe.entered || rows != nil || count != 0 || !errors.Is(err, context.Canceled) || errors.As(err, &diagnostic) || source.view != nil {
-				t.Fatal("value output/Finish cancellation", probe.entered, count, err, source.view)
+			if !probe.entered || rows != nil || count != 0 || !errors.Is(err, context.Canceled) || errors.As(err, &diagnostic) || source.View != nil {
+				t.Fatal("value output/Finish cancellation", probe.entered, count, err, source.View)
 			}
-			recovered, count, err := finalizeQuery(context.Background(), query.Root, continuation, nil)
+			recovered, count, err := Finalize(context.Background(), query.Root, continuation, nil)
 			if err != nil || recovered == nil || count != 4 {
 				t.Fatal("same bound graph recovery", count, err)
 			}
@@ -343,7 +343,7 @@ func TestQueryWindowValueOutputPublicationCancellation(t *testing.T) {
 
 func TestQueryWindowValueHiddenSortOwner(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT first_value(nextval($1)) OVER w+1 AS a FROM t WINDOW w AS(ORDER BY id) ORDER BY first_value(nextval($1)) OVER w")
-	defer source.close()
+	defer source.Close()
 	project := query.Root.(*plan.ProjectNode)
 	node := project.Child.(*plan.SortNode).Child.(*plan.WindowNode)
 	if len(project.Schema()) != 1 || len(node.Calls) != 1 || node.Calls[0].Expression.Call != 1 {

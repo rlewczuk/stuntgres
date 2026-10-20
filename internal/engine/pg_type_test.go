@@ -26,7 +26,7 @@ func pgTypeUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef
 func pgTypeUnitBag(t *testing.T, source *querySource, d *catalog.Relation) map[uint32][]sqltype.Value {
 	t.Helper()
 	bag := make(map[uint32][]sqltype.Value)
-	for _, row := range source.anonymous {
+	for _, row := range source.Anonymous {
 		if len(row) != 32 {
 			t.Fatal("row width", len(row))
 		}
@@ -143,11 +143,11 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 	}
 	first, second := capture(), capture()
 	bag := pgTypeUnitBag(t, second, d)
-	if first.ref != ref || !maps.Equal(descriptors, maps.Collect(e.catalog.state.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.state.Names())) {
+	if first.Ref != ref || !maps.Equal(descriptors, maps.Collect(e.catalog.state.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.state.Names())) {
 		t.Fatal("capture mutated authority")
 	}
-	first.anonymous[0][0] = sqltype.Null(d.Columns[0].Usage.Type)
-	first.anonymous[0] = nil
+	first.Anonymous[0][0] = sqltype.Null(d.Columns[0].Usage.Type)
+	first.Anonymous[0] = nil
 	if !reflect.DeepEqual(pgTypeUnitBag(t, second, d), bag) {
 		t.Fatal("shared capture backing")
 	}
@@ -211,7 +211,7 @@ func TestPGTypeCaptureOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	var found bool
-	for _, row := range s.anonymous {
+	for _, row := range s.Anonymous {
 		if id, _ := row[0].OID(); id == 23 {
 			found = true
 			if row[31].IsNull() || row[31].ArrayLen() != 0 {

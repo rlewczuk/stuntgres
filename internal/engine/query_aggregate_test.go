@@ -36,7 +36,7 @@ func (p aggregateProbeProvider) Finalize(ctx context.Context, s any) (sqltype.Va
 func TestQueryAggregateCountProvider(t *testing.T) {
 	e, query, source := queryCoreFixture(t, "SELECT count(*) FROM t")
 	_ = e
-	defer source.close()
+	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	p := node.Calls[0].Provider
 	if p.ResultUsage() != query.Root.Schema()[0].Usage {
@@ -49,9 +49,9 @@ func TestQueryAggregateEagerOwnershipAndMetadata(t *testing.T) {
 	if schema[0].OriginTable == 0 || schema[0].OriginAttribute != 2 || !schema[0].NullabilityKnown || !schema[0].Nullable || schema[1].Usage.Type.ID() != sqltype.Int8 || schema[1].OriginTable != 0 || !schema[1].NullabilityKnown || schema[1].Nullable {
 		t.Fatal(schema)
 	}
-	rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
-	if err != nil || count != 3 || source.view != nil {
-		t.Fatal(rows, count, err, source.view)
+	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	if err != nil || count != 3 || source.View != nil {
+		t.Fatal(rows, count, err, source.View)
 	}
 	defer rows.Close()
 	scratch := make([]sqltype.Value, 2)
@@ -148,12 +148,12 @@ func TestQueryAggregateCancellationAndLateErrors(t *testing.T) {
 					return original.Finalize(ctx, s)
 				}}
 			}
-			rows, count, err := finalizeQuery(ctx, query.Root, source, nil)
+			rows, count, err := Finalize(ctx, query.Root, source, nil)
 			want := error(context.Canceled)
 			if phase == "late_finalize" {
 				want = sentinel
 			}
-			if rows != nil || count != 0 || !errors.Is(err, want) || source.view != nil || source.anonymous != nil {
+			if rows != nil || count != 0 || !errors.Is(err, want) || source.View != nil || source.Anonymous != nil {
 				t.Fatal(rows, count, err, want, source)
 			}
 		})
@@ -161,20 +161,20 @@ func TestQueryAggregateCancellationAndLateErrors(t *testing.T) {
 }
 func TestQueryAggregateHashCollisionEquality(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT v,count(*) FROM t GROUP BY v")
-	defer source.close()
+	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	typ := node.Keys[0].ResultUsage().Type
 	one, _ := sqltype.Integer(typ, 1)
 	two, _ := sqltype.Integer(typ, 2)
-	groups := []queryGroup{{keys: []sqltype.Value{one}}, {keys: []sqltype.Value{two}}}
+	groups := []queryGroup{{Keys: []sqltype.Value{one}}, {Keys: []sqltype.Value{two}}}
 	// A forced collision bucket is not evidence that its first key is equal.
-	index, err := findQueryGroup(context.Background(), node.Grouping, []sqltype.Value{two}, []int{0}, groups, []int{0, 1})
+	index, err := FindQueryGroup(context.Background(), node.Grouping, []sqltype.Value{two}, []int{0}, groups, []int{0, 1})
 	if err != nil || index != 1 {
 		t.Fatal(index, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := findQueryGroup(ctx, node.Grouping, []sqltype.Value{two}, []int{0}, groups, []int{0, 1}); !errors.Is(err, context.Canceled) {
+	if _, err := FindQueryGroup(ctx, node.Grouping, []sqltype.Value{two}, []int{0}, groups, []int{0, 1}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }
@@ -193,7 +193,7 @@ func TestQueryAggregateInsertLateProviderFailure(t *testing.T) {
 		return original.Finalize(ctx, s)
 	}}
 	rows, err := evaluateInsertQuery(context.Background(), b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
-	if rows.values != nil || err != sentinel || calls != 2 || source.view != nil || source.anonymous != nil {
+	if rows.values != nil || err != sentinel || calls != 2 || source.View != nil || source.Anonymous != nil {
 		t.Fatal(rows, err, calls, source)
 	}
 }
@@ -211,8 +211,8 @@ func TestQueryAggregateLateKeyFailure(t *testing.T) {
 		}
 		return original.Eval(c)
 	})
-	rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
-	if rows != nil || count != 0 || err != sentinel || calls != 3 || source.view != nil {
+	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	if rows != nil || count != 0 || err != sentinel || calls != 3 || source.View != nil {
 		t.Fatal(rows, count, err, calls)
 	}
 }
@@ -235,13 +235,13 @@ func (c *aggregateCancelContext) Err() error {
 func TestQueryAggregateMidHashAndCollisionCancellation(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT v,count(*) FROM t GROUP BY v")
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
-	usage := source.row(0)[1].Type().Usage()
+	usage := source.Row(0)[1].Type().Usage()
 	// The collision comparator cancels after entering typed equality, not merely
 	// before opening the stage.
 	one, _ := sqltype.Integer(usage.Type, 1)
 	two, _ := sqltype.Integer(usage.Type, 2)
 	collision := &aggregateCancelContext{Context: context.Background(), armed: true, at: 4}
-	if _, err := findQueryGroup(collision, node.Grouping, []sqltype.Value{two}, []int{0}, []queryGroup{{keys: []sqltype.Value{one}}, {keys: []sqltype.Value{two}}}, []int{0, 1}); !errors.Is(err, context.Canceled) {
+	if _, err := FindQueryGroup(collision, node.Grouping, []sqltype.Value{two}, []int{0}, []queryGroup{{Keys: []sqltype.Value{one}}, {Keys: []sqltype.Value{two}}}, []int{0, 1}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	// A real admitted TEXT key is scanned and canceled inside the shared hash.
@@ -258,15 +258,15 @@ func TestQueryAggregateMidHashAndCollisionCancellation(t *testing.T) {
 		hashContext.armed = true
 		return sqltype.String(descriptor, strings.Repeat("x", 2048)), nil
 	})
-	rows, count, err := finalizeQuery(hashContext, query.Root, source, nil)
-	if rows != nil || count != 0 || !errors.Is(err, context.Canceled) || source.view != nil {
+	rows, count, err := Finalize(hashContext, query.Root, source, nil)
+	if rows != nil || count != 0 || !errors.Is(err, context.Canceled) || source.View != nil {
 		t.Fatal(rows, count, err, source)
 	}
 }
 
 func TestQueryAggregateSemanticIdentityAndStagePreflight(t *testing.T) {
 	e, query, source := queryCoreFixture(t, "SELECT (v+1)*2,count(*) FROM t GROUP BY v+1")
-	defer source.close()
+	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	key := node.Keys[0].(plan.ArithmeticExpr)
 	binder := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
@@ -323,7 +323,7 @@ func (c *aggregateSortCancelContext) Err() error {
 		for {
 			frame, more := frames.Next()
 			comparison = comparison || strings.HasSuffix(frame.Function, ".Comparison.Compare")
-			merge = merge || strings.Contains(frame.Function, ".mergeQueryIndices")
+			merge = merge || strings.Contains(frame.Function, ".MergeQueryIndices")
 			replay = replay || strings.HasSuffix(frame.Function, ".replayOrderedAggregate")
 			if !more {
 				break
@@ -342,7 +342,7 @@ func TestQueryAggregateActualSortComparisonCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	probe := &aggregateSortCancelContext{Context: ctx, cancel: cancel}
-	rows, count, err := finalizeQuery(probe, query.Root, source, nil)
+	rows, count, err := Finalize(probe, query.Root, source, nil)
 	if !probe.comparisonEntered || ctx.Err() != context.Canceled ||
 		!errors.Is(err, context.Canceled) || rows != nil || count != 0 {
 		t.Fatal(probe.comparisonEntered, rows, count, err)
@@ -361,9 +361,9 @@ func TestQueryAggregateRealAdvanceFailure(t *testing.T) {
 		argumentEffects++
 		return sqltype.Float(usage.Type, math.MaxFloat32)
 	})
-	rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
 	var diagnostic *sqlstate.Error
-	if rows != nil || count != 0 || !errors.As(err, &diagnostic) || *diagnostic != (sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22003", Message: "value out of range: overflow"}) || argumentEffects != 2 || source.view != nil || source.anonymous != nil {
+	if rows != nil || count != 0 || !errors.As(err, &diagnostic) || *diagnostic != (sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22003", Message: "value out of range: overflow"}) || argumentEffects != 2 || source.View != nil || source.Anonymous != nil {
 		t.Fatal(rows, count, err, argumentEffects, source)
 	}
 }

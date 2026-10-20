@@ -40,7 +40,7 @@ func TestUpdateCoreVersionsAndPrivateHeads(t *testing.T) {
 	if len(current) != 3 || current[0].Row != original[0].Row || current[1].Row != original[1].Row || current[0].Version == original[0].Version || current[0].Born <= original[0].Born || current[0].Base != 0 {
 		t.Fatal("current committed heads", current)
 	}
-	if saved.count != 2 || testExport(original[0].Values[0]) != int64(1) {
+	if saved.Count != 2 || testExport(original[0].Values[0]) != int64(1) {
 		t.Fatal("retained predecessor changed")
 	}
 	tx = transactionBegin(t, a)

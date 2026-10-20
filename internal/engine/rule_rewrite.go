@@ -119,7 +119,7 @@ func makeRuleProducer(catalog catalog.Read, b binding, event string, outputUses 
 			}
 		}
 	} else {
-		p.sources = append([]queryLeaf{{ref: b.ref, relation: d, storage: b.storage, uses: b.usedColumns}}, b.querySources...)
+		p.sources = append([]queryLeaf{{Ref: b.ref, Relation: d, Storage: b.storage, Uses: b.usedColumns}}, b.querySources...)
 		p.root = &plan.SourceNode{QuerySchema: plan.QuerySchema(d.Columns), Ref: b.ref, Occurrence: 0}
 		var from plan.Node
 		var condition expr.Expr
@@ -718,11 +718,11 @@ func composeRuleAction(auth AuthorizationView, original binding, event string, r
 	b.querySources = append(b.querySources, conditionSources...)
 	for i := range b.querySources {
 		if i < sourceOffset {
-			if b.querySources[i].principal == (authorization.PrincipalRef{}) {
-				b.querySources[i].principal = caller
+			if b.querySources[i].Principal == (authorization.PrincipalRef{}) {
+				b.querySources[i].Principal = caller
 			}
 		} else {
-			b.querySources[i].principal = auth.State.CurrentUser
+			b.querySources[i].Principal = auth.State.CurrentUser
 		}
 	}
 	b.subqueryDemand = b.subqueryDemand || original.subqueryDemand
@@ -1149,28 +1149,28 @@ func refreshRuleSources(auth AuthorizationView, b binding) (binding, error) {
 	catalog := auth.Catalog
 	var sources []queryLeaf
 	for i, source := range b.querySources {
-		current, ok := catalog.Relation(source.ref.Address)
-		if !ok || source.relation == nil || source.ref.Domain() != auth.Owner.Domain || source.ref.Epoch != catalog.Epoch() || source.ref.Address.SubID != 0 {
+		current, ok := catalog.Relation(source.Ref.Address)
+		if !ok || source.Relation == nil || source.Ref.Domain() != auth.Owner.Domain || source.Ref.Epoch != catalog.Epoch() || source.Ref.Address.SubID != 0 {
 			return b, ids.ErrCatalogReplaced
 		}
-		storage := auth.engine.authorizationStorageLocked(auth, source.ref.Address)
-		if current == source.relation && storage == source.storage {
+		storage := auth.engine.authorizationStorageLocked(auth, source.Ref.Address)
+		if current == source.Relation && storage == source.Storage {
 			continue
 		}
 		if sources == nil {
 			sources = slices.Clone(b.querySources)
 		}
 		updated := source
-		updated.relation = current
-		updated.storage = storage
-		if !slices.Equal(source.relation.Attributes, current.Attributes) {
-			updated.uses = slices.Clone(source.uses)
-			for j, slot := range source.uses {
-				if slot < 0 || slot >= len(source.relation.Attributes) {
+		updated.Relation = current
+		updated.Storage = storage
+		if !slices.Equal(source.Relation.Attributes, current.Attributes) {
+			updated.Uses = slices.Clone(source.Uses)
+			for j, slot := range source.Uses {
+				if slot < 0 || slot >= len(source.Relation.Attributes) {
 					return b, ids.ErrCatalogReplaced
 				}
-				updated.uses[j] = slices.Index(current.Attributes, source.relation.Attributes[slot])
-				if updated.uses[j] < 0 {
+				updated.Uses[j] = slices.Index(current.Attributes, source.Relation.Attributes[slot])
+				if updated.Uses[j] < 0 {
 					return b, ids.ErrCatalogReplaced
 				}
 			}

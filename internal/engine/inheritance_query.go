@@ -30,49 +30,49 @@ func inheritanceQueryLayout(parent, child *catalog.Relation) ([]int, error) {
 }
 
 func captureInheritanceQueryPrefix(catalogView catalog.Read, view *visibility.View, leaf queryLeaf, token ids.SessionToken) (*querySource, error) {
-	if leaf.only || !inheritanceHasChildren(catalogView, leaf.ref.Address) {
-		return captureQueryPrefix(view, leaf.ref)
+	if leaf.Only || !inheritanceHasChildren(catalogView, leaf.Ref.Address) {
+		return captureQueryPrefix(view, leaf.Ref)
 	}
 	pin := view.Retain()
 	if pin == nil {
 		return nil, errors.New("stuntgres: visibility view is released")
 	}
-	source := &querySource{ref: leaf.ref, view: pin, inheritance: make([]inheritanceQuerySegment, 0)}
-	err := inheritanceQueryClosure(catalogView, leaf.relation, token, func(physical *catalog.Relation) error {
+	source := &querySource{Ref: leaf.Ref, View: pin, Inheritance: make([]inheritanceQuerySegment, 0)}
+	err := inheritanceQueryClosure(catalogView, leaf.Relation, token, func(physical *catalog.Relation) error {
 		child := leaf
-		child.ref.Address, child.relation = physical.Address(), physical
-		child.storage = view.Data().GenerationAt(physical.Address())
-		layout, err := inheritanceQueryLayout(leaf.relation, physical)
+		child.Ref.Address, child.Relation = physical.Address(), physical
+		child.Storage = view.Data().GenerationAt(physical.Address())
+		layout, err := inheritanceQueryLayout(leaf.Relation, physical)
 		if err != nil {
 			return err
 		}
-		prefix, err := captureQueryPrefix(view, child.ref)
+		prefix, err := captureQueryPrefix(view, child.Ref)
 		if err != nil {
 			return err
 		}
-		segment := inheritanceQuerySegment{leaf: child, prefix: prefix, layout: layout}
+		segment := inheritanceQuerySegment{Leaf: child, Prefix: prefix, Layout: layout}
 		if layout != nil {
-			segment.scratch = make([]sqltype.Value, len(layout))
+			segment.Scratch = make([]sqltype.Value, len(layout))
 		}
-		source.inheritance = append(source.inheritance, segment)
+		source.Inheritance = append(source.Inheritance, segment)
 		return nil
 	})
 	if err != nil {
-		source.close()
+		source.Close()
 		return nil, err
 	}
 	// Foreign TEMP branches may leave just the original physical relation.
-	if len(source.inheritance) == 1 {
-		prefix := source.inheritance[0].prefix
-		source.inheritance = nil
-		source.close()
+	if len(source.Inheritance) == 1 {
+		prefix := source.Inheritance[0].Prefix
+		source.Inheritance = nil
+		source.Close()
 		return prefix, nil
 	}
-	source.inheritanceEnds = make([]int, len(source.inheritance))
+	source.InheritanceEnds = make([]int, len(source.Inheritance))
 	total := 0
-	for i, segment := range source.inheritance {
-		total += segment.prefix.count()
-		source.inheritanceEnds[i] = total
+	for i, segment := range source.Inheritance {
+		total += segment.Prefix.Count()
+		source.InheritanceEnds[i] = total
 	}
 	return source, nil
 }

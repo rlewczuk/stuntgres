@@ -18,49 +18,49 @@ type deleteUsingCandidate struct {
 // occurrence indexes are retained, before any target row arbitration can wait.
 func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evaluation *EvalContext, positioned mutationRowIdentity) (Result, error) {
 	ctx := evaluation.Context
-	evaluation.query.virtualReads = queryHasVirtualReads(b.delete.using) || boundHasVirtualReads(b.predicate)
+	evaluation.Query.VirtualReads = QueryHasVirtualReads(b.delete.using) || BoundHasVirtualReads(b.predicate)
 	if b.returning != nil {
 		for _, expression := range b.returning.expressions {
-			evaluation.query.virtualReads = evaluation.query.virtualReads || boundHasVirtualReads(expression)
+			evaluation.Query.VirtualReads = evaluation.Query.VirtualReads || BoundHasVirtualReads(expression)
 		}
 	}
-	stage, err := openQueryNode(ctx, evaluation.query, b.delete.using)
+	stage, err := OpenNode(ctx, evaluation.Query, b.delete.using)
 	if err != nil {
 		return Result{}, err
 	}
-	stage, err = settlePendingQueryMarks(ctx, evaluation.query, b.delete.using, stage)
+	stage, err = SettlePendingQueryMarks(ctx, evaluation.Query, b.delete.using, stage)
 	if err != nil {
 		return Result{}, err
 	}
 	defer stage.Close()
-	if err := stage.drain(ctx); err != nil {
+	if err := stage.Drain(ctx); err != nil {
 		return Result{}, err
 	}
 	var frame []sqltype.Value
-	sourceCount := stage.count()
+	sourceCount := stage.Count()
 	targetCount := 0
 	if sourceCount != 0 {
 		frame = make([]sqltype.Value, len(b.relation.Columns)+b.delete.sourceWidth)
-		targetCount = source.count()
+		targetCount = source.Count()
 	}
 	var candidates []deleteUsingCandidate
 	for i := range targetCount {
 		physical := mutationPhysicalRow(source, i, b)
-		version := physical.version
-		if b.currentOf != "" && (positioned.ref != physical.leaf.ref || version.Row != positioned.row) {
+		version := physical.Version
+		if b.currentOf != "" && (positioned.ref != physical.Leaf.Ref || version.Row != positioned.row) {
 			continue
 		}
-		candidate := physical.deletion()
+		candidate := physical.Deletion()
 		for j := range sourceCount {
 			if err := ctx.Err(); err != nil {
 				return Result{}, err
 			}
-			copy(frame, physical.values(version))
-			copy(frame[len(b.relation.Columns):], stage.source.row(stage.index(j)))
+			copy(frame, physical.Values(version))
+			copy(frame[len(b.relation.Columns):], stage.Source.Row(stage.Index(j)))
 			evaluation.Row = frame
-			evaluation.bindQueryIdentity(stage.source, stage.index(j))
-			evaluation.physicalTable = physical.leaf.ref
-			matches, err := updateMatches(evaluation, b.predicate)
+			evaluation.BindQueryIdentity(stage.Source, stage.Index(j))
+			evaluation.PhysicalTable = physical.Leaf.Ref
+			matches, err := UpdateMatches(evaluation, b.predicate)
 			if err != nil {
 				return Result{}, err
 			}
@@ -71,13 +71,13 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 	}
 	var deletedIDs map[mutationRowIdentity]bool
 	if len(candidates) != 0 {
-		deletedIDs = make(map[mutationRowIdentity]bool, min(len(candidates), source.count()))
+		deletedIDs = make(map[mutationRowIdentity]bool, min(len(candidates), source.Count()))
 	}
 	var rows *finalRows
 	keep := false
 	if b.returning != nil {
-		rows = newFinalRows(b.returning.schema, 0)
-		rows.output = s.output
+		rows = NewFinalRows(b.returning.schema, 0)
+		rows.Output = s.output
 		defer func() {
 			if !keep {
 				rows.Close()
@@ -104,16 +104,16 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 		if !live {
 			continue
 		}
-		copy(frame, pair.physical.values(current))
-		copy(frame[len(b.relation.Columns):], stage.source.row(stage.index(pair.sourceIndex)))
+		copy(frame, pair.physical.Values(current))
+		copy(frame[len(b.relation.Columns):], stage.Source.Row(stage.Index(pair.sourceIndex)))
 		evaluation.Row = frame
-		evaluation.bindQueryIdentity(stage.source, stage.index(pair.sourceIndex))
-		evaluation.physicalTable = candidate.Ref
+		evaluation.BindQueryIdentity(stage.Source, stage.Index(pair.sourceIndex))
+		evaluation.PhysicalTable = candidate.Ref
 		if current.Version != candidate.Version {
 			if err := s.physicalRowEvent(candidate.Ref, current, lock.MultiUpdateLock, 0); err != nil {
 				return Result{}, err
 			}
-			matches, err := updateMatches(evaluation, b.predicate)
+			matches, err := UpdateMatches(evaluation, b.predicate)
 			if err != nil {
 				return Result{}, err
 			}
@@ -139,12 +139,12 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 				if err != nil {
 					return Result{}, err
 				}
-				if value.Type() == nil || !value.Type().Concrete() || value.Type() != rows.schema[output].Usage.Type {
+				if value.Type() == nil || !value.Type().Concrete() || value.Type() != rows.Columns[output].Usage.Type {
 					return Result{}, errors.New("stuntgres: invalid finalized DELETE value")
 				}
-				rows.values = append(rows.values, value)
+				rows.Values = append(rows.Values, value)
 			}
-			rows.count++
+			rows.Count++
 		}
 	}
 	if rows != nil && b.returning.regclassOutput && count != 0 {

@@ -98,7 +98,7 @@ func TestBlockingPidsBindingAndIdentity(t *testing.T) {
 	input, _ := sqltype.Integer(blockingUnitType(e), int64(waiter.token.ID()))
 	inquiry.Arg = plan.LiteralExpr{Info: expr.Info{Usage: input.Type().Usage()}, Value: input}
 	inquiry.Property = expr.Properties{Volatility: expr.Volatile}
-	evaluation := &EvalContext{evalStatement: evalStatement{Context: context.Background(), host: hostOf(scope)}}
+	evaluation := &EvalContext{evalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope)}}
 	before, err := inquiry.Eval(evaluation)
 	if err != nil || before.IsNull() || before.ArrayLen() != 1 {
 		t.Fatal("live inquiry", before, err)

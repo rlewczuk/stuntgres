@@ -23,7 +23,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 	d, _ := catalogView.Relation(s.lockedRef.Address)
 	hasView := d != nil && (d.RelationKind == catalog.ViewRelation || s.materializedOrZero().refresh && d.RelationKind == catalog.MaterializedViewRelation)
 	for _, leaf := range s.querySources {
-		if leaf.relation.RelationKind == catalog.ViewRelation {
+		if leaf.Relation.RelationKind == catalog.ViewRelation {
 			hasView = true
 			break
 		}
@@ -39,10 +39,10 @@ func (s *StatementScope) acquireViewSources() (err error) {
 	var visit func(ids.ObjectRef, lock.Mode) error
 	visit = func(ref ids.ObjectRef, mode lock.Mode) error {
 		prior, visited := seen[ref]
-		if ref == (ids.ObjectRef{}) || visited && strongerQueryRowMode(prior, mode) == prior {
+		if ref == (ids.ObjectRef{}) || visited && StrongerQueryRowMode(prior, mode) == prior {
 			return nil
 		}
-		seen[ref] = strongerQueryRowMode(prior, mode)
+		seen[ref] = StrongerQueryRowMode(prior, mode)
 		d, ok := catalogView.Relation(ref.Address)
 		if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || !ok {
 			return ids.ErrCatalogReplaced
@@ -56,9 +56,9 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		admitted := ref == s.lockedRef
 		admittedMode := lock.Mode(0)
 		for _, leaf := range s.querySources {
-			if leaf.ref == ref {
+			if leaf.Ref == ref {
 				admitted = true
-				admittedMode = strongerQueryRowMode(admittedMode, leaf.mark.Mode)
+				admittedMode = StrongerQueryRowMode(admittedMode, leaf.Mark.Mode)
 			}
 		}
 		if !admitted && !visited || admitted && mode != 0 && prior == 0 && admittedMode == 0 {
@@ -102,7 +102,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		if err != nil {
 			break
 		}
-		err = visit(leaf.ref, leaf.mark.Mode)
+		err = visit(leaf.Ref, leaf.Mark.Mode)
 	}
 	if err == nil && s.materializedOrZero().refresh && hasMaterializedSource {
 		var leaves []queryLeaf
@@ -112,7 +112,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 			}
 			relation := catalogView.MustRelation(ref.Address)
 			if relation.RelationKind.Stored() {
-				leaves = append(leaves, queryLeaf{ref: ref})
+				leaves = append(leaves, queryLeaf{Ref: ref})
 			}
 		}
 		var physical []ids.ObjectRef
@@ -227,7 +227,7 @@ func (s *StatementScope) acquireViewDefinitionReferences(b binding) error {
 			return
 		}
 		for _, leaf := range s.querySources {
-			if ref == leaf.ref {
+			if ref == leaf.Ref {
 				return
 			}
 		}

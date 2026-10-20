@@ -124,7 +124,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		copy(c.frame, old.Values)
 		copy(c.frame[c.width:], proposal)
 		evaluation.Row = c.frame
-		matches, err := updateMatches(&evaluation, c.update.predicate)
+		matches, err := UpdateMatches(&evaluation, c.update.predicate)
 		if err != nil {
 			return err
 		}

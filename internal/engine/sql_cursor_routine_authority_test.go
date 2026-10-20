@@ -24,7 +24,7 @@ func TestSQLCursorRoutineAuthorityLifetime(t *testing.T) {
 					sessionSQL(t, s, "DECLARE c NO SCROLL CURSOR WITH HOLD FOR SELECT abs(i) FROM unit_rows")
 					c := s.cursors.entries["c"]
 					root, catalog, actor := c.root, c.routineAuth.Catalog.State(), c.routineAuth.State.CurrentUser
-					if c.routineAuth.engine != s.Engine() || catalog == nil || c.authority.host != nil {
+					if c.routineAuth.engine != s.Engine() || catalog == nil || c.authority.Host != nil {
 						t.Fatal("DECLARE did not detach its original routine authority")
 					}
 					original := slices.Clone(c.routineDependencies)
@@ -75,7 +75,7 @@ func TestSQLCursorRoutineAuthorityLifetime(t *testing.T) {
 							t.Fatal("promotion retained declaration authority")
 						}
 					} else {
-						if c.root != root || c.routineAuth.Catalog.State() != catalog || c.routineAuth.State.CurrentUser != actor || !reflect.DeepEqual(c.routineDependencies, original) || c.authority.host != nil {
+						if c.root != root || c.routineAuth.Catalog.State() != catalog || c.routineAuth.State.CurrentUser != actor || !reflect.DeepEqual(c.routineDependencies, original) || c.authority.Host != nil {
 							t.Fatal("FETCH replaced original graph, authority or manifest")
 						}
 					}

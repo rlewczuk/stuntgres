@@ -27,20 +27,20 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 	}
 	frozen := []sqltype.Value{sqltype.String(text, "old"), sqltype.String(text, "original"), ordinal}
 	scope := &StatementScope{queryLocks: &queryLockContext{}}
-	inputs := &querySource{host: hostOf(scope)}
-	width := queryLockRecheckWidth(node, inputs)
+	inputs := &querySource{Host: hostOf(scope)}
+	width := QueryLockRecheckWidth(node, inputs)
 	if width != 3 {
 		t.Fatal("wrong refreshed function frame scratch", width)
 	}
-	if physical := queryTreeOccurrences(node, inputs, nil); len(physical) != 0 {
+	if physical := QueryTreeOccurrences(node, inputs, nil); len(physical) != 0 {
 		t.Fatal("computed function acquired physical identity", physical)
 	}
 	// As in PostgreSQL 18.6, a recheck keeps the function-scan tuple the row was
 	// produced with and evaluates no call again.
-	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), host: hostOf(scope)}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope)}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	scratch := make([]sqltype.Value, width)
 	offset := 0
-	got, present, err := recheckLockedQuery(node, inputs, nil, &evaluation, scratch, &offset, frozen)
+	got, present, err := RecheckLockedQuery(node, inputs, nil, &evaluation, scratch, &offset, frozen)
 	if err != nil || !present || !reflect.DeepEqual(got, frozen) || len(evaluations) != 0 {
 		t.Fatal("recheck changed the function-scan tuple", got, present, err, evaluations)
 	}
@@ -60,17 +60,17 @@ func TestStringSplitCopiedFunction(t *testing.T) {
 	}{{"b", true}, {"a", false}} {
 		tuple := []sqltype.Value{sqltype.String(text, tc.field), ordinal}
 		offset := 0
-		scratch := make([]sqltype.Value, queryLockRecheckWidth(filter, inputs))
-		got, present, err := recheckLockedQuery(filter, inputs, nil, &evaluation, scratch, &offset, tuple)
+		scratch := make([]sqltype.Value, QueryLockRecheckWidth(filter, inputs))
+		got, present, err := RecheckLockedQuery(filter, inputs, nil, &evaluation, scratch, &offset, tuple)
 		if err != nil || present != tc.match || tc.match && !reflect.DeepEqual(got, tuple) {
 			t.Fatal("requalification", tc.field, got, present, err)
 		}
 	}
 	set := &plan.SetProjectNode{Child: &plan.SingletonNode{}}
-	if physical := queryTreeOccurrences(set, inputs, nil); len(physical) != 0 {
+	if physical := QueryTreeOccurrences(set, inputs, nil); len(physical) != 0 {
 		t.Fatal(physical)
 	}
-	if width := queryLockRecheckWidth(set, inputs); width != 0 {
+	if width := QueryLockRecheckWidth(set, inputs); width != 0 {
 		t.Fatal("source-free expansion needs physical scratch", width)
 	}
 }

@@ -29,51 +29,51 @@ func TestQueryWindowNtileState(t *testing.T) {
 		{1, 1, []int64{1}},
 	} {
 		var state windowNtileState
-		if err := state.initialize(tc.total, tc.buckets); err != nil {
+		if err := state.Initialize(tc.total, tc.buckets); err != nil {
 			t.Fatal(err)
 		}
 		for i, want := range tc.want {
-			if got := state.next(); got != want {
+			if got := state.Next(); got != want {
 				t.Fatal(tc, i, got, want)
 			}
 		}
 	}
 	for _, buckets := range []int64{0, -1} {
 		var state windowNtileState
-		err := state.initialize(3, buckets)
+		err := state.Initialize(3, buckets)
 		var diagnostic *sqlstate.Error
-		if !errors.As(err, &diagnostic) || diagnostic.Code != "22014" || diagnostic.Message != "argument of ntile must be greater than zero" || diagnostic.Position != "" || state.bucket != 0 {
+		if !errors.As(err, &diagnostic) || diagnostic.Code != "22014" || diagnostic.Message != "argument of ntile must be greater than zero" || diagnostic.Position != "" || state.Bucket != 0 {
 			t.Fatal(state, err)
 		}
 	}
 	// Conceptual partitions beyond INT4 size, without allocating their rows.
 	var large windowNtileState
-	if err := large.initialize(int64(math.MaxInt32)+2, 2); err != nil {
+	if err := large.Initialize(int64(math.MaxInt32)+2, 2); err != nil {
 		t.Fatal(err)
 	}
-	if large.boundary != 1073741825 || large.remainder != 1 {
+	if large.Boundary != 1073741825 || large.Remainder != 1 {
 		t.Fatal(large)
 	}
-	large.members = 1073741824
-	if large.next() != 1 || large.next() != 2 || large.boundary != 1073741824 || large.members != 1 {
+	large.Members = 1073741824
+	if large.Next() != 1 || large.Next() != 2 || large.Boundary != 1073741824 || large.Members != 1 {
 		t.Fatal("large first/remainder transition", large)
 	}
-	if err := large.initialize(int64(math.MaxInt32)*2+1, math.MaxInt32); err != nil {
+	if err := large.Initialize(int64(math.MaxInt32)*2+1, math.MaxInt32); err != nil {
 		t.Fatal(err)
 	}
-	if large.boundary != 3 || large.remainder != 1 {
+	if large.Boundary != 3 || large.Remainder != 1 {
 		t.Fatal(large)
 	}
-	large.members = 3
-	if large.next() != 2 || large.boundary != 2 {
+	large.Members = 3
+	if large.Next() != 2 || large.Boundary != 2 {
 		t.Fatal("large bucket count", large)
 	}
-	large.bucket = math.MaxInt32 - 1
-	large.members = 2
-	if large.next() != math.MaxInt32 {
+	large.Bucket = math.MaxInt32 - 1
+	large.Members = 2
+	if large.Next() != math.MaxInt32 {
 		t.Fatal("last INT4 bucket", large)
 	}
-	if err := large.initialize(math.MaxInt64, 1); err != nil || large.boundary != math.MaxInt64 {
+	if err := large.Initialize(math.MaxInt64, 1); err != nil || large.Boundary != math.MaxInt64 {
 		t.Fatal("INT8 partition size", large, err)
 	}
 }
@@ -93,7 +93,7 @@ func TestQueryWindowNtileArgumentEvaluation(t *testing.T) {
 			}
 			return argument.Eval(c)
 		})
-		rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -142,7 +142,7 @@ func TestQueryWindowNtileArgumentEvaluation(t *testing.T) {
 				return original.Eval(c)
 			})
 		}
-		rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -177,7 +177,7 @@ func TestQueryWindowNtileArgumentEvaluation(t *testing.T) {
 
 func TestQueryWindowNtileGraphAndMetadata(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT id,ntile(id) OVER w,ntile(id+1) OVER w,ntile((SELECT 2)) OVER w FROM t WINDOW w AS(ORDER BY id)")
-	defer source.close()
+	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	for i, column := range query.Root.Schema() {
 		if i == 0 {
@@ -302,13 +302,13 @@ func TestQueryWindowNtileEvaluationCancellation(t *testing.T) {
 				}
 				return value, err
 			})
-			rows, count, err := finalizeQuery(ctx, query.Root, source, nil)
+			rows, count, err := Finalize(ctx, query.Root, source, nil)
 			if rows != nil {
 				rows.Close()
 			}
 			var diagnostic *sqlstate.Error
-			if entered != 1 || rows != nil || count != 0 || !errors.Is(err, context.Canceled) || errors.As(err, &diagnostic) || source.view != nil {
-				t.Fatal("canceled ntile published/leaked", phase, entered, count, err, source.view)
+			if entered != 1 || rows != nil || count != 0 || !errors.Is(err, context.Canceled) || errors.As(err, &diagnostic) || source.View != nil {
+				t.Fatal("canceled ntile published/leaked", phase, entered, count, err, source.View)
 			}
 			if phase == "initialized-output" && ctx.checks != 2 {
 				t.Fatal("did not reach initialized output loop", ctx.checks)

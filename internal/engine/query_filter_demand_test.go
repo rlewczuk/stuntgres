@@ -33,18 +33,18 @@ func TestQueryFilterProvenEmptyDemand(t *testing.T) {
 			project := *query.Root.(*plan.ProjectNode)
 			project.QuerySchema = []catalog.Column{{Name: "v", Usage: mood.Usage()}}
 			project.Expressions = []expr.Expr{producer}
-			bridge := &querySource{ref: input.ref, nestedRoot: &project, nestedInputs: input, materialized: true, flatWidth: 1}
+			bridge := &querySource{Ref: input.Ref, NestedRoot: &project, NestedInputs: input, Materialized: true, FlatWidth: 1}
 			if name == "semanticFalse" || name == "identityFalse" {
 				// A real captured occurrence below a consuming owner, not merely
 				// a semantic context shared with another query branch.
-				input.locks = &queryLockContext{identityOnly: name == "identityFalse", leaves: []queryLockLeaf{{source: input, mark: plan.RowMark{Mode: lock.ForUpdate}}}}
-				bridge.locks = input.locks
+				input.Locks = &queryLockContext{IdentityOnly: name == "identityFalse", Leaves: []queryLockLeaf{{Source: input, Mark: plan.RowMark{Mode: lock.ForUpdate}}}}
+				bridge.Locks = input.Locks
 				project.Child = &plan.AggregateNode{Child: project.Child}
 			} else if name == "contextFalse" {
-				bridge.locks = &queryLockContext{leaves: []queryLockLeaf{{mark: plan.RowMark{Mode: lock.ForUpdate}}}}
+				bridge.Locks = &queryLockContext{Leaves: []queryLockLeaf{{Mark: plan.RowMark{Mode: lock.ForUpdate}}}}
 			}
-			t.Cleanup(bridge.close)
-			state := &queryState{source: bridge, input: sqltype.InputEnvironment{EnumMemberSafe: typedef.EnumSafety(map[int64]bool{102: true})}}
+			t.Cleanup(bridge.Close)
+			state := &queryState{Source: bridge, Input: sqltype.InputEnvironment{EnumMemberSafe: typedef.EnumSafety(map[int64]bool{102: true})}}
 			value := sqltype.Boolean(boolean, false)
 			live := name == "literalTrue" || name == "parameterTrue"
 			if live {
@@ -55,21 +55,21 @@ func TestQueryFilterProvenEmptyDemand(t *testing.T) {
 			var predicate expr.Expr = plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: value}
 			if name == "parameterFalse" || name == "parameterNull" || name == "parameterTrue" {
 				predicate = plan.ParameterExpr{Info: expr.Info{Usage: boolean.Usage()}, Number: 1}
-				state.parameters = []sqltype.Value{value}
+				state.Parameters = []sqltype.Value{value}
 			}
-			node := &plan.FilterNode{QuerySchema: project.Schema(), Child: &plan.SourceNode{QuerySchema: project.Schema(), Ref: input.ref}, Predicate: predicate}
-			stage, err := openQueryNode(context.Background(), state, node)
+			node := &plan.FilterNode{QuerySchema: project.Schema(), Child: &plan.SourceNode{QuerySchema: project.Schema(), Ref: input.Ref}, Predicate: predicate}
+			stage, err := OpenNode(context.Background(), state, node)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer stage.Close()
-			if len(stage.schema) != 1 || stage.schema[0].Name != "v" || stage.schema[0].Usage != mood.Usage() {
-				t.Fatal("filter lost result schema", stage.schema)
+			if len(stage.Columns) != 1 || stage.Columns[0].Name != "v" || stage.Columns[0].Usage != mood.Usage() {
+				t.Fatal("filter lost result schema", stage.Columns)
 			}
 			if calls != 0 {
 				t.Fatal("opening filter demanded nested projection", calls)
 			}
-			_, present, err := stage.nextOccurrence(context.Background())
+			_, present, err := stage.NextOccurrence(context.Background())
 			if live || name == "semanticFalse" {
 				d, ok := err.(*sqlstate.Error)
 				if present || !ok || d.Code != "55P04" || calls != 1 {
@@ -85,7 +85,7 @@ func TestQueryFilterProvenEmptyDemand(t *testing.T) {
 func TestQueryFilterPredicateProofBoundaries(t *testing.T) {
 	c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 	for _, expression := range []expr.Expr{plan.ColumnExpr{}, &plan.WindowExpr{}, plan.SubqueryExpr{}} {
-		if rejects, err := queryPredicateRejectsAll(c, expression); rejects || err != nil {
+		if rejects, err := QueryPredicateRejectsAll(c, expression); rejects || err != nil {
 			t.Fatal("row/stage/subquery expression used as empty-input proof", expression, rejects, err)
 		}
 	}
@@ -95,16 +95,16 @@ func TestQueryFilterPredicateProofBoundaries(t *testing.T) {
 		calls++
 		return sqltype.Boolean(boolean, false), nil
 	})
-	if rejects, err := queryPredicateRejectsAll(c, dynamic); rejects || err != nil || calls != 0 {
+	if rejects, err := QueryPredicateRejectsAll(c, dynamic); rejects || err != nil || calls != 0 {
 		t.Fatal("arbitrary expression evaluated as proof", rejects, calls, err)
 	}
 	parameter := plan.ParameterExpr{Info: expr.Info{Usage: boolean.Usage()}, Number: 1}
-	if rejects, err := queryPredicateRejectsAll(c, parameter); rejects || err == nil {
+	if rejects, err := QueryPredicateRejectsAll(c, parameter); rejects || err == nil {
 		t.Fatal("invalid imported frame was suppressed", rejects, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := openQueryNode(ctx, &queryState{}, &plan.FilterNode{Predicate: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}})
+	_, err := OpenNode(ctx, &queryState{}, &plan.FilterNode{Predicate: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal("empty-input gate erased cancellation", err)
 	}

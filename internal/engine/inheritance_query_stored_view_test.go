@@ -126,7 +126,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			scope.lockedRef = viewRef
-			scope.querySources = []queryLeaf{{ref: viewRef, relation: view, mark: plan.RowMark{Mode: tc.mark}}}
+			scope.querySources = []queryLeaf{{Ref: viewRef, Relation: view, Mark: plan.RowMark{Mode: tc.mark}}}
 			mode := lock.AccessShare
 			if tc.mark != 0 {
 				mode = lock.RowShare
@@ -135,13 +135,13 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			if tc.direct {
-				scope.querySources = append(scope.querySources, queryLeaf{ref: parentRef, relation: parent, storage: parentStorage})
+				scope.querySources = append(scope.querySources, queryLeaf{Ref: parentRef, Relation: parent, Storage: parentStorage})
 				if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: parentRef}, lock.AccessShare); err != nil {
 					t.Fatal(err)
 				}
 			}
 			if tc.overlapping {
-				scope.querySources = append(scope.querySources, queryLeaf{ref: otherRef, relation: otherView})
+				scope.querySources = append(scope.querySources, queryLeaf{Ref: otherRef, Relation: otherView})
 				if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: otherRef}, lock.AccessShare); err != nil {
 					t.Fatal(err)
 				}
@@ -239,11 +239,11 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 					t.Fatalf("physical identity %v grant %v want %v", want.ref, got, want.mode)
 				}
 			}
-			if scope.querySources[0].ref != viewRef || scope.querySources[0].relation != view {
+			if scope.querySources[0].Ref != viewRef || scope.querySources[0].Relation != view {
 				t.Fatal("physical expansion replaced logical view authority")
 			}
 			for _, physical := range scope.inheritance.relations {
-				if !tc.weak && physical.ref == parentRef {
+				if !tc.weak && physical.Ref == parentRef {
 					t.Fatal("already admitted base gained duplicate physical manifest ownership")
 				}
 			}
@@ -261,26 +261,26 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			}
 			var source *querySource
 			if captureErr == nil {
-				source, captureErr = captureInheritanceQueryPrefix(catalog, snapshot, queryLeaf{ref: parentRef, relation: parent, storage: parentStorage, only: viewOf(view).sources[0].only}, op.session.token)
+				source, captureErr = captureInheritanceQueryPrefix(catalog, snapshot, queryLeaf{Ref: parentRef, Relation: parent, Storage: parentStorage, Only: viewOf(view).sources[0].only}, op.session.token)
 			}
 			validBase := catalog.Get(parent.Address()) == parent && e.privateStorageLocked(scope.owner.catalog, parent.Address()) == parentStorage
 			e.mu.Unlock()
 			if captureErr != nil {
 				t.Fatal(captureErr)
 			}
-			defer source.close()
+			defer source.Close()
 			if !validBase {
 				t.Fatal("stored base identity/storage changed during admission")
 			}
 			if len(parent.Columns) != 1 || parent.Columns[0].Name != "i" || parent.Columns[0].Usage.Type != testUsage(e, sqltype.Int4).Type {
 				t.Fatal("parent metadata changed")
 			}
-			if err = selectQuerySources(op.Context(), source); err != nil {
+			if err = SelectQuerySources(op.Context(), source); err != nil {
 				t.Fatal(err)
 			}
 			bag := map[int64]int{}
-			for i := range source.count() {
-				value, valueErr := source.row(i)[0].Integer()
+			for i := range source.Count() {
+				value, valueErr := source.Row(i)[0].Integer()
 				if valueErr != nil {
 					t.Fatal(valueErr)
 				}
@@ -293,7 +293,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			if bag[10] != 1 || bag[20] != want20 || len(bag) != 1+want20 {
 				t.Fatal("frozen source physical bag", bag)
 			}
-			source.close()
+			source.Close()
 			peerCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			peerOp, peerDone, err := testOperation(e, peerCtx)

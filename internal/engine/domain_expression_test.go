@@ -235,23 +235,23 @@ func TestDomainRegclassOutputSnapshotRepresentations(t *testing.T) {
 	}
 	for _, representation := range []string{"flat", "anonymous", "selected source"} {
 		t.Run(representation, func(t *testing.T) {
-			rows := newFinalRows(table.Columns, 1)
+			rows := NewFinalRows(table.Columns, 1)
 			switch representation {
 			case "flat":
-				rows.values = []sqltype.Value{value}
+				rows.Values = []sqltype.Value{value}
 			case "anonymous":
-				rows.anonymous = [][]sqltype.Value{{value}}
+				rows.Anonymous = [][]sqltype.Value{{value}}
 			case "selected source":
-				rows.source = &querySource{committed: []storage.RowVersion{{Values: []sqltype.Value{sqltype.Null(domain.SQLType)}}, {Values: []sqltype.Value{value}}}}
-				rows.selection = []int{1}
-				rows.slots = []int{0}
+				rows.Source = &querySource{Committed: []storage.RowVersion{{Values: []sqltype.Value{sqltype.Null(domain.SQLType)}}, {Values: []sqltype.Value{value}}}}
+				rows.Selection = []int{1}
+				rows.Slots = []int{0}
 			}
 			if err := e.captureRegclassOutput(op, rows); err != nil {
 				t.Fatal(err)
 			}
 			text, err := rows.RegclassText(base)
-			if err != nil || text != "t" || rows.position != 0 {
-				t.Fatal("snapshot capture changed cursor or missed output", text, rows.position, err)
+			if err != nil || text != "t" || rows.Position != 0 {
+				t.Fatal("snapshot capture changed cursor or missed output", text, rows.Position, err)
 			}
 		})
 	}

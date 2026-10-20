@@ -30,7 +30,7 @@ func moreUnitExpression(t *testing.T, view catalog.Read) plan.UnnestExpr {
 func TestRangeMoreExpressionCursor(t *testing.T) {
 	view := New().CatalogRead()
 	e := moreUnitExpression(t, view)
-	if !sourceReturnsSet(e) || !sourceAdmitted(e) || len(expr.Expr(e).(expr.Composite).Children()) != 1 {
+	if !SourceReturnsSet(e) || !SourceAdmitted(e) || len(expr.Expr(e).(expr.Composite).Children()) != 1 {
 		t.Fatal("missing SRF classification")
 	}
 	c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
@@ -40,12 +40,12 @@ func TestRangeMoreExpressionCursor(t *testing.T) {
 	count := 0
 	value := e.Args[0].(plan.LiteralExpr).Value
 	e.Args[0] = queryProbe(e.Args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { count++; return value, nil })
-	first, err := openFunctionSource(c, e)
+	first, err := OpenFunctionSource(c, e)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer first.Close()
-	second, err := openFunctionSource(c, e)
+	second, err := OpenFunctionSource(c, e)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -35,7 +35,7 @@ func TestJSONBSetBindingInferenceAndProperties(t *testing.T) {
 			t.Fatal("lost formal inference", i, b.params.parameters)
 		}
 	}
-	if e.Count != 5 || e.WrittenCount != 5 || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable || plannedVolatility(node) != expr.Immutable {
+	if e.Count != 5 || e.WrittenCount != 5 || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable || PlannedVolatility(node) != expr.Immutable {
 		t.Fatal(e, node.Properties())
 	}
 	for slot, id := range ids {
@@ -59,7 +59,7 @@ func TestJSONBSetBindingInferenceAndProperties(t *testing.T) {
 		if err != nil {
 			t.Fatal(slot, err)
 		}
-		if n.Properties().Volatility != expr.Volatile || plannedVolatility(n) != expr.Volatile || generationImmutable(n) {
+		if n.Properties().Volatility != expr.Volatile || PlannedVolatility(n) != expr.Volatile || generationImmutable(n) {
 			t.Fatal("hidden volatile child", slot, n.Properties())
 		}
 	}

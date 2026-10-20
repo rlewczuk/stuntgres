@@ -50,7 +50,7 @@ func TestDatetimeOverlapsBindingAndRetag(t *testing.T) {
 			}
 			e := node.(functions.DatetimeOverlaps)
 			stable := typ == "timestamptz" && mask != 0
-			if e.ResultUsage().Type.ID() != sqltype.Bool || e.ResultUsage().Typmod != -1 || (e.Properties().Volatility == expr.Stable) != stable || (plannedVolatility(e) == expr.Stable) != stable || generationImmutable(e) != !stable {
+			if e.ResultUsage().Type.ID() != sqltype.Bool || e.ResultUsage().Typmod != -1 || (e.Properties().Volatility == expr.Stable) != stable || (PlannedVolatility(e) == expr.Stable) != stable || generationImmutable(e) != !stable {
 				t.Fatal(typ, mask, e.Properties())
 			}
 			if !b.sameGroupExpression(e, e) {
@@ -220,7 +220,7 @@ func TestDatetimeOverlapsFoldedBodyAndExecuteOwnedParameters(t *testing.T) {
 	}
 	// Current imported values are constant candidates, not retained literal cache entries.
 	p := plan.ParameterExpr{Info: expr.Info{Usage: b.typ(sqltype.Timestamp).Usage(), Property: expr.Properties{ParameterDependent: true}}, Number: 1}
-	if !overlapsExecutionConstant(p, c) || overlapsExecutionConstant(p, &EvalContext{evalStatement: evalStatement{Context: ctx}}) {
+	if !OverlapsExecutionConstant(p, c) || OverlapsExecutionConstant(p, &EvalContext{evalStatement: evalStatement{Context: ctx}}) {
 		t.Fatal("parameter availability classification")
 	}
 }

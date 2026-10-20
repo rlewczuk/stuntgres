@@ -62,7 +62,7 @@ func TestPGCastShapeAndOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	found := 0
-	for _, row := range rows.anonymous {
+	for _, row := range rows.Anonymous {
 		oid, _ := row[0].OID()
 		if oid != 2605 {
 			continue
@@ -84,7 +84,7 @@ func TestPGCastShapeAndOwnership(t *testing.T) {
 func pgCastUnitBag(t *testing.T, rows *querySource, d *catalog.Relation) map[uint32][]any {
 	t.Helper()
 	bag, pairs := map[uint32][]any{}, map[[2]uint32]bool{}
-	for _, row := range rows.anonymous {
+	for _, row := range rows.Anonymous {
 		if len(row) != 6 {
 			t.Fatal("row width", row)
 		}
@@ -126,8 +126,8 @@ func TestPGCastProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rows.ref != ref {
-		t.Fatal("captured reference lost", rows.ref, ref)
+	if rows.Ref != ref {
+		t.Fatal("captured reference lost", rows.Ref, ref)
 	}
 	if !maps.Equal(maps.Collect(e.catalog.state.Descriptors()), before) || !maps.Equal(maps.Collect(e.catalog.state.Names()), names) {
 		t.Fatal("capture mutated catalog state")
@@ -211,7 +211,7 @@ func TestPGCastCancellationAndGenerations(t *testing.T) {
 		if fresh.Columns[i].Usage.Type == d.Columns[i].Usage.Type {
 			t.Fatal("generation not reminted", i)
 		}
-		if old.anonymous[0][i].Type() != d.Columns[i].Usage.Type || newRows.anonymous[0][i].Type() != fresh.Columns[i].Usage.Type {
+		if old.Anonymous[0][i].Type() != d.Columns[i].Usage.Type || newRows.Anonymous[0][i].Type() != fresh.Columns[i].Usage.Type {
 			t.Fatal("captured generation changed", i)
 		}
 	}

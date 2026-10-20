@@ -164,7 +164,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 		return nil
 	}
 	ctx := scope.op.Context()
-	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, host: hostOf(scope), Input: scope.input, Output: scope.output}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Host: hostOf(scope), Input: scope.input, Output: scope.output}}
 	if !p.bound.DefaultBound {
 		if err := p.evaluateBounds(scope, &evaluation); err != nil {
 			return err
@@ -179,7 +179,7 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 		if p.unsupportedCombination {
 			return sqlError("0A000", "partitioned table constraint combination is unsupported")
 		}
-		evaluation.catalog, evaluation.routineAuthority = p.auth.Catalog, &p.auth
+		evaluation.Catalog, evaluation.RoutineAuthority = p.auth.Catalog, &p.auth
 		for _, ref := range p.defaultLeaves {
 			leaf, ok := view.Relation(ref.Address)
 			if !ok {
@@ -189,35 +189,35 @@ func (p *pendingPartitionDefinition) finish(scope *StatementScope) error {
 			if err != nil {
 				return err
 			}
-			mapping := inheritanceQuerySegment{layout: layout}
+			mapping := inheritanceQuerySegment{Layout: layout}
 			if layout != nil {
-				mapping.scratch = make([]sqltype.Value, len(layout))
+				mapping.Scratch = make([]sqltype.Value, len(layout))
 			}
 			source, err := captureQuerySource(ctx, p.view, ref)
 			if err != nil {
 				return err
 			}
-			for i := range source.count() {
+			for i := range source.Count() {
 				var values [32]catalog.PartitionDatum
-				key, err := partitionRowKey(p.parent, mapping.mapValues(source.row(i)), &evaluation, values[:0])
+				key, err := partitionRowKey(p.parent, mapping.MapValues(source.Row(i)), &evaluation, values[:0])
 				if err != nil {
-					source.close()
+					source.Close()
 					return err
 				}
 				contains, err := partitionContains(ctx, p.parent.Partition.Keys, p.bound, key, scope.input)
 				if err != nil {
-					source.close()
+					source.Close()
 					return err
 				}
 				if contains {
-					source.close()
+					source.Close()
 					defaultRelation := view.MustRelation(p.parent.Partition.DefaultChild)
 					diagnostic := sqlError("23514", fmt.Sprintf(`updated partition constraint for default partition "%s" would be violated by some row`, defaultRelation.Name())).(*sqlstate.Error)
 					diagnostic.Schema, diagnostic.Table = view.Get(defaultRelation.Namespace()).Name(), defaultRelation.Name()
 					return diagnostic
 				}
 			}
-			source.close()
+			source.Close()
 		}
 	}
 	if p.unsupportedCombination {

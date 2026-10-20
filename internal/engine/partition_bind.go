@@ -66,23 +66,23 @@ func (e *Engine) bindPartitionKeys(op *Operation, auth AuthorizationView, d *cat
 			binder := newExpressionBinder(op.Context(), e, input, op, nil)
 			binder.consumer.partitionConsumer, binder.params.noParameters, binder.query.auth = "partition key expression", true, &auth
 			binder.query.namespace = &namespace
-			binder.query.sources = []queryLeaf{{ref: ref, relation: d}}
+			binder.query.sources = []queryLeaf{{Ref: ref, Relation: d}}
 			node, err := binder.bind(r.Expression, expressionPolicy{context: projectionContext})
 			if err != nil {
 				return nil, err
 			}
-			evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: binder.input, catalog: auth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+			evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: binder.input, Catalog: auth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 			planned, _, err := preflightCoercionsWithPolicy(&evaluation, node, true)
 			if err != nil {
 				return nil, err
 			}
-			if plannedVolatility(planned) != expr.Immutable {
+			if PlannedVolatility(planned) != expr.Immutable {
 				return nil, sqlError("42P17", "functions in partition key expression must be marked IMMUTABLE")
 			}
 			if !planned.Properties().RowDependent {
 				return nil, sqlError("42P17", "cannot use constant expression as partition key")
 			}
-			for _, slot := range binder.query.sources[0].uses {
+			for _, slot := range binder.query.sources[0].Uses {
 				if _, generated := d.ColumnMeta.Generations[d.Attributes[slot]]; generated {
 					return nil, partitionGeneratedError(sqlError("42P17", "cannot use generated column in partition key"), r.Pos, d.Columns[slot].Name)
 				}

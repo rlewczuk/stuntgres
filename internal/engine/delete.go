@@ -181,19 +181,19 @@ func (s *StatementScope) executeDelete(b binding, view *visibility.View, inputs 
 	source, err := s.captureMutationSource(s.op.Context(), view, b)
 	if err != nil {
 		if inputs != nil {
-			inputs.close()
+			inputs.Close()
 		}
 		view.Release()
 		return Result{}, err
 	}
-	defer source.close()
+	defer source.Close()
 	return s.deleteSource(b, source, inputs, parameters)
 }
 
 func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, parameters []sqltype.Value) (Result, error) {
-	if b.storage == nil || b.storage != s.lockedStorage || b.storage != source.view.Data().GenerationAt(b.ref.Address) {
+	if b.storage == nil || b.storage != s.lockedStorage || b.storage != source.View.Data().GenerationAt(b.ref.Address) {
 		if inputs != nil {
-			inputs.close()
+			inputs.Close()
 		}
 		return Result{}, ids.ErrCatalogReplaced
 	}
@@ -203,25 +203,25 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		positioned, err = s.positionedMutationRow(b)
 		if err != nil {
 			if inputs != nil {
-				inputs.close()
+				inputs.Close()
 			}
 			return Result{}, err
 		}
 	}
 	ctx := s.op.Context()
-	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: parameters, host: hostOf(s), Input: s.input, Output: s.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: parameters, Host: hostOf(s), Input: s.input, Output: s.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	if inputs != nil {
-		if err := selectQuerySources(ctx, inputs); err != nil {
+		if err := SelectQuerySources(ctx, inputs); err != nil {
 			return Result{}, err
 		}
 		if b.viewWrite != nil || b.rule.template {
 			inputs = freezeViewWriteSources(s, inputs, b.querySources)
 		}
-		defer inputs.close()
-		state := &queryState{source: inputs, parameters: parameters, input: s.input, output: s.output, locking: inputs.locks != nil}
-		defer state.releaseMemberships()
-		inputs.host = hostOf(s)
-		evaluation.query = state
+		defer inputs.Close()
+		state := &queryState{Source: inputs, Parameters: parameters, Input: s.input, Output: s.output, Locking: inputs.Locks != nil}
+		defer state.ReleaseMemberships()
+		inputs.Host = hostOf(s)
+		evaluation.Query = state
 	}
 	if b.delete.using != nil {
 		return s.deleteUsingSource(b, source, &evaluation, positioned)
@@ -230,25 +230,25 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 	var rows *finalRows
 	keep := false
 	if b.returning != nil {
-		rows = newFinalRows(b.returning.schema, 0)
-		rows.output = s.output
+		rows = NewFinalRows(b.returning.schema, 0)
+		rows.Output = s.output
 		defer func() {
 			if !keep {
 				rows.Close()
 			}
 		}()
 	}
-	for i := range source.count() {
+	for i := range source.Count() {
 		if err := ctx.Err(); err != nil {
 			return Result{}, err
 		}
 		physical := mutationPhysicalRow(source, i, b)
-		version := physical.version
-		if b.currentOf != "" && (positioned.ref != physical.leaf.ref || version.Row != positioned.row) {
+		version := physical.Version
+		if b.currentOf != "" && (positioned.ref != physical.Leaf.Ref || version.Row != positioned.row) {
 			continue
 		}
-		evaluation.Row = physical.values(version)
-		evaluation.physicalTable = physical.leaf.ref
+		evaluation.Row = physical.Values(version)
+		evaluation.PhysicalTable = physical.Leaf.Ref
 		if b.predicate != nil {
 			value, err := b.predicate.Eval(&evaluation)
 			if err != nil {
@@ -262,7 +262,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 				continue
 			}
 		}
-		candidate := physical.deletion()
+		candidate := physical.Deletion()
 		if err := s.acquireRow(candidate); err != nil {
 			return Result{}, err
 		}
@@ -279,7 +279,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 			}
 		}
 		if current.Version != candidate.Version && b.predicate != nil {
-			evaluation.Row = physical.values(current)
+			evaluation.Row = physical.Values(current)
 			value, err := b.predicate.Eval(&evaluation)
 			if err != nil {
 				return Result{}, err
@@ -302,18 +302,18 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		if deleted {
 			count++
 			if rows != nil {
-				evaluation.Row = physical.values(current)
+				evaluation.Row = physical.Values(current)
 				for output, expr := range b.returning.expressions {
 					value, err := expr.Eval(&evaluation)
 					if err != nil {
 						return Result{}, err
 					}
-					if value.Type() == nil || !value.Type().Concrete() || value.Type() != rows.schema[output].Usage.Type {
+					if value.Type() == nil || !value.Type().Concrete() || value.Type() != rows.Columns[output].Usage.Type {
 						return Result{}, errors.New("stuntgres: invalid finalized DELETE value")
 					}
-					rows.values = append(rows.values, value)
+					rows.Values = append(rows.Values, value)
 				}
-				rows.count++
+				rows.Count++
 			}
 		}
 	}
@@ -364,8 +364,8 @@ func captureQuerySource(ctx context.Context, view *visibility.View, ref ids.Obje
 	if err != nil {
 		return nil, err
 	}
-	data := source.view.Data()
-	return selectQuerySource(ctx, source, data.FrontierAt(ref.Address), data.Ends[ref.Address], data.Deleted[ref.Address])
+	data := source.View.Data()
+	return SelectQuerySource(ctx, source, data.FrontierAt(ref.Address), data.Ends[ref.Address], data.Deleted[ref.Address])
 }
 
 func captureQueryPrefix(view *visibility.View, ref ids.ObjectRef) (*querySource, error) {
@@ -382,5 +382,5 @@ func captureQueryPrefix(view *visibility.View, ref ids.ObjectRef) (*querySource,
 		pin.Release()
 		return nil, errors.New("stuntgres: invalid visibility target")
 	}
-	return &querySource{view: pin, ref: ref, committed: data.Committed[ref.Address], own: data.Own[ref.Address], needsBirthFilter: data.NeedsBirthFilterAt(ref.Address)}, nil
+	return &querySource{View: pin, Ref: ref, Committed: data.Committed[ref.Address], Own: data.Own[ref.Address], NeedsBirthFilter: data.NeedsBirthFilterAt(ref.Address)}, nil
 }

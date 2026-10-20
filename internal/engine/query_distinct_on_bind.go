@@ -197,7 +197,7 @@ func (b *expressionBinder) finishDistinctOn(root plan.Node, order, on []plan.Sor
 	} else {
 		early := make([]expr.Expr, 0)
 		for i, e := range projection {
-			if querySetDepth(e) != 0 {
+			if QuerySetDepth(e) != 0 {
 				continue
 			}
 			if e.Properties().Volatility == expr.Volatile || e.ResultUsage().Type == nil {

@@ -55,16 +55,16 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 					t.Fatal("effective setting", got, ok, value)
 				}
 				rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: session.settings}}, capturePGSettings)
-				if err != nil || len(rows.anonymous) != 1 {
+				if err != nil || len(rows.Anonymous) != 1 {
 					t.Fatal(rows, err)
 				}
 				for index, want := range map[int]string{1: value, 8: provenance, 12: "on", 13: reset} {
-					got, err := rows.anonymous[0][index].Text()
+					got, err := rows.Anonymous[0][index].Text()
 					if err != nil || got != want {
 						t.Fatal("metadata", index, got, want, err)
 					}
 				}
-				if !rows.anonymous[0][14].IsNull() || !rows.anonymous[0][15].IsNull() {
+				if !rows.Anonymous[0][14].IsNull() || !rows.Anonymous[0][15].IsNull() {
 					t.Fatal("invented file provenance")
 				}
 				scope := newStatementScope(&Operation{session: session}, &transactionOwner{}, time.Time{})

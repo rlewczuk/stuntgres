@@ -35,8 +35,8 @@ func mergeUpdateSourceCompletion(t *testing.T, targetOnly, empty bool) {
 			}
 			op, scope, b, target, inputs := updateFromBoundSources(t, e, s, ctx, q)
 			defer op.Done()
-			defer target.close()
-			defer inputs.close()
+			defer target.Close()
+			defer inputs.Close()
 			typ := b.relation.Columns[0].Usage.Type
 			one, _ := sqltype.Integer(typ, 1)
 			two, _ := sqltype.Integer(typ, 2)
@@ -66,7 +66,7 @@ func mergeUpdateSourceCompletion(t *testing.T, targetOnly, empty bool) {
 					cancel()
 				}
 			}
-			state := &queryState{source: inputs, input: scope.input, output: scope.output}
+			state := &queryState{Source: inputs, Input: scope.input, Output: scope.output}
 			rows, err := e.assembleMergeRows(ctx, scope, b, target, cursor, state, "public", false)
 			want := primary
 			if phase == "close" {

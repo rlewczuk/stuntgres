@@ -7,37 +7,37 @@ func detachQuerySource(source *querySource) {
 	if source == nil {
 		return
 	}
-	for _, child := range source.sources {
+	for _, child := range source.Sources {
 		if child != source {
 			detachQuerySource(child)
 		}
 	}
-	if source.input != nil {
-		detachQuerySource(source.input)
+	if source.Input != nil {
+		detachQuerySource(source.Input)
 	}
-	if source.nestedStage != nil {
-		source.nestedStage.Close()
-		source.nestedStage = nil
+	if source.NestedStage != nil {
+		source.NestedStage.Close()
+		source.NestedStage = nil
 	}
-	source.nestedRoot = nil
-	if source.lineage != nil {
-		stage, inputs := source.lineage.stage, source.lineage.inputs
-		source.lineage = nil
-		stage.close()
+	source.NestedRoot = nil
+	if source.Lineage != nil {
+		stage, inputs := source.Lineage.Stage, source.Lineage.Inputs
+		source.Lineage = nil
+		stage.Close()
 		if inputs != stage {
-			inputs.close()
+			inputs.Close()
 		}
-		source.nestedInputs = nil
-	} else if source.nestedInputs != nil {
-		source.nestedInputs.close()
-		source.nestedInputs = nil
+		source.NestedInputs = nil
+	} else if source.NestedInputs != nil {
+		source.NestedInputs.Close()
+		source.NestedInputs = nil
 	}
-	source.host, source.locks = nil, nil
-	source.pgSequences = nil
-	source.authority = nil
-	source.routineRecipe, source.routineChecks = nil, nil
-	source.versions = nil
-	source.joinLeft, source.joinRight, source.joinPairs = nil, nil, nil
+	source.Host, source.Locks = nil, nil
+	source.PGSequences = nil
+	source.Authority = nil
+	source.RoutineRecipe, source.RoutineChecks = nil, nil
+	source.Versions = nil
+	source.JoinLeft, source.JoinRight, source.JoinPairs = nil, nil, nil
 	// Dependent outputs share the left source and consecutive right invocation
 	// sources; detach each once rather than traversing a graph per padded row.
 	var left, right *querySource

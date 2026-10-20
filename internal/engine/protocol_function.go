@@ -119,7 +119,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 	s.routineAuth, s.routineDependencies = auth, binder.dependencies
 	s.input = binder.input
 	s.domains.inputCatalog = auth.Catalog
-	evaluation := EvalContext{evalStatement: evalStatement{Context: s.op.Context(), Parameters: make([]sqltype.Value, len(usages)), Input: s.input, Output: s.output, host: hostOf(s), catalog: auth.Catalog}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: s.op.Context(), Parameters: make([]sqltype.Value, len(usages)), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: auth.Catalog}}
 	evaluation.Input.DomainChecks = &evaluation
 	e.mu.Unlock()
 	formats, err := protocolFormats(input)
@@ -167,17 +167,17 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 	if format != 0 && format != 1 {
 		return ProtocolField{}, sqlError("22023", fmt.Sprintf("unsupported format code: %d", int16(format)))
 	}
-	rows := newFinalRows(nil, 1)
-	rows.values = []sqltype.Value{value}
-	rows.output = s.output
+	rows := NewFinalRows(nil, 1)
+	rows.Values = []sqltype.Value{value}
+	rows.Output = s.output
 	if err = s.captureSQLCursorOutput(rows, auth.Catalog); err != nil {
 		return ProtocolField{}, err
 	}
-	output := rows.output
+	output := rows.Output
 	output.Regclass, output.Regtype, output.Regproc, output.Regrole = rows, rows, rows, rows
 	output.Operator, output.Regcollation, output.Regnamespace, output.RegTS = rows, rows, rows, rows
 	output.ACLItem = rows
-	fields, _, err := encodeProtocolRow(s.op.Context(), rows.values, []int16{int16(format)}, output, nil, nil)
+	fields, _, err := encodeProtocolRow(s.op.Context(), rows.Values, []int16{int16(format)}, output, nil, nil)
 	if err != nil {
 		return ProtocolField{}, err
 	}

@@ -15,30 +15,30 @@ import (
 
 // Positive permission belongs only to the eager top-level SELECT entry. Generic
 // finalization remains serial for writes, cursors, nested queries and controls.
-func finalizeSelectQuery(ctx context.Context, root plan.Node, source *querySource, parameters []sqltype.Value, ceiling int) (RowResult, int, error) {
-	project, ordered, eligible := parallelQueryPlan(root, source)
-	workers := queryParallelWorkers(ceiling, source.count())
+func FinalizeSelect(ctx context.Context, root plan.Node, source *querySource, parameters []sqltype.Value, ceiling int) (RowResult, int, error) {
+	project, ordered, eligible := ParallelQueryPlan(root, source)
+	workers := QueryParallelWorkers(ceiling, source.Count())
 	if !eligible || workers < 2 {
-		return finalizeQuery(ctx, root, source, parameters)
+		return Finalize(ctx, root, source, parameters)
 	}
-	return finalizeParallelQuery(ctx, project, ordered, source, parameters, workers)
+	return FinalizeParallelQuery(ctx, project, ordered, source, parameters, workers)
 }
 
-func queryParallelWorkers(ceiling, count int) int {
+func QueryParallelWorkers(ceiling, count int) int {
 	return min(ceiling, count, max(2, runtime.GOMAXPROCS(0)))
 }
 
-func parallelQueryPlan(root plan.Node, source *querySource) (*plan.ProjectNode, *plan.SortNode, bool) {
+func ParallelQueryPlan(root plan.Node, source *querySource) (*plan.ProjectNode, *plan.SortNode, bool) {
 	project, ok := root.(*plan.ProjectNode)
-	if !ok || source == nil || source.view == nil || project.CTEOwner || project.HasTargetSet || project.FrozenValues || source.sources != nil || source.storedRef != (ids.ObjectRef{}) ||
-		source.locks != nil || source.lineage != nil || source.inherited.Mode != 0 || source.hashIndexes != nil || source.partialMask != nil || source.inheritance != nil ||
-		source.singleton || source.rlsDenied || source.anonymous != nil || source.pgSequences != nil || source.materialized || source.final != nil || source.input != nil ||
-		source.nestedRoot != nil || source.nestedInputs != nil || source.nestedStage != nil || source.window || source.joinLeft != nil || source.joinRight != nil ||
-		source.scratch != nil || source.layout != nil || source.versions != nil || source.invocationLineage != nil {
+	if !ok || source == nil || source.View == nil || project.CTEOwner || project.HasTargetSet || project.FrozenValues || source.Sources != nil || source.StoredRef != (ids.ObjectRef{}) ||
+		source.Locks != nil || source.Lineage != nil || source.Inherited.Mode != 0 || source.HashIndexes != nil || source.PartialMask != nil || source.Inheritance != nil ||
+		source.Singleton || source.RlsDenied || source.Anonymous != nil || source.PGSequences != nil || source.Materialized || source.Final != nil || source.Input != nil ||
+		source.NestedRoot != nil || source.NestedInputs != nil || source.NestedStage != nil || source.Window || source.JoinLeft != nil || source.JoinRight != nil ||
+		source.Scratch != nil || source.Layout != nil || source.Versions != nil || source.invocationLineage != nil {
 		return nil, nil, false
 	}
-	view := source.view.Catalog()
-	d, ok := view.Descriptor(source.ref.Address)
+	view := source.View.Catalog()
+	d, ok := view.Descriptor(source.Ref.Address)
 	relation, table := d.(*catalog.Relation)
 	if !ok || !table || relation.RelationKind != catalog.TableRelation {
 		return nil, nil, false
@@ -52,7 +52,7 @@ func parallelQueryPlan(root plan.Node, source *querySource) (*plan.ProjectNode, 
 	if frame == 0 {
 		frame = 1
 	}
-	safe := func(expr expr.Expr) bool { return parallelQueryExpression(expr, frame, len(project.Child.Schema())) }
+	safe := func(expr expr.Expr) bool { return ParallelQueryExpression(expr, frame, len(project.Child.Schema())) }
 	for _, expr := range project.Expressions {
 		if !safe(expr) {
 			return nil, nil, false
@@ -88,7 +88,7 @@ func parallelQueryPlan(root plan.Node, source *querySource) (*plan.ProjectNode, 
 		node = filter.Child
 	}
 	leaf, ok := node.(*plan.SourceNode)
-	if !ok || leaf.Ref != source.ref || leaf.Occurrence != source.occurrence {
+	if !ok || leaf.Ref != source.Ref || leaf.Occurrence != source.Occurrence {
 		return nil, nil, false
 	}
 	return project, ordered, true
@@ -97,7 +97,7 @@ func parallelQueryPlan(root plan.Node, source *querySource) (*plan.ProjectNode, 
 // This is deliberately not a volatility classifier. Unknown evaluators, virtual
 // recipes, subqueries and session/sequence functions fall back to serial. Basic
 // scalar providers below operate on immutable datums and worker-local frames.
-func parallelQueryExpression(bound expr.Expr, frame uint32, width int) bool {
+func ParallelQueryExpression(bound expr.Expr, frame uint32, width int) bool {
 	if bound == nil {
 		return true
 	}
@@ -118,7 +118,7 @@ func parallelQueryExpression(bound expr.Expr, frame uint32, width int) bool {
 		return false
 	}
 	safe := true
-	plan.ExpressionChildren(bound, func(child expr.Expr) { safe = safe && parallelQueryExpression(child, frame, width) })
+	plan.ExpressionChildren(bound, func(child expr.Expr) { safe = safe && ParallelQueryExpression(child, frame, width) })
 	return safe
 }
 
@@ -137,13 +137,13 @@ func parallelScalarType(t *sqltype.Descriptor) bool {
 // A worker gets an independent release handle and only audited immutable source
 // fields. In particular no scratch, presence, ownership maps or child graph is
 // shallow-copied from the admitted source.
-func parallelQuerySource(source *querySource) (*querySource, error) {
-	pin := source.view.Retain()
+func ParallelQuerySource(source *querySource) (*querySource, error) {
+	pin := source.View.Retain()
 	if pin == nil {
 		return nil, fmt.Errorf("stuntgres: visibility view is released")
 	}
-	return &querySource{view: pin, ref: source.ref, committed: source.committed, own: source.own, visible: source.visible,
-		needsBirthFilter: source.needsBirthFilter, occurrence: source.occurrence, authority: source.authority, host: source.host}, nil
+	return &querySource{View: pin, Ref: source.Ref, Committed: source.Committed, Own: source.Own, Visible: source.Visible,
+		NeedsBirthFilter: source.NeedsBirthFilter, Occurrence: source.Occurrence, Authority: source.Authority, Host: source.Host}, nil
 }
 
 type queryParallelRun struct {
@@ -167,7 +167,7 @@ func (r *queryParallelRun) index(ordinal int) int {
 }
 
 func (r *queryParallelRun) sortRow(source *querySource, ordinal int) querySortRow {
-	row := querySortRow{source: source, index: r.index(ordinal)}
+	row := querySortRow{Source: source, Index: r.index(ordinal)}
 	if r.cacheWidth != 0 {
 		cache := ordinal
 		if r.permutation != nil {
@@ -192,15 +192,15 @@ func parallelProjectionSlots(project *plan.ProjectNode) ([]int, bool) {
 	return slots, true
 }
 
-func runParallelQuery(ctx context.Context, project *plan.ProjectNode, source *querySource, parameters []sqltype.Value, start, end int, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, direct bool) (run queryParallelRun, err error) {
-	worker, err := parallelQuerySource(source)
+func RunParallelQuery(ctx context.Context, project *plan.ProjectNode, source *querySource, parameters []sqltype.Value, start, end int, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, direct bool) (run queryParallelRun, err error) {
+	worker, err := ParallelQuerySource(source)
 	if err != nil {
 		return run, err
 	}
-	defer worker.close()
-	state := &queryState{source: worker, parameters: parameters, input: input, output: output, executionContext: ctx, scanRange: true, scanStart: start, scanEnd: end}
-	defer state.releaseMemberships()
-	stage, err := openQueryProjectStage(ctx, state, project)
+	defer worker.Close()
+	state := &queryState{Source: worker, Parameters: parameters, Input: input, Output: output, ExecutionContext: ctx, ScanRange: true, ScanStart: start, scanEnd: end}
+	defer state.ReleaseMemberships()
+	stage, err := OpenQueryProjectStage(ctx, state, project)
 	if err != nil {
 		return run, err
 	}
@@ -209,10 +209,10 @@ func runParallelQuery(ctx context.Context, project *plan.ProjectNode, source *qu
 			err = closeErr
 		}
 	}()
-	if err = stage.drain(ctx); err != nil {
+	if err = stage.Drain(ctx); err != nil {
 		return run, err
 	}
-	run.count = stage.count()
+	run.count = stage.Count()
 	width := len(project.Schema())
 	if !direct {
 		run.values = make([]sqltype.Value, run.count*width)
@@ -223,7 +223,7 @@ func runParallelQuery(ctx context.Context, project *plan.ProjectNode, source *qu
 			dst = run.values[i*width : (i+1)*width]
 		}
 		var present bool
-		present, err = stage.projectOrdinal(ctx, i, dst)
+		present, err = stage.ProjectOrdinal(ctx, i, dst)
 		if err != nil {
 			return queryParallelRun{}, err
 		}
@@ -233,23 +233,23 @@ func runParallelQuery(ctx context.Context, project *plan.ProjectNode, source *qu
 	}
 	// Reuse sorted physical selections when possible; cache permutations retain
 	// their separate sort-key identity until the leader finishes the real merge.
-	run.indices, run.start = stage.selection, stage.scanStart
-	run.orderValues, run.permutation, run.cacheWidth = stage.orderValues, stage.permutation, stage.cacheWidth
+	run.indices, run.start = stage.Selection, stage.scanStart
+	run.orderValues, run.permutation, run.cacheWidth = stage.OrderValues, stage.Permutation, stage.CacheWidth
 	return run, ctx.Err()
 }
 
-func finalizeParallelQuery(ctx context.Context, project *plan.ProjectNode, ordered *plan.SortNode, source *querySource, parameters []sqltype.Value, workers int) (RowResult, int, error) {
+func FinalizeParallelQuery(ctx context.Context, project *plan.ProjectNode, ordered *plan.SortNode, source *querySource, parameters []sqltype.Value, workers int) (RowResult, int, error) {
 	keep := false
 	defer func() {
 		if !keep {
-			source.close()
+			source.Close()
 		}
 	}()
 	if err := ctx.Err(); err != nil {
 		return nil, 0, err
 	}
 	input, output := sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}
-	if host := source.liveHost(); host != nil {
+	if host := source.LiveHost(); host != nil {
 		input, output = host.Environments()
 	}
 	slots, direct := parallelProjectionSlots(project)
@@ -259,12 +259,12 @@ func finalizeParallelQuery(ctx context.Context, project *plan.ProjectNode, order
 	var joined sync.WaitGroup
 	var errorMu sync.Mutex
 	var first error
-	n := source.count()
+	n := source.Count()
 	for i := range workers {
 		joined.Add(1)
 		go func(i int) {
 			defer joined.Done()
-			run, err := runParallelQuery(workerCtx, project, source, parameters, i*n/workers, (i+1)*n/workers, input, output, direct)
+			run, err := RunParallelQuery(workerCtx, project, source, parameters, i*n/workers, (i+1)*n/workers, input, output, direct)
 			if err != nil {
 				errorMu.Lock()
 				if first == nil {
@@ -284,7 +284,7 @@ func finalizeParallelQuery(ctx context.Context, project *plan.ProjectNode, order
 	if err := ctx.Err(); err != nil {
 		return nil, 0, err
 	}
-	result, err := gatherQueryRuns(ctx, project, ordered, source, runs, slots, direct, input, output)
+	result, err := GatherQueryRuns(ctx, project, ordered, source, runs, slots, direct, input, output)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -292,28 +292,28 @@ func finalizeParallelQuery(ctx context.Context, project *plan.ProjectNode, order
 		result.Close()
 		return nil, 0, err
 	}
-	if direct && result.count > 0 {
+	if direct && result.Count > 0 {
 		keep = true
 		detachQuerySource(source)
 	}
-	return result, result.count, nil
+	return result, result.Count, nil
 }
 
 // Gather concatenates occurrences without an SQL order promise. Gather Merge
 // selects sorted run heads with the exact same fallible comparator as serial
 // sort. It never concatenates then globally sorts and never evaluates targets.
-func gatherQueryRuns(ctx context.Context, project *plan.ProjectNode, ordered *plan.SortNode, source *querySource, runs []queryParallelRun, slots []int, direct bool, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (*finalRows, error) {
+func GatherQueryRuns(ctx context.Context, project *plan.ProjectNode, ordered *plan.SortNode, source *querySource, runs []queryParallelRun, slots []int, direct bool, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) (*finalRows, error) {
 	count := 0
 	for i := range runs {
 		count += runs[i].count
 	}
-	r := newFinalRows(project.Schema(), count)
-	r.output = output
-	width := len(r.schema)
+	r := NewFinalRows(project.Schema(), count)
+	r.Output = output
+	width := len(r.Columns)
 	if direct {
-		r.selection, r.slots = make([]int, count), slots
+		r.Selection, r.Slots = make([]int, count), slots
 	} else {
-		r.values = make([]sqltype.Value, count*width)
+		r.Values = make([]sqltype.Value, count*width)
 	}
 	if ordered == nil {
 		position := 0
@@ -324,14 +324,14 @@ func gatherQueryRuns(ctx context.Context, project *plan.ProjectNode, ordered *pl
 			next := position + runs[i].count
 			if direct {
 				if runs[i].indices != nil {
-					copy(r.selection[position:next], runs[i].indices)
+					copy(r.Selection[position:next], runs[i].indices)
 				} else {
 					for j := range runs[i].count {
-						r.selection[position+j] = runs[i].index(j)
+						r.Selection[position+j] = runs[i].index(j)
 					}
 				}
 			} else {
-				copy(r.values[position*width:next*width], runs[i].values)
+				copy(r.Values[position*width:next*width], runs[i].values)
 			}
 			position = next
 		}
@@ -350,7 +350,7 @@ func gatherQueryRuns(ctx context.Context, project *plan.ProjectNode, ordered *pl
 					best = j
 					continue
 				}
-				sign, err := compareQueryOrder(ctx, ordered.Keys, input, runs[j].sortRow(source, positions[j]), runs[best].sortRow(source, positions[best]))
+				sign, err := CompareQueryOrder(ctx, ordered.Keys, input, runs[j].sortRow(source, positions[j]), runs[best].sortRow(source, positions[best]))
 				if err != nil {
 					return nil, err
 				}
@@ -363,9 +363,9 @@ func gatherQueryRuns(ctx context.Context, project *plan.ProjectNode, ordered *pl
 			}
 			position := positions[best]
 			if direct {
-				r.selection[i] = runs[best].index(position)
+				r.Selection[i] = runs[best].index(position)
 			} else {
-				copy(r.values[i*width:(i+1)*width], runs[best].values[position*width:(position+1)*width])
+				copy(r.Values[i*width:(i+1)*width], runs[best].values[position*width:(position+1)*width])
 			}
 			positions[best]++
 		}
@@ -374,14 +374,14 @@ func gatherQueryRuns(ctx context.Context, project *plan.ProjectNode, ordered *pl
 		return nil, err
 	}
 	if direct && count > 0 {
-		r.source = source
+		r.Source = source
 	}
 	return r, nil
 }
 
 type querySortRow struct {
-	source *querySource
-	index  int
+	Source *querySource
+	Index  int
 	values []sqltype.Value
 }
 
@@ -389,10 +389,10 @@ func (r querySortRow) value(key plan.SortKey) sqltype.Value {
 	if key.Cache >= 0 {
 		return r.values[key.Cache]
 	}
-	return r.source.row(r.index)[key.Slot]
+	return r.Source.Row(r.Index)[key.Slot]
 }
 
-func compareQueryOrder(ctx context.Context, keys []plan.SortKey, input sqltype.InputEnvironment, a, b querySortRow) (int, error) {
+func CompareQueryOrder(ctx context.Context, keys []plan.SortKey, input sqltype.InputEnvironment, a, b querySortRow) (int, error) {
 	for _, key := range keys {
 		if err := ctx.Err(); err != nil {
 			return 0, err

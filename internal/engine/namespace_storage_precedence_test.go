@@ -114,7 +114,7 @@ func TestPGNamespaceViewStoragePrecedence(t *testing.T) {
 		t.Helper()
 		address := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: namespace, Name: viewName})
 		relation := auth.Catalog.MustRelation(address)
-		leaf := queryLeaf{ref: e.catalog.Domain.Ref(auth.Catalog.Epoch(), address), relation: relation}
+		leaf := queryLeaf{Ref: e.catalog.Domain.Ref(auth.Catalog.Epoch(), address), Relation: relation}
 		before, sequence, oid, revision := e.catalog.state, e.visibility.CommitSeq(), e.catalog.nextOID, e.catalog.nextRevision
 		e.mu.Lock()
 		refs, err := e.queryTableRefsLocked(auth, auth.State.CurrentUser, []queryLeaf{leaf}, nil, peer.token, plan.RowMark{})

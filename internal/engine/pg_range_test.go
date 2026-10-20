@@ -31,11 +31,11 @@ func pgRangeUnitFacts() [][7]uint32 {
 }
 func pgRangeUnitBag(t *testing.T, rows *querySource, d *catalog.Relation) map[uint32][7]uint32 {
 	t.Helper()
-	if len(rows.anonymous) != 6 {
-		t.Fatal("range count", len(rows.anonymous))
+	if len(rows.Anonymous) != 6 {
+		t.Fatal("range count", len(rows.Anonymous))
 	}
 	bag := map[uint32][7]uint32{}
-	for _, row := range rows.anonymous {
+	for _, row := range rows.Anonymous {
 		if len(row) != 7 {
 			t.Fatal("range width", len(row))
 		}
@@ -106,7 +106,7 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rows.ref != ref || !maps.Equal(descriptors, maps.Collect(e.catalog.state.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.state.Names())) {
+	if rows.Ref != ref || !maps.Equal(descriptors, maps.Collect(e.catalog.state.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.state.Names())) {
 		t.Fatal("capture mutated catalog/ref")
 	}
 	bag := pgRangeUnitBag(t, rows, d)
@@ -114,11 +114,11 @@ func TestPGRangeCaptureOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows.anonymous[0][0] = sqltype.Null(d.Columns[0].Usage.Type)
+	rows.Anonymous[0][0] = sqltype.Null(d.Columns[0].Usage.Type)
 	if !reflect.DeepEqual(pgRangeUnitBag(t, second, d), bag) {
 		t.Fatal("captures share value backing")
 	}
-	rows.anonymous[0] = nil
+	rows.Anonymous[0] = nil
 	if !reflect.DeepEqual(pgRangeUnitBag(t, second, d), bag) {
 		t.Fatal("captures share row directory")
 	}

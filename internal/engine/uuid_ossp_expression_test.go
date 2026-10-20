@@ -34,7 +34,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	if carrier, err := routine.ExpressionRoutineDescriptor(n); err != nil || carrier != n.Procedure {
 		t.Fatal("missing common original routine carrier", carrier, err)
 	}
-	if n.Ref.Address != ext.Members[0] || n.ResultUsage().Type.ID() != sqltype.UUID || plannedVolatility(n) != expr.Volatile || !validInstalledUUIDOsspShape(n) || !closedUUIDDefault(n) || generationImmutable(n) {
+	if n.Ref.Address != ext.Members[0] || n.ResultUsage().Type.ID() != sqltype.UUID || PlannedVolatility(n) != expr.Volatile || !validInstalledUUIDOsspShape(n) || !closedUUIDDefault(n) || generationImmutable(n) {
 		t.Fatal("installed UUID shape/properties", n)
 	}
 	if generationHasTableOID(n) {
@@ -77,7 +77,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := mapped.(plan.InstalledUUIDOsspExpr)
-	if m.Ref.Epoch != n.Ref.Epoch+1 || m.Procedure != n.Procedure || m.Name != "uuidv4" || plannedVolatility(m) != expr.Volatile {
+	if m.Ref.Epoch != n.Ref.Epoch+1 || m.Procedure != n.Procedure || m.Name != "uuidv4" || PlannedVolatility(m) != expr.Volatile {
 		t.Fatal("remap lost captured provider", m)
 	}
 	proc := extension.RemapDescriptor(n.Procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.Procedure.Address(): {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*catalog.Procedure)
@@ -195,7 +195,7 @@ func TestUUIDOsspGroupedExpressionIdentity(t *testing.T) {
 		t.Fatal("retagging remapped grouped leaf", err)
 	}
 	got := rebound.(plan.InstalledUUIDOsspExpr)
-	if got.Ref != n.Ref || got.Procedure != n.Procedure || !got.Properties().StageDependent || plannedVolatility(got) != expr.Volatile || closedUUIDDefault(got) {
+	if got.Ref != n.Ref || got.Procedure != n.Procedure || !got.Properties().StageDependent || PlannedVolatility(got) != expr.Volatile || closedUUIDDefault(got) {
 		t.Fatal("grouped remap lost identity/stage or relaxed DEFAULT", got)
 	}
 }
@@ -268,7 +268,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 					}
 				}
 			}
-			probe.routineChecks = deps
+			probe.RoutineChecks = deps
 			if err := admitRoutineCall(&probe, node, true, false); err == nil {
 				t.Fatal("absent/stale original authority repaired")
 			}
@@ -287,17 +287,17 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 		mutate(&bad)
 		auth.Catalog.State().SetDescriptor(n.Ref.Address, &bad)
 		probe := evaluation
-		probe.routineAuthority = &auth
+		probe.RoutineAuthority = &auth
 		if routine.SameRoutineDeclaration(&bad, captured) || admitRoutineCall(&probe, node, true, false) == nil {
 			t.Fatal("incompatible current provider/kind admitted")
 		}
 	}
-	grafted, _, err := mapBoundExpression(evaluation.catalog, node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, recipe, nil)
+	grafted, _, err := mapBoundExpression(evaluation.Catalog, node, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d }, nil, recipe, nil)
 	if err != nil {
 		t.Fatal("graft genuine recipe", err)
 	}
 	probe := evaluation
-	probe.routineChecks = nil
+	probe.RoutineChecks = nil
 	if err := admitRoutineCall(&probe, grafted, true, false); err != nil {
 		t.Fatal("graft lost actual owning manifest", err)
 	}
@@ -315,13 +315,13 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 			next++
 		}
 	}
-	state := catalog.CloneState(evaluation.catalog.State())
+	state := catalog.CloneState(evaluation.Catalog.State())
 	for address := range mapping {
 		state.UnbindName(catalog.DescriptorNameKey(state.Get(address)))
 		state.RemoveDescriptor(address)
 	}
 	for address, dest := range mapping {
-		d := extension.RemapDescriptor(evaluation.catalog.Get(address), mapping)
+		d := extension.RemapDescriptor(evaluation.Catalog.Get(address), mapping)
 		state.SetDescriptor(dest, d)
 		state.BindName(catalog.DescriptorNameKey(d), dest)
 	}
@@ -348,13 +348,13 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	}
 	auth := catalogAuthorization(e, view)
 	probe = evaluation
-	probe.catalog, probe.routineAuthority = view, &auth
+	probe.Catalog, probe.RoutineAuthority = view, &auth
 	if err := admitRoutineCall(&probe, relocated, true, false); err == nil {
 		t.Fatal("retag manufactured original authority")
 	}
-	probe.routineChecks = slices.Clone(original)
-	for i := range probe.routineChecks {
-		probe.routineChecks[i].Ref = remap(probe.routineChecks[i].Ref)
+	probe.RoutineChecks = slices.Clone(original)
+	for i := range probe.RoutineChecks {
+		probe.RoutineChecks[i].Ref = remap(probe.RoutineChecks[i].Ref)
 	}
 	if err := admitRoutineCall(&probe, relocated, true, false); err != nil {
 		t.Fatal("transferred original authority rejected", err)
@@ -379,7 +379,7 @@ func TestUUIDOsspRoutineOriginalAuthority(t *testing.T) {
 	}
 	foreignAuth := catalogAuthorization(other, foreignView)
 	probe = evaluation
-	probe.routineAuthority = &foreignAuth
+	probe.RoutineAuthority = &foreignAuth
 	if err := admitRoutineCall(&probe, foreignNode, true, false); err == nil {
 		t.Fatal("foreign same-OID retag acquired original authority")
 	}
@@ -431,7 +431,7 @@ func TestUUIDOsspRoutineDefaultACL(t *testing.T) {
 		if err != nil || current.ACL.Explicit != tc.explicit || (rights&authorization.ExecutePrivilege != 0) != tc.execute || !routine.SameRoutineDeclaration(current, original) {
 			t.Fatal("default/explicit current EXECUTE", tc.sql, current.ACL, rights, err)
 		}
-		evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalAdmission: evalAdmission{routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies}}
+		evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
 		err = admitRoutineCall(&evaluation, node, true, false)
 		if tc.execute {
 			if err != nil {

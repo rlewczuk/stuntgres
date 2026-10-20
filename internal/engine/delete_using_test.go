@@ -20,11 +20,11 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 		sessionSQL(t, s, q)
 	}
 	op, scope, b, target, inputs := updateFromBoundSources(t, e, s, context.Background(), "DELETE FROM t d USING s x WHERE d.id=x.k RETURNING d.id,d.v,x.label,new.id")
-	data := target.view.Data()
-	if len(b.querySources) != 1 || inputs == nil || inputs.view == nil || inputs.view.Data() != data {
+	data := target.View.Data()
+	if len(b.querySources) != 1 || inputs == nil || inputs.View == nil || inputs.View.Data() != data {
 		t.Fatal("incoherent command capture")
 	}
-	original := append([]storage.RowVersion(nil), target.committed...)
+	original := append([]storage.RowVersion(nil), target.Committed...)
 	if original[0].Row == original[1].Row {
 		t.Fatal("equal values lack distinct physical identities")
 	}
@@ -56,12 +56,12 @@ func TestDeleteUsingPhysicalIdentityAndDemand(t *testing.T) {
 			t.Fatal("lost deletion authority", candidate, v)
 		}
 	}
-	target.close()
+	target.Close()
 	if err := scope.Finish(nil); err != nil {
 		t.Fatal(err)
 	}
 	op.Done()
-	if target.view != nil || inputs.sources != nil || len(scope.querySources) != 0 {
+	if target.View != nil || inputs.Sources != nil || len(scope.querySources) != 0 {
 		t.Fatal("capture leaked")
 	}
 	for i, v := range original {
@@ -92,7 +92,7 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				op, scope, b, target, inputs := updateFromBoundSources(t, e, writer, ctx, "DELETE FROM t USING s JOIN r ON s.k=r.k WHERE t.id=s.k RETURNING t.id")
-				children := append([]*querySource(nil), inputs.sources...)
+				children := append([]*querySource(nil), inputs.Sources...)
 				calls := 0
 				sentinel := errors.New("late DELETE USING output failure")
 				switch phase {
@@ -138,7 +138,7 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 				if r.Rows != nil {
 					t.Cleanup(func() { r.Rows.Close() })
 				}
-				target.close()
+				target.Close()
 				want := error(context.Canceled)
 				wantCalls := 2
 				if phase == "late_output" {
@@ -155,11 +155,11 @@ func TestDeleteUsingLateFailureAndCancellation(t *testing.T) {
 				}
 				op.Done()
 				for _, child := range children {
-					if child.view != nil || child.committed != nil || child.own != nil {
+					if child.View != nil || child.Committed != nil || child.Own != nil {
 						t.Fatal("orphan child view")
 					}
 				}
-				if target.view != nil || inputs.sources != nil || len(scope.querySources) != 0 {
+				if target.View != nil || inputs.Sources != nil || len(scope.querySources) != 0 {
 					t.Fatal("orphan command view")
 				}
 				if explicit {
@@ -191,7 +191,7 @@ func TestDeleteUsingCapturedOccurrenceLatestTarget(t *testing.T) {
 	if r.Rows != nil {
 		t.Cleanup(func() { r.Rows.Close() })
 	}
-	target.close()
+	target.Close()
 	if err != nil || r.Count != 2 {
 		t.Fatal(r, err)
 	}

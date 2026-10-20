@@ -45,7 +45,7 @@ func pgOperatorReleaseRows(t *testing.T, name string, width int) [][]string {
 func pgOperatorUnitBag(t *testing.T, rows *querySource, source *catalog.Relation) map[uint32][]string {
 	t.Helper()
 	bag := map[uint32][]string{}
-	for _, row := range rows.anonymous {
+	for _, row := range rows.Anonymous {
 		if len(row) != 15 || cap(row) != 15 {
 			t.Fatal("row shape", len(row), cap(row))
 		}
@@ -132,7 +132,7 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rows.ref != ref || !maps.Equal(descriptors, maps.Collect(e.catalog.state.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.state.Names())) {
+	if rows.Ref != ref || !maps.Equal(descriptors, maps.Collect(e.catalog.state.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.state.Names())) {
 		t.Fatal("capture mutated catalog/ref")
 	}
 	bag := pgOperatorUnitBag(t, rows, d)
@@ -148,12 +148,12 @@ func TestPGOperatorCaptureOwnership(t *testing.T) {
 		t.Fatal("capture differs from independent release bag")
 	}
 	// Full-cap row slices cannot append into their neighbours; cells are distinct.
-	first := rows.anonymous[1][0]
-	rows.anonymous[0] = append(rows.anonymous[0], rows.anonymous[0][0])
-	if !reflect.DeepEqual(rows.anonymous[1][0], first) {
+	first := rows.Anonymous[1][0]
+	rows.Anonymous[0] = append(rows.Anonymous[0], rows.Anonymous[0][0])
+	if !reflect.DeepEqual(rows.Anonymous[1][0], first) {
 		t.Fatal("row alias")
 	}
-	rows.anonymous[0] = rows.anonymous[0][:15:15]
+	rows.Anonymous[0] = rows.Anonymous[0][:15:15]
 	foreign, _ := New().CatalogRead().LookupType(sqltype.Oid)
 	invalid := *d
 	invalid.Columns = append([]catalog.Column(nil), d.Columns...)

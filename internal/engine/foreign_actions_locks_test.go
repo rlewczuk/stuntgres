@@ -311,17 +311,17 @@ func TestForeignActionsDiagnosticsOwner(t *testing.T) {
 			}
 			sessionSQL(t, a, "SET ROLE fa_actor")
 			scope := foreignActionUnitScope(t, e, a, "DELETE FROM p")
-			original := scope.identity.current
+			original := scope.identity.Current
 			err = scope.settleForeignActions()
 			var d *sqlstate.Error
 			want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23502", Message: `null value in column "pid" of relation "c" violates not-null constraint`, Detail: "Failing row contains (null, old).", Schema: "public", Table: "c", Column: "pid", Context: `SQL statement "UPDATE ONLY "public"."c" SET "pid" = NULL WHERE $1 OPERATOR(pg_catalog.=) "pid""`}
 			if !errors.As(err, &d) || *d != want {
 				t.Fatal(d, err, want)
 			}
-			if scope.foreignActionAuth != nil || !sqltype.SameDatum(scope.identity.current, original) {
+			if scope.foreignActionAuth != nil || !sqltype.SameDatum(scope.identity.Current, original) {
 				t.Fatal("child-owner reporting changed invoking identity")
 			}
-			current, err := scope.identity.current.Text()
+			current, err := scope.identity.Current.Text()
 			if err != nil || current != "fa_actor" {
 				t.Fatal("lost initiating actor identity", current, err)
 			}

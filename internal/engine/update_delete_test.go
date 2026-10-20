@@ -154,11 +154,11 @@ func TestUpdateCoreDeleteCandidateIdentity(t *testing.T) {
 			}
 			op, scope, b, source := updateBoundSource(t, e, owner, context.Background(), "UPDATE t SET v=33 WHERE id=3")
 			defer func() {
-				source.close()
+				source.Close()
 				scope.Finish(context.Canceled)
 				op.Done()
 			}()
-			if deletedBefore && source.rawIndex(1) != 2 {
+			if deletedBefore && source.RawIndex(1) != 2 {
 				t.Fatal("visible index confused with physical slot")
 			}
 			if !deletedBefore {
@@ -433,11 +433,11 @@ func TestUpdateCoreDeletePrivateCandidateIdentity(t *testing.T) {
 	sessionSQL(t, peer, "DELETE FROM t WHERE id=1")
 	op, scope, b, source := updateBoundSource(t, e, owner, context.Background(), "UPDATE t SET v=33 WHERE id=3")
 	defer func() {
-		source.close()
+		source.Close()
 		scope.Finish(context.Canceled)
 		op.Done()
 	}()
-	if source.count() != 2 || source.rawIndex(1) != len(source.committed) || source.versionAt(source.rawIndex(1)).Born != 0 {
+	if source.Count() != 2 || source.RawIndex(1) != len(source.Committed) || source.VersionAt(source.RawIndex(1)).Born != 0 {
 		t.Fatal("private head not canonical substituted raw occurrence")
 	}
 	result, err := e.executeUpdate(op.ctx, scope, b, source, nil, nil, "public")

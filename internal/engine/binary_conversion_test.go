@@ -72,7 +72,7 @@ func TestBinaryConversionCarrier(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			eval := &EvalContext{evalStatement: evalStatement{Context: context.Background(), host: hostOf(scope)}}
+			eval := &EvalContext{evalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope)}}
 			got, err := bound.Eval(eval)
 			if err != nil {
 				t.Fatal(err)
@@ -93,7 +93,7 @@ func TestBinaryConversionCarrier(t *testing.T) {
 			if !reflect.DeepEqual(order, wantOrder) {
 				t.Fatal(order)
 			}
-			if plannedVolatility(bound) != tc.volatility {
+			if PlannedVolatility(bound) != tc.volatility {
 				t.Fatal("intrinsic volatility lost")
 			}
 			for i, arg := range args {

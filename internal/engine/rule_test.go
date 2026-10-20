@@ -299,7 +299,7 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(producer.sources) != 1 || producer.sources[0].storage != original.storage {
+		if len(producer.sources) != 1 || producer.sources[0].Storage != original.storage {
 			t.Fatal("event producer lost original physical storage capture")
 		}
 		current, err := currentQuerySourceLocked(f.e, f.e.CatalogRead(), nil, producer.sources[0])
@@ -310,9 +310,9 @@ func TestRuleTemplateSubstitution(t *testing.T) {
 		defer done()
 		authority := f.authorization(t, op)
 		imported := producer.sources[0]
-		imported.storage = nil
+		imported.Storage = nil
 		refreshed, err := refreshRuleSources(authority, binding{querySources: []queryLeaf{imported}})
-		if err != nil || refreshed.querySources[0].storage != original.storage || imported.storage != nil {
+		if err != nil || refreshed.querySources[0].Storage != original.storage || imported.Storage != nil {
 			t.Fatal("stored/imported source did not capture current physical storage immutably", err)
 		}
 	})

@@ -71,7 +71,7 @@ func (e *Engine) prepareTemporaryCommit(op *Operation, ref ids.TxRef, writes map
 		stage := e.BeginCatalogStage(base)
 		defer e.DiscardCatalogStage(stage)
 		input, output := sessionPresentation(op.session)
-		evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: input, Output: output, catalog: base}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+		evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: input, Output: output, Catalog: base}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 		project := func(old, replacement *catalog.Relation) error {
 			owner := op.session.transactions
 			snapshot, exists := owner.roots[old.Address()]

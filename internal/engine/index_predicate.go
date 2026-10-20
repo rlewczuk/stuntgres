@@ -22,23 +22,23 @@ type indexExecutionPreparation struct {
 
 func indexRecipeEvaluation(evaluation *EvalContext, dependencies []ids.ObjectRef, parent *catalog.Relation) EvalContext {
 	local := *evaluation
-	local.routineGraft = false
-	local.routineRecipe = true
-	local.routineChecks = nil
-	local.routineReferences, local.routineConsumer = dependencies, parent
+	local.RoutineGraft = false
+	local.RoutineRecipe = true
+	local.RoutineChecks = nil
+	local.RoutineReferences, local.RoutineConsumer = dependencies, parent
 	return local
 }
 
 func prepareIndexRecipe(evaluation *EvalContext, expression expr.Expr, dependencies []ids.ObjectRef, parent *catalog.Relation, admission *routineAdmissionProgram, executable bool) (expr.Expr, error) {
 	local := indexRecipeEvaluation(evaluation, dependencies, parent)
-	local.routineProgram = admission
+	local.RoutineProgram = admission
 	prepared, _, err := preflightCoercionsWithPolicy(&local, expression, true)
-	evaluation.preparedDomainChecks = local.preparedDomainChecks
+	evaluation.PreparedDomainChecks = local.PreparedDomainChecks
 	if err != nil {
 		return nil, err
 	}
 	if executable {
-		err = validateExpressionJoinExecution(&local, prepared, local.catalog)
+		err = validateExpressionJoinExecution(&local, prepared, local.Catalog)
 	}
 	return prepared, err
 }
@@ -100,8 +100,8 @@ func (p *indexExecutionPreparation) prepareKeys(evaluation *EvalContext, parent 
 			continue
 		}
 		local := indexRecipeEvaluation(evaluation, key.Derived.Dependencies, parent)
-		local.routineProgram = &p.admission
-		if err := validateExpressionJoinExecution(&local, p.keyProgram(i, ordering, hash), local.catalog); err != nil {
+		local.RoutineProgram = &p.admission
+		if err := validateExpressionJoinExecution(&local, p.keyProgram(i, ordering, hash), local.Catalog); err != nil {
 			return err
 		}
 	}
@@ -124,17 +124,17 @@ func (e *Engine) bindIndexPredicate(op *Operation, input sqltype.InputEnvironmen
 	if err != nil {
 		return nil, err
 	}
-	if err := rejectVirtualIndexUses(parent, binder.query.sources[0].uses); err != nil {
+	if err := rejectVirtualIndexUses(parent, binder.query.sources[0].Uses); err != nil {
 		return nil, err
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: binder.input, catalog: auth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
-	evaluation.routineAuthority, evaluation.routineChecks = &auth, binder.dependencies
-	evaluation.routineRecipe = true
+	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: binder.input, Catalog: auth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation.RoutineAuthority, evaluation.RoutineChecks = &auth, binder.dependencies
+	evaluation.RoutineRecipe = true
 	execution, _, err := preflightCoercionsWithPolicy(&evaluation, definition, true)
 	if err != nil {
 		return nil, err
 	}
-	if plannedVolatility(execution) != expr.Immutable {
+	if PlannedVolatility(execution) != expr.Immutable {
 		return nil, sqlError("42P17", "functions in index predicate must be marked IMMUTABLE")
 	}
 	var dependencies []ids.ObjectRef
@@ -159,7 +159,7 @@ func (e *Engine) bindIndexPredicate(op *Operation, input sqltype.InputEnvironmen
 // absent includes; only TRUE includes; errors and cancellation veto publication.
 // The caller owns the evaluation frame and row, with no per-row allocation.
 func (p *indexExecutionPreparation) predicateMatches(evaluation *EvalContext, parent *catalog.Relation, definition *catalog.IndexDefinition, row []sqltype.Value, ordering *indexOrdering, hash *storage.HashBinding) (bool, error) {
-	if err := evaluationContext(evaluation); err != nil {
+	if err := EvaluationContext(evaluation); err != nil {
 		return false, err
 	}
 	if err := p.prepareConstants(evaluation, parent, definition, ordering, hash); err != nil {
@@ -218,7 +218,7 @@ func partialPredicateImpliedBy(query, predicate expr.Expr) bool {
 	if p, ok := predicate.(plan.LogicalExpr); ok && p.Op == parser.LogicalAnd {
 		return partialPredicateImpliedBy(query, p.Left) && partialPredicateImpliedBy(query, p.Right)
 	}
-	if predicate.Properties().ParameterDependent || plannedVolatility(predicate) != expr.Immutable {
+	if predicate.Properties().ParameterDependent || PlannedVolatility(predicate) != expr.Immutable {
 		return false
 	}
 	return partialPredicateAtom(query, predicate)
@@ -228,5 +228,5 @@ func partialPredicateAtom(query, predicate expr.Expr) bool {
 	if q, ok := query.(plan.LogicalExpr); ok && q.Op == parser.LogicalAnd {
 		return partialPredicateAtom(q.Left, predicate) || partialPredicateAtom(q.Right, predicate)
 	}
-	return !query.Properties().ParameterDependent && plannedVolatility(query) == expr.Immutable && sameGroupExpression(query, predicate)
+	return !query.Properties().ParameterDependent && PlannedVolatility(query) == expr.Immutable && sameGroupExpression(query, predicate)
 }

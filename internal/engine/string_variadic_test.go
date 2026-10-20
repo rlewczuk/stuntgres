@@ -80,8 +80,8 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	}
 	node := bound.(functions.StringVariadic)
 	oldGroup := quoteCaptureCandidate{}
-	_, _, err = foldStringVariadic(&EvalContext{evalStatement: evalStatement{Context: ctx, quoteCaptures: &oldGroup}}, node)
-	if err != nil || len(oldGroup.entries) != 1 {
+	_, _, err = foldStringVariadic(&EvalContext{evalStatement: evalStatement{Context: ctx, QuoteCaptures: &oldGroup}}, node)
+	if err != nil || len(oldGroup.Entries) != 1 {
 		t.Fatal(err)
 	}
 	types := formatUnitTypes()
@@ -93,9 +93,9 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	if fresh.Usage.Type != types[sqltype.Text] || fresh.Args[0].ResultUsage().Type != types[sqltype.Int4] || node.Usage.Type == fresh.Usage.Type || node.Args[0].ResultUsage().Type == fresh.Args[0].ResultUsage().Type {
 		t.Fatal("retag source mutated or authority not replaced")
 	}
-	candidate := quoteCaptureCandidate{entries: oldGroup.entries}
-	_, _, err = foldStringVariadic(&EvalContext{evalStatement: evalStatement{Context: ctx, quoteCaptures: &candidate}}, fresh)
-	if err != nil || !candidate.private || len(candidate.entries) != 1 || candidate.entries[0].value.Type() != types[sqltype.Text] || oldGroup.entries[0].value.Type() != node.Usage.Type {
+	candidate := quoteCaptureCandidate{Entries: oldGroup.Entries}
+	_, _, err = foldStringVariadic(&EvalContext{evalStatement: evalStatement{Context: ctx, QuoteCaptures: &candidate}}, fresh)
+	if err != nil || !candidate.Private || len(candidate.Entries) != 1 || candidate.Entries[0].Value.Type() != types[sqltype.Text] || oldGroup.Entries[0].Value.Type() != node.Usage.Type {
 		t.Fatal("coincident OID adopted or source group mutated", err)
 	}
 
@@ -109,9 +109,9 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	tableRef := e.catalog.Domain.Ref(catalog.Epoch(), table.Address())
 	viewRef := e.catalog.Domain.Ref(catalog.Epoch(), view.Address())
 	origins := []quoteOrigin{
-		{owner: tableRef, attribute: table.Attributes[0], definition: table.ColumnMeta.Defaults[table.Attributes[0]].OID},
-		{owner: tableRef, attribute: table.Attributes[1], definition: table.ColumnMeta.Defaults[table.Attributes[1]].OID},
-		{owner: viewRef, definition: viewOf(view).rule, revision: viewOf(view).quoteRevision},
+		{Owner: tableRef, Attribute: table.Attributes[0], Definition: table.ColumnMeta.Defaults[table.Attributes[0]].OID},
+		{Owner: tableRef, Attribute: table.Attributes[1], Definition: table.ColumnMeta.Defaults[table.Attributes[1]].OID},
+		{Owner: viewRef, Definition: viewOf(view).rule, Revision: viewOf(view).quoteRevision},
 		{},
 	}
 	stamped := node.WithOrigin(origins[2])
@@ -123,7 +123,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		}
 		return ref
 	}, nil)
-	if err != nil || quoteOriginOf(remapped.(functions.StringVariadic)).owner != targetRef || quoteOriginOf(stamped) != origins[2] {
+	if err != nil || quoteOriginOf(remapped.(functions.StringVariadic)).Owner != targetRef || quoteOriginOf(stamped) != origins[2] {
 		t.Fatal("view quote origin remap lost target ownership or mutated source", err)
 	}
 	stampedRetagged, _, err := retagBoundTypes(binder.bindingCatalog(), stamped, func(d *sqltype.Descriptor) *sqltype.Descriptor { return types[d.ID()] })
@@ -136,45 +136,45 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		source := plan.LiteralExpr{Info: expr.Info{Usage: node.Usage}, Value: sqltype.String(node.Usage.Type, input)}
 		occurrence := functions.StringVariadic{Info: expr.Info{Usage: node.Usage, Pos: parser.Position{Offset: 17}}, Name: "quote_ident", Frame: 1, Args: []expr.Expr{source}}
 		ambient := origin
-		if origin.owner != (ids.ObjectRef{}) && origin.attribute == 0 {
+		if origin.Owner != (ids.ObjectRef{}) && origin.Attribute == 0 {
 			occurrence = occurrence.WithOrigin(origin)
 			ambient = quoteOrigin{} // Lowered view nodes override caller-root context.
 		}
-		folded, _, err := foldStringVariadic(&EvalContext{evalStatement: evalStatement{Context: ctx, quoteCaptures: &collision, quoteOrigin: ambient}}, occurrence)
+		folded, _, err := foldStringVariadic(&EvalContext{evalStatement: evalStatement{Context: ctx, QuoteCaptures: &collision, quoteOrigin: ambient}}, occurrence)
 		if err != nil {
 			t.Fatal(err)
 		}
 		got, _ := folded.(plan.LiteralExpr).Value.Text()
-		if got != input || len(collision.entries) != i+1 {
-			t.Fatal("distinct stored origins collided", got, input, collision.entries)
+		if got != input || len(collision.Entries) != i+1 {
+			t.Fatal("distinct stored origins collided", got, input, collision.Entries)
 		}
 	}
-	published := collision.entries
-	stableOrigins := quoteCaptureCandidate{entries: published}
+	published := collision.Entries
+	stableOrigins := quoteCaptureCandidate{Entries: published}
 	pruneQuoteCaptures(&stableOrigins, e.CatalogRead())
-	if stableOrigins.private || &stableOrigins.entries[0] != &published[0] {
+	if stableOrigins.Private || &stableOrigins.Entries[0] != &published[0] {
 		t.Fatal("valid origin pruning copied group")
 	}
 	sessionSQL(t, s, "ALTER TABLE sv_quote_origins RENAME COLUMN a TO renamed")
 	pruneQuoteCaptures(&stableOrigins, e.CatalogRead())
-	if stableOrigins.private {
+	if stableOrigins.Private {
 		t.Fatal("unrelated rename invalidated DEFAULT output")
 	}
 	sessionSQL(t, s, "ALTER TABLE sv_quote_origins ALTER COLUMN renamed SET DEFAULT quote_ident('new')")
-	retired := quoteCaptureCandidate{entries: published}
+	retired := quoteCaptureCandidate{Entries: published}
 	pruneQuoteCaptures(&retired, e.CatalogRead())
-	if !retired.private || len(retired.entries) != 3 || len(published) != 4 || retired.entries[0].origin != origins[1] {
+	if !retired.Private || len(retired.Entries) != 3 || len(published) != 4 || retired.Entries[0].Origin != origins[1] {
 		t.Fatal("default replacement retained old origin or mutated publication")
 	}
 	sessionSQL(t, s, "CREATE OR REPLACE VIEW sv_quote_origin_view AS SELECT quote_ident('changed') AS v")
 	pruneQuoteCaptures(&retired, e.CatalogRead())
-	if len(retired.entries) != 2 || len(published) != 4 {
+	if len(retired.Entries) != 2 || len(published) != 4 {
 		t.Fatal("view replacement retained prior defining revision")
 	}
-	sealed := quoteCaptureCandidate{entries: published, sealed: true}
+	sealed := quoteCaptureCandidate{Entries: published, Sealed: true}
 	missing := functions.StringVariadic{Info: expr.Info{Usage: node.Usage, Pos: parser.Position{Offset: 19}}, Name: "quote_ident", Frame: 1, Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: node.Usage}, Value: sqltype.String(node.Usage.Type, "local")}}}
-	_, _, err = foldStringVariadic(&EvalContext{evalStatement: evalStatement{Context: ctx, quoteCaptures: &sealed}}, missing)
-	if err != nil || sealed.private || len(sealed.entries) != 4 {
+	_, _, err = foldStringVariadic(&EvalContext{evalStatement: evalStatement{Context: ctx, QuoteCaptures: &sealed}}, missing)
+	if err != nil || sealed.Private || len(sealed.Entries) != 4 {
 		t.Fatal("sealed executor group admitted row-time publication", err)
 	}
 
@@ -207,9 +207,9 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 				t.Fatalf("%s: missing layer captures: %+v", query, description.quotes)
 			}
 			a, b := description.quotes[0], description.quotes[1]
-			av, _ := a.value.Text()
-			bv, _ := b.value.Text()
-			if a.offset != b.offset || a.frame != b.frame || a.origin.owner == b.origin.owner || av == bv || (av != "inval" && av != "outvl") || (bv != "inval" && bv != "outvl") {
+			av, _ := a.Value.Text()
+			bv, _ := b.Value.Text()
+			if a.Offset != b.Offset || a.Frame != b.Frame || a.Origin.Owner == b.Origin.Owner || av == bv || (av != "inval" && av != "outvl") || (bv != "inval" && bv != "outvl") {
 				t.Fatalf("lowered equal-offset view calls collided: %+v / %+v", a, b)
 			}
 		}
@@ -267,16 +267,16 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		}
 		for _, capture := range description.quotes {
 			want := "stored"
-			if capture.origin.owner == (ids.ObjectRef{}) {
+			if capture.Origin.Owner == (ids.ObjectRef{}) {
 				want = `"root"`
 			}
-			got, _ := capture.value.Text()
+			got, _ := capture.Value.Text()
 			if got != want {
 				t.Fatalf("analysis replan capture = %q, want %q", got, want)
 			}
 		}
 		for _, capture := range published {
-			got, _ := capture.value.Text()
+			got, _ := capture.Value.Text()
 			if got != "root" && got != "stored" {
 				t.Fatal("analysis replan mutated published source captures")
 			}
@@ -304,7 +304,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		bDefinition := beforeRelation.ColumnMeta.Defaults[beforeRelation.Attributes[3]].OID
 		initial := map[string]bool{"root": false, "stored": false, `E'\\x00015c'`: false}
 		for _, capture := range source {
-			value, err := capture.value.Text()
+			value, err := capture.Value.Text()
 			seen, known := initial[value]
 			if err != nil || !known || seen {
 				t.Fatal("unexpected initial retained value", value, err)
@@ -353,16 +353,16 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		ref := engine.catalog.Domain.Ref(catalog.Epoch(), relation.Address())
 		seen := map[string]bool{}
 		for _, capture := range description.quotes {
-			value, err := capture.value.Text()
+			value, err := capture.Value.Text()
 			if err != nil {
 				t.Fatal(err)
 			}
 			want := `"root"`
-			if capture.origin.owner != (ids.ObjectRef{}) {
-				if capture.origin.owner != ref {
+			if capture.Origin.Owner != (ids.ObjectRef{}) {
+				if capture.Origin.Owner != ref {
 					t.Fatal("retry adopted foreign stored origin")
 				}
-				switch capture.origin.attribute {
+				switch capture.Origin.Attribute {
 				case relation.Attributes[2]:
 					want = `"stored"`
 				case relation.Attributes[3]:
@@ -370,7 +370,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 				default:
 					t.Fatal("unexpected retry DEFAULT attribute")
 				}
-				if capture.origin.definition != relation.ColumnMeta.Defaults[capture.origin.attribute].OID {
+				if capture.Origin.Definition != relation.ColumnMeta.Defaults[capture.Origin.Attribute].OID {
 					t.Fatal("retry retained obsolete DEFAULT definition")
 				}
 			}
@@ -400,16 +400,16 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		ref := engine.catalog.Domain.Ref(catalog.Epoch(), relation.Address())
 		seen := map[string]bool{}
 		for _, capture := range description.quotes {
-			value, err := capture.value.Text()
+			value, err := capture.Value.Text()
 			if err != nil {
 				t.Fatal(err)
 			}
 			want := "root"
-			if capture.origin.owner != (ids.ObjectRef{}) {
-				if capture.origin.owner != ref || capture.origin.definition != relation.ColumnMeta.Defaults[capture.origin.attribute].OID {
-					t.Fatal("MERGE default lost physical origin", capture.origin)
+			if capture.Origin.Owner != (ids.ObjectRef{}) {
+				if capture.Origin.Owner != ref || capture.Origin.Definition != relation.ColumnMeta.Defaults[capture.Origin.Attribute].OID {
+					t.Fatal("MERGE default lost physical origin", capture.Origin)
 				}
-				switch capture.origin.attribute {
+				switch capture.Origin.Attribute {
 				case relation.Attributes[1]:
 					want = "a"
 				case relation.Attributes[2]:
@@ -489,24 +489,24 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 					t.Fatal(err)
 				}
 				group := scope.quoteCaptures
-				if result.Count != 1 || group == nil || !group.sealed || len(group.entries) != 3 || description.quotes != nil || peerDescription.quotes != nil || description.quoteGeneration != stamp || peerDescription.quoteGeneration != stamp {
+				if result.Count != 1 || group == nil || !group.Sealed || len(group.Entries) != 3 || description.quotes != nil || peerDescription.quotes != nil || description.quoteGeneration != stamp || peerDescription.quoteGeneration != stamp {
 					scope.Finish(errors.New("unexpected quote publication"))
 					t.Fatal("parameterized MERGE retained/shared quotes", result.Count, group, description.quotes)
 				}
-				if previous != nil && &previous[0] == &group.entries[0] {
+				if previous != nil && &previous[0] == &group.Entries[0] {
 					t.Fatal("parameterized execution borrowed prior backing")
 				}
 				relation := primaryKeyUnitRelation(t, engine, "sv_local_merge")
 				catalog := engine.CatalogRead()
 				ref := engine.catalog.Domain.Ref(catalog.Epoch(), relation.Address())
 				seen := map[string]bool{}
-				for _, capture := range group.entries {
+				for _, capture := range group.Entries {
 					want := "root"
-					if capture.origin.owner != (ids.ObjectRef{}) {
-						if capture.origin.owner != ref || capture.origin.definition != relation.ColumnMeta.Defaults[capture.origin.attribute].OID {
+					if capture.Origin.Owner != (ids.ObjectRef{}) {
+						if capture.Origin.Owner != ref || capture.Origin.Definition != relation.ColumnMeta.Defaults[capture.Origin.Attribute].OID {
 							t.Fatal("operation-local default origin lost")
 						}
-						switch capture.origin.attribute {
+						switch capture.Origin.Attribute {
 						case relation.Attributes[1]:
 							want = "a"
 						case relation.Attributes[2]:
@@ -518,19 +518,19 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 					if on {
 						want = `"` + want + `"`
 					}
-					value, err := capture.value.Text()
+					value, err := capture.Value.Text()
 					if err != nil || value != want || seen[want] {
 						t.Fatal("parameterized group did not use current settings", value, want, err)
 					}
 					seen[want] = true
 				}
 				for _, capture := range previous {
-					value, err := capture.value.Text()
+					value, err := capture.Value.Text()
 					if err != nil || on && strings.Contains(value, `"`) || !on && !strings.Contains(value, `"`) {
 						t.Fatal("fresh execution mutated previous group", value, err)
 					}
 				}
-				previous = group.entries
+				previous = group.Entries
 				if err := scope.Finish(nil); err != nil {
 					t.Fatal(err)
 				}
@@ -548,7 +548,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		stamp := description.quoteGeneration
 		view := primaryKeyUnitRelation(t, engine, "sv_local_view")
 		catalog := engine.CatalogRead()
-		origin := quoteOrigin{owner: engine.catalog.Domain.Ref(catalog.Epoch(), view.Address()), definition: viewOf(view).rule, revision: viewOf(view).quoteRevision}
+		origin := quoteOrigin{Owner: engine.catalog.Domain.Ref(catalog.Epoch(), view.Address()), Definition: viewOf(view).rule, Revision: viewOf(view).quoteRevision}
 		var previous []quoteConstant
 		for id := int64(1); id <= 2; id++ {
 			setting, root, blocked := "off", "root", "blocked"
@@ -577,35 +577,35 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 					t.Fatal(err)
 				}
 				group := scope.quoteCaptures
-				if result.Count != 1 || group == nil || !group.sealed || len(group.entries) != 2 || description.quotes != nil || description.quoteGeneration != stamp {
+				if result.Count != 1 || group == nil || !group.Sealed || len(group.Entries) != 2 || description.quotes != nil || description.quoteGeneration != stamp {
 					scope.Finish(errors.New("unexpected view quote publication"))
 					t.Fatal("parameterized view retained quote group", group)
 				}
-				if previous != nil && &previous[0] == &group.entries[0] {
+				if previous != nil && &previous[0] == &group.Entries[0] {
 					t.Fatal("view borrowed prior parameterized group")
 				}
 				seenRoot, seenView := false, false
-				for _, capture := range group.entries {
-					value, err := capture.value.Text()
+				for _, capture := range group.Entries {
+					value, err := capture.Value.Text()
 					if err != nil {
 						t.Fatal(err)
 					}
-					if capture.origin.owner == (ids.ObjectRef{}) {
+					if capture.Origin.Owner == (ids.ObjectRef{}) {
 						seenRoot = value == root
 					} else {
-						seenView = value == blocked && capture.origin == origin
+						seenView = value == blocked && capture.Origin == origin
 					}
 				}
 				if !seenRoot || !seenView {
 					t.Fatal("operation-local root/view origins lost current settings")
 				}
 				for _, capture := range previous {
-					value, _ := capture.value.Text()
+					value, _ := capture.Value.Text()
 					if !strings.Contains(value, `"`) {
 						t.Fatal("view mutated previous on-setting group")
 					}
 				}
-				previous = group.entries
+				previous = group.Entries
 				if err := scope.Finish(nil); err != nil {
 					t.Fatal(err)
 				}
@@ -626,9 +626,9 @@ func TestStringVariadicBoundedCancellationAndSizes(t *testing.T) {
 		if name == "concat" {
 			_, err = node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
 		} else {
-			_, _, err = foldStringVariadic(&EvalContext{evalStatement: evalStatement{Context: ctx, quoteCaptures: &group}}, node)
+			_, _, err = foldStringVariadic(&EvalContext{evalStatement: evalStatement{Context: ctx, QuoteCaptures: &group}}, node)
 		}
-		if !errors.Is(err, context.Canceled) || group.private || group.entries != nil {
+		if !errors.Is(err, context.Canceled) || group.Private || group.Entries != nil {
 			t.Fatal("cancellation exposed a scalar or partial capture", name, err)
 		}
 	}

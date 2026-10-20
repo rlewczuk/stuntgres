@@ -20,7 +20,7 @@ type windowFrameOffsets struct {
 	integerStart, integerEnd int64
 }
 
-func compareWindowRows(ctx context.Context, keys []plan.SortKey, values []sqltype.Value, a, b int, input sqltype.InputEnvironment) (int, error) {
+func CompareWindowRows(ctx context.Context, keys []plan.SortKey, values []sqltype.Value, a, b int, input sqltype.InputEnvironment) (int, error) {
 	width := len(keys)
 	for i, key := range keys {
 		if err := ctx.Err(); err != nil {
@@ -52,7 +52,7 @@ func compareWindowRows(ctx context.Context, keys []plan.SortKey, values []sqltyp
 
 func evaluateWindowOffsets(ctx context.Context, state *queryState, spec plan.WindowSpec) (windowFrameOffsets, error) {
 	var values windowFrameOffsets
-	evaluation := state.evaluation(ctx)
+	evaluation := state.Evaluation(ctx)
 	for i, bound := range [2]plan.WindowBound{spec.Frame.Start, spec.Frame.End} {
 		if bound.Offset == nil {
 			continue
@@ -61,7 +61,7 @@ func evaluateWindowOffsets(ctx context.Context, state *queryState, spec plan.Win
 		if err != nil {
 			return values, err
 		}
-		if err := validateProducedValue(value, bound.Offset.ResultUsage()); err != nil {
+		if err := ValidateProducedValue(value, bound.Offset.ResultUsage()); err != nil {
 			return values, err
 		}
 		if value.IsNull() {
@@ -102,7 +102,7 @@ func evaluateWindowOffsets(ctx context.Context, state *queryState, spec plan.Win
 }
 
 func prepareWindowOrder(ctx context.Context, state *queryState, child *indexedStage, spec plan.WindowSpec) (windowOrderState, error) {
-	count := child.count()
+	count := child.Count()
 	partitionWidth, orderWidth := len(spec.Partition), len(spec.Order)
 	ordered := windowOrderState{values: make([]sqltype.Value, count*orderWidth)}
 	if partitionWidth == 0 && orderWidth == 0 {
@@ -116,20 +116,20 @@ func prepareWindowOrder(ctx context.Context, state *queryState, child *indexedSt
 		ordered.partitions = []windowPartition{{rows: rows}}
 		return ordered, nil
 	}
-	evaluation := state.evaluation(ctx)
+	evaluation := state.Evaluation(ctx)
 	scratch := make([]sqltype.Value, partitionWidth)
 	buckets := make(map[uint64][]int)
 	for row := range count {
 		if err := ctx.Err(); err != nil {
 			return ordered, err
 		}
-		evaluation.bindQueryRow(child.source, child.index(row))
+		evaluation.BindQueryRow(child.Source, child.Index(row))
 		for k, key := range spec.Order {
 			value, err := key.Expression.Eval(&evaluation)
 			if err != nil {
 				return ordered, err
 			}
-			if err := validateProducedValue(value, key.Expression.ResultUsage()); err != nil {
+			if err := ValidateProducedValue(value, key.Expression.ResultUsage()); err != nil {
 				return ordered, err
 			}
 			ordered.values[row*orderWidth+k] = value
@@ -178,8 +178,8 @@ func prepareWindowOrder(ctx context.Context, state *queryState, child *indexedSt
 	}
 	for _, partition := range ordered.partitions {
 		if orderWidth > 0 {
-			if err := mergeQueryIndices(ctx, partition.rows, func(a, b int) (int, error) {
-				return compareWindowRows(ctx, spec.Order, ordered.values, a, b, state.input)
+			if err := MergeQueryIndices(ctx, partition.rows, func(a, b int) (int, error) {
+				return CompareWindowRows(ctx, spec.Order, ordered.values, a, b, state.Input)
 			}); err != nil {
 				return ordered, err
 			}
@@ -190,7 +190,7 @@ func prepareWindowOrder(ctx context.Context, state *queryState, child *indexedSt
 
 // A cursor advances monotonically over the half-open frame. NULL membership is
 // ordering membership, not arithmetic: strict support never receives NULL keys.
-func windowFrameEndpoint(ctx context.Context, spec plan.WindowSpec, bound plan.WindowBound, offset sqltype.Value, ordered windowOrderState, rows []int, peerStart, peerEnd, cursor int, upper bool, input sqltype.InputEnvironment) (int, error) {
+func WindowFrameEndpoint(ctx context.Context, spec plan.WindowSpec, bound plan.WindowBound, offset sqltype.Value, ordered windowOrderState, rows []int, peerStart, peerEnd, cursor int, upper bool, input sqltype.InputEnvironment) (int, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -244,7 +244,7 @@ func windowFrameEndpoint(ctx context.Context, spec plan.WindowSpec, bound plan.W
 
 // GROUPS maps a peer ordinal to complete half-open row boundaries. Check the
 // distance before arithmetic/conversion: even MaxInt64 offsets cannot wrap.
-func windowGroupsEndpoint(ctx context.Context, kind parser.FrameBoundKind, offset int64, peerEnds []int, group int, upper bool) (int, error) {
+func WindowGroupsEndpoint(ctx context.Context, kind parser.FrameBoundKind, offset int64, peerEnds []int, group int, upper bool) (int, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -276,7 +276,7 @@ func windowGroupsEndpoint(ctx context.Context, kind parser.FrameBoundKind, offse
 
 // Physical endpoints are half-open indices. Compare available distances before
 // converting or adding offsets, including MaxInt64, so arithmetic cannot overflow.
-func windowRowsEndpoint(ctx context.Context, kind parser.FrameBoundKind, offset int64, row, count int, upper bool) (int, error) {
+func WindowRowsEndpoint(ctx context.Context, kind parser.FrameBoundKind, offset int64, row, count int, upper bool) (int, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
@@ -302,7 +302,7 @@ func windowRowsEndpoint(ctx context.Context, kind parser.FrameBoundKind, offset 
 	return row, nil
 }
 
-func windowFrameCount(ctx context.Context, usage sqltype.Usage, head, tail int) (sqltype.Value, error) {
+func WindowFrameCount(ctx context.Context, usage sqltype.Usage, head, tail int) (sqltype.Value, error) {
 	if err := ctx.Err(); err != nil {
 		return sqltype.Value{}, err
 	}
@@ -312,7 +312,7 @@ func windowFrameCount(ctx context.Context, usage sqltype.Usage, head, tail int) 
 }
 
 // Exclusions only subtract from the unit provider's half-open membership.
-func windowMaskCount(mode parser.FrameExclusion, head, tail, current, peerStart, peerEnd int) int {
+func WindowMaskCount(mode parser.FrameExclusion, head, tail, current, peerStart, peerEnd int) int {
 	if head >= tail {
 		return 0
 	}
@@ -333,7 +333,7 @@ func windowMaskCount(mode parser.FrameExclusion, head, tail, current, peerStart,
 	return base
 }
 
-func windowMaskAdmits(mode parser.FrameExclusion, member, current, peerStart, peerEnd int) bool {
+func WindowMaskAdmits(mode parser.FrameExclusion, member, current, peerStart, peerEnd int) bool {
 	switch mode {
 	case parser.ExcludeCurrentRow:
 		return member != current
@@ -348,56 +348,56 @@ func windowMaskAdmits(mode parser.FrameExclusion, member, current, peerStart, pe
 // Transition and saved results belong to one execution and one partition, never
 // to the bound calls. Each SUM occurrence keeps its own provider state.
 type windowSumState struct {
-	callIndex int
-	aggregate any
-	result    sqltype.Value
+	CallIndex int
+	Aggregate any
+	Result    sqltype.Value
 }
 
 type windowSums struct {
-	states      []windowSumState
-	initialized bool
+	States      []windowSumState
+	Initialized bool
 	head, next  int
 }
 
-func (s *windowSums) evaluate(ctx context.Context, state *queryState, child *indexedStage, calls []plan.WindowCall, rows []int, frame plan.WindowFrame, head, tail, current, peerStart, peerEnd int) error {
+func (s *windowSums) Evaluate(ctx context.Context, state *queryState, child *indexedStage, calls []plan.WindowCall, rows []int, frame plan.WindowFrame, head, tail, current, peerStart, peerEnd int) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if len(s.states) == 0 {
+	if len(s.States) == 0 {
 		return nil
 	}
 	// Empty/reversed membership has no transitions, and cannot retain an old
 	// nonempty aggregate. Existing providers have no inverse transition.
 	tail = max(head, tail)
-	restart := !s.initialized || frame.Exclusion != parser.ExcludeNoOthers || head != s.head || head >= s.next || tail < s.next
+	restart := !s.Initialized || frame.Exclusion != parser.ExcludeNoOthers || head != s.head || head >= s.next || tail < s.next
 	if !restart && tail == s.next && current >= head && current < s.next && (frame.End.Kind == parser.FrameUnboundedFollowing || frame.End.Kind == parser.FrameCurrentRow) {
 		return ctx.Err()
 	}
 	if restart {
-		for i := range s.states {
-			entry := &s.states[i]
-			aggregate, err := calls[entry.callIndex].Provider.Init(ctx)
+		for i := range s.States {
+			entry := &s.States[i]
+			aggregate, err := calls[entry.CallIndex].Provider.Init(ctx)
 			if err != nil {
 				return err
 			}
-			entry.aggregate = aggregate
+			entry.Aggregate = aggregate
 		}
-		s.head, s.next, s.initialized = head, head, true
+		s.head, s.next, s.Initialized = head, head, true
 	}
-	evaluation := state.evaluation(ctx)
+	evaluation := state.Evaluation(ctx)
 	// Bind each admitted member once, then advance every independent occurrence.
 	// Call-major replay changes volatile values even when the total is unchanged.
 	for member := s.next; member < tail; member++ {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if !windowMaskAdmits(frame.Exclusion, member, current, peerStart, peerEnd) {
+		if !WindowMaskAdmits(frame.Exclusion, member, current, peerStart, peerEnd) {
 			continue
 		}
-		evaluation.bindQueryRow(child.source, child.index(rows[member]))
-		for i := range s.states {
-			entry := &s.states[i]
-			call := &calls[entry.callIndex]
+		evaluation.BindQueryRow(child.Source, child.Index(rows[member]))
+		for i := range s.States {
+			entry := &s.States[i]
+			call := &calls[entry.CallIndex]
 			if err := ctx.Err(); err != nil {
 				return err
 			}
@@ -405,38 +405,38 @@ func (s *windowSums) evaluate(ctx context.Context, state *queryState, child *ind
 			if err != nil {
 				return err
 			}
-			if err := validateProducedValue(value, call.Argument.ResultUsage()); err != nil {
+			if err := ValidateProducedValue(value, call.Argument.ResultUsage()); err != nil {
 				return err
 			}
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			if err := call.Provider.Advance(ctx, entry.aggregate, value, sqltype.Value{}); err != nil {
+			if err := call.Provider.Advance(ctx, entry.Aggregate, value, sqltype.Value{}); err != nil {
 				return err
 			}
 		}
 	}
 	s.next = tail
-	for i := range s.states {
-		entry := &s.states[i]
-		call := &calls[entry.callIndex]
+	for i := range s.States {
+		entry := &s.States[i]
+		call := &calls[entry.CallIndex]
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		value, err := call.Provider.Finalize(ctx, entry.aggregate)
+		value, err := call.Provider.Finalize(ctx, entry.Aggregate)
 		if err != nil {
 			return err
 		}
-		if err := validateProducedValue(value, call.Expression.ResultUsage()); err != nil {
+		if err := ValidateProducedValue(value, call.Expression.ResultUsage()); err != nil {
 			return err
 		}
-		entry.result = value
+		entry.Result = value
 	}
 	return ctx.Err()
 }
 
 func openWindowNode(ctx context.Context, state *queryState, n *plan.WindowNode) (indexedStage, error) {
-	child, err := openQueryNode(ctx, state, n.Child)
+	child, err := OpenNode(ctx, state, n.Child)
 	if err != nil {
 		return indexedStage{}, err
 	}
@@ -462,7 +462,7 @@ func openWindowNode(ctx context.Context, state *queryState, n *plan.WindowNode) 
 			demanded[n.SpecIndices[i]] |= validateBounds
 		}
 	}
-	if err := child.drain(ctx); err != nil {
+	if err := child.Drain(ctx); err != nil {
 		return indexedStage{}, err
 	}
 	orders := make([]windowOrderState, len(n.Specs))
@@ -498,22 +498,22 @@ func openWindowNode(ctx context.Context, state *queryState, n *plan.WindowNode) 
 			}
 		}
 	}
-	count, width := child.count(), len(n.Calls)
-	source := &querySource{input: child.source, authority: state.source.authority, host: state.source.host, window: true, windowCount: count, windowWidth: width, windowValues: make([]sqltype.Value, count*width), scratch: make([]sqltype.Value, len(n.Schema()))}
-	source.presenceSlots, source.presenceCount = child.source.presenceSlots, child.source.presenceCount
-	if state.source != child.source {
-		source.sources = []*querySource{state.source}
+	count, width := child.Count(), len(n.Calls)
+	source := &querySource{Input: child.Source, Authority: state.Source.Authority, Host: state.Source.Host, Window: true, WindowCount: count, windowWidth: width, WindowValues: make([]sqltype.Value, count*width), Scratch: make([]sqltype.Value, len(n.Schema()))}
+	source.PresenceSlots, source.PresenceCount = child.Source.PresenceSlots, child.Source.PresenceCount
+	if state.Source != child.Source {
+		source.Sources = []*querySource{state.Source}
 	}
-	if child.selection != nil || child.permutation != nil {
-		source.windowIndices = make([]int, count)
+	if child.Selection != nil || child.Permutation != nil {
+		source.WindowIndices = make([]int, count)
 		for i := range count {
-			source.windowIndices[i] = child.index(i)
+			source.WindowIndices[i] = child.Index(i)
 		}
 	}
 	success := false
 	defer func() {
 		if !success {
-			source.close()
+			source.Close()
 		}
 	}()
 	if count == 0 {
@@ -521,7 +521,7 @@ func openWindowNode(ctx context.Context, state *queryState, n *plan.WindowNode) 
 			return indexedStage{}, err
 		}
 		success = true
-		return indexedStage{source: source, schema: n.Schema()}, nil
+		return indexedStage{Source: source, Columns: n.Schema()}, nil
 	}
 	ntiles := make([]windowNtileState, ntileCount)
 	// Reuse one frame-local evaluator and its virtual-identity buffers across
@@ -532,7 +532,7 @@ func openWindowNode(ctx context.Context, state *queryState, n *plan.WindowNode) 
 			continue
 		}
 		if call.Operation.EvaluatesArgument() {
-			evaluation := state.evaluation(ctx)
+			evaluation := state.Evaluation(ctx)
 			valueEvaluation = &evaluation
 			break
 		}
@@ -552,22 +552,22 @@ func openWindowNode(ctx context.Context, state *queryState, n *plan.WindowNode) 
 				sumCount++
 			}
 		}
-		sums := windowSums{states: make([]windowSumState, 0, sumCount)}
+		sums := windowSums{States: make([]windowSumState, 0, sumCount)}
 		for callIndex, call := range n.Calls {
 			if !call.AnalysisOnly && n.SpecIndices[callIndex] == specIndex && call.Operation == plan.WindowSum {
-				sums.states = append(sums.states, windowSumState{callIndex: callIndex})
+				sums.States = append(sums.States, windowSumState{CallIndex: callIndex})
 			}
 		}
 		for partitionIndex := range ordered.partitions {
 			partition := &ordered.partitions[partitionIndex]
-			sums.initialized = false
+			sums.Initialized = false
 			clear(ntiles)
 			needsPeers := demanded[specIndex]&peers != 0 || demanded[specIndex]&membership != 0 && (spec.Frame.Unit != parser.FrameRows || spec.Frame.Exclusion == parser.ExcludeGroup || spec.Frame.Exclusion == parser.ExcludeTies)
 			if needsPeers && len(spec.Order) > 0 && partition.peerEnds == nil {
 				for start := 0; start < len(partition.rows); {
 					end := start + 1
 					for end < len(partition.rows) {
-						sign, err := compareWindowRows(ctx, spec.Order, ordered.values, partition.rows[start], partition.rows[end], state.input)
+						sign, err := CompareWindowRows(ctx, spec.Order, ordered.values, partition.rows[start], partition.rows[end], state.Input)
 						if err != nil {
 							return indexedStage{}, err
 						}
@@ -595,34 +595,34 @@ func openWindowNode(ctx context.Context, state *queryState, n *plan.WindowNode) 
 				}
 				if demanded[specIndex]&membership != 0 && (spec.Frame.Unit == parser.FrameRows || i == peerStart) {
 					if spec.Frame.Unit == parser.FrameRows {
-						head, err = windowRowsEndpoint(ctx, spec.Frame.Start.Kind, offsets[specIndex].integerStart, i, len(partition.rows), false)
+						head, err = WindowRowsEndpoint(ctx, spec.Frame.Start.Kind, offsets[specIndex].integerStart, i, len(partition.rows), false)
 					} else if spec.Frame.Unit == parser.FrameGroups {
-						head, err = windowGroupsEndpoint(ctx, spec.Frame.Start.Kind, offsets[specIndex].integerStart, partition.peerEnds, group, false)
+						head, err = WindowGroupsEndpoint(ctx, spec.Frame.Start.Kind, offsets[specIndex].integerStart, partition.peerEnds, group, false)
 					} else {
-						head, err = windowFrameEndpoint(ctx, spec, spec.Frame.Start, offsets[specIndex].start, *ordered, partition.rows, peerStart, peerEnd, head, false, state.input)
+						head, err = WindowFrameEndpoint(ctx, spec, spec.Frame.Start, offsets[specIndex].start, *ordered, partition.rows, peerStart, peerEnd, head, false, state.Input)
 					}
 					if err != nil {
 						return indexedStage{}, err
 					}
 					if spec.Frame.Unit == parser.FrameRows {
-						tail, err = windowRowsEndpoint(ctx, spec.Frame.End.Kind, offsets[specIndex].integerEnd, i, len(partition.rows), true)
+						tail, err = WindowRowsEndpoint(ctx, spec.Frame.End.Kind, offsets[specIndex].integerEnd, i, len(partition.rows), true)
 					} else if spec.Frame.Unit == parser.FrameGroups {
-						tail, err = windowGroupsEndpoint(ctx, spec.Frame.End.Kind, offsets[specIndex].integerEnd, partition.peerEnds, group, true)
+						tail, err = WindowGroupsEndpoint(ctx, spec.Frame.End.Kind, offsets[specIndex].integerEnd, partition.peerEnds, group, true)
 					} else {
-						tail, err = windowFrameEndpoint(ctx, spec, spec.Frame.End, offsets[specIndex].end, *ordered, partition.rows, peerStart, peerEnd, tail, true, state.input)
+						tail, err = WindowFrameEndpoint(ctx, spec, spec.Frame.End, offsets[specIndex].end, *ordered, partition.rows, peerStart, peerEnd, tail, true, state.Input)
 					}
 					if err != nil {
 						return indexedStage{}, err
 					}
 				}
-				if err := sums.evaluate(ctx, state, &child, n.Calls, partition.rows, spec.Frame, head, tail, i, peerStart, peerEnd); err != nil {
+				if err := sums.Evaluate(ctx, state, &child, n.Calls, partition.rows, spec.Frame, head, tail, i, peerStart, peerEnd); err != nil {
 					return indexedStage{}, err
 				}
-				for _, entry := range sums.states {
+				for _, entry := range sums.States {
 					if err := ctx.Err(); err != nil {
 						return indexedStage{}, err
 					}
-					source.windowValues[row*width+entry.callIndex] = entry.result
+					source.WindowValues[row*width+entry.CallIndex] = entry.Result
 				}
 				ntileIndex := 0
 				for callIndex, call := range n.Calls {
@@ -657,14 +657,14 @@ func openWindowNode(ctx context.Context, state *queryState, n *plan.WindowNode) 
 					case plan.WindowLead, plan.WindowLag:
 						value, err = evaluateWindowOffset(ctx, valueEvaluation, &child, call, partition.rows, i)
 					case plan.WindowCount:
-						value, err = windowFrameCount(ctx, call.Expression.ResultUsage(), 0, windowMaskCount(spec.Frame.Exclusion, head, tail, i, peerStart, peerEnd))
+						value, err = WindowFrameCount(ctx, call.Expression.ResultUsage(), 0, WindowMaskCount(spec.Frame.Exclusion, head, tail, i, peerStart, peerEnd))
 					case plan.WindowFirst, plan.WindowLast, plan.WindowNth:
 						value, err = evaluateWindowValue(ctx, valueEvaluation, &child, call, partition.rows, spec.Frame, head, tail, i, peerStart, peerEnd)
 					}
 					if err != nil {
 						return indexedStage{}, err
 					}
-					source.windowValues[row*width+callIndex] = value
+					source.WindowValues[row*width+callIndex] = value
 				}
 			}
 		}
@@ -673,5 +673,5 @@ func openWindowNode(ctx context.Context, state *queryState, n *plan.WindowNode) 
 		return indexedStage{}, err
 	}
 	success = true
-	return indexedStage{source: source, schema: n.Schema()}, nil
+	return indexedStage{Source: source, Columns: n.Schema()}, nil
 }

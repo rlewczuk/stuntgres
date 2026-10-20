@@ -74,7 +74,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			if tc.populate {
 				arity = 2
 			}
-			if len(call.Args) != arity || call.Definitions || call.Unresolved != tc.anonymous || call.ReturnsSet() != tc.set || sourceReturnsSet(call) != tc.set || !sourceAdmitted(call) || binder.clause.queryHasTargetSet != tc.set {
+			if len(call.Args) != arity || call.Definitions || call.Unresolved != tc.anonymous || call.ReturnsSet() != tc.set || SourceReturnsSet(call) != tc.set || !SourceAdmitted(call) || binder.clause.queryHasTargetSet != tc.set {
 				t.Fatal("physical/source/project contract", call)
 			}
 			if call.Properties().Volatility != expr.Stable || call.Properties().StageDependent != tc.set || !call.Properties().RuntimeDomainConversion || call.Properties().DomainDependent {
@@ -103,7 +103,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			if d.Kind != catalog.FunctionRoutine || d.Result != tc.result || d.Strict != tc.strict || d.Volatility != expr.Stable || d.Parallel != 's' || d.ReturnsSet != tc.set || d.Variadic != 0 || d.Defaults != 0 || d.Providers&functions.JSONRoutineProvider == 0 {
 				t.Fatal("released full declaration", d)
 			}
-			if evaluation.catalog.Get(address) != captured {
+			if evaluation.Catalog.Get(address) != captured {
 				t.Fatal("not the borrowed owned descriptor")
 			}
 			original := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
@@ -111,7 +111,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
 					selected++
-					if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != evaluation.catalog.Epoch() || dependency.Revision != captured.Revision() {
+					if dependency.Ref.Domain() != e.catalog.Domain || dependency.Ref.Epoch != evaluation.Catalog.Epoch() || dependency.Revision != captured.Revision() {
 						t.Fatal("original ref/epoch/revision", dependency)
 					}
 				} else if dependency.Ref.Address.ClassID == ids.ProcedureClassID {
@@ -179,7 +179,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			}
 			for _, manifest := range [][]catalog.ExpressionDependency{nil, {}, missing} {
 				probe := evaluation
-				probe.routineChecks = manifest
+				probe.RoutineChecks = manifest
 				if err := admitRoutineCall(&probe, call, false, false); err == nil {
 					t.Fatal("missing owning manifest rescued by OID")
 				}
@@ -199,17 +199,17 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 					}
 				}
 				probe := evaluation
-				probe.routineChecks = copied
+				probe.RoutineChecks = copied
 				if err := admitRoutineCall(&probe, call, false, false); err == nil {
 					t.Fatal("invalid original manifest admitted", mutation)
 				}
 			}
 			probe := evaluation
-			probe.routineChecks = append([]catalog.ExpressionDependency(nil), original...)
+			probe.RoutineChecks = append([]catalog.ExpressionDependency(nil), original...)
 			if err := admitRoutineCall(&probe, call, false, false); err != nil {
 				t.Fatal("full original ref copy lost authority", err)
 			}
-			probe.routineAuthority = foreign.routineAuthority
+			probe.RoutineAuthority = foreign.RoutineAuthority
 			if err := admitRoutineCall(&probe, call, false, false); err == nil {
 				t.Fatal("foreign same-OID authority admitted")
 			}
@@ -228,7 +228,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 				t.Fatal("retag changed physical carrier contract", retagged)
 			}
 			for _, manifest := range [][]catalog.ExpressionDependency{original, nil, {}} {
-				probe.routineChecks = manifest
+				probe.RoutineChecks = manifest
 				if err := admitRoutineCall(&probe, mapped, false, false); err == nil {
 					t.Fatal("retag manufactured destination manifest")
 				}
@@ -239,7 +239,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			replacement.Strict = !captured.Strict
 			changed.Catalog.State().SetDescriptor(address, &replacement)
 			probe = evaluation
-			probe.routineAuthority = &changed
+			probe.RoutineAuthority = &changed
 			if err := admitRoutineCall(&probe, call, false, false); err == nil {
 				t.Fatal("incompatible declaration admitted")
 			}
@@ -323,13 +323,13 @@ func TestJSONBRecordRoutineStoredRecipe(t *testing.T) {
 			if err := selectExpressionRecipe(&probe, recipe); err != nil {
 				t.Fatal("select stored owning recipe", err)
 			}
-			probe.routineChecks = manifest
+			probe.RoutineChecks = manifest
 			if err := admitRoutineCall(&probe, retained, false, false); err == nil {
 				t.Fatal("stored chain rescued missing owning manifest")
 			}
 		}
 	}
-	if call.Info.RoutineReference != captured || call.Info.RoutineRecipeReference != nil || call.Definitions || !call.Unresolved || captured.Owner != owner || captured.Revision() != revision || view.Get(captured.Address()) != captured || !reflect.DeepEqual(evaluation.routineChecks, original) {
+	if call.Info.RoutineReference != captured || call.Info.RoutineRecipeReference != nil || call.Definitions || !call.Unresolved || captured.Owner != owner || captured.Revision() != revision || view.Get(captured.Address()) != captured || !reflect.DeepEqual(evaluation.RoutineChecks, original) {
 		t.Fatal("stored chain mutated original")
 	}
 	if childRecipe, err := routine.ExpressionRecipeDescriptor(call.Args[0]); err != nil || childRecipe != nil {
@@ -353,7 +353,7 @@ func TestJSONBRecordRoutineEndedScope(t *testing.T) {
 	} {
 		node, _, evaluation := strictNullUnitBind(t, e, op, scope, expression)
 		scope.routineAuth = *routineAuthorityView(&evaluation)
-		evaluation.routineAuthority = nil
+		evaluation.RoutineAuthority = nil
 		if err := admitRoutineCall(&evaluation, node, false, false); err != nil {
 			t.Fatal("live owning scope", err)
 		}
@@ -450,7 +450,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 			t.Fatal("retained original snapshot admission", err)
 		}
 		probe := evaluation
-		probe.routineAuthority = auth
+		probe.RoutineAuthority = auth
 		if err := admitRoutineCall(&probe, node, false, false); err == nil {
 			t.Fatal("owner revision rescued old graph")
 		}
@@ -459,7 +459,7 @@ func TestJSONBRecordRoutineOwnershipCOW(t *testing.T) {
 		if err != nil || freshDescriptor != current {
 			t.Fatal("fresh analysis did not capture owner/revision", err)
 		}
-		freshEvaluation.routineAuthority = ownerAuth
+		freshEvaluation.RoutineAuthority = ownerAuth
 		if err := admitRoutineCall(&freshEvaluation, fresh, false, false); err != nil {
 			t.Fatal("fresh current admission", err)
 		}
@@ -523,7 +523,7 @@ func TestJSONBRecordRoutineACLCOW(t *testing.T) {
 			}
 		}
 		retained := evaluation
-		retained.routineAuthority = eMustJSONBRoutineAuthority(t, e, readerOp)
+		retained.RoutineAuthority = eMustJSONBRoutineAuthority(t, e, readerOp)
 		if err := admitRoutineCall(&retained, node, false, false); err != nil {
 			t.Fatal("original PUBLIC-default authority", err)
 		}
@@ -546,7 +546,7 @@ func TestJSONBRecordRoutineACLCOW(t *testing.T) {
 				t.Fatal("ACL COW declaration compatibility", err)
 			}
 			probe := evaluation
-			probe.routineAuthority = auth
+			probe.RoutineAuthority = auth
 			err := admitRoutineCall(&probe, node, false, false)
 			if (err == nil) != allowed {
 				t.Fatal("current ACL not used by original graph", allowed, err)

@@ -17,10 +17,10 @@ func TestQueryLimitPipelineCancellation(t *testing.T) {
 		calls := 0
 		join := &plan.JoinNode{QuerySchema: project.Child.Schema(), Left: project.Child, Right: &plan.SourceNode{Occurrence: 1}, LeftWidth: len(project.Child.Schema()), Predicate: queryProbe(bt.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; cancel(); return sqltype.Boolean(bt, false), nil })}
 		project.Child = &plan.LimitNode{QuerySchema: join.Schema(), Child: join, Count: queryLimitBound(t, e, 1)}
-		inputs := &querySource{sources: []*querySource{source, {anonymous: [][]sqltype.Value{{}}}}}
-		rows, n, err := finalizeQuery(ctx, project, inputs, nil)
-		if rows != nil || n != 0 || err != context.Canceled || calls != 1 || source.view != nil {
-			t.Fatal(rows, n, err, calls, source.view)
+		inputs := &querySource{Sources: []*querySource{source, {Anonymous: [][]sqltype.Value{{}}}}}
+		rows, n, err := Finalize(ctx, project, inputs, nil)
+		if rows != nil || n != 0 || err != context.Canceled || calls != 1 || source.View != nil {
+			t.Fatal(rows, n, err, calls, source.View)
 		}
 	})
 	for _, mode := range []string{"NULL", "tie"} {
@@ -39,7 +39,7 @@ func TestQueryLimitPipelineCancellation(t *testing.T) {
 			sort.Keys[0].Cache = 0
 			sort.Keys[0].Expression = queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) {
 				calls++
-				if calls == len(source.committed) {
+				if calls == len(source.Committed) {
 					ctx.remaining = 8
 				}
 				return value, nil
@@ -47,9 +47,9 @@ func TestQueryLimitPipelineCancellation(t *testing.T) {
 			project.Child = &plan.LimitNode{QuerySchema: sort.Schema(), Child: sort, Count: queryLimitBound(t, e, 1)}
 			// Cancel sorting NULL/tie keys without pinning an incidental
 			// expression invocation count. No prefix may be published.
-			rows, n, err := finalizeQuery(ctx, project, source, nil)
-			if rows != nil || n != 0 || err != context.Canceled || calls == 0 || source.view != nil {
-				t.Fatal(rows, n, err, calls, source.view)
+			rows, n, err := Finalize(ctx, project, source, nil)
+			if rows != nil || n != 0 || err != context.Canceled || calls == 0 || source.View != nil {
+				t.Fatal(rows, n, err, calls, source.View)
 			}
 		})
 	}

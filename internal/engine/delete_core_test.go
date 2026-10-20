@@ -61,7 +61,7 @@ func TestDeleteCoreVisibility(t *testing.T) {
 			deleteCount(t, a, "DELETE FROM t WHERE v=1", 2)
 			first := transactionRows(t, a, "SELECT v FROM t ORDER BY v", 2)
 			target := catalogRef(t, e, e.CatalogRead(), "t")
-			firstRoot := first.source.view.Data().Deleted[target.Address]
+			firstRoot := first.Source.View.Data().Deleted[target.Address]
 			deleteCount(t, a, "DELETE FROM t WHERE v=1", 0)
 			sessionSQL(t, a, "INSERT INTO t VALUES(7),(7)")
 			private := transactionRows(t, a, "SELECT v FROM t ORDER BY v", 2, 7, 7)
@@ -72,7 +72,7 @@ func TestDeleteCoreVisibility(t *testing.T) {
 			sessionSQL(t, a, "INSERT INTO t VALUES(1)")
 			transactionRows(t, a, "SELECT v FROM t ORDER BY v", 1, 2)
 			transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 1, 2)
-			if first.count != 1 || private.count != 3 || old.count != 3 {
+			if first.Count != 1 || private.Count != 3 || old.Count != 3 {
 				t.Fatal("own immutable views changed")
 			}
 			transactionEnd(t, a, ref, commit)

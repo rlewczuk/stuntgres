@@ -116,7 +116,7 @@ func TestStringAggregateEvaluationAndPublication(t *testing.T) {
 				}
 				return v, err
 			}}
-			rows, count, err := finalizeQuery(ctx, q.Root, source, nil)
+			rows, count, err := Finalize(ctx, q.Root, source, nil)
 			if phase == "success" {
 				if err != nil || count != 1 || values != 4 || separators != 4 || keys != 4 || advances != 3 || finalizes != 1 {
 					t.Fatal(count, err, values, separators, keys, advances, finalizes)
@@ -144,7 +144,7 @@ func TestStringAggregateEvaluationAndPublication(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if source.view != nil || source.anonymous != nil {
+			if source.View != nil || source.Anonymous != nil {
 				t.Fatal("source owner retained", source)
 			}
 		})
@@ -184,15 +184,15 @@ func TestStringAggregateActualComparisonCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	probe := &aggregateSortCancelContext{Context: ctx, cancel: cancel, aggregateOrdering: true}
-	rows, count, err := finalizeQuery(probe, query.Root, source, nil)
-	if !probe.comparisonEntered || err != context.Canceled || rows != nil || count != 0 || source.view != nil || source.anonymous != nil {
+	rows, count, err := Finalize(probe, query.Root, source, nil)
+	if !probe.comparisonEntered || err != context.Canceled || rows != nil || count != 0 || source.View != nil || source.Anonymous != nil {
 		t.Fatal("actual aggregate comparison cancellation/publication", probe.comparisonEntered, rows, count, err, source)
 	}
 }
 
 func TestStringAggregateResultMetadata(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT string_agg(id::text,',' ORDER BY id),string_agg(NULL::bytea,''::bytea) FROM t")
-	defer source.close()
+	defer source.Close()
 	schema := query.Root.Schema()
 	for i, want := range []sqltype.ID{sqltype.Text, sqltype.Bytea} {
 		column := schema[i]

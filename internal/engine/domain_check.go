@@ -94,10 +94,10 @@ func (enginePreparation) CheckDomain(ctx context.Context, c *EvalContext, target
 	if !ok || d.SQLType != target {
 		return fmt.Errorf("stuntgres: foreign domain CHECK generation")
 	}
-	oldValue, oldUsage, oldActive, oldInput := c.domainValue, c.domainFrameUsage, c.domainValueActive, c.Input.DomainChecks
+	oldValue, oldUsage, oldActive, oldInput := c.DomainValue, c.DomainFrameUsage, c.DomainValueActive, c.Input.DomainChecks
 	c.Input.DomainChecks = c
 	defer func() {
-		c.domainValue, c.domainFrameUsage, c.domainValueActive = oldValue, oldUsage, oldActive
+		c.DomainValue, c.DomainFrameUsage, c.DomainValueActive = oldValue, oldUsage, oldActive
 		c.Input.DomainChecks = oldInput
 	}()
 	// Fresh input may arrive without expression initialization. Prepare every
@@ -116,7 +116,7 @@ func (enginePreparation) CheckDomain(ctx context.Context, c *EvalContext, target
 		diagnostic.Schema, diagnostic.DataType = view.Get(d.ObjectNamespace).Name(), d.Name()
 		return diagnostic
 	}
-	return c.evaluateDomainChecks(view, d, d, candidate)
+	return c.EvaluateDomainChecks(view, d, d, candidate)
 }
 
 // Expression initialization prepares recipes even for an empty consumer. It
@@ -163,10 +163,10 @@ func prepareDomainChecks(c *EvalContext, d *catalog.Type) error {
 // Historical validation initializes only the selected own programme; ordinary
 // conversions retain the ancestor traversal above.
 func prepareOwnDomainChecks(c *EvalContext, d *catalog.Type) error {
-	scope := scopeOf(c.liveHost())
+	scope := scopeOf(c.LiveHost())
 	if scope != nil {
-		c.preparedDomainChecks = scope.domains.preparedChecks
-		c.domainPhase = ids.CommandIdentity{Transaction: scope.txRef, Command: scope.command}
+		c.PreparedDomainChecks = scope.domains.preparedChecks
+		c.DomainPhase = ids.CommandIdentity{Transaction: scope.txRef, Command: scope.command}
 	}
 	if len(d.DomainChecks) == 0 {
 		return nil
@@ -181,13 +181,13 @@ func prepareOwnDomainChecks(c *EvalContext, d *catalog.Type) error {
 	// borrowed local capture for input/view admission is still an invoker phase.
 	ri := scope != nil && scope.foreignActionAuth != nil &&
 		scope.foreignActionAuth.State.CurrentUser == auth.State.CurrentUser
-	programme, exists := c.preparedDomainChecks[d]
+	programme, exists := c.PreparedDomainChecks[d]
 	for _, phase := range programPhases(programme) {
-		if phase.number == c.domainPhase && phase.actor == auth.State.CurrentUser && phase.ri == ri {
+		if phase.number == c.DomainPhase && phase.actor == auth.State.CurrentUser && phase.ri == ri {
 			return nil // Same initialized programme phase; never a per-row ACL lookup.
 		}
 	}
-	phase := domainCheckPhase{number: c.domainPhase, actor: auth.State.CurrentUser, ri: ri}
+	phase := domainCheckPhase{number: c.DomainPhase, actor: auth.State.CurrentUser, ri: ri}
 	if exists {
 		if err := phase.admission.initializePhase(&programPhases(programme)[0].admission, auth); err != nil {
 			return err
@@ -195,12 +195,12 @@ func prepareOwnDomainChecks(c *EvalContext, d *catalog.Type) error {
 	} else {
 		for i, check := range d.DomainChecks {
 			checkEvaluation := *c
-			checkEvaluation.routineRecipe, checkEvaluation.routineGraft = true, false
-			checkEvaluation.routineChecks = check.Dependencies
-			checkEvaluation.routineReferences, checkEvaluation.routineConsumer = nil, nil
-			checkEvaluation.routineProgram = &phase.admission
+			checkEvaluation.RoutineRecipe, checkEvaluation.RoutineGraft = true, false
+			checkEvaluation.RoutineChecks = check.Dependencies
+			checkEvaluation.RoutineReferences, checkEvaluation.RoutineConsumer = nil, nil
+			checkEvaluation.RoutineProgram = &phase.admission
 			node, changed, err := preflightCoercionsWithPolicy(&checkEvaluation, check.Expression, true)
-			c.preparedDomainChecks = checkEvaluation.preparedDomainChecks
+			c.PreparedDomainChecks = checkEvaluation.PreparedDomainChecks
 			if err != nil {
 				return err
 			}
@@ -208,35 +208,35 @@ func prepareOwnDomainChecks(c *EvalContext, d *catalog.Type) error {
 				return err
 			}
 			if changed {
-				if programme.expressions == nil {
-					programme.expressions = make([]expr.Expr, len(d.DomainChecks))
+				if programme.Expressions == nil {
+					programme.Expressions = make([]expr.Expr, len(d.DomainChecks))
 					for j := range d.DomainChecks {
-						programme.expressions[j] = d.DomainChecks[j].Expression
+						programme.Expressions[j] = d.DomainChecks[j].Expression
 					}
 				}
-				programme.expressions[i] = node
+				programme.Expressions[i] = node
 			}
 		}
 	}
 	if program := routineProgramOf(c); program != nil && scope == nil {
 		program.include(&phase.admission)
 	}
-	programme.phases = append(programPhases(programme), phase)
-	if c.preparedDomainChecks == nil {
-		c.preparedDomainChecks = make(map[*catalog.Type]domainCheckProgram)
+	programme.Phases = append(programPhases(programme), phase)
+	if c.PreparedDomainChecks == nil {
+		c.PreparedDomainChecks = make(map[*catalog.Type]domainCheckProgram)
 	}
-	c.preparedDomainChecks[d] = programme
+	c.PreparedDomainChecks[d] = programme
 	if scope != nil {
-		scope.domains.preparedChecks = c.preparedDomainChecks
+		scope.domains.preparedChecks = c.PreparedDomainChecks
 	}
 	return nil
 }
 
 func domainCatalog(c *EvalContext) catalog.Read {
-	if c.catalog.State() != nil {
-		return c.catalog
+	if c.Catalog.State() != nil {
+		return c.Catalog
 	}
-	if scope := scopeOf(c.liveHost()); scope != nil {
+	if scope := scopeOf(c.LiveHost()); scope != nil {
 		if scope.domains.inputCatalog.State() != nil {
 			return scope.domains.inputCatalog
 		}
@@ -253,7 +253,7 @@ func (s *StatementScope) CheckDomain(ctx context.Context, target *sqltype.Descri
 		if catalog.State() == nil {
 			catalog = s.ResolutionCatalog()
 		}
-		s.domains.evaluation = &EvalContext{evalStatement: evalStatement{Context: ctx, host: hostOf(s), catalog: catalog, Input: s.input, Output: s.output}}
+		s.domains.evaluation = &EvalContext{evalStatement: evalStatement{Context: ctx, Host: hostOf(s), Catalog: catalog, Input: s.input, Output: s.output}}
 	}
 	return s.domains.evaluation.CheckDomain(ctx, target, value)
 }

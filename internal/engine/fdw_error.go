@@ -10,7 +10,7 @@ import (
 // classifications cannot cross the accepted callback boundary (especially an
 // uncertain Commit). Preserve the text, not an unwrap/Is path to either sentinel.
 // Every other provider error retains its exact identity and diagnostics.
-func foreignCallbackError(err error) error {
+func ForeignCallbackError(err error) error {
 	if err == nil {
 		return nil
 	}

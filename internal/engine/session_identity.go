@@ -10,8 +10,8 @@ import (
 func (h *statementHost) IdentityValue(c *EvalContext, kind functions.IdentityKind, result *sqltype.Descriptor) (sqltype.Value, error) {
 	s := h.scope()
 	identity := s.identity
-	if c.query != nil && c.query.source.authority != nil && c.query.source.authority.expression != nil {
-		identity = c.query.source.authority.expression.identity
+	if c.Query != nil && c.Query.Source.Authority != nil && c.Query.Source.Authority.Expression != nil {
+		identity = c.Query.Source.Authority.Expression.Identity
 	}
 	if s.foreignActionAuth != nil {
 		auth := s.foreignActionAuth
@@ -20,23 +20,23 @@ func (h *statementHost) IdentityValue(c *EvalContext, kind functions.IdentityKin
 			return sqltype.Value{}, err
 		}
 		name, _ := auth.Catalog.LookupType(sqltype.Name)
-		identity.current, identity.currentMissing = sqltype.String(name, role.Name), authorization.PrincipalRef{}
+		identity.Current, identity.CurrentMissing = sqltype.String(name, role.Name), authorization.PrincipalRef{}
 	}
 	switch kind {
 	case functions.IdentityCatalog, functions.IdentityDatabase:
-		return identity.database, nil
+		return identity.Database, nil
 	case functions.IdentityRole, functions.IdentityCurrentUser, functions.IdentityUser:
-		if identity.currentMissing != (authorization.PrincipalRef{}) {
-			return sqltype.Value{}, sqlError("42704", fmt.Sprintf("invalid role OID: %d", identity.currentMissing.ID()))
+		if identity.CurrentMissing != (authorization.PrincipalRef{}) {
+			return sqltype.Value{}, sqlError("42704", fmt.Sprintf("invalid role OID: %d", identity.CurrentMissing.ID()))
 		}
-		return identity.current, nil
+		return identity.Current, nil
 	case functions.IdentitySessionUser:
-		if identity.sessionMissing != (authorization.PrincipalRef{}) {
-			return sqltype.Value{}, sqlError("42704", fmt.Sprintf("invalid role OID: %d", identity.sessionMissing.ID()))
+		if identity.SessionMissing != (authorization.PrincipalRef{}) {
+			return sqltype.Value{}, sqlError("42704", fmt.Sprintf("invalid role OID: %d", identity.SessionMissing.ID()))
 		}
-		return identity.session, nil
+		return identity.Session, nil
 	case functions.IdentitySystemUser:
-		return identity.system, nil
+		return identity.System, nil
 	case functions.IdentityCurrentSchema:
 		if s.foreignActionAuth == nil && s.ruleActionAuth == nil && s.inquiry.currentSchemaResult.Type() != nil {
 			return s.inquiry.currentSchemaResult, nil
@@ -73,28 +73,28 @@ func (s *StatementScope) captureIdentityLocked(auth AuthorizationView) error {
 		return err
 	}
 	session, sessionExists := auth.Roles.Find(auth.State.SessionUser)
-	s.identity = identitySnapshot{database: sqltype.String(name, s.op.session.databaseName), system: sqltype.Null(text), currentPrincipal: auth.State.CurrentUser}
+	s.identity = identitySnapshot{Database: sqltype.String(name, s.op.session.databaseName), System: sqltype.Null(text), CurrentPrincipal: auth.State.CurrentUser}
 	if sessionExists {
-		s.identity.session = sqltype.String(name, session.Name)
+		s.identity.Session = sqltype.String(name, session.Name)
 	} else {
-		s.identity.sessionMissing = auth.State.SessionUser
+		s.identity.SessionMissing = auth.State.SessionUser
 	}
 	if currentExists {
-		s.identity.current = sqltype.String(name, current.Name)
+		s.identity.Current = sqltype.String(name, current.Name)
 	} else {
-		s.identity.currentMissing = auth.State.CurrentUser
+		s.identity.CurrentMissing = auth.State.CurrentUser
 	}
 	return nil
 }
 
 // Match current_user's expression identity, not the view's relation check owner.
 func expressionPrincipal(c *EvalContext) authorization.PrincipalRef {
-	s := scopeOf(c.liveHost())
+	s := scopeOf(c.LiveHost())
 	if s.foreignActionAuth != nil {
 		return s.foreignActionAuth.State.CurrentUser
 	}
-	if c.query != nil && c.query.source.authority != nil && c.query.source.authority.expression != nil {
-		return c.query.source.authority.expression.identity.currentPrincipal
+	if c.Query != nil && c.Query.Source.Authority != nil && c.Query.Source.Authority.Expression != nil {
+		return c.Query.Source.Authority.Expression.Identity.CurrentPrincipal
 	}
-	return s.identity.currentPrincipal
+	return s.identity.CurrentPrincipal
 }

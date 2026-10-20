@@ -273,13 +273,13 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 			// Analysis changes retire statement-root captures, not unchanged
 			// stored definitions. DISCARD already cleared the complete group.
 			for i, saved := range candidate.quotes {
-				if saved.origin.owner != (ids.ObjectRef{}) {
+				if saved.Origin.Owner != (ids.ObjectRef{}) {
 					continue
 				}
 				quotes := make([]quoteConstant, 0, len(candidate.quotes)-1)
 				quotes = append(quotes, candidate.quotes[:i]...)
 				for _, remaining := range candidate.quotes[i+1:] {
-					if remaining.origin.owner != (ids.ObjectRef{}) {
+					if remaining.Origin.Owner != (ids.ObjectRef{}) {
 						quotes = append(quotes, remaining)
 					}
 				}
@@ -448,7 +448,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 		return Result{}, fmt.Errorf("stuntgres: got %d arguments, want %d", count, b.parameters.Count)
 	}
 	canonical := make([]sqltype.Value, count)
-	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: canonical, host: hostOf(scope), catalog: auth.Catalog, Input: scope.input, Output: scope.output}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: canonical, Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}}
 	scope.domains.inputCatalog = auth.Catalog
 	scope.routineAuth = auth
 	scope.routineDependencies = b.dependencies
@@ -531,7 +531,7 @@ func (e *Engine) executeStatement(scope *StatementScope, stmt parser.Statement, 
 func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement, b binding, auth AuthorizationView, canonical []sqltype.Value, candidate StatementDescription, quoteCapturesChanged bool) (Result, error) {
 	op := scope.op
 	ctx := op.Context()
-	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: canonical, host: hostOf(scope), catalog: auth.Catalog, Input: scope.input, Output: scope.output}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: canonical, Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}}
 	var err error
 	var creationStage *CatalogStage
 	var creationDescriptor *catalog.Relation
@@ -569,10 +569,10 @@ func (e *Engine) executeBoundLocked(scope *StatementScope, stmt parser.Statement
 	// fold into a fresh operation-local group, including stored origins.
 	quoteCaptures := quoteCaptureCandidate{}
 	if b.parameters.Count == 0 {
-		quoteCaptures = quoteCaptureCandidate{entries: candidate.quotes, private: quoteCapturesChanged}
+		quoteCaptures = quoteCaptureCandidate{Entries: candidate.quotes, Private: quoteCapturesChanged}
 		pruneQuoteCaptures(&quoteCaptures, auth.Catalog)
 	}
-	evaluation.quoteCaptures = &quoteCaptures
+	evaluation.QuoteCaptures = &quoteCaptures
 	// Planning-owned physical conversions and CHECK recipe initialization
 	// precede executor ACLs, without Engine.mu or a data view. Checked
 	// domain truth remains runtime consumer demand, not a folded value.

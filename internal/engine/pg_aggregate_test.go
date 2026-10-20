@@ -29,10 +29,10 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if captured.ref != ref || len(captured.anonymous) != 144 {
+	if captured.Ref != ref || len(captured.Anonymous) != 144 {
 		t.Fatal("aggregate owner inventory", captured)
 	}
-	for _, values := range captured.anonymous {
+	for _, values := range captured.Anonymous {
 		if len(values) != 22 {
 			t.Fatal("definition width", len(values))
 		}
@@ -55,9 +55,9 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	second.anonymous[0][0] = sqltype.Null(source.Columns[0].Usage.Type)
-	second.anonymous[1][1] = sqltype.Null(source.Columns[1].Usage.Type)
-	if captured.anonymous[0][0].IsNull() || captured.anonymous[1][1].IsNull() || second.anonymous[0][1].IsNull() {
+	second.Anonymous[0][0] = sqltype.Null(source.Columns[0].Usage.Type)
+	second.Anonymous[1][1] = sqltype.Null(source.Columns[1].Usage.Type)
+	if captured.Anonymous[0][0].IsNull() || captured.Anonymous[1][1].IsNull() || second.Anonymous[0][1].IsNull() {
 		t.Fatal("aggregate row slots alias")
 	}
 	if e.catalog.state != view.State() || e.catalog.nextOID != nextOID || e.catalog.nextRevision != nextRevision {
@@ -101,10 +101,10 @@ func TestPGAggregateCaptureOwnership(t *testing.T) {
 		t.Fatal("retired source admitted", err)
 	}
 	newRef := e.catalog.Domain.Ref(fresh.Epoch(), address)
-	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: fresh, Ref: newRef, Source: newSource, Owner: (fresh).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAggregate); err != nil || len(got.anonymous) != 144 {
+	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: fresh, Ref: newRef, Source: newSource, Owner: (fresh).Owner(), Runtime: engineCatalogRuntime{}}, capturePGAggregate); err != nil || len(got.Anonymous) != 144 {
 		t.Fatal("Reset lost builtin definitions", err)
 	}
-	for i, v := range captured.anonymous[0] {
+	for i, v := range captured.Anonymous[0] {
 		if v.Type() != source.Columns[i].Usage.Type {
 			t.Fatal("retained capture retagged", i)
 		}
@@ -144,7 +144,7 @@ func TestPGAggregateReleasedOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, r := range got.anonymous {
+	for _, r := range got.Anonymous {
 		id, _ := r[0].ProcedureOID()
 		if id == 2803 {
 			if r[20].IsNull() || r[21].IsNull() {

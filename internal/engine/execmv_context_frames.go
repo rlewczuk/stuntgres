@@ -12,7 +12,7 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func subscriptChildren(n plan.SubscriptExpr, storage *[13]expr.Expr) []expr.Expr {
+func SubscriptChildren(n plan.SubscriptExpr, storage *[13]expr.Expr) []expr.Expr {
 	count := 0
 	if n.Base != nil {
 		storage[count] = n.Base
@@ -32,38 +32,38 @@ func subscriptChildren(n plan.SubscriptExpr, storage *[13]expr.Expr) []expr.Expr
 }
 
 func (c *EvalContext) EvalTableOID(n plan.TableOIDExpr) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
+	if err := EvaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
 	if c.Scope != 1 || c.Frame != 1 || n.Owner.Address.ObjectID == 0 {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid generated tableoid frame")
 	}
 	owner := n.Owner
-	if c.physicalTable != (ids.ObjectRef{}) {
-		owner = c.physicalTable
+	if c.PhysicalTable != (ids.ObjectRef{}) {
+		owner = c.PhysicalTable
 	}
 	return sqltype.OIDValue(n.Usage.Type, uint32(owner.Address.ObjectID))
 }
 
 // Generation recipes own their original references, independently of an outer
 // query or definer view. Selecting that provenance never changes the invoker.
-func selectVirtualGenerationRecipe(c *EvalContext, owner *catalog.Relation, definition catalog.ColumnGeneration) {
-	c.routineRecipe, c.routineGraft = true, false
-	c.routineChecks = nil
-	c.routineReferences = definition.Dependencies
-	c.routineConsumer = owner
+func SelectVirtualGenerationRecipe(c *EvalContext, owner *catalog.Relation, definition catalog.ColumnGeneration) {
+	c.RoutineRecipe, c.RoutineGraft = true, false
+	c.RoutineChecks = nil
+	c.RoutineReferences = definition.Dependencies
+	c.RoutineConsumer = owner
 }
 
 // Frozen projections do not freeze the queried logical relation's recipe.
 // Physical child identity belongs to tableoid/provenance, not recipe selection.
 // Rechecks borrow the complete latest logical tuple without rereading a source
 // whose inheritance mapping scratch may still hold that same tuple.
-func (c *EvalContext) columnCapturedGeneration(e plan.ColumnExpr, source *querySource, index int, current []sqltype.Value) (expr.Expr, []sqltype.Value, error) {
-	data := source.view.Load()
+func (c *EvalContext) ColumnCapturedGeneration(e plan.ColumnExpr, source *querySource, index int, current []sqltype.Value) (expr.Expr, []sqltype.Value, error) {
+	data := source.View.Load()
 	if data == nil {
 		return nil, nil, fmt.Errorf("stuntgres: virtual source snapshot is released")
 	}
-	logical, ok := data.Catalog.Relation(source.ref.Address)
+	logical, ok := data.Catalog.Relation(source.Ref.Address)
 	if !ok {
 		return nil, nil, fmt.Errorf("stuntgres: missing virtual source descriptor")
 	}
@@ -71,18 +71,18 @@ func (c *EvalContext) columnCapturedGeneration(e plan.ColumnExpr, source *queryS
 	if !ok || definition.Kind != catalog.GenerationVirtual || definition.Planned == nil {
 		return nil, nil, fmt.Errorf("stuntgres: missing captured virtual generation")
 	}
-	selectVirtualGenerationRecipe(c, logical, definition)
+	SelectVirtualGenerationRecipe(c, logical, definition)
 	if current != nil {
 		if len(current) != len(logical.Columns) {
 			return nil, nil, fmt.Errorf("stuntgres: invalid virtual recheck tuple")
 		}
 		return definition.Planned, current, nil
 	}
-	return definition.Planned, source.row(index), nil
+	return definition.Planned, source.Row(index), nil
 }
 
 func (c *EvalContext) EvalGrouping(e plan.GroupingExpr) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
+	if err := EvaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
 	frame := e.Frame
@@ -105,8 +105,8 @@ func (c *EvalContext) EvalGrouping(e plan.GroupingExpr) (sqltype.Value, error) {
 	return sqltype.Integer(e.Usage.Type, int64(e.Masks[occurrence]))
 }
 
-func (row queryPhysicalRow) deletion() visibility.DeleteCandidate {
-	return visibility.DeleteCandidate{Ref: row.leaf.ref, Storage: row.leaf.storage, Row: row.version.Row, Version: row.version.Version, Base: row.version.Base, Ordinal: row.hint, Own: row.version.Born == 0}
+func (row queryPhysicalRow) Deletion() visibility.DeleteCandidate {
+	return visibility.DeleteCandidate{Ref: row.Leaf.Ref, Storage: row.Leaf.Storage, Row: row.Version.Row, Version: row.Version.Version, Base: row.Version.Base, Ordinal: row.Hint, Own: row.Version.Born == 0}
 }
 
 func (c *EvalContext) EvalMergeAction(e plan.MergeActionExpr) (sqltype.Value, error) {
@@ -114,11 +114,11 @@ func (c *EvalContext) EvalMergeAction(e plan.MergeActionExpr) (sqltype.Value, er
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if !owner.mergeReturning {
+	if !owner.MergeReturning {
 		return sqltype.Value{}, errors.New("stuntgres: MERGE output action is missing")
 	}
 	var text string
-	switch owner.mergeAction {
+	switch owner.MergeAction {
 	case parser.MergeInsertAction:
 		text = "INSERT"
 	case parser.MergeUpdateAction:
@@ -132,27 +132,27 @@ func (c *EvalContext) EvalMergeAction(e plan.MergeActionExpr) (sqltype.Value, er
 }
 
 const (
-	mergeDefaultSide plan.MergeReturningSide = iota
-	mergeOldSide
-	mergeNewSide
+	MergeDefaultSide plan.MergeReturningSide = iota
+	MergeOldSide
+	MergeNewSide
 )
 
 func mergeReturningAbsent(c *EvalContext, side plan.MergeReturningSide) bool {
-	return side == mergeOldSide && c.mergeAction == parser.MergeInsertAction || side == mergeNewSide && c.mergeAction == parser.MergeDeleteAction
+	return side == MergeOldSide && c.MergeAction == parser.MergeInsertAction || side == MergeNewSide && c.MergeAction == parser.MergeDeleteAction
 }
 
 func (c *EvalContext) EvalCachedOrder(e plan.CachedOrderExpr) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
+	if err := EvaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	if e.Slot < 0 || e.Slot >= len(c.orderValues) {
+	if e.Slot < 0 || e.Slot >= len(c.OrderValues) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing ordering output")
 	}
-	return c.orderValues[e.Slot], nil
+	return c.OrderValues[e.Slot], nil
 }
 
 func returningRowContext(c *EvalContext, scope, frame uint32) (*EvalContext, error) {
-	if err := evaluationContext(c); err != nil {
+	if err := EvaluationContext(c); err != nil {
 		return nil, err
 	}
 	for parent := c; parent != nil; parent = parent.Outer {
@@ -219,7 +219,7 @@ func (c *EvalContext) subqueryJSONArray(e plan.SubqueryExpr, state *queryState, 
 		if !present {
 			return p.Plan.Finalize(c.Context, aggregate)
 		}
-		inner := state.evaluation(c.Context)
+		inner := state.Evaluation(c.Context)
 		inner.Frame = e.QueryPlan.Root.(*plan.ProjectNode).Frame
 		inner.Row = row[:]
 		value, err := p.Input.Eval(&inner)
@@ -232,45 +232,45 @@ func (c *EvalContext) subqueryJSONArray(e plan.SubqueryExpr, state *queryState, 
 	}
 }
 
-func sourceReturnsSet(e expr.Expr) bool { return expr.IsSetSource(e) }
+func SourceReturnsSet(e expr.Expr) bool { return expr.IsSetSource(e) }
 
-func sourceAdmitted(e expr.Expr) bool { return expr.AdmitsSource(e) }
+func SourceAdmitted(e expr.Expr) bool { return expr.AdmitsSource(e) }
 
 // Entries are immutable once published by Execute under Engine.mu. A candidate
 // borrows the old group and copies only when a successful fold changes it.
 type quoteOrigin struct {
-	owner      ids.ObjectRef
-	attribute  int32
-	definition ids.OID
-	revision   ids.DefinitionRevision
+	Owner      ids.ObjectRef
+	Attribute  int32
+	Definition ids.OID
+	Revision   ids.DefinitionRevision
 }
 
 type quoteConstant struct {
-	offset     int
-	origin     quoteOrigin
-	frame      uint32
-	name       string
-	anyelement bool
-	source     sqltype.Usage
-	result     sqltype.Usage
-	value      sqltype.Value
+	Offset     int
+	Origin     quoteOrigin
+	Frame      uint32
+	Name       string
+	Anyelement bool
+	Source     sqltype.Usage
+	Result     sqltype.Usage
+	Value      sqltype.Value
 }
 
 type quoteCaptureCandidate struct {
-	entries []quoteConstant
-	private bool
-	sealed  bool
+	Entries []quoteConstant
+	Private bool
+	Sealed  bool
 }
 
 func (c *EvalContext) EvalUpdateOutput(e plan.UpdateOutputExpr) (sqltype.Value, error) {
-	if e.Index >= len(c.updateOutputs) || !c.updateOutputsReady {
+	if e.Index >= len(c.UpdateOutputs) || !c.UpdateOutputsReady {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: UPDATE output outside its assignment group")
 	}
-	return c.updateOutputs[e.Index], nil
+	return c.UpdateOutputs[e.Index], nil
 }
 
 func (c *EvalContext) EvalWindow(e *plan.WindowExpr) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
+	if err := EvaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
 	if e.Slot < 0 || e.Slot >= len(c.Row) {

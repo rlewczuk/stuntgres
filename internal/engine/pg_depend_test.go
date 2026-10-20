@@ -75,8 +75,8 @@ func TestPGDependShape(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rows.anonymous) != 0 {
-		t.Fatal("synthetic bootstrap graph", rows.anonymous)
+	if len(rows.Anonymous) != 0 {
+		t.Fatal("synthetic bootstrap graph", rows.Anonymous)
 	}
 }
 func TestPGDependConstructionBags(t *testing.T) {
@@ -128,8 +128,8 @@ func TestPGDependConstructionBags(t *testing.T) {
 	}
 	view.State().RemoveDescriptor(tableAddress)
 	// Completed rows are owned values, not a later live-catalog enumeration.
-	decoded := make([]pgcatalog.DependEdge, 0, len(captured.anonymous))
-	for _, row := range captured.anonymous {
+	decoded := make([]pgcatalog.DependEdge, 0, len(captured.Anonymous))
+	for _, row := range captured.Anonymous {
 		if len(row) != 7 {
 			t.Fatal("row width", row)
 		}

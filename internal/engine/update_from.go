@@ -66,7 +66,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 				return nil
 			}
 		}
-		mark = effectiveQueryRowMark(relation, mark)
+		mark = EffectiveQueryRowMark(relation, mark)
 		if err := authorizeViewSourceSnapshot(auth, ref, viewOf(relation), sourceInvoker, mark); err != nil {
 			return err
 		}
@@ -89,12 +89,12 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 		return nil
 	}
 	for _, leaf := range leaves {
-		if !leaf.analysisOnly {
-			principal := leaf.principal
+		if !leaf.AnalysisOnly {
+			principal := leaf.Principal
 			if principal == (authorization.PrincipalRef{}) {
 				principal = invoker
 			}
-			if err := authorize(leaf.ref, principal, mergeQueryRowMark(inherited, leaf.mark)); err != nil {
+			if err := authorize(leaf.Ref, principal, MergeQueryRowMark(inherited, leaf.Mark)); err != nil {
 				return nil, err
 			}
 		}
@@ -168,10 +168,10 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 		return nil
 	}
 	for _, leaf := range leaves {
-		if leaf.analysisOnly {
+		if leaf.AnalysisOnly {
 			continue
 		}
-		if err := collect(leaf.ref, leaf.only); err != nil {
+		if err := collect(leaf.Ref, leaf.Only); err != nil {
 			return nil, err
 		}
 	}

@@ -27,7 +27,7 @@ type conditionalSpy struct {
 
 func (e conditionalSpy) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
-	if err := evaluationContext(c); err != nil {
+	if err := EvaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
 	*e.calls++

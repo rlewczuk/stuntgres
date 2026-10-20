@@ -21,16 +21,16 @@ type routineAdmissionProgram struct{ calls []routineAdmission }
 
 func (p *routineAdmissionProgram) record(c *EvalContext, dependencies []catalog.ExpressionDependency, routine *catalog.Procedure) error {
 	var ref ids.ObjectRef
-	if c.routineReferences != nil {
-		for _, candidate := range c.routineReferences {
+	if c.RoutineReferences != nil {
+		for _, candidate := range c.RoutineReferences {
 			if candidate.Address == routine.Address() {
 				ref = candidate
 				break
 			}
 		}
 	} else {
-		if c.routineChecks != nil {
-			dependencies = c.routineChecks
+		if c.RoutineChecks != nil {
+			dependencies = c.RoutineChecks
 		}
 		for _, candidate := range dependencies {
 			if candidate.Ref.Address == routine.Address() {
@@ -47,11 +47,11 @@ func (p *routineAdmissionProgram) record(c *EvalContext, dependencies []catalog.
 		return err
 	}
 	for _, call := range p.calls {
-		if call.reference == ref && call.consumer == c.routineConsumer && call.actor == auth.State.CurrentUser {
+		if call.reference == ref && call.consumer == c.RoutineConsumer && call.actor == auth.State.CurrentUser {
 			return nil
 		}
 	}
-	p.calls = append(p.calls, routineAdmission{routine: routine, reference: ref, consumer: c.routineConsumer, body: c.routineBodyContext, actor: auth.State.CurrentUser})
+	p.calls = append(p.calls, routineAdmission{routine: routine, reference: ref, consumer: c.RoutineConsumer, body: c.routineBodyContext, actor: auth.State.CurrentUser})
 	return nil
 }
 
@@ -64,7 +64,7 @@ func (p *routineAdmissionProgram) readmit(auth AuthorizationView) error {
 		}
 		dependency := [1]catalog.ExpressionDependency{{Ref: call.reference, Revision: call.routine.Revision()}}
 		if err := admitRoutineDescriptor(current, dependency[:], call.routine, call.consumer); err != nil {
-			return call.body.annotate(err)
+			return call.body.Annotate(err)
 		}
 	}
 	return nil

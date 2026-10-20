@@ -17,7 +17,7 @@ func TestUpdateRowCorrelatedCTEFrames(t *testing.T) {
 	op, scope, b, _, sources := updateFromBoundSources(t, e, owner, ctx, "UPDATE t SET (a,b)=(WITH v AS MATERIALIZED (SELECT t.id AS x) SELECT x,x+100 FROM v)")
 	defer op.Done()
 	defer scope.Finish(context.Canceled)
-	if err := selectQuerySources(ctx, sources); err != nil {
+	if err := SelectQuerySources(ctx, sources); err != nil {
 		t.Fatal(err)
 	}
 	source := b.update.assignments[0].(plan.SubqueryExpr)
@@ -58,9 +58,9 @@ func TestUpdateRowCorrelatedCTEFrames(t *testing.T) {
 		draws++
 		return sqltype.Integer(value.Type(), id+int64(draws*10))
 	}))
-	execution := queryState{source: sources, input: scope.input, output: scope.output}
-	defer execution.releaseMemberships()
-	eval := execution.evaluation(ctx)
+	execution := queryState{Source: sources, Input: scope.input, Output: scope.output}
+	defer execution.ReleaseMemberships()
+	eval := execution.Evaluation(ctx)
 	typ := b.relation.Columns[0].Usage.Type
 	for i, id := range []int64{1, 2, 1} {
 		old := []sqltype.Value{subqueryTestInteger(t, typ, id), subqueryTestInteger(t, typ, 7), subqueryTestInteger(t, typ, 8)}
@@ -70,7 +70,7 @@ func TestUpdateRowCorrelatedCTEFrames(t *testing.T) {
 		if err != nil || testExport(row[0]) != id || testExport(row[1]) != want || testExport(row[2]) != want+100 || draws != i+1 {
 			t.Fatal("producer tuple was stale, rebound or duplicated", row, draws, err)
 		}
-		if eval.updateOutputs != nil || eval.updateOutputsReady {
+		if eval.UpdateOutputs != nil || eval.UpdateOutputsReady {
 			t.Fatal("correlated invocation leaked tuple owner")
 		}
 	}

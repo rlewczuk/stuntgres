@@ -380,16 +380,16 @@ func mergeOnTruth(value sqltype.Value) (plan.Truth, error) {
 }
 
 func (merge *boundMerge) hasVirtualReads() bool {
-	if queryHasVirtualReads(merge.source) || boundHasVirtualReads(merge.on) {
+	if QueryHasVirtualReads(merge.source) || BoundHasVirtualReads(merge.on) {
 		return true
 	}
 	for _, arm := range merge.arms {
-		if boundHasVirtualReads(arm.condition) {
+		if BoundHasVirtualReads(arm.condition) {
 			return true
 		}
 		if arm.input.update != nil {
 			for _, expr := range arm.input.update.assignments {
-				if boundHasVirtualReads(expr) {
+				if BoundHasVirtualReads(expr) {
 					return true
 				}
 			}
@@ -401,7 +401,7 @@ func (merge *boundMerge) hasVirtualReads() bool {
 		}
 		for _, row := range arm.input.expressions {
 			for _, expr := range row {
-				if boundHasVirtualReads(expr) {
+				if BoundHasVirtualReads(expr) {
 					return true
 				}
 			}
@@ -411,23 +411,23 @@ func (merge *boundMerge) hasVirtualReads() bool {
 }
 
 func (e *Engine) executeMerge(ctx context.Context, scope *StatementScope, b binding, target, inputs *querySource, parameters []sqltype.Value, schema string) (Result, error) {
-	defer target.close()
-	defer inputs.close()
+	defer target.Close()
+	defer inputs.Close()
 	unique, err := scope.bindUniqueWrite(b.ref)
 	if err != nil {
 		return Result{}, err
 	}
-	if err := selectQuerySources(ctx, inputs); err != nil {
+	if err := SelectQuerySources(ctx, inputs); err != nil {
 		return Result{}, err
 	}
-	state := &queryState{source: inputs, parameters: parameters, input: scope.input, output: scope.output, locking: inputs.locks != nil, virtualReads: b.merge.hasVirtualReads()}
+	state := &queryState{Source: inputs, Parameters: parameters, Input: scope.input, Output: scope.output, Locking: inputs.Locks != nil, VirtualReads: b.merge.hasVirtualReads()}
 	if b.returning != nil {
 		for _, expr := range b.returning.expressions {
-			state.virtualReads = state.virtualReads || boundHasVirtualReads(expr)
+			state.VirtualReads = state.VirtualReads || BoundHasVirtualReads(expr)
 		}
 	}
-	defer state.releaseMemberships()
-	cursor, err := openQueryNode(ctx, state, b.merge.source)
+	defer state.ReleaseMemberships()
+	cursor, err := OpenNode(ctx, state, b.merge.source)
 	if err != nil {
 		return Result{}, err
 	}
@@ -447,7 +447,7 @@ func (e *Engine) executeMerge(ctx context.Context, scope *StatementScope, b bind
 	if err := rows.stage(scope.Writes(), b.ref); err != nil {
 		return Result{}, err
 	}
-	if rows.returning != nil && b.returning.regclassOutput && rows.returning.count != 0 {
+	if rows.returning != nil && b.returning.regclassOutput && rows.returning.Count != 0 {
 		if err := e.captureRegclassOutput(scope.op, rows.returning); err != nil {
 			return Result{}, err
 		}

@@ -72,7 +72,7 @@ func infoYesOrNoUnitEvaluate(t *testing.T, view catalog.Read, d *catalog.Type) {
 	t.Helper()
 	base := d.SQLType.DomainBase().Type
 	ctx := context.Background()
-	eval := EvalContext{evalStatement: evalStatement{Context: ctx, catalog: view}}
+	eval := EvalContext{evalStatement: evalStatement{Context: ctx, Catalog: view}}
 	eval.Input.DomainChecks = &eval
 	plan, err := sqltype.PlanCoercion(base.Usage(), d.SQLType.Usage(), sqltype.Assignment)
 	if err != nil {
@@ -89,7 +89,7 @@ func infoYesOrNoUnitEvaluate(t *testing.T, view catalog.Read, d *catalog.Type) {
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "23514" || diagnostic.Message != `value for domain information_schema.yes_or_no violates check constraint "yes_or_no_check"` || diagnostic.Schema != "information_schema" || diagnostic.DataType != "yes_or_no" || diagnostic.Constraint != "yes_or_no_check" || diagnostic.Table != "" || diagnostic.Column != "" || diagnostic.Detail != "" || diagnostic.Position != "" || diagnostic.Context != "" {
 		t.Fatal("real FALSE recipe diagnostic", err)
 	}
-	if eval.domainValueActive {
+	if eval.DomainValueActive {
 		t.Fatal("VALUE frame leaked after conversion")
 	}
 }

@@ -24,21 +24,21 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 	if expression == nil {
 		return nil, false, nil
 	}
-	if err := evaluationContext(c); err != nil {
+	if err := EvaluationContext(c); err != nil {
 		return nil, false, err
 	}
 	recipe, recipeErr := routine.ExpressionRecipeDescriptor(expression)
 	if recipeErr != nil {
 		return nil, false, recipeErr
 	}
-	if recipe != nil && (!c.routineGraft || c.routineConsumer != recipe) || recipe == nil && c.routineGraft {
+	if recipe != nil && (!c.RoutineGraft || c.RoutineConsumer != recipe) || recipe == nil && c.RoutineGraft {
 		parent := c
 		local := *c
 		if err := selectExpressionRecipe(&local, recipe); err != nil {
 			return nil, false, err
 		}
 		c = &local
-		defer func() { parent.preparedDomainChecks = c.preparedDomainChecks }()
+		defer func() { parent.PreparedDomainChecks = c.PreparedDomainChecks }()
 	}
 	changed := false
 	child := func(old expr.Expr) (expr.Expr, error) {

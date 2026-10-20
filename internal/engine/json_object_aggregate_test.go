@@ -206,7 +206,7 @@ func TestJSONObjectAggregateRunnerNullPresence(t *testing.T) {
 				values++
 				return sqltype.Null(valueUsage.Type), nil
 			})
-			rows, n, err := finalizeQuery(context.Background(), q.Root, source, nil)
+			rows, n, err := Finalize(context.Background(), q.Root, source, nil)
 			if err != nil || n != 1 {
 				t.Fatal(n, err)
 			}
@@ -244,7 +244,7 @@ func TestJSONObjectAggregateReachedEagerCancellation(t *testing.T) {
 		node.Calls[0].Separator = queryProbe(input.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.String(input, "value"), nil })
 		ctx, cancel := context.WithCancel(context.Background())
 		probe := &bitwiseAggregateCancelContext{Context: ctx, cancel: cancel, target: tc.target}
-		rows, n, err := finalizeQuery(probe, q.Root, source, nil)
+		rows, n, err := Finalize(probe, q.Root, source, nil)
 		cancel()
 		if !probe.entered || rows != nil || n != 0 || !errors.Is(err, context.Canceled) {
 			if rows != nil {
@@ -252,7 +252,7 @@ func TestJSONObjectAggregateReachedEagerCancellation(t *testing.T) {
 			}
 			t.Fatal("cancellation published result", tc, probe.entered, n, err)
 		}
-		if source.view != nil || source.anonymous != nil {
+		if source.View != nil || source.Anonymous != nil {
 			t.Fatal("canceled source retained")
 		}
 	}

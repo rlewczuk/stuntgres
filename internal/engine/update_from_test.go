@@ -29,10 +29,10 @@ func updateFromBoundSources(t *testing.T, e *Engine, session *Session, ctx conte
 	// Fatal/panic exits before a caller reaches Finish/Done.
 	t.Cleanup(func() {
 		if from != nil {
-			from.close()
+			from.Close()
 		}
 		if source != nil {
-			source.close()
+			source.Close()
 		}
 		if scope != nil && !scope.finished {
 			scope.Finish(errors.New("abandoned mutation capture fixture"))
@@ -85,7 +85,7 @@ func updateFromBoundSources(t *testing.T, e *Engine, session *Session, ctx conte
 	e.mu.Unlock()
 	if err != nil {
 		if source != nil {
-			source.close()
+			source.Close()
 		}
 		fail(err)
 	}
@@ -99,11 +99,11 @@ func TestUpdateFromFramesOriginsAndPhysicalTargets(t *testing.T) {
 		sessionSQL(t, a, q)
 	}
 	op, scope, b, target, from := updateFromBoundSources(t, e, a, context.Background(), "UPDATE t AS dst SET a=dst.b,b=dst.a FROM s JOIN r USING(k) WHERE dst.id=k RETURNING dst.*,k,s.k,r.k,s.v,old.a,new.a")
-	data := target.view.Data()
-	if len(data.Committed) != 3 || len(b.querySources) != 2 || from.sources[0].view.Data() != data || from.sources[1].view.Data() != data {
+	data := target.View.Data()
+	if len(data.Committed) != 3 || len(b.querySources) != 2 || from.Sources[0].View.Data() != data || from.Sources[1].View.Data() != data {
 		t.Fatal("incoherent target/source capture", data)
 	}
-	unused := catalogRef(t, e, target.view.Catalog(), "unused")
+	unused := catalogRef(t, e, target.View.Catalog(), "unused")
 	if _, found := data.Committed[unused.Address]; found {
 		t.Fatal("unrelated relation captured")
 	}
@@ -111,7 +111,7 @@ func TestUpdateFromFramesOriginsAndPhysicalTargets(t *testing.T) {
 	if len(metadata) != 9 || metadata[3].Usage.Type.ID() != sqltype.Int8 || metadata[3].OriginTable != metadata[4].OriginTable || metadata[3].OriginAttribute != metadata[4].OriginAttribute || metadata[3].OriginTable == metadata[5].OriginTable || metadata[6].Usage.Typmod != 11 {
 		t.Fatal(metadata)
 	}
-	original := append([]storage.RowVersion(nil), target.committed...)
+	original := append([]storage.RowVersion(nil), target.Committed...)
 	r, err := e.executeUpdate(op.ctx, scope, b, target, from, nil, "public")
 	if err != nil || r.Count != 2 {
 		scope.Finish(err)
@@ -132,7 +132,7 @@ func TestUpdateFromFramesOriginsAndPhysicalTargets(t *testing.T) {
 		t.Fatal(err)
 	}
 	op.Done()
-	if target.view != nil || from.sources != nil || len(scope.querySources) != 0 {
+	if target.View != nil || from.Sources != nil || len(scope.querySources) != 0 {
 		t.Fatal("capture ownership leaked")
 	}
 	store := e.storage.Relations[b.ref.Address]
@@ -152,8 +152,8 @@ func TestUpdateFromLosingPairsDemandAndFailureCleanup(t *testing.T) {
 				sessionSQL(t, a, q)
 			}
 			op, scope, b, target, from := updateFromBoundSources(t, e, a, context.Background(), "UPDATE t SET a=id FROM s WHERE id=k RETURNING old.a,new.a,s.k")
-			children := append([]*querySource(nil), from.sources...)
-			saved := append([]storage.RowVersion(nil), target.committed...)
+			children := append([]*querySource(nil), from.Sources...)
+			saved := append([]storage.RowVersion(nil), target.Committed...)
 			calls, outputs := 0, 0
 			sentinel := errors.New("losing UPDATE FROM assignment failure")
 			rhs := b.update.assignments[0]
@@ -189,11 +189,11 @@ func TestUpdateFromLosingPairsDemandAndFailureCleanup(t *testing.T) {
 			}
 			op.Done()
 			for _, child := range children {
-				if child.view != nil || child.committed != nil || child.own != nil {
+				if child.View != nil || child.Committed != nil || child.Own != nil {
 					t.Fatal("orphan source capture", child)
 				}
 			}
-			if target.view != nil || from.sources != nil || len(scope.querySources) != 0 {
+			if target.View != nil || from.Sources != nil || len(scope.querySources) != 0 {
 				t.Fatal("orphan statement capture")
 			}
 			if testExport(saved[0].Values[1]) != int64(10) || testExport(saved[1].Values[1]) != int64(20) {

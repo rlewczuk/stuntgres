@@ -34,7 +34,7 @@ func TestCheckAlterCommittedCatalogAndRetainedPins(t *testing.T) {
 	if len(after.Constraints.Check) != 0 || len(after.Columns) != 1 {
 		t.Fatal("Commit failed to publish CHECK removal and row shape")
 	}
-	if len(original.Constraints.Check) != 1 || len(original.Columns) != 2 || pin.count != 1 {
+	if len(original.Constraints.Check) != 1 || len(original.Columns) != 2 || pin.Count != 1 {
 		t.Fatal("ALTER changed old descriptor or retained rows")
 	}
 	transactionRows(t, peer, "SELECT a FROM t ORDER BY a", 1, 2)

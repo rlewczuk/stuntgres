@@ -55,12 +55,12 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 	row.WholeNames = []string{"f1", "f2"}
 	row.PresenceSlot = 1
 	row.PresenceFrame = 1
-	c.presenceSlots = []int{1}
-	c.presence = []bool{true}
+	c.PresenceSlots = []int{1}
+	c.Presence = []bool{true}
 	if value, err := row.Eval(c); err != nil || value.IsNull() {
 		t.Fatal("all-NULL emitted tuple became absent", err)
 	}
-	c.presence[0] = false
+	c.Presence[0] = false
 	if value, err := row.Eval(c); err != nil || !value.IsNull() {
 		t.Fatal("null-extended tuple became present", err)
 	}
@@ -72,7 +72,7 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 	if value, err := row.Eval(outer); err != nil || !value.IsNull() {
 		t.Fatal("whole row lost outer frame presence", err)
 	}
-	c.presenceSlots = nil
+	c.PresenceSlots = nil
 	if _, err := row.Eval(c); err == nil {
 		t.Fatal("missing demanded occurrence was treated as present")
 	}
@@ -81,18 +81,18 @@ func TestCompositeExprFieldAndNull(t *testing.T) {
 		t.Fatal(err)
 	}
 	zero := plan.RowExpr{Info: expr.Info{Usage: empty.Usage()}, WholeNames: []string{}, PresenceSlot: 1, PresenceFrame: 1}
-	c.presenceSlots = []int{1}
-	c.presence = []bool{true}
+	c.PresenceSlots = []int{1}
+	c.Presence = []bool{true}
 	if value, err := zero.Eval(c); err != nil || value.IsNull() || value.CompositeLen() != 0 {
 		t.Fatal("present zero-width occurrence", err)
 	}
-	c.presence[0] = false
+	c.Presence[0] = false
 	if value, err := zero.Eval(c); err != nil || !value.IsNull() {
 		t.Fatal("absent zero-width occurrence", err)
 	}
 	source := &querySource{}
-	establishSourcePresence(source, 0)
-	if source.presenceCount != 0 || source.presenceSlots != nil || source.presenceConstant != nil {
+	EstablishSourcePresence(source, 0)
+	if source.PresenceCount != 0 || source.PresenceSlots != nil || source.PresenceConstant != nil {
 		t.Fatal("undemanded source allocated presence")
 	}
 	t.Run("discarded immutable preflight", func(t *testing.T) {

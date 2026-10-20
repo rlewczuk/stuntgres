@@ -133,7 +133,7 @@ func TestPartialIndexPredicateTypeGeneration(t *testing.T) {
 				t.Fatal("type-only reownership mutated a retained catalog, predicate, row or root")
 			}
 			for i, row := range view.Load().Committed[f.parent.Address()] {
-				if row.Values[1].Type() != oldUsage.Type || partialMaskContains(mask, row) != (i == 0 || i == 3 || i == 4) {
+				if row.Values[1].Type() != oldUsage.Type || PartialMaskContains(mask, row) != (i == 0 || i == 3 || i == 4) {
 					t.Fatal("retained scope lost its old row generation or membership", i)
 				}
 			}

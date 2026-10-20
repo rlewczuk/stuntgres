@@ -24,11 +24,11 @@ func srfFromUnitNode(t *testing.T, calls ...expr.Expr) *plan.FunctionFromNode {
 	return n
 }
 func srfFromUnitState() *queryState {
-	return &queryState{source: &querySource{materialized: true}, frame: 1}
+	return &queryState{Source: &querySource{Materialized: true}, Frame: 1}
 }
 func srfFromUnitRows(t *testing.T, n plan.Node) [][]any {
 	t.Helper()
-	stage, err := openQueryNode(context.Background(), srfFromUnitState(), n)
+	stage, err := OpenNode(context.Background(), srfFromUnitState(), n)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +188,7 @@ func TestSRFFromInvocation(t *testing.T) {
 func TestSRFFromOwnership(t *testing.T) {
 	d := seriesUnitType(t, sqltype.Int4)
 	n := srfFromUnitNode(t, seriesUnit(t, d, 1, 3))
-	stage, err := openFunctionFromNode(context.Background(), srfFromUnitState(), n)
+	stage, err := OpenFunctionFromNode(context.Background(), srfFromUnitState(), n)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestSRFFromOwnership(t *testing.T) {
 	if _, err := stage.Next(ctx, row); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if stage.source != nil {
+	if stage.Source != nil {
 		t.Fatal("cancel retained producer")
 	}
 	if value, err := retained.Integer(); err != nil || value != 1 {
@@ -213,17 +213,17 @@ func TestSRFFromOwnership(t *testing.T) {
 	bad := seriesUnit(t, d, 1, 2)
 	bad.Args[0] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })
 	// First member opens successfully; failed partial open must close the group.
-	invocation, err := openFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, &plan.FunctionFromNode{Calls: []expr.Expr{n.Calls[0], bad}})
-	if !errors.Is(err, failure) || len(invocation.cursors) != 0 {
+	invocation, err := OpenFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, &plan.FunctionFromNode{Calls: []expr.Expr{n.Calls[0], bad}})
+	if !errors.Is(err, failure) || len(invocation.Cursors) != 0 {
 		t.Fatal(invocation, err)
 	}
 	failed := srfFromUnitNode(t, n.Calls[0], bad)
-	stage, err = openFunctionFromNode(context.Background(), srfFromUnitState(), failed)
+	stage, err = OpenFunctionFromNode(context.Background(), srfFromUnitState(), failed)
 	if err != nil {
 		t.Fatal(err)
 	}
 	row = make([]sqltype.Value, 3)
-	if present, err := stage.Next(context.Background(), row); !errors.Is(err, failure) || present || stage.source != nil {
+	if present, err := stage.Next(context.Background(), row); !errors.Is(err, failure) || present || stage.Source != nil {
 		t.Fatal("partial publication/retention", present, err)
 	}
 	stage.Close()
@@ -267,14 +267,14 @@ func TestSRFFromStoredEligibility(t *testing.T) {
 	view := New().CatalogRead()
 	calls := []expr.Expr{seriesUnit(t, d, 1, 2), subscriptsUnit(t, view, []sqltype.ArrayDimension{{Lower: 1, Length: 2}}, 1)}
 	for _, original := range calls {
-		if !sourceAdmitted(original) {
+		if !SourceAdmitted(original) {
 			t.Fatal("stored call rejected", original)
 		}
 		args := append([]expr.Expr(nil), expr.Expr(original).(expr.Composite).Children()...)
 		first := args[0]
 		args[0] = queryProbe(first.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { return first.Eval(c) })
 		mapped, err := expr.Substitute(expr.Expr(original).(expr.Composite), expr.InfoOf(original), args)
-		if err != nil || !sourceAdmitted(mapped) {
+		if err != nil || !SourceAdmitted(mapped) {
 			t.Fatal(mapped, err)
 		}
 		if _, ok := expr.Expr(original).(expr.Composite).Children()[0].(plan.LiteralExpr); !ok {

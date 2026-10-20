@@ -92,23 +92,23 @@ func run(t *testing.T, e *Engine, sql string, args ...any) Result {
 // inspect the original result later without rewinding its public position.
 func independentFinalRows(original RowResult) *finalRows {
 	old := original.(*finalRows)
-	r := newFinalRows(old.schema, old.count)
-	r.values, r.selection, r.slots = old.values, old.selection, old.slots
-	r.anonymous = old.anonymous
-	r.regclassOutput = old.regclassOutput
-	if old.source != nil {
-		source := *old.source
-		if source.view != nil {
-			source.view = source.view.Retain()
+	r := NewFinalRows(old.Columns, old.Count)
+	r.Values, r.Selection, r.Slots = old.Values, old.Selection, old.Slots
+	r.Anonymous = old.Anonymous
+	r.RegclassOutput = old.RegclassOutput
+	if old.Source != nil {
+		source := *old.Source
+		if source.View != nil {
+			source.View = source.View.Retain()
 		}
-		r.source = &source
+		r.Source = &source
 	}
 	return r
 }
 func tuples(r Result) [][]driver.Value {
 	cursor := independentFinalRows(r.Rows)
 	defer cursor.Close()
-	rows := make([][]driver.Value, 0, cursor.count)
+	rows := make([][]driver.Value, 0, cursor.Count)
 	values := make([]sqltype.Value, len(cursor.Schema()))
 	for {
 		present, err := cursor.Next(context.Background(), values)

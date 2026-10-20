@@ -24,8 +24,8 @@ func (e *Engine) captureRegclassOutput(op *Operation, rows *finalRows) error {
 	}
 	var collationPath []ids.ObjectAddress
 	aclOutput := capturedACLItemOutput{owner: e.catalog.owner(), roles: auth.Roles}
-	roleOutput := capturedRegroleOutput{owner: e.catalog.owner(), roles: auth.Roles, quoteAll: rows.output.QuoteAllIdentifiers}
-	for _, value := range rows.values {
+	roleOutput := capturedRegroleOutput{owner: e.catalog.owner(), roles: auth.Roles, quoteAll: rows.Output.QuoteAllIdentifiers}
+	for _, value := range rows.Values {
 		if err := e.captureRegObjectRowsValueLocked(rows, auth, &collationPath, value); err != nil {
 			return err
 		}
@@ -39,7 +39,7 @@ func (e *Engine) captureRegclassOutput(op *Operation, rows *finalRows) error {
 			return err
 		}
 	}
-	for _, row := range rows.anonymous {
+	for _, row := range rows.Anonymous {
 		for _, value := range row {
 			if err := e.captureRegObjectRowsValueLocked(rows, auth, &collationPath, value); err != nil {
 				return err
@@ -55,14 +55,14 @@ func (e *Engine) captureRegclassOutput(op *Operation, rows *finalRows) error {
 			}
 		}
 	}
-	if rows.source != nil {
-		for i := 0; i < rows.count; i++ {
+	if rows.Source != nil {
+		for i := 0; i < rows.Count; i++ {
 			index := i
-			if rows.selection != nil {
-				index = rows.selection[i]
+			if rows.Selection != nil {
+				index = rows.Selection[i]
 			}
-			row := rows.source.row(index)
-			for _, slot := range rows.slots {
+			row := rows.Source.Row(index)
+			for _, slot := range rows.Slots {
 				if err := e.captureRegObjectRowsValueLocked(rows, auth, &collationPath, row[slot]); err != nil {
 					return err
 				}
@@ -124,18 +124,18 @@ func captureRegclassOutputValue(rows *finalRows, catalog catalog.Read, path []id
 	if err != nil {
 		return err
 	}
-	if _, exists := rows.regclassOutput[key]; exists {
+	if _, exists := rows.RegclassOutput[key]; exists {
 		return nil
 	}
 	n, err := strconv.ParseUint(key, 10, 32)
 	if err != nil {
 		return err
 	}
-	if rows.regclassOutput == nil {
-		rows.regclassOutput = make(map[string]string)
+	if rows.RegclassOutput == nil {
+		rows.RegclassOutput = make(map[string]string)
 	}
-	rows.regclassOutput[key] = regclassSpelling(catalog, path, ids.OID(n))
-	rows.output.Regclass = rows
+	rows.RegclassOutput[key] = regclassSpelling(catalog, path, ids.OID(n))
+	rows.Output.Regclass = rows
 	return nil
 }
 

@@ -43,7 +43,7 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 		if got, err := (boundTree{n}).StructuralOutput(ctx); err != nil || !strings.Contains(got, "BlockingInquiry") {
 			t.Fatal("structural recipe", got, err)
 		}
-		if !b.sameGroupExpression(n, n) || generationImmutable(n) || plannedVolatility(n) != expr.Volatile {
+		if !b.sameGroupExpression(n, n) || generationImmutable(n) || PlannedVolatility(n) != expr.Volatile {
 			t.Fatal("lost intrinsic live volatility")
 		}
 		other := n

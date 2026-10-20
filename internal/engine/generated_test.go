@@ -79,7 +79,7 @@ func TestGeneratedOriginalReferencesAndPrivateReadManifest(t *testing.T) {
 	b.target.generatedOwner = d
 	b.query.auth = &auth
 	b.query.namespace = &ns
-	b.query.sources = []queryLeaf{{ref: ref, relation: d}}
+	b.query.sources = []queryLeaf{{Ref: ref, Relation: d}}
 	raw := func(name string) parser.ColumnExpr {
 		return parser.ColumnExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: name}}}}
 	}

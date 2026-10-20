@@ -60,9 +60,9 @@ func recursiveUnitFixture(t *testing.T, all bool, seeds []int64, terminal int64)
 	}
 	project := &plan.ProjectNode{QuerySchema: schema, Child: n, Expressions: []expr.Expr{column(4)}, Frame: 4}
 	d.Query = &plan.Query{Root: project}
-	state := &queryState{source: &querySource{materialized: true}}
-	owner := &cteInvocation{frame: 1, state: *state}
-	state.ctes = owner
+	state := &queryState{Source: &querySource{Materialized: true}}
+	owner := &cteInvocation{Frame: 1, State: *state}
+	state.Ctes = owner
 	return owner, state, &plan.DerivedNode{QuerySchema: schema, Query: d.Query, CTE: d}
 }
 
@@ -70,7 +70,7 @@ func recursiveUnitGeneration(t *testing.T, s *recursiveUnionStage, indexes []int
 	t.Helper()
 	var values []int64
 	for _, index := range indexes {
-		n, err := s.source.row(index)[0].Integer()
+		n, err := s.Source.Row(index)[0].Integer()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -81,16 +81,16 @@ func recursiveUnitGeneration(t *testing.T, s *recursiveUnionStage, indexes []int
 
 func TestQueryRecursiveCTECurrentGenerationAndSharing(t *testing.T) {
 	owner, state, node := recursiveUnitFixture(t, true, []int64{1, 2}, 3)
-	defer owner.close()
-	first, err := openCTEScan(context.Background(), state, node)
+	defer owner.Close()
+	first, err := OpenCTEScan(context.Background(), state, node)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := openCTEScan(context.Background(), state, node)
+	second, err := OpenCTEScan(context.Background(), state, node)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if owner.producers[node.CTE].opened {
+	if owner.Producers[node.CTE].Opened {
 		t.Fatal("eager recursive open")
 	}
 	var got []int64
@@ -101,14 +101,14 @@ func TestQueryRecursiveCTECurrentGenerationAndSharing(t *testing.T) {
 			t.Fatal(n, want, err)
 		}
 		got = append(got, n)
-		stage := owner.producers[node.CTE].recursion
-		if stage.seen != nil {
+		stage := owner.Producers[node.CTE].Recursion
+		if stage.Seen != nil {
 			t.Fatal("ALL allocated deduplication state")
 		}
-		if i == 3 && !reflect.DeepEqual(recursiveUnitGeneration(t, stage, stage.current), []int64{1, 2}) {
+		if i == 3 && !reflect.DeepEqual(recursiveUnitGeneration(t, stage, stage.Current), []int64{1, 2}) {
 			t.Fatal("RHS replayed accumulated output")
 		}
-		if i == 4 && !reflect.DeepEqual(recursiveUnitGeneration(t, stage, stage.current), []int64{2, 3}) {
+		if i == 4 && !reflect.DeepEqual(recursiveUnitGeneration(t, stage, stage.Current), []int64{2, 3}) {
 			t.Fatal("incorrect generation swap")
 		}
 		if i == 0 {
@@ -120,7 +120,7 @@ func TestQueryRecursiveCTECurrentGenerationAndSharing(t *testing.T) {
 			}
 		}
 	}
-	if _, present, err := first.nextOccurrence(context.Background()); present || err != nil {
+	if _, present, err := first.NextOccurrence(context.Background()); present || err != nil {
 		t.Fatal(present, err)
 	}
 	if !reflect.DeepEqual(got, []int64{1, 2, 2, 3, 3}) {
@@ -133,8 +133,8 @@ func TestQueryRecursiveCTECurrentGenerationAndSharing(t *testing.T) {
 
 func TestQueryRecursiveCTEDistinctAnchorPassAndCollision(t *testing.T) {
 	owner, state, node := recursiveUnitFixture(t, false, []int64{1, 1, 2}, 3)
-	defer owner.close()
-	stage, err := openCTEScan(context.Background(), state, node)
+	defer owner.Close()
+	stage, err := OpenCTEScan(context.Background(), state, node)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,42 +145,42 @@ func TestQueryRecursiveCTEDistinctAnchorPassAndCollision(t *testing.T) {
 			t.Fatal(n, want, err)
 		}
 	}
-	if _, present, err := stage.nextOccurrence(context.Background()); present || err != nil {
+	if _, present, err := stage.NextOccurrence(context.Background()); present || err != nil {
 		t.Fatal(present, err)
 	}
 	n := node.Query.Root.(*plan.ProjectNode).Child.(*plan.RecursiveUnionNode)
 	one, two := cteUnitValue(t, n.Schema()[0].Usage.Type, 1), cteUnitValue(t, n.Schema()[0].Usage.Type, 2)
-	if index, err := findDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0}); index != -1 || err != nil {
+	if index, err := FindDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0}); index != -1 || err != nil {
 		t.Fatal("unequal forced collision", index, err)
 	}
-	if index, err := findDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0, 1}); index != 1 || err != nil {
+	if index, err := FindDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0, 1}); index != 1 || err != nil {
 		t.Fatal("equal forced collision", index, err)
 	}
 }
 
 func TestQueryRecursiveCTEDemandCancellationAndClose(t *testing.T) {
 	owner, state, node := recursiveUnitFixture(t, true, []int64{1}, 100)
-	defer owner.close()
-	stage, err := openCTEScan(context.Background(), state, node)
+	defer owner.Close()
+	stage, err := OpenCTEScan(context.Background(), state, node)
 	if err != nil {
 		t.Fatal(err)
 	}
 	cteUnitNext(t, &stage)
-	producer := owner.producers[node.CTE]
-	if producer.recursion.phase != 0 || producer.recursion.source.flatCount != 1 {
+	producer := owner.Producers[node.CTE]
+	if producer.Recursion.Phase != 0 || producer.Recursion.Source.FlatCount != 1 {
 		t.Fatal("seed demand opened a recursive pass")
 	}
 	cteUnitNext(t, &stage)
-	if producer.recursion.phase != 1 {
+	if producer.Recursion.Phase != 1 {
 		t.Fatal("did not enter recursive pass")
 	}
-	sibling, err := openCTEScan(context.Background(), state, node)
+	sibling, err := OpenCTEScan(context.Background(), state, node)
 	if err != nil {
 		t.Fatal(err)
 	}
 	closes := 0
-	finish := producer.recursion.arm.inner.finish
-	producer.recursion.arm.inner.finish = func() error {
+	finish := producer.Recursion.Arm.Inner.Finish
+	producer.Recursion.Arm.Inner.Finish = func() error {
 		closes++
 		if finish != nil {
 			return finish()
@@ -189,22 +189,22 @@ func TestQueryRecursiveCTEDemandCancellationAndClose(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, _, err := stage.nextOccurrence(ctx); !errors.Is(err, context.Canceled) {
+	if _, _, err := stage.NextOccurrence(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if _, _, err := sibling.nextOccurrence(context.Background()); !errors.Is(err, context.Canceled) {
+	if _, _, err := sibling.NextOccurrence(context.Background()); !errors.Is(err, context.Canceled) {
 		t.Fatal("sibling replay escaped producer failure", err)
 	}
-	if err := owner.close(); !errors.Is(err, context.Canceled) {
+	if err := owner.Close(); !errors.Is(err, context.Canceled) {
 		t.Fatal("lost sticky cancellation", err)
 	}
 	if closes != 1 {
 		t.Fatal("recursive child close count", closes)
 	}
-	if _, err := producer.ensure(context.Background(), 0); !errors.Is(err, context.Canceled) {
+	if _, err := producer.Ensure(context.Background(), 0); !errors.Is(err, context.Canceled) {
 		t.Fatal("replay cleared primary", err)
 	}
-	if err := owner.close(); !errors.Is(err, context.Canceled) || closes != 1 {
+	if err := owner.Close(); !errors.Is(err, context.Canceled) || closes != 1 {
 		t.Fatal(err, closes)
 	}
 }
@@ -235,7 +235,7 @@ func TestQueryRecursiveCTENullAndZeroWidth(t *testing.T) {
 			n.Right.Expressions = []expr.Expr{plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 3, Slot: 0}}
 			n.RightExpressions = n.Right.Expressions
 		}
-		stage, err := openCTEScan(context.Background(), state, node)
+		stage, err := OpenCTEScan(context.Background(), state, node)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -245,18 +245,18 @@ func TestQueryRecursiveCTENullAndZeroWidth(t *testing.T) {
 					t.Fatal(row)
 				}
 			}
-			if owner.producers[node.CTE].recursion.seen != nil {
+			if owner.Producers[node.CTE].Recursion.Seen != nil {
 				t.Fatal("zero-key recursion allocated seen set")
 			}
 		} else {
 			if row := cteUnitNext(t, &stage); !row[0].IsNull() {
 				t.Fatal(row)
 			}
-			if _, present, err := stage.nextOccurrence(context.Background()); present || err != nil {
+			if _, present, err := stage.NextOccurrence(context.Background()); present || err != nil {
 				t.Fatal(present, err)
 			}
 		}
-		if err := owner.close(); err != nil {
+		if err := owner.Close(); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -12,18 +12,18 @@ func TestSQLCursorScrollRetainedEOFAndMotion(t *testing.T) {
 	c := s.cursors.entries["c"]
 	first := cursorUnitBatch(t, s, "FETCH ALL FROM c", [][]driver.Value{{int64(1)}, {int64(2)}, {int64(3)}})
 	stage := c.stage
-	if stage == nil || stage.closed || c.ordinalPosition != 3 || !c.atEnd || c.currentSource != nil {
+	if stage == nil || stage.Closed || c.ordinalPosition != 3 || !c.atEnd || c.currentSource != nil {
 		t.Fatal("EOF destroys retained tree or keeps lineage", c)
 	}
 	cursorUnitBatch(t, s, "FETCH PRIOR FROM c", [][]driver.Value{{int64(3)}})
 	cursorUnitBatch(t, s, "FETCH ABSOLUTE 2 FROM c", [][]driver.Value{{int64(2)}})
 	result, err := cursorUnitExecute(t, s, context.Background(), "MOVE BACKWARD ALL FROM c")
-	if err != nil || result.Count != 1 || result.Rows != nil || c.position != cursorBefore || c.currentSource != nil || c.stage != stage || c.authority.host != nil {
+	if err != nil || result.Count != 1 || result.Rows != nil || c.position != cursorBefore || c.currentSource != nil || c.stage != stage || c.authority.Host != nil {
 		t.Fatal(result, err, c)
 	}
 	cursorUnitBatch(t, s, "FETCH NEXT FROM c", [][]driver.Value{{int64(1)}})
 	sessionSQL(t, s, "CLOSE c")
-	if !stage.closed || c.source != nil || c.authority.expression != nil {
+	if !stage.Closed || c.source != nil || c.authority.Expression != nil {
 		t.Fatal("close leaks retained tree", c)
 	}
 	if first.Count != 3 {
@@ -42,7 +42,7 @@ func TestSQLCursorScrollVirtualFrameIdentity(t *testing.T) {
 	cursorUnitBatch(t, s, "FETCH NEXT FROM c", [][]driver.Value{{int64(1), int64(3)}})
 	cursorUnitBatch(t, s, "FETCH ABSOLUTE 2 FROM c", [][]driver.Value{{int64(2), int64(4)}})
 	stage := c.stage
-	if stage == nil || stage.position != 2 || !stage.retain || !c.state.virtualReads {
+	if stage == nil || stage.Position != 2 || !stage.Retain || !c.state.VirtualReads {
 		t.Fatal("motion and virtual frame retention did not compose", c)
 	}
 	// Selected ordinal zero is present; the sequential frontier at ordinal
@@ -50,7 +50,7 @@ func TestSQLCursorScrollVirtualFrameIdentity(t *testing.T) {
 	cursorUnitBatch(t, s, "FETCH PRIOR FROM c", [][]driver.Value{{int64(1), int64(3)}})
 	cursorUnitBatch(t, s, "FETCH ABSOLUTE 3 FROM c", [][]driver.Value{{int64(3), nil}})
 	cursorUnitBatch(t, s, "FETCH NEXT FROM c", [][]driver.Value{})
-	if c.stage != stage || stage.closed || stage.position != 3 || !c.atEnd {
+	if c.stage != stage || stage.Closed || stage.Position != 3 || !c.atEnd {
 		t.Fatal("EOF lost retained frame or frontier", c)
 	}
 	// At EOF the sequential frontier is outside the permutation. Identity
@@ -61,55 +61,55 @@ func TestSQLCursorScrollVirtualFrameIdentity(t *testing.T) {
 	cursorUnitBatch(t, s, "FETCH ALL FROM c", [][]driver.Value{{int64(1), int64(3)}, {int64(2), int64(4)}, {int64(3), nil}})
 	cursorUnitBatch(t, s, "FETCH BACKWARD ALL FROM c", [][]driver.Value{{int64(3), nil}, {int64(2), int64(4)}, {int64(1), int64(3)}})
 	sessionSQL(t, s, "CLOSE c")
-	if !stage.closed {
+	if !stage.Closed {
 		t.Fatal("close retained generated frame", stage)
 	}
 }
 
 func TestSQLCursorRetainedProducerReset(t *testing.T) {
-	source := &querySource{singleton: true}
-	child := indexedStage{source: source, selection: []int{}, done: true, position: 1}
+	source := &querySource{Singleton: true}
+	child := indexedStage{Source: source, Selection: []int{}, Done: true, Position: 1}
 	resets := 0
-	child.reset = func(ctx context.Context, s *indexedStage) (bool, error) {
+	child.Reset = func(ctx context.Context, s *indexedStage) (bool, error) {
 		resets++
-		s.selection = s.selection[:0]
-		s.done = false
+		s.Selection = s.Selection[:0]
+		s.Done = false
 		return true, nil
 	}
-	out := producingStage(&child, nil)
-	out.selection = append(out.selection, 0)
-	out.done = true
-	out.position = 1
-	if changed, err := out.rewind(context.Background()); err != nil || !changed || resets != 1 || child.position != 0 || out.position != 0 || out.done || len(out.selection) != 0 {
+	out := ProducingStage(&child, nil)
+	out.Selection = append(out.Selection, 0)
+	out.Done = true
+	out.Position = 1
+	if changed, err := out.Rewind(context.Background()); err != nil || !changed || resets != 1 || child.Position != 0 || out.Position != 0 || out.Done || len(out.Selection) != 0 {
 		t.Fatal("producer demand was not reset", out, child, resets)
 	}
 	// A materialized ORDER boundary replaces reset with position-only rewind.
-	out.reset = nil
-	out.selection = append(out.selection, 0)
-	out.done = true
-	if changed, err := out.rewind(context.Background()); err != nil || changed || resets != 1 || !out.done || len(out.selection) != 1 {
+	out.Reset = nil
+	out.Selection = append(out.Selection, 0)
+	out.Done = true
+	if changed, err := out.Rewind(context.Background()); err != nil || changed || resets != 1 || !out.Done || len(out.Selection) != 1 {
 		t.Fatal("cached boundary invalidates child", out, resets)
 	}
 	t.Run("cached_parent_frontier", func(t *testing.T) {
-		source := &querySource{materialized: true, flatCount: 3}
-		child := indexedStage{source: source, position: 1}
-		out := producingStage(&child, nil)
-		out.selection = append(out.selection, 0)
-		out.position = 1
-		out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
-			i, present, err := child.nextOccurrence(ctx)
+		source := &querySource{Materialized: true, FlatCount: 3}
+		child := indexedStage{Source: source, Position: 1}
+		out := ProducingStage(&child, nil)
+		out.Selection = append(out.Selection, 0)
+		out.Position = 1
+		out.Produce = func(ctx context.Context, out *indexedStage) (bool, error) {
+			i, present, err := child.NextOccurrence(ctx)
 			if present && err == nil {
-				retainOccurrence(out, &child, i)
+				RetainOccurrence(out, &child, i)
 			}
 			return present, err
 		}
-		if changed, err := out.rewind(context.Background()); err != nil || changed || child.position != 1 || out.position != 0 || len(out.selection) != 1 {
+		if changed, err := out.Rewind(context.Background()); err != nil || changed || child.Position != 1 || out.Position != 0 || len(out.Selection) != 1 {
 			t.Fatal("cached rewind loses child demand frontier", out, child)
 		}
-		if err := out.drain(context.Background()); err != nil {
+		if err := out.Drain(context.Background()); err != nil {
 			t.Fatal(err)
 		}
-		if out.count() != 3 || out.index(0) != 0 || out.index(1) != 1 || out.index(2) != 2 || child.position != 3 {
+		if out.Count() != 3 || out.Index(0) != 0 || out.Index(1) != 1 || out.Index(2) != 2 || child.Position != 3 {
 			t.Fatal("cached rewind appends captured prefix again", out, child)
 		}
 	})
@@ -124,29 +124,29 @@ func TestSQLCursorStoredViewFrontier(t *testing.T) {
 	c := s.cursors.entries["c"]
 	move := sessionSQL(t, s, "MOVE NEXT FROM c")
 	source, stage := c.source, c.stage
-	child := source.nestedStage
-	if move.Count != 1 || move.Rows != nil || child == nil || child.position != 1 || source.flatCount != 1 || len(source.flat) != 1 {
+	child := source.NestedStage
+	if move.Count != 1 || move.Rows != nil || child == nil || child.Position != 1 || source.FlatCount != 1 || len(source.Flat) != 1 {
 		t.Fatal("partial view demand did not retain exactly one occurrence", move, source, child)
 	}
-	captured := source.flat[0]
+	captured := source.Flat[0]
 	sessionSQL(t, s, "MOVE ABSOLUTE 0 FROM c")
-	if c.stage != stage || source.nestedStage != child || child.position != 1 || source.flatCount != 1 || len(source.flat) != 1 || source.flat[0] != captured {
+	if c.stage != stage || source.NestedStage != child || child.Position != 1 || source.FlatCount != 1 || len(source.Flat) != 1 || source.Flat[0] != captured {
 		t.Fatal("position-only rewind invalidates capture or loses child frontier", source, child)
 	}
 	cursorUnitBatch(t, s, "FETCH ALL FROM c", [][]driver.Value{{int64(1)}, {int64(2)}, {int64(3)}})
-	if source.flatCount != 3 || len(source.flat) != 3 || child.position != 3 {
+	if source.FlatCount != 3 || len(source.Flat) != 3 || child.Position != 3 {
 		t.Fatal("view drain appends an already-captured prefix", source, child)
 	}
 	sessionSQL(t, s, "MOVE ABSOLUTE 0 FROM c")
-	if child.position != 3 || source.flatCount != 3 {
+	if child.Position != 3 || source.FlatCount != 3 {
 		t.Fatal("completed view rewind loses retained frontier", source, child)
 	}
 	cursorUnitBatch(t, s, "FETCH ALL FROM c", [][]driver.Value{{int64(1)}, {int64(2)}, {int64(3)}})
-	if source.flatCount != 3 || child.position != 3 {
+	if source.FlatCount != 3 || child.Position != 3 {
 		t.Fatal("completed view replay demands duplicate occurrences", source, child)
 	}
 	sessionSQL(t, s, "CLOSE c")
-	if !child.closed || !stage.closed {
+	if !child.Closed || !stage.Closed {
 		t.Fatal("view producer is not released on close", child, stage)
 	}
 }

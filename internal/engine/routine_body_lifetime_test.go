@@ -40,7 +40,7 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 		t.Fatal(err)
 	}
 	original := binder.dependencies
-	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalAdmission: evalAdmission{routineAuthority: &auth, routineRecipe: true, routineChecks: original}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: original}}
 	if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 		t.Fatal("genuine original body authority", err)
 	}
@@ -50,11 +50,11 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 			missing = append(missing, dependency)
 		}
 	}
-	evaluation.routineChecks = missing
+	evaluation.RoutineChecks = missing
 	if err := admitRoutineCall(&evaluation, node, true, false); err == nil {
 		t.Fatal("body acquired lifetime from raw OID after its original ref was removed")
 	}
-	evaluation.routineChecks = []catalog.ExpressionDependency{}
+	evaluation.RoutineChecks = []catalog.ExpressionDependency{}
 	if err := admitRoutineCall(&evaluation, node, true, false); err == nil {
 		t.Fatal("empty owning recipe borrowed another manifest")
 	}
@@ -71,8 +71,8 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 	if captureErr != nil {
 		t.Fatal(captureErr)
 	}
-	evaluation.routineAuthority = &foreign
-	evaluation.routineChecks = original
+	evaluation.RoutineAuthority = &foreign
+	evaluation.RoutineChecks = original
 	if err := admitRoutineCall(&evaluation, node, true, false); err == nil {
 		t.Fatal("foreign original body accepted")
 	}
@@ -89,8 +89,8 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 	if err := admitRoutineCall(&evaluation, remapped, true, false); err == nil {
 		t.Fatal("retag manufactured destination lifetime from descriptor addresses")
 	}
-	evaluation.routineAuthority = &auth
-	evaluation.routineChecks = original
+	evaluation.RoutineAuthority = &auth
+	evaluation.RoutineChecks = original
 	if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 		t.Fatal("negative probes changed source recipe", err)
 	}
@@ -169,11 +169,11 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 		evaluation := EvalContext{
 			evalStatement: evalStatement{Context: ctx},
 			evalAdmission: evalAdmission{
-				routineAuthority:  &targetAuth,
-				routineRecipe:     true,
-				routineConsumer:   item.consumer,
-				routineReferences: item.refs,
-				routineChecks:     item.checks,
+				RoutineAuthority:  &targetAuth,
+				RoutineRecipe:     true,
+				RoutineConsumer:   item.consumer,
+				RoutineReferences: item.refs,
+				RoutineChecks:     item.checks,
 			},
 		}
 		if err := admitRoutineCall(&evaluation, item.node, true, false); err != nil {
@@ -185,8 +185,8 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 		for _, id := range []ids.OID{1811, 1374, 141} {
 			address := ids.ObjectAddress{ClassID: ids.ProcedureClassID, ObjectID: id}
 			probe := evaluation
-			probe.routineReferences = []ids.ObjectRef{}
-			probe.routineChecks = nil
+			probe.RoutineReferences = []ids.ObjectRef{}
+			probe.RoutineChecks = nil
 			var selected ids.ObjectRef
 			if i == 0 {
 				for _, ref := range item.refs {
@@ -196,12 +196,12 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 					if ref.Address == address {
 						selected = ref
 					} else {
-						probe.routineReferences = append(probe.routineReferences, ref)
+						probe.RoutineReferences = append(probe.RoutineReferences, ref)
 					}
 				}
 			} else {
-				probe.routineReferences = nil
-				probe.routineChecks = []catalog.ExpressionDependency{}
+				probe.RoutineReferences = nil
+				probe.RoutineChecks = []catalog.ExpressionDependency{}
 				for _, dependency := range item.checks {
 					ref := dependency.Ref
 					if ref.Domain() != target.catalog.Domain || ref.Epoch != current.Epoch() {
@@ -214,7 +214,7 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 							t.Fatal("view manifest lost original declaration revision", address)
 						}
 					} else {
-						probe.routineChecks = append(probe.routineChecks, dependency)
+						probe.RoutineChecks = append(probe.RoutineChecks, dependency)
 					}
 				}
 			}
@@ -229,21 +229,21 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 			}
 		}
 		foreign := evaluation
-		foreign.routineAuthority = &sourceAuth
+		foreign.RoutineAuthority = &sourceAuth
 		if err := admitRoutineCall(&foreign, item.node, true, false); err == nil {
 			t.Fatal("destination recipe borrowed source authority", i)
 		}
 		old := evaluation
-		old.routineReferences, old.routineChecks = original[i].refs, original[i].checks
+		old.RoutineReferences, old.RoutineChecks = original[i].refs, original[i].checks
 		if err := admitRoutineCall(&old, item.node, true, false); err == nil {
 			t.Fatal("destination recipe borrowed same-address source manifest", i)
 		}
 		if i == 1 {
 			stale := evaluation
-			stale.routineChecks = append([]catalog.ExpressionDependency(nil), item.checks...)
-			for j := range stale.routineChecks {
-				if stale.routineChecks[j].Ref.Address == call.Address() {
-					stale.routineChecks[j].Revision++
+			stale.RoutineChecks = append([]catalog.ExpressionDependency(nil), item.checks...)
+			for j := range stale.RoutineChecks {
+				if stale.RoutineChecks[j].Ref.Address == call.Address() {
+					stale.RoutineChecks[j].Revision++
 				}
 			}
 			if err := admitRoutineCall(&stale, item.node, true, false); err == nil {
@@ -263,11 +263,11 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 		evaluation := EvalContext{
 			evalStatement: evalStatement{Context: ctx},
 			evalAdmission: evalAdmission{
-				routineAuthority:  &sourceAuth,
-				routineRecipe:     true,
-				routineConsumer:   item.consumer,
-				routineReferences: item.refs,
-				routineChecks:     item.checks,
+				RoutineAuthority:  &sourceAuth,
+				RoutineRecipe:     true,
+				RoutineConsumer:   item.consumer,
+				RoutineReferences: item.refs,
+				RoutineChecks:     item.checks,
 			},
 		}
 		if err := admitRoutineCall(&evaluation, item.node, true, false); err != nil {
@@ -335,7 +335,7 @@ func TestRoutineBodyEveryProviderOriginalLifetime(t *testing.T) {
 			if err != nil || outer == nil || outer.Address().ObjectID != test.id {
 				t.Fatal("selected released root", outer, err)
 			}
-			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalAdmission: evalAdmission{routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies}}
+			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("original body admission", err)
 			}
@@ -347,7 +347,7 @@ func TestRoutineBodyEveryProviderOriginalLifetime(t *testing.T) {
 						missing = append(missing, dependency)
 					}
 				}
-				evaluation.routineChecks = missing
+				evaluation.RoutineChecks = missing
 				if err := admitRoutineCall(&evaluation, node, true, false); err == nil {
 					t.Fatal("selected body lifetime was manufactured or omitted", id)
 				}

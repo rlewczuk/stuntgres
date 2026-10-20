@@ -54,7 +54,7 @@ func TestQueryLockArbiterSkipRetainsAcquiredContributor(t *testing.T) {
 		t.Fatal(err)
 	}
 	leaves := scope.querySources
-	join := &plan.JoinNode{QuerySchema: append(append(plan.QuerySchema(nil), leaves[0].relation.Columns...), leaves[1].relation.Columns...), Left: &plan.SourceNode{QuerySchema: leaves[0].relation.Columns, Ref: tRef, Occurrence: 0}, Right: &plan.SourceNode{QuerySchema: leaves[1].relation.Columns, Ref: uRef, Occurrence: 1}, LeftWidth: len(leaves[0].relation.Columns), RightWidth: len(leaves[1].relation.Columns)}
+	join := &plan.JoinNode{QuerySchema: append(append(plan.QuerySchema(nil), leaves[0].Relation.Columns...), leaves[1].Relation.Columns...), Left: &plan.SourceNode{QuerySchema: leaves[0].Relation.Columns, Ref: tRef, Occurrence: 0}, Right: &plan.SourceNode{QuerySchema: leaves[1].Relation.Columns, Ref: uRef, Occurrence: 1}, LeftWidth: len(leaves[0].Relation.Columns), RightWidth: len(leaves[1].Relation.Columns)}
 	root := &plan.RowLockNode{QuerySchema: join.Schema(), Child: join, Marks: marks, FirstMode: lock.ForUpdate}
 	e.mu.Lock()
 	err = e.initializeQueryLocksLocked(scope, root, leaves)
@@ -66,19 +66,19 @@ func TestQueryLockArbiterSkipRetainsAcquiredContributor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer inputs.close()
-	if err := selectQuerySources(op.Context(), inputs); err != nil {
+	defer inputs.Close()
+	if err := SelectQuerySources(op.Context(), inputs); err != nil {
 		t.Fatal(err)
 	}
-	frame := append(append([]sqltype.Value(nil), querySourceAt(inputs, 0).row(0)...), querySourceAt(inputs, 1).row(0)...)
-	candidate := &querySource{materialized: true, anonymous: [][]sqltype.Value{frame}, flatCount: 1, occurrences: []int{0, 1}, provenance: []int{0, 0}}
-	child := indexedStage{source: candidate, schema: join.Schema(), pending: appendPendingRowMarks(nil, marks, inputs)}
-	out, err := arbitrateViewQuery(op.Context(), &queryState{source: inputs}, root, child)
+	frame := append(append([]sqltype.Value(nil), QuerySourceAt(inputs, 0).Row(0)...), QuerySourceAt(inputs, 1).Row(0)...)
+	candidate := &querySource{Materialized: true, Anonymous: [][]sqltype.Value{frame}, FlatCount: 1, Occurrences: []int{0, 1}, Provenance: []int{0, 0}}
+	child := indexedStage{Source: candidate, Columns: join.Schema(), Pending: AppendPendingRowMarks(nil, marks, inputs)}
+	out, err := ArbitrateViewQuery(op.Context(), &queryState{Source: inputs}, root, child)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer out.Close()
-	if _, present, err := out.nextOccurrence(op.Context()); err != nil || present {
+	if _, present, err := out.NextOccurrence(op.Context()); err != nil || present {
 		t.Fatal("partial joined candidate escaped SKIP", present, err)
 	}
 	lockState := e.locks.Inspect()

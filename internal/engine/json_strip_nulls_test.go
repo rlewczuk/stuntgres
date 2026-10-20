@@ -49,8 +49,8 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 	} {
 		binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 		n := jsonStripUnitBind(t, binder, tc.q)
-		if n.Properties().Volatility != tc.volatility || plannedVolatility(n) != tc.volatility || plannedIntrinsicVolatility(n) != expr.Immutable {
-			t.Fatal(tc.q, n.Properties(), plannedVolatility(n))
+		if n.Properties().Volatility != tc.volatility || PlannedVolatility(n) != tc.volatility || plannedIntrinsicVolatility(n) != expr.Immutable {
+			t.Fatal(tc.q, n.Properties(), PlannedVolatility(n))
 		}
 	}
 	// Use the existing typed binder witness for a volatile Boolean child,
@@ -62,8 +62,8 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if volatile.Properties().Volatility != expr.Volatile || plannedVolatility(volatile) != expr.Volatile || plannedIntrinsicVolatility(volatile) != expr.Immutable || generationImmutable(volatile) {
-		t.Fatal("volatile Boolean child lost", volatile.Properties(), plannedVolatility(volatile))
+	if volatile.Properties().Volatility != expr.Volatile || PlannedVolatility(volatile) != expr.Volatile || plannedIntrinsicVolatility(volatile) != expr.Immutable || generationImmutable(volatile) {
+		t.Fatal("volatile Boolean child lost", volatile.Properties(), PlannedVolatility(volatile))
 	}
 }
 
@@ -84,7 +84,7 @@ func TestJSONStripNullsBindingRetagRemap(t *testing.T) {
 			t.Fatal("retag lost authority", i)
 		}
 	}
-	if n.WrittenSlots != e.WrittenSlots || n.Labels != e.Labels || plannedVolatility(n) != expr.Immutable {
+	if n.WrittenSlots != e.WrittenSlots || n.Labels != e.Labels || PlannedVolatility(n) != expr.Immutable {
 		t.Fatal("retag lost presentation/volatility")
 	}
 	got, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
@@ -96,7 +96,7 @@ func TestJSONStripNullsBindingRetagRemap(t *testing.T) {
 		t.Fatal(out, err)
 	}
 	mapped, err := remapBoundExpression(e, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-	if err != nil || !sameGroupExpression(e, mapped) || plannedVolatility(mapped) != expr.Immutable {
+	if err != nil || !sameGroupExpression(e, mapped) || PlannedVolatility(mapped) != expr.Immutable {
 		t.Fatal(mapped, err)
 	}
 	different := e

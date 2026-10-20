@@ -128,19 +128,19 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.Ref.Address}) {
 		t.Fatal("enum dependency", refs, err)
 	}
-	c := &EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: e.CatalogRead()}}
+	c := &EvalContext{evalStatement: evalStatement{Context: context.Background(), Catalog: e.CatalogRead()}}
 	input, err := n.Args[0].Eval(c)
 	if err != nil {
 		t.Fatal(err)
 	}
 	count := 0
 	n.Args = []expr.Expr{queryProbe(n.Args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { count++; return input, nil })}
-	first, err := openFunctionSource(c, n)
+	first, err := OpenFunctionSource(c, n)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer first.Close()
-	second, err := openFunctionSource(c, n)
+	second, err := OpenFunctionSource(c, n)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +172,7 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 		if wholeNull {
 			empty.Args = []expr.Expr{plan.LiteralExpr{Info: expr.InfoOf(empty.Args[0]), Value: sqltype.Null(empty.Args[0].ResultUsage().Type)}}
 		}
-		cursor, err := openFunctionSource(c, empty)
+		cursor, err := OpenFunctionSource(c, empty)
 		if err != nil {
 			t.Fatal(err)
 		}

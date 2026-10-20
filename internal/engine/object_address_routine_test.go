@@ -50,7 +50,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			if carrier.Properties().Volatility != expr.Stable || generationImmutable(carrier) {
 				t.Fatal("address inquiry lost STABLE boundary")
 			}
-			owned, ok := evaluation.catalog.Procedure(address)
+			owned, ok := evaluation.Catalog.Procedure(address)
 			if !ok || owned != captured {
 				t.Fatal("reference is not the original owned descriptor")
 			}
@@ -59,7 +59,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
 					found = true
-					if dependency.Revision != captured.Revision() || dependency.Ref.Epoch != evaluation.catalog.Epoch() || dependency.Ref.Domain() != e.catalog.Domain {
+					if dependency.Revision != captured.Revision() || dependency.Ref.Epoch != evaluation.Catalog.Epoch() || dependency.Ref.Domain() != e.catalog.Domain {
 						t.Fatal("original canonical dependency", dependency)
 					}
 				}
@@ -79,7 +79,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			}
 			for _, manifest := range [][]catalog.ExpressionDependency{nil, {}, missing} {
 				probe := evaluation
-				probe.routineChecks = manifest
+				probe.RoutineChecks = manifest
 				if err := admitRoutineCall(&probe, node, true, false); err == nil {
 					t.Fatal("missing original manifest acquired authority from an OID")
 				}
@@ -96,14 +96,14 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 					}
 				}
 				probe := evaluation
-				probe.routineChecks = stale
+				probe.RoutineChecks = stale
 				if err := admitRoutineCall(&probe, node, true, false); err == nil {
 					t.Fatal("stale original epoch/revision admitted")
 				}
 			}
 			probe := evaluation
 			foreignAuth := *routineAuthorityView(&foreign)
-			probe.routineAuthority = &foreignAuth
+			probe.RoutineAuthority = &foreignAuth
 			if err := admitRoutineCall(&probe, node, true, false); err == nil {
 				t.Fatal("foreign original descriptor admitted")
 			}
@@ -128,7 +128,7 @@ func TestObjectAddressRoutineOriginalAuthority(t *testing.T) {
 			replacement.Strict = false
 			changed.Catalog.State().SetDescriptor(address, &replacement)
 			probe = evaluation
-			probe.routineAuthority = &changed
+			probe.RoutineAuthority = &changed
 			if err := admitRoutineCall(&probe, node, true, false); err == nil {
 				t.Fatal("changed selected declaration admitted")
 			}
@@ -189,7 +189,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 			if source == nil {
 				t.Fatal("missing analyzed function source")
 			}
-			evaluation.routineChecks = binder.dependencies
+			evaluation.RoutineChecks = binder.dependencies
 			if tc.parameter {
 				evaluation.Parameters = []sqltype.Value{sqltype.Null(binder.params.parameters[1].Type)}
 			}
@@ -221,9 +221,9 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 				t.Fatal("execution guard hid original graph")
 			}
 			probe := evaluation
-			probe.routineChecks = []catalog.ExpressionDependency{}
+			probe.RoutineChecks = []catalog.ExpressionDependency{}
 			for _, empty := range []bool{true, false} {
-				err := validateMarkedQueryJoin(&probe, execution, evaluation.catalog, nil, plan.RowMark{}, empty, nil, nil)
+				err := validateMarkedQueryJoin(&probe, execution, evaluation.Catalog, nil, plan.RowMark{}, empty, nil, nil)
 				if (err == nil) != (tc.pruned || empty) {
 					t.Fatal("execution demand versus original lifetime", empty, tc.pruned, err)
 				}
@@ -233,10 +233,10 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 				// Removing it on a private copy exposes the original missing refs.
 				unpruned := *execution
 				unpruned.ScalarNull = nil
-				if err := validateMarkedQueryJoin(&probe, &unpruned, evaluation.catalog, nil, plan.RowMark{}, false, nil, nil); err == nil {
+				if err := validateMarkedQueryJoin(&probe, &unpruned, evaluation.Catalog, nil, plan.RowMark{}, false, nil, nil); err == nil {
 					t.Fatal("nonpruned original graph did not demand its manifest")
 				}
-				cursor, err := openFunctionCall(&probe, execution, 0)
+				cursor, err := OpenFunctionCall(&probe, execution, 0)
 				if err != nil || !cursor.Value.IsNull() || cursor.Type == nil {
 					t.Fatal("typed NULL source cursor", cursor, err)
 				}
@@ -256,13 +256,13 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 					if fresh.ScalarNull != nil && fresh.ScalarNull[0] {
 						t.Fatal("original source retained a prior NULL frame")
 					}
-					again.routineChecks = []catalog.ExpressionDependency{}
-					if err := validateMarkedQueryJoin(&again, fresh, evaluation.catalog, nil, plan.RowMark{}, false, nil, nil); err == nil {
+					again.RoutineChecks = []catalog.ExpressionDependency{}
+					if err := validateMarkedQueryJoin(&again, fresh, evaluation.Catalog, nil, plan.RowMark{}, false, nil, nil); err == nil {
 						t.Fatal("non-NULL frame borrowed NULL admission")
 					}
 				}
 			}
-			if err := validateMarkedQueryJoin(&evaluation, execution, evaluation.catalog, nil, plan.RowMark{}, false, nil, nil); err != nil {
+			if err := validateMarkedQueryJoin(&evaluation, execution, evaluation.Catalog, nil, plan.RowMark{}, false, nil, nil); err != nil {
 				t.Fatal("intact original manifest", err)
 			}
 			sequence := catalogRef(t, e, e.CatalogRead(), "strict_null_steps")
@@ -322,7 +322,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 				t.Fatal("independent NULL proof/domain barrier", proofs, barriers)
 			}
 			folded, changed, err := planner.run(&evaluation, node, false)
-			if err != nil || !changed || !randomLiteralNull(folded) {
+			if err != nil || !changed || !RandomLiteralNull(folded) {
 				t.Fatal("generic domain-sibling pruning", changed, err)
 			}
 			value, err := folded.Eval(&evaluation)
@@ -344,7 +344,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		}
 		before := expr.InfoOf(node)
 		folded, changed, err := preflightCoercions(&evaluation, node)
-		if err != nil || !changed || !randomLiteralNull(folded) {
+		if err != nil || !changed || !RandomLiteralNull(folded) {
 			t.Fatal("scalar NULL folding", changed, err)
 		}
 		if ref, err := routine.ExpressionRoutineDescriptor(folded); err != nil || ref != nil {
@@ -374,7 +374,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		sourceSchema := append(plan.QuerySchema(nil), source.QuerySchema...)
 		sourceManifest := append([]catalog.ExpressionDependency(nil), sourceBinder.dependencies...)
 		sourceEvaluation := evaluation
-		sourceEvaluation.routineChecks = sourceBinder.dependencies
+		sourceEvaluation.RoutineChecks = sourceBinder.dependencies
 		planned, err := preflightFunctionFrom(&sourceEvaluation, source)
 		if err != nil {
 			t.Fatal("literal sibling source pruning", err)
@@ -383,7 +383,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		if execution.ScalarNull == nil || !execution.ScalarNull[0] {
 			t.Fatal("known NULL source was not pruned")
 		}
-		cursor, err := openFunctionCall(&sourceEvaluation, execution, 0)
+		cursor, err := OpenFunctionCall(&sourceEvaluation, execution, 0)
 		if err != nil || !cursor.Value.IsNull() || cursor.Value.Type() != source.Calls[0].ResultUsage().Type {
 			t.Fatal("literal sibling source typed NULL", cursor, err)
 		}
@@ -409,7 +409,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 				t.Fatal("source child-error binding", bindErr)
 			}
 			sourceEvaluation := evaluation
-			sourceEvaluation.routineChecks = sourceBinder.dependencies
+			sourceEvaluation.RoutineChecks = sourceBinder.dependencies
 			_, err = preflightQuery(&sourceEvaluation, query.Root)
 			nullCountUnitDiagnostic(t, err, want)
 		}
@@ -442,7 +442,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 	}
 	evaluation.Parameters = []sqltype.Value{value}
 	folded, _, err := preflightCoercions(&evaluation, node)
-	if err != nil || !randomLiteralNull(folded) {
+	if err != nil || !RandomLiteralNull(folded) {
 		t.Fatal("valid domain import then strict NULL", err)
 	}
 	result, err := folded.Eval(&evaluation)
@@ -500,18 +500,18 @@ func TestObjectAddressSourceFalseDemand(t *testing.T) {
 					t.Fatal("actual source/target binding", err)
 				}
 				manifest := append([]catalog.ExpressionDependency(nil), binder.dependencies...)
-				evaluation.routineChecks = binder.dependencies
+				evaluation.RoutineChecks = binder.dependencies
 				root, err := preflightQuery(&evaluation, query.Root)
 				if err != nil {
 					t.Fatal("child preflight before source pruning", err)
 				}
 				probe := evaluation
-				probe.routineChecks = []catalog.ExpressionDependency{}
-				err = validateMarkedQueryJoin(&probe, root, evaluation.catalog, nil, plan.RowMark{}, false, nil, nil)
+				probe.RoutineChecks = []catalog.ExpressionDependency{}
+				err = validateMarkedQueryJoin(&probe, root, evaluation.Catalog, nil, plan.RowMark{}, false, nil, nil)
 				if (err == nil) != route.pruned {
 					t.Fatal("proven source demand", route.name, err)
 				}
-				if err := validateMarkedQueryJoin(&evaluation, root, evaluation.catalog, nil, plan.RowMark{}, false, nil, nil); err != nil {
+				if err := validateMarkedQueryJoin(&evaluation, root, evaluation.Catalog, nil, plan.RowMark{}, false, nil, nil); err != nil {
 					t.Fatal("intact original authority", err)
 				}
 				if !reflect.DeepEqual(binder.dependencies, manifest) {

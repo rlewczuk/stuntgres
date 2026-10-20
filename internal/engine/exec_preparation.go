@@ -6,7 +6,7 @@ import (
 	"stuntgres/internal/engine/plan"
 )
 
-func init() { installPreparation(enginePreparation{}) }
+func init() { InstallPreparation(enginePreparation{}) }
 
 type enginePreparation struct{}
 

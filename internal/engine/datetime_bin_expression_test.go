@@ -48,7 +48,7 @@ func TestDatetimeBinBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc, err)
 		}
-		if node.ResultUsage().Type.ID() != tc.result || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != tc.volatility || plannedVolatility(node) != tc.volatility || generationImmutable(node) != (tc.volatility == expr.Immutable) {
+		if node.ResultUsage().Type.ID() != tc.result || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != tc.volatility || PlannedVolatility(node) != tc.volatility || generationImmutable(node) != (tc.volatility == expr.Immutable) {
 			t.Fatal(tc, node.ResultUsage(), node.Properties())
 		}
 		v, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: utc}}})
@@ -126,7 +126,7 @@ func TestDatetimeBinPropertiesAndRetag(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := volatile.Properties()
-	if !p.RowDependent || !p.ParameterDependent || p.StageDependent || p.Volatility != expr.Volatile || plannedVolatility(volatile) != expr.Volatile || generationImmutable(volatile) {
+	if !p.RowDependent || !p.ParameterDependent || p.StageDependent || p.Volatility != expr.Volatile || PlannedVolatility(volatile) != expr.Volatile || generationImmutable(volatile) {
 		t.Fatal(p)
 	}
 	flags.clause.aggregateClause = "SELECT"

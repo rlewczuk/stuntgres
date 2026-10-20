@@ -28,21 +28,21 @@ func TestUpdateRowEvaluation(t *testing.T) {
 			calls++
 			return subqueryTestInteger(t, project.Schema()[0].Usage.Type, int64(calls*10)), nil
 		}))
-		state := queryState{source: source}
-		defer state.releaseMemberships()
-		c := state.evaluation(context.Background())
+		state := queryState{Source: source}
+		defer state.ReleaseMemberships()
+		c := state.Evaluation(context.Background())
 		action := updateRowTestAction(t, e, q)
 		old := []sqltype.Value{subqueryTestInteger(t, project.Schema()[0].Usage.Type, 1), subqueryTestInteger(t, project.Schema()[1].Usage.Type, 2)}
 		c.Row = old
 		prior := []sqltype.Value{old[0]}
-		c.updateOutputs, c.updateOutputsReady = prior, true
+		c.UpdateOutputs, c.UpdateOutputsReady = prior, true
 		for _, want := range []int64{10, 20, 30} {
 			row, err := evaluateUpdateAssignments(&c, action, []int{0, 1}, old)
 			if err != nil || testExport(row[0]) != want || testExport(row[1]) != int64(102) || testExport(old[0]) != int64(1) || testExport(old[1]) != int64(2) {
 				t.Fatal(row, old, err)
 			}
-			if !c.updateOutputsReady || !reflect.DeepEqual(c.updateOutputs, prior) {
-				t.Fatal("owner not restored", c.updateOutputs, c.updateOutputsReady)
+			if !c.UpdateOutputsReady || !reflect.DeepEqual(c.UpdateOutputs, prior) {
+				t.Fatal("owner not restored", c.UpdateOutputs, c.UpdateOutputsReady)
 			}
 		}
 		if calls != 3 {
@@ -52,8 +52,8 @@ func TestUpdateRowEvaluation(t *testing.T) {
 	t.Run("zero_and_second_row", func(t *testing.T) {
 		for _, predicate := range []string{"k=9", "k=1"} {
 			e, q, source := queryJoinsFixture(t, "SELECT k,k+100 FROM a WHERE "+predicate)
-			execution := queryState{source: source}
-			c := execution.evaluation(context.Background())
+			execution := queryState{Source: source}
+			c := execution.Evaluation(context.Background())
 			action := updateRowTestAction(t, e, q)
 			typ := q.Root.Schema()[0].Usage.Type
 			old := []sqltype.Value{subqueryTestInteger(t, typ, 7), subqueryTestInteger(t, typ, 8)}
@@ -67,10 +67,10 @@ func TestUpdateRowEvaluation(t *testing.T) {
 			} else if err != nil || !row[0].IsNull() || !row[1].IsNull() || row[0].Type() != typ || row[1].Type() != typ {
 				t.Fatal(row, err)
 			}
-			if c.updateOutputs != nil || c.updateOutputsReady {
+			if c.UpdateOutputs != nil || c.UpdateOutputsReady {
 				t.Fatal("tuple owner leaked after exit")
 			}
-			execution.releaseMemberships()
+			execution.ReleaseMemberships()
 		}
 	})
 	t.Run("groups_and_nested_owner", func(t *testing.T) {
@@ -81,9 +81,9 @@ func TestUpdateRowEvaluation(t *testing.T) {
 			calls++
 			return sqltype.Integer(project.Schema()[0].Usage.Type, int64(calls*10))
 		}))
-		execution := queryState{source: source}
-		defer execution.releaseMemberships()
-		c := execution.evaluation(context.Background())
+		execution := queryState{Source: source}
+		defer execution.ReleaseMemberships()
+		c := execution.Evaluation(context.Background())
 		action := updateRowTestAction(t, e, q)
 		second := action.assignments[1].(plan.UpdateOutputExpr)
 		second.Group = 2
@@ -93,12 +93,12 @@ func TestUpdateRowEvaluation(t *testing.T) {
 		old := []sqltype.Value{subqueryTestInteger(t, typ, 1), subqueryTestInteger(t, typ, 2), subqueryTestInteger(t, typ, 3), subqueryTestInteger(t, typ, 4)}
 		// Simulate a live outer tuple using the exact same context scratch.
 		outer := []sqltype.Value{old[0], old[1]}
-		c.updateOutputs, c.updateOutputScratch, c.updateOutputsReady = outer, outer, true
+		c.UpdateOutputs, c.UpdateOutputScratch, c.UpdateOutputsReady = outer, outer, true
 		row, err := evaluateUpdateAssignments(&c, action, []int{0, 1, 2, 3}, old)
 		if err != nil || calls != 2 || testExport(row[0]) != int64(10) || testExport(row[1]) != int64(102) || testExport(row[2]) != int64(20) || testExport(row[3]) != int64(102) {
 			t.Fatal(row, calls, err)
 		}
-		if !c.updateOutputsReady || !reflect.DeepEqual(c.updateOutputs, outer) || testExport(outer[0]) != int64(1) || testExport(outer[1]) != int64(2) || &c.updateOutputScratch[0] != &outer[0] {
+		if !c.UpdateOutputsReady || !reflect.DeepEqual(c.UpdateOutputs, outer) || testExport(outer[0]) != int64(1) || testExport(outer[1]) != int64(2) || &c.UpdateOutputScratch[0] != &outer[0] {
 			t.Fatal("nested owner overwrote outer tuple")
 		}
 	})

@@ -58,7 +58,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	}
 	value, err := n.Eval(ctx)
 	integer, readErr := value.Text()
-	if err != nil || readErr != nil || integer != "KM" || n.Ref.Address != ext.Members[5] || value.Type() != n.ResultUsage().Type || plannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
+	if err != nil || readErr != nil || integer != "KM" || n.Ref.Address != ext.Members[5] || value.Type() != n.ResultUsage().Type || PlannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
 		t.Fatal(value, n.Ref, err, readErr)
 	}
 	if err := validateInstalledMetaphone(n, e.CatalogRead()); err != nil {

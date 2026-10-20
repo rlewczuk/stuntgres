@@ -56,7 +56,7 @@ func subscriptsUnit(t *testing.T, view catalog.Read, dimensions []sqltype.ArrayD
 
 func subscriptsUnitRead(t *testing.T, e plan.SubscriptsExpr) []int64 {
 	t.Helper()
-	cursor, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, e)
+	cursor, err := OpenFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, e)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestSubscriptsBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	e, ok := x.(plan.SubscriptsExpr)
-	if !ok || e.ResultUsage().Type.ID() != sqltype.Int4 || !e.Properties().StageDependent || !e.Properties().ParameterDependent || !b.clause.queryHasTargetSet || !sourceAdmitted(e) {
+	if !ok || e.ResultUsage().Type.ID() != sqltype.Int4 || !e.Properties().StageDependent || !e.Properties().ParameterDependent || !b.clause.queryHasTargetSet || !SourceAdmitted(e) {
 		t.Fatal(x)
 	}
 	if b.params.parameters[1].Type == nil || !b.params.parameters[1].Type.IsArray() || b.params.parameters[2].Type.ID() != sqltype.Bool {
@@ -154,7 +154,7 @@ func TestSubscriptsCursor(t *testing.T) {
 		t.Fatal("evaluation continued after child error")
 		return sqltype.Value{}, nil
 	})
-	if _, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, e); err != sentinel {
+	if _, err := OpenFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, e); err != sentinel {
 		t.Fatal(err)
 	}
 }
@@ -177,12 +177,12 @@ func TestSubscriptsBounds(t *testing.T) {
 	}
 	e := subscriptsUnit(t, view, []sqltype.ArrayDimension{{Lower: -2, Length: 3}}, 1)
 	c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
-	first, err := openFunctionSource(c, e)
+	first, err := OpenFunctionSource(c, e)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer first.Close()
-	second, err := openFunctionSource(c, e)
+	second, err := OpenFunctionSource(c, e)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +229,7 @@ func TestSubscriptsExpressionHooks(t *testing.T) {
 			walked++
 		}
 	})
-	if walked != 3 || plannedVolatility(original) != expr.Immutable || querySetDepth(original) != 1 || !sameGroupExpression(original, original) {
+	if walked != 3 || PlannedVolatility(original) != expr.Immutable || QuerySetDepth(original) != 1 || !sameGroupExpression(original, original) {
 		t.Fatal("visitor identity", walked)
 	}
 	other := subscriptsUnit(t, view, []sqltype.ArrayDimension{{Lower: 3, Length: 3}}, 1, false)
@@ -242,14 +242,14 @@ func TestSubscriptsExpressionHooks(t *testing.T) {
 	}
 	for _, fold := range []func() (expr.Expr, bool, error){
 		func() (expr.Expr, bool, error) {
-			return preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: view}}, original)
+			return preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Catalog: view}}, original)
 		},
 		func() (expr.Expr, bool, error) {
-			return simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: view}}, original, false)
+			return simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Catalog: view}}, original, false)
 		},
 	} {
 		n, _, err := fold()
-		if err != nil || !sourceReturnsSet(n) {
+		if err != nil || !SourceReturnsSet(n) {
 			t.Fatal(n, err)
 		}
 	}
@@ -266,7 +266,7 @@ func TestSubscriptsExpressionHooks(t *testing.T) {
 	probe := queryProbe(original.Args[2].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, nil }).(queryProbeExpression)
 	probe.Property.Volatility = expr.Volatile
 	volatile.Args[2] = probe
-	if plannedVolatility(volatile) != expr.Volatile {
+	if PlannedVolatility(volatile) != expr.Volatile {
 		t.Fatal("reverse child volatility erased")
 	}
 	replacement := other.Args[2]
@@ -301,7 +301,7 @@ func TestSubscriptsLowering(t *testing.T) {
 	e := subscriptsUnit(t, view, matrix, 1)
 	e.Args[1] = seriesUnit(t, d, 1, 2)
 	q := subscriptsUnitProject(t, engine, e)
-	r, count, err := finalizeQuery(context.Background(), q, &querySource{materialized: true}, nil)
+	r, count, err := Finalize(context.Background(), q, &querySource{Materialized: true}, nil)
 	if err != nil || count != 5 {
 		t.Fatal(count, err)
 	}
@@ -329,7 +329,7 @@ func TestSubscriptsLowering(t *testing.T) {
 		arg := e.Args[0].(plan.LiteralExpr).Value
 		functionSetUnitArgument(t, q.Child.(*plan.SetProjectNode).Calls, 0, 0, queryProbe(arg.Type().Usage(), func(*EvalContext) (sqltype.Value, error) { opens++; return arg, nil }))
 		q.Child = &plan.LimitNode{QuerySchema: q.Child.Schema(), Child: q.Child, Count: seriesUnit(t, d, limit, limit).Args[0]}
-		r, count, err := finalizeQuery(context.Background(), q, &querySource{materialized: true}, nil)
+		r, count, err := Finalize(context.Background(), q, &querySource{Materialized: true}, nil)
 		wantOpens := 1
 		if limit == 0 {
 			wantOpens = 0
@@ -345,7 +345,7 @@ func TestSubscriptsCancellation(t *testing.T) {
 	view := New().CatalogRead()
 	e := subscriptsUnit(t, view, []sqltype.ArrayDimension{{Lower: 3, Length: 3}}, 1)
 	ctx, cancel := context.WithCancel(context.Background())
-	cursor, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: ctx}}, e)
+	cursor, err := OpenFunctionSource(&EvalContext{evalStatement: evalStatement{Context: ctx}}, e)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,7 +363,7 @@ func TestSubscriptsCancellation(t *testing.T) {
 	}
 	calls := 0
 	e.Args[0] = queryProbe(e.Args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { calls++; return sqltype.Value{}, nil })
-	if _, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: ctx}}, e); err != context.Canceled || calls != 0 {
+	if _, err := OpenFunctionSource(&EvalContext{evalStatement: evalStatement{Context: ctx}}, e); err != context.Canceled || calls != 0 {
 		t.Fatal("pre-admission cancellation", calls, err)
 	}
 }
@@ -390,7 +390,7 @@ func TestSubscriptsFinalization(t *testing.T) {
 			return value, nil
 		}))
 		q := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Usage: d.Usage()}}, Child: root, Expressions: outputs, Frame: 1, HasTargetSet: true}
-		r, count, err := finalizeQuery(context.Background(), q, &querySource{materialized: true}, nil)
+		r, count, err := Finalize(context.Background(), q, &querySource{Materialized: true}, nil)
 		if r != nil || count != 0 || err != sentinel || calls != 2 {
 			t.Fatal("partial publication", r, count, err, calls)
 		}
@@ -413,7 +413,7 @@ func TestSubscriptsFinalization(t *testing.T) {
 				}
 				return sqltype.Integer(d, 1)
 			})}
-			r, count, err := finalizeQuery(ctx, q, &querySource{materialized: true}, nil)
+			r, count, err := Finalize(ctx, q, &querySource{Materialized: true}, nil)
 			want := sentinel
 			if phase == "cancel" {
 				want = context.Canceled

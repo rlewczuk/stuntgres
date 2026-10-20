@@ -220,7 +220,7 @@ func validateAlterIndexBuilds(evaluation *EvalContext, auth AuthorizationView, c
 	}
 	auth.Catalog = candidate
 	auth.Recapture(auth.Catalog)
-	evaluation.catalog, evaluation.Output = candidate, output
+	evaluation.Catalog, evaluation.Output = candidate, output
 	named := false
 	for _, index := range indexes {
 		var capture *indexBuildCapture
@@ -273,7 +273,7 @@ func prepareAlterIndexRoots(evaluation *EvalContext, changes *catalogChanges, so
 	for _, build := range validated {
 		descriptor, changed := changes.descriptors[build.index.Address()]
 		if !changed {
-			descriptor = evaluation.catalog.Get(build.index.Address())
+			descriptor = evaluation.Catalog.Get(build.index.Address())
 		}
 		index, ok := descriptor.(*catalog.Relation)
 		if !ok || !sameIndexKeySemantics(build.index, index) {

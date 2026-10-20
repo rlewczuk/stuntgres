@@ -30,8 +30,8 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 		ref, conflict := node.Comparisons[0].Predicate.InputCollation()
 		properties := node.Properties()
 		for execution, want := range [][]any{{true, true, nil, false}, {false, false, nil, true}} {
-			state := queryState{source: source}
-			stage, err := openQueryProjectStage(context.Background(), &state, project)
+			state := queryState{Source: source}
+			stage, err := OpenQueryProjectStage(context.Background(), &state, project)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -58,7 +58,7 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 			if err := stage.Close(); err != nil {
 				t.Fatal(err)
 			}
-			if stage.source != nil || stage.evaluation.query != nil || stage.expressions != nil {
+			if stage.Source != nil || stage.Evaluation.Query != nil || stage.Expressions != nil {
 				t.Fatal("closed stage retained execution references")
 			}
 			captured := project.Expressions[0].(plan.SubqueryExpr)
@@ -66,15 +66,15 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 			if captured.QueryPlan.Root != rhs || captured.Properties() != properties || captured.Comparisons[0].Left.ResultUsage() != leftUsage || captured.Comparisons[0].Right.ResultUsage() != rightUsage || actualRef != ref || actualConflict != conflict {
 				t.Fatal("execution mutated captured operand/provider authority")
 			}
-			if len(state.memberships) != 1 {
-				t.Fatal("borrowed stage close erased retained membership", len(state.memberships))
+			if len(state.Memberships) != 1 {
+				t.Fatal("borrowed stage close erased retained membership", len(state.Memberships))
 			}
-			retained := state.memberships[subqueryMembershipKey{node.QueryPlan, source}]
-			if retained == nil || len(retained.flat) != 1 {
+			retained := state.Memberships[subqueryMembershipKey{node.QueryPlan, source}]
+			if retained == nil || len(retained.Flat) != 1 {
 				t.Fatal("owner lost the successfully built tuple")
 			}
-			state.releaseMemberships()
-			if state.memberships != nil || retained.flat != nil || retained.scratch != nil || retained.buckets != nil {
+			state.ReleaseMemberships()
+			if state.Memberships != nil || retained.Flat != nil || retained.Scratch != nil || retained.Buckets != nil {
 				t.Fatal("true execution completion retained tuple/provider scratch")
 			}
 		}
@@ -90,9 +90,9 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 			calls++
 			return sqltype.Null(usage.Type), nil
 		}))
-		state := queryState{source: source}
-		defer state.releaseMemberships()
-		stage, err := openQueryProjectStage(context.Background(), &state, project)
+		state := queryState{Source: source}
+		defer state.ReleaseMemberships()
+		stage, err := OpenQueryProjectStage(context.Background(), &state, project)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -133,8 +133,8 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 				cancel()
 				return sqltype.Integer(usage.Type, 1)
 			}))
-			state := queryState{source: source}
-			stage, err := openQueryProjectStage(ctx, &state, project)
+			state := queryState{Source: source}
+			stage, err := OpenQueryProjectStage(ctx, &state, project)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -151,20 +151,20 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 			if leftCalls != 0 {
 				t.Fatal("LHS evaluated before RHS empty/failure boundary", leftCalls)
 			}
-			if mode != "empty" && len(state.memberships) != 0 {
+			if mode != "empty" && len(state.Memberships) != 0 {
 				t.Fatal("failed/canceled partial RHS published membership")
 			}
-			if mode == "empty" && len(state.memberships) != 1 {
+			if mode == "empty" && len(state.Memberships) != 1 {
 				t.Fatal("successful empty RHS not retained")
 			}
 			if err := stage.Close(); err != nil {
 				t.Fatal(err)
 			}
-			if stage.source != nil || stage.evaluation.query != nil || stage.expressions != nil {
+			if stage.Source != nil || stage.Evaluation.Query != nil || stage.Expressions != nil {
 				t.Fatal("released stage retained owner references after completion/error/cancel")
 			}
-			state.releaseMemberships()
-			if state.memberships != nil {
+			state.ReleaseMemberships()
+			if state.Memberships != nil {
 				t.Fatal("execution completion retained membership after empty/error/cancel")
 			}
 		})
@@ -187,16 +187,16 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer source.close()
-		if err := selectQuerySources(context.Background(), source); err != nil {
+		defer source.Close()
+		if err := SelectQuerySources(context.Background(), source); err != nil {
 			t.Fatal(err)
 		}
-		if len(source.sources) != 2 || source.sources[0].nestedInputs == nil || source.sources[1].nestedInputs == nil || source.sources[0].nestedInputs == source.sources[1].nestedInputs {
+		if len(source.Sources) != 2 || source.Sources[0].NestedInputs == nil || source.Sources[1].NestedInputs == nil || source.Sources[0].NestedInputs == source.Sources[1].NestedInputs {
 			t.Fatal("real view aliases did not capture distinct source occurrences")
 		}
-		state := queryState{source: source, input: scope.input, output: scope.output}
-		defer state.releaseMemberships()
-		stage, err := openQueryProjectStage(context.Background(), &state, bound.query.Root.(*plan.ProjectNode))
+		state := queryState{Source: source, Input: scope.input, Output: scope.output}
+		defer state.ReleaseMemberships()
+		stage, err := OpenQueryProjectStage(context.Background(), &state, bound.query.Root.(*plan.ProjectNode))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -213,11 +213,11 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 		if present, err := stage.Next(context.Background(), row); err != nil || present {
 			t.Fatal("unexpected alias result cardinality", present, err)
 		}
-		if len(state.memberships) != 2 {
-			t.Fatal("actual source occurrences did not retain independent tables", len(state.memberships))
+		if len(state.Memberships) != 2 {
+			t.Fatal("actual source occurrences did not retain independent tables", len(state.Memberships))
 		}
-		for key := range state.memberships {
-			if key.source != source.sources[0].nestedInputs && key.source != source.sources[1].nestedInputs {
+		for key := range state.Memberships {
+			if key.Source != source.Sources[0].NestedInputs && key.Source != source.Sources[1].NestedInputs {
 				t.Fatal("membership key does not belong to actual captured alias")
 			}
 		}

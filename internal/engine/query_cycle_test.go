@@ -106,8 +106,8 @@ func TestQueryCycleEquality(t *testing.T) {
 	// Force a hash bucket whose first tuple has the same user fields and mark
 	// but different ancestry. Only full path equality may reject that tuple.
 	a = cycleUnitAugment(t, c, a[3], two, one)
-	stage := recursiveUnionStage{node: &plan.RecursiveUnionNode{SetNode: plan.SetNode{QuerySchema: make(plan.QuerySchema, 4), Grouping: grouping}, Definition: &plan.CTEDefinition{UserWidth: 2}, Cycle: c}, source: &querySource{flat: append(append([]sqltype.Value(nil), a...), b...)}}
-	if index, err := stage.findTuple(ctx, b, []int{0, 1}); err != nil || index != 1 {
+	stage := recursiveUnionStage{Node: &plan.RecursiveUnionNode{SetNode: plan.SetNode{QuerySchema: make(plan.QuerySchema, 4), Grouping: grouping}, Definition: &plan.CTEDefinition{UserWidth: 2}, Cycle: c}, Source: &querySource{Flat: append(append([]sqltype.Value(nil), a...), b...)}}
+	if index, err := stage.FindTuple(ctx, b, []int{0, 1}); err != nil || index != 1 {
 		t.Fatal("full collision equality", index, err)
 	}
 }
@@ -291,26 +291,26 @@ func TestQueryCycleLifecycle(t *testing.T) {
 		t.Fatal("append ignored cancellation", err)
 	}
 	owner, state, node := cteUnitScan(nil, nil, 1)
-	stage, err := openCTEScan(context.Background(), state, node)
+	stage, err := OpenCTEScan(context.Background(), state, node)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if owner.producers[node.CTE].opened {
+	if owner.Producers[node.CTE].Opened {
 		t.Fatal("metadata opened producer")
 	}
 	cteUnitNext(t, &stage)
-	producer := owner.producers[node.CTE]
+	producer := owner.Producers[node.CTE]
 	primary := errors.New("cycle primary")
 	closeFailure := errors.New("cycle close")
 	closes := 0
-	producer.inner.finish = func() error { closes++; return closeFailure }
-	if producer.fail(primary) != primary {
+	producer.Inner.Finish = func() error { closes++; return closeFailure }
+	if producer.Fail(primary) != primary {
 		t.Fatal("lost primary")
 	}
-	if _, err := producer.ensure(context.Background(), 0); err != primary {
+	if _, err := producer.Ensure(context.Background(), 0); err != primary {
 		t.Fatal("replayed accepted prefix", err)
 	}
-	if err := owner.close(); err != primary || closes != 1 {
+	if err := owner.Close(); err != primary || closes != 1 {
 		t.Fatal(err, closes)
 	}
 }

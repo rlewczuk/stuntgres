@@ -27,7 +27,7 @@ func TestAdvisoryBlockingDomainInput(t *testing.T) {
 	outer := domainUnitType(t, view, "advisory_outer")
 	target := outer.SQLType
 	integer, _ := view.LookupType(sqltype.Int4)
-	c := &EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: view}}
+	c := &EvalContext{evalStatement: evalStatement{Context: context.Background(), Catalog: view}}
 	// Volatile calls are not admitted in stored domain declarations. Exercise
 	// the real active-frame executor instead, replacing only this context's
 	// detached executable recipe after ordinary programme initialization.
@@ -45,9 +45,9 @@ func TestAdvisoryBlockingDomainInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	programme := c.preparedDomainChecks[outer]
-	programme.expressions = []expr.Expr{probe}
-	c.preparedDomainChecks[outer] = programme
+	programme := c.PreparedDomainChecks[outer]
+	programme.Expressions = []expr.Expr{probe}
+	c.PreparedDomainChecks[outer] = programme
 	for _, number := range []int64{1, 0} {
 		value, err := sqltype.Integer(integer, number)
 		if err != nil {
@@ -63,14 +63,14 @@ func TestAdvisoryBlockingDomainInput(t *testing.T) {
 				t.Fatal("NULL suppressed demanded nested conversion", err)
 			}
 		}
-		if c.domainValueActive || c.Input.DomainChecks != nil || c.domainFrameUsage.Type != nil || c.domainValue.Type() != nil {
-			t.Fatal("domain frame/input escaped", c.domainFrameUsage, c.Input.DomainChecks)
+		if c.DomainValueActive || c.Input.DomainChecks != nil || c.DomainFrameUsage.Type != nil || c.DomainValue.Type() != nil {
+			t.Fatal("domain frame/input escaped", c.DomainFrameUsage, c.Input.DomainChecks)
 		}
 	}
 	if err := c.CheckDomain(c.Context, target, sqltype.Null(integer)); err != nil {
 		t.Fatal("NULL candidate", err)
 	}
-	if c.domainValueActive || c.Input.DomainChecks != nil {
+	if c.DomainValueActive || c.Input.DomainChecks != nil {
 		t.Fatal("NULL frame escaped")
 	}
 

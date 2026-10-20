@@ -38,7 +38,7 @@ func preparedRebindWorker(t *testing.T, e *Engine, s *Session, ast parser.Statem
 				}
 				out.target = scope.lockedRef
 				for _, leaf := range scope.querySources {
-					out.sources = append(out.sources, leaf.ref)
+					out.sources = append(out.sources, leaf.Ref)
 				}
 				err = scope.Finish(err)
 			}

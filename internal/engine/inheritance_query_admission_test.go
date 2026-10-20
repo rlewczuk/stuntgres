@@ -66,7 +66,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	parentRef := e.catalog.Domain.Ref(e.CatalogRead().Epoch(), p.Address())
-	parent := queryLeaf{ref: parentRef, relation: p, storage: e.storage.Relations[p.Address()]}
+	parent := queryLeaf{Ref: parentRef, Relation: p, Storage: e.storage.Relations[p.Address()]}
 	scope.querySources = []queryLeaf{parent}
 	if err = e.locks.Acquire(op.Context(), scope.ticket, lock.Resource{ObjectRef: parentRef}, lock.AccessShare); err != nil {
 		t.Fatal(err)
@@ -163,13 +163,13 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer source.close()
-	if err = selectQuerySources(freshOp.Context(), source); err != nil {
+	defer source.Close()
+	if err = SelectQuerySources(freshOp.Context(), source); err != nil {
 		t.Fatal(err)
 	}
 	got := map[int64]int{}
-	for i := range source.count() {
-		n, valueErr := source.row(i)[0].Integer()
+	for i := range source.Count() {
+		n, valueErr := source.Row(i)[0].Integer()
 		if valueErr != nil {
 			t.Fatal(valueErr)
 		}
@@ -178,7 +178,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 	if len(got) != 2 || got[9] != 1 || got[10] != 1 {
 		t.Fatal("fresh admitted scan did not use new sentinel identity", got)
 	}
-	source.close()
+	source.Close()
 	fresh.Finish(nil)
 	lockEmpty(t, e)
 }

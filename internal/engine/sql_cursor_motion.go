@@ -17,7 +17,7 @@ func (c *sqlCursor) rewind(ctx context.Context) error {
 		return forwardSQLCursorError()
 	}
 	if c.stage != nil {
-		if _, err := c.stage.rewind(ctx); err != nil {
+		if _, err := c.stage.Rewind(ctx); err != nil {
 			return err
 		}
 	}
@@ -57,14 +57,14 @@ func (c *sqlCursor) run(backward bool, count int64, all bool, rows *finalRows, s
 		if rows != nil {
 			width := len(c.schema)
 			max := int(^uint(0) >> 1)
-			if rows.count == max || len(rows.values) > max-width {
+			if rows.Count == max || len(rows.Values) > max-width {
 				return 0, fmt.Errorf("stuntgres: cursor batch cardinality exhausted")
 			}
-			start = len(rows.values)
+			start = len(rows.Values)
 			if !c.promoted || backward {
-				rows.values = slices.Grow(rows.values, width)
-				rows.values = rows.values[:start+width]
-				dst = rows.values[start:]
+				rows.Values = slices.Grow(rows.Values, width)
+				rows.Values = rows.Values[:start+width]
+				dst = rows.Values[start:]
 			}
 		}
 		var present bool
@@ -78,19 +78,19 @@ func (c *sqlCursor) run(backward bool, count int64, all bool, rows *finalRows, s
 					copy(dst, c.values[int(index)*width:(int(index)+1)*width])
 				} else {
 					// Forward batches borrow immutable contiguous store values.
-					first, end := (int(index)-rows.count)*width, (int(index)+1)*width
-					rows.values = c.values[first:end:end]
+					first, end := (int(index)-rows.Count)*width, (int(index)+1)*width
+					rows.Values = c.values[first:end:end]
 				}
 			}
 		} else {
-			present, err = c.stage.projectOrdinal(s.op.Context(), int(ordinal), dst)
+			present, err = c.stage.ProjectOrdinal(s.op.Context(), int(ordinal), dst)
 		}
 		if err != nil {
 			return 0, err
 		}
 		if !present {
 			if rows != nil {
-				rows.values = rows.values[:start]
+				rows.Values = rows.Values[:start]
 			}
 			if !c.promoted && !c.scroll {
 				if err := c.stage.Close(); err != nil {
@@ -106,11 +106,11 @@ func (c *sqlCursor) run(backward bool, count int64, all bool, rows *finalRows, s
 		}
 		moved++
 		if rows != nil {
-			rows.count++
+			rows.Count++
 		}
 		c.ordinalPosition, c.atEnd, c.position = ordinal+1, false, cursorOn
 		if !c.promoted {
-			c.currentSource, c.currentIndex = c.stage.source, c.stage.index(int(ordinal))
+			c.currentSource, c.currentIndex = c.stage.Source, c.stage.Index(int(ordinal))
 		}
 	}
 	return moved, nil

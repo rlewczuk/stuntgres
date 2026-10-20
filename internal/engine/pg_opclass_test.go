@@ -26,11 +26,11 @@ func pgOpclassUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.Object
 
 func pgOpclassUnitBag(t *testing.T, rows *querySource, d *catalog.Relation) map[uint32][]any {
 	t.Helper()
-	if len(rows.anonymous) != 62 {
-		t.Fatal("class count", len(rows.anonymous))
+	if len(rows.Anonymous) != 62 {
+		t.Fatal("class count", len(rows.Anonymous))
 	}
 	bag := map[uint32][]any{}
-	for _, row := range rows.anonymous {
+	for _, row := range rows.Anonymous {
 		if len(row) != 9 {
 			t.Fatal("width", len(row))
 		}
@@ -95,7 +95,7 @@ func TestPGOpclassCaptureOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rows.ref != ref || !maps.Equal(descriptors, maps.Collect(e.catalog.state.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.state.Names())) {
+	if rows.Ref != ref || !maps.Equal(descriptors, maps.Collect(e.catalog.state.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.state.Names())) {
 		t.Fatal("capture changed catalog/ref")
 	}
 	bag := pgOpclassUnitBag(t, rows, d)

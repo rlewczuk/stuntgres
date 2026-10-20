@@ -94,13 +94,13 @@ func TestInsertSelectStaleEpoch(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal(err)
 			}
-			view, err := scope.acquireDataViewLocked(e, b.querySources[0].ref)
+			view, err := scope.acquireDataViewLocked(e, b.querySources[0].Ref)
 			if err != nil {
 				e.mu.Unlock()
 				t.Fatal(err)
 			}
 			e.mu.Unlock()
-			source, err := captureQuerySource(op.ctx, view, b.querySources[0].ref)
+			source, err := captureQuerySource(op.ctx, view, b.querySources[0].Ref)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -123,8 +123,8 @@ func TestInsertSelectStaleEpoch(t *testing.T) {
 				return original.Eval(c)
 			})
 			rows, err := evaluateInsertQuery(op.ctx, b, source, nil, "public", scope.input, scope.output, scope)
-			if err != nil || len(rows.values) != 2 || calls != 2 || source.view != nil {
-				t.Fatal(rows, err, calls, source.view)
+			if err != nil || len(rows.values) != 2 || calls != 2 || source.View != nil {
+				t.Fatal(rows, err, calls, source.View)
 			}
 			if err = scope.Writes().Apply(b.ref, rows.values); !errors.Is(err, ids.ErrCatalogReplaced) {
 				t.Fatal(err)

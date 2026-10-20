@@ -18,7 +18,7 @@ func TestDeleteCurrentOfIdentity(t *testing.T) {
 	sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT 99 AS projected FROM unit_rows ORDER BY i FOR UPDATE")
 	c := s.cursors.entries["c"]
 	cursorUnitBatch(t, s, "FETCH FORWARD 2 FROM c", [][]driver.Value{{int64(99)}, {int64(99)}})
-	if c.authority.host != nil || c.currentSource == nil || c.position != cursorOn {
+	if c.authority.Host != nil || c.currentSource == nil || c.position != cursorOn {
 		t.Fatal("FETCH retained admission or lost physical occurrence", c)
 	}
 	ref := catalogRef(t, s.Engine(), s.Engine().CatalogRead(), "unit_rows")
@@ -47,25 +47,25 @@ func TestDeleteCurrentOfIdentity(t *testing.T) {
 func TestDeleteCurrentOfOccurrenceVersions(t *testing.T) {
 	old := storage.RowVersion{Row: 3, Version: 4}
 	effective := storage.RowVersion{Row: 3, Version: 9}
-	leaf := &querySource{occurrence: 2, committed: []storage.RowVersion{old}}
-	locks := &queryLockContext{leaves: make([]queryLockLeaf, 3)}
-	locks.leaves[2].source = leaf
-	materialized := &querySource{materialized: true, occurrences: []int{1, 2}, provenance: []int{-1, 0}, versions: []storage.RowVersion{{}, effective}}
+	leaf := &querySource{Occurrence: 2, Committed: []storage.RowVersion{old}}
+	locks := &queryLockContext{Leaves: make([]queryLockLeaf, 3)}
+	locks.Leaves[2].Source = leaf
+	materialized := &querySource{Materialized: true, Occurrences: []int{1, 2}, Provenance: []int{-1, 0}, Versions: []storage.RowVersion{{}, effective}}
 	if got := cursorOccurrenceVersion(materialized, 0, 2, locks); got.Row != effective.Row || got.Version != effective.Version {
 		t.Fatal("effective rowmark version lost", got)
 	}
-	bridge := &querySource{lineage: &queryLockLineage{stage: materialized, selection: []int{0}}}
+	bridge := &querySource{Lineage: &queryLockLineage{Stage: materialized, Selection: []int{0}}}
 	if got := cursorOccurrenceVersion(bridge, 0, 2, locks); got.Version != effective.Version {
 		t.Fatal("lineage version lost", got)
 	}
-	materialized.versionValid = []bool{false}
+	materialized.VersionValid = []bool{false}
 	if got := cursorOccurrenceVersion(bridge, 0, 2, locks); got.Version != old.Version {
 		t.Fatal("sparse cache did not use physical provenance", got)
 	}
 	if got := cursorOccurrenceVersion(materialized, 0, 1, locks); got.Row != 0 {
 		t.Fatal("absent occurrence substituted another leaf", got)
 	}
-	if got := cursorOccurrenceVersion(bridge, absentQueryIndex, 2, locks); got.Row != 0 {
+	if got := cursorOccurrenceVersion(bridge, AbsentQueryIndex, 2, locks); got.Row != 0 {
 		t.Fatal("absent bridge gained identity", got)
 	}
 }
@@ -75,11 +75,11 @@ func TestDeleteCurrentOfEligibility(t *testing.T) {
 	sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT i FROM (SELECT i FROM unit_rows) d")
 	c := s.cursors.entries["c"]
 	scan := cursorSimpleScan(c.root, c.source)
-	if scan == nil || scan.view == nil || scan.ref.Address != c.locks.leaves[0].leaf.ref.Address {
+	if scan == nil || scan.View == nil || scan.Ref.Address != c.locks.Leaves[0].Leaf.Ref.Address {
 		t.Fatal("transparent derived query loses physical scan")
 	}
 	cursorUnitBatch(t, s, "FETCH FORWARD 1 FROM c", [][]driver.Value{{int64(1)}})
-	if got := cursorOccurrenceVersion(c.currentSource, c.currentIndex, scan.occurrence, c.locks); got.Row == 0 {
+	if got := cursorOccurrenceVersion(c.currentSource, c.currentIndex, scan.Occurrence, c.locks); got.Row == 0 {
 		t.Fatal("unlocked derived lineage lost identity")
 	}
 	for _, node := range []plan.Node{&plan.SortNode{Child: c.root}, &plan.AggregateNode{Child: c.root}, &plan.JoinNode{}, &plan.SetNode{}, &plan.DistinctNode{}, &plan.SingletonNode{}} {
@@ -87,8 +87,8 @@ func TestDeleteCurrentOfEligibility(t *testing.T) {
 			t.Fatalf("identity-losing %T accepted", node)
 		}
 	}
-	for _, entry := range c.locks.leaves {
-		if entry.mark.Mode != 0 {
+	for _, entry := range c.locks.Leaves {
+		if entry.Mark.Mode != 0 {
 			t.Fatal("unlocked lineage acquired rowmark authority")
 		}
 	}
@@ -133,7 +133,7 @@ func TestDeleteCurrentOfPublication(t *testing.T) {
 		t.Fatal("canceled Finish published private deletion", err)
 	}
 	sessionSQL(t, s, "ROLLBACK TO recover")
-	if s.cursors.entries["c"] != cursor || cursor.position != cursorOn || cursor.authority.host != nil {
+	if s.cursors.entries["c"] != cursor || cursor.position != cursorOn || cursor.authority.Host != nil {
 		t.Fatal("mutation cancellation failed healthy cursor")
 	}
 	transactionRows(t, s, "SELECT i FROM unit_rows ORDER BY i", 1, 2, 3, 4)
@@ -199,7 +199,7 @@ func TestDeleteCurrentOfLifetime(t *testing.T) {
 		t.Fatal("rollback rewinds or discards older current identity")
 	}
 	sessionSQL(t, s, "CLOSE c")
-	if old.currentSource != nil || old.source != nil || old.authority.host != nil {
+	if old.currentSource != nil || old.source != nil || old.authority.Host != nil {
 		t.Fatal("dispose retains execution authority")
 	}
 	sessionSQL(t, s, "DECLARE c CURSOR FOR SELECT i FROM unit_rows")
@@ -237,35 +237,35 @@ func TestDeleteCurrentOfJoinIdentityRetention(t *testing.T) {
 			sessionSQL(t, s, "BEGIN")
 			sessionSQL(t, s, "DECLARE c CURSOR FOR "+tc.query)
 			c := s.cursors.entries["c"]
-			if c.locks == nil || c.locks.rowMarked() != tc.marked || c.state.locking != tc.marked {
+			if c.locks == nil || c.locks.RowMarked() != tc.marked || c.state.Locking != tc.marked {
 				t.Fatal("identity manifest changed semantic rowmark requirement")
 			}
 			cursorUnitBatch(t, s, "FETCH FORWARD 2 FROM c", [][]driver.Value{{int64(1)}, {int64(2)}})
 			source := c.currentSource
 			for source != nil {
-				if source.input != nil {
-					source = source.input
-				} else if source.lineage != nil {
-					source = source.lineage.stage
+				if source.Input != nil {
+					source = source.Input
+				} else if source.Lineage != nil {
+					source = source.Lineage.Stage
 				} else {
 					break
 				}
 			}
-			if source == nil || c.authority.host != nil || c.position != cursorOn {
+			if source == nil || c.authority.Host != nil || c.position != cursorOn {
 				t.Fatal("FETCH lost retained lineage or retained admission")
 			}
 			if tc.join {
-				if !source.materialized || source.flatWidth != 2 || source.flatCount != 2 {
+				if !source.Materialized || source.FlatWidth != 2 || source.FlatCount != 2 {
 					t.Fatal("bounded FETCH did not retain the actual two-row join frontier")
 				}
 				if tc.marked {
-					if len(source.occurrences) != 2 || len(source.provenance) != 4 || len(source.versions) != 4 ||
-						len(source.joinPairs) != 2 || source.joinLeft == nil || source.joinRight == nil {
+					if len(source.Occurrences) != 2 || len(source.Provenance) != 4 || len(source.Versions) != 4 ||
+						len(source.JoinPairs) != 2 || source.JoinLeft == nil || source.JoinRight == nil {
 						t.Fatal("actual rowmarks lost effective-version/recheck provenance")
 					}
 				} else {
-					if source.occurrences != nil || source.provenance != nil || source.versions != nil ||
-						source.versionValid != nil || source.joinPairs != nil || source.joinLeft != nil || source.joinRight != nil {
+					if source.Occurrences != nil || source.Provenance != nil || source.Versions != nil ||
+						source.VersionValid != nil || source.JoinPairs != nil || source.JoinLeft != nil || source.JoinRight != nil {
 						t.Fatal("identity-only cursor allocated ineligible join caches")
 					}
 					cursorUnitBatch(t, s, "FETCH ALL FROM c", [][]driver.Value{{int64(3)}})
@@ -276,8 +276,8 @@ func TestDeleteCurrentOfJoinIdentityRetention(t *testing.T) {
 			}
 			occurrence := -1
 			if tc.marked {
-				for i, leaf := range c.locks.leaves {
-					if leaf.mark.Mode != 0 {
+				for i, leaf := range c.locks.Leaves {
+					if leaf.Mark.Mode != 0 {
 						if occurrence != -1 {
 							t.Fatal("fixture has ambiguous physical rowmarks")
 						}
@@ -289,15 +289,15 @@ func TestDeleteCurrentOfJoinIdentityRetention(t *testing.T) {
 				if scan == nil {
 					t.Fatal("identity-only transparent scan lost eligibility")
 				}
-				occurrence = scan.occurrence
+				occurrence = scan.Occurrence
 			}
 			if occurrence < 0 {
 				t.Fatal("physical target occurrence missing")
 			}
-			leaf := c.locks.leaves[occurrence]
+			leaf := c.locks.Leaves[occurrence]
 			row := cursorOccurrenceVersion(c.currentSource, c.currentIndex, occurrence, c.locks)
 			s.Engine().mu.Lock()
-			want := s.Engine().storage.Relations[leaf.leaf.ref.Address].Versions[1].Row
+			want := s.Engine().storage.Relations[leaf.Leaf.Ref.Address].Versions[1].Row
 			s.Engine().mu.Unlock()
 			if row.Row != want {
 				t.Fatal("retained lineage lost last-FETCH physical identity", row.Row, want)

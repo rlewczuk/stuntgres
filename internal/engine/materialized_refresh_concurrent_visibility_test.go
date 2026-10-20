@@ -19,7 +19,7 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 	original := e.storage.Relations[d.Address()]
 	scope := refreshUnitScope(t, e, context.Background())
 	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
-	scope.querySources = []queryLeaf{{ref: ref, relation: d, storage: original}, {ref: ref, relation: d, storage: original}}
+	scope.querySources = []queryLeaf{{Ref: ref, Relation: d, Storage: original}, {Ref: ref, Relation: d, Storage: original}}
 	d = concurrentUnitReplace(t, e, d, refreshUnitRows(t, d, 4), true, true)
 	current := e.storage.Relations[d.Address()]
 	e.mu.Lock()
@@ -29,7 +29,7 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 		t.Fatal("admission-to-publication recapture", err)
 	}
 	for _, source := range scope.querySources {
-		if source.relation != d || source.storage != current {
+		if source.Relation != d || source.Storage != current {
 			t.Fatal("aliases did not recapture one coherent manifest")
 		}
 	}
@@ -62,7 +62,7 @@ func TestMaterializedRefreshConcurrentReaderAdmission(t *testing.T) {
 		t.Fatal("reader mixed incarnations")
 	}
 	for _, source := range scope.querySources {
-		if source.relation != d || source.storage != current {
+		if source.Relation != d || source.Storage != current {
 			t.Fatal("postcapture layout/storage was recaptured")
 		}
 	}

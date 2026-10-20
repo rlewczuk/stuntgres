@@ -60,7 +60,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			base.Security.ACL = grant(reader)
 			auth.Recapture(e.catalog.read(e.catalog.state))
 			auth.State.CurrentUser = owner.Ref
-			leaf := queryLeaf{ref: ruleUnitRef(e, root), relation: root, principal: actor.Ref}
+			leaf := queryLeaf{Ref: ruleUnitRef(e, root), Relation: root, Principal: actor.Ref}
 			collect := func(view AuthorizationView, invoker authorization.PrincipalRef, leaves ...queryLeaf) ([]ids.ObjectRef, error) {
 				t.Helper()
 				e.mu.Lock()
@@ -76,7 +76,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 			}
 			assertCollected(owner.Ref, leaf)
 			fallback := leaf
-			fallback.principal = authorization.PrincipalRef{}
+			fallback.Principal = authorization.PrincipalRef{}
 			assertCollected(actor.Ref, fallback)
 			if callerReads {
 				// The same executable view appears under two different principals;
@@ -86,7 +86,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 				if len(refs) != 0 {
 					t.Fatal("denied occurrence published a physical closure", refs)
 				}
-				fallback.analysisOnly = true
+				fallback.AnalysisOnly = true
 				assertCollected(owner.Ref, leaf, fallback)
 			} else {
 				// Supplied or retained invokers cannot replace a definer's owner.
@@ -106,7 +106,7 @@ func TestRuleViewSourceCollectionAuthority(t *testing.T) {
 				t.Fatal("current grant denial published a physical closure", refs)
 			}
 			assertCollected(owner.Ref, leaf)
-			if leaf.principal != actor.Ref || fallback.principal != (authorization.PrincipalRef{}) {
+			if leaf.Principal != actor.Ref || fallback.Principal != (authorization.PrincipalRef{}) {
 				t.Fatal("collection changed caller-owned source recipes")
 			}
 		})

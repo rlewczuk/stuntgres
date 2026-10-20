@@ -151,7 +151,7 @@ func TestJSONArrayAggregateRunnerNullPresence(t *testing.T) {
 				}
 				return sqltype.Null(usage.Type), nil
 			})
-			rows, n, err := finalizeQuery(context.Background(), q.Root, source, nil)
+			rows, n, err := Finalize(context.Background(), q.Root, source, nil)
 			if err != nil || n != 1 {
 				t.Fatal(n, err)
 			}
@@ -190,7 +190,7 @@ func TestJSONArrayAggregateReachedEagerCancellation(t *testing.T) {
 		node.Calls[0].Argument = queryProbe(input.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.String(input, "é\"\\"), nil })
 		ctx, cancel := context.WithCancel(context.Background())
 		probe := &bitwiseAggregateCancelContext{Context: ctx, cancel: cancel, target: tc.target}
-		rows, n, err := finalizeQuery(probe, q.Root, source, nil)
+		rows, n, err := Finalize(probe, q.Root, source, nil)
 		cancel()
 		if !probe.entered || rows != nil || n != 0 || !errors.Is(err, context.Canceled) {
 			if rows != nil {
@@ -198,7 +198,7 @@ func TestJSONArrayAggregateReachedEagerCancellation(t *testing.T) {
 			}
 			t.Fatal("actual conversion/tree/output cancellation published result", tc, probe.entered, n, err)
 		}
-		if source.view != nil || source.anonymous != nil {
+		if source.View != nil || source.Anonymous != nil {
 			t.Fatal("canceled source retained")
 		}
 	}
@@ -285,7 +285,7 @@ func TestJSONArrayAggregateStoredReturningPresentation(t *testing.T) {
 		t.Fatal("stored SQL/JSON semantics lost", call)
 	}
 	_, query, source := queryCoreFixture(t, "SELECT "+text+" FROM t WHERE id=1")
-	rows, n, err := finalizeQuery(ctx, query.Root, source, nil)
+	rows, n, err := Finalize(ctx, query.Root, source, nil)
 	if err != nil || n != 1 {
 		t.Fatal("stored expression replay", n, err)
 	}

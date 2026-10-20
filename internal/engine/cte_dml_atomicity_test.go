@@ -165,8 +165,8 @@ func TestCTEDMLLateFailureIdentity(t *testing.T) {
 					t.Fatal("later output did not follow accepted earlier private write")
 				}
 				if phase == "close_veto" || phase == "close_veto_exec" || phase == "primary_error_before_close" {
-					producer := &cteProducer{opened: true, inner: indexedStage{finish: func() error { closes++; return closeFailure }}}
-					scope.cteInvocation.order = append(scope.cteInvocation.order, producer)
+					producer := &cteProducer{Opened: true, Inner: indexedStage{Finish: func() error { closes++; return closeFailure }}}
+					scope.cteInvocation.Order = append(scope.cteInvocation.Order, producer)
 				}
 				if phase == "output_cancel" {
 					cancel()
@@ -179,7 +179,7 @@ func TestCTEDMLLateFailureIdentity(t *testing.T) {
 			})
 			cteMutationOf(bound.ctes[1]).returning.expressions = []expr.Expr{probe}
 			quotes := quoteCaptureCandidate{}
-			evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, host: hostOf(scope), catalog: auth.Catalog, Input: scope.input, Output: scope.output, quoteCaptures: &quotes}}
+			evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output, QuoteCaptures: &quotes}}
 			e.mu.Lock()
 			result, err := e.executeCTECommandsLocked(scope, ast, bound, auth, nil, evaluation, nil, nil)
 			want := primary

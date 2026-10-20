@@ -23,22 +23,22 @@ func foldStringVariadic(c *EvalContext, e functions.StringVariadic) (expr.Expr, 
 	if err := admitRoutineCall(c, e, true, true); err != nil {
 		return nil, false, err
 	}
-	retained := c.quoteCaptures != nil && !p.RowDependent && !p.ParameterDependent && !p.StageDependent
+	retained := c.QuoteCaptures != nil && !p.RowDependent && !p.ParameterDependent && !p.StageDependent
 	var entry quoteConstant
 	index := -1
 	if retained {
 		origin := quoteOriginOf(e)
-		if origin.owner == (ids.ObjectRef{}) {
+		if origin.Owner == (ids.ObjectRef{}) {
 			origin = c.quoteOrigin
 		}
-		entry = quoteConstant{offset: e.Pos.Offset, origin: origin, frame: e.Frame, name: e.Name, anyelement: e.AnyElement, source: e.Args[0].ResultUsage(), result: e.Usage}
-		for i, saved := range c.quoteCaptures.entries {
-			if saved.offset != entry.offset || saved.origin != entry.origin || saved.frame != entry.frame || saved.name != entry.name || saved.anyelement != entry.anyelement {
+		entry = quoteConstant{Offset: e.Pos.Offset, Origin: origin, Frame: e.Frame, Name: e.Name, Anyelement: e.AnyElement, Source: e.Args[0].ResultUsage(), Result: e.Usage}
+		for i, saved := range c.QuoteCaptures.Entries {
+			if saved.Offset != entry.Offset || saved.Origin != entry.Origin || saved.Frame != entry.Frame || saved.Name != entry.Name || saved.Anyelement != entry.Anyelement {
 				continue
 			}
 			index = i
-			if saved.source == entry.source && saved.result == entry.result {
-				return plan.LiteralExpr{Info: foldedExpressionInfo(e), Value: saved.value}, true, nil
+			if saved.Source == entry.Source && saved.Result == entry.Result {
+				return plan.LiteralExpr{Info: foldedExpressionInfo(e), Value: saved.Value}, true, nil
 			}
 			break
 		}
@@ -47,17 +47,17 @@ func foldStringVariadic(c *EvalContext, e functions.StringVariadic) (expr.Expr, 
 	if err != nil {
 		return nil, false, err
 	}
-	if retained && !c.quoteCaptures.sealed {
-		entry.value = value
-		group := c.quoteCaptures
-		if !group.private {
-			group.entries = append([]quoteConstant(nil), group.entries...)
-			group.private = true
+	if retained && !c.QuoteCaptures.Sealed {
+		entry.Value = value
+		group := c.QuoteCaptures
+		if !group.Private {
+			group.Entries = append([]quoteConstant(nil), group.Entries...)
+			group.Private = true
 		}
 		if index >= 0 {
-			group.entries[index] = entry
+			group.Entries[index] = entry
 		} else {
-			group.entries = append(group.entries, entry)
+			group.Entries = append(group.Entries, entry)
 		}
 	}
 	return plan.LiteralExpr{Info: foldedExpressionInfo(e), Value: value}, true, nil
@@ -67,33 +67,33 @@ func foldStringVariadic(c *EvalContext, e functions.StringVariadic) (expr.Expr, 
 // The stable case borrows the entire published group without allocating.
 func pruneQuoteCaptures(g *quoteCaptureCandidate, view catalog.Read) {
 	valid := func(origin quoteOrigin) bool {
-		if origin.owner == (ids.ObjectRef{}) {
+		if origin.Owner == (ids.ObjectRef{}) {
 			return true
 		}
-		if view.Owner() == nil || origin.owner.Domain() != view.Owner().Domain || origin.owner.Epoch != view.Epoch() {
+		if view.Owner() == nil || origin.Owner.Domain() != view.Owner().Domain || origin.Owner.Epoch != view.Epoch() {
 			return false
 		}
-		d, ok := view.Relation(origin.owner.Address)
+		d, ok := view.Relation(origin.Owner.Address)
 		if !ok {
 			return false
 		}
-		if origin.attribute != 0 {
-			return d.ColumnMeta.Defaults[origin.attribute].OID == origin.definition
+		if origin.Attribute != 0 {
+			return d.ColumnMeta.Defaults[origin.Attribute].OID == origin.Definition
 		}
-		return d.View != nil && viewOf(d).rule == origin.definition && viewOf(d).quoteRevision == origin.revision
+		return d.View != nil && viewOf(d).rule == origin.Definition && viewOf(d).quoteRevision == origin.Revision
 	}
-	for i, entry := range g.entries {
-		if valid(entry.origin) {
+	for i, entry := range g.Entries {
+		if valid(entry.Origin) {
 			continue
 		}
-		next := make([]quoteConstant, 0, len(g.entries)-1)
-		next = append(next, g.entries[:i]...)
-		for _, remaining := range g.entries[i+1:] {
-			if valid(remaining.origin) {
+		next := make([]quoteConstant, 0, len(g.Entries)-1)
+		next = append(next, g.Entries[:i]...)
+		for _, remaining := range g.Entries[i+1:] {
+			if valid(remaining.Origin) {
 				next = append(next, remaining)
 			}
 		}
-		g.entries, g.private = next, true
+		g.Entries, g.Private = next, true
 		return
 	}
 }

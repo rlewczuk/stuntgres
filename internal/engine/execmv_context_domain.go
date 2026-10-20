@@ -12,23 +12,23 @@ import (
 	"stuntgres/internal/sqltype"
 )
 
-func (c *EvalContext) evaluateSelectedDomainCheck(view catalog.Read, selected *catalog.Type, value sqltype.Value, violation error) error {
-	oldValue, oldUsage, oldActive, oldChecks := c.domainValue, c.domainFrameUsage, c.domainValueActive, c.Input.DomainChecks
+func (c *EvalContext) EvaluateSelectedDomainCheck(view catalog.Read, selected *catalog.Type, value sqltype.Value, violation error) error {
+	oldValue, oldUsage, oldActive, oldChecks := c.DomainValue, c.DomainFrameUsage, c.DomainValueActive, c.Input.DomainChecks
 	c.Input.DomainChecks = c
 	defer func() {
-		c.domainValue, c.domainFrameUsage, c.domainValueActive, c.Input.DomainChecks = oldValue, oldUsage, oldActive, oldChecks
+		c.DomainValue, c.DomainFrameUsage, c.DomainValueActive, c.Input.DomainChecks = oldValue, oldUsage, oldActive, oldChecks
 	}()
 	return c.evaluateOwnDomainChecks(view, selected, selected, value, violation)
 }
 
 func (c *EvalContext) EvalDomainValue(e plan.DomainValueExpr) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
+	if err := EvaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	if !c.domainValueActive || c.domainValue.Type() != e.Usage.Type || c.domainFrameUsage != e.Usage {
+	if !c.DomainValueActive || c.DomainValue.Type() != e.Usage.Type || c.DomainFrameUsage != e.Usage {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing domain VALUE frame")
 	}
-	return c.domainValue, nil
+	return c.DomainValue, nil
 }
 
 func (c *EvalContext) CheckDomain(ctx context.Context, target *sqltype.Descriptor, candidate sqltype.Value) error {
@@ -38,11 +38,11 @@ func (c *EvalContext) CheckDomain(ctx context.Context, target *sqltype.Descripto
 	return preparation.CheckDomain(ctx, c, target, candidate)
 }
 
-func (c *EvalContext) evaluateDomainChecks(view catalog.Read, target, d *catalog.Type, candidate sqltype.Value) error {
+func (c *EvalContext) EvaluateDomainChecks(view catalog.Read, target, d *catalog.Type, candidate sqltype.Value) error {
 	base := d.SQLType.DomainBase()
 	if base.Type.IsDomain() && base.Type.HasDomainChecks() {
 		parent := view.MustType(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())})
-		if err := c.evaluateDomainChecks(view, target, parent, candidate); err != nil {
+		if err := c.EvaluateDomainChecks(view, target, parent, candidate); err != nil {
 			return err
 		}
 	}
@@ -58,19 +58,19 @@ func (c *EvalContext) evaluateOwnDomainChecks(view catalog.Read, target, d *cata
 	if err != nil {
 		return err
 	}
-	c.domainValue, c.domainFrameUsage, c.domainValueActive = value, base, true
-	expressions := c.preparedDomainChecks[d].expressions
-	oldRecipe, oldGraft := c.routineRecipe, c.routineGraft
-	oldChecks, oldReferences, oldConsumer := c.routineChecks, c.routineReferences, c.routineConsumer
+	c.DomainValue, c.DomainFrameUsage, c.DomainValueActive = value, base, true
+	expressions := c.PreparedDomainChecks[d].Expressions
+	oldRecipe, oldGraft := c.RoutineRecipe, c.RoutineGraft
+	oldChecks, oldReferences, oldConsumer := c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer
 	defer func() {
-		c.routineRecipe, c.routineGraft = oldRecipe, oldGraft
-		c.routineChecks, c.routineReferences, c.routineConsumer = oldChecks, oldReferences, oldConsumer
+		c.RoutineRecipe, c.RoutineGraft = oldRecipe, oldGraft
+		c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer = oldChecks, oldReferences, oldConsumer
 	}()
 	for i, check := range d.DomainChecks {
 		// Preserve the original CHECK recipe for lazily demanded bodies,
 		// without changing the phase's actual invoker/RI authority.
-		c.routineRecipe, c.routineGraft = true, false
-		c.routineChecks, c.routineReferences, c.routineConsumer = check.Dependencies, nil, nil
+		c.RoutineRecipe, c.RoutineGraft = true, false
+		c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer = check.Dependencies, nil, nil
 		node := check.Expression
 		if expressions != nil {
 			node = expressions[i]
@@ -106,8 +106,8 @@ func (c *EvalContext) evaluateOwnDomainChecks(view catalog.Read, target, d *cata
 // initialization. These are consumed call graphs with original actors/lifetimes,
 // not cached permission results. No CHECK truth is recorded or replayed.
 type domainCheckProgram struct {
-	expressions []expr.Expr
-	phases      domainCheckPhases
+	Expressions []expr.Expr
+	Phases      domainCheckPhases
 }
 
 // The runtime reads only a programme's expressions; its phases are an opaque

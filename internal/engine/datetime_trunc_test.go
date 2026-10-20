@@ -33,7 +33,7 @@ func TestDatetimeTruncBindingOwnership(t *testing.T) {
 			t.Fatal(tc, err)
 		}
 		e := node.(functions.DatetimeTrunc)
-		if e.ResultUsage().Type.ID() != tc.result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != tc.volatility || plannedVolatility(e) != tc.volatility || generationImmutable(e) != (tc.volatility == expr.Immutable) {
+		if e.ResultUsage().Type.ID() != tc.result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != tc.volatility || PlannedVolatility(e) != tc.volatility || generationImmutable(e) != (tc.volatility == expr.Immutable) {
 			t.Fatal(tc, e.Properties(), e.ResultUsage())
 		}
 		if tc.typ == "time" && e.Args[1].ResultUsage().Type.ID() != sqltype.Time {
@@ -73,7 +73,7 @@ func TestDatetimeTruncInferenceStrictChildren(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b.params.parameters[1].Type.ID() != sqltype.Text || b.params.parameters[2].Type.ID() != sqltype.Timestamptz || b.params.parameters[3].Type.ID() != sqltype.Text || !node.Properties().ParameterDependent || plannedVolatility(node) != expr.Immutable {
+	if b.params.parameters[1].Type.ID() != sqltype.Text || b.params.parameters[2].Type.ID() != sqltype.Timestamptz || b.params.parameters[3].Type.ID() != sqltype.Text || !node.Properties().ParameterDependent || PlannedVolatility(node) != expr.Immutable {
 		t.Fatal(node.Properties(), b.params.parameters)
 	}
 	e := node.(functions.DatetimeTrunc)
@@ -81,7 +81,7 @@ func TestDatetimeTruncInferenceStrictChildren(t *testing.T) {
 		n := e
 		n.Args[i] = plan.LiteralExpr{Info: b.info(n.Args[i].ResultUsage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.Null(n.Args[i].ResultUsage().Type)}
 		simplified, changed, err := simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, n, false)
-		if err != nil || !changed || plannedVolatility(simplified) != expr.Immutable || !generationImmutable(simplified) {
+		if err != nil || !changed || PlannedVolatility(simplified) != expr.Immutable || !generationImmutable(simplified) {
 			t.Fatal(simplified, changed, err)
 		}
 	}

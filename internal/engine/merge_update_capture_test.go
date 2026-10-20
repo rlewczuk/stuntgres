@@ -25,11 +25,11 @@ func TestMergeUpdateCaptureBaseOverlay(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				captured := []storage.RowVersion{{Row: 1, Version: 10, Born: 1}, {Row: 2, Version: 20, Born: 1}}
 				before := append([]storage.RowVersion(nil), captured...)
-				retained, err := selectQuerySource(context.Background(), &querySource{committed: captured}, 1, nil, nil)
+				retained, err := SelectQuerySource(context.Background(), &querySource{Committed: captured}, 1, nil, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
-				defer retained.close()
+				defer retained.Close()
 				base := ids.VersionID(11)
 				if matching {
 					base = 10
@@ -39,15 +39,15 @@ func TestMergeUpdateCaptureBaseOverlay(t *testing.T) {
 					own = append(own, storage.RowVersion{Row: 2, Version: 200, Base: 20})
 				}
 				own = append(own, storage.RowVersion{Row: 3, Version: 300})
-				selected, err := selectQuerySource(context.Background(), &querySource{committed: captured, own: own}, 1, &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{1: {Version: 10, End: 2}}}, nil)
+				selected, err := SelectQuerySource(context.Background(), &querySource{Committed: captured, Own: own}, 1, &storage.DeletionRoot{Rows: map[ids.RowID]storage.RowEnd{1: {Version: 10, End: 2}}}, nil)
 				if err != nil {
 					t.Fatal(err)
 				}
-				defer selected.close()
+				defer selected.Close()
 				var got []ids.VersionID
 				var identity []ids.RowID
-				for i := range selected.count() {
-					v := selected.versionAt(selected.rawIndex(i))
+				for i := range selected.Count() {
+					v := selected.VersionAt(selected.RawIndex(i))
 					got = append(got, v.Version)
 					identity = append(identity, v.Row)
 				}
@@ -65,7 +65,7 @@ func TestMergeUpdateCaptureBaseOverlay(t *testing.T) {
 				if !matching && (identity[0] != 1 || identity[2] != 1 || own[0].Base != 11) {
 					t.Fatal("base mismatch lost logical identity", identity, own)
 				}
-				if !reflect.DeepEqual(captured, before) || retained.count() != 2 || retained.versionAt(retained.rawIndex(0)).Version != 10 {
+				if !reflect.DeepEqual(captured, before) || retained.Count() != 2 || retained.VersionAt(retained.RawIndex(0)).Version != 10 {
 					t.Fatal("mutated retained prefix", captured, retained)
 				}
 			})
@@ -76,7 +76,7 @@ func TestMergeUpdateCaptureBaseOverlay(t *testing.T) {
 func TestMergeUpdateCaptureCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	source, err := selectQuerySource(ctx, &querySource{committed: []storage.RowVersion{{Row: 1, Version: 10, Born: 1}}, own: []storage.RowVersion{{Row: 1, Version: 100, Base: 11}}}, 1, nil, nil)
+	source, err := SelectQuerySource(ctx, &querySource{Committed: []storage.RowVersion{{Row: 1, Version: 10, Born: 1}}, Own: []storage.RowVersion{{Row: 1, Version: 100, Base: 11}}}, 1, nil, nil)
 	if source != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("capture escaped cancellation", source, err)
 	}

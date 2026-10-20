@@ -340,7 +340,7 @@ func TestCastCoercionQueryPreflightFrameMetadataAndFinalization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows, count, err := finalizeQuery(context.Background(), root, source, nil)
+	rows, count, err := Finalize(context.Background(), root, source, nil)
 	if err != nil || rows == nil || count != 4 || calls != 1 || !reflect.DeepEqual(rows.Schema(), schema) {
 		t.Fatal(rows, count, calls, err)
 	}

@@ -7,7 +7,7 @@ import (
 )
 
 func (c *EvalContext) EvalGroup(e plan.GroupExpr) (sqltype.Value, error) {
-	if err := evaluationContext(c); err != nil {
+	if err := EvaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
 	frame := e.Frame

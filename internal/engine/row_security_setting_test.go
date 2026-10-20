@@ -47,16 +47,16 @@ func TestRowSecuritySettingProvenance(t *testing.T) {
 	capture := func(value, source string) *querySource {
 		t.Helper()
 		rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{settings: settings}}, capturePGSettings)
-		if err != nil || len(rows.anonymous) != 1 {
+		if err != nil || len(rows.Anonymous) != 1 {
 			t.Fatal(rows, err)
 		}
 		for index, want := range map[int]string{1: value, 8: source, 12: "on", 13: "off"} {
-			got, err := rows.anonymous[0][index].Text()
+			got, err := rows.Anonymous[0][index].Text()
 			if err != nil || got != want {
 				t.Fatal(index, got, want, err)
 			}
 		}
-		if !rows.anonymous[0][14].IsNull() || !rows.anonymous[0][15].IsNull() {
+		if !rows.Anonymous[0][14].IsNull() || !rows.Anonymous[0][15].IsNull() {
 			t.Fatal("invented configuration-file provenance")
 		}
 		return rows
@@ -73,7 +73,7 @@ func TestRowSecuritySettingProvenance(t *testing.T) {
 	if provider.calls["row_security"] != 1 {
 		t.Fatal(provider.calls)
 	}
-	if got, _ := old.anonymous[0][8].Text(); got != "client" {
+	if got, _ := old.Anonymous[0][8].Text(); got != "client" {
 		t.Fatal("retained metadata changed", got)
 	}
 	ctx, cancel := context.WithCancel(context.Background())

@@ -9,18 +9,18 @@ import (
 )
 
 type queryGroup struct {
-	keys     []sqltype.Value
+	Keys     []sqltype.Value
 	states   []any
 	ordered  [][]sqltype.Value
 	distinct []aggregateDistinctState
 }
 
 type aggregateDistinctState struct {
-	buckets map[uint64][]int
-	tuples  []sqltype.Value
+	Buckets map[uint64][]int
+	Tuples  []sqltype.Value
 }
 
-func (s *aggregateDistinctState) admit(ctx context.Context, grouping []plan.Grouping, tuple []sqltype.Value) (bool, error) {
+func (s *aggregateDistinctState) Admit(ctx context.Context, grouping []plan.Grouping, tuple []sqltype.Value) (bool, error) {
 	hash := uint64(14695981039346656037)
 	for i, family := range grouping {
 		value, err := family.PrepareKey(ctx, tuple[i])
@@ -34,32 +34,32 @@ func (s *aggregateDistinctState) admit(ctx context.Context, grouping []plan.Grou
 		}
 		hash = (hash ^ h) * 1099511628211
 	}
-	index, err := findDistinctTuple(ctx, grouping, tuple, s.tuples, s.buckets[hash])
+	index, err := FindDistinctTuple(ctx, grouping, tuple, s.Tuples, s.Buckets[hash])
 	if err != nil || index >= 0 {
 		return false, err
 	}
-	if s.buckets == nil {
-		s.buckets = make(map[uint64][]int)
+	if s.Buckets == nil {
+		s.Buckets = make(map[uint64][]int)
 	}
-	s.buckets[hash] = append(s.buckets[hash], len(s.tuples)/len(grouping))
-	s.tuples = append(s.tuples, tuple...)
+	s.Buckets[hash] = append(s.Buckets[hash], len(s.Tuples)/len(grouping))
+	s.Tuples = append(s.Tuples, tuple...)
 	return true, ctx.Err()
 }
 
 func openAggregateNode(ctx context.Context, state *queryState, n *plan.AggregateNode) (indexedStage, error) {
 	if n.PresenceOnly {
-		return openQueryNode(ctx, state, n.Child)
+		return OpenNode(ctx, state, n.Child)
 	}
-	child, err := openQueryNode(ctx, state, n.Child)
+	child, err := OpenNode(ctx, state, n.Child)
 	if err != nil {
 		return indexedStage{}, err
 	}
-	child, err = settlePendingQueryMarks(ctx, state, n.Child, child)
+	child, err = SettlePendingQueryMarks(ctx, state, n.Child, child)
 	if err != nil {
 		return indexedStage{}, err
 	}
 	defer child.Close()
-	if err := child.drain(ctx); err != nil {
+	if err := child.Drain(ctx); err != nil {
 		return indexedStage{}, err
 	}
 	sets := n.Sets
@@ -98,9 +98,9 @@ func openAggregateNode(ctx context.Context, state *queryState, n *plan.Aggregate
 	if directWidth > 0 {
 		directValues = make([]sqltype.Value, 2+directWidth)
 	}
-	evaluation := state.evaluation(ctx)
+	evaluation := state.Evaluation(ctx)
 	output := evaluation.Output
-	presentation := evaluation.presentation()
+	presentation := evaluation.Presentation()
 	output.Regclass, output.Regtype, output.Regproc = presentation, presentation, presentation
 	output.Regrole = presentation
 	output.Operator = presentation
@@ -110,7 +110,7 @@ func openAggregateNode(ctx context.Context, state *queryState, n *plan.Aggregate
 		if err := ctx.Err(); err != nil {
 			return 0, err
 		}
-		group := queryGroup{keys: make([]sqltype.Value, len(n.Schema())), states: make([]any, len(n.Calls))}
+		group := queryGroup{Keys: make([]sqltype.Value, len(n.Schema())), states: make([]any, len(n.Calls))}
 		if orderedWidth > 0 {
 			group.ordered = make([][]sqltype.Value, len(n.Calls))
 		}
@@ -118,17 +118,17 @@ func openAggregateNode(ctx context.Context, state *queryState, n *plan.Aggregate
 			group.distinct = make([]aggregateDistinctState, len(n.Calls))
 		}
 		for k, key := range n.Keys {
-			group.keys[k] = sqltype.Null(key.ResultUsage().Type)
+			group.Keys[k] = sqltype.Null(key.ResultUsage().Type)
 		}
 		for _, k := range sets[occurrence] {
-			group.keys[k] = scratch[k]
+			group.Keys[k] = scratch[k]
 		}
-		if slot := len(n.Keys) + len(n.Calls); slot < len(group.keys) {
+		if slot := len(n.Keys) + len(n.Calls); slot < len(group.Keys) {
 			value, err := sqltype.Integer(n.Schema()[slot].Usage.Type, int64(occurrence))
 			if err != nil {
 				return 0, err
 			}
-			group.keys[slot] = value
+			group.Keys[slot] = value
 		}
 		for i, call := range n.Calls {
 			var err error
@@ -156,11 +156,11 @@ func openAggregateNode(ctx context.Context, state *queryState, n *plan.Aggregate
 			indices[occurrence] = index
 		}
 	}
-	for i := range child.count() {
+	for i := range child.Count() {
 		if err := ctx.Err(); err != nil {
 			return indexedStage{}, err
 		}
-		evaluation.bindQueryRow(child.source, child.index(i))
+		evaluation.BindQueryRow(child.Source, child.Index(i))
 		for k, key := range n.Keys {
 			value, err := key.Eval(&evaluation)
 			if err != nil {
@@ -191,7 +191,7 @@ func openAggregateNode(ctx context.Context, state *queryState, n *plan.Aggregate
 			for _, k := range set {
 				hash = (hash ^ hashes[k]) * 1099511628211
 			}
-			index, err := findQueryGroup(ctx, n.Grouping, scratch, set, groups, buckets[occurrence][hash])
+			index, err := FindQueryGroup(ctx, n.Grouping, scratch, set, groups, buckets[occurrence][hash])
 			if err != nil {
 				return indexedStage{}, err
 			}
@@ -274,7 +274,7 @@ func openAggregateNode(ctx context.Context, state *queryState, n *plan.Aggregate
 				}
 				if len(call.Distinct) > 0 {
 					scratch := [2]sqltype.Value{value, separator}
-					admit, err := groups[index].distinct[p].admit(ctx, call.Distinct, scratch[:len(call.Distinct)])
+					admit, err := groups[index].distinct[p].Admit(ctx, call.Distinct, scratch[:len(call.Distinct)])
 					if err != nil {
 						return indexedStage{}, err
 					}
@@ -305,7 +305,7 @@ func openAggregateNode(ctx context.Context, state *queryState, n *plan.Aggregate
 		if err := ctx.Err(); err != nil {
 			return indexedStage{}, err
 		}
-		row := group.keys
+		row := group.Keys
 		// Direct arguments use the final group-key frame, never an input row.
 		evaluation.Row = row
 		for p, call := range n.Calls {
@@ -331,7 +331,7 @@ func openAggregateNode(ctx context.Context, state *queryState, n *plan.Aggregate
 						var input orderedAggregateInput
 						input, err = sortOrderedAggregate(ctx, state, call, group.ordered[p])
 						if err == nil {
-							value, err = provider.FinalizeOrdered(ctx, prepared, input.borrowed(directValues[:2+len(call.Direct)]), state.input)
+							value, err = provider.FinalizeOrdered(ctx, prepared, input.Borrowed(directValues[:2+len(call.Direct)]), state.Input)
 						}
 					}
 				}
@@ -358,21 +358,21 @@ func openAggregateNode(ctx context.Context, state *queryState, n *plan.Aggregate
 	}
 	// A nested aggregate borrows the captured input occurrence. Its grouped
 	// layout must not replace or close that shared source (or an outer frame).
-	source := &querySource{anonymous: rows, materialized: true, flatCount: len(rows), authority: child.source.authority, host: child.source.host, locks: child.source.locks}
+	source := &querySource{Anonymous: rows, Materialized: true, FlatCount: len(rows), Authority: child.Source.Authority, Host: child.Source.Host, Locks: child.Source.Locks}
 	if err := child.Close(); err != nil {
 		return indexedStage{}, err
 	}
-	return indexedStage{source: source, schema: n.Schema()}, nil
+	return indexedStage{Source: source, Columns: n.Schema()}, nil
 }
 
-func findQueryGroup(ctx context.Context, grouping []plan.Grouping, keys []sqltype.Value, active []int, groups []queryGroup, candidates []int) (int, error) {
+func FindQueryGroup(ctx context.Context, grouping []plan.Grouping, keys []sqltype.Value, active []int, groups []queryGroup, candidates []int) (int, error) {
 	for _, candidate := range candidates {
 		if err := ctx.Err(); err != nil {
 			return -1, err
 		}
 		equal := true
 		for _, k := range active {
-			same, err := grouping[k].Equal(ctx, keys[k], groups[candidate].keys[k])
+			same, err := grouping[k].Equal(ctx, keys[k], groups[candidate].Keys[k])
 			if err != nil {
 				return -1, err
 			}
@@ -394,19 +394,19 @@ func findQueryGroup(ctx context.Context, grouping []plan.Grouping, keys []sqltyp
 // orderedAggregateInput is the sorted view of one call's staged group input;
 // replay and ordered-set finalization borrow it.
 type orderedAggregateInput struct {
-	values  []sqltype.Value
-	indices []int
-	width   int
-	order   []plan.SortKey
+	Values  []sqltype.Value
+	Indices []int
+	Width   int
+	Order   []plan.SortKey
 }
 
 // borrowed lends the sorted input to an ordered-set provider, with the
 // hypothetical target row and the call's tuple ordering.
-func (in orderedAggregateInput) borrowed(target []sqltype.Value) functions.OrderedInput {
-	order := in.order
-	return functions.OrderedInput{Values: in.values, Indices: in.indices, Width: in.width, Target: target,
+func (in orderedAggregateInput) Borrowed(target []sqltype.Value) functions.OrderedInput {
+	order := in.Order
+	return functions.OrderedInput{Values: in.Values, Indices: in.Indices, Width: in.Width, Target: target,
 		Compare: func(ctx context.Context, left, right []sqltype.Value, env sqltype.InputEnvironment) (int, error) {
-			return compareOrderedAggregateTuple(ctx, order, left, right, env)
+			return CompareOrderedAggregateTuple(ctx, order, left, right, env)
 		}}
 }
 
@@ -416,17 +416,17 @@ func sortOrderedAggregate(ctx context.Context, state *queryState, call plan.Aggr
 	for i := range indices {
 		indices[i] = i
 	}
-	if err := mergeQueryIndices(ctx, indices, func(a, b int) (int, error) {
-		return compareOrderedAggregateTuple(ctx, call.Order, tuples[a*width:(a+1)*width], tuples[b*width:(b+1)*width], state.input)
+	if err := MergeQueryIndices(ctx, indices, func(a, b int) (int, error) {
+		return CompareOrderedAggregateTuple(ctx, call.Order, tuples[a*width:(a+1)*width], tuples[b*width:(b+1)*width], state.Input)
 	}); err != nil {
 		return orderedAggregateInput{}, err
 	}
-	return orderedAggregateInput{values: tuples, indices: indices, width: width, order: call.Order}, ctx.Err()
+	return orderedAggregateInput{Values: tuples, Indices: indices, Width: width, Order: call.Order}, ctx.Err()
 }
 
 // Sorting, hypothetical placement and peer equality share exactly one typed
 // ordering implementation. Values and key metadata are borrowed, never copied.
-func compareOrderedAggregateTuple(ctx context.Context, order []plan.SortKey, left, right []sqltype.Value, env sqltype.InputEnvironment) (int, error) {
+func CompareOrderedAggregateTuple(ctx context.Context, order []plan.SortKey, left, right []sqltype.Value, env sqltype.InputEnvironment) (int, error) {
 	for _, key := range order {
 		if err := ctx.Err(); err != nil {
 			return 0, err
@@ -463,8 +463,8 @@ func replayOrderedAggregate(ctx context.Context, state *queryState, call plan.Ag
 	if err != nil {
 		return err
 	}
-	width := input.width
-	for _, index := range input.indices {
+	width := input.Width
+	for _, index := range input.Indices {
 		if err := ctx.Err(); err != nil {
 			return err
 		}

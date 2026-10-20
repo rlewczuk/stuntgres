@@ -19,7 +19,7 @@ func (e *Engine) checkViewRow(scope *StatementScope, b *binding, row []sqltype.V
 	for i := len(b.viewWrite.checks) - 1; i >= 0; i-- {
 		group := &b.viewWrite.checks[i]
 		for j := len(group.predicates) - 1; j >= 0; j-- {
-			if err := evaluationContext(&newFrame); err != nil {
+			if err := EvaluationContext(&newFrame); err != nil {
 				return err
 			}
 			value, err := group.predicates[j].Eval(&newFrame)
@@ -39,5 +39,5 @@ func (e *Engine) checkViewRow(scope *StatementScope, b *binding, row []sqltype.V
 			}
 		}
 	}
-	return evaluationContext(&newFrame)
+	return EvaluationContext(&newFrame)
 }

@@ -174,10 +174,10 @@ func (e *Engine) preparedAnalysisLocked(s *StatementScope, auth AuthorizationVie
 		cell.sources = make(map[*parser.TableReference]preparedSource, len(s.queryLockAdmission.tableQueries))
 	}
 	for _, leaf := range b.querySources {
-		if _, admitted := s.queryLockAdmission.tableQueries[leaf.table]; admitted {
-			cell.sources[leaf.table] = preparedSource{query: s.queryLockAdmission.retainedQuery(leaf.table), ref: leaf.ref}
+		if _, admitted := s.queryLockAdmission.tableQueries[leaf.Table]; admitted {
+			cell.sources[leaf.Table] = preparedSource{query: s.queryLockAdmission.retainedQuery(leaf.Table), ref: leaf.Ref}
 		}
-		if err := visit(leaf.ref); err != nil {
+		if err := visit(leaf.Ref); err != nil {
 			return nil, err
 		}
 	}

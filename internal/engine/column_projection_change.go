@@ -103,7 +103,7 @@ func (scope *StatementScope) stageColumnShape(stage *CatalogStage, changes *cata
 	stage.owner.mu.Lock()
 	snapshot, snapshotExists := scope.owner.roots[old.Address()]
 	stage.owner.mu.Unlock()
-	evaluation := EvalContext{evalStatement: evalStatement{Context: scope.op.Context(), host: hostOf(scope), Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	writes, deletes, projected, err := stagePrivateColumnShapeMetadata(&evaluation, stage, changes, old, next, writes, deletes, snapshot, snapshotExists, stableIsolation(scope.owner.isolation), metadataPrepared)
 	if err == nil && projected {
 		scope.stageProjectedColumnRoots(old.Address(), writes, deletes)
@@ -159,7 +159,7 @@ func stagePrivateColumnShapeMetadata(evaluation *EvalContext, stage *CatalogStag
 			}
 		}
 	}
-	evaluation.catalog = e.stageRead(stage)
+	evaluation.Catalog = e.stageRead(stage)
 	e.mu.Unlock()
 	if err != nil {
 		return nil, nil, false, err

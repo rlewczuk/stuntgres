@@ -13,7 +13,7 @@ func bodyErrorContext(outer *catalog.Procedure, constant bool) routineBodyContex
 	if !constant || outer.Address().ObjectID == 3935 || outer.Address().ObjectID == 3936 {
 		return routineBodyContext{}
 	}
-	return routineBodyContext{outer: outer, statement: outer.Volatility == expr.Immutable}
+	return routineBodyContext{Outer: outer, Statement: outer.Volatility == expr.Immutable}
 }
 func inquiryRoutine(outer *catalog.Procedure) bool {
 	switch outer.Address().ObjectID {
@@ -28,16 +28,16 @@ func inquiryRoutine(outer *catalog.Procedure) bool {
 func bodyRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies []catalog.ExpressionDependency, edge catalog.RoutineBodyEdge) (*catalog.Procedure, error) {
 	var original ids.ObjectRef
 	var revision ids.DefinitionRevision
-	if c.routineReferences != nil {
-		for _, ref := range c.routineReferences {
+	if c.RoutineReferences != nil {
+		for _, ref := range c.RoutineReferences {
 			if ref.Address == edge.Routine.Address() {
 				original = ref
 				break
 			}
 		}
 	} else {
-		if c.routineChecks != nil {
-			dependencies = c.routineChecks
+		if c.RoutineChecks != nil {
+			dependencies = c.RoutineChecks
 		}
 		for _, dependency := range dependencies {
 			if dependency.Ref.Address == edge.Routine.Address() {
@@ -50,8 +50,8 @@ func bodyRoutineDescriptor(c *EvalContext, auth AuthorizationView, dependencies 
 		return nil, fmt.Errorf("stuntgres: missing original SQL body lifetime manifest")
 	}
 	ref := original
-	if c.routineConsumer != nil {
-		if !storedReferenceEpochValid(auth.Catalog, c.routineConsumer, ref) {
+	if c.RoutineConsumer != nil {
+		if !storedReferenceEpochValid(auth.Catalog, c.RoutineConsumer, ref) {
 			return nil, ids.ErrCatalogReplaced
 		}
 		ref.Epoch = auth.Catalog.Epoch()
@@ -88,7 +88,7 @@ func bodyEdgeDemanded(node expr.Expr, outer *catalog.Procedure, edge catalog.Rou
 	switch edge.Demand {
 	case catalog.BodyBooleanText, catalog.BodyNetworkText:
 		argument := routine.PolymorphicBodyArgument(node, outer.Address().ObjectID)
-		return routine.BodyCastMatches(edge, argument) && !randomLiteralNull(argument)
+		return routine.BodyCastMatches(edge, argument) && !RandomLiteralNull(argument)
 	case catalog.BodyLeftDuration, catalog.BodyRightDuration:
 		overlap, ok := node.(functions.DatetimeOverlaps)
 		if !ok {
@@ -98,7 +98,7 @@ func bodyEdgeDemanded(node expr.Expr, outer *catalog.Procedure, edge catalog.Rou
 		if edge.Demand == catalog.BodyRightDuration {
 			at = 2
 		}
-		return !randomLiteralNull(overlap.Args[at]) && !randomLiteralNull(overlap.Args[at+1])
+		return !RandomLiteralNull(overlap.Args[at]) && !RandomLiteralNull(overlap.Args[at+1])
 	}
 	return true
 }
@@ -129,7 +129,7 @@ func admitRoutineBody(c *EvalContext, node expr.Expr, outer *catalog.Procedure, 
 			err = admitRecipeRoutineDescriptor(&local, auth, dependencies, body)
 		}
 		if err != nil {
-			return local.routineBodyContext.annotate(err)
+			return local.routineBodyContext.Annotate(err)
 		}
 		if err = admitRoutineBody(&local, nil, body, constant); err != nil {
 			return err
@@ -151,7 +151,7 @@ func admitOverlapsPair(c *EvalContext, e functions.DatetimeOverlaps, pair int) e
 		return err
 	}
 	local := *c
-	local.routineBodyContext = routineBodyContext{outer: outer}
+	local.routineBodyContext = routineBodyContext{Outer: outer}
 	demand := catalog.BodyLeftDuration
 	if pair == 1 {
 		demand = catalog.BodyRightDuration
@@ -164,7 +164,7 @@ func admitOverlapsPair(c *EvalContext, e functions.DatetimeOverlaps, pair int) e
 		if err == nil {
 			err = admitRecipeRoutineDescriptor(&local, auth, dependencies, body)
 		}
-		return local.routineBodyContext.annotate(err)
+		return local.routineBodyContext.Annotate(err)
 	}
 	return nil
 }

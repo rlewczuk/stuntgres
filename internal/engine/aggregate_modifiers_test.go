@@ -33,7 +33,7 @@ func TestAggregateModifiersTupleDistinct(t *testing.T) {
 		{[]sqltype.Value{a, slash}, true}, {[]sqltype.Value{a, null}, true}, {[]sqltype.Value{a, null}, false},
 		{[]sqltype.Value{null, comma}, true}, {[]sqltype.Value{null, comma}, false},
 	} {
-		admit, err := state.admit(context.Background(), grouping, tc.tuple)
+		admit, err := state.Admit(context.Background(), grouping, tc.tuple)
 		if err != nil || admit != tc.admit {
 			t.Fatal(i, admit, err)
 		}
@@ -49,20 +49,20 @@ func TestAggregateModifiersTupleDistinct(t *testing.T) {
 		}
 		hash = (hash ^ h) * 1099511628211
 	}
-	state.buckets[hash] = []int{0}
-	admit, err := state.admit(context.Background(), grouping, tuple)
-	if err != nil || !admit || len(state.tuples) != 10 {
-		t.Fatal(admit, err, state.tuples)
+	state.Buckets[hash] = []int{0}
+	admit, err := state.Admit(context.Background(), grouping, tuple)
+	if err != nil || !admit || len(state.Tuples) != 10 {
+		t.Fatal(admit, err, state.Tuples)
 	}
-	admit, err = state.admit(context.Background(), grouping, tuple)
+	admit, err = state.Admit(context.Background(), grouping, tuple)
 	if err != nil || admit {
 		t.Fatal(admit, err)
 	}
 	var other aggregateDistinctState
-	if admit, err := other.admit(context.Background(), grouping, []sqltype.Value{a, comma}); err != nil || !admit {
+	if admit, err := other.Admit(context.Background(), grouping, []sqltype.Value{a, comma}); err != nil || !admit {
 		t.Fatal("cross-call/group/execution state", admit, err)
 	}
-	if len(state.tuples) != 10 {
+	if len(state.Tuples) != 10 {
 		t.Fatal("independent state mutated retained tuples")
 	}
 }
@@ -172,15 +172,15 @@ func TestAggregateModifiersFamilyCancellation(t *testing.T) {
 			var state aggregateDistinctState
 			grouping := []plan.Grouping{{Grouping: family}}
 			value := sqltype.String(typ, strings.Repeat("x", 8192))
-			if _, err := state.admit(context.Background(), grouping, []sqltype.Value{value}); err != nil {
+			if _, err := state.Admit(context.Background(), grouping, []sqltype.Value{value}); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			probe := &aggregateModifierFamilyCancelContext{Context: ctx, cancel: cancel, target: phase}
-			admit, err := state.admit(probe, grouping, []sqltype.Value{value})
-			if !probe.entered || !errors.Is(err, context.Canceled) || admit || len(state.tuples) != 1 {
-				t.Fatal(phase, probe.entered, admit, err, state.tuples)
+			admit, err := state.Admit(probe, grouping, []sqltype.Value{value})
+			if !probe.entered || !errors.Is(err, context.Canceled) || admit || len(state.Tuples) != 1 {
+				t.Fatal(phase, probe.entered, admit, err, state.Tuples)
 			}
 		})
 	}
@@ -247,7 +247,7 @@ func TestAggregateModifiersEvaluationPublication(t *testing.T) {
 				sortProbe = &aggregateSortCancelContext{Context: ctx, cancel: cancel, aggregateOrdering: true}
 				execution = sortProbe
 			}
-			rows, count, err := finalizeQuery(execution, query.Root, source, nil)
+			rows, count, err := Finalize(execution, query.Root, source, nil)
 			if phase == "success" {
 				if err != nil || count != 1 || filters != 4 || values != 3 || keys != 0 || finalizes != 1 {
 					t.Fatal(rows, count, err, filters, values, keys, advances, finalizes)
@@ -274,7 +274,7 @@ func TestAggregateModifiersEvaluationPublication(t *testing.T) {
 					t.Fatal("sort comparator not entered")
 				}
 			}
-			if source.view != nil || source.anonymous != nil {
+			if source.View != nil || source.Anonymous != nil {
 				t.Fatal("source retained", source)
 			}
 		})
@@ -283,7 +283,7 @@ func TestAggregateModifiersEvaluationPublication(t *testing.T) {
 
 func TestAggregateModifiersImmutableConsumers(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT count(DISTINCT v ORDER BY v) FILTER(WHERE f) FROM t")
-	defer source.close()
+	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	original := node.Calls[0]
 	rewritten, err := plan.RewriteQueryExpressions(node, func(bound expr.Expr) (expr.Expr, bool, error) {
@@ -343,7 +343,7 @@ func TestAggregateModifiersOuterOwnershipSharing(t *testing.T) {
 	if len(node.Calls) != 2 || node.Calls[0].Filter == nil || node.Calls[1].Filter == nil {
 		t.Fatal("incomplete outer-owner modifier identity", node.Calls)
 	}
-	rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || count != 1 {
 		t.Fatal(rows, count, err)
 	}
@@ -367,13 +367,13 @@ func TestAggregateModifiersExecutionStateIsolation(t *testing.T) {
 		if execution > 0 {
 			snapshot := run(t, e, "SELECT * FROM t").Rows.(*finalRows)
 			var err error
-			source, err = captureQuerySource(context.Background(), snapshot.source.view, snapshot.source.ref)
+			source, err = captureQuerySource(context.Background(), snapshot.Source.View, snapshot.Source.Ref)
 			snapshot.Close()
 			if err != nil {
 				t.Fatal(err)
 			}
 		}
-		rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
 		if err != nil || count != 3 {
 			t.Fatal(execution, rows, count, err)
 		}

@@ -74,11 +74,11 @@ func TestExpressionIndexPlannedVolatility(t *testing.T) {
 	e := New()
 	typ, _ := e.CatalogRead().LookupType(sqltype.Float8)
 	value := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Value: sqltype.Null(typ)}
-	if plannedVolatility(value) != expr.Immutable {
+	if PlannedVolatility(value) != expr.Immutable {
 		t.Fatal("conservative literal metadata rejected")
 	}
 	wrapper := plan.CaseExpr{Info: value.Info, Otherwise: value}
-	if plannedVolatility(wrapper) != expr.Immutable || wrapper.Properties().Volatility != expr.Volatile {
+	if PlannedVolatility(wrapper) != expr.Immutable || wrapper.Properties().Volatility != expr.Volatile {
 		t.Fatal("pruned CASE metadata changed")
 	}
 }

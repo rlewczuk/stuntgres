@@ -9,7 +9,7 @@ import (
 
 func TestAnyValueSlotsAndMetadata(t *testing.T) {
 	_, q, source := queryCoreFixture(t, "SELECT any_value(v),any_value(v),count(v),any_value(f) FROM t")
-	defer source.close()
+	defer source.Close()
 	node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	if len(node.Calls) != 3 {
 		t.Fatal("aggregate identity sharing", len(node.Calls))
@@ -20,7 +20,7 @@ func TestAnyValueSlotsAndMetadata(t *testing.T) {
 		}
 	}
 	_, volatile, owner := queryCoreFixture(t, "SELECT any_value(nextval($1)),any_value(nextval($1)) FROM t")
-	defer owner.close()
+	defer owner.Close()
 	calls := volatile.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode).Calls
 	if len(calls) != 2 {
 		t.Fatal("volatile occurrences shared")

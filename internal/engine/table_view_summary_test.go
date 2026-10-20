@@ -210,7 +210,7 @@ func TestTableViewSummaryBuiltinIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, row := range captured.anonymous {
+	for _, row := range captured.Anonymous {
 		for i, value := range row {
 			if value.Type() != source.Columns[i].Usage.Type {
 				t.Fatal("summary type", i, value)
@@ -246,7 +246,7 @@ func TestTableSummaryColumnACLNeutrality(t *testing.T) {
 			t.Fatal(err)
 		}
 		count := 0
-		for _, row := range captured.anonymous {
+		for _, row := range captured.Anonymous {
 			name, err := row[1].Text()
 			if err != nil {
 				t.Fatal(err)
@@ -283,7 +283,7 @@ func TestTableSummaryOwnerReplacement(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, row := range captured.anonymous {
+		for _, row := range captured.Anonymous {
 			name, err := row[1].Text()
 			if err != nil {
 				t.Fatal(err)

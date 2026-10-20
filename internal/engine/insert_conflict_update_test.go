@@ -44,7 +44,7 @@ func conflictUpdateAnalyzedScope(t *testing.T, e *Engine, s *Session, q string) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, host: hostOf(scope)}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	if err := b.insert.conflict.selectArbiters(&evaluation, b.relation, e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE src(k INT,v INT)")
 	op, scope, b := conflictUpdateAnalyzedScope(t, e, s, "INSERT INTO t AS dst SELECT k,v FROM src ON CONFLICT(k) DO UPDATE SET v=dst.v+excluded.v WHERE excluded.k>0")
 	c := b.insert.conflict
-	if !reflect.DeepEqual(b.targets, []int{0, 1}) || !reflect.DeepEqual(c.updateTargets, []int{1}) || !reflect.DeepEqual(c.reads, []int{0}) || !reflect.DeepEqual(c.actionReads, []int{1, 0}) || len(c.sources) != 1 || !reflect.DeepEqual(c.sources[0].uses, []int{0, 1}) {
+	if !reflect.DeepEqual(b.targets, []int{0, 1}) || !reflect.DeepEqual(c.updateTargets, []int{1}) || !reflect.DeepEqual(c.reads, []int{0}) || !reflect.DeepEqual(c.actionReads, []int{1, 0}) || len(c.sources) != 1 || !reflect.DeepEqual(c.sources[0].Uses, []int{0, 1}) {
 		t.Fatal("distinct INSERT/UPDATE/action/source manifests", b.targets, c.updateTargets, c.reads, c.actionReads, c.sources)
 	}
 	integer := func(n int64) sqltype.Value {
@@ -116,7 +116,7 @@ func TestInsertConflictUpdateBinding(t *testing.T) {
 			t.Fatal("SET precedes WHERE, with shared parameter captures", tc, err)
 		}
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Parameters: []sqltype.Value{integer(1)}, Input: scope.input, Output: scope.output, host: hostOf(scope)}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Parameters: []sqltype.Value{integer(1)}, Input: scope.input, Output: scope.output, Host: hostOf(scope)}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	for _, tc := range []struct {
 		name, query string
 		error       bool

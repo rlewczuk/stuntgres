@@ -39,7 +39,7 @@ func deleteProbeScope(t *testing.T, s *Session) (*StatementScope, binding, *quer
 		_ = scope.Finish(err)
 		t.Fatal(err)
 	}
-	t.Cleanup(source.close)
+	t.Cleanup(source.Close)
 	relation := scope.lockedDescriptor.(*catalog.Relation)
 	return scope, binding{ref: ref, relation: relation, storage: scope.lockedStorage}, source
 }
@@ -192,7 +192,7 @@ func TestDeleteCoreStageAuthority(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(v INT)")
 	sessionSQL(t, s, "INSERT INTO t VALUES(1),(1)")
 	scope, b, source := deleteProbeScope(t, s)
-	version := source.committed[0]
+	version := source.Committed[0]
 	candidate := visibility.DeleteCandidate{Ref: b.ref, Storage: b.storage, Row: version.Row, Version: version.Version, Ordinal: 0}
 	copiedScope := *scope
 	if err := copiedScope.acquireRow(candidate); err == nil {
@@ -253,7 +253,7 @@ func TestDeleteCoreStageShapeAuthority(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(v INT)")
 	sessionSQL(t, s, "INSERT INTO t VALUES(1),(2)")
 	scope, b, source := deleteProbeScope(t, s)
-	version := source.committed[0]
+	version := source.Committed[0]
 	candidate := visibility.DeleteCandidate{Ref: b.ref, Storage: b.storage, Row: version.Row, Version: version.Version, Ordinal: 0}
 	if err := scope.acquireRow(candidate); err != nil {
 		t.Fatal(err)

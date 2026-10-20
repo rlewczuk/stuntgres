@@ -386,7 +386,7 @@ func TestUserOperatorRemapIdentitySharing(t *testing.T) {
 		}
 		_, auth := conversionUnitAuth(t, e)
 		auth.Recapture(view)
-		recipe := EvalContext{evalAdmission: evalAdmission{routineRecipe: true, routineReferences: manifest}}
+		recipe := EvalContext{evalAdmission: evalAdmission{RoutineRecipe: true, RoutineReferences: manifest}}
 		if err := checkRecipeRoutineDescriptor(&recipe, auth, nil, routine); err != nil {
 			t.Fatal("stored provider admission", err)
 		}

@@ -26,7 +26,7 @@ func pgDescriptionUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.Ob
 func pgDescriptionUnitBag(t *testing.T, source *querySource) map[ids.ObjectAddress]string {
 	t.Helper()
 	bag := make(map[ids.ObjectAddress]string)
-	for _, row := range source.anonymous {
+	for _, row := range source.Anonymous {
 		if len(row) != 4 {
 			t.Fatal("description width", row)
 		}
@@ -109,7 +109,7 @@ func TestPGDescriptionShape(t *testing.T) {
 		t.Fatal(err)
 	}
 	found := false
-	for _, row := range rows.anonymous {
+	for _, row := range rows.Anonymous {
 		oid, _ := row[0].OID()
 		if oid == 2609 {
 			name, _ := row[1].Text()

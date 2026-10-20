@@ -140,14 +140,14 @@ func TestPGDefaultACLCaptureOwnership(t *testing.T) {
 	key := catalog.DefaultACLKey{Creator: f.owner, Class: authorization.DefaultTables}
 	entries := slices.Clone(state.DefaultACL(key).ACL.Entries)
 	captured := defaultACLUnitCapture(t, f, c)
-	if captured.count() != 7 {
-		t.Fatal("actual policy count", captured.count())
+	if captured.Count() != 7 {
+		t.Fatal("actual policy count", captured.Count())
 	}
 	masks := map[string]uint32{"r": 1 | 2 | 4 | 8 | 16 | 32 | 64 | 16384, "S": 262, "f": 128, "T": 256, "n": 768, "L": 6}
 	// Released table ACL bits are INSERT1/SELECT2/UPDATE4/DELETE8/
 	// TRUNCATE16/REFERENCES32/TRIGGER64/MAINTAIN16384.
 	seen := make(map[ids.OID]bool)
-	for _, row := range captured.anonymous {
+	for _, row := range captured.Anonymous {
 		if len(row) != 5 {
 			t.Fatal("width")
 		}
@@ -199,7 +199,7 @@ func TestPGDefaultACLCaptureOwnership(t *testing.T) {
 		t.Fatal("read mutated authority")
 	}
 	f.grant(t, "tables", "update", []string{"default_schema"})
-	if captured.count() != 7 {
+	if captured.Count() != 7 {
 		t.Fatal("saved capture changed")
 	}
 	// A real empty routine policy remains nonnull and has no array dimensions.
@@ -208,7 +208,7 @@ func TestPGDefaultACLCaptureOwnership(t *testing.T) {
 	if err := f.apply(empty); err != nil {
 		t.Fatal(err)
 	}
-	for _, row := range defaultACLUnitCapture(t, f, f.e.CatalogRead()).anonymous {
+	for _, row := range defaultACLUnitCapture(t, f, f.e.CatalogRead()).Anonymous {
 		code, _ := row[3].Text()
 		if code == "f" {
 			pgParameterACLUnitEntries(t, f.e, row[4], map[uint32][3]uint32{})
@@ -217,10 +217,10 @@ func TestPGDefaultACLCaptureOwnership(t *testing.T) {
 	if err := f.e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if defaultACLUnitCapture(t, f, f.e.CatalogRead()).count() != 0 || captured.count() != 7 {
+	if defaultACLUnitCapture(t, f, f.e.CatalogRead()).Count() != 0 || captured.Count() != 7 {
 		t.Fatal("Reset changed detached capture")
 	}
-	for _, row := range captured.anonymous {
+	for _, row := range captured.Anonymous {
 		schema, _ := row[2].OID()
 		if schema != 0 {
 			pgParameterACLUnitEntries(t, f.e, row[4], map[uint32][3]uint32{uint32(f.reader.ID()): {uint32(f.owner.ID()), 2, 2}})
@@ -341,7 +341,7 @@ func TestPGDefaultACLAuthorityAndCancellation(t *testing.T) {
 			t.Fatal("canceled partial result or mutated authority", at, rows, err)
 		}
 	}
-	if defaultACLUnitCapture(t, f, c).count() != 2 {
+	if defaultACLUnitCapture(t, f, c).Count() != 2 {
 		t.Fatal("capture did not recover")
 	}
 }

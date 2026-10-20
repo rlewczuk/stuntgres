@@ -112,8 +112,8 @@ func TestQuerySubqueryDemand(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			parent := queryState{source: source}
-			c := parent.evaluation(context.Background())
+			parent := queryState{Source: source}
+			c := parent.Evaluation(context.Background())
 			c.Frame = 99
 			exists := subqueryTestExpression(t, e, plan, parser.SubqueryExists)
 			result, err := exists.Eval(&c)
@@ -157,8 +157,8 @@ func TestQuerySubqueryDemand(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		parent := queryState{source: source}
-		c := parent.evaluation(context.Background())
+		parent := queryState{Source: source}
+		c := parent.Evaluation(context.Background())
 		exists := subqueryTestExpression(t, e, presence, parser.SubqueryExists)
 		if _, err = exists.Eval(&c); err != sentinel || calls == 0 {
 			t.Fatal(err, calls)
@@ -176,8 +176,8 @@ func TestQuerySubqueryCancellation(t *testing.T) {
 		cancel()
 		return sqltype.Value{}, context.Canceled
 	}))
-	parent := queryState{source: source}
-	c := parent.evaluation(ctx)
+	parent := queryState{Source: source}
+	c := parent.Evaluation(ctx)
 	scalar := subqueryTestExpression(t, e, q, parser.SubqueryScalar)
 	if _, err := scalar.Eval(&c); err != context.Canceled || sentinelCalls != 1 {
 		t.Fatal(err, sentinelCalls)
@@ -193,15 +193,15 @@ func TestQuerySubqueryCleanup(t *testing.T) {
 			primary := errors.New("primary")
 			secondary := errors.New("close")
 			closes := 0
-			stage := indexedStage{source: &querySource{singleton: true}, finish: func() error { closes++; return secondary }}
+			stage := indexedStage{Source: &querySource{Singleton: true}, Finish: func() error { closes++; return secondary }}
 			switch phase {
 			case "producer":
-				stage.selection = []int{}
-				stage.produce = func(context.Context, *indexedStage) (bool, error) { return false, primary }
+				stage.Selection = []int{}
+				stage.Produce = func(context.Context, *indexedStage) (bool, error) { return false, primary }
 			case "projection":
-				stage.schema = []catalog.Column{{}}
-				stage.expressions = []expr.Expr{queryProbe(sqltype.Usage{}, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, primary })}
-				stage.evaluation = EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+				stage.Columns = []catalog.Column{{}}
+				stage.Expressions = []expr.Expr{queryProbe(sqltype.Usage{}, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, primary })}
+				stage.Evaluation = EvalContext{evalStatement: evalStatement{Context: context.Background()}}
 			case "close":
 				if err := stage.Close(); err != secondary {
 					t.Fatal(err)
@@ -210,14 +210,14 @@ func TestQuerySubqueryCleanup(t *testing.T) {
 			if phase != "close" {
 				var err error
 				if phase == "producer" {
-					_, _, err = stage.nextOccurrence(context.Background())
+					_, _, err = stage.NextOccurrence(context.Background())
 				} else {
 					_, err = stage.Next(context.Background(), make([]sqltype.Value, 1))
 				}
 				if err != primary {
 					t.Fatal("cleanup replaced primary failure", err)
 				}
-				if _, _, err = stage.nextOccurrence(context.Background()); err != primary {
+				if _, _, err = stage.NextOccurrence(context.Background()); err != primary {
 					t.Fatal("terminal error not retained", err)
 				}
 			}
@@ -227,7 +227,7 @@ func TestQuerySubqueryCleanup(t *testing.T) {
 			if err := stage.Close(); err != nil || closes != 1 {
 				t.Fatal("non-idempotent close", err, closes)
 			}
-			if _, present, err := stage.nextOccurrence(context.Background()); present || err != nil {
+			if _, present, err := stage.NextOccurrence(context.Background()); present || err != nil {
 				t.Fatal("closed stage reopened", present, err)
 			}
 		})
@@ -236,7 +236,7 @@ func TestQuerySubqueryCleanup(t *testing.T) {
 
 func TestQuerySubqueryFrames(t *testing.T) {
 	_, q, source := queryJoinsFixture(t, "SELECT (SELECT (SELECT a.k)) FROM a")
-	rows, count, err := finalizeQuery(context.Background(), q.Root, source, nil)
+	rows, count, err := Finalize(context.Background(), q.Root, source, nil)
 	if err != nil || count != 4 {
 		t.Fatal("grandparent query cardinality", count, err)
 	}
@@ -307,11 +307,11 @@ func TestQuerySubqueryManifest(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i, name := range []string{"a", "b", "c"} {
-		if bound.querySources[i].relation.Name() != name {
-			t.Fatal(i, bound.querySources[i].relation.Name())
+		if bound.querySources[i].Relation.Name() != name {
+			t.Fatal(i, bound.querySources[i].Relation.Name())
 		}
 	}
-	if bound.querySources[0].mark.Mode != 0 || bound.querySources[1].mark.Mode != 0 || bound.querySources[2].mark.Mode == 0 {
+	if bound.querySources[0].Mark.Mode != 0 || bound.querySources[1].Mark.Mode != 0 || bound.querySources[2].Mark.Mode == 0 {
 		t.Fatal("row marks leaked across query boundaries")
 	}
 	changed := append([]queryLeaf(nil), bound.querySources...)
@@ -320,7 +320,7 @@ func TestQuerySubqueryManifest(t *testing.T) {
 		t.Fatal("reordered admission accepted", err)
 	}
 	changed = append([]queryLeaf(nil), bound.querySources...)
-	changed[2].mark = plan.RowMark{}
+	changed[2].Mark = plan.RowMark{}
 	if err = scope.validateQuerySources(changed); err != ids.ErrCatalogReplaced {
 		t.Fatal("weakened row mark admitted", err)
 	}
@@ -341,7 +341,7 @@ func TestQuerySubqueryAggregateOwnership(t *testing.T) {
 	} {
 		t.Run(tc.sql, func(t *testing.T) {
 			_, q, source := queryJoinsFixture(t, tc.sql)
-			rows, count, err := finalizeQuery(context.Background(), q.Root, source, nil)
+			rows, count, err := Finalize(context.Background(), q.Root, source, nil)
 			if err != nil || count != tc.rows {
 				t.Fatal("aggregate ownership cardinality", count, err)
 			}
@@ -439,8 +439,8 @@ func TestQuerySubqueryOperandDemand(t *testing.T) {
 	leftCalls, targetCalls := 0, 0
 	project.Expressions[0] = queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { targetCalls++; return sqltype.Integer(integer, 1) })
 	bound.Comparisons = []plan.ComparisonExpr{{Left: queryProbe(integer.Usage(), func(*EvalContext) (sqltype.Value, error) { leftCalls++; return sqltype.Integer(integer, 1) }), Right: plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage()}, Scope: 1, Frame: project.Frame, Slot: 0}, Predicate: predicate}}
-	parent := queryState{source: source}
-	c := parent.evaluation(context.Background())
+	parent := queryState{Source: source}
+	c := parent.Evaluation(context.Background())
 	for demand := 1; demand <= 2; demand++ {
 		answer, err := bound.Eval(&c)
 		truth, _ := answer.Boolean()

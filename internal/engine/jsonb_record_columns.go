@@ -34,7 +34,7 @@ func (b *expressionBinder) jsonbRecordQualifierStar(columns []queryColumn, frame
 	}
 	offset := 0
 	for _, expression := range source.Calls {
-		width := functionFromCallWidth(expression)
+		width := FunctionFromCallWidth(expression)
 		if call, selected := expression.(functions.JSONBRecord); selected && call.ResultUsage().Type.BaseType().IsComposite() {
 			if offset+width > len(qualifier.columns) {
 				return nil, fmt.Errorf("stuntgres: invalid JSONB record source span")

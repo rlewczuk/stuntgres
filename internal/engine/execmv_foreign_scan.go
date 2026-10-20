@@ -20,28 +20,28 @@ type ForeignValueImporter func(context.Context, driver.Value, sqltype.Usage, sql
 type ForeignValueExporter func(context.Context, sqltype.Value, sqltype.OutputEnvironment) (driver.Value, error)
 
 type foreignQuerySource struct {
-	wrapper        catalog.ForeignDataWrapper
-	request        catalog.ForeignRequest
-	columns        []catalog.Column
-	importValue    ForeignValueImporter
-	exportValue    ForeignValueExporter
-	executions     []*foreignExecution
+	Wrapper        catalog.ForeignDataWrapper
+	Request        catalog.ForeignRequest
+	Columns        []catalog.Column
+	ImportValue    ForeignValueImporter
+	ExportValue    ForeignValueExporter
+	Executions     []*foreignExecution
 	lifetimeOwner  *foreignScanOwner
-	lifetimeClosed bool
+	LifetimeClosed bool
 	closeError     error
 }
 
 type foreignExecution struct {
 	owner         any
 	active, ended bool
-	scan          catalog.ForeignScan
-	plan          catalog.ForeignPlan
-	slots         []int
+	Scan          catalog.ForeignScan
+	Plan          catalog.ForeignPlan
+	Slots         []int
 	planned       bool
 	closeError    error
 }
 
-func copyForeignRequest(request catalog.ForeignRequest) catalog.ForeignRequest {
+func CopyForeignRequest(request catalog.ForeignRequest) catalog.ForeignRequest {
 	request.Columns = slices.Clone(request.Columns)
 	for i := range request.Columns {
 		request.Columns[i].Options = slices.Clone(request.Columns[i].Options)
@@ -51,8 +51,8 @@ func copyForeignRequest(request catalog.ForeignRequest) catalog.ForeignRequest {
 	request.ServerOptions = slices.Clone(request.ServerOptions)
 	request.TableOptions = slices.Clone(request.TableOptions)
 	request.MappingOptions = slices.Clone(request.MappingOptions)
-	request.Parameters.Values = copyForeignCells(request.Parameters.Values)
-	request.Parameters.Correlation = copyForeignCells(request.Parameters.Correlation)
+	request.Parameters.Values = CopyForeignCells(request.Parameters.Values)
+	request.Parameters.Correlation = CopyForeignCells(request.Parameters.Correlation)
 	if request.Identity != nil {
 		targets := *request.Identity
 		targets.Names = slices.Clone(targets.Names)
@@ -61,7 +61,7 @@ func copyForeignRequest(request catalog.ForeignRequest) catalog.ForeignRequest {
 	return request
 }
 
-func copyForeignCells(cells []driver.Value) []driver.Value {
+func CopyForeignCells(cells []driver.Value) []driver.Value {
 	out := slices.Clone(cells)
 	for i, value := range out {
 		if bytes, ok := value.([]byte); ok {
@@ -99,17 +99,17 @@ func foreignLayout(request catalog.ForeignRequest, attributes []int32) error {
 	return nil
 }
 
-func (f *foreignQuerySource) plan(ctx context.Context, request catalog.ForeignRequest, execution *foreignExecution) error {
-	size, err := f.wrapper.GetForeignRelSize(ctx, copyForeignRequest(request))
+func (f *foreignQuerySource) Plan(ctx context.Context, request catalog.ForeignRequest, execution *foreignExecution) error {
+	size, err := f.Wrapper.GetForeignRelSize(ctx, CopyForeignRequest(request))
 	if err != nil {
-		return foreignCallbackError(err)
+		return ForeignCallbackError(err)
 	}
 	if !finiteForeignNumber(size.Rows) || !finiteForeignNumber(size.Width) {
 		return fmt.Errorf("stuntgres: invalid foreign relation size")
 	}
-	paths, err := f.wrapper.GetForeignPaths(ctx, copyForeignRequest(request), size)
+	paths, err := f.Wrapper.GetForeignPaths(ctx, CopyForeignRequest(request), size)
 	if err != nil {
-		return foreignCallbackError(err)
+		return ForeignCallbackError(err)
 	}
 	if len(paths) == 0 {
 		return fmt.Errorf("stuntgres: foreign-data wrapper returned no scan paths")
@@ -126,21 +126,21 @@ func (f *foreignQuerySource) plan(ctx context.Context, request catalog.ForeignRe
 			selected = i
 		}
 	}
-	plan, err := f.wrapper.GetForeignPlan(ctx, copyForeignRequest(request), paths[selected])
+	plan, err := f.Wrapper.GetForeignPlan(ctx, CopyForeignRequest(request), paths[selected])
 	if err != nil {
-		return foreignCallbackError(err)
+		return ForeignCallbackError(err)
 	}
 	if err = foreignLayout(request, plan.Attributes); err != nil {
 		return err
 	}
 	plan.Attributes = slices.Clone(plan.Attributes)
-	execution.plan = plan
+	execution.Plan = plan
 	execution.planned = true
-	execution.slots = make([]int, len(plan.Attributes))
+	execution.Slots = make([]int, len(plan.Attributes))
 	for i, attribute := range plan.Attributes {
 		for slot, column := range request.Columns {
 			if column.Attribute == attribute {
-				execution.slots[i] = slot
+				execution.Slots[i] = slot
 				break
 			}
 		}
@@ -148,12 +148,12 @@ func (f *foreignQuerySource) plan(ctx context.Context, request catalog.ForeignRe
 	return nil
 }
 
-func foreignParameters(ctx context.Context, state *queryState, f *foreignQuerySource) (catalog.ForeignScanParameters, error) {
+func ForeignParameters(ctx context.Context, state *queryState, f *foreignQuerySource) (catalog.ForeignScanParameters, error) {
 	var parameters catalog.ForeignScanParameters
 	export := func(values []sqltype.Value) ([]driver.Value, error) {
 		out := make([]driver.Value, len(values))
 		for i, value := range values {
-			cell, err := f.exportValue(ctx, value, state.output)
+			cell, err := f.ExportValue(ctx, value, state.Output)
 			if err != nil {
 				return nil, err
 			}
@@ -165,13 +165,13 @@ func foreignParameters(ctx context.Context, state *queryState, f *foreignQuerySo
 		return out, nil
 	}
 	var err error
-	parameters.Values, err = export(state.parameters)
+	parameters.Values, err = export(state.Parameters)
 	if err != nil {
 		return parameters, err
 	}
-	correlation := state.invocation
+	correlation := state.Invocation
 	if correlation == nil {
-		correlation = state.outer
+		correlation = state.Outer
 	}
 	if correlation != nil {
 		parameters.Correlation, err = export(correlation.Row)
@@ -185,23 +185,23 @@ func (execution *foreignExecution) end(ctx context.Context) error {
 	}
 	execution.ended = true
 	execution.active = false
-	if execution.scan != nil {
-		execution.closeError = foreignCallbackError(execution.scan.EndForeignScan(context.WithoutCancel(ctx)))
-		execution.scan = nil
+	if execution.Scan != nil {
+		execution.closeError = ForeignCallbackError(execution.Scan.EndForeignScan(context.WithoutCancel(ctx)))
+		execution.Scan = nil
 	}
-	execution.plan = catalog.ForeignPlan{}
-	execution.slots = nil
+	execution.Plan = catalog.ForeignPlan{}
+	execution.Slots = nil
 	execution.owner = nil
 	return execution.closeError
 }
 
-func openForeignStage(ctx context.Context, state *queryState, source *querySource, node *plan.SourceNode) (indexedStage, error) {
-	f := source.foreign
-	if f.lifetimeClosed {
+func OpenForeignStage(ctx context.Context, state *queryState, source *querySource, node *plan.SourceNode) (indexedStage, error) {
+	f := source.Foreign
+	if f.LifetimeClosed {
 		return indexedStage{}, fmt.Errorf("stuntgres: foreign scan owner has ended")
 	}
 	var execution *foreignExecution
-	for _, candidate := range f.executions {
+	for _, candidate := range f.Executions {
 		if candidate.owner == state.foreignOwner && !candidate.active && !candidate.ended {
 			execution = candidate
 			break
@@ -209,51 +209,51 @@ func openForeignStage(ctx context.Context, state *queryState, source *querySourc
 	}
 	if execution == nil {
 		execution = &foreignExecution{owner: state.foreignOwner}
-		f.executions = append(f.executions, execution)
+		f.Executions = append(f.Executions, execution)
 	}
 	execution.active = true
-	out := indexedStage{source: source, schema: node.Schema(), selection: []int{}}
+	out := indexedStage{Source: source, Columns: node.Schema(), Selection: []int{}}
 	started := false
 	start := func(ctx context.Context) error {
-		if host := source.liveHost(); host != nil {
+		if host := source.LiveHost(); host != nil {
 			host.ReleaseReplacementRead()
 		}
-		parameters, err := foreignParameters(ctx, state, f)
+		parameters, err := ForeignParameters(ctx, state, f)
 		if err != nil {
 			return err
 		}
-		request := copyForeignRequest(f.request)
+		request := CopyForeignRequest(f.Request)
 		request.Parameters = parameters
 		if !execution.planned {
-			if err = f.plan(ctx, request, execution); err != nil {
+			if err = f.Plan(ctx, request, execution); err != nil {
 				return err
 			}
 		}
-		if host := source.liveHost(); host != nil {
-			request.Transaction, err = host.EnlistForeign(ctx, f.wrapper, request, false)
+		if host := source.LiveHost(); host != nil {
+			request.Transaction, err = host.EnlistForeign(ctx, f.Wrapper, request, false)
 			if err != nil {
 				return err
 			}
 		}
-		if execution.scan == nil {
-			scan, err := f.wrapper.BeginForeignScan(ctx, request, execution.plan)
-			execution.scan = scan
+		if execution.Scan == nil {
+			scan, err := f.Wrapper.BeginForeignScan(ctx, request, execution.Plan)
+			execution.Scan = scan
 			if err != nil {
-				return foreignCallbackError(err)
+				return ForeignCallbackError(err)
 			}
 			if scan == nil {
 				return fmt.Errorf("stuntgres: foreign-data wrapper returned a nil scan")
 			}
 		} else {
-			if err = execution.scan.ReScanForeignScan(ctx, parameters); err != nil {
-				return foreignCallbackError(err)
+			if err = execution.Scan.ReScanForeignScan(ctx, parameters); err != nil {
+				return ForeignCallbackError(err)
 			}
 		}
 		started = true
 		return nil
 	}
-	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
-		if host := source.liveHost(); host != nil {
+	out.Produce = func(ctx context.Context, out *indexedStage) (bool, error) {
+		if host := source.LiveHost(); host != nil {
 			host.ReleaseReplacementRead()
 		}
 		if !started {
@@ -261,52 +261,52 @@ func openForeignStage(ctx context.Context, state *queryState, source *querySourc
 				return false, err
 			}
 		}
-		if host := source.liveHost(); host != nil {
+		if host := source.LiveHost(); host != nil {
 			if err := host.TouchForeignScan(ctx, f); err != nil {
 				return false, err
 			}
 		}
-		row, present, err := execution.scan.IterateForeignScan(ctx)
+		row, present, err := execution.Scan.IterateForeignScan(ctx)
 		if err != nil || !present {
-			return false, foreignCallbackError(err)
+			return false, ForeignCallbackError(err)
 		}
-		if len(row) != len(execution.plan.Attributes) {
+		if len(row) != len(execution.Plan.Attributes) {
 			return false, fmt.Errorf("stuntgres: foreign scan row width does not match its plan")
 		}
-		input, output := state.input, state.output
-		if host := source.liveHost(); host != nil {
+		input, output := state.Input, state.Output
+		if host := source.LiveHost(); host != nil {
 			input, output = host.Environments()
 		}
-		values, err := f.importValues(ctx, row, execution.slots, input, output, node)
+		values, err := f.ImportValues(ctx, row, execution.Slots, input, output, node)
 		if err != nil {
 			return false, err
 		}
-		index := len(source.anonymous)
-		source.anonymous = append(source.anonymous, values)
-		out.selection = append(out.selection, index)
+		index := len(source.Anonymous)
+		source.Anonymous = append(source.Anonymous, values)
+		out.Selection = append(out.Selection, index)
 		return true, nil
 	}
-	out.finish = func() error { execution.active = false; return nil }
-	out.reset = func(ctx context.Context, out *indexedStage) (bool, error) {
-		if host := source.liveHost(); host != nil {
+	out.Finish = func() error { execution.active = false; return nil }
+	out.Reset = func(ctx context.Context, out *indexedStage) (bool, error) {
+		if host := source.LiveHost(); host != nil {
 			host.ReleaseReplacementRead()
 		}
 		if started {
-			if host := source.liveHost(); host != nil {
+			if host := source.LiveHost(); host != nil {
 				if err := host.TouchForeignScan(ctx, f); err != nil {
 					return false, err
 				}
 			}
-			parameters, err := foreignParameters(ctx, state, f)
+			parameters, err := ForeignParameters(ctx, state, f)
 			if err != nil {
 				return false, err
 			}
-			if err = execution.scan.ReScanForeignScan(ctx, parameters); err != nil {
-				return false, foreignCallbackError(err)
+			if err = execution.Scan.ReScanForeignScan(ctx, parameters); err != nil {
+				return false, ForeignCallbackError(err)
 			}
 		}
-		out.selection = out.selection[:0]
-		out.done = false
+		out.Selection = out.Selection[:0]
+		out.Done = false
 		return true, nil
 	}
 	return out, nil
@@ -314,28 +314,28 @@ func openForeignStage(ctx context.Context, state *queryState, source *querySourc
 
 // The eager execution owner calls this before successful publication. Failure
 // paths call it before releasing sources but preserve the primary failure.
-func finishForeignSources(ctx context.Context, source *querySource) error {
+func FinishForeignSources(ctx context.Context, source *querySource) error {
 	if source == nil {
 		return nil
 	}
 	var failure error
-	if source.foreign != nil {
-		if host := source.liveHost(); host != nil {
+	if source.Foreign != nil {
+		if host := source.LiveHost(); host != nil {
 			host.ReleaseReplacementRead()
 		}
-		if err := source.foreign.lifetimeOwner.finishSource(ctx, source.foreign); failure == nil {
+		if err := source.Foreign.lifetimeOwner.finishSource(ctx, source.Foreign); failure == nil {
 			failure = err
 		}
 	}
-	for _, child := range source.sources {
+	for _, child := range source.Sources {
 		if child != source {
-			if err := finishForeignSources(ctx, child); failure == nil {
+			if err := FinishForeignSources(ctx, child); failure == nil {
 				failure = err
 			}
 		}
 	}
-	for _, child := range []*querySource{source.nestedInputs, source.input} {
-		if err := finishForeignSources(ctx, child); failure == nil {
+	for _, child := range []*querySource{source.NestedInputs, source.Input} {
+		if err := FinishForeignSources(ctx, child); failure == nil {
 			failure = err
 		}
 	}
@@ -347,13 +347,13 @@ func (f *foreignQuerySource) columnDiagnostic(err error, node *plan.SourceNode, 
 	if !errors.As(err, &record) {
 		return err
 	}
-	column := f.columns[slot].Name
+	column := f.Columns[slot].Name
 	if slot < len(node.ColumnAliases) {
 		column = node.ColumnAliases[slot]
 	}
 	relation := node.RangeName
 	if relation == "" {
-		relation = f.request.Table
+		relation = f.Request.Table
 	}
 	result := *record
 	line := fmt.Sprintf("column \"%s\" of foreign table \"%s\"", column, relation)
@@ -372,17 +372,17 @@ type foreignScanOwner struct {
 	closeError error
 }
 
-func (owner *foreignScanOwner) add(source *foreignQuerySource) {
+func (owner *foreignScanOwner) Add(source *foreignQuerySource) {
 	source.lifetimeOwner = owner
 	owner.sources = append(owner.sources, source)
 }
 
 func (owner *foreignScanOwner) finishSource(ctx context.Context, source *foreignQuerySource) error {
-	if source.lifetimeClosed {
+	if source.LifetimeClosed {
 		return source.closeError
 	}
-	source.lifetimeClosed = true
-	for _, execution := range source.executions {
+	source.LifetimeClosed = true
+	for _, execution := range source.Executions {
 		if err := execution.end(ctx); source.closeError == nil {
 			source.closeError = err
 		}
@@ -393,7 +393,7 @@ func (owner *foreignScanOwner) finishSource(ctx context.Context, source *foreign
 	return source.closeError
 }
 
-func (owner *foreignScanOwner) finish(ctx context.Context) error {
+func (owner *foreignScanOwner) Finish(ctx context.Context) error {
 	if owner == nil {
 		return nil
 	}

@@ -20,7 +20,7 @@ func capturePartitionQueryPrefix(catalogView catalog.Read, view *visibility.View
 	if pin == nil {
 		return nil, errors.New("stuntgres: visibility view is released")
 	}
-	source := &querySource{ref: ref, view: pin, inheritance: make([]inheritanceQuerySegment, 0)}
+	source := &querySource{Ref: ref, View: pin, Inheritance: make([]inheritanceQuerySegment, 0)}
 	err := partitionPhysicalDescendants(catalogView, parent, func(leaf *catalog.Relation) error {
 		childRef := ref.Domain().Ref(ref.Epoch, leaf.Address())
 		layout, err := inheritanceQueryLayout(parent, leaf)
@@ -31,22 +31,22 @@ func capturePartitionQueryPrefix(catalogView catalog.Read, view *visibility.View
 		if err != nil {
 			return err
 		}
-		segment := inheritanceQuerySegment{leaf: queryLeaf{ref: childRef, relation: leaf}, prefix: child, layout: layout}
+		segment := inheritanceQuerySegment{Leaf: queryLeaf{Ref: childRef, Relation: leaf}, Prefix: child, Layout: layout}
 		if layout != nil {
-			segment.scratch = make([]sqltype.Value, len(layout))
+			segment.Scratch = make([]sqltype.Value, len(layout))
 		}
-		source.inheritance = append(source.inheritance, segment)
+		source.Inheritance = append(source.Inheritance, segment)
 		return nil
 	})
 	if err != nil {
-		source.close()
+		source.Close()
 		return nil, err
 	}
-	source.inheritanceEnds = make([]int, len(source.inheritance))
+	source.InheritanceEnds = make([]int, len(source.Inheritance))
 	total := 0
-	for i, segment := range source.inheritance {
-		total += segment.prefix.count()
-		source.inheritanceEnds[i] = total
+	for i, segment := range source.Inheritance {
+		total += segment.Prefix.Count()
+		source.InheritanceEnds[i] = total
 	}
 	return source, nil
 }

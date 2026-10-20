@@ -16,7 +16,7 @@ func overlapsInlineSafe(e functions.DatetimeOverlaps) bool {
 			continue
 		}
 		start := e.Args[pair*2]
-		if plannedVolatility(start) == expr.Volatile {
+		if PlannedVolatility(start) == expr.Volatile {
 			return false
 		}
 		safe, cost := true, 0

@@ -127,7 +127,7 @@ func TestProtocolValueCodecs(t *testing.T) {
 			_ = scope.Finish(err)
 			t.Fatal(err)
 		}
-		rows := newFinalRows(nil, 1)
+		rows := NewFinalRows(nil, 1)
 		for _, quoted := range []bool{false, true, false} {
 			scope.output.QuoteAllIdentifiers = quoted
 			err = scope.captureProtocolOutput(rows, []sqltype.Value{value}, e.CatalogRead())

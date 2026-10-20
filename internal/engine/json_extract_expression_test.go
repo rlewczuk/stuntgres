@@ -32,7 +32,7 @@ func TestJSONExtractInferenceAndLifecycle(t *testing.T) {
 				t.Fatal(tc.q, i, b.params.parameters)
 			}
 		}
-		if node.Properties().Volatility != expr.Immutable || !node.Properties().ParameterDependent || plannedVolatility(node) != expr.Immutable {
+		if node.Properties().Volatility != expr.Immutable || !node.Properties().ParameterDependent || PlannedVolatility(node) != expr.Immutable {
 			t.Fatal(node.Properties())
 		}
 		count := 0

@@ -18,7 +18,7 @@ func TestPGCursorsSource(t *testing.T) {
 	d := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.CursorsOID})
 	ref := e.catalog.Domain.Ref(e.catalog.state.Epoch(), d.Address())
 	empty, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{cursors: s.cursors}}, capturePGCursors)
-	if err != nil || len(empty.anonymous) != 0 || empty.ref != ref {
+	if err != nil || len(empty.Anonymous) != 0 || empty.Ref != ref {
 		t.Fatal(empty, err)
 	}
 	sessionSQL(t, s, "DECLARE own SCROLL CURSOR WITH HOLD FOR SELECT i FROM unit_rows ORDER BY i")
@@ -30,10 +30,10 @@ func TestPGCursorsSource(t *testing.T) {
 		return sqltype.Value{}, errors.New("metadata opened cursor producer")
 	})
 	source, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{cursors: s.cursors}}, capturePGCursors)
-	if err != nil || len(source.anonymous) != 1 || calls != 0 || cursor.position != cursorBefore || cursor.stage != nil {
+	if err != nil || len(source.Anonymous) != 1 || calls != 0 || cursor.position != cursorBefore || cursor.stage != nil {
 		t.Fatal("metadata demanded producer", source, err, calls)
 	}
-	row := source.anonymous[0]
+	row := source.Anonymous[0]
 	for i, value := range row {
 		if value.Type() != d.Columns[i].Usage.Type || value.IsNull() {
 			t.Fatal("foreign/null metadata fact", i, value)
@@ -58,7 +58,7 @@ func TestPGCursorsSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	projected := reowned.anonymous[0][5]
+	projected := reowned.Anonymous[0][5]
 	projectedInstant, err := projected.TimestampTime()
 	if err != nil || !projectedInstant.Equal(instant) || projected.Type() != currentDescriptor.Columns[5].Usage.Type || projected.Type() == stored.Type() || cursor.created != stored || cursor.epoch != epoch || row[5] != stored || calls != 0 {
 		t.Fatal("timestamp projection changes datum, registry, prior result or producer", projected, err)
@@ -73,10 +73,10 @@ func TestPGCursorsSource(t *testing.T) {
 	peer := sessionStart(t, e, nil)
 	sessionSQL(t, peer, "DECLARE peer NO SCROLL CURSOR WITH HOLD FOR SELECT 99")
 	peerSource, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{cursors: peer.cursors}}, capturePGCursors)
-	if err != nil || len(peerSource.anonymous) != 1 {
+	if err != nil || len(peerSource.Anonymous) != 1 {
 		t.Fatal(peerSource, err)
 	}
-	peerName, _ := peerSource.anonymous[0][0].Text()
+	peerName, _ := peerSource.Anonymous[0][0].Text()
 	if peerName != "peer" {
 		t.Fatal("peer reads another registry", peerName)
 	}
@@ -94,7 +94,7 @@ func TestPGCursorsSource(t *testing.T) {
 	}
 	sessionSQL(t, s, "ROLLBACK TO recover")
 	failed, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{cursors: s.cursors}}, capturePGCursors)
-	if err != nil || !reflect.DeepEqual(failed.anonymous, source.anonymous) || cursor.position != cursorFailed || calls != 1 {
+	if err != nil || !reflect.DeepEqual(failed.Anonymous, source.Anonymous) || cursor.position != cursorFailed || calls != 1 {
 		t.Fatal("failed cursor metadata changed/demanded", failed, err, calls)
 	}
 
@@ -110,15 +110,15 @@ func TestPGCursorsSource(t *testing.T) {
 			t.Fatal("partial metadata publication", at, got, err)
 		}
 	}
-	snapshot := append([]sqltype.Value(nil), source.anonymous[0]...)
+	snapshot := append([]sqltype.Value(nil), source.Anonymous[0]...)
 	if err := disposeSQLCursors(context.Background(), s.cursors.clear()); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(source.anonymous[0], snapshot) || len(s.cursors.entries) != 0 {
+	if !reflect.DeepEqual(source.Anonymous[0], snapshot) || len(s.cursors.entries) != 0 {
 		t.Fatal("registry clear mutates captured facts")
 	}
 	cleared, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Ref: ref, Source: d, Runtime: engineCatalogRuntime{cursors: s.cursors}}, capturePGCursors)
-	if err != nil || len(cleared.anonymous) != 0 {
+	if err != nil || len(cleared.Anonymous) != 0 {
 		t.Fatal(cleared, err)
 	}
 }

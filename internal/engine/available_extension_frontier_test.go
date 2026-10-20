@@ -42,8 +42,8 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				t.Cleanup(source.close)
-				for _, row := range source.anonymous {
+				t.Cleanup(source.Close)
+				for _, row := range source.Anonymous {
 					for i, value := range row {
 						if value.Type() != d.Columns[i].Usage.Type {
 							t.Fatal("source lost generation-owned type", oid, i)
@@ -55,8 +55,8 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 			old := capture()
 			before := old.inquiry.commentCatalog.State()
 			sources := map[ids.OID]*querySource{first: open(old, first)}
-			retained := make([][]sqltype.Value, len(sources[first].anonymous))
-			for i, row := range sources[first].anonymous {
+			retained := make([][]sqltype.Value, len(sources[first].Anonymous))
+			for i, row := range sources[first].Anonymous {
 				retained[i] = append([]sqltype.Value(nil), row...)
 			}
 			// The opener returned with e.mu released, as in recursive input opening.
@@ -71,7 +71,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					sources[oid] = open(old, oid)
 				}
 			}
-			if !reflect.DeepEqual(retained, sources[first].anonymous) {
+			if !reflect.DeepEqual(retained, sources[first].Anonymous) {
 				t.Fatal("publication mutated already-opened rows")
 			}
 			assertAvailable := func(source *querySource, oid ids.OID, installed bool) {
@@ -104,7 +104,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					expected = versions
 					expected["fuzzystrmatch\x001.1"] = []any{"fuzzystrmatch", "1.1", false, true, true, true, nil, nil, "determine similarities and distance between strings"}
 				}
-				for _, row := range source.anonymous {
+				for _, row := range source.Anonymous {
 					name, err := row[0].Text()
 					if err != nil {
 						t.Fatal("inventory name", oid, err)
@@ -145,7 +145,7 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 			}
 			assertAvailable(sources[12081], 12081, false)
 			assertAvailable(sources[12085], 12085, false)
-			if sources[ids.ExtensionClassID].count() != 0 {
+			if sources[ids.ExtensionClassID].Count() != 0 {
 				t.Error("old statement pg_extension must have no installed row")
 			}
 			for _, oid := range []ids.OID{12081, 12085, ids.ExtensionClassID} {
@@ -154,11 +154,11 @@ func TestAvailableExtensionsStatementFrontier(t *testing.T) {
 					assertAvailable(source, oid, true)
 					continue
 				}
-				if source.count() != 1 {
-					t.Fatal("fresh statement must see exactly the genuine installation", source.count())
+				if source.Count() != 1 {
+					t.Fatal("fresh statement must see exactly the genuine installation", source.Count())
 				}
-				name, nameErr := source.anonymous[0][1].Text()
-				version, versionErr := source.anonymous[0][5].Text()
+				name, nameErr := source.Anonymous[0][1].Text()
+				version, versionErr := source.Anonymous[0][5].Text()
 				if nameErr != nil || versionErr != nil || name != "unaccent" || version != "1.1" {
 					t.Fatal("fresh installed identity", name, version, nameErr, versionErr)
 				}

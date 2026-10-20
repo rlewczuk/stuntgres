@@ -50,23 +50,23 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		if err != nil {
 			return nil, err
 		}
-		bridge := &querySource{ref: ref, authority: scope.authority, locks: locks, nestedRoot: root, nestedInputs: source, materialized: true, flatWidth: len(root.Schema()), inherited: mark}
+		bridge := &querySource{Ref: ref, Authority: scope.authority, Locks: locks, NestedRoot: root, NestedInputs: source, Materialized: true, FlatWidth: len(root.Schema()), Inherited: mark}
 		borrowQueryAuthority(bridge, scope)
 		if locks != nil {
-			occurrences := queryTreeOccurrences(root, source, nil)
-			bridge.lineage = &queryLockLineage{root: root, inputs: source, stage: &querySource{materialized: true, occurrences: occurrences}}
+			occurrences := QueryTreeOccurrences(root, source, nil)
+			bridge.Lineage = &queryLockLineage{Root: root, Inputs: source, Stage: &querySource{Materialized: true, Occurrences: occurrences}}
 		}
 		return bridge, nil
 	case catalog.PartitionedRelation:
 		var leaves [1]queryLeaf
-		leaves[0] = queryLeaf{ref: ref, relation: d}
+		leaves[0] = queryLeaf{Ref: ref, Relation: d}
 		source, err := e.captureQuerySourcesForInvokerLocked(scope, leaves[:], false, invoker, mark, locks)
 		e.mu.Unlock()
 		if err != nil {
 			return nil, err
 		}
-		if err = selectQuerySources(ctx, source); err != nil {
-			source.close()
+		if err = SelectQuerySources(ctx, source); err != nil {
+			source.Close()
 			return nil, err
 		}
 		return source, nil

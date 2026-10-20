@@ -8,7 +8,7 @@ import (
 
 // Widen before negating the signed INT4 offset, then check the available
 // distance before adding. This remains safe for conceptual MaxInt partitions.
-func windowOffsetTarget(size, current int, offset int32, reverse bool) (int, bool) {
+func WindowOffsetTarget(size, current int, offset int32, reverse bool) (int, bool) {
 	delta := int64(offset)
 	if reverse {
 		delta = -delta
@@ -31,14 +31,14 @@ func evaluateWindowOffset(ctx context.Context, evaluation *EvalContext, child *i
 		return sqltype.Value{}, err
 	}
 	usage := call.Expression.ResultUsage()
-	evaluation.bindQueryRow(child.source, child.index(rows[current]))
+	evaluation.BindQueryRow(child.Source, child.Index(rows[current]))
 	offset := int64(1)
 	if call.Ordinal != nil {
 		value, err := call.Ordinal.Eval(evaluation)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		if err := validateProducedValue(value, call.Ordinal.ResultUsage()); err != nil {
+		if err := ValidateProducedValue(value, call.Ordinal.ResultUsage()); err != nil {
 			return sqltype.Value{}, err
 		}
 		if err := ctx.Err(); err != nil {
@@ -52,10 +52,10 @@ func evaluateWindowOffset(ctx context.Context, evaluation *EvalContext, child *i
 			return sqltype.Value{}, err
 		}
 	}
-	member, present := windowOffsetTarget(len(rows), current, int32(offset), call.Operation == plan.WindowLag)
+	member, present := WindowOffsetTarget(len(rows), current, int32(offset), call.Operation == plan.WindowLag)
 	expression := call.DefaultValue
 	if present {
-		evaluation.bindQueryRow(child.source, child.index(rows[member]))
+		evaluation.BindQueryRow(child.Source, child.Index(rows[member]))
 		expression = call.Argument
 	}
 	if expression == nil {
@@ -68,7 +68,7 @@ func evaluateWindowOffset(ctx context.Context, evaluation *EvalContext, child *i
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	if err := validateProducedValue(value, usage); err != nil {
+	if err := ValidateProducedValue(value, usage); err != nil {
 		return sqltype.Value{}, err
 	}
 	return value, ctx.Err()

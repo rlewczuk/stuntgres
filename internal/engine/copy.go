@@ -161,7 +161,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 		if captureErr != nil {
 			return 0, captureErr
 		}
-		foreign, err = s.planForeignModification(s.op.Context(), target.foreign, catalog.ForeignInsert, true)
+		foreign, err = s.planForeignModification(s.op.Context(), target.Foreign, catalog.ForeignInsert, true)
 		if err != nil {
 			return 0, err
 		}
@@ -174,7 +174,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	if err != nil {
 		return 0, err
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, host: hostOf(s), catalog: auth.Catalog}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: auth.Catalog}}
 	selected := make([]bool, len(b.relation.Columns))
 	for _, target := range b.targets {
 		selected[target] = true
@@ -450,17 +450,17 @@ func (s *StatementScope) copyTableRows(b binding, auth AuthorizationView) (*fina
 		return nil, err
 	}
 	borrowQueryAuthority(source, s)
-	if err = selectQuerySources(s.op.Context(), source); err != nil {
+	if err = SelectQuerySources(s.op.Context(), source); err != nil {
 		return nil, err
 	}
 	schema := make([]catalog.Column, len(b.targets))
 	for i, target := range b.targets {
 		schema[i] = b.relation.Columns[target]
 	}
-	rows := newFinalRows(schema, source.count())
-	rows.source = source
-	rows.slots = b.targets
-	rows.output = s.output
+	rows := NewFinalRows(schema, source.Count())
+	rows.Source = source
+	rows.Slots = b.targets
+	rows.Output = s.output
 	if err = e.captureRegclassOutput(s.op, rows); err != nil {
 		rows.Close()
 		return nil, err

@@ -147,8 +147,8 @@ func TestQuerySearchIdentity(t *testing.T) {
 		}
 		grouping := make([]plan.Grouping, 1)
 		grouping[0].Grouping, _ = sqltype.BindGrouping(typ.Usage())
-		stage := recursiveUnionStage{node: &plan.RecursiveUnionNode{SetNode: plan.SetNode{QuerySchema: d.Schema, Grouping: grouping}, Definition: d, Search: s}, source: &querySource{flat: []sqltype.Value{one, child, one, anchor}}}
-		if index, err := stage.findTuple(ctx, []sqltype.Value{one, anchor}, []int{0, 1}); err != nil || index != 1 {
+		stage := recursiveUnionStage{Node: &plan.RecursiveUnionNode{SetNode: plan.SetNode{QuerySchema: d.Schema, Grouping: grouping}, Definition: d, Search: s}, Source: &querySource{Flat: []sqltype.Value{one, child, one, anchor}}}
+		if index, err := stage.FindTuple(ctx, []sqltype.Value{one, anchor}, []int{0, 1}); err != nil || index != 1 {
 			t.Fatal("collision ignored sequence", index, err)
 		}
 		cycle := cycleUnitRecipe(t, typ.Usage())
@@ -159,9 +159,9 @@ func TestQuerySearchIdentity(t *testing.T) {
 		grouping[1].Grouping, _ = sqltype.BindGrouping(cycle.Mark.ResultUsage())
 		d.Cycle = cycle
 		d.Schema = append(d.Schema, catalog.Column{Usage: cycle.Mark.ResultUsage()}, catalog.Column{Usage: cycle.Path.Usage()})
-		stage.node = &plan.RecursiveUnionNode{SetNode: plan.SetNode{QuerySchema: d.Schema, Grouping: grouping}, Definition: d, Search: s, Cycle: cycle}
-		stage.source.flat = append(append([]sqltype.Value(nil), second...), first...)
-		if index, err := stage.findTuple(ctx, first, []int{0, 1}); err != nil || index != 1 {
+		stage.Node = &plan.RecursiveUnionNode{SetNode: plan.SetNode{QuerySchema: d.Schema, Grouping: grouping}, Definition: d, Search: s, Cycle: cycle}
+		stage.Source.Flat = append(append([]sqltype.Value(nil), second...), first...)
+		if index, err := stage.FindTuple(ctx, first, []int{0, 1}); err != nil || index != 1 {
 			t.Fatal("collision ignored CYCLE", index, err)
 		}
 	}

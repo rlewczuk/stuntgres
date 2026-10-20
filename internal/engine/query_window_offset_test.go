@@ -32,7 +32,7 @@ func TestQueryWindowOffsetTarget(t *testing.T) {
 		{math.MaxInt, math.MaxInt - 1, math.MinInt32, true, 0, false},
 		{math.MaxInt, math.MaxInt - 1, math.MinInt32, false, math.MaxInt - 1 - 2147483648, true},
 	} {
-		got, present := windowOffsetTarget(tc.size, tc.current, tc.offset, tc.reverse)
+		got, present := WindowOffsetTarget(tc.size, tc.current, tc.offset, tc.reverse)
 		if present != tc.present || present && got != tc.want {
 			t.Fatalf("%+v => %d/%v", tc, got, present)
 		}
@@ -46,7 +46,7 @@ func TestQueryWindowOffsetTarget(t *testing.T) {
 
 func TestQueryWindowOffsetGraph(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT lead(v,id,id+1) OVER w,lead(v,id,id+2) OVER w FROM t WINDOW w AS(ORDER BY id)")
-	defer source.close()
+	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	if len(node.Calls) != 2 {
 		t.Fatal(node.Calls)
@@ -80,7 +80,7 @@ func TestQueryWindowOffsetGraph(t *testing.T) {
 	}
 	t.Run("grouped-default", func(t *testing.T) {
 		_, grouped, input := queryCoreFixture(t, "SELECT lead(sum(v),0,sum(id)) OVER() FROM t")
-		defer input.close()
+		defer input.Close()
 		fallback := grouped.Root.(*plan.ProjectNode).Child.(*plan.WindowNode).Calls[0].DefaultValue
 		if _, ok := fallback.(plan.GroupExpr); !ok {
 			t.Fatalf("default not rewritten to owned group slot: %T", fallback)
@@ -88,7 +88,7 @@ func TestQueryWindowOffsetGraph(t *testing.T) {
 	})
 	t.Run("matched-order-default", func(t *testing.T) {
 		_, matched, input := queryCoreFixture(t, "SELECT lead(v,0,(SELECT max(id) FROM t)) OVER() AS x FROM t ORDER BY lead(v,0,(SELECT max(id) FROM t)) OVER()")
-		defer input.close()
+		defer input.Close()
 		project := matched.Root.(*plan.ProjectNode)
 		found := false
 		for _, bound := range project.AnalysisExpressions {
@@ -200,13 +200,13 @@ func TestQueryWindowOffsetCancellation(t *testing.T) {
 			case "default":
 				call.DefaultValue = probe
 			}
-			rows, count, err := finalizeQuery(ctx, query.Root, source, nil)
+			rows, count, err := Finalize(ctx, query.Root, source, nil)
 			if rows != nil {
 				rows.Close()
 			}
 			var d *sqlstate.Error
-			if !entered || rows != nil || count != 0 || !errors.Is(err, context.Canceled) || errors.As(err, &d) || source.view != nil {
-				t.Fatal("canceled offset window published/leaked", entered, count, err, source.view)
+			if !entered || rows != nil || count != 0 || !errors.Is(err, context.Canceled) || errors.As(err, &d) || source.View != nil {
+				t.Fatal("canceled offset window published/leaked", entered, count, err, source.View)
 			}
 		})
 	}
@@ -232,7 +232,7 @@ func TestQueryWindowOffsetEvaluationRoles(t *testing.T) {
 		defaults = append(defaults, id)
 		return fallback.Eval(c)
 	})
-	rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

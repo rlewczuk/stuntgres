@@ -44,7 +44,7 @@ func (b *expressionBinder) bindFunctionSource(raw parser.FunctionExpr) (expr.Exp
 		demand, _, _ := inquiry.SnapshotDemand(bareInquiryLiteralNull)
 		b.consumer.catalogSnapshot = b.consumer.catalogSnapshot || demand
 	}
-	if !sourceReturnsSet(node) && b.clause.fromSetObservation != before {
+	if !SourceReturnsSet(node) && b.clause.fromSetObservation != before {
 		return nil, nestedFromSetError(b.clause.fromSetObservation.pos)
 	}
 	return node, nil

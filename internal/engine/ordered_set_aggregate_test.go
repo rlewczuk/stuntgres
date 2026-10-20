@@ -300,9 +300,9 @@ func TestOrderedSetAggregateGroupFrameAndPublication(t *testing.T) {
 				boolean, _ := New().CatalogRead().LookupType(sqltype.Bool)
 				root.Child = &plan.FilterNode{QuerySchema: aggregate.QuerySchema, Child: aggregate, Predicate: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}}
 			}
-			owned := &querySource{anonymous: [][]sqltype.Value{{sqltype.Null(p.InputType())}}, flat: []sqltype.Value{sqltype.Null(p.InputType())}}
-			source := &querySource{sources: []*querySource{owned}}
-			rows, count, err := finalizeQuery(execution, root, source, nil)
+			owned := &querySource{Anonymous: [][]sqltype.Value{{sqltype.Null(p.InputType())}}, Flat: []sqltype.Value{sqltype.Null(p.InputType())}}
+			source := &querySource{Sources: []*querySource{owned}}
+			rows, count, err := Finalize(execution, root, source, nil)
 			if phase == "having" {
 				if err != nil || rows == nil || count != 0 || calls != 2 {
 					t.Fatal("HAVING bypassed ordered-set finalization", calls, count, err)
@@ -311,7 +311,7 @@ func TestOrderedSetAggregateGroupFrameAndPublication(t *testing.T) {
 				return
 			}
 			if phase != "success" {
-				if rows != nil || count != 0 || !errors.Is(err, context.Canceled) || source.sources != nil || owned.flat != nil {
+				if rows != nil || count != 0 || !errors.Is(err, context.Canceled) || source.Sources != nil || owned.Flat != nil {
 					t.Fatal("publication/source ownership", phase, rows, count, err)
 				}
 				if probe != nil && !probe.entered {
@@ -485,7 +485,7 @@ func TestOrderedSetAggregatePreSortDecisions(t *testing.T) {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				probe := &aggregateModifierFamilyCancelContext{Context: ctx, cancel: cancel, target: ".Comparison.Compare"}
-				rows, count, err := finalizeQuery(probe, root, &querySource{}, nil)
+				rows, count, err := Finalize(probe, root, &querySource{}, nil)
 				if rows != nil {
 					defer rows.Close()
 				}

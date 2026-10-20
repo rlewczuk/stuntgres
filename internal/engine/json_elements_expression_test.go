@@ -41,7 +41,7 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 		if original.ResultUsage().Type != b.typ(id) || original.ResultUsage().Type.IsComposite() || !validExpressionUsage(view, original.ResultUsage()) {
 			t.Fatal("scalar result usage", original)
 		}
-		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.clause.queryHasTargetSet || !sourceReturnsSet(original) || querySetDepth(original) != 1 {
+		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.clause.queryHasTargetSet || !SourceReturnsSet(original) || QuerySetDepth(original) != 1 {
 			t.Fatal("set properties", original)
 		}
 		fresh := jsonObjectUnitTypes()
@@ -56,7 +56,7 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 		if original.ResultUsage().Type != b.typ(id) || original.Args[0].ResultUsage().Type != b.typ(sqltype.JSON) {
 			t.Fatal("retained marker mutated")
 		}
-		cursor, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, next)
+		cursor, err := OpenFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, next)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -71,7 +71,7 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 				dependencies = append(dependencies, n)
 			}
 		})
-		if len(dependencies) != 1 || dependencies[0] != original.Args[0] || plannedVolatility(original) != expr.Immutable {
+		if len(dependencies) != 1 || dependencies[0] != original.Args[0] || PlannedVolatility(original) != expr.Immutable {
 			t.Fatal("lost argument dependency", dependencies)
 		}
 		clone, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
@@ -79,11 +79,11 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 			t.Fatal("stored remap", clone, err)
 		}
 		folded, _, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original)
-		if err != nil || !sourceReturnsSet(folded) {
+		if err != nil || !SourceReturnsSet(folded) {
 			t.Fatal("preflight folded set", folded, err)
 		}
 		folded, _, err = simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original, false)
-		if err != nil || !sourceReturnsSet(folded) {
+		if err != nil || !SourceReturnsSet(folded) {
 			t.Fatal("simplifier folded set", folded, err)
 		}
 		text, err := (pgRenderer{view: view}).sql(context.Background(), original, pgRenderParent{})
@@ -104,10 +104,10 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 		if rewritten.(*plan.FunctionFromNode).Calls[0].(functions.JSONElements).Args[0] != other.Args[0] || root.Calls[0].(functions.JSONElements).Args[0] != original.Args[0] {
 			t.Fatal("query rewrite mutated original")
 		}
-		if err := validateFunctionFromLayout(root); err != nil {
+		if err := ValidateFunctionFromLayout(root); err != nil {
 			t.Fatal(err)
 		}
-		if functionFromCallWidth(original) != 1 || sourceOutName(original) != "value" {
+		if FunctionFromCallWidth(original) != 1 || sourceOutName(original) != "value" {
 			t.Fatal("scalar OUT layout", original)
 		}
 		if sourceOutName(original.Args[0]) != "" {
@@ -126,32 +126,32 @@ func TestJSONElementsNullPresenceAndPadding(t *testing.T) {
 			t.Fatal(err)
 		}
 		calls := []expr.Expr{series, marker}
-		invocation, err := openFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, &plan.FunctionFromNode{Calls: calls})
+		invocation, err := OpenFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, &plan.FunctionFromNode{Calls: calls})
 		if err != nil {
 			t.Fatal(err)
 		}
 		row := make([]sqltype.Value, 2)
-		present, err := invocation.nextFrom(context.Background(), calls, row)
+		present, err := invocation.NextFrom(context.Background(), calls, row)
 		if err != nil || !present || row[1].IsNull() != (name == "json_array_elements_text") || row[1].Type() != marker.ResultUsage().Type {
 			t.Fatal("null presence", row, present, err)
 		}
 		if n, _ := row[0].Integer(); n != 7 {
 			t.Fatal("first sibling", row)
 		}
-		present, err = invocation.nextFrom(context.Background(), calls, row)
+		present, err = invocation.NextFrom(context.Background(), calls, row)
 		if err != nil || !present || !row[1].IsNull() || row[1].Type() != marker.ResultUsage().Type {
 			t.Fatal("typed padding", row, present, err)
 		}
 		if n, _ := row[0].Integer(); n != 8 {
 			t.Fatal("second sibling", row)
 		}
-		present, err = invocation.nextFrom(context.Background(), calls, row)
-		invocation.close()
+		present, err = invocation.NextFrom(context.Background(), calls, row)
+		invocation.Close()
 		if err != nil || present {
 			t.Fatal("exhausted source", present, err)
 		}
 		node := regexpSetUnitLayout(&plan.SetProjectNode{QuerySchema: plan.QuerySchema{{Usage: marker.ResultUsage()}}, Child: &plan.SingletonNode{}, Calls: []expr.Expr{marker}, Frame: 1})
-		stage, err := openSetProjectNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, node)
+		stage, err := OpenSetProjectNode(context.Background(), &queryState{Source: &querySource{}, Frame: 1}, node)
 		if err != nil {
 			t.Fatal(err)
 		}

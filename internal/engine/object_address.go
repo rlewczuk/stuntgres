@@ -39,7 +39,7 @@ func (h *statementHost) DescribeObject(c *EvalContext, values [3]sqltype.Value, 
 	return identifyObjectValues(c, values, result, functions.DescribeObject)
 }
 func identifyObjectValues(c *EvalContext, values [3]sqltype.Value, result *sqltype.Descriptor, operation functions.ObjectAddressOperation) (sqltype.Value, error) {
-	scope := scopeOf(c.liveHost())
+	scope := scopeOf(c.LiveHost())
 	if scope == nil || scope.inquiry.commentCatalog.State() == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing object address snapshot")
 	}

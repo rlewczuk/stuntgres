@@ -28,7 +28,7 @@ func queryCreateBoundSource(t *testing.T, e *Engine, width int) (*plan.ProjectNo
 			rows[j][i], _ = sqltype.Integer(usage.Type, int64(j+1))
 		}
 	}
-	source := &querySource{anonymous: rows}
+	source := &querySource{Anonymous: rows}
 	return &plan.ProjectNode{QuerySchema: schema, Child: &plan.SourceNode{QuerySchema: schema}, Expressions: expressions, Frame: 1}, source
 }
 
@@ -43,14 +43,14 @@ func TestQueryTableCreateDemand(t *testing.T) {
 		return sqltype.Boolean(testUsage(e, sqltype.Bool).Type, value >= 2), nil
 	})}
 	project.Expressions = []expr.Expr{queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) { calls++; return c.Row[0], nil })}
-	result, count, err := finalizeQuery(context.Background(), project, source, nil)
+	result, count, err := Finalize(context.Background(), project, source, nil)
 	if err != nil || count != 2 || calls != 2 || predicates != 3 {
 		t.Fatal(result, count, err, calls, predicates)
 	}
 	finalized := result.(*finalRows)
-	owned := finalized.values
-	rows, err := finalized.takeTableRows(context.Background())
-	if err != nil || len(rows) != 2 || calls != 2 || predicates != 3 || !finalized.closed || finalized.values != nil || &rows[0][0] != &owned[0] {
+	owned := finalized.Values
+	rows, err := finalized.TakeTableRows(context.Background())
+	if err != nil || len(rows) != 2 || calls != 2 || predicates != 3 || !finalized.Closed || finalized.Values != nil || &rows[0][0] != &owned[0] {
 		t.Fatal(rows, err, calls, predicates)
 	}
 	for i, row := range rows {
@@ -59,7 +59,7 @@ func TestQueryTableCreateDemand(t *testing.T) {
 			t.Fatal(row)
 		}
 	}
-	if source.anonymous != nil {
+	if source.Anonymous != nil {
 		t.Fatal("source owner retained")
 	}
 	stage, d := queryCreateStage(t, e, "copy", 1)
@@ -76,13 +76,13 @@ func TestQueryTableCreateOwnedDetach(t *testing.T) {
 	for _, width := range []int{0, 1} {
 		e := New()
 		project, source := queryCreateBoundSource(t, e, width)
-		borrowed := source.anonymous
-		result, count, err := finalizeQuery(context.Background(), project, source, nil)
+		borrowed := source.Anonymous
+		result, count, err := Finalize(context.Background(), project, source, nil)
 		if err != nil || count != 3 {
 			t.Fatal(result, count, err)
 		}
-		rows, err := result.(*finalRows).takeTableRows(context.Background())
-		if err != nil || len(rows) != 3 || source.anonymous != nil {
+		rows, err := result.(*finalRows).TakeTableRows(context.Background())
+		if err != nil || len(rows) != 3 || source.Anonymous != nil {
 			t.Fatal(rows, err)
 		}
 		for _, row := range rows {
@@ -103,14 +103,14 @@ func TestQueryTableCreateOwnedDetach(t *testing.T) {
 	}
 	e := New()
 	project, source := queryCreateBoundSource(t, e, 1)
-	result, _, err := finalizeQuery(context.Background(), project, source, nil)
+	result, _, err := Finalize(context.Background(), project, source, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	rows, err := result.(*finalRows).takeTableRows(ctx)
-	if rows != nil || !errors.Is(err, context.Canceled) || source.anonymous != nil || !result.(*finalRows).closed {
+	rows, err := result.(*finalRows).TakeTableRows(ctx)
+	if rows != nil || !errors.Is(err, context.Canceled) || source.Anonymous != nil || !result.(*finalRows).Closed {
 		t.Fatal(rows, err)
 	}
 }
@@ -124,18 +124,18 @@ func TestQueryTableCreateCleanup(t *testing.T) {
 		cleanup := errors.New("required source close")
 		failure := errors.New("primary expression failure")
 		closes := 0
-		inner := indexedStage{source: input, schema: project.Schema(), expressions: project.Expressions, evaluation: EvalContext{evalFrame: evalFrame{Scope: 1, Frame: 1}}, finish: func() error { closes++; return cleanup }}
+		inner := indexedStage{Source: input, Columns: project.Schema(), Expressions: project.Expressions, Evaluation: EvalContext{evalFrame: evalFrame{Scope: 1, Frame: 1}}, Finish: func() error { closes++; return cleanup }}
 		if primary {
-			inner.expressions = []expr.Expr{queryProbe(project.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
+			inner.Expressions = []expr.Expr{queryProbe(project.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
 		}
-		bridge := &querySource{nestedRoot: project, nestedInputs: input, nestedStage: &inner, materialized: true, flatWidth: 1}
+		bridge := &querySource{NestedRoot: project, NestedInputs: input, NestedStage: &inner, Materialized: true, FlatWidth: 1}
 		outer := &plan.ProjectNode{QuerySchema: project.Schema(), Child: &plan.SourceNode{QuerySchema: project.Schema()}, Expressions: project.Expressions, Frame: 1}
-		result, count, err := finalizeQuery(context.Background(), outer, bridge, nil)
+		result, count, err := Finalize(context.Background(), outer, bridge, nil)
 		want := cleanup
 		if primary {
 			want = failure
 		}
-		if result != nil || count != 0 || err != want || closes != 1 || bridge.nestedStage != nil || input.anonymous != nil {
+		if result != nil || count != 0 || err != want || closes != 1 || bridge.NestedStage != nil || input.Anonymous != nil {
 			t.Fatal(result, count, err, closes)
 		}
 		queryCreateAssertAbsent(t, e, d)

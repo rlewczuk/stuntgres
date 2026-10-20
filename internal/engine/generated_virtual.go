@@ -63,11 +63,11 @@ func admitColumnVirtualGeneration(c *EvalContext, e plan.ColumnExpr, view catalo
 		return fmt.Errorf("stuntgres: missing original virtual generation")
 	}
 	recipe := *c
-	selectVirtualGenerationRecipe(&recipe, e.VirtualOwner, definition)
+	SelectVirtualGenerationRecipe(&recipe, e.VirtualOwner, definition)
 	recipe.Scope, recipe.Frame = 1, 1
 	recipe.Row, recipe.Outer = nil, nil
 	node, _, err := preflightCoercionsWithPolicy(&recipe, generationRecipeExpression(definition), true)
-	c.preparedDomainChecks = recipe.preparedDomainChecks
+	c.PreparedDomainChecks = recipe.PreparedDomainChecks
 	if err != nil {
 		return err
 	}

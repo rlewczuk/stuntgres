@@ -277,42 +277,42 @@ func (t *transactionOwner) retireProtocolPortalsAfter(frontier uint64) {
 func (s *StatementScope) installProtocolProducer(root plan.Node, source *querySource, values []sqltype.Value) (Result, error) {
 	project, ok := root.(*plan.ProjectNode)
 	if !ok {
-		source.close()
+		source.Close()
 		return Result{}, fmt.Errorf("stuntgres: portal lacks projection")
 	}
 	c := &sqlCursor{tx: s.txRef, epoch: s.txRef.Epoch(), root: project, schema: project.Schema(), source: source, authority: s.authority,
 		leaves: s.querySources, locks: s.queryLocks, catalog: s.inquiry.commentCatalog, roles: s.inquiry.commentRoles, routineDependencies: s.routineDependencies, routineAuth: s.routineAuth,
 		deparseAuth: s.inquiry.deparseAuth, deparsePath: s.inquiry.deparsePath, collationPath: s.inquiry.collationPath, visibilityCatalog: s.inquiry.visibilityCatalog, visibilityRelationPath: s.inquiry.visibilityRelationPath, visibilityOtherPath: s.inquiry.visibilityOtherPath}
-	c.state = queryState{source: source, parameters: values, input: s.input, output: s.output, locking: source.locks != nil && source.locks.rowMarked(), hashFilter: hashQueryFilter(root)}
-	c.state.input.LockedDomainInput, c.state.input.DomainChecks = nil, nil
-	c.state.output.Regclass, c.state.output.Regtype = nil, nil
-	c.state.output.Regproc, c.state.output.Regrole, c.state.output.Operator = nil, nil, nil
-	c.state.output.Regcollation, c.state.output.Regnamespace, c.state.output.RegTS = nil, nil, nil
+	c.state = queryState{Source: source, Parameters: values, Input: s.input, Output: s.output, Locking: source.Locks != nil && source.Locks.RowMarked(), HashFilter: HashQueryFilter(root)}
+	c.state.Input.LockedDomainInput, c.state.Input.DomainChecks = nil, nil
+	c.state.Output.Regclass, c.state.Output.Regtype = nil, nil
+	c.state.Output.Regproc, c.state.Output.Regrole, c.state.Output.Operator = nil, nil, nil
+	c.state.Output.Regcollation, c.state.Output.Regnamespace, c.state.Output.RegTS = nil, nil, nil
 	c.deparseAuth.session, c.deparseAuth.settings = nil, nil
-	if reader, ok := c.state.input.Regtype.(capturedRegtypeInput); ok {
+	if reader, ok := c.state.Input.Regtype.(capturedRegtypeInput); ok {
 		reader.op, reader.authority = nil, c.authority
 		reader.qualified = nil
-		c.state.input.Regtype = reader
+		c.state.Input.Regtype = reader
 	}
-	if reader, ok := c.state.input.Operator.(capturedOperatorInput); ok {
+	if reader, ok := c.state.Input.Operator.(capturedOperatorInput); ok {
 		reader.types.op, reader.types.authority = nil, c.authority
 		reader.types.qualified, reader.qualified = nil, nil
-		c.state.input.Operator = reader
+		c.state.Input.Operator = reader
 	}
-	if reader, ok := c.state.input.Regproc.(capturedRoutineInput); ok {
+	if reader, ok := c.state.Input.Regproc.(capturedRoutineInput); ok {
 		reader.types.op, reader.types.authority = nil, c.authority
 		reader.types.qualified = nil
-		c.state.input.Regproc = reader
+		c.state.Input.Regproc = reader
 	}
-	if reader, ok := c.state.input.RegTS.(capturedRegTSInput); ok {
+	if reader, ok := c.state.Input.RegTS.(capturedRegTSInput); ok {
 		reader.qualified, reader.resolved = nil, nil
-		c.state.input.RegTS = reader
+		c.state.Input.RegTS = reader
 	}
 	c.foreignOwner = s.foreignTablesSlot.takeOwner()
 	bind := s.protocolOrZero().bind
 	bind.producer = c
 	bind.completionBase, bind.completionCounted = "SELECT", true
-	s.authority.host = nil
+	s.authority.Host = nil
 	s.routineAuth = AuthorizationView{}
 	s.routineDependencies = nil
 	return Result{}, nil
@@ -420,7 +420,7 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 			outputInitialized = true
 		}
 		if p.outputRows == nil {
-			p.outputRows = newFinalRows(p.columns, 0)
+			p.outputRows = NewFinalRows(p.columns, 0)
 		}
 		if !catalogReady {
 			// Stored typed rows remain immutable. This destination captures
@@ -439,7 +439,7 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 		if err = s.captureProtocolOutput(p.outputRows, values, catalog); err != nil {
 			return out, err
 		}
-		fields, scratch, err = encodeProtocolRow(s.op.Context(), values, p.formats, p.outputRows.output, fields, scratch)
+		fields, scratch, err = encodeProtocolRow(s.op.Context(), values, p.formats, p.outputRows.Output, fields, scratch)
 		if err != nil {
 			return out, err
 		}
@@ -447,7 +447,7 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 			return out, err
 		}
 		if p.producer != nil {
-			p.producer.authority.host = nil
+			p.producer.authority.Host = nil
 		}
 		_, err = s.copyIO(func() (int, error) { return 0, sink(fields) })
 		s.releaseCopyReservation()
@@ -474,7 +474,7 @@ func (p *protocolPortal) next(ctx context.Context, values []sqltype.Value) (bool
 }
 
 func (c *sqlCursor) nextProtocolRow(ctx context.Context, values []sqltype.Value) (bool, error) {
-	present, err := c.stage.projectOrdinal(ctx, int(c.ordinalPosition), values)
+	present, err := c.stage.ProjectOrdinal(ctx, int(c.ordinalPosition), values)
 	if present && err == nil {
 		c.ordinalPosition++
 	}
@@ -507,7 +507,7 @@ func (s *StatementScope) enterProtocolProducer(c *sqlCursor) {
 }
 
 func (s *StatementScope) leaveProtocolProducer(c *sqlCursor) {
-	c.authority.host = nil
+	c.authority.Host = nil
 	s.setForeignCursor(nil)
 	s.routineAuth = AuthorizationView{}
 	s.routineDependencies = nil
@@ -518,22 +518,22 @@ func (s *StatementScope) captureProtocolOutput(rows *finalRows, values []sqltype
 	// Readers borrow only this row. Reuse their maps without retaining old
 	// spellings or a query-sized history across demands/destinations. The ACL
 	// identity stays engine-owned, and operatorGroups belongs to the catalog.
-	clear(rows.regclassOutput)
-	clear(rows.regtypeOutput)
-	clear(rows.regprocOutput)
-	clear(rows.regprocedureOutput)
-	clear(rows.regroleOutput)
-	clear(rows.operatorOutput)
-	clear(rows.regobjectOutput)
-	clear(rows.regTSOutput)
-	clear(rows.aclitemOutput)
-	rows.values, rows.output = values, s.output
+	clear(rows.RegclassOutput)
+	clear(rows.RegtypeOutput)
+	clear(rows.RegprocOutput)
+	clear(rows.RegprocedureOutput)
+	clear(rows.RegroleOutput)
+	clear(rows.OperatorOutput)
+	clear(rows.RegobjectOutput)
+	clear(rows.RegTSOutput)
+	clear(rows.AclitemOutput)
+	rows.Values, rows.Output = values, s.output
 	if err := s.captureSQLCursorOutput(rows, catalog); err != nil {
 		return err
 	}
-	rows.output.Regclass, rows.output.Regtype, rows.output.Regproc, rows.output.Regrole = rows, rows, rows, rows
-	rows.output.Operator, rows.output.Regcollation, rows.output.Regnamespace, rows.output.RegTS = rows, rows, rows, rows
-	rows.output.ACLItem = rows
+	rows.Output.Regclass, rows.Output.Regtype, rows.Output.Regproc, rows.Output.Regrole = rows, rows, rows, rows
+	rows.Output.Operator, rows.Output.Regcollation, rows.Output.Regnamespace, rows.Output.RegTS = rows, rows, rows, rows
+	rows.Output.ACLItem = rows
 	return nil
 }
 

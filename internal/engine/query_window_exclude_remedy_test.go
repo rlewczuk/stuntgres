@@ -49,16 +49,16 @@ func TestQueryWindowExcludeTransitionLifecycle(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT sum(v) OVER(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM t")
-			defer source.close()
+			defer source.Close()
 			project := query.Root.(*plan.ProjectNode)
 			node := project.Child.(*plan.WindowNode)
-			state := &queryState{source: source, frame: project.Frame}
-			child, err := openQueryNode(context.Background(), state, node.Child)
+			state := &queryState{Source: source, Frame: project.Frame}
+			child, err := OpenNode(context.Background(), state, node.Child)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer child.Close()
-			if err := child.drain(context.Background()); err != nil {
+			if err := child.Drain(context.Background()); err != nil {
 				t.Fatal(err)
 			}
 			calls := append([]plan.WindowCall(nil), node.Calls...)
@@ -67,25 +67,25 @@ func TestQueryWindowExcludeTransitionLifecycle(t *testing.T) {
 			calls[0].Argument = windowSumArgumentProbe{calls[0].Argument, &sequence, &visits, 0}
 			frame := node.Specs[0].Frame
 			frame.Exclusion = tc.mode
-			sums := windowSums{states: []windowSumState{{callIndex: 0}}}
+			sums := windowSums{States: []windowSumState{{CallIndex: 0}}}
 			for output, bounds := range tc.endpoints {
-				previous := sums.states[0].aggregate
+				previous := sums.States[0].Aggregate
 				peerStart, peerEnd := output, output+1
 				if tc.mode == parser.ExcludeGroup {
 					peerStart, peerEnd = 0, 3
 				}
-				if err := sums.evaluate(context.Background(), state, &child, calls, []int{0, 1, 2}, frame, bounds[0], bounds[1], output, peerStart, peerEnd); err != nil {
+				if err := sums.Evaluate(context.Background(), state, &child, calls, []int{0, 1, 2}, frame, bounds[0], bounds[1], output, peerStart, peerEnd); err != nil {
 					t.Fatal(err)
 				}
 				if previous != nil {
 					retained := tc.name == "full" || tc.name == "growing"
-					if (sums.states[0].aggregate == previous) != retained {
+					if (sums.States[0].Aggregate == previous) != retained {
 						t.Fatal("provider transition ownership", tc.name, output)
 					}
 				}
 				got := "NULL"
-				if !sums.states[0].result.IsNull() {
-					got, err = sums.states[0].result.Type().Output(context.Background(), sums.states[0].result)
+				if !sums.States[0].Result.IsNull() {
+					got, err = sums.States[0].Result.Type().Output(context.Background(), sums.States[0].Result)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -98,12 +98,12 @@ func TestQueryWindowExcludeTransitionLifecycle(t *testing.T) {
 				t.Fatal("argument evaluations", sequence, tc.draws)
 			}
 			// A new partition drops transition ownership even when bounds are identical.
-			previous := sums.states[0].aggregate
-			sums.initialized = false
-			if err := sums.evaluate(context.Background(), state, &child, calls, []int{0, 1, 2}, frame, 0, 1, 0, 0, 1); err != nil {
+			previous := sums.States[0].Aggregate
+			sums.Initialized = false
+			if err := sums.Evaluate(context.Background(), state, &child, calls, []int{0, 1, 2}, frame, 0, 1, 0, 0, 1); err != nil {
 				t.Fatal(err)
 			}
-			if sums.states[0].aggregate == previous {
+			if sums.States[0].Aggregate == previous {
 				t.Fatal("new partition retained provider state")
 			}
 			if tc.mode != parser.ExcludeGroup && sequence != tc.draws+1 {
@@ -115,16 +115,16 @@ func TestQueryWindowExcludeTransitionLifecycle(t *testing.T) {
 
 func TestQueryWindowExcludeMemberMajorTypedStates(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT sum(v) OVER w,sum(v::bigint) OVER w FROM t WINDOW w AS(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE TIES)")
-	defer source.close()
+	defer source.Close()
 	project := query.Root.(*plan.ProjectNode)
 	node := project.Child.(*plan.WindowNode)
-	state := &queryState{source: source, frame: project.Frame}
-	child, err := openQueryNode(context.Background(), state, node.Child)
+	state := &queryState{Source: source, Frame: project.Frame}
+	child, err := OpenNode(context.Background(), state, node.Child)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer child.Close()
-	if err := child.drain(context.Background()); err != nil {
+	if err := child.Drain(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	calls := append([]plan.WindowCall(nil), node.Calls...)
@@ -134,15 +134,15 @@ func TestQueryWindowExcludeMemberMajorTypedStates(t *testing.T) {
 		calls[i].Argument = windowSumArgumentProbe{calls[i].Argument, &sequence, &visits, i}
 	}
 	for execution := range 2 {
-		sums := windowSums{states: []windowSumState{{callIndex: 0}, {callIndex: 1}}}
+		sums := windowSums{States: []windowSumState{{CallIndex: 0}, {CallIndex: 1}}}
 		for output := range 3 {
-			if err := sums.evaluate(context.Background(), state, &child, calls, []int{0, 1, 2}, node.Specs[0].Frame, 0, 3, output, output, output+1); err != nil {
+			if err := sums.Evaluate(context.Background(), state, &child, calls, []int{0, 1, 2}, node.Specs[0].Frame, 0, 3, output, output, output+1); err != nil {
 				t.Fatal(err)
 			}
-			for i, entry := range sums.states {
+			for i, entry := range sums.States {
 				want := int64(9 + i*3 + output*18 + execution*54)
-				text, err := entry.result.Type().Output(context.Background(), entry.result)
-				if err != nil || text != strconv.FormatInt(want, 10) || entry.result.Type() != calls[i].Expression.ResultUsage().Type {
+				text, err := entry.Result.Type().Output(context.Background(), entry.Result)
+				if err != nil || text != strconv.FormatInt(want, 10) || entry.Result.Type() != calls[i].Expression.ResultUsage().Type {
 					t.Fatal(execution, output, i, text, want, err)
 				}
 			}

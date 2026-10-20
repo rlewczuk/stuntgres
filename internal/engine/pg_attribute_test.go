@@ -34,7 +34,7 @@ func pgAttributeUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) *quer
 	e.mu.Lock()
 	rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: catalog, Roles: e.roles.read(e.catalog.owner(), catalog, e.roles.published), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGAttribute)
 	e.mu.Unlock()
-	if err != nil || rows == nil || rows.ref != ref {
+	if err != nil || rows == nil || rows.Ref != ref {
 		t.Fatal(rows, err)
 	}
 	return rows
@@ -43,7 +43,7 @@ func pgAttributeUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) *quer
 func pgAttributeUnitRows(t *testing.T, rows *querySource, relation uint32) map[int64][]sqltype.Value {
 	t.Helper()
 	out := make(map[int64][]sqltype.Value)
-	for _, row := range rows.anonymous {
+	for _, row := range rows.Anonymous {
 		id, err := row[0].OID()
 		if err != nil {
 			t.Fatal(err)
@@ -98,7 +98,7 @@ func TestPGAttributeCapture(t *testing.T) {
 	d, ref := pgAttributeUnitSource(t, e, view)
 	before, descriptors := e.catalog.state, maps.Collect(e.catalog.state.Descriptors())
 	rows := pgAttributeUnitCapture(t, e, view)
-	for _, row := range rows.anonymous {
+	for _, row := range rows.Anonymous {
 		if len(row) != 25 {
 			t.Fatal("width", len(row))
 		}
@@ -279,7 +279,7 @@ func TestPGAttributeCarrier(t *testing.T) {
 	d, _ := pgAttributeUnitSource(t, e, view)
 	u := d.Columns[24].Usage
 	value := sqltype.CatalogResultNull(u)
-	if err := validateProducedValue(value, u); err != nil {
+	if err := ValidateProducedValue(value, u); err != nil {
 		t.Fatal("produced canonical NULL rejected", err)
 	}
 	result, err := anonymousResult([]catalog.Column{d.Columns[24]}, [][]sqltype.Value{{value}}, 1)
@@ -297,7 +297,7 @@ func TestPGAttributeCarrier(t *testing.T) {
 		t.Fatal("projection carrier", got, err)
 	}
 	foreign := sqltype.CatalogResultNull(testUsage(New(), sqltype.ID(2277)))
-	if err := validateProducedValue(foreign, u); err == nil {
+	if err := ValidateProducedValue(foreign, u); err == nil {
 		t.Fatal("foreign produced NULL admitted")
 	}
 	if _, err := anonymousResult([]catalog.Column{d.Columns[24]}, [][]sqltype.Value{{foreign}}, 1); err == nil {

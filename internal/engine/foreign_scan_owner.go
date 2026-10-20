@@ -8,7 +8,7 @@ func (s *StatementScope) ownForeignSource(source *foreignQuerySource) {
 	if *owner == nil {
 		*owner = &foreignScanOwner{}
 	}
-	(*owner).add(source)
+	(*owner).Add(source)
 }
 
 // The caller retains admission but holds no engine/transaction/session mutex.
@@ -21,7 +21,7 @@ func (s *StatementScope) finishForeignOwner(owner *foreignScanOwner, primary err
 		s.op.session.Engine().replacementMu.RUnlock()
 		s.replacementRead = false
 	}
-	cleanup := owner.finish(s.op.Context())
+	cleanup := owner.Finish(s.op.Context())
 	if primary != nil {
 		return primary
 	}

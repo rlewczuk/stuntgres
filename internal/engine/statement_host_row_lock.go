@@ -20,19 +20,19 @@ func (h *statementHost) AcquireQueryRow(leaf queryLeaf, row ids.RowID, mark plan
 	if err := s.active(); err != nil {
 		return false, err
 	}
-	if s.ticket == nil || s.ticket.Ref() != s.txRef || txOwnerOf(s.txRef) != s.owner || s.txRef.Session() != s.op.session.token || row == 0 || leaf.storage == nil {
+	if s.ticket == nil || s.ticket.Ref() != s.txRef || txOwnerOf(s.txRef) != s.owner || s.txRef.Session() != s.op.session.token || row == 0 || leaf.Storage == nil {
 		return false, fmt.Errorf("stuntgres: invalid query row acquisition authority")
 	}
 	e := s.op.session.Engine()
 	// Conditional requests reuse the manager's atomic immediate-grant branch:
 	// no journal request or timer exists on an unavailable NOWAIT/SKIP probe.
 	policy := lock.Policy{TimeoutSlot: &s.op.lockWait, NoWait: mark.Wait != parser.RowLockBlock, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
-	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: leaf.ref, Row: row}, mark.Mode, policy)
+	request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: leaf.Ref, Row: row}, mark.Mode, policy)
 	if errors.Is(err, lock.ErrUnavailable) {
 		if mark.Wait == parser.RowLockSkip {
 			return false, nil
 		}
-		return false, sqlError("55P03", fmt.Sprintf("could not obtain lock on row in relation %q", leaf.relation.Name()))
+		return false, sqlError("55P03", fmt.Sprintf("could not obtain lock on row in relation %q", leaf.Relation.Name()))
 	}
 	if err != nil {
 		return false, err
@@ -74,24 +74,24 @@ func (h *statementHost) LatestQueryRow(leaf queryLeaf, candidate storage.RowVers
 			err = failure
 			return
 		}
-		err = s.physicalRowEvent(leaf.ref, physical, kind, 0)
+		err = s.physicalRowEvent(leaf.Ref, physical, kind, 0)
 	}()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if _, err := currentQuerySourceLocked(e, e.privateCatalogLocked(s.owner.catalog), s.owner.catalog, leaf); err != nil {
 		return storage.RowVersion{}, false, err
 	}
-	store := leaf.storage
+	store := leaf.Storage
 	rows := store.Versions
 	if candidate.Born == 0 {
-		rows = s.ownWrites[leaf.ref.Address]
+		rows = s.ownWrites[leaf.Ref.Address]
 	}
 	current, _, found := rowByID(rows, candidate.Row, hint)
 	if !found {
 		return storage.RowVersion{}, false, fmt.Errorf("stuntgres: invalid query row predecessor")
 	}
 	physical = current
-	present = visibility.LiveVersion(current, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[leaf.ref.Address])
+	present = visibility.LiveVersion(current, e.visibility.CommitSeq(), store.Ends, s.ownDeletes[leaf.Ref.Address])
 	if stableIsolation(s.owner.isolation) && current.Born != 0 {
 		changed := current.Born > s.owner.frontier
 		if store.Ends != nil {

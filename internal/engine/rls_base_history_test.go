@@ -54,14 +54,14 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	leaf := b.querySources[0]
-	view, err := scope.acquireDataViewLocked(e, leaf.ref)
+	view, err := scope.acquireDataViewLocked(e, leaf.Ref)
 	reader := e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("rls_history_reader")
 	e.mu.Unlock()
 	if err != nil {
 		t.Fatal(err)
 	}
 	data := view.Data()
-	address := leaf.ref.Address
+	address := leaf.Ref.Address
 	committedEnd, privateEnd := data.Ends[address], data.Deleted[address]
 	if len(data.Committed[address]) < 4 || committedEnd == nil || len(committedEnd.Rows) == 0 || privateEnd == nil || len(privateEnd.Rows) == 0 {
 		t.Fatal("fixture lacks actual committed/private deletion history")
@@ -76,7 +76,7 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 		t.Fatal("fixture lacks actual multiple private replacement versions", replacements)
 	}
 	generation := data.GenerationAt(address)
-	if generation == nil || generation != leaf.storage || data.Catalog.Epoch() != leaf.ref.Epoch {
+	if generation == nil || generation != leaf.Storage || data.Catalog.Epoch() != leaf.Ref.Epoch {
 		t.Fatal("fixture lost actual storage/catalog generation")
 	}
 	descriptor := data.Catalog.MustRelation(address)
@@ -88,28 +88,28 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 		if err != nil || decision != access.RLSDefaultDeny {
 			t.Fatal("effective ordinary principal is not denied", command, decision, err)
 		}
-		source, err := captureDeniedQuerySource(view, leaf.ref)
+		source, err := captureDeniedQuerySource(view, leaf.Ref)
 		if err != nil {
 			t.Fatal(err)
 		}
-		pin := source.view
+		pin := source.View
 		func() {
-			defer source.close()
+			defer source.Close()
 			borrowQueryAuthority(source, scope)
-			if !source.rlsDenied || source.ref != leaf.ref || source.view == nil || source.view.Data() != data || source.view.Data().GenerationAt(address) != generation {
+			if !source.RlsDenied || source.Ref != leaf.Ref || source.View == nil || source.View.Data() != data || source.View.Data().GenerationAt(address) != generation {
 				t.Fatal("denied target lost retained identity/ownership/generation")
 			}
-			if source.committed != nil || source.own != nil || source.visible != nil || source.hashIndexes != nil || source.partialMask != nil {
+			if source.Committed != nil || source.Own != nil || source.Visible != nil || source.HashIndexes != nil || source.PartialMask != nil {
 				t.Fatal("denied target captured physical prefixes or live selection")
 			}
-			selected, err := selectQuerySource(op.ctx, source, data.FrontierAt(address), committedEnd, privateEnd)
-			if err != nil || selected != source || source.visible != nil || source.committed != nil || source.own != nil {
+			selected, err := SelectQuerySource(op.ctx, source, data.FrontierAt(address), committedEnd, privateEnd)
+			if err != nil || selected != source || source.Visible != nil || source.Committed != nil || source.Own != nil {
 				t.Fatal("hidden history revived denied target", err)
 			}
-			stage, err := openQueryNode(op.ctx, &queryState{source: source}, b.query.Root.(*plan.ProjectNode).Child)
+			stage, err := OpenNode(op.ctx, &queryState{Source: source}, b.query.Root.(*plan.ProjectNode).Child)
 			// The underlying fixture source has id and allowed; the outer
 			// projection narrows its output, not the owned base-source schema.
-			if err != nil || stage.source != source || len(stage.schema) != 2 {
+			if err != nil || stage.Source != source || len(stage.Columns) != 2 {
 				t.Fatal("denied target lost typed stage ownership", err)
 			}
 		}()
@@ -120,12 +120,12 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 			t.Fatal("denied close changed shared roots/generation")
 		}
 	}
-	ordinary, err := captureQuerySource(op.ctx, view, leaf.ref)
+	ordinary, err := captureQuerySource(op.ctx, view, leaf.Ref)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer ordinary.close()
-	if len(ordinary.committed) < 4 || len(ordinary.own) < 2 || len(ordinary.visible) != 2 || ordinary.rlsDenied {
+	defer ordinary.Close()
+	if len(ordinary.Committed) < 4 || len(ordinary.Own) < 2 || len(ordinary.Visible) != 2 || ordinary.RlsDenied {
 		t.Fatal("denied captures corrupted ordinary selection of actual history")
 	}
 }

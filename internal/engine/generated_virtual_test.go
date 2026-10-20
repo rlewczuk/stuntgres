@@ -128,17 +128,17 @@ func TestGeneratedVirtualReadManifestAndLogicalNullability(t *testing.T) {
 	d.ColumnMeta.Generations = map[int32]catalog.ColumnGeneration{2: {Kind: catalog.GenerationVirtual, Expression: base, Planned: base}}
 	ref := e.catalog.Domain.Ref(view.Epoch(), d.Address())
 	b := newExpressionBinder(context.Background(), e, sqltype.InputEnvironment{}, nil, nil)
-	b.query.sources = []queryLeaf{{ref: ref, relation: d}}
+	b.query.sources = []queryLeaf{{Ref: ref, Relation: d}}
 	node := b.queryColumnAt(queryColumn{descriptor: d.Columns[1], slot: 1, leaf: 0, physical: 1}, parser.Position{})
-	if len(b.query.sources[0].uses) != 1 || b.query.sources[0].uses[0] != 1 {
-		t.Fatal("base SELECT widened", b.query.sources[0].uses)
+	if len(b.query.sources[0].Uses) != 1 || b.query.sources[0].Uses[0] != 1 {
+		t.Fatal("base SELECT widened", b.query.sources[0].Uses)
 	}
 	value, _ := sqltype.Integer(typ, 9)
 	row := []sqltype.Value{value, sqltype.Null(typ)}
-	source := &querySource{anonymous: [][]sqltype.Value{row}, occurrence: 0}
-	state := &queryState{source: source, virtualReads: true}
-	eval := state.evaluation(context.Background())
-	eval.bindQueryRow(source, 0)
+	source := &querySource{Anonymous: [][]sqltype.Value{row}, Occurrence: 0}
+	state := &queryState{Source: source, VirtualReads: true}
+	eval := state.Evaluation(context.Background())
+	eval.BindQueryRow(source, 0)
 	if v, err := node.Eval(&eval); err != nil || v.IsNull() {
 		t.Fatal(v, err)
 	}

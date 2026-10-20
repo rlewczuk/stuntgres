@@ -135,8 +135,8 @@ func TestTransactionAppendScalingAndRelationRetention(t *testing.T) {
 			if changes > maxChanges || copied >= n {
 				t.Fatalf("N=%d roots=%d copied=%d", n, changes, copied)
 			}
-			value, err := retained.source.row(0)[0].Integer()
-			if retained.count != 1 || err != nil || value != 1 {
+			value, err := retained.Source.Row(0)[0].Integer()
+			if retained.Count != 1 || err != nil || value != 1 {
 				t.Fatal("append widened retained prefix")
 			}
 			for range n {
@@ -147,7 +147,7 @@ func TestTransactionAppendScalingAndRelationRetention(t *testing.T) {
 			sessionSQL(t, s, "INSERT INTO u VALUES(3)")
 			own := sessionSQL(t, s, "SELECT v FROM t").Rows.(*finalRows)
 			defer own.Close()
-			data := own.source.view.Data()
+			data := own.Source.View.Data()
 			if len(data.Committed) != 1 || len(data.Own) != 1 || len(data.Committed[ref.Address]) != n || len(data.Own[ref.Address]) != 1 {
 				t.Fatal("query retained unrelated committed/private relation roots")
 			}
@@ -155,8 +155,8 @@ func TestTransactionAppendScalingAndRelationRetention(t *testing.T) {
 			if err := e.Reset(context.Background()); err != nil {
 				t.Fatal(err)
 			}
-			value, err = own.source.row(n)[0].Integer()
-			if own.count != n+1 || err != nil || value != 2 || retained.count != 1 {
+			value, err = own.Source.Row(n)[0].Integer()
+			if own.Count != n+1 || err != nil || value != 2 || retained.Count != 1 {
 				t.Fatal("replacement lost retained relation-local roots")
 			}
 			t.Logf("N=%d backing-root changes=%d copied-prefix entries=%d retained committed relations=%d private relations=%d", n, changes, copied, len(data.Committed), len(data.Own))

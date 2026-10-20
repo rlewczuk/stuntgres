@@ -21,11 +21,11 @@ func checkRowSecurityBinding(scope *StatementScope, auth AuthorizationView, b bi
 		}
 	}
 	for _, leaf := range b.querySources {
-		principal := leaf.principal
+		principal := leaf.Principal
 		if principal == (authorization.PrincipalRef{}) {
 			principal = auth.State.CurrentUser
 		}
-		if err := checkRowSecuritySource(auth, leaf.relation, principal, auth.State.CurrentUser); err != nil {
+		if err := checkRowSecuritySource(auth, leaf.Relation, principal, auth.State.CurrentUser); err != nil {
 			return err
 		}
 	}

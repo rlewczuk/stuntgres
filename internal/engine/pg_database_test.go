@@ -30,7 +30,7 @@ func pgDatabaseUnitCapture(t *testing.T, e *Engine, catalog catalog.Read) *query
 	e.mu.Lock()
 	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, e.roles.read(e.catalog.owner(), catalog, e.roles.published), ref, source)
 	e.mu.Unlock()
-	if err != nil || rows == nil || rows.ref != ref || rows.count() != 1 || len(rows.anonymous[0]) != 18 {
+	if err != nil || rows == nil || rows.Ref != ref || rows.Count() != 1 || len(rows.Anonymous[0]) != 18 {
 		t.Fatal("one captured database", rows, err)
 	}
 	return rows
@@ -76,7 +76,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 	state, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
 	descriptors, names := maps.Collect(state.Descriptors()), maps.Collect(state.Names())
 	rows := pgDatabaseUnitCapture(t, e, view)
-	row := rows.anonymous[0]
+	row := rows.Anonymous[0]
 	for i, value := range row {
 		wantNull := i == 5 || i == 6 || i >= 8 && i <= 11 || i >= 14 && i <= 17
 		if value.Type() != d.Columns[i].Usage.Type || value.IsNull() != wantNull {
@@ -147,7 +147,7 @@ func TestPGDatabaseCapture(t *testing.T) {
 		}
 	}
 	isolated := e.catalog.read(private)
-	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: isolated, Roles: e.roles.read(e.catalog.owner(), isolated, e.roles.published), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got == nil || err != nil || got.count() != 1 {
+	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: isolated, Roles: e.roles.read(e.catalog.owner(), isolated, e.roles.published), Ref: ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGDatabase); got == nil || err != nil || got.Count() != 1 {
 		t.Fatal("unrelated relations affect current row", got, err)
 	}
 	invalidDB := *database
@@ -186,7 +186,7 @@ func TestPGDatabasePublication(t *testing.T) {
 	peer := pgDatabaseUnitCapture(t, e, base)
 	check := func(rows *querySource, owner uint32, public bool) {
 		t.Helper()
-		row := rows.anonymous[0]
+		row := rows.Anonymous[0]
 		if id, err := row[2].OID(); err != nil || id != owner {
 			t.Fatal("captured owner", id, owner, err)
 		}
@@ -219,7 +219,7 @@ func TestPGDatabasePublication(t *testing.T) {
 	check(pgDatabaseUnitCapture(t, e, e.CatalogRead()), uint32(successor.Ref.ID()), true)
 	check(old, 10, false)
 	check(peer, 10, false)
-	retained := &indexedStage{source: old, schema: d.Columns}
+	retained := &indexedStage{Source: old, Columns: d.Columns}
 	schema := append([]catalog.Column(nil), retained.Schema()...)
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
@@ -236,7 +236,7 @@ func TestPGDatabasePublication(t *testing.T) {
 	if next, err := retained.Next(context.Background(), values); !next || err != nil {
 		t.Fatal("retained row", next, err)
 	}
-	if !reflect.DeepEqual(values, old.anonymous[0]) {
+	if !reflect.DeepEqual(values, old.Anonymous[0]) {
 		t.Fatal("retained values changed")
 	}
 	if next, err := retained.Next(context.Background(), values); next || err != nil {

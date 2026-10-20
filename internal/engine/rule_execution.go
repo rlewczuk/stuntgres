@@ -130,10 +130,10 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 		scope.installRuleScratch(ruleCommandScratch{mutation: statementMutation{statement: command.syntax}, ref: physical.ref, descriptor: physical.relation, storage: physical.storage, viewWrite: command.binding.viewWrite, sources: command.binding.querySources, auth: &program.commands[i].auth})
 		captures := &quoteCaptureCandidate{}
 		if command.binding.parameters.Count == 0 {
-			*captures = quoteCaptureCandidate{entries: candidate.quotes, private: quoteChanged}
+			*captures = quoteCaptureCandidate{Entries: candidate.quotes, Private: quoteChanged}
 			pruneQuoteCaptures(captures, command.auth.Catalog)
 		}
-		evaluation := EvalContext{evalStatement: evalStatement{Context: scope.op.Context(), Parameters: parameters, host: hostOf(scope), catalog: command.auth.Catalog, Input: scope.input, Output: scope.output, quoteCaptures: captures, planStaticOperators: true, specializeRuleParameters: true}}
+		evaluation := EvalContext{evalStatement: evalStatement{Context: scope.op.Context(), Parameters: parameters, Host: hostOf(scope), Catalog: command.auth.Catalog, Input: scope.input, Output: scope.output, QuoteCaptures: captures, PlanStaticOperators: true, SpecializeRuleParameters: true}}
 		e.mu.Lock()
 		if _, err := e.prepareCTECommandsLocked(scope, command.syntax, command.binding, command.auth, parameters, evaluation, nil, nil, &prepared[i]); err != nil {
 			return Result{}, err

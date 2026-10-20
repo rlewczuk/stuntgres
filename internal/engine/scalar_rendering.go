@@ -51,7 +51,7 @@ func (r scalarRenderer) renderingWithReturning(ctx context.Context, view catalog
 		// A literal NULL argument decides the call without reading.
 		demand := true
 		for _, arg := range args {
-			if randomLiteralNull(arg.Expr) {
+			if RandomLiteralNull(arg.Expr) {
 				demand = false
 				break
 			}

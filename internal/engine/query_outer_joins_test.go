@@ -35,7 +35,7 @@ func TestQueryOuterJoinsMergedOriginsAndNullableFrames(t *testing.T) {
 			if kind == "FULL" && (!schema[1].Nullable || !schema[1].NullabilityKnown || !schema[2].Nullable || !schema[2].NullabilityKnown) {
 				t.Fatal(schema)
 			}
-			result, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+			result, count, err := Finalize(context.Background(), query.Root, source, nil)
 			want := 4
 			if kind == "RIGHT" && operands[:1] == "a" || kind == "LEFT" && operands[:4] == "wide" {
 				want = 2
@@ -68,7 +68,7 @@ func TestQueryOuterJoinsDemandAndCancellation(t *testing.T) {
 				return sqltype.Boolean(typ, true), nil
 			})
 			project.Child = &plan.LimitNode{QuerySchema: join.Schema(), Child: join, Count: queryLimitBound(t, e, limit)}
-			result, count, err := finalizeQuery(context.Background(), project, source, nil)
+			result, count, err := Finalize(context.Background(), project, source, nil)
 			if err != nil || count != int(limit) || calls != int(limit) {
 				t.Fatal(kind, limit, count, calls, err)
 			}
@@ -89,7 +89,7 @@ func TestQueryOuterJoinsDemandAndCancellation(t *testing.T) {
 			}
 			return sqltype.Boolean(typ, false), nil
 		})
-		result, _, err := finalizeQuery(ctx, project, source, nil)
+		result, _, err := Finalize(ctx, project, source, nil)
 		if result != nil || !errors.Is(err, context.Canceled) || calls != 3 {
 			t.Fatal(kind, result, calls, err)
 		}
@@ -98,24 +98,24 @@ func TestQueryOuterJoinsDemandAndCancellation(t *testing.T) {
 
 func TestQueryOuterJoinsAbsentVersionsAndLineage(t *testing.T) {
 	real := storage.RowVersion{Row: 7}
-	source := &querySource{materialized: true, occurrences: []int{0, 1}, provenance: []int{-1, 3}, versions: []storage.RowVersion{{}, real}}
-	got := appendQueryVersions(nil, source, 0, &queryLockContext{})
+	source := &querySource{Materialized: true, Occurrences: []int{0, 1}, Provenance: []int{-1, 3}, Versions: []storage.RowVersion{{}, real}}
+	got := AppendQueryVersions(nil, source, 0, &queryLockContext{})
 	if !reflect.DeepEqual(got, []storage.RowVersion{{}, real}) {
 		t.Fatal("first absent version invalidated complete cache", got)
 	}
-	bridge := &querySource{lineage: &queryLockLineage{stage: source, currentIndex: 4, currentOrder: []sqltype.Value{{}}, cacheWidth: 1}}
-	provenance := appendQueryProvenance(nil, bridge, absentQueryIndex)
-	if !reflect.DeepEqual(provenance, []int{-1, -1}) || bridge.lineage.currentIndex != -1 || bridge.lineage.currentOrder != nil {
-		t.Fatal(provenance, bridge.lineage)
+	bridge := &querySource{Lineage: &queryLockLineage{Stage: source, CurrentIndex: 4, CurrentOrder: []sqltype.Value{{}}, CacheWidth: 1}}
+	provenance := AppendQueryProvenance(nil, bridge, AbsentQueryIndex)
+	if !reflect.DeepEqual(provenance, []int{-1, -1}) || bridge.Lineage.CurrentIndex != -1 || bridge.Lineage.CurrentOrder != nil {
+		t.Fatal(provenance, bridge.Lineage)
 	}
-	if source.rawIndex(-1) != -1 || source.versionAt(-1).Row != 0 || source.row(-1) != nil {
+	if source.RawIndex(-1) != -1 || source.VersionAt(-1).Row != 0 || source.Row(-1) != nil {
 		t.Fatal("absent identity dereferenced")
 	}
-	if len(appendQueryVersions(nil, bridge, -1, &queryLockContext{})) != 2 {
+	if len(AppendQueryVersions(nil, bridge, -1, &queryLockContext{})) != 2 {
 		t.Fatal("absent version width")
 	}
-	sparse := &querySource{materialized: true, occurrences: []int{0, 1}, versions: []storage.RowVersion{{}, {}}, versionValid: []bool{false}, lineage: &queryLockLineage{stage: source, selection: []int{0}}}
-	got = appendQueryVersions(nil, sparse, 0, &queryLockContext{})
+	sparse := &querySource{Materialized: true, Occurrences: []int{0, 1}, Versions: []storage.RowVersion{{}, {}}, VersionValid: []bool{false}, Lineage: &queryLockLineage{Stage: source, Selection: []int{0}}}
+	got = AppendQueryVersions(nil, sparse, 0, &queryLockContext{})
 	if !reflect.DeepEqual(got, []storage.RowVersion{{}, real}) {
 		t.Fatal("sparse uninitialized cache mistaken for absent physical versions", got)
 	}
@@ -197,15 +197,15 @@ func TestQueryOuterJoinsExecutionRowmarkModes(t *testing.T) {
 }
 
 func TestQueryOuterJoinsLocalMarkFrontierManifest(t *testing.T) {
-	inputs := &querySource{sources: []*querySource{{occurrence: 0}, {occurrence: 1}}}
-	inputs.locks = &queryLockContext{leaves: []queryLockLeaf{
-		{leaf: queryLeaf{relation: &catalog.Relation{RelationKind: catalog.TableRelation}}},
-		{leaf: queryLeaf{relation: &catalog.Relation{RelationKind: catalog.TableRelation}}},
+	inputs := &querySource{Sources: []*querySource{{Occurrence: 0}, {Occurrence: 1}}}
+	inputs.Locks = &queryLockContext{Leaves: []queryLockLeaf{
+		{Leaf: queryLeaf{Relation: &catalog.Relation{RelationKind: catalog.TableRelation}}},
+		{Leaf: queryLeaf{Relation: &catalog.Relation{RelationKind: catalog.TableRelation}}},
 	}}
 	left := &plan.RowLockNode{Child: &plan.SourceNode{Occurrence: 0}, Marks: []plan.RowMark{{Mode: lock.ForUpdate}}, FirstMode: lock.ForUpdate}
 	for _, kind := range []parser.JoinKind{parser.JoinInner, parser.JoinLeft, parser.JoinRight, parser.JoinFull} {
 		join := &plan.JoinNode{Kind: kind, Left: left, Right: &plan.SourceNode{Occurrence: 1}}
-		marks := pendingQueryMarks(join, inputs, nil)
+		marks := PendingQueryMarks(join, inputs, nil)
 		want := 0
 		if kind == parser.JoinInner {
 			want = 1

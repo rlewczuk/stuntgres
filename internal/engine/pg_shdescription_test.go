@@ -33,7 +33,7 @@ func pgShDescriptionUnitBag(t *testing.T, source *querySource) map[uint32]string
 		t.Fatal("missing captured source")
 	}
 	bag := make(map[uint32]string)
-	for _, row := range source.anonymous {
+	for _, row := range source.Anonymous {
 		if len(row) != 3 || row[0].Type().ID() != sqltype.Oid || row[1].Type().ID() != sqltype.Oid || row[2].Type().ID() != sqltype.Text {
 			t.Fatal("shared row types", row)
 		}
@@ -92,10 +92,10 @@ func TestPGShDescriptionEmptySource(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if source.anonymous == nil || len(source.anonymous) != 0 {
+			if source.Anonymous == nil || len(source.Anonymous) != 0 {
 				t.Fatal("empty catalog must remain an anonymous source", source)
 			}
-			rows, count, err := finalizeQuery(context.Background(), root, source, nil)
+			rows, count, err := Finalize(context.Background(), root, source, nil)
 			if err != nil {
 				t.Fatal("empty captured source must execute", err)
 			}
@@ -136,7 +136,7 @@ func pgShDescriptionUnitInquiry(t *testing.T, e *Engine, roles authorization.Rea
 		plan.LiteralExpr{Info: expr.Info{Usage: oidUsage}, Value: oid},
 		plan.LiteralExpr{Info: expr.Info{Usage: nameUsage}, Value: sqltype.String(nameUsage.Type, "pg_authid")},
 	}}
-	value, err := expr.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), host: hostOf(&StatementScope{inquiry: inquirySnapshot{commentRoles: roles, commentCatalog: catalog}})}})
+	value, err := expr.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Host: hostOf(&StatementScope{inquiry: inquirySnapshot{commentRoles: roles, commentCatalog: catalog}})}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +184,7 @@ func TestPGShDescriptionDescriptor(t *testing.T) {
 		t.Fatal(err)
 	}
 	found := 0
-	for _, row := range rows.anonymous {
+	for _, row := range rows.Anonymous {
 		oid, _ := row[0].OID()
 		if oid != 2396 {
 			continue
@@ -317,8 +317,8 @@ func TestPGShDescriptionScopeSnapshot(t *testing.T) {
 	inner := addView(20010, "shared_inner", ref)
 	outer := addView(20011, "shared_outer", inner)
 	nested := open(scope, outer)
-	defer nested.close()
-	if nested.nestedInputs == nil || nested.nestedInputs.nestedInputs == nil || !reflect.DeepEqual(pgShDescriptionUnitBag(t, nested.nestedInputs.nestedInputs), map[uint32]string{20000: "old"}) {
+	defer nested.Close()
+	if nested.NestedInputs == nil || nested.NestedInputs.NestedInputs == nil || !reflect.DeepEqual(pgShDescriptionUnitBag(t, nested.NestedInputs.NestedInputs), map[uint32]string{20000: "old"}) {
 		t.Fatal("nested opening lost saved roles")
 	}
 	pgShDescriptionUnitInquiry(t, e, scope.inquiry.commentRoles, scope.inquiry.commentCatalog, 20000, new("old"))

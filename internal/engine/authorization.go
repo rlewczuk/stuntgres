@@ -312,35 +312,35 @@ func (v AuthorizationView) checkBinding(b binding, stmt parser.Statement) error 
 
 func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
 	for _, source := range sources {
-		if source.analysisOnly {
+		if source.AnalysisOnly {
 			continue
 		}
 		sourceAuth := v
-		if source.principal != (authorization.PrincipalRef{}) {
-			sourceAuth.State.CurrentUser = source.principal
-			if err := sourceAuth.Roles.ValidatePrincipal(source.principal); err != nil {
+		if source.Principal != (authorization.PrincipalRef{}) {
+			sourceAuth.State.CurrentUser = source.Principal
+			if err := sourceAuth.Roles.ValidatePrincipal(source.Principal); err != nil {
 				return err
 			}
 		}
-		if err := sourceAuth.checkColumns(binding{ref: source.ref, relation: source.relation}, authorization.SelectPrivilege, source.uses); err != nil {
+		if err := sourceAuth.checkColumns(binding{ref: source.Ref, relation: source.Relation}, authorization.SelectPrivilege, source.Uses); err != nil {
 			return err
 		}
 	}
 	for _, source := range sources {
 		sourceAuth := v
-		if source.principal != (authorization.PrincipalRef{}) {
-			sourceAuth.State.CurrentUser = source.principal
-			if err := sourceAuth.Roles.ValidatePrincipal(source.principal); err != nil {
+		if source.Principal != (authorization.PrincipalRef{}) {
+			sourceAuth.State.CurrentUser = source.Principal
+			if err := sourceAuth.Roles.ValidatePrincipal(source.Principal); err != nil {
 				return err
 			}
 		}
-		if effectiveQueryRowMark(source.relation, source.mark).Mode != 0 {
-			if err := sourceAuth.checkColumns(binding{ref: source.ref, relation: source.relation}, authorization.UpdatePrivilege, nil); err != nil {
+		if EffectiveQueryRowMark(source.Relation, source.Mark).Mode != 0 {
+			if err := sourceAuth.checkColumns(binding{ref: source.Ref, relation: source.Relation}, authorization.UpdatePrivilege, nil); err != nil {
 				return err
 			}
 		}
-		if source.relation.RelationKind == catalog.ViewRelation && (source.mark.Mode != 0 || viewHasStoredRowMarks(source.relation, v.Catalog)) {
-			if err := sourceAuth.checkViewRowMarks(source.relation, source.mark, sourceAuth.State.CurrentUser); err != nil {
+		if source.Relation.RelationKind == catalog.ViewRelation && (source.Mark.Mode != 0 || viewHasStoredRowMarks(source.Relation, v.Catalog)) {
+			if err := sourceAuth.checkViewRowMarks(source.Relation, source.Mark, sourceAuth.State.CurrentUser); err != nil {
 				return err
 			}
 		}

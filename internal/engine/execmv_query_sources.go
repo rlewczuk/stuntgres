@@ -17,28 +17,28 @@ import (
 )
 
 // Query and catalog replacement share one physical-to-live head selection.
-func selectQuerySource(ctx context.Context, source *querySource, frontier ids.CommitSeq, ends *storage.DeletionRoot, own *visibility.PrivateDeletes) (*querySource, error) {
-	if source.rlsDenied {
+func SelectQuerySource(ctx context.Context, source *querySource, frontier ids.CommitSeq, ends *storage.DeletionRoot, own *visibility.PrivateDeletes) (*querySource, error) {
+	if source.RlsDenied {
 		return source, ctx.Err()
 	}
 	replacements, single := 0, 0
-	for i, row := range source.own {
+	for i, row := range source.Own {
 		if row.Base != 0 {
 			replacements++
 			single = i
 		}
 	}
-	if ends == nil && own == nil && replacements == 0 && !source.needsBirthFilter {
+	if ends == nil && own == nil && replacements == 0 && !source.NeedsBirthFilter {
 		return source, nil
 	}
-	total := len(source.committed) + len(source.own)
+	total := len(source.Committed) + len(source.Own)
 	var heads map[ids.VersionID]int
 	singleSubstituted := false
 	if replacements > 1 {
 		heads = make(map[ids.VersionID]int, replacements)
-		for i, row := range source.own {
+		for i, row := range source.Own {
 			if row.Base != 0 {
-				heads[row.Base] = len(source.committed) + i
+				heads[row.Base] = len(source.Committed) + i
 			}
 		}
 	}
@@ -46,87 +46,87 @@ func selectQuerySource(ctx context.Context, source *querySource, frontier ids.Co
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		live := visibility.LiveVersion(source.versionAt(raw), frontier, ends, own)
-		if source.visible == nil && (!live || raw != ordinal) {
-			source.visible = make([]int, ordinal, total)
+		live := visibility.LiveVersion(source.VersionAt(raw), frontier, ends, own)
+		if source.Visible == nil && (!live || raw != ordinal) {
+			source.Visible = make([]int, ordinal, total)
 			for j := range ordinal {
-				source.visible[j] = j
+				source.Visible[j] = j
 			}
 		}
-		if live && source.visible != nil {
-			source.visible = append(source.visible, raw)
+		if live && source.Visible != nil {
+			source.Visible = append(source.Visible, raw)
 		}
 		return nil
 	}
-	for i, row := range source.committed {
+	for i, row := range source.Committed {
 		raw := i
-		if replacements == 1 && row.Row == source.own[single].Row && row.Version == source.own[single].Base {
-			raw = len(source.committed) + single
+		if replacements == 1 && row.Row == source.Own[single].Row && row.Version == source.Own[single].Base {
+			raw = len(source.Committed) + single
 			singleSubstituted = true
 		}
-		if head, ok := heads[row.Version]; ok && source.versionAt(head).Row == row.Row {
+		if head, ok := heads[row.Version]; ok && source.VersionAt(head).Row == row.Row {
 			raw = head
 			delete(heads, row.Version)
 		}
 		if err := include(raw, i); err != nil {
-			source.close()
+			source.Close()
 			return nil, err
 		}
 	}
-	for i, row := range source.own {
+	for i, row := range source.Own {
 		if row.Base != 0 && ((replacements == 1 && singleSubstituted) || (replacements > 1 && heads[row.Base] == 0)) {
 			continue
 		}
-		raw := len(source.committed) + i
+		raw := len(source.Committed) + i
 		if err := include(raw, raw); err != nil {
-			source.close()
+			source.Close()
 			return nil, err
 		}
 	}
 	return source, nil
 }
 
-func partialMaskContains(root *storage.IndexRoot, row storage.RowVersion) bool {
+func PartialMaskContains(root *storage.IndexRoot, row storage.RowVersion) bool {
 	version, ok := root.Membership[row.Row]
 	return ok && version == row.Version
 }
 
 type inheritanceQuerySegment struct {
-	leaf    queryLeaf
-	prefix  *querySource
-	layout  []int // Nil is an identity layout: borrow the physical tuple.
-	scratch []sqltype.Value
+	Leaf    queryLeaf
+	Prefix  *querySource
+	Layout  []int // Nil is an identity layout: borrow the physical tuple.
+	Scratch []sqltype.Value
 }
 
 func (s *querySource) selectInheritancePrefixes(ctx context.Context) error {
 	total := 0
-	for i, segment := range s.inheritance {
-		data := segment.prefix.view.Data()
-		if _, err := selectQuerySource(ctx, segment.prefix, data.FrontierAt(segment.leaf.ref.Address), data.Ends[segment.leaf.ref.Address], data.Deleted[segment.leaf.ref.Address]); err != nil {
+	for i, segment := range s.Inheritance {
+		data := segment.Prefix.View.Data()
+		if _, err := SelectQuerySource(ctx, segment.Prefix, data.FrontierAt(segment.Leaf.Ref.Address), data.Ends[segment.Leaf.Ref.Address], data.Deleted[segment.Leaf.Ref.Address]); err != nil {
 			return err
 		}
-		total += segment.prefix.count()
-		s.inheritanceEnds[i] = total
+		total += segment.Prefix.Count()
+		s.InheritanceEnds[i] = total
 	}
 	return ctx.Err()
 }
 
 func (s *querySource) inheritanceSegment(index int) (*inheritanceQuerySegment, int) {
-	at := sort.SearchInts(s.inheritanceEnds, index+1)
+	at := sort.SearchInts(s.InheritanceEnds, index+1)
 	if at > 0 {
-		index -= s.inheritanceEnds[at-1]
+		index -= s.InheritanceEnds[at-1]
 	}
-	return &s.inheritance[at], index
+	return &s.Inheritance[at], index
 }
 
-func (segment *inheritanceQuerySegment) mapValues(values []sqltype.Value) []sqltype.Value {
-	if segment.layout == nil {
+func (segment *inheritanceQuerySegment) MapValues(values []sqltype.Value) []sqltype.Value {
+	if segment.Layout == nil {
 		return values
 	}
-	for i, slot := range segment.layout {
-		segment.scratch[i] = values[slot]
+	for i, slot := range segment.Layout {
+		segment.Scratch[i] = values[slot]
 	}
-	return segment.scratch
+	return segment.Scratch
 }
 
 // A locator preserves physical authority and raw storage hint independently of
@@ -135,63 +135,63 @@ func (segment *inheritanceQuerySegment) mapValues(values []sqltype.Value) []sqlt
 // Provenance retains the original visible index through every existing adapter;
 // caches retain physical versions, never a reconstructed parent storage.RowVersion.
 type queryPhysicalRow struct {
-	leaf    queryLeaf
-	version storage.RowVersion
-	hint    int
-	segment *inheritanceQuerySegment
+	Leaf    queryLeaf
+	Version storage.RowVersion
+	Hint    int
+	Segment *inheritanceQuerySegment
 }
 
-func (s *querySource) physicalRow(index int, logical queryLeaf, candidate storage.RowVersion) queryPhysicalRow {
+func (s *querySource) PhysicalRow(index int, logical queryLeaf, candidate storage.RowVersion) queryPhysicalRow {
 	prefix := s
 	var segment *inheritanceQuerySegment
-	if s.inheritance != nil {
+	if s.Inheritance != nil {
 		segment, index = s.inheritanceSegment(index)
-		prefix = segment.prefix
-		logical = segment.leaf
+		prefix = segment.Prefix
+		logical = segment.Leaf
 	}
-	raw := prefix.rawIndex(index)
+	raw := prefix.RawIndex(index)
 	hint := raw
-	if raw >= len(prefix.committed) {
-		hint -= len(prefix.committed)
+	if raw >= len(prefix.Committed) {
+		hint -= len(prefix.Committed)
 	}
-	return queryPhysicalRow{leaf: logical, version: candidate, hint: hint, segment: segment}
+	return queryPhysicalRow{Leaf: logical, Version: candidate, Hint: hint, Segment: segment}
 }
 
-func (row queryPhysicalRow) values(version storage.RowVersion) []sqltype.Value {
-	if row.segment != nil {
-		return row.segment.mapValues(version.Values)
+func (row queryPhysicalRow) Values(version storage.RowVersion) []sqltype.Value {
+	if row.Segment != nil {
+		return row.Segment.MapValues(version.Values)
 	}
 	return version.Values
 }
 
-func (s *querySource) physicalRef(index int) ids.ObjectRef {
-	if s.inheritance != nil {
+func (s *querySource) PhysicalRef(index int) ids.ObjectRef {
+	if s.Inheritance != nil {
 		segment, _ := s.inheritanceSegment(index)
-		return segment.leaf.ref
+		return segment.Leaf.Ref
 	}
-	return s.ref
+	return s.Ref
 }
 
 // Definitions are snapshot-owned; completion uses the exact current incarnation.
 type pgSequencesSource struct {
-	host       execHost
-	refs       []ids.ObjectRef
-	predicates []expr.Expr
+	Host       execHost
+	Refs       []ids.ObjectRef
+	Predicates []expr.Expr
 }
 
 func openPGSequencesStage(state *queryState, source *querySource, schema []catalog.Column) indexedStage {
-	p := source.pgSequences
-	out := indexedStage{source: source, schema: schema, selection: []int{}}
+	p := source.PGSequences
+	out := indexedStage{Source: source, Columns: schema, Selection: []int{}}
 	position := 0
-	evaluation := state.evaluation(nil)
-	out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
-		for position < len(p.refs) {
+	evaluation := state.Evaluation(nil)
+	out.Produce = func(ctx context.Context, out *indexedStage) (bool, error) {
+		for position < len(p.Refs) {
 			i := position
 			position++
 			evaluation.setContext(ctx)
-			evaluation.Row = source.anonymous[i]
+			evaluation.Row = source.Anonymous[i]
 			admitted := true
-			for _, predicate := range p.predicates {
+			for _, predicate := range p.Predicates {
 				value, err := predicate.Eval(&evaluation)
 				if err != nil {
 					return false, err
@@ -208,10 +208,10 @@ func openPGSequencesStage(state *queryState, source *querySource, schema []catal
 			if !admitted {
 				continue
 			}
-			if err := p.host.CompletePGSequence(ctx, p.refs[i], source.anonymous[i]); err != nil {
+			if err := p.Host.CompletePGSequence(ctx, p.Refs[i], source.Anonymous[i]); err != nil {
 				return false, err
 			}
-			out.selection = append(out.selection, i)
+			out.Selection = append(out.Selection, i)
 			return true, ctx.Err()
 		}
 		return false, ctx.Err()
@@ -220,22 +220,22 @@ func openPGSequencesStage(state *queryState, source *querySource, schema []catal
 }
 
 type capturedHashIndex struct {
-	definition *catalog.IndexDefinition
-	root       *storage.HashRoot
-	usage      sqltype.Usage
+	Definition *catalog.IndexDefinition
+	Root       *storage.HashRoot
+	Usage      sqltype.Usage
 }
 
 // This state is consumed by the real filter producer, not exported telemetry.
 // Occurrences are local to the captured source's selected visibility mapping.
 type hashCandidateSelection struct {
-	root        *storage.HashRoot
-	occurrences []int
-	position    int
+	Root        *storage.HashRoot
+	Occurrences []int
+	Position    int
 }
 
 // Select only a top-level, single-source WHERE. Inner view/derived/subquery
 // execution constructs its own state and never inherits this eligibility.
-func hashQueryFilter(root plan.Node) *plan.FilterNode {
+func HashQueryFilter(root plan.Node) *plan.FilterNode {
 	project, ok := root.(*plan.ProjectNode)
 	if !ok {
 		return nil
@@ -259,13 +259,13 @@ func hashQueryFilter(root plan.Node) *plan.FilterNode {
 }
 
 func hashFilterCandidates(ctx context.Context, state *queryState, n *plan.FilterNode, source *querySource) (*hashCandidateSelection, error) {
-	if state.hashFilter != n {
+	if state.HashFilter != n {
 		return nil, nil
 	}
 	if _, ok := n.Child.(*plan.SourceNode); !ok {
 		return nil, nil
 	}
-	if source == nil || len(source.hashIndexes) == 0 || source.count() == 0 || source.input != nil || source.final != nil || source.materialized || source.nestedRoot != nil || len(source.own) != 0 || state.source.sources != nil {
+	if source == nil || len(source.HashIndexes) == 0 || source.Count() == 0 || source.Input != nil || source.Final != nil || source.Materialized || source.NestedRoot != nil || len(source.Own) != 0 || state.Source.Sources != nil {
 		return nil, nil
 	}
 	predicate, ok := n.Predicate.(plan.ComparisonExpr)
@@ -278,8 +278,8 @@ func hashFilterCandidates(ctx context.Context, state *queryState, n *plan.Filter
 		column, ok = predicate.Right.(plan.ColumnExpr)
 		probe = predicate.Left
 	}
-	evaluation := state.evaluation(ctx)
-	if !ok || column.Scope != evaluation.Scope || column.Frame != evaluation.Frame || column.Origin.Domain() != source.ref.Domain() || column.Origin.Epoch != source.ref.Epoch || column.Origin.Address.ClassID != source.ref.Address.ClassID || column.Origin.Address.ObjectID != source.ref.Address.ObjectID {
+	evaluation := state.Evaluation(ctx)
+	if !ok || column.Scope != evaluation.Scope || column.Frame != evaluation.Frame || column.Origin.Domain() != source.Ref.Domain() || column.Origin.Epoch != source.Ref.Epoch || column.Origin.Address.ClassID != source.Ref.Address.ClassID || column.Origin.Address.ObjectID != source.Ref.Address.ObjectID {
 		return nil, nil
 	}
 	switch probe.(type) {
@@ -290,52 +290,52 @@ func hashFilterCandidates(ctx context.Context, state *queryState, n *plan.Filter
 	if probe.ResultUsage() != column.ResultUsage() || !predicate.Predicate.EqualityFor(column.ResultUsage()) {
 		return nil, nil
 	}
-	for _, capture := range source.hashIndexes {
-		key := capture.definition.Keys[0]
-		if key.Derived != nil || key.Attribute != column.Origin.Address.SubID || column.Slot != capture.root.Binding.Slot || capture.usage != column.ResultUsage() || !capture.root.Binding.Provider.OrdinaryEquality() {
+	for _, capture := range source.HashIndexes {
+		key := capture.Definition.Keys[0]
+		if key.Derived != nil || key.Attribute != column.Origin.Address.SubID || column.Slot != capture.Root.Binding.Slot || capture.Usage != column.ResultUsage() || !capture.Root.Binding.Provider.OrdinaryEquality() {
 			continue
 		}
 		value, err := probe.Eval(&evaluation)
 		if err != nil {
 			return nil, err
 		}
-		selection := &hashCandidateSelection{root: capture.root, occurrences: []int{}}
+		selection := &hashCandidateSelection{Root: capture.Root, Occurrences: []int{}}
 		if value.IsNull() {
 			return selection, ctx.Err()
 		}
-		h, err := capture.root.Binding.Provider.Hash(ctx, value)
+		h, err := capture.Root.Binding.Provider.Hash(ctx, value)
 		if err != nil {
 			return nil, err
 		}
-		bucket := capture.root.Buckets[h]
+		bucket := capture.Root.Buckets[h]
 		if len(bucket) != 0 {
-			selection.occurrences = make([]int, 0, len(bucket))
+			selection.Occurrences = make([]int, 0, len(bucket))
 		}
 		for _, entry := range bucket {
 			if err := ctx.Err(); err != nil {
 				return nil, err
 			}
-			if entry.Position < 0 || entry.Position >= len(source.committed) {
+			if entry.Position < 0 || entry.Position >= len(source.Committed) {
 				return nil, fmt.Errorf("stuntgres: invalid hash candidate position")
 			}
-			row := source.committed[entry.Position]
+			row := source.Committed[entry.Position]
 			if row.Row != entry.Row || row.Version != entry.Version {
 				return nil, fmt.Errorf("stuntgres: invalid hash candidate identity")
 			}
 			ordinal := entry.Position
-			if source.visible != nil {
+			if source.Visible != nil {
 				var found bool
-				ordinal, found = slices.BinarySearch(source.visible, entry.Position)
+				ordinal, found = slices.BinarySearch(source.Visible, entry.Position)
 				if !found {
 					return nil, fmt.Errorf("stuntgres: incomplete hash candidate visibility")
 				}
 			}
-			equal, err := capture.root.Binding.Provider.Equal(ctx, entry.Key, value)
+			equal, err := capture.Root.Binding.Provider.Equal(ctx, entry.Key, value)
 			if err != nil {
 				return nil, err
 			}
 			if equal {
-				selection.occurrences = append(selection.occurrences, ordinal)
+				selection.Occurrences = append(selection.Occurrences, ordinal)
 			}
 		}
 		return selection, ctx.Err()
@@ -345,45 +345,45 @@ func hashFilterCandidates(ctx context.Context, state *queryState, n *plan.Filter
 
 // Each manifest entry is an SQL occurrence, even when physical identity repeats.
 type queryLeaf struct {
-	ref              ids.ObjectRef
-	relation         *catalog.Relation
-	storage          *storage.Relation
-	only             bool
-	principal        authorization.PrincipalRef // Relation authority, not expression/session identity.
-	frozenAttributes []int32                    // Execution-owned stored-view subquery layout.
-	uses             []int
-	mark             plan.RowMark
-	query            *parser.Select
-	table            *parser.TableReference
+	Ref              ids.ObjectRef
+	Relation         *catalog.Relation
+	Storage          *storage.Relation
+	Only             bool
+	Principal        authorization.PrincipalRef // Relation authority, not expression/session identity.
+	FrozenAttributes []int32                    // Execution-owned stored-view subquery layout.
+	Uses             []int
+	Mark             plan.RowMark
+	Query            *parser.Select
+	Table            *parser.TableReference
 	// DELETE's immediate USING occurrences require reference-kind validation,
 	// not SELECT FOR UPDATE authority or source tuple locks.
-	deleteReference  bool
-	partialCandidate *catalog.Relation
-	analysisOnly     bool // Unreferenced CTE body: analyzed dependency, no executable ACL.
+	DeleteReference  bool
+	PartialCandidate *catalog.Relation
+	AnalysisOnly     bool // Unreferenced CTE body: analyzed dependency, no executable ACL.
 }
 
-func selectQuerySources(ctx context.Context, source *querySource) error {
+func SelectQuerySources(ctx context.Context, source *querySource) error {
 	selectOne := func(source *querySource) error {
-		if source.inheritance != nil {
+		if source.Inheritance != nil {
 			return source.selectInheritancePrefixes(ctx)
 		}
-		if source.view == nil {
+		if source.View == nil {
 			return ctx.Err()
 		}
-		data := source.view.Data()
-		_, err := selectQuerySource(ctx, source, data.FrontierAt(source.ref.Address), data.Ends[source.ref.Address], data.Deleted[source.ref.Address])
+		data := source.View.Data()
+		_, err := SelectQuerySource(ctx, source, data.FrontierAt(source.Ref.Address), data.Ends[source.Ref.Address], data.Deleted[source.Ref.Address])
 		return err
 	}
-	if source.sources == nil {
+	if source.Sources == nil {
 		if err := selectOne(source); err != nil {
-			source.close()
+			source.Close()
 			return err
 		}
 		return nil
 	}
-	for _, leaf := range source.sources {
+	for _, leaf := range source.Sources {
 		if err := selectOne(leaf); err != nil {
-			source.close()
+			source.Close()
 			return err
 		}
 	}

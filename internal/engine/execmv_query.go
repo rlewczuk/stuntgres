@@ -27,7 +27,7 @@ type RowResult interface {
 	OutputEnvironment() sqltype.OutputEnvironment
 }
 
-func queryPredicateRejectsAll(c *EvalContext, expr expr.Expr) (bool, error) {
+func QueryPredicateRejectsAll(c *EvalContext, expr expr.Expr) (bool, error) {
 	value, known, err := plan.QueryPredicateProofValue(c, expr)
 	if err != nil || !known {
 		return false, err
@@ -40,272 +40,272 @@ func queryPredicateRejectsAll(c *EvalContext, expr expr.Expr) (bool, error) {
 // the occurrence bundle. Joined stages instead own flat admitted frames.
 // A nil visible mapping preserves the allocation-free all-occurrences path.
 type querySource struct {
-	view *visibility.View
-	ref  ids.ObjectRef
+	View *visibility.View
+	Ref  ids.ObjectRef
 	// A frozen-view occurrence may carry an older immutable manifest ref.
 	// Set only after contextual owner/provider proof at source capture.
-	storedRef        ids.ObjectRef
-	committed, own   []storage.RowVersion
-	partialMask      *storage.IndexRoot
-	singleton        bool
-	rlsDenied        bool
-	needsBirthFilter bool // Current TRUNCATE vector at a retained older frontier.
-	anonymous        [][]sqltype.Value
-	pgSequences      *pgSequencesSource
-	foreign          *foreignQuerySource
-	visible          []int
-	hashIndexes      []capturedHashIndex
-	host             execHost
-	authority        *queryAuthority
+	StoredRef        ids.ObjectRef
+	Committed, Own   []storage.RowVersion
+	PartialMask      *storage.IndexRoot
+	Singleton        bool
+	RlsDenied        bool
+	NeedsBirthFilter bool // Current TRUNCATE vector at a retained older frontier.
+	Anonymous        [][]sqltype.Value
+	PGSequences      *pgSequencesSource
+	Foreign          *foreignQuerySource
+	Visible          []int
+	HashIndexes      []capturedHashIndex
+	Host             execHost
+	Authority        *queryAuthority
 	// Borrowed only by an opaque stored-source execution root after original
 	// view lifetime/provider validation. This immutable definition supplies its
 	// original manifest, never current rights or relation-owner substitution.
-	routineRecipe *catalog.Relation
+	RoutineRecipe *catalog.Relation
 	// routineChecks is routineRecipe's captured expression manifest.
-	routineChecks []catalog.ExpressionDependency
-	sources       []*querySource
+	RoutineChecks []catalog.ExpressionDependency
+	Sources       []*querySource
 	// Both inheritance and partition trees use named-layout physical prefixes.
-	inheritance          []inheritanceQuerySegment
-	inheritanceEnds      []int
-	flat                 []sqltype.Value
-	flatWidth, flatCount int
-	materialized         bool
-	final                *finalRows
-	input                *querySource
-	layout               []int
-	scratch              []sqltype.Value
-	locks                *queryLockContext
-	lineage              *queryLockLineage
-	nestedRoot           plan.Node
-	nestedInputs         *querySource
-	nestedStage          *indexedStage
-	inherited            plan.RowMark // Execution-only mark crossing this view boundary.
+	Inheritance          []inheritanceQuerySegment
+	InheritanceEnds      []int
+	Flat                 []sqltype.Value
+	FlatWidth, FlatCount int
+	Materialized         bool
+	Final                *finalRows
+	Input                *querySource
+	Layout               []int
+	Scratch              []sqltype.Value
+	Locks                *queryLockContext
+	Lineage              *queryLockLineage
+	NestedRoot           plan.Node
+	NestedInputs         *querySource
+	NestedStage          *indexedStage
+	Inherited            plan.RowMark // Execution-only mark crossing this view boundary.
 	// Locking and lazy virtual reads retain physical SQL occurrence identity.
-	occurrence               int
-	occurrences              []int
-	provenance               []int
-	versions                 []storage.RowVersion
-	versionValid             []bool // Nil: complete sequential cache; nonnil: sparse frontier.
-	joinLeft, joinRight      *querySource
-	joinPairs                []queryPair
+	Occurrence               int
+	Occurrences              []int
+	Provenance               []int
+	Versions                 []storage.RowVersion
+	VersionValid             []bool // Nil: complete sequential cache; nonnil: sparse frontier.
+	JoinLeft, JoinRight      *querySource
+	JoinPairs                []queryPair
 	invocationLineage        []queryInvocationLineage
-	window                   bool
-	windowCount, windowWidth int
-	windowValues             []sqltype.Value
-	windowIndices            []int
+	Window                   bool
+	WindowCount, windowWidth int
+	WindowValues             []sqltype.Value
+	WindowIndices            []int
 	// Presence uses packed flags only for demanded null-extended namespaces.
 	// Slot lookup is immutable per source; emitted join rows own flat flags.
-	presenceSlots                  []int
-	presenceCount                  int
-	presenceConstant, presenceFlat []bool
+	PresenceSlots                  []int
+	PresenceCount                  int
+	PresenceConstant, presenceFlat []bool
 }
 
-func (s *querySource) count() int {
-	if s.window {
-		return s.windowCount
+func (s *querySource) Count() int {
+	if s.Window {
+		return s.WindowCount
 	}
-	if s.materialized {
-		return s.flatCount
+	if s.Materialized {
+		return s.FlatCount
 	}
-	if s.final != nil {
-		return s.final.count
+	if s.Final != nil {
+		return s.Final.Count
 	}
-	if s.input != nil {
-		return s.input.count()
+	if s.Input != nil {
+		return s.Input.Count()
 	}
-	if s.anonymous != nil {
-		return len(s.anonymous)
+	if s.Anonymous != nil {
+		return len(s.Anonymous)
 	}
-	if s.singleton {
+	if s.Singleton {
 		return 1
 	}
-	if s.visible != nil {
-		return len(s.visible)
+	if s.Visible != nil {
+		return len(s.Visible)
 	}
-	if s.inheritance != nil {
-		if len(s.inheritanceEnds) == 0 {
+	if s.Inheritance != nil {
+		if len(s.InheritanceEnds) == 0 {
 			return 0
 		}
-		return s.inheritanceEnds[len(s.inheritanceEnds)-1]
+		return s.InheritanceEnds[len(s.InheritanceEnds)-1]
 	}
-	return len(s.committed) + len(s.own)
+	return len(s.Committed) + len(s.Own)
 }
 
-func (s *querySource) row(i int) []sqltype.Value {
-	if i == absentQueryIndex {
+func (s *querySource) Row(i int) []sqltype.Value {
+	if i == AbsentQueryIndex {
 		return nil
 	}
-	if s.window {
-		row := s.input.row(s.inputIndex(i))
-		copy(s.scratch, row)
-		copy(s.scratch[len(s.scratch)-s.windowWidth:], s.windowValues[i*s.windowWidth:(i+1)*s.windowWidth])
-		return s.scratch
+	if s.Window {
+		row := s.Input.Row(s.InputIndex(i))
+		copy(s.Scratch, row)
+		copy(s.Scratch[len(s.Scratch)-s.windowWidth:], s.WindowValues[i*s.windowWidth:(i+1)*s.windowWidth])
+		return s.Scratch
 	}
-	if s.materialized {
-		if s.anonymous != nil {
-			return s.anonymous[i]
+	if s.Materialized {
+		if s.Anonymous != nil {
+			return s.Anonymous[i]
 		}
-		return s.flat[i*s.flatWidth : (i+1)*s.flatWidth]
+		return s.Flat[i*s.FlatWidth : (i+1)*s.FlatWidth]
 	}
-	if s.input != nil {
-		row := s.input.row(s.inputIndex(i))
-		for j, slot := range s.layout {
+	if s.Input != nil {
+		row := s.Input.Row(s.InputIndex(i))
+		for j, slot := range s.Layout {
 			if slot >= 0 {
-				s.scratch[j] = row[slot]
+				s.Scratch[j] = row[slot]
 			}
 		}
-		return s.scratch
+		return s.Scratch
 	}
-	if s.final != nil {
-		r := s.final
-		if r.source != nil {
+	if s.Final != nil {
+		r := s.Final
+		if r.Source != nil {
 			index := i
-			if r.selection != nil {
-				index = r.selection[i]
+			if r.Selection != nil {
+				index = r.Selection[i]
 			}
-			row := r.source.row(index)
-			for j, slot := range r.slots {
-				s.scratch[j] = row[slot]
+			row := r.Source.Row(index)
+			for j, slot := range r.Slots {
+				s.Scratch[j] = row[slot]
 			}
-			return s.scratch
+			return s.Scratch
 		}
-		if r.anonymous != nil {
-			return r.anonymous[i]
+		if r.Anonymous != nil {
+			return r.Anonymous[i]
 		}
-		width := len(r.schema)
-		return r.values[i*width : (i+1)*width]
+		width := len(r.Columns)
+		return r.Values[i*width : (i+1)*width]
 	}
-	if s.anonymous != nil {
-		return s.anonymous[i]
+	if s.Anonymous != nil {
+		return s.Anonymous[i]
 	}
-	if s.singleton {
+	if s.Singleton {
 		return nil
 	}
-	if s.inheritance != nil {
+	if s.Inheritance != nil {
 		segment, index := s.inheritanceSegment(i)
-		return segment.mapValues(segment.prefix.row(index))
+		return segment.MapValues(segment.Prefix.Row(index))
 	}
-	return s.versionAt(s.rawIndex(i)).Values
+	return s.VersionAt(s.RawIndex(i)).Values
 }
 
-func (s *querySource) rawIndex(i int) int {
-	if i == absentQueryIndex {
+func (s *querySource) RawIndex(i int) int {
+	if i == AbsentQueryIndex {
 		return i
 	}
-	if s.visible != nil {
-		return s.visible[i]
+	if s.Visible != nil {
+		return s.Visible[i]
 	}
 	return i
 }
 
-func (s *querySource) versionAt(i int) storage.RowVersion {
-	if i == absentQueryIndex {
+func (s *querySource) VersionAt(i int) storage.RowVersion {
+	if i == AbsentQueryIndex {
 		return storage.RowVersion{}
 	}
-	if s.inheritance != nil {
+	if s.Inheritance != nil {
 		segment, index := s.inheritanceSegment(i)
-		return segment.prefix.versionAt(segment.prefix.rawIndex(index))
+		return segment.Prefix.VersionAt(segment.Prefix.RawIndex(index))
 	}
-	if i < len(s.committed) {
-		return s.committed[i]
+	if i < len(s.Committed) {
+		return s.Committed[i]
 	}
-	return s.own[i-len(s.committed)]
+	return s.Own[i-len(s.Committed)]
 }
 
-func (s *querySource) close() {
-	s.pgSequences = nil
-	sources := s.sources
-	s.sources = nil
-	s.hashIndexes = nil
-	if s.nestedStage != nil {
-		s.nestedStage.Close()
-		s.nestedStage = nil
+func (s *querySource) Close() {
+	s.PGSequences = nil
+	sources := s.Sources
+	s.Sources = nil
+	s.HashIndexes = nil
+	if s.NestedStage != nil {
+		s.NestedStage.Close()
+		s.NestedStage = nil
 	}
-	s.nestedRoot = nil
-	if s.nestedInputs != nil {
-		s.nestedInputs.close()
-		s.nestedInputs = nil
+	s.NestedRoot = nil
+	if s.NestedInputs != nil {
+		s.NestedInputs.Close()
+		s.NestedInputs = nil
 	}
 	for _, child := range sources {
 		if child != nil && child != s {
-			child.close()
+			child.Close()
 		}
 	}
-	for _, segment := range s.inheritance {
-		segment.prefix.close()
+	for _, segment := range s.Inheritance {
+		segment.Prefix.Close()
 	}
-	s.inheritance, s.inheritanceEnds = nil, nil
-	s.flat = nil
-	s.windowValues, s.windowIndices = nil, nil
-	s.presenceSlots, s.presenceConstant, s.presenceFlat = nil, nil, nil
-	s.presenceCount = 0
-	s.windowCount, s.windowWidth, s.window = 0, 0, false
-	s.occurrences = nil
-	s.provenance = nil
-	s.versions = nil
-	s.versionValid = nil
-	s.joinLeft, s.joinRight, s.joinPairs = nil, nil, nil
+	s.Inheritance, s.InheritanceEnds = nil, nil
+	s.Flat = nil
+	s.WindowValues, s.WindowIndices = nil, nil
+	s.PresenceSlots, s.PresenceConstant, s.presenceFlat = nil, nil, nil
+	s.PresenceCount = 0
+	s.WindowCount, s.windowWidth, s.Window = 0, 0, false
+	s.Occurrences = nil
+	s.Provenance = nil
+	s.Versions = nil
+	s.VersionValid = nil
+	s.JoinLeft, s.JoinRight, s.JoinPairs = nil, nil, nil
 	s.invocationLineage = nil
-	s.flatCount = 0
-	s.flatWidth = 0
-	s.materialized = false
-	lineage := s.lineage
-	s.lineage = nil
-	stageClosed := lineage != nil && s.final != nil && s.final.source == lineage.stage
-	if s.final != nil {
-		s.final.Close()
-		s.final = nil
+	s.FlatCount = 0
+	s.FlatWidth = 0
+	s.Materialized = false
+	lineage := s.Lineage
+	s.Lineage = nil
+	stageClosed := lineage != nil && s.Final != nil && s.Final.Source == lineage.Stage
+	if s.Final != nil {
+		s.Final.Close()
+		s.Final = nil
 	}
 	if lineage != nil {
 		if !stageClosed {
-			lineage.stage.close()
+			lineage.Stage.Close()
 		}
-		if lineage.inputs != lineage.stage {
-			lineage.inputs.close()
+		if lineage.Inputs != lineage.Stage {
+			lineage.Inputs.Close()
 		}
 	}
-	s.locks = nil
-	if s.input != nil {
-		s.input.close()
-		s.input = nil
+	s.Locks = nil
+	if s.Input != nil {
+		s.Input.Close()
+		s.Input = nil
 	}
-	s.scratch, s.layout = nil, nil
-	if s.view != nil {
-		s.view.Release()
+	s.Scratch, s.Layout = nil, nil
+	if s.View != nil {
+		s.View.Release()
 	}
-	s.view = nil
-	s.committed, s.own = nil, nil
-	s.authority, s.host = nil, nil
-	s.partialMask = nil
-	s.anonymous = nil
-	s.visible = nil
-	s.routineRecipe, s.routineChecks = nil, nil
+	s.View = nil
+	s.Committed, s.Own = nil, nil
+	s.Authority, s.Host = nil, nil
+	s.PartialMask = nil
+	s.Anonymous = nil
+	s.Visible = nil
+	s.RoutineRecipe, s.RoutineChecks = nil, nil
 }
 
 // Indexed stages retain occurrences, not copied input tuples. All scalar work
 // delegates to the sole expression evaluator; each stage owns its private state.
 type queryState struct {
-	source       *querySource
-	invocation   *EvalContext // Borrowed same-query P+L frame; outer remains lexical.
+	Source       *querySource
+	Invocation   *EvalContext // Borrowed same-query P+L frame; outer remains lexical.
 	foreignOwner any
-	hashFilter   *plan.FilterNode
-	parameters   []sqltype.Value
-	input        sqltype.InputEnvironment
-	output       sqltype.OutputEnvironment
-	locking      bool
-	virtualReads bool
+	HashFilter   *plan.FilterNode
+	Parameters   []sqltype.Value
+	Input        sqltype.InputEnvironment
+	Output       sqltype.OutputEnvironment
+	Locking      bool
+	VirtualReads bool
 	inherited    plan.RowMark
-	frame        uint32
-	outer        *EvalContext
-	retain       bool
+	Frame        uint32
+	Outer        *EvalContext
+	Retain       bool
 	derived      map[*plan.DerivedNode]*querySource
-	ctes         *cteInvocation
+	Ctes         *cteInvocation
 	hashOwner    *queryState
-	memberships  map[subqueryMembershipKey]*subqueryMembership
+	Memberships  map[subqueryMembershipKey]*subqueryMembership
 	// Only the positive SELECT coordinator activates these on a physical leaf.
-	executionContext   context.Context
-	scanRange          bool
-	scanStart, scanEnd int
+	ExecutionContext   context.Context
+	ScanRange          bool
+	ScanStart, scanEnd int
 }
 
 // Physical child stages borrow the actual execution owner. Rescanning a parent
@@ -317,58 +317,58 @@ func (s *queryState) membershipOwner() *queryState {
 	return s.hashOwner
 }
 
-func (s *queryState) releaseMemberships() {
+func (s *queryState) ReleaseMemberships() {
 	if s.hashOwner != nil && s.hashOwner != s {
 		return
 	}
-	for _, membership := range s.memberships {
+	for _, membership := range s.Memberships {
 		*membership = subqueryMembership{}
 	}
-	s.memberships = nil
+	s.Memberships = nil
 	s.hashOwner = nil
 }
 
 type indexedStage struct {
-	source             *querySource
-	selection          []int
-	hashCandidates     *hashCandidateSelection
-	permutation        []int
-	orderValues        []sqltype.Value
-	cacheOccurrences   []int
-	cacheWidth         int
-	pending            []queryPendingMark
-	schema             []catalog.Column
-	expressions        []expr.Expr
-	evaluation         EvalContext
-	position           int
-	terminal           error
-	closed             bool
-	produce            func(context.Context, *indexedStage) (bool, error)
-	finish             func() error
+	Source             *querySource
+	Selection          []int
+	HashCandidates     *hashCandidateSelection
+	Permutation        []int
+	OrderValues        []sqltype.Value
+	CacheOccurrences   []int
+	CacheWidth         int
+	Pending            []queryPendingMark
+	Columns            []catalog.Column
+	Expressions        []expr.Expr
+	Evaluation         EvalContext
+	Position           int
+	Terminal           error
+	Closed             bool
+	Produce            func(context.Context, *indexedStage) (bool, error)
+	Finish             func() error
 	onFailure          func(error) error // Shared producers retain failures even before a reader pull.
-	done               bool
-	retain             bool
-	reset              func(context.Context, *indexedStage) (bool, error)
+	Done               bool
+	Retain             bool
+	Reset              func(context.Context, *indexedStage) (bool, error)
 	scanRange          bool
 	scanStart, scanEnd int
 }
 
-func (s indexedStage) count() int {
-	if s.selection != nil {
-		return len(s.selection)
+func (s indexedStage) Count() int {
+	if s.Selection != nil {
+		return len(s.Selection)
 	}
 	if s.scanRange {
 		return s.scanEnd - s.scanStart
 	}
-	return s.source.count()
+	return s.Source.Count()
 }
 
-func (s indexedStage) index(i int) int {
-	if s.permutation != nil {
-		i = s.permutation[i]
+func (s indexedStage) Index(i int) int {
+	if s.Permutation != nil {
+		i = s.Permutation[i]
 	}
-	if s.selection != nil {
-		return s.selection[i]
+	if s.Selection != nil {
+		return s.Selection[i]
 	}
 	if s.scanRange {
 		return s.scanStart + i
@@ -376,53 +376,53 @@ func (s indexedStage) index(i int) int {
 	return i
 }
 
-func (s *indexedStage) Schema() []catalog.Column { return s.schema }
+func (s *indexedStage) Schema() []catalog.Column { return s.Columns }
 
 func (s *indexedStage) Next(ctx context.Context, dst []sqltype.Value) (bool, error) {
-	if s.terminal != nil {
-		return false, s.terminal
+	if s.Terminal != nil {
+		return false, s.Terminal
 	}
-	if s.closed {
+	if s.Closed {
 		return false, nil
 	}
-	if len(dst) != len(s.schema) {
+	if len(dst) != len(s.Columns) {
 		return false, s.fail(fmt.Errorf("stuntgres: invalid stage destination width"))
 	}
-	return s.nextProjected(ctx, dst)
+	return s.NextProjected(ctx, dst)
 }
 
 // A nil destination discards values, not projection demand. Retained EXISTS
 // shares this evaluator/validation seam without allocating an output tuple.
-func (s *indexedStage) nextProjected(ctx context.Context, dst []sqltype.Value) (bool, error) {
-	if s.terminal != nil {
-		return false, s.terminal
+func (s *indexedStage) NextProjected(ctx context.Context, dst []sqltype.Value) (bool, error) {
+	if s.Terminal != nil {
+		return false, s.Terminal
 	}
-	if s.closed {
+	if s.Closed {
 		return false, nil
 	}
 	fail := func(err error) (bool, error) { return false, s.fail(err) }
 	if err := ctx.Err(); err != nil {
 		return fail(err)
 	}
-	present, err := s.projectOrdinal(ctx, s.position, dst)
+	present, err := s.ProjectOrdinal(ctx, s.Position, dst)
 	if err != nil {
 		return fail(err)
 	}
-	if !present && !s.retain {
+	if !present && !s.Retain {
 		if err := s.Close(); err != nil {
 			return fail(err)
 		}
 	}
 	if present {
-		s.position++
+		s.Position++
 	}
 	return present, nil
 }
 
-func (s *indexedStage) rewind(ctx context.Context) (bool, error) {
-	s.position = 0
-	if s.reset != nil {
-		changed, err := s.reset(ctx, s)
+func (s *indexedStage) Rewind(ctx context.Context) (bool, error) {
+	s.Position = 0
+	if s.Reset != nil {
+		changed, err := s.Reset(ctx, s)
 		if err != nil {
 			return false, s.fail(err)
 		}
@@ -431,29 +431,29 @@ func (s *indexedStage) rewind(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
-func (s *indexedStage) projectOrdinal(ctx context.Context, ordinal int, dst []sqltype.Value) (bool, error) {
+func (s *indexedStage) ProjectOrdinal(ctx context.Context, ordinal int, dst []sqltype.Value) (bool, error) {
 	present, err := s.ensure(ctx, ordinal)
 	if err != nil || !present {
 		return present, err
 	}
-	row := s.source.row(s.index(ordinal))
-	if s.expressions == nil {
+	row := s.Source.Row(s.Index(ordinal))
+	if s.Expressions == nil {
 		if dst != nil {
 			copy(dst, row)
 		}
 	} else {
-		s.evaluation.setContext(ctx)
-		s.evaluation.Row = row
-		s.evaluation.bindQueryIdentity(s.source, s.index(ordinal))
-		if s.cacheWidth != 0 {
-			s.evaluation.orderValues = s.orderRow(ordinal)
+		s.Evaluation.setContext(ctx)
+		s.Evaluation.Row = row
+		s.Evaluation.BindQueryIdentity(s.Source, s.Index(ordinal))
+		if s.CacheWidth != 0 {
+			s.Evaluation.OrderValues = s.OrderRow(ordinal)
 		}
-		for i, expr := range s.expressions {
-			value, err := expr.Eval(&s.evaluation)
+		for i, expr := range s.Expressions {
+			value, err := expr.Eval(&s.Evaluation)
 			if err != nil {
 				return false, s.fail(err)
 			}
-			if !value.ValidResult(s.schema[i].Usage) {
+			if !value.ValidResult(s.Columns[i].Usage) {
 				return false, s.fail(fmt.Errorf("stuntgres: invalid finalized query value"))
 			}
 			if dst != nil {
@@ -466,34 +466,34 @@ func (s *indexedStage) projectOrdinal(ctx context.Context, ordinal int, dst []sq
 
 func (s *indexedStage) release() {
 	// The query execution owner, not this borrowed stage, owns the view pin.
-	s.source = nil
-	s.selection = nil
-	s.hashCandidates = nil
-	s.expressions = nil
-	s.permutation = nil
-	s.orderValues = nil
-	s.cacheOccurrences = nil
-	s.pending = nil
-	s.evaluation = EvalContext{}
+	s.Source = nil
+	s.Selection = nil
+	s.HashCandidates = nil
+	s.Expressions = nil
+	s.Permutation = nil
+	s.OrderValues = nil
+	s.CacheOccurrences = nil
+	s.Pending = nil
+	s.Evaluation = EvalContext{}
 }
 
 func (s *indexedStage) Close() error {
-	if s.closed {
-		s.terminal = nil
+	if s.Closed {
+		s.Terminal = nil
 		return nil
 	}
 	var err error
-	if s.finish != nil {
-		finish := s.finish
-		s.finish = nil
+	if s.Finish != nil {
+		finish := s.Finish
+		s.Finish = nil
 		err = finish()
 	}
-	s.produce = nil
-	s.reset = nil
+	s.Produce = nil
+	s.Reset = nil
 	s.onFailure = nil
 	s.release()
-	s.closed = true
-	s.terminal = nil
+	s.Closed = true
+	s.Terminal = nil
 	return err
 }
 
@@ -502,64 +502,64 @@ func (s *indexedStage) fail(err error) error {
 		err = s.onFailure(err)
 	}
 	_ = s.Close()
-	s.terminal = err
+	s.Terminal = err
 	return err
 }
 
-func openQueryNode(ctx context.Context, state *queryState, node plan.Node) (indexedStage, error) {
+func OpenNode(ctx context.Context, state *queryState, node plan.Node) (indexedStage, error) {
 	state.inheritCTEs()
 	return openRetainedQueryNode(ctx, state, node)
 }
 
 func openRetainedQueryNode(ctx context.Context, state *queryState, node plan.Node) (out indexedStage, err error) {
-	defer func() { out.retain = state.retain }()
+	defer func() { out.Retain = state.Retain }()
 	if err := ctx.Err(); err != nil {
 		return indexedStage{}, err
 	}
 	switch n := node.(type) {
 	case *plan.FunctionFromNode:
-		return openFunctionFromNode(ctx, state, n)
+		return OpenFunctionFromNode(ctx, state, n)
 	case *plan.SetProjectNode:
-		return openSetProjectNode(ctx, state, n)
+		return OpenSetProjectNode(ctx, state, n)
 	case *plan.WindowNode:
 		return openWindowNode(ctx, state, n)
 	case *plan.SetNode:
-		return openSetNode(ctx, state, n)
+		return OpenSetNode(ctx, state, n)
 	case *plan.RecursiveUnionNode:
 		return openRecursiveUnion(ctx, state, n)
 	case *plan.WorktableScanNode:
 		return openWorktableScan(ctx, state, n)
 	case *plan.LimitNode:
-		return openLimitNode(ctx, state, n)
+		return OpenLimitNode(ctx, state, n)
 	case *plan.EvaluationNode:
-		return openEvaluationNode(ctx, state, n)
+		return OpenEvaluationNode(ctx, state, n)
 	case *plan.RowLockNode:
 		return openRowLockNode(ctx, state, n)
 	case *plan.JoinNode:
-		return openJoinNode(ctx, state, n)
+		return OpenJoinNode(ctx, state, n)
 	case *plan.DistinctNode:
 		return openDistinctNode(ctx, state, n)
 	case *plan.DistinctOnNode:
 		return openDistinctOnNode(ctx, state, n)
 	case *plan.DerivedNode:
-		return openDerivedNode(ctx, state, n)
+		return OpenDerivedNode(ctx, state, n)
 	case *plan.AggregateNode:
 		return openAggregateNode(ctx, state, n)
 	case *plan.ValuesNode:
-		if state.source == nil {
+		if state.Source == nil {
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid VALUES query source")
 		}
-		source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority}
-		establishSourcePresence(source, n.PresenceSlot)
-		out := indexedStage{source: source, schema: n.Schema(), selection: []int{}}
-		evaluation := state.evaluation(nil)
-		out.reset = func(ctx context.Context, out *indexedStage) (bool, error) {
-			source.flat, source.flatCount = source.flat[:0], 0
-			out.selection, out.done = out.selection[:0], false
+		source := &querySource{FlatWidth: len(n.Schema()), Materialized: true, Authority: state.Source.Authority}
+		EstablishSourcePresence(source, n.PresenceSlot)
+		out := indexedStage{Source: source, Columns: n.Schema(), Selection: []int{}}
+		evaluation := state.Evaluation(nil)
+		out.Reset = func(ctx context.Context, out *indexedStage) (bool, error) {
+			source.Flat, source.FlatCount = source.Flat[:0], 0
+			out.Selection, out.Done = out.Selection[:0], false
 			return true, ctx.Err()
 		}
-		out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
-			i := source.flatCount
+		out.Produce = func(ctx context.Context, out *indexedStage) (bool, error) {
+			i := source.FlatCount
 			if i == len(n.Rows) {
 				return false, nil
 			}
@@ -569,56 +569,56 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node plan.Nod
 				if err != nil {
 					return false, err
 				}
-				if err := validateProducedValue(value, n.Schema()[j].Usage); err != nil {
+				if err := ValidateProducedValue(value, n.Schema()[j].Usage); err != nil {
 					return false, err
 				}
-				source.flat = append(source.flat, value)
+				source.Flat = append(source.Flat, value)
 			}
-			out.selection = append(out.selection, i)
-			source.flatCount++
+			out.Selection = append(out.Selection, i)
+			source.FlatCount++
 			return true, ctx.Err()
 		}
 		return out, nil
 	case *plan.SingletonNode:
-		if state.source == nil {
+		if state.Source == nil {
 			return indexedStage{}, fmt.Errorf("stuntgres: missing singleton statement source")
 		}
-		source := &querySource{singleton: true, authority: state.source.authority, host: state.source.host, locks: state.source.locks}
-		return indexedStage{source: source, schema: n.Schema()}, nil
+		source := &querySource{Singleton: true, Authority: state.Source.Authority, Host: state.Source.Host, Locks: state.Source.Locks}
+		return indexedStage{Source: source, Columns: n.Schema()}, nil
 	case *plan.SourceNode:
-		source := state.source
-		if source != nil && source.sources != nil {
-			if n.Occurrence < 0 || n.Occurrence >= len(source.sources) {
+		source := state.Source
+		if source != nil && source.Sources != nil {
+			if n.Occurrence < 0 || n.Occurrence >= len(source.Sources) {
 				return indexedStage{}, fmt.Errorf("stuntgres: invalid query occurrence")
 			}
-			source = source.sources[n.Occurrence]
+			source = source.Sources[n.Occurrence]
 		}
-		if source == nil || source.ref != n.Ref && (source.storedRef == (ids.ObjectRef{}) || source.storedRef != n.Ref) {
+		if source == nil || source.Ref != n.Ref && (source.StoredRef == (ids.ObjectRef{}) || source.StoredRef != n.Ref) {
 			return indexedStage{}, fmt.Errorf("stuntgres: invalid query source target")
 		}
-		establishSourcePresence(source, n.PresenceSlot)
-		if source.foreign != nil {
-			return openForeignStage(ctx, state, source, n)
+		EstablishSourcePresence(source, n.PresenceSlot)
+		if source.Foreign != nil {
+			return OpenForeignStage(ctx, state, source, n)
 		}
-		if source.pgSequences != nil {
+		if source.PGSequences != nil {
 			return openPGSequencesStage(state, source, n.Schema()), nil
 		}
-		if source.final != nil || source.input != nil || source.nestedRoot != nil {
-			return openSourceStage(ctx, state, source, n.Schema())
+		if source.Final != nil || source.Input != nil || source.NestedRoot != nil {
+			return OpenSourceStage(ctx, state, source, n.Schema())
 		}
-		if source.anonymous == nil {
-			if source.view == nil {
+		if source.Anonymous == nil {
+			if source.View == nil {
 				return indexedStage{}, fmt.Errorf("stuntgres: missing query source")
 			}
-			data := source.view.Data()
-			if source.ref.Domain() != data.Catalog.Owner().Domain || source.ref.Epoch != data.Catalog.Epoch() {
+			data := source.View.Data()
+			if source.Ref.Domain() != data.Catalog.Owner().Domain || source.Ref.Epoch != data.Catalog.Epoch() {
 				return indexedStage{}, fmt.Errorf("stuntgres: invalid query source target")
 			}
 		}
-		return indexedStage{source: source, schema: n.Schema(), scanRange: state.scanRange, scanStart: state.scanStart, scanEnd: state.scanEnd}, nil
+		return indexedStage{Source: source, Columns: n.Schema(), scanRange: state.ScanRange, scanStart: state.ScanStart, scanEnd: state.scanEnd}, nil
 	case *plan.FilterNode:
-		evaluation := state.evaluation(ctx)
-		rejects, err := queryPredicateRejectsAll(&evaluation, n.Predicate)
+		evaluation := state.Evaluation(ctx)
+		rejects, err := QueryPredicateRejectsAll(&evaluation, n.Predicate)
 		if err != nil {
 			return indexedStage{}, err
 		}
@@ -634,82 +634,82 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node plan.Nod
 				}
 			}
 		}
-		if rejects && !finalizesOrderedSet && !queryHasMandatoryPhysicalFrontier(n.Child, state.source) {
+		if rejects && !finalizesOrderedSet && !QueryHasMandatoryPhysicalFrontier(n.Child, state.Source) {
 			// Only child-reachable consumed physical marks require the eager
 			// input frontier. Unrelated semantic context, identity-only manifests
 			// and unopened opaque CTE bodies do not demand this child.
-			source := &querySource{flatWidth: len(n.Schema()), materialized: true, authority: state.source.authority, host: state.source.host, locks: state.source.locks}
-			return indexedStage{source: source, schema: n.Schema()}, nil
+			source := &querySource{FlatWidth: len(n.Schema()), Materialized: true, Authority: state.Source.Authority, Host: state.Source.Host, Locks: state.Source.Locks}
+			return indexedStage{Source: source, Columns: n.Schema()}, nil
 		}
-		if join, ok := n.Child.(*plan.JoinNode); ok && !queryHasMandatoryPhysicalFrontier(n.Child, state.source) {
+		if join, ok := n.Child.(*plan.JoinNode); ok && !QueryHasMandatoryPhysicalFrontier(n.Child, state.Source) {
 			if partitioned := plan.FunctionFromConjuncts(join, n.Predicate); partitioned != nil {
-				return openQueryNode(ctx, state, partitioned)
+				return OpenNode(ctx, state, partitioned)
 			}
-			if join := functionFromWhere(n.Child, n.Predicate); join != nil {
+			if join := FunctionFromWhere(n.Child, n.Predicate); join != nil {
 				// Keep canonical/view literal paths intact. Only this execution
 				// filters predecessor rows before opening their correlated RHS.
 				// EPQ instead retains its captured, identity-keyed topology even
 				// after its physical locking frontier has been cleared.
-				return openQueryNode(ctx, state, join)
+				return OpenNode(ctx, state, join)
 			}
 		}
-		admitPGSequencesPredicate(n.Child, state.source, n.Predicate, 0, evaluation.Frame)
-		child, err := openQueryNode(ctx, state, n.Child)
+		AdmitPGSequencesPredicate(n.Child, state.Source, n.Predicate, 0, evaluation.Frame)
+		child, err := OpenNode(ctx, state, n.Child)
 		if err != nil {
 			return indexedStage{}, err
 		}
-		candidates, err := hashFilterCandidates(ctx, state, n, child.source)
+		candidates, err := hashFilterCandidates(ctx, state, n, child.Source)
 		if err != nil {
 			child.Close()
 			return indexedStage{}, err
 		}
-		out := producingStage(&child, n.Schema())
-		out.hashCandidates = candidates
-		baseReset := out.reset
-		out.reset = func(ctx context.Context, out *indexedStage) (bool, error) {
+		out := ProducingStage(&child, n.Schema())
+		out.HashCandidates = candidates
+		baseReset := out.Reset
+		out.Reset = func(ctx context.Context, out *indexedStage) (bool, error) {
 			changed, err := baseReset(ctx, out)
 			if err != nil {
 				return false, err
 			}
 			if n.Predicate.Properties().Volatility == expr.Volatile {
 				if !changed {
-					if _, err := child.rewind(ctx); err != nil {
+					if _, err := child.Rewind(ctx); err != nil {
 						return false, err
 					}
 				}
-				out.selection, out.cacheOccurrences, out.done = out.selection[:0], out.cacheOccurrences[:0], false
-				if out.hashCandidates != nil {
-					out.hashCandidates.position = 0
+				out.Selection, out.CacheOccurrences, out.Done = out.Selection[:0], out.CacheOccurrences[:0], false
+				if out.HashCandidates != nil {
+					out.HashCandidates.Position = 0
 				}
 				return true, nil
 			}
 			return changed, nil
 		}
-		out.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
+		out.Produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 			for {
 				var i int
-				if candidates := out.hashCandidates; candidates != nil {
-					if candidates.position == len(candidates.occurrences) {
+				if candidates := out.HashCandidates; candidates != nil {
+					if candidates.Position == len(candidates.Occurrences) {
 						return false, ctx.Err()
 					}
-					i = candidates.occurrences[candidates.position]
-					candidates.position++
+					i = candidates.Occurrences[candidates.Position]
+					candidates.Position++
 				} else {
 					var present bool
 					var err error
-					i, present, err = child.nextOccurrence(ctx)
+					i, present, err = child.NextOccurrence(ctx)
 					if err != nil || !present {
 						return present, err
 					}
 				}
-				if mask := child.source.partialMask; mask != nil {
-					row := child.source.versionAt(child.source.rawIndex(child.index(i)))
-					if !partialMaskContains(mask, row) {
+				if mask := child.Source.PartialMask; mask != nil {
+					row := child.Source.VersionAt(child.Source.RawIndex(child.Index(i)))
+					if !PartialMaskContains(mask, row) {
 						continue
 					}
 				}
 				evaluation.setContext(ctx)
-				evaluation.bindQueryRow(child.source, child.index(i))
+				evaluation.BindQueryRow(child.Source, child.Index(i))
 				value, err := n.Predicate.Eval(&evaluation)
 				if err != nil {
 					return false, err
@@ -719,7 +719,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node plan.Nod
 					return false, err
 				}
 				if truth == plan.True {
-					retainOccurrence(out, &child, i)
+					RetainOccurrence(out, &child, i)
 					return true, ctx.Err()
 				}
 			}
@@ -727,13 +727,13 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node plan.Nod
 		return out, nil
 	case *plan.SortNode:
 		if n.PresenceOnly {
-			return openQueryNode(ctx, state, n.Child)
+			return OpenNode(ctx, state, n.Child)
 		}
-		child, err := openQueryNode(ctx, state, n.Child)
+		child, err := OpenNode(ctx, state, n.Child)
 		if err != nil {
 			return indexedStage{}, err
 		}
-		child, err = settlePendingQueryMarks(ctx, state, n.Child, child)
+		child, err = SettlePendingQueryMarks(ctx, state, n.Child, child)
 		if err != nil {
 			return indexedStage{}, err
 		}
@@ -743,32 +743,32 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node plan.Nod
 				child.Close()
 			}
 		}()
-		if err := child.drain(ctx); err != nil {
+		if err := child.Drain(ctx); err != nil {
 			return indexedStage{}, err
 		}
-		if child.selection == nil {
-			child.selection = make([]int, child.count())
-			for i := range child.selection {
-				child.selection[i] = i
+		if child.Selection == nil {
+			child.Selection = make([]int, child.Count())
+			for i := range child.Selection {
+				child.Selection[i] = i
 				if child.scanRange {
-					child.selection[i] += child.scanStart
+					child.Selection[i] += child.scanStart
 				}
 			}
 		}
 		if n.CacheWidth != 0 {
-			child.cacheWidth = n.CacheWidth
-			child.cacheOccurrences = nil
-			child.orderValues = make([]sqltype.Value, child.count()*n.CacheWidth)
-			child.permutation = make([]int, child.count())
-			evaluation := state.evaluation(ctx)
-			for i := range child.count() {
-				child.permutation[i] = i
-				evaluation.bindQueryRow(child.source, child.selection[i])
+			child.CacheWidth = n.CacheWidth
+			child.CacheOccurrences = nil
+			child.OrderValues = make([]sqltype.Value, child.Count()*n.CacheWidth)
+			child.Permutation = make([]int, child.Count())
+			evaluation := state.Evaluation(ctx)
+			for i := range child.Count() {
+				child.Permutation[i] = i
+				evaluation.BindQueryRow(child.Source, child.Selection[i])
 				for _, key := range n.Keys {
 					if err := ctx.Err(); err != nil {
 						return indexedStage{}, err
 					}
-					if key.Cache < 0 || child.orderValues[i*n.CacheWidth+key.Cache].Type() != nil {
+					if key.Cache < 0 || child.OrderValues[i*n.CacheWidth+key.Cache].Type() != nil {
 						continue
 					}
 					value, err := key.Expression.Eval(&evaluation)
@@ -778,78 +778,78 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node plan.Nod
 					if value.Type() != key.Expression.ResultUsage().Type {
 						return indexedStage{}, fmt.Errorf("stuntgres: invalid ordering value")
 					}
-					child.orderValues[i*n.CacheWidth+key.Cache] = value
+					child.OrderValues[i*n.CacheWidth+key.Cache] = value
 					if err := ctx.Err(); err != nil {
 						return indexedStage{}, err
 					}
 				}
 			}
-			for i := range child.count() {
-				evaluation.bindQueryRow(child.source, child.selection[i])
+			for i := range child.Count() {
+				evaluation.BindQueryRow(child.Source, child.Selection[i])
 				for j, expr := range n.Outputs {
 					value, err := expr.Eval(&evaluation)
 					if err != nil {
 						return indexedStage{}, err
 					}
-					child.orderValues[i*n.CacheWidth+n.CacheWidth-len(n.Outputs)+j] = value
+					child.OrderValues[i*n.CacheWidth+n.CacheWidth-len(n.Outputs)+j] = value
 				}
 			}
 		}
-		indices := child.selection
-		if child.permutation != nil {
-			indices = child.permutation
+		indices := child.Selection
+		if child.Permutation != nil {
+			indices = child.Permutation
 		}
-		err = mergeQueryIndices(ctx, indices, func(a, b int) (int, error) {
+		err = MergeQueryIndices(ctx, indices, func(a, b int) (int, error) {
 			leftIndex, rightIndex := a, b
 			var leftValues, rightValues []sqltype.Value
-			if child.permutation != nil {
-				leftIndex, rightIndex = child.selection[a], child.selection[b]
-				leftValues = child.orderValues[a*n.CacheWidth : (a+1)*n.CacheWidth]
-				rightValues = child.orderValues[b*n.CacheWidth : (b+1)*n.CacheWidth]
+			if child.Permutation != nil {
+				leftIndex, rightIndex = child.Selection[a], child.Selection[b]
+				leftValues = child.OrderValues[a*n.CacheWidth : (a+1)*n.CacheWidth]
+				rightValues = child.OrderValues[b*n.CacheWidth : (b+1)*n.CacheWidth]
 			}
-			return compareQueryOrder(ctx, n.Keys, state.input,
-				querySortRow{source: child.source, index: leftIndex, values: leftValues},
-				querySortRow{source: child.source, index: rightIndex, values: rightValues})
+			return CompareQueryOrder(ctx, n.Keys, state.Input,
+				querySortRow{Source: child.Source, Index: leftIndex, values: leftValues},
+				querySortRow{Source: child.Source, Index: rightIndex, values: rightValues})
 		})
 		transferred = err == nil
-		child.reset = nil
+		child.Reset = nil
 		return child, err
 	case *plan.ProjectNode:
 		if n.RuleInvocation {
 			local := *state
-			local.outer = state.invocation
+			local.Outer = state.Invocation
 			state = &local
 		}
-		if !state.virtualReads {
-			state.virtualReads = queryHasVirtualReads(n)
+		if !state.VirtualReads {
+			state.VirtualReads = QueryHasVirtualReads(n)
 		}
 		var owner *cteInvocation
 		if n.CTEOwner {
 			state.membershipOwner()
-			owner = &cteInvocation{frame: n.Frame, parent: state.ctes, state: *state}
-			state.ctes = owner
+			owner = &cteInvocation{Frame: n.Frame, Parent: state.Ctes, State: *state}
+			state.Ctes = owner
 		}
 		if n.Frame != 0 {
-			state.frame = n.Frame
+			state.Frame = n.Frame
 		}
-		child, err := openQueryNode(ctx, state, n.Child)
+		child, err := OpenNode(ctx, state, n.Child)
 		if err != nil {
 			if owner != nil {
-				_ = owner.close()
+				_ = owner.Close()
 			}
 			return indexedStage{}, err
 		}
-		child.schema = n.Schema()
-		child.expressions = n.Expressions
-		child.evaluation = state.evaluation(nil)
+		child.Columns = n.Schema()
+		child.Expressions = n.Expressions
+		child.Evaluation = state.Evaluation(nil)
 		if owner != nil {
-			finish := child.finish
-			child.finish = func() error {
+			finish := child.Finish
+			child.Finish = func() error {
 				var first error
 				if finish != nil {
 					first = finish()
 				}
-				if failure := owner.close(); first == nil {
+				if failure := owner.Close(); first == nil {
 					first = failure
 				}
 				return first
@@ -863,7 +863,7 @@ func openRetainedQueryNode(ctx context.Context, state *queryState, node plan.Nod
 
 // Unlike a bool sort callback, every comparison can stop production with its
 // original error. One scratch buffer serves every merge level.
-func mergeQueryIndices(ctx context.Context, indices []int, compare func(int, int) (int, error)) error {
+func MergeQueryIndices(ctx context.Context, indices []int, compare func(int, int) (int, error)) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -915,46 +915,46 @@ func mergeQueryIndices(ctx context.Context, indices []int, compare func(int, int
 // finalRows contains only finalized output, never expressions or parameters.
 // self prevents forged or copied handles from releasing another cursor's pins.
 type finalRows struct {
-	self               *finalRows
-	schema             []catalog.Column
-	source             *querySource
+	Self               *finalRows
+	Columns            []catalog.Column
+	Source             *querySource
 	owner              *querySource // Capture tree when projection retains a non-root occurrence.
-	selection, slots   []int
-	values             []sqltype.Value
-	regclassOutput     map[string]string
-	regtypeOutput      map[uint32]string
-	regprocOutput      map[uint32]string
-	regprocedureOutput map[uint32]string
-	regroleOutput      map[uint32]string
-	operatorOutput     map[operatorOutputKey]string
+	Selection, Slots   []int
+	Values             []sqltype.Value
+	RegclassOutput     map[string]string
+	RegtypeOutput      map[uint32]string
+	RegprocOutput      map[uint32]string
+	RegprocedureOutput map[uint32]string
+	RegroleOutput      map[uint32]string
+	OperatorOutput     map[operatorOutputKey]string
 	operatorGroups     operatorGroups
-	regobjectOutput    map[ids.ObjectAddress]string
-	regTSOutput        map[regTSOutputKey]string
-	aclAuthority       *sqltype.ACLAuthority
-	aclitemOutput      map[uint32]string
-	anonymous          [][]sqltype.Value
-	count, position    int
+	RegobjectOutput    map[ids.ObjectAddress]string
+	RegTSOutput        map[regTSOutputKey]string
+	ACLAuthority       *sqltype.ACLAuthority
+	AclitemOutput      map[uint32]string
+	Anonymous          [][]sqltype.Value
+	Count, Position    int
 	terminal           error
-	exhausted, closed  bool
-	output             sqltype.OutputEnvironment
+	exhausted, Closed  bool
+	Output             sqltype.OutputEnvironment
 }
 
-func newFinalRows(schema []catalog.Column, count int) *finalRows {
-	r := &finalRows{schema: schema, count: count}
-	r.self = r
+func NewFinalRows(schema []catalog.Column, count int) *finalRows {
+	r := &finalRows{Columns: schema, Count: count}
+	r.Self = r
 	return r
 }
 
-func (r *finalRows) Schema() []catalog.Column { return r.schema }
+func (r *finalRows) Schema() []catalog.Column { return r.Columns }
 
-func (r *finalRows) OutputEnvironment() sqltype.OutputEnvironment { return r.output }
+func (r *finalRows) OutputEnvironment() sqltype.OutputEnvironment { return r.Output }
 
 func (r *finalRows) RegclassText(v sqltype.Value) (string, error) {
 	key, err := v.Text()
 	if err != nil {
 		return "", err
 	}
-	text, ok := r.regclassOutput[key]
+	text, ok := r.RegclassOutput[key]
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing regclass output snapshot")
 	}
@@ -962,7 +962,7 @@ func (r *finalRows) RegclassText(v sqltype.Value) (string, error) {
 }
 
 func (r *finalRows) FormatRegclass(id uint32) (string, error) {
-	text, ok := r.regclassOutput[strconv.FormatUint(uint64(id), 10)]
+	text, ok := r.RegclassOutput[strconv.FormatUint(uint64(id), 10)]
 	if !ok {
 		return "", fmt.Errorf("stuntgres: missing regclass output snapshot")
 	}
@@ -971,25 +971,25 @@ func (r *finalRows) FormatRegclass(id uint32) (string, error) {
 
 func (r *finalRows) release() {
 	if r.owner != nil {
-		r.owner.close()
+		r.owner.Close()
 		r.owner = nil
-	} else if r.source != nil {
-		r.source.close()
+	} else if r.Source != nil {
+		r.Source.Close()
 	}
-	r.source = nil
-	r.selection, r.slots, r.values = nil, nil, nil
-	r.anonymous = nil
-	r.regclassOutput = nil
-	r.regtypeOutput = nil
-	r.regprocOutput = nil
-	r.regroleOutput = nil
-	r.operatorOutput = nil
+	r.Source = nil
+	r.Selection, r.Slots, r.Values = nil, nil, nil
+	r.Anonymous = nil
+	r.RegclassOutput = nil
+	r.RegtypeOutput = nil
+	r.RegprocOutput = nil
+	r.RegroleOutput = nil
+	r.OperatorOutput = nil
 	r.operatorGroups = nil
-	r.regprocedureOutput = nil
-	r.regobjectOutput = nil
-	r.regTSOutput = nil
-	r.aclitemOutput = nil
-	r.aclAuthority = nil
+	r.RegprocedureOutput = nil
+	r.RegobjectOutput = nil
+	r.RegTSOutput = nil
+	r.AclitemOutput = nil
+	r.ACLAuthority = nil
 }
 
 func (r *finalRows) fail(err error) (bool, error) {
@@ -999,10 +999,10 @@ func (r *finalRows) fail(err error) (bool, error) {
 }
 
 func (r *finalRows) Next(ctx context.Context, dst []sqltype.Value) (bool, error) {
-	if r == nil || r.self != r {
+	if r == nil || r.Self != r {
 		return false, fmt.Errorf("stuntgres: invalid result owner")
 	}
-	if r.closed || r.exhausted {
+	if r.Closed || r.exhausted {
 		return false, nil
 	}
 	if r.terminal != nil {
@@ -1011,39 +1011,39 @@ func (r *finalRows) Next(ctx context.Context, dst []sqltype.Value) (bool, error)
 	if err := ctx.Err(); err != nil {
 		return r.fail(err)
 	}
-	if len(dst) != len(r.schema) {
+	if len(dst) != len(r.Columns) {
 		return r.fail(fmt.Errorf("stuntgres: invalid result destination width"))
 	}
-	if r.position == r.count {
+	if r.Position == r.Count {
 		r.exhausted = true
 		r.release()
 		return false, nil
 	}
-	if r.source != nil {
-		index := r.position
-		if r.selection != nil {
-			index = r.selection[index]
+	if r.Source != nil {
+		index := r.Position
+		if r.Selection != nil {
+			index = r.Selection[index]
 		}
-		row := r.source.row(index)
-		for i, slot := range r.slots {
+		row := r.Source.Row(index)
+		for i, slot := range r.Slots {
 			dst[i] = row[slot]
 		}
 	} else {
-		if r.anonymous != nil {
-			copy(dst, r.anonymous[r.position])
+		if r.Anonymous != nil {
+			copy(dst, r.Anonymous[r.Position])
 		} else {
-			copy(dst, r.values[r.position*len(dst):(r.position+1)*len(dst)])
+			copy(dst, r.Values[r.Position*len(dst):(r.Position+1)*len(dst)])
 		}
 	}
-	r.position++
+	r.Position++
 	return true, nil
 }
 
 func (r *finalRows) Close() error {
-	if r != nil && r.self == r && !r.closed {
+	if r != nil && r.Self == r && !r.Closed {
 		r.release()
 		r.terminal = nil
-		r.closed = true
+		r.Closed = true
 	}
 	return nil
 }
@@ -1051,8 +1051,8 @@ func (r *finalRows) Close() error {
 // A command sink takes already-finalized values, never evaluating expressions
 // again. Owned flat values transfer directly; a borrowed projection is copied
 // once to sever its source lifetime and slot mapping before catalog publication.
-func (r *finalRows) takeTableRows(ctx context.Context) (rows [][]sqltype.Value, err error) {
-	if r == nil || r.self != r || r.closed || r.position != 0 {
+func (r *finalRows) TakeTableRows(ctx context.Context) (rows [][]sqltype.Value, err error) {
+	if r == nil || r.Self != r || r.Closed || r.Position != 0 {
 		return nil, fmt.Errorf("stuntgres: invalid query table result owner")
 	}
 	defer func() {
@@ -1064,16 +1064,16 @@ func (r *finalRows) takeTableRows(ctx context.Context) (rows [][]sqltype.Value, 
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
-	if r.anonymous != nil {
-		rows = r.anonymous
-		r.anonymous = nil
+	if r.Anonymous != nil {
+		rows = r.Anonymous
+		r.Anonymous = nil
 		return rows, nil
 	}
-	rows = make([][]sqltype.Value, r.count)
-	width := len(r.schema)
-	values := r.values
-	if r.source != nil {
-		values = make([]sqltype.Value, r.count*width)
+	rows = make([][]sqltype.Value, r.Count)
+	width := len(r.Columns)
+	values := r.Values
+	if r.Source != nil {
+		values = make([]sqltype.Value, r.Count*width)
 		for i := range rows {
 			row := values[i*width : (i+1)*width]
 			ok, nextErr := r.Next(ctx, row)
@@ -1085,7 +1085,7 @@ func (r *finalRows) takeTableRows(ctx context.Context) (rows [][]sqltype.Value, 
 			}
 		}
 	} else {
-		r.values = nil
+		r.Values = nil
 	}
 	for i := range rows {
 		rows[i] = values[i*width : (i+1)*width]
@@ -1098,12 +1098,12 @@ func (r *finalRows) takeTableRows(ctx context.Context) (rows [][]sqltype.Value, 
 
 // SELECT and INSERT settle residual qualified marks at the eager publication
 // frontier. A nested scalar bridge is not a publication frontier.
-func openQueryProjectStage(ctx context.Context, state *queryState, project *plan.ProjectNode) (indexedStage, error) {
-	child, err := openQueryNode(ctx, state, project)
+func OpenQueryProjectStage(ctx context.Context, state *queryState, project *plan.ProjectNode) (indexedStage, error) {
+	child, err := OpenNode(ctx, state, project)
 	if err != nil {
 		return indexedStage{}, err
 	}
-	settled, err := settlePendingQueryMarks(ctx, state, project.Child, child)
+	settled, err := SettlePendingQueryMarks(ctx, state, project.Child, child)
 	if err != nil {
 		_ = child.Close()
 		return indexedStage{}, err
@@ -1111,33 +1111,33 @@ func openQueryProjectStage(ctx context.Context, state *queryState, project *plan
 	return settled, nil
 }
 
-func finalizeQuery(ctx context.Context, root plan.Node, source *querySource, parameters []sqltype.Value) (RowResult, int, error) {
+func Finalize(ctx context.Context, root plan.Node, source *querySource, parameters []sqltype.Value) (RowResult, int, error) {
 	keep := false
 	defer func() {
-		_ = finishForeignSources(ctx, source)
+		_ = FinishForeignSources(ctx, source)
 		if !keep {
-			source.close()
+			source.Close()
 		}
 	}()
 	project, ok := root.(*plan.ProjectNode)
 	if !ok {
 		return nil, 0, fmt.Errorf("stuntgres: query lacks final projection")
 	}
-	state := &queryState{source: source, parameters: parameters, locking: source.locks != nil, hashFilter: hashQueryFilter(root)}
-	defer state.releaseMemberships()
-	if host := source.liveHost(); host != nil {
-		state.input, state.output = host.Environments()
+	state := &queryState{Source: source, Parameters: parameters, Locking: source.Locks != nil, HashFilter: HashQueryFilter(root)}
+	defer state.ReleaseMemberships()
+	if host := source.LiveHost(); host != nil {
+		state.Input, state.Output = host.Environments()
 	}
-	stage, err := openQueryProjectStage(ctx, state, project)
+	stage, err := OpenQueryProjectStage(ctx, state, project)
 	if err != nil {
 		return nil, 0, err
 	}
 	defer stage.Close()
-	if err := stage.drain(ctx); err != nil {
+	if err := stage.Drain(ctx); err != nil {
 		return nil, 0, err
 	}
-	r := newFinalRows(project.Schema(), stage.count())
-	r.output = state.output
+	r := NewFinalRows(project.Schema(), stage.Count())
+	r.Output = state.Output
 	var slots []int
 	direct := true
 	frame := project.Frame
@@ -1159,32 +1159,32 @@ func finalizeQuery(ctx context.Context, root plan.Node, source *querySource, par
 		return nil, 0, fmt.Errorf("stuntgres: invalid query projection width")
 	}
 	if !direct {
-		r.values = make([]sqltype.Value, r.count*width)
+		r.Values = make([]sqltype.Value, r.Count*width)
 	}
 	if direct {
 		slots = make([]int, len(project.Expressions))
 		for i, expr := range project.Expressions {
 			slots[i] = expr.(plan.ColumnExpr).Slot
 		}
-		evaluation := state.evaluation(ctx)
-		for i := range r.count {
+		evaluation := state.Evaluation(ctx)
+		for i := range r.Count {
 			if err := ctx.Err(); err != nil {
 				return nil, 0, err
 			}
-			evaluation.bindQueryRow(stage.source, stage.index(i))
+			evaluation.BindQueryRow(stage.Source, stage.Index(i))
 			for j, expr := range project.Expressions {
 				value, err := expr.Eval(&evaluation)
 				if err != nil {
 					return nil, 0, err
 				}
-				if !value.ValidResult(r.schema[j].Usage) {
+				if !value.ValidResult(r.Columns[j].Usage) {
 					return nil, 0, fmt.Errorf("stuntgres: invalid finalized query value")
 				}
 			}
 		}
 	} else {
-		for i := range r.count {
-			present, err := stage.Next(ctx, r.values[i*width:(i+1)*width])
+		for i := range r.Count {
+			present, err := stage.Next(ctx, r.Values[i*width:(i+1)*width])
 			if err != nil {
 				return nil, 0, err
 			}
@@ -1193,43 +1193,43 @@ func finalizeQuery(ctx context.Context, root plan.Node, source *querySource, par
 			}
 		}
 	}
-	selection := stage.selection
-	if stage.permutation != nil && direct {
+	selection := stage.Selection
+	if stage.Permutation != nil && direct {
 		// Final physical output identity is distinct from sort-cache identity.
-		selection = stage.permutation
-		if stage.selection != nil {
+		selection = stage.Permutation
+		if stage.Selection != nil {
 			for i, occurrence := range selection {
-				selection[i] = stage.selection[occurrence]
+				selection[i] = stage.Selection[occurrence]
 			}
 		}
 	}
-	stageSource := stage.source
+	stageSource := stage.Source
 	if err := stage.Close(); err != nil {
 		return nil, 0, err
 	}
-	if err := finishForeignSources(ctx, source); err != nil {
+	if err := FinishForeignSources(ctx, source); err != nil {
 		return nil, 0, err
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, 0, err
 	}
-	if direct && r.count > 0 {
-		r.source, r.selection, r.slots = stageSource, selection, slots
+	if direct && r.Count > 0 {
+		r.Source, r.Selection, r.Slots = stageSource, selection, slots
 		keep = true
 		if stageSource != source && !querySourceRetains(stageSource, source) {
 			if querySourceRetains(source, stageSource) {
 				r.owner = source
 				detachQuerySource(source)
 			} else {
-				source.close()
+				source.Close()
 			}
 		}
 	}
-	if !direct || r.count == 0 {
-		stageSource.close()
+	if !direct || r.Count == 0 {
+		stageSource.Close()
 	}
 	detachQuerySource(stageSource)
-	return r, r.count, nil
+	return r, r.Count, nil
 }
 
 func querySourceRetains(source, target *querySource) bool {
@@ -1239,10 +1239,10 @@ func querySourceRetains(source, target *querySource) bool {
 	if source == nil {
 		return false
 	}
-	if querySourceRetains(source.input, target) {
+	if querySourceRetains(source.Input, target) {
 		return true
 	}
-	for _, child := range source.sources {
+	for _, child := range source.Sources {
 		if child != source && querySourceRetains(child, target) {
 			return true
 		}

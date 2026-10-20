@@ -8,7 +8,7 @@ import (
 func TestQueryDistinctOnDuplicateSubqueryLabelFirstOccurrence(t *testing.T) {
 	for _, suffix := range []string{"", " ORDER BY x"} {
 		_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(x) (SELECT max(v) FROM t) AS x,(SELECT max(t.v) FROM t) AS x FROM t"+suffix)
-		defer source.close()
+		defer source.Close()
 		project := query.Root.(*plan.ProjectNode)
 		on := project.Child.(*plan.DistinctOnNode)
 		first := project.Expressions[0].(plan.CachedOrderExpr)
@@ -28,7 +28,7 @@ func TestQueryDistinctOnDuplicateSubqueryLabelFirstOccurrence(t *testing.T) {
 
 func TestQueryOrderDuplicateSubqueryLabelFirstOccurrence(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT (SELECT max(v) FROM t) AS x,(SELECT max(t.v) FROM t) AS x FROM t ORDER BY x")
-	defer source.close()
+	defer source.Close()
 	project := query.Root.(*plan.ProjectNode)
 	sorted := project.Child.(*plan.SortNode)
 	first := project.Expressions[0].(plan.CachedOrderExpr)

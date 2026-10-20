@@ -69,7 +69,7 @@ func (b *expressionBinder) bindCTEDefinitions(rawDefinitions []parser.CommonTabl
 				return nil, err
 			}
 			for i := start; i < len(b.query.sources); i++ {
-				b.query.sources[i].analysisOnly = true
+				b.query.sources[i].AnalysisOnly = true
 			}
 			viewVolatile, err := cteStoredViewVolatile(b.query.auth.Catalog, query.Root)
 			if err != nil {
@@ -182,7 +182,7 @@ func cteStoredViewVolatile(view catalog.Read, root plan.Node) (bool, error) {
 			if relation == nil {
 				sourceErr = ids.ErrCatalogReplaced
 			} else if relation.RelationKind == catalog.ViewRelation {
-				leaves = append(leaves, queryLeaf{relation: relation})
+				leaves = append(leaves, queryLeaf{Relation: relation})
 			}
 		}
 	}, func(expr.Expr) {}, true)
@@ -218,7 +218,7 @@ func cteStoredViewVolatile(view catalog.Read, root plan.Node) (bool, error) {
 		return volatile
 	}
 	for _, leaf := range leaves {
-		if visit(leaf.relation) {
+		if visit(leaf.Relation) {
 			return true, nil
 		}
 	}
@@ -228,7 +228,7 @@ func cteStoredViewVolatile(view catalog.Read, root plan.Node) (bool, error) {
 func activateCTESources(root plan.Node, leaves []queryLeaf) {
 	plan.VisitExecutableQuery(root, func(n plan.Node) {
 		if source, ok := n.(*plan.SourceNode); ok && source.Occurrence >= 0 && source.Occurrence < len(leaves) {
-			leaves[source.Occurrence].analysisOnly = false
+			leaves[source.Occurrence].AnalysisOnly = false
 		}
 	}, func(expr.Expr) {})
 }

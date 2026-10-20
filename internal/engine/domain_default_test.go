@@ -53,15 +53,15 @@ func TestDomainDefaultRecipesInternal(t *testing.T) {
 	}{{parent, 11}, {child, 11}, {own, 22}} {
 		relation := &catalog.Relation{ObjectAddress: ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 60000}, Columns: []catalog.Column{{Name: "v", Usage: tc.d.SQLType.Usage()}}, Attributes: []int32{1}}
 		node, origin := columnDefault(view, relation, 0)
-		if origin.definition.OID != 0 || origin.consumer != nil || origin.quote.owner.Address != tc.d.Address() || origin.quote.attribute != 0 || origin.quote.definition != 0 {
+		if origin.definition.OID != 0 || origin.consumer != nil || origin.quote.Owner.Address != tc.d.Address() || origin.quote.Attribute != 0 || origin.quote.Definition != 0 {
 			t.Fatal("domain recipe lost type origin or invented column identity")
 		}
-		c := EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: view}}
+		c := EvalContext{evalStatement: evalStatement{Context: context.Background(), Catalog: view}}
 		value, err := evalDefaultExpression(&c, node, origin)
 		if err != nil {
 			t.Fatal(tc.d.Name(), err)
 		}
-		if c.routineRecipe || c.routineReferences != nil || c.routineConsumer != nil {
+		if c.RoutineRecipe || c.RoutineReferences != nil || c.RoutineConsumer != nil {
 			t.Fatal("default evaluation leaked recipe authority")
 		}
 		physical, err := value.BaseValue()
@@ -74,7 +74,7 @@ func TestDomainDefaultRecipesInternal(t *testing.T) {
 		}
 	}
 	// NULL cooking never executes the immediate constrained base. Demand does.
-	c := EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: view}}
+	c := EvalContext{evalStatement: evalStatement{Context: context.Background(), Catalog: view}}
 	_, err := mask.DomainDefault.Expression.Eval(&c)
 	domainUnitDiagnostic(t, err, "23502", "domain public.base_default does not allow null values")
 	if !structuralNull(mask.DomainDefault.Expression) {

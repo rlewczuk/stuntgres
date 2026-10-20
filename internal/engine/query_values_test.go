@@ -109,14 +109,14 @@ func TestQueryFromValuesMixedDemandAndCancellation(t *testing.T) {
 				}
 				project.Child = &plan.LimitNode{QuerySchema: schema, Child: join, Count: plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: zero}}
 			}
-			rows, count, err := finalizeQuery(ctx, project, source, nil)
+			rows, count, err := Finalize(ctx, project, source, nil)
 			if mode == "cancel" || mode == "error" {
 				want := failure
 				if mode == "cancel" {
 					want = context.Canceled
 				}
-				if rows != nil || count != 0 || !errors.Is(err, want) || source.view != nil || !reflect.DeepEqual(calls, []int{1, 1, 0}) {
-					t.Fatal(rows, count, err, source.view, calls)
+				if rows != nil || count != 0 || !errors.Is(err, want) || source.View != nil || !reflect.DeepEqual(calls, []int{1, 1, 0}) {
+					t.Fatal(rows, count, err, source.View, calls)
 				}
 				return
 			}
@@ -128,8 +128,8 @@ func TestQueryFromValuesMixedDemandAndCancellation(t *testing.T) {
 			if mode == "limit0" {
 				wantCount, wantCalls = 0, []int{0, 0, 0}
 			}
-			if count != wantCount || source.view != nil || !reflect.DeepEqual(calls, wantCalls) {
-				t.Fatal(count, source.view, calls)
+			if count != wantCount || source.View != nil || !reflect.DeepEqual(calls, wantCalls) {
+				t.Fatal(count, source.View, calls)
 			}
 		})
 	}
@@ -152,11 +152,11 @@ func TestQueryFromValuesLockRecheckKeepsSyntheticOccurrence(t *testing.T) {
 	}
 	frozen := []sqltype.Value{integer(1), integer(7)}
 	current := [][]sqltype.Value{{integer(2)}}
-	inputs := &querySource{occurrence: 0}
-	scope := &StatementScope{queryLocks: &queryLockContext{leaves: []queryLockLeaf{{}}}}
-	scratch := make([]sqltype.Value, queryLockRecheckWidth(join, inputs))
+	inputs := &querySource{Occurrence: 0}
+	scope := &StatementScope{queryLocks: &queryLockContext{Leaves: []queryLockLeaf{{}}}}
+	scratch := make([]sqltype.Value, QueryLockRecheckWidth(join, inputs))
 	offset := 0
-	row, present, err := recheckLockedQuery(join, inputs, current, &EvalContext{evalStatement: evalStatement{Context: context.Background(), host: hostOf(scope)}}, scratch, &offset, frozen)
+	row, present, err := RecheckLockedQuery(join, inputs, current, &EvalContext{evalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope)}}, scratch, &offset, frozen)
 	if err != nil || !present || calls != 0 {
 		t.Fatal(row, present, err, calls)
 	}

@@ -70,7 +70,7 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 		plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "é")},
 		plan.LiteralExpr{Info: expr.Info{Usage: name.Usage()}, Value: sqltype.String(name, "LATIN1")},
 	}}
-	result, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), host: hostOf(fresh)}})
+	result, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Host: hostOf(fresh)}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestConversionDefaultLookupSnapshotOrder(t *testing.T) {
 		t.Fatal("actual selected handler output", raw, err)
 	}
 	missing := &StatementScope{inquiry: inquirySnapshot{visibilityCatalog: view, visibilityOtherPath: []ids.ObjectAddress{}}}
-	if _, err = node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), host: hostOf(missing)}}); err == nil {
+	if _, err = node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Host: hostOf(missing)}}); err == nil {
 		t.Fatal("hardwired provider fallback repaired missing default")
 	}
 	node.Args[0] = plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, "")}

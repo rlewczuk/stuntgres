@@ -19,7 +19,7 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 	if err := call.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if call.Properties().Volatility != expr.Stable || call.Arg.ResultUsage().Type.ID() != sqltype.Name || !sourceReturnsSet(call) || !sourceAdmitted(call) {
+	if call.Properties().Volatility != expr.Stable || call.Arg.ResultUsage().Type.ID() != sqltype.Name || !SourceReturnsSet(call) || !SourceAdmitted(call) {
 		t.Fatal("typed SRF contract")
 	}
 	count := 0
@@ -57,7 +57,7 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 	if !ok || len(stage.Calls) != 1 || !sameQuerySetOccurrence(call, stage.Calls[0]) {
 		t.Fatal("record set lowering lost occurrence")
 	}
-	if err := validateQuerySetSteps(stage.Steps, len(stage.Calls), len(stage.Scalars)); err != nil {
+	if err := ValidateQuerySetSteps(stage.Steps, len(stage.Calls), len(stage.Scalars)); err != nil {
 		t.Fatal(err)
 	}
 	fresh := New()

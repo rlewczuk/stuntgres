@@ -268,8 +268,8 @@ func (e *Engine) bindViewWrite(b *binding, auth AuthorizationView, stmt parser.S
 		var lowerStored func(expr.Expr, bool) (expr.Expr, bool, error)
 		lowerStored = func(bound expr.Expr, frozenLayout bool) (expr.Expr, bool, error) {
 			return rewriteViewExpression(auth.Catalog, bound, d, func(n expr.Expr) (expr.Expr, bool, error) {
-				if q, ok := n.(functions.StringVariadic); ok && quoteOriginOf(q).owner == (ids.ObjectRef{}) {
-					q = q.WithOrigin(quoteOrigin{owner: ref, definition: viewOf(d).rule, revision: viewOf(d).quoteRevision})
+				if q, ok := n.(functions.StringVariadic); ok && quoteOriginOf(q).Owner == (ids.ObjectRef{}) {
+					q = q.WithOrigin(quoteOrigin{Owner: ref, Definition: viewOf(d).rule, Revision: viewOf(d).quoteRevision})
 					q.RoutineRecipeReference = d
 					var args []expr.Expr
 					// A changed leaf exits the shared mapper before its children.
@@ -433,7 +433,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 				if !node.Plan.Immutable() {
 					demand := true
 					for _, arg := range node.Args {
-						if randomLiteralNull(arg) {
+						if RandomLiteralNull(arg) {
 							demand = false
 							break
 						}
@@ -441,7 +441,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 					b.visibilitySnapshot = b.visibilitySnapshot || demand
 				}
 			case expr.SnapshotDemander:
-				_, catalogText, visibility := n.(expr.SnapshotDemander).SnapshotDemand(randomLiteralNull)
+				_, catalogText, visibility := n.(expr.SnapshotDemander).SnapshotDemand(RandomLiteralNull)
 				b.prepared.regclassConcat = b.prepared.regclassConcat || catalogText
 				b.visibilitySnapshot = b.visibilitySnapshot || visibility
 			}

@@ -14,7 +14,7 @@ import (
 func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectRef, definition *viewDefinition, invoker authorization.PrincipalRef, mark plan.RowMark, locks *queryLockContext, outputUses []int) (plan.Node, *querySource, error) {
 	ctx := scope.op.Context()
 	if scope.authority == nil {
-		scope.authority = &queryAuthority{host: hostOf(scope)}
+		scope.authority = &queryAuthority{Host: hostOf(scope)}
 	}
 	auth, err := e.authorizeViewSourceLocked(scope, ref, definition, invoker, mark)
 	if err != nil {
@@ -23,16 +23,16 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	}
 	catalog := e.privateCatalogLocked(scope.owner.catalog)
 	e.mu.Unlock()
-	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, host: hostOf(scope), catalog: catalog, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
-	evaluation.quoteCaptures = scope.quoteCaptures
-	evaluation.quoteOrigin = quoteOrigin{owner: ref, definition: definition.rule, revision: definition.quoteRevision}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Host: hostOf(scope), Catalog: catalog, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation.QuoteCaptures = scope.quoteCaptures
+	evaluation.quoteOrigin = quoteOrigin{Owner: ref, Definition: definition.rule, Revision: definition.quoteRevision}
 	consumer, ok := catalog.Relation(ref.Address)
 	if !ok || viewOf(consumer) != definition {
 		return nil, nil, ids.ErrCatalogReplaced
 	}
-	evaluation.routineRecipe, evaluation.routineConsumer = true, consumer
-	evaluation.routineChecks = definition.dependencies
-	evaluation.routineAuthority = &auth
+	evaluation.RoutineRecipe, evaluation.RoutineConsumer = true, consumer
+	evaluation.RoutineChecks = definition.dependencies
+	evaluation.RoutineAuthority = &auth
 	root, reads, err := prepareStoredExecutionRoot(&evaluation, definition, outputUses)
 	if err == nil {
 		err = validateMarkedQueryJoin(&evaluation, root, catalog, nil, plan.RowMark{}, false, nil, reads)
@@ -59,8 +59,8 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 			e.mu.Unlock()
 			return nil, nil, err
 		}
-		leaves[i] = queryLeaf{ref: use, relation: relation, only: leaf.only, principal: relationPrincipal, storage: e.privateStorageLocked(scope.owner.catalog, leaf.ref.Address), mark: viewLeafRowMark(definition, i, mark), analysisOnly: leaf.analysisOnly}
-		leaves[i].uses, err = querySourceReadUses(reads[i], relation.Attributes)
+		leaves[i] = queryLeaf{Ref: use, Relation: relation, Only: leaf.only, Principal: relationPrincipal, Storage: e.privateStorageLocked(scope.owner.catalog, leaf.ref.Address), Mark: viewLeafRowMark(definition, i, mark), AnalysisOnly: leaf.analysisOnly}
+		leaves[i].Uses, err = querySourceReadUses(reads[i], relation.Attributes)
 		if err != nil {
 			e.mu.Unlock()
 			return nil, nil, err
@@ -79,19 +79,19 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	if err != nil {
 		return nil, nil, err
 	}
-	if err = selectQuerySources(ctx, source); err != nil {
-		source.close()
+	if err = SelectQuerySources(ctx, source); err != nil {
+		source.Close()
 		return nil, nil, err
 	}
 	// Detach bundle ownership before replacing execution-local occurrences.
-	sources := source.sources
-	source.sources = nil
+	sources := source.Sources
+	source.Sources = nil
 	for i, leaf := range definition.sources {
 		child := source
 		if sources != nil {
 			child = sources[i]
 		}
-		live := leaves[i].relation.Attributes
+		live := leaves[i].Relation.Attributes
 		unchanged := len(leaf.attributes) == len(live)
 		if unchanged {
 			for slot, attribute := range leaf.attributes {
@@ -112,11 +112,11 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 					}
 				}
 			}
-			child = &querySource{ref: leaves[i].ref, input: child, layout: layout, scratch: make([]sqltype.Value, len(layout)), authority: scope.authority, locks: child.locks, occurrence: child.occurrence}
+			child = &querySource{Ref: leaves[i].Ref, Input: child, Layout: layout, Scratch: make([]sqltype.Value, len(layout)), Authority: scope.authority, Locks: child.Locks, Occurrence: child.Occurrence}
 			borrowQueryAuthority(child, scope)
 		}
-		if leaf.ref != leaves[i].ref {
-			child.storedRef = leaf.ref
+		if leaf.ref != leaves[i].Ref {
+			child.StoredRef = leaf.ref
 		}
 		if sources != nil {
 			sources[i] = child
@@ -126,14 +126,14 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	}
 	if sources != nil {
 		source = sources[0]
-		source.sources = sources
+		source.Sources = sources
 	}
 	borrowQueryAuthority(source, scope)
 	// Only this opaque stored tree borrows its defining recipe. User/grafted
 	// replacements retain their existing per-node ancestry rules.
-	source.routineRecipe = consumer
+	source.RoutineRecipe = consumer
 	if recipe := viewOf(consumer); recipe != nil {
-		source.routineChecks = recipe.dependencies
+		source.RoutineChecks = recipe.dependencies
 	}
 	return root, source, nil
 }

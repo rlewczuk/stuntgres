@@ -78,19 +78,19 @@ func (c *sqlCursor) releaseProducer(ctx context.Context) error {
 		c.stage = nil
 	}
 	if c.foreignOwner != nil {
-		if c.authority != nil && c.authority.host != nil {
-			c.authority.host.ReleaseReplacementRead()
+		if c.authority != nil && c.authority.Host != nil {
+			c.authority.Host.ReleaseReplacementRead()
 		}
-		if err := c.foreignOwner.finish(ctx); failure == nil {
+		if err := c.foreignOwner.Finish(ctx); failure == nil {
 			failure = err
 		}
 		c.foreignOwner = nil
 	}
 	if c.source != nil {
-		c.source.close()
+		c.source.Close()
 		c.source = nil
 	}
-	c.state.releaseMemberships()
+	c.state.ReleaseMemberships()
 	c.state = queryState{}
 	c.root = nil
 	c.leaves, c.locks = nil, nil
@@ -103,8 +103,8 @@ func (c *sqlCursor) releaseProducer(ctx context.Context) error {
 	c.routineDependencies = nil
 	c.routineAuth = AuthorizationView{}
 	if c.authority != nil {
-		c.authority.host = nil
-		c.authority.expression = nil
+		c.authority.Host = nil
+		c.authority.Expression = nil
 	}
 	if c.cleanupError == nil {
 		c.cleanupError = failure
@@ -175,9 +175,9 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 	defer func() {
 		s.routineAuth = AuthorizationView{}
 		s.routineDependencies = nil
-		s.authority.host = nil
+		s.authority.Host = nil
 		if !keep {
-			source.close()
+			source.Close()
 		}
 	}()
 	project, ok := root.(*plan.ProjectNode)
@@ -203,34 +203,34 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 		visibilityRelationPath: s.inquiry.visibilityRelationPath, visibilityOtherPath: s.inquiry.visibilityOtherPath}
 	c.statement, c.created = declaration.Source, created
 	c.scroll = declaration.Scroll == parser.CursorScrollEnabled
-	c.state = queryState{source: source, parameters: parameters, input: s.input, output: s.output, locking: source.locks.rowMarked(), hashFilter: hashQueryFilter(root)}
-	c.state.input.LockedDomainInput, c.state.input.DomainChecks = nil, nil
+	c.state = queryState{Source: source, Parameters: parameters, Input: s.input, Output: s.output, Locking: source.Locks.RowMarked(), HashFilter: HashQueryFilter(root)}
+	c.state.Input.LockedDomainInput, c.state.Input.DomainChecks = nil, nil
 	// Presentation readers stored in query frames must not retain this admission.
-	c.state.output.Regclass, c.state.output.Regtype = nil, nil
-	c.state.output.Regproc = nil
-	c.state.output.Regrole = nil
-	c.state.output.Operator = nil
-	c.state.output.Regcollation, c.state.output.Regnamespace = nil, nil
-	c.state.output.RegTS = nil
+	c.state.Output.Regclass, c.state.Output.Regtype = nil, nil
+	c.state.Output.Regproc = nil
+	c.state.Output.Regrole = nil
+	c.state.Output.Operator = nil
+	c.state.Output.Regcollation, c.state.Output.Regnamespace = nil, nil
+	c.state.Output.RegTS = nil
 	c.deparseAuth.session, c.deparseAuth.settings = nil, nil
-	if reader, ok := c.state.input.Regtype.(capturedRegtypeInput); ok {
+	if reader, ok := c.state.Input.Regtype.(capturedRegtypeInput); ok {
 		reader.op, reader.authority = nil, c.authority
 		reader.qualified = nil
-		c.state.input.Regtype = reader
+		c.state.Input.Regtype = reader
 	}
-	if reader, ok := c.state.input.Operator.(capturedOperatorInput); ok {
+	if reader, ok := c.state.Input.Operator.(capturedOperatorInput); ok {
 		reader.types.op, reader.types.authority = nil, c.authority
 		reader.types.qualified, reader.qualified = nil, nil
-		c.state.input.Operator = reader
+		c.state.Input.Operator = reader
 	}
-	if reader, ok := c.state.input.Regproc.(capturedRoutineInput); ok {
+	if reader, ok := c.state.Input.Regproc.(capturedRoutineInput); ok {
 		reader.types.op, reader.types.authority = nil, c.authority
 		reader.types.qualified = nil
-		c.state.input.Regproc = reader
+		c.state.Input.Regproc = reader
 	}
-	if reader, ok := c.state.input.RegTS.(capturedRegTSInput); ok {
+	if reader, ok := c.state.Input.RegTS.(capturedRegTSInput); ok {
 		reader.qualified, reader.resolved = nil, nil
-		c.state.input.RegTS = reader
+		c.state.Input.RegTS = reader
 	}
 	if err := s.sessionPublicationPreflight(); err != nil {
 		return Result{}, err
@@ -254,7 +254,7 @@ func (c *sqlCursor) admit(s *StatementScope) {
 	s.inquiry.deparseAuth.session, s.inquiry.deparseAuth.settings = s.op.session, s.op.session.settings
 	s.inquiry.visibilityCatalog = c.visibilityCatalog
 	s.inquiry.visibilityRelationPath, s.inquiry.visibilityOtherPath = c.visibilityRelationPath, c.visibilityOtherPath
-	c.authority.host = hostOf(s)
+	c.authority.Host = hostOf(s)
 	s.foreignTables().cursor = c
 }
 func (s *StatementScope) sessionPublicationPreflight() error {
@@ -279,8 +279,8 @@ func (s *StatementScope) sessionPublicationPreflight() error {
 	}
 	if s.queryLocks != nil {
 		catalog := e.privateCatalogLocked(s.owner.catalog)
-		for _, entry := range s.queryLocks.leaves {
-			if _, err := currentQuerySourceLocked(e, catalog, s.owner.catalog, entry.leaf); err != nil {
+		for _, entry := range s.queryLocks.Leaves {
+			if _, err := currentQuerySourceLocked(e, catalog, s.owner.catalog, entry.Leaf); err != nil {
 				return err
 			}
 		}
@@ -313,15 +313,15 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 			c.position = cursorFailed
 			_ = c.dispose(s.op.Context())
 		}
-		c.authority.host = nil
+		c.authority.Host = nil
 	}()
 	if err := s.authorizeSQLCursor(c); err != nil {
 		return Result{}, err
 	}
 	var rows *finalRows
 	if !fetch.Move {
-		rows = newFinalRows(c.schema, 0)
-		rows.output = c.state.output
+		rows = NewFinalRows(c.schema, 0)
+		rows.Output = c.state.Output
 	}
 	moved, motionErr := c.motion(fetch, rows, s)
 	if motionErr != nil {
@@ -329,7 +329,7 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 	}
 	// HOLD commit continues from the same live producer's next occurrence.
 	if c.stage != nil {
-		c.stage.position = int(c.ordinalPosition)
+		c.stage.Position = int(c.ordinalPosition)
 	}
 	if rows != nil {
 		if err := s.captureSQLCursorOutput(rows, c.catalog); err != nil {

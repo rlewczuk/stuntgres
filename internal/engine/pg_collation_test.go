@@ -70,7 +70,7 @@ func pgCollationUnitCapture(t *testing.T, e *Engine, view catalog.Read) *querySo
 	e.mu.Lock()
 	rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.read(e.catalog.owner(), view, e.roles.published), ref, d)
 	e.mu.Unlock()
-	if err != nil || rows == nil || rows.ref != ref {
+	if err != nil || rows == nil || rows.Ref != ref {
 		t.Fatal("capture", rows, err)
 	}
 	count := 0
@@ -79,11 +79,11 @@ func pgCollationUnitCapture(t *testing.T, e *Engine, view catalog.Read) *querySo
 			count++
 		}
 	}
-	if rows.count() != count {
-		t.Fatal("phantom or missing identities", rows.count(), count)
+	if rows.Count() != count {
+		t.Fatal("phantom or missing identities", rows.Count(), count)
 	}
 	var previous uint32
-	for _, row := range rows.anonymous {
+	for _, row := range rows.Anonymous {
 		if len(row) != 12 {
 			t.Fatal("row width", len(row))
 		}
@@ -148,8 +148,8 @@ func TestPGCollationCapture(t *testing.T) {
 	e := New()
 	base := e.CatalogRead()
 	seedRows := pgCollationUnitCapture(t, e, base)
-	if seedRows.count() != 7 {
-		t.Fatal("canonical installed descriptors", seedRows.count())
+	if seedRows.Count() != 7 {
+		t.Fatal("canonical installed descriptors", seedRows.Count())
 	}
 	stage := e.BeginCatalogStage(base)
 	c := collationUnitDefinition(e, 90000, "pgc_capture")
@@ -163,12 +163,12 @@ func TestPGCollationCapture(t *testing.T) {
 	collationUnitPublish(t, e, stage)
 	before := e.CatalogRead()
 	old := pgCollationUnitCapture(t, e, before)
-	if old.count() != 9 {
-		t.Fatal("configured identity population", old.count())
+	if old.Count() != 9 {
+		t.Fatal("configured identity population", old.Count())
 	}
 	check := func(rows *querySource, name string) {
 		t.Helper()
-		for _, row := range rows.anonymous {
+		for _, row := range rows.Anonymous {
 			id, _ := row[0].OID()
 			if id == 90000 {
 				got, err := row[1].Text()
@@ -197,7 +197,7 @@ func TestPGCollationCapture(t *testing.T) {
 	collationUnitPublish(t, e, stage)
 	check(pgCollationUnitCapture(t, e, e.CatalogRead()), "pgc_capture_renamed")
 	check(old, "pgc_capture")
-	if seedRows.count() != 7 {
+	if seedRows.Count() != 7 {
 		t.Fatal("old capture population changed")
 	}
 }

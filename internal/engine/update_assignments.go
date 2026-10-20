@@ -140,29 +140,29 @@ func bindUpdateAssignments(b *binding, binder *expressionBinder, assignments []p
 func evaluateUpdateAssignments(eval *EvalContext, action *boundUpdate, targets []int, old []sqltype.Value) ([]sqltype.Value, error) {
 	row := make([]sqltype.Value, len(old))
 	copy(row, old)
-	oldOutputs, oldReady := eval.updateOutputs, eval.updateOutputsReady
+	oldOutputs, oldReady := eval.UpdateOutputs, eval.UpdateOutputsReady
 	if action.outputWidth != 0 {
 		if oldOutputs != nil {
 			// A nested mutation owner must not overwrite the caller's live tuple.
-			previousScratch := eval.updateOutputScratch
+			previousScratch := eval.UpdateOutputScratch
 			var small [4]sqltype.Value
 			if action.outputWidth <= len(small) {
-				eval.updateOutputScratch = small[:action.outputWidth]
+				eval.UpdateOutputScratch = small[:action.outputWidth]
 			} else {
-				eval.updateOutputScratch = make([]sqltype.Value, action.outputWidth)
+				eval.UpdateOutputScratch = make([]sqltype.Value, action.outputWidth)
 			}
-			defer func() { eval.updateOutputScratch = previousScratch }()
+			defer func() { eval.UpdateOutputScratch = previousScratch }()
 		}
-		if cap(eval.updateOutputScratch) < action.outputWidth {
-			eval.updateOutputScratch = make([]sqltype.Value, action.outputWidth)
+		if cap(eval.UpdateOutputScratch) < action.outputWidth {
+			eval.UpdateOutputScratch = make([]sqltype.Value, action.outputWidth)
 		}
-		defer func() { eval.updateOutputs, eval.updateOutputsReady = oldOutputs, oldReady }()
+		defer func() { eval.UpdateOutputs, eval.UpdateOutputsReady = oldOutputs, oldReady }()
 	}
 	group := 0
 	for i, expr := range action.assignments {
 		if group < len(action.groups) && action.groups[group].start == i {
-			eval.updateOutputs = eval.updateOutputScratch[:action.groups[group].width]
-			eval.updateOutputsReady = false
+			eval.UpdateOutputs = eval.UpdateOutputScratch[:action.groups[group].width]
+			eval.UpdateOutputsReady = false
 			group++
 		}
 		if expr == nil {

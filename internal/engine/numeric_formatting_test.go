@@ -69,7 +69,7 @@ func TestNumericFormattingDemandAndRetag(t *testing.T) {
 	if _, ok := simplified.(functions.NumericFormatting); !ok {
 		t.Fatal("STABLE demand lost through NULL folding", simplified)
 	}
-	if plannedVolatility(n) != expr.Stable || generationImmutable(n) || !b.sameGroupExpression(n, n) {
+	if PlannedVolatility(n) != expr.Stable || generationImmutable(n) || !b.sameGroupExpression(n, n) {
 		t.Fatal("intrinsic STABLE/semantic identity")
 	}
 	other := n

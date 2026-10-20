@@ -96,8 +96,8 @@ func TestDatetimeMakeProperties(t *testing.T) {
 		if stable {
 			want = expr.Stable
 		}
-		if e.Properties().Volatility != want || plannedVolatility(e) != want || generationImmutable(e) == stable {
-			t.Fatal(name, e.Properties(), plannedVolatility(e))
+		if e.Properties().Volatility != want || PlannedVolatility(e) != want || generationImmutable(e) == stable {
+			t.Fatal(name, e.Properties(), PlannedVolatility(e))
 		}
 		if !b.sameGroupExpression(e, e) {
 			t.Fatal("lost structural identity", name)
@@ -125,7 +125,7 @@ func TestDatetimeMakeProperties(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plannedVolatility(node) != expr.Stable || generationImmutable(node) {
+	if PlannedVolatility(node) != expr.Stable || generationImmutable(node) {
 		t.Fatal("explicit UTC incorrectly immutable")
 	}
 

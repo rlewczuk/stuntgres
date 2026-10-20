@@ -69,8 +69,8 @@ func TestTemporaryViewRetainedSourceFrontier(t *testing.T) {
 			auth := namespaceCapturedAuthorization(t, owner)
 			auth.Recapture(current)
 			e.mu.Lock()
-			refs, err := e.queryTableRefsLocked(auth, auth.State.CurrentUser, []queryLeaf{{ref: use, relation: original}}, nil, owner.token, plan.RowMark{})
-			_, staleErr := e.queryTableRefsLocked(auth, auth.State.CurrentUser, []queryLeaf{{ref: oldBase, relation: current.MustRelation(baseAddress)}}, nil, ids.SessionToken{}, plan.RowMark{})
+			refs, err := e.queryTableRefsLocked(auth, auth.State.CurrentUser, []queryLeaf{{Ref: use, Relation: original}}, nil, owner.token, plan.RowMark{})
+			_, staleErr := e.queryTableRefsLocked(auth, auth.State.CurrentUser, []queryLeaf{{Ref: oldBase, Relation: current.MustRelation(baseAddress)}}, nil, ids.SessionToken{}, plan.RowMark{})
 			e.mu.Unlock()
 			if err != nil || len(refs) != 1 || refs[0].Address != baseAddress || refs[0].Epoch != current.Epoch() {
 				t.Fatal("retained frontier", refs, err)

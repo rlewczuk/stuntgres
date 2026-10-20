@@ -27,7 +27,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	var err error
 	expressions := b.expressions
 	expressionsChanged := false
-	quoteCaptures := evaluation.quoteCaptures
+	quoteCaptures := evaluation.QuoteCaptures
 	_, inserting := stmt.(*parser.Insert)
 	var queryRoot plan.Node
 	_, deleting := stmt.(*parser.Delete)
@@ -35,7 +35,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		// Plan closed immutable recipes before executor startup, retaining
 		// imported-parameter, row, domain and volatile demand barriers. The
 		// private folded graph is also the graph retained by live portals.
-		evaluation.planStaticOperators = true
+		evaluation.PlanStaticOperators = true
 	}
 	routineAuth := auth
 	if scope.ruleActionAuth != nil {
@@ -55,7 +55,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		if err := scope.readmitPreparedPrograms(routineAuth); err != nil {
 			return Result{}, err
 		}
-		if evaluation.planStaticOperators && deleting {
+		if evaluation.PlanStaticOperators && deleting {
 			b, err = ruleMutationProducerDemand(b)
 			if err != nil {
 				return Result{}, err
@@ -117,7 +117,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		if b.merge != nil {
 			err = preflightMerge(&evaluation, b.merge, auth.Catalog)
 		} else if b.update != nil {
-			if evaluation.planStaticOperators {
+			if evaluation.PlanStaticOperators {
 				b.update, err = preflightUpdate(&evaluation, b.update, func(prepared *boundUpdate) (plan.Node, error) {
 					demandBinding := b
 					demandBinding.update = prepared
@@ -281,11 +281,11 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	if scope.Expected != nil && b.parameters.Count == 0 && quoteCaptures.private {
-		scope.Expected.quotes = quoteCaptures.entries
+	if scope.Expected != nil && b.parameters.Count == 0 && quoteCaptures.Private {
+		scope.Expected.quotes = quoteCaptures.Entries
 		scope.Expected.quoteGeneration = op.session.discardPlansGeneration
 	}
-	quoteCaptures.sealed = true
+	quoteCaptures.Sealed = true
 	scope.quoteCaptures = quoteCaptures
 	b = b.physicalBinding()
 	if err = partitionWriteExtensionBoundary(stmt, b.relation); err != nil {
@@ -307,7 +307,7 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	if scope.owner.readOnly {
 		if selecting {
 			for _, leaf := range b.querySources {
-				if leaf.mark.Mode != 0 && leaf.relation.RelationKind == catalog.ViewRelation {
+				if leaf.Mark.Mode != 0 && leaf.Relation.RelationKind == catalog.ViewRelation {
 					tag = "SELECT"
 					break
 				}
@@ -399,8 +399,8 @@ func (e *Engine) executeBoundCommandLocked(scope *StatementScope, stmt parser.St
 	}
 	// Static operator planning belongs to preparation, never to a later row,
 	// derived provider, or runtime conditional invocation.
-	evaluation.planStaticOperators = false
-	evaluation.specializeRuleParameters = false
+	evaluation.PlanStaticOperators = false
+	evaluation.SpecializeRuleParameters = false
 	execution := preparedCommandExecution{binding: b, auth: auth, evaluation: evaluation, queryRoot: queryRoot, expressions: expressions}
 	if prepared != nil {
 		execution.primaryTag = prepared.primaryTag
@@ -464,7 +464,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		inputs, err := e.captureQuerySourcesLocked(scope, b.querySources, false)
 		if err != nil {
-			target.close()
+			target.Close()
 			e.mu.Unlock()
 			return Result{}, err
 		}
@@ -477,7 +477,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			if err != nil {
 				break
 			}
-			err = e.captureCheckCommentSnapshotLocked(scope, target.relation)
+			err = e.captureCheckCommentSnapshotLocked(scope, target.Relation)
 		}
 		if err == nil && b.returning != nil {
 			err = e.captureCommentSnapshotLocked(scope)
@@ -512,7 +512,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		if b.update.from != nil || b.subqueryDemand {
 			from, err = e.captureQuerySourcesLocked(scope, b.querySources, false)
 			if err != nil {
-				source.close()
+				source.Close()
 				e.mu.Unlock()
 				return Result{}, err
 			}
@@ -546,7 +546,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			}
 			schema := auth.Catalog.Get(b.relation.Namespace()).Name()
 			e.mu.Unlock()
-			if err := selectQuerySources(ctx, source); err != nil {
+			if err := SelectQuerySources(ctx, source); err != nil {
 				return Result{}, err
 			}
 			if b.viewWrite != nil || b.rule.template {
@@ -577,20 +577,20 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 				e.mu.Unlock()
 				return Result{}, sourceErr
 			}
-			state := &queryState{source: inputs, parameters: canonical, input: scope.input, output: scope.output, locking: inputs.locks != nil, ctes: scope.cteInvocation}
-			defer state.releaseMemberships()
-			evaluation.query = state
+			state := &queryState{Source: inputs, Parameters: canonical, Input: scope.input, Output: scope.output, Locking: inputs.Locks != nil, Ctes: scope.cteInvocation}
+			defer state.ReleaseMemberships()
+			evaluation.Query = state
 			evaluation.Scope, evaluation.Frame = 1, 1
 		}
 		e.mu.Unlock()
-		if evaluation.query != nil {
-			if err := selectQuerySources(ctx, evaluation.query.source); err != nil {
+		if evaluation.Query != nil {
+			if err := SelectQuerySources(ctx, evaluation.Query.Source); err != nil {
 				return Result{}, err
 			}
 			if b.viewWrite != nil || b.rule.template {
-				evaluation.query.source = freezeViewWriteSources(scope, evaluation.query.source, b.querySources)
+				evaluation.Query.Source = freezeViewWriteSources(scope, evaluation.Query.Source, b.querySources)
 			}
-			defer evaluation.query.source.close()
+			defer evaluation.Query.Source.Close()
 		}
 		var rows indexWriteBatch
 		if scope.insertReturning == nil {
@@ -722,15 +722,15 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		// Even an unlocked cursor retains physical lineage through derived/view
 		// projections. Zero-mode entries capture identity, never row grants.
 		if scope.queryLocks == nil {
-			scope.queryLocks = &queryLockContext{identityOnly: true}
+			scope.queryLocks = &queryLockContext{IdentityOnly: true}
 		}
 		source, sourceErr := e.captureQuerySourcesLocked(scope, b.querySources, s.Query.From == nil && s.Query.Values == nil)
 		e.mu.Unlock()
 		if sourceErr != nil {
 			return Result{}, sourceErr
 		}
-		if err := selectQuerySources(ctx, source); err != nil {
-			source.close()
+		if err := SelectQuerySources(ctx, source); err != nil {
+			source.Close()
 			return Result{}, err
 		}
 		return scope.installSQLCursor(s, queryRoot, source, canonical)
@@ -740,7 +740,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		if sourceErr != nil {
 			return Result{}, sourceErr
 		}
-		if err := selectQuerySources(ctx, source); err != nil {
+		if err := SelectQuerySources(ctx, source); err != nil {
 			return Result{}, err
 		}
 		if b.rule.template {
@@ -753,7 +753,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			rows, count, err := finalizeSQLRoutineQuery(ctx, queryRoot, source, canonical)
 			return Result{Count: int64(count), Rows: rows}, err
 		}
-		rows, count, queryErr := finalizeSelectQuery(ctx, queryRoot, source, canonical, op.parallelWorkers)
+		rows, count, queryErr := FinalizeSelect(ctx, queryRoot, source, canonical, op.parallelWorkers)
 		if queryErr != nil {
 			return Result{}, queryErr
 		}

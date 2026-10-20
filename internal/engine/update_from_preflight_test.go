@@ -20,8 +20,8 @@ func TestUpdateFromImportedPreflightCopiesOnlyChangedTree(t *testing.T) {
 	op, scope, b, target, from := updateFromBoundSources(t, e, session, context.Background(), "UPDATE t SET i=int4($1::text) FROM s JOIN r ON s.k=int4($1::text) WHERE t.i=int4($1::text) RETURNING int4($1::text),s.k")
 	defer op.Done()
 	defer scope.Finish(nil)
-	defer target.close()
-	defer from.close()
+	defer target.Close()
+	defer from.Close()
 	original := b.update
 	output := b.returning
 	cast := original.assignments[0].(plan.CoercionExpr)

@@ -88,7 +88,7 @@ func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth Authorizat
 	binder := newExpressionBinder(scope.op.Context(), e, scope.input, scope.op, nil)
 	binder.target.relation, binder.target.ref, binder.params.noParameters, binder.query.auth = original, ref, true, &auth
 	binder.query.namespace = namespace
-	binder.query.sources = []queryLeaf{{ref: ref, relation: original}}
+	binder.query.sources = []queryLeaf{{Ref: ref, Relation: original}}
 	node, err := binder.bind(action.Using, expressionPolicy{context: projectionContext, expected: usage.Type.Usage()})
 	if err == nil && (binder.prepared.regclassConcat || binder.consumer.catalogSnapshot) {
 		err = e.captureCommentSnapshotLocked(scope)
@@ -409,7 +409,7 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *catalog.Re
 			replaced[row.Row] = true
 		}
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), host: hostOf(scope), Input: scope.input, Output: scope.output, catalog: scope.routineAuth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: scope.routineAuth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	preparedTransforms := false
 	var generationProgram []expr.Expr
 	preparedGeneration := false
@@ -427,14 +427,14 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *catalog.Re
 				var private []columnTransformation
 				for i, transform := range transforms {
 					recipe := evaluation
-					recipe.routineRecipe, recipe.routineGraft = true, false
-					recipe.routineChecks = transform.dependencies
+					recipe.RoutineRecipe, recipe.RoutineGraft = true, false
+					recipe.RoutineChecks = transform.dependencies
 					node, changed, err := preflightCoercionsWithPolicy(&recipe, transform.expression, true)
-					evaluation.preparedDomainChecks = recipe.preparedDomainChecks
+					evaluation.PreparedDomainChecks = recipe.PreparedDomainChecks
 					if err != nil {
 						return nil, err
 					}
-					if err := validateExpressionJoinExecution(&recipe, node, recipe.catalog); err != nil {
+					if err := validateExpressionJoinExecution(&recipe, node, recipe.Catalog); err != nil {
 						return nil, err
 					}
 					if changed {
@@ -459,10 +459,10 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *catalog.Re
 				// Lazy SQL bodies still need this transformation's original
 				// manifest after preparation has returned.
 				recipe := evaluation
-				recipe.routineRecipe, recipe.routineGraft = true, false
-				recipe.routineChecks = transform.dependencies
+				recipe.RoutineRecipe, recipe.RoutineGraft = true, false
+				recipe.RoutineChecks = transform.dependencies
 				v, err := transform.expression.Eval(&recipe)
-				evaluation.preparedDomainChecks = recipe.preparedDomainChecks
+				evaluation.PreparedDomainChecks = recipe.PreparedDomainChecks
 				if err != nil {
 					return nil, err
 				}

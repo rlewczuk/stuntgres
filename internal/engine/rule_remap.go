@@ -68,18 +68,18 @@ func remapRuleBindingMapped(view catalog.Read, b binding, ref func(ids.ObjectRef
 	mapSources := func(sources []queryLeaf) ([]queryLeaf, error) {
 		next := slices.Clone(sources)
 		for i := range next {
-			old := next[i].relation
-			next[i].ref = ref(next[i].ref)
-			next[i].relation, _ = view.Relation(next[i].ref.Address)
-			next[i].storage = nil
-			if old != nil && next[i].relation != nil && !slices.Equal(old.Attributes, next[i].relation.Attributes) {
-				next[i].uses = slices.Clone(next[i].uses)
-				for j, slot := range next[i].uses {
+			old := next[i].Relation
+			next[i].Ref = ref(next[i].Ref)
+			next[i].Relation, _ = view.Relation(next[i].Ref.Address)
+			next[i].Storage = nil
+			if old != nil && next[i].Relation != nil && !slices.Equal(old.Attributes, next[i].Relation.Attributes) {
+				next[i].Uses = slices.Clone(next[i].Uses)
+				for j, slot := range next[i].Uses {
 					if slot < 0 || slot >= len(old.Attributes) {
 						return nil, ids.ErrCatalogReplaced
 					}
-					next[i].uses[j] = next[i].relation.IndexForAttribute(old.Attributes[slot])
-					if next[i].uses[j] < 0 {
+					next[i].Uses[j] = next[i].Relation.IndexForAttribute(old.Attributes[slot])
+					if next[i].Uses[j] < 0 {
 						return nil, ids.ErrCatalogReplaced
 					}
 				}

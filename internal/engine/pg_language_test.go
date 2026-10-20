@@ -34,10 +34,10 @@ func TestPGLanguageCaptureOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if captured.ref != ref || len(captured.anonymous) != 1 || len(captured.anonymous[0]) != len(source.Columns) {
+	if captured.Ref != ref || len(captured.Anonymous) != 1 || len(captured.Anonymous[0]) != len(source.Columns) {
 		t.Fatal("capture lost source identity/shape", captured)
 	}
-	for i, value := range captured.anonymous[0] {
+	for i, value := range captured.Anonymous[0] {
 		if value.Type() != source.Columns[i].Usage.Type || value.IsNull() != (i == 8) {
 			t.Fatal("capture lost owned type or typed ACL NULL", i, value)
 		}
@@ -47,8 +47,8 @@ func TestPGLanguageCaptureOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	second.anonymous[0][0] = sqltype.Null(source.Columns[0].Usage.Type)
-	if captured.anonymous[0][0].IsNull() {
+	second.Anonymous[0][0] = sqltype.Null(source.Columns[0].Usage.Type)
+	if captured.Anonymous[0][0].IsNull() {
 		t.Fatal("captures share mutable row slots")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -82,7 +82,7 @@ func TestPGLanguageCaptureOwnership(t *testing.T) {
 	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: fresh, Ref: ref, Source: source, Owner: (fresh).Owner(), Runtime: engineCatalogRuntime{}}, capturePGLanguage); got != nil || err == nil {
 		t.Fatal("old generation source admitted", got, err)
 	}
-	for i, value := range captured.anonymous[0] {
+	for i, value := range captured.Anonymous[0] {
 		if value.Type() != source.Columns[i].Usage.Type || value.IsNull() != (i == 8) {
 			t.Fatal("replacement changed retained capture", i, value)
 		}

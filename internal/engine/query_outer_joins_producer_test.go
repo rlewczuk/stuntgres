@@ -17,12 +17,12 @@ func TestQueryOuterJoinsZeroWidthOccurrences(t *testing.T) {
 	for _, kind := range []parser.JoinKind{parser.JoinLeft, parser.JoinRight, parser.JoinFull} {
 		for _, truth := range []bool{false, true} {
 			join := &plan.JoinNode{Kind: kind, Left: &plan.SourceNode{Occurrence: 0}, Right: &plan.SourceNode{Occurrence: 1}, Predicate: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, truth)}}
-			source := &querySource{sources: []*querySource{{anonymous: [][]sqltype.Value{{}, {}}}, {anonymous: [][]sqltype.Value{{}, {}, {}}}}}
-			stage, err := openJoinNode(context.Background(), &queryState{source: source}, join)
+			source := &querySource{Sources: []*querySource{{Anonymous: [][]sqltype.Value{{}, {}}}, {Anonymous: [][]sqltype.Value{{}, {}, {}}}}}
+			stage, err := OpenJoinNode(context.Background(), &queryState{Source: source}, join)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := stage.drain(context.Background()); err != nil {
+			if err := stage.Drain(context.Background()); err != nil {
 				t.Fatal(err)
 			}
 			want := 6
@@ -35,8 +35,8 @@ func TestQueryOuterJoinsZeroWidthOccurrences(t *testing.T) {
 					want = 5
 				}
 			}
-			if stage.count() != want || stage.source.flatCount != want || len(stage.source.flat) != 0 {
-				t.Fatal(kind, truth, stage.count(), stage.source)
+			if stage.Count() != want || stage.Source.FlatCount != want || len(stage.Source.Flat) != 0 {
+				t.Fatal(kind, truth, stage.Count(), stage.Source)
 			}
 			if err := stage.Close(); err != nil {
 				t.Fatal(err)
@@ -60,17 +60,17 @@ func TestQueryOuterJoinsMissingChildDoesNotEvaluateRecipe(t *testing.T) {
 		return sqltype.Value{}, errors.New("missing recipe evaluated")
 	})}}
 	join := &plan.JoinNode{QuerySchema: append(append(plan.QuerySchema(nil), schema...), schema...), Kind: parser.JoinLeft, Left: &plan.SourceNode{QuerySchema: schema, Occurrence: 0}, Right: missing, LeftWidth: 1, RightWidth: 1, Predicate: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, true)}}
-	source := &querySource{sources: []*querySource{{anonymous: [][]sqltype.Value{{value}}}, {anonymous: [][]sqltype.Value{}}, {anonymous: [][]sqltype.Value{}}}}
-	stage, err := openJoinNode(context.Background(), &queryState{source: source}, join)
+	source := &querySource{Sources: []*querySource{{Anonymous: [][]sqltype.Value{{value}}}, {Anonymous: [][]sqltype.Value{}}, {Anonymous: [][]sqltype.Value{}}}}
+	stage, err := OpenJoinNode(context.Background(), &queryState{Source: source}, join)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer stage.Close()
-	if err := stage.drain(context.Background()); err != nil {
+	if err := stage.Drain(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	row := stage.source.row(stage.index(0))
-	if stage.count() != 1 || calls != 0 || len(row) != 2 || !row[1].IsNull() || row[1].Type() != integer {
+	row := stage.Source.Row(stage.Index(0))
+	if stage.Count() != 1 || calls != 0 || len(row) != 2 || !row[1].IsNull() || row[1].Type() != integer {
 		t.Fatal(calls, row)
 	}
 }
@@ -85,20 +85,20 @@ func TestQueryOuterJoinsRejectedProductAllocation(t *testing.T) {
 		for i := range inputs {
 			inputs[i] = []sqltype.Value{}
 		}
-		source := &querySource{sources: []*querySource{{anonymous: inputs}, {anonymous: inputs}}}
+		source := &querySource{Sources: []*querySource{{Anonymous: inputs}, {Anonymous: inputs}}}
 		join := &plan.JoinNode{Kind: parser.JoinFull, Left: &plan.SourceNode{Occurrence: 0}, Right: &plan.SourceNode{Occurrence: 1}, Predicate: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}}
 		runtime.GC()
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
-		stage, err := openJoinNode(context.Background(), &queryState{source: source}, join)
+		stage, err := OpenJoinNode(context.Background(), &queryState{Source: source}, join)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := stage.drain(context.Background()); err != nil {
+		if err := stage.Drain(context.Background()); err != nil {
 			t.Fatal(err)
 		}
-		if stage.count() != 2*size {
-			t.Fatal(stage.count())
+		if stage.Count() != 2*size {
+			t.Fatal(stage.Count())
 		}
 		stage.Close()
 		runtime.ReadMemStats(&after)
@@ -118,12 +118,12 @@ func TestQueryOuterJoinsCloseOnceAndPrimaryError(t *testing.T) {
 		closeFailure := errors.New("child close")
 		primary := errors.New("predicate primary")
 		bridge := func(which int) *querySource {
-			inner := &indexedStage{source: &querySource{anonymous: [][]sqltype.Value{{}}}, evaluation: EvalContext{}, finish: func() error { closed[which]++; return closeFailure }}
-			return &querySource{materialized: true, nestedRoot: &plan.ProjectNode{Child: &plan.SingletonNode{}}, nestedStage: inner}
+			inner := &indexedStage{Source: &querySource{Anonymous: [][]sqltype.Value{{}}}, Evaluation: EvalContext{}, Finish: func() error { closed[which]++; return closeFailure }}
+			return &querySource{Materialized: true, NestedRoot: &plan.ProjectNode{Child: &plan.SingletonNode{}}, NestedStage: inner}
 		}
-		inputs := &querySource{sources: []*querySource{bridge(0), bridge(1)}}
+		inputs := &querySource{Sources: []*querySource{bridge(0), bridge(1)}}
 		join := &plan.JoinNode{Kind: kind, Left: &plan.SourceNode{Occurrence: 0}, Right: &plan.SourceNode{Occurrence: 1}, Predicate: queryProbe(boolean.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, primary })}
-		rows, _, err := finalizeQuery(context.Background(), &plan.ProjectNode{Child: join}, inputs, nil)
+		rows, _, err := Finalize(context.Background(), &plan.ProjectNode{Child: join}, inputs, nil)
 		if rows != nil || !errors.Is(err, primary) || closed != [2]int{1, 1} {
 			t.Fatal(kind, rows, err, closed)
 		}
@@ -135,29 +135,29 @@ func TestQueryOuterJoinsNullRowsAreNotAbsentOccurrences(t *testing.T) {
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
 	schema := plan.QuerySchema{{Usage: integer.Usage()}}
-	left := &querySource{anonymous: [][]sqltype.Value{{sqltype.Null(integer)}}, occurrence: 0}
-	right := &querySource{anonymous: [][]sqltype.Value{{sqltype.Null(integer)}}, occurrence: 1}
-	locks := &queryLockContext{leaves: []queryLockLeaf{{source: left}, {source: right}}}
-	inputs := &querySource{sources: []*querySource{left, right}, locks: locks}
+	left := &querySource{Anonymous: [][]sqltype.Value{{sqltype.Null(integer)}}, Occurrence: 0}
+	right := &querySource{Anonymous: [][]sqltype.Value{{sqltype.Null(integer)}}, Occurrence: 1}
+	locks := &queryLockContext{Leaves: []queryLockLeaf{{Source: left}, {Source: right}}}
+	inputs := &querySource{Sources: []*querySource{left, right}, Locks: locks}
 	join := &plan.JoinNode{QuerySchema: append(append(plan.QuerySchema(nil), schema...), schema...), Kind: parser.JoinFull, Left: &plan.SourceNode{QuerySchema: schema, Occurrence: 0}, Right: &plan.SourceNode{QuerySchema: schema, Occurrence: 1}, LeftWidth: 1, RightWidth: 1, Predicate: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}}
-	stage, err := openJoinNode(context.Background(), &queryState{source: inputs}, join)
+	stage, err := OpenJoinNode(context.Background(), &queryState{Source: inputs}, join)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer stage.Close()
-	if err := stage.drain(context.Background()); err != nil {
+	if err := stage.Drain(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if stage.count() != 2 || len(stage.source.provenance) != 4 || len(stage.source.versions) != 4 || len(stage.source.joinPairs) != 2 {
-		t.Fatal(stage.source)
+	if stage.Count() != 2 || len(stage.Source.Provenance) != 4 || len(stage.Source.Versions) != 4 || len(stage.Source.JoinPairs) != 2 {
+		t.Fatal(stage.Source)
 	}
-	for i, pair := range []queryPair{{left: 0, right: -1}, {left: -1, right: 0}} {
-		if stage.source.joinPairs[i] != pair || stage.source.provenance[2*i] != pair.left || stage.source.provenance[2*i+1] != pair.right {
-			t.Fatal(stage.source.provenance, stage.source.joinPairs)
+	for i, pair := range []queryPair{{Left: 0, Right: -1}, {Left: -1, Right: 0}} {
+		if stage.Source.JoinPairs[i] != pair || stage.Source.Provenance[2*i] != pair.Left || stage.Source.Provenance[2*i+1] != pair.Right {
+			t.Fatal(stage.Source.Provenance, stage.Source.JoinPairs)
 		}
-		for side, index := range []int{pair.left, pair.right} {
-			version := stage.source.versions[2*i+side]
-			if (version.Values == nil) != (index == absentQueryIndex) {
+		for side, index := range []int{pair.Left, pair.Right} {
+			version := stage.Source.Versions[2*i+side]
+			if (version.Values == nil) != (index == AbsentQueryIndex) {
 				t.Fatal("real NULL cells confused with absent version", i, side, version)
 			}
 		}

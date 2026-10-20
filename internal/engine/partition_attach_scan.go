@@ -121,7 +121,7 @@ type partitionAttachRowConstraint struct {
 
 func partitionAttachValidateRows(scope *StatementScope, view catalog.Read, parent *catalog.Relation, bound *catalog.PartitionMembership, jobs []partitionAttachScan) error {
 	ctx := scope.op.Context()
-	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, host: hostOf(scope), Input: scope.input, Output: scope.output}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Host: hostOf(scope), Input: scope.input, Output: scope.output}}
 	for _, job := range jobs {
 		constraints := make([]partitionAttachRowConstraint, 0, 2)
 		add := func(p *catalog.Relation, m *catalog.PartitionMembership) error {
@@ -153,8 +153,8 @@ func partitionAttachValidateRows(scope *StatementScope, view catalog.Read, paren
 		if err != nil {
 			return err
 		}
-		for i := range source.count() {
-			row := source.row(i)
+		for i := range source.Count() {
+			row := source.Row(i)
 			for j := range constraints {
 				constraint := &constraints[j]
 				values := row
@@ -166,13 +166,13 @@ func partitionAttachValidateRows(scope *StatementScope, view catalog.Read, paren
 				}
 				accepts, err := partitionAccepts(view, constraint.parent, &constraint.child, values, &evaluation)
 				if err != nil {
-					source.close()
+					source.Close()
 					return err
 				}
 				if accepts != job.exclude {
 					continue
 				}
-				source.close()
+				source.Close()
 				message := fmt.Sprintf(`partition constraint of relation "%s" is violated by some row`, job.leaf.Name())
 				if job.exclude {
 					message = fmt.Sprintf(`updated partition constraint for default partition "%s" would be violated by some row`, job.leaf.Name())
@@ -180,7 +180,7 @@ func partitionAttachValidateRows(scope *StatementScope, view catalog.Read, paren
 				return &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "23514", Message: message, Schema: view.Get(job.leaf.Namespace()).Name(), Table: job.leaf.Name()}
 			}
 		}
-		source.close()
+		source.Close()
 	}
 	return ctx.Err()
 }

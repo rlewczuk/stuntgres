@@ -40,7 +40,7 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if uint32(call.ResultUsage().Type.ID()) != tc.result || call.Properties().Volatility != expr.Immutable || sourceReturnsSet(call) != tc.set {
+			if uint32(call.ResultUsage().Type.ID()) != tc.result || call.Properties().Volatility != expr.Immutable || SourceReturnsSet(call) != tc.set {
 				t.Fatal("typed immutable consumer contract", call)
 			}
 			captured, err := routine.ExpressionRoutineDescriptor(call)
@@ -103,7 +103,7 @@ func TestJSONBPathQueryBinding(t *testing.T) {
 				if _, err := b.bindFunctionProvider(raw); err == nil {
 					t.Fatal("set admitted in scalar default")
 				}
-			} else if sourceAdmitted(call) {
+			} else if SourceAdmitted(call) {
 				t.Fatal("scalar sibling admitted as source")
 			}
 		})
@@ -131,7 +131,7 @@ func TestJSONBPathQueryInvocation(t *testing.T) {
 	}
 	call := bind(`[1,2]`, `$[*]`)
 	c := &EvalContext{evalStatement: evalStatement{Context: ctx}}
-	cursor, err := openFunctionSource(c, call)
+	cursor, err := OpenFunctionSource(c, call)
 	if err != nil || len(cursor.Values) != 2 {
 		t.Fatal(cursor, err)
 	}
@@ -158,23 +158,23 @@ func TestJSONBPathQueryInvocation(t *testing.T) {
 		t.Fatal("close invalidated returned value", text, err)
 	}
 	for range 2 {
-		opened, err := openFunctionSource(c, call)
+		opened, err := OpenFunctionSource(c, call)
 		if err != nil || opened.Position != 0 || len(opened.Values) != 2 {
 			t.Fatal("reopen inherited state", opened, err)
 		}
 		opened.Close()
 	}
 	bad := bind(`[{"x":1},{}]`, `strict $[*].x`)
-	if failed, err := openFunctionSource(c, bad); err == nil || failed.Values != nil {
+	if failed, err := OpenFunctionSource(c, bad); err == nil || failed.Values != nil {
 		t.Fatal("late failure exposed prefix", failed, err)
 	}
-	invocation, err := openFunctionInvocation(c, &plan.FunctionFromNode{Calls: []expr.Expr{call, bad}})
-	if err == nil || invocation.cursors != nil {
+	invocation, err := OpenFunctionInvocation(c, &plan.FunctionFromNode{Calls: []expr.Expr{call, bad}})
+	if err == nil || invocation.Cursors != nil {
 		t.Fatal("partial sibling open published invocation", invocation, err)
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	opened, err := openFunctionSource(c, call)
+	opened, err := OpenFunctionSource(c, call)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +199,7 @@ func TestJSONBPathQueryInvocation(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal("remint", changed, err)
 	}
-	reminted, err := openFunctionSource(c, mapped)
+	reminted, err := OpenFunctionSource(c, mapped)
 	if err != nil {
 		t.Fatal("reminted source", err)
 	}
@@ -211,7 +211,7 @@ func TestJSONBPathQueryInvocation(t *testing.T) {
 	// Each reopened source owns an ordinal counter distinct from its collection.
 	source := srfFromUnitNode(t, call)
 	for range 2 {
-		stage, err := openQueryNode(ctx, srfFromUnitState(), source)
+		stage, err := OpenNode(ctx, srfFromUnitState(), source)
 		if err != nil {
 			t.Fatal(err)
 		}

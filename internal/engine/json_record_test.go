@@ -34,7 +34,7 @@ func TestJSONRecordBinding(t *testing.T) {
 	e := New()
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	scalar := jsonRecordUnitCall(t, b, "json_to_record", false)
-	if sourceReturnsSet(scalar) || !sourceAdmitted(scalar) || scalar.ResultUsage().Type.IsComposite() || !scalar.ResultUsage().Type.IsDeferredRecord() || plannedVolatility(scalar) != expr.Stable {
+	if SourceReturnsSet(scalar) || !SourceAdmitted(scalar) || scalar.ResultUsage().Type.IsComposite() || !scalar.ResultUsage().Type.IsDeferredRecord() || PlannedVolatility(scalar) != expr.Stable {
 		t.Fatal("deferred scalar/set identity", scalar)
 	}
 	if _, err := scalar.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}); err == nil {
@@ -49,7 +49,7 @@ func TestJSONRecordBinding(t *testing.T) {
 		t.Fatal(v, err)
 	}
 	set := jsonRecordUnitCall(t, b, "json_to_recordset", true)
-	if !sourceReturnsSet(set) || !set.Properties().StageDependent || plannedVolatility(set) != expr.Stable {
+	if !SourceReturnsSet(set) || !set.Properties().StageDependent || PlannedVolatility(set) != expr.Stable {
 		t.Fatal("set-stage classification", set)
 	}
 }
@@ -89,7 +89,7 @@ func TestJSONRecordRemap(t *testing.T) {
 		t.Fatal(text, err)
 	}
 	folded, _, err := simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original, false)
-	if err != nil || folded.ResultUsage() != original.ResultUsage() || plannedVolatility(folded) != expr.Stable {
+	if err != nil || folded.ResultUsage() != original.ResultUsage() || PlannedVolatility(folded) != expr.Stable {
 		t.Fatal("folded STABLE call", folded, err)
 	}
 }

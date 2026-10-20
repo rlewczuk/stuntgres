@@ -162,7 +162,7 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 	n := node.(plan.InstalledTextExpr)
 	value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 	text, _ := value.Text()
-	if err != nil || text != "Hotel" || node.ResultUsage().Type.ID() != sqltype.Text || plannedVolatility(node) != expr.Stable {
+	if err != nil || text != "Hotel" || node.ResultUsage().Type.ID() != sqltype.Text || PlannedVolatility(node) != expr.Stable {
 		t.Fatal("typed stable evaluation", text, err)
 	}
 	if n.Procedure.Address() != ext.Members[1] || n.Dictionary.Address() != ext.Members[5] || n.Template.Address() != ext.Members[4] {
@@ -183,7 +183,7 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 	}
 	value, err = retagged.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 	text, _ = value.Text()
-	if err != nil || text != "Hotel" || retagged.ResultUsage() != node.ResultUsage() || plannedVolatility(retagged) != expr.Stable {
+	if err != nil || text != "Hotel" || retagged.ResultUsage() != node.ResultUsage() || PlannedVolatility(retagged) != expr.Stable {
 		t.Fatal("retagged provider consumer", text, err)
 	}
 	rendered, err := (scalarRenderer{}).sql(context.Background(), e.CatalogRead(), node)

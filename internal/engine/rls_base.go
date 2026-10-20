@@ -23,7 +23,7 @@ func captureDeniedQuerySource(view *visibility.View, ref ids.ObjectRef) (*queryS
 		pin.Release()
 		return nil, fmt.Errorf("stuntgres: invalid visibility target")
 	}
-	return &querySource{view: pin, ref: ref, rlsDenied: true}, nil
+	return &querySource{View: pin, Ref: ref, RlsDenied: true}, nil
 }
 
 func rowSecurityAction(action parser.AlterTableActionKind) bool {

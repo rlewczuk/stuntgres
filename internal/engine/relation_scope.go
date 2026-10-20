@@ -584,7 +584,7 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		s.prepared.changedDuringAdmission = true
 	}
 	if source {
-		s.querySources = append(s.querySources, queryLeaf{ref: ref, relation: descriptor, only: sourceOnly(stmt), storage: e.privateStorageLocked(s.owner.catalog, ref.Address)})
+		s.querySources = append(s.querySources, queryLeaf{Ref: ref, Relation: descriptor, Only: sourceOnly(stmt), Storage: e.privateStorageLocked(s.owner.catalog, ref.Address)})
 	} else {
 		s.lockedRef = ref
 		s.lockedDescriptor = descriptor
@@ -701,9 +701,9 @@ func (s *StatementScope) validateRelationGrantsLocked(e *Engine, refreshSources 
 			return err
 		}
 		if refreshSources && (current.RelationKind != catalog.MaterializedViewRelation || s.view == nil) {
-			s.querySources[i].relation = current
+			s.querySources[i].Relation = current
 			if current.RelationKind == catalog.MaterializedViewRelation {
-				s.querySources[i].storage = e.privateStorageLocked(s.owner.catalog, source.ref.Address)
+				s.querySources[i].Storage = e.privateStorageLocked(s.owner.catalog, source.Ref.Address)
 			}
 		}
 	}

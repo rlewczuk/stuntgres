@@ -88,7 +88,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		index := 0
 		_ = parser.VisitQuerySources(&parser.Select{From: s.From}, nil, func(table *parser.TableReference, _ *parser.Select) error {
 			if index < len(selected) && selected[index].Mode != 0 {
-				b.query.rowDiagnosticMode = strongerQueryRowMode(b.query.rowDiagnosticMode, queryRowDiagnostic(b.query.lockAdmission.tableMark(table)))
+				b.query.rowDiagnosticMode = StrongerQueryRowMode(b.query.rowDiagnosticMode, queryRowDiagnostic(b.query.lockAdmission.tableMark(table)))
 			}
 			index++
 			return nil
@@ -242,8 +242,8 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 			}
 		}
 		if !contextual && !b.params.noParameters && !b.consumer.materializedDefinition && len(s.Locking) == 0 {
-			if source, ok := root.(*plan.SourceNode); ok && len(b.query.sources) == 1 && b.query.sources[0].mark.Mode == 0 {
-				b.query.sources[0].partialCandidate = b.query.partialIndexCandidate(source.Ref, filter)
+			if source, ok := root.(*plan.SourceNode); ok && len(b.query.sources) == 1 && b.query.sources[0].Mark.Mode == 0 {
+				b.query.sources[0].PartialCandidate = b.query.partialIndexCandidate(source.Ref, filter)
 			}
 		}
 		root = &plan.FilterNode{QuerySchema: root.Schema(), Child: root, Predicate: filter}
@@ -432,7 +432,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	if b.query.rowDiagnosticMode != 0 {
 		suffix := ""
 		for _, expression := range projection {
-			if querySetDepth(expression) != 0 {
+			if QuerySetDepth(expression) != 0 {
 				suffix = "set-returning functions in the target list"
 				break
 			}
@@ -580,7 +580,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		}
 		marks := make([]plan.RowMark, len(b.query.sources))
 		for i, source := range b.query.sources {
-			if index, ok := indices[source.table]; ok && index < len(local) {
+			if index, ok := indices[source.Table]; ok && index < len(local) {
 				marks[i] = local[index]
 			}
 		}

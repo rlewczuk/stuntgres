@@ -60,14 +60,14 @@ func captureRegObjectOutputValue(rows *finalRows, view catalog.Read, path []ids.
 	if err != nil {
 		return err
 	}
-	if _, exists := rows.regobjectOutput[address]; exists {
+	if _, exists := rows.RegobjectOutput[address]; exists {
 		return nil
 	}
-	if rows.regobjectOutput == nil {
-		rows.regobjectOutput = make(map[ids.ObjectAddress]string)
+	if rows.RegobjectOutput == nil {
+		rows.RegobjectOutput = make(map[ids.ObjectAddress]string)
 	}
-	rows.regobjectOutput[address] = regObjectSpelling(view, path, address.ClassID, address.ObjectID)
-	rows.output.Regcollation, rows.output.Regnamespace = rows, rows
+	rows.RegobjectOutput[address] = regObjectSpelling(view, path, address.ClassID, address.ObjectID)
+	rows.Output.Regcollation, rows.Output.Regnamespace = rows, rows
 	return nil
 }
 

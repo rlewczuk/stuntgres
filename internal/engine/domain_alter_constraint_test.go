@@ -50,7 +50,7 @@ func TestDomainAlterConstraintSelectedEvaluation(t *testing.T) {
 	integer, _ := view.LookupType(sqltype.Int4)
 	boolean, _ := view.LookupType(sqltype.Bool)
 	sentinel := sqltype.Boolean(boolean, true)
-	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: view}, evalFrame: evalFrame{domainValue: sentinel, domainFrameUsage: boolean.Usage(), domainValueActive: true}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), Catalog: view}, evalFrame: evalFrame{DomainValue: sentinel, DomainFrameUsage: boolean.Usage(), DomainValueActive: true}}
 	prior := &EvalContext{}
 	evaluation.Input.DomainChecks = prior
 	selected := *child
@@ -64,11 +64,11 @@ func TestDomainAlterConstraintSelectedEvaluation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = evaluation.evaluateSelectedDomainCheck(view, &selected, value, violation)
+		err = evaluation.EvaluateSelectedDomainCheck(view, &selected, value, violation)
 		if n < 0 && err != violation || n > 0 && err != nil {
 			t.Fatal("selected truth was cached or ancestor evaluated", n, err)
 		}
-		if evaluation.domainValue != sentinel || evaluation.domainFrameUsage != boolean.Usage() || !evaluation.domainValueActive || evaluation.Input.DomainChecks != prior || evaluation.routineRecipe || evaluation.routineGraft || evaluation.routineChecks != nil || evaluation.routineReferences != nil || evaluation.routineConsumer != nil {
+		if evaluation.DomainValue != sentinel || evaluation.DomainFrameUsage != boolean.Usage() || !evaluation.DomainValueActive || evaluation.Input.DomainChecks != prior || evaluation.RoutineRecipe || evaluation.RoutineGraft || evaluation.RoutineChecks != nil || evaluation.RoutineReferences != nil || evaluation.RoutineConsumer != nil {
 			t.Fatal("VALUE/input/routine frame leaked")
 		}
 	}
@@ -77,22 +77,22 @@ func TestDomainAlterConstraintSelectedEvaluation(t *testing.T) {
 	if err := prepareOwnDomainChecks(&evaluation, &unknown); err != nil {
 		t.Fatal(err)
 	}
-	if err := evaluation.evaluateSelectedDomainCheck(view, &unknown, sqltype.Null(integer), violation); err != nil {
+	if err := evaluation.EvaluateSelectedDomainCheck(view, &unknown, sqltype.Null(integer), violation); err != nil {
 		t.Fatal("UNKNOWN did not pass", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	evaluation.Context = ctx
-	if err := evaluation.evaluateSelectedDomainCheck(view, &selected, sqltype.Null(integer), violation); !errors.Is(err, context.Canceled) {
+	if err := evaluation.EvaluateSelectedDomainCheck(view, &selected, sqltype.Null(integer), violation); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
-	if evaluation.domainValue != sentinel || evaluation.Input.DomainChecks != prior {
+	if evaluation.DomainValue != sentinel || evaluation.Input.DomainChecks != prior {
 		t.Fatal("cancellation leaked frame")
 	}
 	leaf := plan.DomainValueExpr{Info: expr.Info{Usage: child.SQLType.DomainBase()}}
 	evaluation.Context = context.Background()
-	evaluation.domainValue = sqltype.Null(child.SQLType.DomainBase().Type)
-	evaluation.domainFrameUsage = child.SQLType.DomainBase()
+	evaluation.DomainValue = sqltype.Null(child.SQLType.DomainBase().Type)
+	evaluation.DomainFrameUsage = child.SQLType.DomainBase()
 	if _, err := leaf.Eval(&evaluation); err != nil {
 		t.Fatal("immediate domain base frame", err)
 	}

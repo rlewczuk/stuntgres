@@ -80,31 +80,31 @@ func TestPreparedSerializableCandidateRetainsAdmittedSnapshot(t *testing.T) {
 				t.Fatal("final outcome replaced admitted snapshot")
 			}
 			reader.owner.mu.Unlock()
-			source, err := selectQuerySource(context.Background(), &querySource{committed: root.Versions}, frontier, root.Ends, nil)
+			source, err := SelectQuerySource(context.Background(), &querySource{Committed: root.Versions}, frontier, root.Ends, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer source.close()
-			if source.count() != 1 {
-				t.Fatal("admitted snapshot row count", source.count())
+			defer source.Close()
+			if source.Count() != 1 {
+				t.Fatal("admitted snapshot row count", source.Count())
 			}
-			value, err := source.versionAt(source.rawIndex(0)).Values[0].Integer()
+			value, err := source.VersionAt(source.RawIndex(0)).Values[0].Integer()
 			if err != nil || value != 0 {
 				t.Fatal("admitted snapshot did not retain predecessor0", value, err)
 			}
 			e.mu.Lock()
 			current := e.storage.Relations[relation.Address]
-			published, err := selectQuerySource(context.Background(), &querySource{committed: current.Versions}, e.visibility.CommitSeq(), current.Ends, nil)
+			published, err := SelectQuerySource(context.Background(), &querySource{Committed: current.Versions}, e.visibility.CommitSeq(), current.Ends, nil)
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer published.close()
+			defer published.Close()
 			expected := int64(0)
 			if commit {
 				expected = 1
 			}
-			value, err = published.versionAt(published.rawIndex(0)).Values[0].Integer()
+			value, err = published.VersionAt(published.RawIndex(0)).Values[0].Integer()
 			if err != nil || value != expected {
 				t.Fatal("actual prepared outcome", value, expected, err)
 			}

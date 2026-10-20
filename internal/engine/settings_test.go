@@ -41,7 +41,7 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 		t.Fatal("utility retained implicit transaction ownership")
 	}
 	actual, ok := result.Rows.(*finalRows)
-	if !ok || actual.self != actual || actual.count != 1 {
+	if !ok || actual.Self != actual || actual.Count != 1 {
 		t.Fatal("invalid anonymous snapshot owner")
 	}
 	typ, _ := e.CatalogRead().LookupType(sqltype.Text)
@@ -65,7 +65,7 @@ func TestSettingUtilitySnapshotOwnership(t *testing.T) {
 		t.Fatal("detached snapshot consulted ended owner", text, err)
 	}
 	actual.Close()
-	if present, err := actual.Next(context.Background(), values); present || err != nil || actual.anonymous != nil {
+	if present, err := actual.Next(context.Background(), values); present || err != nil || actual.Anonymous != nil {
 		t.Fatal("Close retained anonymous row ownership")
 	}
 	// A whole typed NULL likewise belongs to the anonymous result, not a session.

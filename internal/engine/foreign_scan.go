@@ -59,9 +59,9 @@ func (e *Engine) captureForeignSourceLocked(scope *StatementScope, ref ids.Objec
 	if e.foreignValueImporter == nil || e.foreignValueExporter == nil {
 		return nil, fmt.Errorf("stuntgres: foreign driver value codecs are not installed")
 	}
-	f := &foreignQuerySource{wrapper: handler.Wrapper, request: request, columns: slices.Clone(relation.Columns), importValue: e.foreignValueImporter, exportValue: e.foreignValueExporter}
+	f := &foreignQuerySource{Wrapper: handler.Wrapper, Request: request, Columns: slices.Clone(relation.Columns), ImportValue: e.foreignValueImporter, ExportValue: e.foreignValueExporter}
 	scope.ownForeignSource(f)
-	return &querySource{ref: ref, anonymous: [][]sqltype.Value{}, foreign: f}, nil
+	return &querySource{Ref: ref, Anonymous: [][]sqltype.Value{}, Foreign: f}, nil
 }
 
 // Logical virtual-column ACL uses remain unchanged. Only their existing bound

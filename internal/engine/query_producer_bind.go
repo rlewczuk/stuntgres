@@ -17,7 +17,7 @@ func (b *expressionBinder) scheduleQueryProjection(root plan.Node, projection []
 	}
 	var late []expr.Expr
 	for i, bound := range projection {
-		if querySetDepth(bound) != 0 {
+		if QuerySetDepth(bound) != 0 {
 			continue
 		}
 		if bound.ResultUsage().Type == nil {

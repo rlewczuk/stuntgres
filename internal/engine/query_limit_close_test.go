@@ -18,12 +18,12 @@ func TestQueryLimitRequiredClose(t *testing.T) {
 				cleanup := errors.New("required inner close")
 				failure := errors.New("primary projection failure")
 				closes := 0
-				inner := indexedStage{source: input, schema: project.Schema(), expressions: project.Expressions, evaluation: EvalContext{evalFrame: evalFrame{Scope: 1, Frame: 1}}, finish: func() error { closes++; return cleanup }}
+				inner := indexedStage{Source: input, Columns: project.Schema(), Expressions: project.Expressions, Evaluation: EvalContext{evalFrame: evalFrame{Scope: 1, Frame: 1}}, Finish: func() error { closes++; return cleanup }}
 				if primary {
-					inner.expressions = []expr.Expr{queryProbe(project.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
+					inner.Expressions = []expr.Expr{queryProbe(project.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
 				}
-				bridge := &querySource{ref: input.ref, nestedRoot: project, nestedInputs: input, nestedStage: &inner, materialized: true, flatWidth: 1}
-				var child plan.Node = &plan.SourceNode{QuerySchema: project.Schema(), Ref: input.ref}
+				bridge := &querySource{Ref: input.Ref, NestedRoot: project, NestedInputs: input, NestedStage: &inner, Materialized: true, FlatWidth: 1}
+				var child plan.Node = &plan.SourceNode{QuerySchema: project.Schema(), Ref: input.Ref}
 				if mode != "all" {
 					limit := &plan.LimitNode{QuerySchema: project.Schema(), Child: child, Count: queryLimitBound(t, e, 1)}
 					if mode == "ties" {
@@ -37,13 +37,13 @@ func TestQueryLimitRequiredClose(t *testing.T) {
 					child = limit
 				}
 				outer := &plan.ProjectNode{QuerySchema: project.Schema(), Child: child, Expressions: project.Expressions}
-				rows, n, err := finalizeQuery(context.Background(), outer, bridge, nil)
+				rows, n, err := Finalize(context.Background(), outer, bridge, nil)
 				want := cleanup
 				if primary {
 					want = failure
 				}
-				if rows != nil || n != 0 || err != want || closes != 1 || input.view != nil || bridge.nestedStage != nil {
-					t.Fatal(rows, n, err, want, closes, input.view, bridge.nestedStage)
+				if rows != nil || n != 0 || err != want || closes != 1 || input.View != nil || bridge.NestedStage != nil {
+					t.Fatal(rows, n, err, want, closes, input.View, bridge.NestedStage)
 				}
 			})
 		}
@@ -55,16 +55,16 @@ func TestQueryLimitEOFCloses(t *testing.T) {
 	project := query.Root.(*plan.ProjectNode)
 	failure := errors.New("EOF close failure")
 	closes := 0
-	child := indexedStage{source: input, schema: project.Child.Schema(), selection: []int{0}, finish: func() error { closes++; return failure }}
-	stage := producingStage(&child, project.Schema())
-	stage.expressions = project.Expressions
-	stage.evaluation = EvalContext{evalFrame: evalFrame{Scope: 1, Frame: 1}}
-	stage.produce = func(ctx context.Context, out *indexedStage) (bool, error) {
-		i, present, err := child.nextOccurrence(ctx)
+	child := indexedStage{Source: input, Columns: project.Child.Schema(), Selection: []int{0}, Finish: func() error { closes++; return failure }}
+	stage := ProducingStage(&child, project.Schema())
+	stage.Expressions = project.Expressions
+	stage.Evaluation = EvalContext{evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	stage.Produce = func(ctx context.Context, out *indexedStage) (bool, error) {
+		i, present, err := child.NextOccurrence(ctx)
 		if err != nil || !present {
 			return present, err
 		}
-		retainOccurrence(out, &child, i)
+		RetainOccurrence(out, &child, i)
 		return true, nil
 	}
 	values := make([]sqltype.Value, 1)
@@ -74,7 +74,7 @@ func TestQueryLimitEOFCloses(t *testing.T) {
 	if present, err := stage.Next(context.Background(), values); present || err != failure {
 		t.Fatal(present, err)
 	}
-	if err := stage.Close(); err != nil || closes != 1 || stage.source != nil || stage.produce != nil || stage.finish != nil {
+	if err := stage.Close(); err != nil || closes != 1 || stage.Source != nil || stage.Produce != nil || stage.Finish != nil {
 		t.Fatal(err, closes, stage)
 	}
 }

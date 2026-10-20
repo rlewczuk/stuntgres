@@ -38,7 +38,7 @@ func cursorUnitBatch(t *testing.T, s *Session, q string, want [][]driver.Value) 
 		t.Fatalf("%s: count=%d rows=%v want=%v", q, result.Count, tuples(result), want)
 	}
 	rows := result.Rows.(*finalRows)
-	if rows.source != nil || rows.anonymous != nil {
+	if rows.Source != nil || rows.Anonymous != nil {
 		t.Fatal("FETCH batch borrows source rows")
 	}
 	return result
@@ -58,13 +58,13 @@ func TestSQLCursorDetachedBatchesAndLifetime(t *testing.T) {
 		t.Fatal(declaration)
 	}
 	cursor := s.cursors.entries["c"]
-	pin, cell := cursor.source.view, cursor.authority
-	if cursor.stage != nil || cell.host != nil || cell.expression != nil || pin.Load() == nil {
+	pin, cell := cursor.source.View, cursor.authority
+	if cursor.stage != nil || cell.Host != nil || cell.Expression != nil || pin.Load() == nil {
 		t.Fatal("DECLARE opens demand or loses capture")
 	}
 	first := cursorUnitBatch(t, s, "FETCH 1 FROM c", [][]driver.Value{{int64(1)}})
 	cursorUnitBatch(t, s, "FETCH 1 IN c", [][]driver.Value{{int64(2)}})
-	if cell.host != nil || cell.expression == nil {
+	if cell.Host != nil || cell.Expression == nil {
 		t.Fatal("FETCH retains admission or misses first demand")
 	}
 	cursorUnitBatch(t, s, "FETCH ALL FROM c", [][]driver.Value{{int64(3)}})
@@ -74,7 +74,7 @@ func TestSQLCursorDetachedBatchesAndLifetime(t *testing.T) {
 	}
 	cursorUnitBatch(t, s, "FETCH ALL FROM c", [][]driver.Value{})
 	sessionSQL(t, s, "CLOSE c")
-	if pin.Load() != nil || cell.host != nil || cell.expression != nil {
+	if pin.Load() != nil || cell.Host != nil || cell.Expression != nil {
 		t.Fatal("SQL close leaks retained execution")
 	}
 	sessionSQL(t, s, "COMMIT")
@@ -169,7 +169,7 @@ func TestSQLCursorNoLookaheadAndFailedBatch(t *testing.T) {
 	}
 	sessionSQL(t, s, "SAVEPOINT recover")
 	result, err := cursorUnitExecute(t, s, context.Background(), "FETCH ALL FROM c")
-	if !errors.Is(err, sentinel) || result.Rows != nil || result.Count != 0 || draws != 3 || cursor.position != cursorFailed || cursor.source != nil || cursor.authority.host != nil {
+	if !errors.Is(err, sentinel) || result.Rows != nil || result.Count != 0 || draws != 3 || cursor.position != cursorFailed || cursor.source != nil || cursor.authority.Host != nil {
 		t.Fatal(result, err, draws, cursor)
 	}
 	sessionSQL(t, s, "ROLLBACK TO recover")
@@ -212,12 +212,12 @@ func TestSQLCursorNestedLiveAuthority(t *testing.T) {
 			if route == "union" {
 				expressions = cursor.root.Child.(*plan.SetNode).RightExpressions
 			} else {
-				expressions = cursor.source.nestedRoot.(*plan.ProjectNode).Expressions
+				expressions = cursor.source.NestedRoot.(*plan.ProjectNode).Expressions
 			}
 			original := expressions[1]
 			expected, calls := "first", 0
 			expressions[1] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) {
-				scope := scopeOf(c.liveHost())
+				scope := scopeOf(c.LiveHost())
 				if scope == nil || scope.finished || scope.op.done || c.Context.Value(cursorUnitContextKey{}) != expected {
 					t.Fatalf("nested %s borrows old admission: scope=%p context=%v expected=%s", route, scope, c.Context.Value(cursorUnitContextKey{}), expected)
 				}
@@ -231,7 +231,7 @@ func TestSQLCursorNestedLiveAuthority(t *testing.T) {
 				if err != nil || result.Count != 1 || !reflect.DeepEqual(tuples(result), [][]driver.Value{{int64(i + 1), int64(10 + i)}}) {
 					t.Fatal(result, err)
 				}
-				if cursor.authority.host != nil {
+				if cursor.authority.Host != nil {
 					t.Fatal("nested cell retained scope")
 				}
 				result.Rows.Close()
@@ -260,10 +260,10 @@ func TestSQLCursorCancellationClearsAuthority(t *testing.T) {
 	sessionSQL(t, s, "SAVEPOINT recover")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	original := cursor.stage.expressions[0]
-	cursor.stage.expressions = []expr.Expr{queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { cancel(); return original.Eval(c) })}
+	original := cursor.stage.Expressions[0]
+	cursor.stage.Expressions = []expr.Expr{queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { cancel(); return original.Eval(c) })}
 	result, err := cursorUnitExecute(t, s, ctx, "FETCH 1 FROM c")
-	if !errors.Is(err, context.Canceled) || result.Rows != nil || result.Count != 0 || cursor.authority.host != nil || cursor.source != nil || cursor.position != cursorFailed {
+	if !errors.Is(err, context.Canceled) || result.Rows != nil || result.Count != 0 || cursor.authority.Host != nil || cursor.source != nil || cursor.position != cursorFailed {
 		t.Fatal(result, err, cursor)
 	}
 	sessionSQL(t, s, "ROLLBACK TO recover")
@@ -315,17 +315,17 @@ func TestSQLCursorFirstDemandExpressionData(t *testing.T) {
 	sessionSQL(t, s, "DECLARE c NO SCROLL CURSOR FOR SELECT statement_timestamp() AS stamp FROM unit_rows")
 	cursor := s.cursors.entries["c"]
 	cursorUnitBatch(t, s, "FETCH 0 FROM c", [][]driver.Value{})
-	if cursor.authority.expression != nil || cursor.stage != nil {
+	if cursor.authority.Expression != nil || cursor.stage != nil {
 		t.Fatal("FETCH0 captures expression environment")
 	}
 	first := sessionSQL(t, s, "FETCH 1 FROM c")
-	snapshot := cursor.authority.expression
-	if snapshot == nil || snapshot.statementStart.IsZero() || cursor.authority.host != nil {
+	snapshot := cursor.authority.Expression
+	if snapshot == nil || snapshot.StatementStart.IsZero() || cursor.authority.Host != nil {
 		t.Fatal("missing data-only first demand")
 	}
 	sessionSQL(t, s, "SELECT statement_timestamp()")
 	second := sessionSQL(t, s, "FETCH 1 FROM c")
-	if cursor.authority.expression != snapshot || !reflect.DeepEqual(first.Rows.(*finalRows).values, second.Rows.(*finalRows).values) {
+	if cursor.authority.Expression != snapshot || !reflect.DeepEqual(first.Rows.(*finalRows).Values, second.Rows.(*finalRows).Values) {
 		t.Fatal("second FETCH recaptures stable expression data")
 	}
 	sessionSQL(t, s, "CLOSE c")
@@ -339,7 +339,7 @@ func TestSQLCursorForeignRegistryAndEmptyAuthority(t *testing.T) {
 	if err := s.cursors.EndSession(foreign, CleanClose); err == nil || s.cursors.entries["c"] != cursor {
 		t.Fatal("foreign cleanup consumed cursor", err)
 	}
-	if cursor.source.host != nil || cursor.authority.host != nil {
+	if cursor.source.Host != nil || cursor.authority.Host != nil {
 		t.Fatal("finished declaration remains authoritative")
 	}
 	sessionSQL(t, s, "CLOSE c")
@@ -389,7 +389,7 @@ func TestSQLCursorCompletedPublicationBoundary(t *testing.T) {
 		sessionSQL(t, s, "DECLARE c SCROLL CURSOR FOR SELECT i FROM unit_rows ORDER BY i")
 		result := completed(t, s, "MOVE FORWARD 2 FROM c")
 		c := s.cursors.entries["c"]
-		if result.Count != 2 || result.Rows != nil || c.authority.host != nil || c.position != cursorOn || c.currentSource == nil {
+		if result.Count != 2 || result.Rows != nil || c.authority.Host != nil || c.position != cursorOn || c.currentSource == nil {
 			t.Fatal("completed MOVE loses count, physical authority or quiet output", result, c)
 		}
 		cursorUnitBatch(t, s, "FETCH PRIOR FROM c", [][]driver.Value{{int64(1)}})
@@ -405,7 +405,7 @@ func TestSQLCursorCompletedPublicationBoundary(t *testing.T) {
 			t.Fatalf("completed FETCH loses delivered row: count=%d rows=%v", first.Count, tuples(first))
 		}
 		rows := first.Rows.(*finalRows)
-		if rows.source != nil || rows.anonymous != nil || cursor.authority.host != nil || cursor.position != cursorOn {
+		if rows.Source != nil || rows.Anonymous != nil || cursor.authority.Host != nil || cursor.position != cursorOn {
 			t.Fatal("completed FETCH is not detached or retains admission", rows, cursor)
 		}
 		// An older cursor's motion survives recovery. Row 1 was successfully
@@ -427,7 +427,7 @@ func TestSQLCursorCompletedPublicationBoundary(t *testing.T) {
 		sessionSQL(t, s, "SAVEPOINT recover")
 		result := completed(t, s, "DECLARE c NO SCROLL CURSOR FOR SELECT i FROM unit_rows ORDER BY i")
 		cursor := s.cursors.entries["c"]
-		if result.Count != 0 || result.Rows != nil || cursor == nil || cursor.stage != nil || cursor.authority.host != nil {
+		if result.Count != 0 || result.Rows != nil || cursor == nil || cursor.stage != nil || cursor.authority.Host != nil {
 			t.Fatal("completed DECLARE loses quiet installation", result, cursor)
 		}
 		cursorUnitBatch(t, s, "FETCH 1 FROM c", [][]driver.Value{{int64(1)}})
@@ -442,10 +442,10 @@ func TestSQLCursorCompletedPublicationBoundary(t *testing.T) {
 			s := cursorUnitSetup(t)
 			sessionSQL(t, s, "DECLARE c NO SCROLL CURSOR FOR SELECT i FROM unit_rows ORDER BY i")
 			cursor := s.cursors.entries["c"]
-			pin := cursor.source.view
+			pin := cursor.source.View
 			sessionSQL(t, s, "SAVEPOINT recover")
 			result := completed(t, s, query)
-			if result.Count != 0 || result.Rows != nil || s.cursors.entries["c"] != nil || pin.Load() != nil || cursor.authority.host != nil {
+			if result.Count != 0 || result.Rows != nil || s.cursors.entries["c"] != nil || pin.Load() != nil || cursor.authority.Host != nil {
 				t.Fatal("completed CLOSE loses removal or leaks capture", result, cursor)
 			}
 			sessionSQL(t, s, "ROLLBACK TO recover")

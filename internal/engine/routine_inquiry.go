@@ -23,7 +23,7 @@ type commandRoutineProgram struct {
 }
 
 func admitInquiryBody(c *EvalContext, node expr.Info) error {
-	scope := scopeOf(c.liveHost())
+	scope := scopeOf(c.LiveHost())
 	if scope == nil {
 		return nil
 	} // Legitimate standalone internal provider fixtures.
@@ -32,7 +32,7 @@ func admitInquiryBody(c *EvalContext, node expr.Info) error {
 	if err != nil {
 		return err
 	}
-	if recipe != nil && (!local.routineGraft || local.routineConsumer != recipe) || recipe == nil && local.routineGraft {
+	if recipe != nil && (!local.RoutineGraft || local.RoutineConsumer != recipe) || recipe == nil && local.RoutineGraft {
 		if err = selectExpressionRecipe(&local, recipe); err != nil {
 			return err
 		}
@@ -47,28 +47,28 @@ func admitInquiryBody(c *EvalContext, node expr.Info) error {
 	}
 	ri := scope.foreignActionAuth != nil && scope.foreignActionAuth.State.CurrentUser == auth.State.CurrentUser
 	for _, programme := range scope.routinePrograms {
-		if programme.outer == outer && programme.consumer == local.routineConsumer &&
+		if programme.outer == outer && programme.consumer == local.RoutineConsumer &&
 			programme.ri == ri && len(programme.admission.calls) != 0 &&
 			programme.admission.calls[0].actor == auth.State.CurrentUser {
 			return nil
 		}
 	}
-	programme := commandRoutineProgram{outer: outer, consumer: local.routineConsumer, ri: ri}
-	local.routineProgram = &programme.admission
+	programme := commandRoutineProgram{outer: outer, consumer: local.RoutineConsumer, ri: ri}
+	local.RoutineProgram = &programme.admission
 	// The outer call has already passed executable-graph admission. Retain
 	// that actual first entry too, so later readmission preserves outer-before-
 	// body diagnostics without another permission check at each row.
 	if err := programme.admission.record(&local, dependencies, outer); err != nil {
 		return err
 	}
-	local.routineBodyContext = routineBodyContext{outer: outer, statement: true}
+	local.routineBodyContext = routineBodyContext{Outer: outer, Statement: true}
 	for _, edge := range outer.Body {
 		body, err := bodyRoutineDescriptor(&local, auth, dependencies, edge)
 		if err == nil {
 			err = admitRecipeRoutineDescriptor(&local, auth, dependencies, body)
 		}
 		if err != nil {
-			return local.routineBodyContext.annotate(err)
+			return local.routineBodyContext.Annotate(err)
 		}
 	}
 	// Publish only complete successful initialization. The footprint is an

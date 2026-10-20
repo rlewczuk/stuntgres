@@ -97,7 +97,7 @@ func TestDatetimeSleepCleanup(t *testing.T) {
 		}
 		done := make(chan error, 1)
 		go func() {
-			_, err := wait.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, host: hostOf(scope)}})
+			_, err := wait.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, Host: hostOf(scope)}})
 			done <- err
 		}()
 		datetimeSleepCleanupAdmission(t, done)

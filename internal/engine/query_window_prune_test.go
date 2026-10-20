@@ -32,11 +32,11 @@ func TestQueryWindowSurvivingOccurrences(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e, query, source := queryCoreFixture(t, tc.sql)
-			defer source.close()
+			defer source.Close()
 			original := pruningTestWindow(t, query.Root)
 			calls := append([]plan.WindowCall(nil), original.Calls...)
 			for range 2 {
-				prepared, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background(), catalog: e.CatalogRead()}, evalFrame: evalFrame{Scope: 1, Frame: query.Root.(*plan.ProjectNode).Frame}}, query.Root)
+				prepared, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Catalog: e.CatalogRead()}, evalFrame: evalFrame{Scope: 1, Frame: query.Root.(*plan.ProjectNode).Frame}}, query.Root)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -66,7 +66,7 @@ func TestQueryWindowPrunedSharedSort(t *testing.T) {
 	if len(original.Specs) != 2 || original.SortIndices[1] != 0 {
 		t.Fatal("fixture does not have distinct frames sharing the first sort")
 	}
-	rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || rows == nil || count != 4 {
 		t.Fatal("surviving window lost its pruned sibling's shared sort", count, err)
 	}
@@ -98,7 +98,7 @@ func TestQueryWindowGraftedDemand(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e, query, source := queryCoreFixture(t, tc.sql)
-			defer source.close()
+			defer source.Close()
 			original := pruningTestWindow(t, query.Root)
 			originalCall := original.Calls[0]
 			project := query.Root.(*plan.ProjectNode)

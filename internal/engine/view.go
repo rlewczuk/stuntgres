@@ -91,7 +91,7 @@ func (q *queryScopeState) freezeViewColumns(columns []queryColumn) []viewNamespa
 	for i, c := range columns {
 		out[i] = viewNamespaceColumn{name: c.descriptor.Name, slot: c.slot, leaf: c.leaf}
 		if c.leaf >= 0 {
-			out[i].attribute = q.sources[c.leaf].relation.Attributes[c.physical]
+			out[i].attribute = q.sources[c.leaf].Relation.Attributes[c.physical]
 		}
 	}
 	return out
@@ -206,7 +206,7 @@ func requestedViewPersistence(catalog catalog.Read, view *parser.CreateView, sou
 		return "temporary"
 	}
 	for _, source := range sources {
-		if namespace, ok := catalog.Namespace(source.relation.Namespace()); ok && namespace.Temporary != (ids.SessionToken{}) {
+		if namespace, ok := catalog.Namespace(source.Relation.Namespace()); ok && namespace.Temporary != (ids.SessionToken{}) {
 			return "temporary"
 		}
 	}

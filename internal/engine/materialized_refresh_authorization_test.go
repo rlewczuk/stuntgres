@@ -115,8 +115,8 @@ func TestMaterializedRefreshOwnerContext(t *testing.T) {
 			if auth.State.CurrentUser != owner || auth.State.SessionUser != caller || !auth.materializedPopulation {
 				t.Fatal("producer did not run as owner", auth.State)
 			}
-			current, _ := scope.identity.current.Text()
-			session, _ := scope.identity.session.Text()
+			current, _ := scope.identity.Current.Text()
+			session, _ := scope.identity.Session.Text()
 			if current != "refresh_unit_owner" || session != "refresh_unit_caller" {
 				t.Fatal(current, session)
 			}

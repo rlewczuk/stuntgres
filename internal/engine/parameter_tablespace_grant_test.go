@@ -182,14 +182,14 @@ func TestObjectGrantTablespaceCapturedACL(t *testing.T) {
 	}
 	before := e.catalog.read(e.catalog.state)
 	old := capture(before)
-	if len(old.anonymous) != 2 || len(old.anonymous[0]) != 5 || !old.anonymous[0][3].IsNull() || !old.anonymous[1][3].IsNull() || !old.anonymous[0][4].IsNull() || !old.anonymous[1][4].IsNull() {
+	if len(old.Anonymous) != 2 || len(old.Anonymous[0]) != 5 || !old.Anonymous[0][3].IsNull() || !old.Anonymous[1][3].IsNull() || !old.Anonymous[0][4].IsNull() || !old.Anonymous[1][4].IsNull() {
 		t.Fatal("tablespace absent ACL baseline not NULL")
 	}
 	if err := applyObjectGrantUnit(e, op, parameterSpaceRequest("tablespace", "pg_default")); err != nil {
 		t.Fatal(err)
 	}
 	current := capture(e.catalog.read(e.catalog.state))
-	if current.anonymous[0][3].IsNull() || current.anonymous[0][3].ArrayLen() != 2 || !current.anonymous[1][3].IsNull() || !old.anonymous[0][3].IsNull() || !capture(before).anonymous[0][3].IsNull() || !current.anonymous[0][4].IsNull() || !current.anonymous[1][4].IsNull() {
+	if current.Anonymous[0][3].IsNull() || current.Anonymous[0][3].ArrayLen() != 2 || !current.Anonymous[1][3].IsNull() || !old.Anonymous[0][3].IsNull() || !capture(before).Anonymous[0][3].IsNull() || !current.Anonymous[0][4].IsNull() || !current.Anonymous[1][4].IsNull() {
 		t.Fatal("captured tablespace ACL root mutated or grant not projected")
 	}
 }

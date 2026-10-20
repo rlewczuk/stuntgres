@@ -10,7 +10,7 @@ import (
 
 func TestBooleanAggregateSlotsAndMetadata(t *testing.T) {
 	_, q, source := queryCoreFixture(t, "SELECT count(f),bool_and(f),bool_or(f),every(f),bool_and(f) FROM t")
-	defer source.close()
+	defer source.Close()
 	node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	if len(node.Calls) != 3 {
 		t.Fatal("operation identity or alias sharing", len(node.Calls))
@@ -23,7 +23,7 @@ func TestBooleanAggregateSlotsAndMetadata(t *testing.T) {
 			t.Fatal(c)
 		}
 	}
-	rows, n, err := finalizeQuery(context.Background(), q.Root, source, nil)
+	rows, n, err := Finalize(context.Background(), q.Root, source, nil)
 	if err != nil || n != 1 {
 		t.Fatal(n, err)
 	}
@@ -46,7 +46,7 @@ func TestBooleanAggregateSlotsAndMetadata(t *testing.T) {
 	// Sequence parameters bind without opening a sequence. Use the admitted
 	// scalar-call path to check volatility without executing the fixture.
 	_, volatile, owner := queryCoreFixture(t, "SELECT bool_and(nextval($1)>0),every(nextval($1)>0),bool_or(nextval($1)>0) FROM t")
-	defer owner.close()
+	defer owner.Close()
 	if len(volatile.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode).Calls) != 3 {
 		t.Fatal("volatile arguments shared")
 	}
@@ -95,7 +95,7 @@ func TestBooleanAggregateDatumEvaluationAndCancellation(t *testing.T) {
 					}
 					return v, err
 				}}
-				rows, n, err := finalizeQuery(ctx, q.Root, source, nil)
+				rows, n, err := Finalize(ctx, q.Root, source, nil)
 				if phase == "success" {
 					if err != nil || n != 1 || calls != 4 || advances != 3 {
 						t.Fatal(n, err, calls, advances)
@@ -116,7 +116,7 @@ func TestBooleanAggregateDatumEvaluationAndCancellation(t *testing.T) {
 						t.Fatal(rows, n, err, want)
 					}
 				}
-				if source.view != nil || source.anonymous != nil {
+				if source.View != nil || source.Anonymous != nil {
 					t.Fatal("source owner retained", source)
 				}
 			})

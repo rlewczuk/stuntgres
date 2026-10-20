@@ -37,7 +37,7 @@ func TestQueryWindowGroupsEndpoints(t *testing.T) {
 	} {
 		for group, want := range tc.want {
 			for side, upper := range []bool{false, true} {
-				got, err := windowGroupsEndpoint(context.Background(), tc.kind, tc.offset, []int{2, 3, 5}, group, upper)
+				got, err := WindowGroupsEndpoint(context.Background(), tc.kind, tc.offset, []int{2, 3, 5}, group, upper)
 				if err != nil || got != want[side] {
 					t.Fatal(tc, group, upper, got, err)
 				}
@@ -50,7 +50,7 @@ func TestQueryWindowGroupsEndpoints(t *testing.T) {
 			usage = typ.Usage()
 		}
 	}
-	value, err := windowFrameCount(context.Background(), usage, 3, 2)
+	value, err := WindowFrameCount(context.Background(), usage, 3, 2)
 	n, integerErr := value.Integer()
 	if err != nil || integerErr != nil || n != 0 {
 		t.Fatal(value, err, integerErr)
@@ -59,7 +59,7 @@ func TestQueryWindowGroupsEndpoints(t *testing.T) {
 
 func TestQueryWindowGroupsRemap(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT count(*) OVER w FROM t WINDOW w AS(ORDER BY id GROUPS BETWEEN 1 PRECEDING AND 1 FOLLOWING)")
-	defer source.close()
+	defer source.Close()
 	original := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	before := original.Specs[0].Frame
 	types := make(map[sqltype.ID]*sqltype.Descriptor)
@@ -79,7 +79,7 @@ func TestQueryWindowGroupsRemap(t *testing.T) {
 	}
 	oldSource := original.Child.(*plan.SourceNode)
 	newSource := next.Child.(*plan.SourceNode)
-	if oldSource == newSource || newSource.Ref.Address.ObjectID != oldSource.Ref.Address.ObjectID+100 || oldSource.Ref != source.ref {
+	if oldSource == newSource || newSource.Ref.Address.ObjectID != oldSource.Ref.Address.ObjectID+100 || oldSource.Ref != source.Ref {
 		t.Fatal("source identity remap", oldSource.Ref, newSource.Ref)
 	}
 	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
@@ -101,7 +101,7 @@ func TestQueryWindowGroupsRemap(t *testing.T) {
 
 func TestQueryWindowGroupsIdentity(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT count(*) OVER w,count(*) OVER w,count(*) OVER v,count(*) OVER(ORDER BY id RANGE 1 PRECEDING) FROM t WINDOW w AS(ORDER BY id GROUPS 1 PRECEDING),v AS(ORDER BY id GROUPS 1 PRECEDING)")
-	defer source.close()
+	defer source.Close()
 	project := query.Root.(*plan.ProjectNode)
 	original := project.Child.(*plan.WindowNode)
 	if len(original.Specs) != 3 || len(original.Calls) != 3 || original.Specs[0].Definition != 1 || original.Specs[1].Definition != 2 || original.Specs[2].Frame.Unit != parser.FrameRange || !reflect.DeepEqual(original.SortIndices, []int{0, 0, 0}) || !reflect.DeepEqual(original.SpecIndices, []int{0, 1, 2}) {
@@ -156,7 +156,7 @@ func TestQueryWindowGroupsIdentity(t *testing.T) {
 	}
 	// Inline specs must also distinguish units when their key/bound SQL matches.
 	_, inline, inlineSource := queryCoreFixture(t, "SELECT count(*) OVER(ORDER BY id GROUPS 1 PRECEDING),count(*) OVER(ORDER BY id RANGE 1 PRECEDING) FROM t")
-	defer inlineSource.close()
+	defer inlineSource.Close()
 	n := inline.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	if len(n.Specs) != 2 || !reflect.DeepEqual(n.SortIndices, []int{0, 0}) {
 		t.Fatal(n)
@@ -168,21 +168,21 @@ func TestQueryWindowGroupsCancellation(t *testing.T) {
 		t.Run(phase, func(t *testing.T) {
 			q := "SELECT id,row_number() OVER(PARTITION BY v ORDER BY id),count(*) OVER(PARTITION BY v ORDER BY id GROUPS BETWEEN 1 PRECEDING AND 1 FOLLOWING) FROM t"
 			_, query, source := queryCoreFixture(t, q)
-			continuation, err := captureQuerySource(context.Background(), source.view, source.ref)
+			continuation, err := captureQuerySource(context.Background(), source.View, source.Ref)
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer continuation.close()
+			defer continuation.Close()
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			probe := &windowCancelContext{Context: ctx, cancel: cancel, phase: phase}
-			rows, count, err := finalizeQuery(probe, query.Root, source, nil)
-			if !probe.entered || !errors.Is(err, context.Canceled) || rows != nil || count != 0 || source.view != nil {
-				t.Fatal(probe.entered, rows, count, err, source.view)
+			rows, count, err := Finalize(probe, query.Root, source, nil)
+			if !probe.entered || !errors.Is(err, context.Canceled) || rows != nil || count != 0 || source.View != nil {
+				t.Fatal(probe.entered, rows, count, err, source.View)
 			}
-			source.close()
-			source.close()
-			recovered, n, err := finalizeQuery(context.Background(), query.Root, continuation, nil)
+			source.Close()
+			source.Close()
+			recovered, n, err := Finalize(context.Background(), query.Root, continuation, nil)
 			if err != nil || recovered == nil || n != 4 {
 				t.Fatal(recovered, n, err)
 			}
@@ -195,24 +195,24 @@ func TestQueryWindowGroupsCancellation(t *testing.T) {
 func TestQueryWindowGroupsOffsetFailureRelease(t *testing.T) {
 	for _, frame := range []string{"BETWEEN -1 PRECEDING AND NULL FOLLOWING", "BETWEEN NULL PRECEDING AND -1 FOLLOWING"} {
 		_, query, source := queryCoreFixture(t, "SELECT count(*) OVER(ORDER BY v GROUPS "+frame+") FROM t")
-		rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
 		code, message := "22013", "frame starting offset must not be negative"
 		if frame == "BETWEEN NULL PRECEDING AND -1 FOLLOWING" {
 			code, message = "22004", "frame starting offset must not be null"
 		}
 		want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: code, Message: message}
 		var diagnostic *sqlstate.Error
-		if rows != nil || count != 0 || source.view != nil || !errors.As(err, &diagnostic) || *diagnostic != want {
-			t.Fatal(rows, count, err, source.view)
+		if rows != nil || count != 0 || source.View != nil || !errors.As(err, &diagnostic) || *diagnostic != want {
+			t.Fatal(rows, count, err, source.View)
 		}
-		source.close()
-		source.close()
+		source.Close()
+		source.Close()
 	}
 }
 
 func TestQueryWindowGroupsMetadata(t *testing.T) {
 	e, query, source := queryCoreFixture(t, "SELECT id,count(*) OVER(ORDER BY v GROUPS 1 PRECEDING) AS n FROM t")
-	defer source.close()
+	defer source.Close()
 	schema := query.Root.Schema()
 	if schema[0].OriginTable == 0 || schema[0].OriginAttribute != 1 {
 		t.Fatal(schema)
@@ -221,7 +221,7 @@ func TestQueryWindowGroupsMetadata(t *testing.T) {
 	if column.Usage.Type.ID() != sqltype.Int8 || column.Usage.Typmod != -1 || column.OriginTable != 0 || column.OriginAttribute != 0 || column.Nullable || !column.NullabilityKnown {
 		t.Fatal(column)
 	}
-	rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || rows == nil || count != 4 {
 		t.Fatal(rows, count, err)
 	}
@@ -240,7 +240,7 @@ func TestQueryWindowGroupsMetadata(t *testing.T) {
 	}
 	rows.Close()
 	rows.Close()
-	if source.view != nil || source.windowValues != nil || source.windowIndices != nil || source.input != nil || source.scratch != nil {
+	if source.View != nil || source.WindowValues != nil || source.WindowIndices != nil || source.Input != nil || source.Scratch != nil {
 		t.Fatal("overlay/pin resources survived close")
 	}
 }
@@ -410,7 +410,7 @@ func TestQueryWindowGroupsColumnAuthority(t *testing.T) {
 			if err != nil || len(b.query.sources) != 1 {
 				t.Fatal(err, b.query.sources)
 			}
-			reads := b.query.sources[0].uses
+			reads := b.query.sources[0].Uses
 			if len(reads) != len(tc.reads) {
 				t.Fatal("source manifest width", reads, tc.reads)
 			}

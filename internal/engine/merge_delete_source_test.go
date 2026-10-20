@@ -19,8 +19,8 @@ func TestMergeDeleteSourceCompletion(t *testing.T) {
 			defer cancel()
 			op, scope, b, target, inputs := updateFromBoundSources(t, e, s, ctx, "MERGE INTO t USING (VALUES(1)) s(id) ON t.id=s.id WHEN MATCHED THEN DELETE WHEN NOT MATCHED BY SOURCE THEN DELETE")
 			defer op.Done()
-			defer target.close()
-			defer inputs.close()
+			defer target.Close()
+			defer inputs.Close()
 			one, _ := sqltype.Integer(b.relation.Columns[0].Usage.Type, 1)
 			primary, cleanup := errors.New("late DELETE source Next"), errors.New("required DELETE source Close")
 			cursor := &mergeInsertTestCursor{schema: b.merge.source.Schema(), rows: [][]sqltype.Value{{one}}}
@@ -42,7 +42,7 @@ func TestMergeDeleteSourceCompletion(t *testing.T) {
 					cancel()
 				}
 			}
-			state := &queryState{source: inputs, input: scope.input, output: scope.output}
+			state := &queryState{Source: inputs, Input: scope.input, Output: scope.output}
 			rows, err := e.assembleMergeRows(ctx, scope, b, target, cursor, state, "public", false)
 			want := primary
 			if phase == "close" {

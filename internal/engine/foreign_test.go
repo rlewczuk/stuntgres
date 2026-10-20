@@ -345,17 +345,17 @@ func TestFDWProcedureACLCOW(t *testing.T) {
 func TestFDWPlanningSelection(t *testing.T) {
 	request := catalog.ForeignRequest{Columns: []catalog.ForeignColumn{{Attribute: 1}, {Attribute: 3}}, RequiredAttributes: []int32{3}}
 	w := &fdwUnitWrapper{paths: []catalog.ForeignPath{{TotalCost: 10, Attributes: []int32{1, 3}, Private: "expensive"}, {TotalCost: 2, Attributes: []int32{3}, Private: "first-cheapest"}, {TotalCost: 2, Attributes: []int32{3}, Private: "tie"}}}
-	f := &foreignQuerySource{wrapper: w}
+	f := &foreignQuerySource{Wrapper: w}
 	execution := &foreignExecution{}
-	if err := f.plan(context.Background(), request, execution); err != nil {
+	if err := f.Plan(context.Background(), request, execution); err != nil {
 		t.Fatal(err)
 	}
-	if w.chosen.Private != "first-cheapest" || execution.plan.Private != "first-cheapest" || !slices.Equal(execution.slots, []int{1}) {
+	if w.chosen.Private != "first-cheapest" || execution.Plan.Private != "first-cheapest" || !slices.Equal(execution.Slots, []int{1}) {
 		t.Fatal(w.chosen, execution)
 	}
 	for _, paths := range [][]catalog.ForeignPath{nil, {{TotalCost: math.NaN(), Attributes: []int32{3}}}, {{TotalCost: 1, Attributes: []int32{1}}}, {{TotalCost: 1, Attributes: []int32{3, 3}}}, {{StartupCost: 2, TotalCost: 1, Attributes: []int32{3}}}} {
 		w.paths = paths
-		if err := f.plan(context.Background(), request, &foreignExecution{}); err == nil {
+		if err := f.Plan(context.Background(), request, &foreignExecution{}); err == nil {
 			t.Fatal("invalid path admitted", paths)
 		}
 	}
@@ -367,11 +367,11 @@ func TestFDWScanState(t *testing.T) {
 	endFailure := errors.New("end outcome")
 	scan := &fdwUnitScan{endErr: endFailure}
 	w := &fdwUnitWrapper{paths: []catalog.ForeignPath{{}}, scan: scan}
-	source := &querySource{anonymous: [][]sqltype.Value{}, foreign: &foreignQuerySource{wrapper: w}}
+	source := &querySource{Anonymous: [][]sqltype.Value{}, Foreign: &foreignQuerySource{Wrapper: w}}
 	owner := &foreignScanOwner{}
-	owner.add(source.foreign)
-	state := &queryState{source: source}
-	stage, err := openForeignStage(ctx, state, source, &plan.SourceNode{})
+	owner.Add(source.Foreign)
+	state := &queryState{Source: source}
+	stage, err := OpenForeignStage(ctx, state, source, &plan.SourceNode{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -380,7 +380,7 @@ func TestFDWScanState(t *testing.T) {
 			t.Fatal("zero-width row became EOF", present, err)
 		}
 	}
-	old := slices.Clone(stage.selection)
+	old := slices.Clone(stage.Selection)
 	if present, err := stage.Next(ctx, nil); err != nil || present {
 		t.Fatal(present, err)
 	}
@@ -390,26 +390,26 @@ func TestFDWScanState(t *testing.T) {
 	if scan.ends != 0 {
 		t.Fatal("borrowed invocation ended query-owned scan")
 	}
-	again, err := openForeignStage(ctx, state, source, &plan.SourceNode{})
+	again, err := OpenForeignStage(ctx, state, source, &plan.SourceNode{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if present, err := again.Next(ctx, nil); err != nil || !present {
 		t.Fatal(present, err)
 	}
-	if scan.rescans != 1 || len(source.foreign.executions) != 1 || !slices.Equal(old, []int{0, 1, 2}) || again.selection[0] != 3 {
-		t.Fatal("rescan replaced occurrence identities", old, again.selection, scan)
+	if scan.rescans != 1 || len(source.Foreign.Executions) != 1 || !slices.Equal(old, []int{0, 1, 2}) || again.Selection[0] != 3 {
+		t.Fatal("rescan replaced occurrence identities", old, again.Selection, scan)
 	}
 	scan.rescanErr = errors.New("restart failed")
-	if changed, err := again.rewind(ctx); changed || !errors.Is(err, scan.rescanErr) {
+	if changed, err := again.Rewind(ctx); changed || !errors.Is(err, scan.rescanErr) {
 		t.Fatal(changed, err)
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	if err = finishForeignSources(canceled, source); !errors.Is(err, endFailure) {
+	if err = FinishForeignSources(canceled, source); !errors.Is(err, endFailure) {
 		t.Fatal(err)
 	}
-	if err = finishForeignSources(ctx, source); !errors.Is(err, endFailure) || scan.ends != 1 || scan.cleanupCanceled {
+	if err = FinishForeignSources(ctx, source); !errors.Is(err, endFailure) || scan.ends != 1 || scan.cleanupCanceled {
 		t.Fatal("cleanup was canceled, duplicated or lost outcome", err, scan)
 	}
 	t.Run("CursorCleanupOwner", testFDWCursorCleanupOwner)
@@ -437,8 +437,8 @@ func testFDWCursorCleanupOwner(t *testing.T) {
 		return failure
 	}}
 	owner := &foreignScanOwner{}
-	source := &foreignQuerySource{executions: []*foreignExecution{{scan: scan}}}
-	owner.add(source)
+	source := &foreignQuerySource{Executions: []*foreignExecution{{Scan: scan}}}
+	owner.Add(source)
 	cursor := &sqlCursor{ordinal: 1, foreignOwner: owner}
 	s.cursors.entries = map[string]*sqlCursor{"child": cursor}
 	e.replacementMu.RLock()
@@ -459,7 +459,7 @@ func testFDWCursorCleanupOwner(t *testing.T) {
 	if err := txn.drainCursorCleanup(context.Background(), nil); !errors.Is(err, failure) {
 		t.Fatal("cleanup outcome was swallowed", err)
 	}
-	if len(blocked) != 0 || scan.ends != 1 || len(s.cursors.entries) != 0 || len(txn.cursorCleanup) != 0 || !source.lifetimeClosed || cursor.foreignOwner != nil {
+	if len(blocked) != 0 || scan.ends != 1 || len(s.cursors.entries) != 0 || len(txn.cursorCleanup) != 0 || !source.LifetimeClosed || cursor.foreignOwner != nil {
 		t.Fatal("owner/lock boundary", blocked, scan.ends)
 	}
 	if err := cursor.dispose(context.Background()); !errors.Is(err, failure) || scan.ends != 1 {

@@ -20,7 +20,7 @@ func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnviron
 	binder := newExpressionBinder(op.Context(), e, input, op, nil)
 	binder.consumer.indexConsumer, binder.params.noParameters, binder.query.auth = true, true, &auth
 	binder.query.namespace = &namespace
-	binder.query.sources = []queryLeaf{{ref: ref, relation: parent}}
+	binder.query.sources = []queryLeaf{{Ref: ref, Relation: parent}}
 	return binder
 }
 
@@ -35,12 +35,12 @@ func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironme
 	if err != nil {
 		return nil, "", err
 	}
-	if err := rejectVirtualIndexUses(parent, binder.query.sources[0].uses); err != nil {
+	if err := rejectVirtualIndexUses(parent, binder.query.sources[0].Uses); err != nil {
 		return nil, "", err
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: binder.input, catalog: auth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
-	evaluation.routineAuthority, evaluation.routineChecks = &auth, binder.dependencies
-	evaluation.routineRecipe = true
+	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: binder.input, Catalog: auth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation.RoutineAuthority, evaluation.RoutineChecks = &auth, binder.dependencies
+	evaluation.RoutineRecipe = true
 	execution, _, err := preflightCoercionsWithPolicy(&evaluation, definition, true)
 	if err != nil {
 		return nil, "", err
@@ -51,7 +51,7 @@ func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironme
 	if err != nil {
 		return nil, "", err
 	}
-	if plannedVolatility(execution) != expr.Immutable {
+	if PlannedVolatility(execution) != expr.Immutable {
 		return nil, "", sqlError("42P17", "functions in index expression must be marked IMMUTABLE")
 	}
 	key := &catalog.DerivedIndexKey{Definition: definition, Execution: execution, Attributes: parent.Attributes}

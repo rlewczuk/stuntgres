@@ -98,7 +98,7 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 			if call.Kind == functions.ArrayToString {
 				volatility = expr.Stable
 			}
-			if plannedPhysicalVolatility(call, false) != volatility || generationImmutable(call) != (volatility == expr.Immutable) {
+			if PlannedPhysicalVolatility(call, false) != volatility || generationImmutable(call) != (volatility == expr.Immutable) {
 				t.Fatal("lost intrinsic volatility")
 			}
 			if _, _, err := simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: ctx}}, call, false); err != nil {

@@ -31,8 +31,8 @@ func TestPartitionAttachLayout(t *testing.T) {
 	one, _ := sqltype.Integer(parent.Columns[0].Usage.Type, 1)
 	two, _ := sqltype.Integer(parent.Columns[0].Usage.Type, 2)
 	physical := []sqltype.Value{two, one}
-	segment := inheritanceQuerySegment{layout: layout, scratch: make([]sqltype.Value, 2)}
-	logical := segment.mapValues(physical)
+	segment := inheritanceQuerySegment{Layout: layout, Scratch: make([]sqltype.Value, 2)}
+	logical := segment.MapValues(physical)
 	if !sqltype.SameDatum(logical[0], one) || !sqltype.SameDatum(logical[1], two) || !sqltype.SameDatum(physical[0], two) {
 		t.Fatal("physical tuple rewritten")
 	}
@@ -40,8 +40,8 @@ func TestPartitionAttachLayout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	back := inheritanceQuerySegment{layout: inverse, scratch: make([]sqltype.Value, 2)}
-	if !reflect.DeepEqual(back.mapValues(logical), physical) {
+	back := inheritanceQuerySegment{Layout: inverse, Scratch: make([]sqltype.Value, 2)}
+	if !reflect.DeepEqual(back.MapValues(logical), physical) {
 		t.Fatal("inverse mapping")
 	}
 	identity, err := inheritanceQueryLayout(parent, parent)
@@ -49,7 +49,7 @@ func TestPartitionAttachLayout(t *testing.T) {
 		t.Fatal(identity, err)
 	}
 	borrow := inheritanceQuerySegment{}
-	if got := borrow.mapValues(physical); &got[0] != &physical[0] {
+	if got := borrow.MapValues(physical); &got[0] != &physical[0] {
 		t.Fatal("identity copied")
 	}
 	state := partitionInsertState{target: parent, destination: child, layouts: map[ids.ObjectAddress]*inheritanceQuerySegment{child.Address(): &back}}

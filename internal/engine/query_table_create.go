@@ -121,8 +121,8 @@ func (e *Engine) prepareQueryTableLocked(op *Operation, auth AuthorizationView, 
 	// Source definitions and namespace lookup authority must still be current at
 	// publication, including for NO DATA. Stored data has no dependency on them.
 	for _, leaf := range b.querySources {
-		stage.querySources = append(stage.querySources, leaf.relation)
-		if descriptor := auth.Catalog.Get(leaf.relation.Namespace()); descriptor != nil {
+		stage.querySources = append(stage.querySources, leaf.Relation)
+		if descriptor := auth.Catalog.Get(leaf.Relation.Namespace()); descriptor != nil {
 			stage.querySources = append(stage.querySources, descriptor)
 		}
 	}
@@ -254,14 +254,14 @@ func (e *Engine) executeQueryTableLocked(scope *StatementScope, s *parser.Create
 	if err != nil {
 		return Result{}, err
 	}
-	if err = selectQuerySources(ctx, source); err != nil {
+	if err = SelectQuerySources(ctx, source); err != nil {
 		return Result{}, err
 	}
-	result, count, err := finalizeQuery(ctx, root, source, parameters)
+	result, count, err := Finalize(ctx, root, source, parameters)
 	if err != nil {
 		return Result{}, err
 	}
-	rows, err := result.(*finalRows).takeTableRows(ctx)
+	rows, err := result.(*finalRows).TakeTableRows(ctx)
 	if err != nil {
 		return Result{}, err
 	}

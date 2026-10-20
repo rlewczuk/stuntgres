@@ -33,7 +33,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 			t.Fatal(err)
 		}
 		n := node.(plan.InstalledCryptoExpr)
-		if n.ResultUsage().Type.ID() != sqltype.Text || n.Properties().Volatility != v.volatility || plannedVolatility(n) != v.volatility || generationImmutable(n) != (v.volatility == expr.Immutable) {
+		if n.ResultUsage().Type.ID() != sqltype.Text || n.Properties().Volatility != v.volatility || PlannedVolatility(n) != v.volatility || generationImmutable(n) != (v.volatility == expr.Immutable) {
 			t.Fatal(v, n)
 		}
 		if err := validateInstalledCrypto(n, e.CatalogRead()); err != nil {
@@ -72,14 +72,14 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 			t.Fatal(err)
 		}
 		n.Pgcrypto = rebuilt
-		if plannedVolatility(n) != v.volatility || generationImmutable(n) != (v.volatility == expr.Immutable) {
+		if PlannedVolatility(n) != v.volatility || generationImmutable(n) != (v.volatility == expr.Immutable) {
 			t.Fatal("reconstruction changed intrinsic volatility")
 		}
 		retagged, _, err := retagBoundTypes(e.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
 		if err != nil {
 			t.Fatal(err)
 		}
-		if plannedVolatility(retagged) != v.volatility || generationImmutable(retagged) != (v.volatility == expr.Immutable) {
+		if PlannedVolatility(retagged) != v.volatility || generationImmutable(retagged) != (v.volatility == expr.Immutable) {
 			t.Fatal("retag changed intrinsic volatility")
 		}
 		value, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})

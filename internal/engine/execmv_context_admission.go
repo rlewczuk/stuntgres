@@ -19,29 +19,29 @@ type admissionAuthority interface{ AdmissionAuthoritySlot() }
 type admissionProgram interface{ AdmissionProgramSlot() }
 
 type routineBodyContext struct {
-	outer     *catalog.Procedure
-	statement bool
+	Outer     *catalog.Procedure
+	Statement bool
 }
 
-func (context routineBodyContext) annotate(err error) error {
-	if err == nil || context.outer == nil {
+func (context routineBodyContext) Annotate(err error) error {
+	if err == nil || context.Outer == nil {
 		return err
 	}
 	var diagnostic *sqlstate.Error
 	if errors.As(err, &diagnostic) && diagnostic.Code == "42501" {
 		copy := *diagnostic
 		phase := "during inlining"
-		if context.statement {
+		if context.Statement {
 			phase = "statement 1"
 		}
-		copy.Context = fmt.Sprintf(`SQL function "%s" %s`, context.outer.Name(), phase)
+		copy.Context = fmt.Sprintf(`SQL function "%s" %s`, context.Outer.Name(), phase)
 		return &copy
 	}
 	return err
 }
 
 func (c *EvalContext) EvalSQLRoutine(n plan.SQLRoutineExpr) (value sqltype.Value, err error) {
-	if err = evaluationContext(c); err != nil {
+	if err = EvaluationContext(c); err != nil {
 		return value, err
 	}
 	frame := proc.NewFrame(n.Procedure.SQL.Inputs)
@@ -56,21 +56,21 @@ func (c *EvalContext) EvalSQLRoutine(n plan.SQLRoutineExpr) (value sqltype.Value
 		}
 	}
 	// The statement's own host wins over a query source's host here.
-	host := c.host
-	if host == nil && c.query != nil && c.query.source != nil {
-		host = c.query.source.liveHost()
+	host := c.Host
+	if host == nil && c.Query != nil && c.Query.Source != nil {
+		host = c.Query.Source.LiveHost()
 	}
 	if host == nil {
 		return value, fmt.Errorf("SQL routine invocation has no statement owner")
 	}
 	value, err = host.InvokeSQLRoutine(n.Procedure, frame, n.Usage)
 	if err != nil {
-		return value, sqlRoutineContext(err, n.Procedure.Name(), true)
+		return value, SQLRoutineContext(err, n.Procedure.Name(), true)
 	}
 	return frame.Result(value, n.Usage)
 }
 
-func sqlRoutineContext(err error, name string, runtime bool) error {
+func SQLRoutineContext(err error, name string, runtime bool) error {
 	if err == nil {
 		return nil
 	}

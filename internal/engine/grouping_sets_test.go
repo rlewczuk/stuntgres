@@ -108,7 +108,7 @@ func TestGroupingSetsRuntimeOccurrencesAndFreshState(t *testing.T) {
 		if len(schema) != 3 || schema[0].OriginTable == 0 || schema[0].OriginAttribute != 2 || !schema[0].Nullable || schema[1].OriginTable != 0 || !schema[1].NullabilityKnown || schema[1].Nullable {
 			t.Fatal(schema)
 		}
-		rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
 		if err != nil || count != 7 {
 			t.Fatal(count, err)
 		}
@@ -147,7 +147,7 @@ func TestGroupingSetsOncePerSourceModifiers(t *testing.T) {
 	filters, values := 0, 0
 	call.Filter = queryProbe(filter.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { filters++; return filter.Eval(c) })
 	call.Argument = queryProbe(argument.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { values++; return argument.Eval(c) })
-	rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || count != 3 || filters != 4 || values != 4 {
 		t.Fatal(count, err, filters, values)
 	}
@@ -202,8 +202,8 @@ func TestGroupingSetsCancellationPublication(t *testing.T) {
 				node.Calls[0].Order = nil
 				node.Calls[0].Distinct = nil
 			}
-			rows, count, err := finalizeQuery(execution, query.Root, source, nil)
-			if rows != nil || count != 0 || !errors.Is(err, context.Canceled) || source.view != nil || source.anonymous != nil {
+			rows, count, err := Finalize(execution, query.Root, source, nil)
+			if rows != nil || count != 0 || !errors.Is(err, context.Canceled) || source.View != nil || source.Anonymous != nil {
 				t.Fatal(rows, count, err)
 			}
 			if phase == "fanout" && advances != 2 {
@@ -275,7 +275,7 @@ func TestGroupingSetsInsertLateFailureAndActiveCancellation(t *testing.T) {
 			if phase == "fanout_cancel" {
 				want = context.Canceled
 			}
-			if rows.values != nil || !errors.Is(err, want) || source.view != nil || source.anonymous != nil {
+			if rows.values != nil || !errors.Is(err, want) || source.View != nil || source.Anonymous != nil {
 				t.Fatal(rows, err, want, source)
 			}
 			if phase == "fanout_cancel" && advances != 2 {

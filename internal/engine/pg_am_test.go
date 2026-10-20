@@ -25,11 +25,11 @@ func pgAMUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.ObjectRef) 
 
 func pgAMUnitFacts(t *testing.T, source *querySource, d *catalog.Relation) [][]any {
 	t.Helper()
-	if len(source.anonymous) != 4 {
-		t.Fatal("access-method count", len(source.anonymous))
+	if len(source.Anonymous) != 4 {
+		t.Fatal("access-method count", len(source.Anonymous))
 	}
-	got := make([][]any, len(source.anonymous))
-	for i, row := range source.anonymous {
+	got := make([][]any, len(source.Anonymous))
+	for i, row := range source.Anonymous {
 		if len(row) != 4 {
 			t.Fatal("access-method width", len(row))
 		}
@@ -104,7 +104,7 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rows.ref != ref || !maps.Equal(descriptors, maps.Collect(e.catalog.state.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.state.Names())) {
+	if rows.Ref != ref || !maps.Equal(descriptors, maps.Collect(e.catalog.state.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.state.Names())) {
 		t.Fatal("capture mutated catalog/ref")
 	}
 	facts := pgAMUnitFacts(t, rows, d)
@@ -112,11 +112,11 @@ func TestPGAMCaptureOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows.anonymous[0][0] = sqltype.Null(d.Columns[0].Usage.Type)
+	rows.Anonymous[0][0] = sqltype.Null(d.Columns[0].Usage.Type)
 	if !reflect.DeepEqual(pgAMUnitFacts(t, second, d), facts) {
 		t.Fatal("captures share value backing")
 	}
-	rows.anonymous[0] = nil
+	rows.Anonymous[0] = nil
 	if !reflect.DeepEqual(pgAMUnitFacts(t, second, d), facts) {
 		t.Fatal("captures share row directory")
 	}

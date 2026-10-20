@@ -12,7 +12,7 @@ import (
 
 func TestQueryDistinctOnSlotsMetadataAndFreshProviders(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(v) id AS shown FROM t ORDER BY v,id DESC")
-	defer source.close()
+	defer source.Close()
 	project := query.Root.(*plan.ProjectNode)
 	node := project.Child.(*plan.DistinctOnNode)
 	sorted := node.Child.(*plan.SortNode)
@@ -41,7 +41,7 @@ func TestQueryDistinctOnSlotsMetadataAndFreshProviders(t *testing.T) {
 func TestQueryDistinctOnRequiredOutputIdentity(t *testing.T) {
 	for _, q := range []string{"SELECT DISTINCT ON(y) random() AS x,random() AS y FROM t ORDER BY y,id", "SELECT DISTINCT ON(1,2) random() AS x,random() AS y FROM t ORDER BY 1,2"} {
 		_, query, source := queryCoreFixture(t, q)
-		defer source.close()
+		defer source.Close()
 		p := query.Root.(*plan.ProjectNode)
 		n := p.Child.(*plan.DistinctOnNode)
 		sorted := n.Child.(*plan.SortNode)
@@ -58,20 +58,20 @@ func TestQueryDistinctOnRequiredOutputIdentity(t *testing.T) {
 
 func TestQueryDistinctOnCollisionCandidates(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT DISTINCT ON(v) id FROM t")
-	defer source.close()
+	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.DistinctOnNode)
 	typ := node.Expressions[0].ResultUsage().Type
 	one, _ := sqltype.Integer(typ, 1)
 	two, _ := sqltype.Integer(typ, 2)
 	flat := []sqltype.Value{one, two}
-	if index, err := findDistinctTuple(context.Background(), node.Grouping, []sqltype.Value{two}, flat, []int{0}); err != nil || index != -1 {
+	if index, err := FindDistinctTuple(context.Background(), node.Grouping, []sqltype.Value{two}, flat, []int{0}); err != nil || index != -1 {
 		t.Fatal("hash collision suppressed unequal ON key", index, err)
 	}
-	if index, err := findDistinctTuple(context.Background(), node.Grouping, []sqltype.Value{two}, flat, []int{0, 1}); err != nil || index != 1 {
+	if index, err := FindDistinctTuple(context.Background(), node.Grouping, []sqltype.Value{two}, flat, []int{0, 1}); err != nil || index != 1 {
 		t.Fatal(index, err)
 	}
 	ctx := &aggregateCancelContext{Context: context.Background(), armed: true, at: 4}
-	if _, err := findDistinctTuple(ctx, node.Grouping, []sqltype.Value{two}, flat, []int{0, 1}); !errors.Is(err, context.Canceled) {
+	if _, err := FindDistinctTuple(ctx, node.Grouping, []sqltype.Value{two}, flat, []int{0, 1}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }
@@ -126,13 +126,13 @@ func TestQueryDistinctOnFailureCancellationAndPublication(t *testing.T) {
 					})
 				}
 			}
-			rows, count, err := finalizeQuery(execution, query.Root, source, nil)
+			rows, count, err := Finalize(execution, query.Root, source, nil)
 			want := error(context.Canceled)
 			if phase == "late key" {
 				want = sentinel
 			}
-			if rows != nil || count != 0 || !errors.Is(err, want) || source.view != nil {
-				t.Fatal(rows, count, err, want, source.view)
+			if rows != nil || count != 0 || !errors.Is(err, want) || source.View != nil {
+				t.Fatal(rows, count, err, want, source.View)
 			}
 		})
 	}
@@ -152,7 +152,7 @@ func TestQueryDistinctOnInsertKeyFailureNoBatch(t *testing.T) {
 		return original.Eval(c)
 	})
 	rows, err := evaluateInsertQuery(context.Background(), b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
-	if rows.values != nil || err != sentinel || source.view != nil || source.anonymous != nil {
+	if rows.values != nil || err != sentinel || source.View != nil || source.Anonymous != nil {
 		t.Fatal(rows, err, source)
 	}
 }
@@ -172,8 +172,8 @@ func TestQueryDistinctOnLaterComponentDemand(t *testing.T) {
 		}
 		return second.Eval(c)
 	})
-	rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
-	if rows != nil || count != 0 || err != sentinel || calls != 4 || source.view != nil {
-		t.Fatal(rows, count, err, calls, source.view)
+	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	if rows != nil || count != 0 || err != sentinel || calls != 4 || source.View != nil {
+		t.Fatal(rows, count, err, calls, source.View)
 	}
 }

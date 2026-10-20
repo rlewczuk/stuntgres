@@ -11,7 +11,7 @@ import (
 
 func TestStatisticalAggregateSlotsAndMetadata(t *testing.T) {
 	_, q, source := queryCoreFixture(t, "SELECT var_pop(1),var_pop(1),var_samp(1),stddev_pop(1),stddev_samp(1),variance(1),stddev(1),regr_slope(2,1),regr_sxx(2,1),regr_sxy(2,1),regr_syy(2,1) FROM t")
-	defer source.close()
+	defer source.Close()
 	node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	if len(node.Calls) != 8 {
 		t.Fatal("final-operation sharing", len(node.Calls))
@@ -26,7 +26,7 @@ func TestStatisticalAggregateSlotsAndMetadata(t *testing.T) {
 		}
 	}
 	_, selected, selectedSource := queryCoreFixture(t, "SELECT corr(2,1),covar_pop(2,1),covar_samp(2,1),regr_avgx(2,1),regr_avgy(2,1),regr_count(2,1),regr_intercept(2,1),regr_r2(2,1) FROM t")
-	defer selectedSource.close()
+	defer selectedSource.Close()
 	for i, c := range selected.Root.Schema() {
 		want := sqltype.Float8
 		if i == 5 {
@@ -129,9 +129,9 @@ func TestStatisticalAggregateEagerCancellation(t *testing.T) {
 				expr := project.Expressions[0]
 				project.Expressions[0] = queryProbe(expr.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { v, err := expr.Eval(c); cancel(); return v, err })
 			}
-			rows, count, err := finalizeQuery(ctx, q.Root, source, nil)
+			rows, count, err := Finalize(ctx, q.Root, source, nil)
 			cancel()
-			if rows != nil || count != 0 || err != context.Canceled || source.view != nil || source.anonymous != nil {
+			if rows != nil || count != 0 || err != context.Canceled || source.View != nil || source.Anonymous != nil {
 				t.Fatal(call, phase, rows, count, err)
 			}
 		}

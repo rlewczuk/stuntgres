@@ -21,14 +21,14 @@ func TestQueryWindowOffsetNestedComparison(t *testing.T) {
 			// Independently bound child frames may pair, but their window defaults
 			// remain semantic inputs. The child window is the only differing node.
 			if (*expressionBinder)(nil).sameSubqueryTarget(a, b) || (*expressionBinder)(nil).sameQueryTarget(a, b) {
-				source.close()
+				source.Close()
 				t.Fatal("nested window defaults treated as equivalent", fn, tail)
 			}
 			if !(*expressionBinder)(nil).sameSubqueryTarget(a, equal) || !(*expressionBinder)(nil).sameQueryTarget(a, equal) {
-				source.close()
+				source.Close()
 				t.Fatal("equal nested window queries lost local equivalence", fn, tail)
 			}
-			source.close()
+			source.Close()
 		}
 	}
 }
@@ -85,7 +85,7 @@ func TestQueryWindowOffsetLowering(t *testing.T) {
 	if !ok {
 		t.Fatalf("no executable marker stage: %T", root)
 	}
-	stage, err := openSetProjectNode(context.Background(), &queryState{source: &querySource{}, frame: 7}, node)
+	stage, err := OpenSetProjectNode(context.Background(), &queryState{Source: &querySource{}, Frame: 7}, node)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,14 +93,14 @@ func TestQueryWindowOffsetLowering(t *testing.T) {
 	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 7}}
 	var rows [][]any
 	for {
-		occurrence, present, err := stage.nextOccurrence(context.Background())
+		occurrence, present, err := stage.NextOccurrence(context.Background())
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !present {
 			break
 		}
-		evaluation.Row = stage.source.row(stage.index(occurrence))
+		evaluation.Row = stage.Source.Row(stage.Index(occurrence))
 		row := make([]any, 4)
 		for i, expr := range []expr.Expr{calls[0].DefaultValue, companion[0], companion[1], calls[1].DefaultValue} {
 			value, err := expr.Eval(&evaluation)

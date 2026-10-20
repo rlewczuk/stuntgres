@@ -79,7 +79,7 @@ func TestQueryParallelPartition(t *testing.T) {
 	parallelTransactionOccurrences(t)
 	for _, visible := range [][]int{nil, {}, {0}, {0, 1}, {3, 1, 0}, {0, 1, 2, 3}} {
 		_, query, source := queryCoreFixture(t, "SELECT id FROM t")
-		source.visible = visible
+		source.Visible = visible
 		want := []int64{1, 2, 3, 4}
 		if visible != nil {
 			want = make([]int64, len(visible))
@@ -88,11 +88,11 @@ func TestQueryParallelPartition(t *testing.T) {
 			}
 		}
 		for _, ceiling := range []int{0, 1, 2, 7, 1024} {
-			pin, err := parallelQuerySource(source)
+			pin, err := ParallelQuerySource(source)
 			if err != nil {
 				t.Fatal(err)
 			}
-			rows, count, err := finalizeSelectQuery(context.Background(), query.Root, pin, nil, ceiling)
+			rows, count, err := FinalizeSelect(context.Background(), query.Root, pin, nil, ceiling)
 			if err != nil || count != len(want) {
 				t.Fatal(count, err)
 			}
@@ -113,18 +113,18 @@ func TestQueryParallelPartition(t *testing.T) {
 			if len(seen) != 0 {
 				t.Fatal(seen)
 			}
-			if queryParallelWorkers(ceiling, len(want)) > min(ceiling, len(want)) {
+			if QueryParallelWorkers(ceiling, len(want)) > min(ceiling, len(want)) {
 				t.Fatal("ceiling exceeded")
 			}
 		}
 	}
 	// Logical visibility can select an own version while omitting an older head.
 	_, query, source := queryCoreFixture(t, "SELECT id FROM t")
-	source.own = []storage.RowVersion{source.committed[0]}
-	source.own[0].Values = append([]sqltype.Value(nil), source.committed[0].Values...)
-	source.own[0].Values[0], _ = sqltype.Integer(source.own[0].Values[0].Type(), 99)
-	source.visible = []int{4, 2, 3}
-	rows, count, err := finalizeSelectQuery(context.Background(), query.Root, source, nil, 2)
+	source.Own = []storage.RowVersion{source.Committed[0]}
+	source.Own[0].Values = append([]sqltype.Value(nil), source.Committed[0].Values...)
+	source.Own[0].Values[0], _ = sqltype.Integer(source.Own[0].Values[0].Type(), 99)
+	source.Visible = []int{4, 2, 3}
+	rows, count, err := FinalizeSelect(context.Background(), query.Root, source, nil, 2)
 	if err != nil || count != 3 {
 		t.Fatal(count, err)
 	}
@@ -141,7 +141,7 @@ func TestQueryParallelConcurrentExecution(t *testing.T) {
 	for _, phase := range []string{"target", "filter"} {
 		t.Run(phase, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT id FROM t WHERE f")
-			project, ordered, eligible := parallelQueryPlan(query.Root, source)
+			project, ordered, eligible := ParallelQueryPlan(query.Root, source)
 			if !eligible || ordered != nil {
 				t.Fatal("ordinary scan not eligible")
 			}
@@ -152,13 +152,13 @@ func TestQueryParallelConcurrentExecution(t *testing.T) {
 			workers := map[*queryState]bool{}
 			gate := func(c *EvalContext) error {
 				mu.Lock()
-				first := !workers[c.query]
-				workers[c.query] = true
+				first := !workers[c.Query]
+				workers[c.Query] = true
 				id, _ := c.Row[0].Integer()
 				seen[id]++
 				mu.Unlock()
 				if first {
-					entered <- c.query
+					entered <- c.Query
 					select {
 					case <-release:
 					case <-c.Context.Done():
@@ -184,7 +184,7 @@ func TestQueryParallelConcurrentExecution(t *testing.T) {
 				})
 			}
 			ctx, _, join := parallelTestStart(t, func(ctx context.Context) parallelTestOutcome {
-				r, n, e := finalizeParallelQuery(ctx, project, nil, source, nil, 2)
+				r, n, e := FinalizeParallelQuery(ctx, project, nil, source, nil, 2)
 				return parallelTestOutcome{r, n, e}
 			})
 			states := make([]*queryState, 2)
@@ -195,10 +195,10 @@ func TestQueryParallelConcurrentExecution(t *testing.T) {
 					t.Fatal("two actual evaluators did not enter", ctx.Err())
 				}
 			}
-			if states[0] == states[1] || states[0].source == states[1].source || states[0].source.view == states[1].source.view || states[0].source.view == source.view {
+			if states[0] == states[1] || states[0].Source == states[1].Source || states[0].Source.View == states[1].Source.View || states[0].Source.View == source.View {
 				t.Fatal("worker state or pin shared")
 			}
-			if states[0].scanStart == states[1].scanStart || states[0].source.view.Data() != states[1].source.view.Data() {
+			if states[0].ScanStart == states[1].ScanStart || states[0].Source.View.Data() != states[1].Source.View.Data() {
 				t.Fatal("ranges/frontiers")
 			}
 			close(release)
@@ -207,7 +207,7 @@ func TestQueryParallelConcurrentExecution(t *testing.T) {
 				t.Fatal(out.count, out.err)
 			}
 			for _, state := range states {
-				if state.source.view != nil {
+				if state.Source.View != nil {
 					t.Fatal("joined worker retained pin")
 				}
 			}
@@ -232,10 +232,10 @@ func TestQueryParallelSnapshot(t *testing.T) {
 	releases := []chan struct{}{make(chan struct{}), make(chan struct{})}
 	project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
 		id, _ := c.Row[0].Integer()
-		if int(id) == c.query.scanStart+1 {
-			entered <- c.query
+		if int(id) == c.Query.ScanStart+1 {
+			entered <- c.Query
 			select {
-			case <-releases[c.query.scanStart/2]:
+			case <-releases[c.Query.ScanStart/2]:
 			case <-c.Context.Done():
 				return sqltype.Value{}, c.Context.Err()
 			}
@@ -266,7 +266,7 @@ func TestQueryParallelSnapshot(t *testing.T) {
 	}()
 	for i := range 2 {
 		go func(i int) {
-			r, err := runParallelQuery(ctx, project, source, nil, i*2, (i+1)*2, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, false)
+			r, err := RunParallelQuery(ctx, project, source, nil, i*2, (i+1)*2, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, false)
 			done[i] <- workerOutcome{r, err}
 		}(i)
 	}
@@ -274,13 +274,13 @@ func TestQueryParallelSnapshot(t *testing.T) {
 	for range 2 {
 		select {
 		case s := <-entered:
-			states[s.scanStart/2] = s
+			states[s.ScanStart/2] = s
 		case <-ctx.Done():
 			t.Fatal("workers did not enter")
 		}
 	}
-	pins := []*visibility.View{states[0].source.view, states[1].source.view}
-	if pins[0] == pins[1] || pins[0].Data() != source.view.Data() || pins[1].Data() != source.view.Data() {
+	pins := []*visibility.View{states[0].Source.View, states[1].Source.View}
+	if pins[0] == pins[1] || pins[0].Data() != source.View.Data() || pins[1].Data() != source.View.Data() {
 		t.Fatal("pin/frontier isolation")
 	}
 	run(t, e, "UPDATE t SET id=9 WHERE id=1")
@@ -307,7 +307,7 @@ func TestQueryParallelSnapshot(t *testing.T) {
 	if second.err != nil {
 		t.Fatal(second.err)
 	}
-	rows, err := gatherQueryRuns(ctx, project, nil, source, []queryParallelRun{first.run, second.run}, nil, false, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	rows, err := GatherQueryRuns(ctx, project, nil, source, []queryParallelRun{first.run, second.run}, nil, false, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,45 +324,45 @@ func TestQueryParallelEligibility(t *testing.T) {
 	parallelAdmissionAndTemporary(t)
 	parallelSerialEntryProof(t)
 	_, query, source := queryCoreFixture(t, "SELECT id FROM t WHERE v>=1 ORDER BY v+1 DESC NULLS LAST,id")
-	project, ordered, ok := parallelQueryPlan(query.Root, source)
+	project, ordered, ok := ParallelQueryPlan(query.Root, source)
 	if !ok || ordered == nil {
 		t.Fatal("positive scalar scan rejected")
 	}
 	for _, mode := range []lock.Mode{lock.ForKeyShare, lock.ForShare, lock.ForNoKeyUpdate, lock.ForUpdate} {
 		copy := *source
-		copy.inherited = plan.RowMark{Mode: mode}
-		if _, _, ok := parallelQueryPlan(project, &copy); ok {
+		copy.Inherited = plan.RowMark{Mode: mode}
+		if _, _, ok := ParallelQueryPlan(project, &copy); ok {
 			t.Fatal("inherited rowmark admitted", mode)
 		}
 		locked := *project
 		locked.Child = &plan.RowLockNode{QuerySchema: project.Child.Schema(), Child: project.Child, Marks: []plan.RowMark{{Mode: mode}}, FirstMode: mode}
-		if _, _, ok := parallelQueryPlan(&locked, source); ok {
+		if _, _, ok := ParallelQueryPlan(&locked, source); ok {
 			t.Fatal("nested rowmark admitted", mode)
 		}
 	}
 	for _, node := range []plan.Node{&plan.SingletonNode{}, &plan.ValuesNode{}, &plan.RowLockNode{}, &plan.LimitNode{}, &plan.EvaluationNode{}, &plan.JoinNode{}, &plan.AggregateNode{}, &plan.DistinctNode{}, &plan.DistinctOnNode{}, &plan.SetNode{}, &plan.WindowNode{}, &plan.DerivedNode{}, &plan.FunctionFromNode{}, &plan.SetProjectNode{}} {
 		copy := *project
 		copy.Child = node
-		if _, _, ok := parallelQueryPlan(&copy, source); ok {
+		if _, _, ok := ParallelQueryPlan(&copy, source); ok {
 			t.Fatalf("unsupported %T admitted", node)
 		}
 	}
 	for _, mutate := range []func(*querySource){
-		func(s *querySource) { s.locks = &queryLockContext{} }, func(s *querySource) { s.lineage = &queryLockLineage{} }, func(s *querySource) { s.inherited.Mode = 1 },
-		func(s *querySource) { s.sources = []*querySource{s} }, func(s *querySource) { s.partialMask = &storage.IndexRoot{} }, func(s *querySource) { s.hashIndexes = []capturedHashIndex{} },
-		func(s *querySource) { s.inheritance = []inheritanceQuerySegment{} }, func(s *querySource) { s.anonymous = [][]sqltype.Value{} }, func(s *querySource) { s.singleton = true },
-		func(s *querySource) { s.materialized = true }, func(s *querySource) { s.final = &finalRows{} }, func(s *querySource) { s.input = &querySource{} }, func(s *querySource) { s.nestedRoot = &plan.SingletonNode{} },
-		func(s *querySource) { s.window = true }, func(s *querySource) { s.scratch = []sqltype.Value{} }, func(s *querySource) { s.rlsDenied = true }, func(s *querySource) { s.storedRef = s.ref },
+		func(s *querySource) { s.Locks = &queryLockContext{} }, func(s *querySource) { s.Lineage = &queryLockLineage{} }, func(s *querySource) { s.Inherited.Mode = 1 },
+		func(s *querySource) { s.Sources = []*querySource{s} }, func(s *querySource) { s.PartialMask = &storage.IndexRoot{} }, func(s *querySource) { s.HashIndexes = []capturedHashIndex{} },
+		func(s *querySource) { s.Inheritance = []inheritanceQuerySegment{} }, func(s *querySource) { s.Anonymous = [][]sqltype.Value{} }, func(s *querySource) { s.Singleton = true },
+		func(s *querySource) { s.Materialized = true }, func(s *querySource) { s.Final = &finalRows{} }, func(s *querySource) { s.Input = &querySource{} }, func(s *querySource) { s.NestedRoot = &plan.SingletonNode{} },
+		func(s *querySource) { s.Window = true }, func(s *querySource) { s.Scratch = []sqltype.Value{} }, func(s *querySource) { s.RlsDenied = true }, func(s *querySource) { s.StoredRef = s.Ref },
 	} {
 		copy := *source
 		mutate(&copy)
-		if _, _, ok := parallelQueryPlan(project, &copy); ok {
+		if _, _, ok := ParallelQueryPlan(project, &copy); ok {
 			t.Fatal("unsupported source admitted")
 		}
 	}
 	column := project.Expressions[0].(plan.ColumnExpr)
 	for _, expr := range []expr.Expr{functions.SequenceCall{}, functions.Random{}, functions.Advisory{}, plan.SubqueryExpr{}, queryProbe(column.ResultUsage(), nil)} {
-		if parallelQueryExpression(expr, project.Frame, len(project.Child.Schema())) {
+		if ParallelQueryExpression(expr, project.Frame, len(project.Child.Schema())) {
 			t.Fatalf("unsafe/unknown %T admitted", expr)
 		}
 		copy := *ordered
@@ -370,14 +370,14 @@ func TestQueryParallelEligibility(t *testing.T) {
 		copy.Keys[0].Expression = expr
 		p := *project
 		p.Child = &copy
-		if _, _, ok := parallelQueryPlan(&p, source); ok {
+		if _, _, ok := ParallelQueryPlan(&p, source); ok {
 			t.Fatal("hidden unsafe key admitted")
 		}
 	}
 	for _, mutate := range []func(*plan.ColumnExpr){func(c *plan.ColumnExpr) { c.Virtual = column }, func(c *plan.ColumnExpr) { c.Frame++ }, func(c *plan.ColumnExpr) { c.Scope++ }} {
 		copy := column
 		mutate(&copy)
-		if parallelQueryExpression(copy, project.Frame, len(project.Child.Schema())) {
+		if ParallelQueryExpression(copy, project.Frame, len(project.Child.Schema())) {
 			t.Fatal("virtual/outer column admitted")
 		}
 	}
@@ -391,7 +391,7 @@ func TestQueryParallelErrorIdentity(t *testing.T) {
 	var joined atomic.Bool
 	sentinel := errors.New("primary worker failure")
 	project.Expressions[0] = queryProbe(project.Schema()[0].Usage, func(c *EvalContext) (sqltype.Value, error) {
-		if c.query.scanStart == 0 {
+		if c.Query.ScanStart == 0 {
 			select {
 			case <-blocked:
 				return sqltype.Value{}, sentinel
@@ -405,12 +405,12 @@ func TestQueryParallelErrorIdentity(t *testing.T) {
 		return sqltype.Value{}, c.Context.Err()
 	})
 	_, _, join := parallelTestStart(t, func(ctx context.Context) parallelTestOutcome {
-		r, n, e := finalizeParallelQuery(ctx, project, nil, source, nil, 2)
+		r, n, e := FinalizeParallelQuery(ctx, project, nil, source, nil, 2)
 		return parallelTestOutcome{r, n, e}
 	})
 	out := join()
-	if out.rows != nil || out.count != 0 || out.err != sentinel || !joined.Load() || source.view != nil {
-		t.Fatal(out, joined.Load(), source.view)
+	if out.rows != nil || out.count != 0 || out.err != sentinel || !joined.Load() || source.View != nil {
+		t.Fatal(out, joined.Load(), source.View)
 	}
 }
 
@@ -442,8 +442,8 @@ func TestQueryParallelCancellation(t *testing.T) {
 			case "sort":
 				ordered.Keys[0].Expression = probe(ordered.Keys[0].Expression.ResultUsage())
 			}
-			rows, n, err := finalizeParallelQuery(ctx, project, ordered, source, nil, 2)
-			if rows != nil || n != 0 || !errors.Is(err, context.Canceled) || source.view != nil {
+			rows, n, err := FinalizeParallelQuery(ctx, project, ordered, source, nil, 2)
+			if rows != nil || n != 0 || !errors.Is(err, context.Canceled) || source.View != nil {
 				t.Fatal(rows, n, err)
 			}
 			if phase != "before" && calls.Load() == 0 {
@@ -454,15 +454,15 @@ func TestQueryParallelCancellation(t *testing.T) {
 	// The live admission authority must not overwrite sibling cancellation.
 	_, _, source := queryCoreFixture(t, "SELECT id FROM t")
 	scope := &StatementScope{}
-	source.authority = &queryAuthority{host: hostOf(scope)}
+	source.Authority = &queryAuthority{Host: hostOf(scope)}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	state := &queryState{source: source, executionContext: ctx}
-	evaluation := state.evaluation(context.Background())
+	state := &queryState{Source: source, ExecutionContext: ctx}
+	evaluation := state.Evaluation(context.Background())
 	if evaluation.Context != ctx || evaluation.Context.Err() != context.Canceled {
 		t.Fatal("worker cancellation replaced by authority")
 	}
-	if scopeOf(evaluation.liveHost()) != scope {
+	if scopeOf(evaluation.LiveHost()) != scope {
 		t.Fatal("worker context lost borrowed authority")
 	}
 }
@@ -471,11 +471,11 @@ func TestQueryParallelMerge(t *testing.T) {
 	parallelCachedOrderProof(t)
 	for _, q := range []string{"SELECT id FROM t ORDER BY v DESC NULLS LAST,id", "SELECT id FROM t ORDER BY v+1 ASC NULLS FIRST,id", "SELECT id+1 AS id FROM t ORDER BY v DESC NULLS LAST,id"} {
 		_, query, source := queryCoreFixture(t, q)
-		project, ordered, ok := parallelQueryPlan(query.Root, source)
+		project, ordered, ok := ParallelQueryPlan(query.Root, source)
 		if !ok {
 			t.Fatal(q, "not eligible")
 		}
-		rows, n, err := finalizeParallelQuery(context.Background(), project, ordered, source, nil, 2)
+		rows, n, err := FinalizeParallelQuery(context.Background(), project, ordered, source, nil, 2)
 		if err != nil || n != 4 {
 			t.Fatal(n, err)
 		}
@@ -497,8 +497,8 @@ func TestQueryParallelMerge(t *testing.T) {
 		ordered.Keys[0].Comparison = sqltype.Comparison{}
 		// At four singleton runs no local comparison is possible: failure proves
 		// the leader actually compares run heads, not a discarded sorted plan.
-		rows, n, err := finalizeParallelQuery(context.Background(), project, ordered, source, nil, workers)
-		if rows != nil || n != 0 || err == nil || err.Error() != "invalid comparison values" || source.view != nil {
+		rows, n, err := FinalizeParallelQuery(context.Background(), project, ordered, source, nil, workers)
+		if rows != nil || n != 0 || err == nil || err.Error() != "invalid comparison values" || source.View != nil {
 			t.Fatal(rows, n, err)
 		}
 	}
@@ -507,16 +507,16 @@ func TestQueryParallelMerge(t *testing.T) {
 func TestQueryParallelOwnership(t *testing.T) {
 	for _, q := range []string{"SELECT id FROM t", "SELECT id+1 AS id FROM t", "SELECT FROM t"} {
 		_, query, source := queryCoreFixture(t, q)
-		rows, n, err := finalizeSelectQuery(context.Background(), query.Root, source, nil, 2)
+		rows, n, err := FinalizeSelect(context.Background(), query.Root, source, nil, 2)
 		if err != nil || n != 4 {
 			t.Fatal(n, err)
 		}
 		result := rows.(*finalRows)
 		computed := q == "SELECT id+1 AS id FROM t"
-		if computed && source.view != nil {
+		if computed && source.View != nil {
 			t.Fatal("computed input retained")
 		}
-		if !computed && (result.source != source || source.view == nil || len(result.selection) != 4) {
+		if !computed && (result.Source != source || source.View == nil || len(result.Selection) != 4) {
 			t.Fatal("direct pin/selection lost")
 		}
 		schema := rows.Schema()
@@ -540,7 +540,7 @@ func TestQueryParallelOwnership(t *testing.T) {
 		if present, err := rows.Next(context.Background(), values); present || err != nil {
 			t.Fatal(present, err)
 		}
-		if source.view != nil {
+		if source.View != nil {
 			t.Fatal("EOF retained pin")
 		}
 		if err := rows.Close(); err != nil {

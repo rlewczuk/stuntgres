@@ -53,7 +53,7 @@ func TestBitwiseAggregateEagerEvaluation(t *testing.T) {
 					}
 					return original.Advance(ctx, state, value, separator)
 				}}
-				rows, n, err := finalizeQuery(ctx, q.Root, source, nil)
+				rows, n, err := Finalize(ctx, q.Root, source, nil)
 				if phase == "success" {
 					if err != nil || n != 1 || calls != 4 || advances != 3 {
 						t.Fatal(n, err, calls, advances)
@@ -74,7 +74,7 @@ func TestBitwiseAggregateEagerEvaluation(t *testing.T) {
 						t.Fatal("late error/cancel published output", rows, n, err, calls)
 					}
 				}
-				if source.view != nil || source.anonymous != nil {
+				if source.View != nil || source.Anonymous != nil {
 					t.Fatal("eager source retained")
 				}
 			})
@@ -117,11 +117,11 @@ func TestBitwiseAggregateEagerCancellation(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			probe := &bitwiseAggregateCancelContext{Context: ctx, cancel: cancel, target: ".IntegralBitwiseAggregateProvider." + method}
-			rows, n, err := finalizeQuery(probe, q.Root, source, nil)
+			rows, n, err := Finalize(probe, q.Root, source, nil)
 			if !probe.entered || rows != nil || n != 0 || err != context.Canceled {
 				t.Fatal("actual provider cancellation", probe.entered, rows, n, err)
 			}
-			if source.view != nil || source.anonymous != nil {
+			if source.View != nil || source.Anonymous != nil {
 				t.Fatal("canceled source retained")
 			}
 		})
@@ -148,12 +148,12 @@ func TestBitwiseAggregateActualBitLoopCancellation(t *testing.T) {
 		node.Calls[0].Argument = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return input, nil })
 		ctx, cancel := context.WithCancel(context.Background())
 		probe := &bitwiseAggregateCancelContext{Context: ctx, cancel: cancel, target: ".BitStringAggregateProvider.fold"}
-		rows, n, err := finalizeQuery(probe, q.Root, source, nil)
+		rows, n, err := Finalize(probe, q.Root, source, nil)
 		cancel()
 		if !probe.entered || rows != nil || n != 0 || err != context.Canceled {
 			t.Fatal("actual bit loop did not cancel/no-publication", probe.entered, rows, n, err)
 		}
-		if source.view != nil || source.anonymous != nil {
+		if source.View != nil || source.Anonymous != nil {
 			t.Fatal("bit-loop source retained")
 		}
 	}
@@ -181,12 +181,12 @@ func TestBitwiseAggregateEagerWidthFailure(t *testing.T) {
 			}
 			return sqltype.BitString(d, text)
 		})
-		rows, n, err := finalizeQuery(context.Background(), q.Root, source, nil)
+		rows, n, err := Finalize(context.Background(), q.Root, source, nil)
 		var diagnostic interface{ SQLState() string }
 		if rows != nil || n != 0 || !errors.As(err, &diagnostic) || diagnostic.SQLState() != "22026" || calls != 3 {
 			t.Fatal("late unequal-width datum did not veto all output", rows, n, err, calls)
 		}
-		if source.view != nil || source.anonymous != nil {
+		if source.View != nil || source.Anonymous != nil {
 			t.Fatal("width-error source retained")
 		}
 	}

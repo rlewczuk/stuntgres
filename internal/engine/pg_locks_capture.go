@@ -56,5 +56,5 @@ func (e *Engine) capturePGLocksLocked(ctx context.Context, ref ids.ObjectRef, d 
 	if err != nil {
 		return nil, err
 	}
-	return &querySource{ref: ref, anonymous: rows}, nil
+	return &querySource{Ref: ref, Anonymous: rows}, nil
 }

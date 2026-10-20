@@ -10,26 +10,26 @@ import (
 // Cache occurrence is independent of the retained physical frame index. Lock
 // arbitration may reject rows or own replacement frames without changing rank.
 func (s indexedStage) orderOccurrence(i int) int {
-	if s.cacheOccurrences != nil {
-		return s.cacheOccurrences[i]
+	if s.CacheOccurrences != nil {
+		return s.CacheOccurrences[i]
 	}
-	if s.permutation != nil {
-		return s.permutation[i]
+	if s.Permutation != nil {
+		return s.Permutation[i]
 	}
 	return i
 }
-func (s indexedStage) orderRow(i int) []sqltype.Value {
-	if s.cacheWidth == 0 {
+func (s indexedStage) OrderRow(i int) []sqltype.Value {
+	if s.CacheWidth == 0 {
 		return nil
 	}
 	occurrence := s.orderOccurrence(i)
-	return s.orderValues[occurrence*s.cacheWidth : (occurrence+1)*s.cacheWidth]
+	return s.OrderValues[occurrence*s.CacheWidth : (occurrence+1)*s.CacheWidth]
 }
 
 // Called only for a qualifying replacement frame. Original keys retain their
 // cache slot identity; duplicate keys share the first evaluation just as in Sort.
 // Frozen rank is never recomputed. Stable row-independent values remain reusable.
-func refreshLockedOrder(n *plan.SortNode, row []sqltype.Value, evaluation *EvalContext) error {
+func RefreshLockedOrder(n *plan.SortNode, row []sqltype.Value, evaluation *EvalContext) error {
 	next := 0
 	evaluation.Row = row
 	for _, key := range n.Keys {
@@ -44,7 +44,7 @@ func refreshLockedOrder(n *plan.SortNode, row []sqltype.Value, evaluation *EvalC
 		if !properties.RowDependent && !properties.StageDependent && properties.Volatility != expr.Volatile {
 			continue
 		}
-		if key.Cache >= len(evaluation.orderValues) {
+		if key.Cache >= len(evaluation.OrderValues) {
 			return fmt.Errorf("stuntgres: missing replacement ordering cache")
 		}
 		value, err := key.Expression.Eval(evaluation)
@@ -54,7 +54,7 @@ func refreshLockedOrder(n *plan.SortNode, row []sqltype.Value, evaluation *EvalC
 		if value.Type() != key.Expression.ResultUsage().Type {
 			return fmt.Errorf("stuntgres: invalid replacement ordering value")
 		}
-		evaluation.orderValues[key.Cache] = value
+		evaluation.OrderValues[key.Cache] = value
 	}
 	for i, bound := range n.Outputs {
 		properties := bound.Properties()
@@ -62,17 +62,17 @@ func refreshLockedOrder(n *plan.SortNode, row []sqltype.Value, evaluation *EvalC
 			continue
 		}
 		slot := n.CacheWidth - len(n.Outputs) + i
-		if slot >= len(evaluation.orderValues) {
+		if slot >= len(evaluation.OrderValues) {
 			return fmt.Errorf("stuntgres: missing replacement output cache")
 		}
 		value, err := bound.Eval(evaluation)
 		if err != nil {
 			return err
 		}
-		if err := validateProducedValue(value, bound.ResultUsage()); err != nil {
+		if err := ValidateProducedValue(value, bound.ResultUsage()); err != nil {
 			return err
 		}
-		evaluation.orderValues[slot] = value
+		evaluation.OrderValues[slot] = value
 	}
 	return nil
 }
@@ -80,22 +80,22 @@ func refreshLockedOrder(n *plan.SortNode, row []sqltype.Value, evaluation *EvalC
 // Joined materialized stages carry occurrence IDs, not a StatementScope. Use
 // the enclosing execution's manifest through every physical/view recursion.
 func changedQueryLockSource(source *querySource, locks *queryLockContext) bool {
-	if source.input != nil {
-		return changedQueryLockSource(source.input, locks)
+	if source.Input != nil {
+		return changedQueryLockSource(source.Input, locks)
 	}
-	if source.lineage != nil {
-		return changedQueryLockSource(source.lineage.stage, locks)
+	if source.Lineage != nil {
+		return changedQueryLockSource(source.Lineage.Stage, locks)
 	}
-	if source.singleton {
+	if source.Singleton {
 		return false
 	}
-	if source.materialized {
-		for _, occurrence := range source.occurrences {
-			if locks.leaves[occurrence].changed {
+	if source.Materialized {
+		for _, occurrence := range source.Occurrences {
+			if locks.Leaves[occurrence].Changed {
 				return true
 			}
 		}
 		return false
 	}
-	return locks.leaves[source.occurrence].changed
+	return locks.Leaves[source.Occurrence].Changed
 }

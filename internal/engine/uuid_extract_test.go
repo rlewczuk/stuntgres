@@ -96,7 +96,7 @@ func TestUUIDExtractScalarLifecycle(t *testing.T) {
 	b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	for _, kind := range []functions.UUIDExtractKind{functions.UUIDExtractTimestamp, functions.UUIDExtractVersion} {
 		node := uuidExtractEngineUnit(t, b, kind)
-		if !generationImmutable(node) || plannedVolatility(node) != expr.Immutable || !conditionalConstantInputs(node) {
+		if !generationImmutable(node) || PlannedVolatility(node) != expr.Immutable || !conditionalConstantInputs(node) {
 			t.Fatal("immutable lifecycle")
 		}
 		folded, changed, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: ctx}}, node)
@@ -120,7 +120,7 @@ func TestUUIDExtractScalarLifecycle(t *testing.T) {
 	// A UUID-producing volatile descendant remains visible through extraction.
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "uuid_extract_version"}}}, Args: []parser.Expr{parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "uuidv4"}}}}}}
 	node, err := b.bindFunctionProvider(raw)
-	if err != nil || node.Properties().Volatility != expr.Volatile || plannedVolatility(node) != expr.Volatile || generationImmutable(node) {
+	if err != nil || node.Properties().Volatility != expr.Volatile || PlannedVolatility(node) != expr.Volatile || generationImmutable(node) {
 		t.Fatal("volatile child erased", node, err)
 	}
 	if !closedUUIDDefault(node) {

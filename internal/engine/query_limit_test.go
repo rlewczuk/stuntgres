@@ -39,7 +39,7 @@ func TestQueryLimitDemand(t *testing.T) {
 				return sqltype.Boolean(boolType, true), nil
 			})
 			project.Child = &plan.LimitNode{QuerySchema: filter.Schema(), Child: filter, Count: queryLimitBound(t, e, count)}
-			rows, n, err := finalizeQuery(context.Background(), project, source, nil)
+			rows, n, err := Finalize(context.Background(), project, source, nil)
 			if err != nil || n != int(count) || calls != int(count) || rows == nil {
 				t.Fatal(rows, n, err, calls)
 			}
@@ -54,7 +54,7 @@ func TestQueryLimitDemand(t *testing.T) {
 		project := query.Root.(*plan.ProjectNode)
 		left := project.Child
 		right := &plan.SourceNode{Occurrence: 1}
-		inputs := &querySource{sources: []*querySource{source, {anonymous: [][]sqltype.Value{{}}}}}
+		inputs := &querySource{Sources: []*querySource{source, {Anonymous: [][]sqltype.Value{{}}}}}
 		boolType, _ := e.CatalogRead().LookupType(sqltype.Bool)
 		calls := 0
 		join := &plan.JoinNode{QuerySchema: left.Schema(), Left: left, Right: right, LeftWidth: len(left.Schema()), Predicate: queryProbe(boolType.Usage(), func(*EvalContext) (sqltype.Value, error) {
@@ -65,7 +65,7 @@ func TestQueryLimitDemand(t *testing.T) {
 			return sqltype.Boolean(boolType, true), nil
 		})}
 		project.Child = &plan.LimitNode{QuerySchema: join.Schema(), Child: join, Count: queryLimitBound(t, e, 1)}
-		rows, n, err := finalizeQuery(context.Background(), project, inputs, nil)
+		rows, n, err := Finalize(context.Background(), project, inputs, nil)
 		if err != nil || n != 1 || calls != 1 {
 			t.Fatal(n, err, calls)
 		}
@@ -83,7 +83,7 @@ func TestQueryLimitBoundsOnce(t *testing.T) {
 		return queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) { calls = append(calls, name); return v, nil })
 	}
 	project.Child = &plan.LimitNode{QuerySchema: project.Child.Schema(), Child: project.Child, Offset: probe("offset", 1), Count: probe("limit", 2)}
-	rows, n, err := finalizeQuery(context.Background(), project, source, nil)
+	rows, n, err := Finalize(context.Background(), project, source, nil)
 	if err != nil || n != 2 || !reflect.DeepEqual(calls, []string{"offset", "limit"}) {
 		t.Fatal(n, err, calls)
 	}
@@ -136,9 +136,9 @@ func TestQueryLimitCancellation(t *testing.T) {
 					project.Expressions[0] = bound
 				}
 			}
-			rows, n, err := finalizeQuery(ctx, project, source, nil)
-			if rows != nil || n != 0 || err != context.Canceled || source.view != nil {
-				t.Fatal(rows, n, err, source.view, calls)
+			rows, n, err := Finalize(ctx, project, source, nil)
+			if rows != nil || n != 0 || err != context.Canceled || source.View != nil {
+				t.Fatal(rows, n, err, source.View, calls)
 			}
 		})
 	}
@@ -148,7 +148,7 @@ func TestQueryLimitMetadata(t *testing.T) {
 	for _, suffix := range []string{"LIMIT 0", "OFFSET 99", "OFFSET 1 LIMIT 2"} {
 		_, query, source := queryCoreFixture(t, "SELECT id,v FROM t "+suffix)
 		want := append([]catalog.Column(nil), query.Root.Schema()...)
-		rows, _, err := finalizeQuery(context.Background(), query.Root, source, nil)
+		rows, _, err := Finalize(context.Background(), query.Root, source, nil)
 		if err != nil || !reflect.DeepEqual(rows.Schema(), want) {
 			t.Fatal(rows, err, want)
 		}

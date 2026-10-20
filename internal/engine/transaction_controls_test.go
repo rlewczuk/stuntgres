@@ -342,7 +342,7 @@ func TestTransactionControlsCancellationAndReplacement(t *testing.T) {
 	sessionSQL(t, a, "INSERT INTO t VALUES(2)")
 	controlsRequire(t, a, "COMMIT")
 	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 2, 99)
-	if retained.count != 2 {
+	if retained.Count != 2 {
 		t.Fatal("replacement invalidated retained rows")
 	}
 }

@@ -44,7 +44,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 		if shape.ID() != 2249 || shape.CompositeLen() != 2 || shape.CompositeMember(0).Name != "key" || shape.CompositeMember(1).Name != "value" || shape.CompositeMember(0).Usage.Type != b.typ(sqltype.Text) || shape.CompositeMember(1).Usage.Type != b.typ(valueID) || !validExpressionUsage(view, original.ResultUsage()) {
 			t.Fatal("analysis shape", shape)
 		}
-		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.clause.queryHasTargetSet || !sourceReturnsSet(original) || querySetDepth(original) != 1 {
+		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.clause.queryHasTargetSet || !SourceReturnsSet(original) || QuerySetDepth(original) != 1 {
 			t.Fatal("set properties", original)
 		}
 		fresh := jsonObjectUnitTypes()
@@ -56,7 +56,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 		if next.ResultUsage().Type == shape || next.Plan.ResultUsage() != next.ResultUsage() || next.ResultUsage().Type.CompositeMember(0).Usage.Type != fresh[sqltype.Text] || next.ResultUsage().Type.CompositeMember(1).Usage.Type != fresh[valueID] || next.Args[0].ResultUsage().Type != fresh[inputID] || next.SourcePosition() != original.SourcePosition() || next.Properties() != original.Properties() {
 			t.Fatal("mixed-generation remap", next)
 		}
-		cursor, err := openFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, next)
+		cursor, err := OpenFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, next)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -71,7 +71,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 				walked++
 			}
 		})
-		if walked != 1 || plannedVolatility(original) != expr.Immutable || !sameGroupExpression(original, original) {
+		if walked != 1 || PlannedVolatility(original) != expr.Immutable || !sameGroupExpression(original, original) {
 			t.Fatal("closed traversal", walked)
 		}
 		clone, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
@@ -79,11 +79,11 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 			t.Fatal("stored reconstruction", clone, err)
 		}
 		folded, _, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original)
-		if err != nil || !sourceReturnsSet(folded) {
+		if err != nil || !SourceReturnsSet(folded) {
 			t.Fatal("preflight folded set", folded, err)
 		}
 		folded, _, err = simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original, false)
-		if err != nil || !sourceReturnsSet(folded) {
+		if err != nil || !SourceReturnsSet(folded) {
 			t.Fatal("simplifier folded set", folded, err)
 		}
 		text, err := (pgRenderer{view: view}).sql(context.Background(), original, pgRenderParent{})
@@ -104,12 +104,12 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 		if rewritten.(*plan.FunctionFromNode).Calls[0].(functions.JSONEach).Args[0] != other.Args[0] || root.Calls[0].(functions.JSONEach).Args[0] != original.Args[0] {
 			t.Fatal("mutated retained query")
 		}
-		if err := validateFunctionFromLayout(root); err != nil {
+		if err := ValidateFunctionFromLayout(root); err != nil {
 			t.Fatal(err)
 		}
 		broken := *root
 		broken.QuerySchema = plan.QuerySchema{{Usage: b.typ(sqltype.Text).Usage()}, {Usage: b.typ(sqltype.Int4).Usage()}}
-		if err := validateFunctionFromLayout(&broken); err == nil {
+		if err := ValidateFunctionFromLayout(&broken); err == nil {
 			t.Fatal("invalid leaf span accepted")
 		}
 	}
@@ -125,12 +125,12 @@ func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
 			t.Fatal(err)
 		}
 		calls := []expr.Expr{series, marker}
-		invocation, err := openFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, &plan.FunctionFromNode{Calls: calls})
+		invocation, err := OpenFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, &plan.FunctionFromNode{Calls: calls})
 		if err != nil {
 			t.Fatal(err)
 		}
 		row := make([]sqltype.Value, 3)
-		present, err := invocation.nextFrom(context.Background(), calls, row)
+		present, err := invocation.NextFrom(context.Background(), calls, row)
 		if err != nil || !present {
 			t.Fatal(present, err)
 		}
@@ -139,7 +139,7 @@ func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
 		if number != 7 || key != "a" || row[2].IsNull() != strings.HasSuffix(name, "_text") {
 			t.Fatal("record presence/null conflated", row)
 		}
-		present, err = invocation.nextFrom(context.Background(), calls, row)
+		present, err = invocation.NextFrom(context.Background(), calls, row)
 		if err != nil || !present || !row[1].IsNull() || !row[2].IsNull() || row[1].Type() != b.typ(sqltype.Text) || row[2].Type() != marker.ResultUsage().Type.CompositeMember(1).Usage.Type {
 			t.Fatal("incorrect record padding", row, present, err)
 		}
@@ -147,14 +147,14 @@ func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
 		if number != 8 {
 			t.Fatal("scalar offset", number)
 		}
-		present, err = invocation.nextFrom(context.Background(), calls, row)
-		invocation.close()
+		present, err = invocation.NextFrom(context.Background(), calls, row)
+		invocation.Close()
 		if err != nil || present {
 			t.Fatal("exhausted source", present, err)
 		}
 		// The real target stage stores one record slot instead of FROM fields.
 		node := regexpSetUnitLayout(&plan.SetProjectNode{QuerySchema: plan.QuerySchema{{Usage: marker.ResultUsage()}}, Child: &plan.SingletonNode{}, Calls: []expr.Expr{marker}, Frame: 1})
-		stage, err := openSetProjectNode(context.Background(), &queryState{source: &querySource{}, frame: 1}, node)
+		stage, err := OpenSetProjectNode(context.Background(), &queryState{Source: &querySource{}, Frame: 1}, node)
 		if err != nil {
 			t.Fatal(err)
 		}

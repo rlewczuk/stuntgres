@@ -90,7 +90,7 @@ func preflightEvaluate(c *EvalContext, node expr.Expr, changed bool) (expr.Expr,
 
 func literalNullChild(node expr.Composite) bool {
 	for _, child := range node.Children() {
-		if randomLiteralNull(child) {
+		if RandomLiteralNull(child) {
 			return true
 		}
 	}

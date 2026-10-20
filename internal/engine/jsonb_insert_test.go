@@ -31,7 +31,7 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 			t.Fatal("isolated formal inference", i, err)
 		}
 	}
-	if e.Count != 4 || e.WrittenCount != 4 || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable || plannedVolatility(node) != expr.Immutable {
+	if e.Count != 4 || e.WrittenCount != 4 || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable || PlannedVolatility(node) != expr.Immutable {
 		t.Fatal(e, node.Properties())
 	}
 	for _, tc := range []struct {
@@ -147,7 +147,7 @@ func TestJSONBInsertAllSlotPropertiesAndTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n.Properties().Volatility != expr.Volatile || plannedVolatility(n) != expr.Volatile || generationImmutable(n) {
+	if n.Properties().Volatility != expr.Volatile || PlannedVolatility(n) != expr.Volatile || generationImmutable(n) {
 		t.Fatal("volatile flag child hidden", n.Properties())
 	}
 }

@@ -24,7 +24,7 @@ func defaultUnitProjection(t *testing.T, catalog catalog.Read, auth Authorizatio
 		t.Fatal(err)
 	}
 	var actual [][]string
-	for _, row := range rows.anonymous {
+	for _, row := range rows.Anonymous {
 		name, err := row[4].Text()
 		if err != nil {
 			t.Fatal("projection name carrier", err)
@@ -145,8 +145,8 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	}
 	// Source rows are detached from live role/catalog changes; a later opening
 	// captures those changes, never mutating already returned anonymous rows.
-	before := make([][]sqltype.Value, len(held.anonymous))
-	for i, row := range held.anonymous {
+	before := make([][]sqltype.Value, len(held.Anonymous))
+	for i, row := range held.Anonymous {
 		before[i] = append([]sqltype.Value(nil), row...)
 	}
 	changed := catalog.CloneState(state)
@@ -164,7 +164,7 @@ func TestDefaultPrivilegesProjection(t *testing.T) {
 	_, fresh := defaultUnitProjection(t, auth.Catalog, auth)
 	freshWant := [][]string{{"default_owner", "renamed_reader", "unit_database", "default_schema", "proof_partition", "SELECT", "NO", "YES"}, {"default_owner", "renamed_reader", "unit_database", "default_schema", "proof_update_only", "UPDATE", "NO", "NO"}}
 	defaultUnitSortRows(freshWant)
-	if !reflect.DeepEqual(fresh, freshWant) || !reflect.DeepEqual(held.anonymous, before) {
+	if !reflect.DeepEqual(fresh, freshWant) || !reflect.DeepEqual(held.Anonymous, before) {
 		t.Fatal("fresh capture/returned row lifetime", fresh)
 	}
 	source := state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: pgcatalog.TablePrivilegesOID})

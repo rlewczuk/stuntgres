@@ -290,11 +290,11 @@ func (s *StatementScope) relationCursorPreflight(catalog catalog.Read, address i
 			continue
 		}
 		for _, leaf := range cursor.leaves {
-			if leaf.ref.Domain() != catalog.Owner().Domain || leaf.ref.Epoch != catalog.Epoch() || leaf.ref.Address != address {
+			if leaf.Ref.Domain() != catalog.Owner().Domain || leaf.Ref.Epoch != catalog.Epoch() || leaf.Ref.Address != address {
 				continue
 			}
 			relation, ok := catalog.Relation(address)
-			if !ok || leaf.relation == nil {
+			if !ok || leaf.Relation == nil {
 				continue
 			}
 			return sqlError("55006", fmt.Sprintf("cannot %s \"%s\" because it is being used by active queries in this session", command, relation.Name()))

@@ -59,11 +59,11 @@ func TestACLItemRetainedIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	oldRoles := e.Roles()
-	rows := newFinalRows([]catalog.Column{{Name: "a", Usage: d.Usage()}, {Name: "aa", Usage: array.Usage()}}, 1)
-	rows.values = []sqltype.Value{value, arrayValue}
+	rows := NewFinalRows([]catalog.Column{{Name: "a", Usage: d.Usage()}, {Name: "aa", Usage: array.Usage()}}, 1)
+	rows.Values = []sqltype.Value{value, arrayValue}
 	defer rows.Close()
 	output := capturedACLItemOutput{owner: e.catalog.owner(), roles: oldRoles}
-	for _, v := range rows.values {
+	for _, v := range rows.Values {
 		if err := captureACLItemOutputValue(rows, output, v); err != nil {
 			t.Fatal(err)
 		}

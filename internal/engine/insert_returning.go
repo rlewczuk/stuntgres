@@ -19,8 +19,8 @@ func (s *StatementScope) beginInsertReturning(b binding) {
 	if b.returning == nil {
 		return
 	}
-	rows := newFinalRows(b.returning.schema, 0)
-	rows.output = s.output
+	rows := NewFinalRows(b.returning.schema, 0)
+	rows.Output = s.output
 	s.insertReturning = &insertReturningOutput{binding: b, rows: rows}
 }
 func (s *StatementScope) projectInsertReturning(row, old []sqltype.Value, c *EvalContext) error {
@@ -36,17 +36,17 @@ func (s *StatementScope) projectInsertReturning(row, old []sqltype.Value, c *Eva
 		if err != nil {
 			return err
 		}
-		if value.Type() == nil || !value.Type().Concrete() || value.Type() != output.rows.schema[i].Usage.Type {
+		if value.Type() == nil || !value.Type().Concrete() || value.Type() != output.rows.Columns[i].Usage.Type {
 			return errors.New("stuntgres: invalid finalized INSERT value")
 		}
-		output.rows.values = append(output.rows.values, value)
+		output.rows.Values = append(output.rows.Values, value)
 	}
-	output.rows.count++
+	output.rows.Count++
 	return nil
 }
 func (s *StatementScope) finishInsertReturning() (Result, error) {
 	output := s.insertReturning
-	if output.binding.returning.regclassOutput && output.rows.count != 0 {
+	if output.binding.returning.regclassOutput && output.rows.Count != 0 {
 		if err := s.op.session.Engine().captureRegclassOutput(s.op, output.rows); err != nil {
 			return Result{}, err
 		}
@@ -54,7 +54,7 @@ func (s *StatementScope) finishInsertReturning() (Result, error) {
 	if err := s.op.Context().Err(); err != nil {
 		return Result{}, err
 	}
-	return Result{Count: int64(output.rows.count), Rows: output.rows}, nil
+	return Result{Count: int64(output.rows.Count), Rows: output.rows}, nil
 }
 
 // Revalidate the proposal before output, never output before possible filtering.

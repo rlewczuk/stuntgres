@@ -87,7 +87,7 @@ func TestUUIDGenerationStrictNullPhysicalTrees(t *testing.T) {
 					t.Fatal("strict NULL simplification", preflight, decisive, changed, err)
 				}
 				literal, ok := planned.(plan.LiteralExpr)
-				if !ok || !literal.Value.IsNull() || literal.ResultUsage() != analyzed.ResultUsage() || !generationImmutable(planned) || plannedVolatility(planned) != expr.Immutable {
+				if !ok || !literal.Value.IsNull() || literal.ResultUsage() != analyzed.ResultUsage() || !generationImmutable(planned) || PlannedVolatility(planned) != expr.Immutable {
 					t.Fatal("strict NULL physical tree", planned)
 				}
 				value, err := planned.Eval(evaluation)
@@ -110,7 +110,7 @@ func TestUUIDGenerationStrictNullPhysicalTrees(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, ok := planned.(functions.UUIDGeneration); !ok || plannedVolatility(planned) != expr.Volatile || generationImmutable(planned) {
+		if _, ok := planned.(functions.UUIDGeneration); !ok || PlannedVolatility(planned) != expr.Volatile || generationImmutable(planned) {
 			t.Fatal("real provider admitted as immutable", planned)
 		}
 	}

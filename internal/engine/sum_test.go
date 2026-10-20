@@ -86,7 +86,7 @@ func TestSumViewProviderRemapping(t *testing.T) {
 
 func TestSumSlotsAndMetadata(t *testing.T) {
 	_, q, source := queryCoreFixture(t, "SELECT sum(1),sum(1),sum(1::smallint),sum(1::bigint),sum(1::numeric),sum(1::real),sum(1::double precision),avg(1),count(*) FROM t")
-	defer source.close()
+	defer source.Close()
 	node := q.Root.(*plan.ProjectNode).Child.(*plan.AggregateNode)
 	if len(node.Calls) != 8 {
 		t.Fatal("input-aware immutable sharing", len(node.Calls))
@@ -137,9 +137,9 @@ func TestSumEagerCancellation(t *testing.T) {
 				expr := project.Expressions[0]
 				project.Expressions[0] = queryProbe(expr.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { v, err := expr.Eval(c); cancel(); return v, err })
 			}
-			rows, count, err := finalizeQuery(ctx, q.Root, source, nil)
+			rows, count, err := Finalize(ctx, q.Root, source, nil)
 			cancel()
-			if rows != nil || count != 0 || err != context.Canceled || source.view != nil || source.anonymous != nil {
+			if rows != nil || count != 0 || err != context.Canceled || source.View != nil || source.Anonymous != nil {
 				t.Fatal(cast, phase, rows, count, err)
 			}
 		}

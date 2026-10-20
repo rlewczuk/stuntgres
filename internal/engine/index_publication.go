@@ -346,7 +346,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 	ctx := evaluation.Context
 	var result map[ids.ObjectAddress]*storage.IndexRoot
 	view := e.catalog.read(next)
-	evaluation.catalog, evaluation.Output = view, output
+	evaluation.Catalog, evaluation.Output = view, output
 	if auth == nil {
 		// Trusted replacement has catalog identity but no SQL principal.
 		auth = &AuthorizationView{View: access.View{Catalog: view}}
@@ -358,7 +358,7 @@ func (e *Engine) prepareIndexPublication(evaluation *EvalContext, current, next 
 	}
 	if auth.engine != nil {
 		local := *evaluation
-		local.routineAuthority = auth
+		local.RoutineAuthority = auth
 		evaluation = &local
 	}
 	for a, descriptor := range next.Descriptors() {
@@ -631,7 +631,7 @@ func (s *StatementScope) validatePrivateIndexExpressions(changes *catalogChanges
 			return err
 		}
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: s.op.Context(), host: hostOf(s), Input: input, Output: s.output, catalog: view}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: s.op.Context(), Host: hostOf(s), Input: input, Output: s.output, Catalog: view}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 	for _, descriptor := range view.Descriptors() {
 		index, ok := descriptor.(*catalog.Relation)
 		if !ok || index.SQLIndex == nil || !index.SQLIndex.Ready || !index.SQLIndex.Live {

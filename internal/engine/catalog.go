@@ -1033,7 +1033,7 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 		if r := s.materializedOrZero().replacement; r != nil && r.concurrent {
 			runtimeOwners = map[ids.ObjectAddress]authorization.PrincipalRef{r.original.Address(): r.original.Owner}
 		}
-		evaluation := EvalContext{evalStatement: evalStatement{Context: p.ctx, host: hostOf(scope)}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+		evaluation := EvalContext{evalStatement: evalStatement{Context: p.ctx, Host: hostOf(scope)}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 		if scope != nil {
 			evaluation.Input, evaluation.Output = scope.input, scope.output
 		} else if op != nil {
@@ -1358,15 +1358,15 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 			if source[a] == nil {
 				return fmt.Errorf("stuntgres: relation storage is missing")
 			}
-			selected, err := selectQuerySource(ctx, &querySource{committed: source[a].Versions}, frontier, source[a].Ends, nil)
+			selected, err := SelectQuerySource(ctx, &querySource{Committed: source[a].Versions}, frontier, source[a].Ends, nil)
 			if err != nil {
 				return err
 			}
-			versions := make([]storage.RowVersion, selected.count())
+			versions := make([]storage.RowVersion, selected.Count())
 			for i := range versions {
-				versions[i] = selected.versionAt(selected.rawIndex(i))
+				versions[i] = selected.VersionAt(selected.RawIndex(i))
 			}
-			selected.close()
+			selected.Close()
 			relations[a] = &storage.Relation{Versions: versions}
 		}
 		var err error

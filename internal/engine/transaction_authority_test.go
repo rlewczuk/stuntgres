@@ -85,11 +85,11 @@ func TestTransactionCopiedScopeStageViewAndSnapshot(t *testing.T) {
 		t.Fatal("failed Apply transferred ownership/allocated identity")
 	}
 	actual := result.Rows.(*finalRows)
-	forgedResult := &finalRows{self: actual, source: actual.source}
+	forgedResult := &finalRows{Self: actual, Source: actual.Source}
 	forgedResult.Close()
 	copiedResult := *actual
 	copiedResult.Close()
-	if actual.source.view.Catalog().Epoch() == 0 {
+	if actual.Source.View.Catalog().Epoch() == 0 {
 		t.Fatal("copied result released another result")
 	}
 	if err = scope.Finish(nil); err != nil {

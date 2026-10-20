@@ -50,7 +50,7 @@ func TestBetweenBindingProperties(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc.expr, err)
 		}
-		if len(bound.querySources) != 1 || bound.querySources[0].ref != ref || !reflect.DeepEqual(bound.querySources[0].uses, tc.used) {
+		if len(bound.querySources) != 1 || bound.querySources[0].Ref != ref || !reflect.DeepEqual(bound.querySources[0].Uses, tc.used) {
 			t.Fatal(tc.expr, bound.querySources, tc.used)
 		}
 		if len(bound.parameters.Types) != len(tc.ids) {

@@ -50,9 +50,9 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					auth.Roles = e.roles.read(e.catalog.owner(), auth.Catalog, auth.RoleRecord)
 					inputRef, lookupRef := ruleUnitRef(e, &input), ruleUnitRef(e, sink)
 					original := ruleUnitInsert(e, src, 1, 10).binding
-					original.querySources = []queryLeaf{{ref: inputRef, relation: &input, uses: []int{0}}}
+					original.querySources = []queryLeaf{{Ref: inputRef, Relation: &input, Uses: []int{0}}}
 					if effective {
-						original.querySources[0].principal = reader.Ref
+						original.querySources[0].Principal = reader.Ref
 					}
 					from := &plan.SourceNode{QuerySchema: plan.QuerySchema(input.Columns), Ref: inputRef}
 					var syntax parser.Statement = &parser.Delete{}
@@ -73,7 +73,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					action.binding.expressions = nil
 					action.binding.commandQuery = true
 					action.binding.query = &plan.Query{Root: &plan.ProjectNode{QuerySchema: plan.QuerySchema(sink.Columns), Child: &plan.SourceNode{QuerySchema: plan.QuerySchema(sink.Columns), Ref: lookupRef}, Expressions: []expr.Expr{value, ruleUnitInt(sink, 8)}, Frame: 1}}
-					action.binding.querySources = []queryLeaf{{ref: lookupRef, relation: sink, uses: []int{0}}}
+					action.binding.querySources = []queryLeaf{{Ref: lookupRef, Relation: sink, Uses: []int{0}}}
 					src.Rules = rulesPayloadOf([]ruleDefinition{{OID: 900101, Name: "r", event: event, actions: []ruleAction{action}}})
 					program := ruleProgram{count: -1, returning: -1}
 					e.mu.Lock()
@@ -87,7 +87,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					if dependent {
 						want = 3
 					}
-					if len(sources) != want || sources[len(sources)-1].principal != owner {
+					if len(sources) != want || sources[len(sources)-1].Principal != owner {
 						t.Fatal("rule-added lookup lost current event-owner authority")
 					}
 					inherited := authorization.PrincipalRef{}
@@ -99,7 +99,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 						if effective {
 							principal = reader.Ref
 						}
-						if sources[0].principal != actor.Ref || sources[1].principal != principal {
+						if sources[0].Principal != actor.Ref || sources[1].Principal != principal {
 							t.Fatal("retained producer lost caller/effective source authority")
 						}
 					}
@@ -115,7 +115,7 @@ func TestRuleExpansionSourceAuthority(t *testing.T) {
 					} else if err != nil {
 						t.Fatal("caller revocation changed independent/effective authority", err)
 					}
-					if action.binding.querySources[0].principal != (authorization.PrincipalRef{}) || original.querySources[0].principal != inherited {
+					if action.binding.querySources[0].Principal != (authorization.PrincipalRef{}) || original.querySources[0].Principal != inherited {
 						t.Fatal("expansion mutated original source or stored action authority")
 					}
 				})

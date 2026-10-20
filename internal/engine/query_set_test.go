@@ -65,7 +65,7 @@ func TestQuerySetCounts(t *testing.T) {
 			{"union", true, tc.unionAll}, {"union", false, tc.union}, {"intersect", true, tc.intersectAll},
 			{"intersect", false, tc.intersect}, {"except", true, tc.exceptAll}, {"except", false, tc.except},
 		} {
-			if got := setMultiplicity(op.name, op.all, tc.left, tc.right); got != op.want {
+			if got := SetMultiplicity(op.name, op.all, tc.left, tc.right); got != op.want {
 				t.Fatalf("%s ALL=%t m=%d n=%d got%d want%d", op.name, op.all, tc.left, tc.right, got, op.want)
 			}
 		}
@@ -86,14 +86,14 @@ func TestQuerySetCollisionAndZeroWidth(t *testing.T) {
 				d := n.Schema()[0].Usage.Type
 				one, _ := sqltype.Integer(d, 1)
 				two, _ := sqltype.Integer(d, 2)
-				if i, err := findDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0}); err != nil || i != -1 {
+				if i, err := FindDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0}); err != nil || i != -1 {
 					t.Fatal("unequal collision", i, err)
 				}
-				if i, err := findDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0, 1}); err != nil || i != 1 {
+				if i, err := FindDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0, 1}); err != nil || i != 1 {
 					t.Fatal("equal collision", i, err)
 				}
 			}
-			rows, count, err := finalizeQuery(context.Background(), project, source, nil)
+			rows, count, err := Finalize(context.Background(), project, source, nil)
 			want := tc.normal
 			if zero {
 				want = tc.zero
@@ -125,20 +125,20 @@ func TestQuerySetCollisionAndZeroWidth(t *testing.T) {
 
 func TestQuerySetUnionAllDemand(t *testing.T) {
 	n, _, source := querySetUnitFixture(t, "union", true, false)
-	defer source.close()
+	defer source.Close()
 	left, right := 0, 0
 	l, r := n.LeftExpressions[0], n.RightExpressions[0]
 	n.LeftExpressions[0] = queryProbe(l.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { left++; return l.Eval(c) })
 	n.RightExpressions[0] = queryProbe(r.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { right++; return r.Eval(c) })
-	state := &queryState{source: source}
-	stage, err := openSetNode(context.Background(), state, n)
+	state := &queryState{Source: source}
+	stage, err := OpenSetNode(context.Background(), state, n)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if left != 0 || right != 0 || n.Grouping != nil {
 		t.Fatal("UNION ALL opened/demanded before pull", left, right, n.Grouping)
 	}
-	if _, present, err := stage.nextOccurrence(context.Background()); err != nil || !present {
+	if _, present, err := stage.NextOccurrence(context.Background()); err != nil || !present {
 		t.Fatal(present, err)
 	}
 	if err := stage.Close(); err != nil {
@@ -176,13 +176,13 @@ func TestQuerySetCancellationAndCleanup(t *testing.T) {
 				original := project.Expressions[0]
 				project.Expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { cancel(); return original.Eval(c) })
 			}
-			rows, count, err := finalizeQuery(ctx, project, source, nil)
+			rows, count, err := Finalize(ctx, project, source, nil)
 			want := error(context.Canceled)
 			if phase == "late error" {
 				want = sentinel
 			}
-			if rows != nil || count != 0 || !errors.Is(err, want) || source.view != nil {
-				t.Fatal(rows, count, err, want, source.view)
+			if rows != nil || count != 0 || !errors.Is(err, want) || source.View != nil {
+				t.Fatal(rows, count, err, want, source.View)
 			}
 		})
 	}
@@ -236,7 +236,7 @@ func TestQuerySetCoercionFrames(t *testing.T) {
 
 func TestQuerySetImmutableRewriteRemap(t *testing.T) {
 	n, project, source := querySetUnitFixture(t, "intersect", true, false)
-	defer source.close()
+	defer source.Close()
 	original := n.LeftExpressions[0]
 	replacement := &queryProbeExpression{Info: expr.InfoOf(original), eval: func(c *EvalContext) (sqltype.Value, error) { return original.Eval(c) }}
 	rewritten, err := plan.RewriteQueryExpressions(project, func(e expr.Expr) (expr.Expr, bool, error) {
@@ -310,12 +310,12 @@ func TestQuerySetHashCollisionCancellation(t *testing.T) {
 		ctx.armed = true
 		return sqltype.String(text, "set cancellation payload"), nil
 	})
-	rows, count, err := finalizeQuery(ctx, project, source, nil)
-	if rows != nil || count != 0 || !errors.Is(err, context.Canceled) || source.view != nil {
+	rows, count, err := Finalize(ctx, project, source, nil)
+	if rows != nil || count != 0 || !errors.Is(err, context.Canceled) || source.View != nil {
 		t.Fatal(rows, count, err)
 	}
 	zeroCtx := &aggregateCancelContext{Context: context.Background(), armed: true, at: 2}
-	if _, err := findDistinctTuple(zeroCtx, []sqltype.Grouping{}, []sqltype.Value{}, []sqltype.Value{}, []int{0, 1}); !errors.Is(err, context.Canceled) {
+	if _, err := FindDistinctTuple(zeroCtx, []sqltype.Grouping{}, []sqltype.Value{}, []sqltype.Value{}, []int{0, 1}); !errors.Is(err, context.Canceled) {
 		t.Fatal("zero-width collision ignored cancellation", err)
 	}
 }
@@ -324,8 +324,8 @@ func TestQuerySetArmCleanupErrorPriority(t *testing.T) {
 	primary, cleanup := errors.New("primary arm failure"), errors.New("arm close failure")
 	for _, failure := range []error{primary, nil} {
 		closes := 0
-		arm := setArm{inner: indexedStage{selection: []int{}, produce: func(context.Context, *indexedStage) (bool, error) { return false, failure }, finish: func() error { closes++; return cleanup }}}
-		_, _, err := arm.next(context.Background())
+		arm := setArm{Inner: indexedStage{Selection: []int{}, Produce: func(context.Context, *indexedStage) (bool, error) { return false, failure }, Finish: func() error { closes++; return cleanup }}}
+		_, _, err := arm.Next(context.Background())
 		if failure != nil {
 			if err != primary {
 				t.Fatal("cleanup replaced primary", err)
@@ -364,7 +364,7 @@ func TestQuerySetInsertNoBatchOnLateArmFailure(t *testing.T) {
 		project.Expressions[i] = plan.ColumnExpr{Info: expr.InfoOf(expression), Scope: 1, Frame: project.Frame, Slot: i}
 	}
 	rows, err := evaluateInsertQuery(context.Background(), b, source, nil, "public", sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, nil)
-	if rows.values != nil || err != sentinel || source.view != nil || source.anonymous != nil {
+	if rows.values != nil || err != sentinel || source.View != nil || source.Anonymous != nil {
 		t.Fatal("set INSERT published partial batch", rows, err, source)
 	}
 }

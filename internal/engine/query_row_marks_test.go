@@ -134,18 +134,18 @@ func TestQueryLockSelectedACLAndViewPrincipals(t *testing.T) {
 }
 
 func TestQueryLockPendingTargetsRemainOccurrenceOwned(t *testing.T) {
-	inputs := &querySource{sources: []*querySource{{occurrence: 0}, {occurrence: 1}}}
-	inputs.locks = &queryLockContext{leaves: []queryLockLeaf{
-		{leaf: queryLeaf{relation: &catalog.Relation{RelationKind: catalog.TableRelation}}},
-		{leaf: queryLeaf{relation: &catalog.Relation{RelationKind: catalog.TableRelation}}},
+	inputs := &querySource{Sources: []*querySource{{Occurrence: 0}, {Occurrence: 1}}}
+	inputs.Locks = &queryLockContext{Leaves: []queryLockLeaf{
+		{Leaf: queryLeaf{Relation: &catalog.Relation{RelationKind: catalog.TableRelation}}},
+		{Leaf: queryLeaf{Relation: &catalog.Relation{RelationKind: catalog.TableRelation}}},
 	}}
 	marks := []plan.RowMark{{Mode: lock.ForUpdate, Wait: parser.RowLockSkip}, {Mode: lock.ForShare, Wait: parser.RowLockNowait}}
-	pending := appendPendingRowMarks(nil, marks, inputs)
-	if len(pending) != 2 || !reflect.DeepEqual(pending[0].occurrences, []int{0}) || !reflect.DeepEqual(pending[1].occurrences, []int{1}) || pending[0].mark != marks[0] || pending[1].mark != marks[1] {
+	pending := AppendPendingRowMarks(nil, marks, inputs)
+	if len(pending) != 2 || !reflect.DeepEqual(pending[0].Occurrences, []int{0}) || !reflect.DeepEqual(pending[1].Occurrences, []int{1}) || pending[0].Mark != marks[0] || pending[1].Mark != marks[1] {
 		t.Fatal(pending)
 	}
-	pending[0].occurrences[0] = 99
-	if inputs.sources[0].occurrence != 0 || marks[0].Mode != lock.ForUpdate {
+	pending[0].Occurrences[0] = 99
+	if inputs.Sources[0].Occurrence != 0 || marks[0].Mode != lock.ForUpdate {
 		t.Fatal("execution pending state mutated bound/source identity")
 	}
 }
@@ -155,23 +155,23 @@ func TestPGSequencesEffectiveRowMarks(t *testing.T) {
 	view := e.catalog.state.MustRelation(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 12048})
 	table := &catalog.Relation{RelationKind: catalog.TableRelation}
 	requested := plan.RowMark{Mode: lock.ForUpdate, Wait: parser.RowLockNowait, DiagnosticMode: lock.ForUpdate, Order: 1}
-	locks := &queryLockContext{leaves: []queryLockLeaf{
-		{leaf: queryLeaf{relation: view, mark: requested}, mark: effectiveQueryRowMark(view, requested)},
-		{leaf: queryLeaf{relation: table, mark: requested}, mark: effectiveQueryRowMark(table, requested)},
+	locks := &queryLockContext{Leaves: []queryLockLeaf{
+		{Leaf: queryLeaf{Relation: view, Mark: requested}, Mark: EffectiveQueryRowMark(view, requested)},
+		{Leaf: queryLeaf{Relation: table, Mark: requested}, Mark: EffectiveQueryRowMark(table, requested)},
 	}}
 	// A transparent stored/derived expansion may contain both the SQL-only
 	// catalog occurrence and a genuinely marked table. Preserve its identities.
-	expanded := &querySource{materialized: true, occurrences: []int{0, 1}}
-	inputs := &querySource{sources: []*querySource{expanded}, locks: locks}
-	pending := appendPendingRowMarks(nil, []plan.RowMark{requested}, inputs)
-	if len(pending) != 1 || !reflect.DeepEqual(pending[0].occurrences, []int{1}) || pending[0].mark != requested {
+	expanded := &querySource{Materialized: true, Occurrences: []int{0, 1}}
+	inputs := &querySource{Sources: []*querySource{expanded}, Locks: locks}
+	pending := AppendPendingRowMarks(nil, []plan.RowMark{requested}, inputs)
+	if len(pending) != 1 || !reflect.DeepEqual(pending[0].Occurrences, []int{1}) || pending[0].Mark != requested {
 		t.Fatal("effective expansion changed ordinary physical mark", pending)
 	}
-	if !reflect.DeepEqual(expanded.occurrences, []int{0, 1}) || locks.leaves[0].leaf.mark != requested || locks.leaves[0].mark != (plan.RowMark{}) {
+	if !reflect.DeepEqual(expanded.Occurrences, []int{0, 1}) || locks.Leaves[0].Leaf.Mark != requested || locks.Leaves[0].Mark != (plan.RowMark{}) {
 		t.Fatal("effective decision mutated SQL marks or source identities")
 	}
-	inputs.sources[0] = &querySource{occurrence: 0}
-	if pending := appendPendingRowMarks(nil, []plan.RowMark{requested}, inputs); len(pending) != 0 {
+	inputs.Sources[0] = &querySource{Occurrence: 0}
+	if pending := AppendPendingRowMarks(nil, []plan.RowMark{requested}, inputs); len(pending) != 0 {
 		t.Fatal("SQL-only catalog mark reached physical arbitration", pending)
 	}
 }

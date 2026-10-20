@@ -51,8 +51,8 @@ func newMergeReturningOutput(b binding, s *StatementScope) *mergeReturningOutput
 	if b.returning == nil {
 		return nil
 	}
-	rows := newFinalRows(b.returning.schema, 0)
-	rows.output = s.output
+	rows := NewFinalRows(b.returning.schema, 0)
+	rows.Output = s.output
 	return &mergeReturningOutput{returning: b.returning, rows: rows, frame: make([]sqltype.Value, b.merge.targetWidth+b.merge.sourceWidth)}
 }
 func (o *mergeReturningOutput) project(b binding, c *EvalContext, action parser.MergeAction, old, row, source []sqltype.Value, sourcePresent bool) error {
@@ -61,9 +61,9 @@ func (o *mergeReturningOutput) project(b binding, c *EvalContext, action parser.
 	}
 	evaluation := *c
 	evaluation.Scope, evaluation.Frame = 1, 1
-	evaluation.mergeReturning, evaluation.mergeAction, evaluation.mergeSourcePresent = true, action, sourcePresent
+	evaluation.MergeReturning, evaluation.MergeAction, evaluation.MergeSourcePresent = true, action, sourcePresent
 	evaluation.Row, evaluation.OldRow = o.frame, old
-	evaluation.physicalTable = b.ref
+	evaluation.PhysicalTable = b.ref
 	if action == parser.MergeDeleteAction {
 		row = old
 	}
@@ -74,11 +74,11 @@ func (o *mergeReturningOutput) project(b binding, c *EvalContext, action parser.
 		if err != nil {
 			return err
 		}
-		if value.Type() == nil || !value.Type().Concrete() || value.Type() != o.rows.schema[i].Usage.Type {
+		if value.Type() == nil || !value.Type().Concrete() || value.Type() != o.rows.Columns[i].Usage.Type {
 			return errors.New("stuntgres: invalid finalized MERGE value")
 		}
-		o.rows.values = append(o.rows.values, value)
+		o.rows.Values = append(o.rows.Values, value)
 	}
-	o.rows.count++
+	o.rows.Count++
 	return nil
 }

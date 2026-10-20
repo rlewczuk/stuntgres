@@ -68,8 +68,8 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 	// Normalized rule auxiliaries select one preparation policy for the entire
 	// auxiliary/primary program, even when the primary has no rules of its own.
 	if len(b.rule.ctes) != 0 {
-		evaluation.planStaticOperators = true
-		evaluation.specializeRuleParameters = true
+		evaluation.PlanStaticOperators = true
+		evaluation.SpecializeRuleParameters = true
 	}
 	normalizedRefs, err := e.admitRuleCTEsLocked(scope, statement, &b)
 	if err != nil {
@@ -122,7 +122,7 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 		}
 		scope.activateMutation(index)
 		command := cteCommandExecution{definition: definition, statement: syntax, ruleOwner: rewrite != nil, mutation: index, execution: preparedCommandExecution{primaryTag: primaryTag}}
-		evaluation.quoteCaptures.sealed = false
+		evaluation.QuoteCaptures.Sealed = false
 		if _, err := e.executeBoundCommandLocked(scope, syntax, commandBinding, commandAuth, parameters, evaluation, nil, nil, &command.execution); err != nil {
 			return Result{}, err
 		}
@@ -133,7 +133,7 @@ func (e *Engine) prepareCTECommandsLocked(scope *StatementScope, statement parse
 	scope.activateMutation(main)
 	scope.ruleActionAuth = originalRuleAuth
 	preparedMain := preparedCommandExecution{primaryTag: primaryTag}
-	evaluation.quoteCaptures.sealed = false
+	evaluation.QuoteCaptures.Sealed = false
 	if _, err := e.executeBoundCommandLocked(scope, statement, b, auth, parameters, evaluation, creationStage, creationDescriptor, &preparedMain); err != nil {
 		return Result{}, err
 	}
@@ -178,12 +178,12 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 			if len(leaves) == len(b.querySources) {
 				leaves = append([]queryLeaf(nil), leaves...)
 			}
-			leaves = append(leaves, queryLeaf{ref: mutation.lockedRef, relation: mutation.lockedDescriptor.(*catalog.Relation), only: true})
+			leaves = append(leaves, queryLeaf{Ref: mutation.lockedRef, Relation: mutation.lockedDescriptor.(*catalog.Relation), Only: true})
 			leaves = append(leaves, mutation.inheritedTargets...)
 		}
 	}
 	if len(scope.mutations) == 0 && b.ref.Domain() != nil {
-		leaves = append(append([]queryLeaf(nil), leaves...), queryLeaf{ref: b.ref, relation: b.relation})
+		leaves = append(append([]queryLeaf(nil), leaves...), queryLeaf{Ref: b.ref, Relation: b.relation})
 	}
 	collectAuth := auth
 	collectAuth.Recapture(scope.inheritanceRead(auth.Catalog))
@@ -207,15 +207,15 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 		// Completed modifiers need only a lifetime/authority header, not a
 		// second physical capture of every command's own input sources.
 		if scope.authority == nil {
-			scope.authority = &queryAuthority{host: hostOf(scope)}
+			scope.authority = &queryAuthority{Host: hostOf(scope)}
 		}
-		source = &querySource{materialized: true, flatCount: 1, authority: scope.authority, locks: scope.queryLocks}
+		source = &querySource{Materialized: true, FlatCount: 1, Authority: scope.authority, Locks: scope.queryLocks}
 	}
 	previousOwner := scope.cteInvocation
 	owner := previousOwner
 	findOwner := func(frame uint32) *cteInvocation {
-		for current := owner; current != nil; current = current.parent {
-			if current.frame == frame {
+		for current := owner; current != nil; current = current.Parent {
+			if current.Frame == frame {
 				return current
 			}
 		}
@@ -226,8 +226,8 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 			if findOwner(definition.Owner) != nil {
 				continue
 			}
-			current := &cteInvocation{frame: definition.Owner, parent: owner, state: queryState{source: source, parameters: parameters, input: scope.input, output: scope.output, locking: source.locks != nil}}
-			current.state.ctes = current
+			current := &cteInvocation{Frame: definition.Owner, Parent: owner, State: queryState{Source: source, Parameters: parameters, Input: scope.input, Output: scope.output, Locking: source.Locks != nil}}
+			current.State.Ctes = current
 			owner = current
 		}
 	}
@@ -237,13 +237,13 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 	}
 	scope.cteInvocation = owner
 	defer func() {
-		for current := owner; current != previousOwner; current = current.parent {
-			if err := current.close(); failure == nil {
+		for current := owner; current != previousOwner; current = current.Parent {
+			if err := current.Close(); failure == nil {
 				failure = err
 			}
-			current.state.releaseMemberships()
+			current.State.ReleaseMemberships()
 		}
-		source.close()
+		source.Close()
 		scope.cteInvocation = previousOwner
 		if failure != nil {
 			if result.Rows != nil {
@@ -288,13 +288,13 @@ func (e *Engine) executePreparedCTECommandsLocked(scope *StatementScope, stateme
 }
 
 func completeCTEMutation(o *cteInvocation, definition *plan.CTEDefinition, result Result) error {
-	if o.closed || o.producers[definition] != nil {
+	if o.Closed || o.Producers[definition] != nil {
 		if result.Rows != nil {
 			result.Rows.Close()
 		}
 		return fmt.Errorf("stuntgres: CTE modifier completed more than once")
 	}
-	producer := &cteProducer{done: true, closed: true, affected: result.Count}
+	producer := &cteProducer{Done: true, Closed: true, Affected: result.Count}
 	if mutation, _ := mutationBinding(definition); mutation.returning != nil {
 		rows, ok := result.Rows.(*finalRows)
 		if !ok {
@@ -303,8 +303,8 @@ func completeCTEMutation(o *cteInvocation, definition *plan.CTEDefinition, resul
 			}
 			return fmt.Errorf("stuntgres: CTE modifier lacks typed output")
 		}
-		producer.source = &querySource{flat: rows.values, flatWidth: len(rows.schema), flatCount: rows.count, materialized: true, authority: o.state.source.authority, host: o.state.source.host, locks: o.state.source.locks}
-		rows.values = nil // Transfer the typed buffer, never Scan/reimport/copy.
+		producer.Source = &querySource{Flat: rows.Values, FlatWidth: len(rows.Columns), FlatCount: rows.Count, Materialized: true, Authority: o.State.Source.Authority, Host: o.State.Source.Host, Locks: o.State.Source.Locks}
+		rows.Values = nil // Transfer the typed buffer, never Scan/reimport/copy.
 		if err := rows.Close(); err != nil {
 			return err
 		}
@@ -312,10 +312,10 @@ func completeCTEMutation(o *cteInvocation, definition *plan.CTEDefinition, resul
 		result.Rows.Close()
 		return fmt.Errorf("stuntgres: no-RETURNING CTE produced a relation")
 	}
-	if o.producers == nil {
-		o.producers = make(map[*plan.CTEDefinition]*cteProducer)
+	if o.Producers == nil {
+		o.Producers = make(map[*plan.CTEDefinition]*cteProducer)
 	}
-	o.producers[definition] = producer
-	o.order = append(o.order, producer)
+	o.Producers[definition] = producer
+	o.Order = append(o.Order, producer)
 	return nil
 }

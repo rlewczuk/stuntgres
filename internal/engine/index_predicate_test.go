@@ -364,7 +364,7 @@ func TestPartialIndexImplication(t *testing.T) {
 func partialMaskFixture(t *testing.T) (partialIndexFixture, *StatementScope, queryLeaf, *visibility.View) {
 	f := newPartialIndexFixture(t)
 	scope := &StatementScope{owner: &transactionOwner{isolation: ReadCommitted}}
-	leaf := queryLeaf{ref: f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address()), relation: f.parent, storage: f.store, partialCandidate: f.index}
+	leaf := queryLeaf{Ref: f.e.catalog.Domain.Ref(f.e.catalog.state.Epoch(), f.parent.Address()), Relation: f.parent, Storage: f.store, PartialCandidate: f.index}
 	data := &visibility.Data{Catalog: f.e.CatalogRead(), Frontier: f.e.visibility.CommitSeq(), Committed: map[ids.ObjectAddress][]storage.RowVersion{f.parent.Address(): f.store.Versions}, SingleGeneration: f.store}
 	view := visibility.NewView(data)
 	t.Cleanup(view.Release)
@@ -381,28 +381,28 @@ func TestPartialIndexCandidateMask(t *testing.T) {
 	}
 	auth := AuthorizationView{View: access.View{Catalog: f.e.CatalogRead()}}
 	binder := expressionBinder{query: queryScopeState{auth: &auth}}
-	if binder.query.partialIndexCandidate(leaf.ref, f.predicate) != f.index {
+	if binder.query.partialIndexCandidate(leaf.Ref, f.predicate) != f.index {
 		t.Fatal("bound caller did not select candidate")
 	}
 	calls := 0
 	witness := partialEvaluationWitness{Info: f.predicate.Info, calls: &calls, value: sqltype.Boolean(f.predicate.Usage.Type, true)}
-	source := &querySource{view: view, ref: leaf.ref, committed: f.store.Versions, host: hostOf(scope), partialMask: mask}
-	scan := &plan.SourceNode{QuerySchema: f.parent.Columns, Ref: leaf.ref}
+	source := &querySource{View: view, Ref: leaf.Ref, Committed: f.store.Versions, Host: hostOf(scope), PartialMask: mask}
+	scan := &plan.SourceNode{QuerySchema: f.parent.Columns, Ref: leaf.Ref}
 	filter := &plan.FilterNode{QuerySchema: f.parent.Columns, Child: scan, Predicate: witness}
-	stage, err := openQueryNode(context.Background(), &queryState{source: source}, filter)
+	stage, err := OpenNode(context.Background(), &queryState{Source: source}, filter)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var ids []int
 	for {
-		i, ok, err := stage.nextOccurrence(context.Background())
+		i, ok, err := stage.NextOccurrence(context.Background())
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !ok {
 			break
 		}
-		ids = append(ids, stage.index(i))
+		ids = append(ids, stage.Index(i))
 	}
 	if calls != 3 || !reflect.DeepEqual(ids, []int{0, 3, 4}) {
 		t.Fatal("mask was not consulted before residual", calls, ids)
@@ -412,7 +412,7 @@ func TestPartialIndexCandidateMask(t *testing.T) {
 	f.e.mu.Lock()
 	f.e.storage.InstallIndexRootLocked(f.index.Address(), newLogicalIndexRoot(f.index.SQLIndex, nil))
 	f.e.mu.Unlock()
-	if !partialMaskContains(mask, source.committed[0]) || partialMaskContains(mask, storage.RowVersion{Row: 1, Version: 99}) {
+	if !PartialMaskContains(mask, source.Committed[0]) || PartialMaskContains(mask, storage.RowVersion{Row: 1, Version: 99}) {
 		t.Fatal("retained identity mask changed")
 	}
 }
@@ -460,7 +460,7 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 				f.e.storage.RemoveIndexRootLocked(f.index.Address())
 				f.e.mu.Unlock()
 			case "epoch":
-				leaf.ref.Epoch++
+				leaf.Ref.Epoch++
 			case "shape":
 				copy := *f.parent
 				copy.Attributes = []int32{11, 20}
@@ -468,14 +468,14 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 			case "locking":
 				scope.queryLocks = &queryLockContext{}
 			case "occurrence locking":
-				leaf.mark = plan.RowMark{Mode: lock.ForUpdate}
+				leaf.Mark = plan.RowMark{Mode: lock.ForUpdate}
 			case "inherited locking":
 				inherited = plan.RowMark{Mode: lock.ForKeyShare}
 			case "absent candidate":
-				leaf.partialCandidate = nil
+				leaf.PartialCandidate = nil
 			}
 			f.e.mu.Lock()
-			mask := f.e.capturePartialMaskLocked(scope, leaf, view, mergeQueryRowMark(inherited, leaf.mark))
+			mask := f.e.capturePartialMaskLocked(scope, leaf, view, MergeQueryRowMark(inherited, leaf.Mark))
 			f.e.mu.Unlock()
 			if mask != nil {
 				t.Fatal("unsafe mask attached")

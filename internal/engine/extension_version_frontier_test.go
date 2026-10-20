@@ -33,13 +33,13 @@ func extensionVersionAvailableFrontier(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				t.Cleanup(source.close)
+				t.Cleanup(source.Close)
 				return source
 			}
 			old := capture()
 			sources := map[ids.OID]*querySource{first: open(old, first)}
-			retained := make([][]sqltype.Value, len(sources[first].anonymous))
-			for i, row := range sources[first].anonymous {
+			retained := make([][]sqltype.Value, len(sources[first].Anonymous))
+			for i, row := range sources[first].Anonymous {
 				retained[i] = append([]sqltype.Value(nil), row...)
 			}
 			if err := extensionUnitExecute(t, e, publisher, extensionVersionUnitUpdate()); err != nil {
@@ -51,15 +51,15 @@ func extensionVersionAvailableFrontier(t *testing.T) {
 					sources[oid] = open(old, oid)
 				}
 			}
-			if !reflect.DeepEqual(retained, sources[first].anonymous) || old.inquiry.commentCatalog.MustExtension(ext.Address()) != ext || fresh.inquiry.commentCatalog.MustExtension(ext.Address()).Version != "1.2" {
+			if !reflect.DeepEqual(retained, sources[first].Anonymous) || old.inquiry.commentCatalog.MustExtension(ext.Address()) != ext || fresh.inquiry.commentCatalog.MustExtension(ext.Address()).Version != "1.2" {
 				t.Fatal("old frontier mutated during update")
 			}
 			assert := func(source *querySource, oid ids.OID, version string) {
 				if oid == ids.ExtensionClassID {
-					if source.count() != 1 {
+					if source.Count() != 1 {
 						t.Fatal("extension frontier count")
 					}
-					got, err := source.anonymous[0][5].Text()
+					got, err := source.Anonymous[0][5].Text()
 					if err != nil || got != version {
 						t.Fatal("extension frontier", got, version, err)
 					}
@@ -67,7 +67,7 @@ func extensionVersionAvailableFrontier(t *testing.T) {
 				}
 				count := 0
 				seen := map[string]bool{}
-				for _, row := range source.anonymous {
+				for _, row := range source.Anonymous {
 					name, err := row[0].Text()
 					if err != nil {
 						t.Fatal(err)

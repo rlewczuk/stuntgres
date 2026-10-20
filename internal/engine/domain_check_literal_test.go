@@ -46,7 +46,7 @@ func TestDomainCheckNominalLiteralAdmissionInternal(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), catalog: auth.Catalog, Input: binder.input}}
+			evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Catalog: auth.Catalog, Input: binder.input}}
 			value, err := node.Eval(&evaluation)
 			if tc.evalCode != "" {
 				var d *sqlstate.Error

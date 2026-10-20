@@ -44,15 +44,15 @@ func TestConcurrentIndexHashInvalidQueryCapture(t *testing.T) {
 		t.Fatal("fixture must satisfy existing storage identity proofs despite incomplete coverage")
 	}
 	query, source, release := hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=4")
-	if len(source.hashIndexes) != 0 {
-		t.Fatal("invalid root was selected for query capture", source.hashIndexes)
+	if len(source.HashIndexes) != 0 {
+		t.Fatal("invalid root was selected for query capture", source.HashIndexes)
 	}
 	stage := hashFilterStage(t, query, source, nil)
-	if stage.hashCandidates != nil {
-		t.Fatal("invalid root supplied filter candidates", stage.hashCandidates)
+	if stage.HashCandidates != nil {
+		t.Fatal("invalid root supplied filter candidates", stage.HashCandidates)
 	}
-	if err := stage.drain(context.Background()); err != nil || stage.count() != 1 {
-		t.Fatal("heap fallback lost grandfathered row", stage.count(), err)
+	if err := stage.Drain(context.Background()); err != nil || stage.Count() != 1 {
+		t.Fatal("heap fallback lost grandfathered row", stage.Count(), err)
 	}
 	stage.Close()
 	release()
@@ -65,15 +65,15 @@ func TestConcurrentIndexHashInvalidQueryCapture(t *testing.T) {
 		t.Fatal("reconstruction omitted committed row", got)
 	}
 	query, source, release = hashImplicitQuery(t, e, "SELECT n FROM t WHERE n=4")
-	if len(source.hashIndexes) != 1 || source.hashIndexes[0].root != healthy {
-		t.Fatal("healthy actual root was not captured", source.hashIndexes)
+	if len(source.HashIndexes) != 1 || source.HashIndexes[0].Root != healthy {
+		t.Fatal("healthy actual root was not captured", source.HashIndexes)
 	}
 	stage = hashFilterStage(t, query, source, nil)
-	if stage.hashCandidates == nil || stage.hashCandidates.root != healthy || len(stage.hashCandidates.occurrences) != 1 {
-		t.Fatal("healthy equality bucket was not selected", stage.hashCandidates)
+	if stage.HashCandidates == nil || stage.HashCandidates.Root != healthy || len(stage.HashCandidates.Occurrences) != 1 {
+		t.Fatal("healthy equality bucket was not selected", stage.HashCandidates)
 	}
-	if err := stage.drain(context.Background()); err != nil || stage.count() != 1 {
-		t.Fatal("healthy lookup lost committed row", stage.count(), err)
+	if err := stage.Drain(context.Background()); err != nil || stage.Count() != 1 {
+		t.Fatal("healthy lookup lost committed row", stage.Count(), err)
 	}
 	stage.Close()
 	release()

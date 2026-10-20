@@ -14,7 +14,7 @@ import (
 func validateViewReadGraph(view catalog.Read, leaves []queryLeaf) (bool, error) {
 	hasView := false
 	for _, leaf := range leaves {
-		if leaf.relation.RelationKind == catalog.ViewRelation {
+		if leaf.Relation.RelationKind == catalog.ViewRelation {
 			hasView = true
 			break
 		}
@@ -48,10 +48,10 @@ func validateViewReadGraph(view catalog.Read, leaves []queryLeaf) (bool, error) 
 		return nil
 	}
 	for _, leaf := range leaves {
-		if leaf.relation.RelationKind != catalog.ViewRelation {
+		if leaf.Relation.RelationKind != catalog.ViewRelation {
 			continue
 		}
-		current, ok := view.Relation(leaf.relation.Address())
+		current, ok := view.Relation(leaf.Relation.Address())
 		if !ok {
 			return false, ids.ErrCatalogReplaced
 		}

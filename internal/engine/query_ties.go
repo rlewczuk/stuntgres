@@ -10,18 +10,18 @@ import (
 // by LIMIT. Datum values own their payload even when a source borrows row headers.
 func queryTiesValue(child *indexedStage, occurrence int, key plan.SortKey) sqltype.Value {
 	if key.Cache >= 0 {
-		return child.orderRow(occurrence)[key.Cache]
+		return child.OrderRow(occurrence)[key.Cache]
 	}
-	return child.source.row(child.index(occurrence))[key.Slot]
+	return child.Source.Row(child.Index(occurrence))[key.Slot]
 }
 
-func captureQueryTiesBoundary(child *indexedStage, occurrence int, keys []plan.SortKey, boundary []sqltype.Value) {
+func CaptureQueryTiesBoundary(child *indexedStage, occurrence int, keys []plan.SortKey, boundary []sqltype.Value) {
 	for i, key := range keys {
 		boundary[i] = queryTiesValue(child, occurrence, key)
 	}
 }
 
-func queryTiesPeer(ctx context.Context, child *indexedStage, occurrence int, keys []plan.SortKey, boundary []sqltype.Value, input sqltype.InputEnvironment) (bool, error) {
+func QueryTiesPeer(ctx context.Context, child *indexedStage, occurrence int, keys []plan.SortKey, boundary []sqltype.Value, input sqltype.InputEnvironment) (bool, error) {
 	for i, key := range keys {
 		if err := ctx.Err(); err != nil {
 			return false, err

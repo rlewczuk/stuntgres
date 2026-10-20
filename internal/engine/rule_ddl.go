@@ -137,7 +137,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 			if definition.conditionPresentation != nil {
 				for _, source := range definition.conditionPresentation.sources {
 					d := auth.Catalog.MustRelation(source.ref.Address)
-					sources = append(sources, queryLeaf{ref: source.ref, relation: d})
+					sources = append(sources, queryLeaf{Ref: source.ref, Relation: d})
 				}
 			}
 		}
@@ -169,7 +169,7 @@ func (e *Engine) executeRule(scope *StatementScope, stmt parser.Statement, count
 	stage := e.BeginCatalogStage(auth.Catalog)
 	stage.authorizeLocked(auth, scope.op.session)
 	for _, source := range sources {
-		stage.querySources = append(stage.querySources, source.relation)
+		stage.querySources = append(stage.querySources, source.Relation)
 	}
 	e.mu.Unlock()
 	defer e.DiscardCatalogStage(stage)

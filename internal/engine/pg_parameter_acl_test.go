@@ -40,7 +40,7 @@ func pgParameterACLUnitCapture(t *testing.T, e *Engine, catalog catalog.Read, ro
 	t.Helper()
 	d, ref := pgParameterACLUnitSource(t, e, catalog)
 	rows, err := e.captureCatalogSourceLocked(context.Background(), catalog, roles, ref, d)
-	if err != nil || rows == nil || rows.ref != ref || rows.anonymous == nil {
+	if err != nil || rows == nil || rows.Ref != ref || rows.Anonymous == nil {
 		t.Fatal("capture", rows, err)
 	}
 	return rows
@@ -128,7 +128,7 @@ func TestPGParameterACLShapeAndOwnership(t *testing.T) {
 			t.Fatal("fabricated backing relation", oid)
 		}
 	}
-	if rows := pgParameterACLUnitCapture(t, e, view, e.Roles()); rows.count() != 0 {
+	if rows := pgParameterACLUnitCapture(t, e, view, e.Roles()); rows.Count() != 0 {
 		t.Fatal("pristine rows")
 	}
 }
@@ -150,11 +150,11 @@ func TestPGParameterACLCapture(t *testing.T) {
 	state, nextOID, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
 	descriptors, names := maps.Collect(state.Descriptors()), maps.Collect(state.Names())
 	rows := pgParameterACLUnitCapture(t, e, view, roles)
-	if rows.count() != 2 {
-		t.Fatal("only actual descriptors", rows.count())
+	if rows.Count() != 2 {
+		t.Fatal("only actual descriptors", rows.Count())
 	}
 	seen := make(map[string]bool)
-	for _, row := range rows.anonymous {
+	for _, row := range rows.Anonymous {
 		name, err := row[1].Text()
 		if err != nil || seen[name] || (name != "lc_messages" && name != "pacl_unit.custom") {
 			t.Fatal("canonical membership", name, err)
@@ -212,7 +212,7 @@ func TestPGParameterACLCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	found := false
-	for _, row := range pgParameterACLUnitCapture(t, e, e.CatalogRead(), e.Roles()).anonymous {
+	for _, row := range pgParameterACLUnitCapture(t, e, e.CatalogRead(), e.Roles()).Anonymous {
 		name, _ := row[1].Text()
 		if name == "pacl_unit.empty" {
 			found = true
@@ -282,29 +282,29 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if captured.count() != 1 {
+	if captured.Count() != 1 {
 		t.Fatal("old capture membership")
 	}
-	pgParameterACLUnitEntries(t, e, captured.anonymous[0][2], map[uint32][3]uint32{10: {10, 12288, 0}, uint32(reader.ID()): {10, 4096, 0}})
+	pgParameterACLUnitEntries(t, e, captured.Anonymous[0][2], map[uint32][3]uint32{10: {10, 12288, 0}, uint32(reader.ID()): {10, 4096, 0}})
 	current := pgParameterACLUnitCapture(t, e, e.CatalogRead(), e.Roles())
-	pgParameterACLUnitEntries(t, e, current.anonymous[0][2], map[uint32][3]uint32{10: {10, 12288, 0}, uint32(reader.ID()): {10, 12288, 12288}})
-	oldID, _ := captured.anonymous[0][0].OID()
-	newID, _ := current.anonymous[0][0].OID()
+	pgParameterACLUnitEntries(t, e, current.Anonymous[0][2], map[uint32][3]uint32{10: {10, 12288, 0}, uint32(reader.ID()): {10, 12288, 12288}})
+	oldID, _ := captured.Anonymous[0][0].OID()
+	newID, _ := current.Anonymous[0][0].OID()
 	if oldID != newID || before.Get(address) != old || old.Name() != "pacl_unit.snapshot" || len(old.ACL.Entries) != 2 {
 		t.Fatal("immutable identity/root")
 	}
 	retained := &finalRows{}
-	if err := captureACLItemOutputValue(retained, capturedACLItemOutput{owner: e.catalog.owner(), roles: roles}, captured.anonymous[0][2]); err != nil {
+	if err := captureACLItemOutputValue(retained, capturedACLItemOutput{owner: e.catalog.owner(), roles: roles}, captured.Anonymous[0][2]); err != nil {
 		t.Fatal(err)
 	}
 	request.Revoke, request.GrantOption = true, false
 	if err := applyObjectGrantUnit(e, op, request); err != nil {
 		t.Fatal(err)
 	}
-	if rows := pgParameterACLUnitCapture(t, e, e.CatalogRead(), e.Roles()); rows.count() != 0 {
+	if rows := pgParameterACLUnitCapture(t, e, e.CatalogRead(), e.Roles()); rows.Count() != 0 {
 		t.Fatal("fresh removal")
 	}
-	if rows := pgParameterACLUnitCapture(t, e, before, roles); rows.count() != 1 {
+	if rows := pgParameterACLUnitCapture(t, e, before, roles); rows.Count() != 1 {
 		t.Fatal("old root removed")
 	}
 	if err := scope.Finish(nil); err != nil {
@@ -317,7 +317,7 @@ func TestPGParameterACLSnapshot(t *testing.T) {
 	if name, err := retained.FormatACLRole(&e.roles.aclAuthority, uint32(reader.ID())); err != nil || name != "grant_reader" {
 		t.Fatal("retained display authority", name, err)
 	}
-	pgParameterACLUnitEntries(t, e, captured.anonymous[0][2], map[uint32][3]uint32{10: {10, 12288, 0}, uint32(reader.ID()): {10, 4096, 0}})
+	pgParameterACLUnitEntries(t, e, captured.Anonymous[0][2], map[uint32][3]uint32{10: {10, 12288, 0}, uint32(reader.ID()): {10, 4096, 0}})
 }
 
 // Cancel a real context after an initially successful progress observation.
@@ -366,7 +366,7 @@ func TestPGParameterACLCancellation(t *testing.T) {
 			t.Fatal("cancellation mutated roots")
 		}
 	}
-	if rows := pgParameterACLUnitCapture(t, e, catalog, roles); rows.count() != 1 {
+	if rows := pgParameterACLUnitCapture(t, e, catalog, roles); rows.Count() != 1 {
 		t.Fatal("capture did not recover")
 	}
 }

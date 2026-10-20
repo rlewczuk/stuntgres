@@ -5,16 +5,16 @@ import "stuntgres/internal/engine/plan"
 // Absence is carried by occurrence identity, never inferred from NULL cells or
 // a zero-width physical row. Missing subtrees must not evaluate their recipes.
 func absentLockedSource(source *querySource, locks *queryLockContext) bool {
-	if source.input != nil {
-		return absentLockedSource(source.input, locks)
+	if source.Input != nil {
+		return absentLockedSource(source.Input, locks)
 	}
-	if source.lineage != nil {
-		return source.lineage.currentIndex == absentQueryIndex
+	if source.Lineage != nil {
+		return source.Lineage.CurrentIndex == AbsentQueryIndex
 	}
-	if source.singleton || source.materialized {
+	if source.Singleton || source.Materialized {
 		return false
 	}
-	return locks.leaves[source.occurrence].absent
+	return locks.Leaves[source.Occurrence].Absent
 }
 func absentLockedQuery(node plan.Node, inputs *querySource, locks *queryLockContext) bool {
 	switch n := node.(type) {
@@ -26,7 +26,7 @@ func absentLockedQuery(node plan.Node, inputs *querySource, locks *queryLockCont
 		}
 		return absentLockedQuery(n.Query.Root, inputs, locks)
 	case *plan.SourceNode:
-		return absentLockedSource(querySourceAt(inputs, n.Occurrence), locks)
+		return absentLockedSource(QuerySourceAt(inputs, n.Occurrence), locks)
 	case *plan.JoinNode:
 		return absentLockedQuery(n.Left, inputs, locks) && absentLockedQuery(n.Right, inputs, locks)
 	case *plan.ProjectNode:

@@ -130,8 +130,8 @@ func TestGeneratedPartialColumnAuthorization(t *testing.T) {
 				t.Fatalf("source manifest count=%d; want %d", len(bound.querySources), len(tc.sourceUses))
 			}
 			for i, source := range bound.querySources {
-				if !reflect.DeepEqual(source.uses, tc.sourceUses[i]) {
-					t.Fatalf("source %d reads=%v; want %v", i, source.uses, tc.sourceUses[i])
+				if !reflect.DeepEqual(source.Uses, tc.sourceUses[i]) {
+					t.Fatalf("source %d reads=%v; want %v", i, source.Uses, tc.sourceUses[i])
 				}
 			}
 			check := func(authority AuthorizationView, denied bool) {

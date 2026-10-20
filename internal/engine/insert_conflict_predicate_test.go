@@ -154,7 +154,7 @@ func TestInsertConflictPredicateNegativeProviderProof(t *testing.T) {
 	// an ordinary column and a literal stays immutable even if manually mislabeled.
 	// FORMAT is an actual surviving stable operation with a row-dependent argument.
 	stable := functions.Format{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{RowDependent: true, Volatility: expr.Stable}}, Args: []expr.Expr{literal("%s"), f.column}, Int4: f.integer}
-	if plannedVolatility(stable) != expr.Stable {
+	if PlannedVolatility(stable) != expr.Stable {
 		t.Fatal("fixture has no actual stable operation")
 	}
 	a := f.comparison(t, ">", stable, literal("10"))

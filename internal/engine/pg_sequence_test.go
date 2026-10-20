@@ -27,7 +27,7 @@ func pgSequenceUnitSource(t *testing.T, e *Engine) (*catalog.Relation, ids.Objec
 func pgSequenceUnitBag(t *testing.T, source *querySource) map[uint32][]any {
 	t.Helper()
 	bag := make(map[uint32][]any)
-	for _, row := range source.anonymous {
+	for _, row := range source.Anonymous {
 		if len(row) != 8 {
 			t.Fatal("row width", row)
 		}
@@ -118,7 +118,7 @@ func TestPGSequenceShape(t *testing.T) {
 		t.Fatal(err)
 	}
 	found := false
-	for _, row := range rows.anonymous {
+	for _, row := range rows.Anonymous {
 		id, _ := row[0].OID()
 		if id != 2224 {
 			continue
@@ -184,7 +184,7 @@ func TestPGSequenceEmptySource(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if rows.anonymous == nil || len(rows.anonymous) != 0 {
+			if rows.Anonymous == nil || len(rows.Anonymous) != 0 {
 				t.Fatal("empty catalog must remain an anonymous source", rows)
 			}
 		})

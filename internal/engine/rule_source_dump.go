@@ -33,9 +33,9 @@ func ruleSourceColumnSQL(view catalog.Read, root plan.Node, slot int, action rul
 			return "", ids.ErrCatalogReplaced
 		}
 		leaf := action.binding.querySources[node.Occurrence]
-		attributes := leaf.frozenAttributes
+		attributes := leaf.FrozenAttributes
 		if attributes == nil {
-			attributes = leaf.relation.Attributes
+			attributes = leaf.Relation.Attributes
 		}
 		if slot >= len(attributes) {
 			return "", ids.ErrCatalogReplaced

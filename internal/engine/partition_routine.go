@@ -23,16 +23,16 @@ func evaluatePartitionRecipe(evaluation *EvalContext, owner *catalog.Relation, k
 	key := owner.Partition.Keys[keyIndex].Derived
 	local := indexRecipeEvaluation(evaluation, key.Dependencies, owner)
 	local.Row, local.Scope, local.Frame = row, 1, 1
-	scope := scopeOf(local.liveHost())
+	scope := scopeOf(local.LiveHost())
 	if scope != nil {
-		local.domainPhase = ids.CommandIdentity{Transaction: scope.txRef, Command: scope.command}
-		local.preparedDomainChecks = scope.domains.preparedChecks
+		local.DomainPhase = ids.CommandIdentity{Transaction: scope.txRef, Command: scope.command}
+		local.PreparedDomainChecks = scope.domains.preparedChecks
 	}
 	auth, _, err := routineAdmissionAuthority(&local)
 	if err != nil {
 		return sqltype.Value{}, err
 	}
-	identity := partitionRoutineIdentity{owner: owner, phase: local.domainPhase, actor: auth.State.CurrentUser}
+	identity := partitionRoutineIdentity{owner: owner, phase: local.DomainPhase, actor: auth.State.CurrentUser}
 	if scope != nil {
 		identity.ri = scope.foreignActionAuth != nil && scope.foreignActionAuth.State.CurrentUser == auth.State.CurrentUser
 	}
@@ -48,7 +48,7 @@ func evaluatePartitionRecipe(evaluation *EvalContext, owner *catalog.Relation, k
 				continue
 			}
 			expressions[i], err = prepareIndexRecipe(&local, entry.Derived.Definition, entry.Derived.Dependencies, owner, &admission, true)
-			evaluation.preparedDomainChecks = local.preparedDomainChecks
+			evaluation.PreparedDomainChecks = local.PreparedDomainChecks
 			if err != nil {
 				return sqltype.Value{}, err
 			}
@@ -65,7 +65,7 @@ func evaluatePartitionRecipe(evaluation *EvalContext, owner *catalog.Relation, k
 	}
 	// Keep this key's manifest selected during lazy SQL-body evaluation too.
 	value, err := expressions[keyIndex].Eval(&local)
-	evaluation.preparedDomainChecks = local.preparedDomainChecks
+	evaluation.PreparedDomainChecks = local.PreparedDomainChecks
 	return value, err
 }
 

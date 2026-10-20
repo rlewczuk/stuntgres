@@ -60,7 +60,7 @@ func TestNetworkMaskOriginalAuthority(t *testing.T) {
 			if !reflect.DeepEqual(found, map[ids.OID]bool{tc.oid: true}) {
 				t.Fatal("wrong dependency identities", found)
 			}
-			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalAdmission: evalAdmission{routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies}}
+			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal(err)
 			}
@@ -80,7 +80,7 @@ func TestNetworkMaskOriginalAuthority(t *testing.T) {
 					}
 					checks = append(checks, dep)
 				}
-				evaluation.routineChecks = checks
+				evaluation.RoutineChecks = checks
 				if err := admitRoutineCall(&evaluation, node, true, false); err == nil {
 					t.Fatal("invalid selected authority", mode)
 				}
@@ -102,11 +102,11 @@ func TestNetworkMaskOriginalAuthority(t *testing.T) {
 					t.Fatal("stale child descriptor")
 				}
 			}
-			evaluation.routineChecks = []catalog.ExpressionDependency{}
+			evaluation.RoutineChecks = []catalog.ExpressionDependency{}
 			if err := admitRoutineCall(&evaluation, remapped, true, false); err == nil {
 				t.Fatal("retag fabricated authority")
 			}
-			evaluation.routineChecks = binder.dependencies
+			evaluation.RoutineChecks = binder.dependencies
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("original authority changed", err)
 			}
@@ -232,7 +232,7 @@ func TestNetworkMaskStrictDemand(t *testing.T) {
 			evaluation.Parameters = []sqltype.Value{sqltype.Null(b.params.parameters[1].Type)}
 			// A known-NULL strict call must disappear before planning admission.
 			// Deliberately omit its routine manifest: no provider can be invoked.
-			evaluation.routineChecks = []catalog.ExpressionDependency{}
+			evaluation.RoutineChecks = []catalog.ExpressionDependency{}
 			planned, changed, err := preflightCoercionsWithPolicy(&evaluation, node, false)
 			if err != nil || !changed {
 				t.Fatal("known NULL reached routine admission", changed, err)
@@ -250,7 +250,7 @@ func TestNetworkMaskStrictDemand(t *testing.T) {
 				t.Fatal(err)
 			}
 			evaluation.Parameters[0] = nonnull
-			evaluation.routineChecks = b.dependencies
+			evaluation.RoutineChecks = b.dependencies
 			again, _, err := preflightCoercionsWithPolicy(&evaluation, node, false)
 			if err != nil {
 				t.Fatal("known NULL changed original expression authority", err)
@@ -260,7 +260,7 @@ func TestNetworkMaskStrictDemand(t *testing.T) {
 				t.Fatal("nonnull recovery", value, err)
 			}
 			if kind := node.(functions.NetworkFormat).Kind; kind == sqltype.NetworkMerge || kind == sqltype.NetworkSetMasklen {
-				evaluation.routineChecks = []catalog.ExpressionDependency{}
+				evaluation.RoutineChecks = []catalog.ExpressionDependency{}
 				if _, _, err := preflightCoercionsWithPolicy(&evaluation, node, false); err == nil {
 					t.Fatal("nonnull provider bypassed original routine authority")
 				}

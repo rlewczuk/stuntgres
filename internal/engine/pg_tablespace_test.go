@@ -30,14 +30,14 @@ func pgTablespaceUnitCapture(t *testing.T, e *Engine) (*catalog.Relation, *query
 
 func pgTablespaceUnitRows(t *testing.T, source *querySource) {
 	t.Helper()
-	if len(source.anonymous) != 2 {
-		t.Fatal("builtin-only row bag", source.anonymous)
+	if len(source.Anonymous) != 2 {
+		t.Fatal("builtin-only row bag", source.Anonymous)
 	}
 	for i, want := range []struct {
 		oid  uint32
 		name string
 	}{{1663, "pg_default"}, {1664, "pg_global"}} {
-		row := source.anonymous[i]
+		row := source.Anonymous[i]
 		if len(row) != 5 {
 			t.Fatal("bounded projection", row)
 		}
@@ -99,7 +99,7 @@ func TestPGTablespaceDescriptorCapture(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	state, oid, revision := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision
-	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: e.CatalogRead(), Roles: e.Roles(), Ref: source.ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGTablespace); got != nil || !errors.Is(err, context.Canceled) {
+	if got, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: e.CatalogRead(), Roles: e.Roles(), Ref: source.Ref, Source: d, Owner: e.catalog.owner(), Runtime: engineCatalogRuntime{engine: e}}, capturePGTablespace); got != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture", got, err)
 	}
 	if e.catalog.state != state || e.catalog.nextOID != oid || e.catalog.nextRevision != revision {

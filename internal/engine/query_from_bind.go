@@ -82,19 +82,19 @@ func (b *expressionBinder) queryColumnAt(c queryColumn, pos parser.Position) exp
 		relation = b.queryTargetRelation()
 	} else if c.leaf >= 0 {
 		leaf := &b.query.sources[c.leaf]
-		relation = leaf.relation
-		origin = leaf.ref
-		origin.Address.SubID = leaf.relation.Attributes[c.physical]
-		b.dependency(origin, leaf.relation.Revision())
+		relation = leaf.Relation
+		origin = leaf.Ref
+		origin.Address.SubID = leaf.Relation.Attributes[c.physical]
+		b.dependency(origin, leaf.Relation.Revision())
 		found := false
-		for _, slot := range leaf.uses {
+		for _, slot := range leaf.Uses {
 			if slot == c.physical {
 				found = true
 				break
 			}
 		}
 		if !found {
-			leaf.uses = append(leaf.uses, c.physical)
+			leaf.Uses = append(leaf.Uses, c.physical)
 		}
 	}
 	column := plan.ColumnExpr{Info: b.info(c.descriptor.Usage, pos, expr.Properties{RowDependent: true}), Origin: origin, Scope: 1, Frame: b.frameID(), Slot: c.slot}
@@ -419,7 +419,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			}
 		}
 		leaf := len(b.query.sources)
-		b.query.sources = append(b.query.sources, queryLeaf{ref: ref, relation: relation, only: n.Only, storage: b.host.AuthorizationStorage(*b.query.auth, ref.Address), mark: b.query.lockAdmission.tableMark(n), table: n, query: b.query.lockAdmission.tableQueries[n].query, deleteReference: b.target.deleteUsingSources && len(b.query.scopes) == 0})
+		b.query.sources = append(b.query.sources, queryLeaf{Ref: ref, Relation: relation, Only: n.Only, Storage: b.host.AuthorizationStorage(*b.query.auth, ref.Address), Mark: b.query.lockAdmission.tableMark(n), Table: n, Query: b.query.lockAdmission.tableQueries[n].query, DeleteReference: b.target.deleteUsingSources && len(b.query.scopes) == 0})
 		columns := make([]queryColumn, len(relation.Columns))
 		for i, c := range relation.Columns {
 			columns[i] = queryColumn{descriptor: c, slot: i, leaf: leaf, physical: i}
@@ -1001,12 +1001,12 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
-		if !sourceAdmitted(node) {
+		if !SourceAdmitted(node) {
 			return nil, queryNamespace{}, expr.ErrorAt("0A000", "function table source is unsupported", raw.Pos)
 		}
 		calls[i] = node
 		if node.ResultUsage().Type.BaseType().IsComposite() {
-			for j := range functionFromCallWidth(node) {
+			for j := range FunctionFromCallWidth(node) {
 				member := node.ResultUsage().Type.BaseType().CompositeMember(j)
 				schema = append(schema, catalog.Column{Name: member.Name, Usage: member.Usage})
 			}

@@ -61,7 +61,7 @@ func TestDatetimeZoneAllSignaturesAndRetag(t *testing.T) {
 		if signature.name != "timezone" && signature.count == 2 || signature.name == "timezone" && (signature.count == 1 || signature.args[0] == sqltype.Text && signature.args[1] == sqltype.Timetz) {
 			want = expr.Stable
 		}
-		if node.ResultUsage().Type.ID() != signature.result || node.ResultUsage().Typmod != -1 || plannedVolatility(node) != want || generationImmutable(node) != (want == expr.Immutable) {
+		if node.ResultUsage().Type.ID() != signature.result || node.ResultUsage().Typmod != -1 || PlannedVolatility(node) != want || generationImmutable(node) != (want == expr.Immutable) {
 			t.Fatal(signature, node.Properties())
 		}
 		if !b.sameGroupExpression(node, node) {

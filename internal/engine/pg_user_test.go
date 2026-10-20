@@ -32,7 +32,7 @@ func pgUserUnitRows(t *testing.T, source *querySource) map[uint32][]sqltype.Valu
 		t.Fatal("missing pg_user capture")
 	}
 	bag := make(map[uint32][]sqltype.Value)
-	for _, row := range source.anonymous {
+	for _, row := range source.Anonymous {
 		if len(row) != 9 {
 			t.Fatal("wrong pg_user width")
 		}
@@ -228,11 +228,11 @@ func TestPGUserStatementAndNestedSnapshot(t *testing.T) {
 	inner := addView(20010, "pg_user_inner", ref)
 	outer := addView(20011, "pg_user_outer", inner)
 	nested := open(outer)
-	defer nested.close()
-	if nested.nestedInputs == nil || nested.nestedInputs.nestedInputs == nil {
+	defer nested.Close()
+	if nested.NestedInputs == nil || nested.NestedInputs.NestedInputs == nil {
 		t.Fatal("nested provider not opened")
 	}
-	flag, _ := pgUserUnitRows(t, nested.nestedInputs.nestedInputs)[20000][2].Boolean()
+	flag, _ := pgUserUnitRows(t, nested.NestedInputs.NestedInputs)[20000][2].Boolean()
 	if flag {
 		t.Fatal("nested provider resampled roles")
 	}

@@ -34,7 +34,7 @@ func pgIndexesUnitCapture(t *testing.T, c catalog.Read, auth AuthorizationView) 
 func pgIndexesUnitRows(t *testing.T, s *querySource) [][]any {
 	t.Helper()
 	var rows [][]any
-	for _, row := range s.anonymous {
+	for _, row := range s.Anonymous {
 		if len(row) != 5 {
 			t.Fatal(row)
 		}
@@ -84,7 +84,7 @@ func TestPGIndexesDescriptors(t *testing.T) {
 		t.Fatal(d.Security.ACL)
 	}
 	s := pgIndexesUnitCapture(t, c, catalogAuthorization(e, c))
-	if s.ref != ref || s.anonymous == nil || len(s.anonymous) != 0 {
+	if s.Ref != ref || s.Anonymous == nil || len(s.Anonymous) != 0 {
 		t.Fatal(s)
 	}
 }
@@ -165,7 +165,7 @@ func TestPGIndexesVisibilityPolicy(t *testing.T) {
 				auth.State.CurrentUser = e.roles.published.Root.Read(authorization.PrincipalRef{}).LookupRef("postgres")
 			}
 			source := pgIndexesUnitCapture(t, c, auth)
-			if source.anonymous == nil {
+			if source.Anonymous == nil {
 				t.Fatal("empty or denied capture must retain an anonymous source")
 			}
 			got := pgIndexesUnitRows(t, source)

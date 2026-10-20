@@ -76,7 +76,7 @@ func TestPGExtensionShapeAndOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	found := 0
-	for _, row := range rows.anonymous {
+	for _, row := range rows.Anonymous {
 		oid, _ := row[0].OID()
 		if oid != 3079 {
 			continue
@@ -103,7 +103,7 @@ func TestPGExtensionCapture(t *testing.T) {
 	if err != nil || old == nil {
 		t.Fatal("capture", old, err)
 	}
-	if old.ref != ref || old.anonymous == nil || old.count() != 0 || !maps.Equal(before, maps.Collect(e.catalog.state.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.state.Names())) {
+	if old.Ref != ref || old.Anonymous == nil || old.Count() != 0 || !maps.Equal(before, maps.Collect(e.catalog.state.Descriptors())) || !maps.Equal(names, maps.Collect(e.catalog.state.Names())) {
 		t.Fatal("empty immutable capture", old)
 	}
 	root := &plan.ProjectNode{QuerySchema: plan.QuerySchema(d.Columns), Child: &plan.SourceNode{QuerySchema: plan.QuerySchema(d.Columns), Ref: ref}}
@@ -114,7 +114,7 @@ func TestPGExtensionCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows, count, err := finalizeQuery(context.Background(), root, executable, nil)
+	rows, count, err := Finalize(context.Background(), root, executable, nil)
 	if err != nil {
 		t.Fatal("empty captured source must execute", err)
 	}
@@ -152,7 +152,7 @@ func TestPGExtensionCapture(t *testing.T) {
 		}
 	}
 	view := e.catalog.read(&state)
-	if rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.read(e.catalog.owner(), view, e.roles.published), ref, d); err != nil || rows == nil || rows.count() != 0 {
+	if rows, err := e.captureCatalogSourceLocked(context.Background(), view, e.roles.read(e.catalog.owner(), view, e.roles.published), ref, d); err != nil || rows == nil || rows.Count() != 0 {
 		t.Fatal("unrelated inventory dependency", rows, err)
 	}
 	state.RemoveDescriptor(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: 1028})
@@ -164,7 +164,7 @@ func TestPGExtensionCapture(t *testing.T) {
 	if rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: ctx, Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, captureExtensionCatalog); rows != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled capture", rows, err)
 	}
-	retained := &indexedStage{source: old, schema: d.Columns}
+	retained := &indexedStage{Source: old, Columns: d.Columns}
 	original := append([]catalog.Column(nil), retained.Schema()...)
 	for _, replace := range []func() error{
 		func() error { return e.Reset(context.Background()) },
@@ -182,7 +182,7 @@ func TestPGExtensionCapture(t *testing.T) {
 		if rows, err := captureCatalogSourceRows(pgcatalog.Input{Context: context.Background(), Catalog: e.CatalogRead(), Ref: ref, Source: d, Owner: (e.CatalogRead()).Owner(), Runtime: engineCatalogRuntime{}}, captureExtensionCatalog); err == nil || rows != nil {
 			t.Fatal("old source accepted in replacement", rows, err)
 		}
-		if !reflect.DeepEqual(retained.Schema(), original) || old.ref != ref || old.count() != 0 {
+		if !reflect.DeepEqual(retained.Schema(), original) || old.Ref != ref || old.Count() != 0 {
 			t.Fatal("retained source/schema changed")
 		}
 	}
@@ -202,7 +202,7 @@ func TestPGExtensionCaptureInstalled(t *testing.T) {
 	e := New()
 	d, ref := pgExtensionUnitSource(t, e)
 	empty, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), ref, d)
-	if err != nil || empty == nil || empty.count() != 0 {
+	if err != nil || empty == nil || empty.Count() != 0 {
 		t.Fatal("fresh installed catalog", empty, err)
 	}
 	op, done := roleOperation(t, e, "postgres")
@@ -213,10 +213,10 @@ func TestPGExtensionCaptureInstalled(t *testing.T) {
 	ext := e.catalog.state.MustExtension(address)
 	d = pgExtensionUnitShape(t, e)
 	captured, err := e.captureCatalogSourceLocked(context.Background(), e.CatalogRead(), e.roles.read(e.catalog.owner(), e.catalog.read(e.catalog.state), e.roles.published), ref, d)
-	if err != nil || captured == nil || captured.count() != 1 {
+	if err != nil || captured == nil || captured.Count() != 1 {
 		t.Fatal("installed descriptor not projected", captured, err)
 	}
-	row := captured.anonymous[0]
+	row := captured.Anonymous[0]
 	for i, expected := range []ids.OID{ext.Address().ObjectID, ids.OID(ext.Owner.ID()), ext.TargetNamespace.ObjectID} {
 		actual, err := row[[]int{0, 2, 3}[i]].OID()
 		if err != nil || actual != uint32(expected) {
@@ -229,7 +229,7 @@ func TestPGExtensionCaptureInstalled(t *testing.T) {
 	if nameErr != nil || versionErr != nil || relocatableErr != nil || name != ext.Name() || version != ext.Version || !relocatable || !row[6].IsNull() || !row[7].IsNull() {
 		t.Fatal("installed descriptor attributes", row, nameErr, versionErr, relocatableErr)
 	}
-	if empty.count() != 0 || captured.ref != ref {
+	if empty.Count() != 0 || captured.Ref != ref {
 		t.Fatal("capture resampled or lost bound identity", empty, captured)
 	}
 }

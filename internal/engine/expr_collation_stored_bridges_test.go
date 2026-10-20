@@ -66,10 +66,10 @@ func TestExprCollationStoredPreflightDemand(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			bound, scope := exprCollationStoredBinding(t, e, owner, tc.q)
-			if len(bound.querySources) != 1 || !reflect.DeepEqual(bound.querySources[0].uses, tc.uses) {
+			if len(bound.querySources) != 1 || !reflect.DeepEqual(bound.querySources[0].Uses, tc.uses) {
 				t.Fatal("ordinary source occurrence uses", bound.querySources, tc.uses)
 			}
-			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), host: hostOf(scope), Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: bound.query.Root.(*plan.ProjectNode).Frame}}
+			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope), Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: bound.query.Root.(*plan.ProjectNode).Frame}}
 			err := validateQueryJoinExecution(&evaluation, bound.query.Root, e.CatalogRead(), 0)
 			if tc.fail {
 				var diagnostic *sqlstate.Error
@@ -131,12 +131,12 @@ func TestExprCollationNestedPayloadDemand(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer source.close()
-			bundle := source.nestedInputs
+			defer source.Close()
+			bundle := source.NestedInputs
 			if bundle == nil {
 				t.Fatal("ordinary outer view did not open nested source")
 			}
-			occurrences := bundle.sources
+			occurrences := bundle.Sources
 			if occurrences == nil {
 				occurrences = []*querySource{bundle}
 			}
@@ -144,9 +144,9 @@ func TestExprCollationNestedPayloadDemand(t *testing.T) {
 				t.Fatal("nested occurrence count", len(occurrences), len(tc.want))
 			}
 			for i, child := range occurrences {
-				project, ok := child.nestedRoot.(*plan.ProjectNode)
+				project, ok := child.NestedRoot.(*plan.ProjectNode)
 				if !ok {
-					t.Fatal("missing demanded nested projection", i, child.nestedRoot)
+					t.Fatal("missing demanded nested projection", i, child.NestedRoot)
 				}
 				if len(project.Expressions) != 3 {
 					t.Fatal("nested output layout changed", project.Schema())
@@ -157,7 +157,7 @@ func TestExprCollationNestedPayloadDemand(t *testing.T) {
 						t.Fatal("nested executable occurrence demand", tc.name, i, slot, "dead", dead, "want live", live)
 					}
 				}
-				if child.authority != source.authority {
+				if child.Authority != source.Authority {
 					t.Fatal("nested authorization capture changed")
 				}
 			}
@@ -215,7 +215,7 @@ func TestExprCollationDomainDerivation(t *testing.T) {
 				}
 			}
 			if tc.childConflict {
-				if !left.Properties().RowDependent || len(bound.querySources) != 1 || !reflect.DeepEqual(bound.querySources[0].uses, []int{0, 1}) {
+				if !left.Properties().RowDependent || len(bound.querySources) != 1 || !reflect.DeepEqual(bound.querySources[0].Uses, []int{0, 1}) {
 					t.Fatal("domain reset discarded child properties/dependencies", left.Properties(), bound.querySources)
 				}
 			}

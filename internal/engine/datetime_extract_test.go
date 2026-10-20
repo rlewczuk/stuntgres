@@ -55,7 +55,7 @@ func TestDatetimeExtractBindingPropertiesAndRemap(t *testing.T) {
 			if source == "timestamptz" {
 				volatility = expr.Stable
 			}
-			if e.ResultUsage().Type.ID() != result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != volatility || plannedVolatility(e) != volatility || generationImmutable(e) != (volatility == expr.Immutable) || !b.sameGroupExpression(e, e) {
+			if e.ResultUsage().Type.ID() != result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != volatility || PlannedVolatility(e) != volatility || generationImmutable(e) != (volatility == expr.Immutable) || !b.sameGroupExpression(e, e) {
 				t.Fatal(source, api, e.Properties())
 			}
 			replacements := map[sqltype.ID]*sqltype.Descriptor{}
@@ -152,10 +152,10 @@ func TestDatetimeExtractWrapperContextRealChildProperties(t *testing.T) {
 				t.Fatal(err)
 			}
 			e := node.(functions.DatetimeExtract)
-			if e.DateWrapperContext || e.Properties().Volatility != tc.volatility || plannedVolatility(e) != tc.volatility || generationImmutable(e) {
+			if e.DateWrapperContext || e.Properties().Volatility != tc.volatility || PlannedVolatility(e) != tc.volatility || generationImmutable(e) {
 				t.Fatal(e.Properties(), e.DateWrapperContext)
 			}
-			_, err = e.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Input: input, host: hostOf(scope)}})
+			_, err = e.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Input: input, Host: hostOf(scope)}})
 			var d *sqlstate.Error
 			if !errors.As(err, &d) || d.Code != "0A000" || d.Message != `unit "timezone" not supported for type timestamp without time zone` || d.Context != "" {
 				t.Fatal(err)

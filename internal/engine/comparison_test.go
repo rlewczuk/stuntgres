@@ -52,7 +52,7 @@ func TestCompareOpsBindingPropertiesAndOccurrences(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc.q, err)
 		}
-		if len(bound.querySources) != 1 || bound.querySources[0].ref != ref || !reflect.DeepEqual(bound.querySources[0].uses, tc.used) {
+		if len(bound.querySources) != 1 || bound.querySources[0].Ref != ref || !reflect.DeepEqual(bound.querySources[0].Uses, tc.used) {
 			t.Fatal(tc.q, bound.querySources, tc.used)
 		}
 		for _, u := range bound.parameters.Types {

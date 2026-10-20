@@ -87,7 +87,7 @@ func TestTransactionVisibilityVersionsAndRetention(t *testing.T) {
 	}
 	transactionRows(t, b, "SELECT v FROM t ORDER BY v", 1, 1, 7)
 	transactionRows(t, b, "SELECT v FROM u ORDER BY v", 9)
-	if own.count != 2 || empty.count != 0 {
+	if own.Count != 2 || empty.Count != 0 {
 		t.Fatal("retained result widened")
 	}
 	e.mu.Lock()
@@ -111,7 +111,7 @@ func TestTransactionVisibilityVersionsAndRetention(t *testing.T) {
 	if err := e.Reset(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if private.count != 4 || own.count != 2 {
+	if private.Count != 4 || own.Count != 2 {
 		t.Fatal("end/replacement invalidated result")
 	}
 	private.Close()
@@ -499,11 +499,11 @@ func TestTransactionPublicationLinearization(t *testing.T) {
 				if sameRoot != (!published || i == 0) {
 					t.Fatalf("relation %d used wrong spare/growth root", i)
 				}
-				data := retained[i].source.view.Data()
+				data := retained[i].Source.View.Data()
 				if data.Frontier != retainedFrontier || data.Catalog.State() != retainedCatalog || data.Catalog.Epoch() != retainedEpoch {
 					t.Fatal("retained frontier/catalog metadata changed")
 				}
-				if retained[i].count != len(root) {
+				if retained[i].Count != len(root) {
 					t.Fatal("retained result length changed")
 				}
 				if len(data.Committed) != 1 || !reflect.DeepEqual(data.Committed[addresses[i]], records[i]) || !reflect.DeepEqual(current[:len(root)], records[i]) {

@@ -19,12 +19,12 @@ func programSlot(program *routineAdmissionProgram) admissionProgram {
 
 // routineAuthorityView is the borrowed local DDL admission authority, or nil.
 func routineAuthorityView(c *EvalContext) *AuthorizationView {
-	auth, _ := c.routineAuthority.(*AuthorizationView)
+	auth, _ := c.RoutineAuthority.(*AuthorizationView)
 	return auth
 }
 
 // routineProgramOf is the borrowed serial preparation footprint, or nil.
 func routineProgramOf(c *EvalContext) *routineAdmissionProgram {
-	program, _ := c.routineProgram.(*routineAdmissionProgram)
+	program, _ := c.RoutineProgram.(*routineAdmissionProgram)
 	return program
 }

@@ -34,7 +34,7 @@ func (in hypotheticalUnit) tuple(i int) []sqltype.Value {
 }
 
 func (in hypotheticalUnit) borrowed() functions.OrderedInput {
-	return orderedAggregateInput{values: in.values, indices: in.indices, width: in.width, order: in.order}.borrowed(in.target)
+	return orderedAggregateInput{Values: in.values, Indices: in.indices, Width: in.width, Order: in.order}.Borrowed(in.target)
 }
 
 func hypotheticalUnitInput(t *testing.T, id sqltype.ID, direct string, values ...string) (*functions.HypotheticalSet, hypotheticalUnit) {
@@ -78,7 +78,7 @@ func TestHypotheticalAggregateTupleEquality(t *testing.T) {
 	} {
 		_, in := hypotheticalUnitInput(t, tc.id, tc.direct, tc.values...)
 		for i := range in.len() {
-			sign, err := compareOrderedAggregateTuple(context.Background(), in.order, in.tuple(i), in.target, sqltype.InputEnvironment{})
+			sign, err := CompareOrderedAggregateTuple(context.Background(), in.order, in.tuple(i), in.target, sqltype.InputEnvironment{})
 			if err != nil || sign != 0 {
 				t.Fatal(tc, sign, err)
 			}
@@ -88,15 +88,15 @@ func TestHypotheticalAggregateTupleEquality(t *testing.T) {
 	for _, desc := range []bool{false, true} {
 		for _, nullsFirst := range []bool{false, true} {
 			in.order[0].Desc, in.order[0].NullsFirst = desc, nullsFirst
-			a, err := compareOrderedAggregateTuple(context.Background(), in.order, in.tuple(0), in.target, sqltype.InputEnvironment{})
+			a, err := CompareOrderedAggregateTuple(context.Background(), in.order, in.tuple(0), in.target, sqltype.InputEnvironment{})
 			if err != nil {
 				t.Fatal(err)
 			}
-			b, err := compareOrderedAggregateTuple(context.Background(), in.order, in.target, in.tuple(0), sqltype.InputEnvironment{})
+			b, err := CompareOrderedAggregateTuple(context.Background(), in.order, in.target, in.tuple(0), sqltype.InputEnvironment{})
 			if err != nil || a != -b || (a < 0) == desc {
 				t.Fatal("direction/antisymmetry", a, b, err)
 			}
-			a, err = compareOrderedAggregateTuple(context.Background(), in.order, in.tuple(2), in.target, sqltype.InputEnvironment{})
+			a, err = CompareOrderedAggregateTuple(context.Background(), in.order, in.tuple(2), in.target, sqltype.InputEnvironment{})
 			if err != nil || (a < 0) != nullsFirst {
 				t.Fatal("NULL direction", a, err)
 			}
@@ -192,7 +192,7 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 			child := &plan.ValuesNode{Rows: [][]expr.Expr{{}}}
 			aggregate := &plan.AggregateNode{QuerySchema: plan.QuerySchema{{Usage: node.ResultUsage()}}, Child: child, Calls: []plan.AggregateCall{call}}
 			root := &plan.ProjectNode{QuerySchema: aggregate.QuerySchema, Child: aggregate, Expressions: []expr.Expr{plan.GroupExpr{Info: expr.Info{Usage: node.ResultUsage()}, Slot: 0, Frame: 1}}, Frame: 1}
-			rows, count, err := finalizeQuery(context.Background(), root, &querySource{}, nil)
+			rows, count, err := Finalize(context.Background(), root, &querySource{}, nil)
 			if err != nil || count != 1 {
 				t.Fatal("49-key private execution", count, err)
 			}
@@ -344,9 +344,9 @@ func TestHypotheticalAggregateCancellationPublication(t *testing.T) {
 				result := root.Expressions[0]
 				root.Expressions[0] = queryProbe(p.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { value, err := result.Eval(c); cancel(); return value, err })
 			}
-			owned := &querySource{anonymous: [][]sqltype.Value{{sqltype.Null(input)}}, flat: []sqltype.Value{sqltype.Null(input)}}
-			source := &querySource{sources: []*querySource{owned}}
-			rows, count, err := finalizeQuery(execution, root, source, nil)
+			owned := &querySource{Anonymous: [][]sqltype.Value{{sqltype.Null(input)}}, Flat: []sqltype.Value{sqltype.Null(input)}}
+			source := &querySource{Sources: []*querySource{owned}}
+			rows, count, err := Finalize(execution, root, source, nil)
 			if phase == "success" {
 				if err != nil || count != 1 || !reflect.DeepEqual(directCalls, []int{0, 1}) || keyCalls != 6 {
 					t.Fatal("evaluation frequencies/order", directCalls, keyCalls, count, err)
@@ -354,7 +354,7 @@ func TestHypotheticalAggregateCancellationPublication(t *testing.T) {
 				rows.Close()
 				return
 			}
-			if rows != nil || count != 0 || !errors.Is(err, context.Canceled) || source.sources != nil || owned.flat != nil {
+			if rows != nil || count != 0 || !errors.Is(err, context.Canceled) || source.Sources != nil || owned.Flat != nil {
 				t.Fatal("unpublished failure/resource release", phase, rows, count, err)
 			}
 			if compare != nil && compare.seen < compare.at {

@@ -44,7 +44,7 @@ func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*Engine, 
 		}
 		released = true
 		if source != nil {
-			source.close()
+			source.Close()
 		}
 		if scope != nil && !scope.finished {
 			_ = scope.Finish(context.Canceled)
@@ -77,7 +77,7 @@ func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*Engine, 
 	}
 	e.mu.Unlock()
 	if err == nil {
-		err = selectQuerySources(op.ctx, source)
+		err = SelectQuerySources(op.ctx, source)
 	}
 	if err != nil {
 		scope.Finish(err)
@@ -93,7 +93,7 @@ func TestQueryJoinsMergedMetadataAndFrames(t *testing.T) {
 		if schema[0].Usage.Type.ID() != sqltype.Int8 || schema[1].Usage.Type.ID() != sqltype.Int4 || schema[2].Usage.Type.ID() != sqltype.Int8 || schema[0].OriginTable != schema[2].OriginTable || schema[0].OriginAttribute != schema[2].OriginAttribute || schema[0].OriginTable == schema[1].OriginTable {
 			t.Fatal(q, schema)
 		}
-		result, n, err := finalizeQuery(context.Background(), query.Root, source, nil)
+		result, n, err := Finalize(context.Background(), query.Root, source, nil)
 		if err != nil || n != 2 {
 			t.Fatal(result, n, err)
 		}
@@ -112,7 +112,7 @@ func TestQueryJoinsMergedMetadataAndFrames(t *testing.T) {
 		if column.Usage.Typmod != tc.typmod || (column.OriginTable != 0) != tc.direct {
 			t.Fatal(tc, column)
 		}
-		result, n, err := finalizeQuery(context.Background(), query.Root, source, nil)
+		result, n, err := Finalize(context.Background(), query.Root, source, nil)
 		if err != nil || n != 1 {
 			t.Fatal(result, n, err)
 		}
@@ -123,11 +123,11 @@ func TestQueryJoinsMergedMetadataAndFrames(t *testing.T) {
 	if len(join.Schema()) != 6 || len(query.Root.Schema()) != 3 {
 		t.Fatal(join.Schema(), query.Root.Schema())
 	}
-	if source.sources[0].view.Data() != source.sources[1].view.Data() || len(source.view.Data().Committed) != 2 {
+	if source.Sources[0].View.Data() != source.Sources[1].View.Data() || len(source.View.Data().Committed) != 2 {
 		t.Fatal("not one selected multi-table view")
 	}
-	unused := catalogRef(t, e, source.view.Catalog(), "unused")
-	if _, ok := source.view.Data().Committed[unused.Address]; ok {
+	unused := catalogRef(t, e, source.View.Catalog(), "unused")
+	if _, ok := source.View.Data().Committed[unused.Address]; ok {
 		t.Fatal("unrelated root captured")
 	}
 	project := query.Root.(*plan.ProjectNode)
@@ -142,7 +142,7 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 	for _, mode := range []string{"reject_cancel", "admitted_error", "rejected_error", "late_target", "merge_error", "second_open", "bad_width", "bad_usage"} {
 		t.Run(mode, func(t *testing.T) {
 			e, query, source := queryJoinsFixture(t, "SELECT a.k FROM a JOIN b ON a.k=b.k")
-			children := append([]*querySource(nil), source.sources...)
+			children := append([]*querySource(nil), source.Sources...)
 			project := query.Root.(*plan.ProjectNode)
 			join := project.Child.(*plan.JoinNode)
 			ctx, cancel := context.WithCancel(context.Background())
@@ -195,7 +195,7 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 			case "bad_usage":
 				join.Predicate = queryProbe(boolType.Usage(), func(c *EvalContext) (sqltype.Value, error) { return c.Row[1], nil })
 			}
-			rows, n, err := finalizeQuery(ctx, query.Root, source, nil)
+			rows, n, err := Finalize(ctx, query.Root, source, nil)
 			if rows != nil || n != 0 || err == nil {
 				t.Fatal(rows, n, err)
 			}
@@ -208,11 +208,11 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 				t.Fatal(err, want)
 			}
 			for _, child := range children {
-				if child.view != nil || child.committed != nil || child.own != nil {
+				if child.View != nil || child.Committed != nil || child.Own != nil {
 					t.Fatal("orphan child capture", child)
 				}
 			}
-			if source.sources != nil {
+			if source.Sources != nil {
 				t.Fatal("orphan source bundle")
 			}
 		})
@@ -221,7 +221,7 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 
 func TestQueryJoinsRejectedPairAllocation(t *testing.T) {
 	_, query, source := queryJoinsFixture(t, "SELECT a.k FROM a JOIN b ON FALSE")
-	defer source.close()
+	defer source.Close()
 	join := query.Root.(*plan.ProjectNode).Child.(*plan.JoinNode)
 	calls := 0
 	usage := join.Predicate.ResultUsage()
@@ -230,29 +230,29 @@ func TestQueryJoinsRejectedPairAllocation(t *testing.T) {
 		return sqltype.Boolean(usage.Type, false), nil
 	})
 	// Repeat immutable input occurrences without changing width or output count.
-	right := source.sources[1]
-	original := append([]storage.RowVersion(nil), right.committed...)
+	right := source.Sources[1]
+	original := append([]storage.RowVersion(nil), right.Committed...)
 	measure := func(n int) uint64 {
-		right.committed = make([]storage.RowVersion, n)
-		for i := range right.committed {
-			right.committed[i] = original[i%len(original)]
+		right.Committed = make([]storage.RowVersion, n)
+		for i := range right.Committed {
+			right.Committed[i] = original[i%len(original)]
 		}
 		var before, after runtime.MemStats
 		runtime.GC()
 		runtime.ReadMemStats(&before)
 		for range 5 {
 			calls = 0
-			stage, err := openJoinNode(context.Background(), &queryState{source: source}, join)
+			stage, err := OpenJoinNode(context.Background(), &queryState{Source: source}, join)
 			if err != nil {
 				t.Fatal(err)
 			}
-			drainErr := stage.drain(context.Background())
-			count := stage.count()
+			drainErr := stage.Drain(context.Background())
+			count := stage.Count()
 			closeErr := stage.Close()
-			if drainErr != nil || closeErr != nil || count != 0 || calls != source.sources[0].count()*n {
+			if drainErr != nil || closeErr != nil || count != 0 || calls != source.Sources[0].Count()*n {
 				t.Fatal("rejected product was not fully consumed", n, calls, count, drainErr, closeErr)
 			}
-			if stage.source != nil || stage.produce != nil || stage.finish != nil {
+			if stage.Source != nil || stage.Produce != nil || stage.Finish != nil {
 				t.Fatal("rejected-product stage retained resources", stage)
 			}
 		}
@@ -264,12 +264,12 @@ func TestQueryJoinsRejectedPairAllocation(t *testing.T) {
 		t.Fatal("rejected-pair allocations scale with product", small, large)
 	}
 	_, single, singleSource := queryCoreFixture(t, "SELECT id FROM t")
-	rows, n, err := finalizeQuery(context.Background(), single.Root, singleSource, nil)
+	rows, n, err := Finalize(context.Background(), single.Root, singleSource, nil)
 	if err != nil || n != 4 {
 		t.Fatal(rows, n, err)
 	}
 	final := rows.(*finalRows)
-	if final.source != singleSource || final.values != nil || final.source.flat != nil || final.source.anonymous != nil {
+	if final.Source != singleSource || final.Values != nil || final.Source.Flat != nil || final.Source.Anonymous != nil {
 		t.Fatal("single-source direct scan copied tuples", final)
 	}
 	rows.Close()
@@ -296,7 +296,7 @@ func TestQueryJoinsZeroWidthAndHeldRoots(t *testing.T) {
 	for _, replacement := range []string{"append", "reset", "restore"} {
 		for _, projection := range []string{"a.k,b.k", "a.k+1,b.k+1"} {
 			e, query, source, release := queryJoinsAdmittedFixture(t, "SELECT "+projection+" FROM a JOIN b USING(k)", false)
-			rows, n, err := finalizeQuery(context.Background(), query.Root, source, nil)
+			rows, n, err := Finalize(context.Background(), query.Root, source, nil)
 			if err != nil || n != 4 {
 				t.Fatal(rows, n, err)
 			}
@@ -349,44 +349,44 @@ func TestQueryJoinsZeroWidthAndHeldRoots(t *testing.T) {
 func TestQueryJoinsAdmittedFrameLayout(t *testing.T) {
 	_, query, source := queryJoinsFixture(t, "SELECT a.k FROM a JOIN b ON TRUE")
 	join := query.Root.(*plan.ProjectNode).Child.(*plan.JoinNode)
-	left := append([]sqltype.Value(nil), source.sources[0].row(0)...)
-	right := append([]sqltype.Value(nil), source.sources[1].row(0)...)
-	stage, err := openJoinNode(context.Background(), &queryState{source: source}, join)
+	left := append([]sqltype.Value(nil), source.Sources[0].Row(0)...)
+	right := append([]sqltype.Value(nil), source.Sources[1].Row(0)...)
+	stage, err := OpenJoinNode(context.Background(), &queryState{Source: source}, join)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer stage.Close()
-	if err := stage.drain(context.Background()); err != nil {
+	if err := stage.Drain(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if stage.count() != 16 {
-		t.Fatal("joined occurrence count", stage.count())
+	if stage.Count() != 16 {
+		t.Fatal("joined occurrence count", stage.Count())
 	}
-	for i := range stage.count() {
-		frame := stage.source.row(i)
-		wantLeft := source.sources[0].row(i / 4)
-		wantRight := source.sources[1].row(i % 4)
+	for i := range stage.Count() {
+		frame := stage.Source.Row(i)
+		wantLeft := source.Sources[0].Row(i / 4)
+		wantRight := source.Sources[1].Row(i % 4)
 		if len(frame) != len(wantLeft)+len(wantRight) || !reflect.DeepEqual(frame[:len(wantLeft)], wantLeft) || !reflect.DeepEqual(frame[len(wantLeft):], wantRight) {
 			t.Fatal("joined frame lost child values", i, frame, wantLeft, wantRight)
 		}
 	}
-	if !reflect.DeepEqual(left, source.sources[0].row(0)) || !reflect.DeepEqual(right, source.sources[1].row(0)) {
+	if !reflect.DeepEqual(left, source.Sources[0].Row(0)) || !reflect.DeepEqual(right, source.Sources[1].Row(0)) {
 		t.Fatal("joined scratch mutated a retained child row")
 	}
 }
 
 func TestQueryJoinsEmptyOperandStillPreflightsOtherChild(t *testing.T) {
 	e, query, source := queryJoinsFixture(t, "SELECT a.k FROM a CROSS JOIN (b JOIN c ON b.k=int4($1::text))")
-	children := append([]*querySource(nil), source.sources...)
-	source.committed = nil
+	children := append([]*querySource(nil), source.Sources...)
+	source.Committed = nil
 	text, _ := e.CatalogRead().LookupType(sqltype.Text)
-	rows, n, err := finalizeQuery(context.Background(), query.Root, source, []sqltype.Value{sqltype.String(text, "oops")})
+	rows, n, err := Finalize(context.Background(), query.Root, source, []sqltype.Value{sqltype.String(text, "oops")})
 	state(t, err, "22P02")
 	if rows != nil || n != 0 {
 		t.Fatal("preflight failure exposed partial output", rows, n)
 	}
 	for _, child := range children {
-		if child.view != nil || child.committed != nil || child.own != nil {
+		if child.View != nil || child.Committed != nil || child.Own != nil {
 			t.Fatal("preflight orphan", child)
 		}
 	}
@@ -394,16 +394,16 @@ func TestQueryJoinsEmptyOperandStillPreflightsOtherChild(t *testing.T) {
 
 func TestQueryJoinsVisibilityReleaseAuthority(t *testing.T) {
 	_, query, source := queryJoinsFixture(t, "SELECT a.k FROM a JOIN b USING(k)")
-	for _, child := range source.sources {
-		data := child.view.Data()
-		retained := child.view.Retain()
+	for _, child := range source.Sources {
+		data := child.View.Data()
+		retained := child.View.Retain()
 		retained.Release()
 		retained.Release()
-		if child.view.Data() != data {
+		if child.View.Data() != data {
 			t.Fatal("independent release invalidated source capture")
 		}
 	}
-	rows, n, err := finalizeQuery(context.Background(), query.Root, source, nil)
+	rows, n, err := Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || n != 4 {
 		t.Fatal(rows, n, err)
 	}

@@ -28,15 +28,15 @@ func TestQueryTiesPresenceOnly(t *testing.T) {
 	ordered.Keys = append([]plan.SortKey(nil), ordered.Keys...)
 	ordered.Keys[0].Expression = probe
 	limit.PeerKeys = ordered.Keys
-	state := &queryState{source: source}
-	stage, err := openLimitNode(context.Background(), state, limit)
+	state := &queryState{Source: source}
+	stage, err := OpenLimitNode(context.Background(), state, limit)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer stage.Close()
-	_, present, err := stage.nextOccurrence(context.Background())
-	if err != nil || !present || calls != 0 || len(stage.orderValues) != 0 {
-		t.Fatal("presence demanded boundary/cache", present, err, calls, stage.orderValues)
+	_, present, err := stage.NextOccurrence(context.Background())
+	if err != nil || !present || calls != 0 || len(stage.OrderValues) != 0 {
+		t.Fatal("presence demanded boundary/cache", present, err, calls, stage.OrderValues)
 	}
 }
 
@@ -64,8 +64,8 @@ func TestQueryTiesReplacementCache(t *testing.T) {
 					limit := &plan.LimitNode{WithTies: true}
 					limit.FinishTies(ordered)
 				}
-				evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{orderValues: []sqltype.Value{one}}}
-				if err := refreshLockedOrder(ordered, []sqltype.Value{two}, &evaluation); err != nil {
+				evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{OrderValues: []sqltype.Value{one}}}
+				if err := RefreshLockedOrder(ordered, []sqltype.Value{two}, &evaluation); err != nil {
 					t.Fatal(err)
 				}
 				wantCalls := 0
@@ -74,7 +74,7 @@ func TestQueryTiesReplacementCache(t *testing.T) {
 					wantCalls = 1
 					wantValue = 2
 				}
-				value, err := evaluation.orderValues[0].Integer()
+				value, err := evaluation.OrderValues[0].Integer()
 				if err != nil || calls != wantCalls || value != wantValue {
 					t.Fatal("replacement cache identity", calls, wantCalls, value, wantValue, err)
 				}
@@ -132,9 +132,9 @@ func TestQueryTiesReplacementFailure(t *testing.T) {
 			ordered := &plan.SortNode{Keys: []plan.SortKey{{Cache: slot, Expression: expr}}, CacheWidth: 1}
 			limit := &plan.LimitNode{WithTies: true}
 			limit.FinishTies(ordered)
-			evaluation := EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{orderValues: []sqltype.Value{one}}}
-			err := refreshLockedOrder(ordered, []sqltype.Value{one}, &evaluation)
-			if evaluation.orderValues[0] != one {
+			evaluation := EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{OrderValues: []sqltype.Value{one}}}
+			err := RefreshLockedOrder(ordered, []sqltype.Value{one}, &evaluation)
+			if evaluation.OrderValues[0] != one {
 				t.Fatal("failed key refresh published value")
 			}
 			if phase == "physical slot" {

@@ -33,7 +33,7 @@ func TestDatetimeArithmeticBindingAndPhysicalVolatility(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc, err)
 		}
-		if node.ResultUsage().Type != b.typ(tc.result) || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != tc.volatility || plannedVolatility(node) != tc.volatility || generationImmutable(node) != (tc.volatility == expr.Immutable) {
+		if node.ResultUsage().Type != b.typ(tc.result) || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != tc.volatility || PlannedVolatility(node) != tc.volatility || generationImmutable(node) != (tc.volatility == expr.Immutable) {
 			t.Fatal(tc, node, node.Properties())
 		}
 		folded, changed, err := simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: ctx}}, node, false)
@@ -66,7 +66,7 @@ func TestDatetimeArithmeticDependenceAndVolatileDominance(t *testing.T) {
 		} else {
 			n.Right = child
 		}
-		if plannedVolatility(n) != expr.Volatile || generationImmutable(n) {
+		if PlannedVolatility(n) != expr.Volatile || generationImmutable(n) {
 			t.Fatal("intrinsic stable suppressed child", n)
 		}
 	}
@@ -91,7 +91,7 @@ func TestDatetimeArithmeticDefaultRegistryRebind(t *testing.T) {
 	}
 	n := rebound.(plan.ArithmeticExpr)
 	typ, _ := target.CatalogRead().LookupType(sqltype.Timestamptz)
-	if n.ResultUsage().Type != typ || n.Provider.ResultType() != typ || !n.Provider.SessionDependent() || plannedVolatility(n) != expr.Stable {
+	if n.ResultUsage().Type != typ || n.Provider.ResultType() != typ || !n.Provider.SessionDependent() || PlannedVolatility(n) != expr.Stable {
 		t.Fatal(n)
 	}
 	text, err := defaultSQL(ctx, target.CatalogRead(), rebound)

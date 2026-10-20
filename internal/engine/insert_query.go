@@ -384,7 +384,7 @@ func valuesOrderColumnError(schema []catalog.Column, name string, pos parser.Pos
 // evaluateInsertQuery owns the source pin and all destination rows. Evaluation
 // runs unlocked; only the complete, constrained batch reaches WriteStage.Apply.
 func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, parameters []sqltype.Value, schema string, input sqltype.InputEnvironment, output sqltype.OutputEnvironment, scope *StatementScope) (indexWriteBatch, error) {
-	defer source.close()
+	defer source.Close()
 	project, ok := b.query.Root.(*plan.ProjectNode)
 	if !ok {
 		return indexWriteBatch{}, fmt.Errorf("stuntgres: INSERT query lacks final projection")
@@ -400,9 +400,9 @@ func evaluateInsertQuery(ctx context.Context, b binding, source *querySource, pa
 		}
 		unique = len(bound.keys) != 0 || bound.checked
 	}
-	state := &queryState{source: source, parameters: parameters, input: input, output: output, locking: source.locks != nil}
-	defer state.releaseMemberships()
-	stage, err := openQueryProjectStage(ctx, state, project)
+	state := &queryState{Source: source, Parameters: parameters, Input: input, Output: output, Locking: source.Locks != nil}
+	defer state.ReleaseMemberships()
+	stage, err := OpenQueryProjectStage(ctx, state, project)
 	if err != nil {
 		return indexWriteBatch{}, err
 	}
@@ -438,7 +438,7 @@ func assembleInsertRows(ctx context.Context, b binding, cursor RowCursor, count 
 		copyInsert = newCopyInsertionState(producer, b)
 		unique = false // COPY admission belongs to its genuine flush, not decode.
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: parameters, Input: input, Output: output, host: hostOf(scope)}, evalFrame: evalFrame{Scope: 1, Frame: 1, query: query}}
+	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: parameters, Input: input, Output: output, Host: hostOf(scope)}, evalFrame: evalFrame{Scope: 1, Frame: 1, Query: query}}
 	copyInput := scope != nil && scope.op.copyInput.active.Load()
 	for consumed := 0; count < 0 || consumed < count; consumed++ {
 		if copyInput {

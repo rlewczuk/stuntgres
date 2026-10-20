@@ -13,7 +13,7 @@ func (domainPhaseList) DomainCheckPhasesSlot() {}
 // programPhases returns the programme's phases. The list shares its backing
 // array with the slot, so an indexed update is seen through the programme.
 func programPhases(p domainCheckProgram) domainPhaseList {
-	phases, _ := p.phases.(domainPhaseList)
+	phases, _ := p.Phases.(domainPhaseList)
 	return phases
 }
 
@@ -50,7 +50,7 @@ func (p *routineAdmissionProgram) initializePhase(original *routineAdmissionProg
 	for _, call := range original.calls {
 		dependency := [1]catalog.ExpressionDependency{{Ref: call.reference, Revision: call.routine.Revision()}}
 		if err := admitRoutineDescriptor(auth, dependency[:], call.routine, call.consumer); err != nil {
-			return call.body.annotate(err)
+			return call.body.Annotate(err)
 		}
 		call.actor = auth.State.CurrentUser
 		p.calls = append(p.calls, call)

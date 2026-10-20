@@ -50,13 +50,13 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 				return nil
 			}
 			for _, target := range s.inheritedTargets {
-				if target.ref.Address == child.Address() {
+				if target.Ref.Address == child.Address() {
 					return nil
 				}
 			}
 			ref := s.lockedRef
 			ref.Address = child.Address()
-			pending = append(pending, queryLeaf{ref: ref, relation: child, storage: e.privateStorageLocked(s.owner.catalog, child.Address()), only: true})
+			pending = append(pending, queryLeaf{Ref: ref, Relation: child, Storage: e.privateStorageLocked(s.owner.catalog, child.Address()), Only: true})
 			return nil
 		})
 		e.mu.Unlock()
@@ -68,7 +68,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 		}
 		for _, target := range pending {
 			policy := lock.Policy{TimeoutSlot: &s.op.lockWait, Timeout: s.op.lockTimeout, StatementDeadline: s.op.statementDeadline, Source: s.op.sourceContext}
-			request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: target.ref}, lock.RowExclusive, policy)
+			request, err := e.locks.StartAcquire(s.op.Context(), s.ticket, lock.Resource{ObjectRef: target.Ref}, lock.RowExclusive, policy)
 			if request != nil {
 				s.admissionWaited = true
 				if s.replacementRead {
@@ -91,7 +91,7 @@ func (s *StatementScope) acquireInheritedMutationTargets(statement parser.Statem
 			_, err = currentQuerySourceLocked(e, e.privateCatalogLocked(s.owner.catalog), s.owner.catalog, target)
 			if err == nil {
 				s.inheritedTargets = append(s.inheritedTargets, target)
-				e.markTemporaryAccessLocked(s, target.ref)
+				e.markTemporaryAccessLocked(s, target.Ref)
 			}
 			e.mu.Unlock()
 			if err != nil {
@@ -105,7 +105,7 @@ func (s *StatementScope) mutationTargetRefs(ref ids.ObjectRef) []ids.ObjectRef {
 	refs := make([]ids.ObjectRef, 1, len(s.inheritedTargets)+1)
 	refs[0] = ref
 	for _, target := range s.inheritedTargets {
-		refs = append(refs, target.ref)
+		refs = append(refs, target.Ref)
 	}
 	return refs
 }
@@ -115,8 +115,8 @@ func (s *StatementScope) mutationStorage(ref ids.ObjectRef) *storage.Relation {
 		return s.lockedStorage
 	}
 	for _, target := range s.inheritedTargets {
-		if target.ref == ref {
-			return target.storage
+		if target.Ref == ref {
+			return target.Storage
 		}
 	}
 	return nil
@@ -135,40 +135,40 @@ func (s *StatementScope) captureMutationSource(ctx context.Context, view *visibi
 	if pin == nil {
 		return nil, errors.New("stuntgres: visibility view is released")
 	}
-	source := &querySource{ref: b.ref, view: pin, inheritance: make([]inheritanceQuerySegment, 0, len(s.inheritedTargets)+1), inheritanceEnds: make([]int, len(s.inheritedTargets)+1)}
-	root := queryLeaf{ref: b.ref, relation: b.relation, storage: b.storage, only: true}
+	source := &querySource{Ref: b.ref, View: pin, Inheritance: make([]inheritanceQuerySegment, 0, len(s.inheritedTargets)+1), InheritanceEnds: make([]int, len(s.inheritedTargets)+1)}
+	root := queryLeaf{Ref: b.ref, Relation: b.relation, Storage: b.storage, Only: true}
 	for i := 0; i <= len(s.inheritedTargets); i++ {
 		target := root
 		if i != 0 {
 			target = s.inheritedTargets[i-1]
 		}
-		layout, err := inheritanceQueryLayout(b.relation, target.relation)
+		layout, err := inheritanceQueryLayout(b.relation, target.Relation)
 		if err != nil {
-			source.close()
+			source.Close()
 			return nil, err
 		}
-		prefix, err := captureQuerySource(ctx, view, target.ref)
+		prefix, err := captureQuerySource(ctx, view, target.Ref)
 		if err != nil {
-			source.close()
+			source.Close()
 			return nil, err
 		}
-		segment := inheritanceQuerySegment{leaf: target, prefix: prefix, layout: layout}
+		segment := inheritanceQuerySegment{Leaf: target, Prefix: prefix, Layout: layout}
 		if layout != nil {
-			segment.scratch = make([]sqltype.Value, len(layout))
+			segment.Scratch = make([]sqltype.Value, len(layout))
 		}
-		source.inheritance = append(source.inheritance, segment)
-		total := prefix.count()
+		source.Inheritance = append(source.Inheritance, segment)
+		total := prefix.Count()
 		if i != 0 {
-			total += source.inheritanceEnds[i-1]
+			total += source.InheritanceEnds[i-1]
 		}
-		source.inheritanceEnds[i] = total
+		source.InheritanceEnds[i] = total
 	}
 	return source, nil
 }
 
 func mutationPhysicalRow(source *querySource, index int, b binding) queryPhysicalRow {
-	version := source.versionAt(source.rawIndex(index))
-	return source.physicalRow(index, queryLeaf{ref: b.ref, relation: b.relation, storage: b.storage}, version)
+	version := source.VersionAt(source.RawIndex(index))
+	return source.PhysicalRow(index, queryLeaf{Ref: b.ref, Relation: b.relation, Storage: b.storage}, version)
 }
 
 type mutationRowIdentity struct {
@@ -179,16 +179,16 @@ type mutationRowIdentity struct {
 // Physical generation/checks use the full physical proposal; diagnostic values
 // and SELECT rights are projected back to the named mutation target.
 func (e *Engine) validateInheritedMutationRow(s *StatementScope, named binding, physical queryPhysicalRow, schema string, row []sqltype.Value, eval *EvalContext) error {
-	if physical.leaf.ref == named.ref {
+	if physical.Leaf.Ref == named.ref {
 		return e.validateMutationRow(s, named, schema, row, eval)
 	}
-	relation := physical.leaf.relation
+	relation := physical.Leaf.Relation
 	generationEval := *eval
 	if err := evaluateGenerations(eval.Context, relation, row, &generationEval); err != nil {
 		return err
 	}
 	diagnostic := func(column, check string) error {
-		detail, err := e.rowConstraintDetail(s, &named, physical.values(storage.RowVersion{Values: row}))
+		detail, err := e.rowConstraintDetail(s, &named, physical.Values(storage.RowVersion{Values: row}))
 		if err != nil {
 			return err
 		}
@@ -223,12 +223,12 @@ func (e *Engine) validateInheritedMutationRow(s *StatementScope, named binding, 
 }
 
 func scatterMutationRow(physical queryPhysicalRow, old storage.RowVersion, named []sqltype.Value, targets []int) []sqltype.Value {
-	if physical.segment == nil || physical.segment.layout == nil {
+	if physical.Segment == nil || physical.Segment.Layout == nil {
 		return named
 	}
 	row := append([]sqltype.Value(nil), old.Values...)
 	for _, slot := range targets {
-		row[physical.segment.layout[slot]] = named[slot]
+		row[physical.Segment.Layout[slot]] = named[slot]
 	}
 	return row
 }

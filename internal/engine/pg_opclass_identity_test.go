@@ -26,15 +26,15 @@ func TestPGOpclassJSONBHashIdentity(t *testing.T) {
 	}
 	query, source, release := hashImplicitQuery(t, e, `SELECT j FROM opclass_jsonb_private WHERE j='{"a":1}'::jsonb`)
 	stage := hashFilterStage(t, query, source, nil)
-	if stage.hashCandidates == nil || stage.hashCandidates.root != old || len(stage.hashCandidates.occurrences) != 2 {
+	if stage.HashCandidates == nil || stage.HashCandidates.Root != old || len(stage.HashCandidates.Occurrences) != 2 {
 		stage.Close()
 		release()
 		t.Fatal("no actual JSONB hash probe")
 	}
-	if err := stage.drain(context.Background()); err != nil || stage.count() != 2 {
+	if err := stage.Drain(context.Background()); err != nil || stage.Count() != 2 {
 		stage.Close()
 		release()
-		t.Fatal("JSONB hash matches", stage.count(), err)
+		t.Fatal("JSONB hash matches", stage.Count(), err)
 	}
 	stage.Close()
 	release()

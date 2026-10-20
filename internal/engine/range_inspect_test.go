@@ -53,7 +53,7 @@ func TestRangeInspectRetagTraversalAndStoredProvider(t *testing.T) {
 	if children != 1 {
 		t.Fatal("lost traversal", children)
 	}
-	if !generationImmutable(next) || plannedVolatility(next) != expr.Immutable || !conditionalConstantInputs(next) {
+	if !generationImmutable(next) || PlannedVolatility(next) != expr.Immutable || !conditionalConstantInputs(next) {
 		t.Fatal("immutable carrier properties")
 	}
 	folded, changed, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: ctx}}, next)

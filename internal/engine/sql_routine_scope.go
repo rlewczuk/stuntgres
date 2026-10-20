@@ -121,7 +121,7 @@ func (s *StatementScope) activateSQLRoutine(inputs []sqltype.Usage) func(error) 
 			s.partitionsOrZero().validationView.Release()
 		}
 		if s.authority != nil && s.authority != saved.authority {
-			s.authority.host = nil
+			s.authority.Host = nil
 		}
 		s.installSQLRoutineScratch(saved)
 		return primary

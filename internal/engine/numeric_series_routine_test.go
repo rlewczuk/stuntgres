@@ -33,7 +33,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			node, binder, evaluation := strictNullUnitBind(t, e, op, scope, tc.expression)
 			carrier, ok := node.(plan.SeriesExpr)
-			if !ok || len(carrier.Args) != tc.arity || !sourceAdmitted(carrier) || !binder.clause.queryHasTargetSet {
+			if !ok || len(carrier.Args) != tc.arity || !SourceAdmitted(carrier) || !binder.clause.queryHasTargetSet {
 				t.Fatal("original SRF arity/source/project carrier", node)
 			}
 			captured, err := routine.ExpressionRoutineDescriptor(node)
@@ -51,7 +51,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			if carrier.ResultUsage().Type.ID() != sqltype.Numeric || carrier.ResultUsage() != carrier.ResultUsage().Type.Usage() || carrier.Properties().Volatility != expr.Immutable {
 				t.Fatal("unconstrained immutable NUMERIC result", carrier)
 			}
-			owned, ok := evaluation.catalog.Procedure(address)
+			owned, ok := evaluation.Catalog.Procedure(address)
 			if !ok || owned != captured {
 				t.Fatal("call did not capture original owned descriptor")
 			}
@@ -60,7 +60,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			for _, dependency := range original {
 				if dependency.Ref.Address == address {
 					found = true
-					if dependency.Revision != captured.Revision() || dependency.Ref.Epoch != evaluation.catalog.Epoch() || dependency.Ref.Domain() != e.catalog.Domain {
+					if dependency.Revision != captured.Revision() || dependency.Ref.Epoch != evaluation.Catalog.Epoch() || dependency.Ref.Domain() != e.catalog.Domain {
 						t.Fatal("original canonical ref/revision", dependency)
 					}
 				} else if dependency.Ref.Address.ClassID == ids.ProcedureClassID {
@@ -85,7 +85,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			}
 			for _, manifest := range [][]catalog.ExpressionDependency{nil, {}, missing} {
 				probe := evaluation
-				probe.routineChecks = manifest
+				probe.RoutineChecks = manifest
 				if err := admitRoutineCall(&probe, node, false, false); err == nil {
 					t.Fatal("source/project admission repaired absent original authority from OID")
 				}
@@ -102,14 +102,14 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 					}
 				}
 				probe := evaluation
-				probe.routineChecks = stale
+				probe.RoutineChecks = stale
 				if err := admitRoutineCall(&probe, node, false, false); err == nil {
 					t.Fatal("stale original source/project manifest admitted")
 				}
 			}
 			probe := evaluation
 			foreignAuth := *routineAuthorityView(&foreign)
-			probe.routineAuthority = &foreignAuth
+			probe.RoutineAuthority = &foreignAuth
 			if err := admitRoutineCall(&probe, node, false, false); err == nil {
 				t.Fatal("foreign equal-OID authority admitted")
 			}
@@ -135,7 +135,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 			replacement.Strict = false
 			changed.Catalog.State().SetDescriptor(address, &replacement)
 			probe = evaluation
-			probe.routineAuthority = &changed
+			probe.RoutineAuthority = &changed
 			if err := admitRoutineCall(&probe, node, false, false); err == nil {
 				t.Fatal("incompatible selected declaration replacement admitted")
 			}

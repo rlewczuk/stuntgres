@@ -17,47 +17,47 @@ func (c *EvalContext) RowAbsent(n plan.RowExpr) (bool, error) {
 	if c == nil {
 		return false, fmt.Errorf("stuntgres: missing whole-row source frame")
 	}
-	if n.MergeSource && !c.mergeSourcePresent {
+	if n.MergeSource && !c.MergeSourcePresent {
 		return true, nil
 	}
 	if n.PresenceSlot == 0 {
 		return false, nil
 	}
-	if n.PresenceSlot > len(c.presenceSlots) {
+	if n.PresenceSlot > len(c.PresenceSlots) {
 		return false, fmt.Errorf("stuntgres: missing whole-row presence frame")
 	}
-	index := c.presenceSlots[n.PresenceSlot-1] - 1
-	if index < 0 || index >= len(c.presence) {
+	index := c.PresenceSlots[n.PresenceSlot-1] - 1
+	if index < 0 || index >= len(c.Presence) {
 		return false, fmt.Errorf("stuntgres: missing whole-row presence occurrence")
 	}
-	return !c.presence[index], nil
+	return !c.Presence[index], nil
 }
 
-func establishSourcePresence(source *querySource, slot int) {
+func EstablishSourcePresence(source *querySource, slot int) {
 	if slot == 0 {
 		return
 	}
-	source.presenceSlots = make([]int, slot)
-	source.presenceSlots[slot-1] = 1
-	source.presenceConstant = []bool{true}
-	source.presenceCount = 1
+	source.PresenceSlots = make([]int, slot)
+	source.PresenceSlots[slot-1] = 1
+	source.PresenceConstant = []bool{true}
+	source.PresenceCount = 1
 }
 
-func (source *querySource) presenceRow(index int) []bool {
-	if index == absentQueryIndex || source.presenceCount == 0 {
+func (source *querySource) PresenceRow(index int) []bool {
+	if index == AbsentQueryIndex || source.PresenceCount == 0 {
 		return nil
 	}
-	if source.window {
-		if source.windowIndices != nil {
-			index = source.windowIndices[index]
+	if source.Window {
+		if source.WindowIndices != nil {
+			index = source.WindowIndices[index]
 		}
-		return source.input.presenceRow(index)
+		return source.Input.PresenceRow(index)
 	}
-	if len(source.presenceConstant) != 0 {
-		return source.presenceConstant
+	if len(source.PresenceConstant) != 0 {
+		return source.PresenceConstant
 	}
-	start := index * source.presenceCount
-	return source.presenceFlat[start : start+source.presenceCount]
+	start := index * source.PresenceCount
+	return source.presenceFlat[start : start+source.PresenceCount]
 }
 
 // Child slots map once into a join's packed flag vector. There are no maps or
@@ -75,9 +75,9 @@ func establishDeferredPresence(source *querySource, root plan.Node) {
 	if width == 0 {
 		return
 	}
-	source.presenceSlots = make([]int, width)
-	markPresenceTopology(root, source.presenceSlots)
-	source.presenceCount = packPresenceSlots(source.presenceSlots)
+	source.PresenceSlots = make([]int, width)
+	markPresenceTopology(root, source.PresenceSlots)
+	source.PresenceCount = packPresenceSlots(source.PresenceSlots)
 }
 
 func markPresenceTopology(root plan.Node, slots []int) int {
@@ -129,39 +129,39 @@ func packPresenceSlots(slots []int) int {
 }
 
 func joinPresence(source, left, right *querySource, own int) ([]presenceCopy, []bool) {
-	width := max(len(left.presenceSlots), len(right.presenceSlots), own)
+	width := max(len(left.PresenceSlots), len(right.PresenceSlots), own)
 	if width == 0 {
 		return nil, nil
 	}
-	source.presenceSlots = make([]int, width)
+	source.PresenceSlots = make([]int, width)
 	for i := range width {
 		l, r := 0, 0
-		if i < len(left.presenceSlots) {
-			l = left.presenceSlots[i]
+		if i < len(left.PresenceSlots) {
+			l = left.PresenceSlots[i]
 		}
-		if i < len(right.presenceSlots) {
-			r = right.presenceSlots[i]
+		if i < len(right.PresenceSlots) {
+			r = right.PresenceSlots[i]
 		}
 		if l != 0 || r != 0 || own == i+1 {
-			source.presenceSlots[i] = 1
+			source.PresenceSlots[i] = 1
 		}
 	}
-	source.presenceCount = packPresenceSlots(source.presenceSlots)
-	moves := make([]presenceCopy, source.presenceCount)
-	for i, slot := range source.presenceSlots {
+	source.PresenceCount = packPresenceSlots(source.PresenceSlots)
+	moves := make([]presenceCopy, source.PresenceCount)
+	for i, slot := range source.PresenceSlots {
 		if slot == 0 {
 			continue
 		}
 		move := presenceCopy{left: -1, right: -1, own: own == i+1}
-		if i < len(left.presenceSlots) {
-			move.left = left.presenceSlots[i] - 1
+		if i < len(left.PresenceSlots) {
+			move.left = left.PresenceSlots[i] - 1
 		}
-		if i < len(right.presenceSlots) {
-			move.right = right.presenceSlots[i] - 1
+		if i < len(right.PresenceSlots) {
+			move.right = right.PresenceSlots[i] - 1
 		}
 		moves[slot-1] = move
 	}
-	return moves, make([]bool, source.presenceCount)
+	return moves, make([]bool, source.PresenceCount)
 }
 
 func fillJoinPresence(flags []bool, moves []presenceCopy, left, right []bool) {
@@ -171,15 +171,15 @@ func fillJoinPresence(flags []bool, moves []presenceCopy, left, right []bool) {
 }
 
 func (c *EvalContext) setQueryPresence(source *querySource, index int) {
-	c.presenceSlots = source.presenceSlots
-	c.presence = source.presenceRow(index)
+	c.PresenceSlots = source.PresenceSlots
+	c.Presence = source.PresenceRow(index)
 }
 
 func (c *EvalContext) EvalSubquery(e plan.SubqueryExpr) (value sqltype.Value, err error) {
-	if err = evaluationContext(c); err != nil {
+	if err = EvaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	if c.query == nil || c.query.source == nil {
+	if c.Query == nil || c.Query.Source == nil {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: missing subquery statement capture")
 	}
 	if e.UpdateWidth != 0 {
@@ -199,8 +199,8 @@ func (c *EvalContext) EvalSubquery(e plan.SubqueryExpr) (value sqltype.Value, er
 			return sqltype.Value{}, err
 		}
 	}
-	state := queryState{source: c.query.source, parameters: c.Parameters, input: c.Input, output: c.Output, locking: c.query.locking, outer: c, ctes: c.query.ctes, hashOwner: c.query.membershipOwner()}
-	stage, err := openQueryProjectStage(c.Context, &state, e.QueryPlan.Root.(*plan.ProjectNode))
+	state := queryState{Source: c.Query.Source, Parameters: c.Parameters, Input: c.Input, Output: c.Output, Locking: c.Query.Locking, Outer: c, Ctes: c.Query.Ctes, hashOwner: c.Query.membershipOwner()}
+	stage, err := OpenQueryProjectStage(c.Context, &state, e.QueryPlan.Root.(*plan.ProjectNode))
 	if err != nil {
 		return sqltype.Value{}, err
 	}
@@ -214,14 +214,14 @@ func (c *EvalContext) EvalSubquery(e plan.SubqueryExpr) (value sqltype.Value, er
 		return c.subqueryJSONArray(e, &state, &stage)
 	}
 	if e.Kind == parser.SubqueryExists && e.PresenceOnly {
-		_, present, failure := stage.nextOccurrence(c.Context)
+		_, present, failure := stage.NextOccurrence(c.Context)
 		if failure != nil {
 			return sqltype.Value{}, failure
 		}
 		return sqltype.Boolean(e.Usage.Type, present), nil
 	}
 	if e.Kind == parser.SubqueryExists {
-		present, failure := stage.nextProjected(c.Context, nil)
+		present, failure := stage.NextProjected(c.Context, nil)
 		if failure != nil {
 			return sqltype.Value{}, failure
 		}
@@ -242,7 +242,7 @@ func (c *EvalContext) EvalSubquery(e plan.SubqueryExpr) (value sqltype.Value, er
 			return sqltype.ResultNull(e.Usage), nil
 		}
 		value = row[0]
-		extra, failure := stage.nextProjected(c.Context, nil)
+		extra, failure := stage.NextProjected(c.Context, nil)
 		if failure != nil {
 			return sqltype.Value{}, failure
 		}
@@ -267,14 +267,14 @@ func (c *EvalContext) EvalSubquery(e plan.SubqueryExpr) (value sqltype.Value, er
 			}
 			return sqltype.Boolean(e.Usage.Type, truth), nil
 		}
-		rightContext := state.evaluation(c.Context)
+		rightContext := state.Evaluation(c.Context)
 		rightContext.Row = row
 		answer, failure := e.Compare(&rightContext, left)
 		if failure != nil {
 			return sqltype.Value{}, failure
 		}
 		if e.Kind == parser.SubqueryRow {
-			extra, failure := stage.nextProjected(c.Context, nil)
+			extra, failure := stage.NextProjected(c.Context, nil)
 			if failure != nil {
 				return sqltype.Value{}, failure
 			}
@@ -303,21 +303,21 @@ func (c *EvalContext) EvalSubquery(e plan.SubqueryExpr) (value sqltype.Value, er
 // A captured source distinguishes aliases of the same frozen plan. Both remain
 // stable across unrelated parent rescans, within one actual execution owner.
 type subqueryMembershipKey struct {
-	plan   *plan.Query
-	source *querySource
+	Plan   *plan.Query
+	Source *querySource
 }
 
 type subqueryMembership struct {
-	flat     []sqltype.Value
+	Flat     []sqltype.Value
 	nullRows []int
-	buckets  map[uint64][]int
-	scratch  []sqltype.Value
+	Buckets  map[uint64][]int
+	Scratch  []sqltype.Value
 	full     bool
 }
 
 func (c *EvalContext) subqueryMembership(e plan.SubqueryExpr) (membership *subqueryMembership, err error) {
-	state := queryState{source: c.query.source, parameters: c.Parameters, input: c.Input, output: c.Output, locking: c.query.locking, outer: c, ctes: c.query.ctes, hashOwner: c.query.membershipOwner()}
-	stage, err := openQueryProjectStage(c.Context, &state, e.QueryPlan.Root.(*plan.ProjectNode))
+	state := queryState{Source: c.Query.Source, Parameters: c.Parameters, Input: c.Input, Output: c.Output, Locking: c.Query.Locking, Outer: c, Ctes: c.Query.Ctes, hashOwner: c.Query.membershipOwner()}
+	stage, err := OpenQueryProjectStage(c.Context, &state, e.QueryPlan.Root.(*plan.ProjectNode))
 	if err != nil {
 		return nil, err
 	}
@@ -347,11 +347,11 @@ func (c *EvalContext) subqueryMembership(e plan.SubqueryExpr) (membership *subqu
 		if !present {
 			return membership, c.Context.Err()
 		}
-		if membership.scratch == nil {
-			membership.scratch = make([]sqltype.Value, width)
-			membership.buckets = make(map[uint64][]int)
+		if membership.Scratch == nil {
+			membership.Scratch = make([]sqltype.Value, width)
+			membership.Buckets = make(map[uint64][]int)
 		}
-		rightContext := state.evaluation(c.Context)
+		rightContext := state.Evaluation(c.Context)
 		rightContext.Row = row
 		hash := uint64(14695981039346656037)
 		hasNull := false
@@ -364,7 +364,7 @@ func (c *EvalContext) subqueryMembership(e plan.SubqueryExpr) (membership *subqu
 			if failure != nil {
 				return nil, failure
 			}
-			membership.scratch[i] = value
+			membership.Scratch[i] = value
 			hasNull = hasNull || value.IsNull()
 			h, failure := e.Membership[i].Hash(c.Context, value)
 			if failure != nil {
@@ -372,44 +372,44 @@ func (c *EvalContext) subqueryMembership(e plan.SubqueryExpr) (membership *subqu
 			}
 			hash = (hash ^ h) * 1099511628211
 		}
-		count := len(membership.flat) / width
+		count := len(membership.Flat) / width
 		if !hasNull {
 			membership.full = true
-			index, failure := findDistinctTuple(c.Context, e.Membership, membership.scratch, membership.flat, membership.buckets[hash])
+			index, failure := FindDistinctTuple(c.Context, e.Membership, membership.Scratch, membership.Flat, membership.Buckets[hash])
 			if failure != nil {
 				return nil, failure
 			}
 			if index >= 0 {
 				continue
 			}
-			membership.buckets[hash] = append(membership.buckets[hash], count)
+			membership.Buckets[hash] = append(membership.Buckets[hash], count)
 		} else {
 			membership.nullRows = append(membership.nullRows, count)
 		}
-		membership.flat = append(membership.flat, membership.scratch...)
+		membership.Flat = append(membership.Flat, membership.Scratch...)
 	}
 }
 
 func (c *EvalContext) subqueryHashMembership(e plan.SubqueryExpr) (sqltype.Value, error) {
-	owner := c.query.membershipOwner()
-	key := subqueryMembershipKey{e.QueryPlan, c.query.source}
-	membership := owner.memberships[key]
+	owner := c.Query.membershipOwner()
+	key := subqueryMembershipKey{e.QueryPlan, c.Query.Source}
+	membership := owner.Memberships[key]
 	if membership == nil {
 		var err error
 		membership, err = c.subqueryMembership(e)
 		if err != nil {
 			return sqltype.Value{}, err
 		}
-		if owner.memberships == nil {
-			owner.memberships = make(map[subqueryMembershipKey]*subqueryMembership)
+		if owner.Memberships == nil {
+			owner.Memberships = make(map[subqueryMembershipKey]*subqueryMembership)
 		}
-		owner.memberships[key] = membership
+		owner.Memberships[key] = membership
 	}
 	// Empty RHS truth is known before any LHS projection, provider or effect.
-	if len(membership.flat) == 0 {
+	if len(membership.Flat) == 0 {
 		return sqltype.Boolean(e.Usage.Type, e.Negate), nil
 	}
-	left := membership.scratch
+	left := membership.Scratch
 	leftNull := false
 	for i, comparison := range e.Comparisons {
 		value, err := comparison.Left.Eval(c)
@@ -431,7 +431,7 @@ func (c *EvalContext) subqueryHashMembership(e plan.SubqueryExpr) (sqltype.Value
 			}
 			hash = (hash ^ h) * 1099511628211
 		}
-		index, err := findDistinctTuple(c.Context, e.Membership, left, membership.flat, membership.buckets[hash])
+		index, err := FindDistinctTuple(c.Context, e.Membership, left, membership.Flat, membership.Buckets[hash])
 		if err != nil {
 			return sqltype.Value{}, err
 		}
@@ -444,7 +444,7 @@ func (c *EvalContext) subqueryHashMembership(e plan.SubqueryExpr) (sqltype.Value
 	width := len(e.Membership)
 	candidates := len(membership.nullRows)
 	if leftNull {
-		candidates = len(membership.flat) / width
+		candidates = len(membership.Flat) / width
 	}
 	for candidate := 0; candidate < candidates; candidate++ {
 		if err := c.Context.Err(); err != nil {
@@ -454,7 +454,7 @@ func (c *EvalContext) subqueryHashMembership(e plan.SubqueryExpr) (sqltype.Value
 		if !leftNull {
 			index = membership.nullRows[candidate]
 		}
-		right := membership.flat[index*width : (index+1)*width]
+		right := membership.Flat[index*width : (index+1)*width]
 		unknown, unequal := false, false
 		for i, comparison := range e.Comparisons {
 			value, err := comparison.Predicate.Evaluate(c.Context, left[i], right[i], c.Input)

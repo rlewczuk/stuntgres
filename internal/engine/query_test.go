@@ -23,12 +23,12 @@ func queryCoreFixture(t *testing.T, sql string) (*Engine, *plan.Query, *querySou
 	run(t, e, "CREATE TABLE t(id INT NOT NULL,v INT,f BOOL)")
 	run(t, e, "INSERT INTO t VALUES(1,1,TRUE),(2,NULL,NULL),(3,2,FALSE),(4,1,TRUE)")
 	captured := run(t, e, "SELECT * FROM t").Rows.(*finalRows)
-	source, captureErr := captureQuerySource(context.Background(), captured.source.view, captured.source.ref)
+	source, captureErr := captureQuerySource(context.Background(), captured.Source.View, captured.Source.Ref)
 	if captureErr != nil {
 		t.Fatal(captureErr)
 	}
 	captured.Close()
-	t.Cleanup(source.close)
+	t.Cleanup(source.Close)
 	op, done, err := testOperation(e, context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -83,9 +83,9 @@ func TestQueryCoreEagerFinalization(t *testing.T) {
 			}
 			return c.Row[0], nil
 		})
-		rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
-		if rows != nil || count != 0 || err != sentinel || calls != 3 || source.view != nil {
-			t.Fatal(rows, count, err, calls, source.view)
+		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+		if rows != nil || count != 0 || err != sentinel || calls != 3 || source.View != nil {
+			t.Fatal(rows, count, err, calls, source.View)
 		}
 	})
 	t.Run("rejected rows do not evaluate targets", func(t *testing.T) {
@@ -100,12 +100,12 @@ func TestQueryCoreEagerFinalization(t *testing.T) {
 			}
 			return c.Row[0], nil
 		})
-		rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
 		if err != nil || count != 2 || calls != 2 {
 			t.Fatal(count, calls, err)
 		}
 		defer rows.Close()
-		if source.view != nil {
+		if source.View != nil {
 			t.Fatal("computed output retained unnecessary input")
 		}
 		values := make([]sqltype.Value, 1)
@@ -147,9 +147,9 @@ func TestQueryCoreCancellation(t *testing.T) {
 					return c.Row[0], nil
 				})
 			}
-			rows, _, err := finalizeQuery(ctx, query.Root, source, nil)
-			if rows != nil || err != context.Canceled || calls == 0 || source.view != nil {
-				t.Fatal(rows, err, calls, source.view)
+			rows, _, err := Finalize(ctx, query.Root, source, nil)
+			if rows != nil || err != context.Canceled || calls == 0 || source.View != nil {
+				t.Fatal(rows, err, calls, source.View)
 			}
 		})
 	}
@@ -162,15 +162,15 @@ func TestQueryCoreCancellation(t *testing.T) {
 				value, _ = sqltype.Integer(typ, 1)
 			}
 			// Own a new immutable captured prefix for this sort-key fixture.
-			source.committed = append([]storage.RowVersion(nil), source.committed...)
-			for i, version := range source.committed {
-				source.committed[i].Values = append([]sqltype.Value(nil), version.Values...)
-				source.committed[i].Values[1] = value
+			source.Committed = append([]storage.RowVersion(nil), source.Committed...)
+			for i, version := range source.Committed {
+				source.Committed[i].Values = append([]sqltype.Value(nil), version.Values...)
+				source.Committed[i].Values[1] = value
 			}
 			ctx := &queryCountingContext{Context: context.Background(), remaining: 10}
-			rows, _, err := finalizeQuery(ctx, query.Root, source, nil)
-			if rows != nil || err != context.Canceled || source.view != nil {
-				t.Fatal(rows, err, source.view)
+			rows, _, err := Finalize(ctx, query.Root, source, nil)
+			if rows != nil || err != context.Canceled || source.View != nil {
+				t.Fatal(rows, err, source.View)
 			}
 		})
 	}
@@ -193,21 +193,21 @@ func (c *queryCountingContext) Err() error {
 func TestQueryCoreSortErrors(t *testing.T) {
 	sentinel := errors.New("comparison")
 	calls := 0
-	err := mergeQueryIndices(context.Background(), []int{3, 2, 1, 0}, func(a, b int) (int, error) { calls++; return 0, sentinel })
+	err := MergeQueryIndices(context.Background(), []int{3, 2, 1, 0}, func(a, b int) (int, error) { calls++; return 0, sentinel })
 	if err != sentinel || calls != 1 {
 		t.Fatal(err, calls)
 	}
 	t.Run("type comparison failure prevents publication", func(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY id")
 		query.Root.(*plan.ProjectNode).Child.(*plan.SortNode).Keys[0].Comparison = sqltype.Comparison{}
-		rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
-		if rows != nil || count != 0 || err == nil || err.Error() != "invalid comparison values" || source.view != nil {
-			t.Fatal(rows, count, err, source.view)
+		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+		if rows != nil || count != 0 || err == nil || err.Error() != "invalid comparison values" || source.View != nil {
+			t.Fatal(rows, count, err, source.View)
 		}
 	})
 	for _, q := range []string{"SELECT v FROM t ORDER BY v", "SELECT v FROM t ORDER BY v DESC"} {
 		_, query, source := queryCoreFixture(t, q)
-		rows, count, err := finalizeQuery(context.Background(), query.Root, source, nil)
+		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
 		if err != nil || count != 4 {
 			t.Fatal(err, count)
 		}
@@ -230,17 +230,17 @@ func TestQueryCoreResultOwnership(t *testing.T) {
 	for _, ending := range []string{"EOF", "cancel", "width", "close"} {
 		t.Run(ending, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT id FROM t")
-			rows, _, err := finalizeQuery(context.Background(), query.Root, source, nil)
+			rows, _, err := Finalize(context.Background(), query.Root, source, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
 			r := rows.(*finalRows)
-			if r.source != source || r.selection != nil {
+			if r.Source != source || r.Selection != nil {
 				t.Fatal("direct-column fast path lost")
 			}
 			other := independentFinalRows(rows)
 			defer other.Close()
-			forged := &finalRows{self: r, source: source}
+			forged := &finalRows{Self: r, Source: source}
 			forged.Close()
 			copied := *r
 			copied.Close()
@@ -274,7 +274,7 @@ func TestQueryCoreResultOwnership(t *testing.T) {
 			case "close":
 				rows.Close()
 			}
-			if source.view != nil || r.values != nil || r.selection != nil {
+			if source.View != nil || r.Values != nil || r.Selection != nil {
 				t.Fatal("terminal resources retained")
 			}
 			if len(rows.Schema()) != 1 || rows.Schema()[0].Name != "id" || !rows.Schema()[0].NullabilityKnown || rows.Schema()[0].Nullable {
@@ -347,7 +347,7 @@ func TestQueryCoreStageContractsAndDescriptors(t *testing.T) {
 		t.Run(q, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, q)
 			project := query.Root.(*plan.ProjectNode)
-			stage, err := openQueryNode(context.Background(), &queryState{source: source}, project.Child)
+			stage, err := OpenNode(context.Background(), &queryState{Source: source}, project.Child)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -388,7 +388,7 @@ func TestQueryCoreStageContractsAndDescriptors(t *testing.T) {
 				t.Fatal(got, want)
 			}
 			// EOF releases stage state, not the query owner's independent pin.
-			if stage.source != nil || stage.selection != nil || stage.expressions != nil || source.view == nil {
+			if stage.Source != nil || stage.Selection != nil || stage.Expressions != nil || source.View == nil {
 				t.Fatal("stage ownership boundary")
 			}
 			if err := cursor.Close(); err != nil {

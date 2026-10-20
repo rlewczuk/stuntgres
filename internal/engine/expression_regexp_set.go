@@ -11,7 +11,7 @@ import (
 func rejectRegexpSets(bound expr.Expr, context string, lateralHint bool) error {
 	var first expr.Expr
 	plan.WalkExpression(bound, func(node expr.Expr) {
-		if sourceReturnsSet(node) && (first == nil || node.SourcePosition().Offset < first.SourcePosition().Offset) {
+		if SourceReturnsSet(node) && (first == nil || node.SourcePosition().Offset < first.SourcePosition().Offset) {
 			first = node
 		}
 	})

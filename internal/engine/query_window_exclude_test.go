@@ -33,11 +33,11 @@ func TestQueryWindowExcludeMask(t *testing.T) {
 		for mode, want := range tc.want {
 			got := []int{}
 			for member := tc.head; member < tc.tail; member++ {
-				if windowMaskAdmits(parser.FrameExclusion(mode), member, tc.current, tc.first, tc.last) {
+				if WindowMaskAdmits(parser.FrameExclusion(mode), member, tc.current, tc.first, tc.last) {
 					got = append(got, member)
 				}
 			}
-			if !reflect.DeepEqual(got, want) || windowMaskCount(parser.FrameExclusion(mode), tc.head, tc.tail, tc.current, tc.first, tc.last) != len(want) {
+			if !reflect.DeepEqual(got, want) || WindowMaskCount(parser.FrameExclusion(mode), tc.head, tc.tail, tc.current, tc.first, tc.last) != len(want) {
 				t.Fatal(tc, mode, got, want)
 			}
 		}
@@ -57,21 +57,21 @@ func TestQueryWindowExcludeEndpoints(t *testing.T) {
 			var err error
 			switch unit {
 			case parser.FrameRows:
-				head, err = windowRowsEndpoint(ctx, parser.FrameCurrentRow, 0, row, 3, false)
+				head, err = WindowRowsEndpoint(ctx, parser.FrameCurrentRow, 0, row, 3, false)
 				if err == nil {
-					tail, err = windowRowsEndpoint(ctx, parser.FrameCurrentRow, 0, row, 3, true)
+					tail, err = WindowRowsEndpoint(ctx, parser.FrameCurrentRow, 0, row, 3, true)
 				}
 			case parser.FrameGroups:
-				head, err = windowGroupsEndpoint(ctx, parser.FrameCurrentRow, 0, peers, group, false)
+				head, err = WindowGroupsEndpoint(ctx, parser.FrameCurrentRow, 0, peers, group, false)
 				if err == nil {
-					tail, err = windowGroupsEndpoint(ctx, parser.FrameCurrentRow, 0, peers, group, true)
+					tail, err = WindowGroupsEndpoint(ctx, parser.FrameCurrentRow, 0, peers, group, true)
 				}
 			case parser.FrameRange:
 				spec := plan.WindowSpec{}
 				bound := plan.WindowBound{Kind: parser.FrameCurrentRow}
-				head, err = windowFrameEndpoint(ctx, spec, bound, sqltype.Value{}, windowOrderState{}, []int{0, 1, 2}, first, last, 0, false, sqltype.InputEnvironment{})
+				head, err = WindowFrameEndpoint(ctx, spec, bound, sqltype.Value{}, windowOrderState{}, []int{0, 1, 2}, first, last, 0, false, sqltype.InputEnvironment{})
 				if err == nil {
-					tail, err = windowFrameEndpoint(ctx, spec, bound, sqltype.Value{}, windowOrderState{}, []int{0, 1, 2}, first, last, 0, true, sqltype.InputEnvironment{})
+					tail, err = WindowFrameEndpoint(ctx, spec, bound, sqltype.Value{}, windowOrderState{}, []int{0, 1, 2}, first, last, 0, true, sqltype.InputEnvironment{})
 				}
 			}
 			if err != nil {
@@ -82,7 +82,7 @@ func TestQueryWindowExcludeEndpoints(t *testing.T) {
 				want = [4]int{1, 0, 0, 1}
 			}
 			for mode, n := range want {
-				if got := windowMaskCount(parser.FrameExclusion(mode), head, tail, row, first, last); got != n {
+				if got := WindowMaskCount(parser.FrameExclusion(mode), head, tail, row, first, last); got != n {
 					t.Fatal(unit, row, mode, got, n)
 				}
 			}
@@ -92,7 +92,7 @@ func TestQueryWindowExcludeEndpoints(t *testing.T) {
 
 func TestQueryWindowExcludeIdentityAndMetadata(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT count(*) OVER w,sum(v) OVER w,sum(v) OVER w,sum(v+1) OVER w,sum(v::bigint) OVER w,row_number() OVER w FROM t WINDOW w AS(ORDER BY id ROWS CURRENT ROW EXCLUDE GROUP)")
-	defer source.close()
+	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	if len(node.Calls) != 6 || len(node.Specs) != 1 {
 		t.Fatal(node)
@@ -142,7 +142,7 @@ func TestQueryWindowExcludeIdentityAndMetadata(t *testing.T) {
 
 func TestQueryWindowExcludeGraphRemap(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT sum(v+1) OVER(ORDER BY id ROWS CURRENT ROW EXCLUDE TIES) FROM t")
-	defer source.close()
+	defer source.Close()
 	node := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	argument := node.Calls[0].Argument
 	found := false
@@ -196,10 +196,10 @@ func (c *excludeCancelContext) Err() error {
 				caller = frame.Function
 			}
 			window = window || strings.HasSuffix(frame.Function, ".openWindowNode")
-			sum = sum || strings.HasSuffix(frame.Function, ".(*windowSums).evaluate")
+			sum = sum || strings.HasSuffix(frame.Function, ".(*windowSums).Evaluate")
 			hit = hit || strings.Contains(frame.Function, c.phase)
 			finalize = finalize || strings.HasSuffix(frame.Function, ".IntegralSum.Finalize")
-			publication = publication || strings.HasSuffix(frame.Function, ".finalizeQuery")
+			publication = publication || strings.HasSuffix(frame.Function, "engine.Finalize")
 			if !more {
 				break
 			}
@@ -224,24 +224,24 @@ func (c *excludeCancelContext) Err() error {
 
 func TestQueryWindowExcludeCancellation(t *testing.T) {
 	for _, exclusion := range []string{" EXCLUDE TIES", ""} {
-		for _, phase := range []string{"compareWindowRows", "windowFrameCount", "IntegralSum.Init", "IntegralSum.Advance", "IntegralSum.Finalize", "ColumnExpr.Eval", "sum-output", "sum-publication"} {
+		for _, phase := range []string{"CompareWindowRows", "WindowFrameCount", "IntegralSum.Init", "IntegralSum.Advance", "IntegralSum.Finalize", "ColumnExpr.Eval", "sum-output", "sum-publication"} {
 			t.Run(phase+exclusion, func(t *testing.T) {
 				_, query, source := queryCoreFixture(t, "SELECT count(*) OVER w,sum(v) OVER w FROM t WINDOW w AS(ORDER BY id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING"+exclusion+")")
-				continuation, err := captureQuerySource(context.Background(), source.view, source.ref)
+				continuation, err := captureQuerySource(context.Background(), source.View, source.Ref)
 				if err != nil {
 					t.Fatal(err)
 				}
-				defer continuation.close()
+				defer continuation.Close()
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				probe := &excludeCancelContext{Context: ctx, cancel: cancel, phase: phase}
-				rows, n, err := finalizeQuery(probe, query.Root, source, nil)
-				if !probe.entered || !errors.Is(err, context.Canceled) || rows != nil || n != 0 || source.view != nil {
+				rows, n, err := Finalize(probe, query.Root, source, nil)
+				if !probe.entered || !errors.Is(err, context.Canceled) || rows != nil || n != 0 || source.View != nil {
 					t.Fatal(probe.entered, rows, n, err)
 				}
-				source.close()
-				source.close()
-				recovered, n, err := finalizeQuery(context.Background(), query.Root, continuation, nil)
+				source.Close()
+				source.Close()
+				recovered, n, err := Finalize(context.Background(), query.Root, continuation, nil)
 				if err != nil || recovered == nil || n != 4 {
 					t.Fatal(recovered, n, err)
 				}
@@ -297,7 +297,7 @@ func TestQueryWindowExcludeFinishAtomicity(t *testing.T) {
 
 func TestQueryWindowExcludePeers(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT count(*) OVER(ORDER BY v DESC NULLS FIRST,id) FROM t")
-	defer source.close()
+	defer source.Close()
 	keys := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode).Specs[0].Order
 	typ := keys[0].Expression.ResultUsage().Type
 	one, err := sqltype.Integer(typ, 1)
@@ -312,12 +312,12 @@ func TestQueryWindowExcludePeers(t *testing.T) {
 	for _, tc := range []struct{ a, b, want int }{
 		{0, 1, 0}, {0, 2, -1}, {2, 0, 1}, {0, 3, -1}, {3, 4, -1}, {4, 3, 1},
 	} {
-		got, err := compareWindowRows(context.Background(), keys, values, tc.a, tc.b, sqltype.InputEnvironment{})
+		got, err := CompareWindowRows(context.Background(), keys, values, tc.a, tc.b, sqltype.InputEnvironment{})
 		if err != nil || got != tc.want {
 			t.Fatal(tc, got, err)
 		}
 	}
-	got, err := compareWindowRows(context.Background(), nil, nil, 0, 4, sqltype.InputEnvironment{})
+	got, err := CompareWindowRows(context.Background(), nil, nil, 0, 4, sqltype.InputEnvironment{})
 	if err != nil || got != 0 {
 		t.Fatal("orderless partition must be peers", got, err)
 	}
@@ -326,7 +326,7 @@ func TestQueryWindowExcludePeers(t *testing.T) {
 func TestQueryWindowExcludeLiteralCapture(t *testing.T) {
 	sql := "SELECT sum(v+1) OVER(ROWS CURRENT ROW EXCLUDE TIES) FROM t"
 	e, query, source := queryCoreFixture(t, sql)
-	defer source.close()
+	defer source.Close()
 	op, done, err := testOperation(e, context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -355,12 +355,12 @@ func TestQueryWindowExcludeLiteralCapture(t *testing.T) {
 
 func TestQueryWindowExcludeGroupedArgument(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT v,sum(count(*)) OVER(ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE TIES) FROM t GROUP BY v")
-	defer source.close()
+	defer source.Close()
 	window := query.Root.(*plan.ProjectNode).Child.(*plan.WindowNode)
 	if _, ok := window.Calls[0].Argument.(plan.GroupExpr); !ok {
 		t.Fatal("grouped SUM argument lost aggregate slot", window.Calls[0].Argument)
 	}
-	rows, n, err := finalizeQuery(context.Background(), query.Root, source, nil)
+	rows, n, err := Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || rows == nil || n != 3 {
 		t.Fatal(rows, n, err)
 	}

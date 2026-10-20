@@ -168,7 +168,7 @@ func TestUpdateCoreMultirowAllocation(t *testing.T) {
 		}
 		sessionSQL(t, s, q.String())
 		op, scope, bound, source := updateBoundSource(t, e, s, context.Background(), "UPDATE t SET v=v+1")
-		retained := source.view.Retain()
+		retained := source.View.Retain()
 		old := retained.Data().Committed[bound.ref.Address]
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
@@ -215,7 +215,7 @@ func TestUpdateCoreStagedPrefixOverlap(t *testing.T) {
 	sessionSQL(t, s, "CREATE TABLE t(id INT,v INT)")
 	sessionSQL(t, s, "INSERT INTO t VALUES(1,1),(2,1)")
 	op, scope, bound, source := updateBoundSource(t, e, s, context.Background(), "UPDATE t SET v=v+1")
-	committed := source.committed
+	committed := source.Committed
 	payload := append([]sqltype.Value(nil), committed[0].Values...)
 	var err error
 	payload[1], err = sqltype.Integer(payload[1].Type(), 11)

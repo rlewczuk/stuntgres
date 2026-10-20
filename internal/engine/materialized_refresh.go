@@ -190,7 +190,7 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 				}
 			}
 			previous.Versions, previous.Ends = versions, nil
-			evaluation := EvalContext{evalStatement: evalStatement{Context: scope.op.Context(), host: hostOf(scope), Input: scope.input, Output: scope.output, catalog: stage.Base}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+			evaluation := EvalContext{evalStatement: evalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: stage.Base}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
 			oldEntries, err = buildIndexEntries(&evaluation, d, indices[0].SQLIndex, &previous, nil)
 			if err != nil {
 				return Result{}, err
@@ -263,11 +263,11 @@ func (e *Engine) materializedRefreshRowsLocked(scope *StatementScope, ref ids.Ob
 	if err != nil {
 		return nil, err
 	}
-	result, _, err := finalizeQuery(op.Context(), root, source, nil)
+	result, _, err := Finalize(op.Context(), root, source, nil)
 	if err != nil {
 		return nil, err
 	}
-	return result.(*finalRows).takeTableRows(op.Context())
+	return result.(*finalRows).TakeTableRows(op.Context())
 }
 
 type materializedReplacement struct {

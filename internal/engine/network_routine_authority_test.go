@@ -83,7 +83,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 			if !reflect.DeepEqual(found, want) {
 				t.Fatal("exact original routine manifest", found, want)
 			}
-			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalAdmission: evalAdmission{routineAuthority: &auth, routineRecipe: true, routineChecks: binder.dependencies}}
+			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("original authority", err)
 			}
@@ -104,7 +104,7 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 						}
 						checks = append(checks, dependency)
 					}
-					evaluation.routineChecks = checks
+					evaluation.RoutineChecks = checks
 					if err := admitRoutineCall(&evaluation, node, true, false); err == nil {
 						t.Fatal("accepted invalid original routine lifetime", id, mode)
 					}
@@ -117,11 +117,11 @@ func TestNetworkOperatorRoutineOriginalAuthority(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			evaluation.routineChecks = []catalog.ExpressionDependency{}
+			evaluation.RoutineChecks = []catalog.ExpressionDependency{}
 			if err := admitRoutineCall(&evaluation, remapped, true, false); err == nil {
 				t.Fatal("foreign retag manufactured original lifetime")
 			}
-			evaluation.routineChecks = binder.dependencies
+			evaluation.RoutineChecks = binder.dependencies
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("negative probes changed source authority", err)
 			}

@@ -66,7 +66,7 @@ func (a *queryLockAdmission) tableMark(table *parser.TableReference) plan.RowMar
 	if a != nil {
 		for _, admission := range a.ordered {
 			if index, ok := admission.indices[table]; ok && index < len(admission.marks) {
-				mark = mergeQueryRowMark(mark, admission.marks[index])
+				mark = MergeQueryRowMark(mark, admission.marks[index])
 			}
 		}
 	}
@@ -102,9 +102,9 @@ func (s *StatementScope) acquireAdmittedQueryRelations(admission queryLockAdmiss
 		leaf := &s.querySources[len(s.querySources)-1]
 		// Keep SQL marks in the admission manifest for exact binder validation.
 		// pg_sequences drops only effective physical marks during source capture.
-		leaf.mark, leaf.query, leaf.table, leaf.only = mark, queries[i], table, table.Only
+		leaf.Mark, leaf.Query, leaf.Table, leaf.Only = mark, queries[i], table, table.Only
 		entry := s.queryLockAdmission.tableQueries[table]
-		entry.query, entry.ref = queries[i], leaf.ref
+		entry.query, entry.ref = queries[i], leaf.Ref
 		s.queryLockAdmission.tableQueries[table] = entry
 	}
 	return nil
@@ -113,18 +113,18 @@ func (s *StatementScope) acquireAdmittedQueryRelations(admission queryLockAdmiss
 // Validate exact admission identity without resolving SQL names again. Metadata
 // revisions may refresh authority before binding, never an already bound layout.
 func currentQuerySourceLocked(e *Engine, view catalog.Read, changes *catalogChanges, source queryLeaf) (*catalog.Relation, error) {
-	current, ok := view.Relation(source.ref.Address)
-	if !ok || source.relation == nil || source.ref.Domain() != e.catalog.Domain || source.ref.Epoch != e.catalog.state.Epoch() || source.ref.Address.SubID != 0 ||
-		current.Address() != source.relation.Address() || current.Namespace() != source.relation.Namespace() || current.Name() != source.relation.Name() || current.RelationKind != source.relation.RelationKind ||
-		!sameRelationRowShape(current, source.relation) {
+	current, ok := view.Relation(source.Ref.Address)
+	if !ok || source.Relation == nil || source.Ref.Domain() != e.catalog.Domain || source.Ref.Epoch != e.catalog.state.Epoch() || source.Ref.Address.SubID != 0 ||
+		current.Address() != source.Relation.Address() || current.Namespace() != source.Relation.Namespace() || current.Name() != source.Relation.Name() || current.RelationKind != source.Relation.RelationKind ||
+		!sameRelationRowShape(current, source.Relation) {
 		return nil, ids.ErrCatalogReplaced
 	}
 	if current.RelationKind == catalog.SequenceRelation {
-		if current.Sequence == nil || source.storage != nil || current.SequencePlanStamp != source.relation.SequencePlanStamp {
+		if current.Sequence == nil || source.Storage != nil || current.SequencePlanStamp != source.Relation.SequencePlanStamp {
 			return nil, ids.ErrCatalogReplaced
 		}
-	} else if storage := e.privateStorageLocked(changes, source.ref.Address); storage != source.storage &&
-		!sameMaterializedLineage(source.relation, current, source.storage, storage) {
+	} else if storage := e.privateStorageLocked(changes, source.Ref.Address); storage != source.Storage &&
+		!sameMaterializedLineage(source.Relation, current, source.Storage, storage) {
 		return nil, ids.ErrCatalogReplaced
 	}
 	return current, nil
@@ -135,11 +135,11 @@ func (s *StatementScope) validateQuerySources(leaves []queryLeaf) error {
 		for _, grant := range s.querySources {
 			found := false
 			for _, leaf := range leaves {
-				if leaf.table != grant.table {
+				if leaf.Table != grant.Table {
 					continue
 				}
 				found = true
-				if leaf.ref != grant.ref || leaf.relation != grant.relation || leaf.storage != grant.storage || leaf.mark != grant.mark || leaf.only != grant.only {
+				if leaf.Ref != grant.Ref || leaf.Relation != grant.Relation || leaf.Storage != grant.Storage || leaf.Mark != grant.Mark || leaf.Only != grant.Only {
 					return ids.ErrCatalogReplaced
 				}
 				break
@@ -163,7 +163,7 @@ func (s *StatementScope) validateQuerySources(leaves []queryLeaf) error {
 	}
 	for i, leaf := range leaves {
 		grant := s.querySources[i]
-		if leaf.ref != grant.ref || leaf.relation != grant.relation || leaf.storage != grant.storage || leaf.mark != grant.mark || leaf.only != grant.only {
+		if leaf.Ref != grant.Ref || leaf.Relation != grant.Relation || leaf.Storage != grant.Storage || leaf.Mark != grant.Mark || leaf.Only != grant.Only {
 			return ids.ErrCatalogReplaced
 		}
 	}
@@ -176,11 +176,11 @@ func (s *StatementScope) validateQuerySources(leaves []queryLeaf) error {
 // Called once with e.mu held: all table roots share this statement frontier.
 func (e *Engine) captureQuerySourcesLocked(scope *StatementScope, leaves []queryLeaf, singleton bool) (*querySource, error) {
 	if scope.authority == nil {
-		scope.authority = &queryAuthority{host: hostOf(scope)}
+		scope.authority = &queryAuthority{Host: hostOf(scope)}
 	}
 	var invoker authorization.PrincipalRef
 	for _, leaf := range leaves {
-		if leaf.relation.RelationKind == catalog.ViewRelation {
+		if leaf.Relation.RelationKind == catalog.ViewRelation {
 			auth, err := e.authorizationLocked(scope.op)
 			if err != nil {
 				return nil, err
@@ -290,7 +290,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 		}
 	}
 	if len(leaves) == 0 {
-		source := &querySource{singleton: singleton, locks: locks}
+		source := &querySource{Singleton: singleton, Locks: locks}
 		borrowQueryAuthority(source, scope)
 		return source, nil
 	}
@@ -311,7 +311,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 	needsView := len(refs) != 0
 	if !needsView {
 		for _, leaf := range leaves {
-			if leaf.relation.RelationKind == catalog.PartitionedRelation {
+			if leaf.Relation.RelationKind == catalog.PartitionedRelation {
 				needsView = true
 				break
 			}
@@ -329,8 +329,8 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 		sources = make([]*querySource, len(leaves))
 	}
 	for i, leaf := range leaves {
-		if leaf.analysisOnly {
-			source := &querySource{ref: leaf.ref, materialized: true, flatWidth: len(leaf.relation.Columns)}
+		if leaf.AnalysisOnly {
+			source := &querySource{Ref: leaf.Ref, Materialized: true, FlatWidth: len(leaf.Relation.Columns)}
 			borrowQueryAuthority(source, scope)
 			if first == nil {
 				first = source
@@ -340,13 +340,13 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 			}
 			continue
 		}
-		mark := effectiveQueryRowMark(leaf.relation, mergeQueryRowMark(inherited, leaf.mark))
+		mark := EffectiveQueryRowMark(leaf.Relation, MergeQueryRowMark(inherited, leaf.Mark))
 		var source *querySource
 		command := catalog.PolicySelect
 		if mark.Mode != 0 {
 			command = catalog.PolicyUpdate
 		}
-		denied, securityErr := e.rowSecurityInputLocked(scope, leaf.relation, leaf.principal, command, mark.Mode != 0)
+		denied, securityErr := e.rowSecurityInputLocked(scope, leaf.Relation, leaf.Principal, command, mark.Mode != 0)
 		if securityErr != nil {
 			err = securityErr
 		}
@@ -355,44 +355,44 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 			return nil, err
 		}
 		if denied {
-			source, err = captureDeniedQuerySource(view, leaf.ref)
+			source, err = captureDeniedQuerySource(view, leaf.Ref)
 		} else {
-			switch leaf.relation.RelationKind {
+			switch leaf.Relation.RelationKind {
 			case catalog.SequenceRelation:
-				e.markTemporaryAccessLocked(scope, leaf.ref)
-				source, err = e.captureSequenceSourceLocked(scope, leaf.ref, leaf.relation)
+				e.markTemporaryAccessLocked(scope, leaf.Ref)
+				source, err = e.captureSequenceSourceLocked(scope, leaf.Ref, leaf.Relation)
 			case catalog.MaterializedViewRelation:
-				if !leaf.relation.Populated {
-					err = materializedViewReadError(leaf.relation)
+				if !leaf.Relation.Populated {
+					err = materializedViewReadError(leaf.Relation)
 				} else {
-					source, err = captureQueryPrefix(view, leaf.ref)
+					source, err = captureQueryPrefix(view, leaf.Ref)
 				}
 			case catalog.PartitionedRelation:
 				if mark.Mode != 0 {
 					source = nil
 					err = sqlError("0A000", "row locking partition hierarchies is unsupported")
-				} else if leaf.only {
+				} else if leaf.Only {
 					// Empty virtual prefixes retain the same visibility authority
 					// as ordinary hierarchy sources, without opening descendants.
 					pin := view.Retain()
 					if pin == nil {
 						err = fmt.Errorf("stuntgres: visibility view is released")
 					} else {
-						source = &querySource{ref: leaf.ref, view: pin, inheritance: []inheritanceQuerySegment{}}
+						source = &querySource{Ref: leaf.Ref, View: pin, Inheritance: []inheritanceQuerySegment{}}
 					}
 				} else {
-					source, err = capturePartitionQueryPrefix(scope.partitionCaptureCatalog(scope.inquiry.commentCatalog), view, leaf.ref, leaf.relation)
+					source, err = capturePartitionQueryPrefix(scope.partitionCaptureCatalog(scope.inquiry.commentCatalog), view, leaf.Ref, leaf.Relation)
 				}
 			case catalog.TableRelation:
 				source, err = captureInheritanceQueryPrefix(scope.inheritanceRead(scope.inquiry.commentCatalog), view, leaf, scope.op.session.token)
 				if err == nil {
 					err = e.captureHashIndexesLocked(scope, leaf, source, mark)
 					if err != nil {
-						source.close()
+						source.Close()
 						source = nil
 					} else {
-						if source.inheritance == nil {
-							source.partialMask = e.capturePartialMaskLocked(scope, leaf, view, mark)
+						if source.Inheritance == nil {
+							source.PartialMask = e.capturePartialMaskLocked(scope, leaf, view, mark)
 						}
 					}
 				}
@@ -400,15 +400,15 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 				// Recursive view opening consumes the lock, including failures.
 				// A nonnil empty slice means this occurrence consumes presence
 				// only, unlike nil's full-projection callers.
-				uses := leaf.uses
+				uses := leaf.Uses
 				if uses == nil {
 					uses = []int{}
 				}
 				sourceInvoker := invoker
-				if scope.ruleActionAuth != nil && leaf.principal != (authorization.PrincipalRef{}) {
-					sourceInvoker = leaf.principal
+				if scope.ruleActionAuth != nil && leaf.Principal != (authorization.PrincipalRef{}) {
+					sourceInvoker = leaf.Principal
 				}
-				source, err = e.openRelationSourceLocked(scope, leaf.ref, sourceInvoker, mark, locks, uses)
+				source, err = e.openRelationSourceLocked(scope, leaf.Ref, sourceInvoker, mark, locks, uses)
 				e.mu.Lock()
 			}
 		}
@@ -417,11 +417,11 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 			return nil, err
 		}
 		borrowQueryAuthority(source, scope)
-		source.occurrence = i
-		source.locks = locks
-		if locks != nil && source.lineage == nil {
-			source.occurrence = len(locks.leaves)
-			locks.leaves = append(locks.leaves, queryLockLeaf{leaf: leaf, source: source, mark: mark})
+		source.Occurrence = i
+		source.Locks = locks
+		if locks != nil && source.Lineage == nil {
+			source.Occurrence = len(locks.Leaves)
+			locks.Leaves = append(locks.Leaves, queryLockLeaf{Leaf: leaf, Source: source, Mark: mark})
 		}
 		if i == 0 {
 			first = source
@@ -433,7 +433,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 	if first == nil {
 		return nil, fmt.Errorf("stuntgres: missing query source manifest")
 	}
-	first.sources = sources
+	first.Sources = sources
 	return first, nil
 }
 
@@ -442,13 +442,13 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 func (e *Engine) closeQuerySourceSetLocked(ctx context.Context, first *querySource, sources []*querySource) {
 	e.mu.Unlock()
 	if first != nil {
-		_ = finishForeignSources(ctx, first)
-		first.close()
+		_ = FinishForeignSources(ctx, first)
+		first.Close()
 	}
 	for _, source := range sources {
 		if source != nil && source != first {
-			_ = finishForeignSources(ctx, source)
-			source.close()
+			_ = FinishForeignSources(ctx, source)
+			source.Close()
 		}
 	}
 	e.mu.Lock()
@@ -474,16 +474,16 @@ type inquirySnapshot struct {
 // The caller holds e.mu, the same owner as visibility-prefix capture. After
 // this proof, probing consults only the retained root and retained source rows.
 func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf, source *querySource, mark plan.RowMark) error {
-	if !scope.implicit || scope.catalog != nil || mark.Mode != 0 || source.view == nil || source.inheritance != nil || len(source.own) != 0 {
+	if !scope.implicit || scope.catalog != nil || mark.Mode != 0 || source.View == nil || source.Inheritance != nil || len(source.Own) != 0 {
 		return nil
 	}
-	data := source.view.Data()
+	data := source.View.Data()
 	if data.Catalog.State() != e.catalog.state {
 		return nil
 	}
-	a := leaf.ref.Address
+	a := leaf.Ref.Address
 	store := data.GenerationAt(a)
-	if store == nil || store != e.storage.Relations[a] || data.FrontierAt(a) != e.visibility.CommitSeq() || data.Deleted[a] != nil || len(source.committed) != len(store.Versions) || data.Ends[a] != store.Ends {
+	if store == nil || store != e.storage.Relations[a] || data.FrontierAt(a) != e.visibility.CommitSeq() || data.Deleted[a] != nil || len(source.Committed) != len(store.Versions) || data.Ends[a] != store.Ends {
 		return nil
 	}
 	for address, carrier := range e.storage.IndexRoots {
@@ -501,26 +501,26 @@ func (e *Engine) captureHashIndexesLocked(scope *StatementScope, leaf queryLeaf,
 			continue
 		}
 		root := carrier.Hash
-		if root.Storage != store || root.Generation != store.Generation || root.Prefix != len(source.committed) || root.Ends != data.Ends[a] {
+		if root.Storage != store || root.Generation != store.Generation || root.Prefix != len(source.Committed) || root.Ends != data.Ends[a] {
 			continue
 		}
-		usage, err := indexKeyUsage(leaf.relation, index.SQLIndex.Keys[0])
+		usage, err := indexKeyUsage(leaf.Relation, index.SQLIndex.Keys[0])
 		if err != nil {
 			return err
 		}
 		if usage != root.Binding.Usage {
 			continue
 		}
-		source.hashIndexes = append(source.hashIndexes, capturedHashIndex{definition: index.SQLIndex, root: root, usage: usage})
+		source.HashIndexes = append(source.HashIndexes, capturedHashIndex{Definition: index.SQLIndex, Root: root, Usage: usage})
 	}
 	return nil
 }
 
 func borrowQueryAuthority(s *querySource, scope *StatementScope) {
-	s.authority = scope.authority
-	s.host = nil
-	if s.authority == nil {
-		s.host = hostOf(scope)
+	s.Authority = scope.authority
+	s.Host = nil
+	if s.Authority == nil {
+		s.Host = hostOf(scope)
 	}
 }
 
@@ -532,5 +532,5 @@ func (e *Engine) captureSequenceSourceLocked(scope *StatementScope, ref ids.Obje
 	i := relation.Columns[0].Usage.Type
 	last, _ := sqltype.Integer(i, g.Last)
 	log, _ := sqltype.Integer(i, 0)
-	return &querySource{ref: ref, anonymous: [][]sqltype.Value{{last, log, sqltype.Boolean(relation.Columns[2].Usage.Type, g.Called)}}}, nil
+	return &querySource{Ref: ref, Anonymous: [][]sqltype.Value{{last, log, sqltype.Boolean(relation.Columns[2].Usage.Type, g.Called)}}}, nil
 }
