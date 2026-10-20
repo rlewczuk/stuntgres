@@ -74,11 +74,17 @@ type analyzeHost interface {
 	// Expressions. The engine's copy-on-change retag walker, with identity
 	// type and query mappers; leaf runs before children.
 	MapBoundExpression(view catalog.Read, reader catalog.DefinitionReader, node expr.Expr, substituteSources bool, leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, error)
+	// MapBoundQueryExpression is the same walker with identity types and
+	// queryMapper applied to subquery roots; it reports whether node changed.
+	MapBoundQueryExpression(view catalog.Read, node expr.Expr, queryMapper func(plan.Node) (plan.Node, error), leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, bool, error)
 
 	// Stored views. View definitions stay engine payloads: the binder asks
 	// whether a CTE body's stored sources are volatile, and has a stored
 	// view's retained expressions capture the binder's input providers.
 	StoredViewVolatile(auth analyze.Authority, root plan.Node) (bool, error)
+	// ValidateViewReadGraph rejects an active-path recursion among the stored
+	// views leaves read, and views that are no longer current.
+	ValidateViewReadGraph(view catalog.Read, leaves []exec.Leaf) error
 	CaptureRetainedViewInput(auth analyze.Authority, relation *catalog.Relation, element func() error, diagnostic func(*sqltype.Descriptor) error) error
 
 	// Session.
@@ -127,6 +133,18 @@ func (e *Engine) analysisHost(op *Operation) *bindingHost {
 func (h *bindingHost) MapBoundExpression(view catalog.Read, reader catalog.DefinitionReader, node expr.Expr, substituteSources bool, leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, error) {
 	next, _, err := mapBoundExpressionReader(view, reader, node, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(root plan.Node) (plan.Node, error) { return root, nil }, nil, substituteSources, leaf)
 	return next, err
+}
+
+// MapBoundQueryExpression rewrites node through the retag walker with
+// identity types, mapping subquery roots with queryMapper.
+func (h *bindingHost) MapBoundQueryExpression(view catalog.Read, node expr.Expr, queryMapper func(plan.Node) (plan.Node, error), leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, bool, error) {
+	return mapBoundExpression(view, node, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, queryMapper, nil, leaf)
+}
+
+// ValidateViewReadGraph checks the stored views leaves read against view.
+func (h *bindingHost) ValidateViewReadGraph(view catalog.Read, leaves []exec.Leaf) error {
+	_, err := validateViewReadGraph(view, leaves)
+	return err
 }
 
 func (h *bindingHost) CheckPrivilege(auth analyze.Authority, req access.Requirement) error {

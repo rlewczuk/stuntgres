@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -535,7 +536,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 			return nil, queryNamespace{}, e
 		}
 		if prefix != 0 && !inheritedDemand {
-			right, err = RebaseFunctionCorrelation(b.bindingCatalog(), right, b.FrameID(), prefix)
+			right, err = RebaseFunctionCorrelation(b.host, b.bindingCatalog(), right, b.FrameID(), prefix)
 			if err != nil {
 				return nil, queryNamespace{}, err
 			}
@@ -798,7 +799,7 @@ func functionFromCaptures(root plan.Node) []plan.FunctionCorrelation {
 // Descendants with no free captures have already satisfied/normalized their
 // own dependencies and must not be rebased again. Ordinary join expressions
 // retain their independent output-row layout.
-func RebaseFunctionCorrelation(view catalog.Read, root plan.Node, frame uint32, prefix int) (plan.Node, error) {
+func RebaseFunctionCorrelation(host analyzeHost, view catalog.Read, root plan.Node, frame uint32, prefix int) (plan.Node, error) {
 	captures := functionFromCaptures(root)
 	needed := false
 	for _, capture := range captures {
@@ -820,7 +821,7 @@ func RebaseFunctionCorrelation(view catalog.Read, root plan.Node, frame uint32, 
 	}
 	switch n := root.(type) {
 	case *plan.JoinNode:
-		left, err := RebaseFunctionCorrelation(view, n.Left, frame, prefix)
+		left, err := RebaseFunctionCorrelation(host, view, n.Left, frame, prefix)
 		if err != nil {
 			return nil, err
 		}
@@ -831,7 +832,7 @@ func RebaseFunctionCorrelation(view catalog.Read, root plan.Node, frame uint32, 
 			if correlationPrefix < prefix {
 				return nil, fmt.Errorf("stuntgres: invalid nested function correlation prefix")
 			}
-			right, err = RebaseFunctionCorrelation(view, right, frame, prefix)
+			right, err = RebaseFunctionCorrelation(host, view, right, frame, prefix)
 			if err != nil {
 				return nil, err
 			}
@@ -855,9 +856,9 @@ func RebaseFunctionCorrelation(view catalog.Read, root plan.Node, frame uint32, 
 			if !used {
 				return bound, false, nil
 			}
-			return mapBoundExpression(view, bound, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(query plan.Node) (plan.Node, error) {
+			return host.MapBoundQueryExpression(view, bound, func(query plan.Node) (plan.Node, error) {
 				return plan.RewriteQueryExpressions(query, rewrite)
-			}, nil, func(node expr.Expr) (expr.Expr, bool, error) {
+			}, func(node expr.Expr) (expr.Expr, bool, error) {
 				column, ok := node.(plan.ColumnExpr)
 				if !ok {
 					return node, false, nil

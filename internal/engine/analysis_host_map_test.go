@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -70,5 +71,63 @@ func TestAnalysisHostMapsBoundExpressions(t *testing.T) {
 		return node, false, nil
 	}); !errors.Is(err, failure) {
 		t.Fatalf("leaf error = %v, want %v", err, failure)
+	}
+}
+
+// The host's query-aware mapping hands each subquery root to the query mapper
+// and keeps the leaf rewrite: a new root is copied into a new query plan, the
+// input plan keeps its root, and a mapper error stops the walk.
+func TestAnalysisHostMapsBoundQueryExpressions(t *testing.T) {
+	ctx := context.Background()
+	e := New()
+	view := e.CatalogRead()
+	int4, ok := view.LookupType(sqltype.Int4)
+	if !ok {
+		t.Fatal("missing int4")
+	}
+	literal := func(text string) plan.LiteralExpr {
+		value, err := int4.Input(ctx, text, -1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return plan.LiteralExpr{Info: expr.Info{Usage: int4.Usage()}, Value: value}
+	}
+	one, three := literal("1"), literal("3")
+	original, replacement := &plan.SingletonNode{}, &plan.SingletonNode{}
+	sub := plan.SubqueryExpr{Info: expr.Info{Usage: int4.Usage()}, Kind: parser.SubqueryScalar, QueryPlan: &plan.Query{Root: original}}
+	row := plan.RowExpr{Fields: []expr.Expr{one, sub}}
+	leaf := func(node expr.Expr) (expr.Expr, bool, error) {
+		if l, ok := node.(plan.LiteralExpr); ok && reflect.DeepEqual(l, one) {
+			return three, true, nil
+		}
+		return node, false, nil
+	}
+	host := e.analysisHost(nil)
+
+	var seen []plan.Node
+	mapped, changed, err := host.MapBoundQueryExpression(view, row, func(root plan.Node) (plan.Node, error) {
+		seen = append(seen, root)
+		return replacement, nil
+	}, leaf)
+	if err != nil || !changed {
+		t.Fatalf("mapping = changed %v, err %v; want a change", changed, err)
+	}
+	got, ok := mapped.(plan.RowExpr)
+	if !ok || len(got.Fields) != 2 || !reflect.DeepEqual(got.Fields[0], three) {
+		t.Fatalf("mapped row = %#v, want 3 and the subquery", mapped)
+	}
+	if mappedSub, ok := got.Fields[1].(plan.SubqueryExpr); !ok || mappedSub.QueryPlan.Root != replacement {
+		t.Fatalf("mapped subquery = %#v, want the mapper's root", got.Fields[1])
+	}
+	if len(seen) != 1 || seen[0] != original {
+		t.Fatalf("query mapper saw %v, want the original root once", seen)
+	}
+	if sub.QueryPlan.Root != original {
+		t.Fatal("mapping changed the input query plan")
+	}
+
+	failure := errors.New("query failure")
+	if _, _, err := host.MapBoundQueryExpression(view, row, func(plan.Node) (plan.Node, error) { return nil, failure }, leaf); !errors.Is(err, failure) {
+		t.Fatalf("query mapper error = %v, want %v", err, failure)
 	}
 }

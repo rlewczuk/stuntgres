@@ -5,11 +5,10 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
-	"stuntgres/internal/sqltype"
 )
 
-func cteMapExpression(view catalog.Read, expr expr.Expr, leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, error) {
-	next, _, err := mapBoundExpression(view, expr, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, nil, nil, leaf)
+func cteMapExpression(host analyzeHost, view catalog.Read, expr expr.Expr, leaf func(expr.Expr) (expr.Expr, bool, error)) (expr.Expr, error) {
+	next, _, err := host.MapBoundQueryExpression(view, expr, nil, leaf)
 	return next, err
 }
 
@@ -17,7 +16,7 @@ func cteMapExpression(view catalog.Read, expr expr.Expr, leaf func(expr.Expr) (e
 // destination. LIMIT, window inputs, rowmarks and volatile/correlated predicates
 // are deliberately not commuted. The graph/schema and original expressions
 // remain immutable; each folded occurrence gets its own rewritten path.
-func foldCTERestrictions(view catalog.Read, root plan.Node) (plan.Node, error) {
+func foldCTERestrictions(host analyzeHost, view catalog.Read, root plan.Node) (plan.Node, error) {
 	var rewrite func(expr.Expr) (expr.Expr, bool, error)
 	rewrite = func(bound expr.Expr) (expr.Expr, bool, error) {
 		if edge, ok := bound.(plan.SubqueryExpr); ok && edge.CTEEdge {
@@ -32,22 +31,22 @@ func foldCTERestrictions(view catalog.Read, root plan.Node) (plan.Node, error) {
 		if !hasQuery {
 			return bound, false, nil
 		}
-		return mapBoundExpression(view, bound, func(t *sqltype.Descriptor) *sqltype.Descriptor { return t }, func(child plan.Node) (plan.Node, error) { return foldCTERestrictions(view, child) }, nil, nil)
+		return host.MapBoundQueryExpression(view, bound, func(child plan.Node) (plan.Node, error) { return foldCTERestrictions(host, view, child) }, nil)
 	}
 	return plan.RewriteQueryExpressions(root, rewrite, func(node plan.Node) (plan.Node, error) {
 		if join, ok := node.(*plan.JoinNode); ok && join.Kind == parser.JoinInner && join.Predicate != nil {
-			child, predicate, moves, err := moveCTEPredicates(view, join, join.Predicate)
+			child, predicate, moves, err := moveCTEPredicates(host, view, join, join.Predicate)
 			if err != nil {
 				return nil, err
 			}
 			if moves != 0 {
 				copy := *child.(*plan.JoinNode)
 				copy.Predicate = predicate
-				copy.Left, err = foldCTERestrictions(view, copy.Left)
+				copy.Left, err = foldCTERestrictions(host, view, copy.Left)
 				if err != nil {
 					return nil, err
 				}
-				copy.Right, err = foldCTERestrictions(view, copy.Right)
+				copy.Right, err = foldCTERestrictions(host, view, copy.Right)
 				return &copy, err
 			}
 		}
@@ -55,11 +54,11 @@ func foldCTERestrictions(view catalog.Read, root plan.Node) (plan.Node, error) {
 		if !ok {
 			return node, nil
 		}
-		child, err := foldCTERestrictions(view, filter.Child)
+		child, err := foldCTERestrictions(host, view, filter.Child)
 		if err != nil {
 			return nil, err
 		}
-		child, predicate, moves, err := moveCTEPredicates(view, child, filter.Predicate)
+		child, predicate, moves, err := moveCTEPredicates(host, view, child, filter.Predicate)
 		if err != nil {
 			return nil, err
 		}
@@ -75,7 +74,7 @@ func foldCTERestrictions(view catalog.Read, root plan.Node) (plan.Node, error) {
 	})
 }
 
-func moveCTEPredicates(view catalog.Read, child plan.Node, predicate expr.Expr) (plan.Node, expr.Expr, int, error) {
+func moveCTEPredicates(host analyzeHost, view catalog.Read, child plan.Node, predicate expr.Expr) (plan.Node, expr.Expr, int, error) {
 	moves := 0
 	var move func(expr.Expr) (expr.Expr, error)
 	move = func(predicate expr.Expr) (expr.Expr, error) {
@@ -104,7 +103,7 @@ func moveCTEPredicates(view catalog.Read, child plan.Node, predicate expr.Expr) 
 		if predicate.Properties().Volatility == expr.Volatile {
 			return predicate, nil
 		}
-		next, moved, err := PushCTEOccurrence(view, child, predicate, 0)
+		next, moved, err := PushCTEOccurrence(host, view, child, predicate, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -119,7 +118,7 @@ func moveCTEPredicates(view catalog.Read, child plan.Node, predicate expr.Expr) 
 	return child, remaining, moves, err
 }
 
-func PushCTEOccurrence(view catalog.Read, node plan.Node, predicate expr.Expr, offset int) (plan.Node, bool, error) {
+func PushCTEOccurrence(host analyzeHost, view catalog.Read, node plan.Node, predicate expr.Expr, offset int) (plan.Node, bool, error) {
 	switch n := node.(type) {
 	case *plan.DerivedNode:
 		if n.CTE == nil || !n.CTE.Folded() {
@@ -142,7 +141,7 @@ func PushCTEOccurrence(view catalog.Read, node plan.Node, predicate expr.Expr, o
 		if !safe || !found {
 			return node, false, nil
 		}
-		mapped, err := cteMapExpression(view, predicate, func(expr expr.Expr) (expr.Expr, bool, error) {
+		mapped, err := cteMapExpression(host, view, predicate, func(expr expr.Expr) (expr.Expr, bool, error) {
 			if col, ok := expr.(plan.ColumnExpr); ok {
 				return project.Expressions[col.Slot-offset], true, nil
 			}
@@ -151,14 +150,14 @@ func PushCTEOccurrence(view catalog.Read, node plan.Node, predicate expr.Expr, o
 		if err != nil {
 			return nil, false, err
 		}
-		input, moved, err := pushCTEInput(view, project.Child, mapped, project.Frame)
+		input, moved, err := pushCTEInput(host, view, project.Child, mapped, project.Frame)
 		if err != nil || !moved {
 			return node, false, err
 		}
 		p := *project
 		p.Child = input
 		q := *n.Query
-		q.Root, err = foldCTERestrictions(view, &p)
+		q.Root, err = foldCTERestrictions(host, view, &p)
 		if err != nil {
 			return nil, false, err
 		}
@@ -169,7 +168,7 @@ func PushCTEOccurrence(view catalog.Read, node plan.Node, predicate expr.Expr, o
 		if n.Kind != parser.JoinInner {
 			return node, false, nil
 		}
-		left, moved, err := PushCTEOccurrence(view, n.Left, predicate, offset)
+		left, moved, err := PushCTEOccurrence(host, view, n.Left, predicate, offset)
 		if err != nil {
 			return nil, false, err
 		}
@@ -178,7 +177,7 @@ func PushCTEOccurrence(view catalog.Read, node plan.Node, predicate expr.Expr, o
 			copy.Left = left
 			return &copy, true, nil
 		}
-		right, moved, err := PushCTEOccurrence(view, n.Right, predicate, offset+n.LeftWidth)
+		right, moved, err := PushCTEOccurrence(host, view, n.Right, predicate, offset+n.LeftWidth)
 		if err != nil {
 			return nil, false, err
 		}
@@ -191,7 +190,7 @@ func PushCTEOccurrence(view catalog.Read, node plan.Node, predicate expr.Expr, o
 	return node, false, nil
 }
 
-func pushCTEInput(view catalog.Read, node plan.Node, predicate expr.Expr, frame uint32) (plan.Node, bool, error) {
+func pushCTEInput(host analyzeHost, view catalog.Read, node plan.Node, predicate expr.Expr, frame uint32) (plan.Node, bool, error) {
 	unsafe := false
 	plan.WalkExpression(predicate, func(expr expr.Expr) {
 		switch n := expr.(type) {
@@ -218,7 +217,7 @@ func pushCTEInput(view catalog.Read, node plan.Node, predicate expr.Expr, frame 
 		// the definition's original input and cardinality/error demand.
 		return &plan.FilterNode{QuerySchema: node.Schema(), Child: node, Predicate: predicate}, true, nil
 	case *plan.SortNode:
-		child, moved, err := pushCTEInput(view, n.Child, predicate, frame)
+		child, moved, err := pushCTEInput(host, view, n.Child, predicate, frame)
 		if !moved || err != nil {
 			return node, false, err
 		}
@@ -226,7 +225,7 @@ func pushCTEInput(view catalog.Read, node plan.Node, predicate expr.Expr, frame 
 		copy.Child = child
 		return &copy, true, nil
 	case *plan.DistinctNode:
-		mapped, err := cteMapExpression(view, predicate, func(expr expr.Expr) (expr.Expr, bool, error) {
+		mapped, err := cteMapExpression(host, view, predicate, func(expr expr.Expr) (expr.Expr, bool, error) {
 			if c, ok := expr.(plan.ColumnExpr); ok && c.Frame == frame {
 				return n.Expressions[c.Slot], true, nil
 			}
@@ -235,7 +234,7 @@ func pushCTEInput(view catalog.Read, node plan.Node, predicate expr.Expr, frame 
 		if err != nil {
 			return nil, false, err
 		}
-		child, moved, err := pushCTEInput(view, n.Child, mapped, frame)
+		child, moved, err := pushCTEInput(host, view, n.Child, mapped, frame)
 		if !moved || err != nil {
 			return node, false, err
 		}
@@ -248,7 +247,7 @@ func pushCTEInput(view catalog.Read, node plan.Node, predicate expr.Expr, frame 
 		if len(n.Keys) == 0 || n.Sets != nil && (len(n.Sets) != 1 || len(n.Sets[0]) != len(n.Keys)) {
 			return node, false, nil
 		}
-		mapped, err := cteMapExpression(view, predicate, func(expr expr.Expr) (expr.Expr, bool, error) {
+		mapped, err := cteMapExpression(host, view, predicate, func(expr expr.Expr) (expr.Expr, bool, error) {
 			if g, ok := expr.(plan.GroupExpr); ok && g.Frame == frame {
 				return n.Keys[g.Slot], true, nil
 			}
@@ -257,7 +256,7 @@ func pushCTEInput(view catalog.Read, node plan.Node, predicate expr.Expr, frame 
 		if err != nil {
 			return nil, false, err
 		}
-		child, moved, err := pushCTEInput(view, n.Child, mapped, frame)
+		child, moved, err := pushCTEInput(host, view, n.Child, mapped, frame)
 		if !moved || err != nil {
 			return node, false, err
 		}
@@ -265,7 +264,7 @@ func pushCTEInput(view catalog.Read, node plan.Node, predicate expr.Expr, frame 
 		copy.Child = child
 		return &copy, true, nil
 	case *plan.SetNode:
-		leftPredicate, err := cteMapExpression(view, predicate, func(expr expr.Expr) (expr.Expr, bool, error) {
+		leftPredicate, err := cteMapExpression(host, view, predicate, func(expr expr.Expr) (expr.Expr, bool, error) {
 			if c, ok := expr.(plan.ColumnExpr); ok && c.Frame == frame {
 				return n.LeftExpressions[c.Slot], true, nil
 			}
@@ -274,7 +273,7 @@ func pushCTEInput(view catalog.Read, node plan.Node, predicate expr.Expr, frame 
 		if err != nil {
 			return nil, false, err
 		}
-		rightPredicate, err := cteMapExpression(view, predicate, func(expr expr.Expr) (expr.Expr, bool, error) {
+		rightPredicate, err := cteMapExpression(host, view, predicate, func(expr expr.Expr) (expr.Expr, bool, error) {
 			if c, ok := expr.(plan.ColumnExpr); ok && c.Frame == frame {
 				return n.RightExpressions[c.Slot], true, nil
 			}
@@ -283,11 +282,11 @@ func pushCTEInput(view catalog.Read, node plan.Node, predicate expr.Expr, frame 
 		if err != nil {
 			return nil, false, err
 		}
-		left, lm, err := pushCTEInput(view, n.Left.Child, leftPredicate, n.Left.Frame)
+		left, lm, err := pushCTEInput(host, view, n.Left.Child, leftPredicate, n.Left.Frame)
 		if err != nil {
 			return nil, false, err
 		}
-		right, rm, err := pushCTEInput(view, n.Right.Child, rightPredicate, n.Right.Frame)
+		right, rm, err := pushCTEInput(host, view, n.Right.Child, rightPredicate, n.Right.Frame)
 		if err != nil {
 			return nil, false, err
 		}

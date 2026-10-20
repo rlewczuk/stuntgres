@@ -476,7 +476,7 @@ func TestRegexpCorrelationFrameRebase(t *testing.T) {
 			Calls:       regexpSetUnitSources(regexpSetUnitCall(t, text, column(7, 2), " "), regexpSetUnitCall(t, text, column(9, 1), " ")),
 			Frame:       7, Correlated: true, Captures: capture(7, 2),
 		}
-		rebased, err := RebaseFunctionCorrelation(view, n, 7, 2)
+		rebased, err := RebaseFunctionCorrelation((&Engine{}).analysisHost(nil), view, n, 7, 2)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -493,7 +493,7 @@ func TestRegexpCorrelationFrameRebase(t *testing.T) {
 		left := &plan.FunctionFromNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(regexpSetUnitCall(t, text, column(7, 2), " ")), Frame: 7, Correlated: true, Captures: capture(7, 2)}
 		right := &plan.FunctionFromNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(regexpSetUnitCall(t, text, column(7, 0), "")), Frame: 7, Correlated: true, Captures: capture(7, 0)}
 		n := &plan.JoinNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}, {Usage: text.Usage()}}, Left: left, Right: right, LeftWidth: 1, RightWidth: 1, Kind: parser.JoinInner, Frame: 7, CorrelatedRight: true, Captures: capture(7, 2)}
-		rebased, err := RebaseFunctionCorrelation(view, n, 7, 2)
+		rebased, err := RebaseFunctionCorrelation((&Engine{}).analysisHost(nil), view, n, 7, 2)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -509,7 +509,7 @@ func TestRegexpCorrelationFrameRebase(t *testing.T) {
 		virtual := column(1, 3)
 		virtual.Virtual, virtual.RowStart, virtual.RowWidth = column(1, 0), 2, 2
 		n := &plan.FunctionFromNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(regexpSetUnitCall(t, text, virtual, " ")), Frame: 1, Correlated: true, Captures: capture(1, 3)}
-		rebased, err := RebaseFunctionCorrelation(view, n, 1, 2)
+		rebased, err := RebaseFunctionCorrelation((&Engine{}).analysisHost(nil), view, n, 1, 2)
 		if err != nil {
 			t.Fatal(err)
 		}

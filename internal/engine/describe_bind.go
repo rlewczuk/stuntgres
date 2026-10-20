@@ -140,7 +140,7 @@ func Describe(ctx context.Context, host analyzeHost, stmt parser.Statement, auth
 		}
 		for _, query := range queries {
 			activateCTESources(query.Root, b.QuerySources)
-			query.Root, err = foldCTERestrictions(auth.ReadCatalog(), query.Root)
+			query.Root, err = foldCTERestrictions(host, auth.ReadCatalog(), query.Root)
 			if err != nil {
 				return b, err
 			}
@@ -157,7 +157,7 @@ func Describe(ctx context.Context, host analyzeHost, stmt parser.Statement, auth
 		}
 	}
 	if len(b.QuerySources) != 0 && view == nil {
-		if _, err := validateViewReadGraph(auth.ReadCatalog(), b.QuerySources); err != nil {
+		if err := host.ValidateViewReadGraph(auth.ReadCatalog(), b.QuerySources); err != nil {
 			return b, err
 		}
 	}
