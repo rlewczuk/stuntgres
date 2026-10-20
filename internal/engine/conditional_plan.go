@@ -51,7 +51,7 @@ func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefa
 	switch e := expression.(type) {
 	case plan.RowExpr:
 		var did bool
-		e, did, err = mapRow(e, func(old expr.Expr) (expr.Expr, bool, error) { return simplifyConditional(c, old, decisiveDefaults) })
+		e, did, err = plan.MapRow(e, func(old expr.Expr) (expr.Expr, bool, error) { return simplifyConditional(c, old, decisiveDefaults) })
 		if err != nil {
 			return nil, false, err
 		}
@@ -273,7 +273,7 @@ func simplifyConditionalNode(c *exec.Context, expression expr.Expr, decisiveDefa
 		expression = e
 	case plan.ScalarArrayComparisonExpr:
 		var replaced bool
-		e, replaced, err = mapScalarArrayChildren(e, func(old expr.Expr) (expr.Expr, bool, error) {
+		e, replaced, err = plan.MapScalarArrayChildren(e, func(old expr.Expr) (expr.Expr, bool, error) {
 			return simplifyConditional(c, old, decisiveDefaults)
 		})
 		changed = changed || replaced

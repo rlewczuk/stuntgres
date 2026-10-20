@@ -265,7 +265,7 @@ func preflightCoercionNode(c *exec.Context, expression expr.Expr, decisiveDefaul
 		next, changed, err := simplifyConditional(c, e, decisiveDefaults)
 		return next, changed || args != nil, err
 	case plan.RowExpr:
-		next, changed, err := mapRow(e, func(old expr.Expr) (expr.Expr, bool, error) {
+		next, changed, err := plan.MapRow(e, func(old expr.Expr) (expr.Expr, bool, error) {
 			next, changed, err := simplifyConditional(c, old, decisiveDefaults)
 			if err != nil {
 				return nil, false, err
@@ -387,7 +387,7 @@ func preflightCoercionNode(c *exec.Context, expression expr.Expr, decisiveDefaul
 		}
 		return e, false, nil
 	case plan.ScalarArrayComparisonExpr:
-		next, changed, err := mapScalarArrayChildren(e, func(child expr.Expr) (expr.Expr, bool, error) {
+		next, changed, err := plan.MapScalarArrayChildren(e, func(child expr.Expr) (expr.Expr, bool, error) {
 			return preflightCoercionsWithPolicy(c, child, decisiveDefaults)
 		})
 		if err != nil {

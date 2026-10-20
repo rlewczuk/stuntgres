@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"sort"
+
 	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
@@ -84,7 +85,7 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 		}
 		next = n
 	case plan.RowExpr:
-		n, _, err = mapRowAnalysis(n, func(old expr.Expr) (expr.Expr, bool, error) { next := child(old); return next, true, err })
+		n, _, err = plan.MapRowAnalysis(n, func(old expr.Expr) (expr.Expr, bool, error) { next := child(old); return next, true, err })
 		next = n
 	case plan.FieldExpr:
 		n.Base = child(n.Base)
@@ -119,7 +120,7 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 			}
 			n.Comparisons[i] = mapped.(plan.ComparisonExpr)
 		}
-		n.LeftExpansions, _, err = mapRowComparisonExpansions(n.LeftExpansions, func(old expr.Expr) (expr.Expr, bool, error) {
+		n.LeftExpansions, _, err = plan.MapRowComparisonExpansions(n.LeftExpansions, func(old expr.Expr) (expr.Expr, bool, error) {
 			next := child(old)
 			return next, true, err
 		})
@@ -275,7 +276,7 @@ func remapScalarExpression(node expr.Expr, ref, rowRef func(ids.ObjectRef) ids.O
 			return nil, err
 		}
 		for side, expansions := range n.Expansions {
-			n.Expansions[side], _, err = mapRowComparisonExpansions(expansions, func(old expr.Expr) (expr.Expr, bool, error) {
+			n.Expansions[side], _, err = plan.MapRowComparisonExpansions(expansions, func(old expr.Expr) (expr.Expr, bool, error) {
 				next := child(old)
 				return next, true, err
 			})

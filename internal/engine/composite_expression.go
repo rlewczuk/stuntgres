@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strconv"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/exec"
@@ -373,76 +374,6 @@ func (b *expressionBinder) wholeRow(name parser.ObjectName, pos parser.Position,
 	// their producer even with zero members or the same name in another schema.
 	mergeSource := b.mergeReturningFrame(frame) && q.sourceRoot != nil
 	return plan.RowExpr{Info: b.info(typ.Usage(), pos, props), Fields: fields, WholeNames: names, WholeName: q.name, WholeSource: source, PresenceSlot: slot, PresenceFrame: frame, MergeSource: mergeSource}, nil
-}
-
-func mapRow(row plan.RowExpr, child func(expr.Expr) (expr.Expr, bool, error)) (plan.RowExpr, bool, error) {
-	var fields []expr.Expr
-	for i, old := range row.Fields {
-		next, changed, err := child(old)
-		if err != nil {
-			return row, false, err
-		}
-		if changed {
-			if fields == nil {
-				fields = append([]expr.Expr(nil), row.Fields...)
-			}
-			fields[i] = next
-		}
-	}
-	if fields == nil {
-		return row, false, nil
-	}
-	row.Fields = fields
-	return row, true, nil
-}
-
-// Analysis associations preserve one raw occurrence across expanded slots.
-// Catalog/type mapping also reowns these retained associations; runtime demand
-// and grouping rewrites deliberately map only the executable fields.
-func mapRowAnalysis(row plan.RowExpr, child func(expr.Expr) (expr.Expr, bool, error)) (plan.RowExpr, bool, error) {
-	next, changed, err := mapRow(row, child)
-	if err != nil {
-		return row, false, err
-	}
-	var expansions map[int]plan.CompositeExpansionBinding
-	for source, expansion := range row.Expansions {
-		base, replaced, err := child(expansion.Base)
-		if err != nil {
-			return row, false, err
-		}
-		var fields []expr.Expr
-		for i, old := range expansion.Fields {
-			field, mapped, err := child(old)
-			if err != nil {
-				return row, false, err
-			}
-			if mapped {
-				if fields == nil {
-					fields = append([]expr.Expr(nil), expansion.Fields...)
-				}
-				fields[i] = field
-			}
-		}
-		if !replaced && fields == nil {
-			continue
-		}
-		if expansions == nil {
-			expansions = make(map[int]plan.CompositeExpansionBinding, len(row.Expansions))
-			for key, value := range row.Expansions {
-				expansions[key] = value
-			}
-		}
-		expansion.Base = base
-		if fields != nil {
-			expansion.Fields = fields
-		}
-		expansions[source] = expansion
-	}
-	if expansions != nil {
-		next.Expansions = expansions
-		changed = true
-	}
-	return next, changed, nil
 }
 
 // Expression-list expansion preserves original structural source occurrences.

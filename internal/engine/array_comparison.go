@@ -442,41 +442,6 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) 
 	return result, nil
 }
 
-// Copy only changed list storage; the analyzed tree remains immutable.
-func mapScalarArrayChildren(n plan.ScalarArrayComparisonExpr, child func(expr.Expr) (expr.Expr, bool, error)) (plan.ScalarArrayComparisonExpr, bool, error) {
-	left, changed, err := child(n.Left)
-	if err != nil {
-		return n, false, err
-	}
-	n.Left = left
-	if n.Array != nil {
-		array, replaced, err := child(n.Array)
-		if err != nil {
-			return n, false, err
-		}
-		n.Array = array
-		changed = changed || replaced
-	}
-	var items []expr.Expr
-	for i, old := range n.Items {
-		next, replaced, err := child(old)
-		if err != nil {
-			return n, false, err
-		}
-		if replaced && items == nil {
-			items = append([]expr.Expr(nil), n.Items...)
-		}
-		if items != nil {
-			items[i] = next
-		}
-		changed = changed || replaced
-	}
-	if items != nil {
-		n.Items = items
-	}
-	return n, changed, nil
-}
-
 func arithmeticOperator(name string) sqltype.ArithmeticOperator {
 	switch name {
 	case "-":

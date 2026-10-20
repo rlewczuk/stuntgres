@@ -161,12 +161,6 @@ func (b *expressionBinder) bindRowPredicateOperands(raw parser.OperatorExpr, ope
 	return e, nil
 }
 
-// Reuse the constructor's copy-on-change ownership mapping for analysis-only
-// expansion associations; executable pairs are mapped by their existing owners.
-func mapRowComparisonExpansions(expansions map[int]plan.CompositeExpansionBinding, child func(expr.Expr) (expr.Expr, bool, error)) (map[int]plan.CompositeExpansionBinding, bool, error) {
-	row, changed, err := mapRowAnalysis(plan.RowExpr{Expansions: expansions}, child)
-	return row.Expansions, changed, err
-}
 func rowSubqueryComparison(raw parser.OperatorExpr) (parser.SubqueryExpr, bool) {
 	if len(raw.Args) != 2 {
 		return parser.SubqueryExpr{}, false

@@ -153,7 +153,7 @@ func TestArrayCompareBoundVisitors(t *testing.T) {
 		}
 		node := original.(plan.ScalarArrayComparisonExpr)
 		replacement := plan.LiteralExpr{Info: b.info(node.Left.ResultUsage(), parser.Position{}, expr.Properties{}), Value: sqltype.Null(node.Left.ResultUsage().Type)}
-		next, changed, err := mapScalarArrayChildren(node, func(old expr.Expr) (expr.Expr, bool, error) {
+		next, changed, err := plan.MapScalarArrayChildren(node, func(old expr.Expr) (expr.Expr, bool, error) {
 			if old == node.Left {
 				return replacement, true, nil
 			}

@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -423,7 +424,7 @@ func (b *expressionBinder) rewriteGroup(bound expr.Expr, keys []expr.Expr) (expr
 		}
 		return nil, expr.ErrorAt("42803", fmt.Sprintf(`column "%s" must appear in the GROUP BY clause or be used in an aggregate function`, name), e.Pos)
 	case plan.RowExpr:
-		e, _, err = mapRow(e, func(old expr.Expr) (expr.Expr, bool, error) {
+		e, _, err = plan.MapRow(e, func(old expr.Expr) (expr.Expr, bool, error) {
 			next := rewrite(old)
 			return next, !b.sameGroupExpression(old, next), err
 		})

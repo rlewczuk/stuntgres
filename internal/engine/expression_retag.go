@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 
@@ -330,7 +331,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 		rebound = n
 	case plan.RowExpr:
 		var replaced bool
-		n, replaced, err = mapRowAnalysis(n, mapChild)
+		n, replaced, err = plan.MapRowAnalysis(n, mapChild)
 		changed = changed || replaced
 		if err == nil {
 			var projected bool
@@ -429,7 +430,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 			}
 		}
 		var expansionChanged bool
-		n.LeftExpansions, expansionChanged, err = mapRowComparisonExpansions(n.LeftExpansions, mapChild)
+		n.LeftExpansions, expansionChanged, err = plan.MapRowComparisonExpansions(n.LeftExpansions, mapChild)
 		if err != nil {
 			return nil, false, err
 		}
@@ -775,7 +776,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 		}
 		for side, expansions := range n.Expansions {
 			var replaced bool
-			n.Expansions[side], replaced, err = mapRowComparisonExpansions(expansions, mapChild)
+			n.Expansions[side], replaced, err = plan.MapRowComparisonExpansions(expansions, mapChild)
 			if err != nil {
 				return nil, false, err
 			}
@@ -803,7 +804,7 @@ func mapBoundExpressionReader(view catalog.Read, reader catalog.DefinitionReader
 		ref, conflict := n.Predicate.InputCollation()
 		ref = comparisonCollation(ref)
 		var replaced bool
-		n, replaced, err = mapScalarArrayChildren(n, mapChild)
+		n, replaced, err = plan.MapScalarArrayChildren(n, mapChild)
 		changed = changed || replaced
 		if !changed {
 			return node, false, err
