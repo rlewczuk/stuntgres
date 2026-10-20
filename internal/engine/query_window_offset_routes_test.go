@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -85,12 +86,12 @@ func TestQueryWindowOffsetLowering(t *testing.T) {
 	if !ok {
 		t.Fatalf("no executable marker stage: %T", root)
 	}
-	stage, err := OpenSetProjectNode(context.Background(), &queryState{Source: &querySource{}, Frame: 7}, node)
+	stage, err := exec.OpenSetProjectNode(context.Background(), &queryState{Source: &querySource{}, Frame: 7}, node)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer stage.Close()
-	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 7}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 7}}
 	var rows [][]any
 	for {
 		occurrence, present, err := stage.NextOccurrence(context.Background())

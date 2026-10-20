@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -88,7 +89,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		index := 0
 		_ = parser.VisitQuerySources(&parser.Select{From: s.From}, nil, func(table *parser.TableReference, _ *parser.Select) error {
 			if index < len(selected) && selected[index].Mode != 0 {
-				b.query.rowDiagnosticMode = StrongerQueryRowMode(b.query.rowDiagnosticMode, queryRowDiagnostic(b.query.lockAdmission.tableMark(table)))
+				b.query.rowDiagnosticMode = exec.StrongerQueryRowMode(b.query.rowDiagnosticMode, queryRowDiagnostic(b.query.lockAdmission.tableMark(table)))
 			}
 			index++
 			return nil
@@ -432,7 +433,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 	if b.query.rowDiagnosticMode != 0 {
 		suffix := ""
 		for _, expression := range projection {
-			if QuerySetDepth(expression) != 0 {
+			if exec.QuerySetDepth(expression) != 0 {
 				suffix = "set-returning functions in the target list"
 				break
 			}

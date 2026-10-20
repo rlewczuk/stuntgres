@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
@@ -275,7 +276,7 @@ func TestInheritanceQueryStoredViewAdmission(t *testing.T) {
 			if len(parent.Columns) != 1 || parent.Columns[0].Name != "i" || parent.Columns[0].Usage.Type != testUsage(e, sqltype.Int4).Type {
 				t.Fatal("parent metadata changed")
 			}
-			if err = SelectQuerySources(op.Context(), source); err != nil {
+			if err = exec.SelectQuerySources(op.Context(), source); err != nil {
 				t.Fatal(err)
 			}
 			bag := map[int64]int{}

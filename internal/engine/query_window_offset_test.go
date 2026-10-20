@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -32,7 +33,7 @@ func TestQueryWindowOffsetTarget(t *testing.T) {
 		{math.MaxInt, math.MaxInt - 1, math.MinInt32, true, 0, false},
 		{math.MaxInt, math.MaxInt - 1, math.MinInt32, false, math.MaxInt - 1 - 2147483648, true},
 	} {
-		got, present := WindowOffsetTarget(tc.size, tc.current, tc.offset, tc.reverse)
+		got, present := exec.WindowOffsetTarget(tc.size, tc.current, tc.offset, tc.reverse)
 		if present != tc.present || present && got != tc.want {
 			t.Fatalf("%+v => %d/%v", tc, got, present)
 		}
@@ -200,7 +201,7 @@ func TestQueryWindowOffsetCancellation(t *testing.T) {
 			case "default":
 				call.DefaultValue = probe
 			}
-			rows, count, err := Finalize(ctx, query.Root, source, nil)
+			rows, count, err := exec.Finalize(ctx, query.Root, source, nil)
 			if rows != nil {
 				rows.Close()
 			}
@@ -232,7 +233,7 @@ func TestQueryWindowOffsetEvaluationRoles(t *testing.T) {
 		defaults = append(defaults, id)
 		return fallback.Eval(c)
 	})
-	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

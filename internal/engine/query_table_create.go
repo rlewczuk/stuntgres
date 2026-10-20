@@ -7,6 +7,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
@@ -254,10 +255,10 @@ func (e *Engine) executeQueryTableLocked(scope *StatementScope, s *parser.Create
 	if err != nil {
 		return Result{}, err
 	}
-	if err = SelectQuerySources(ctx, source); err != nil {
+	if err = exec.SelectQuerySources(ctx, source); err != nil {
 		return Result{}, err
 	}
-	result, count, err := Finalize(ctx, root, source, parameters)
+	result, count, err := exec.Finalize(ctx, root, source, parameters)
 	if err != nil {
 		return Result{}, err
 	}

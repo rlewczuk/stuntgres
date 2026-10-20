@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -74,7 +75,7 @@ func TestAlterGeneratedExpressionCapturedVirtual(t *testing.T) {
 		frame := state.Evaluation(context.Background())
 		frame.BindQueryRow(source, 0)
 		frame.QueryCurrentRows = latest
-		outer := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 2, Frame: 2, Outer: &frame, QueryCurrentRows: [][]sqltype.Value{}}}
+		outer := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 2, Frame: 2, Outer: &frame, QueryCurrentRows: [][]sqltype.Value{}}}
 		value, err := frozen.Eval(&outer)
 		n, numberErr := value.Integer()
 		if err != nil || numberErr != nil || n != want {
@@ -177,7 +178,7 @@ func TestVirtualGenerationOriginalAdmission(t *testing.T) {
 	local := evaluation
 	local.RoutineGraft = true
 	local.RoutineChecks = []catalog.ExpressionDependency{{}}
-	SelectVirtualGenerationRecipe(&local, column.VirtualOwner, column.VirtualOwner.ColumnMeta.Generations[column.VirtualAttribute])
+	exec.SelectVirtualGenerationRecipe(&local, column.VirtualOwner, column.VirtualOwner.ColumnMeta.Generations[column.VirtualAttribute])
 	if local.RoutineAuthority != authority || local.RoutineConsumer != column.VirtualOwner ||
 		local.RoutineGraft || !local.RoutineRecipe || local.RoutineChecks != nil ||
 		!reflect.DeepEqual(local.RoutineReferences, column.VirtualOwner.ColumnMeta.Generations[column.VirtualAttribute].Dependencies) {

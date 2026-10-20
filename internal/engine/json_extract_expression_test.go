@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -32,7 +33,7 @@ func TestJSONExtractInferenceAndLifecycle(t *testing.T) {
 				t.Fatal(tc.q, i, b.params.parameters)
 			}
 		}
-		if node.Properties().Volatility != expr.Immutable || !node.Properties().ParameterDependent || PlannedVolatility(node) != expr.Immutable {
+		if node.Properties().Volatility != expr.Immutable || !node.Properties().ParameterDependent || exec.PlannedVolatility(node) != expr.Immutable {
 			t.Fatal(node.Properties())
 		}
 		count := 0
@@ -57,7 +58,7 @@ func TestJSONExtractInferenceAndLifecycle(t *testing.T) {
 			t.Fatal("lost descriptor ownership", i)
 		}
 	}
-	value, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+	value, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +122,7 @@ func TestJSONExtractStoredVariadicProvenance(t *testing.T) {
 					t.Fatal("lost written call provenance", replaySQL)
 				}
 				replayed := jsonbSetUnitBind(t, newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil), "SELECT "+replaySQL)
-				value, err := replayed.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+				value, err := replayed.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 				if err != nil {
 					t.Fatal(err)
 				}

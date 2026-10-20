@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
@@ -201,7 +202,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 		if err := validateInstalledCrypto(actual, view); err != nil {
 			t.Fatal(err)
 		}
-		value, err := actual.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+		value, err := actual.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 		raw, _ := value.Binary()
 		if err != nil || hex.EncodeToString([]byte(raw)) != "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843" {
 			t.Fatal("relocated HMAC", raw, err)
@@ -256,7 +257,7 @@ func TestPgcryptoControlRemap(t *testing.T) {
 			t.Fatal(name, err)
 		}
 		actual := query.(*plan.ProjectNode).Expressions[0].(plan.InstalledCryptoExpr)
-		if actual.Ref.Address != mapping[original.Ref.Address] || actual.Ref.Epoch != next.Epoch() || actual.Procedure != next.Get(actual.Ref.Address) || len(actual.Args) != len(original.Args) || actual.ResultUsage() != original.ResultUsage() || PlannedVolatility(actual) != expr.Volatile || !closedPgcryptoDefault(actual) {
+		if actual.Ref.Address != mapping[original.Ref.Address] || actual.Ref.Epoch != next.Epoch() || actual.Procedure != next.Get(actual.Ref.Address) || len(actual.Args) != len(original.Args) || actual.ResultUsage() != original.ResultUsage() || exec.PlannedVolatility(actual) != expr.Volatile || !closedPgcryptoDefault(actual) {
 			t.Fatal("relocated random/FIPS recipe", name, actual)
 		}
 		if err := validateInstalledCrypto(actual, view); err != nil {

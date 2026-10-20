@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -24,7 +25,7 @@ func TestIntervalAvgSlotsAndMetadata(t *testing.T) {
 		}
 	}
 	// The actual provider remains execution-owned even when immutable calls share.
-	rows, n, err := Finalize(context.Background(), q.Root, source, nil)
+	rows, n, err := exec.Finalize(context.Background(), q.Root, source, nil)
 	if err != nil || n != 1 {
 		t.Fatal(n, err)
 	}

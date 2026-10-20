@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -38,7 +39,7 @@ func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironme
 	if err := rejectVirtualIndexUses(parent, binder.query.sources[0].Uses); err != nil {
 		return nil, "", err
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: binder.input, Catalog: auth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Input: binder.input, Catalog: auth.Catalog}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
 	evaluation.RoutineAuthority, evaluation.RoutineChecks = &auth, binder.dependencies
 	evaluation.RoutineRecipe = true
 	execution, _, err := preflightCoercionsWithPolicy(&evaluation, definition, true)
@@ -51,7 +52,7 @@ func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironme
 	if err != nil {
 		return nil, "", err
 	}
-	if PlannedVolatility(execution) != expr.Immutable {
+	if exec.PlannedVolatility(execution) != expr.Immutable {
 		return nil, "", sqlError("42P17", "functions in index expression must be marked IMMUTABLE")
 	}
 	key := &catalog.DerivedIndexKey{Definition: definition, Execution: execution, Attributes: parent.Attributes}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
@@ -135,7 +136,7 @@ func TestInheritanceQueryLocator(t *testing.T) {
 	if values := second.Values(latest); len(values) != 1 || !reflect.DeepEqual(values, latest.Values[1:]) {
 		t.Fatal(values)
 	}
-	if source.VersionAt(1).Version != 2 || source.PhysicalRef(1) != child.Ref || source.Row(AbsentQueryIndex) != nil {
+	if source.VersionAt(1).Version != 2 || source.PhysicalRef(1) != child.Ref || source.Row(exec.AbsentQueryIndex) != nil {
 		t.Fatal("physical/absent provenance lost")
 	}
 }
@@ -190,7 +191,7 @@ func TestInheritanceQueryVisibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer source.Close()
-	if err = SelectQuerySources(op.Context(), source); err != nil || source.Count() != 3 {
+	if err = exec.SelectQuerySources(op.Context(), source); err != nil || source.Count() != 3 {
 		t.Fatal(source.Count(), err)
 	}
 	if source.View.Data() != view.Data() || source.Inheritance[1].Prefix.View.Data() != view.Data() || &source.Inheritance[1].Prefix.Committed[0] != &e.storage.Relations[c.Address()].Versions[0] {

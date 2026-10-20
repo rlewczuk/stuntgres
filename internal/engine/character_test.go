@@ -51,7 +51,7 @@ func TestCharacterRightColumnDependenceAndCastUsage(t *testing.T) {
 		text string
 		want plan.Truth
 	}{{"a  ", plan.True}, {"b  ", plan.False}} {
-		value, err := filter.Predicate.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.String(bpchar, tc.text)}}})
+		value, err := filter.Predicate.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.String(bpchar, tc.text)}}})
 		if err != nil {
 			t.Fatal(err)
 		}

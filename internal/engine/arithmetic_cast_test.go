@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -32,7 +33,7 @@ func TestExpressionArithmeticCastPreflight(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}}
+		evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}}
 		folded, changed, err := preflightCoercions(&evaluation, original)
 		if err != nil || !changed {
 			t.Fatal("descendant preflight", tc.query, folded, changed, err)
@@ -92,7 +93,7 @@ func TestExpressionArithmeticCastOrigins(t *testing.T) {
 		if schema[3].Name != "v" || schema[3].OriginTable == 0 || schema[3].OriginAttribute == 0 {
 			t.Fatal("identity column origin lost", schema[3])
 		}
-		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+		rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

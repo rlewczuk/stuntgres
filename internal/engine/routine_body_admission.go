@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -88,7 +89,7 @@ func bodyEdgeDemanded(node expr.Expr, outer *catalog.Procedure, edge catalog.Rou
 	switch edge.Demand {
 	case catalog.BodyBooleanText, catalog.BodyNetworkText:
 		argument := routine.PolymorphicBodyArgument(node, outer.Address().ObjectID)
-		return routine.BodyCastMatches(edge, argument) && !RandomLiteralNull(argument)
+		return routine.BodyCastMatches(edge, argument) && !exec.RandomLiteralNull(argument)
 	case catalog.BodyLeftDuration, catalog.BodyRightDuration:
 		overlap, ok := node.(functions.DatetimeOverlaps)
 		if !ok {
@@ -98,7 +99,7 @@ func bodyEdgeDemanded(node expr.Expr, outer *catalog.Procedure, edge catalog.Rou
 		if edge.Demand == catalog.BodyRightDuration {
 			at = 2
 		}
-		return !RandomLiteralNull(overlap.Args[at]) && !RandomLiteralNull(overlap.Args[at+1])
+		return !exec.RandomLiteralNull(overlap.Args[at]) && !exec.RandomLiteralNull(overlap.Args[at+1])
 	}
 	return true
 }
@@ -119,7 +120,7 @@ func admitRoutineBody(c *EvalContext, node expr.Expr, outer *catalog.Procedure, 
 			!p.RowDependent && !p.StageDependent && !p.DomainDependent && !p.RuntimeDomainConversion
 	}
 	local := *c
-	local.routineBodyContext = bodyErrorContext(outer, constant)
+	local.RoutineBodyContext = bodyErrorContext(outer, constant)
 	for _, edge := range outer.Body {
 		if !bodyEdgeDemanded(node, outer, edge) {
 			continue
@@ -129,7 +130,7 @@ func admitRoutineBody(c *EvalContext, node expr.Expr, outer *catalog.Procedure, 
 			err = admitRecipeRoutineDescriptor(&local, auth, dependencies, body)
 		}
 		if err != nil {
-			return local.routineBodyContext.Annotate(err)
+			return local.RoutineBodyContext.Annotate(err)
 		}
 		if err = admitRoutineBody(&local, nil, body, constant); err != nil {
 			return err
@@ -151,7 +152,7 @@ func admitOverlapsPair(c *EvalContext, e functions.DatetimeOverlaps, pair int) e
 		return err
 	}
 	local := *c
-	local.routineBodyContext = routineBodyContext{Outer: outer}
+	local.RoutineBodyContext = routineBodyContext{Outer: outer}
 	demand := catalog.BodyLeftDuration
 	if pair == 1 {
 		demand = catalog.BodyRightDuration
@@ -164,7 +165,7 @@ func admitOverlapsPair(c *EvalContext, e functions.DatetimeOverlaps, pair int) e
 		if err == nil {
 			err = admitRecipeRoutineDescriptor(&local, auth, dependencies, body)
 		}
-		return local.routineBodyContext.Annotate(err)
+		return local.RoutineBodyContext.Annotate(err)
 	}
 	return nil
 }

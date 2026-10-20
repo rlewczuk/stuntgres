@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -33,10 +34,10 @@ func TestDatetimeArithmeticBindingAndPhysicalVolatility(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc, err)
 		}
-		if node.ResultUsage().Type != b.typ(tc.result) || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != tc.volatility || PlannedVolatility(node) != tc.volatility || generationImmutable(node) != (tc.volatility == expr.Immutable) {
+		if node.ResultUsage().Type != b.typ(tc.result) || node.ResultUsage().Typmod != -1 || node.Properties().Volatility != tc.volatility || exec.PlannedVolatility(node) != tc.volatility || generationImmutable(node) != (tc.volatility == expr.Immutable) {
 			t.Fatal(tc, node, node.Properties())
 		}
-		folded, changed, err := simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: ctx}}, node, false)
+		folded, changed, err := simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, node, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -66,7 +67,7 @@ func TestDatetimeArithmeticDependenceAndVolatileDominance(t *testing.T) {
 		} else {
 			n.Right = child
 		}
-		if PlannedVolatility(n) != expr.Volatile || generationImmutable(n) {
+		if exec.PlannedVolatility(n) != expr.Volatile || generationImmutable(n) {
 			t.Fatal("intrinsic stable suppressed child", n)
 		}
 	}
@@ -91,7 +92,7 @@ func TestDatetimeArithmeticDefaultRegistryRebind(t *testing.T) {
 	}
 	n := rebound.(plan.ArithmeticExpr)
 	typ, _ := target.CatalogRead().LookupType(sqltype.Timestamptz)
-	if n.ResultUsage().Type != typ || n.Provider.ResultType() != typ || !n.Provider.SessionDependent() || PlannedVolatility(n) != expr.Stable {
+	if n.ResultUsage().Type != typ || n.Provider.ResultType() != typ || !n.Provider.SessionDependent() || exec.PlannedVolatility(n) != expr.Stable {
 		t.Fatal(n)
 	}
 	text, err := defaultSQL(ctx, target.CatalogRead(), rebound)

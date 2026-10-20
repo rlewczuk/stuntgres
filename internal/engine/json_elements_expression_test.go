@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -41,7 +42,7 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 		if original.ResultUsage().Type != b.typ(id) || original.ResultUsage().Type.IsComposite() || !validExpressionUsage(view, original.ResultUsage()) {
 			t.Fatal("scalar result usage", original)
 		}
-		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.clause.queryHasTargetSet || !SourceReturnsSet(original) || QuerySetDepth(original) != 1 {
+		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.clause.queryHasTargetSet || !exec.SourceReturnsSet(original) || exec.QuerySetDepth(original) != 1 {
 			t.Fatal("set properties", original)
 		}
 		fresh := jsonObjectUnitTypes()
@@ -56,7 +57,7 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 		if original.ResultUsage().Type != b.typ(id) || original.Args[0].ResultUsage().Type != b.typ(sqltype.JSON) {
 			t.Fatal("retained marker mutated")
 		}
-		cursor, err := OpenFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, next)
+		cursor, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, next)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -71,19 +72,19 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 				dependencies = append(dependencies, n)
 			}
 		})
-		if len(dependencies) != 1 || dependencies[0] != original.Args[0] || PlannedVolatility(original) != expr.Immutable {
+		if len(dependencies) != 1 || dependencies[0] != original.Args[0] || exec.PlannedVolatility(original) != expr.Immutable {
 			t.Fatal("lost argument dependency", dependencies)
 		}
 		clone, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
 		if err != nil || !sameGroupExpression(original, clone) {
 			t.Fatal("stored remap", clone, err)
 		}
-		folded, _, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original)
-		if err != nil || !SourceReturnsSet(folded) {
+		folded, _, err := preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, original)
+		if err != nil || !exec.SourceReturnsSet(folded) {
 			t.Fatal("preflight folded set", folded, err)
 		}
-		folded, _, err = simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original, false)
-		if err != nil || !SourceReturnsSet(folded) {
+		folded, _, err = simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, original, false)
+		if err != nil || !exec.SourceReturnsSet(folded) {
 			t.Fatal("simplifier folded set", folded, err)
 		}
 		text, err := (pgRenderer{view: view}).sql(context.Background(), original, pgRenderParent{})
@@ -104,10 +105,10 @@ func TestJSONElementsMarkerRetagAndTraversal(t *testing.T) {
 		if rewritten.(*plan.FunctionFromNode).Calls[0].(functions.JSONElements).Args[0] != other.Args[0] || root.Calls[0].(functions.JSONElements).Args[0] != original.Args[0] {
 			t.Fatal("query rewrite mutated original")
 		}
-		if err := ValidateFunctionFromLayout(root); err != nil {
+		if err := exec.ValidateFunctionFromLayout(root); err != nil {
 			t.Fatal(err)
 		}
-		if FunctionFromCallWidth(original) != 1 || sourceOutName(original) != "value" {
+		if exec.FunctionFromCallWidth(original) != 1 || sourceOutName(original) != "value" {
 			t.Fatal("scalar OUT layout", original)
 		}
 		if sourceOutName(original.Args[0]) != "" {
@@ -126,7 +127,7 @@ func TestJSONElementsNullPresenceAndPadding(t *testing.T) {
 			t.Fatal(err)
 		}
 		calls := []expr.Expr{series, marker}
-		invocation, err := OpenFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, &plan.FunctionFromNode{Calls: calls})
+		invocation, err := exec.OpenFunctionInvocation(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, &plan.FunctionFromNode{Calls: calls})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -151,7 +152,7 @@ func TestJSONElementsNullPresenceAndPadding(t *testing.T) {
 			t.Fatal("exhausted source", present, err)
 		}
 		node := regexpSetUnitLayout(&plan.SetProjectNode{QuerySchema: plan.QuerySchema{{Usage: marker.ResultUsage()}}, Child: &plan.SingletonNode{}, Calls: []expr.Expr{marker}, Frame: 1})
-		stage, err := OpenSetProjectNode(context.Background(), &queryState{Source: &querySource{}, Frame: 1}, node)
+		stage, err := exec.OpenSetProjectNode(context.Background(), &queryState{Source: &querySource{}, Frame: 1}, node)
 		if err != nil {
 			t.Fatal(err)
 		}

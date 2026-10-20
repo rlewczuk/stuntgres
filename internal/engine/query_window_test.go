@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -56,7 +57,7 @@ func (c *windowCancelContext) Err() error {
 			offsetEval = offsetEval || strings.Contains(name, "LiteralExpr.Eval")
 			finalize = finalize || strings.HasSuffix(name, ".WindowFrameCount")
 			output = output || strings.Contains(name, "WindowExpr).Eval")
-			publication = publication || strings.HasSuffix(name, "engine.Finalize")
+			publication = publication || strings.HasSuffix(name, "exec.Finalize")
 			if !more {
 				break
 			}
@@ -125,14 +126,14 @@ func TestQueryWindowActualPhaseCancellation(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			probe := &windowCancelContext{Context: ctx, cancel: cancel, phase: phase}
-			rows, count, err := Finalize(probe, query.Root, source, nil)
+			rows, count, err := exec.Finalize(probe, query.Root, source, nil)
 			if !probe.entered || !errors.Is(err, context.Canceled) || rows != nil || count != 0 || source.View != nil {
 				t.Fatal(probe.entered, rows, count, err, source.View)
 			}
 			cancel()
 			source.Close()
 			source.Close()
-			recovered, recoveredCount, recoveryErr := Finalize(context.Background(), query.Root, continuation, nil)
+			recovered, recoveredCount, recoveryErr := exec.Finalize(context.Background(), query.Root, continuation, nil)
 			if recoveryErr != nil || recovered == nil || recoveredCount != 4 {
 				t.Fatal(recovered, recoveredCount, recoveryErr)
 			}
@@ -151,7 +152,7 @@ func TestQueryWindowMetadataAndOverlayOwnership(t *testing.T) {
 			t.Fatal(column)
 		}
 	}
-	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || count != 4 || source.View != nil {
 		t.Fatal(rows, count, err, source.View)
 	}
@@ -164,7 +165,7 @@ func TestQueryWindowMetadataAndOverlayOwnership(t *testing.T) {
 }
 func TestQueryWindowLateKeyFailureAndCountOverflow(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT count(*) OVER(ORDER BY 1/(id-3)) FROM t LIMIT 1")
-	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	var diagnostic *sqlstate.Error
 	if rows != nil || count != 0 || !errors.As(err, &diagnostic) || diagnostic.Code != "22012" || diagnostic.Message != "division by zero" || source.View != nil {
 		t.Fatal(rows, count, err, source.View)
@@ -263,7 +264,7 @@ func TestQueryWindowInsertFinishVeto(t *testing.T) {
 
 func TestQueryWindowBorrowedOverlayAndPayloadOwnership(t *testing.T) {
 	e, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY row_number() OVER(ORDER BY id DESC)")
-	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || count != 4 || len(rows.Schema()) != 1 {
 		t.Fatal(rows, count, err)
 	}

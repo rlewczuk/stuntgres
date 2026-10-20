@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -54,7 +55,7 @@ func TestVersionInformationBinding(t *testing.T) {
 		if declaration.Identity.ID != tc.oid || declaration.Identity.Signature != "" || declaration.Kind != catalog.FunctionRoutine || declaration.Result != 25 || !declaration.Strict || declaration.Parallel != 's' || declaration.Volatility != tc.volatility || declaration.ReturnsSet || declaration.Variadic != 0 || declaration.Defaults != 0 {
 			t.Fatalf("incorrect declaration %#v", declaration)
 		}
-		if PlannedVolatility(leaf) != tc.volatility || generationImmutable(leaf) != (tc.volatility == expr.Immutable) {
+		if exec.PlannedVolatility(leaf) != tc.volatility || generationImmutable(leaf) != (tc.volatility == expr.Immutable) {
 			t.Error("lost immutable/stable boundary")
 		}
 		if sides, err := plan.JoinExpressionSides(leaf, 0, 0); err != nil || sides != 0 {
@@ -97,7 +98,7 @@ func TestVersionInformationRemap(t *testing.T) {
 		if copy.Kind != kind || copy.Pos != leaf.Pos || copy.Usage.Type == leaf.Usage.Type || copy.RoutineReference == nil || copy.RoutineReference.RoutineOID() != leaf.RoutineReference.RoutineOID() || copy.Validate(expr.PropertiesMatch(copy.Property, kind.IntrinsicRule())) != nil {
 			t.Fatal("lost remap identity", leaf, copy)
 		}
-		value, err := copy.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+		value, err := copy.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 		if err != nil || value.Type() != copy.Usage.Type || value.IsNull() != (kind == functions.VersionInformationICU) {
 			t.Fatal("lost result ownership", value, err)
 		}

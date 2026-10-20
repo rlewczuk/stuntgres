@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -26,19 +27,19 @@ func TestQuerySetStoredInheritedMarks(t *testing.T) {
 		if got := viewLeafRowMark(view, i, outer); got != want {
 			t.Fatalf("set source %d inherited mark: got %+v want %+v", i, got, want)
 		}
-		if !QueryHasPhysicalInput([]plan.Node{left, right}[i]) {
+		if !exec.QueryHasPhysicalInput([]plan.Node{left, right}[i]) {
 			t.Fatal("fixture source lost")
 		}
 	}
 	// General input/dependency traversal must retain both children; only the
 	// mark-specific traversal has a boundary. Admission still sees all sources.
 	l, r := plan.QueryInputs(set)
-	if l != set.Left || r != set.Right || !QueryHasPhysicalInput(wrapped) {
+	if l != set.Left || r != set.Right || !exec.QueryHasPhysicalInput(wrapped) {
 		t.Fatal("set barrier pruned general source traversal")
 	}
 	ordinary := *view
 	ordinary.query = &plan.Query{Root: &plan.ProjectNode{Child: &plan.JoinNode{Left: left, Right: right}}}
-	for i, want := range []plan.RowMark{outer, MergeQueryRowMark(outer, local)} {
+	for i, want := range []plan.RowMark{outer, exec.MergeQueryRowMark(outer, local)} {
 		if got := viewLeafRowMark(&ordinary, i, outer); got != want {
 			t.Fatalf("ordinary source %d inherited mark: got %+v want %+v", i, got, want)
 		}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -1001,12 +1002,12 @@ func (b *expressionBinder) bindMixedFunctionTable(rawCalls []parser.FunctionExpr
 		if err != nil {
 			return nil, queryNamespace{}, err
 		}
-		if !SourceAdmitted(node) {
+		if !exec.SourceAdmitted(node) {
 			return nil, queryNamespace{}, expr.ErrorAt("0A000", "function table source is unsupported", raw.Pos)
 		}
 		calls[i] = node
 		if node.ResultUsage().Type.BaseType().IsComposite() {
-			for j := range FunctionFromCallWidth(node) {
+			for j := range exec.FunctionFromCallWidth(node) {
 				member := node.ResultUsage().Type.BaseType().CompositeMember(j)
 				schema = append(schema, catalog.Column{Name: member.Name, Usage: member.Usage})
 			}

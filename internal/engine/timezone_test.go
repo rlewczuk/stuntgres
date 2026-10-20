@@ -34,7 +34,7 @@ func TestTimezoneBoundSessionSensitiveOperations(t *testing.T) {
 		if node.Properties().Volatility != expr.Stable {
 			t.Fatal(query, node.Properties())
 		}
-		evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Input: sqltype.InputEnvironment{Zone: ny, TransactionStart: clock}, Output: sqltype.OutputEnvironment{Zone: ny}}}
+		evaluation := EvalContext{EvalStatement: evalStatement{Context: ctx, Input: sqltype.InputEnvironment{Zone: ny, TransactionStart: clock}, Output: sqltype.OutputEnvironment{Zone: ny}}}
 		planned, _, err := preflightCoercions(&evaluation, node)
 		if err != nil {
 			t.Fatal(query, err)
@@ -71,11 +71,11 @@ func TestTimezonePreparedTemporalPayloads(t *testing.T) {
 		if err != nil {
 			t.Fatal(tc, err)
 		}
-		a, err := original.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+		a, err := original.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 		if err != nil {
 			t.Fatal(err)
 		}
-		b, err := replayed.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+		b, err := replayed.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 		if err != nil || !sqltype.SameDatum(a, b) {
 			t.Fatal(tc, a, b, err)
 		}
@@ -109,7 +109,7 @@ func TestTimezoneStrictNullAndExpressionOperands(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+			value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 			if err != nil {
 				t.Fatal(err)
 			}

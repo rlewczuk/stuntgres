@@ -21,7 +21,7 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 	boolType := b.typ(sqltype.Bool)
 	intType := b.typ(sqltype.Int4)
-	evalContext := &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evalContext := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
 	boolInfo := b.info(boolType.Usage(), parser.Position{Character: 8}, expr.Properties{})
 	integer, _ := sqltype.Integer(intType, 1)
 	for _, v := range []sqltype.Value{sqltype.Null(intType), integer, sqltype.Null(boolType), sqltype.Boolean(boolType, true)} {
@@ -75,7 +75,7 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 	column := plan.ColumnExpr{Info: b.info(intType.Usage(), parser.Position{}, expr.Properties{RowDependent: true}), Scope: 1, Frame: 1, Slot: 0}
 	parameter := plan.ParameterExpr{Info: b.info(intType.Usage(), parser.Position{}, expr.Properties{ParameterDependent: true}), Number: 1}
 	nodes := []expr.Expr{plan.NullTestExpr{Info: boolInfo, Child: column}, plan.TruthTestExpr{Info: boolInfo, Child: column, Truth: plan.True}, plan.DistinctExpr{Info: boolInfo, Left: column, Right: parameter, Equality: equality}}
-	invalid := []*EvalContext{nil, {evalStatement: evalStatement{Context: evalContext.Context}, evalFrame: evalFrame{Scope: 2, Frame: 1, Row: []sqltype.Value{sqltype.Null(intType)}}}, {evalStatement: evalStatement{Context: evalContext.Context, Parameters: []sqltype.Value{integer}}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{{}}}}, {evalStatement: evalStatement{Context: evalContext.Context, Parameters: []sqltype.Value{integer}}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(boolType)}}}}
+	invalid := []*EvalContext{nil, {EvalStatement: evalStatement{Context: evalContext.Context}, EvalFrame: evalFrame{Scope: 2, Frame: 1, Row: []sqltype.Value{sqltype.Null(intType)}}}, {EvalStatement: evalStatement{Context: evalContext.Context, Parameters: []sqltype.Value{integer}}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{{}}}}, {EvalStatement: evalStatement{Context: evalContext.Context, Parameters: []sqltype.Value{integer}}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(boolType)}}}}
 	for _, node := range nodes {
 		for _, frame := range invalid {
 			if value, err := node.Eval(frame); err == nil || value.Type() != nil {
@@ -86,12 +86,12 @@ func TestExpressionCompareNullTypedEval(t *testing.T) {
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	for _, node := range nodes {
-		if _, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: canceled}}); !errors.Is(err, context.Canceled) {
+		if _, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: canceled}}); !errors.Is(err, context.Canceled) {
 			t.Fatal(err)
 		}
 	}
 	// A bad right frame cannot be hidden by the left NULL fast path.
-	if _, err := nodes[2].Eval(&EvalContext{evalStatement: evalStatement{Context: evalContext.Context, Parameters: []sqltype.Value{{}}}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(intType)}}}); err == nil {
+	if _, err := nodes[2].Eval(&EvalContext{EvalStatement: evalStatement{Context: evalContext.Context, Parameters: []sqltype.Value{{}}}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(intType)}}}); err == nil {
 		t.Fatal("NULL fast path hid invalid right operand")
 	}
 }
@@ -258,7 +258,7 @@ func TestExpressionCompareNullConstantAndParameterReuse(t *testing.T) {
 	}
 	boolType := b.typ(sqltype.Bool)
 	for i, value := range []sqltype.Value{sqltype.Boolean(boolType, true), sqltype.Boolean(boolType, false), sqltype.Null(boolType), sqltype.Boolean(boolType, true)} {
-		got, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: []sqltype.Value{value}}})
+		got, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx, Parameters: []sqltype.Value{value}}})
 		truth, truthErr := plan.TruthOf(got)
 		if err != nil || truthErr != nil || got.IsNull() || (truth == plan.True) != (i == 0 || i == 3) {
 			t.Fatal("immutable node leaked frame", got, err, truthErr)
@@ -337,7 +337,7 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 				t.Fatal(tc.expr, p, node.ResultUsage())
 			}
 			for i, row := range rows {
-				got, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: op.ctx}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: row}})
+				got, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: op.ctx}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: row}})
 				value, valueErr := got.Boolean()
 				if err != nil || valueErr != nil || got.IsNull() || value != tc.want[i] {
 					t.Fatal(tc.expr, i, got, err, valueErr)
@@ -380,7 +380,7 @@ func TestExpressionCompareNullBoundComposition(t *testing.T) {
 	for n, parameter := range []sqltype.Value{intValue(1), intValue(2), sqltype.Null(integer), intValue(1)} {
 		want := [][4]bool{{true, false, false, true}, {false, false, true, false}, {false, true, false, false}, {true, false, false, true}}[n]
 		for i, row := range rows {
-			got, err := filter.Predicate.Eval(&EvalContext{evalStatement: evalStatement{Context: op.ctx, Parameters: []sqltype.Value{parameter}}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: row}})
+			got, err := filter.Predicate.Eval(&EvalContext{EvalStatement: evalStatement{Context: op.ctx, Parameters: []sqltype.Value{parameter}}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: row}})
 			value, valueErr := got.Boolean()
 			if err != nil || valueErr != nil || got.IsNull() || value != want[i] {
 				t.Fatal(n, i, got, err, valueErr)

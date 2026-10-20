@@ -45,7 +45,7 @@ func (s *StatementScope) formatRegTS(id uint32, alias sqltype.ID) (string, error
 		}
 		return detachedPresentation{}.FormatRegconfig(id)
 	}
-	key := regTSOutputKey{id, alias}
+	key := regTSOutputKey{ID: id, Alias: alias}
 	if text, ok := s.presentationOrZero().regTS[key]; ok {
 		return text, nil
 	}
@@ -86,7 +86,7 @@ func captureRegTSOutputValue(rows *finalRows, view catalog.Read, path []ids.Obje
 	if err != nil {
 		return err
 	}
-	key := regTSOutputKey{id, value.Type().BaseType().ID()}
+	key := regTSOutputKey{ID: id, Alias: value.Type().BaseType().ID()}
 	if _, ok := rows.RegTSOutput[key]; ok {
 		return nil
 	}

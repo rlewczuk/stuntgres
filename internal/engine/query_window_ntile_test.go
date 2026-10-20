@@ -8,6 +8,7 @@ import (
 	"sort"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -93,7 +94,7 @@ func TestQueryWindowNtileArgumentEvaluation(t *testing.T) {
 			}
 			return argument.Eval(c)
 		})
-		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+		rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -142,7 +143,7 @@ func TestQueryWindowNtileArgumentEvaluation(t *testing.T) {
 				return original.Eval(c)
 			})
 		}
-		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+		rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -302,7 +303,7 @@ func TestQueryWindowNtileEvaluationCancellation(t *testing.T) {
 				}
 				return value, err
 			})
-			rows, count, err := Finalize(ctx, query.Root, source, nil)
+			rows, count, err := exec.Finalize(ctx, query.Root, source, nil)
 			if rows != nil {
 				rows.Close()
 			}

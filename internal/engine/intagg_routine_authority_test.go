@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 	"testing"
@@ -78,7 +79,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 				}
 			} else {
 				enum, ok := node.(plan.UnnestExpr)
-				if !ok || !SourceAdmitted(enum) || !binder.clause.queryHasTargetSet {
+				if !ok || !exec.SourceAdmitted(enum) || !binder.clause.queryHasTargetSet {
 					t.Fatal("lost genuine set carrier")
 				}
 				captured, ref = enum.Procedure, enum.Ref
@@ -94,7 +95,7 @@ func TestIntaggRoutineOriginalAuthority(t *testing.T) {
 					}
 				}
 				if tc.name == "enum_null" || tc.name == "enum_parameter" {
-					cursor, err := OpenFunctionSource(&evaluation, enum)
+					cursor, err := exec.OpenFunctionSource(&evaluation, enum)
 					if err != nil {
 						t.Fatal(err)
 					}

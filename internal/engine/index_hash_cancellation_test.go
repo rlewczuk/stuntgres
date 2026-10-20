@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
@@ -40,7 +41,7 @@ func TestHashIndexLookupCancellation(t *testing.T) {
 	if len(source.HashIndexes) != 1 || source.HashIndexes[0].Root != root {
 		t.Fatal("cancellation fixture did not retain the real root")
 	}
-	filter := HashQueryFilter(query.Root)
+	filter := exec.HashQueryFilter(query.Root)
 	if filter == nil {
 		t.Fatal("missing real filter")
 	}
@@ -65,7 +66,7 @@ func TestHashIndexLookupCancellation(t *testing.T) {
 	calibration, stop := context.WithCancel(context.Background())
 	defer stop()
 	counting := &cancelAtErrCheck{Context: calibration, cancel: stop}
-	opened, err := OpenNode(counting, state, filter)
+	opened, err := exec.OpenNode(counting, state, filter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +81,7 @@ func TestHashIndexLookupCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	duringProbe := &cancelAtErrCheck{Context: ctx, cancel: cancel, at: polls - 1}
-	failed, err := OpenNode(duringProbe, state, filter)
+	failed, err := exec.OpenNode(duringProbe, state, filter)
 	if !errors.Is(err, context.Canceled) || duringProbe.checks.Load() != duringProbe.at || failed.Source != nil || failed.Produce != nil || failed.HashCandidates != nil {
 		failed.Close()
 		t.Fatal("canceled probe returned a successful/partial stage", err, duringProbe.checks.Load(), failed)
@@ -89,7 +90,7 @@ func TestHashIndexLookupCancellation(t *testing.T) {
 
 	// Also cancel the real residual consumer after one admitted occurrence. Its
 	// terminal error must survive a later drain with a fresh context.
-	warm, err := OpenNode(context.Background(), state, filter)
+	warm, err := exec.OpenNode(context.Background(), state, filter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +103,7 @@ func TestHashIndexLookupCancellation(t *testing.T) {
 	}
 	firstPolls := firstCounting.checks.Load()
 	warm.Close()
-	consuming, err := OpenNode(context.Background(), state, filter)
+	consuming, err := exec.OpenNode(context.Background(), state, filter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +192,7 @@ func TestHashIndexMergeCancellation(t *testing.T) {
 	calibration, stop := context.WithCancel(context.Background())
 	defer stop()
 	counting := &cancelAtErrCheck{Context: calibration, cancel: stop}
-	candidate, err := mergeHashIndexRoot(&EvalContext{evalStatement: evalStatement{Context: counting}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, parent, index, e.storage.IndexRoots[index.Address()], &p, false, true)
+	candidate, err := mergeHashIndexRoot(&EvalContext{EvalStatement: evalStatement{Context: counting}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}, parent, index, e.storage.IndexRoots[index.Address()], &p, false, true)
 	if err != nil || candidate == nil || candidate.Hash == nil || !reflect.DeepEqual(hashKeys(t, candidate.Hash), []string{"3", "4", "4", "5"}) {
 		t.Fatal("real merge calibration failed", candidate, err)
 	}

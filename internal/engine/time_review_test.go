@@ -49,7 +49,7 @@ func TestTimeReviewAssignmentIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := bound.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+	value, err := bound.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 	if err != nil {
 		t.Fatal(err)
 	}

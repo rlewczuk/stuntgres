@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 	"testing"
@@ -27,7 +28,7 @@ func TestUUIDOsspNamespaceExpressionIdentity(t *testing.T) {
 				t.Fatal(err)
 			}
 			n := node.(plan.InstalledUUIDOsspExpr)
-			if n.Name != name || !slices.Contains(ext.Members, n.Ref.Address) || n.Procedure.Name() != name || n.ResultUsage().Type.ID() != sqltype.UUID || PlannedVolatility(n) != expr.Immutable || !generationImmutable(n) || !closedUUIDDefault(n) {
+			if n.Name != name || !slices.Contains(ext.Members, n.Ref.Address) || n.Procedure.Name() != name || n.ResultUsage().Type.ID() != sqltype.UUID || exec.PlannedVolatility(n) != expr.Immutable || !generationImmutable(n) || !closedUUIDDefault(n) {
 				t.Fatal("constant shape/identity", n)
 			}
 			if carrier, err := routine.ExpressionRoutineDescriptor(n); err != nil || carrier != n.Procedure {
@@ -52,7 +53,7 @@ func TestUUIDOsspNamespaceExpressionIdentity(t *testing.T) {
 				t.Fatal(err)
 			}
 			got := rebuilt.(plan.InstalledUUIDOsspExpr)
-			if got.Name != name || got.Procedure != n.Procedure || got.Ref != n.Ref || PlannedVolatility(got) != expr.Immutable {
+			if got.Name != name || got.Procedure != n.Procedure || got.Ref != n.Ref || exec.PlannedVolatility(got) != expr.Immutable {
 				t.Fatal("rebuild/retag erased identity", got)
 			}
 			rendered, err := (scalarRenderer{}).sql(context.Background(), view, got)

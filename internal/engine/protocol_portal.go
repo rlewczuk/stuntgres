@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -283,7 +284,7 @@ func (s *StatementScope) installProtocolProducer(root plan.Node, source *querySo
 	c := &sqlCursor{tx: s.txRef, epoch: s.txRef.Epoch(), root: project, schema: project.Schema(), source: source, authority: s.authority,
 		leaves: s.querySources, locks: s.queryLocks, catalog: s.inquiry.commentCatalog, roles: s.inquiry.commentRoles, routineDependencies: s.routineDependencies, routineAuth: s.routineAuth,
 		deparseAuth: s.inquiry.deparseAuth, deparsePath: s.inquiry.deparsePath, collationPath: s.inquiry.collationPath, visibilityCatalog: s.inquiry.visibilityCatalog, visibilityRelationPath: s.inquiry.visibilityRelationPath, visibilityOtherPath: s.inquiry.visibilityOtherPath}
-	c.state = queryState{Source: source, Parameters: values, Input: s.input, Output: s.output, Locking: source.Locks != nil && source.Locks.RowMarked(), HashFilter: HashQueryFilter(root)}
+	c.state = queryState{Source: source, Parameters: values, Input: s.input, Output: s.output, Locking: source.Locks != nil && source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
 	c.state.Input.LockedDomainInput, c.state.Input.DomainChecks = nil, nil
 	c.state.Output.Regclass, c.state.Output.Regtype = nil, nil
 	c.state.Output.Regproc, c.state.Output.Regrole, c.state.Output.Operator = nil, nil, nil
@@ -420,7 +421,7 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 			outputInitialized = true
 		}
 		if p.outputRows == nil {
-			p.outputRows = NewFinalRows(p.columns, 0)
+			p.outputRows = exec.NewFinalRows(p.columns, 0)
 		}
 		if !catalogReady {
 			// Stored typed rows remain immutable. This destination captures
@@ -433,7 +434,7 @@ func (s *StatementScope) executeProtocolPortal(p *protocolPortal, name string, m
 				return out, captureErr
 			}
 			catalog = auth.Catalog
-			p.outputRows.operatorGroups = nil
+			p.outputRows.OperatorGroups = nil
 			catalogReady = true
 		}
 		if err = s.captureProtocolOutput(p.outputRows, values, catalog); err != nil {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -23,7 +24,7 @@ func TestCTEDMLInvocationOwnership(t *testing.T) {
 	for _, width := range []int{0, 2} {
 		for _, hint := range []parser.CTEMaterialization{parser.CTEDefault, parser.CTEMaterialized, parser.CTENotMaterialized} {
 			schema := plan.QuerySchema{}
-			rows := NewFinalRows(schema, 3)
+			rows := exec.NewFinalRows(schema, 3)
 			if width == 2 {
 				schema = plan.QuerySchema{{Name: "id", Usage: integer.Usage()}, {Name: "v", Usage: integer.Usage()}}
 				rows.Columns = schema
@@ -50,11 +51,11 @@ func TestCTEDMLInvocationOwnership(t *testing.T) {
 			}
 			scan := &plan.DerivedNode{QuerySchema: schema, CTE: definition}
 			state := &queryState{Source: owner.State.Source, Ctes: owner}
-			left, err := OpenCTEScan(context.Background(), state, scan)
+			left, err := exec.OpenCTEScan(context.Background(), state, scan)
 			if err != nil {
 				t.Fatal(err)
 			}
-			right, err := OpenCTEScan(context.Background(), state, scan)
+			right, err := exec.OpenCTEScan(context.Background(), state, scan)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -84,7 +85,7 @@ func TestCTEDMLInvocationOwnership(t *testing.T) {
 				t.Fatal(err)
 			}
 			fresh := &cteInvocation{Frame: 1, State: owner.State}
-			if _, err := OpenCTEScan(context.Background(), &queryState{Source: fresh.State.Source, Ctes: fresh}, scan); err == nil {
+			if _, err := exec.OpenCTEScan(context.Background(), &queryState{Source: fresh.State.Source, Ctes: fresh}, scan); err == nil {
 				t.Fatal("fresh invocation inherited completed producer")
 			}
 			if err := completeCTEMutation(owner, definition, Result{}); err == nil {

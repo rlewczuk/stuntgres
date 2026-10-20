@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -23,9 +24,9 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	}
 	catalog := e.privateCatalogLocked(scope.owner.catalog)
 	e.mu.Unlock()
-	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Host: hostOf(scope), Catalog: catalog, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: ctx, Host: hostOf(scope), Catalog: catalog, Input: scope.input, Output: scope.output}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
 	evaluation.QuoteCaptures = scope.quoteCaptures
-	evaluation.quoteOrigin = quoteOrigin{Owner: ref, Definition: definition.rule, Revision: definition.quoteRevision}
+	evaluation.QuoteOrigin = quoteOrigin{Owner: ref, Definition: definition.rule, Revision: definition.quoteRevision}
 	consumer, ok := catalog.Relation(ref.Address)
 	if !ok || viewOf(consumer) != definition {
 		return nil, nil, ids.ErrCatalogReplaced
@@ -79,7 +80,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 	if err != nil {
 		return nil, nil, err
 	}
-	if err = SelectQuerySources(ctx, source); err != nil {
+	if err = exec.SelectQuerySources(ctx, source); err != nil {
 		source.Close()
 		return nil, nil, err
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 )
 
@@ -80,7 +81,7 @@ func TestPreparedSerializableCandidateRetainsAdmittedSnapshot(t *testing.T) {
 				t.Fatal("final outcome replaced admitted snapshot")
 			}
 			reader.owner.mu.Unlock()
-			source, err := SelectQuerySource(context.Background(), &querySource{Committed: root.Versions}, frontier, root.Ends, nil)
+			source, err := exec.SelectQuerySource(context.Background(), &querySource{Committed: root.Versions}, frontier, root.Ends, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -94,7 +95,7 @@ func TestPreparedSerializableCandidateRetainsAdmittedSnapshot(t *testing.T) {
 			}
 			e.mu.Lock()
 			current := e.storage.Relations[relation.Address]
-			published, err := SelectQuerySource(context.Background(), &querySource{Committed: current.Versions}, e.visibility.CommitSeq(), current.Ends, nil)
+			published, err := exec.SelectQuerySource(context.Background(), &querySource{Committed: current.Versions}, e.visibility.CommitSeq(), current.Ends, nil)
 			e.mu.Unlock()
 			if err != nil {
 				t.Fatal(err)

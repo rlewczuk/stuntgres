@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -30,22 +31,22 @@ func moreUnitExpression(t *testing.T, view catalog.Read) plan.UnnestExpr {
 func TestRangeMoreExpressionCursor(t *testing.T) {
 	view := New().CatalogRead()
 	e := moreUnitExpression(t, view)
-	if !SourceReturnsSet(e) || !SourceAdmitted(e) || len(expr.Expr(e).(expr.Composite).Children()) != 1 {
+	if !exec.SourceReturnsSet(e) || !exec.SourceAdmitted(e) || len(expr.Expr(e).(expr.Composite).Children()) != 1 {
 		t.Fatal("missing SRF classification")
 	}
-	c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+	c := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 	if _, err := e.Eval(c); err == nil {
 		t.Fatal("unlifted scalar execution")
 	}
 	count := 0
 	value := e.Args[0].(plan.LiteralExpr).Value
 	e.Args[0] = queryProbe(e.Args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { count++; return value, nil })
-	first, err := OpenFunctionSource(c, e)
+	first, err := exec.OpenFunctionSource(c, e)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer first.Close()
-	second, err := OpenFunctionSource(c, e)
+	second, err := exec.OpenFunctionSource(c, e)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +134,7 @@ func TestRangeMoreBinding(t *testing.T) {
 		if err != nil || node.ResultUsage().Type != b.typ(tc.output) {
 			t.Fatal(node, err)
 		}
-		got, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+		got, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 		if err != nil {
 			t.Fatal(err)
 		}

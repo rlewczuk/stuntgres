@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -44,7 +45,7 @@ func TestArrayInspectResolver(t *testing.T) {
 				if err := call.Validate(); err != nil {
 					t.Fatal(err)
 				}
-				v, err := call.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{Row: []sqltype.Value{sqltype.CatalogResultNull(u)}}})
+				v, err := call.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}, EvalFrame: evalFrame{Row: []sqltype.Value{sqltype.CatalogResultNull(u)}}})
 				if err != nil || !v.IsNull() || v.Type() != b.typ(kind.Result()) {
 					t.Fatal(v, err)
 				}
@@ -97,12 +98,12 @@ func TestArrayInspectStoredRemap(t *testing.T) {
 		t.Fatal("lost generation ownership")
 	}
 	for _, call := range []expr.Expr{old, next} {
-		v, err := call.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+		v, err := call.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 		n, nerr := v.Integer()
 		if err != nil || nerr != nil || n != 3 || v.Type() != call.ResultUsage().Type {
 			t.Fatal(v, err, nerr)
 		}
-		if !sameGroupExpression(call, call) || !closedTransactionTimeDefault(call) || !closedUUIDDefault(call) || PlannedPhysicalVolatility(call, false) != expr.Immutable {
+		if !sameGroupExpression(call, call) || !closedTransactionTimeDefault(call) || !closedUUIDDefault(call) || exec.PlannedPhysicalVolatility(call, false) != expr.Immutable {
 			t.Fatal("lost scalar traversal")
 		}
 		visited := 0
@@ -144,7 +145,7 @@ func TestArrayInspectClosedDefaults(t *testing.T) {
 		if producer == "uuidv4" {
 			valid = closedUUIDDefault(node)
 		}
-		if !valid || PlannedPhysicalVolatility(node, false) != expr.Volatile {
+		if !valid || exec.PlannedPhysicalVolatility(node, false) != expr.Volatile {
 			t.Fatal("lost nested producer", producer)
 		}
 	}

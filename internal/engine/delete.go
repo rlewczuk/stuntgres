@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
@@ -209,9 +210,9 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 		}
 	}
 	ctx := s.op.Context()
-	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: parameters, Host: hostOf(s), Input: s.input, Output: s.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: ctx, Parameters: parameters, Host: hostOf(s), Input: s.input, Output: s.output}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
 	if inputs != nil {
-		if err := SelectQuerySources(ctx, inputs); err != nil {
+		if err := exec.SelectQuerySources(ctx, inputs); err != nil {
 			return Result{}, err
 		}
 		if b.viewWrite != nil || b.rule.template {
@@ -230,7 +231,7 @@ func (s *StatementScope) deleteSource(b binding, source, inputs *querySource, pa
 	var rows *finalRows
 	keep := false
 	if b.returning != nil {
-		rows = NewFinalRows(b.returning.schema, 0)
+		rows = exec.NewFinalRows(b.returning.schema, 0)
 		rows.Output = s.output
 		defer func() {
 			if !keep {
@@ -365,7 +366,7 @@ func captureQuerySource(ctx context.Context, view *visibility.View, ref ids.Obje
 		return nil, err
 	}
 	data := source.View.Data()
-	return SelectQuerySource(ctx, source, data.FrontierAt(ref.Address), data.Ends[ref.Address], data.Deleted[ref.Address])
+	return exec.SelectQuerySource(ctx, source, data.FrontierAt(ref.Address), data.Ends[ref.Address], data.Deleted[ref.Address])
 }
 
 func captureQueryPrefix(view *visibility.View, ref ids.ObjectRef) (*querySource, error) {

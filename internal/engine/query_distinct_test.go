@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
@@ -26,7 +27,7 @@ func TestQueryDistinctProjectedSlotsAndMetadata(t *testing.T) {
 	original := node.Expressions[0]
 	calls := 0
 	node.Expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return original.Eval(c) })
-	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || count != 3 || calls != 4 || source.View != nil {
 		t.Fatal(rows, count, calls, err, source.View)
 	}
@@ -53,14 +54,14 @@ func TestQueryDistinctCollisionCandidates(t *testing.T) {
 	one, _ := sqltype.Integer(d, 1)
 	two, _ := sqltype.Integer(d, 2)
 	flat := []sqltype.Value{one, two}
-	if index, err := FindDistinctTuple(context.Background(), node.Grouping, []sqltype.Value{two}, flat, []int{0}); err != nil || index != -1 {
+	if index, err := exec.FindDistinctTuple(context.Background(), node.Grouping, []sqltype.Value{two}, flat, []int{0}); err != nil || index != -1 {
 		t.Fatal("collision suppressed unequal tuple", index, err)
 	}
-	if index, err := FindDistinctTuple(context.Background(), node.Grouping, []sqltype.Value{two}, flat, []int{0, 1}); err != nil || index != 1 {
+	if index, err := exec.FindDistinctTuple(context.Background(), node.Grouping, []sqltype.Value{two}, flat, []int{0, 1}); err != nil || index != 1 {
 		t.Fatal(index, err)
 	}
 	ctx := &aggregateCancelContext{Context: context.Background(), armed: true, at: 4}
-	if _, err := FindDistinctTuple(ctx, node.Grouping, []sqltype.Value{two}, flat, []int{0, 1}); !errors.Is(err, context.Canceled) {
+	if _, err := exec.FindDistinctTuple(ctx, node.Grouping, []sqltype.Value{two}, flat, []int{0, 1}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }
@@ -116,7 +117,7 @@ func TestQueryDistinctFailureAndCancellationFrontiers(t *testing.T) {
 					})
 				}
 			}
-			rows, count, err := Finalize(evaluationContext, query.Root, source, nil)
+			rows, count, err := exec.Finalize(evaluationContext, query.Root, source, nil)
 			want := error(context.Canceled)
 			if phase == "late failure" {
 				want = sentinel

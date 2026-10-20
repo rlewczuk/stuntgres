@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -31,7 +32,7 @@ func (s *StatementScope) prepareCopyQueryRows(query *parser.Select) (RowResult, 
 	}
 	rows := &protocolCopyQueryRows{scope: s, producer: capture.producer, schema: capture.producer.schema}
 	capture.producer = nil
-	rows.output = NewFinalRows(rows.schema, 0)
+	rows.output = exec.NewFinalRows(rows.schema, 0)
 	rows.output.Output = s.output
 	err = func() error {
 		s.enterProtocolProducer(rows.producer)

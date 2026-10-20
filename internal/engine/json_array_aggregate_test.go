@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -151,7 +152,7 @@ func TestJSONArrayAggregateRunnerNullPresence(t *testing.T) {
 				}
 				return sqltype.Null(usage.Type), nil
 			})
-			rows, n, err := Finalize(context.Background(), q.Root, source, nil)
+			rows, n, err := exec.Finalize(context.Background(), q.Root, source, nil)
 			if err != nil || n != 1 {
 				t.Fatal(n, err)
 			}
@@ -190,7 +191,7 @@ func TestJSONArrayAggregateReachedEagerCancellation(t *testing.T) {
 		node.Calls[0].Argument = queryProbe(input.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.String(input, "é\"\\"), nil })
 		ctx, cancel := context.WithCancel(context.Background())
 		probe := &bitwiseAggregateCancelContext{Context: ctx, cancel: cancel, target: tc.target}
-		rows, n, err := Finalize(probe, q.Root, source, nil)
+		rows, n, err := exec.Finalize(probe, q.Root, source, nil)
 		cancel()
 		if !probe.entered || rows != nil || n != 0 || !errors.Is(err, context.Canceled) {
 			if rows != nil {
@@ -285,7 +286,7 @@ func TestJSONArrayAggregateStoredReturningPresentation(t *testing.T) {
 		t.Fatal("stored SQL/JSON semantics lost", call)
 	}
 	_, query, source := queryCoreFixture(t, "SELECT "+text+" FROM t WHERE id=1")
-	rows, n, err := Finalize(ctx, query.Root, source, nil)
+	rows, n, err := exec.Finalize(ctx, query.Root, source, nil)
 	if err != nil || n != 1 {
 		t.Fatal("stored expression replay", n, err)
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -40,7 +41,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 		return plan.LiteralExpr{Info: expr.Info{Usage: value.Type().Usage()}, Value: value}
 	}
 	bound := functions.Enum{Info: expr.Info{Usage: array.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Plan: enumSupportPlan, Args: []expr.Expr{literal(sqltype.Null(mood)), literal(sqltype.Null(mood))}, EnumName: "mood"}
-	old, err := bound.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+	old, err := bound.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +68,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 		t.Fatal(changed, err)
 	}
 	next := mapped.(functions.Enum)
-	value, err := next.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+	value, err := next.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 	if err != nil || value.Type() != targetArray || value.ArrayElement(0).Type() != targetMood || next.Plan.Enum() != targetMood {
 		t.Fatal(value, err)
 	}
@@ -99,7 +100,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	if err != nil || !projection.Concrete() || projection.Element() != wrapped {
 		t.Fatal("domain-over-enum projection regressed", err)
 	}
-	if PlannedVolatility(bound) != expr.Stable {
+	if exec.PlannedVolatility(bound) != expr.Stable {
 		t.Fatal("intrinsic volatility")
 	}
 	for _, signature := range []struct {
@@ -127,14 +128,14 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 			t.Fatal(err)
 		}
 		call := functions.Enum{Info: expr.Info{Usage: result}, Plan: provider, Args: arguments, EnumName: "mood"}
-		if generationImmutable(call) || PlannedVolatility(call) != expr.Stable {
+		if generationImmutable(call) || exec.PlannedVolatility(call) != expr.Stable {
 			t.Fatalf("%s/%d lost intrinsic STABLE admission", signature.name, signature.arity)
 		}
 	}
 	if !conditionalConstantInputs(bound) {
 		t.Fatal("enum closedness")
 	}
-	simplified, changed, err := simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: ctx}}, bound, false)
+	simplified, changed, err := simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, bound, false)
 	if err != nil || changed {
 		t.Fatal("STABLE call folded", changed, err)
 	}
@@ -146,7 +147,7 @@ func TestEnumFunctionRetagAndStoredProviders(t *testing.T) {
 	unary := functions.Enum{Info: expr.Info{Usage: mood.Usage()}, Plan: first, Args: []expr.Expr{mathObservedArgument{Info: expr.Info{Usage: mood.Usage()}, value: sqltype.Null(mood), order: &order, index: 0}}, EnumName: "mood"}
 	volatile := unary
 	volatile.Args = []expr.Expr{mathObservedArgument{Info: expr.Info{Usage: mood.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, value: sqltype.Null(mood), order: &order}}
-	if PlannedVolatility(volatile) != expr.Volatile {
+	if exec.PlannedVolatility(volatile) != expr.Volatile {
 		t.Fatal("child volatility lost")
 	}
 }

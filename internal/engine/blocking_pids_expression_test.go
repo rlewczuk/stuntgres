@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -43,7 +44,7 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 		if got, err := (boundTree{n}).StructuralOutput(ctx); err != nil || !strings.Contains(got, "BlockingInquiry") {
 			t.Fatal("structural recipe", got, err)
 		}
-		if !b.sameGroupExpression(n, n) || generationImmutable(n) || PlannedVolatility(n) != expr.Volatile {
+		if !b.sameGroupExpression(n, n) || generationImmutable(n) || exec.PlannedVolatility(n) != expr.Volatile {
 			t.Fatal("lost intrinsic live volatility")
 		}
 		other := n
@@ -52,7 +53,7 @@ func TestBlockingPidsTraversalReplay(t *testing.T) {
 			t.Fatal("different inquiries collapsed")
 		}
 		for _, rewrite := range []func(*EvalContext, expr.Expr, bool) (expr.Expr, bool, error){simplifyConditional, preflightCoercionsWithPolicy} {
-			next, _, err := rewrite(&EvalContext{evalStatement: evalStatement{Context: ctx}}, n, false)
+			next, _, err := rewrite(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, n, false)
 			if err != nil || next.Properties().Volatility != expr.Volatile {
 				t.Fatal("live recipe precomputed", next, err)
 			}

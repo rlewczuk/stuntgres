@@ -36,11 +36,11 @@ func TestDatetimeSleepBinding(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		folded, changed, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, x)
+		folded, changed, err := preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, x)
 		if err != nil || !changed {
 			t.Fatal(folded, changed, err)
 		}
-		v, err := folded.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+		v, err := folded.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 		if err != nil || !v.IsNull() || v.Type().ID() != sqltype.Void {
 			t.Fatal(v, err)
 		}
@@ -51,7 +51,7 @@ func TestDatetimeSleepClockOwner(t *testing.T) {
 	e := New()
 	stamp, _ := e.CatalogRead().LookupType(sqltype.Timestamptz)
 	oldTransaction := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
-	c := &EvalContext{evalStatement: evalStatement{Context: context.Background(), Input: sqltype.InputEnvironment{TransactionStart: oldTransaction}}}
+	c := &EvalContext{EvalStatement: evalStatement{Context: context.Background(), Input: sqltype.InputEnvironment{TransactionStart: oldTransaction}}}
 	before := time.Now().UTC().Truncate(time.Microsecond)
 	current, err := c.FunctionSleepClock(stamp.Usage())
 	after := time.Now().UTC()
@@ -97,7 +97,7 @@ func TestDatetimeSleepCleanup(t *testing.T) {
 		}
 		done := make(chan error, 1)
 		go func() {
-			_, err := wait.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx, Host: hostOf(scope)}})
+			_, err := wait.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx, Host: hostOf(scope)}})
 			done <- err
 		}()
 		datetimeSleepCleanupAdmission(t, done)
@@ -154,7 +154,7 @@ func TestDatetimeSleepStored(t *testing.T) {
 		t.Fatal("retag", err)
 	}
 	copy := rebound.(functions.DatetimeSleep)
-	value, err := copy.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+	value, err := copy.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 	if err != nil || value.IsNull() || value.Type().ID() != sqltype.Void {
 		t.Fatal("reminted zero delay", value, err)
 	}
@@ -177,7 +177,7 @@ func TestDatetimeSleepStored(t *testing.T) {
 	if err != nil {
 		t.Fatal("interval retag", err)
 	}
-	value, err = rebound.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+	value, err = rebound.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 	if err != nil || value.IsNull() || value.Type().ID() != sqltype.Void {
 		t.Fatal("reminted calendar zero delay", value, err)
 	}

@@ -98,7 +98,7 @@ func TestMathGcdLcmBindingExecutionPhase(t *testing.T) {
 		if err != nil {
 			t.Fatal("binding invoked provider", q, err)
 		}
-		c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+		c := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 		_, _, err = preflightCoercions(c, node)
 		message := "integer out of range"
 		if strings.Contains(q, "bigint") {

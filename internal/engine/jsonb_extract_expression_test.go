@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -33,7 +34,7 @@ func TestJSONBExtractInferenceAndLifecycle(t *testing.T) {
 				t.Fatal(tc.q, b.params.parameters)
 			}
 		}
-		if node.Properties().Volatility != expr.Immutable || !node.Properties().ParameterDependent || PlannedVolatility(node) != expr.Immutable {
+		if node.Properties().Volatility != expr.Immutable || !node.Properties().ParameterDependent || exec.PlannedVolatility(node) != expr.Immutable {
 			t.Fatal(node.Properties())
 		}
 		count := 0
@@ -65,7 +66,7 @@ func TestJSONBExtractInferenceAndLifecycle(t *testing.T) {
 			t.Fatal("lost exact owner", i)
 		}
 	}
-	value, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+	value, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +128,7 @@ func TestJSONBExtractStoredVariadicProvenance(t *testing.T) {
 					t.Fatal("lost written provenance", replaySQL)
 				}
 				replayed := jsonbSetUnitBind(t, newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil), "SELECT "+replaySQL)
-				value, err := replayed.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+				value, err := replayed.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 				if err != nil {
 					t.Fatal(err)
 				}

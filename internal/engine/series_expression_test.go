@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -40,7 +41,7 @@ func seriesUnitType(t *testing.T, id sqltype.ID) *sqltype.Descriptor {
 }
 func seriesUnitRead(t *testing.T, e plan.SeriesExpr) []int64 {
 	t.Helper()
-	cursor, err := OpenFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, e)
+	cursor, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, e)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,10 +80,10 @@ func TestSeriesBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	e, ok := x.(plan.SeriesExpr)
-	if !ok || e.ResultUsage().Type.ID() != sqltype.Int4 || !e.Properties().StageDependent || !b.clause.queryHasTargetSet || !SourceAdmitted(e) {
+	if !ok || e.ResultUsage().Type.ID() != sqltype.Int4 || !e.Properties().StageDependent || !b.clause.queryHasTargetSet || !exec.SourceAdmitted(e) {
 		t.Fatal(x)
 	}
-	if _, err = e.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}); err == nil {
+	if _, err = e.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}); err == nil {
 		t.Fatal("scalar consumed set")
 	}
 	_, err = b.bindFunction(nullCountRaw("generate_series", parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}, parser.LiteralExpr{Value: parser.Value{Kind: parser.NullValue}}))
@@ -109,7 +110,7 @@ func TestSeriesCursor(t *testing.T) {
 		}
 	}
 	e := seriesUnit(t, d, 1, 3, 0)
-	_, err := OpenFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, e)
+	_, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, e)
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "22023" || diagnostic.Message != "step size cannot equal zero" || diagnostic.Position != "" {
 		t.Fatal(err)
@@ -122,7 +123,7 @@ func TestSeriesCursor(t *testing.T) {
 	}
 	sentinel := errors.New("sibling error")
 	e.Args[1] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, sentinel })
-	if _, err := OpenFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, e); err != sentinel {
+	if _, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, e); err != sentinel {
 		t.Fatal(err)
 	}
 }
@@ -157,18 +158,18 @@ func TestSeriesExpressionHooks(t *testing.T) {
 		}
 		null := plan.LiteralExpr{Info: expr.Info{Usage: d.Usage()}, Value: sqltype.Null(d)}
 		wrapper := plan.ArithmeticExpr{Info: original.Info, Left: original, Right: null, Provider: arithmetic, Operator: sqltype.ArithmeticAdd}
-		ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background(), Catalog: view}}
+		ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background(), Catalog: view}}
 		for _, fold := range []func() (expr.Expr, bool, error){
 			func() (expr.Expr, bool, error) { return preflightCoercions(ctx, wrapper) },
 			func() (expr.Expr, bool, error) { return simplifyConditional(ctx, wrapper, false) },
 		} {
 			node, changed, err := fold()
 			value, ok := node.(plan.LiteralExpr)
-			if err != nil || !changed || !ok || !value.Value.IsNull() || value.ResultUsage() != wrapper.ResultUsage() || QuerySetDepth(node) != 0 {
+			if err != nil || !changed || !ok || !value.Value.IsNull() || value.ResultUsage() != wrapper.ResultUsage() || exec.QuerySetDepth(node) != 0 {
 				t.Fatal("strict set wrapper retained cardinality", node, changed, err)
 			}
 		}
-		if QuerySetDepth(wrapper) != 1 || QuerySetDepth(original) != 1 {
+		if exec.QuerySetDepth(wrapper) != 1 || exec.QuerySetDepth(original) != 1 {
 			t.Fatal("mutated analyzed marker")
 		}
 		parameter := null
@@ -216,7 +217,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 			walked++
 		}
 	})
-	if walked != 3 || PlannedVolatility(original) != expr.Immutable || QuerySetDepth(original) != 1 || !sameGroupExpression(original, original) {
+	if walked != 3 || exec.PlannedVolatility(original) != expr.Immutable || exec.QuerySetDepth(original) != 1 || !sameGroupExpression(original, original) {
 		t.Fatal(walked)
 	}
 	if sameGroupExpression(original, seriesUnit(t, d, 1, 3, 2)) || sameGroupExpression(original, seriesUnit(t, fresh, 1, 3, 1)) {
@@ -224,14 +225,14 @@ func TestSeriesExpressionHooks(t *testing.T) {
 	}
 	for _, fold := range []func() (expr.Expr, bool, error){
 		func() (expr.Expr, bool, error) {
-			return preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original)
+			return preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, original)
 		},
 		func() (expr.Expr, bool, error) {
-			return simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original, false)
+			return simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, original, false)
 		},
 	} {
 		n, _, err := fold()
-		if err != nil || !SourceReturnsSet(n) {
+		if err != nil || !exec.SourceReturnsSet(n) {
 			t.Fatal(n, err)
 		}
 	}
@@ -252,7 +253,7 @@ func TestSeriesExpressionHooks(t *testing.T) {
 	probe := queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Integer(d, 1) }).(queryProbeExpression)
 	probe.Property.Volatility = expr.Volatile
 	volatile.Args[0] = probe
-	if PlannedVolatility(volatile) != expr.Volatile {
+	if exec.PlannedVolatility(volatile) != expr.Volatile {
 		t.Fatal("erased volatile child")
 	}
 	root := &plan.SetProjectNode{QuerySchema: plan.QuerySchema{{Usage: d.Usage()}}, Child: &plan.SingletonNode{}, Calls: []expr.Expr{original}}
@@ -294,7 +295,7 @@ func TestSeriesLowering(t *testing.T) {
 		functionSetUnitArgument(t, q.Child.(*plan.SetProjectNode).Calls, 0, 0,
 			queryProbe(wide.Usage(), func(*EvalContext) (sqltype.Value, error) { opens++; return sqltype.Integer(wide, 1) }))
 		q.Child = &plan.LimitNode{QuerySchema: q.Child.Schema(), Child: q.Child, Count: seriesUnit(t, wide, 3, 3).Args[0]}
-		r, count, err := Finalize(context.Background(), q, &querySource{Materialized: true}, nil)
+		r, count, err := exec.Finalize(context.Background(), q, &querySource{Materialized: true}, nil)
 		if err != nil || count != 3 || opens != 1 {
 			t.Fatal(count, opens, err)
 		}
@@ -316,7 +317,7 @@ func TestSeriesLowering(t *testing.T) {
 	outer.Pos = parser.Position{Character: 5, Offset: 4}
 	outer.Args[1] = inner
 	q := seriesUnitProject(t, engine, outer)
-	r, count, err := Finalize(context.Background(), q, &querySource{Materialized: true}, nil)
+	r, count, err := exec.Finalize(context.Background(), q, &querySource{Materialized: true}, nil)
 	if err != nil || count != 6 {
 		t.Fatal(count, err)
 	}
@@ -341,7 +342,7 @@ func TestSeriesLowering(t *testing.T) {
 
 func TestSeriesCancellation(t *testing.T) {
 	d := seriesUnitType(t, sqltype.Int8)
-	cursor, err := OpenFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, seriesUnit(t, d, 1, math.MaxInt64))
+	cursor, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, seriesUnit(t, d, 1, math.MaxInt64))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -359,7 +360,7 @@ func TestSeriesCancellation(t *testing.T) {
 	if _, ok, err := cursor.Next(ctx); ok || err != context.Canceled || !cursor.Exhausted {
 		t.Fatal(ok, err)
 	}
-	r := NewFinalRows(plan.QuerySchema{{Name: "v", Usage: d.Usage()}}, 2)
+	r := exec.NewFinalRows(plan.QuerySchema{{Name: "v", Usage: d.Usage()}}, 2)
 	r.Values = []sqltype.Value{v, v}
 	row := make([]sqltype.Value, 1)
 	if ok, err := r.Next(context.Background(), row); err != nil || !ok {
@@ -402,7 +403,7 @@ func TestSeriesFinalization(t *testing.T) {
 		}
 		functionSetUnitArgument(t, root.(*plan.SetProjectNode).Calls, 0, 0, probe)
 		q := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Usage: d.Usage()}}, Child: root, Expressions: outputs, Frame: 1, HasTargetSet: true}
-		r, count, err := Finalize(context.Background(), q, &querySource{Materialized: true}, nil)
+		r, count, err := exec.Finalize(context.Background(), q, &querySource{Materialized: true}, nil)
 		if r != nil || count != 0 || err != sentinel || calls != 2 {
 			t.Fatal(r, count, err, calls)
 		}
@@ -430,7 +431,7 @@ func TestSeriesFinalization(t *testing.T) {
 				return sqltype.Integer(d, 1)
 			})}
 			source := &querySource{Materialized: true}
-			r, count, err := Finalize(ctx, q, source, nil)
+			r, count, err := exec.Finalize(ctx, q, source, nil)
 			want := sentinel
 			if phase == "cancel" {
 				want = context.Canceled

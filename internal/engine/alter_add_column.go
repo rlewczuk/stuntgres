@@ -147,7 +147,7 @@ func (e *Engine) addColumnCandidate(scope *StatementScope, op *Operation, auth A
 func planAddedColumns(scope *StatementScope, additions []addedColumn) (map[int32]sqltype.Value, bool, error) {
 	var fills map[int32]sqltype.Value
 	perRow := false
-	evaluation := EvalContext{evalStatement: evalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: scope.routineAuth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: scope.op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: scope.routineAuth.Catalog}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
 	for i := range additions {
 		added := &additions[i]
 		if added.expression != nil {

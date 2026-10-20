@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 )
@@ -66,7 +67,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 				return nil
 			}
 		}
-		mark = EffectiveQueryRowMark(relation, mark)
+		mark = exec.EffectiveQueryRowMark(relation, mark)
 		if err := authorizeViewSourceSnapshot(auth, ref, viewOf(relation), sourceInvoker, mark); err != nil {
 			return err
 		}
@@ -94,7 +95,7 @@ func (e *Engine) queryTableRefsLocked(auth AuthorizationView, invoker authorizat
 			if principal == (authorization.PrincipalRef{}) {
 				principal = invoker
 			}
-			if err := authorize(leaf.Ref, principal, MergeQueryRowMark(inherited, leaf.Mark)); err != nil {
+			if err := authorize(leaf.Ref, principal, exec.MergeQueryRowMark(inherited, leaf.Mark)); err != nil {
 				return nil, err
 			}
 		}

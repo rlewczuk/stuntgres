@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -202,7 +203,7 @@ func TestTruncateSnapshotsBirthFilter(t *testing.T) {
 			source.Close()
 			t.Fatal("source dropped capture birth provenance")
 		}
-		source, err = SelectQuerySource(context.Background(), source, data.FrontierAt(test.ref.Address), data.Ends[test.ref.Address], data.Deleted[test.ref.Address])
+		source, err = exec.SelectQuerySource(context.Background(), source, data.FrontierAt(test.ref.Address), data.Ends[test.ref.Address], data.Deleted[test.ref.Address])
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -291,7 +292,7 @@ func TestQueryCycleLifecycle(t *testing.T) {
 		t.Fatal("append ignored cancellation", err)
 	}
 	owner, state, node := cteUnitScan(nil, nil, 1)
-	stage, err := OpenCTEScan(context.Background(), state, node)
+	stage, err := exec.OpenCTEScan(context.Background(), state, node)
 	if err != nil {
 		t.Fatal(err)
 	}

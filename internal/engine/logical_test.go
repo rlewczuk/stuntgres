@@ -56,7 +56,7 @@ func TestLogicalTypedTruthAndFrames(t *testing.T) {
 		and, or, not plan.Truth
 	}) {
 		for i, want := range []plan.Truth{tc.and, tc.or, tc.not} {
-			v, err := nodes[i].Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{values[tc.a], values[tc.b]}}})
+			v, err := nodes[i].Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{values[tc.a], values[tc.b]}}})
 			if err != nil || v.Type() != typ || v.IsNull() != (want == plan.Unknown) {
 				t.Error(v, err, want)
 				continue
@@ -79,17 +79,17 @@ func TestLogicalTypedTruthAndFrames(t *testing.T) {
 	wg.Wait()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := nodes[0].Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}}); !errors.Is(err, context.Canceled) {
+	if _, err := nodes[0].Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	if _, err := nodes[0].Eval((*EvalContext)(nil)); err == nil {
 		t.Fatal("missing context")
 	}
-	if _, err := nodes[0].Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}); err == nil {
+	if _, err := nodes[0].Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}); err == nil {
 		t.Fatal("missing parameter frame")
 	}
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
-	if _, err := nodes[0].Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{sqltype.Null(integer), values[0]}}}); err == nil {
+	if _, err := nodes[0].Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{sqltype.Null(integer), values[0]}}}); err == nil {
 		t.Fatal("wrong typed frame")
 	}
 }
@@ -141,7 +141,7 @@ func TestLogicalBindingDiagnosticsAndInvariants(t *testing.T) {
 	typ := b.typ(sqltype.Bool)
 	child := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{StageDependent: true}}, Value: sqltype.Boolean(typ, true)}
 	invalid := plan.LogicalExpr{Info: expr.Info{Usage: typ.Usage()}, Op: parser.LogicalOperator(99), Left: child, Right: child}
-	if _, err := invalid.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}); err == nil {
+	if _, err := invalid.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}); err == nil {
 		t.Fatal("invalid bound operator")
 	}
 }

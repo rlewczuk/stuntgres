@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -18,7 +19,7 @@ func TestQueryRecursiveCTELimitZeroAndEmptyAnchor(t *testing.T) {
 		t.Fatal(err)
 	}
 	limit := &plan.LimitNode{QuerySchema: node.Schema(), Child: node, Count: plan.LiteralExpr{Info: expr.Info{Usage: int8.Usage()}, Value: zero}}
-	stage, err := OpenLimitNode(context.Background(), state, limit)
+	stage, err := exec.OpenLimitNode(context.Background(), state, limit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +31,7 @@ func TestQueryRecursiveCTELimitZeroAndEmptyAnchor(t *testing.T) {
 	}
 	emptyOwner, emptyState, emptyNode := recursiveUnitFixture(t, true, nil, 3)
 	defer emptyOwner.Close()
-	empty, err := OpenCTEScan(context.Background(), emptyState, emptyNode)
+	empty, err := exec.OpenCTEScan(context.Background(), emptyState, emptyNode)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +47,7 @@ func TestQueryRecursiveCTELimitZeroAndEmptyAnchor(t *testing.T) {
 func TestQueryRecursiveCTEPrimaryErrorAndRequiredClose(t *testing.T) {
 	for _, primaryFailure := range []bool{false, true} {
 		owner, state, node := recursiveUnitFixture(t, true, []int64{1}, 3)
-		stage, err := OpenCTEScan(context.Background(), state, node)
+		stage, err := exec.OpenCTEScan(context.Background(), state, node)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -88,7 +89,7 @@ func TestQueryRecursiveCTELongIterationAndFreshInvocation(t *testing.T) {
 		owner := &cteInvocation{Frame: 1, State: stateCopy}
 		stateCopy.Ctes = owner
 		state := &stateCopy
-		stage, err := OpenCTEScan(context.Background(), state, node)
+		stage, err := exec.OpenCTEScan(context.Background(), state, node)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -71,7 +72,7 @@ func preflightCoercionsWithPolicy(c *EvalContext, expression expr.Expr, decisive
 }
 
 func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefaults bool) (expr.Expr, bool, error) {
-	if err := EvaluationContext(c); err != nil {
+	if err := exec.EvaluationContext(c); err != nil {
 		return nil, false, err
 	}
 	recipe, err := routine.ExpressionRecipeDescriptor(expression)
@@ -385,7 +386,7 @@ func preflightCoercionNode(c *EvalContext, expression expr.Expr, decisiveDefault
 			return nil, false, err
 		}
 		e.Left, e.Right = left, right
-		if RandomLiteralNull(left) || RandomLiteralNull(right) {
+		if exec.RandomLiteralNull(left) || exec.RandomLiteralNull(right) {
 			return preflightValue(c, e.Info, sqltype.Null(e.Usage.Type), nil)
 		}
 		p := e.Properties()
@@ -643,7 +644,7 @@ func preflightValue(c *EvalContext, info expr.Info, value sqltype.Value, err err
 	if err != nil {
 		return nil, false, err
 	}
-	if err := EvaluationContext(c); err != nil {
+	if err := exec.EvaluationContext(c); err != nil {
 		return nil, false, err
 	}
 	info.RoutineReference = nil
@@ -1533,7 +1534,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 	if _, logical := node.(plan.LogicalExpr); policy.booleanConstruct != "" && !logical {
 		returnsSet := false
 		plan.WalkExpression(node, func(child expr.Expr) {
-			returnsSet = returnsSet || SourceReturnsSet(child)
+			returnsSet = returnsSet || exec.SourceReturnsSet(child)
 		})
 		if returnsSet {
 			return nil, expr.ErrorAt("42804", fmt.Sprintf("argument of %s must not return a set", policy.booleanConstruct), parser.ExpressionStart(raw))
@@ -2582,7 +2583,7 @@ func (b *expressionBinder) bindComparisonOperandCandidates(raw parser.OperatorEx
 // and imported parameter NULLs retain their existing execution-owned behavior.
 func arithmeticSetConstantNull(original, current plan.ArithmeticExpr) bool {
 	return (bitwiseConstantNull(current.Left) || bitwiseConstantNull(current.Right)) &&
-		(QuerySetDepth(original) != 0 || QuerySetDepth(current) != 0)
+		(exec.QuerySetDepth(original) != 0 || exec.QuerySetDepth(current) != 0)
 }
 
 func arithmeticName(name string) bool {

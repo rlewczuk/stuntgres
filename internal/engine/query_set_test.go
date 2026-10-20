@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -65,7 +66,7 @@ func TestQuerySetCounts(t *testing.T) {
 			{"union", true, tc.unionAll}, {"union", false, tc.union}, {"intersect", true, tc.intersectAll},
 			{"intersect", false, tc.intersect}, {"except", true, tc.exceptAll}, {"except", false, tc.except},
 		} {
-			if got := SetMultiplicity(op.name, op.all, tc.left, tc.right); got != op.want {
+			if got := exec.SetMultiplicity(op.name, op.all, tc.left, tc.right); got != op.want {
 				t.Fatalf("%s ALL=%t m=%d n=%d got%d want%d", op.name, op.all, tc.left, tc.right, got, op.want)
 			}
 		}
@@ -86,14 +87,14 @@ func TestQuerySetCollisionAndZeroWidth(t *testing.T) {
 				d := n.Schema()[0].Usage.Type
 				one, _ := sqltype.Integer(d, 1)
 				two, _ := sqltype.Integer(d, 2)
-				if i, err := FindDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0}); err != nil || i != -1 {
+				if i, err := exec.FindDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0}); err != nil || i != -1 {
 					t.Fatal("unequal collision", i, err)
 				}
-				if i, err := FindDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0, 1}); err != nil || i != 1 {
+				if i, err := exec.FindDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0, 1}); err != nil || i != 1 {
 					t.Fatal("equal collision", i, err)
 				}
 			}
-			rows, count, err := Finalize(context.Background(), project, source, nil)
+			rows, count, err := exec.Finalize(context.Background(), project, source, nil)
 			want := tc.normal
 			if zero {
 				want = tc.zero
@@ -131,7 +132,7 @@ func TestQuerySetUnionAllDemand(t *testing.T) {
 	n.LeftExpressions[0] = queryProbe(l.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { left++; return l.Eval(c) })
 	n.RightExpressions[0] = queryProbe(r.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { right++; return r.Eval(c) })
 	state := &queryState{Source: source}
-	stage, err := OpenSetNode(context.Background(), state, n)
+	stage, err := exec.OpenSetNode(context.Background(), state, n)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +177,7 @@ func TestQuerySetCancellationAndCleanup(t *testing.T) {
 				original := project.Expressions[0]
 				project.Expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { cancel(); return original.Eval(c) })
 			}
-			rows, count, err := Finalize(ctx, project, source, nil)
+			rows, count, err := exec.Finalize(ctx, project, source, nil)
 			want := error(context.Canceled)
 			if phase == "late error" {
 				want = sentinel
@@ -310,12 +311,12 @@ func TestQuerySetHashCollisionCancellation(t *testing.T) {
 		ctx.armed = true
 		return sqltype.String(text, "set cancellation payload"), nil
 	})
-	rows, count, err := Finalize(ctx, project, source, nil)
+	rows, count, err := exec.Finalize(ctx, project, source, nil)
 	if rows != nil || count != 0 || !errors.Is(err, context.Canceled) || source.View != nil {
 		t.Fatal(rows, count, err)
 	}
 	zeroCtx := &aggregateCancelContext{Context: context.Background(), armed: true, at: 2}
-	if _, err := FindDistinctTuple(zeroCtx, []sqltype.Grouping{}, []sqltype.Value{}, []sqltype.Value{}, []int{0, 1}); !errors.Is(err, context.Canceled) {
+	if _, err := exec.FindDistinctTuple(zeroCtx, []sqltype.Grouping{}, []sqltype.Value{}, []sqltype.Value{}, []int{0, 1}); !errors.Is(err, context.Canceled) {
 		t.Fatal("zero-width collision ignored cancellation", err)
 	}
 }

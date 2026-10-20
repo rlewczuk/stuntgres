@@ -2,6 +2,7 @@ package engine
 
 import (
 	"strconv"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -197,7 +198,7 @@ func (b *expressionBinder) finishDistinctOn(root plan.Node, order, on []plan.Sor
 	} else {
 		early := make([]expr.Expr, 0)
 		for i, e := range projection {
-			if QuerySetDepth(e) != 0 {
+			if exec.QuerySetDepth(e) != 0 {
 				continue
 			}
 			if e.Properties().Volatility == expr.Volatile || e.ResultUsage().Type == nil {

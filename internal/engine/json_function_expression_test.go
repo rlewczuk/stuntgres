@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -55,7 +56,7 @@ func TestJSONFunctionScalarBindingAndEvaluation(t *testing.T) {
 		if !ok || call.Plan.Name() != tc.name || node.ResultUsage().Type.ID() != tc.id || node.Properties().Volatility != expr.Immutable || node.Properties().StageDependent {
 			t.Fatal(node)
 		}
-		value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+		value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 		if err != nil || value.IsNull() {
 			t.Fatal(value, err)
 		}
@@ -78,7 +79,7 @@ func TestJSONFunctionScalarBindingAndEvaluation(t *testing.T) {
 	if err != nil {
 		t.Fatal("eager shape evaluation", err)
 	}
-	_, err = node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+	_, err = node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "22023" || diagnostic.Position != "" {
 		t.Fatal(err)
@@ -97,7 +98,7 @@ func TestJSONFunctionKeysMarkerPropertiesAndPlacement(t *testing.T) {
 			t.Fatal(err)
 		}
 		marker, ok := node.(functions.JSONKeys)
-		if !ok || !marker.Properties().StageDependent || !marker.Properties().ParameterDependent || marker.Properties().RowDependent || marker.Properties().Volatility != expr.Immutable || !b.clause.queryHasTargetSet || !SourceReturnsSet(marker) {
+		if !ok || !marker.Properties().StageDependent || !marker.Properties().ParameterDependent || marker.Properties().RowDependent || marker.Properties().Volatility != expr.Immutable || !b.clause.queryHasTargetSet || !exec.SourceReturnsSet(marker) {
 			t.Fatal(node)
 		}
 		// Each family owns its own parameter signature, never infers from a Go value.
@@ -140,7 +141,7 @@ func TestJSONFunctionKeysRetagWalkRewriteAndDeparse(t *testing.T) {
 	if next.ResultUsage().Type != fresh[sqltype.Text] || next.Args[0].ResultUsage().Type != fresh[sqltype.JSON] || next.Plan.ResultUsage() != next.ResultUsage() || next.SourcePosition() != original.SourcePosition() || next.Properties() != original.Properties() {
 		t.Fatal(next)
 	}
-	cursor, err := OpenFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, next)
+	cursor, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, next)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,19 +157,19 @@ func TestJSONFunctionKeysRetagWalkRewriteAndDeparse(t *testing.T) {
 			walked++
 		}
 	})
-	if walked != 1 || PlannedVolatility(original) != expr.Immutable || !sameGroupExpression(original, original) || QuerySetDepth(original) != 1 {
+	if walked != 1 || exec.PlannedVolatility(original) != expr.Immutable || !sameGroupExpression(original, original) || exec.QuerySetDepth(original) != 1 {
 		t.Fatal("closed traversal", walked)
 	}
 	clone, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
 	if err != nil || !sameGroupExpression(original, clone) {
 		t.Fatal(clone, err)
 	}
-	folded, _, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original)
-	if err != nil || !SourceReturnsSet(folded) {
+	folded, _, err := preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, original)
+	if err != nil || !exec.SourceReturnsSet(folded) {
 		t.Fatal("preflight folded set", folded, err)
 	}
-	folded, _, err = simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original, false)
-	if err != nil || !SourceReturnsSet(folded) {
+	folded, _, err = simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, original, false)
+	if err != nil || !exec.SourceReturnsSet(folded) {
 		t.Fatal("conditional folded set", folded, err)
 	}
 	text, err = (pgRenderer{view: view}).sql(context.Background(), original, pgRenderParent{})
@@ -202,7 +203,7 @@ func TestJSONFunctionSetZipPaddingEmptyAndChildOnce(t *testing.T) {
 	input := a.Args[0].(plan.LiteralExpr).Value
 	a.Args = []expr.Expr{queryProbe(json.Usage(), func(*EvalContext) (sqltype.Value, error) { draws++; return input, nil })}
 	n := regexpSetUnitLayout(&plan.SetProjectNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}, {Usage: text.Usage()}}, Child: &plan.SingletonNode{}, Calls: []expr.Expr{a, b}, Frame: 1})
-	stage, err := OpenSetProjectNode(context.Background(), &queryState{Source: &querySource{Materialized: true}, Frame: 1}, n)
+	stage, err := exec.OpenSetProjectNode(context.Background(), &queryState{Source: &querySource{Materialized: true}, Frame: 1}, n)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +213,7 @@ func TestJSONFunctionSetZipPaddingEmptyAndChildOnce(t *testing.T) {
 	empty := jsonFunctionUnitMarker(t, json, text, `{}`, 30)
 	empty.Args = []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: json.Usage()}, Value: sqltype.Null(json)}}
 	n = regexpSetUnitLayout(&plan.SetProjectNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}}, Child: &plan.SingletonNode{}, Calls: []expr.Expr{empty}, Frame: 1})
-	stage, err = OpenSetProjectNode(context.Background(), &queryState{Source: &querySource{Materialized: true}, Frame: 1}, n)
+	stage, err = exec.OpenSetProjectNode(context.Background(), &queryState{Source: &querySource{Materialized: true}, Frame: 1}, n)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +222,7 @@ func TestJSONFunctionSetZipPaddingEmptyAndChildOnce(t *testing.T) {
 	}
 	failure := errors.New("selected child failure")
 	a.Args = []expr.Expr{queryProbe(json.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
-	if cursor, err := OpenFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, a); !errors.Is(err, failure) || cursor.Type != nil {
+	if cursor, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, a); !errors.Is(err, failure) || cursor.Type != nil {
 		t.Fatal("published failed invocation", cursor, err)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -27,7 +28,7 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 	}
 	node := bind("pi()")
 	original, ok := node.(functions.Math)
-	if !ok || len(original.Args) != 0 || original.Plan.Name() != "pi" || PlannedVolatility(node) != expr.Immutable {
+	if !ok || len(original.Args) != 0 || original.Plan.Name() != "pi" || exec.PlannedVolatility(node) != expr.Immutable {
 		t.Fatal(node)
 	}
 	if !b.sameGroupExpression(node, bind("pg_catalog.pi()")) {
@@ -44,7 +45,7 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 	}
 	assert := func(x expr.Expr, owner *sqltype.Descriptor) {
 		t.Helper()
-		value, err := x.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+		value, err := x.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 		if err != nil || value.IsNull() || value.Type() != owner {
 			t.Fatal(value, err)
 		}
@@ -95,7 +96,7 @@ func TestMathConstantsPiConsumers(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	value, err := next.Eval(&EvalContext{evalStatement: evalStatement{Context: canceled}})
+	value, err := next.Eval(&EvalContext{EvalStatement: evalStatement{Context: canceled}})
 	if !errors.Is(err, context.Canceled) || value.Type() != nil {
 		t.Fatal("pi cancellation publication", value, err)
 	}

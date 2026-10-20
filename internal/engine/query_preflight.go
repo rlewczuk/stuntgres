@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 )
@@ -9,7 +10,7 @@ import (
 // preflightQuery retains schemas and source identity from analysis. Only paths
 // containing folded coercions are copied for this execution.
 func preflightQuery(c *EvalContext, node plan.Node) (plan.Node, error) {
-	if err := EvaluationContext(c); err != nil {
+	if err := exec.EvaluationContext(c); err != nil {
 		return nil, err
 	}
 	switch n := node.(type) {
@@ -547,14 +548,14 @@ func preflightFunctionFrom(c *EvalContext, n *plan.FunctionFromNode) (plan.Node,
 	source := planned.(*plan.FunctionFromNode)
 	var scalarNull []bool
 	for i, call := range source.Calls {
-		if !StrictScalarFunctionSource(call) {
+		if !exec.StrictScalarFunctionSource(call) {
 			continue
 		}
 		next, _, err := simplifyConditional(c, call, false)
 		if err != nil {
 			return nil, err
 		}
-		if RandomLiteralNull(next) {
+		if exec.RandomLiteralNull(next) {
 			if scalarNull == nil {
 				scalarNull = make([]bool, len(source.Calls))
 			}

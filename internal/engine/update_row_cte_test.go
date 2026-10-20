@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -17,7 +18,7 @@ func TestUpdateRowCorrelatedCTEFrames(t *testing.T) {
 	op, scope, b, _, sources := updateFromBoundSources(t, e, owner, ctx, "UPDATE t SET (a,b)=(WITH v AS MATERIALIZED (SELECT t.id AS x) SELECT x,x+100 FROM v)")
 	defer op.Done()
 	defer scope.Finish(context.Canceled)
-	if err := SelectQuerySources(ctx, sources); err != nil {
+	if err := exec.SelectQuerySources(ctx, sources); err != nil {
 		t.Fatal(err)
 	}
 	source := b.update.assignments[0].(plan.SubqueryExpr)

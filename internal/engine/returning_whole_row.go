@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -15,14 +16,14 @@ func (b *expressionBinder) returningWholeRow(name string, relation *catalog.Rela
 		return nil, false, nil
 	}
 	old := false
-	side := MergeDefaultSide
+	side := exec.MergeDefaultSide
 	switch {
 	case name == aliases.target:
 	case aliases.old != "" && name == aliases.old:
 		old = true
-		side = MergeOldSide
+		side = exec.MergeOldSide
 	case aliases.new != "" && name == aliases.new:
-		side = MergeNewSide
+		side = exec.MergeNewSide
 	default:
 		return nil, false, nil
 	}
@@ -35,7 +36,7 @@ func (b *expressionBinder) returningWholeRow(name string, relation *catalog.Rela
 	members := make([]expr.Expr, len(relation.Columns))
 	scope := &queryBindingScope{relation: relation, frame: frame, returning: aliases}
 	for i := range members {
-		if aliases.mode == returningMerge && side == MergeDefaultSide {
+		if aliases.mode == returningMerge && side == exec.MergeDefaultSide {
 			column := b.columnAtOf(relation, i, pos).(plan.ColumnExpr)
 			column.Frame = frame
 			members[i] = column

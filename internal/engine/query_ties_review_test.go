@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
@@ -29,7 +30,7 @@ func TestQueryTiesPresenceOnly(t *testing.T) {
 	ordered.Keys[0].Expression = probe
 	limit.PeerKeys = ordered.Keys
 	state := &queryState{Source: source}
-	stage, err := OpenLimitNode(context.Background(), state, limit)
+	stage, err := exec.OpenLimitNode(context.Background(), state, limit)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,8 +65,8 @@ func TestQueryTiesReplacementCache(t *testing.T) {
 					limit := &plan.LimitNode{WithTies: true}
 					limit.FinishTies(ordered)
 				}
-				evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{OrderValues: []sqltype.Value{one}}}
-				if err := RefreshLockedOrder(ordered, []sqltype.Value{two}, &evaluation); err != nil {
+				evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{OrderValues: []sqltype.Value{one}}}
+				if err := exec.RefreshLockedOrder(ordered, []sqltype.Value{two}, &evaluation); err != nil {
 					t.Fatal(err)
 				}
 				wantCalls := 0
@@ -132,8 +133,8 @@ func TestQueryTiesReplacementFailure(t *testing.T) {
 			ordered := &plan.SortNode{Keys: []plan.SortKey{{Cache: slot, Expression: expr}}, CacheWidth: 1}
 			limit := &plan.LimitNode{WithTies: true}
 			limit.FinishTies(ordered)
-			evaluation := EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{OrderValues: []sqltype.Value{one}}}
-			err := RefreshLockedOrder(ordered, []sqltype.Value{one}, &evaluation)
+			evaluation := EvalContext{EvalStatement: evalStatement{Context: ctx}, EvalFrame: evalFrame{OrderValues: []sqltype.Value{one}}}
+			err := exec.RefreshLockedOrder(ordered, []sqltype.Value{one}, &evaluation)
 			if evaluation.OrderValues[0] != one {
 				t.Fatal("failed key refresh published value")
 			}

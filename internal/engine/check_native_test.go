@@ -80,7 +80,7 @@ func TestCheckFailedRestorePreservesEpochAndStage(t *testing.T) {
 
 func TestCheckAbsentValidatorHasNoAllocation(t *testing.T) {
 	table := &catalog.Relation{}
-	eval := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+	eval := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 	if allocations := testing.AllocsPerRun(100, func() {
 		constraint, err := validateCheckRow(table, nil, eval)
 		if constraint != nil || err != nil {

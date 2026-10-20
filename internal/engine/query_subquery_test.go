@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -201,7 +202,7 @@ func TestQuerySubqueryCleanup(t *testing.T) {
 			case "projection":
 				stage.Columns = []catalog.Column{{}}
 				stage.Expressions = []expr.Expr{queryProbe(sqltype.Usage{}, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, primary })}
-				stage.Evaluation = EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+				stage.Evaluation = EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 			case "close":
 				if err := stage.Close(); err != secondary {
 					t.Fatal(err)
@@ -236,7 +237,7 @@ func TestQuerySubqueryCleanup(t *testing.T) {
 
 func TestQuerySubqueryFrames(t *testing.T) {
 	_, q, source := queryJoinsFixture(t, "SELECT (SELECT (SELECT a.k)) FROM a")
-	rows, count, err := Finalize(context.Background(), q.Root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), q.Root, source, nil)
 	if err != nil || count != 4 {
 		t.Fatal("grandparent query cardinality", count, err)
 	}
@@ -341,7 +342,7 @@ func TestQuerySubqueryAggregateOwnership(t *testing.T) {
 	} {
 		t.Run(tc.sql, func(t *testing.T) {
 			_, q, source := queryJoinsFixture(t, tc.sql)
-			rows, count, err := Finalize(context.Background(), q.Root, source, nil)
+			rows, count, err := exec.Finalize(context.Background(), q.Root, source, nil)
 			if err != nil || count != tc.rows {
 				t.Fatal("aggregate ownership cardinality", count, err)
 			}
@@ -417,7 +418,7 @@ func TestQuerySubqueryRowComparison(t *testing.T) {
 					bound.Ordering = append(bound.Ordering, comparison)
 				}
 			}
-			c := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 9, Row: tc.right}}
+			c := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 9, Row: tc.right}}
 			answer, err := bound.Compare(&c, tc.left)
 			truth, _ := answer.Boolean()
 			if err != nil || answer.IsNull() != tc.unknown || (!tc.unknown && truth != tc.want) {

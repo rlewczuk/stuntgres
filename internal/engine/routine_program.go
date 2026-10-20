@@ -51,7 +51,7 @@ func (p *routineAdmissionProgram) record(c *EvalContext, dependencies []catalog.
 			return nil
 		}
 	}
-	p.calls = append(p.calls, routineAdmission{routine: routine, reference: ref, consumer: c.RoutineConsumer, body: c.routineBodyContext, actor: auth.State.CurrentUser})
+	p.calls = append(p.calls, routineAdmission{routine: routine, reference: ref, consumer: c.RoutineConsumer, body: c.RoutineBodyContext, actor: auth.State.CurrentUser})
 	return nil
 }
 

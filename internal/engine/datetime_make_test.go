@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -96,8 +97,8 @@ func TestDatetimeMakeProperties(t *testing.T) {
 		if stable {
 			want = expr.Stable
 		}
-		if e.Properties().Volatility != want || PlannedVolatility(e) != want || generationImmutable(e) == stable {
-			t.Fatal(name, e.Properties(), PlannedVolatility(e))
+		if e.Properties().Volatility != want || exec.PlannedVolatility(e) != want || generationImmutable(e) == stable {
+			t.Fatal(name, e.Properties(), exec.PlannedVolatility(e))
 		}
 		if !b.sameGroupExpression(e, e) {
 			t.Fatal("lost structural identity", name)
@@ -125,7 +126,7 @@ func TestDatetimeMakeProperties(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if PlannedVolatility(node) != expr.Stable || generationImmutable(node) {
+	if exec.PlannedVolatility(node) != expr.Stable || generationImmutable(node) {
 		t.Fatal("explicit UTC incorrectly immutable")
 	}
 

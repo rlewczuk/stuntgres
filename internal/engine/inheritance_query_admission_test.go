@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
@@ -164,7 +165,7 @@ func TestInheritanceQueryAdmissionReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer source.Close()
-	if err = SelectQuerySources(freshOp.Context(), source); err != nil {
+	if err = exec.SelectQuerySources(freshOp.Context(), source); err != nil {
 		t.Fatal(err)
 	}
 	got := map[int64]int{}

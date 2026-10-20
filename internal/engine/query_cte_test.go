@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -52,11 +53,11 @@ func TestQueryCTESharedFrontierAndReaderLifetime(t *testing.T) {
 	draws := 0
 	expression := queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) { draws++; return sqltype.Integer(typ, int64(draws)) })
 	owner, state, node := cteUnitScan([]expr.Expr{expression}, plan.QuerySchema{{Name: "n", Usage: typ.Usage()}}, 3)
-	first, err := OpenCTEScan(context.Background(), state, node)
+	first, err := exec.OpenCTEScan(context.Background(), state, node)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := OpenCTEScan(context.Background(), state, node)
+	second, err := exec.OpenCTEScan(context.Background(), state, node)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +78,7 @@ func TestQueryCTESharedFrontierAndReaderLifetime(t *testing.T) {
 	if draws != 2 {
 		t.Fatal(draws)
 	}
-	third, err := OpenCTEScan(context.Background(), state, node)
+	third, err := exec.OpenCTEScan(context.Background(), state, node)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +117,7 @@ func TestQueryCTEZeroWidthAndNullRows(t *testing.T) {
 				schema = plan.QuerySchema{{Name: "n", Usage: typ.Usage()}}
 			}
 			owner, state, node := cteUnitScan(expressions, schema, 2)
-			stage, err := OpenCTEScan(context.Background(), state, node)
+			stage, err := exec.OpenCTEScan(context.Background(), state, node)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -155,7 +156,7 @@ func TestQueryCTEStickyFailureAndCloseOnce(t *testing.T) {
 				return sqltype.Integer(typ, 1)
 			})
 			owner, state, node := cteUnitScan([]expr.Expr{expression}, plan.QuerySchema{{Name: "n", Usage: typ.Usage()}}, 3)
-			stage, err := OpenCTEScan(context.Background(), state, node)
+			stage, err := exec.OpenCTEScan(context.Background(), state, node)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -190,7 +191,7 @@ func TestQueryCTEStickyFailureAndCloseOnce(t *testing.T) {
 
 func TestQueryCTESuccessfulCloseFailureVeto(t *testing.T) {
 	owner, state, node := cteUnitScan(nil, nil, 1)
-	stage, err := OpenCTEScan(context.Background(), state, node)
+	stage, err := exec.OpenCTEScan(context.Background(), state, node)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +216,7 @@ func TestQueryCTEInvocationIsolationAndInheritance(t *testing.T) {
 	draws := 0
 	probe := queryProbe(typ.Usage(), func(*EvalContext) (sqltype.Value, error) { draws++; return sqltype.Integer(typ, int64(draws)) })
 	outer, state, outerNode := cteUnitScan([]expr.Expr{probe}, plan.QuerySchema{{Name: "n", Usage: typ.Usage()}}, 1)
-	first, err := OpenCTEScan(context.Background(), state, outerNode)
+	first, err := exec.OpenCTEScan(context.Background(), state, outerNode)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,10 +226,10 @@ func TestQueryCTEInvocationIsolationAndInheritance(t *testing.T) {
 		localProject := &plan.ProjectNode{QuerySchema: outerNode.Schema(), Child: &plan.SingletonNode{}, Expressions: []expr.Expr{correlated}, Frame: 3}
 		localDefinition := &plan.CTEDefinition{Query: &plan.Query{Root: localProject}, Owner: 2, Hint: parser.CTEMaterialized}
 		localState := *state
-		localState.Outer = &EvalContext{evalFrame: evalFrame{Scope: 1, Frame: 7, Row: []sqltype.Value{cteUnitValue(t, typ, value)}}}
+		localState.Outer = &EvalContext{EvalFrame: evalFrame{Scope: 1, Frame: 7, Row: []sqltype.Value{cteUnitValue(t, typ, value)}}}
 		local := &cteInvocation{Frame: 2, Parent: outer, State: localState}
 		localState.Ctes = local
-		inherited, err := OpenCTEScan(context.Background(), &localState, outerNode)
+		inherited, err := exec.OpenCTEScan(context.Background(), &localState, outerNode)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -237,7 +238,7 @@ func TestQueryCTEInvocationIsolationAndInheritance(t *testing.T) {
 			t.Fatal("enclosing cache not inherited", draws)
 		}
 		localNode := &plan.DerivedNode{QuerySchema: outerNode.Schema(), Query: localDefinition.Query, CTE: localDefinition}
-		stage, err := OpenCTEScan(context.Background(), &localState, localNode)
+		stage, err := exec.OpenCTEScan(context.Background(), &localState, localNode)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -251,7 +252,7 @@ func TestQueryCTEInvocationIsolationAndInheritance(t *testing.T) {
 	fresh := &cteInvocation{Frame: 1, State: outer.State}
 	freshState := outer.State
 	freshState.Ctes = fresh
-	stage, err := OpenCTEScan(context.Background(), &freshState, outerNode)
+	stage, err := exec.OpenCTEScan(context.Background(), &freshState, outerNode)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -379,7 +380,7 @@ func TestQueryCTEFoldPlacementFrameAndImmutability(t *testing.T) {
 	if project.Child != input || scan.Query.Root != project || mapped == scan {
 		t.Fatal("fold mutated original")
 	}
-	stage, err := OpenDerivedNode(context.Background(), &queryState{Source: &querySource{Materialized: true}}, mapped.(*plan.DerivedNode))
+	stage, err := exec.OpenDerivedNode(context.Background(), &queryState{Source: &querySource{Materialized: true}}, mapped.(*plan.DerivedNode))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -416,7 +417,7 @@ func TestQueryCTEProjectDispatcherOwnsInvocation(t *testing.T) {
 		QuerySchema: node.Schema(), Child: node, Frame: 1, CTEOwner: true,
 		Expressions: []expr.Expr{plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 1, Slot: 0}},
 	}
-	stage, err := OpenNode(context.Background(), state, root)
+	stage, err := exec.OpenNode(context.Background(), state, root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -425,7 +426,7 @@ func TestQueryCTEProjectDispatcherOwnsInvocation(t *testing.T) {
 		t.Fatal("direct project dispatch did not install a lazy owner", owner, draws)
 	}
 	cteUnitNext(t, &stage)
-	reader, err := OpenCTEScan(context.Background(), state, node)
+	reader, err := exec.OpenCTEScan(context.Background(), state, node)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -505,7 +506,7 @@ func TestQueryCTEFilterDemandGate(t *testing.T) {
 			defer owner.Close()
 			state.Parameters = tc.parameters
 			node := &plan.FilterNode{QuerySchema: child.Schema(), Child: child, Predicate: tc.predicate}
-			stage, err := OpenNode(context.Background(), state, node)
+			stage, err := exec.OpenNode(context.Background(), state, node)
 			if tc.wantError {
 				if err == nil || draws != 0 || len(owner.Producers) != 0 {
 					t.Fatal("parameter failure opened child", err, draws, len(owner.Producers))
@@ -532,7 +533,7 @@ func TestQueryCTEFilterDemandGate(t *testing.T) {
 			}
 			cancelled, cancel := context.WithCancel(context.Background())
 			cancel()
-			if _, err := OpenNode(cancelled, state, node); !errors.Is(err, context.Canceled) {
+			if _, err := exec.OpenNode(cancelled, state, node); !errors.Is(err, context.Canceled) {
 				t.Fatal("dead gate suppressed cancellation", err)
 			}
 		})
@@ -553,7 +554,7 @@ func TestQueryCTEFilterDoesNotPreEvaluatePredicate(t *testing.T) {
 		}
 		return sqltype.Boolean(boolean, false), nil
 	})
-	stage, err := OpenNode(context.Background(), state, &plan.FilterNode{QuerySchema: child.Schema(), Child: child, Predicate: predicate})
+	stage, err := exec.OpenNode(context.Background(), state, &plan.FilterNode{QuerySchema: child.Schema(), Child: child, Predicate: predicate})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -578,17 +579,17 @@ func TestQueryCTEMandatoryPhysicalFrontier(t *testing.T) {
 	physical := &plan.SourceNode{Occurrence: 0}
 	unmarkedPhysical := &plan.SourceNode{Occurrence: 1}
 	aggregate := &plan.AggregateNode{Child: physical}
-	if len(PendingQueryMarks(aggregate, inputs, nil)) != 0 || !QueryHasMandatoryPhysicalFrontier(aggregate, inputs) {
+	if len(exec.PendingQueryMarks(aggregate, inputs, nil)) != 0 || !exec.QueryHasMandatoryPhysicalFrontier(aggregate, inputs) {
 		t.Fatal("consumed physical marks mistaken for absent demand")
 	}
 	storedInputs := &querySource{Sources: []*querySource{unmarked, marked}}
 	stored := &querySource{NestedRoot: &plan.ProjectNode{Child: &plan.AggregateNode{Child: &plan.SourceNode{Occurrence: 1}}}, NestedInputs: storedInputs}
 	adapter := &querySource{Input: stored}
-	if !QueryHasMandatoryPhysicalFrontier(&plan.SourceNode{}, adapter) {
+	if !exec.QueryHasMandatoryPhysicalFrontier(&plan.SourceNode{}, adapter) {
 		t.Fatal("stored adapter lost nestedInputs occurrence mapping")
 	}
 	ordinary := &plan.DerivedNode{Query: &plan.Query{Root: &plan.ProjectNode{Child: aggregate}}}
-	if !QueryHasMandatoryPhysicalFrontier(ordinary, inputs) {
+	if !exec.QueryHasMandatoryPhysicalFrontier(ordinary, inputs) {
 		t.Fatal("ordinary derived boundary hid mandatory input")
 	}
 	owners := []plan.Node{
@@ -597,31 +598,31 @@ func TestQueryCTEMandatoryPhysicalFrontier(t *testing.T) {
 		&plan.LimitNode{Child: physical}, &plan.WindowNode{Child: physical},
 	}
 	for _, owner := range owners {
-		if !QueryHasMandatoryPhysicalFrontier(owner, inputs) {
+		if !exec.QueryHasMandatoryPhysicalFrontier(owner, inputs) {
 			t.Fatalf("consuming owner %T lost marked input", owner)
 		}
 	}
-	if QueryHasMandatoryPhysicalFrontier(&plan.AggregateNode{Child: unmarkedPhysical}, inputs) ||
-		QueryHasMandatoryPhysicalFrontier(&plan.JoinNode{Left: physical, Right: &plan.AggregateNode{Child: unmarkedPhysical}}, inputs) {
+	if exec.QueryHasMandatoryPhysicalFrontier(&plan.AggregateNode{Child: unmarkedPhysical}, inputs) ||
+		exec.QueryHasMandatoryPhysicalFrontier(&plan.JoinNode{Left: physical, Right: &plan.AggregateNode{Child: unmarkedPhysical}}, inputs) {
 		t.Fatal("unrelated marked branch contaminated unmarked owner")
 	}
 	locks.IdentityOnly = true
-	if QueryHasMandatoryPhysicalFrontier(aggregate, inputs) {
+	if exec.QueryHasMandatoryPhysicalFrontier(aggregate, inputs) {
 		t.Fatal("identity-only manifest treated as semantic locking")
 	}
 	locks.IdentityOnly = false
 	for _, hint := range []parser.CTEMaterialization{parser.CTEDefault, parser.CTEMaterialized, parser.CTENotMaterialized} {
 		definition := &plan.CTEDefinition{Hint: hint, Query: ordinary.Query}
 		opaque := &plan.DerivedNode{Query: ordinary.Query, CTE: definition}
-		if QueryHasMandatoryPhysicalFrontier(opaque, inputs) ||
-			QueryHasMandatoryPhysicalFrontier(&plan.AggregateNode{Child: opaque}, inputs) {
+		if exec.QueryHasMandatoryPhysicalFrontier(opaque, inputs) ||
+			exec.QueryHasMandatoryPhysicalFrontier(&plan.AggregateNode{Child: opaque}, inputs) {
 			t.Fatal("consumer inspected opaque CTE body's physical frontier", hint)
 		}
-		if !QueryHasMandatoryPhysicalFrontier(&plan.JoinNode{Left: opaque, Right: aggregate}, inputs) {
+		if !exec.QueryHasMandatoryPhysicalFrontier(&plan.JoinNode{Left: opaque, Right: aggregate}, inputs) {
 			t.Fatal("opaque CTE hid independently reachable physical owner", hint)
 		}
 		analysisOnly := &plan.ProjectNode{Child: &plan.SingletonNode{}, AnalysisExpressions: []expr.Expr{plan.SubqueryExpr{CTEEdge: true, QueryPlan: &plan.Query{Root: &plan.ProjectNode{Child: aggregate}}}}}
-		if QueryHasMandatoryPhysicalFrontier(analysisOnly, inputs) {
+		if exec.QueryHasMandatoryPhysicalFrontier(analysisOnly, inputs) {
 			t.Fatal("unused analysis definition became executable demand")
 		}
 	}
@@ -634,7 +635,7 @@ func TestQueryCTEDeadZeroWidthOwner(t *testing.T) {
 	state.Source.Locks = &queryLockContext{Leaves: []queryLockLeaf{{Mark: plan.RowMark{Mode: lock.ForUpdate}}}}
 	filter := &plan.FilterNode{QuerySchema: child.Schema(), Child: child, Predicate: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}}
 	root := &plan.ProjectNode{QuerySchema: child.Schema(), Child: filter, Frame: 1, CTEOwner: true}
-	stage, err := OpenNode(context.Background(), state, root)
+	stage, err := exec.OpenNode(context.Background(), state, root)
 	if err != nil {
 		t.Fatal(err)
 	}

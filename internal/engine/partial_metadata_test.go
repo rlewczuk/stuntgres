@@ -31,7 +31,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 		}
 		gotMembership := make(map[ids.RowID]ids.VersionID)
 		for i, row := range rows {
-			value, err := metadata.Predicate.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: row.Values}})
+			value, err := metadata.Predicate.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: row.Values}})
 			if err != nil {
 				t.Fatalf("%s row %d: %v", label, row.Row, err)
 			}
@@ -75,7 +75,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	if err := validateIndexDefinition(candidate, &index); err != nil {
 		t.Fatal(err)
 	}
-	root, err := buildIndexRoot(&EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, &definition, f.store, nil)
+	root, err := buildIndexRoot(&EvalContext{EvalStatement: evalStatement{Context: ctx}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, &definition, f.store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestPartialIndexMetadataPredicateOriginalDependencies(t *testing.T) {
 	}
 	var preparation indexExecutionPreparation
 	for _, row := range f.store.Versions {
-		evaluation := EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: row.Values}}
+		evaluation := EvalContext{EvalStatement: evalStatement{Context: ctx}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: row.Values}}
 		value, err := metadata.Predicate.Eval(&evaluation)
 		if err != nil {
 			t.Fatalf("row %d: %v", row.Row, err)

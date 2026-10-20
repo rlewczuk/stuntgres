@@ -30,7 +30,7 @@ func TestLikeEvaluationAndProperties(t *testing.T) {
 	left := mathObservedArgument{Info: expr.Info{Usage: text.Usage()}, value: sqltype.Null(text), order: &order, index: 0}
 	right := mathObservedArgument{Info: expr.Info{Usage: text.Usage()}, order: &order, index: 1, err: failure}
 	node := plan.LikeExpr{Info: expr.Info{Usage: boolean.Usage()}, Left: left, Right: right, Provider: provider, Operator: "~~"}
-	if _, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
+	if _, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}); !errors.Is(err, failure) || !reflect.DeepEqual(order, []int{0, 1}) {
 		t.Fatal(order, err)
 	}
 	p := likeProperties(plan.ColumnExpr{Info: expr.Info{Property: expr.Properties{RowDependent: true}}}, plan.ParameterExpr{Info: expr.Info{Property: expr.Properties{ParameterDependent: true, StageDependent: true, Volatility: expr.Stable}}})

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -127,7 +128,7 @@ func TestProtocolValueCodecs(t *testing.T) {
 			_ = scope.Finish(err)
 			t.Fatal(err)
 		}
-		rows := NewFinalRows(nil, 1)
+		rows := exec.NewFinalRows(nil, 1)
 		for _, quoted := range []bool{false, true, false} {
 			scope.output.QuoteAllIdentifiers = quoted
 			err = scope.captureProtocolOutput(rows, []sqltype.Value{value}, e.CatalogRead())

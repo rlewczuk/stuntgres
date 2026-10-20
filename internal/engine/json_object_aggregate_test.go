@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -206,7 +207,7 @@ func TestJSONObjectAggregateRunnerNullPresence(t *testing.T) {
 				values++
 				return sqltype.Null(valueUsage.Type), nil
 			})
-			rows, n, err := Finalize(context.Background(), q.Root, source, nil)
+			rows, n, err := exec.Finalize(context.Background(), q.Root, source, nil)
 			if err != nil || n != 1 {
 				t.Fatal(n, err)
 			}
@@ -244,7 +245,7 @@ func TestJSONObjectAggregateReachedEagerCancellation(t *testing.T) {
 		node.Calls[0].Separator = queryProbe(input.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.String(input, "value"), nil })
 		ctx, cancel := context.WithCancel(context.Background())
 		probe := &bitwiseAggregateCancelContext{Context: ctx, cancel: cancel, target: tc.target}
-		rows, n, err := Finalize(probe, q.Root, source, nil)
+		rows, n, err := exec.Finalize(probe, q.Root, source, nil)
 		cancel()
 		if !probe.entered || rows != nil || n != 0 || !errors.Is(err, context.Canceled) {
 			if rows != nil {

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 )
@@ -9,7 +10,7 @@ func (b *expressionBinder) lowerStringInsert(out *binding) error {
 	row := out.expressions[0]
 	found := false
 	for _, expr := range row {
-		found = found || QuerySetDepth(expr) != 0
+		found = found || exec.QuerySetDepth(expr) != 0
 	}
 	if !found {
 		return nil

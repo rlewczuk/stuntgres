@@ -40,7 +40,7 @@ func TestRoutineBodyOriginalLifetimeAndForeignRetag(t *testing.T) {
 		t.Fatal(err)
 	}
 	original := binder.dependencies
-	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: original}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: original}}
 	if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 		t.Fatal("genuine original body authority", err)
 	}
@@ -167,8 +167,8 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 			t.Fatal("stored call lost destination declaration provenance", i, err)
 		}
 		evaluation := EvalContext{
-			evalStatement: evalStatement{Context: ctx},
-			evalAdmission: evalAdmission{
+			EvalStatement: evalStatement{Context: ctx},
+			EvalAdmission: evalAdmission{
 				RoutineAuthority:  &targetAuth,
 				RoutineRecipe:     true,
 				RoutineConsumer:   item.consumer,
@@ -261,8 +261,8 @@ func TestRoutineBodyStoredRecipeReplacement(t *testing.T) {
 			t.Fatal("replacement mutated original stored recipe", i)
 		}
 		evaluation := EvalContext{
-			evalStatement: evalStatement{Context: ctx},
-			evalAdmission: evalAdmission{
+			EvalStatement: evalStatement{Context: ctx},
+			EvalAdmission: evalAdmission{
 				RoutineAuthority:  &sourceAuth,
 				RoutineRecipe:     true,
 				RoutineConsumer:   item.consumer,
@@ -335,7 +335,7 @@ func TestRoutineBodyEveryProviderOriginalLifetime(t *testing.T) {
 			if err != nil || outer == nil || outer.Address().ObjectID != test.id {
 				t.Fatal("selected released root", outer, err)
 			}
-			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
+			evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal("original body admission", err)
 			}

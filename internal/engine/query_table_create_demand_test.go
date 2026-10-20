@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -43,7 +44,7 @@ func TestQueryTableCreateDemand(t *testing.T) {
 		return sqltype.Boolean(testUsage(e, sqltype.Bool).Type, value >= 2), nil
 	})}
 	project.Expressions = []expr.Expr{queryProbe(usage, func(c *EvalContext) (sqltype.Value, error) { calls++; return c.Row[0], nil })}
-	result, count, err := Finalize(context.Background(), project, source, nil)
+	result, count, err := exec.Finalize(context.Background(), project, source, nil)
 	if err != nil || count != 2 || calls != 2 || predicates != 3 {
 		t.Fatal(result, count, err, calls, predicates)
 	}
@@ -77,7 +78,7 @@ func TestQueryTableCreateOwnedDetach(t *testing.T) {
 		e := New()
 		project, source := queryCreateBoundSource(t, e, width)
 		borrowed := source.Anonymous
-		result, count, err := Finalize(context.Background(), project, source, nil)
+		result, count, err := exec.Finalize(context.Background(), project, source, nil)
 		if err != nil || count != 3 {
 			t.Fatal(result, count, err)
 		}
@@ -103,7 +104,7 @@ func TestQueryTableCreateOwnedDetach(t *testing.T) {
 	}
 	e := New()
 	project, source := queryCreateBoundSource(t, e, 1)
-	result, _, err := Finalize(context.Background(), project, source, nil)
+	result, _, err := exec.Finalize(context.Background(), project, source, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,13 +125,13 @@ func TestQueryTableCreateCleanup(t *testing.T) {
 		cleanup := errors.New("required source close")
 		failure := errors.New("primary expression failure")
 		closes := 0
-		inner := indexedStage{Source: input, Columns: project.Schema(), Expressions: project.Expressions, Evaluation: EvalContext{evalFrame: evalFrame{Scope: 1, Frame: 1}}, Finish: func() error { closes++; return cleanup }}
+		inner := indexedStage{Source: input, Columns: project.Schema(), Expressions: project.Expressions, Evaluation: EvalContext{EvalFrame: evalFrame{Scope: 1, Frame: 1}}, Finish: func() error { closes++; return cleanup }}
 		if primary {
 			inner.Expressions = []expr.Expr{queryProbe(project.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
 		}
 		bridge := &querySource{NestedRoot: project, NestedInputs: input, NestedStage: &inner, Materialized: true, FlatWidth: 1}
 		outer := &plan.ProjectNode{QuerySchema: project.Schema(), Child: &plan.SourceNode{QuerySchema: project.Schema()}, Expressions: project.Expressions, Frame: 1}
-		result, count, err := Finalize(context.Background(), outer, bridge, nil)
+		result, count, err := exec.Finalize(context.Background(), outer, bridge, nil)
 		want := cleanup
 		if primary {
 			want = failure

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -28,7 +29,7 @@ func srfFromUnitState() *queryState {
 }
 func srfFromUnitRows(t *testing.T, n plan.Node) [][]any {
 	t.Helper()
-	stage, err := OpenNode(context.Background(), srfFromUnitState(), n)
+	stage, err := exec.OpenNode(context.Background(), srfFromUnitState(), n)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +189,7 @@ func TestSRFFromInvocation(t *testing.T) {
 func TestSRFFromOwnership(t *testing.T) {
 	d := seriesUnitType(t, sqltype.Int4)
 	n := srfFromUnitNode(t, seriesUnit(t, d, 1, 3))
-	stage, err := OpenFunctionFromNode(context.Background(), srfFromUnitState(), n)
+	stage, err := exec.OpenFunctionFromNode(context.Background(), srfFromUnitState(), n)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,12 +214,12 @@ func TestSRFFromOwnership(t *testing.T) {
 	bad := seriesUnit(t, d, 1, 2)
 	bad.Args[0] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })
 	// First member opens successfully; failed partial open must close the group.
-	invocation, err := OpenFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, &plan.FunctionFromNode{Calls: []expr.Expr{n.Calls[0], bad}})
+	invocation, err := exec.OpenFunctionInvocation(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, &plan.FunctionFromNode{Calls: []expr.Expr{n.Calls[0], bad}})
 	if !errors.Is(err, failure) || len(invocation.Cursors) != 0 {
 		t.Fatal(invocation, err)
 	}
 	failed := srfFromUnitNode(t, n.Calls[0], bad)
-	stage, err = OpenFunctionFromNode(context.Background(), srfFromUnitState(), failed)
+	stage, err = exec.OpenFunctionFromNode(context.Background(), srfFromUnitState(), failed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -267,14 +268,14 @@ func TestSRFFromStoredEligibility(t *testing.T) {
 	view := New().CatalogRead()
 	calls := []expr.Expr{seriesUnit(t, d, 1, 2), subscriptsUnit(t, view, []sqltype.ArrayDimension{{Lower: 1, Length: 2}}, 1)}
 	for _, original := range calls {
-		if !SourceAdmitted(original) {
+		if !exec.SourceAdmitted(original) {
 			t.Fatal("stored call rejected", original)
 		}
 		args := append([]expr.Expr(nil), expr.Expr(original).(expr.Composite).Children()...)
 		first := args[0]
 		args[0] = queryProbe(first.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { return first.Eval(c) })
 		mapped, err := expr.Substitute(expr.Expr(original).(expr.Composite), expr.InfoOf(original), args)
-		if err != nil || !SourceAdmitted(mapped) {
+		if err != nil || !exec.SourceAdmitted(mapped) {
 			t.Fatal(mapped, err)
 		}
 		if _, ok := expr.Expr(original).(expr.Composite).Children()[0].(plan.LiteralExpr); !ok {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -34,7 +35,7 @@ func TestQueryWindowRankDescriptors(t *testing.T) {
 			t.Fatal("ranking demand", call)
 		}
 	}
-	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || rows == nil || count != 4 || source.View != nil {
 		t.Fatal(rows, count, err, source.View)
 	}
@@ -48,7 +49,7 @@ func TestQueryWindowRankPeerDemand(t *testing.T) {
 	for _, frame := range []string{"ROWS CURRENT ROW", "ROWS NULL PRECEDING", "ROWS -1 PRECEDING", "RANGE CURRENT ROW EXCLUDE GROUP"} {
 		t.Run(frame, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT rank() OVER w,dense_rank() OVER w,percent_rank() OVER w,cume_dist() OVER w FROM t WINDOW w AS(ORDER BY v "+frame+")")
-			rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+			rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 			if err != nil || rows == nil || count != 4 {
 				t.Fatal(rows, count, err)
 			}
@@ -81,7 +82,7 @@ func TestQueryWindowRankPeerDemand(t *testing.T) {
 	// Equivalent key sorts can share peer endpoints while distinct frame specs
 	// retain their own membership and bound-validation demand.
 	_, query, source := queryCoreFixture(t, "SELECT rank() OVER(ORDER BY v ROWS CURRENT ROW),dense_rank() OVER(ORDER BY v RANGE CURRENT ROW),count(*) OVER(ORDER BY v ROWS CURRENT ROW EXCLUDE GROUP) FROM t")
-	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || rows == nil || count != 4 {
 		t.Fatal(rows, count, err)
 	}
@@ -103,7 +104,7 @@ func TestQueryWindowRankPeerDemand(t *testing.T) {
 	rows.Close()
 	for _, offset := range []string{"NULL", "-1"} {
 		_, query, source := queryCoreFixture(t, "SELECT rank() OVER w,count(*) OVER w FROM t WINDOW w AS(ORDER BY v ROWS "+offset+" PRECEDING)")
-		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+		rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 		code, message := "22004", "frame starting offset must not be null"
 		if offset == "-1" {
 			code, message = "22013", "frame starting offset must not be negative"
@@ -127,11 +128,11 @@ func TestQueryWindowRankCancellation(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			probe := &windowCancelContext{Context: ctx, cancel: cancel, phase: phase}
-			rows, count, err := Finalize(probe, query.Root, source, nil)
+			rows, count, err := exec.Finalize(probe, query.Root, source, nil)
 			if !probe.entered || !errors.Is(err, context.Canceled) || rows != nil || count != 0 || source.View != nil {
 				t.Fatal(probe.entered, rows, count, err, source.View)
 			}
-			recovered, recoveredCount, recoveryErr := Finalize(context.Background(), query.Root, continuation, nil)
+			recovered, recoveredCount, recoveryErr := exec.Finalize(context.Background(), query.Root, continuation, nil)
 			if recoveryErr != nil || recovered == nil || recoveredCount != 4 {
 				t.Fatal(recovered, recoveredCount, recoveryErr)
 			}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"sync"
@@ -30,7 +31,7 @@ func TestCastCoercionPreflightRecursivePrivate(t *testing.T) {
 	original := preflightCast(t, "SELECT CAST(int4('42'::text) AS text) FROM t")
 	outer := original.(plan.CoercionExpr)
 	inner := outer.Child.(plan.CoercionExpr)
-	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 	for range 2 {
 		folded, changed, err := preflightCoercions(&evaluation, original)
 		if err != nil || !changed {
@@ -69,7 +70,7 @@ func TestCastCoercionPreflightRecursivePrivate(t *testing.T) {
 
 func TestCastCoercionPreflightDependenceAndCancellation(t *testing.T) {
 	original := preflightCast(t, "SELECT int4('oops'::text) FROM t").(plan.CoercionExpr)
-	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 	for _, properties := range []expr.Properties{
 		{RowDependent: true}, {StageDependent: true}, {Volatility: expr.Volatility(1)},
 	} {
@@ -92,7 +93,7 @@ func TestCastCoercionPreflightDependenceAndCancellation(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, _, err = preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: ctx}}, original)
+	_, _, err = preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, original)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
@@ -104,7 +105,7 @@ func TestCastCoercionPreflightDependentParent(t *testing.T) {
 	} {
 		original := preflightCast(t, "SELECT CAST(int4('42'::text) AS text) FROM t").(plan.CoercionExpr)
 		original.Property = properties
-		folded, changed, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original)
+		folded, changed, err := preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, original)
 		if err != nil || !changed {
 			t.Fatal(folded, changed, err)
 		}
@@ -122,7 +123,7 @@ func TestCastCoercionPreflightDependentParent(t *testing.T) {
 }
 
 func TestCastCoercionQueryPreflightSharing(t *testing.T) {
-	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 	source := &plan.SourceNode{}
 	unchanged := preflightCast(t, "SELECT $1::text FROM t")
 	project := &plan.ProjectNode{Child: source, Expressions: []expr.Expr{unchanged}}
@@ -186,7 +187,7 @@ func TestCastCoercionPreflightImportedFrames(t *testing.T) {
 				go func(input string, value sqltype.Value) {
 					defer wg.Done()
 					for range 3 {
-						evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}}
+						evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}}
 						leaf, changed, err := preflightCoercions(&evaluation, identity)
 						if err != nil || changed || !reflect.DeepEqual(leaf, identity) {
 							t.Error("parameter/identity leaf materialized", leaf, changed, err)
@@ -216,7 +217,7 @@ func TestCastCoercionPreflightImportedFrames(t *testing.T) {
 						// A folded result owns its value, not the caller's frame.
 						evaluation.Parameters[0] = sqltype.Null(source)
 						got, err := literal.Eval(&evaluation)
-						want, wantErr := original.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}})
+						want, wantErr := original.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}})
 						if err != nil || wantErr != nil || !reflect.DeepEqual(got, want) {
 							t.Error(got, want, err, wantErr)
 						}
@@ -228,7 +229,7 @@ func TestCastCoercionPreflightImportedFrames(t *testing.T) {
 				t.Fatal("analysis mutated")
 			}
 			wrong := sqltype.Null(original.ResultUsage().Type)
-			_, _, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{wrong}}}, original)
+			_, _, err := preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{wrong}}}, original)
 			if err == nil || err.Error() != "stuntgres: invalid expression parameter type" {
 				t.Fatal(err)
 			}
@@ -248,7 +249,7 @@ func TestCastCoercionPreflightFoldedChildReuse(t *testing.T) {
 		return inner.Child.ResultUsage().Type.Input(c.Context, "42", -1)
 	})
 	original.Child = inner
-	_, changed, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original)
+	_, changed, err := preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, original)
 	if err != nil || !changed || calls != 1 {
 		t.Fatal(changed, calls, err)
 	}
@@ -258,7 +259,7 @@ func TestCastCoercionPreflightFoldedChildReuse(t *testing.T) {
 		cancel()
 		return value, err
 	})
-	_, _, err = preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: ctx}}, inner)
+	_, _, err = preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, inner)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
@@ -273,7 +274,7 @@ func TestCastCoercionPreflightProviderCompletionCancellation(t *testing.T) {
 	// Entry, child traversal, parameter evaluation and Apply succeed. The
 	// completion checkpoint must still prevent a private result escaping.
 	ctx := &queryCountingContext{Context: context.Background(), remaining: 5}
-	root, changed, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: ctx, Parameters: []sqltype.Value{value}}}, original)
+	root, changed, err := preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: ctx, Parameters: []sqltype.Value{value}}}, original)
 	if root != nil || changed || !errors.Is(err, context.Canceled) {
 		t.Fatal(root, changed, err)
 	}
@@ -296,7 +297,7 @@ func TestCastCoercionQueryPreflightFrameMetadataAndFinalization(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		root, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}}, project)
+		root, err := preflightQuery(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}}, project)
 		if !reflect.DeepEqual(project.Expressions[0], original) || !reflect.DeepEqual(project.Schema(), schema) {
 			t.Fatal("analyzed query mutated")
 		}
@@ -314,7 +315,7 @@ func TestCastCoercionQueryPreflightFrameMetadataAndFinalization(t *testing.T) {
 		if !ok {
 			t.Fatal("eligible conversion was not privately replaced")
 		}
-		got, err := literal.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+		got, err := literal.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 		want := sqltype.Null(schema[0].Usage.Type)
 		if input != "" {
 			number := int64(42)
@@ -336,11 +337,11 @@ func TestCastCoercionQueryPreflightFrameMetadataAndFinalization(t *testing.T) {
 		return original.Child.ResultUsage().Type.Input(c.Context, "42", -1)
 	})
 	private.Expressions = []expr.Expr{original}
-	root, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, &private)
+	root, err := preflightQuery(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, &private)
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows, count, err := Finalize(context.Background(), root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), root, source, nil)
 	if err != nil || rows == nil || count != 4 || calls != 1 || !reflect.DeepEqual(rows.Schema(), schema) {
 		t.Fatal(rows, count, calls, err)
 	}
@@ -381,7 +382,7 @@ func TestCastExpressionEqualityBoundDiagnosticOwnership(t *testing.T) {
 }
 
 func TestCastCoercionPreflightIntegratedParents(t *testing.T) {
-	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 	for _, query := range []string{
 		"SELECT int4('42'::text)>1 FROM t",
 		"SELECT bool(int4('42'::text)) AND TRUE FROM t",

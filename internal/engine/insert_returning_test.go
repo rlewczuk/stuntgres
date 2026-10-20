@@ -53,7 +53,7 @@ func insertReturningAnalyzedScope(t *testing.T, e *Engine, s *Session, query str
 	}
 	scope.insertConflict = b.insert.conflict
 	if b.insert.conflict != nil {
-		c := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+		c := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
 		if err := b.insert.conflict.selectArbiters(&c, b.relation, e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
@@ -71,8 +71,8 @@ func TestInsertReturningModes(t *testing.T) {
 	three, _ := sqltype.Integer(typ, 3)
 	seven, _ := sqltype.Integer(typ, 7)
 	column := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 4, Slot: 0}
-	outer := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{three}, OldRow: []sqltype.Value{seven}}}
-	inner := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 8, Outer: &outer}}
+	outer := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{three}, OldRow: []sqltype.Value{seven}}}
+	inner := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 8, Outer: &outer}}
 	calls := 0
 	probe := queryProbe(typ.Usage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return column.Eval(c) })
 	for _, tc := range []struct {
@@ -126,7 +126,7 @@ func TestInsertReturningWholeRow(t *testing.T) {
 			for i, col := range b.relation.Columns {
 				row[i] = sqltype.Null(col.Usage.Type)
 			}
-			c := EvalContext{evalStatement: evalStatement{Context: scope.op.Context()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: row}}
+			c := EvalContext{EvalStatement: evalStatement{Context: scope.op.Context()}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: row}}
 			for i, expr := range b.returning.expressions {
 				v, err := expr.Eval(&c)
 				if err != nil || v.Type() != typ || v.IsNull() != (i == 0) {
@@ -210,7 +210,7 @@ func TestInsertReturningFinalAdmission(t *testing.T) {
 		one, _ := sqltype.Integer(b.relation.Columns[0].Usage.Type, 1)
 		ten, _ := sqltype.Integer(b.relation.Columns[1].Usage.Type, 10)
 		row := []sqltype.Value{one, ten}
-		evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+		evaluation := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Input: scope.input, Output: scope.output, Host: hostOf(scope)}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
 		admitted, err := scope.admitInsertRow(b.ref, &indexWriteCandidate{values: row}, indexWriteBatch{}, &evaluation)
 		if err != nil || !admitted {
 			t.Fatal(admitted, err)

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
@@ -150,7 +151,7 @@ func TestInheritanceQueryAdmissionGrowth(t *testing.T) {
 	if len(refs) != 3 || view != scope.view || source.View.Data() != view.Data() {
 		t.Fatal("growth did not use sole complete statement snapshot", refs)
 	}
-	if err = SelectQuerySources(op.Context(), source); err != nil {
+	if err = exec.SelectQuerySources(op.Context(), source); err != nil {
 		t.Fatal(err)
 	}
 	got := map[int64]int{}

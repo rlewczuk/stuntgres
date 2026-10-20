@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -127,14 +128,14 @@ func (e *Engine) bindIndexPredicate(op *Operation, input sqltype.InputEnvironmen
 	if err := rejectVirtualIndexUses(parent, binder.query.sources[0].Uses); err != nil {
 		return nil, err
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: binder.input, Catalog: auth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Input: binder.input, Catalog: auth.Catalog}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
 	evaluation.RoutineAuthority, evaluation.RoutineChecks = &auth, binder.dependencies
 	evaluation.RoutineRecipe = true
 	execution, _, err := preflightCoercionsWithPolicy(&evaluation, definition, true)
 	if err != nil {
 		return nil, err
 	}
-	if PlannedVolatility(execution) != expr.Immutable {
+	if exec.PlannedVolatility(execution) != expr.Immutable {
 		return nil, sqlError("42P17", "functions in index predicate must be marked IMMUTABLE")
 	}
 	var dependencies []ids.ObjectRef
@@ -159,7 +160,7 @@ func (e *Engine) bindIndexPredicate(op *Operation, input sqltype.InputEnvironmen
 // absent includes; only TRUE includes; errors and cancellation veto publication.
 // The caller owns the evaluation frame and row, with no per-row allocation.
 func (p *indexExecutionPreparation) predicateMatches(evaluation *EvalContext, parent *catalog.Relation, definition *catalog.IndexDefinition, row []sqltype.Value, ordering *indexOrdering, hash *storage.HashBinding) (bool, error) {
-	if err := EvaluationContext(evaluation); err != nil {
+	if err := exec.EvaluationContext(evaluation); err != nil {
 		return false, err
 	}
 	if err := p.prepareConstants(evaluation, parent, definition, ordering, hash); err != nil {
@@ -218,7 +219,7 @@ func partialPredicateImpliedBy(query, predicate expr.Expr) bool {
 	if p, ok := predicate.(plan.LogicalExpr); ok && p.Op == parser.LogicalAnd {
 		return partialPredicateImpliedBy(query, p.Left) && partialPredicateImpliedBy(query, p.Right)
 	}
-	if predicate.Properties().ParameterDependent || PlannedVolatility(predicate) != expr.Immutable {
+	if predicate.Properties().ParameterDependent || exec.PlannedVolatility(predicate) != expr.Immutable {
 		return false
 	}
 	return partialPredicateAtom(query, predicate)
@@ -228,5 +229,5 @@ func partialPredicateAtom(query, predicate expr.Expr) bool {
 	if q, ok := query.(plan.LogicalExpr); ok && q.Op == parser.LogicalAnd {
 		return partialPredicateAtom(q.Left, predicate) || partialPredicateAtom(q.Right, predicate)
 	}
-	return !query.Properties().ParameterDependent && PlannedVolatility(query) == expr.Immutable && sameGroupExpression(query, predicate)
+	return !query.Properties().ParameterDependent && exec.PlannedVolatility(query) == expr.Immutable && sameGroupExpression(query, predicate)
 }

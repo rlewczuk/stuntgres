@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 )
@@ -53,7 +54,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		bridge := &querySource{Ref: ref, Authority: scope.authority, Locks: locks, NestedRoot: root, NestedInputs: source, Materialized: true, FlatWidth: len(root.Schema()), Inherited: mark}
 		borrowQueryAuthority(bridge, scope)
 		if locks != nil {
-			occurrences := QueryTreeOccurrences(root, source, nil)
+			occurrences := exec.QueryTreeOccurrences(root, source, nil)
 			bridge.Lineage = &queryLockLineage{Root: root, Inputs: source, Stage: &querySource{Materialized: true, Occurrences: occurrences}}
 		}
 		return bridge, nil
@@ -65,7 +66,7 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		if err != nil {
 			return nil, err
 		}
-		if err = SelectQuerySources(ctx, source); err != nil {
+		if err = exec.SelectQuerySources(ctx, source); err != nil {
 			source.Close()
 			return nil, err
 		}

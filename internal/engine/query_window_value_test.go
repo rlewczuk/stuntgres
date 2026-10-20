@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -41,7 +42,7 @@ func TestQueryWindowValueMemberSelection(t *testing.T) {
 					}
 					for _, reverse := range []bool{false, true} {
 						for _, ordinal := range []int64{-1, 0, 1, 2, 3, 4, 5, math.MaxInt64} {
-							member, present := WindowValueMember(mode, head, tail, current, peerStart, peerEnd, ordinal, reverse)
+							member, present := exec.WindowValueMember(mode, head, tail, current, peerStart, peerEnd, ordinal, reverse)
 							wantPresent := ordinal >= 0 && ordinal < int64(len(admitted))
 							if present != wantPresent {
 								t.Fatal(mode, head, tail, current, ordinal, reverse, present, admitted)
@@ -165,7 +166,7 @@ func TestQueryWindowValueEvaluationCancellation(t *testing.T) {
 			} else {
 				call.Ordinal = probe
 			}
-			rows, count, err := Finalize(ctx, query.Root, source, nil)
+			rows, count, err := exec.Finalize(ctx, query.Root, source, nil)
 			if rows != nil {
 				rows.Close()
 			}
@@ -244,7 +245,7 @@ func TestQueryWindowValueCurrentOrdinalAndSelectedEvaluation(t *testing.T) {
 		selected = append(selected, id)
 		return argument.Eval(c)
 	})
-	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,7 +325,7 @@ func TestQueryWindowValueOutputPublicationCancellation(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			probe := &windowCancelContext{Context: ctx, cancel: cancel, phase: phase}
-			rows, count, err := Finalize(probe, query.Root, source, nil)
+			rows, count, err := exec.Finalize(probe, query.Root, source, nil)
 			if rows != nil {
 				rows.Close()
 			}
@@ -332,7 +333,7 @@ func TestQueryWindowValueOutputPublicationCancellation(t *testing.T) {
 			if !probe.entered || rows != nil || count != 0 || !errors.Is(err, context.Canceled) || errors.As(err, &diagnostic) || source.View != nil {
 				t.Fatal("value output/Finish cancellation", probe.entered, count, err, source.View)
 			}
-			recovered, count, err := Finalize(context.Background(), query.Root, continuation, nil)
+			recovered, count, err := exec.Finalize(context.Background(), query.Root, continuation, nil)
 			if err != nil || recovered == nil || count != 4 {
 				t.Fatal("same bound graph recovery", count, err)
 			}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -18,7 +19,7 @@ func TestQueryLimitRequiredClose(t *testing.T) {
 				cleanup := errors.New("required inner close")
 				failure := errors.New("primary projection failure")
 				closes := 0
-				inner := indexedStage{Source: input, Columns: project.Schema(), Expressions: project.Expressions, Evaluation: EvalContext{evalFrame: evalFrame{Scope: 1, Frame: 1}}, Finish: func() error { closes++; return cleanup }}
+				inner := indexedStage{Source: input, Columns: project.Schema(), Expressions: project.Expressions, Evaluation: EvalContext{EvalFrame: evalFrame{Scope: 1, Frame: 1}}, Finish: func() error { closes++; return cleanup }}
 				if primary {
 					inner.Expressions = []expr.Expr{queryProbe(project.Schema()[0].Usage, func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })}
 				}
@@ -37,7 +38,7 @@ func TestQueryLimitRequiredClose(t *testing.T) {
 					child = limit
 				}
 				outer := &plan.ProjectNode{QuerySchema: project.Schema(), Child: child, Expressions: project.Expressions}
-				rows, n, err := Finalize(context.Background(), outer, bridge, nil)
+				rows, n, err := exec.Finalize(context.Background(), outer, bridge, nil)
 				want := cleanup
 				if primary {
 					want = failure
@@ -56,15 +57,15 @@ func TestQueryLimitEOFCloses(t *testing.T) {
 	failure := errors.New("EOF close failure")
 	closes := 0
 	child := indexedStage{Source: input, Columns: project.Child.Schema(), Selection: []int{0}, Finish: func() error { closes++; return failure }}
-	stage := ProducingStage(&child, project.Schema())
+	stage := exec.ProducingStage(&child, project.Schema())
 	stage.Expressions = project.Expressions
-	stage.Evaluation = EvalContext{evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	stage.Evaluation = EvalContext{EvalFrame: evalFrame{Scope: 1, Frame: 1}}
 	stage.Produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 		i, present, err := child.NextOccurrence(ctx)
 		if err != nil || !present {
 			return present, err
 		}
-		RetainOccurrence(out, &child, i)
+		exec.RetainOccurrence(out, &child, i)
 		return true, nil
 	}
 	values := make([]sqltype.Value, 1)

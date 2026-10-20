@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/lock"
@@ -88,11 +89,11 @@ func TestQueryParallelPartition(t *testing.T) {
 			}
 		}
 		for _, ceiling := range []int{0, 1, 2, 7, 1024} {
-			pin, err := ParallelQuerySource(source)
+			pin, err := exec.ParallelQuerySource(source)
 			if err != nil {
 				t.Fatal(err)
 			}
-			rows, count, err := FinalizeSelect(context.Background(), query.Root, pin, nil, ceiling)
+			rows, count, err := exec.FinalizeSelect(context.Background(), query.Root, pin, nil, ceiling)
 			if err != nil || count != len(want) {
 				t.Fatal(count, err)
 			}
@@ -113,7 +114,7 @@ func TestQueryParallelPartition(t *testing.T) {
 			if len(seen) != 0 {
 				t.Fatal(seen)
 			}
-			if QueryParallelWorkers(ceiling, len(want)) > min(ceiling, len(want)) {
+			if exec.QueryParallelWorkers(ceiling, len(want)) > min(ceiling, len(want)) {
 				t.Fatal("ceiling exceeded")
 			}
 		}
@@ -124,7 +125,7 @@ func TestQueryParallelPartition(t *testing.T) {
 	source.Own[0].Values = append([]sqltype.Value(nil), source.Committed[0].Values...)
 	source.Own[0].Values[0], _ = sqltype.Integer(source.Own[0].Values[0].Type(), 99)
 	source.Visible = []int{4, 2, 3}
-	rows, count, err := FinalizeSelect(context.Background(), query.Root, source, nil, 2)
+	rows, count, err := exec.FinalizeSelect(context.Background(), query.Root, source, nil, 2)
 	if err != nil || count != 3 {
 		t.Fatal(count, err)
 	}
@@ -141,7 +142,7 @@ func TestQueryParallelConcurrentExecution(t *testing.T) {
 	for _, phase := range []string{"target", "filter"} {
 		t.Run(phase, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT id FROM t WHERE f")
-			project, ordered, eligible := ParallelQueryPlan(query.Root, source)
+			project, ordered, eligible := exec.ParallelQueryPlan(query.Root, source)
 			if !eligible || ordered != nil {
 				t.Fatal("ordinary scan not eligible")
 			}
@@ -184,7 +185,7 @@ func TestQueryParallelConcurrentExecution(t *testing.T) {
 				})
 			}
 			ctx, _, join := parallelTestStart(t, func(ctx context.Context) parallelTestOutcome {
-				r, n, e := FinalizeParallelQuery(ctx, project, nil, source, nil, 2)
+				r, n, e := exec.FinalizeParallelQuery(ctx, project, nil, source, nil, 2)
 				return parallelTestOutcome{r, n, e}
 			})
 			states := make([]*queryState, 2)
@@ -266,7 +267,7 @@ func TestQueryParallelSnapshot(t *testing.T) {
 	}()
 	for i := range 2 {
 		go func(i int) {
-			r, err := RunParallelQuery(ctx, project, source, nil, i*2, (i+1)*2, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, false)
+			r, err := exec.RunParallelQuery(ctx, project, source, nil, i*2, (i+1)*2, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{}, false)
 			done[i] <- workerOutcome{r, err}
 		}(i)
 	}
@@ -307,7 +308,7 @@ func TestQueryParallelSnapshot(t *testing.T) {
 	if second.err != nil {
 		t.Fatal(second.err)
 	}
-	rows, err := GatherQueryRuns(ctx, project, nil, source, []queryParallelRun{first.run, second.run}, nil, false, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+	rows, err := exec.GatherQueryRuns(ctx, project, nil, source, []queryParallelRun{first.run, second.run}, nil, false, sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,26 +325,26 @@ func TestQueryParallelEligibility(t *testing.T) {
 	parallelAdmissionAndTemporary(t)
 	parallelSerialEntryProof(t)
 	_, query, source := queryCoreFixture(t, "SELECT id FROM t WHERE v>=1 ORDER BY v+1 DESC NULLS LAST,id")
-	project, ordered, ok := ParallelQueryPlan(query.Root, source)
+	project, ordered, ok := exec.ParallelQueryPlan(query.Root, source)
 	if !ok || ordered == nil {
 		t.Fatal("positive scalar scan rejected")
 	}
 	for _, mode := range []lock.Mode{lock.ForKeyShare, lock.ForShare, lock.ForNoKeyUpdate, lock.ForUpdate} {
 		copy := *source
 		copy.Inherited = plan.RowMark{Mode: mode}
-		if _, _, ok := ParallelQueryPlan(project, &copy); ok {
+		if _, _, ok := exec.ParallelQueryPlan(project, &copy); ok {
 			t.Fatal("inherited rowmark admitted", mode)
 		}
 		locked := *project
 		locked.Child = &plan.RowLockNode{QuerySchema: project.Child.Schema(), Child: project.Child, Marks: []plan.RowMark{{Mode: mode}}, FirstMode: mode}
-		if _, _, ok := ParallelQueryPlan(&locked, source); ok {
+		if _, _, ok := exec.ParallelQueryPlan(&locked, source); ok {
 			t.Fatal("nested rowmark admitted", mode)
 		}
 	}
 	for _, node := range []plan.Node{&plan.SingletonNode{}, &plan.ValuesNode{}, &plan.RowLockNode{}, &plan.LimitNode{}, &plan.EvaluationNode{}, &plan.JoinNode{}, &plan.AggregateNode{}, &plan.DistinctNode{}, &plan.DistinctOnNode{}, &plan.SetNode{}, &plan.WindowNode{}, &plan.DerivedNode{}, &plan.FunctionFromNode{}, &plan.SetProjectNode{}} {
 		copy := *project
 		copy.Child = node
-		if _, _, ok := ParallelQueryPlan(&copy, source); ok {
+		if _, _, ok := exec.ParallelQueryPlan(&copy, source); ok {
 			t.Fatalf("unsupported %T admitted", node)
 		}
 	}
@@ -356,13 +357,13 @@ func TestQueryParallelEligibility(t *testing.T) {
 	} {
 		copy := *source
 		mutate(&copy)
-		if _, _, ok := ParallelQueryPlan(project, &copy); ok {
+		if _, _, ok := exec.ParallelQueryPlan(project, &copy); ok {
 			t.Fatal("unsupported source admitted")
 		}
 	}
 	column := project.Expressions[0].(plan.ColumnExpr)
 	for _, expr := range []expr.Expr{functions.SequenceCall{}, functions.Random{}, functions.Advisory{}, plan.SubqueryExpr{}, queryProbe(column.ResultUsage(), nil)} {
-		if ParallelQueryExpression(expr, project.Frame, len(project.Child.Schema())) {
+		if exec.ParallelQueryExpression(expr, project.Frame, len(project.Child.Schema())) {
 			t.Fatalf("unsafe/unknown %T admitted", expr)
 		}
 		copy := *ordered
@@ -370,14 +371,14 @@ func TestQueryParallelEligibility(t *testing.T) {
 		copy.Keys[0].Expression = expr
 		p := *project
 		p.Child = &copy
-		if _, _, ok := ParallelQueryPlan(&p, source); ok {
+		if _, _, ok := exec.ParallelQueryPlan(&p, source); ok {
 			t.Fatal("hidden unsafe key admitted")
 		}
 	}
 	for _, mutate := range []func(*plan.ColumnExpr){func(c *plan.ColumnExpr) { c.Virtual = column }, func(c *plan.ColumnExpr) { c.Frame++ }, func(c *plan.ColumnExpr) { c.Scope++ }} {
 		copy := column
 		mutate(&copy)
-		if ParallelQueryExpression(copy, project.Frame, len(project.Child.Schema())) {
+		if exec.ParallelQueryExpression(copy, project.Frame, len(project.Child.Schema())) {
 			t.Fatal("virtual/outer column admitted")
 		}
 	}
@@ -405,7 +406,7 @@ func TestQueryParallelErrorIdentity(t *testing.T) {
 		return sqltype.Value{}, c.Context.Err()
 	})
 	_, _, join := parallelTestStart(t, func(ctx context.Context) parallelTestOutcome {
-		r, n, e := FinalizeParallelQuery(ctx, project, nil, source, nil, 2)
+		r, n, e := exec.FinalizeParallelQuery(ctx, project, nil, source, nil, 2)
 		return parallelTestOutcome{r, n, e}
 	})
 	out := join()
@@ -442,7 +443,7 @@ func TestQueryParallelCancellation(t *testing.T) {
 			case "sort":
 				ordered.Keys[0].Expression = probe(ordered.Keys[0].Expression.ResultUsage())
 			}
-			rows, n, err := FinalizeParallelQuery(ctx, project, ordered, source, nil, 2)
+			rows, n, err := exec.FinalizeParallelQuery(ctx, project, ordered, source, nil, 2)
 			if rows != nil || n != 0 || !errors.Is(err, context.Canceled) || source.View != nil {
 				t.Fatal(rows, n, err)
 			}
@@ -471,11 +472,11 @@ func TestQueryParallelMerge(t *testing.T) {
 	parallelCachedOrderProof(t)
 	for _, q := range []string{"SELECT id FROM t ORDER BY v DESC NULLS LAST,id", "SELECT id FROM t ORDER BY v+1 ASC NULLS FIRST,id", "SELECT id+1 AS id FROM t ORDER BY v DESC NULLS LAST,id"} {
 		_, query, source := queryCoreFixture(t, q)
-		project, ordered, ok := ParallelQueryPlan(query.Root, source)
+		project, ordered, ok := exec.ParallelQueryPlan(query.Root, source)
 		if !ok {
 			t.Fatal(q, "not eligible")
 		}
-		rows, n, err := FinalizeParallelQuery(context.Background(), project, ordered, source, nil, 2)
+		rows, n, err := exec.FinalizeParallelQuery(context.Background(), project, ordered, source, nil, 2)
 		if err != nil || n != 4 {
 			t.Fatal(n, err)
 		}
@@ -497,7 +498,7 @@ func TestQueryParallelMerge(t *testing.T) {
 		ordered.Keys[0].Comparison = sqltype.Comparison{}
 		// At four singleton runs no local comparison is possible: failure proves
 		// the leader actually compares run heads, not a discarded sorted plan.
-		rows, n, err := FinalizeParallelQuery(context.Background(), project, ordered, source, nil, workers)
+		rows, n, err := exec.FinalizeParallelQuery(context.Background(), project, ordered, source, nil, workers)
 		if rows != nil || n != 0 || err == nil || err.Error() != "invalid comparison values" || source.View != nil {
 			t.Fatal(rows, n, err)
 		}
@@ -507,7 +508,7 @@ func TestQueryParallelMerge(t *testing.T) {
 func TestQueryParallelOwnership(t *testing.T) {
 	for _, q := range []string{"SELECT id FROM t", "SELECT id+1 AS id FROM t", "SELECT FROM t"} {
 		_, query, source := queryCoreFixture(t, q)
-		rows, n, err := FinalizeSelect(context.Background(), query.Root, source, nil, 2)
+		rows, n, err := exec.FinalizeSelect(context.Background(), query.Root, source, nil, 2)
 		if err != nil || n != 4 {
 			t.Fatal(n, err)
 		}

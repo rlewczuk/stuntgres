@@ -285,7 +285,7 @@ func TestDeparseConstraintsStrictnessAndSuppliedAttributes(t *testing.T) {
 			test := append([]expr.Expr(nil), args...)
 			test[nullable] = literal(sqltype.Null(test[nullable].ResultUsage().Type))
 			node := functions.Deparse{Info: expr.Info{Usage: textType.Usage(), Property: expr.Properties{Volatility: expr.Stable}}, Signature: signature, Args: test}
-			value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+			value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 			if err != nil || !value.IsNull() || value.Type() != textType {
 				t.Fatal(constraint, nullable, value, err)
 			}

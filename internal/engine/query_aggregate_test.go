@@ -6,6 +6,7 @@ import (
 	"math"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -49,7 +50,7 @@ func TestQueryAggregateEagerOwnershipAndMetadata(t *testing.T) {
 	if schema[0].OriginTable == 0 || schema[0].OriginAttribute != 2 || !schema[0].NullabilityKnown || !schema[0].Nullable || schema[1].Usage.Type.ID() != sqltype.Int8 || schema[1].OriginTable != 0 || !schema[1].NullabilityKnown || schema[1].Nullable {
 		t.Fatal(schema)
 	}
-	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || count != 3 || source.View != nil {
 		t.Fatal(rows, count, err, source.View)
 	}
@@ -148,7 +149,7 @@ func TestQueryAggregateCancellationAndLateErrors(t *testing.T) {
 					return original.Finalize(ctx, s)
 				}}
 			}
-			rows, count, err := Finalize(ctx, query.Root, source, nil)
+			rows, count, err := exec.Finalize(ctx, query.Root, source, nil)
 			want := error(context.Canceled)
 			if phase == "late_finalize" {
 				want = sentinel
@@ -168,13 +169,13 @@ func TestQueryAggregateHashCollisionEquality(t *testing.T) {
 	two, _ := sqltype.Integer(typ, 2)
 	groups := []queryGroup{{Keys: []sqltype.Value{one}}, {Keys: []sqltype.Value{two}}}
 	// A forced collision bucket is not evidence that its first key is equal.
-	index, err := FindQueryGroup(context.Background(), node.Grouping, []sqltype.Value{two}, []int{0}, groups, []int{0, 1})
+	index, err := exec.FindQueryGroup(context.Background(), node.Grouping, []sqltype.Value{two}, []int{0}, groups, []int{0, 1})
 	if err != nil || index != 1 {
 		t.Fatal(index, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := FindQueryGroup(ctx, node.Grouping, []sqltype.Value{two}, []int{0}, groups, []int{0, 1}); !errors.Is(err, context.Canceled) {
+	if _, err := exec.FindQueryGroup(ctx, node.Grouping, []sqltype.Value{two}, []int{0}, groups, []int{0, 1}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }
@@ -211,7 +212,7 @@ func TestQueryAggregateLateKeyFailure(t *testing.T) {
 		}
 		return original.Eval(c)
 	})
-	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if rows != nil || count != 0 || err != sentinel || calls != 3 || source.View != nil {
 		t.Fatal(rows, count, err, calls)
 	}
@@ -241,7 +242,7 @@ func TestQueryAggregateMidHashAndCollisionCancellation(t *testing.T) {
 	one, _ := sqltype.Integer(usage.Type, 1)
 	two, _ := sqltype.Integer(usage.Type, 2)
 	collision := &aggregateCancelContext{Context: context.Background(), armed: true, at: 4}
-	if _, err := FindQueryGroup(collision, node.Grouping, []sqltype.Value{two}, []int{0}, []queryGroup{{Keys: []sqltype.Value{one}}, {Keys: []sqltype.Value{two}}}, []int{0, 1}); !errors.Is(err, context.Canceled) {
+	if _, err := exec.FindQueryGroup(collision, node.Grouping, []sqltype.Value{two}, []int{0}, []queryGroup{{Keys: []sqltype.Value{one}}, {Keys: []sqltype.Value{two}}}, []int{0, 1}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	// A real admitted TEXT key is scanned and canceled inside the shared hash.
@@ -258,7 +259,7 @@ func TestQueryAggregateMidHashAndCollisionCancellation(t *testing.T) {
 		hashContext.armed = true
 		return sqltype.String(descriptor, strings.Repeat("x", 2048)), nil
 	})
-	rows, count, err := Finalize(hashContext, query.Root, source, nil)
+	rows, count, err := exec.Finalize(hashContext, query.Root, source, nil)
 	if rows != nil || count != 0 || !errors.Is(err, context.Canceled) || source.View != nil {
 		t.Fatal(rows, count, err, source)
 	}
@@ -298,7 +299,7 @@ func TestQueryAggregateSemanticIdentityAndStagePreflight(t *testing.T) {
 	if !projected.Properties().StageDependent {
 		t.Fatal("group dependence lost")
 	}
-	folded, _, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, projected)
+	folded, _, err := preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, projected)
 	if err != nil || !folded.Properties().StageDependent {
 		t.Fatal("group result evaluated during preflight", err)
 	}
@@ -342,7 +343,7 @@ func TestQueryAggregateActualSortComparisonCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	probe := &aggregateSortCancelContext{Context: ctx, cancel: cancel}
-	rows, count, err := Finalize(probe, query.Root, source, nil)
+	rows, count, err := exec.Finalize(probe, query.Root, source, nil)
 	if !probe.comparisonEntered || ctx.Err() != context.Canceled ||
 		!errors.Is(err, context.Canceled) || rows != nil || count != 0 {
 		t.Fatal(probe.comparisonEntered, rows, count, err)
@@ -361,7 +362,7 @@ func TestQueryAggregateRealAdvanceFailure(t *testing.T) {
 		argumentEffects++
 		return sqltype.Float(usage.Type, math.MaxFloat32)
 	})
-	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	var diagnostic *sqlstate.Error
 	if rows != nil || count != 0 || !errors.As(err, &diagnostic) || *diagnostic != (sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22003", Message: "value out of range: overflow"}) || argumentEffects != 2 || source.View != nil || source.Anonymous != nil {
 		t.Fatal(rows, count, err, argumentEffects, source)

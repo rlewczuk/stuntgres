@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -58,7 +59,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 		if index.Address() == old.Address() || index.Revision() == old.Revision() || index.SQLIndex.Parent != destination.Address() || !index.SQLIndex.Ready || !index.SQLIndex.Valid || !index.SQLIndex.Live {
 			t.Fatal("index identity/parent/state copied", index)
 		}
-		if predicate.Definition.ResultUsage() != old.SQLIndex.Predicate.Definition.ResultUsage() || predicate.Execution.ResultUsage() != old.SQLIndex.Predicate.Execution.ResultUsage() || predicate.Definition.Properties() != old.SQLIndex.Predicate.Definition.Properties() || predicate.Execution.Properties() != old.SQLIndex.Predicate.Execution.Properties() || PlannedVolatility(predicate.Execution) != expr.Immutable {
+		if predicate.Definition.ResultUsage() != old.SQLIndex.Predicate.Definition.ResultUsage() || predicate.Execution.ResultUsage() != old.SQLIndex.Predicate.Execution.ResultUsage() || predicate.Definition.Properties() != old.SQLIndex.Predicate.Definition.Properties() || predicate.Execution.Properties() != old.SQLIndex.Predicate.Execution.Properties() || exec.PlannedVolatility(predicate.Execution) != expr.Immutable {
 			t.Fatal("typed predicate properties changed", predicate)
 		}
 		if !slices.Contains(predicate.Dependencies, local) {
@@ -83,7 +84,7 @@ func TestTableLikePartialIndexClone(t *testing.T) {
 			key, _ := sqltype.Integer(integer, 7)
 			n, _ := sqltype.Integer(integer, 2)
 			row := []sqltype.Value{sqltype.String(text, "prefix"), id, key, truth, n}
-			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+			evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
 			got, err := preparation.predicateMatches(&evaluation, destination, &catalog.IndexDefinition{Predicate: predicate}, row, nil, nil)
 			want, _ := plan.TruthOf(truth)
 			if err != nil || got != (want == plan.True) {

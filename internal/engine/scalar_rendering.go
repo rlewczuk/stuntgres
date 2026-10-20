@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -51,7 +52,7 @@ func (r scalarRenderer) renderingWithReturning(ctx context.Context, view catalog
 		// A literal NULL argument decides the call without reading.
 		demand := true
 		for _, arg := range args {
-			if RandomLiteralNull(arg.Expr) {
+			if exec.RandomLiteralNull(arg.Expr) {
 				demand = false
 				break
 			}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -37,7 +38,7 @@ func TestProtocolFailedExecutorOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	columns := []catalog.Column{{Name: "v", Usage: typ}}
-	rows := NewFinalRows(columns, 1)
+	rows := exec.NewFinalRows(columns, 1)
 	rows.Values = []sqltype.Value{value}
 	disposals := 0
 	p := &protocolPortal{tx: scope.txRef, born: 1, entry: sqlPreparedStatement{body: &parser.Select{}}, columns: columns, started: true, context: ProtocolContext{Source: "retained source"}}

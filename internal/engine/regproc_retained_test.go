@@ -66,7 +66,7 @@ func TestRoutineRetainedWriteInputAuthority(t *testing.T) {
 				if named && b.input.TypeDiagnosticName(pair.ID()) != "retained-name" {
 					t.Fatal("catalog input capture replaced existing diagnostic authority")
 				}
-				actual, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Input: b.input}})
+				actual, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Input: b.input}})
 				if err != nil {
 					t.Fatal("retained coercion lost catalog input authority", err)
 				}

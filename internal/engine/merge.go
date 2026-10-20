@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -380,16 +381,16 @@ func mergeOnTruth(value sqltype.Value) (plan.Truth, error) {
 }
 
 func (merge *boundMerge) hasVirtualReads() bool {
-	if QueryHasVirtualReads(merge.source) || BoundHasVirtualReads(merge.on) {
+	if exec.QueryHasVirtualReads(merge.source) || exec.BoundHasVirtualReads(merge.on) {
 		return true
 	}
 	for _, arm := range merge.arms {
-		if BoundHasVirtualReads(arm.condition) {
+		if exec.BoundHasVirtualReads(arm.condition) {
 			return true
 		}
 		if arm.input.update != nil {
 			for _, expr := range arm.input.update.assignments {
-				if BoundHasVirtualReads(expr) {
+				if exec.BoundHasVirtualReads(expr) {
 					return true
 				}
 			}
@@ -401,7 +402,7 @@ func (merge *boundMerge) hasVirtualReads() bool {
 		}
 		for _, row := range arm.input.expressions {
 			for _, expr := range row {
-				if BoundHasVirtualReads(expr) {
+				if exec.BoundHasVirtualReads(expr) {
 					return true
 				}
 			}
@@ -417,17 +418,17 @@ func (e *Engine) executeMerge(ctx context.Context, scope *StatementScope, b bind
 	if err != nil {
 		return Result{}, err
 	}
-	if err := SelectQuerySources(ctx, inputs); err != nil {
+	if err := exec.SelectQuerySources(ctx, inputs); err != nil {
 		return Result{}, err
 	}
 	state := &queryState{Source: inputs, Parameters: parameters, Input: scope.input, Output: scope.output, Locking: inputs.Locks != nil, VirtualReads: b.merge.hasVirtualReads()}
 	if b.returning != nil {
 		for _, expr := range b.returning.expressions {
-			state.VirtualReads = state.VirtualReads || BoundHasVirtualReads(expr)
+			state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expr)
 		}
 	}
 	defer state.ReleaseMemberships()
-	cursor, err := OpenNode(ctx, state, b.merge.source)
+	cursor, err := exec.OpenNode(ctx, state, b.merge.source)
 	if err != nil {
 		return Result{}, err
 	}

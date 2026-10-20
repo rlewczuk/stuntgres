@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"database/sql/driver"
+	"stuntgres/internal/engine/exec"
 	"testing"
 )
 
@@ -76,7 +77,7 @@ func TestSQLCursorRetainedProducerReset(t *testing.T) {
 		s.Done = false
 		return true, nil
 	}
-	out := ProducingStage(&child, nil)
+	out := exec.ProducingStage(&child, nil)
 	out.Selection = append(out.Selection, 0)
 	out.Done = true
 	out.Position = 1
@@ -93,13 +94,13 @@ func TestSQLCursorRetainedProducerReset(t *testing.T) {
 	t.Run("cached_parent_frontier", func(t *testing.T) {
 		source := &querySource{Materialized: true, FlatCount: 3}
 		child := indexedStage{Source: source, Position: 1}
-		out := ProducingStage(&child, nil)
+		out := exec.ProducingStage(&child, nil)
 		out.Selection = append(out.Selection, 0)
 		out.Position = 1
 		out.Produce = func(ctx context.Context, out *indexedStage) (bool, error) {
 			i, present, err := child.NextOccurrence(ctx)
 			if present && err == nil {
-				RetainOccurrence(out, &child, i)
+				exec.RetainOccurrence(out, &child, i)
 			}
 			return present, err
 		}

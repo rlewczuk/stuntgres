@@ -72,7 +72,7 @@ func TestQueryOuterJoinsNegatedKeys(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			join := &plan.JoinNode{Kind: parser.JoinFull, LeftWidth: 1, RightWidth: 1, Predicate: tc.expr}
 			before := join.Predicate
-			ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+			ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 			facts, err := fullJoinCondition(ctx, join, join.Predicate, false)
 			if err != nil || facts.constant || len(facts.keys) != tc.keys {
 				t.Fatalf("facts=%+v error=%v; want %d keys", facts, err, tc.keys)
@@ -93,7 +93,7 @@ func TestQueryOuterJoinsNegatedKeys(t *testing.T) {
 		})
 	}
 	// Assert UNKNOWN remains observable despite match-level OR reduction.
-	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Row: []sqltype.Value{one, two}}}
+	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Row: []sqltype.Value{one, two}}}
 	value, err := logical(parser.LogicalOr, equal, unknown).Eval(ctx)
 	if err != nil || !value.IsNull() {
 		t.Fatalf("equality OR NULL must remain UNKNOWN at runtime: %v/%v", value, err)

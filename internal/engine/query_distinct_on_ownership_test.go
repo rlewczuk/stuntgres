@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -32,7 +33,7 @@ func TestQueryDistinctOnComputedKeyCacheOwnership(t *testing.T) {
 		case *plan.SortNode:
 			input.Keys[0].Expression = probe
 		}
-		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+		rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 		if err != nil || count != 3 || calls != 4 {
 			t.Fatal(suffix, rows, count, calls, err)
 		}
@@ -68,7 +69,7 @@ func TestQueryDistinctOnScratchKeyMutation(t *testing.T) {
 		scratch[0], err = sqltype.Integer(usage.Type, id%2)
 		return scratch[0], err
 	})
-	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || count != 2 {
 		t.Fatal("seen key retained mutable scratch headers", rows, count, err)
 	}
@@ -119,7 +120,7 @@ func TestQueryDistinctOnRequiredCloseAndPrimaryError(t *testing.T) {
 		}
 		node := &plan.DistinctOnNode{QuerySchema: schema, Child: child, Expressions: []expr.Expr{key}, Grouping: []plan.Grouping{{Grouping: family}}}
 		root := &plan.ProjectNode{QuerySchema: schema, Child: node, Expressions: []expr.Expr{plan.ColumnExpr{Info: expr.Info{Usage: usage}, Scope: 1, Frame: 1, Slot: 0}}}
-		rows, count, err := Finalize(context.Background(), root, source, nil)
+		rows, count, err := exec.Finalize(context.Background(), root, source, nil)
 		want := error(primary)
 		if phase == "close" {
 			want = closeFailure

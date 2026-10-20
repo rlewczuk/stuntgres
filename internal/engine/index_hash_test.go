@@ -112,7 +112,7 @@ func TestHashIndexEmptyBindingCancellationAndPrivateFallback(t *testing.T) {
 	bad := *index.SQLIndex
 	bad.Keys = append([]catalog.IndexKey(nil), bad.Keys...)
 	bad.Keys[0].Class, _ = sqltype.LookupHashIndexClass("int8_ops")
-	if _, err := buildHashIndexRoot(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, parent, &bad, e.storage.Relations[parent.Address()], true, nil); err == nil {
+	if _, err := buildHashIndexRoot(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}, parent, &bad, e.storage.Relations[parent.Address()], true, nil); err == nil {
 		t.Fatal("empty build did not eagerly reject provider")
 	}
 	run(t, e, "INSERT INTO t VALUES(NULL),(NULL)")
@@ -120,14 +120,14 @@ func TestHashIndexEmptyBindingCancellationAndPrivateFallback(t *testing.T) {
 	if len(nulls.Buckets) != 0 {
 		t.Fatal("NULL indexed", nulls)
 	}
-	if _, err := buildHashIndexRoot(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, parent, &bad, e.storage.Relations[parent.Address()], true, nil); err == nil {
+	if _, err := buildHashIndexRoot(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}, parent, &bad, e.storage.Relations[parent.Address()], true, nil); err == nil {
 		t.Fatal("all-NULL build skipped provider admission")
 	}
 	run(t, e, "INSERT INTO t VALUES(2),(2),(3)")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	during := &cancelAtErrCheck{Context: ctx, cancel: cancel, at: 5}
-	if candidate, err := buildHashIndexRoot(&EvalContext{evalStatement: evalStatement{Context: during}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, parent, index.SQLIndex, e.storage.Relations[parent.Address()], true, nil); candidate != nil || !errors.Is(err, context.Canceled) {
+	if candidate, err := buildHashIndexRoot(&EvalContext{EvalStatement: evalStatement{Context: during}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}, parent, index.SQLIndex, e.storage.Relations[parent.Address()], true, nil); candidate != nil || !errors.Is(err, context.Canceled) {
 		t.Fatal(candidate, err)
 	}
 	_, retained := hashRoot(t, e, "hn")
@@ -266,7 +266,7 @@ func TestHashIndexValidationOnlyPublication(t *testing.T) {
 			if rebuild {
 				intents = map[ids.ObjectAddress]*catalog.Relation{index.Address(): index}
 			}
-			roots, err := e.prepareIndexPublication(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, e.catalog.state, e.catalog.state, captureIndexStores(e.storage.Relations, e.catalog.state), e.storage.IndexRoots, nil, intents, []rowPublication{p}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
+			roots, err := e.prepareIndexPublication(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}, e.catalog.state, e.catalog.state, captureIndexStores(e.storage.Relations, e.catalog.state), e.storage.IndexRoots, nil, intents, []rowPublication{p}, materialize, sqltype.OutputEnvironment{}, nil, nil, nil)
 			if err != nil {
 				t.Fatal(rebuild, materialize, err)
 			}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/parser"
@@ -39,7 +40,7 @@ func TestDatetimeAgeFiniteBindingPropertiesAndRemap(t *testing.T) {
 			t.Fatal(tc, err)
 		}
 		e := node.(functions.DatetimeAgeFinite)
-		if e.ResultUsage().Type.ID() != tc.result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != tc.volatility || PlannedVolatility(e) != tc.volatility || generationImmutable(e) != (tc.volatility == expr.Immutable) {
+		if e.ResultUsage().Type.ID() != tc.result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != tc.volatility || exec.PlannedVolatility(e) != tc.volatility || generationImmutable(e) != (tc.volatility == expr.Immutable) {
 			t.Fatal(tc, e.Properties())
 		}
 		if !b.sameGroupExpression(e, e) {
@@ -62,7 +63,7 @@ func TestDatetimeAgeFiniteBindingPropertiesAndRemap(t *testing.T) {
 				t.Fatal("retained child authority")
 			}
 		}
-		value, err := rebound.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: zone, TransactionStart: time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)}}})
+		value, err := rebound.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: zone, TransactionStart: time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)}}})
 		if err != nil || value.Type() != replacements[tc.result] || value.IsNull() {
 			t.Fatal("retagged evaluation", tc, value, err)
 		}
@@ -140,7 +141,7 @@ func TestDatetimeAgeUnaryRetagsHiddenDateAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := next.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: zone, TransactionStart: time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)}}})
+	value, err := next.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: zone, TransactionStart: time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)}}})
 	if err != nil {
 		t.Fatal(err)
 	}

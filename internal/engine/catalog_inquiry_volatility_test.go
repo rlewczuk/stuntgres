@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -20,7 +21,7 @@ func TestCatalogInquiryRetainedVolatility(t *testing.T) {
 	if node.Properties().Volatility != expr.Volatile || plannedIntrinsicVolatility(node) != expr.Volatile {
 		t.Fatal("analysis fallback lost eliminated-arm volatility", node.Properties())
 	}
-	simplified, changed, err := simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, node, false)
+	simplified, changed, err := simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, node, false)
 	if err != nil || !changed {
 		t.Fatal(changed, err)
 	}
@@ -33,7 +34,7 @@ func TestCatalogInquiryRetainedVolatility(t *testing.T) {
 	if err != nil || value {
 		t.Fatal(literal.Value, err)
 	}
-	if PlannedVolatility(simplified) != expr.Volatile || plannedIntrinsicVolatility(simplified) != expr.Volatile {
+	if exec.PlannedVolatility(simplified) != expr.Volatile || plannedIntrinsicVolatility(simplified) != expr.Volatile {
 		t.Fatal("physical/intrinsic inquiry inspection changed the historical analyzed fallback")
 	}
 }

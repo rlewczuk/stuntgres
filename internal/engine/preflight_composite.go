@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -90,7 +91,7 @@ func preflightEvaluate(c *EvalContext, node expr.Expr, changed bool) (expr.Expr,
 
 func literalNullChild(node expr.Composite) bool {
 	for _, child := range node.Children() {
-		if RandomLiteralNull(child) {
+		if exec.RandomLiteralNull(child) {
 			return true
 		}
 	}

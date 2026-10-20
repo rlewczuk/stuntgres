@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
@@ -63,7 +64,7 @@ func admitColumnVirtualGeneration(c *EvalContext, e plan.ColumnExpr, view catalo
 		return fmt.Errorf("stuntgres: missing original virtual generation")
 	}
 	recipe := *c
-	SelectVirtualGenerationRecipe(&recipe, e.VirtualOwner, definition)
+	exec.SelectVirtualGenerationRecipe(&recipe, e.VirtualOwner, definition)
 	recipe.Scope, recipe.Frame = 1, 1
 	recipe.Row, recipe.Outer = nil, nil
 	node, _, err := preflightCoercionsWithPolicy(&recipe, generationRecipeExpression(definition), true)

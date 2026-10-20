@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -19,7 +20,7 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 	if err := call.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if call.Properties().Volatility != expr.Stable || call.Arg.ResultUsage().Type.ID() != sqltype.Name || !SourceReturnsSet(call) || !SourceAdmitted(call) {
+	if call.Properties().Volatility != expr.Stable || call.Arg.ResultUsage().Type.ID() != sqltype.Name || !exec.SourceReturnsSet(call) || !exec.SourceAdmitted(call) {
 		t.Fatal("typed SRF contract")
 	}
 	count := 0
@@ -57,7 +58,7 @@ func TestExtensionVersionPathsConsumers(t *testing.T) {
 	if !ok || len(stage.Calls) != 1 || !sameQuerySetOccurrence(call, stage.Calls[0]) {
 		t.Fatal("record set lowering lost occurrence")
 	}
-	if err := ValidateQuerySetSteps(stage.Steps, len(stage.Calls), len(stage.Scalars)); err != nil {
+	if err := exec.ValidateQuerySetSteps(stage.Steps, len(stage.Calls), len(stage.Scalars)); err != nil {
 		t.Fatal(err)
 	}
 	fresh := New()

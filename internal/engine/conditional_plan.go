@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/routine"
@@ -24,7 +25,7 @@ func simplifyConditionalNode(c *EvalContext, expression expr.Expr, decisiveDefau
 	if expression == nil {
 		return nil, false, nil
 	}
-	if err := EvaluationContext(c); err != nil {
+	if err := exec.EvaluationContext(c); err != nil {
 		return nil, false, err
 	}
 	recipe, recipeErr := routine.ExpressionRecipeDescriptor(expression)

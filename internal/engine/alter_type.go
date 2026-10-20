@@ -409,7 +409,7 @@ func rewriteTypeRows(scope *StatementScope, op *Operation, old, next *catalog.Re
 			replaced[row.Row] = true
 		}
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: scope.routineAuth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Host: hostOf(scope), Input: scope.input, Output: scope.output, Catalog: scope.routineAuth.Catalog}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
 	preparedTransforms := false
 	var generationProgram []expr.Expr
 	preparedGeneration := false

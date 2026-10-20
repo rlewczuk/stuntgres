@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -82,11 +83,11 @@ func recursiveUnitGeneration(t *testing.T, s *recursiveUnionStage, indexes []int
 func TestQueryRecursiveCTECurrentGenerationAndSharing(t *testing.T) {
 	owner, state, node := recursiveUnitFixture(t, true, []int64{1, 2}, 3)
 	defer owner.Close()
-	first, err := OpenCTEScan(context.Background(), state, node)
+	first, err := exec.OpenCTEScan(context.Background(), state, node)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := OpenCTEScan(context.Background(), state, node)
+	second, err := exec.OpenCTEScan(context.Background(), state, node)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +135,7 @@ func TestQueryRecursiveCTECurrentGenerationAndSharing(t *testing.T) {
 func TestQueryRecursiveCTEDistinctAnchorPassAndCollision(t *testing.T) {
 	owner, state, node := recursiveUnitFixture(t, false, []int64{1, 1, 2}, 3)
 	defer owner.Close()
-	stage, err := OpenCTEScan(context.Background(), state, node)
+	stage, err := exec.OpenCTEScan(context.Background(), state, node)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,10 +151,10 @@ func TestQueryRecursiveCTEDistinctAnchorPassAndCollision(t *testing.T) {
 	}
 	n := node.Query.Root.(*plan.ProjectNode).Child.(*plan.RecursiveUnionNode)
 	one, two := cteUnitValue(t, n.Schema()[0].Usage.Type, 1), cteUnitValue(t, n.Schema()[0].Usage.Type, 2)
-	if index, err := FindDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0}); index != -1 || err != nil {
+	if index, err := exec.FindDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0}); index != -1 || err != nil {
 		t.Fatal("unequal forced collision", index, err)
 	}
-	if index, err := FindDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0, 1}); index != 1 || err != nil {
+	if index, err := exec.FindDistinctTuple(context.Background(), n.Grouping, []sqltype.Value{two}, []sqltype.Value{one, two}, []int{0, 1}); index != 1 || err != nil {
 		t.Fatal("equal forced collision", index, err)
 	}
 }
@@ -161,7 +162,7 @@ func TestQueryRecursiveCTEDistinctAnchorPassAndCollision(t *testing.T) {
 func TestQueryRecursiveCTEDemandCancellationAndClose(t *testing.T) {
 	owner, state, node := recursiveUnitFixture(t, true, []int64{1}, 100)
 	defer owner.Close()
-	stage, err := OpenCTEScan(context.Background(), state, node)
+	stage, err := exec.OpenCTEScan(context.Background(), state, node)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +175,7 @@ func TestQueryRecursiveCTEDemandCancellationAndClose(t *testing.T) {
 	if producer.Recursion.Phase != 1 {
 		t.Fatal("did not enter recursive pass")
 	}
-	sibling, err := OpenCTEScan(context.Background(), state, node)
+	sibling, err := exec.OpenCTEScan(context.Background(), state, node)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +236,7 @@ func TestQueryRecursiveCTENullAndZeroWidth(t *testing.T) {
 			n.Right.Expressions = []expr.Expr{plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 3, Slot: 0}}
 			n.RightExpressions = n.Right.Expressions
 		}
-		stage, err := OpenCTEScan(context.Background(), state, node)
+		stage, err := exec.OpenCTEScan(context.Background(), state, node)
 		if err != nil {
 			t.Fatal(err)
 		}

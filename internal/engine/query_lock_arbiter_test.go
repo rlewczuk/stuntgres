@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -67,13 +68,13 @@ func TestQueryLockArbiterSkipRetainsAcquiredContributor(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer inputs.Close()
-	if err := SelectQuerySources(op.Context(), inputs); err != nil {
+	if err := exec.SelectQuerySources(op.Context(), inputs); err != nil {
 		t.Fatal(err)
 	}
-	frame := append(append([]sqltype.Value(nil), QuerySourceAt(inputs, 0).Row(0)...), QuerySourceAt(inputs, 1).Row(0)...)
+	frame := append(append([]sqltype.Value(nil), exec.QuerySourceAt(inputs, 0).Row(0)...), exec.QuerySourceAt(inputs, 1).Row(0)...)
 	candidate := &querySource{Materialized: true, Anonymous: [][]sqltype.Value{frame}, FlatCount: 1, Occurrences: []int{0, 1}, Provenance: []int{0, 0}}
-	child := indexedStage{Source: candidate, Columns: join.Schema(), Pending: AppendPendingRowMarks(nil, marks, inputs)}
-	out, err := ArbitrateViewQuery(op.Context(), &queryState{Source: inputs}, root, child)
+	child := indexedStage{Source: candidate, Columns: join.Schema(), Pending: exec.AppendPendingRowMarks(nil, marks, inputs)}
+	out, err := exec.ArbitrateViewQuery(op.Context(), &queryState{Source: inputs}, root, child)
 	if err != nil {
 		t.Fatal(err)
 	}

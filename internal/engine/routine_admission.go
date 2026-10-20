@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -72,7 +73,7 @@ func admitRoutineCall(c *EvalContext, node expr.Expr, scalarPlanning, constantCo
 	case plan.SubqueryExpr:
 		pairs, ordering = expression.Comparisons, expression.Ordering
 	case plan.CaseExpr:
-		if expression.Test != nil && !RandomLiteralNull(expression.Test) {
+		if expression.Test != nil && !exec.RandomLiteralNull(expression.Test) {
 			for _, arm := range expression.Arms {
 				if err := admitCaseEquality(c, arm); err != nil {
 					return err
@@ -103,7 +104,7 @@ func admitRoutineCall(c *EvalContext, node expr.Expr, scalarPlanning, constantCo
 	if strictScalarRoutine(captured) {
 		null := false
 		strictRoutineArguments(node, func(child expr.Expr) {
-			if child != nil && RandomLiteralNull(child) {
+			if child != nil && exec.RandomLiteralNull(child) {
 				null = true
 			}
 		})
@@ -121,7 +122,7 @@ func admitRoutineCall(c *EvalContext, node expr.Expr, scalarPlanning, constantCo
 }
 
 func admitCaseEquality(c *EvalContext, arm plan.CaseBranch) error {
-	if arm.Routine == nil || arm.Routine.Strict && RandomLiteralNull(arm.Condition) {
+	if arm.Routine == nil || arm.Routine.Strict && exec.RandomLiteralNull(arm.Condition) {
 		return nil
 	}
 	auth, dependencies, err := routineAdmissionAuthority(c)

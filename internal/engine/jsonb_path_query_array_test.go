@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -28,7 +29,7 @@ func TestJSONBPathQueryArrayDeclaration(t *testing.T) {
 		t.Fatal(err)
 	}
 	call := node.(functions.JSONBPathQueryArray)
-	if call.ResultUsage().Type.ID() != sqltype.JSONB || call.Properties().Volatility != expr.Immutable || SourceReturnsSet(call) {
+	if call.ResultUsage().Type.ID() != sqltype.JSONB || call.Properties().Volatility != expr.Immutable || exec.SourceReturnsSet(call) {
 		t.Fatal("scalar immutable JSONB contract", call)
 	}
 	captured, err := routine.ExpressionRoutineDescriptor(call)
@@ -51,7 +52,7 @@ func TestJSONBPathQueryArrayDeclaration(t *testing.T) {
 		}
 	}
 	for slot, want := range map[int]string{2: "{}", 3: "f"} {
-		value, err := call.Args[slot].Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+		value, err := call.Args[slot].Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 		if err != nil || value.IsNull() {
 			t.Fatal("default is not a real nonnull child", slot, value, err)
 		}

@@ -23,7 +23,7 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	v, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+	v, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	v, err = node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+	v, err = node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 	got, _ := v.Timestamp()
 	if err != nil || v.Type() != current || got != n || node.ResultUsage().Typmod != 3 || !reflect.DeepEqual(before, wantDesc.temporals) {
 		t.Fatal(v, node.ResultUsage(), err)
@@ -55,7 +55,7 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	v, err = node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+	v, err = node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 	out, _ := current.Output(ctx, v)
 	if err != nil || out != "2024-12-31 23:59:59" {
 		t.Fatal(out, err)
@@ -204,7 +204,7 @@ func TestTimestampRelativeConstantsFreezeAcrossDateline(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		initial, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+		initial, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -214,7 +214,7 @@ func TestTimestampRelativeConstantsFreezeAcrossDateline(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		frozen, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+		frozen, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 		if err != nil {
 			t.Fatal(err)
 		}

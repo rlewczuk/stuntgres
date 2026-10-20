@@ -5,6 +5,7 @@ import (
 	"errors"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -247,7 +248,7 @@ func TestAggregateModifiersEvaluationPublication(t *testing.T) {
 				sortProbe = &aggregateSortCancelContext{Context: ctx, cancel: cancel, aggregateOrdering: true}
 				execution = sortProbe
 			}
-			rows, count, err := Finalize(execution, query.Root, source, nil)
+			rows, count, err := exec.Finalize(execution, query.Root, source, nil)
 			if phase == "success" {
 				if err != nil || count != 1 || filters != 4 || values != 3 || keys != 0 || finalizes != 1 {
 					t.Fatal(rows, count, err, filters, values, keys, advances, finalizes)
@@ -306,7 +307,7 @@ func TestAggregateModifiersImmutableConsumers(t *testing.T) {
 	if changed.Order[0].Slot != original.Order[0].Slot || changed.Order[0].Cache != original.Order[0].Cache || changed.StageWidth != original.StageWidth {
 		t.Fatal("target reuse lost across rewrite")
 	}
-	folded, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, node)
+	folded, err := preflightQuery(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, node)
 	if err != nil || folded != node {
 		t.Fatal("unchanged preflight mutated immutable plan", folded, err)
 	}
@@ -343,7 +344,7 @@ func TestAggregateModifiersOuterOwnershipSharing(t *testing.T) {
 	if len(node.Calls) != 2 || node.Calls[0].Filter == nil || node.Calls[1].Filter == nil {
 		t.Fatal("incomplete outer-owner modifier identity", node.Calls)
 	}
-	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || count != 1 {
 		t.Fatal(rows, count, err)
 	}
@@ -373,7 +374,7 @@ func TestAggregateModifiersExecutionStateIsolation(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+		rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 		if err != nil || count != 3 {
 			t.Fatal(execution, rows, count, err)
 		}

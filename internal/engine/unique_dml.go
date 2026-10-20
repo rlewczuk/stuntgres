@@ -246,7 +246,7 @@ func (s *StatementScope) claimUniqueRow(ref ids.ObjectRef, row storage.RowVersio
 	if err != nil {
 		return err
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: s.op.Context(), Host: hostOf(s), Input: s.input, Output: s.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: s.op.Context(), Host: hostOf(s), Input: s.input, Output: s.output}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
 	evaluation.Catalog = s.op.session.Engine().catalog.read(binding.catalog)
 	if binding.typeName != nil {
 		evaluation.Input.TypeDiagnosticName = binding.typeName
@@ -355,7 +355,7 @@ retry:
 	}
 	e := s.op.session.Engine()
 	ctx := s.op.Context()
-	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Host: hostOf(s), Input: s.input, Output: s.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: ctx, Host: hostOf(s), Input: s.input, Output: s.output}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
 	evaluation.Catalog = e.catalog.read(binding.catalog)
 	if binding.typeName != nil {
 		evaluation.Input.TypeDiagnosticName = binding.typeName

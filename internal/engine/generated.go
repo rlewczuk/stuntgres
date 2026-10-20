@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -90,7 +91,7 @@ func (e *Engine) bindGeneration(op *Operation, auth AuthorizationView, d *catalo
 			return catalog.ColumnGeneration{}, err
 		}
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: op.Context(), Input: b.input, Catalog: auth.Catalog}, evalFrame: evalFrame{Scope: 1, Frame: 1}, evalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.dependencies}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: op.Context(), Input: b.input, Catalog: auth.Catalog}, EvalFrame: evalFrame{Scope: 1, Frame: 1}, EvalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.dependencies}}
 	node, _, err = simplifyConditional(&evaluation, node, true)
 	if err != nil {
 		return catalog.ColumnGeneration{}, err
@@ -161,7 +162,7 @@ func generationImmutable(node expr.Expr) bool {
 		return args(n.Elements)
 	case plan.SubscriptExpr:
 		var storage [13]expr.Expr
-		return args(SubscriptChildren(n, &storage))
+		return args(exec.SubscriptChildren(n, &storage))
 	case plan.LiteralExpr, plan.ColumnExpr, plan.TableOIDExpr:
 		return true
 	case plan.CollationExpr:
@@ -354,7 +355,7 @@ func generationHasTableOID(node expr.Expr) bool {
 		return args(n.Elements)
 	case plan.SubscriptExpr:
 		var storage [13]expr.Expr
-		return args(SubscriptChildren(n, &storage))
+		return args(exec.SubscriptChildren(n, &storage))
 	case plan.TableOIDExpr:
 		return true
 	case plan.CollationExpr:
@@ -675,7 +676,7 @@ func validateGenerationPlan(view catalog.Read, d *catalog.Relation, node expr.Ex
 		return args(n.Elements)
 	case plan.SubscriptExpr:
 		var storage [13]expr.Expr
-		return args(SubscriptChildren(n, &storage))
+		return args(exec.SubscriptChildren(n, &storage))
 	case plan.ColumnExpr:
 		if _, generated := d.ColumnMeta.Generations[n.Origin.Address.SubID]; generated || n.Virtual != nil {
 			return fmt.Errorf("stuntgres: generated reference in generation plan")

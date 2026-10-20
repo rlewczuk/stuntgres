@@ -29,7 +29,7 @@ func foldStringVariadic(c *EvalContext, e functions.StringVariadic) (expr.Expr, 
 	if retained {
 		origin := quoteOriginOf(e)
 		if origin.Owner == (ids.ObjectRef{}) {
-			origin = c.quoteOrigin
+			origin = c.QuoteOrigin
 		}
 		entry = quoteConstant{Offset: e.Pos.Offset, Origin: origin, Frame: e.Frame, Name: e.Name, Anyelement: e.AnyElement, Source: e.Args[0].ResultUsage(), Result: e.Usage}
 		for i, saved := range c.QuoteCaptures.Entries {

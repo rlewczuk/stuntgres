@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
@@ -141,7 +142,7 @@ func TestFDWModifyIdentity(t *testing.T) {
 	t.Run("KeyedMembership", fdwIdentityMembership)
 	bytes := []byte("key")
 	identity := catalog.ForeignRowIdentity{int64(7), bytes, nil}
-	owned := CopyForeignCells(identity)
+	owned := exec.CopyForeignCells(identity)
 	bytes[0] = 'X'
 	if !foreignIdentityEqual(owned, catalog.ForeignRowIdentity{int64(7), []byte("key"), nil}) || foreignIdentityEqual(identity, owned) {
 		t.Fatal("identity ownership/equality")

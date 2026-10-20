@@ -10,6 +10,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
@@ -160,9 +161,9 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	n := node.(plan.InstalledTextExpr)
-	value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+	value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 	text, _ := value.Text()
-	if err != nil || text != "Hotel" || node.ResultUsage().Type.ID() != sqltype.Text || PlannedVolatility(node) != expr.Stable {
+	if err != nil || text != "Hotel" || node.ResultUsage().Type.ID() != sqltype.Text || exec.PlannedVolatility(node) != expr.Stable {
 		t.Fatal("typed stable evaluation", text, err)
 	}
 	if n.Procedure.Address() != ext.Members[1] || n.Dictionary.Address() != ext.Members[5] || n.Template.Address() != ext.Members[4] {
@@ -173,7 +174,7 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 		t.Fatal("procedure dependency", refs, err)
 	}
 	n.Arg = plan.LiteralExpr{Info: expr.Info{Usage: node.ResultUsage()}, Value: sqltype.Null(node.ResultUsage().Type)}
-	value, err = n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+	value, err = n.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 	if err != nil || !value.IsNull() || value.Type() != node.ResultUsage().Type {
 		t.Fatal("strict typed NULL", value, err)
 	}
@@ -181,9 +182,9 @@ func TestExtensionExpressionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err = retagged.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+	value, err = retagged.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 	text, _ = value.Text()
-	if err != nil || text != "Hotel" || retagged.ResultUsage() != node.ResultUsage() || PlannedVolatility(retagged) != expr.Stable {
+	if err != nil || text != "Hotel" || retagged.ResultUsage() != node.ResultUsage() || exec.PlannedVolatility(retagged) != expr.Stable {
 		t.Fatal("retagged provider consumer", text, err)
 	}
 	rendered, err := (scalarRenderer{}).sql(context.Background(), e.CatalogRead(), node)

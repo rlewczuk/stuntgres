@@ -49,7 +49,7 @@ func TestArrayOrderOwnerRebinding(t *testing.T) {
 		node  plan.ComparisonExpr
 	}{{e, original}, {target, rebound}} {
 		node := entry.node
-		result, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+		result, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 		if err != nil {
 			t.Fatal(err)
 		}

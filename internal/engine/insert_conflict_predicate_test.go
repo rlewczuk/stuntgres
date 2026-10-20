@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -21,7 +22,7 @@ func insertConflictProofTypes(t *testing.T) insertConflictProofFixture {
 	e := New()
 	integer, _ := e.CatalogRead().LookupType(sqltype.Int4)
 	boolean, _ := e.CatalogRead().LookupType(sqltype.Bool)
-	return insertConflictProofFixture{integer: integer, boolean: boolean, column: plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1}, ctx: EvalContext{evalStatement: evalStatement{Context: context.Background()}}}
+	return insertConflictProofFixture{integer: integer, boolean: boolean, column: plan.ColumnExpr{Info: expr.Info{Usage: integer.Usage(), Property: expr.Properties{RowDependent: true}}, Scope: 1, Frame: 1}, ctx: EvalContext{EvalStatement: evalStatement{Context: context.Background()}}}
 }
 func (f insertConflictProofFixture) comparison(t *testing.T, op string, left, right expr.Expr) plan.ComparisonExpr {
 	t.Helper()
@@ -154,7 +155,7 @@ func TestInsertConflictPredicateNegativeProviderProof(t *testing.T) {
 	// an ordinary column and a literal stays immutable even if manually mislabeled.
 	// FORMAT is an actual surviving stable operation with a row-dependent argument.
 	stable := functions.Format{Info: expr.Info{Usage: text.Usage(), Property: expr.Properties{RowDependent: true, Volatility: expr.Stable}}, Args: []expr.Expr{literal("%s"), f.column}, Int4: f.integer}
-	if PlannedVolatility(stable) != expr.Stable {
+	if exec.PlannedVolatility(stable) != expr.Stable {
 		t.Fatal("fixture has no actual stable operation")
 	}
 	a := f.comparison(t, ">", stable, literal("10"))

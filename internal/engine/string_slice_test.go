@@ -154,7 +154,7 @@ func TestStringSliceReconstructionAndIdentity(t *testing.T) {
 			t.Fatal("retained foreign child/formal", i)
 		}
 	}
-	got, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+	got, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 	s, _ := got.Text()
 	if err != nil || s != "é" || got.Type() != fresh[sqltype.Text] {
 		t.Fatal(s, err)
@@ -175,7 +175,7 @@ func TestStringSliceSimilarOrdinaryWrapper(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+	_, err = node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 	var diagnostic *sqlstate.Error
 	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22025", Message: "invalid escape string", Hint: "Escape string must be empty or one character.", Context: `SQL function "substring" statement 1`}
 	if !errors.As(err, &diagnostic) || *diagnostic != want {

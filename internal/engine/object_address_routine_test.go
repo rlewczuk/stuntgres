@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -236,7 +237,7 @@ func TestObjectAddressSourceNullOriginalGraph(t *testing.T) {
 				if err := validateMarkedQueryJoin(&probe, &unpruned, evaluation.Catalog, nil, plan.RowMark{}, false, nil, nil); err == nil {
 					t.Fatal("nonpruned original graph did not demand its manifest")
 				}
-				cursor, err := OpenFunctionCall(&probe, execution, 0)
+				cursor, err := exec.OpenFunctionCall(&probe, execution, 0)
 				if err != nil || !cursor.Value.IsNull() || cursor.Type == nil {
 					t.Fatal("typed NULL source cursor", cursor, err)
 				}
@@ -322,7 +323,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 				t.Fatal("independent NULL proof/domain barrier", proofs, barriers)
 			}
 			folded, changed, err := planner.run(&evaluation, node, false)
-			if err != nil || !changed || !RandomLiteralNull(folded) {
+			if err != nil || !changed || !exec.RandomLiteralNull(folded) {
 				t.Fatal("generic domain-sibling pruning", changed, err)
 			}
 			value, err := folded.Eval(&evaluation)
@@ -344,7 +345,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		}
 		before := expr.InfoOf(node)
 		folded, changed, err := preflightCoercions(&evaluation, node)
-		if err != nil || !changed || !RandomLiteralNull(folded) {
+		if err != nil || !changed || !exec.RandomLiteralNull(folded) {
 			t.Fatal("scalar NULL folding", changed, err)
 		}
 		if ref, err := routine.ExpressionRoutineDescriptor(folded); err != nil || ref != nil {
@@ -383,7 +384,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 		if execution.ScalarNull == nil || !execution.ScalarNull[0] {
 			t.Fatal("known NULL source was not pruned")
 		}
-		cursor, err := OpenFunctionCall(&sourceEvaluation, execution, 0)
+		cursor, err := exec.OpenFunctionCall(&sourceEvaluation, execution, 0)
 		if err != nil || !cursor.Value.IsNull() || cursor.Value.Type() != source.Calls[0].ResultUsage().Type {
 			t.Fatal("literal sibling source typed NULL", cursor, err)
 		}
@@ -442,7 +443,7 @@ func TestObjectAddressScalarNullPreflightInfo(t *testing.T) {
 	}
 	evaluation.Parameters = []sqltype.Value{value}
 	folded, _, err := preflightCoercions(&evaluation, node)
-	if err != nil || !RandomLiteralNull(folded) {
+	if err != nil || !exec.RandomLiteralNull(folded) {
 		t.Fatal("valid domain import then strict NULL", err)
 	}
 	result, err := folded.Eval(&evaluation)

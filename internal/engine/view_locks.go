@@ -4,6 +4,7 @@ import (
 	"sort"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
@@ -39,10 +40,10 @@ func (s *StatementScope) acquireViewSources() (err error) {
 	var visit func(ids.ObjectRef, lock.Mode) error
 	visit = func(ref ids.ObjectRef, mode lock.Mode) error {
 		prior, visited := seen[ref]
-		if ref == (ids.ObjectRef{}) || visited && StrongerQueryRowMode(prior, mode) == prior {
+		if ref == (ids.ObjectRef{}) || visited && exec.StrongerQueryRowMode(prior, mode) == prior {
 			return nil
 		}
-		seen[ref] = StrongerQueryRowMode(prior, mode)
+		seen[ref] = exec.StrongerQueryRowMode(prior, mode)
 		d, ok := catalogView.Relation(ref.Address)
 		if ref.Domain() != e.catalog.Domain || ref.Epoch != e.catalog.state.Epoch() || !ok {
 			return ids.ErrCatalogReplaced
@@ -58,7 +59,7 @@ func (s *StatementScope) acquireViewSources() (err error) {
 		for _, leaf := range s.querySources {
 			if leaf.Ref == ref {
 				admitted = true
-				admittedMode = StrongerQueryRowMode(admittedMode, leaf.Mark.Mode)
+				admittedMode = exec.StrongerQueryRowMode(admittedMode, leaf.Mark.Mode)
 			}
 		}
 		if !admitted && !visited || admitted && mode != 0 && prior == 0 && admittedMode == 0 {

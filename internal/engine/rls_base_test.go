@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -113,14 +114,14 @@ func TestRLSBaseDecision(t *testing.T) {
 		if source.View == nil || !source.RlsDenied || len(source.Committed) != 0 || len(source.Own) != 0 || source.HashIndexes != nil || source.PartialMask != nil {
 			t.Fatal("denied source lost ownership or captured physical rows/indexes")
 		}
-		stage, err := OpenNode(op.ctx, &queryState{Source: source}, b.query.Root.(*plan.ProjectNode).Child)
+		stage, err := exec.OpenNode(op.ctx, &queryState{Source: source}, b.query.Root.(*plan.ProjectNode).Child)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if stage.Source != source {
 			t.Fatal("denied input lost its owned source")
 		}
-		selected, err := SelectQuerySource(op.ctx, source, 0, nil, nil)
+		selected, err := exec.SelectQuerySource(op.ctx, source, 0, nil, nil)
 		if err != nil || selected != source || selected.Visible != nil {
 			t.Fatal("live selection revived denied input", err)
 		}

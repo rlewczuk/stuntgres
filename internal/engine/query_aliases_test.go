@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
@@ -86,7 +87,7 @@ func TestQueryAliasesCancellation(t *testing.T) {
 				}
 				return c.Row[0], nil
 			})
-			rows, count, err := Finalize(ctx, query.Root, source, nil)
+			rows, count, err := exec.Finalize(ctx, query.Root, source, nil)
 			if rows != nil || count != 0 || err != context.Canceled || source.View != nil || calls == 0 {
 				t.Fatal(rows, count, err, source.View, calls)
 			}
@@ -203,7 +204,7 @@ func TestQueryAliasesTypmodAndCollation(t *testing.T) {
 
 func TestQueryAliasesFailure(t *testing.T) {
 	_, query, source := queryCoreFixture(t, "SELECT 1/(x.iid-2) AS quotient FROM t x(iid) ORDER BY x.iid")
-	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	var got *sqlstate.Error
 	want := sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "22012", Message: "division by zero"}
 	if rows != nil || count != 0 || source.View != nil || !errors.As(err, &got) || *got != want {

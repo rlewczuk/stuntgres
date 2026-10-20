@@ -39,7 +39,7 @@ func TestDomainCheckPreflightDemandInternal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return node, EvalContext{evalStatement: evalStatement{Context: op.Context(), Catalog: auth.Catalog, Input: b.input}}
+		return node, EvalContext{EvalStatement: evalStatement{Context: op.Context(), Catalog: auth.Catalog, Input: b.input}}
 	}
 	for _, query := range []string{
 		"SELECT 0::public.preflight_positive",

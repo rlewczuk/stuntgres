@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -61,7 +62,7 @@ func TestDatetimeZoneAllSignaturesAndRetag(t *testing.T) {
 		if signature.name != "timezone" && signature.count == 2 || signature.name == "timezone" && (signature.count == 1 || signature.args[0] == sqltype.Text && signature.args[1] == sqltype.Timetz) {
 			want = expr.Stable
 		}
-		if node.ResultUsage().Type.ID() != signature.result || node.ResultUsage().Typmod != -1 || PlannedVolatility(node) != want || generationImmutable(node) != (want == expr.Immutable) {
+		if node.ResultUsage().Type.ID() != signature.result || node.ResultUsage().Typmod != -1 || exec.PlannedVolatility(node) != want || generationImmutable(node) != (want == expr.Immutable) {
 			t.Fatal(signature, node.Properties())
 		}
 		if !b.sameGroupExpression(node, node) {
@@ -75,7 +76,7 @@ func TestDatetimeZoneAllSignaturesAndRetag(t *testing.T) {
 		if err != nil || !changed || rebound.ResultUsage().Type != replacements[signature.result] {
 			t.Fatal("remap", signature, rebound, changed, err)
 		}
-		value, err := rebound.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Input: env}})
+		value, err := rebound.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Input: env}})
 		if err != nil || value.Type() != rebound.ResultUsage().Type {
 			t.Fatal("remapped provider", signature, value, err)
 		}
@@ -128,7 +129,7 @@ func TestDatetimeZoneStrictConstantNullAndPrecancellation(t *testing.T) {
 	}
 	expression := node.(functions.DatetimeZoneCalendar)
 	expression.Args[0] = plan.LiteralExpr{Info: expr.InfoOf(expression.Args[0]), Value: sqltype.Null(expression.Args[0].ResultUsage().Type)}
-	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 	simplified, changed, err := preflightCoercions(ctx, expression)
 	if err != nil || !changed {
 		t.Fatal(simplified, changed, err)

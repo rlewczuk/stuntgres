@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 	"testing"
@@ -33,7 +34,7 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 			t.Fatal(err)
 		}
 		n := node.(plan.InstalledCryptoExpr)
-		if n.ResultUsage().Type.ID() != sqltype.Text || n.Properties().Volatility != v.volatility || PlannedVolatility(n) != v.volatility || generationImmutable(n) != (v.volatility == expr.Immutable) {
+		if n.ResultUsage().Type.ID() != sqltype.Text || n.Properties().Volatility != v.volatility || exec.PlannedVolatility(n) != v.volatility || generationImmutable(n) != (v.volatility == expr.Immutable) {
 			t.Fatal(v, n)
 		}
 		if err := validateInstalledCrypto(n, e.CatalogRead()); err != nil {
@@ -72,17 +73,17 @@ func TestPgcryptoPasswordVolatility(t *testing.T) {
 			t.Fatal(err)
 		}
 		n.Pgcrypto = rebuilt
-		if PlannedVolatility(n) != v.volatility || generationImmutable(n) != (v.volatility == expr.Immutable) {
+		if exec.PlannedVolatility(n) != v.volatility || generationImmutable(n) != (v.volatility == expr.Immutable) {
 			t.Fatal("reconstruction changed intrinsic volatility")
 		}
 		retagged, _, err := retagBoundTypes(e.CatalogRead(), n, func(d *sqltype.Descriptor) *sqltype.Descriptor { return d })
 		if err != nil {
 			t.Fatal(err)
 		}
-		if PlannedVolatility(retagged) != v.volatility || generationImmutable(retagged) != (v.volatility == expr.Immutable) {
+		if exec.PlannedVolatility(retagged) != v.volatility || generationImmutable(retagged) != (v.volatility == expr.Immutable) {
 			t.Fatal("retag changed intrinsic volatility")
 		}
-		value, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+		value, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 		if err != nil || value.IsNull() || value.Type().ID() != sqltype.Text {
 			t.Fatal(value, err)
 		}

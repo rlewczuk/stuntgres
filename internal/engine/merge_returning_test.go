@@ -28,8 +28,8 @@ func TestMergeReturningFrames(t *testing.T) {
 	}
 	row := []sqltype.Value{integer(1), integer(17), integer(1), integer(7)}
 	old := []sqltype.Value{integer(1), integer(10)}
-	owner := EvalContext{evalStatement: evalStatement{Context: op.Context()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: row, OldRow: old, MergeReturning: true, MergeSourcePresent: true}}
-	child := EvalContext{evalStatement: evalStatement{Context: op.Context()}, evalFrame: evalFrame{Scope: 1, Frame: 8, Outer: &owner, MergeReturning: true, MergeAction: parser.MergeDeleteAction}}
+	owner := EvalContext{EvalStatement: evalStatement{Context: op.Context()}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: row, OldRow: old, MergeReturning: true, MergeSourcePresent: true}}
+	child := EvalContext{EvalStatement: evalStatement{Context: op.Context()}, EvalFrame: evalFrame{Scope: 1, Frame: 8, Outer: &owner, MergeReturning: true, MergeAction: parser.MergeDeleteAction}}
 	for _, action := range []parser.MergeAction{parser.MergeInsertAction, parser.MergeUpdateAction, parser.MergeDeleteAction} {
 		owner.MergeAction = action
 		owner.OldRow = old

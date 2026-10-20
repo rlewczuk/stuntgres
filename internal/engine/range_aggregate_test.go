@@ -5,6 +5,7 @@ import (
 	"errors"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -101,7 +102,7 @@ func rangeAggregateEagerUnit(t *testing.T) {
 		return project, &querySource{}, calls
 	}
 	root, source, calls := build(nil)
-	rows, count, err := Finalize(context.Background(), root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), root, source, nil)
 	if err != nil || count != 1 || *calls != 3 {
 		t.Fatal("absorbing empty skipped later evaluation", count, *calls, err)
 	}
@@ -116,7 +117,7 @@ func rangeAggregateEagerUnit(t *testing.T) {
 	}
 	failure := errors.New("late range operand")
 	root, source, calls = build(failure)
-	if rows, count, err := Finalize(context.Background(), root, source, nil); rows != nil || count != 0 || err != failure || *calls != 3 {
+	if rows, count, err := exec.Finalize(context.Background(), root, source, nil); rows != nil || count != 0 || err != failure || *calls != 3 {
 		t.Fatal("late error published", rows, count, err, *calls)
 	}
 	for _, target := range []string{"stuntgres/internal/sqltype.RangeAggregate.Advance", "stuntgres/internal/sqltype.(*Descriptor).normalizeRangeMembers"} {
@@ -132,7 +133,7 @@ func rangeAggregateEagerUnit(t *testing.T) {
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		probe := &rangeAggregateCancelContext{Context: ctx, cancel: cancel, target: target}
-		result, count, err := Finalize(probe, root, source, nil)
+		result, count, err := exec.Finalize(probe, root, source, nil)
 		cancel()
 		if !probe.entered || result != nil || count != 0 || err != context.Canceled {
 			t.Fatal("actual typed cancellation publication", target, probe.entered, result, count, err)

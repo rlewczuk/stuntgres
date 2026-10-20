@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -14,7 +15,7 @@ import (
 
 func assignmentTargetHasVirtualReads(target *plan.ArrayAssignmentTarget) bool {
 	for ; target != nil; target = target.Next {
-		if target.Attribute == 0 && BoundHasVirtualReads(target.Node) {
+		if target.Attribute == 0 && exec.BoundHasVirtualReads(target.Node) {
 			return true
 		}
 	}

@@ -60,7 +60,7 @@ func strictNullUnitBind(t *testing.T, e *Engine, op *Operation, scope *Statement
 	if err != nil {
 		t.Fatal("actual provider binding", text, err)
 	}
-	return node, b, EvalContext{evalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}, evalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.dependencies}}
+	return node, b, EvalContext{EvalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output}, EvalFrame: evalFrame{Scope: 1, Frame: 1}, EvalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: b.dependencies}}
 }
 
 func TestStrictParameterNullPlanning(t *testing.T) {

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -54,13 +55,13 @@ func TestPGSequencesAdmissionFrames(t *testing.T) {
 				switch boundary {
 				case "derived":
 					node := &plan.DerivedNode{QuerySchema: d.Columns[:1], Query: &plan.Query{Root: project}, ScanFrame: 1}
-					AdmitPGSequencesPredicate(node, leaf, predicate, 0, 1)
+					exec.AdmitPGSequencesPredicate(node, leaf, predicate, 0, 1)
 				case "stored_project":
 					source := &querySource{NestedRoot: project, NestedInputs: leaf}
-					AdmitPGSequencesSource(source, predicate, 1)
+					exec.AdmitPGSequencesSource(source, predicate, 1)
 				case "stored_input":
 					source := &querySource{Input: leaf, Layout: []int{1}}
-					AdmitPGSequencesSource(source, predicate, 1)
+					exec.AdmitPGSequencesSource(source, predicate, 1)
 				}
 				if len(provider.Predicates) != 0 {
 					t.Fatalf("%s admitted %d predicates with %s ownership; want an admission barrier", boundary, len(provider.Predicates), invalid)
@@ -89,13 +90,13 @@ func TestPGSequencesAdmissionLocalFrames(t *testing.T) {
 			case "derived":
 				column.Slot = 3
 				node := &plan.DerivedNode{QuerySchema: d.Columns[:2], Query: &plan.Query{Root: project}, ScanFrame: 1}
-				AdmitPGSequencesPredicate(node, leaf, plan.NullTestExpr{Child: column}, 3, 1)
+				exec.AdmitPGSequencesPredicate(node, leaf, plan.NullTestExpr{Child: column}, 3, 1)
 			case "stored_project":
 				source := &querySource{NestedRoot: project, NestedInputs: leaf}
-				AdmitPGSequencesSource(source, plan.NullTestExpr{Child: column}, 1)
+				exec.AdmitPGSequencesSource(source, plan.NullTestExpr{Child: column}, 1)
 			case "stored_input":
 				source := &querySource{Input: leaf, Layout: []int{1, 0}}
-				AdmitPGSequencesSource(source, plan.NullTestExpr{Child: column}, 1)
+				exec.AdmitPGSequencesSource(source, plan.NullTestExpr{Child: column}, 1)
 			}
 			if len(provider.Predicates) != 1 {
 				t.Fatalf("local admission got %d predicates, want 1", len(provider.Predicates))
@@ -143,7 +144,7 @@ func TestPGSequencesAdmissionDerivedRowLockFrame(t *testing.T) {
 	}
 	provider := &pgSequencesSource{}
 	inputs := &querySource{PGSequences: provider}
-	AdmitPGSequencesPredicate(rowLock, inputs, filter.Predicate, 0, evaluation.Frame)
+	exec.AdmitPGSequencesPredicate(rowLock, inputs, filter.Predicate, 0, evaluation.Frame)
 	if len(provider.Predicates) != 1 {
 		t.Fatalf("bound local row-lock predicate admitted %d predicates, want 1", len(provider.Predicates))
 	}
@@ -151,7 +152,7 @@ func TestPGSequencesAdmissionDerivedRowLockFrame(t *testing.T) {
 	if mapped.Scope != 1 || mapped.Frame != inner.Frame || mapped.Slot != 1 {
 		t.Fatalf("mapped scope/frame/slot = %d/%d/%d, want 1/%d/1", mapped.Scope, mapped.Frame, mapped.Slot, inner.Frame)
 	}
-	if !PGSequencesPredicateInFrame(filter.Predicate, evaluation.Frame) {
+	if !exec.PGSequencesPredicateInFrame(filter.Predicate, evaluation.Frame) {
 		t.Fatal("admission changed the residual predicate's lexical ownership")
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -28,7 +29,7 @@ func numericSeriesUnit(t *testing.T, d *sqltype.Descriptor, args ...string) plan
 
 func numericSeriesUnitRead(t *testing.T, e plan.SeriesExpr) []sqltype.Value {
 	t.Helper()
-	cursor, err := OpenFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, e)
+	cursor, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, e)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +59,7 @@ func TestNumericSeriesBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	e, ok := x.(plan.SeriesExpr)
-	if !ok || e.ResultUsage().Type.ID() != sqltype.Numeric || e.ResultUsage() != e.ResultUsage().Type.Usage() || !SourceAdmitted(e) || !b.clause.queryHasTargetSet {
+	if !ok || e.ResultUsage().Type.ID() != sqltype.Numeric || e.ResultUsage() != e.ResultUsage().Type.Usage() || !exec.SourceAdmitted(e) || !b.clause.queryHasTargetSet {
 		t.Fatal(x)
 	}
 	want := numericSeriesUnit(t, e.ResultUsage().Type, "0.1", "0.3", "0.1")
@@ -85,7 +86,7 @@ func TestNumericSeriesInvocation(t *testing.T) {
 	}
 	sentinel := errors.New("sibling evaluation")
 	e.Args[1] = queryProbe(d.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, sentinel })
-	if _, err := OpenFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, e); err != sentinel {
+	if _, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, e); err != sentinel {
 		t.Fatal(err)
 	}
 }
@@ -159,10 +160,10 @@ func TestNumericSeriesExpressionHooks(t *testing.T) {
 	}
 	for _, fold := range []func() (expr.Expr, bool, error){
 		func() (expr.Expr, bool, error) {
-			return preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original)
+			return preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, original)
 		},
 		func() (expr.Expr, bool, error) {
-			return simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original, false)
+			return simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, original, false)
 		},
 	} {
 		n, _, err := fold()

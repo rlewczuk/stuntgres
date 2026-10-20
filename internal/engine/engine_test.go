@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
@@ -92,7 +93,7 @@ func run(t *testing.T, e *Engine, sql string, args ...any) Result {
 // inspect the original result later without rewinding its public position.
 func independentFinalRows(original RowResult) *finalRows {
 	old := original.(*finalRows)
-	r := NewFinalRows(old.Columns, old.Count)
+	r := exec.NewFinalRows(old.Columns, old.Count)
 	r.Values, r.Selection, r.Slots = old.Values, old.Selection, old.Slots
 	r.Anonymous = old.Anonymous
 	r.RegclassOutput = old.RegclassOutput

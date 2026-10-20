@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 )
@@ -17,7 +18,7 @@ func (b *expressionBinder) scheduleQueryProjection(root plan.Node, projection []
 	}
 	var late []expr.Expr
 	for i, bound := range projection {
-		if QuerySetDepth(bound) != 0 {
+		if exec.QuerySetDepth(bound) != 0 {
 			continue
 		}
 		if bound.ResultUsage().Type == nil {

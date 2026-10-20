@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
@@ -119,7 +120,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 	s.routineAuth, s.routineDependencies = auth, binder.dependencies
 	s.input = binder.input
 	s.domains.inputCatalog = auth.Catalog
-	evaluation := EvalContext{evalStatement: evalStatement{Context: s.op.Context(), Parameters: make([]sqltype.Value, len(usages)), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: auth.Catalog}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: s.op.Context(), Parameters: make([]sqltype.Value, len(usages)), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: auth.Catalog}}
 	evaluation.Input.DomainChecks = &evaluation
 	e.mu.Unlock()
 	formats, err := protocolFormats(input)
@@ -167,7 +168,7 @@ func (s *StatementScope) CallProtocolFunction(input ProtocolInput) (ProtocolFiel
 	if format != 0 && format != 1 {
 		return ProtocolField{}, sqlError("22023", fmt.Sprintf("unsupported format code: %d", int16(format)))
 	}
-	rows := NewFinalRows(nil, 1)
+	rows := exec.NewFinalRows(nil, 1)
 	rows.Values = []sqltype.Value{value}
 	rows.Output = s.output
 	if err = s.captureSQLCursorOutput(rows, auth.Catalog); err != nil {

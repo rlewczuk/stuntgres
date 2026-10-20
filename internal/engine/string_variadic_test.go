@@ -80,7 +80,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	}
 	node := bound.(functions.StringVariadic)
 	oldGroup := quoteCaptureCandidate{}
-	_, _, err = foldStringVariadic(&EvalContext{evalStatement: evalStatement{Context: ctx, QuoteCaptures: &oldGroup}}, node)
+	_, _, err = foldStringVariadic(&EvalContext{EvalStatement: evalStatement{Context: ctx, QuoteCaptures: &oldGroup}}, node)
 	if err != nil || len(oldGroup.Entries) != 1 {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 		t.Fatal("retag source mutated or authority not replaced")
 	}
 	candidate := quoteCaptureCandidate{Entries: oldGroup.Entries}
-	_, _, err = foldStringVariadic(&EvalContext{evalStatement: evalStatement{Context: ctx, QuoteCaptures: &candidate}}, fresh)
+	_, _, err = foldStringVariadic(&EvalContext{EvalStatement: evalStatement{Context: ctx, QuoteCaptures: &candidate}}, fresh)
 	if err != nil || !candidate.Private || len(candidate.Entries) != 1 || candidate.Entries[0].Value.Type() != types[sqltype.Text] || oldGroup.Entries[0].Value.Type() != node.Usage.Type {
 		t.Fatal("coincident OID adopted or source group mutated", err)
 	}
@@ -140,7 +140,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 			occurrence = occurrence.WithOrigin(origin)
 			ambient = quoteOrigin{} // Lowered view nodes override caller-root context.
 		}
-		folded, _, err := foldStringVariadic(&EvalContext{evalStatement: evalStatement{Context: ctx, QuoteCaptures: &collision, quoteOrigin: ambient}}, occurrence)
+		folded, _, err := foldStringVariadic(&EvalContext{EvalStatement: evalStatement{Context: ctx, QuoteCaptures: &collision, QuoteOrigin: ambient}}, occurrence)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -173,7 +173,7 @@ func TestStringVariadicRetainedGeneration(t *testing.T) {
 	}
 	sealed := quoteCaptureCandidate{Entries: published, Sealed: true}
 	missing := functions.StringVariadic{Info: expr.Info{Usage: node.Usage, Pos: parser.Position{Offset: 19}}, Name: "quote_ident", Frame: 1, Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: node.Usage}, Value: sqltype.String(node.Usage.Type, "local")}}}
-	_, _, err = foldStringVariadic(&EvalContext{evalStatement: evalStatement{Context: ctx, QuoteCaptures: &sealed}}, missing)
+	_, _, err = foldStringVariadic(&EvalContext{EvalStatement: evalStatement{Context: ctx, QuoteCaptures: &sealed}}, missing)
 	if err != nil || sealed.Private || len(sealed.Entries) != 4 {
 		t.Fatal("sealed executor group admitted row-time publication", err)
 	}
@@ -624,9 +624,9 @@ func TestStringVariadicBoundedCancellationAndSizes(t *testing.T) {
 		ctx := &formatWorkContext{Context: context.Background(), checks: 4}
 		var err error
 		if name == "concat" {
-			_, err = node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+			_, err = node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 		} else {
-			_, _, err = foldStringVariadic(&EvalContext{evalStatement: evalStatement{Context: ctx, QuoteCaptures: &group}}, node)
+			_, _, err = foldStringVariadic(&EvalContext{EvalStatement: evalStatement{Context: ctx, QuoteCaptures: &group}}, node)
 		}
 		if !errors.Is(err, context.Canceled) || group.Private || group.Entries != nil {
 			t.Fatal("cancellation exposed a scalar or partial capture", name, err)

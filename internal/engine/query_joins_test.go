@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
@@ -77,7 +78,7 @@ func queryJoinsAdmittedFixture(t *testing.T, q string, explicit bool) (*Engine, 
 	}
 	e.mu.Unlock()
 	if err == nil {
-		err = SelectQuerySources(op.ctx, source)
+		err = exec.SelectQuerySources(op.ctx, source)
 	}
 	if err != nil {
 		scope.Finish(err)
@@ -93,7 +94,7 @@ func TestQueryJoinsMergedMetadataAndFrames(t *testing.T) {
 		if schema[0].Usage.Type.ID() != sqltype.Int8 || schema[1].Usage.Type.ID() != sqltype.Int4 || schema[2].Usage.Type.ID() != sqltype.Int8 || schema[0].OriginTable != schema[2].OriginTable || schema[0].OriginAttribute != schema[2].OriginAttribute || schema[0].OriginTable == schema[1].OriginTable {
 			t.Fatal(q, schema)
 		}
-		result, n, err := Finalize(context.Background(), query.Root, source, nil)
+		result, n, err := exec.Finalize(context.Background(), query.Root, source, nil)
 		if err != nil || n != 2 {
 			t.Fatal(result, n, err)
 		}
@@ -112,7 +113,7 @@ func TestQueryJoinsMergedMetadataAndFrames(t *testing.T) {
 		if column.Usage.Typmod != tc.typmod || (column.OriginTable != 0) != tc.direct {
 			t.Fatal(tc, column)
 		}
-		result, n, err := Finalize(context.Background(), query.Root, source, nil)
+		result, n, err := exec.Finalize(context.Background(), query.Root, source, nil)
 		if err != nil || n != 1 {
 			t.Fatal(result, n, err)
 		}
@@ -195,7 +196,7 @@ func TestQueryJoinsErrorsCancellationAndCleanup(t *testing.T) {
 			case "bad_usage":
 				join.Predicate = queryProbe(boolType.Usage(), func(c *EvalContext) (sqltype.Value, error) { return c.Row[1], nil })
 			}
-			rows, n, err := Finalize(ctx, query.Root, source, nil)
+			rows, n, err := exec.Finalize(ctx, query.Root, source, nil)
 			if rows != nil || n != 0 || err == nil {
 				t.Fatal(rows, n, err)
 			}
@@ -242,7 +243,7 @@ func TestQueryJoinsRejectedPairAllocation(t *testing.T) {
 		runtime.ReadMemStats(&before)
 		for range 5 {
 			calls = 0
-			stage, err := OpenJoinNode(context.Background(), &queryState{Source: source}, join)
+			stage, err := exec.OpenJoinNode(context.Background(), &queryState{Source: source}, join)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -264,7 +265,7 @@ func TestQueryJoinsRejectedPairAllocation(t *testing.T) {
 		t.Fatal("rejected-pair allocations scale with product", small, large)
 	}
 	_, single, singleSource := queryCoreFixture(t, "SELECT id FROM t")
-	rows, n, err := Finalize(context.Background(), single.Root, singleSource, nil)
+	rows, n, err := exec.Finalize(context.Background(), single.Root, singleSource, nil)
 	if err != nil || n != 4 {
 		t.Fatal(rows, n, err)
 	}
@@ -296,7 +297,7 @@ func TestQueryJoinsZeroWidthAndHeldRoots(t *testing.T) {
 	for _, replacement := range []string{"append", "reset", "restore"} {
 		for _, projection := range []string{"a.k,b.k", "a.k+1,b.k+1"} {
 			e, query, source, release := queryJoinsAdmittedFixture(t, "SELECT "+projection+" FROM a JOIN b USING(k)", false)
-			rows, n, err := Finalize(context.Background(), query.Root, source, nil)
+			rows, n, err := exec.Finalize(context.Background(), query.Root, source, nil)
 			if err != nil || n != 4 {
 				t.Fatal(rows, n, err)
 			}
@@ -351,7 +352,7 @@ func TestQueryJoinsAdmittedFrameLayout(t *testing.T) {
 	join := query.Root.(*plan.ProjectNode).Child.(*plan.JoinNode)
 	left := append([]sqltype.Value(nil), source.Sources[0].Row(0)...)
 	right := append([]sqltype.Value(nil), source.Sources[1].Row(0)...)
-	stage, err := OpenJoinNode(context.Background(), &queryState{Source: source}, join)
+	stage, err := exec.OpenJoinNode(context.Background(), &queryState{Source: source}, join)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -380,7 +381,7 @@ func TestQueryJoinsEmptyOperandStillPreflightsOtherChild(t *testing.T) {
 	children := append([]*querySource(nil), source.Sources...)
 	source.Committed = nil
 	text, _ := e.CatalogRead().LookupType(sqltype.Text)
-	rows, n, err := Finalize(context.Background(), query.Root, source, []sqltype.Value{sqltype.String(text, "oops")})
+	rows, n, err := exec.Finalize(context.Background(), query.Root, source, []sqltype.Value{sqltype.String(text, "oops")})
 	state(t, err, "22P02")
 	if rows != nil || n != 0 {
 		t.Fatal("preflight failure exposed partial output", rows, n)
@@ -403,7 +404,7 @@ func TestQueryJoinsVisibilityReleaseAuthority(t *testing.T) {
 			t.Fatal("independent release invalidated source capture")
 		}
 	}
-	rows, n, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, n, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || n != 4 {
 		t.Fatal(rows, n, err)
 	}

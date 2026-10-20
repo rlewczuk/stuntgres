@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -135,7 +136,7 @@ func TestAvgEagerCancellation(t *testing.T) {
 				expr := project.Expressions[0]
 				project.Expressions[0] = queryProbe(expr.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { v, err := expr.Eval(c); cancel(); return v, err })
 			}
-			rows, count, err := Finalize(ctx, q.Root, source, nil)
+			rows, count, err := exec.Finalize(ctx, q.Root, source, nil)
 			cancel()
 			if rows != nil || count != 0 || err != context.Canceled || source.View != nil || source.Anonymous != nil {
 				t.Fatal(cast, phase, rows, count, err)

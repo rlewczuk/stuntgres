@@ -29,7 +29,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	definition := *f.index.SQLIndex
 	definition.Predicate = nil
 	f.index.SQLIndex = &definition
-	root, buildErr := buildIndexRoot(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, &definition, f.store, nil)
+	root, buildErr := buildIndexRoot(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}, f.parent, &definition, f.store, nil)
 	if buildErr != nil {
 		t.Fatal(buildErr)
 	}
@@ -135,7 +135,7 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 		t.Fatal(err)
 	}
 	action := &boundInsertConflict{keys: []conflictKey{{attribute: 10}}, predicate: f.predicate, reads: []int{0, 1}, targets: []int{0, 1}}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: ctx, Input: scope.input, Output: scope.output}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
 	if err := action.selectArbiters(&evaluation, f.parent, f.e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}

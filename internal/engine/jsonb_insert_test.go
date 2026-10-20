@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -31,7 +32,7 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 			t.Fatal("isolated formal inference", i, err)
 		}
 	}
-	if e.Count != 4 || e.WrittenCount != 4 || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable || PlannedVolatility(node) != expr.Immutable {
+	if e.Count != 4 || e.WrittenCount != 4 || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable || exec.PlannedVolatility(node) != expr.Immutable {
 		t.Fatal(e, node.Properties())
 	}
 	for _, tc := range []struct {
@@ -43,7 +44,7 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 		{`SELECT jsonb_set_lax('[0]','{0}','9')`, "[9]", true},
 	} {
 		n := jsonbSetUnitBind(t, b, tc.query).(functions.JSONBSet)
-		flag, err := n.Args[3].Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+		flag, err := n.Args[3].Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -51,7 +52,7 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 		if err != nil || truth != tc.defaultFlag {
 			t.Fatal("wrong mutation default", tc.query, flag, err)
 		}
-		got, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+		got, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -86,11 +87,11 @@ func TestJSONBInsertBindingAndReconstruction(t *testing.T) {
 			if err != nil || !sameGroupExpression(r, mapped) {
 				t.Fatal(mapped, err)
 			}
-			old, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+			old, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := mapped.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+			got, err := mapped.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -147,7 +148,7 @@ func TestJSONBInsertAllSlotPropertiesAndTraversal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n.Properties().Volatility != expr.Volatile || PlannedVolatility(n) != expr.Volatile || generationImmutable(n) {
+	if n.Properties().Volatility != expr.Volatile || exec.PlannedVolatility(n) != expr.Volatile || generationImmutable(n) {
 		t.Fatal("volatile flag child hidden", n.Properties())
 	}
 }

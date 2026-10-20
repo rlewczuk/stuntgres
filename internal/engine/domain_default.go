@@ -119,7 +119,7 @@ func columnDefault(view catalog.Read, d *catalog.Relation, slot int) (expr.Expr,
 }
 
 func (o defaultOrigin) apply(c *EvalContext) {
-	c.quoteOrigin = o.quote
+	c.QuoteOrigin = o.quote
 	c.RoutineRecipe, c.RoutineGraft = true, false
 	c.RoutineChecks = nil
 	c.RoutineReferences, c.RoutineConsumer = o.definition.Dependencies, o.consumer
@@ -195,11 +195,11 @@ func (b *binding) defaultOriginAt(slot int) defaultOrigin {
 }
 
 func evalDefaultExpression(c *EvalContext, node expr.Expr, origin defaultOrigin) (sqltype.Value, error) {
-	quote, recipe, graft := c.quoteOrigin, c.RoutineRecipe, c.RoutineGraft
+	quote, recipe, graft := c.QuoteOrigin, c.RoutineRecipe, c.RoutineGraft
 	checks, refs, consumer := c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer
 	origin.apply(c)
 	defer func() {
-		c.quoteOrigin, c.RoutineRecipe, c.RoutineGraft = quote, recipe, graft
+		c.QuoteOrigin, c.RoutineRecipe, c.RoutineGraft = quote, recipe, graft
 		c.RoutineChecks, c.RoutineReferences, c.RoutineConsumer = checks, refs, consumer
 	}()
 	return node.Eval(c)

@@ -2,11 +2,12 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 )
 
-func init() { InstallPreparation(enginePreparation{}) }
+func init() { exec.InstallPreparation(enginePreparation{}) }
 
 type enginePreparation struct{}
 

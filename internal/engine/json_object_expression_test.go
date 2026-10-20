@@ -53,7 +53,7 @@ func TestJSONObjectExpressionRetagRemapAndRendering(t *testing.T) {
 		if next.Plan.ResultUsage().Type != replacement[sqltype.JSON] || next.Args[0].ResultUsage().Type != replacement[1009] {
 			t.Fatal(next)
 		}
-		got, err := next.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+		got, err := next.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 		if err != nil {
 			t.Fatal(err)
 		}

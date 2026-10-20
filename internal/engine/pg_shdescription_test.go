@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -95,7 +96,7 @@ func TestPGShDescriptionEmptySource(t *testing.T) {
 			if source.Anonymous == nil || len(source.Anonymous) != 0 {
 				t.Fatal("empty catalog must remain an anonymous source", source)
 			}
-			rows, count, err := Finalize(context.Background(), root, source, nil)
+			rows, count, err := exec.Finalize(context.Background(), root, source, nil)
 			if err != nil {
 				t.Fatal("empty captured source must execute", err)
 			}
@@ -136,7 +137,7 @@ func pgShDescriptionUnitInquiry(t *testing.T, e *Engine, roles authorization.Rea
 		plan.LiteralExpr{Info: expr.Info{Usage: oidUsage}, Value: oid},
 		plan.LiteralExpr{Info: expr.Info{Usage: nameUsage}, Value: sqltype.String(nameUsage.Type, "pg_authid")},
 	}}
-	value, err := expr.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Host: hostOf(&StatementScope{inquiry: inquirySnapshot{commentRoles: roles, commentCatalog: catalog}})}})
+	value, err := expr.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Host: hostOf(&StatementScope{inquiry: inquirySnapshot{commentRoles: roles, commentCatalog: catalog}})}})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/sequence"
@@ -90,8 +91,8 @@ func TestGroupingSetsMasksFramesAndNoArgumentEvaluation(t *testing.T) {
 		return sqltype.Value{}, nil
 	})}
 	occurrence, _ := sqltype.Integer(usage.Type, 1)
-	outer := &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(usage.Type), occurrence}}}
-	value, err := grouping.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 2, Outer: outer}})
+	outer := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(usage.Type), occurrence}}}
+	value, err := grouping.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 2, Outer: outer}})
 	mask, _ := value.Integer()
 	if err != nil || mask != 3 || value.Type().ID() != sqltype.Int4 {
 		t.Fatal(mask, err)
@@ -108,7 +109,7 @@ func TestGroupingSetsRuntimeOccurrencesAndFreshState(t *testing.T) {
 		if len(schema) != 3 || schema[0].OriginTable == 0 || schema[0].OriginAttribute != 2 || !schema[0].Nullable || schema[1].OriginTable != 0 || !schema[1].NullabilityKnown || schema[1].Nullable {
 			t.Fatal(schema)
 		}
-		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+		rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 		if err != nil || count != 7 {
 			t.Fatal(count, err)
 		}
@@ -147,7 +148,7 @@ func TestGroupingSetsOncePerSourceModifiers(t *testing.T) {
 	filters, values := 0, 0
 	call.Filter = queryProbe(filter.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { filters++; return filter.Eval(c) })
 	call.Argument = queryProbe(argument.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { values++; return argument.Eval(c) })
-	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || count != 3 || filters != 4 || values != 4 {
 		t.Fatal(count, err, filters, values)
 	}
@@ -202,7 +203,7 @@ func TestGroupingSetsCancellationPublication(t *testing.T) {
 				node.Calls[0].Order = nil
 				node.Calls[0].Distinct = nil
 			}
-			rows, count, err := Finalize(execution, query.Root, source, nil)
+			rows, count, err := exec.Finalize(execution, query.Root, source, nil)
 			if rows != nil || count != 0 || !errors.Is(err, context.Canceled) || source.View != nil || source.Anonymous != nil {
 				t.Fatal(rows, count, err)
 			}

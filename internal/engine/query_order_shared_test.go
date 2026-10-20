@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
@@ -23,7 +24,7 @@ func TestQueryOrderSharedHiddenKeysAndOwnedIndices(t *testing.T) {
 			return c.Row[0], nil
 		})
 	}
-	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || count != 2 || calls != [2]int{2, 2} {
 		t.Fatal(count, calls, err)
 	}

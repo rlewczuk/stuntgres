@@ -253,7 +253,7 @@ func (s *StatementScope) CheckDomain(ctx context.Context, target *sqltype.Descri
 		if catalog.State() == nil {
 			catalog = s.ResolutionCatalog()
 		}
-		s.domains.evaluation = &EvalContext{evalStatement: evalStatement{Context: ctx, Host: hostOf(s), Catalog: catalog, Input: s.input, Output: s.output}}
+		s.domains.evaluation = &EvalContext{EvalStatement: evalStatement{Context: ctx, Host: hostOf(s), Catalog: catalog, Input: s.input, Output: s.output}}
 	}
 	return s.domains.evaluation.CheckDomain(ctx, target, value)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -141,7 +142,7 @@ func (b *expressionBinder) CallSignatureError(raw parser.FunctionExpr) error {
 	return b.functionSignatureError(raw)
 }
 
-func (b *expressionBinder) LiteralNull(arg expr.Expr) bool { return RandomLiteralNull(arg) }
+func (b *expressionBinder) LiteralNull(arg expr.Expr) bool { return exec.RandomLiteralNull(arg) }
 
 func (b *expressionBinder) NoteVisibilitySnapshot() { b.consumer.visibilitySnapshot = true }
 

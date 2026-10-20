@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -204,7 +205,7 @@ func (c *insertCloseCursor) Close() error {
 func TestInsertSelectRequiredClose(t *testing.T) {
 	for _, primary := range []bool{false, true} {
 		b, source := insertSelectEvaluationFixture(t, "SELECT id FROM t")
-		stage, err := OpenNode(context.Background(), &queryState{Source: source}, b.query.Root)
+		stage, err := exec.OpenNode(context.Background(), &queryState{Source: source}, b.query.Root)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -233,7 +234,7 @@ func TestInsertSelectCancellationOnRequiredClose(t *testing.T) {
 	defer source.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	stage, err := OpenNode(ctx, &queryState{Source: source}, b.query.Root)
+	stage, err := exec.OpenNode(ctx, &queryState{Source: source}, b.query.Root)
 	if err != nil {
 		t.Fatal(err)
 	}

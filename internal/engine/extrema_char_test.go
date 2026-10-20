@@ -36,7 +36,7 @@ func TestExtremaCharConversionAndRemap(t *testing.T) {
 			}
 			node := plan.CoercionExpr{Info: expr.Info{Usage: text.Usage()}, Child: child, Plan: coercionPlan, Mode: sqltype.Implicit}
 			check := func(expression expr.Expr, owner *sqltype.Descriptor) {
-				got, err := expression.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+				got, err := expression.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 				if err != nil || got.Type() != owner || got.IsNull() != null {
 					t.Fatal(got, err)
 				}

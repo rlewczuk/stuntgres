@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/visibility"
@@ -66,7 +67,7 @@ func (a *queryLockAdmission) tableMark(table *parser.TableReference) plan.RowMar
 	if a != nil {
 		for _, admission := range a.ordered {
 			if index, ok := admission.indices[table]; ok && index < len(admission.marks) {
-				mark = MergeQueryRowMark(mark, admission.marks[index])
+				mark = exec.MergeQueryRowMark(mark, admission.marks[index])
 			}
 		}
 	}
@@ -340,7 +341,7 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 			}
 			continue
 		}
-		mark := EffectiveQueryRowMark(leaf.Relation, MergeQueryRowMark(inherited, leaf.Mark))
+		mark := exec.EffectiveQueryRowMark(leaf.Relation, exec.MergeQueryRowMark(inherited, leaf.Mark))
 		var source *querySource
 		command := catalog.PolicySelect
 		if mark.Mode != 0 {
@@ -442,12 +443,12 @@ func (e *Engine) captureQuerySourcesForInvokerLocked(scope *StatementScope, leav
 func (e *Engine) closeQuerySourceSetLocked(ctx context.Context, first *querySource, sources []*querySource) {
 	e.mu.Unlock()
 	if first != nil {
-		_ = FinishForeignSources(ctx, first)
+		_ = exec.FinishForeignSources(ctx, first)
 		first.Close()
 	}
 	for _, source := range sources {
 		if source != nil && source != first {
-			_ = FinishForeignSources(ctx, source)
+			_ = exec.FinishForeignSources(ctx, source)
 			source.Close()
 		}
 	}

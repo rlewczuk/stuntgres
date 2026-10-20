@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -206,7 +207,7 @@ func queryRowLockLegality(root plan.Node, mode lock.Mode) error {
 			if n.CTE != nil {
 				return queryRowLockLegality(n.Query.Root, queryRootRowMode(n.Query.Root))
 			}
-			return queryRowLockLegality(n.Query.Root, StrongerQueryRowMode(mode, queryRootRowMode(n.Query.Root)))
+			return queryRowLockLegality(n.Query.Root, exec.StrongerQueryRowMode(mode, queryRootRowMode(n.Query.Root)))
 		case *plan.JoinNode:
 			if err := from(n.Left); err != nil {
 				return err
@@ -263,7 +264,7 @@ func (e *Engine) initializeQueryLocksLocked(scope *StatementScope, root plan.Nod
 			}
 			return nil
 		}
-		if IsPGSequencesRelation(d) {
+		if exec.IsPGSequencesRelation(d) {
 			return nil // Expanded catalog view: no represented physical tuple input.
 		}
 		if (referenceMarked || inherited.Mode != 0) && d.RelationKind == catalog.MaterializedViewRelation {
@@ -340,7 +341,7 @@ func (v AuthorizationView) checkViewRowMarksExpanded(d *catalog.Relation, inheri
 		if err := v.checkColumns(binding{ref: use, relation: child}, authorization.SelectPrivilege, indices); err != nil {
 			return err
 		}
-		if EffectiveQueryRowMark(child, mark).Mode != 0 {
+		if exec.EffectiveQueryRowMark(child, mark).Mode != 0 {
 			if err := v.checkColumns(binding{ref: use, relation: child}, authorization.UpdatePrivilege, nil); err != nil {
 				return err
 			}
@@ -371,7 +372,7 @@ func queryRowMarkReachesSource(node plan.Node, occurrence int) bool {
 func viewLeafRowMark(view *viewDefinition, occurrence int, inherited plan.RowMark) plan.RowMark {
 	mark := view.sources[occurrence].mark
 	if inherited.Mode != 0 && queryRowMarkReachesSource(view.query.Root, occurrence) {
-		mark = MergeQueryRowMark(inherited, mark)
+		mark = exec.MergeQueryRowMark(inherited, mark)
 	}
 	return mark
 }
@@ -418,7 +419,7 @@ func queryRootRowMarks(node plan.Node) []plan.RowMark {
 
 func queryOccurrenceMark(marks []plan.RowMark, occurrence int, inherited plan.RowMark) plan.RowMark {
 	if occurrence < len(marks) {
-		return MergeQueryRowMark(inherited, marks[occurrence])
+		return exec.MergeQueryRowMark(inherited, marks[occurrence])
 	}
 	return inherited
 }
@@ -509,7 +510,7 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virt
 						order++
 						mark.Order = order
 					}
-					marks[i] = MergeQueryRowMark(marks[i], mark)
+					marks[i] = exec.MergeQueryRowMark(marks[i], mark)
 				}
 			}
 			continue
@@ -541,7 +542,7 @@ func queryLockTargets(from parser.FromItem, clauses []parser.RowLockClause, virt
 						order++
 						mark.Order = order
 					}
-					marks[occurrence] = MergeQueryRowMark(marks[occurrence], mark)
+					marks[occurrence] = exec.MergeQueryRowMark(marks[occurrence], mark)
 				}
 				break
 			}

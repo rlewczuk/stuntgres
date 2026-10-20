@@ -2,6 +2,7 @@ package engine
 
 import (
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -51,7 +52,7 @@ func newMergeReturningOutput(b binding, s *StatementScope) *mergeReturningOutput
 	if b.returning == nil {
 		return nil
 	}
-	rows := NewFinalRows(b.returning.schema, 0)
+	rows := exec.NewFinalRows(b.returning.schema, 0)
 	rows.Output = s.output
 	return &mergeReturningOutput{returning: b.returning, rows: rows, frame: make([]sqltype.Value, b.merge.targetWidth+b.merge.sourceWidth)}
 }

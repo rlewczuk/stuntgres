@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"runtime"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -18,7 +19,7 @@ func TestQueryOuterJoinsZeroWidthOccurrences(t *testing.T) {
 		for _, truth := range []bool{false, true} {
 			join := &plan.JoinNode{Kind: kind, Left: &plan.SourceNode{Occurrence: 0}, Right: &plan.SourceNode{Occurrence: 1}, Predicate: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, truth)}}
 			source := &querySource{Sources: []*querySource{{Anonymous: [][]sqltype.Value{{}, {}}}, {Anonymous: [][]sqltype.Value{{}, {}, {}}}}}
-			stage, err := OpenJoinNode(context.Background(), &queryState{Source: source}, join)
+			stage, err := exec.OpenJoinNode(context.Background(), &queryState{Source: source}, join)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -61,7 +62,7 @@ func TestQueryOuterJoinsMissingChildDoesNotEvaluateRecipe(t *testing.T) {
 	})}}
 	join := &plan.JoinNode{QuerySchema: append(append(plan.QuerySchema(nil), schema...), schema...), Kind: parser.JoinLeft, Left: &plan.SourceNode{QuerySchema: schema, Occurrence: 0}, Right: missing, LeftWidth: 1, RightWidth: 1, Predicate: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, true)}}
 	source := &querySource{Sources: []*querySource{{Anonymous: [][]sqltype.Value{{value}}}, {Anonymous: [][]sqltype.Value{}}, {Anonymous: [][]sqltype.Value{}}}}
-	stage, err := OpenJoinNode(context.Background(), &queryState{Source: source}, join)
+	stage, err := exec.OpenJoinNode(context.Background(), &queryState{Source: source}, join)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +91,7 @@ func TestQueryOuterJoinsRejectedProductAllocation(t *testing.T) {
 		runtime.GC()
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
-		stage, err := OpenJoinNode(context.Background(), &queryState{Source: source}, join)
+		stage, err := exec.OpenJoinNode(context.Background(), &queryState{Source: source}, join)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -123,7 +124,7 @@ func TestQueryOuterJoinsCloseOnceAndPrimaryError(t *testing.T) {
 		}
 		inputs := &querySource{Sources: []*querySource{bridge(0), bridge(1)}}
 		join := &plan.JoinNode{Kind: kind, Left: &plan.SourceNode{Occurrence: 0}, Right: &plan.SourceNode{Occurrence: 1}, Predicate: queryProbe(boolean.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, primary })}
-		rows, _, err := Finalize(context.Background(), &plan.ProjectNode{Child: join}, inputs, nil)
+		rows, _, err := exec.Finalize(context.Background(), &plan.ProjectNode{Child: join}, inputs, nil)
 		if rows != nil || !errors.Is(err, primary) || closed != [2]int{1, 1} {
 			t.Fatal(kind, rows, err, closed)
 		}
@@ -140,7 +141,7 @@ func TestQueryOuterJoinsNullRowsAreNotAbsentOccurrences(t *testing.T) {
 	locks := &queryLockContext{Leaves: []queryLockLeaf{{Source: left}, {Source: right}}}
 	inputs := &querySource{Sources: []*querySource{left, right}, Locks: locks}
 	join := &plan.JoinNode{QuerySchema: append(append(plan.QuerySchema(nil), schema...), schema...), Kind: parser.JoinFull, Left: &plan.SourceNode{QuerySchema: schema, Occurrence: 0}, Right: &plan.SourceNode{QuerySchema: schema, Occurrence: 1}, LeftWidth: 1, RightWidth: 1, Predicate: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}}
-	stage, err := OpenJoinNode(context.Background(), &queryState{Source: inputs}, join)
+	stage, err := exec.OpenJoinNode(context.Background(), &queryState{Source: inputs}, join)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +158,7 @@ func TestQueryOuterJoinsNullRowsAreNotAbsentOccurrences(t *testing.T) {
 		}
 		for side, index := range []int{pair.Left, pair.Right} {
 			version := stage.Source.Versions[2*i+side]
-			if (version.Values == nil) != (index == AbsentQueryIndex) {
+			if (version.Values == nil) != (index == exec.AbsentQueryIndex) {
 				t.Fatal("real NULL cells confused with absent version", i, side, version)
 			}
 		}

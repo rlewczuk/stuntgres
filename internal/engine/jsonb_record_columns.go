@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -34,7 +35,7 @@ func (b *expressionBinder) jsonbRecordQualifierStar(columns []queryColumn, frame
 	}
 	offset := 0
 	for _, expression := range source.Calls {
-		width := FunctionFromCallWidth(expression)
+		width := exec.FunctionFromCallWidth(expression)
 		if call, selected := expression.(functions.JSONBRecord); selected && call.ResultUsage().Type.BaseType().IsComposite() {
 			if offset+width > len(qualifier.columns) {
 				return nil, fmt.Errorf("stuntgres: invalid JSONB record source span")

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
@@ -90,10 +91,10 @@ func TestQueryJoinsStatementFrontierAndNoWidening(t *testing.T) {
 	sessionSQL(t, b, "INSERT INTO a VALUES(2)")
 	sessionSQL(t, b, "INSERT INTO b VALUES(2)")
 	transactionEnd(t, b, peer, true)
-	if err = SelectQuerySources(op.ctx, source); err != nil {
+	if err = exec.SelectQuerySources(op.ctx, source); err != nil {
 		t.Fatal(err)
 	}
-	rows, n, err := Finalize(op.ctx, binding.query.Root, source, nil)
+	rows, n, err := exec.Finalize(op.ctx, binding.query.Root, source, nil)
 	if err != nil || n != 1 {
 		t.Fatal(rows, n, err)
 	}
@@ -216,7 +217,7 @@ func TestQueryJoinsGrantIdentityReplacement(t *testing.T) {
 	if !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal(old, err)
 	}
-	rows, n, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, n, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || n != 4 {
 		t.Fatal(rows, n, err)
 	}
@@ -523,7 +524,7 @@ func TestQueryJoinsSelectedPrivateRoots(t *testing.T) {
 			}
 			e.mu.Unlock()
 			if err == nil {
-				err = SelectQuerySources(op.ctx, source)
+				err = exec.SelectQuerySources(op.ctx, source)
 			}
 			if err != nil {
 				finish(err)
@@ -541,7 +542,7 @@ func TestQueryJoinsSelectedPrivateRoots(t *testing.T) {
 		if len(data.Committed) != 2 || len(data.Own) != ownCount || len(data.Deleted) != deleteCount || len(data.Own[unrelated.Address]) != 0 || data.Deleted[unrelated.Address] != nil {
 			t.Fatal("unrelated private roots retained", data)
 		}
-		rows, n, err := Finalize(context.Background(), query.Root, source, nil)
+		rows, n, err := exec.Finalize(context.Background(), query.Root, source, nil)
 		err = finish(err)
 		if err != nil || n != 1 {
 			t.Fatal(rows, n, err)

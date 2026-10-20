@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -44,7 +45,7 @@ func (b *expressionBinder) bindFunctionSource(raw parser.FunctionExpr) (expr.Exp
 		demand, _, _ := inquiry.SnapshotDemand(bareInquiryLiteralNull)
 		b.consumer.catalogSnapshot = b.consumer.catalogSnapshot || demand
 	}
-	if !SourceReturnsSet(node) && b.clause.fromSetObservation != before {
+	if !exec.SourceReturnsSet(node) && b.clause.fromSetObservation != before {
 		return nil, nestedFromSetError(b.clause.fromSetObservation.pos)
 	}
 	return node, nil

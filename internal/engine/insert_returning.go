@@ -2,6 +2,7 @@ package engine
 
 import (
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
@@ -19,7 +20,7 @@ func (s *StatementScope) beginInsertReturning(b binding) {
 	if b.returning == nil {
 		return
 	}
-	rows := NewFinalRows(b.returning.schema, 0)
+	rows := exec.NewFinalRows(b.returning.schema, 0)
 	rows.Output = s.output
 	s.insertReturning = &insertReturningOutput{binding: b, rows: rows}
 }

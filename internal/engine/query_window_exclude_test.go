@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -33,11 +34,11 @@ func TestQueryWindowExcludeMask(t *testing.T) {
 		for mode, want := range tc.want {
 			got := []int{}
 			for member := tc.head; member < tc.tail; member++ {
-				if WindowMaskAdmits(parser.FrameExclusion(mode), member, tc.current, tc.first, tc.last) {
+				if exec.WindowMaskAdmits(parser.FrameExclusion(mode), member, tc.current, tc.first, tc.last) {
 					got = append(got, member)
 				}
 			}
-			if !reflect.DeepEqual(got, want) || WindowMaskCount(parser.FrameExclusion(mode), tc.head, tc.tail, tc.current, tc.first, tc.last) != len(want) {
+			if !reflect.DeepEqual(got, want) || exec.WindowMaskCount(parser.FrameExclusion(mode), tc.head, tc.tail, tc.current, tc.first, tc.last) != len(want) {
 				t.Fatal(tc, mode, got, want)
 			}
 		}
@@ -57,21 +58,21 @@ func TestQueryWindowExcludeEndpoints(t *testing.T) {
 			var err error
 			switch unit {
 			case parser.FrameRows:
-				head, err = WindowRowsEndpoint(ctx, parser.FrameCurrentRow, 0, row, 3, false)
+				head, err = exec.WindowRowsEndpoint(ctx, parser.FrameCurrentRow, 0, row, 3, false)
 				if err == nil {
-					tail, err = WindowRowsEndpoint(ctx, parser.FrameCurrentRow, 0, row, 3, true)
+					tail, err = exec.WindowRowsEndpoint(ctx, parser.FrameCurrentRow, 0, row, 3, true)
 				}
 			case parser.FrameGroups:
-				head, err = WindowGroupsEndpoint(ctx, parser.FrameCurrentRow, 0, peers, group, false)
+				head, err = exec.WindowGroupsEndpoint(ctx, parser.FrameCurrentRow, 0, peers, group, false)
 				if err == nil {
-					tail, err = WindowGroupsEndpoint(ctx, parser.FrameCurrentRow, 0, peers, group, true)
+					tail, err = exec.WindowGroupsEndpoint(ctx, parser.FrameCurrentRow, 0, peers, group, true)
 				}
 			case parser.FrameRange:
 				spec := plan.WindowSpec{}
 				bound := plan.WindowBound{Kind: parser.FrameCurrentRow}
-				head, err = WindowFrameEndpoint(ctx, spec, bound, sqltype.Value{}, windowOrderState{}, []int{0, 1, 2}, first, last, 0, false, sqltype.InputEnvironment{})
+				head, err = exec.WindowFrameEndpoint(ctx, spec, bound, sqltype.Value{}, windowOrderState{}, []int{0, 1, 2}, first, last, 0, false, sqltype.InputEnvironment{})
 				if err == nil {
-					tail, err = WindowFrameEndpoint(ctx, spec, bound, sqltype.Value{}, windowOrderState{}, []int{0, 1, 2}, first, last, 0, true, sqltype.InputEnvironment{})
+					tail, err = exec.WindowFrameEndpoint(ctx, spec, bound, sqltype.Value{}, windowOrderState{}, []int{0, 1, 2}, first, last, 0, true, sqltype.InputEnvironment{})
 				}
 			}
 			if err != nil {
@@ -82,7 +83,7 @@ func TestQueryWindowExcludeEndpoints(t *testing.T) {
 				want = [4]int{1, 0, 0, 1}
 			}
 			for mode, n := range want {
-				if got := WindowMaskCount(parser.FrameExclusion(mode), head, tail, row, first, last); got != n {
+				if got := exec.WindowMaskCount(parser.FrameExclusion(mode), head, tail, row, first, last); got != n {
 					t.Fatal(unit, row, mode, got, n)
 				}
 			}
@@ -196,10 +197,10 @@ func (c *excludeCancelContext) Err() error {
 				caller = frame.Function
 			}
 			window = window || strings.HasSuffix(frame.Function, ".openWindowNode")
-			sum = sum || strings.HasSuffix(frame.Function, ".(*windowSums).Evaluate")
+			sum = sum || strings.HasSuffix(frame.Function, ".(*WindowSums).Evaluate")
 			hit = hit || strings.Contains(frame.Function, c.phase)
 			finalize = finalize || strings.HasSuffix(frame.Function, ".IntegralSum.Finalize")
-			publication = publication || strings.HasSuffix(frame.Function, "engine.Finalize")
+			publication = publication || strings.HasSuffix(frame.Function, "exec.Finalize")
 			if !more {
 				break
 			}
@@ -235,13 +236,13 @@ func TestQueryWindowExcludeCancellation(t *testing.T) {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				probe := &excludeCancelContext{Context: ctx, cancel: cancel, phase: phase}
-				rows, n, err := Finalize(probe, query.Root, source, nil)
+				rows, n, err := exec.Finalize(probe, query.Root, source, nil)
 				if !probe.entered || !errors.Is(err, context.Canceled) || rows != nil || n != 0 || source.View != nil {
 					t.Fatal(probe.entered, rows, n, err)
 				}
 				source.Close()
 				source.Close()
-				recovered, n, err := Finalize(context.Background(), query.Root, continuation, nil)
+				recovered, n, err := exec.Finalize(context.Background(), query.Root, continuation, nil)
 				if err != nil || recovered == nil || n != 4 {
 					t.Fatal(recovered, n, err)
 				}
@@ -312,12 +313,12 @@ func TestQueryWindowExcludePeers(t *testing.T) {
 	for _, tc := range []struct{ a, b, want int }{
 		{0, 1, 0}, {0, 2, -1}, {2, 0, 1}, {0, 3, -1}, {3, 4, -1}, {4, 3, 1},
 	} {
-		got, err := CompareWindowRows(context.Background(), keys, values, tc.a, tc.b, sqltype.InputEnvironment{})
+		got, err := exec.CompareWindowRows(context.Background(), keys, values, tc.a, tc.b, sqltype.InputEnvironment{})
 		if err != nil || got != tc.want {
 			t.Fatal(tc, got, err)
 		}
 	}
-	got, err := CompareWindowRows(context.Background(), nil, nil, 0, 4, sqltype.InputEnvironment{})
+	got, err := exec.CompareWindowRows(context.Background(), nil, nil, 0, 4, sqltype.InputEnvironment{})
 	if err != nil || got != 0 {
 		t.Fatal("orderless partition must be peers", got, err)
 	}
@@ -345,7 +346,7 @@ func TestQueryWindowExcludeLiteralCapture(t *testing.T) {
 		t.Fatal("SUM argument children not captured", binder.capture.literals, binder.capture.columns)
 	}
 	for _, literal := range binder.capture.literals {
-		value, err := literal.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+		value, err := literal.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 		n, integerErr := value.Integer()
 		if err != nil || integerErr != nil || n != 1 {
 			t.Fatal(value, err, integerErr)
@@ -360,7 +361,7 @@ func TestQueryWindowExcludeGroupedArgument(t *testing.T) {
 	if _, ok := window.Calls[0].Argument.(plan.GroupExpr); !ok {
 		t.Fatal("grouped SUM argument lost aggregate slot", window.Calls[0].Argument)
 	}
-	rows, n, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, n, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || rows == nil || n != 3 {
 		t.Fatal(rows, n, err)
 	}

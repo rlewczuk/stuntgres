@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -154,7 +155,7 @@ func (c *sqlCursor) openProducer(s *StatementScope) error {
 	}
 	c.authority.Expression = &cursorExpressionData{Identity: s.identity, StatementStart: s.statementStart}
 	c.state.Retain = c.scroll
-	stage, err := OpenQueryProjectStage(s.op.Context(), &c.state, c.root)
+	stage, err := exec.OpenQueryProjectStage(s.op.Context(), &c.state, c.root)
 	if err != nil {
 		return err
 	}
@@ -279,7 +280,7 @@ func (s *StatementScope) fetchHeldCursor(c *sqlCursor, fetch *parser.FetchCursor
 	}()
 	var rows *finalRows
 	if !fetch.Move {
-		rows = NewFinalRows(c.schema, 0)
+		rows = exec.NewFinalRows(c.schema, 0)
 		rows.Output = s.output
 	}
 	moved, err := c.motion(fetch, rows, s)

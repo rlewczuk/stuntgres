@@ -81,7 +81,7 @@ func infoCardinalNumberUnitEvaluate(t *testing.T, view catalog.Read, d *catalog.
 	t.Helper()
 	base := d.SQLType.DomainBase().Type
 	ctx := context.Background()
-	eval := EvalContext{evalStatement: evalStatement{Context: ctx, Catalog: view}}
+	eval := EvalContext{EvalStatement: evalStatement{Context: ctx, Catalog: view}}
 	eval.Input.DomainChecks = &eval
 	plan, err := sqltype.PlanCoercion(base.Usage(), d.SQLType.Usage(), sqltype.Assignment)
 	if err != nil {

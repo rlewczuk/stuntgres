@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/sqltype"
@@ -18,17 +19,17 @@ type deleteUsingCandidate struct {
 // occurrence indexes are retained, before any target row arbitration can wait.
 func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evaluation *EvalContext, positioned mutationRowIdentity) (Result, error) {
 	ctx := evaluation.Context
-	evaluation.Query.VirtualReads = QueryHasVirtualReads(b.delete.using) || BoundHasVirtualReads(b.predicate)
+	evaluation.Query.VirtualReads = exec.QueryHasVirtualReads(b.delete.using) || exec.BoundHasVirtualReads(b.predicate)
 	if b.returning != nil {
 		for _, expression := range b.returning.expressions {
-			evaluation.Query.VirtualReads = evaluation.Query.VirtualReads || BoundHasVirtualReads(expression)
+			evaluation.Query.VirtualReads = evaluation.Query.VirtualReads || exec.BoundHasVirtualReads(expression)
 		}
 	}
-	stage, err := OpenNode(ctx, evaluation.Query, b.delete.using)
+	stage, err := exec.OpenNode(ctx, evaluation.Query, b.delete.using)
 	if err != nil {
 		return Result{}, err
 	}
-	stage, err = SettlePendingQueryMarks(ctx, evaluation.Query, b.delete.using, stage)
+	stage, err = exec.SettlePendingQueryMarks(ctx, evaluation.Query, b.delete.using, stage)
 	if err != nil {
 		return Result{}, err
 	}
@@ -60,7 +61,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 			evaluation.Row = frame
 			evaluation.BindQueryIdentity(stage.Source, stage.Index(j))
 			evaluation.PhysicalTable = physical.Leaf.Ref
-			matches, err := UpdateMatches(evaluation, b.predicate)
+			matches, err := exec.UpdateMatches(evaluation, b.predicate)
 			if err != nil {
 				return Result{}, err
 			}
@@ -76,7 +77,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 	var rows *finalRows
 	keep := false
 	if b.returning != nil {
-		rows = NewFinalRows(b.returning.schema, 0)
+		rows = exec.NewFinalRows(b.returning.schema, 0)
 		rows.Output = s.output
 		defer func() {
 			if !keep {
@@ -113,7 +114,7 @@ func (s *StatementScope) deleteUsingSource(b binding, source *querySource, evalu
 			if err := s.physicalRowEvent(candidate.Ref, current, lock.MultiUpdateLock, 0); err != nil {
 				return Result{}, err
 			}
-			matches, err := UpdateMatches(evaluation, b.predicate)
+			matches, err := exec.UpdateMatches(evaluation, b.predicate)
 			if err != nil {
 				return Result{}, err
 			}

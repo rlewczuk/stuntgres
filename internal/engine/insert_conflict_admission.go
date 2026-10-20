@@ -94,7 +94,7 @@ func (s *StatementScope) revalidateConflictRows(ref ids.ObjectRef, rows indexWri
 			return indexWriteBatch{}, ids.ErrCatalogReplaced
 		}
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: s.op.Context(), Input: s.input, Output: s.output}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: s.op.Context(), Input: s.input, Output: s.output}}
 	if err := s.insertConflict.selectArbiters(&evaluation, binding.parent, s.op.session.Engine().catalog.read(binding.catalog)); err != nil {
 		return indexWriteBatch{}, err
 	}

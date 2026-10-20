@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -15,7 +16,7 @@ func TestJSONEachPredecessorFilterPlacement(t *testing.T) {
 	right := &plan.FunctionFromNode{QuerySchema: plan.QuerySchema{{Usage: types[sqltype.Text].Usage()}, {Usage: types[sqltype.JSON].Usage()}}, Correlated: true, Frame: 7}
 	join := &plan.JoinNode{QuerySchema: append(append(plan.QuerySchema(nil), left.Schema()...), right.Schema()...), Left: left, Right: right, LeftWidth: 1, RightWidth: 2, Kind: parser.JoinInner, CorrelatedRight: true, Frame: 7}
 	predicate := plan.ColumnExpr{Info: expr.Info{Usage: types[sqltype.Bool].Usage(), Property: expr.Properties{RowDependent: true}}, Frame: 7, Scope: 1, Slot: 0}
-	moved := FunctionFromWhere(join, predicate)
+	moved := exec.FunctionFromWhere(join, predicate)
 	if moved == nil || moved == join || moved.Right != right || moved.Frame != join.Frame || moved.LeftWidth != 1 || moved.RightWidth != 2 {
 		t.Fatal("incorrect copied join", moved)
 	}
@@ -25,7 +26,7 @@ func TestJSONEachPredecessorFilterPlacement(t *testing.T) {
 	}
 	unchanged := func(label string, root plan.Node, predicate expr.Expr) {
 		t.Helper()
-		if FunctionFromWhere(root, predicate) != nil {
+		if exec.FunctionFromWhere(root, predicate) != nil {
 			t.Fatal("unsafe predicate moved", label)
 		}
 	}
@@ -91,7 +92,7 @@ func TestJSONElementsPredecessorConjunctDemand(t *testing.T) {
 	// the TRUE row reaches three members, evaluating the volatile residual
 	// three times rather than once per source or once per unfiltered member.
 	for _, value := range []sqltype.Value{sqltype.Boolean(usage.Type, true), sqltype.Boolean(usage.Type, false), sqltype.Null(usage.Type)} {
-		evaluation := &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 7, Row: []sqltype.Value{value}}}
+		evaluation := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 7, Row: []sqltype.Value{value}}}
 		selected, err := predecessor.Predicate.Eval(evaluation)
 		if err != nil {
 			t.Fatal(err)

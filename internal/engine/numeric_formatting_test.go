@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -62,14 +63,14 @@ func TestNumericFormattingDemandAndRetag(t *testing.T) {
 		plan.LiteralExpr{Info: expr.Info{Usage: numeric.Usage()}, Value: sqltype.Null(numeric)},
 		plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, mask)},
 	}}
-	simplified, _, err := simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: ctx}}, n, false)
+	simplified, _, err := simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, n, false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := simplified.(functions.NumericFormatting); !ok {
 		t.Fatal("STABLE demand lost through NULL folding", simplified)
 	}
-	if PlannedVolatility(n) != expr.Stable || generationImmutable(n) || !b.sameGroupExpression(n, n) {
+	if exec.PlannedVolatility(n) != expr.Stable || generationImmutable(n) || !b.sameGroupExpression(n, n) {
 		t.Fatal("intrinsic STABLE/semantic identity")
 	}
 	other := n
@@ -85,7 +86,7 @@ func TestNumericFormattingDemandAndRetag(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(rebound, changed, err)
 	}
-	value, err := rebound.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+	value, err := rebound.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 	if err != nil || value.Type() != replacements[sqltype.Text] || n.ResultUsage().Type != text {
 		t.Fatal("retained descriptor ownership", value, err)
 	}

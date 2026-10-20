@@ -47,7 +47,7 @@ func TestMathHyperbolicEvaluationPhase(t *testing.T) {
 		if err != nil {
 			t.Fatal("binding evaluated provider", err)
 		}
-		c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+		c := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 		_, err = node.Eval(c)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || !reflect.DeepEqual(diagnostic, want) {

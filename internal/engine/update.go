@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -274,7 +275,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	}
 	inputs := source
 	if from != nil {
-		if err := SelectQuerySources(ctx, from); err != nil {
+		if err := exec.SelectQuerySources(ctx, from); err != nil {
 			return Result{}, err
 		}
 		if b.viewWrite != nil || b.rule.template {
@@ -299,24 +300,24 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	var updated map[mutationRowIdentity]bool
 	sourceCount := 1
 	if b.update.from != nil {
-		state.VirtualReads = QueryHasVirtualReads(b.update.from) || BoundHasVirtualReads(b.update.predicate)
+		state.VirtualReads = exec.QueryHasVirtualReads(b.update.from) || exec.BoundHasVirtualReads(b.update.predicate)
 		for _, expression := range b.update.assignments {
-			state.VirtualReads = state.VirtualReads || BoundHasVirtualReads(expression)
+			state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expression)
 		}
 		for _, target := range b.update.arrayTargets {
 			state.VirtualReads = state.VirtualReads || assignmentTargetHasVirtualReads(target)
 		}
 		if b.returning != nil {
 			for _, expression := range b.returning.expressions {
-				state.VirtualReads = state.VirtualReads || BoundHasVirtualReads(expression)
+				state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expression)
 			}
 		}
 		var err error
-		stage, err = OpenNode(ctx, &state, b.update.from)
+		stage, err = exec.OpenNode(ctx, &state, b.update.from)
 		if err != nil {
 			return Result{}, err
 		}
-		stage, err = SettlePendingQueryMarks(ctx, &state, b.update.from, stage)
+		stage, err = exec.SettlePendingQueryMarks(ctx, &state, b.update.from, stage)
 		if err != nil {
 			return Result{}, err
 		}
@@ -333,7 +334,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 	var output *finalRows
 	keep := false
 	if b.returning != nil {
-		output = NewFinalRows(b.returning.schema, 0)
+		output = exec.NewFinalRows(b.returning.schema, 0)
 		output.Output = s.output
 		defer func() {
 			if !keep {
@@ -362,7 +363,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 				eval.Row = frame
 				eval.BindQueryIdentity(stage.Source, stage.Index(j))
 			}
-			matches, err := UpdateMatches(&eval, b.update.predicate)
+			matches, err := exec.UpdateMatches(&eval, b.update.predicate)
 			if err != nil {
 				return Result{}, err
 			}
@@ -428,7 +429,7 @@ func (e *Engine) executeUpdate(ctx context.Context, s *StatementScope, b binding
 			if err := s.physicalRowEvent(ref, old, lock.MultiNoKeyLock, 0); err != nil {
 				return Result{}, err
 			}
-			matches, err := UpdateMatches(&eval, b.update.predicate)
+			matches, err := exec.UpdateMatches(&eval, b.update.predicate)
 			if err != nil {
 				return Result{}, err
 			}

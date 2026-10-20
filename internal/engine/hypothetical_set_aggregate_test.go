@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -78,7 +79,7 @@ func TestHypotheticalAggregateTupleEquality(t *testing.T) {
 	} {
 		_, in := hypotheticalUnitInput(t, tc.id, tc.direct, tc.values...)
 		for i := range in.len() {
-			sign, err := CompareOrderedAggregateTuple(context.Background(), in.order, in.tuple(i), in.target, sqltype.InputEnvironment{})
+			sign, err := exec.CompareOrderedAggregateTuple(context.Background(), in.order, in.tuple(i), in.target, sqltype.InputEnvironment{})
 			if err != nil || sign != 0 {
 				t.Fatal(tc, sign, err)
 			}
@@ -88,15 +89,15 @@ func TestHypotheticalAggregateTupleEquality(t *testing.T) {
 	for _, desc := range []bool{false, true} {
 		for _, nullsFirst := range []bool{false, true} {
 			in.order[0].Desc, in.order[0].NullsFirst = desc, nullsFirst
-			a, err := CompareOrderedAggregateTuple(context.Background(), in.order, in.tuple(0), in.target, sqltype.InputEnvironment{})
+			a, err := exec.CompareOrderedAggregateTuple(context.Background(), in.order, in.tuple(0), in.target, sqltype.InputEnvironment{})
 			if err != nil {
 				t.Fatal(err)
 			}
-			b, err := CompareOrderedAggregateTuple(context.Background(), in.order, in.target, in.tuple(0), sqltype.InputEnvironment{})
+			b, err := exec.CompareOrderedAggregateTuple(context.Background(), in.order, in.target, in.tuple(0), sqltype.InputEnvironment{})
 			if err != nil || a != -b || (a < 0) == desc {
 				t.Fatal("direction/antisymmetry", a, b, err)
 			}
-			a, err = CompareOrderedAggregateTuple(context.Background(), in.order, in.tuple(2), in.target, sqltype.InputEnvironment{})
+			a, err = exec.CompareOrderedAggregateTuple(context.Background(), in.order, in.tuple(2), in.target, sqltype.InputEnvironment{})
 			if err != nil || (a < 0) != nullsFirst {
 				t.Fatal("NULL direction", a, err)
 			}
@@ -192,7 +193,7 @@ func TestHypotheticalAggregateMaximumKeyExecution(t *testing.T) {
 			child := &plan.ValuesNode{Rows: [][]expr.Expr{{}}}
 			aggregate := &plan.AggregateNode{QuerySchema: plan.QuerySchema{{Usage: node.ResultUsage()}}, Child: child, Calls: []plan.AggregateCall{call}}
 			root := &plan.ProjectNode{QuerySchema: aggregate.QuerySchema, Child: aggregate, Expressions: []expr.Expr{plan.GroupExpr{Info: expr.Info{Usage: node.ResultUsage()}, Slot: 0, Frame: 1}}, Frame: 1}
-			rows, count, err := Finalize(context.Background(), root, &querySource{}, nil)
+			rows, count, err := exec.Finalize(context.Background(), root, &querySource{}, nil)
 			if err != nil || count != 1 {
 				t.Fatal("49-key private execution", count, err)
 			}
@@ -346,7 +347,7 @@ func TestHypotheticalAggregateCancellationPublication(t *testing.T) {
 			}
 			owned := &querySource{Anonymous: [][]sqltype.Value{{sqltype.Null(input)}}, Flat: []sqltype.Value{sqltype.Null(input)}}
 			source := &querySource{Sources: []*querySource{owned}}
-			rows, count, err := Finalize(execution, root, source, nil)
+			rows, count, err := exec.Finalize(execution, root, source, nil)
 			if phase == "success" {
 				if err != nil || count != 1 || !reflect.DeepEqual(directCalls, []int{0, 1}) || keyCalls != 6 {
 					t.Fatal("evaluation frequencies/order", directCalls, keyCalls, count, err)

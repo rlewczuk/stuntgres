@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
@@ -33,7 +34,7 @@ func metaphoneUnitExpression(t *testing.T, e *Engine) plan.InstalledMetaphoneExp
 func TestMetaphoneExpressionIdentity(t *testing.T) {
 	e, ext := daitchUnitInstalled(t)
 	n := metaphoneUnitExpression(t, e)
-	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 	for _, tc := range []struct {
 		name, want string
 		member     int
@@ -58,7 +59,7 @@ func TestMetaphoneExpressionIdentity(t *testing.T) {
 	}
 	value, err := n.Eval(ctx)
 	integer, readErr := value.Text()
-	if err != nil || readErr != nil || integer != "KM" || n.Ref.Address != ext.Members[5] || value.Type() != n.ResultUsage().Type || PlannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
+	if err != nil || readErr != nil || integer != "KM" || n.Ref.Address != ext.Members[5] || value.Type() != n.ResultUsage().Type || exec.PlannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
 		t.Fatal(value, n.Ref, err, readErr)
 	}
 	if err := validateInstalledMetaphone(n, e.CatalogRead()); err != nil {
@@ -211,7 +212,7 @@ func TestMetaphoneRemap(t *testing.T) {
 		if err := validateInstalledMetaphone(n, view); err != nil {
 			t.Fatal(err)
 		}
-		value, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+		value, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 		number, readErr := value.Text()
 		if err != nil || readErr != nil || number != "KM" || value.Type() != n.ResultUsage().Type {
 			t.Fatal(value, err, readErr)

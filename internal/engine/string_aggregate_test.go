@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -116,7 +117,7 @@ func TestStringAggregateEvaluationAndPublication(t *testing.T) {
 				}
 				return v, err
 			}}
-			rows, count, err := Finalize(ctx, q.Root, source, nil)
+			rows, count, err := exec.Finalize(ctx, q.Root, source, nil)
 			if phase == "success" {
 				if err != nil || count != 1 || values != 4 || separators != 4 || keys != 4 || advances != 3 || finalizes != 1 {
 					t.Fatal(count, err, values, separators, keys, advances, finalizes)
@@ -184,7 +185,7 @@ func TestStringAggregateActualComparisonCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	probe := &aggregateSortCancelContext{Context: ctx, cancel: cancel, aggregateOrdering: true}
-	rows, count, err := Finalize(probe, query.Root, source, nil)
+	rows, count, err := exec.Finalize(probe, query.Root, source, nil)
 	if !probe.comparisonEntered || err != context.Canceled || rows != nil || count != 0 || source.View != nil || source.Anonymous != nil {
 		t.Fatal("actual aggregate comparison cancellation/publication", probe.comparisonEntered, rows, count, err, source)
 	}

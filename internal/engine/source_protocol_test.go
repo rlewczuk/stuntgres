@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -15,7 +16,7 @@ import (
 func TestSourceProtocolSubstitution(t *testing.T) {
 	b := newTestExpressionBinder(t, context.Background(), New(), sqltype.InputEnvironment{}, nil)
 	original := jsonRecordUnitCall(t, b, "json_to_record", true)
-	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 	value, err := original.Args[0].Eval(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -132,13 +133,13 @@ func TestSourceProtocolOccurrence(t *testing.T) {
 
 func TestSourceProtocolBorrowedLifetime(t *testing.T) {
 	call := arrayRelationalUnitUnnest(t, "{1,NULL,3}")
-	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
-	first, err := OpenFunctionSource(ctx, call)
+	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
+	first, err := exec.OpenFunctionSource(ctx, call)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer first.Close()
-	second, err := OpenFunctionSource(ctx, call)
+	second, err := exec.OpenFunctionSource(ctx, call)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +172,7 @@ func TestSourceProtocolBorrowedLifetime(t *testing.T) {
 		t.Fatal("cancellation must win even after close", err)
 	}
 	multirange := moreUnitExpression(t, New().CatalogRead())
-	members, err := OpenFunctionSource(ctx, multirange)
+	members, err := exec.OpenFunctionSource(ctx, multirange)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,15 +188,15 @@ func TestSourceProtocolBorrowedLifetime(t *testing.T) {
 }
 
 func TestSourceProtocolCursorOwnership(t *testing.T) {
-	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 	d := seriesUnitType(t, sqltype.Numeric)
 	call := numericSeriesUnit(t, d, "0.1", "0.3", "0.10")
-	first, err := OpenFunctionSource(ctx, call)
+	first, err := exec.OpenFunctionSource(ctx, call)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer first.Close()
-	second, err := OpenFunctionSource(ctx, call)
+	second, err := exec.OpenFunctionSource(ctx, call)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +226,7 @@ func TestSourceProtocolCursorOwnership(t *testing.T) {
 	if err != nil || text != "0.1" {
 		t.Fatal("mutable native state changed published value", text, err)
 	}
-	reopened, err := OpenFunctionSource(ctx, call)
+	reopened, err := exec.OpenFunctionSource(ctx, call)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,7 +253,7 @@ func TestSourceProtocolPresence(t *testing.T) {
 		}
 		call := plan.UnnestExpr{Info: expr.Info{Usage: empty.Usage()}, Args: []expr.Expr{plan.LiteralExpr{Info: expr.Info{Usage: array.Usage()}, Value: value}}}
 		for _, reverse := range []bool{false, true} {
-			borrowed, err := OpenFunctionSource(&EvalContext{evalStatement: evalStatement{Context: ctx}}, call)
+			borrowed, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, call)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -285,11 +286,11 @@ func TestSourceProtocolCancellation(t *testing.T) {
 		t.Fatal("precanceled open evaluated an argument")
 		return sqltype.Value{}, nil
 	})
-	if cursor, err := OpenFunctionSource(&EvalContext{evalStatement: evalStatement{Context: canceled}}, call); !errors.Is(err, context.Canceled) || cursor.Type != nil {
+	if cursor, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: canceled}}, call); !errors.Is(err, context.Canceled) || cursor.Type != nil {
 		t.Fatal("precanceled source published state", cursor, err)
 	}
 	healthy := seriesUnit(t, d, 1, 1)
-	cursor, err := OpenFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, healthy)
+	cursor, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, healthy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -300,7 +301,7 @@ func TestSourceProtocolCancellation(t *testing.T) {
 	if _, present, err := cursor.Next(canceled); present || !errors.Is(err, context.Canceled) {
 		t.Fatal("cancellation lost at exhausted boundary", present, err)
 	}
-	reopened, err := OpenFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, healthy)
+	reopened, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, healthy)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -313,18 +314,18 @@ func TestSourceProtocolCancellation(t *testing.T) {
 }
 
 func TestSourceProtocolCleanup(t *testing.T) {
-	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 	d := seriesUnitType(t, sqltype.Numeric)
 	first := numericSeriesUnit(t, d, "0.1", "0.3", "0.10")
 	failure := errors.New("later source argument")
 	later := seriesUnit(t, seriesUnitType(t, sqltype.Int4), 1, 2)
 	later.Args[0] = queryProbe(later.Args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure })
-	invocation, err := OpenFunctionInvocation(ctx, &plan.FunctionFromNode{Calls: []expr.Expr{first, later}})
+	invocation, err := exec.OpenFunctionInvocation(ctx, &plan.FunctionFromNode{Calls: []expr.Expr{first, later}})
 	if !errors.Is(err, failure) || invocation.Cursors != nil {
 		t.Fatal("partial open exposed an invocation", invocation, err)
 	}
 	// A failed sibling never consumes or mutates the retained numeric recipe.
-	reopened, err := OpenFunctionSource(ctx, first)
+	reopened, err := exec.OpenFunctionSource(ctx, first)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -342,7 +343,7 @@ func sourceProtocolSurvivorSubstitution(t *testing.T) {
 	engine := New()
 	b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	record := jsonRecordUnitCall(t, b, "json_to_record", true)
-	input, err := record.Args[0].Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+	input, err := record.Args[0].Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -373,11 +374,11 @@ func sourceProtocolSurvivorSubstitution(t *testing.T) {
 		t.Fatal(err)
 	}
 	project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Name: "record", Usage: call.Usage}}, Child: root, Expressions: requests, Frame: 1, HasTargetSet: true}
-	planned, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: ctx, Catalog: engine.CatalogRead()}}, project)
+	planned, err := preflightQuery(&EvalContext{EvalStatement: evalStatement{Context: ctx, Catalog: engine.CatalogRead()}}, project)
 	if err != nil {
 		t.Fatal(err)
 	}
-	stage, err := OpenNode(ctx, &queryState{Source: &querySource{}, Frame: 1}, planned)
+	stage, err := exec.OpenNode(ctx, &queryState{Source: &querySource{}, Frame: 1}, planned)
 	if err != nil {
 		t.Fatal(err)
 	}

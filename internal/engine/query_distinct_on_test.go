@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -64,14 +65,14 @@ func TestQueryDistinctOnCollisionCandidates(t *testing.T) {
 	one, _ := sqltype.Integer(typ, 1)
 	two, _ := sqltype.Integer(typ, 2)
 	flat := []sqltype.Value{one, two}
-	if index, err := FindDistinctTuple(context.Background(), node.Grouping, []sqltype.Value{two}, flat, []int{0}); err != nil || index != -1 {
+	if index, err := exec.FindDistinctTuple(context.Background(), node.Grouping, []sqltype.Value{two}, flat, []int{0}); err != nil || index != -1 {
 		t.Fatal("hash collision suppressed unequal ON key", index, err)
 	}
-	if index, err := FindDistinctTuple(context.Background(), node.Grouping, []sqltype.Value{two}, flat, []int{0, 1}); err != nil || index != 1 {
+	if index, err := exec.FindDistinctTuple(context.Background(), node.Grouping, []sqltype.Value{two}, flat, []int{0, 1}); err != nil || index != 1 {
 		t.Fatal(index, err)
 	}
 	ctx := &aggregateCancelContext{Context: context.Background(), armed: true, at: 4}
-	if _, err := FindDistinctTuple(ctx, node.Grouping, []sqltype.Value{two}, flat, []int{0, 1}); !errors.Is(err, context.Canceled) {
+	if _, err := exec.FindDistinctTuple(ctx, node.Grouping, []sqltype.Value{two}, flat, []int{0, 1}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 }
@@ -126,7 +127,7 @@ func TestQueryDistinctOnFailureCancellationAndPublication(t *testing.T) {
 					})
 				}
 			}
-			rows, count, err := Finalize(execution, query.Root, source, nil)
+			rows, count, err := exec.Finalize(execution, query.Root, source, nil)
 			want := error(context.Canceled)
 			if phase == "late key" {
 				want = sentinel
@@ -172,7 +173,7 @@ func TestQueryDistinctOnLaterComponentDemand(t *testing.T) {
 		}
 		return second.Eval(c)
 	})
-	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if rows != nil || count != 0 || err != sentinel || calls != 4 || source.View != nil {
 		t.Fatal(rows, count, err, calls, source.View)
 	}

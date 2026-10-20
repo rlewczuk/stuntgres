@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/lock"
@@ -58,7 +59,7 @@ func TestQueryFilterProvenEmptyDemand(t *testing.T) {
 				state.Parameters = []sqltype.Value{value}
 			}
 			node := &plan.FilterNode{QuerySchema: project.Schema(), Child: &plan.SourceNode{QuerySchema: project.Schema(), Ref: input.Ref}, Predicate: predicate}
-			stage, err := OpenNode(context.Background(), state, node)
+			stage, err := exec.OpenNode(context.Background(), state, node)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -83,9 +84,9 @@ func TestQueryFilterProvenEmptyDemand(t *testing.T) {
 }
 
 func TestQueryFilterPredicateProofBoundaries(t *testing.T) {
-	c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+	c := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 	for _, expression := range []expr.Expr{plan.ColumnExpr{}, &plan.WindowExpr{}, plan.SubqueryExpr{}} {
-		if rejects, err := QueryPredicateRejectsAll(c, expression); rejects || err != nil {
+		if rejects, err := exec.QueryPredicateRejectsAll(c, expression); rejects || err != nil {
 			t.Fatal("row/stage/subquery expression used as empty-input proof", expression, rejects, err)
 		}
 	}
@@ -95,16 +96,16 @@ func TestQueryFilterPredicateProofBoundaries(t *testing.T) {
 		calls++
 		return sqltype.Boolean(boolean, false), nil
 	})
-	if rejects, err := QueryPredicateRejectsAll(c, dynamic); rejects || err != nil || calls != 0 {
+	if rejects, err := exec.QueryPredicateRejectsAll(c, dynamic); rejects || err != nil || calls != 0 {
 		t.Fatal("arbitrary expression evaluated as proof", rejects, calls, err)
 	}
 	parameter := plan.ParameterExpr{Info: expr.Info{Usage: boolean.Usage()}, Number: 1}
-	if rejects, err := QueryPredicateRejectsAll(c, parameter); rejects || err == nil {
+	if rejects, err := exec.QueryPredicateRejectsAll(c, parameter); rejects || err == nil {
 		t.Fatal("invalid imported frame was suppressed", rejects, err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := OpenNode(ctx, &queryState{}, &plan.FilterNode{Predicate: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}})
+	_, err := exec.OpenNode(ctx, &queryState{}, &plan.FilterNode{Predicate: plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal("empty-input gate erased cancellation", err)
 	}
@@ -114,7 +115,7 @@ func TestViewQualificationProvenEmptyDemand(t *testing.T) {
 	boolean, _ := New().CatalogRead().LookupType(sqltype.Bool)
 	for _, value := range []sqltype.Value{sqltype.Boolean(boolean, false), sqltype.Null(boolean), sqltype.Boolean(boolean, true)} {
 		for _, parameter := range []bool{false, true} {
-			c := &EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}}
+			c := &EvalContext{EvalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}}}
 			var user expr.Expr = plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: value}
 			if parameter {
 				user = plan.ParameterExpr{Info: expr.Info{Usage: boolean.Usage()}, Number: 1}
@@ -156,7 +157,7 @@ func TestViewQualificationProvenEmptyDemand(t *testing.T) {
 		return sqltype.Boolean(boolean, true), nil
 	})
 	expression := plan.ViewQualificationExpr{Info: expr.Info{Usage: boolean.Usage()}, Predicates: []expr.Expr{hidden}, User: user}
-	got, err := expression.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+	got, err := expression.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 	truth, truthErr := plan.TruthOf(got)
 	if err != nil || truthErr != nil || truth != plan.False || len(order) != 1 || order[0] != "hidden" {
 		t.Fatal("arbitrary user work ran ahead of hidden-row qualification", order, err)
@@ -164,7 +165,7 @@ func TestViewQualificationProvenEmptyDemand(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	expression.User = plan.LiteralExpr{Info: expr.Info{Usage: boolean.Usage()}, Value: sqltype.Boolean(boolean, false)}
-	if _, err := expression.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}}); !errors.Is(err, context.Canceled) || len(order) != 1 {
+	if _, err := expression.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}}); !errors.Is(err, context.Canceled) || len(order) != 1 {
 		t.Fatal("empty user input erased cancellation", order, err)
 	}
 }

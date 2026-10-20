@@ -7,6 +7,7 @@ import (
 	"errors"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
@@ -67,14 +68,14 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 	}
 	state := &queryState{Source: inputs, Parameters: parameters, Input: s.input, Output: s.output, Ctes: s.cteInvocation}
 	defer state.ReleaseMemberships()
-	m.request.Parameters, err = ForeignParameters(s.op.Context(), state, target.Foreign)
+	m.request.Parameters, err = exec.ForeignParameters(s.op.Context(), state, target.Foreign)
 	if err != nil {
 		return Result{}, err
 	}
 	if err = m.begin(s.op.Context(), s); err != nil {
 		return Result{}, err
 	}
-	if err = SelectQuerySources(s.op.Context(), inputs); err != nil {
+	if err = exec.SelectQuerySources(s.op.Context(), inputs); err != nil {
 		return Result{}, err
 	}
 	evaluation := execution.evaluation
@@ -150,7 +151,7 @@ func (e *Engine) executeForeignCommandLocked(s *StatementScope, stmt parser.Stat
 func (s *StatementScope) foreignInsertResult(m *foreignModification, b binding, rows [][]sqltype.Value, evaluation *EvalContext) (Result, error) {
 	var output *finalRows
 	if b.returning != nil {
-		output = NewFinalRows(b.returning.schema, 0)
+		output = exec.NewFinalRows(b.returning.schema, 0)
 		output.Output = s.output
 	}
 	rowByRow := b.returning != nil || b.viewWrite != nil && len(b.viewWrite.checks) != 0
@@ -220,19 +221,19 @@ type foreignMutationRow struct {
 
 func (m *foreignModification) targetRows(ctx context.Context, s *StatementScope) ([]foreignMutationRow, error) {
 	f := m.source
-	r := CopyForeignRequest(m.request.ForeignRequest)
+	r := exec.CopyForeignRequest(m.request.ForeignRequest)
 	r.Identity = &m.request.Targets
 	execution := &foreignExecution{}
-	planning := CopyForeignRequest(r)
+	planning := exec.CopyForeignRequest(r)
 	planning.Transaction = nil
 	if err := f.Plan(ctx, planning, execution); err != nil {
 		return nil, err
 	}
 	f.Executions = append(f.Executions, execution)
-	scan, err := f.Wrapper.BeginForeignScan(ctx, CopyForeignRequest(r), execution.Plan)
+	scan, err := f.Wrapper.BeginForeignScan(ctx, exec.CopyForeignRequest(r), execution.Plan)
 	execution.Scan = scan
 	if err != nil {
-		return nil, ForeignCallbackError(err)
+		return nil, exec.ForeignCallbackError(err)
 	}
 	identityScan, ok := scan.(catalog.ForeignIdentityScan)
 	if !ok {
@@ -245,7 +246,7 @@ func (m *foreignModification) targetRows(ctx context.Context, s *StatementScope)
 		}
 		row, identity, present, err := identityScan.IterateForeignIdentity(ctx)
 		if err != nil {
-			return nil, ForeignCallbackError(err)
+			return nil, exec.ForeignCallbackError(err)
 		}
 		if !present {
 			break
@@ -265,7 +266,7 @@ func (m *foreignModification) targetRows(ctx context.Context, s *StatementScope)
 		if err != nil {
 			return nil, err
 		}
-		rows = append(rows, foreignMutationRow{row: values, identity: CopyForeignCells(identity)})
+		rows = append(rows, foreignMutationRow{row: values, identity: exec.CopyForeignCells(identity)})
 	}
 	return rows, nil
 }
@@ -303,10 +304,10 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b bin
 	var frame []sqltype.Value
 	sourceCount := 1
 	if from != nil {
-		state.VirtualReads = QueryHasVirtualReads(from) || BoundHasVirtualReads(predicate)
+		state.VirtualReads = exec.QueryHasVirtualReads(from) || exec.BoundHasVirtualReads(predicate)
 		if b.update != nil {
 			for _, expression := range b.update.assignments {
-				state.VirtualReads = state.VirtualReads || BoundHasVirtualReads(expression)
+				state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expression)
 			}
 			for _, target := range b.update.arrayTargets {
 				state.VirtualReads = state.VirtualReads || assignmentTargetHasVirtualReads(target)
@@ -314,10 +315,10 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b bin
 		}
 		if b.returning != nil {
 			for _, expression := range b.returning.expressions {
-				state.VirtualReads = state.VirtualReads || BoundHasVirtualReads(expression)
+				state.VirtualReads = state.VirtualReads || exec.BoundHasVirtualReads(expression)
 			}
 		}
-		stage, err = OpenNode(ctx, state, from)
+		stage, err = exec.OpenNode(ctx, state, from)
 		if err != nil {
 			return Result{}, err
 		}
@@ -333,7 +334,7 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b bin
 	var output *finalRows
 	keep := false
 	if b.returning != nil {
-		output = NewFinalRows(b.returning.schema, 0)
+		output = exec.NewFinalRows(b.returning.schema, 0)
 		output.Output = s.output
 		defer func() {
 			if !keep {
@@ -356,7 +357,7 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b bin
 				evaluation.Row = frame
 				evaluation.BindQueryIdentity(stage.Source, stage.Index(i))
 			}
-			matches, err := UpdateMatches(evaluation, predicate)
+			matches, err := exec.UpdateMatches(evaluation, predicate)
 			if err != nil {
 				return Result{}, err
 			}
@@ -384,19 +385,19 @@ func (s *StatementScope) executeForeignRowMutation(m *foreignModification, b bin
 				if err != nil {
 					return Result{}, err
 				}
-				returned, present, err = m.source.Wrapper.(catalog.ForeignUpdater).ExecForeignUpdate(ctx, m.callbackRequest(), m.state, CopyForeignCells(candidate.identity), input)
+				returned, present, err = m.source.Wrapper.(catalog.ForeignUpdater).ExecForeignUpdate(ctx, m.callbackRequest(), m.state, exec.CopyForeignCells(candidate.identity), input)
 				if err != nil {
-					return Result{}, ForeignCallbackError(err)
+					return Result{}, exec.ForeignCallbackError(err)
 				}
 			} else {
 				input, exportErr := m.export(ctx, candidate.row, s)
 				if exportErr != nil {
 					return Result{}, exportErr
 				}
-				returned, present, err = m.source.Wrapper.(catalog.ForeignDeleter).ExecForeignDelete(ctx, m.callbackRequest(), m.state, CopyForeignCells(candidate.identity), input)
+				returned, present, err = m.source.Wrapper.(catalog.ForeignDeleter).ExecForeignDelete(ctx, m.callbackRequest(), m.state, exec.CopyForeignCells(candidate.identity), input)
 			}
 			if err != nil {
-				return Result{}, ForeignCallbackError(err)
+				return Result{}, exec.ForeignCallbackError(err)
 			}
 			if !present {
 				continue

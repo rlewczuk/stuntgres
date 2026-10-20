@@ -106,7 +106,7 @@ func TestUpdateRowEvaluation(t *testing.T) {
 		e := New()
 		typ, _ := e.CatalogRead().LookupType(sqltype.Int4)
 		old := []sqltype.Value{subqueryTestInteger(t, typ, 10), subqueryTestInteger(t, typ, 20)}
-		c := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Row: old}}
+		c := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Row: old}}
 		calls := [2]int{}
 		action := &boundUpdate{assignments: []expr.Expr{
 			queryProbe(typ.Usage(), func(c *EvalContext) (sqltype.Value, error) { calls[0]++; return c.Row[1], nil }),

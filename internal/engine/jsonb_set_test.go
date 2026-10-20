@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -35,7 +36,7 @@ func TestJSONBSetBindingInferenceAndProperties(t *testing.T) {
 			t.Fatal("lost formal inference", i, b.params.parameters)
 		}
 	}
-	if e.Count != 5 || e.WrittenCount != 5 || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable || PlannedVolatility(node) != expr.Immutable {
+	if e.Count != 5 || e.WrittenCount != 5 || !node.Properties().ParameterDependent || node.Properties().Volatility != expr.Immutable || exec.PlannedVolatility(node) != expr.Immutable {
 		t.Fatal(e, node.Properties())
 	}
 	for slot, id := range ids {
@@ -59,7 +60,7 @@ func TestJSONBSetBindingInferenceAndProperties(t *testing.T) {
 		if err != nil {
 			t.Fatal(slot, err)
 		}
-		if n.Properties().Volatility != expr.Volatile || PlannedVolatility(n) != expr.Volatile || generationImmutable(n) {
+		if n.Properties().Volatility != expr.Volatile || exec.PlannedVolatility(n) != expr.Volatile || generationImmutable(n) {
 			t.Fatal("hidden volatile child", slot, n.Properties())
 		}
 	}
@@ -97,7 +98,7 @@ func TestJSONBSetRetagRemapAndPresentation(t *testing.T) {
 	if n.WrittenSlots != e.WrittenSlots || n.Labels != e.Labels || n.WrittenCount != e.WrittenCount {
 		t.Fatal("presentation lost")
 	}
-	got, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+	got, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +139,7 @@ func TestJSONBSetRetagRemapAndPresentation(t *testing.T) {
 		t.Fatal(err)
 	}
 	replayed := jsonbSetUnitBind(t, newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil), "SELECT "+replaySQL)
-	replayValue, err := replayed.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+	replayValue, err := replayed.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal("named/default view replay", err)
 	}
@@ -166,7 +167,7 @@ func TestJSONBSetViewReplayDeterminism(t *testing.T) {
 				if err != nil {
 					t.Fatal(round, err)
 				}
-				value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+				value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 				if err != nil {
 					t.Fatal(round, err)
 				}
@@ -229,7 +230,7 @@ func TestJSONBSetAllSlotGroupAndDependencyTraversal(t *testing.T) {
 
 func TestJSONBSetConstantPreflight(t *testing.T) {
 	ctx := context.Background()
-	eval := &EvalContext{evalStatement: evalStatement{Context: ctx}}
+	eval := &EvalContext{EvalStatement: evalStatement{Context: ctx}}
 	for _, q := range []string{`SELECT jsonb_set('{"a":1}','{a}','2')`, `SELECT jsonb_set_lax('{"a":1}','{a}',NULL,true,'delete_key')`} {
 		b := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 		node := jsonbSetUnitBind(t, b, q)

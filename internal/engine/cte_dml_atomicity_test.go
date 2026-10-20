@@ -179,7 +179,7 @@ func TestCTEDMLLateFailureIdentity(t *testing.T) {
 			})
 			cteMutationOf(bound.ctes[1]).returning.expressions = []expr.Expr{probe}
 			quotes := quoteCaptureCandidate{}
-			evaluation := EvalContext{evalStatement: evalStatement{Context: ctx, Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output, QuoteCaptures: &quotes}}
+			evaluation := EvalContext{EvalStatement: evalStatement{Context: ctx, Host: hostOf(scope), Catalog: auth.Catalog, Input: scope.input, Output: scope.output, QuoteCaptures: &quotes}}
 			e.mu.Lock()
 			result, err := e.executeCTECommandsLocked(scope, ast, bound, auth, nil, evaluation, nil, nil)
 			want := primary

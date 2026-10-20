@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -51,7 +52,7 @@ func planningFold(node expr.Expr) expr.Fold {
 
 func anyRandomLiteralNull(children []expr.Expr) bool {
 	for _, child := range children {
-		if RandomLiteralNull(child) {
+		if exec.RandomLiteralNull(child) {
 			return true
 		}
 	}

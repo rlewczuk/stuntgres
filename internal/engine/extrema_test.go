@@ -5,6 +5,7 @@ import (
 	"errors"
 	"runtime"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"testing"
@@ -49,7 +50,7 @@ func TestExtremaActualComparatorCancellationOwnership(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT "+name+"(v) FROM t")
 		ctx, cancel := context.WithCancel(context.Background())
 		probe := &extremaCompareCancelContext{Context: ctx, cancel: cancel}
-		rows, count, err := Finalize(probe, query.Root, source, nil)
+		rows, count, err := exec.Finalize(probe, query.Root, source, nil)
 		cancel()
 		if !probe.entered || err != context.Canceled || rows != nil || count != 0 || source.View != nil || source.Anonymous != nil {
 			t.Fatal("actual comparator publication/ownership", probe.entered, rows, count, err, source)
@@ -79,7 +80,7 @@ func TestExtremaEagerEvaluationAndSlots(t *testing.T) {
 	original := node.Calls[0].Argument
 	calls := 0
 	node.Calls[0].Argument = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return original.Eval(c) })
-	rows, _, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, _, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +110,7 @@ func TestExtremaEagerEvaluationAndSlots(t *testing.T) {
 		}
 		return argument.Eval(c)
 	})
-	result, count, err := Finalize(context.Background(), failed.Root, failedSource, nil)
+	result, count, err := exec.Finalize(context.Background(), failed.Root, failedSource, nil)
 	if result != nil || count != 0 || err != sentinel || calls != 4 || failedSource.View != nil || failedSource.Anonymous != nil {
 		t.Fatal(result, count, err, calls, failedSource)
 	}

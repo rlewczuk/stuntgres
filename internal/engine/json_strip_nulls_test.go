@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -49,8 +50,8 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 	} {
 		binder := newTestExpressionBinder(t, ctx, New(), sqltype.InputEnvironment{}, nil)
 		n := jsonStripUnitBind(t, binder, tc.q)
-		if n.Properties().Volatility != tc.volatility || PlannedVolatility(n) != tc.volatility || plannedIntrinsicVolatility(n) != expr.Immutable {
-			t.Fatal(tc.q, n.Properties(), PlannedVolatility(n))
+		if n.Properties().Volatility != tc.volatility || exec.PlannedVolatility(n) != tc.volatility || plannedIntrinsicVolatility(n) != expr.Immutable {
+			t.Fatal(tc.q, n.Properties(), exec.PlannedVolatility(n))
 		}
 	}
 	// Use the existing typed binder witness for a volatile Boolean child,
@@ -62,8 +63,8 @@ func TestJSONStripNullsBindingInferenceAndProperties(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if volatile.Properties().Volatility != expr.Volatile || PlannedVolatility(volatile) != expr.Volatile || plannedIntrinsicVolatility(volatile) != expr.Immutable || generationImmutable(volatile) {
-		t.Fatal("volatile Boolean child lost", volatile.Properties(), PlannedVolatility(volatile))
+	if volatile.Properties().Volatility != expr.Volatile || exec.PlannedVolatility(volatile) != expr.Volatile || plannedIntrinsicVolatility(volatile) != expr.Immutable || generationImmutable(volatile) {
+		t.Fatal("volatile Boolean child lost", volatile.Properties(), exec.PlannedVolatility(volatile))
 	}
 }
 
@@ -84,10 +85,10 @@ func TestJSONStripNullsBindingRetagRemap(t *testing.T) {
 			t.Fatal("retag lost authority", i)
 		}
 	}
-	if n.WrittenSlots != e.WrittenSlots || n.Labels != e.Labels || PlannedVolatility(n) != expr.Immutable {
+	if n.WrittenSlots != e.WrittenSlots || n.Labels != e.Labels || exec.PlannedVolatility(n) != expr.Immutable {
 		t.Fatal("retag lost presentation/volatility")
 	}
-	got, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+	got, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +97,7 @@ func TestJSONStripNullsBindingRetagRemap(t *testing.T) {
 		t.Fatal(out, err)
 	}
 	mapped, err := remapBoundExpression(e, func(ref ids.ObjectRef) ids.ObjectRef { return ref }, nil)
-	if err != nil || !sameGroupExpression(e, mapped) || PlannedVolatility(mapped) != expr.Immutable {
+	if err != nil || !sameGroupExpression(e, mapped) || exec.PlannedVolatility(mapped) != expr.Immutable {
 		t.Fatal(mapped, err)
 	}
 	different := e
@@ -131,7 +132,7 @@ func TestJSONStripNullsBindingStoredPresentation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+			value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 			if err != nil {
 				t.Fatal(err)
 			}

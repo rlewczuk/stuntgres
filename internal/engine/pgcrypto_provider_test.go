@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
@@ -156,10 +157,10 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	n := node.(plan.InstalledCryptoExpr)
-	if n.Ref.Address != ext.Members[2] || PlannedVolatility(n) != expr.Immutable || n.ResultUsage().Type.ID() != sqltype.Bytea {
+	if n.Ref.Address != ext.Members[2] || exec.PlannedVolatility(n) != expr.Immutable || n.ResultUsage().Type.ID() != sqltype.Bytea {
 		t.Fatal(n)
 	}
-	value, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+	value, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 	bytes, _ := value.Binary()
 	if err != nil || hex.EncodeToString([]byte(bytes)) != "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843" {
 		t.Fatal(bytes, err)
@@ -258,7 +259,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 			t.Fatal(v.name, err)
 		}
 		call := bound.(plan.InstalledCryptoExpr)
-		if call.ResultUsage().Type.ID() != v.result || PlannedVolatility(call) != expr.Volatile || !closedPgcryptoDefault(call) {
+		if call.ResultUsage().Type.ID() != v.result || exec.PlannedVolatility(call) != expr.Volatile || !closedPgcryptoDefault(call) {
 			t.Fatal("random/FIPS properties", call)
 		}
 		if err := validateInstalledCrypto(call, e.CatalogRead()); err != nil {
@@ -277,7 +278,7 @@ func TestPgcryptoExpressionIdentity(t *testing.T) {
 		if err := validateInstalledCrypto(actual, e.CatalogRead()); err != nil {
 			t.Fatal(err)
 		}
-		if PlannedVolatility(actual) != expr.Volatile || !closedPgcryptoDefault(actual) {
+		if exec.PlannedVolatility(actual) != expr.Volatile || !closedPgcryptoDefault(actual) {
 			t.Fatal("lost reconstructed volatility")
 		}
 		rendered, err := (scalarRenderer{}).sql(context.Background(), e.CatalogRead(), actual)

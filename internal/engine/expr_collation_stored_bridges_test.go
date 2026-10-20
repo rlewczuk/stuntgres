@@ -69,7 +69,7 @@ func TestExprCollationStoredPreflightDemand(t *testing.T) {
 			if len(bound.querySources) != 1 || !reflect.DeepEqual(bound.querySources[0].Uses, tc.uses) {
 				t.Fatal("ordinary source occurrence uses", bound.querySources, tc.uses)
 			}
-			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope), Input: scope.input, Output: scope.output}, evalFrame: evalFrame{Scope: 1, Frame: bound.query.Root.(*plan.ProjectNode).Frame}}
+			evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope), Input: scope.input, Output: scope.output}, EvalFrame: evalFrame{Scope: 1, Frame: bound.query.Root.(*plan.ProjectNode).Frame}}
 			err := validateQueryJoinExecution(&evaluation, bound.query.Root, e.CatalogRead(), 0)
 			if tc.fail {
 				var diagnostic *sqlstate.Error
@@ -219,7 +219,7 @@ func TestExprCollationDomainDerivation(t *testing.T) {
 					t.Fatal("domain reset discarded child properties/dependencies", left.Properties(), bound.querySources)
 				}
 			}
-			value, err := comparison.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: bound.query.Root.(*plan.ProjectNode).Frame, Row: []sqltype.Value{sqltype.String(text, "A"), sqltype.String(text, "A")}}})
+			value, err := comparison.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: bound.query.Root.(*plan.ProjectNode).Frame, Row: []sqltype.Value{sqltype.String(text, "A"), sqltype.String(text, "A")}}})
 			if tc.conflict {
 				var diagnostic *sqlstate.Error
 				if !errors.As(err, &diagnostic) || *diagnostic != (sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42P22", Message: "could not determine which collation to use for string comparison", Hint: "Use the COLLATE clause to set the collation explicitly."}) {

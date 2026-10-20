@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -31,7 +32,7 @@ func normalizeConflictPredicate(ctx *EvalContext, node expr.Expr) (expr.Expr, er
 		return nil, nil
 	}
 	p := node.Properties()
-	if !p.RowDependent && !p.StageDependent && !p.RuntimeDomainConversion && PlannedVolatility(node) == expr.Immutable {
+	if !p.RowDependent && !p.StageDependent && !p.RuntimeDomainConversion && exec.PlannedVolatility(node) == expr.Immutable {
 		value, err := node.Eval(ctx)
 		if err != nil {
 			return nil, err
@@ -159,7 +160,7 @@ func negateConflictPredicate(n plan.LogicalExpr) expr.Expr {
 	return n
 }
 func conflictPredicateProof(ctx *EvalContext, a, b expr.Expr) (bool, error) {
-	if PlannedVolatility(a) != expr.Immutable || PlannedVolatility(b) != expr.Immutable {
+	if exec.PlannedVolatility(a) != expr.Immutable || exec.PlannedVolatility(b) != expr.Immutable {
 		return false, nil
 	}
 	if truth, ok := conflictLiteralTruth(b); ok && truth == plan.True {

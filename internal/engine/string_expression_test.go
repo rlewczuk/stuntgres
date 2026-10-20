@@ -50,14 +50,14 @@ func TestStringCoreBinding(t *testing.T) {
 		}
 	}
 	original := bind("SELECT btrim(pg_catalog.normalize('é','NFC'))")
-	folded, changed, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original)
+	folded, changed, err := preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, original)
 	if err != nil || !changed {
 		t.Fatal(folded, changed, err)
 	}
 	if _, ok := original.(functions.String).Args[0].(functions.String); !ok {
 		t.Fatal("preflight mutated analyzed children")
 	}
-	_, _, err = preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, bind("SELECT btrim(NULL,pg_catalog.normalize('x','bad'))"))
+	_, _, err = preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, bind("SELECT btrim(NULL,pg_catalog.normalize('x','bad'))"))
 	var diagnostic *sqlstate.Error
 	if !errors.As(err, &diagnostic) || diagnostic.Code != "22023" || diagnostic.Position != "" {
 		t.Fatal("immutable sibling before strict NULL", err)
@@ -96,7 +96,7 @@ func TestStringCorePropertiesAndWalkers(t *testing.T) {
 	if err != nil || !changed {
 		t.Fatal(rebound, changed, err)
 	}
-	got, err := rebound.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+	got, err := rebound.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 	if err != nil || got.Type() != replacement {
 		t.Fatal("retained provider ownership", got, err)
 	}
@@ -238,7 +238,7 @@ func TestStringCoreBinaryTrimSyntaxCopies(t *testing.T) {
 	if err != nil || !changed || rebound.(functions.Binary).Syntax != parser.SQLFunctionSyntax || rebound.ResultUsage().Type != replacement {
 		t.Fatal("retag lost syntax or provider ownership", rebound, changed, err)
 	}
-	folded, _, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, node)
+	folded, _, err := preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, node)
 	if err != nil || folded.(functions.Binary).Syntax != parser.SQLFunctionSyntax {
 		t.Fatal("preflight lost syntax", folded, err)
 	}

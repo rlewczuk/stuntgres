@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -74,7 +75,7 @@ func TestJSONBRecordRoutineOriginalAuthority(t *testing.T) {
 			if tc.populate {
 				arity = 2
 			}
-			if len(call.Args) != arity || call.Definitions || call.Unresolved != tc.anonymous || call.ReturnsSet() != tc.set || SourceReturnsSet(call) != tc.set || !SourceAdmitted(call) || binder.clause.queryHasTargetSet != tc.set {
+			if len(call.Args) != arity || call.Definitions || call.Unresolved != tc.anonymous || call.ReturnsSet() != tc.set || exec.SourceReturnsSet(call) != tc.set || !exec.SourceAdmitted(call) || binder.clause.queryHasTargetSet != tc.set {
 				t.Fatal("physical/source/project contract", call)
 			}
 			if call.Properties().Volatility != expr.Stable || call.Properties().StageDependent != tc.set || !call.Properties().RuntimeDomainConversion || call.Properties().DomainDependent {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -76,7 +77,7 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 			if err := call.Validate(); err != nil {
 				t.Fatal(err)
 			}
-			v, err := call.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+			v, err := call.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 			if err != nil {
 				t.Fatal(tc.name, err)
 			}
@@ -98,13 +99,13 @@ func TestArrayTransformResolverOwners(t *testing.T) {
 			if call.Kind == functions.ArrayToString {
 				volatility = expr.Stable
 			}
-			if PlannedPhysicalVolatility(call, false) != volatility || generationImmutable(call) != (volatility == expr.Immutable) {
+			if exec.PlannedPhysicalVolatility(call, false) != volatility || generationImmutable(call) != (volatility == expr.Immutable) {
 				t.Fatal("lost intrinsic volatility")
 			}
-			if _, _, err := simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: ctx}}, call, false); err != nil {
+			if _, _, err := simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, call, false); err != nil {
 				t.Fatal(err)
 			}
-			if _, _, err := preflightCoercionsWithPolicy(&EvalContext{evalStatement: evalStatement{Context: ctx}}, call, false); err != nil {
+			if _, _, err := preflightCoercionsWithPolicy(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, call, false); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -137,7 +138,7 @@ func TestArrayTransformNamedAndConcatSelection(t *testing.T) {
 	if err != nil || !strings.Contains(sql, "\"descending\" =>") || !strings.Contains(sql, "\"array\" =>") {
 		t.Fatal(sql, err)
 	}
-	v, err := call.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+	v, err := call.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +163,7 @@ func TestArrayTransformNamedAndConcatSelection(t *testing.T) {
 	if !cat.Operator || cat.Kind != functions.ArrayConcatenate {
 		t.Fatal(cat)
 	}
-	v, err = cat.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+	v, err = cat.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +233,7 @@ func TestArrayTransformCollationRemap(t *testing.T) {
 		if err := call.Validate(); err != nil {
 			t.Fatal(err)
 		}
-		v, err := call.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+		v, err := call.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 		if err != nil {
 			t.Fatal(err)
 		}

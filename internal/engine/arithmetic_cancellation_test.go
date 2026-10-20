@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -34,7 +35,7 @@ func TestExpressionArithmeticCancellationBeforePublication(t *testing.T) {
 		cancel()
 		return v, nil
 	})
-	rows, _, err := Finalize(ctx, query.Root, source, nil)
+	rows, _, err := exec.Finalize(ctx, query.Root, source, nil)
 	if !evaluated || rows != nil || !errors.Is(err, context.Canceled) || source.View != nil {
 		t.Fatal(evaluated, rows, err)
 	}
@@ -115,7 +116,7 @@ func TestExpressionArithmeticNullAndEmptyOrigins(t *testing.T) {
 		if schema.Name != "?column?" || schema.Usage.Type.ID() != sqltype.Int2 || schema.NullabilityKnown || schema.OriginTable != 0 || schema.OriginAttribute != 0 {
 			t.Fatal(q, schema)
 		}
-		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+		rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

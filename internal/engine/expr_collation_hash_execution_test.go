@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -31,7 +32,7 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 		properties := node.Properties()
 		for execution, want := range [][]any{{true, true, nil, false}, {false, false, nil, true}} {
 			state := queryState{Source: source}
-			stage, err := OpenQueryProjectStage(context.Background(), &state, project)
+			stage, err := exec.OpenQueryProjectStage(context.Background(), &state, project)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -69,7 +70,7 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 			if len(state.Memberships) != 1 {
 				t.Fatal("borrowed stage close erased retained membership", len(state.Memberships))
 			}
-			retained := state.Memberships[subqueryMembershipKey{node.QueryPlan, source}]
+			retained := state.Memberships[subqueryMembershipKey{Plan: node.QueryPlan, Source: source}]
 			if retained == nil || len(retained.Flat) != 1 {
 				t.Fatal("owner lost the successfully built tuple")
 			}
@@ -92,7 +93,7 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 		}))
 		state := queryState{Source: source}
 		defer state.ReleaseMemberships()
-		stage, err := OpenQueryProjectStage(context.Background(), &state, project)
+		stage, err := exec.OpenQueryProjectStage(context.Background(), &state, project)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -134,7 +135,7 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 				return sqltype.Integer(usage.Type, 1)
 			}))
 			state := queryState{Source: source}
-			stage, err := OpenQueryProjectStage(ctx, &state, project)
+			stage, err := exec.OpenQueryProjectStage(ctx, &state, project)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -188,7 +189,7 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer source.Close()
-		if err := SelectQuerySources(context.Background(), source); err != nil {
+		if err := exec.SelectQuerySources(context.Background(), source); err != nil {
 			t.Fatal(err)
 		}
 		if len(source.Sources) != 2 || source.Sources[0].NestedInputs == nil || source.Sources[1].NestedInputs == nil || source.Sources[0].NestedInputs == source.Sources[1].NestedInputs {
@@ -196,7 +197,7 @@ func TestExprCollationHashExecutionOwner(t *testing.T) {
 		}
 		state := queryState{Source: source, Input: scope.input, Output: scope.output}
 		defer state.ReleaseMemberships()
-		stage, err := OpenQueryProjectStage(context.Background(), &state, bound.query.Root.(*plan.ProjectNode))
+		stage, err := exec.OpenQueryProjectStage(context.Background(), &state, bound.query.Root.(*plan.ProjectNode))
 		if err != nil {
 			t.Fatal(err)
 		}

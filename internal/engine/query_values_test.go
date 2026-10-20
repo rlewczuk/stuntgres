@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -109,7 +110,7 @@ func TestQueryFromValuesMixedDemandAndCancellation(t *testing.T) {
 				}
 				project.Child = &plan.LimitNode{QuerySchema: schema, Child: join, Count: plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: zero}}
 			}
-			rows, count, err := Finalize(ctx, project, source, nil)
+			rows, count, err := exec.Finalize(ctx, project, source, nil)
 			if mode == "cancel" || mode == "error" {
 				want := failure
 				if mode == "cancel" {
@@ -154,9 +155,9 @@ func TestQueryFromValuesLockRecheckKeepsSyntheticOccurrence(t *testing.T) {
 	current := [][]sqltype.Value{{integer(2)}}
 	inputs := &querySource{Occurrence: 0}
 	scope := &StatementScope{queryLocks: &queryLockContext{Leaves: []queryLockLeaf{{}}}}
-	scratch := make([]sqltype.Value, QueryLockRecheckWidth(join, inputs))
+	scratch := make([]sqltype.Value, exec.QueryLockRecheckWidth(join, inputs))
 	offset := 0
-	row, present, err := RecheckLockedQuery(join, inputs, current, &EvalContext{evalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope)}}, scratch, &offset, frozen)
+	row, present, err := exec.RecheckLockedQuery(join, inputs, current, &EvalContext{EvalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope)}}, scratch, &offset, frozen)
 	if err != nil || !present || calls != 0 {
 		t.Fatal(row, present, err, calls)
 	}

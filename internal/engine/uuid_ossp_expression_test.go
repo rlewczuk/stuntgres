@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 	"testing"
@@ -34,7 +35,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	if carrier, err := routine.ExpressionRoutineDescriptor(n); err != nil || carrier != n.Procedure {
 		t.Fatal("missing common original routine carrier", carrier, err)
 	}
-	if n.Ref.Address != ext.Members[0] || n.ResultUsage().Type.ID() != sqltype.UUID || PlannedVolatility(n) != expr.Volatile || !validInstalledUUIDOsspShape(n) || !closedUUIDDefault(n) || generationImmutable(n) {
+	if n.Ref.Address != ext.Members[0] || n.ResultUsage().Type.ID() != sqltype.UUID || exec.PlannedVolatility(n) != expr.Volatile || !validInstalledUUIDOsspShape(n) || !closedUUIDDefault(n) || generationImmutable(n) {
 		t.Fatal("installed UUID shape/properties", n)
 	}
 	if generationHasTableOID(n) {
@@ -77,7 +78,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := mapped.(plan.InstalledUUIDOsspExpr)
-	if m.Ref.Epoch != n.Ref.Epoch+1 || m.Procedure != n.Procedure || m.Name != "uuidv4" || PlannedVolatility(m) != expr.Volatile {
+	if m.Ref.Epoch != n.Ref.Epoch+1 || m.Procedure != n.Procedure || m.Name != "uuidv4" || exec.PlannedVolatility(m) != expr.Volatile {
 		t.Fatal("remap lost captured provider", m)
 	}
 	proc := extension.RemapDescriptor(n.Procedure, map[ids.ObjectAddress]ids.ObjectAddress{n.Procedure.Address(): {ClassID: ids.ProcedureClassID, ObjectID: 999999}}).(*catalog.Procedure)
@@ -107,7 +108,7 @@ func TestUUIDOsspExpressionIdentity(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}}); !errors.Is(err, context.Canceled) {
+	if _, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}}); !errors.Is(err, context.Canceled) {
 		t.Fatal("canceled leaf demanded session/entropy", err)
 	}
 }
@@ -195,7 +196,7 @@ func TestUUIDOsspGroupedExpressionIdentity(t *testing.T) {
 		t.Fatal("retagging remapped grouped leaf", err)
 	}
 	got := rebound.(plan.InstalledUUIDOsspExpr)
-	if got.Ref != n.Ref || got.Procedure != n.Procedure || !got.Properties().StageDependent || PlannedVolatility(got) != expr.Volatile || closedUUIDDefault(got) {
+	if got.Ref != n.Ref || got.Procedure != n.Procedure || !got.Properties().StageDependent || exec.PlannedVolatility(got) != expr.Volatile || closedUUIDDefault(got) {
 		t.Fatal("grouped remap lost identity/stage or relaxed DEFAULT", got)
 	}
 }
@@ -431,7 +432,7 @@ func TestUUIDOsspRoutineDefaultACL(t *testing.T) {
 		if err != nil || current.ACL.Explicit != tc.explicit || (rights&authorization.ExecutePrivilege != 0) != tc.execute || !routine.SameRoutineDeclaration(current, original) {
 			t.Fatal("default/explicit current EXECUTE", tc.sql, current.ACL, rights, err)
 		}
-		evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
+		evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
 		err = admitRoutineCall(&evaluation, node, true, false)
 		if tc.execute {
 			if err != nil {

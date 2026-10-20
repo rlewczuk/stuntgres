@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -105,9 +106,9 @@ func (e *Engine) assembleMergeRows(ctx context.Context, scope *StatementScope, b
 		sources = append(sources, scratch...)
 		if state.VirtualReads {
 			if sourceCount == 0 {
-				occurrences = AppendQueryOccurrences(nil, stage.Source)
+				occurrences = exec.AppendQueryOccurrences(nil, stage.Source)
 			}
-			provenance = AppendQueryProvenance(provenance, stage.Source, stage.Index(stage.Position-1))
+			provenance = exec.AppendQueryProvenance(provenance, stage.Source, stage.Index(stage.Position-1))
 		}
 		if stage, ok := cursor.(*indexedStage); ok && stage.Source.PresenceCount != 0 {
 			presenceSlots, presenceCount = stage.Source.PresenceSlots, stage.Source.PresenceCount
@@ -482,7 +483,7 @@ func (merge *boundMerge) selectArm(evaluation *EvalContext, class parser.MergeMa
 		if arm.match != class {
 			continue
 		}
-		selected, err := UpdateMatches(evaluation, arm.condition)
+		selected, err := exec.UpdateMatches(evaluation, arm.condition)
 		if err != nil {
 			return nil, err
 		}

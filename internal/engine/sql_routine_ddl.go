@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/proc"
@@ -134,10 +135,10 @@ func (e *Engine) bindSQLRoutineLocked(op *Operation, auth AuthorizationView, d *
 	}
 	b, err := describeWithFormals(op.Context(), e.analysisHost(op), d.SQL.Query, auth, ids.ObjectRef{}, input, expected, admission, nil, true, d.SQL.Inputs)
 	if err != nil {
-		return b, sqltype.CoercionPlan{}, SQLRoutineContext(err, d.Name(), false)
+		return b, sqltype.CoercionPlan{}, exec.SQLRoutineContext(err, d.Name(), false)
 	}
 	plan, err := validateSQLRoutineResult(b.query.Root.Schema(), d.SQL.Result)
-	return b, plan, SQLRoutineContext(err, d.Name(), false)
+	return b, plan, exec.SQLRoutineContext(err, d.Name(), false)
 }
 
 // The same producer-free contract applies to CREATE/Restore and the actual

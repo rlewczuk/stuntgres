@@ -28,8 +28,8 @@ func TestGeneratedVirtualStorageDemandAndFrames(t *testing.T) {
 		t.Fatal(row, err)
 	}
 	generated := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 4, Slot: 2}.WithGeneration(d, 1, 1)
-	outer := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{ten, two, row[1]}, OldRow: []sqltype.Value{ten, seven, row[1]}}}
-	inner := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 8, Outer: &outer}}
+	outer := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 4, Row: []sqltype.Value{ten, two, row[1]}, OldRow: []sqltype.Value{ten, seven, row[1]}}}
+	inner := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 8, Outer: &outer}}
 	v, err := generated.Eval(&inner)
 	if n, e := v.Integer(); err != nil || e != nil || n != 2 {
 		t.Fatal(v, err, e)
@@ -176,7 +176,7 @@ func TestGeneratedVirtualReplacementDoesNotMaterializeOwner(t *testing.T) {
 	if !store.Versions[0].Values[1].IsNull() {
 		t.Fatal("virtual owner was materialized")
 	}
-	eval := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: store.Versions[0].Values}}
+	eval := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: store.Versions[0].Values}}
 	v, err := logicalColumnValue(d, 1, eval.Row, &eval)
 	if owner, e := v.OID(); err != nil || e != nil || ids.OID(owner) != d.Address().ObjectID {
 		t.Fatal(v, err, e)

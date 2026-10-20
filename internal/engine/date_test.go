@@ -42,7 +42,7 @@ func TestDateCaptureFreezeRebindAndParameters(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			v, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+			v, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 			if err != nil {
 				t.Fatal(err)
 			}

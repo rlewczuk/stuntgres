@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/storage"
@@ -124,7 +125,7 @@ func (s *StatementScope) admitInsertConflictUpdate(ref ids.ObjectRef, candidate 
 		copy(c.frame, old.Values)
 		copy(c.frame[c.width:], proposal)
 		evaluation.Row = c.frame
-		matches, err := UpdateMatches(&evaluation, c.update.predicate)
+		matches, err := exec.UpdateMatches(&evaluation, c.update.predicate)
 		if err != nil {
 			return err
 		}

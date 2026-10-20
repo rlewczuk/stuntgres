@@ -6,6 +6,7 @@ import (
 	"sort"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -203,7 +204,7 @@ func (s *StatementScope) installSQLCursor(declaration *parser.DeclareCursor, roo
 		visibilityRelationPath: s.inquiry.visibilityRelationPath, visibilityOtherPath: s.inquiry.visibilityOtherPath}
 	c.statement, c.created = declaration.Source, created
 	c.scroll = declaration.Scroll == parser.CursorScrollEnabled
-	c.state = queryState{Source: source, Parameters: parameters, Input: s.input, Output: s.output, Locking: source.Locks.RowMarked(), HashFilter: HashQueryFilter(root)}
+	c.state = queryState{Source: source, Parameters: parameters, Input: s.input, Output: s.output, Locking: source.Locks.RowMarked(), HashFilter: exec.HashQueryFilter(root)}
 	c.state.Input.LockedDomainInput, c.state.Input.DomainChecks = nil, nil
 	// Presentation readers stored in query frames must not retain this admission.
 	c.state.Output.Regclass, c.state.Output.Regtype = nil, nil
@@ -320,7 +321,7 @@ func (s *StatementScope) executeFetchCursor(fetch *parser.FetchCursor, count int
 	}
 	var rows *finalRows
 	if !fetch.Move {
-		rows = NewFinalRows(c.schema, 0)
+		rows = exec.NewFinalRows(c.schema, 0)
 		rows.Output = c.state.Output
 	}
 	moved, motionErr := c.motion(fetch, rows, s)

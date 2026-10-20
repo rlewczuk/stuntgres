@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/typedef"
@@ -291,7 +292,7 @@ func TestArrayRecursiveExplicitIdentityRemap(t *testing.T) {
 			t.Fatal("reminted reverse association", id, array)
 		}
 	}
-	rows := NewFinalRows(next.MustRelation(table.Address()).Columns, 1)
+	rows := exec.NewFinalRows(next.MustRelation(table.Address()).Columns, 1)
 	defer rows.Close()
 	if err := captureRegclassOutputValue(rows, view, nil, imported); err != nil {
 		t.Fatal(err)
@@ -377,7 +378,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 	e.storage.InstallRelationLocked(table.Address(), store)
 	e.visibility.SetCommitSeqLocked(1)
 	e.mu.Unlock()
-	held := NewFinalRows(table.Columns, 1)
+	held := exec.NewFinalRows(table.Columns, 1)
 	held.Values = store.Versions[0].Values
 	defer held.Close()
 	replacement := New()
@@ -494,7 +495,7 @@ func TestArrayRetainedTemporaryDomainBoundaryComponent(t *testing.T) {
 	e.storage.InstallRelationLocked(table.Address(), store)
 	e.visibility.SetCommitSeqLocked(1)
 	e.mu.Unlock()
-	held := NewFinalRows(table.Columns, 1)
+	held := exec.NewFinalRows(table.Columns, 1)
 	held.Values = store.Versions[0].Values
 	defer held.Close()
 	if _, err := e.ReplaceCatalog(ctx, e, e.CatalogRead()); err != nil {

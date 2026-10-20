@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -30,7 +31,7 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 	for i, v := range values {
 		store.Versions = append(store.Versions, storage.RowVersion{Row: ids.RowID(i + 1), Version: ids.VersionID(i + 1), Values: []sqltype.Value{v}})
 	}
-	root, err := buildIndexRoot(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, parent, d, store, nil)
+	root, err := buildIndexRoot(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}, parent, d, store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +40,7 @@ func TestExpressionIndexDerivedRoots(t *testing.T) {
 		t.Fatal(got, want)
 	}
 	publication := &rowPublication{writes: []storage.RowVersion{{Row: 6, Version: 6, Values: []sqltype.Value{sqltype.String(typ, "AlPhA")}}}}
-	next, err := mergeIndexRoot(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}, parent, &catalog.Relation{SQLIndex: d}, root.Entries, publication, false, true, false, "", sqltype.OutputEnvironment{}, nil)
+	next, err := mergeIndexRoot(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}, parent, &catalog.Relation{SQLIndex: d}, root.Entries, publication, false, true, false, "", sqltype.OutputEnvironment{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,11 +75,11 @@ func TestExpressionIndexPlannedVolatility(t *testing.T) {
 	e := New()
 	typ, _ := e.CatalogRead().LookupType(sqltype.Float8)
 	value := plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage(), Property: expr.Properties{Volatility: expr.Volatile}}, Value: sqltype.Null(typ)}
-	if PlannedVolatility(value) != expr.Immutable {
+	if exec.PlannedVolatility(value) != expr.Immutable {
 		t.Fatal("conservative literal metadata rejected")
 	}
 	wrapper := plan.CaseExpr{Info: value.Info, Otherwise: value}
-	if PlannedVolatility(wrapper) != expr.Immutable || wrapper.Properties().Volatility != expr.Volatile {
+	if exec.PlannedVolatility(wrapper) != expr.Immutable || wrapper.Properties().Volatility != expr.Volatile {
 		t.Fatal("pruned CASE metadata changed")
 	}
 }

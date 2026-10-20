@@ -6,6 +6,7 @@ import (
 	"io"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -174,7 +175,7 @@ func (s *StatementScope) CopyProtocol(syntax *parser.Copy, source io.Reader, des
 	if err != nil {
 		return 0, err
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: auth.Catalog}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: auth.Catalog}}
 	selected := make([]bool, len(b.relation.Columns))
 	for _, target := range b.targets {
 		selected[target] = true
@@ -450,14 +451,14 @@ func (s *StatementScope) copyTableRows(b binding, auth AuthorizationView) (*fina
 		return nil, err
 	}
 	borrowQueryAuthority(source, s)
-	if err = SelectQuerySources(s.op.Context(), source); err != nil {
+	if err = exec.SelectQuerySources(s.op.Context(), source); err != nil {
 		return nil, err
 	}
 	schema := make([]catalog.Column, len(b.targets))
 	for i, target := range b.targets {
 		schema[i] = b.relation.Columns[target]
 	}
-	rows := NewFinalRows(schema, source.Count())
+	rows := exec.NewFinalRows(schema, source.Count())
 	rows.Source = source
 	rows.Slots = b.targets
 	rows.Output = s.output

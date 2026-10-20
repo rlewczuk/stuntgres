@@ -50,7 +50,7 @@ func TestDomainAlterConstraintSelectedEvaluation(t *testing.T) {
 	integer, _ := view.LookupType(sqltype.Int4)
 	boolean, _ := view.LookupType(sqltype.Bool)
 	sentinel := sqltype.Boolean(boolean, true)
-	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), Catalog: view}, evalFrame: evalFrame{DomainValue: sentinel, DomainFrameUsage: boolean.Usage(), DomainValueActive: true}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background(), Catalog: view}, EvalFrame: evalFrame{DomainValue: sentinel, DomainFrameUsage: boolean.Usage(), DomainValueActive: true}}
 	prior := &EvalContext{}
 	evaluation.Input.DomainChecks = prior
 	selected := *child

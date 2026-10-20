@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -279,7 +280,7 @@ func TestPGAttributeCarrier(t *testing.T) {
 	d, _ := pgAttributeUnitSource(t, e, view)
 	u := d.Columns[24].Usage
 	value := sqltype.CatalogResultNull(u)
-	if err := ValidateProducedValue(value, u); err != nil {
+	if err := exec.ValidateProducedValue(value, u); err != nil {
 		t.Fatal("produced canonical NULL rejected", err)
 	}
 	result, err := anonymousResult([]catalog.Column{d.Columns[24]}, [][]sqltype.Value{{value}}, 1)
@@ -292,12 +293,12 @@ func TestPGAttributeCarrier(t *testing.T) {
 		t.Fatal("catalog result carrier", dst, present, err)
 	}
 	column := plan.ColumnExpr{Info: expr.Info{Usage: u}, Slot: 0, Scope: 1, Frame: 1}
-	got, err := column.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{value}}})
+	got, err := column.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{value}}})
 	if err != nil || !got.ValidResult(u) {
 		t.Fatal("projection carrier", got, err)
 	}
 	foreign := sqltype.CatalogResultNull(testUsage(New(), sqltype.ID(2277)))
-	if err := ValidateProducedValue(foreign, u); err == nil {
+	if err := exec.ValidateProducedValue(foreign, u); err == nil {
 		t.Fatal("foreign produced NULL admitted")
 	}
 	if _, err := anonymousResult([]catalog.Column{d.Columns[24]}, [][]sqltype.Value{{foreign}}, 1); err == nil {

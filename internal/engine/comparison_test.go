@@ -181,7 +181,7 @@ func TestCompareOpsTemporalCaptureRebind(t *testing.T) {
 				e.mu.Unlock()
 				t.Fatal(c)
 			}
-			value, err := c.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+			value, err := c.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 			truth, truthErr := value.Boolean()
 			if err != nil || truthErr != nil || !truth || !reflect.DeepEqual(before, desc.temporals) {
 				e.mu.Unlock()

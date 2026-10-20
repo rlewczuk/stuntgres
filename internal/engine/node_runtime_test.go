@@ -26,13 +26,13 @@ func TestNodeRuntimePrologue(t *testing.T) {
 
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	c := &EvalContext{evalStatement: evalStatement{Context: canceled}}
+	c := &EvalContext{EvalStatement: evalStatement{Context: canceled}}
 	if _, err := plan.BeginEvaluation(c); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled context: got %v", err)
 	}
 
 	// The prologue wires domain checks before nodes read their input.
-	c = &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+	c = &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 	c.DomainValueActive = true
 	if _, err := plan.BeginEvaluation(c); err != nil {
 		t.Fatal(err)

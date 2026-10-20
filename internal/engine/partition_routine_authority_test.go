@@ -65,7 +65,7 @@ func TestPartitionRoutineOriginalAuthority(t *testing.T) {
 	sentinel := []sqltype.Value{text("outer")}
 	newEvaluation := func(auth AuthorizationView) EvalContext {
 		scope := &StatementScope{routineAuth: auth}
-		return EvalContext{evalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: auth.Catalog}, evalFrame: evalFrame{Row: sentinel, Scope: 7, Frame: 9}, evalAdmission: evalAdmission{RoutineAuthority: &auth}}
+		return EvalContext{EvalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope), Catalog: auth.Catalog}, EvalFrame: evalFrame{Row: sentinel, Scope: 7, Frame: 9}, EvalAdmission: evalAdmission{RoutineAuthority: &auth}}
 	}
 	for _, descriptor := range auth.Catalog.Descriptors() {
 		if plain, ok := descriptor.(*catalog.Relation); ok && plain.Name() == "partition_plain" {

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -75,7 +76,7 @@ func TestUUIDGenerationStrictNullPhysicalTrees(t *testing.T) {
 		for _, preflight := range []bool{false, true} {
 			for _, decisive := range []bool{false, true} {
 				// Deliberately omit the session: any provider demand would fail.
-				evaluation := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+				evaluation := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 				var planned expr.Expr
 				var changed bool
 				if preflight {
@@ -87,7 +88,7 @@ func TestUUIDGenerationStrictNullPhysicalTrees(t *testing.T) {
 					t.Fatal("strict NULL simplification", preflight, decisive, changed, err)
 				}
 				literal, ok := planned.(plan.LiteralExpr)
-				if !ok || !literal.Value.IsNull() || literal.ResultUsage() != analyzed.ResultUsage() || !generationImmutable(planned) || PlannedVolatility(planned) != expr.Immutable {
+				if !ok || !literal.Value.IsNull() || literal.ResultUsage() != analyzed.ResultUsage() || !generationImmutable(planned) || exec.PlannedVolatility(planned) != expr.Immutable {
 					t.Fatal("strict NULL physical tree", planned)
 				}
 				value, err := planned.Eval(evaluation)
@@ -106,11 +107,11 @@ func TestUUIDGenerationStrictNullPhysicalTrees(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		planned, _, err := preflightCoercionsWithPolicy(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, analyzed, true)
+		planned, _, err := preflightCoercionsWithPolicy(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, analyzed, true)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, ok := planned.(functions.UUIDGeneration); !ok || PlannedVolatility(planned) != expr.Volatile || generationImmutable(planned) {
+		if _, ok := planned.(functions.UUIDGeneration); !ok || exec.PlannedVolatility(planned) != expr.Volatile || generationImmutable(planned) {
 			t.Fatal("real provider admitted as immutable", planned)
 		}
 	}

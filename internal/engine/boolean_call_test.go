@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -81,7 +82,7 @@ func TestBooleanCallPredicateSetRejection(t *testing.T) {
 		b := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, nil)
 		b.clause.aggregateClause = "SELECT"
 		node, err := b.bind(call, expressionPolicy{context: projectionContext})
-		if err != nil || !SourceReturnsSet(node) {
+		if err != nil || !exec.SourceReturnsSet(node) {
 			t.Fatal("standalone set projection changed", node, err)
 		}
 	}

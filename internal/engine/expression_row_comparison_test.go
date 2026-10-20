@@ -44,7 +44,7 @@ func TestRowComparisonDistinctPairs(t *testing.T) {
 				row := plan.RowComparisonExpr{Info: expr.Info{Usage: boolean.Usage()}, Operator: mode, Comparisons: []plan.ComparisonExpr{{
 					Info: expr.Info{Usage: boolean.Usage()}, Left: probe(0, tc.left, nil), Right: probe(1, tc.right, nil), Predicate: predicate, Operator: "=",
 				}}}
-				value, err := row.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+				value, err := row.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 				truth, boolErr := value.Boolean()
 				want := tc.distinct
 				if mode == "IS NOT DISTINCT FROM" {
@@ -55,7 +55,7 @@ func TestRowComparisonDistinctPairs(t *testing.T) {
 				}
 				row.Comparisons = append(row.Comparisons, plan.ComparisonExpr{Info: expr.Info{Usage: boolean.Usage()}, Left: probe(2, one, failure), Right: probe(3, one, nil), Predicate: predicate, Operator: "="})
 				order = nil
-				_, err = row.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+				_, err = row.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 				if tc.distinct {
 					if err != nil || !reflect.DeepEqual(order, []int{0, 1}) {
 						t.Fatal("decisive pair demanded sibling", order, err)
@@ -66,7 +66,7 @@ func TestRowComparisonDistinctPairs(t *testing.T) {
 				ctx, cancel := context.WithCancel(context.Background())
 				cancel()
 				order = nil
-				if _, err := row.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}}); !errors.Is(err, context.Canceled) || len(order) != 0 {
+				if _, err := row.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}}); !errors.Is(err, context.Canceled) || len(order) != 0 {
 					t.Fatal("cancelled row evaluated operands", order, err)
 				}
 			})
@@ -74,7 +74,7 @@ func TestRowComparisonDistinctPairs(t *testing.T) {
 	}
 	for _, mode := range []string{"IS DISTINCT FROM", "IS NOT DISTINCT FROM"} {
 		row := plan.RowComparisonExpr{Info: expr.Info{Usage: boolean.Usage()}, Operator: mode}
-		value, err := row.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+		value, err := row.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 		truth, boolErr := value.Boolean()
 		if err != nil || boolErr != nil || truth != (mode == "IS NOT DISTINCT FROM") {
 			t.Fatal(value, err, boolErr)
@@ -164,7 +164,7 @@ func TestRowComparisonStoredRemap(t *testing.T) {
 				t.Fatal("expansion association not reowned immutably")
 			}
 		}
-		value, err := mapped.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+		value, err := mapped.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 		truth, boolErr := value.Boolean()
 		if err != nil || boolErr != nil || !truth || value.Type() != eType(t, target, sqltype.Bool) {
 			t.Fatal(value, err, boolErr)

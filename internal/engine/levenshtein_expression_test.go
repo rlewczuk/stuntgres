@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
@@ -36,10 +37,10 @@ func levenshteinUnitExpression(t *testing.T, e *Engine) plan.InstalledLevenshtei
 func TestLevenshteinExpressionIdentity(t *testing.T) {
 	e, ext := daitchUnitInstalled(t)
 	n := levenshteinUnitExpression(t, e)
-	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 	value, err := n.Eval(ctx)
 	integer, readErr := value.Integer()
-	if err != nil || readErr != nil || integer != 10 || n.Ref.Address != ext.Members[4] || value.Type() != n.ResultUsage().Type || PlannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
+	if err != nil || readErr != nil || integer != 10 || n.Ref.Address != ext.Members[4] || value.Type() != n.ResultUsage().Type || exec.PlannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
 		t.Fatal(value, n.Ref, err, readErr)
 	}
 	if err := validateInstalledLevenshtein(n, e.CatalogRead()); err != nil {
@@ -191,7 +192,7 @@ func TestLevenshteinRemap(t *testing.T) {
 		if err := validateInstalledLevenshtein(n, view); err != nil {
 			t.Fatal(err)
 		}
-		value, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+		value, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 		number, readErr := value.Integer()
 		if err != nil || readErr != nil || number != 10 || value.Type() != n.ResultUsage().Type {
 			t.Fatal(value, err, readErr)

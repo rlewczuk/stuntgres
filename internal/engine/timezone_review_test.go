@@ -30,7 +30,7 @@ func TestTimezoneReviewConditionalProperties(t *testing.T) {
 				t.Fatalf("properties = %+v, want session-dependent Stable without other dependencies", got)
 			}
 			if _, ok := node.(plan.ConditionalExpr); ok {
-				planned, _, err := simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: ctx}}, node, false)
+				planned, _, err := simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, node, false)
 				if err != nil {
 					t.Fatal(err)
 				}

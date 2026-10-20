@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
@@ -56,7 +57,7 @@ func TestQueryLockNullableNormalizedDiagnostics(t *testing.T) {
 	} {
 		t.Run(tc.q, func(t *testing.T) {
 			e, query, _ := queryJoinsFixture(t, tc.q)
-			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+			evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
 			root, err := preflightQuery(&evaluation, query.Root)
 			if err != nil {
 				t.Fatal(err)
@@ -140,7 +141,7 @@ func TestQueryLockPendingTargetsRemainOccurrenceOwned(t *testing.T) {
 		{Leaf: queryLeaf{Relation: &catalog.Relation{RelationKind: catalog.TableRelation}}},
 	}}
 	marks := []plan.RowMark{{Mode: lock.ForUpdate, Wait: parser.RowLockSkip}, {Mode: lock.ForShare, Wait: parser.RowLockNowait}}
-	pending := AppendPendingRowMarks(nil, marks, inputs)
+	pending := exec.AppendPendingRowMarks(nil, marks, inputs)
 	if len(pending) != 2 || !reflect.DeepEqual(pending[0].Occurrences, []int{0}) || !reflect.DeepEqual(pending[1].Occurrences, []int{1}) || pending[0].Mark != marks[0] || pending[1].Mark != marks[1] {
 		t.Fatal(pending)
 	}
@@ -156,14 +157,14 @@ func TestPGSequencesEffectiveRowMarks(t *testing.T) {
 	table := &catalog.Relation{RelationKind: catalog.TableRelation}
 	requested := plan.RowMark{Mode: lock.ForUpdate, Wait: parser.RowLockNowait, DiagnosticMode: lock.ForUpdate, Order: 1}
 	locks := &queryLockContext{Leaves: []queryLockLeaf{
-		{Leaf: queryLeaf{Relation: view, Mark: requested}, Mark: EffectiveQueryRowMark(view, requested)},
-		{Leaf: queryLeaf{Relation: table, Mark: requested}, Mark: EffectiveQueryRowMark(table, requested)},
+		{Leaf: queryLeaf{Relation: view, Mark: requested}, Mark: exec.EffectiveQueryRowMark(view, requested)},
+		{Leaf: queryLeaf{Relation: table, Mark: requested}, Mark: exec.EffectiveQueryRowMark(table, requested)},
 	}}
 	// A transparent stored/derived expansion may contain both the SQL-only
 	// catalog occurrence and a genuinely marked table. Preserve its identities.
 	expanded := &querySource{Materialized: true, Occurrences: []int{0, 1}}
 	inputs := &querySource{Sources: []*querySource{expanded}, Locks: locks}
-	pending := AppendPendingRowMarks(nil, []plan.RowMark{requested}, inputs)
+	pending := exec.AppendPendingRowMarks(nil, []plan.RowMark{requested}, inputs)
 	if len(pending) != 1 || !reflect.DeepEqual(pending[0].Occurrences, []int{1}) || pending[0].Mark != requested {
 		t.Fatal("effective expansion changed ordinary physical mark", pending)
 	}
@@ -171,7 +172,7 @@ func TestPGSequencesEffectiveRowMarks(t *testing.T) {
 		t.Fatal("effective decision mutated SQL marks or source identities")
 	}
 	inputs.Sources[0] = &querySource{Occurrence: 0}
-	if pending := AppendPendingRowMarks(nil, []plan.RowMark{requested}, inputs); len(pending) != 0 {
+	if pending := exec.AppendPendingRowMarks(nil, []plan.RowMark{requested}, inputs); len(pending) != 0 {
 		t.Fatal("SQL-only catalog mark reached physical arbitration", pending)
 	}
 }

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -19,7 +20,7 @@ func (e *Engine) checkViewRow(scope *StatementScope, b *binding, row []sqltype.V
 	for i := len(b.viewWrite.checks) - 1; i >= 0; i-- {
 		group := &b.viewWrite.checks[i]
 		for j := len(group.predicates) - 1; j >= 0; j-- {
-			if err := EvaluationContext(&newFrame); err != nil {
+			if err := exec.EvaluationContext(&newFrame); err != nil {
 				return err
 			}
 			value, err := group.predicates[j].Eval(&newFrame)
@@ -39,5 +40,5 @@ func (e *Engine) checkViewRow(scope *StatementScope, b *binding, row []sqltype.V
 			}
 		}
 	}
-	return EvaluationContext(&newFrame)
+	return exec.EvaluationContext(&newFrame)
 }

@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -109,7 +110,7 @@ func (parent *StatementScope) invokeSQLRoutine(d *catalog.Procedure, frame *proc
 func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *querySource, parameters []sqltype.Value) (rows RowResult, count int, err error) {
 	defer source.Close()
 	defer func() {
-		finishErr := FinishForeignSources(ctx, source)
+		finishErr := exec.FinishForeignSources(ctx, source)
 		if err == nil {
 			err = finishErr
 		}
@@ -118,12 +119,12 @@ func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *queryS
 	if !ok || len(project.Schema()) != 1 {
 		return nil, 0, fmt.Errorf("invalid SQL routine projection")
 	}
-	state := queryState{Source: source, Parameters: parameters, Locking: source.Locks != nil, HashFilter: HashQueryFilter(root)}
+	state := queryState{Source: source, Parameters: parameters, Locking: source.Locks != nil, HashFilter: exec.HashQueryFilter(root)}
 	defer state.ReleaseMemberships()
 	if scope := scopeOf(source.LiveHost()); scope != nil {
 		state.Input, state.Output = scope.input, scope.output
 	}
-	stage, err := OpenQueryProjectStage(ctx, &state, project)
+	stage, err := exec.OpenQueryProjectStage(ctx, &state, project)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -141,7 +142,7 @@ func finalizeSQLRoutineQuery(ctx context.Context, root plan.Node, source *queryS
 	if present {
 		count = 1
 	}
-	result := NewFinalRows(project.Schema(), count)
+	result := exec.NewFinalRows(project.Schema(), count)
 	result.Output = state.Output
 	if present {
 		result.Values = row

@@ -9,6 +9,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -52,7 +53,7 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows := NewFinalRows([]catalog.Column{{Name: "r", Usage: d.Usage()}}, 1)
+	rows := exec.NewFinalRows([]catalog.Column{{Name: "r", Usage: d.Usage()}}, 1)
 	defer rows.Close()
 	output := capturedRegroleOutput{owner: e.catalog.owner(), roles: old}
 	if err := captureRegroleOutputValue(rows, output, array); err != nil {
@@ -119,7 +120,7 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 		t.Fatal("stored runtime input omitted statement snapshot demand", snapshot, err)
 	}
 	scope := &StatementScope{input: sqltype.InputEnvironment{Regrole: fresh}}
-	resolved, err := runtime.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope)}})
+	resolved, err := runtime.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope)}})
 	if err != nil {
 		t.Fatal("stored runtime input propagation", err)
 	}

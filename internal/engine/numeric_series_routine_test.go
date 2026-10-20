@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"testing"
@@ -33,7 +34,7 @@ func TestNumericSeriesRoutineOriginalAuthority(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			node, binder, evaluation := strictNullUnitBind(t, e, op, scope, tc.expression)
 			carrier, ok := node.(plan.SeriesExpr)
-			if !ok || len(carrier.Args) != tc.arity || !SourceAdmitted(carrier) || !binder.clause.queryHasTargetSet {
+			if !ok || len(carrier.Args) != tc.arity || !exec.SourceAdmitted(carrier) || !binder.clause.queryHasTargetSet {
 				t.Fatal("original SRF arity/source/project carrier", node)
 			}
 			captured, err := routine.ExpressionRoutineDescriptor(node)

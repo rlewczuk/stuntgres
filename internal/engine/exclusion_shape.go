@@ -15,7 +15,7 @@ func (s *StatementScope) prepareExclusionShape(original, parent *catalog.Relatio
 		return nil
 	}
 	entries := make(map[ids.ObjectAddress][]exclusionEntry, len(parent.Constraints.Exclusion))
-	evaluation := EvalContext{evalStatement: evalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: view}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: s.op.Context(), Input: s.input, Output: s.output, Host: hostOf(s), Catalog: view}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
 	for _, c := range parent.Constraints.Exclusion {
 		index, ok := view.Relation(c.Index)
 		if !ok {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -34,7 +35,7 @@ func TestExpressionNumericArithmeticCancellationBeforePublication(t *testing.T) 
 		cancel()
 		return v, nil
 	})
-	rows, _, err := Finalize(ctx, query.Root, source, nil)
+	rows, _, err := exec.Finalize(ctx, query.Root, source, nil)
 	if !evaluated || rows != nil || !errors.Is(err, context.Canceled) || source.View != nil {
 		t.Fatal(evaluated, rows, err)
 	}

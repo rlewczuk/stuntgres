@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -50,7 +51,7 @@ func TestProtocolSimpleDisposalFence(t *testing.T) {
 	ref, command := owner.ref, owner.command
 	e.replacementMu.RLock()
 	scope.replacementRead = true
-	rows := NewFinalRows(nil, 0)
+	rows := exec.NewFinalRows(nil, 0)
 	calls := 0
 	session.preparedSQL.portals = map[string]*protocolPortal{"": {tx: ref, rows: protocolDisposalProbe{RowResult: rows, close: func() error {
 		calls++
@@ -91,7 +92,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 	t.Run("closed_error", func(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT 1/(2-2) FROM t")
 		defer source.Close()
-		evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), PlanStaticOperators: true}}
+		evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background(), PlanStaticOperators: true}}
 		_, err := preflightQuery(&evaluation, query.Root)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "22012" {
@@ -109,7 +110,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 		}).(queryProbeExpression)
 		probe.Property.Volatility = expr.Volatile
 		original.Expressions[0] = probe
-		evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), PlanStaticOperators: true}}
+		evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background(), PlanStaticOperators: true}}
 		prepared, err := preflightQuery(&evaluation, original)
 		if err != nil {
 			source.Close()
@@ -120,8 +121,8 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 			source.Close()
 			t.Fatal("planning demanded volatile target", calls)
 		}
-		state := queryState{Source: source, HashFilter: HashQueryFilter(root)}
-		stage, err := OpenQueryProjectStage(context.Background(), &state, root)
+		state := queryState{Source: source, HashFilter: exec.HashQueryFilter(root)}
+		stage, err := exec.OpenQueryProjectStage(context.Background(), &state, root)
 		if err != nil {
 			source.Close()
 			t.Fatal(err)
@@ -147,7 +148,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}, PlanStaticOperators: true}}
+		evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{value}, PlanStaticOperators: true}}
 		mapped, _, err := preflightCoercions(&evaluation, original)
 		if err != nil || !mapped.Properties().ParameterDependent {
 			t.Fatal("planning crossed imported parameter barrier", err)
@@ -173,7 +174,7 @@ func TestProtocolSimplePlanningBounds(t *testing.T) {
 					t.Fatal(err)
 				}
 				exists := subqueryTestExpression(t, e, plan, parser.SubqueryExists)
-				planning := EvalContext{evalStatement: evalStatement{Context: context.Background(), PlanStaticOperators: true}}
+				planning := EvalContext{EvalStatement: evalStatement{Context: context.Background(), PlanStaticOperators: true}}
 				prepared, _, err := preflightCoercions(&planning, exists)
 				if tc.code != "" {
 					var diagnostic *sqlstate.Error

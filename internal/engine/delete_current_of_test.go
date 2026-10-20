@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
@@ -65,7 +66,7 @@ func TestDeleteCurrentOfOccurrenceVersions(t *testing.T) {
 	if got := cursorOccurrenceVersion(materialized, 0, 1, locks); got.Row != 0 {
 		t.Fatal("absent occurrence substituted another leaf", got)
 	}
-	if got := cursorOccurrenceVersion(bridge, AbsentQueryIndex, 2, locks); got.Row != 0 {
+	if got := cursorOccurrenceVersion(bridge, exec.AbsentQueryIndex, 2, locks); got.Row != 0 {
 		t.Fatal("absent bridge gained identity", got)
 	}
 }

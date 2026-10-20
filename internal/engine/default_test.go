@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -27,7 +28,7 @@ type defaultOrdinal struct {
 
 func (e *defaultOrdinal) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
-	if err := EvaluationContext(c); err != nil {
+	if err := exec.EvaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
 	e.ordinal++
@@ -142,7 +143,7 @@ func TestDefaultBoundOwnershipTemporalInputAndNoEvaluation(t *testing.T) {
 		}
 	}
 	// Rebinding under a different operation clock must not change already-bound leaves.
-	c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+	c := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 	for _, attribute := range []int32{2, 3} {
 		value, err := defaults[attribute].Expression.Eval(c)
 		if err != nil {
@@ -228,7 +229,7 @@ func TestDefaultQueryPlanningScopedPolicy(t *testing.T) {
 			ref := roleTableRef(t, e, "d")
 			d := view.MustRelation(ref.Address)
 			original := d.ColumnMeta.Defaults[d.Attributes[0]]
-			c := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+			c := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 			planned, changed, err := preflightCoercionsWithPolicy(c, original.Expression, true)
 			if err != nil || !changed {
 				t.Fatal(planned, changed, err)

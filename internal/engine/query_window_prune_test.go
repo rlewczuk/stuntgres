@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -36,7 +37,7 @@ func TestQueryWindowSurvivingOccurrences(t *testing.T) {
 			original := pruningTestWindow(t, query.Root)
 			calls := append([]plan.WindowCall(nil), original.Calls...)
 			for range 2 {
-				prepared, err := preflightQuery(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Catalog: e.CatalogRead()}, evalFrame: evalFrame{Scope: 1, Frame: query.Root.(*plan.ProjectNode).Frame}}, query.Root)
+				prepared, err := preflightQuery(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Catalog: e.CatalogRead()}, EvalFrame: evalFrame{Scope: 1, Frame: query.Root.(*plan.ProjectNode).Frame}}, query.Root)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -66,7 +67,7 @@ func TestQueryWindowPrunedSharedSort(t *testing.T) {
 	if len(original.Specs) != 2 || original.SortIndices[1] != 0 {
 		t.Fatal("fixture does not have distinct frames sharing the first sort")
 	}
-	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || rows == nil || count != 4 {
 		t.Fatal("surviving window lost its pruned sibling's shared sort", count, err)
 	}

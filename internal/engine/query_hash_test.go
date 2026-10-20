@@ -5,6 +5,7 @@ import (
 	"maps"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/sqltype"
@@ -38,7 +39,7 @@ func hashCaptureQuery(t *testing.T, e *Engine, op *Operation, q string) (*plan.Q
 	}
 	e.mu.Unlock()
 	if err == nil {
-		err = SelectQuerySources(op.ctx, source)
+		err = exec.SelectQuerySources(op.ctx, source)
 	}
 	if err != nil {
 		scope.Finish(err)
@@ -73,7 +74,7 @@ func hashImplicitQuery(t *testing.T, e *Engine, q string) (*plan.Query, *querySo
 }
 func hashFilterStage(t *testing.T, query *plan.Query, source *querySource, parameters []sqltype.Value) indexedStage {
 	t.Helper()
-	filter := HashQueryFilter(query.Root)
+	filter := exec.HashQueryFilter(query.Root)
 	if filter == nil {
 		t.Fatal("fixture has no top-level filter")
 	}
@@ -81,7 +82,7 @@ func hashFilterStage(t *testing.T, query *plan.Query, source *querySource, param
 	if scope := scopeOf(source.LiveHost()); scope != nil {
 		state.Input, state.Output = scope.input, scope.output
 	}
-	stage, err := OpenNode(context.Background(), state, filter)
+	stage, err := exec.OpenNode(context.Background(), state, filter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +193,7 @@ func TestHashIndexLookupParametersResidualAndFallback(t *testing.T) {
 	}
 	for _, q := range []string{"SELECT n FROM t ORDER BY n", "SELECT n FROM (SELECT n FROM t WHERE n=2) d", "SELECT a.n FROM t a JOIN t b ON a.n=b.n WHERE a.n=2"} {
 		query, _, release := hashImplicitQuery(t, e, q)
-		if HashQueryFilter(query.Root) != nil {
+		if exec.HashQueryFilter(query.Root) != nil {
 			t.Fatal("order/derived/join filter admitted", q)
 		}
 		release()

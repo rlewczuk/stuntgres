@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/plan"
@@ -72,7 +73,7 @@ func validateMutationJoinExecution(c *EvalContext, b *binding, expressions [][]e
 		for _, target := range targets {
 			for path := target; path != nil; path = path.Next {
 				var storage [13]expr.Expr
-				for _, child := range SubscriptChildren(path.Node, &storage) {
+				for _, child := range exec.SubscriptChildren(path.Node, &storage) {
 					if err := validateExpressionJoinExecution(&owner, child, catalog); err != nil {
 						return err
 					}
@@ -318,7 +319,7 @@ func validateMarkedQueryJoin(c *EvalContext, node plan.Node, view catalog.Read, 
 				return err
 			}
 			child := *c
-			child.quoteOrigin = quoteOrigin{Owner: n.Ref, Definition: viewOf(d).rule, Revision: viewOf(d).quoteRevision}
+			child.QuoteOrigin = quoteOrigin{Owner: n.Ref, Definition: viewOf(d).rule, Revision: viewOf(d).quoteRevision}
 			child.RoutineChecks, child.RoutineReferences, child.RoutineConsumer = viewOf(d).dependencies, nil, d
 			child.RoutineRecipe, child.RoutineGraft = true, false
 			root, storedReads, err := prepareStoredExecutionRoot(&child, viewOf(d), outputUses)
@@ -379,7 +380,7 @@ func validateMarkedQueryJoin(c *EvalContext, node plan.Node, view catalog.Read, 
 			local := make([]plan.RowMark, width)
 			copy(local, marks)
 			for i, mark := range n.Marks {
-				local[i] = MergeQueryRowMark(local[i], mark)
+				local[i] = exec.MergeQueryRowMark(local[i], mark)
 			}
 			marks = local
 		}
@@ -387,7 +388,7 @@ func validateMarkedQueryJoin(c *EvalContext, node plan.Node, view catalog.Read, 
 		// Prune only this input's proven dead FROM path, using this execution's
 		// parameter frame. Nullable rowmark legality still applies.
 		if !emptyInput {
-			rejects, err := QueryPredicateRejectsAll(c, n.Predicate)
+			rejects, err := exec.QueryPredicateRejectsAll(c, n.Predicate)
 			if err != nil {
 				return err
 			}

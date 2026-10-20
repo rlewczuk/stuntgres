@@ -6,6 +6,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -309,7 +310,7 @@ func TestCommitTimeExpression(t *testing.T) {
 		if err := n.(expr.StoredProvider).ValidateStoredProvider(); err != nil {
 			t.Fatal(err)
 		}
-		if n.Properties().Volatility != expr.Volatile || PlannedVolatility(n) != expr.Volatile || generationImmutable(n) || conditionalConstantInputs(n) || !sameGroupExpression(n, n) {
+		if n.Properties().Volatility != expr.Volatile || exec.PlannedVolatility(n) != expr.Volatile || generationImmutable(n) || conditionalConstantInputs(n) || !sameGroupExpression(n, n) {
 			t.Fatal("volatile expression lifecycle")
 		}
 		count := 0
@@ -318,7 +319,7 @@ func TestCommitTimeExpression(t *testing.T) {
 			t.Fatal("child traversal", count)
 		}
 		if name != "pg_last_committed_xact" {
-			v, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+			v, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 			if err != nil || !v.IsNull() || v.Type() != n.ResultUsage().Type {
 				t.Fatal("strict whole NULL", err)
 			}

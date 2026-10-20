@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
@@ -11,7 +12,7 @@ import (
 func rejectRegexpSets(bound expr.Expr, context string, lateralHint bool) error {
 	var first expr.Expr
 	plan.WalkExpression(bound, func(node expr.Expr) {
-		if SourceReturnsSet(node) && (first == nil || node.SourcePosition().Offset < first.SourcePosition().Offset) {
+		if exec.SourceReturnsSet(node) && (first == nil || node.SourcePosition().Offset < first.SourcePosition().Offset) {
 			first = node
 		}
 	})

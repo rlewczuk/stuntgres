@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
@@ -83,7 +84,7 @@ func TestQueryCoreEagerFinalization(t *testing.T) {
 			}
 			return c.Row[0], nil
 		})
-		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+		rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 		if rows != nil || count != 0 || err != sentinel || calls != 3 || source.View != nil {
 			t.Fatal(rows, count, err, calls, source.View)
 		}
@@ -100,7 +101,7 @@ func TestQueryCoreEagerFinalization(t *testing.T) {
 			}
 			return c.Row[0], nil
 		})
-		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+		rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 		if err != nil || count != 2 || calls != 2 {
 			t.Fatal(count, calls, err)
 		}
@@ -147,7 +148,7 @@ func TestQueryCoreCancellation(t *testing.T) {
 					return c.Row[0], nil
 				})
 			}
-			rows, _, err := Finalize(ctx, query.Root, source, nil)
+			rows, _, err := exec.Finalize(ctx, query.Root, source, nil)
 			if rows != nil || err != context.Canceled || calls == 0 || source.View != nil {
 				t.Fatal(rows, err, calls, source.View)
 			}
@@ -168,7 +169,7 @@ func TestQueryCoreCancellation(t *testing.T) {
 				source.Committed[i].Values[1] = value
 			}
 			ctx := &queryCountingContext{Context: context.Background(), remaining: 10}
-			rows, _, err := Finalize(ctx, query.Root, source, nil)
+			rows, _, err := exec.Finalize(ctx, query.Root, source, nil)
 			if rows != nil || err != context.Canceled || source.View != nil {
 				t.Fatal(rows, err, source.View)
 			}
@@ -193,21 +194,21 @@ func (c *queryCountingContext) Err() error {
 func TestQueryCoreSortErrors(t *testing.T) {
 	sentinel := errors.New("comparison")
 	calls := 0
-	err := MergeQueryIndices(context.Background(), []int{3, 2, 1, 0}, func(a, b int) (int, error) { calls++; return 0, sentinel })
+	err := exec.MergeQueryIndices(context.Background(), []int{3, 2, 1, 0}, func(a, b int) (int, error) { calls++; return 0, sentinel })
 	if err != sentinel || calls != 1 {
 		t.Fatal(err, calls)
 	}
 	t.Run("type comparison failure prevents publication", func(t *testing.T) {
 		_, query, source := queryCoreFixture(t, "SELECT id FROM t ORDER BY id")
 		query.Root.(*plan.ProjectNode).Child.(*plan.SortNode).Keys[0].Comparison = sqltype.Comparison{}
-		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+		rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 		if rows != nil || count != 0 || err == nil || err.Error() != "invalid comparison values" || source.View != nil {
 			t.Fatal(rows, count, err, source.View)
 		}
 	})
 	for _, q := range []string{"SELECT v FROM t ORDER BY v", "SELECT v FROM t ORDER BY v DESC"} {
 		_, query, source := queryCoreFixture(t, q)
-		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+		rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 		if err != nil || count != 4 {
 			t.Fatal(err, count)
 		}
@@ -230,7 +231,7 @@ func TestQueryCoreResultOwnership(t *testing.T) {
 	for _, ending := range []string{"EOF", "cancel", "width", "close"} {
 		t.Run(ending, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, "SELECT id FROM t")
-			rows, _, err := Finalize(context.Background(), query.Root, source, nil)
+			rows, _, err := exec.Finalize(context.Background(), query.Root, source, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -347,7 +348,7 @@ func TestQueryCoreStageContractsAndDescriptors(t *testing.T) {
 		t.Run(q, func(t *testing.T) {
 			_, query, source := queryCoreFixture(t, q)
 			project := query.Root.(*plan.ProjectNode)
-			stage, err := OpenNode(context.Background(), &queryState{Source: source}, project.Child)
+			stage, err := exec.OpenNode(context.Background(), &queryState{Source: source}, project.Child)
 			if err != nil {
 				t.Fatal(err)
 			}

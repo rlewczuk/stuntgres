@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -33,7 +34,7 @@ func TestDatetimeTruncBindingOwnership(t *testing.T) {
 			t.Fatal(tc, err)
 		}
 		e := node.(functions.DatetimeTrunc)
-		if e.ResultUsage().Type.ID() != tc.result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != tc.volatility || PlannedVolatility(e) != tc.volatility || generationImmutable(e) != (tc.volatility == expr.Immutable) {
+		if e.ResultUsage().Type.ID() != tc.result || e.ResultUsage().Typmod != -1 || e.Properties().Volatility != tc.volatility || exec.PlannedVolatility(e) != tc.volatility || generationImmutable(e) != (tc.volatility == expr.Immutable) {
 			t.Fatal(tc, e.Properties(), e.ResultUsage())
 		}
 		if tc.typ == "time" && e.Args[1].ResultUsage().Type.ID() != sqltype.Time {
@@ -59,7 +60,7 @@ func TestDatetimeTruncBindingOwnership(t *testing.T) {
 		if rebound.ResultUsage().Type != replacements[tc.result] {
 			t.Fatal("retained result authority")
 		}
-		v, err := rebound.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: utc}}})
+		v, err := rebound.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Input: sqltype.InputEnvironment{Zone: utc}}})
 		if err != nil || v.Type() != replacements[tc.result] {
 			t.Fatal(v, err)
 		}
@@ -73,15 +74,15 @@ func TestDatetimeTruncInferenceStrictChildren(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b.params.parameters[1].Type.ID() != sqltype.Text || b.params.parameters[2].Type.ID() != sqltype.Timestamptz || b.params.parameters[3].Type.ID() != sqltype.Text || !node.Properties().ParameterDependent || PlannedVolatility(node) != expr.Immutable {
+	if b.params.parameters[1].Type.ID() != sqltype.Text || b.params.parameters[2].Type.ID() != sqltype.Timestamptz || b.params.parameters[3].Type.ID() != sqltype.Text || !node.Properties().ParameterDependent || exec.PlannedVolatility(node) != expr.Immutable {
 		t.Fatal(node.Properties(), b.params.parameters)
 	}
 	e := node.(functions.DatetimeTrunc)
 	for _, i := range []int{0, 1, 2} {
 		n := e
 		n.Args[i] = plan.LiteralExpr{Info: b.info(n.Args[i].ResultUsage(), parser.Position{}, expr.Properties{Volatility: expr.Immutable}), Value: sqltype.Null(n.Args[i].ResultUsage().Type)}
-		simplified, changed, err := simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, n, false)
-		if err != nil || !changed || PlannedVolatility(simplified) != expr.Immutable || !generationImmutable(simplified) {
+		simplified, changed, err := simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, n, false)
+		if err != nil || !changed || exec.PlannedVolatility(simplified) != expr.Immutable || !generationImmutable(simplified) {
 			t.Fatal(simplified, changed, err)
 		}
 	}

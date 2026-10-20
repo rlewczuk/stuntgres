@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/sqltype"
 )
@@ -70,15 +71,15 @@ func (s *StatementScope) planForeignModification(ctx context.Context, source *fo
 	if err := foreignOperationSupported(source.Wrapper, operation, source.Request.Table); err != nil {
 		return nil, err
 	}
-	m := &foreignModification{source: source, request: catalog.ForeignModifyRequest{ForeignRequest: CopyForeignRequest(source.Request), Operation: operation}, copy: copying}
+	m := &foreignModification{source: source, request: catalog.ForeignModifyRequest{ForeignRequest: exec.CopyForeignRequest(source.Request), Operation: operation}, copy: copying}
 	if operation != catalog.ForeignInsert {
 		provider, ok := source.Wrapper.(catalog.ForeignUpdateTargetProvider)
 		if !ok {
 			return nil, sqlError("0A000", "foreign modification requires row identity support")
 		}
-		targets, err := provider.AddForeignUpdateTargets(ctx, CopyForeignRequest(source.Request), operation)
+		targets, err := provider.AddForeignUpdateTargets(ctx, exec.CopyForeignRequest(source.Request), operation)
 		if err != nil {
-			return nil, ForeignCallbackError(err)
+			return nil, exec.ForeignCallbackError(err)
 		}
 		if len(targets.Names) == 0 {
 			return nil, errors.New("stuntgres: foreign row identity has no attributes")
@@ -90,9 +91,9 @@ func (s *StatementScope) planForeignModification(ctx context.Context, source *fo
 		if planner, ok := source.Wrapper.(catalog.ForeignModifyPlanner); ok {
 			targets := m.request.Targets
 			targets.Names = slices.Clone(targets.Names)
-			plan, err := planner.PlanForeignModify(ctx, CopyForeignRequest(source.Request), operation, targets)
+			plan, err := planner.PlanForeignModify(ctx, exec.CopyForeignRequest(source.Request), operation, targets)
 			if err != nil {
-				return nil, ForeignCallbackError(err)
+				return nil, exec.ForeignCallbackError(err)
 			}
 			m.request.Plan = plan
 		}
@@ -109,16 +110,16 @@ func (m *foreignModification) begin(ctx context.Context, s *StatementScope) erro
 	s.foreignTables().modifications = append(s.foreignTablesOrZero().modifications, m)
 	if m.copy {
 		if beginner, ok := m.source.Wrapper.(catalog.ForeignInsertBeginner); ok {
-			m.state, err = beginner.BeginForeignInsert(ctx, catalog.ForeignInsertRequest{ForeignRequest: CopyForeignRequest(m.request.ForeignRequest), Copy: true})
+			m.state, err = beginner.BeginForeignInsert(ctx, catalog.ForeignInsertRequest{ForeignRequest: exec.CopyForeignRequest(m.request.ForeignRequest), Copy: true})
 		}
 	} else if beginner, ok := m.source.Wrapper.(catalog.ForeignModifyBeginner); ok {
 		m.state, err = beginner.BeginForeignModify(ctx, m.callbackRequest())
 	}
-	return ForeignCallbackError(err)
+	return exec.ForeignCallbackError(err)
 }
 func (m *foreignModification) callbackRequest() catalog.ForeignModifyRequest {
 	r := m.request
-	r.ForeignRequest = CopyForeignRequest(r.ForeignRequest)
+	r.ForeignRequest = exec.CopyForeignRequest(r.ForeignRequest)
 	r.Targets.Names = slices.Clone(r.Targets.Names)
 	return r
 }
@@ -129,12 +130,12 @@ func (m *foreignModification) end(ctx context.Context) error {
 	m.ended = true
 	if m.copy {
 		if ender, ok := m.source.Wrapper.(catalog.ForeignInsertEnder); ok {
-			m.endError = ender.EndForeignInsert(context.WithoutCancel(ctx), catalog.ForeignInsertRequest{ForeignRequest: CopyForeignRequest(m.request.ForeignRequest), Copy: true}, m.state)
+			m.endError = ender.EndForeignInsert(context.WithoutCancel(ctx), catalog.ForeignInsertRequest{ForeignRequest: exec.CopyForeignRequest(m.request.ForeignRequest), Copy: true}, m.state)
 		}
 	} else if ender, ok := m.source.Wrapper.(catalog.ForeignModifyEnder); ok {
 		m.endError = ender.EndForeignModify(context.WithoutCancel(ctx), m.callbackRequest(), m.state)
 	}
-	m.endError = ForeignCallbackError(m.endError)
+	m.endError = exec.ForeignCallbackError(m.endError)
 	m.state = nil
 	return m.endError
 }
@@ -163,7 +164,7 @@ func (m *foreignModification) insertRows(ctx context.Context, s *StatementScope,
 		var err error
 		size, err = sizer.GetForeignModifyBatchSize(ctx, m.callbackRequest(), m.state)
 		if err != nil {
-			return 0, ForeignCallbackError(err)
+			return 0, exec.ForeignCallbackError(err)
 		}
 		if size < 1 {
 			return 0, errors.New("stuntgres: foreign batch size must be positive")
@@ -182,7 +183,7 @@ func (m *foreignModification) insertRows(ctx context.Context, s *StatementScope,
 			}
 			result, present, err := inserter.ExecForeignInsert(ctx, m.callbackRequest(), m.state, cells)
 			if err != nil {
-				return 0, ForeignCallbackError(err)
+				return 0, exec.ForeignCallbackError(err)
 			}
 			if !present {
 				continue
@@ -215,7 +216,7 @@ func (m *foreignModification) insertRows(ctx context.Context, s *StatementScope,
 		}
 		results, err := batch.ExecForeignBatchInsert(ctx, m.callbackRequest(), m.state, inputs)
 		if err != nil {
-			return 0, ForeignCallbackError(err)
+			return 0, exec.ForeignCallbackError(err)
 		}
 		if len(results) > n {
 			return 0, errors.New("stuntgres: foreign batch returned more rows than supplied")

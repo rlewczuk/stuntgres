@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 	"testing"
@@ -128,19 +129,19 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(refs, []ids.ObjectAddress{n.Ref.Address}) {
 		t.Fatal("enum dependency", refs, err)
 	}
-	c := &EvalContext{evalStatement: evalStatement{Context: context.Background(), Catalog: e.CatalogRead()}}
+	c := &EvalContext{EvalStatement: evalStatement{Context: context.Background(), Catalog: e.CatalogRead()}}
 	input, err := n.Args[0].Eval(c)
 	if err != nil {
 		t.Fatal(err)
 	}
 	count := 0
 	n.Args = []expr.Expr{queryProbe(n.Args[0].ResultUsage(), func(*EvalContext) (sqltype.Value, error) { count++; return input, nil })}
-	first, err := OpenFunctionSource(c, n)
+	first, err := exec.OpenFunctionSource(c, n)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer first.Close()
-	second, err := OpenFunctionSource(c, n)
+	second, err := exec.OpenFunctionSource(c, n)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +173,7 @@ func TestIntaggEnumerationIdentity(t *testing.T) {
 		if wholeNull {
 			empty.Args = []expr.Expr{plan.LiteralExpr{Info: expr.InfoOf(empty.Args[0]), Value: sqltype.Null(empty.Args[0].ResultUsage().Type)}}
 		}
-		cursor, err := OpenFunctionSource(c, empty)
+		cursor, err := exec.OpenFunctionSource(c, empty)
 		if err != nil {
 			t.Fatal(err)
 		}

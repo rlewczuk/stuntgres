@@ -4,6 +4,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"testing"
 )
@@ -102,11 +103,11 @@ func TestRLSBaseDeniedTargetHistory(t *testing.T) {
 			if source.Committed != nil || source.Own != nil || source.Visible != nil || source.HashIndexes != nil || source.PartialMask != nil {
 				t.Fatal("denied target captured physical prefixes or live selection")
 			}
-			selected, err := SelectQuerySource(op.ctx, source, data.FrontierAt(address), committedEnd, privateEnd)
+			selected, err := exec.SelectQuerySource(op.ctx, source, data.FrontierAt(address), committedEnd, privateEnd)
 			if err != nil || selected != source || source.Visible != nil || source.Committed != nil || source.Own != nil {
 				t.Fatal("hidden history revived denied target", err)
 			}
-			stage, err := OpenNode(op.ctx, &queryState{Source: source}, b.query.Root.(*plan.ProjectNode).Child)
+			stage, err := exec.OpenNode(op.ctx, &queryState{Source: source}, b.query.Root.(*plan.ProjectNode).Child)
 			// The underlying fixture source has id and allowed; the outer
 			// projection narrows its output, not the owned base-source schema.
 			if err != nil || stage.Source != source || len(stage.Columns) != 2 {

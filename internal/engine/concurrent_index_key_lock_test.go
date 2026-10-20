@@ -96,11 +96,11 @@ func TestConcurrentIndexU5LiveSimpleRowKeyBitmapIndependentOfReadiness(t *testin
 				if err != nil {
 					t.Fatal(err)
 				}
-				before, err := ordering.entry(storage.RowVersion{Values: old}, &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}})
+				before, err := ordering.entry(storage.RowVersion{Values: old}, &EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}})
 				if err != nil {
 					t.Fatal(err)
 				}
-				after, err := ordering.entry(storage.RowVersion{Values: next}, &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}})
+				after, err := ordering.entry(storage.RowVersion{Values: next}, &EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}})
 				if err != nil {
 					t.Fatal(err)
 				}

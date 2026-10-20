@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -433,7 +434,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 				if !node.Plan.Immutable() {
 					demand := true
 					for _, arg := range node.Args {
-						if RandomLiteralNull(arg) {
+						if exec.RandomLiteralNull(arg) {
 							demand = false
 							break
 						}
@@ -441,7 +442,7 @@ func (e *Engine) lowerViewWrite(b *binding, auth AuthorizationView, stmt parser.
 					b.visibilitySnapshot = b.visibilitySnapshot || demand
 				}
 			case expr.SnapshotDemander:
-				_, catalogText, visibility := n.(expr.SnapshotDemander).SnapshotDemand(RandomLiteralNull)
+				_, catalogText, visibility := n.(expr.SnapshotDemander).SnapshotDemand(exec.RandomLiteralNull)
 				b.prepared.regclassConcat = b.prepared.regclassConcat || catalogText
 				b.visibilitySnapshot = b.visibilitySnapshot || visibility
 			}

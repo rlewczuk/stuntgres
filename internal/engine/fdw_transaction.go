@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 )
 
@@ -87,9 +88,9 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 	marks := t.savepoints // Borrowed immutable roots under retained owner admission.
 	t.mu.Unlock()
 	if participant == nil {
-		capabilities, err := provider.ForeignTransactionCapabilities(ctx, CopyForeignRequest(request))
+		capabilities, err := provider.ForeignTransactionCapabilities(ctx, exec.CopyForeignRequest(request))
 		if err != nil {
-			return nil, ForeignCallbackError(err)
+			return nil, exec.ForeignCallbackError(err)
 		}
 		if !capabilities.StatementRollback || !capabilities.TransactionRollback {
 			return nil, foreignCapabilityError()
@@ -97,12 +98,12 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 		if len(marks) != 0 && !capabilities.Savepoints {
 			return nil, sqlError("0A000", "foreign transaction does not support savepoints")
 		}
-		tx, err := provider.BeginForeignTransaction(ctx, CopyForeignRequest(request))
+		tx, err := provider.BeginForeignTransaction(ctx, exec.CopyForeignRequest(request))
 		if err != nil {
 			if tx != nil {
 				_ = tx.Rollback(context.WithoutCancel(ctx))
 			}
-			return nil, ForeignCallbackError(err)
+			return nil, exec.ForeignCallbackError(err)
 		}
 		if tx == nil {
 			return nil, errors.New("stuntgres: foreign provider returned no transaction")
@@ -117,7 +118,7 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 			for _, mark := range marks {
 				if err := sp.Savepoint(ctx, foreignMarkName(mark.foreignID)); err != nil {
 					_ = tx.Rollback(context.WithoutCancel(ctx))
-					return nil, ForeignCallbackError(err)
+					return nil, exec.ForeignCallbackError(err)
 				}
 			}
 		}
@@ -142,7 +143,7 @@ func (s *StatementScope) enlistForeign(ctx context.Context, wrapper catalog.Fore
 		// Record before entry: a partial BeginStatement must be rolled back.
 		s.foreignTables().statements = append(s.foreignTablesOrZero().statements, participant)
 		if err := participant.tx.BeginStatement(ctx); err != nil {
-			return nil, ForeignCallbackError(err)
+			return nil, exec.ForeignCallbackError(err)
 		}
 	}
 	return participant.tx, nil
@@ -173,7 +174,7 @@ func (s *StatementScope) finishForeignStatements(primary error) error {
 		}
 		if err := p.tx.EndStatement(ctx, primary == nil); err != nil {
 			if primary == nil {
-				primary = ForeignCallbackError(err)
+				primary = exec.ForeignCallbackError(err)
 			}
 			// A failed release is not a reusable transaction; abort it, once.
 			p.closed = true
@@ -191,7 +192,7 @@ func rollbackForeign(ctx context.Context, participants []*foreignParticipant) er
 		}
 		p.closed = true
 		if err := p.tx.Rollback(context.WithoutCancel(ctx)); first == nil {
-			first = ForeignCallbackError(err)
+			first = exec.ForeignCallbackError(err)
 		}
 	}
 	return first
@@ -212,7 +213,7 @@ func (t *transactionOwner) commitForeign(ctx context.Context, ref ids.TxRef) err
 		p.closed = true
 		if err := p.tx.Commit(ctx); err != nil {
 			_ = rollbackForeign(ctx, participants)
-			return ForeignCallbackError(err)
+			return exec.ForeignCallbackError(err)
 		}
 	}
 	return nil
@@ -249,7 +250,7 @@ func (t *transactionOwner) foreignSavepoint(ctx context.Context, kind int, id ui
 		}
 		if err != nil {
 			_ = rollbackForeign(ctx, t.foreign.participants)
-			return ForeignCallbackError(err)
+			return exec.ForeignCallbackError(err)
 		}
 	}
 	return nil

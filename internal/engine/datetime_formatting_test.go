@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -36,7 +37,7 @@ func TestDatetimeFormattingTypedConsumers(t *testing.T) {
 			plan.LiteralExpr{Info: expr.Info{Usage: source.Usage()}, Value: sqltype.Null(source)},
 			plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.String(text, template)},
 		}}
-		if PlannedVolatility(node) != expr.Stable || generationImmutable(node) {
+		if exec.PlannedVolatility(node) != expr.Stable || generationImmutable(node) {
 			t.Fatal("lost intrinsic STABLE classification", signature)
 		}
 		if !b.sameGroupExpression(node, node) {
@@ -47,7 +48,7 @@ func TestDatetimeFormattingTypedConsumers(t *testing.T) {
 		if b.sameGroupExpression(node, other) {
 			t.Fatal("template omitted from semantic identity", signature)
 		}
-		value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+		value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 		if err != nil || !value.IsNull() || value.Type() != result {
 			t.Fatal(value, err)
 		}
@@ -60,7 +61,7 @@ func TestDatetimeFormattingTypedConsumers(t *testing.T) {
 			t.Fatal("provider rebind", rebound, changed, err)
 		}
 		retained := rebound.(functions.DatetimeFormatting)
-		value, err = retained.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+		value, err = retained.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 		if err != nil || value.Type() != replacements[signature.result] || node.ResultUsage().Type != result {
 			t.Fatal("rebind changed source authority or retained obsolete result", value, err)
 		}

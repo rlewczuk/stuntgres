@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -65,7 +66,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				outcome = err
 				t.Fatal(err)
 			}
-			if err = SelectQuerySources(op.Context(), source); err != nil {
+			if err = exec.SelectQuerySources(op.Context(), source); err != nil {
 				source.Close()
 				outcome = err
 				t.Fatal(err)
@@ -83,7 +84,7 @@ func TestQueryTableCreateSerializationFrontier(t *testing.T) {
 				}
 				return sqltype.Boolean(testUsage(e, sqltype.Bool).Type, value >= threshold), nil
 			})}
-			result, count, err := Finalize(op.Context(), project, source, nil)
+			result, count, err := exec.Finalize(op.Context(), project, source, nil)
 			if err != nil {
 				outcome = err
 				t.Fatal(err)

@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/ids"
@@ -203,10 +204,10 @@ func (a daitchCountingArgument) Eval(expr.Context) (sqltype.Value, error) {
 func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	e, ext := daitchUnitInstalled(t)
 	n := daitchUnitExpression(t, e, "Bierschbach")
-	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 	value, err := n.Eval(ctx)
 	text, _ := n.Usage.Type.Output(ctx.Context, value)
-	if err != nil || text != "{794575,794574,794750,794740,745750,745740,747500,747400}" || PlannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
+	if err != nil || text != "{794575,794574,794750,794740,745750,745740,747500,747400}" || exec.PlannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
 		t.Fatal("immutable complete evaluation", text, err)
 	}
 	if n.Ref.Address != ext.Members[0] || n.Dictionary != nil || n.Template != nil || value.Type() != n.Usage.Type || value.ArrayLen() != 8 {
@@ -278,18 +279,18 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 	calls := 0
 	n.Arg = daitchCountingArgument{Info: expr.Info{Usage: n.Arg.ResultUsage(), Property: expr.Properties{Volatility: expr.Volatile}}, calls: &calls, value: sqltype.Null(n.Arg.ResultUsage().Type)}
 	v, err := n.Eval(ctx)
-	if err != nil || calls != 1 || !v.IsNull() || v.Type() != n.Usage.Type || PlannedVolatility(n) != expr.Volatile || generationImmutable(n) {
+	if err != nil || calls != 1 || !v.IsNull() || v.Type() != n.Usage.Type || exec.PlannedVolatility(n) != expr.Volatile || generationImmutable(n) {
 		t.Fatal("strict single eval/child volatility", calls, v, err)
 	}
 	ctxCanceled, cancel := context.WithCancel(ctx.Context)
 	cancel()
-	if _, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: ctxCanceled}}); !errors.Is(err, context.Canceled) || calls != 1 {
+	if _, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctxCanceled}}); !errors.Is(err, context.Canceled) || calls != 1 {
 		t.Fatal("precanceled evaluation", calls, err)
 	}
 	unaccent, _, _ := extensionUnitInstalled(t)
 	b := newTestExpressionBinder(t, ctx.Context, unaccent, sqltype.InputEnvironment{}, nil)
 	u, err := b.bindFunctionProvider(parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "unaccent"}}}, Args: []parser.Expr{parser.LiteralExpr{Value: parser.Value{Kind: parser.StringValue, Text: "Hôtel"}}}})
-	if err != nil || PlannedVolatility(u) != expr.Stable || generationImmutable(u) {
+	if err != nil || exec.PlannedVolatility(u) != expr.Stable || generationImmutable(u) {
 		t.Fatal("unaccent remains stable", u, err)
 	}
 }
@@ -297,7 +298,7 @@ func TestDaitchMokotoffExpressionIdentity(t *testing.T) {
 func TestDaitchMokotoffRemap(t *testing.T) {
 	source, ext := daitchUnitInstalled(t)
 	old := daitchUnitExpression(t, source, "John")
-	oldValue, err := old.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+	oldValue, err := old.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -334,7 +335,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 		t.Fatal("retag", changed, err)
 	}
 	n := mapped.(plan.InstalledTextExpr)
-	v, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+	v, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 	ownedArray, _ := target.CatalogRead().LookupType(1009)
 	ownedText, _ := target.CatalogRead().LookupType(sqltype.Text)
 	if err != nil || v.Type() != ownedArray || v.ArrayElement(0).Type() != ownedText || n.Procedure != target.catalog.state.Get(imported.Members[0]) || n.Dictionary != nil || n.Template != nil {
@@ -355,7 +356,7 @@ func TestDaitchMokotoffRemap(t *testing.T) {
 	if err != nil || retainedText != "{160000,460000}" {
 		t.Fatal("retained array data changed", retainedText, err)
 	}
-	retainedValue, err := old.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+	retainedValue, err := old.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 	if err != nil || retainedValue.Type() != sourceArray || retainedValue.ArrayElement(0).Type() != sourceText {
 		t.Fatal("retained source expression generation changed", retainedValue, err)
 	}

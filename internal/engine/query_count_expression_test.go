@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -24,7 +25,7 @@ func TestCountExpressionArgumentVeto(t *testing.T) {
 			}
 			return sqltype.Value{}, sentinel
 		})
-		rows, count, err := Finalize(ctx, query.Root, source, nil)
+		rows, count, err := exec.Finalize(ctx, query.Root, source, nil)
 		cancel()
 		want := error(sentinel)
 		if cancelArgument {
@@ -47,7 +48,7 @@ func TestCountExpressionSlotsAndMetadata(t *testing.T) {
 			t.Fatal(column)
 		}
 	}
-	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || count != 1 || rows == nil {
 		t.Fatal(rows, count, err)
 	}
@@ -103,7 +104,7 @@ func TestCountExpressionVolatileCalls(t *testing.T) {
 	}
 	defer scope.Finish(context.Canceled)
 	borrowQueryAuthority(source, scope)
-	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || count != 1 || rows == nil {
 		t.Fatal(rows, count, err)
 	}

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -21,7 +22,7 @@ type enumCapturedArgument struct {
 
 func (e enumCapturedArgument) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
-	if err := EvaluationContext(c); err != nil {
+	if err := exec.EvaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
 	(*e.calls)++
@@ -91,7 +92,7 @@ func TestEnumRetainedProducerEnvironment(t *testing.T) {
 			if b.input.TypeDiagnosticName(mood.ID()) != "mood" || !b.input.EnumMemberSafe(mood.ID(), members[0].ID) || b.input.EnumMemberSafe(mood.ID(), members[1].ID) {
 				t.Fatal("incoherent catalog/provenance capture")
 			}
-			eval := &EvalContext{evalStatement: evalStatement{Context: context.Background(), Input: b.input}}
+			eval := &EvalContext{EvalStatement: evalStatement{Context: context.Background(), Input: b.input}}
 			value, err := nested.Eval(eval)
 			if err != nil || !sqltype.SameDatum(value, safe) || calls != 0 {
 				t.Fatal("unused producer demanded", calls, err)

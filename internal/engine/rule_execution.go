@@ -133,7 +133,7 @@ func (e *Engine) executeRuleProgramLocked(scope *StatementScope, stmt parser.Sta
 			*captures = quoteCaptureCandidate{Entries: candidate.quotes, Private: quoteChanged}
 			pruneQuoteCaptures(captures, command.auth.Catalog)
 		}
-		evaluation := EvalContext{evalStatement: evalStatement{Context: scope.op.Context(), Parameters: parameters, Host: hostOf(scope), Catalog: command.auth.Catalog, Input: scope.input, Output: scope.output, QuoteCaptures: captures, PlanStaticOperators: true, SpecializeRuleParameters: true}}
+		evaluation := EvalContext{EvalStatement: evalStatement{Context: scope.op.Context(), Parameters: parameters, Host: hostOf(scope), Catalog: command.auth.Catalog, Input: scope.input, Output: scope.output, QuoteCaptures: captures, PlanStaticOperators: true, SpecializeRuleParameters: true}}
 		e.mu.Lock()
 		if _, err := e.prepareCTECommandsLocked(scope, command.syntax, command.binding, command.auth, parameters, evaluation, nil, nil, &prepared[i]); err != nil {
 			return Result{}, err

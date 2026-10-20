@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -53,7 +54,7 @@ func TestQueryWindowExcludeTransitionLifecycle(t *testing.T) {
 			project := query.Root.(*plan.ProjectNode)
 			node := project.Child.(*plan.WindowNode)
 			state := &queryState{Source: source, Frame: project.Frame}
-			child, err := OpenNode(context.Background(), state, node.Child)
+			child, err := exec.OpenNode(context.Background(), state, node.Child)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -119,7 +120,7 @@ func TestQueryWindowExcludeMemberMajorTypedStates(t *testing.T) {
 	project := query.Root.(*plan.ProjectNode)
 	node := project.Child.(*plan.WindowNode)
 	state := &queryState{Source: source, Frame: project.Frame}
-	child, err := OpenNode(context.Background(), state, node.Child)
+	child, err := exec.OpenNode(context.Background(), state, node.Child)
 	if err != nil {
 		t.Fatal(err)
 	}

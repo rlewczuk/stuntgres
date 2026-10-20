@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
 	"testing"
@@ -75,7 +76,7 @@ func TestAnyValueEvaluationAndCancellation(t *testing.T) {
 			if phase == "init" {
 				node.Calls[0].Provider = anyValueInitProbeProvider{node.Calls[0].Provider, cancel}
 			}
-			rows, count, err := Finalize(ctx, q.Root, source, nil)
+			rows, count, err := exec.Finalize(ctx, q.Root, source, nil)
 			if phase == "success" {
 				if err != nil || count != 1 || calls != 4 || advances != 3 || finalizations != 1 {
 					t.Fatal("retention skipped evaluation", count, err, calls, advances, finalizations)

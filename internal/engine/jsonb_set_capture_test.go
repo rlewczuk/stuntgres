@@ -85,7 +85,7 @@ func jsonbSetContextualArrayCapture(t *testing.T, query, wantA, wantB string) {
 		t.Fatal("explicit plan/default validation changed", err)
 	}
 	rebound := jsonbSetUnitBind(t, newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil), "SELECT "+stored)
-	converted, err := rebound.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+	converted, err := rebound.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func jsonbSetContextualArrayCapture(t *testing.T, query, wantA, wantB string) {
 	assertRows := func(node expr.Expr, text *sqltype.Descriptor) {
 		for _, tc := range []struct{ input, want string }{{"ab", wantA}, {"bc", wantB}} {
 			input := sqltype.String(text, tc.input)
-			eval := EvalContext{evalStatement: evalStatement{Context: ctx}, evalFrame: evalFrame{Scope: 1, Frame: b.frameID(), Row: []sqltype.Value{input}}}
+			eval := EvalContext{EvalStatement: evalStatement{Context: ctx}, EvalFrame: evalFrame{Scope: 1, Frame: b.frameID(), Row: []sqltype.Value{input}}}
 			got, err := node.Eval(&eval)
 			if err != nil {
 				t.Fatal(err)

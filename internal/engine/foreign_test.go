@@ -11,6 +11,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -371,7 +372,7 @@ func TestFDWScanState(t *testing.T) {
 	owner := &foreignScanOwner{}
 	owner.Add(source.Foreign)
 	state := &queryState{Source: source}
-	stage, err := OpenForeignStage(ctx, state, source, &plan.SourceNode{})
+	stage, err := exec.OpenForeignStage(ctx, state, source, &plan.SourceNode{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -390,7 +391,7 @@ func TestFDWScanState(t *testing.T) {
 	if scan.ends != 0 {
 		t.Fatal("borrowed invocation ended query-owned scan")
 	}
-	again, err := OpenForeignStage(ctx, state, source, &plan.SourceNode{})
+	again, err := exec.OpenForeignStage(ctx, state, source, &plan.SourceNode{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -406,10 +407,10 @@ func TestFDWScanState(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	if err = FinishForeignSources(canceled, source); !errors.Is(err, endFailure) {
+	if err = exec.FinishForeignSources(canceled, source); !errors.Is(err, endFailure) {
 		t.Fatal(err)
 	}
-	if err = FinishForeignSources(ctx, source); !errors.Is(err, endFailure) || scan.ends != 1 || scan.cleanupCanceled {
+	if err = exec.FinishForeignSources(ctx, source); !errors.Is(err, endFailure) || scan.ends != 1 || scan.cleanupCanceled {
 		t.Fatal("cleanup was canceled, duplicated or lost outcome", err, scan)
 	}
 	t.Run("CursorCleanupOwner", testFDWCursorCleanupOwner)

@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -257,7 +258,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 		if tc.name == "pg_xact_status" || tc.name == "pg_get_multixact_members" {
 			intrinsic = expr.Volatile
 		}
-		if PlannedVolatility(n) != intrinsic || conditionalConstantInputs(n) || generationImmutable(n) {
+		if exec.PlannedVolatility(n) != intrinsic || conditionalConstantInputs(n) || generationImmutable(n) {
 			t.Fatal("unsafe constant/volatility admission", tc.name)
 		}
 		count := 0
@@ -293,7 +294,7 @@ func TestTransactionIdentityBinding(t *testing.T) {
 			t.Fatal("current OID repaired missing original routine manifest")
 		}
 		if len(n.(expr.Composite).Children()) != 0 && tc.name != "age" {
-			value, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+			value, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 			if err != nil || !value.IsNull() {
 				t.Fatal("typed strict null", err)
 			}

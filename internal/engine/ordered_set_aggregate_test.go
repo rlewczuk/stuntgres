@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -302,7 +303,7 @@ func TestOrderedSetAggregateGroupFrameAndPublication(t *testing.T) {
 			}
 			owned := &querySource{Anonymous: [][]sqltype.Value{{sqltype.Null(p.InputType())}}, Flat: []sqltype.Value{sqltype.Null(p.InputType())}}
 			source := &querySource{Sources: []*querySource{owned}}
-			rows, count, err := Finalize(execution, root, source, nil)
+			rows, count, err := exec.Finalize(execution, root, source, nil)
 			if phase == "having" {
 				if err != nil || rows == nil || count != 0 || calls != 2 {
 					t.Fatal("HAVING bypassed ordered-set finalization", calls, count, err)
@@ -485,7 +486,7 @@ func TestOrderedSetAggregatePreSortDecisions(t *testing.T) {
 				ctx, cancel := context.WithCancel(context.Background())
 				defer cancel()
 				probe := &aggregateModifierFamilyCancelContext{Context: ctx, cancel: cancel, target: ".Comparison.Compare"}
-				rows, count, err := Finalize(probe, root, &querySource{}, nil)
+				rows, count, err := exec.Finalize(probe, root, &querySource{}, nil)
 				if rows != nil {
 					defer rows.Close()
 				}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -20,7 +21,7 @@ func TestQueryLimitViewCancellation(t *testing.T) {
 	leaf := &plan.SourceNode{QuerySchema: inner.Schema(), Ref: input.Ref}
 	limit := &plan.LimitNode{QuerySchema: inner.Schema(), Child: leaf, Count: queryLimitBound(t, e, 1)}
 	outer := &plan.ProjectNode{QuerySchema: inner.Schema(), Child: limit, Expressions: inner.Expressions}
-	rows, n, err := Finalize(ctx, outer, bridge, nil)
+	rows, n, err := exec.Finalize(ctx, outer, bridge, nil)
 	if rows != nil || n != 0 || err != context.Canceled || calls != 1 || input.View != nil || bridge.NestedStage != nil {
 		t.Fatal(rows, n, err, calls, input.View, bridge.NestedStage)
 	}

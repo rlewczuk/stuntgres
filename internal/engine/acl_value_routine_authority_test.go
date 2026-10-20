@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -49,11 +50,11 @@ func TestACLValueRoutineOriginalAuthority(t *testing.T) {
 			if got := call.Properties().Volatility; got != tc.volatility {
 				t.Fatalf("physical volatility: got %v, want %v", got, tc.volatility)
 			}
-			if got := SourceReturnsSet(call); got != tc.set {
+			if got := exec.SourceReturnsSet(call); got != tc.set {
 				t.Fatalf("sourceReturnsSet: got %t, want %t", got, tc.set)
 			}
 			// Containment is deliberately not a function-source capability.
-			if got, want := SourceAdmitted(call), tc.kind != functions.ACLContains; got != want {
+			if got, want := exec.SourceAdmitted(call), tc.kind != functions.ACLContains; got != want {
 				t.Fatalf("sourceAdmitted: got %t, want %t", got, want)
 			}
 			// bindACLValue returns the bare carrier directly, without setting

@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -83,7 +84,7 @@ func TestUUIDExtractRemap(t *testing.T) {
 		if node.Arg.ResultUsage().Type != b.typ(sqltype.UUID) || node.ResultUsage().Type != b.typ(kind.Result()) {
 			t.Fatal("mutated original")
 		}
-		v, err := next.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+		v, err := next.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 		if err != nil || v.Type() != fresh.typ(kind.Result()) {
 			t.Fatal(v, err)
 		}
@@ -96,14 +97,14 @@ func TestUUIDExtractScalarLifecycle(t *testing.T) {
 	b := newTestExpressionBinder(t, ctx, engine, sqltype.InputEnvironment{}, nil)
 	for _, kind := range []functions.UUIDExtractKind{functions.UUIDExtractTimestamp, functions.UUIDExtractVersion} {
 		node := uuidExtractEngineUnit(t, b, kind)
-		if !generationImmutable(node) || PlannedVolatility(node) != expr.Immutable || !conditionalConstantInputs(node) {
+		if !generationImmutable(node) || exec.PlannedVolatility(node) != expr.Immutable || !conditionalConstantInputs(node) {
 			t.Fatal("immutable lifecycle")
 		}
-		folded, changed, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: ctx}}, node)
+		folded, changed, err := preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: ctx}}, node)
 		if err != nil || !changed {
 			t.Fatal(folded, changed, err)
 		}
-		v, err := folded.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+		v, err := folded.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 		if err != nil || v.Type() != b.typ(kind.Result()) {
 			t.Fatal("folded authority", v, err)
 		}
@@ -120,7 +121,7 @@ func TestUUIDExtractScalarLifecycle(t *testing.T) {
 	// A UUID-producing volatile descendant remains visible through extraction.
 	raw := parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "uuid_extract_version"}}}, Args: []parser.Expr{parser.FunctionExpr{Name: parser.ObjectName{Parts: []parser.Identifier{{Text: "uuidv4"}}}}}}
 	node, err := b.bindFunctionProvider(raw)
-	if err != nil || node.Properties().Volatility != expr.Volatile || PlannedVolatility(node) != expr.Volatile || generationImmutable(node) {
+	if err != nil || node.Properties().Volatility != expr.Volatile || exec.PlannedVolatility(node) != expr.Volatile || generationImmutable(node) {
 		t.Fatal("volatile child erased", node, err)
 	}
 	if !closedUUIDDefault(node) {

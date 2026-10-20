@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -105,7 +106,7 @@ func TestRegclassConstructorShapeOwnershipAndWalkers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+	value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,19 +123,19 @@ func TestRegclassConstructorShapeOwnershipAndWalkers(t *testing.T) {
 	if count != 2 {
 		t.Fatal(count)
 	}
-	if PlannedVolatility(node) != expr.Immutable || !generationImmutable(node) || !defaultReplayDeferrable(catalog.ColumnDefault{Expression: node}) || !b.sameGroupExpression(node, node) {
+	if exec.PlannedVolatility(node) != expr.Immutable || !generationImmutable(node) || !defaultReplayDeferrable(catalog.ColumnDefault{Expression: node}) || !b.sameGroupExpression(node, node) {
 		t.Fatal("constructor properties/walkers")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err = node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}}); !errors.Is(err, context.Canceled) {
+	if _, err = node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}}); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	empty, err := b.bindArray(parser.ArrayExpr{}, node.ResultUsage())
 	if err != nil {
 		t.Fatal(err)
 	}
-	emptyValue, err := empty.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+	emptyValue, err := empty.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 	if err != nil || emptyValue.IsNull() || emptyValue.ArrayLen() != 0 || len(emptyValue.ArrayDimensions()) != 0 {
 		t.Fatal(emptyValue, err)
 	}
@@ -197,7 +198,7 @@ func TestRegclassConstructorParameterOccurrences(t *testing.T) {
 				t.Fatal(parameters, node.Properties(), err)
 			}
 			for _, parameter := range []sqltype.Value{sqltype.String(typ, "0"), sqltype.Null(typ), sqltype.String(typ, "1259")} {
-				value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{parameter}}})
+				value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Parameters: []sqltype.Value{parameter}}})
 				if err != nil || value.ArrayLen() != len(raw.Elements) {
 					t.Fatal(value, err)
 				}

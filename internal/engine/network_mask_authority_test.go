@@ -60,7 +60,7 @@ func TestNetworkMaskOriginalAuthority(t *testing.T) {
 			if !reflect.DeepEqual(found, map[ids.OID]bool{tc.oid: true}) {
 				t.Fatal("wrong dependency identities", found)
 			}
-			evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
+			evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalAdmission: evalAdmission{RoutineAuthority: &auth, RoutineRecipe: true, RoutineChecks: binder.dependencies}}
 			if err := admitRoutineCall(&evaluation, node, true, false); err != nil {
 				t.Fatal(err)
 			}
@@ -143,7 +143,7 @@ func TestNetworkMaskStoredLiteralIdentity(t *testing.T) {
 			}
 			got := make(map[literalIdentity]int)
 			for _, literal := range b.capture.literals {
-				value, err := literal.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+				value, err := literal.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 				if err != nil || value.IsNull() || value.Type() != literal.ResultUsage().Type || value.Type() != b.typ(value.Type().ID()) {
 					t.Fatal("lost exact literal authority", value, err)
 				}

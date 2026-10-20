@@ -58,7 +58,7 @@ func TestStringNumericBaseBindingAndRebinding(t *testing.T) {
 		if next.Plan.ArgumentUsage(0).Type != replacements[id] || next.ResultUsage().Type != replacements[sqltype.Text] {
 			t.Fatal(next)
 		}
-		got, err := next.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+		got, err := next.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -98,7 +98,7 @@ func TestStringNumericBaseMD5Rebinding(t *testing.T) {
 		t.Fatal(changed, err)
 	}
 	next := rebound.(functions.String)
-	got, err := next.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+	got, err := next.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 	if err != nil || got.Type() != replacements[sqltype.Text] {
 		t.Fatal(got, err)
 	}
@@ -154,7 +154,7 @@ func TestStringNumericBaseStoredWidthReplay(t *testing.T) {
 						if selected.Plan.ArgumentUsage(0).Type.ID() != id {
 							t.Fatal("replay changed selected width", canonical, selected.Plan.ArgumentUsage(0))
 						}
-						value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+						value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 						if err != nil || value.Type() != b.typ(sqltype.Text) || value.IsNull() != (input == "NULL") {
 							t.Fatal(value, err)
 						}
@@ -186,7 +186,7 @@ func TestStringNumericBaseMD5InternalCharAdmission(t *testing.T) {
 		if err != nil {
 			t.Fatal(null, err)
 		}
-		value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: ctx}})
+		value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: ctx}})
 		if err != nil || value.Type() != b.typ(sqltype.Text) || value.IsNull() != null {
 			t.Fatal(value, err)
 		}

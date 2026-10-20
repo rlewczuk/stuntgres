@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -13,8 +14,8 @@ func TestProtocolPortalProducer(t *testing.T) {
 	original := root.Expressions[0]
 	calls := 0
 	root.Expressions[0] = queryProbe(original.ResultUsage(), func(c *EvalContext) (sqltype.Value, error) { calls++; return original.Eval(c) })
-	state := queryState{Source: source, HashFilter: HashQueryFilter(root)}
-	stage, err := OpenQueryProjectStage(context.Background(), &state, root)
+	state := queryState{Source: source, HashFilter: exec.HashQueryFilter(root)}
+	stage, err := exec.OpenQueryProjectStage(context.Background(), &state, root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +39,7 @@ func TestProtocolPortalProducer(t *testing.T) {
 	session := sessionStart(t, e, nil)
 	owner := session.transactions
 	p.tx, p.born = owner.ref, 1
-	newRows, foreignRows := NewFinalRows(nil, 0), NewFinalRows(nil, 0)
+	newRows, foreignRows := exec.NewFinalRows(nil, 0), exec.NewFinalRows(nil, 0)
 	newPortal := &protocolPortal{tx: owner.ref, born: 2, rows: newRows}
 	foreign := &protocolPortal{tx: owner.ref, born: 3, rows: foreignRows}
 	foreign.tx = withTxID(foreign.tx, foreign.tx.ID()+1)

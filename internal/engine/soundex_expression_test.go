@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"reflect"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/extension"
 	"stuntgres/internal/engine/plan"
 	"testing"
@@ -30,11 +31,11 @@ func soundexUnitExpression(t *testing.T, e *Engine, name string) plan.InstalledS
 
 func TestSoundexExpressionIdentity(t *testing.T) {
 	e, ext := daitchUnitInstalled(t)
-	ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+	ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 	for i, name := range []string{"soundex", "difference"} {
 		t.Run(name, func(t *testing.T) {
 			n := soundexUnitExpression(t, e, name)
-			if n.Ref.Address != ext.Members[8+i] || n.Procedure != e.catalog.state.Get(n.Ref.Address) || PlannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
+			if n.Ref.Address != ext.Members[8+i] || n.Procedure != e.catalog.state.Get(n.Ref.Address) || exec.PlannedVolatility(n) != expr.Immutable || !generationImmutable(n) {
 				t.Fatal("identity/properties", n)
 			}
 			value, err := n.Eval(ctx)
@@ -163,7 +164,7 @@ func TestSoundexExpressionRemap(t *testing.T) {
 				if err := validateInstalledSoundex(n, view); err != nil {
 					t.Fatal(err)
 				}
-				value, err := n.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+				value, err := n.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 				if err != nil || value.Type() != n.ResultUsage().Type {
 					t.Fatal(value, err)
 				}
@@ -200,7 +201,7 @@ func TestSoundexExpressionProperties(t *testing.T) {
 			modified.Args = append([]expr.Expr(nil), n.Args...)
 			modified.Args[0] = plan.ParameterExpr{Info: expr.Info{Usage: n.Args[0].ResultUsage(), Property: property}, Number: 1}
 			modified.Property = property
-			if PlannedVolatility(modified) != property.Volatility {
+			if exec.PlannedVolatility(modified) != property.Volatility {
 				t.Fatal("child volatility lost", property)
 			}
 			if property.Volatility != expr.Immutable && generationImmutable(modified) {

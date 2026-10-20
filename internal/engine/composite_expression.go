@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -563,7 +564,7 @@ func (c *clauseState) noteFunctionSignature(name parser.ObjectName, pos parser.P
 func (b *expressionBinder) bindFunction(raw parser.FunctionExpr) (result expr.Expr, failure error) {
 	before := b.clause.fromSetObservation
 	defer func() {
-		if failure != nil || b.clause.aggregateClause != "FROM" || !SourceReturnsSet(result) {
+		if failure != nil || b.clause.aggregateClause != "FROM" || !exec.SourceReturnsSet(result) {
 			return
 		}
 		if b.clause.fromSetObservation != before {

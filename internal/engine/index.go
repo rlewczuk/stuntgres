@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/storage"
@@ -130,7 +131,7 @@ func validateIndexDefinition(view catalog.Read, index *catalog.Relation) error {
 		return err
 	}
 	if p := d.Predicate; p != nil {
-		if p.Definition == nil || p.Execution == nil || p.Definition.ResultUsage() != p.Execution.ResultUsage() || p.Execution.ResultUsage().Type == nil || p.Execution.ResultUsage().Type.ID() != sqltype.Bool || PlannedVolatility(p.Execution) != expr.Immutable || !slices.Equal(p.Attributes, parent.Attributes) {
+		if p.Definition == nil || p.Execution == nil || p.Definition.ResultUsage() != p.Execution.ResultUsage() || p.Execution.ResultUsage().Type == nil || p.Execution.ResultUsage().Type.ID() != sqltype.Bool || exec.PlannedVolatility(p.Execution) != expr.Immutable || !slices.Equal(p.Attributes, parent.Attributes) {
 			return fmt.Errorf("stuntgres: invalid index predicate")
 		}
 		if _, err := (scalarRenderer{validation: true, owner: parent}).sql(context.Background(), view, p.Definition); err != nil {
@@ -140,7 +141,7 @@ func validateIndexDefinition(view catalog.Read, index *catalog.Relation) error {
 	for i, key := range d.Keys {
 		if key.Derived != nil {
 			derived := key.Derived
-			if key.Attribute != 0 || derived.Definition == nil || derived.Execution == nil || derived.Definition.ResultUsage() != derived.Execution.ResultUsage() || PlannedVolatility(derived.Execution) != expr.Immutable {
+			if key.Attribute != 0 || derived.Definition == nil || derived.Execution == nil || derived.Definition.ResultUsage() != derived.Execution.ResultUsage() || exec.PlannedVolatility(derived.Execution) != expr.Immutable {
 				return fmt.Errorf("stuntgres: invalid derived index key")
 			}
 			if _, err := (scalarRenderer{validation: true, owner: parent}).sql(context.Background(), view, derived.Definition); err != nil {

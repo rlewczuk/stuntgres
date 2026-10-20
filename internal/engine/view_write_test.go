@@ -5,6 +5,7 @@ import (
 	"errors"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
@@ -178,7 +179,7 @@ func TestViewWriteDefaults(t *testing.T) {
 		SQLIndex:      &catalog.IndexDefinition{Parent: f.base.Address(), Unique: true, Live: true, Ready: true, Valid: true},
 	})
 	conflict := &boundInsertConflict{}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 	if err := conflict.selectArbiters(&evaluation, b.physicalBinding().relation, f.e.CatalogRead()); err != nil {
 		t.Fatal(err)
 	}
@@ -199,8 +200,8 @@ func TestViewWriteDemand(t *testing.T) {
 	})
 	guard := plan.LiteralExpr{Info: expr.Info{Usage: f.boolean.Usage()}, Value: sqltype.Boolean(f.boolean, false)}
 	expression := viewWritePredicate([]expr.Expr{guard}, unsafe)
-	eval := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1}}
-	matched, err := UpdateMatches(&eval, expression)
+	eval := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1}}
+	matched, err := exec.UpdateMatches(&eval, expression)
 	if err != nil || matched || calls != 0 {
 		t.Fatal("hidden row demanded user work", matched, err, calls)
 	}
@@ -260,7 +261,7 @@ func TestViewWriteDemand(t *testing.T) {
 			source.Close()
 			t.Fatal("raw capture installed a bridge or selected prematurely")
 		}
-		if err := SelectQuerySources(op.Context(), source); err != nil {
+		if err := exec.SelectQuerySources(op.Context(), source); err != nil {
 			t.Fatal(err)
 		}
 		source = freezeViewWriteSources(scope, source, leaves)
@@ -319,8 +320,8 @@ func TestViewWriteQueuedRecheck(t *testing.T) {
 		n, _ := c.Row[1].Integer()
 		return sqltype.Boolean(f.boolean, n > 5), nil
 	})
-	eval := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: current.Values}}
-	matched, err := UpdateMatches(&eval, viewWritePredicate([]expr.Expr{predicate}, nil))
+	eval := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: current.Values}}
+	matched, err := exec.UpdateMatches(&eval, viewWritePredicate([]expr.Expr{predicate}, nil))
 	if err != nil || matched {
 		t.Fatal("latest predecessor bypassed view qualification", matched, err)
 	}

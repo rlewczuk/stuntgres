@@ -2,6 +2,7 @@ package engine
 
 import (
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -546,7 +547,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			}
 			schema := auth.Catalog.Get(b.relation.Namespace()).Name()
 			e.mu.Unlock()
-			if err := SelectQuerySources(ctx, source); err != nil {
+			if err := exec.SelectQuerySources(ctx, source); err != nil {
 				return Result{}, err
 			}
 			if b.viewWrite != nil || b.rule.template {
@@ -584,7 +585,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		}
 		e.mu.Unlock()
 		if evaluation.Query != nil {
-			if err := SelectQuerySources(ctx, evaluation.Query.Source); err != nil {
+			if err := exec.SelectQuerySources(ctx, evaluation.Query.Source); err != nil {
 				return Result{}, err
 			}
 			if b.viewWrite != nil || b.rule.template {
@@ -729,7 +730,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		if sourceErr != nil {
 			return Result{}, sourceErr
 		}
-		if err := SelectQuerySources(ctx, source); err != nil {
+		if err := exec.SelectQuerySources(ctx, source); err != nil {
 			source.Close()
 			return Result{}, err
 		}
@@ -740,7 +741,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 		if sourceErr != nil {
 			return Result{}, sourceErr
 		}
-		if err := SelectQuerySources(ctx, source); err != nil {
+		if err := exec.SelectQuerySources(ctx, source); err != nil {
 			return Result{}, err
 		}
 		if b.rule.template {
@@ -753,7 +754,7 @@ func (e *Engine) executePreparedCommandLocked(scope *StatementScope, stmt parser
 			rows, count, err := finalizeSQLRoutineQuery(ctx, queryRoot, source, canonical)
 			return Result{Count: int64(count), Rows: rows}, err
 		}
-		rows, count, queryErr := FinalizeSelect(ctx, queryRoot, source, canonical, op.parallelWorkers)
+		rows, count, queryErr := exec.FinalizeSelect(ctx, queryRoot, source, canonical, op.parallelWorkers)
 		if queryErr != nil {
 			return Result{}, queryErr
 		}

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -42,15 +43,15 @@ func TestCatalogRelationsBinding(t *testing.T) {
 		if reference == nil || reference.RoutineOID() != sample.oid {
 			t.Fatal("wrong original declaration", reference)
 		}
-		if PlannedVolatility(sample.node) != expr.Stable || generationImmutable(sample.node) || conditionalConstantInputs(sample.node) {
+		if exec.PlannedVolatility(sample.node) != expr.Stable || generationImmutable(sample.node) || conditionalConstantInputs(sample.node) {
 			t.Fatal("catalog inquiry lost STABLE symbolic semantics")
 		}
 	}
-	value, err := scalar.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+	value, err := scalar.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 	if err != nil || !value.IsNull() || value.Type().ID() != sqltype.Name {
 		t.Fatal("strict typed null", value, err)
 	}
-	if scalar.Arg.ResultUsage().Type.ID() != sqltype.Oid || scalar.ResultUsage().Type.ID() != sqltype.Name || !SourceReturnsSet(set) || SourceReturnsSet(scalar) {
+	if scalar.Arg.ResultUsage().Type.ID() != sqltype.Oid || scalar.ResultUsage().Type.ID() != sqltype.Name || !exec.SourceReturnsSet(set) || exec.SourceReturnsSet(scalar) {
 		t.Fatal("physical signature")
 	}
 	for _, declaration := range routine.BuiltinRoutineDeclarations {
@@ -106,7 +107,7 @@ func TestCatalogRelationsConsumers(t *testing.T) {
 	if !ok {
 		t.Fatal("catalog set was not lowered")
 	}
-	if err := ValidateQuerySetSteps(stage.Steps, len(stage.Calls), len(stage.Scalars)); err != nil {
+	if err := exec.ValidateQuerySetSteps(stage.Steps, len(stage.Calls), len(stage.Scalars)); err != nil {
 		t.Fatal("catalog set occurrence lost its schedule", err)
 	}
 	if _, ok := requests[0].(plan.ColumnExpr); !ok {
@@ -128,12 +129,12 @@ func TestCatalogRelationsConsumers(t *testing.T) {
 	if retagged.Validate() != nil {
 		t.Fatal("invalid retagged metadata")
 	}
-	originalSource, err := OpenFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, set)
+	originalSource, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, set)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer originalSource.Close()
-	retaggedSource, err := OpenFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, retagged)
+	retaggedSource, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, retagged)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +198,7 @@ func TestCatalogRelationsCapture(t *testing.T) {
 			t.Fatal(err)
 		}
 		node := functions.CatalogUserName{Info: expr.Info{Usage: nameType.Usage()}, Arg: plan.LiteralExpr{Info: expr.Info{Usage: oidType.Usage()}, Value: input}}
-		value, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope)}})
+		value, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Host: hostOf(scope)}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -235,7 +236,7 @@ func TestCatalogRelationsCapture(t *testing.T) {
 	current.inquiry.commentRoles = foreign.roles.published.Root.Read(authorization.PrincipalRef{})
 	input, _ := sqltype.OIDValue(oidType, 50001)
 	node := functions.CatalogUserName{Info: expr.Info{Usage: nameType.Usage()}, Arg: plan.LiteralExpr{Info: expr.Info{Usage: oidType.Usage()}, Value: input}}
-	if _, err := node.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background(), Host: hostOf(current)}}); err == nil {
+	if _, err := node.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background(), Host: hostOf(current)}}); err == nil {
 		t.Fatal("foreign authorization snapshot trusted")
 	}
 	current.inquiry.commentRoles = saved

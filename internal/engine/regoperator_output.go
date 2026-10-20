@@ -58,7 +58,7 @@ func (s *StatementScope) formatOperator(id uint32, alias sqltype.ID) (string, er
 		}
 		return detachedPresentation{}.FormatRegoper(id)
 	}
-	key := operatorOutputKey{id, alias}
+	key := operatorOutputKey{ID: id, Alias: alias}
 	if text, ok := s.presentationOrZero().operators[key]; ok {
 		return text, nil
 	}
@@ -102,17 +102,17 @@ func captureOperatorOutputValue(rows *finalRows, view catalog.Read, path []ids.O
 	if err != nil {
 		return err
 	}
-	key := operatorOutputKey{id, value.Type().BaseType().ID()}
+	key := operatorOutputKey{ID: id, Alias: value.Type().BaseType().ID()}
 	if _, ok := rows.OperatorOutput[key]; ok {
 		return nil
 	}
-	if rows.operatorGroups == nil {
-		rows.operatorGroups = collectOperatorGroups(view)
+	if rows.OperatorGroups == nil {
+		rows.OperatorGroups = collectOperatorGroups(view)
 	}
 	if rows.OperatorOutput == nil {
 		rows.OperatorOutput = make(map[operatorOutputKey]string)
 	}
-	rows.OperatorOutput[key] = operatorSpelling(view, path, rows.operatorGroups, ids.OID(id), key.Alias)
+	rows.OperatorOutput[key] = operatorSpelling(view, path, rows.OperatorGroups, ids.OID(id), key.Alias)
 	rows.Output.Operator = rows
 	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -169,7 +170,7 @@ func TestQuerySubqueryPresenceGraphRetention(t *testing.T) {
 			t.Fatal("ignored analyzed graph lost or original mutated", sql)
 		}
 		state := queryState{Source: source}
-		stage, err := OpenQueryProjectStage(context.Background(), &state, queryPlan.Root.(*plan.ProjectNode))
+		stage, err := exec.OpenQueryProjectStage(context.Background(), &state, queryPlan.Root.(*plan.ProjectNode))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -192,7 +193,7 @@ func TestQuerySubquerySortedProjectionCacheOnce(t *testing.T) {
 		return sqltype.Integer(project.Schema()[0].Usage.Type, int64(calls))
 	}))
 	state := queryState{Source: source}
-	stage, err := OpenQueryProjectStage(context.Background(), &state, project)
+	stage, err := exec.OpenQueryProjectStage(context.Background(), &state, project)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -359,7 +360,7 @@ func TestQuerySubqueryLogicalDemandFrames(t *testing.T) {
 			if expression.QueryRight != tc.queryRight {
 				t.Fatal("logical demand does not match allocated child frames", expression.QueryRight)
 			}
-			rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+			rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 			if tc.state != "" {
 				var diagnostic *sqlstate.Error
 				if !errors.As(err, &diagnostic) || diagnostic.Code != tc.state {

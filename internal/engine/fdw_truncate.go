@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 )
 
@@ -36,7 +37,7 @@ func (s *StatementScope) prepareForeignTruncate() ([]foreignTruncateGroup, error
 			index = len(groups)
 			groups = append(groups, foreignTruncateGroup{source: f, request: catalog.ForeignTruncateRequest{Cascade: s.truncateOrZero().foreignCascade, RestartIdentity: s.truncateOrZero().restart}})
 		}
-		groups[index].request.Tables = append(groups[index].request.Tables, CopyForeignRequest(f.Request))
+		groups[index].request.Tables = append(groups[index].request.Tables, exec.CopyForeignRequest(f.Request))
 	}
 	// Admit every participant before any selected server is truncated.
 	for i := range groups {
@@ -56,7 +57,7 @@ func (s *StatementScope) executeForeignTruncate(groups []foreignTruncateGroup) e
 	s.foreignUnlocked()
 	for _, g := range groups {
 		if err := g.source.Wrapper.(catalog.ForeignTruncater).ExecForeignTruncate(s.op.Context(), g.request); err != nil {
-			return ForeignCallbackError(err)
+			return exec.ForeignCallbackError(err)
 		}
 	}
 	return nil

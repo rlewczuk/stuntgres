@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -247,9 +248,9 @@ func (b *expressionBinder) returningQualifier(name parser.ObjectName, pos parser
 func (b *expressionBinder) returningColumnAt(slot int, pos parser.Position, newValues bool) expr.Expr {
 	column := b.columnAt(slot, pos).(plan.ColumnExpr)
 	if b.target.returningAliases.mode == returningMerge {
-		side := MergeOldSide
+		side := exec.MergeOldSide
 		if newValues {
-			side = MergeNewSide
+			side = exec.MergeNewSide
 		}
 		return plan.ReturningColumnExpr{ColumnExpr: column, Old: !newValues, Merge: true, Side: side}
 	}
@@ -396,9 +397,9 @@ func (b *expressionBinder) outerReturningColumnAt(scope *queryBindingScope, slot
 	column := b.columnAtOf(scope.relation, slot, pos).(plan.ColumnExpr)
 	column.Frame = scope.frame
 	if scope.returning.mode == returningMerge {
-		side := MergeOldSide
+		side := exec.MergeOldSide
 		if newValues {
-			side = MergeNewSide
+			side = exec.MergeNewSide
 		}
 		return plan.ReturningColumnExpr{ColumnExpr: column, Old: !newValues, Merge: true, Side: side}
 	}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -18,7 +19,7 @@ func TestQueryLimitPipelineCancellation(t *testing.T) {
 		join := &plan.JoinNode{QuerySchema: project.Child.Schema(), Left: project.Child, Right: &plan.SourceNode{Occurrence: 1}, LeftWidth: len(project.Child.Schema()), Predicate: queryProbe(bt.Usage(), func(*EvalContext) (sqltype.Value, error) { calls++; cancel(); return sqltype.Boolean(bt, false), nil })}
 		project.Child = &plan.LimitNode{QuerySchema: join.Schema(), Child: join, Count: queryLimitBound(t, e, 1)}
 		inputs := &querySource{Sources: []*querySource{source, {Anonymous: [][]sqltype.Value{{}}}}}
-		rows, n, err := Finalize(ctx, project, inputs, nil)
+		rows, n, err := exec.Finalize(ctx, project, inputs, nil)
 		if rows != nil || n != 0 || err != context.Canceled || calls != 1 || source.View != nil {
 			t.Fatal(rows, n, err, calls, source.View)
 		}
@@ -47,7 +48,7 @@ func TestQueryLimitPipelineCancellation(t *testing.T) {
 			project.Child = &plan.LimitNode{QuerySchema: sort.Schema(), Child: sort, Count: queryLimitBound(t, e, 1)}
 			// Cancel sorting NULL/tie keys without pinning an incidental
 			// expression invocation count. No prefix may be published.
-			rows, n, err := Finalize(ctx, project, source, nil)
+			rows, n, err := exec.Finalize(ctx, project, source, nil)
 			if rows != nil || n != 0 || err != context.Canceled || calls == 0 || source.View != nil {
 				t.Fatal(rows, n, err, calls, source.View)
 			}

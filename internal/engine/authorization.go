@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/parser"
 )
@@ -334,7 +335,7 @@ func (v AuthorizationView) checkQuerySources(sources []queryLeaf) error {
 				return err
 			}
 		}
-		if EffectiveQueryRowMark(source.Relation, source.Mark).Mode != 0 {
+		if exec.EffectiveQueryRowMark(source.Relation, source.Mark).Mode != 0 {
 			if err := sourceAuth.checkColumns(binding{ref: source.Ref, relation: source.Relation}, authorization.UpdatePrivilege, nil); err != nil {
 				return err
 			}

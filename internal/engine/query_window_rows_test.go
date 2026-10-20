@@ -6,6 +6,7 @@ import (
 	"math"
 	"reflect"
 	"stuntgres/internal/engine/authorization"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
@@ -37,7 +38,7 @@ func TestQueryWindowRowsEndpoints(t *testing.T) {
 	} {
 		for row, want := range tc.want {
 			for side, upper := range []bool{false, true} {
-				got, err := WindowRowsEndpoint(context.Background(), tc.kind, tc.offset, row, 3, upper)
+				got, err := exec.WindowRowsEndpoint(context.Background(), tc.kind, tc.offset, row, 3, upper)
 				if err != nil || got != want[side] {
 					t.Fatal(tc, row, upper, got, err)
 				}
@@ -54,7 +55,7 @@ func TestQueryWindowRowsEndpoints(t *testing.T) {
 		{parser.FrameOffsetFollowing, math.MaxInt64, [2]int{1, 1}},
 	} {
 		for side, upper := range []bool{false, true} {
-			got, err := WindowRowsEndpoint(context.Background(), tc.kind, tc.offset, 0, 1, upper)
+			got, err := exec.WindowRowsEndpoint(context.Background(), tc.kind, tc.offset, 0, 1, upper)
 			if err != nil || got != tc.want[side] {
 				t.Fatal(tc, got, err)
 			}
@@ -66,7 +67,7 @@ func TestQueryWindowRowsEndpoints(t *testing.T) {
 			usage = typ.Usage()
 		}
 	}
-	v, err := WindowFrameCount(context.Background(), usage, 3, 2)
+	v, err := exec.WindowFrameCount(context.Background(), usage, 3, 2)
 	n, integerErr := v.Integer()
 	if err != nil || integerErr != nil || n != 0 {
 		t.Fatal(v, err, integerErr)
@@ -98,7 +99,7 @@ func TestQueryWindowRowsRemap(t *testing.T) {
 	if oldSource == newSource || newSource.Ref.Address.ObjectID != oldSource.Ref.Address.ObjectID+100 || oldSource.Ref != source.Ref {
 		t.Fatal("source identity remap", oldSource.Ref, newSource.Ref)
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 	for _, pair := range [][2]plan.WindowBound{{before.Start, next.Specs[0].Frame.Start}, {before.End, next.Specs[0].Frame.End}} {
 		old, bound := pair[0], pair[1]
 		if bound.Kind != old.Kind || bound.Offset == old.Offset || bound.Offset.ResultUsage().Type != types[sqltype.Int8] || old.Offset.ResultUsage().Type == types[sqltype.Int8] || bound.Support != (sqltype.RangeSupport{}) || old.Support != (sqltype.RangeSupport{}) {
@@ -154,7 +155,7 @@ func TestQueryWindowRowsIdentity(t *testing.T) {
 	if next == original || !reflect.DeepEqual(next.SortIndices, original.SortIndices) {
 		t.Fatal("clone sort ownership", next)
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 	for i, spec := range original.Specs {
 		if next.Specs[i].Definition != spec.Definition || next.Specs[i].Frame.Unit != spec.Frame.Unit {
 			t.Fatal("lost frame identity")
@@ -192,13 +193,13 @@ func TestQueryWindowRowsCancellation(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			probe := &windowCancelContext{Context: ctx, cancel: cancel, phase: phase}
-			rows, count, err := Finalize(probe, query.Root, source, nil)
+			rows, count, err := exec.Finalize(probe, query.Root, source, nil)
 			if !probe.entered || !errors.Is(err, context.Canceled) || rows != nil || count != 0 || source.View != nil {
 				t.Fatal(probe.entered, rows, count, err, source.View)
 			}
 			source.Close()
 			source.Close()
-			recovered, n, err := Finalize(context.Background(), query.Root, continuation, nil)
+			recovered, n, err := exec.Finalize(context.Background(), query.Root, continuation, nil)
 			if err != nil || recovered == nil || n != 4 {
 				t.Fatal(recovered, n, err)
 			}
@@ -211,7 +212,7 @@ func TestQueryWindowRowsCancellation(t *testing.T) {
 func TestQueryWindowRowsOffsetFailureRelease(t *testing.T) {
 	for _, frame := range []string{"BETWEEN -1 PRECEDING AND NULL FOLLOWING", "BETWEEN NULL PRECEDING AND -1 FOLLOWING"} {
 		_, query, source := queryCoreFixture(t, "SELECT count(*) OVER(ORDER BY v ROWS "+frame+") FROM t")
-		rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+		rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 		code, message := "22013", "frame starting offset must not be negative"
 		if frame == "BETWEEN NULL PRECEDING AND -1 FOLLOWING" {
 			code, message = "22004", "frame starting offset must not be null"
@@ -237,7 +238,7 @@ func TestQueryWindowRowsMetadata(t *testing.T) {
 	if column.Usage.Type.ID() != sqltype.Int8 || column.Usage.Typmod != -1 || column.OriginTable != 0 || column.OriginAttribute != 0 || column.Nullable || !column.NullabilityKnown {
 		t.Fatal(column)
 	}
-	rows, count, err := Finalize(context.Background(), query.Root, source, nil)
+	rows, count, err := exec.Finalize(context.Background(), query.Root, source, nil)
 	if err != nil || rows == nil || count != 4 {
 		t.Fatal(rows, count, err)
 	}
@@ -365,7 +366,7 @@ func TestQueryWindowRowsDomainRemap(t *testing.T) {
 	if mappedDomain != types[offsetDomain.ID()] || mappedDomain == offsetDomain || !queryDescriptorsChanged(root, lookup) || queryDescriptorsChanged(mapped, lookup) {
 		t.Fatal("offset domain remap retained/mutated descriptors", mappedDomain, offsetDomain)
 	}
-	evaluation := EvalContext{evalStatement: evalStatement{Context: context.Background()}}
+	evaluation := EvalContext{EvalStatement: evalStatement{Context: context.Background()}}
 	value, err := next.Specs[0].Frame.Start.Offset.Eval(&evaluation)
 	n, integerErr := value.Integer()
 	if err != nil || integerErr != nil || n != 1 || value.Type() != types[sqltype.Int8] {

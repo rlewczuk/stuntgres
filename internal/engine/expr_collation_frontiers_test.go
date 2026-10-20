@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqlstate"
@@ -21,7 +22,7 @@ type rowOperandEffect struct {
 
 func (e rowOperandEffect) Eval(ctx expr.Context) (sqltype.Value, error) {
 	c := evalContext(ctx)
-	if err := EvaluationContext(c); err != nil {
+	if err := exec.EvaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
 	*e.order = append(*e.order, e.id)
@@ -64,7 +65,7 @@ func TestExprCollationRowOperandDemand(t *testing.T) {
 				{Info: expr.Info{Usage: boolean.Usage()}, Left: probe(0, tc.left, nil), Right: probe(1, tc.right, nil), Predicate: predicate, Operator: "<"},
 				{Info: expr.Info{Usage: boolean.Usage()}, Left: probe(2, one, failure), Right: probe(3, two, errors.New("later right operand")), Predicate: predicate, Operator: "<"},
 			}}
-			value, err := row.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
+			value, err := row.Eval(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}})
 			if !reflect.DeepEqual(order, tc.want) {
 				t.Fatal("row pair operand order/demand", order, tc.want, err)
 			}
@@ -126,7 +127,7 @@ func TestExprCollationScheduledPayloadDemand(t *testing.T) {
 		id, _ := view.LookupType(sqltype.Int4)
 		text, _ := view.LookupType(sqltype.Text)
 		one, _ := sqltype.Integer(id, 1)
-		ctx := &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: project.Frame, Row: []sqltype.Value{one, sqltype.String(text, "A"), sqltype.String(text, "A")}}}
+		ctx := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: project.Frame, Row: []sqltype.Value{one, sqltype.String(text, "A"), sqltype.String(text, "A")}}}
 		_, err := original.Eval(ctx)
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42P22" {

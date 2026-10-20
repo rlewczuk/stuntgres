@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"stuntgres/internal/engine/exec"
 	"testing"
 )
 
@@ -15,14 +16,14 @@ func TestGeneratedVirtualMergeSavedSourceIdentity(t *testing.T) {
 	defer op.Done()
 	defer target.Close()
 	defer inputs.Close()
-	if err := SelectQuerySources(op.ctx, inputs); err != nil {
+	if err := exec.SelectQuerySources(op.ctx, inputs); err != nil {
 		t.Fatal(err)
 	}
 	state := &queryState{Source: inputs, Input: scope.input, Output: scope.output, VirtualReads: b.merge.hasVirtualReads()}
 	if !state.VirtualReads {
 		t.Fatal("MERGE action did not establish virtual demand")
 	}
-	cursor, err := OpenNode(op.ctx, state, b.merge.source)
+	cursor, err := exec.OpenNode(op.ctx, state, b.merge.source)
 	if err != nil {
 		t.Fatal(err)
 	}

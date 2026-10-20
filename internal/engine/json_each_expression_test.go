@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"strings"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
@@ -44,7 +45,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 		if shape.ID() != 2249 || shape.CompositeLen() != 2 || shape.CompositeMember(0).Name != "key" || shape.CompositeMember(1).Name != "value" || shape.CompositeMember(0).Usage.Type != b.typ(sqltype.Text) || shape.CompositeMember(1).Usage.Type != b.typ(valueID) || !validExpressionUsage(view, original.ResultUsage()) {
 			t.Fatal("analysis shape", shape)
 		}
-		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.clause.queryHasTargetSet || !SourceReturnsSet(original) || QuerySetDepth(original) != 1 {
+		if !original.Properties().StageDependent || original.Properties().Volatility != expr.Immutable || !b.clause.queryHasTargetSet || !exec.SourceReturnsSet(original) || exec.QuerySetDepth(original) != 1 {
 			t.Fatal("set properties", original)
 		}
 		fresh := jsonObjectUnitTypes()
@@ -56,7 +57,7 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 		if next.ResultUsage().Type == shape || next.Plan.ResultUsage() != next.ResultUsage() || next.ResultUsage().Type.CompositeMember(0).Usage.Type != fresh[sqltype.Text] || next.ResultUsage().Type.CompositeMember(1).Usage.Type != fresh[valueID] || next.Args[0].ResultUsage().Type != fresh[inputID] || next.SourcePosition() != original.SourcePosition() || next.Properties() != original.Properties() {
 			t.Fatal("mixed-generation remap", next)
 		}
-		cursor, err := OpenFunctionSource(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, next)
+		cursor, err := exec.OpenFunctionSource(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, next)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -71,19 +72,19 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 				walked++
 			}
 		})
-		if walked != 1 || PlannedVolatility(original) != expr.Immutable || !sameGroupExpression(original, original) {
+		if walked != 1 || exec.PlannedVolatility(original) != expr.Immutable || !sameGroupExpression(original, original) {
 			t.Fatal("closed traversal", walked)
 		}
 		clone, err := remapBoundExpression(original, func(r ids.ObjectRef) ids.ObjectRef { return r }, nil)
 		if err != nil || !sameGroupExpression(original, clone) {
 			t.Fatal("stored reconstruction", clone, err)
 		}
-		folded, _, err := preflightCoercions(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original)
-		if err != nil || !SourceReturnsSet(folded) {
+		folded, _, err := preflightCoercions(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, original)
+		if err != nil || !exec.SourceReturnsSet(folded) {
 			t.Fatal("preflight folded set", folded, err)
 		}
-		folded, _, err = simplifyConditional(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, original, false)
-		if err != nil || !SourceReturnsSet(folded) {
+		folded, _, err = simplifyConditional(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, original, false)
+		if err != nil || !exec.SourceReturnsSet(folded) {
 			t.Fatal("simplifier folded set", folded, err)
 		}
 		text, err := (pgRenderer{view: view}).sql(context.Background(), original, pgRenderParent{})
@@ -104,12 +105,12 @@ func TestJSONEachMarkerRetagWalkAndReconstruction(t *testing.T) {
 		if rewritten.(*plan.FunctionFromNode).Calls[0].(functions.JSONEach).Args[0] != other.Args[0] || root.Calls[0].(functions.JSONEach).Args[0] != original.Args[0] {
 			t.Fatal("mutated retained query")
 		}
-		if err := ValidateFunctionFromLayout(root); err != nil {
+		if err := exec.ValidateFunctionFromLayout(root); err != nil {
 			t.Fatal(err)
 		}
 		broken := *root
 		broken.QuerySchema = plan.QuerySchema{{Usage: b.typ(sqltype.Text).Usage()}, {Usage: b.typ(sqltype.Int4).Usage()}}
-		if err := ValidateFunctionFromLayout(&broken); err == nil {
+		if err := exec.ValidateFunctionFromLayout(&broken); err == nil {
 			t.Fatal("invalid leaf span accepted")
 		}
 	}
@@ -125,7 +126,7 @@ func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
 			t.Fatal(err)
 		}
 		calls := []expr.Expr{series, marker}
-		invocation, err := OpenFunctionInvocation(&EvalContext{evalStatement: evalStatement{Context: context.Background()}}, &plan.FunctionFromNode{Calls: calls})
+		invocation, err := exec.OpenFunctionInvocation(&EvalContext{EvalStatement: evalStatement{Context: context.Background()}}, &plan.FunctionFromNode{Calls: calls})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -154,7 +155,7 @@ func TestJSONEachFromPaddingAndTargetSlot(t *testing.T) {
 		}
 		// The real target stage stores one record slot instead of FROM fields.
 		node := regexpSetUnitLayout(&plan.SetProjectNode{QuerySchema: plan.QuerySchema{{Usage: marker.ResultUsage()}}, Child: &plan.SingletonNode{}, Calls: []expr.Expr{marker}, Frame: 1})
-		stage, err := OpenSetProjectNode(context.Background(), &queryState{Source: &querySource{}, Frame: 1}, node)
+		stage, err := exec.OpenSetProjectNode(context.Background(), &queryState{Source: &querySource{}, Frame: 1}, node)
 		if err != nil {
 			t.Fatal(err)
 		}

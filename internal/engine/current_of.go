@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/engine/storage"
@@ -85,7 +86,7 @@ func cursorSimpleScan(node plan.Node, inputs *querySource) *querySource {
 	case *plan.DerivedNode:
 		return cursorSimpleScan(n.Query.Root, inputs)
 	case *plan.SourceNode:
-		source := QuerySourceAt(inputs, n.Occurrence)
+		source := exec.QuerySourceAt(inputs, n.Occurrence)
 		for source.Input != nil {
 			source = source.Input
 		}
@@ -104,7 +105,7 @@ func cursorSimpleScan(node plan.Node, inputs *querySource) *querySource {
 // Resolve one occurrence directly, without allocating the all-leaf vector used
 // by locking rechecks. Cached effective versions win over DECLARE-era versions.
 func cursorOccurrenceVersion(source *querySource, index, occurrence int, locks *queryLockContext) storage.RowVersion {
-	if source == nil || index == AbsentQueryIndex {
+	if source == nil || index == exec.AbsentQueryIndex {
 		return storage.RowVersion{}
 	}
 	width := len(source.Occurrences)
@@ -128,7 +129,7 @@ func cursorOccurrenceVersion(source *querySource, index, occurrence int, locks *
 				continue
 			}
 			visible := source.Provenance[index*width+j]
-			if visible == AbsentQueryIndex {
+			if visible == exec.AbsentQueryIndex {
 				return storage.RowVersion{}
 			}
 			leaf := locks.Leaves[id].Source
@@ -146,7 +147,7 @@ func cursorOccurrenceVersion(source *querySource, index, occurrence int, locks *
 }
 
 func cursorOccurrencePhysicalRow(source *querySource, index, occurrence int, locks *queryLockContext) queryPhysicalRow {
-	if source == nil || index == AbsentQueryIndex {
+	if source == nil || index == exec.AbsentQueryIndex {
 		return queryPhysicalRow{}
 	}
 	if source.Input != nil {
@@ -160,7 +161,7 @@ func cursorOccurrencePhysicalRow(source *querySource, index, occurrence int, loc
 	}
 	visible := index
 	if source.Materialized {
-		visible = AbsentQueryIndex
+		visible = exec.AbsentQueryIndex
 		for j, id := range source.Occurrences {
 			if id == occurrence {
 				visible = source.Provenance[index*len(source.Occurrences)+j]
@@ -170,7 +171,7 @@ func cursorOccurrencePhysicalRow(source *querySource, index, occurrence int, loc
 	} else if source.Occurrence != occurrence {
 		return queryPhysicalRow{}
 	}
-	if visible == AbsentQueryIndex || occurrence < 0 || occurrence >= len(locks.Leaves) {
+	if visible == exec.AbsentQueryIndex || occurrence < 0 || occurrence >= len(locks.Leaves) {
 		return queryPhysicalRow{}
 	}
 	leaf := locks.Leaves[occurrence]

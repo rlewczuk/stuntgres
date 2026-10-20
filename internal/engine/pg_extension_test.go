@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
@@ -114,7 +115,7 @@ func TestPGExtensionCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows, count, err := Finalize(context.Background(), root, executable, nil)
+	rows, count, err := exec.Finalize(context.Background(), root, executable, nil)
 	if err != nil {
 		t.Fatal("empty captured source must execute", err)
 	}

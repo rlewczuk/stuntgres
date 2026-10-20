@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/plan"
@@ -85,14 +86,14 @@ func regexpSetUnitLayout(n *plan.SetProjectNode) *plan.SetProjectNode {
 	n.BaseWidth, n.MarkerWidth = len(n.Child.Schema()), len(n.Calls)
 	for i := range n.Calls {
 		n.CallSlots = append(n.CallSlots, i)
-		n.Steps = append(n.Steps, plan.SetStep{Kind: QuerySetCallStep, Index: i})
+		n.Steps = append(n.Steps, plan.SetStep{Kind: exec.QuerySetCallStep, Index: i})
 	}
 	return n
 }
 func regexpSetUnitLower(engine *Engine, root plan.Node, expressions []expr.Expr, frame uint32) (plan.Node, []expr.Expr, error) {
 	found := false
 	for _, expression := range expressions {
-		found = found || QuerySetDepth(expression) != 0
+		found = found || exec.QuerySetDepth(expression) != 0
 	}
 	if !found {
 		return root, expressions, nil
@@ -118,7 +119,7 @@ func TestRegexpSetProjection(t *testing.T) {
 	b := functions.RegexpSet{RegexpCall: regexpSetUnitCall(t, text, regexpSetUnitLiteral(text, "x"), ",")}
 	n := regexpSetUnitLayout(&plan.SetProjectNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}, {Usage: text.Usage()}}, Child: &plan.SingletonNode{}, Calls: []expr.Expr{a, b}, Frame: 1})
 	state := &queryState{Source: &querySource{Materialized: true}, Frame: 1}
-	stage, err := OpenSetProjectNode(context.Background(), state, n)
+	stage, err := exec.OpenSetProjectNode(context.Background(), state, n)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +155,7 @@ func TestRegexpSetProjection(t *testing.T) {
 				}
 				length := functions.String{Info: expr.Info{Usage: integer.Usage()}, Plan: stringPlan, Args: []expr.Expr{setColumn}, Textual: [4]bool{true}}
 				project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Usage: integer.Usage()}}, Child: tc.root, Expressions: []expr.Expr{length}, Frame: 1}
-				stage, err := OpenQueryProjectStage(context.Background(), state, project)
+				stage, err := exec.OpenQueryProjectStage(context.Background(), state, project)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -179,7 +180,7 @@ func TestRegexpSetProjection(t *testing.T) {
 	null := plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.Null(text)}
 	a = functions.RegexpSet{RegexpCall: regexpSetUnitCall(t, text, null, " ")}
 	n.Calls = []expr.Expr{a, a}
-	stage, err = OpenSetProjectNode(context.Background(), state, n)
+	stage, err = exec.OpenSetProjectNode(context.Background(), state, n)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +194,7 @@ func TestRegexpSetProjection(t *testing.T) {
 			t.Fatal("missing INT8")
 		}
 		from := &plan.FunctionFromNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: bigint.Usage()}}, Calls: regexpSetUnitSources(regexpSetUnitCall(t, text, regexpSetUnitLiteral(text, "a b"), " "), regexpSetUnitCall(t, text, regexpSetUnitLiteral(text, "x"), ",")), Ordinality: true, Frame: 1}
-		stage, err := OpenFunctionFromNode(context.Background(), state, from)
+		stage, err := exec.OpenFunctionFromNode(context.Background(), state, from)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -244,7 +245,7 @@ func TestRegexpSetProjection(t *testing.T) {
 			}
 			call := functions.RegexpCall{Info: expr.Info{Usage: typ.Usage()}, Args: args, Plan: regexpPlan, WrittenSlots: [7]uint8{0, 1, 2}}
 			from := &plan.FunctionFromNode{QuerySchema: plan.QuerySchema{{Usage: typ.Usage()}}, Calls: regexpSetUnitSources(call), Frame: 1}
-			stage, err := OpenFunctionFromNode(context.Background(), state, from)
+			stage, err := exec.OpenFunctionFromNode(context.Background(), state, from)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -276,7 +277,7 @@ func TestRegexpSetNested(t *testing.T) {
 		t.Fatalf("not layered: %T", top.Child)
 	}
 	state := &queryState{Source: &querySource{Materialized: true}, Frame: 1}
-	stage, err := OpenNode(context.Background(), state, root)
+	stage, err := exec.OpenNode(context.Background(), state, root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -296,7 +297,7 @@ func TestRegexpSetNested(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		stage, err := OpenNode(context.Background(), state, root)
+		stage, err := exec.OpenNode(context.Background(), state, root)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -311,7 +312,7 @@ func TestRegexpSetNested(t *testing.T) {
 	// input or once when a vector is drained.
 	calls := 0
 	n := regexpSetUnitLayout(&plan.SetProjectNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}}, Child: &plan.SingletonNode{}, Calls: []expr.Expr{inner}, Frame: 1})
-	stage, err = OpenSetProjectNode(context.Background(), state, n)
+	stage, err = exec.OpenSetProjectNode(context.Background(), state, n)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -330,7 +331,7 @@ func TestRegexpSetCorrelation(t *testing.T) {
 	left := &plan.ValuesNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}}, Rows: [][]expr.Expr{{regexpSetUnitLiteral(text, "a b")}, {plan.LiteralExpr{Info: expr.Info{Usage: text.Usage()}, Value: sqltype.Null(text)}}}}
 	n := &plan.JoinNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}, {Usage: text.Usage()}}, Left: left, Right: right, LeftWidth: 1, RightWidth: 1, Kind: parser.JoinLeft, Frame: 1, CorrelatedRight: true}
 	state := &queryState{Source: &querySource{Materialized: true}, Frame: 1}
-	stage, err := OpenJoinNode(context.Background(), state, n)
+	stage, err := exec.OpenJoinNode(context.Background(), state, n)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -346,7 +347,7 @@ func TestRegexpSetCorrelation(t *testing.T) {
 		nested := &plan.JoinNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: text.Usage()}}, Left: localLeft, Right: functions, LeftWidth: 1, RightWidth: 2, Kind: parser.JoinInner, Frame: 1, CorrelatedRight: true, CorrelationPrefix: 1}
 		parentLeft := &plan.ValuesNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}}, Rows: [][]expr.Expr{{regexpSetUnitLiteral(text, "a b")}}}
 		parent := &plan.JoinNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: text.Usage()}}, Left: parentLeft, Right: nested, LeftWidth: 1, RightWidth: 3, Kind: parser.JoinInner, Frame: 1, CorrelatedRight: true}
-		stage, err := OpenJoinNode(context.Background(), state, parent)
+		stage, err := exec.OpenJoinNode(context.Background(), state, parent)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -360,7 +361,7 @@ func TestRegexpSetOwnership(t *testing.T) {
 	call := regexpSetUnitCall(t, text, regexpSetUnitLiteral(text, "a b"), " ")
 	n := &plan.FunctionFromNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}}, Calls: regexpSetUnitSources(call), Frame: 1}
 	state := &queryState{Source: &querySource{Materialized: true}, Frame: 1}
-	stage, err := OpenFunctionFromNode(context.Background(), state, n)
+	stage, err := exec.OpenFunctionFromNode(context.Background(), state, n)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -382,7 +383,7 @@ func TestRegexpSetOwnership(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	stage, err = OpenFunctionFromNode(context.Background(), state, n)
+	stage, err = exec.OpenFunctionFromNode(context.Background(), state, n)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -395,7 +396,7 @@ func TestRegexpSetOwnership(t *testing.T) {
 	// An argument error remains the primary failure during stage cleanup.
 	failure := errors.New("selected invocation failed")
 	functionSetUnitArgument(t, n.Calls, 0, 0, queryProbe(text.Usage(), func(*EvalContext) (sqltype.Value, error) { return sqltype.Value{}, failure }))
-	stage, err = OpenFunctionFromNode(context.Background(), state, n)
+	stage, err = exec.OpenFunctionFromNode(context.Background(), state, n)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -432,7 +433,7 @@ func TestRegexpSetWalks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stage, err := OpenNode(context.Background(), &queryState{Source: &querySource{Materialized: true}, Frame: 1}, rewritten)
+	stage, err := exec.OpenNode(context.Background(), &queryState{Source: &querySource{Materialized: true}, Frame: 1}, rewritten)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -461,9 +462,9 @@ func TestRegexpCorrelationFrameRebase(t *testing.T) {
 	}
 	run := func(t *testing.T, node plan.Node, frame uint32, values []sqltype.Value, outer *EvalContext) [][]string {
 		t.Helper()
-		evaluation := &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: frame, Row: values, Outer: outer}}
+		evaluation := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: frame, Row: values, Outer: outer}}
 		state := &queryState{Source: &querySource{Materialized: true}, Frame: frame, Invocation: evaluation, Outer: outer}
-		stage, err := OpenNode(context.Background(), state, node)
+		stage, err := exec.OpenNode(context.Background(), state, node)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -479,7 +480,7 @@ func TestRegexpCorrelationFrameRebase(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		outer := &EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 9, Row: row("outer-unused", "x y")}}
+		outer := &EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 9, Row: row("outer-unused", "x y")}}
 		want := [][]string{{"a", "x"}, {"b", "y"}}
 		if got := run(t, rebased, 7, row("a b"), outer); !reflect.DeepEqual(got, want) {
 			t.Fatal("rebased lexical invocation", got)
@@ -545,7 +546,7 @@ func TestFunctionSourceMixedRows(t *testing.T) {
 			scalar := functions.Regexp{RegexpCall: regexpCallForNull(regexpPlan, integer, null, regexpSetUnitLiteral(text, "["))}
 			node := &plan.FunctionFromNode{Calls: []expr.Expr{stringCall, regexpCall, scalar}, Frame: 1, Ordinality: true,
 				QuerySchema: plan.QuerySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: integer.Usage()}, {Usage: bigint.Usage()}}}
-			stage, err := OpenFunctionFromNode(context.Background(), &queryState{Source: &querySource{}, Frame: 1}, node)
+			stage, err := exec.OpenFunctionFromNode(context.Background(), &queryState{Source: &querySource{}, Frame: 1}, node)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -612,7 +613,7 @@ func TestQuerySetMixedAttemptOwnership(t *testing.T) {
 				root.(*plan.SetProjectNode).Scalars[0] = probe
 			}
 			project := &plan.ProjectNode{QuerySchema: plan.QuerySchema{{Usage: text.Usage()}, {Usage: text.Usage()}, {Usage: text.Usage()}}, Child: root, Expressions: outputs, Frame: 1}
-			stage, err := OpenQueryProjectStage(context.Background(), &queryState{Source: &querySource{}, Frame: 1}, project)
+			stage, err := exec.OpenQueryProjectStage(context.Background(), &queryState{Source: &querySource{}, Frame: 1}, project)
 			if err != nil {
 				t.Fatal(err)
 			}

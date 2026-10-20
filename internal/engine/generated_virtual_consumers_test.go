@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"stuntgres/internal/engine/catalog"
+	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
@@ -17,12 +18,12 @@ func TestGeneratedVirtualMissingIdentity(t *testing.T) {
 	calls := 0
 	column := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 1, Slot: 0, RowWidth: 1, QueryOccurrence: 1, Virtual: generatedOccurrenceProbe{Info: expr.Info{Usage: typ.Usage()}, calls: &calls, value: one}}
 	for _, state := range []*queryState{nil, {}, {Source: &querySource{Occurrence: 4}}, {Source: &querySource{Sources: []*querySource{nil}}}} {
-		c := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(typ)}, Query: state}}
+		c := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(typ)}, Query: state}}
 		if _, err := column.Eval(&c); err == nil || calls != 0 {
 			t.Fatal("missing authority succeeded or demanded recipe", err, calls)
 		}
 	}
-	c := EvalContext{evalStatement: evalStatement{Context: context.Background()}, evalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(typ)}, Query: &queryState{Source: &querySource{Occurrence: 4}}, QueryOccurrences: []int{4}, QueryProvenance: []int{0}}}
+	c := EvalContext{EvalStatement: evalStatement{Context: context.Background()}, EvalFrame: evalFrame{Scope: 1, Frame: 1, Row: []sqltype.Value{sqltype.Null(typ)}, Query: &queryState{Source: &querySource{Occurrence: 4}}, QueryOccurrences: []int{4}, QueryProvenance: []int{0}}}
 	column.QueryOccurrence = 2
 	if _, err := column.Eval(&c); err == nil || calls != 0 {
 		t.Fatal("invalid local occurrence did not fail", err, calls)
@@ -40,15 +41,15 @@ func TestGeneratedVirtualExecutableNestedDemand(t *testing.T) {
 	column := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Virtual: plan.LiteralExpr{Info: expr.Info{Usage: typ.Usage()}, Value: sqltype.Null(typ)}, QueryOccurrence: 1}
 	query := &plan.Query{Root: &plan.ProjectNode{Expressions: []expr.Expr{column}}}
 	edge := plan.SubqueryExpr{Info: expr.Info{Usage: typ.Usage()}, QueryPlan: query}
-	if !BoundHasVirtualReads(plan.CaseExpr{Info: expr.Info{Usage: typ.Usage()}, Otherwise: edge}) {
+	if !exec.BoundHasVirtualReads(plan.CaseExpr{Info: expr.Info{Usage: typ.Usage()}, Otherwise: edge}) {
 		t.Fatal("executable scalar query demand was not found")
 	}
 	edge.CTEEdge = true
-	if BoundHasVirtualReads(edge) || QueryHasVirtualReads(&plan.ProjectNode{AnalysisExpressions: []expr.Expr{edge}}) {
+	if exec.BoundHasVirtualReads(edge) || exec.QueryHasVirtualReads(&plan.ProjectNode{AnalysisExpressions: []expr.Expr{edge}}) {
 		t.Fatal("unused WITH definition acquired runtime demand")
 	}
 	column.QueryOccurrence = 0
-	if BoundHasVirtualReads(column) {
+	if exec.BoundHasVirtualReads(column) {
 		t.Fatal("owner recipe acquired query demand")
 	}
 }
@@ -65,19 +66,19 @@ func TestGeneratedVirtualWindowInputIdentityAdapter(t *testing.T) {
 	if value, _ := window.Row(0)[0].Integer(); value != 2 {
 		t.Fatal("row adapter did not translate", value)
 	}
-	if got := AppendQueryProvenance(nil, window, 0); !reflect.DeepEqual(got, []int{1}) {
+	if got := exec.AppendQueryProvenance(nil, window, 0); !reflect.DeepEqual(got, []int{1}) {
 		t.Fatal("provenance used a different input row", got)
 	}
-	versions := AppendQueryVersions(nil, window, 0, nil)
+	versions := exec.AppendQueryVersions(nil, window, 0, nil)
 	if len(versions) != 1 || !reflect.DeepEqual(versions[0].Values, leaf.Row(1)) {
 		t.Fatal("versions used a different input row", versions)
 	}
-	SetQueryLineage(window, 0)
+	exec.SetQueryLineage(window, 0)
 	if lineage.CurrentIndex != 1 {
 		t.Fatal("lineage used a different input row", lineage.CurrentIndex)
 	}
-	SetQueryLineage(window, AbsentQueryIndex)
-	if lineage.CurrentIndex != AbsentQueryIndex || !reflect.DeepEqual(AppendQueryProvenance(nil, window, AbsentQueryIndex), []int{AbsentQueryIndex}) {
+	exec.SetQueryLineage(window, exec.AbsentQueryIndex)
+	if lineage.CurrentIndex != exec.AbsentQueryIndex || !reflect.DeepEqual(exec.AppendQueryProvenance(nil, window, exec.AbsentQueryIndex), []int{exec.AbsentQueryIndex}) {
 		t.Fatal("adapter lost absence")
 	}
 }
@@ -90,7 +91,7 @@ func TestGeneratedVirtualScheduledProjectionIdentity(t *testing.T) {
 		calls := 0
 		probe := generatedOccurrenceProbe{Info: expr.Info{Usage: typ.Usage()}, calls: &calls, value: one}
 		column := plan.ColumnExpr{Info: expr.Info{Usage: typ.Usage()}, Scope: 1, Frame: 1, Slot: 1, Virtual: probe, RowWidth: 2, QueryOccurrence: 1}
-		index := AbsentQueryIndex
+		index := exec.AbsentQueryIndex
 		wantCalls := 0
 		if present {
 			index = 0
@@ -99,7 +100,7 @@ func TestGeneratedVirtualScheduledProjectionIdentity(t *testing.T) {
 		joined := &querySource{Materialized: true, FlatWidth: 2, FlatCount: 1, Anonymous: [][]sqltype.Value{{sqltype.Null(typ), sqltype.Null(typ)}}, Occurrence: 4, Occurrences: []int{4}, Provenance: []int{index}}
 		state := &queryState{Source: joined, VirtualReads: true}
 		node := &plan.EvaluationNode{QuerySchema: d.Columns, Child: &plan.SourceNode{QuerySchema: d.Columns, Occurrence: 0}, Expressions: []expr.Expr{plan.CaseExpr{Info: expr.Info{Usage: typ.Usage()}, Otherwise: column}}}
-		stage, err := OpenEvaluationNode(context.Background(), state, node)
+		stage, err := exec.OpenEvaluationNode(context.Background(), state, node)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -121,7 +122,7 @@ func TestGeneratedVirtualRetainedViewProjectionIdentity(t *testing.T) {
 	typ := d.Columns[0].Usage.Type
 	one, _ := sqltype.Integer(typ, 1)
 	for _, present := range []bool{false, true} {
-		calls, index, wantCalls := 0, AbsentQueryIndex, 0
+		calls, index, wantCalls := 0, exec.AbsentQueryIndex, 0
 		if present {
 			index, wantCalls = 0, 1
 		}
@@ -132,7 +133,7 @@ func TestGeneratedVirtualRetainedViewProjectionIdentity(t *testing.T) {
 		project := &plan.ProjectNode{QuerySchema: schema, Frame: 1, Child: &plan.SourceNode{QuerySchema: d.Columns, Occurrence: 0}, Expressions: []expr.Expr{column}}
 		view := &querySource{Materialized: true, FlatWidth: 1, NestedRoot: project, NestedInputs: input}
 		state := &queryState{Source: view}
-		stage, err := OpenSourceStage(context.Background(), state, view, schema)
+		stage, err := exec.OpenSourceStage(context.Background(), state, view, schema)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -163,14 +164,14 @@ func TestGeneratedVirtualSelectedOrdinalIdentity(t *testing.T) {
 			{sqltype.Null(typ), sqltype.Null(typ)},
 			{sqltype.Null(typ), sqltype.Null(typ)},
 		},
-		Occurrences: []int{4}, Provenance: []int{0, AbsentQueryIndex, 1},
+		Occurrences: []int{4}, Provenance: []int{0, exec.AbsentQueryIndex, 1},
 	}
 	state := &queryState{Source: source, VirtualReads: true}
 	stage := indexedStage{
 		Source: source, Columns: []catalog.Column{d.Columns[1]},
 		Expressions: []expr.Expr{column}, Retain: true,
 		Permutation: []int{2, 0, 1},
-		Evaluation:  EvalContext{evalFrame: evalFrame{Scope: 1, Frame: 1, Query: state}},
+		Evaluation:  EvalContext{EvalFrame: evalFrame{Scope: 1, Frame: 1, Query: state}},
 	}
 	dst := make([]sqltype.Value, 1)
 	for _, seek := range []struct {

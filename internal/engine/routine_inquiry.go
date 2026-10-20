@@ -61,14 +61,14 @@ func admitInquiryBody(c *EvalContext, node expr.Info) error {
 	if err := programme.admission.record(&local, dependencies, outer); err != nil {
 		return err
 	}
-	local.routineBodyContext = routineBodyContext{Outer: outer, Statement: true}
+	local.RoutineBodyContext = routineBodyContext{Outer: outer, Statement: true}
 	for _, edge := range outer.Body {
 		body, err := bodyRoutineDescriptor(&local, auth, dependencies, edge)
 		if err == nil {
 			err = admitRecipeRoutineDescriptor(&local, auth, dependencies, body)
 		}
 		if err != nil {
-			return local.routineBodyContext.Annotate(err)
+			return local.RoutineBodyContext.Annotate(err)
 		}
 	}
 	// Publish only complete successful initialization. The footprint is an
