@@ -89,7 +89,7 @@ func (e *Engine) bindAlterTypeUsingLocked(scope *StatementScope, auth Authorizat
 	binder.queryNamespace = namespace
 	binder.querySources = []queryLeaf{{ref: ref, relation: original}}
 	node, err := binder.bind(action.Using, expressionPolicy{context: projectionContext, expected: usage.Type.Usage()})
-	if err == nil && (binder.regclassConcat || binder.consumer.catalogSnapshot) {
+	if err == nil && (binder.prepared.regclassConcat || binder.consumer.catalogSnapshot) {
 		err = e.captureCommentSnapshotLocked(scope)
 	}
 	return node, binder.dependencies, err

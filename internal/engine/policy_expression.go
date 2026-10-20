@@ -43,22 +43,10 @@ func (e *Engine) bindPolicyExpression(scope *StatementScope, auth AuthorizationV
 		query:        &BoundQuery{Root: root},
 		dependencies: b.dependencies,
 		querySources: b.querySources,
-		capture: viewCapture{
-			literals:          b.viewLiterals,
-			castUsages:        b.viewCastUsages,
-			similarSubstrings: b.viewSimilarSubstrings,
-			routineRefs:       b.viewRoutineRefs,
-			operatorRefs:      b.viewOperatorRefs,
-			posixSubstrings:   b.viewPosixSubstrings,
-			collations:        b.viewCollations,
-			columns:           b.viewColumns,
-			stars:             b.viewStars,
-			composites:        b.viewComposites,
-			namespaces:        b.viewNamespaces,
-		},
+		capture:      b.capture,
 		prepared: preparedCaptures{
-			sequenceConstants: b.sequenceConstants,
-			regtypeConstants:  b.regtypeConstants,
+			sequenceConstants: b.prepared.sequenceConstants,
+			regtypeConstants:  b.prepared.regtypeConstants,
 		},
 	}
 	frozen, err := e.freezeQueryPresentationLocked(auth, nil, capture, false, false, 0, "", false)

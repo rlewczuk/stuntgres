@@ -49,8 +49,8 @@ func TestAdvisorySessionBindingTraversal(t *testing.T) {
 				if !node.ValidStored() {
 					t.Fatal("bound producer lost stored signature")
 				}
-				if err = b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil || len(b.viewLiterals) != len(node.Args) {
-					t.Fatal("view literal children", len(b.viewLiterals), err)
+				if err = b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil || len(b.capture.literals) != len(node.Args) {
+					t.Fatal("view literal children", len(b.capture.literals), err)
 				}
 				text, err := (pgRenderer{view: e.CatalogRead()}).sql(ctx, node, pgRenderParent{})
 				if err != nil || !strings.Contains(text, name+"(") {

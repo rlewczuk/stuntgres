@@ -332,15 +332,15 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 	}()
 	ordinal := -1
 	if (b.params.noParameters || b.consumer.materializedDefinition) && item != nil {
-		ordinal = len(b.viewNamespaces)
-		b.viewNamespaces = append(b.viewNamespaces, viewNamespace{})
+		ordinal = len(b.capture.namespaces)
+		b.capture.namespaces = append(b.capture.namespaces, viewNamespace{})
 		defer func() {
 			if failure == nil {
-				b.viewNamespaces[ordinal].frame = b.frameID()
-				b.viewNamespaces[ordinal].node, b.viewNamespaces[ordinal].ordinal = frozenNamespaceNode(root)
-				b.viewNamespaces[ordinal].columns = b.freezeViewColumns(namespace.columns)
+				b.capture.namespaces[ordinal].frame = b.frameID()
+				b.capture.namespaces[ordinal].node, b.capture.namespaces[ordinal].ordinal = frozenNamespaceNode(root)
+				b.capture.namespaces[ordinal].columns = b.freezeViewColumns(namespace.columns)
 				for _, q := range namespace.qualifiers {
-					b.viewNamespaces[ordinal].qualifiers = append(b.viewNamespaces[ordinal].qualifiers, viewNamespaceQualifier{q.name, b.freezeViewColumns(q.columns)})
+					b.capture.namespaces[ordinal].qualifiers = append(b.capture.namespaces[ordinal].qualifiers, viewNamespaceQualifier{q.name, b.freezeViewColumns(q.columns)})
 				}
 			}
 		}()
@@ -501,9 +501,9 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		ns.qualifiers = []queryQualifier{q}
 		return root, ns, nil
 	case *parser.JoinReference:
-		joinOrdinal := b.viewJoinCount
+		joinOrdinal := b.stored.joinCount
 		inherited := b.queryNamespace
-		b.viewJoinCount++
+		b.stored.joinCount++
 		left, lns, err := b.bindFrom(n.Left)
 		if err != nil {
 			return nil, queryNamespace{}, err
@@ -593,7 +593,7 @@ func (b *expressionBinder) bindFromWithDefinitions(item parser.FromItem, definit
 		}
 		if ordinal >= 0 {
 			for _, key := range keys {
-				b.viewNamespaces[ordinal].keys = append(b.viewNamespaces[ordinal].keys, key.Text)
+				b.capture.namespaces[ordinal].keys = append(b.capture.namespaces[ordinal].keys, key.Text)
 			}
 		}
 		if len(keys) > 0 {

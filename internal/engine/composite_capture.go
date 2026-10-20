@@ -56,10 +56,10 @@ func (b *expressionBinder) retainedComposite(key preparedCompositeKey, base sqlt
 	return captured, true, nil
 }
 func (b *expressionBinder) captureComposite(key preparedCompositeKey, base sqltype.Usage, attributes []int32) {
-	if b.composites == nil {
-		b.composites = make(map[preparedCompositeKey]compositeOccurrence)
+	if b.prepared.composites == nil {
+		b.prepared.composites = make(map[preparedCompositeKey]compositeOccurrence)
 	}
-	b.composites[key] = compositeOccurrence{kind: key.kind, base: base, attributes: attributes}
+	b.prepared.composites[key] = compositeOccurrence{kind: key.kind, base: base, attributes: attributes}
 }
 func fieldCompositeKey(raw parser.FieldExpr) preparedCompositeKey {
 	offset := raw.Field.Pos.Offset
@@ -94,14 +94,14 @@ func (captured compositeOccurrence) validate(catalog catalog.Read) error {
 	return nil
 }
 func (b *expressionBinder) captureViewComposite(path viewLiteralPath, kind compositeOccurrenceKind, base expr.Expr, attributes []int32) {
-	if b.viewComposites == nil {
-		b.viewComposites = make(map[viewLiteralPath]compositeOccurrence)
+	if b.capture.composites == nil {
+		b.capture.composites = make(map[viewLiteralPath]compositeOccurrence)
 	}
 	source := wholeRowSource{}
 	if row, ok := base.(rowExpression); ok {
 		source = row.wholeSource
 	}
-	b.viewComposites[path] = compositeOccurrence{kind: kind, base: base.ResultUsage(), attributes: attributes, source: source}
+	b.capture.composites[path] = compositeOccurrence{kind: kind, base: base.ResultUsage(), attributes: attributes, source: source}
 }
 func (b *expressionBinder) captureCompositeExpansion(raw parser.Expr, expansion compositeExpansionBinding, path viewLiteralPath, ordinal *int) error {
 	path.node = *ordinal
@@ -127,10 +127,10 @@ func (b *expressionBinder) bindDotBuiltin(raw parser.FieldExpr, key preparedComp
 		return nil, fmt.Errorf("stuntgres: invalid dot builtin resolution")
 	}
 	call.DotBuiltin = true
-	if b.composites == nil {
-		b.composites = make(map[preparedCompositeKey]compositeOccurrence)
+	if b.prepared.composites == nil {
+		b.prepared.composites = make(map[preparedCompositeKey]compositeOccurrence)
 	}
-	b.composites[key] = compositeOccurrence{kind: compositeDotBuiltin, base: call.Args[0].ResultUsage(), function: call.Kind}
+	b.prepared.composites[key] = compositeOccurrence{kind: compositeDotBuiltin, base: call.Args[0].ResultUsage(), function: call.Kind}
 	return call, nil
 }
 
@@ -139,7 +139,7 @@ func (b *expressionBinder) frozenWholeRowSource(qualifier queryQualifier, frame 
 		return wholeRowSource{}, nil
 	}
 	var source wholeRowSource
-	for index, namespace := range b.viewNamespaces {
+	for index, namespace := range b.capture.namespaces {
 		if namespace.frame != frame {
 			continue
 		}

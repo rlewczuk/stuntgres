@@ -19,7 +19,7 @@ func (b *expressionBinder) routineConstant(text string, usage sqltype.Usage, pos
 				for _, operand := range c.operands {
 					b.dependency(operand.Ref, operand.Revision)
 				}
-				b.regtypeConstants = append(b.regtypeConstants, c)
+				b.prepared.regtypeConstants = append(b.prepared.regtypeConstants, c)
 				return value, nil
 			}
 		}
@@ -52,6 +52,6 @@ func (b *expressionBinder) routineConstant(text string, usage sqltype.Usage, pos
 	for _, operand := range constant.operands {
 		b.dependency(operand.Ref, operand.Revision)
 	}
-	b.regtypeConstants = append(b.regtypeConstants, constant)
+	b.prepared.regtypeConstants = append(b.prepared.regtypeConstants, constant)
 	return value, nil
 }

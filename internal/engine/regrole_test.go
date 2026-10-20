@@ -97,13 +97,13 @@ func TestRegroleCapturedAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	description := &StatementDescription{temporals: append([]temporalConstant(nil), binder.temporals...), catalogOwner: e.catalog.owner(), catalogEpoch: e.CatalogRead().Epoch()}
+	description := &StatementDescription{temporals: append([]temporalConstant(nil), binder.prepared.temporals...), catalogOwner: e.catalog.owner(), catalogEpoch: e.CatalogRead().Epoch()}
 	retained := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, description)
 	again, err := retained.inputConstant("not_resolved_again", d.Usage(), pos)
 	if err != nil || !sqltype.SameDatum(captured, again) {
 		t.Fatal("prepared identity retention", err)
 	}
-	if !refreshableTemporalCapture(binder.temporals[0]) {
+	if !refreshableTemporalCapture(binder.prepared.temporals[0]) {
 		t.Fatal("full analysis invalidation cannot refresh role literal")
 	}
 	textType := aclUnitType(t, e, sqltype.Text)

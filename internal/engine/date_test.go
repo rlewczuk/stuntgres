@@ -27,7 +27,7 @@ func TestDateCaptureFreezeRebindAndParameters(t *testing.T) {
 			if _, err := b.bind(raw, policy); err != nil {
 				t.Fatal(err)
 			}
-			desc := StatementDescription{temporals: b.temporals}
+			desc := StatementDescription{temporals: b.prepared.temporals}
 			before := append([]temporalConstant(nil), desc.temporals...)
 			if len(before) != 1 || before[0].typeID != sqltype.Date {
 				t.Fatal(before)
@@ -55,7 +55,7 @@ func TestDateCaptureFreezeRebindAndParameters(t *testing.T) {
 				t.Fatal(err)
 			}
 			params, err := b.finish()
-			if err != nil || params.Types[0].Type != d || len(b.temporals) != 0 {
+			if err != nil || params.Types[0].Type != d || len(b.prepared.temporals) != 0 {
 				t.Fatal(params, err)
 			}
 			v, err = d.InputWithEnvironment(ctx, tc.text, -1, later)

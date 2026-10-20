@@ -89,7 +89,7 @@ func (e *Engine) rebindAlterTypeChecks(scope *StatementScope, op *Operation, aut
 		}
 		binder := newExpressionBinder(op.Context(), e, scope.input, op, nil)
 		binder.consumer.checkConsumer, binder.params.noParameters, binder.queryAuth = true, true, &auth
-		binder.checkLiterals = pending.literals
+		binder.stored.checkLiterals = pending.literals
 		binder.queryNamespace = &namespace
 		binder.querySources = []queryLeaf{{ref: ref, relation: &replacement}}
 		node, err := binder.bindBoolean(syntax[0].(*parser.CreateTable).Elements[0].Check.Expression, projectionContext, "CHECK")

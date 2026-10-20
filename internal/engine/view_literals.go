@@ -106,36 +106,36 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			return err
 		}
 		if operands.PosixSubstring {
-			if b.viewPosixSubstrings == nil {
-				b.viewPosixSubstrings = make(map[viewLiteralPath]bool)
+			if b.capture.posixSubstrings == nil {
+				b.capture.posixSubstrings = make(map[viewLiteralPath]bool)
 			}
-			b.viewPosixSubstrings[path] = true
+			b.capture.posixSubstrings[path] = true
 		}
 		if operands.SimilarSubstring {
-			if b.viewSimilarSubstrings == nil {
-				b.viewSimilarSubstrings = make(map[viewLiteralPath]bool)
+			if b.capture.similarSubstrings == nil {
+				b.capture.similarSubstrings = make(map[viewLiteralPath]bool)
 			}
-			b.viewSimilarSubstrings[path] = true
+			b.capture.similarSubstrings[path] = true
 		}
 		if operands.DotBuiltin != "" {
 			base, _ := operands.At(hook, 0)
 			b.captureViewComposite(path, compositeDotBuiltin, base, nil)
-			captured := b.viewComposites[path]
+			captured := b.capture.composites[path]
 			captured.function = functions.NullCountFunctionKind(operands.DotBuiltin)
-			b.viewComposites[path] = captured
+			b.capture.composites[path] = captured
 		}
 		for i, written := range raw {
 			arg, _ := operands.At(hook, i) // Check validated every slot before any map write.
 			if operands.SelectedImplicit || operands.CallImplicit {
 				if coercion, ok := arg.(coercionExpression); ok && coercion.mode == sqltype.Implicit {
-					if b.viewCastUsages == nil {
-						b.viewCastUsages = make(map[viewLiteralPath]sqltype.Usage)
+					if b.capture.castUsages == nil {
+						b.capture.castUsages = make(map[viewLiteralPath]sqltype.Usage)
 					}
 					key := path
 					if operands.SelectedImplicit {
 						key.argument = i + 1
 					}
-					b.viewCastUsages[key] = coercion.Usage
+					b.capture.castUsages[key] = coercion.Usage
 				}
 			}
 			if operands.JSONSources {
@@ -168,10 +168,10 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		}
 	case parser.SQLJSONExpr:
 		if r.Returning != nil {
-			if b.viewCastUsages == nil {
-				b.viewCastUsages = make(map[viewLiteralPath]sqltype.Usage)
+			if b.capture.castUsages == nil {
+				b.capture.castUsages = make(map[viewLiteralPath]sqltype.Usage)
 			}
-			b.viewCastUsages[path] = bound.ResultUsage()
+			b.capture.castUsages[path] = bound.ResultUsage()
 			if c, ok := bound.(coercionExpression); ok {
 				bound = c.child
 			}
@@ -221,23 +221,23 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			if err := validateRegroleStoredLiteral(literal.value); err != nil {
 				return err
 			}
-			if b.viewLiterals == nil {
-				b.viewLiterals = make(map[viewLiteralPath]literalExpression)
+			if b.capture.literals == nil {
+				b.capture.literals = make(map[viewLiteralPath]literalExpression)
 			}
-			b.viewLiterals[path] = literal
+			b.capture.literals[path] = literal
 			return nil
 		}
 	case parser.ColumnExpr, parser.StarExpr:
 		if column, ok := bound.(columnExpression); ok {
-			if b.viewColumns == nil {
-				b.viewColumns = make(map[viewLiteralPath]viewColumn)
+			if b.capture.columns == nil {
+				b.capture.columns = make(map[viewLiteralPath]viewColumn)
 			}
 			captured := viewColumn{frame: column.frame, slot: column.slot}
 			if column.scope == rulePseudoScope {
 				captured.ruleRef = column.origin
 				captured.ruleSide = column.frame
 			}
-			b.viewColumns[path] = captured
+			b.capture.columns[path] = captured
 			return nil
 		}
 		if row, ok := bound.(rowExpression); ok && row.wholeNames != nil {
@@ -250,10 +250,10 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		}
 	case parser.AggregateExpr:
 		if r.JSON != nil && r.JSON.Returning != nil {
-			if b.viewCastUsages == nil {
-				b.viewCastUsages = make(map[viewLiteralPath]sqltype.Usage)
+			if b.capture.castUsages == nil {
+				b.capture.castUsages = make(map[viewLiteralPath]sqltype.Usage)
 			}
-			b.viewCastUsages[path] = bound.ResultUsage()
+			b.capture.castUsages[path] = bound.ResultUsage()
 			if conversion, ok := bound.(coercionExpression); ok {
 				bound = conversion.child
 			}
@@ -410,10 +410,10 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 		}
 	case parser.CollateExpr:
 		if n, ok := bound.(collationExpression); ok {
-			if b.viewCollations == nil {
-				b.viewCollations = make(map[viewLiteralPath]uint32)
+			if b.capture.collations == nil {
+				b.capture.collations = make(map[viewLiteralPath]uint32)
 			}
-			b.viewCollations[path] = n.Usage.Collation.ID
+			b.capture.collations[path] = n.Usage.Collation.ID
 			return child(r.Child, n.child)
 		}
 	case parser.CastExpr:
@@ -431,10 +431,10 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 				bound = annotation.child
 			}
 		}
-		if b.viewCastUsages == nil {
-			b.viewCastUsages = make(map[viewLiteralPath]sqltype.Usage)
+		if b.capture.castUsages == nil {
+			b.capture.castUsages = make(map[viewLiteralPath]sqltype.Usage)
 		}
-		b.viewCastUsages[path] = bound.ResultUsage()
+		b.capture.castUsages[path] = bound.ResultUsage()
 		if coercion, ok := bound.(coercionExpression); ok && coercion.mode == sqltype.Explicit {
 			bound = coercion.child
 		}
@@ -475,10 +475,10 @@ func (b *expressionBinder) captureNormalizedViewLiteralTree(raw parser.Expr, bou
 			}
 			return nil
 		case selectedOperatorExpression:
-			if b.viewOperatorRefs == nil {
-				b.viewOperatorRefs = make(map[viewLiteralPath]ids.ObjectRef)
+			if b.capture.operatorRefs == nil {
+				b.capture.operatorRefs = make(map[viewLiteralPath]ids.ObjectRef)
 			}
-			b.viewOperatorRefs[path] = n.ref
+			b.capture.operatorRefs[path] = n.ref
 			var operands []expr.Expr
 			boundExpressionChildren(n.provider, func(arg expr.Expr) {
 				if arg != nil {

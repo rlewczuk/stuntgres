@@ -116,8 +116,8 @@ func (b *expressionBinder) bindStringTable(raw *parser.FunctionTable) (LogicalNo
 	defer func() { b.queryNamespace, b.aggregateClause = old, clause }()
 	calls := make([]expr.Expr, len(raw.Calls))
 	schema := make(querySchema, len(calls))
-	ordinal := b.viewFunctionCount
-	b.viewFunctionCount += len(raw.Calls)
+	ordinal := b.stored.functionCount
+	b.stored.functionCount += len(raw.Calls)
 	for i, call := range raw.Calls {
 		bound, err := b.bindFunctionSource(call)
 		if err != nil {

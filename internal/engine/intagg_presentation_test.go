@@ -30,16 +30,16 @@ func intaggUnitRecipes(t *testing.T) {
 			}
 			path := viewLiteralPath{query: b.frameID(), clause: viewTargetLiteral}
 			name := intaggRecipeFunction(raw)
-			ref, ok := b.viewRoutineRefs[path]
-			if !ok || ref.Address == (ids.ObjectAddress{}) || len(b.viewRoutineRefs) != 1 {
-				t.Fatal("missing bound occurrence", b.viewRoutineRefs)
+			ref, ok := b.capture.routineRefs[path]
+			if !ok || ref.Address == (ids.ObjectAddress{}) || len(b.capture.routineRefs) != 1 {
+				t.Fatal("missing bound occurrence", b.capture.routineRefs)
 			}
 			var child LogicalNode = &singletonNode{}
 			if len(b.aggregates) != 0 {
 				child = &aggregateNode{child: child, calls: b.aggregates}
 			}
 			project := &projectNode{querySchema: querySchema{{Name: "v", Usage: node.ResultUsage()}}, child: child, expressions: []expr.Expr{node}, frame: b.frameID(), syntax: syntax}
-			definition := &viewDefinition{query: &BoundQuery{Root: project}, syntax: syntax, dependencies: b.dependencies, routineRefs: b.viewRoutineRefs, literals: b.viewLiterals, castUsages: b.viewCastUsages}
+			definition := &viewDefinition{query: &BoundQuery{Root: project}, syntax: syntax, dependencies: b.dependencies, routineRefs: b.capture.routineRefs, literals: b.capture.literals, castUsages: b.capture.castUsages}
 			definition.frames, definition.queries = collectQueryFrames(project)
 			if err := definition.validateLiterals(e.CatalogRead()); err != nil {
 				t.Fatal(err)

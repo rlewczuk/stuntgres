@@ -133,8 +133,8 @@ func TestBetweenTemporalCaptureContextKey(t *testing.T) {
 	if _, found, err := b.captured(8, missing); err != nil || found {
 		t.Fatal(found, err)
 	}
-	if !reflect.DeepEqual(before, desc.temporals) || len(b.temporals) != 0 {
-		t.Fatal("capture contract mutated", desc.temporals, b.temporals)
+	if !reflect.DeepEqual(before, desc.temporals) || len(b.prepared.temporals) != 0 {
+		t.Fatal("capture contract mutated", desc.temporals, b.prepared.temporals)
 	}
 	b.expected = &StatementDescription{temporals: []temporalConstant{captures[2], captures[4]}}
 	if got, found, err := b.captureAt(7); err != nil || !found || got != captures[2] {

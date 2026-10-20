@@ -115,7 +115,7 @@ func (e *Engine) bindUpdateAssignments(b *binding, binder *expressionBinder, ass
 				return err
 			}
 			if plan.RequiresCatalogOutput() {
-				binder.regclassConcat = true
+				binder.prepared.regclassConcat = true
 			}
 			info.Property = coercionProperties(input, plan)
 			source = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})

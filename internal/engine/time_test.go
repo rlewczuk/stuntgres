@@ -24,7 +24,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	desc := StatementDescription{temporals: b.temporals}
+	desc := StatementDescription{temporals: b.prepared.temporals}
 	before := append([]temporalConstant(nil), desc.temporals...)
 	if err := e.Reset(ctx); err != nil {
 		t.Fatal(err)
@@ -73,7 +73,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	contextDesc := StatementDescription{temporals: b.temporals}
+	contextDesc := StatementDescription{temporals: b.prepared.temporals}
 	b = newTestExpressionBinder(t, ctx, e, later, &contextDesc)
 	node, err = b.bind(contextual, policy)
 	if err != nil {
@@ -90,7 +90,7 @@ func TestTimeCaptureIdentityRebindAndSizing(t *testing.T) {
 		t.Fatal(err)
 	}
 	parameters, err := b.finish()
-	if err != nil || parameters.Types[0].Type != current || parameters.Types[0].Typmod != -1 || len(b.temporals) != 0 {
+	if err != nil || parameters.Types[0].Type != current || parameters.Types[0].Typmod != -1 || len(b.prepared.temporals) != 0 {
 		t.Fatal(parameters, err)
 	}
 	// A TIME capture cannot silently reconstruct through a TIMESTAMP descriptor.

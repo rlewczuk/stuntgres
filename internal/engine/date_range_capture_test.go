@@ -20,8 +20,8 @@ func TestDateRangeTemporalCapture(t *testing.T) {
 	v, err := b.inputConstant("[today,tomorrow)", d.Usage(), position)
 	if err != nil { t.Fatal(err) }
 	out, err := d.Output(ctx, v)
-	if err != nil || out != "[2000-02-29,2000-03-01)" || len(b.temporals) != 1 || !sqltype.SameDatum(v, b.temporals[0].value) { t.Fatal("initial compound capture", out, b.temporals, err) }
-	description := &StatementDescription{temporals: append([]temporalConstant(nil), b.temporals...)}
+	if err != nil || out != "[2000-02-29,2000-03-01)" || len(b.prepared.temporals) != 1 || !sqltype.SameDatum(v, b.prepared.temporals[0].value) { t.Fatal("initial compound capture", out, b.prepared.temporals, err) }
+	description := &StatementDescription{temporals: append([]temporalConstant(nil), b.prepared.temporals...)}
 	retained := newTestExpressionBinder(t, ctx, e, later, description)
 	frozen, err := retained.inputConstant("invalid input must not be reparsed", d.Usage(), position)
 	if err != nil || !sqltype.SameDatum(v, frozen) { t.Fatal("literal capture moved", err) }
@@ -29,11 +29,11 @@ func TestDateRangeTemporalCapture(t *testing.T) {
 	if err != nil { t.Fatal(err) }
 	out, err = d.Output(ctx, fresh)
 	if err != nil || out != "[2001-01-01,2001-01-02)" || sqltype.SameDatum(v, fresh) { t.Fatal("fresh bound environment", out, err) }
-	if !refreshableTemporalCapture(b.temporals[0]) { t.Fatal("builtin daterange not refreshable") }
+	if !refreshableTemporalCapture(b.prepared.temporals[0]) { t.Fatal("builtin daterange not refreshable") }
 	description.refreshTemporals = true
 	refreshed := newTestExpressionBinder(t, ctx, e, later, description)
 	candidate, err := refreshed.inputConstant("[today,tomorrow)", d.Usage(), position)
-	if err != nil || !sqltype.SameDatum(fresh, candidate) || len(refreshed.temporals) != 1 { t.Fatal("valid invalidation did not refresh", err) }
+	if err != nil || !sqltype.SameDatum(fresh, candidate) || len(refreshed.prepared.temporals) != 1 { t.Fatal("valid invalidation did not refresh", err) }
 	if !sqltype.SameDatum(description.temporals[0].value, v) { t.Fatal("candidate mutated retained capture") }
 	domain, err := sqltype.Domain(20000, "span", "span", d.Usage())
 	if err != nil { t.Fatal(err) }

@@ -50,10 +50,10 @@ func TestDeparseConstraintsReviewRawTemporalCapture(t *testing.T) {
 			if err != nil || strings.Contains(rounded, ".1234") || !strings.Contains(rounded, ".123") {
 				t.Fatal(rounded, err)
 			}
-			if len(b.temporals) != 1 || b.temporals[0].typmod != -1 || !b.temporals[0].typed || b.temporals[0].typedTypmod != 3 {
-				t.Fatal(b.temporals)
+			if len(b.prepared.temporals) != 1 || b.prepared.temporals[0].typmod != -1 || !b.prepared.temporals[0].typed || b.prepared.temporals[0].typedTypmod != 3 {
+				t.Fatal(b.prepared.temporals)
 			}
-			description := StatementDescription{temporals: b.temporals}
+			description := StatementDescription{temporals: b.prepared.temporals}
 			raw.Text = "must not be reparsed"
 			again := newTestExpressionBinder(t, context.Background(), e, sqltype.InputEnvironment{}, &description)
 			rebound, err := again.bind(raw, expressionPolicy{context: projectionContext})

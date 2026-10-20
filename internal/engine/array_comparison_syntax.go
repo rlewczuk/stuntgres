@@ -6,7 +6,7 @@ import "stuntgres/internal/parser"
 // operands and erased quantified constructor casts. Only changed ancestors are
 // copied; child queries normalize in their own lexical binding frame.
 func (b *expressionBinder) normalizeStoredExpression(raw parser.Expr) parser.Expr {
-	if len(b.storedExpressionSyntax) == 0 {
+	if len(b.stored.syntax) == 0 {
 		return raw
 	}
 	next, _ := b.normalizeInListExpression(raw)
@@ -38,7 +38,7 @@ func (b *expressionBinder) normalizeInListExpression(raw parser.Expr) (parser.Ex
 	if raw != nil {
 		switch raw.(type) {
 		case parser.InListExpr, parser.CastExpr, parser.AggregateExpr, parser.FunctionExpr:
-			if lowered, ok := b.storedExpressionSyntax[storedExpressionSyntaxKey{frame: b.frameID(), position: raw.SourcePosition()}]; ok {
+			if lowered, ok := b.stored.syntax[storedExpressionSyntaxKey{frame: b.frameID(), position: raw.SourcePosition()}]; ok {
 				raw, changed = lowered, true
 			}
 		}
@@ -251,7 +251,7 @@ func (b *expressionBinder) normalizeInListWindow(raw *parser.WindowSpec) (*parse
 }
 
 func (b *expressionBinder) normalizeStoredQuerySyntax(s *parser.Select) {
-	if len(b.storedExpressionSyntax) == 0 {
+	if len(b.stored.syntax) == 0 {
 		return
 	}
 	s.Targets, _ = b.normalizeInListArguments(s.Targets)

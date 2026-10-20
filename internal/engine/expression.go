@@ -1063,14 +1063,15 @@ type expressionBinder struct {
 	target                     targetContext
 	params                     parameterState
 	consumer                   consumerContext
+	capture                    viewCapture
+	stored                     storedSyntaxState
+	prepared                   preparedCaptures
 	engine                     *Engine
 	ctx                        context.Context
 	dependencies               []catalog.ExpressionDependency
 	input                      sqltype.InputEnvironment
 	op                         *Operation
 	expected                   *StatementDescription
-	temporals                  []temporalConstant
-	composites                 map[preparedCompositeKey]compositeOccurrence
 	jsonbRecordBase            bool // Scope named cast identity to selected base trees.
 	domainValueUsage           *sqltype.Usage
 	functionProjection         functionProjectionScope
@@ -1079,9 +1080,6 @@ type expressionBinder struct {
 	selectedCallArguments      bool              // Known arguments remain reusable throughout provider binding.
 	selectedCallReentry        bool              // Only the immediate selected occurrence skips selection once.
 	selectedWindowCallee       parser.ObjectName // Diagnostic spelling, never lookup authority.
-	sequenceConstants          []sequenceConstant
-	regtypeConstants           []regtypeConstant
-	regclassConcat             bool
 	aggregateClause            string
 	stringSetGuard             string
 	stringFromForbidden        bool
@@ -1118,26 +1116,6 @@ type expressionBinder struct {
 	queryRowDiagnosticMode     lock.Mode // Clause diagnostics only; tuple authority is queryRowMark.
 	subqueryDemand             bool
 	groupSubquery              bool
-	viewValuesCount            int
-	// Only internal TYPE CHECK reparsing supplies these immutable literal nodes.
-	// Generated markers are not prepared parameters and never enter inference.
-	checkLiterals []literalExpression
-	// Frozen syntax retains analyzed lowering without changing prepared source.
-	// Analysis-only templates never enter executable nodes or prepared frames.
-	storedExpressionSyntax map[storedExpressionSyntaxKey]parser.Expr
-	viewLiterals           map[viewLiteralPath]literalExpression
-	viewCastUsages         map[viewLiteralPath]sqltype.Usage
-	viewRoutineRefs        map[viewLiteralPath]ids.ObjectRef
-	viewOperatorRefs       map[viewLiteralPath]ids.ObjectRef
-	viewComposites         map[viewLiteralPath]compositeOccurrence
-	viewSimilarSubstrings  map[viewLiteralPath]bool
-	viewPosixSubstrings    map[viewLiteralPath]bool
-	viewColumns            map[viewLiteralPath]viewColumn
-	viewStars              map[viewLiteralPath][]viewColumn
-	viewJoinCount          int
-	viewFunctionCount      int
-	viewNamespaces         []viewNamespace
-	viewCollations         map[viewLiteralPath]uint32
 }
 
 func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvironment, op *Operation, expected *StatementDescription) *expressionBinder {
@@ -1148,7 +1126,7 @@ func newExpressionBinder(ctx context.Context, e *Engine, input sqltype.InputEnvi
 		if expected.refreshTemporals {
 			for _, capture := range expected.temporals {
 				if !refreshableTemporalCapture(capture) {
-					b.temporals = append(b.temporals, capture)
+					b.prepared.temporals = append(b.prepared.temporals, capture)
 				}
 			}
 		}
@@ -1711,11 +1689,11 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				return nil, err
 			}
 		case parser.ParameterExpr:
-			if b.checkLiterals != nil {
-				if r.Number <= 0 || r.Number > len(b.checkLiterals) {
+			if b.stored.checkLiterals != nil {
+				if r.Number <= 0 || r.Number > len(b.stored.checkLiterals) {
 					return nil, expr.ErrorAt("42P02", fmt.Sprintf("there is no parameter $%d", r.Number), r.Pos)
 				}
-				node = b.checkLiterals[r.Number-1]
+				node = b.stored.checkLiterals[r.Number-1]
 				break
 			}
 			if b.params.noParameters || b.consumer.defaultConsumer || r.Number <= 0 || b.params.closedRoutineFormals && r.Number > len(b.params.formalParameters) {
@@ -1866,10 +1844,10 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 				return nil, inputErrorAt(err, r.Pos)
 			}
 			if b.collectTemporalConstants() {
-				for i := range b.temporals {
-					if b.temporals[i].offset == r.Pos.Offset && b.temporals[i].typeID == u.Type.ID() {
-						b.temporals[i].typed = true
-						b.temporals[i].typedTypmod = u.Typmod
+				for i := range b.prepared.temporals {
+					if b.prepared.temporals[i].offset == r.Pos.Offset && b.prepared.temporals[i].typeID == u.Type.ID() {
+						b.prepared.temporals[i].typed = true
+						b.prepared.temporals[i].typedTypmod = u.Typmod
 					}
 				}
 			}
@@ -2007,7 +1985,7 @@ func (b *expressionBinder) bind(raw parser.Expr, policy expressionPolicy) (bound
 			return node, err
 		}
 		if plan.RequiresCatalogOutput() {
-			b.regclassConcat = true
+			b.prepared.regclassConcat = true
 		}
 		info.Property = coercionProperties(input, plan)
 		if folded, ok, err := b.foldRegtypeConstant(input, plan, info); ok || err != nil {
@@ -2144,7 +2122,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 			policy.expected = target
 		}
 	case parser.ParameterExpr:
-		if b.checkLiterals != nil {
+		if b.stored.checkLiterals != nil {
 			break // bind resolves the captured literal without parameter inference.
 		}
 		if b.params.noParameters || b.consumer.defaultConsumer {
@@ -2226,7 +2204,7 @@ func (b *expressionBinder) cast(raw parser.CastExpr, outerPolicy expressionPolic
 		return nil, expr.ErrorAt("0A000", "explicit casts are supported only for int4, int8, text and bool", raw.Pos)
 	}
 	if plan.RequiresCatalogOutput() {
-		b.regclassConcat = true
+		b.prepared.regclassConcat = true
 	}
 	if source == target {
 		return child, nil
@@ -2521,10 +2499,10 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 			return sqltype.Value{}, err
 		}
 		if b.collectTemporalConstants() {
-			i := sort.Search(len(b.temporals), func(i int) bool { return b.temporals[i].offset >= pos.Offset })
-			b.temporals = append(b.temporals, temporalConstant{})
-			copy(b.temporals[i+1:], b.temporals[i:])
-			b.temporals[i] = temporalConstant{offset: pos.Offset, typmod: u.Typmod, typeID: u.Type.ID(), value: value}
+			i := sort.Search(len(b.prepared.temporals), func(i int) bool { return b.prepared.temporals[i].offset >= pos.Offset })
+			b.prepared.temporals = append(b.prepared.temporals, temporalConstant{})
+			copy(b.prepared.temporals[i+1:], b.prepared.temporals[i:])
+			b.prepared.temporals[i] = temporalConstant{offset: pos.Offset, typmod: u.Typmod, typeID: u.Type.ID(), value: value}
 		}
 		return value, nil
 	}
@@ -2583,9 +2561,9 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 		}
 		// Symmetric comparison can contextualize an earlier unknown literal
 		// after its right operand. Keep captures ordered for rebind lookup.
-		i := sort.Search(len(b.temporals), func(i int) bool { return b.temporals[i].offset >= pos.Offset })
-		b.temporals = append(b.temporals, temporalConstant{})
-		copy(b.temporals[i+1:], b.temporals[i:])
+		i := sort.Search(len(b.prepared.temporals), func(i int) bool { return b.prepared.temporals[i].offset >= pos.Offset })
+		b.prepared.temporals = append(b.prepared.temporals, temporalConstant{})
+		copy(b.prepared.temporals[i+1:], b.prepared.temporals[i:])
 		west := int32(0)
 		if u.Type.ID() == sqltype.Timetz {
 			west, err = v.TimeZoneOffset()
@@ -2593,7 +2571,7 @@ func (b *expressionBinder) inputConstant(text string, u sqltype.Usage, pos parse
 				return sqltype.Value{}, err
 			}
 		}
-		b.temporals[i] = temporalConstant{offset: pos.Offset, scalar: n, typmod: u.Typmod, typeID: u.Type.ID(), west: west, months: months, days: days}
+		b.prepared.temporals[i] = temporalConstant{offset: pos.Offset, scalar: n, typmod: u.Typmod, typeID: u.Type.ID(), west: west, months: months, days: days}
 	}
 	return v, nil
 }

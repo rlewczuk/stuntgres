@@ -136,10 +136,10 @@ func (b *expressionBinder) jsonbRecordCallStar(columns, source []queryColumn, st
 	if len(captured.names) != len(captured.attributes) {
 		return nil, fmt.Errorf("stuntgres: invalid retained JSONB record labels")
 	}
-	if b.composites == nil {
-		b.composites = make(map[preparedCompositeKey]compositeOccurrence)
+	if b.prepared.composites == nil {
+		b.prepared.composites = make(map[preparedCompositeKey]compositeOccurrence)
 	}
-	b.composites[key] = captured
+	b.prepared.composites[key] = captured
 	if !retained {
 		return columns, nil
 	}

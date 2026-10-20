@@ -142,7 +142,7 @@ func TestNetworkMaskStoredLiteralIdentity(t *testing.T) {
 				want[identity]++
 			}
 			got := make(map[literalIdentity]int)
-			for _, literal := range b.viewLiterals {
+			for _, literal := range b.capture.literals {
 				value, err := literal.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 				if err != nil || value.IsNull() || value.Type() != literal.ResultUsage().Type || value.Type() != b.typ(value.Type().ID()) {
 					t.Fatal("lost exact literal authority", value, err)

@@ -40,7 +40,7 @@ func TestIdentifierLiteralSerializationStability(t *testing.T) {
 			if err := b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil {
 				t.Fatal(err)
 			}
-			renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.viewLiterals, castUsages: b.viewCastUsages}, frame: b.frameID()}
+			renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.literals, castUsages: b.capture.castUsages}, frame: b.frameID()}
 			text, err = renderer.expressionSQL(ctx, e.CatalogRead(), raw, viewLiteralPath{clause: viewTargetLiteral})
 			if err != nil || text != tc.want {
 				t.Fatal("identifier view replay", tc.input, round, text, tc.want, err)

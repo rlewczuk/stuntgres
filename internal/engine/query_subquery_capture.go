@@ -25,10 +25,10 @@ func (b *expressionBinder) normalizeQuantifiedConstructor(raw parser.Expr, const
 		return nil, err
 	}
 	constructor.Usage = shape.Usage()
-	if b.storedExpressionSyntax == nil {
-		b.storedExpressionSyntax = make(map[storedExpressionSyntaxKey]parser.Expr)
+	if b.stored.syntax == nil {
+		b.stored.syntax = make(map[storedExpressionSyntaxKey]parser.Expr)
 	}
-	b.storedExpressionSyntax[storedExpressionSyntaxKey{frame: b.frameID(), position: raw.SourcePosition()}] = *constructor.raw
+	b.stored.syntax[storedExpressionSyntaxKey{frame: b.frameID(), position: raw.SourcePosition()}] = *constructor.raw
 	return constructor, nil
 }
 
@@ -71,8 +71,8 @@ func frozenQueryDependencies(view catalog.Read, b binding) ([]catalog.Expression
 // Quantified and residual IN constructors share source slots, expansion
 // associations and synthetic member casts; only frozen capture needs this walk.
 func (b *expressionBinder) captureConstructorFields(raw parser.RowExpr, count int, fieldAt func(int) expr.Expr, expansions map[int]compositeExpansionBinding, memberCasts bool, path viewLiteralPath, ordinal *int) error {
-	if memberCasts && b.viewCastUsages == nil {
-		b.viewCastUsages = make(map[viewLiteralPath]sqltype.Usage)
+	if memberCasts && b.capture.castUsages == nil {
+		b.capture.castUsages = make(map[viewLiteralPath]sqltype.Usage)
 	}
 	slot := 0
 	for source, field := range raw.Fields {
@@ -85,7 +85,7 @@ func (b *expressionBinder) captureConstructorFields(raw parser.RowExpr, count in
 			if memberCasts {
 				for i := range expansion.fields {
 					key.argument = i + 1
-					b.viewCastUsages[key] = fieldAt(slot + i).ResultUsage()
+					b.capture.castUsages[key] = fieldAt(slot + i).ResultUsage()
 				}
 			}
 			if err := b.captureCompositeExpansion(field, expansion, path, ordinal); err != nil {
@@ -100,7 +100,7 @@ func (b *expressionBinder) captureConstructorFields(raw parser.RowExpr, count in
 		if memberCasts {
 			key := path
 			key.argument = source + 1
-			b.viewCastUsages[key] = fieldAt(slot).ResultUsage()
+			b.capture.castUsages[key] = fieldAt(slot).ResultUsage()
 		}
 		if err := b.captureNormalizedViewLiteralTree(field, fieldAt(slot), path, ordinal); err != nil {
 			return err

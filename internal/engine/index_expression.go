@@ -29,7 +29,7 @@ func (e *Engine) indexExpressionBinder(op *Operation, input sqltype.InputEnviron
 // not an expression-only default comparator.
 func (e *Engine) bindIndexExpression(op *Operation, input sqltype.InputEnvironment, auth AuthorizationView, parent *catalog.Relation, raw parser.Expr, literals []literalExpression) (*catalog.DerivedIndexKey, string, error) {
 	binder := e.indexExpressionBinder(op, input, auth, parent)
-	binder.checkLiterals = literals
+	binder.stored.checkLiterals = literals
 	definition, err := binder.bind(raw, expressionPolicy{context: projectionContext})
 	if err != nil {
 		return nil, "", err

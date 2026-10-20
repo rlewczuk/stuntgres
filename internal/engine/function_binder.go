@@ -106,7 +106,7 @@ func (b *expressionBinder) RetainUntypedParameter(arg expr.Expr) bool {
 	return true
 }
 
-func (b *expressionBinder) NoteCatalogText()     { b.regclassConcat = true }
+func (b *expressionBinder) NoteCatalogText()     { b.prepared.regclassConcat = true }
 func (b *expressionBinder) NoteCatalogSnapshot() { b.consumer.catalogSnapshot = true }
 
 func (b *expressionBinder) BuiltinOperatorRoutineInfo(info expr.Info, operator string, left, right sqltype.ID) (expr.Info, error) {
@@ -234,7 +234,7 @@ func (b *expressionBinder) SequenceArgument(raw parser.Expr) (expr.Expr, ids.Obj
 
 func (b *expressionBinder) SequenceTemporary(ref ids.ObjectRef, pos parser.Position) (ids.SessionToken, error) {
 	var temporary ids.SessionToken
-	for _, constant := range b.sequenceConstants {
+	for _, constant := range b.prepared.sequenceConstants {
 		if constant.ref == ref {
 			temporary = constant.temporary
 		}
@@ -244,7 +244,7 @@ func (b *expressionBinder) SequenceTemporary(ref ids.ObjectRef, pos parser.Posit
 			return temporary, err
 		}
 		// Stored defaults do not enter call-site prepared literal reanalysis.
-		b.sequenceConstants = nil
+		b.prepared.sequenceConstants = nil
 	}
 	return temporary, nil
 }

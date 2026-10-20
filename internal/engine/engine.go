@@ -779,27 +779,9 @@ func (e *Engine) describeWithFormals(ctx context.Context, stmt parser.Statement,
 	b.usedColumns, b.dependencies = binder.target.uses, binder.dependencies
 	b.visibilitySnapshot = binder.consumer.visibilitySnapshot
 	b.subqueryDemand = binder.subqueryDemand
-	b.capture = viewCapture{
-		literals:          binder.viewLiterals,
-		castUsages:        binder.viewCastUsages,
-		routineRefs:       binder.viewRoutineRefs,
-		operatorRefs:      binder.viewOperatorRefs,
-		composites:        binder.viewComposites,
-		similarSubstrings: binder.viewSimilarSubstrings,
-		posixSubstrings:   binder.viewPosixSubstrings,
-		collations:        binder.viewCollations,
-		columns:           binder.viewColumns,
-		stars:             binder.viewStars,
-		namespaces:        binder.viewNamespaces,
-	}
-	slices.SortFunc(binder.temporals, func(a, b temporalConstant) int { return a.offset - b.offset })
-	b.prepared = preparedCaptures{
-		temporals:         binder.temporals,
-		composites:        binder.composites,
-		sequenceConstants: binder.sequenceConstants,
-		regclassConcat:    binder.regclassConcat,
-		regtypeConstants:  binder.regtypeConstants,
-	}
+	b.capture = binder.capture
+	slices.SortFunc(binder.prepared.temporals, func(a, b temporalConstant) int { return a.offset - b.offset })
+	b.prepared = binder.prepared
 	if rule == nil && !parser.ModifyingStatement(stmt) {
 		if err := e.bindViewWrite(&b, auth, stmt); err != nil {
 			return b, err

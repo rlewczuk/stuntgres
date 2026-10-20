@@ -370,10 +370,10 @@ func (b *expressionBinder) finishSQLCallable(raw parser.FunctionExpr, selected s
 				Name: parser.ObjectName{Parts: []parser.Identifier{{Text: namespace.Name()}, {Text: d.Name()}}},
 				Args: raw.Args, Pos: raw.Pos, StoredSQLRoutine: true,
 			}
-			if b.storedExpressionSyntax == nil {
-				b.storedExpressionSyntax = make(map[storedExpressionSyntaxKey]parser.Expr)
+			if b.stored.syntax == nil {
+				b.stored.syntax = make(map[storedExpressionSyntaxKey]parser.Expr)
 			}
-			b.storedExpressionSyntax[storedExpressionSyntaxKey{frame: b.frameID(), position: raw.SourcePosition()}] = frozen
+			b.stored.syntax[storedExpressionSyntaxKey{frame: b.frameID(), position: raw.SourcePosition()}] = frozen
 		}
 		return sqlRoutineExpression{Info: info, procedure: d, ref: ref, args: selected.args}, nil
 	}

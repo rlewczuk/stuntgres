@@ -155,7 +155,7 @@ func (b *expressionBinder) regtypeConstant(text string, pos parser.Position) (sq
 			return sqltype.Value{}, regtypeInputError(err, pos)
 		}
 	}
-	b.regtypeConstants = append(b.regtypeConstants, constant)
+	b.prepared.regtypeConstants = append(b.prepared.regtypeConstants, constant)
 	return sqltype.RegtypeValue(b.typ(sqltype.Regtype), constant.id)
 }
 
@@ -167,7 +167,7 @@ func (b *expressionBinder) regtypeArrayConstant(text string, u sqltype.Usage, po
 				if err != nil {
 					return sqltype.Value{}, err
 				}
-				b.regtypeConstants = append(b.regtypeConstants, constant)
+				b.prepared.regtypeConstants = append(b.prepared.regtypeConstants, constant)
 				return value, nil
 			}
 		}
@@ -187,7 +187,7 @@ func (b *expressionBinder) regtypeArrayConstant(text string, u sqltype.Usage, po
 		return sqltype.Value{}, regtypeInputError(err, pos)
 	}
 	constant.value = value
-	b.regtypeConstants = append(b.regtypeConstants, constant)
+	b.prepared.regtypeConstants = append(b.prepared.regtypeConstants, constant)
 	return value, nil
 }
 
@@ -210,7 +210,7 @@ func (b *expressionBinder) foldRegtypeConstant(child expr.Expr, plan sqltype.Coe
 	}
 	if !value.IsNull() {
 		if value.Type().ContainsRegproc() {
-			b.regtypeConstants = append(b.regtypeConstants, regtypeConstant{offset: info.Pos.Offset, typeID: value.Type().ID(), value: value})
+			b.prepared.regtypeConstants = append(b.prepared.regtypeConstants, regtypeConstant{offset: info.Pos.Offset, typeID: value.Type().ID(), value: value})
 			return literalExpression{info, value}, true, nil
 		}
 		if value.Type().ContainsRegObject() {
@@ -234,7 +234,7 @@ func (b *expressionBinder) foldRegtypeConstant(child expr.Expr, plan sqltype.Coe
 			if sqltype.IsOperatorAlias(value.Type().BaseType().ID()) || sqltype.IsRegTS(value.Type().BaseType().ID()) {
 				constant.operator = value.Type().BaseType().ID()
 			}
-			b.regtypeConstants = append(b.regtypeConstants, constant)
+			b.prepared.regtypeConstants = append(b.prepared.regtypeConstants, constant)
 		}
 	}
 	return literalExpression{info, value}, true, nil
@@ -245,7 +245,7 @@ func (b *expressionBinder) recordRegObjectConstant(value sqltype.Value, pos pars
 	if err := b.captureRegObjectReferences(&constant); err != nil {
 		return err
 	}
-	b.regtypeConstants = append(b.regtypeConstants, constant)
+	b.prepared.regtypeConstants = append(b.prepared.regtypeConstants, constant)
 	return nil
 }
 
@@ -276,7 +276,7 @@ func (b *expressionBinder) regObjectConstant(text string, u sqltype.Usage, pos p
 				for _, operand := range constant.operands {
 					b.dependency(operand.Ref, operand.Revision)
 				}
-				b.regtypeConstants = append(b.regtypeConstants, constant)
+				b.prepared.regtypeConstants = append(b.prepared.regtypeConstants, constant)
 				return value, nil
 			}
 		}
@@ -316,6 +316,6 @@ func (b *expressionBinder) regObjectConstant(text string, u sqltype.Usage, pos p
 	for _, operand := range constant.operands {
 		b.dependency(operand.Ref, operand.Revision)
 	}
-	b.regtypeConstants = append(b.regtypeConstants, constant)
+	b.prepared.regtypeConstants = append(b.prepared.regtypeConstants, constant)
 	return value, nil
 }

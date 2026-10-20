@@ -11,13 +11,13 @@ import (
 // Both installed and SQL routines use the existing occurrence identity map.
 // Syntax markers demand a capture, but never grant catalog authority themselves.
 func (b *expressionBinder) captureRoutineReference(path viewLiteralPath, ref ids.ObjectRef) error {
-	if b.viewRoutineRefs == nil {
-		b.viewRoutineRefs = make(map[viewLiteralPath]ids.ObjectRef)
+	if b.capture.routineRefs == nil {
+		b.capture.routineRefs = make(map[viewLiteralPath]ids.ObjectRef)
 	}
-	if old, exists := b.viewRoutineRefs[path]; exists && old != ref {
+	if old, exists := b.capture.routineRefs[path]; exists && old != ref {
 		return fmt.Errorf("stuntgres: conflicting frozen routine occurrence")
 	}
-	b.viewRoutineRefs[path] = ref
+	b.capture.routineRefs[path] = ref
 	return nil
 }
 

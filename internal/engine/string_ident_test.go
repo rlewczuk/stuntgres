@@ -81,7 +81,7 @@ func TestStringIdentReconstruction(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, deparse := range []bool{false, true} {
-		renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.viewLiterals, castUsages: b.viewCastUsages}, frame: b.frameID(), presentation: viewPresentation{deparse: deparse, pretty: true}}
+		renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.literals, castUsages: b.capture.castUsages}, frame: b.frameID(), presentation: viewPresentation{deparse: deparse, pretty: true}}
 		sql, err := renderer.expressionSQL(context.Background(), b.bindingCatalog(), raw, viewLiteralPath{clause: viewTargetLiteral})
 		if err != nil {
 			t.Fatal(err)

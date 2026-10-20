@@ -297,10 +297,10 @@ func TestIdentityOwnCheckBindingAuthority(t *testing.T) {
 	if _, err := functions.BindSequenceCall(binder, ast.Targets[0].(parser.CallExpr)); err != nil {
 		t.Fatal(err)
 	}
-	if len(binder.sequenceConstants) != 1 {
-		t.Fatal(binder.sequenceConstants)
+	if len(binder.prepared.sequenceConstants) != 1 {
+		t.Fatal(binder.prepared.sequenceConstants)
 	}
-	constant := binder.sequenceConstants[0]
+	constant := binder.prepared.sequenceConstants[0]
 	if constant.ref.Address != address || constant.ref.Domain() != e.catalog.Domain || constant.ref.Epoch != read.Epoch() || constant.stamp != candidate.SequencePlanStamp {
 		t.Fatal("regclass resolution/stamp mixed candidate and published authority", constant)
 	}

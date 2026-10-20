@@ -24,10 +24,10 @@ func TestTimestamptzRangeTemporalCapture(t *testing.T) {
 		t.Fatal(err)
 	}
 	out, err := d.Output(ctx, v)
-	if err != nil || out != `("2000-02-29 12:34:56.123456+00","2000-03-01 00:00:00+00"]` || len(b.temporals) != 1 || !sqltype.SameDatum(v, b.temporals[0].value) {
-		t.Fatal("whole capture", out, b.temporals, err)
+	if err != nil || out != `("2000-02-29 12:34:56.123456+00","2000-03-01 00:00:00+00"]` || len(b.prepared.temporals) != 1 || !sqltype.SameDatum(v, b.prepared.temporals[0].value) {
+		t.Fatal("whole capture", out, b.prepared.temporals, err)
 	}
-	description := &StatementDescription{temporals: append([]temporalConstant(nil), b.temporals...)}
+	description := &StatementDescription{temporals: append([]temporalConstant(nil), b.prepared.temporals...)}
 	retained := newTestExpressionBinder(t, ctx, e, later, description)
 	frozen, err := retained.inputConstant("must not reparse", d.Usage(), position)
 	if err != nil || !sqltype.SameDatum(v, frozen) {
@@ -41,13 +41,13 @@ func TestTimestamptzRangeTemporalCapture(t *testing.T) {
 	if err != nil || out != `("2001-01-01 12:00:00+00","2001-01-02 00:00:00+00"]` || sqltype.SameDatum(v, fresh) {
 		t.Fatal("fresh compound", out, err)
 	}
-	if !refreshableTemporalCapture(b.temporals[0]) {
+	if !refreshableTemporalCapture(b.prepared.temporals[0]) {
 		t.Fatal("builtin not refreshable")
 	}
 	description.refreshTemporals = true
 	refreshed := newTestExpressionBinder(t, ctx, e, later, description)
 	candidate, err := refreshed.inputConstant("(now,tomorrow]", d.Usage(), position)
-	if err != nil || !sqltype.SameDatum(fresh, candidate) || len(refreshed.temporals) != 1 {
+	if err != nil || !sqltype.SameDatum(fresh, candidate) || len(refreshed.prepared.temporals) != 1 {
 		t.Fatal("refresh", err)
 	}
 	if !sqltype.SameDatum(description.temporals[0].value, v) {

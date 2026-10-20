@@ -224,10 +224,10 @@ func TestRegexpScalarViewPrefix(t *testing.T) {
 			// Actual analyzed occurrences and lexical frames, with no query
 			// execution or captured output used as an expected SQL golden.
 			definition := &viewDefinition{
-				query: query, syntax: raw, literals: b.viewLiterals,
-				castUsages: b.viewCastUsages, columns: b.viewColumns,
-				stars: b.viewStars, namespaces: b.viewNamespaces,
-				collations: b.viewCollations,
+				query: query, syntax: raw, literals: b.capture.literals,
+				castUsages: b.capture.castUsages, columns: b.capture.columns,
+				stars: b.capture.stars, namespaces: b.capture.namespaces,
+				collations: b.capture.collations,
 			}
 			definition.frames, definition.queries = collectQueryFrames(query.Root)
 			text, err := definition.selectSQL(context.Background(), auth.Catalog, viewPresentation{})

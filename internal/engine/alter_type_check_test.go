@@ -154,7 +154,7 @@ func TestAlterTypeCheckResolvedLiteralCapture(t *testing.T) {
 				t.Fatal("missing private literal transport", pending)
 			}
 			binder := newExpressionBinder(op.Context(), e, sqltype.InputEnvironment{}, op, nil)
-			binder.consumer.checkConsumer, binder.params.noParameters, binder.checkLiterals = true, true, pending.literals
+			binder.consumer.checkConsumer, binder.params.noParameters, binder.stored.checkLiterals = true, true, pending.literals
 			for i, literal := range pending.literals {
 				if literal.ResultUsage().Type.ID() != tc.id || literal.value.IsNull() != (i == 1) {
 					t.Fatal("lost concrete/NULL usage", i, literal)
@@ -174,7 +174,7 @@ func TestAlterTypeCheckResolvedLiteralCapture(t *testing.T) {
 					t.Fatal("accepted unknown transport marker", number, err)
 				}
 			}
-			binder.checkLiterals = nil
+			binder.stored.checkLiterals = nil
 			_, err = binder.bind(parser.ParameterExpr{Number: 1}, expressionPolicy{context: projectionContext})
 			var diagnostic *sqlstate.Error
 			if !errors.As(err, &diagnostic) || diagnostic.Code != "42P02" {

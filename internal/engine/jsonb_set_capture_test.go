@@ -39,15 +39,15 @@ func jsonbSetContextualArrayCapture(t *testing.T, query, wantA, wantB string) {
 		t.Fatal(err)
 	}
 	foundColumn, foundTypmod := false, false
-	for _, captured := range b.viewColumns {
+	for _, captured := range b.capture.columns {
 		foundColumn = foundColumn || captured.frame == b.frameID() && captured.slot == 0
 	}
-	for _, usage := range b.viewCastUsages {
+	for _, usage := range b.capture.castUsages {
 		length, known := usage.Length()
 		foundTypmod = foundTypmod || usage.Type.ID() == sqltype.VarChar && known && length == 1
 	}
 	if !foundColumn || !foundTypmod {
-		t.Fatal("capture lost original column identity or written typmod", b.viewColumns, b.viewCastUsages)
+		t.Fatal("capture lost original column identity or written typmod", b.capture.columns, b.capture.castUsages)
 	}
 	pathConversion := func(node expr.Expr) coercionExpression {
 		e := node.(functions.JSONBSet)

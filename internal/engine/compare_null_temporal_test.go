@@ -28,10 +28,10 @@ func TestExpressionCompareNullTemporalCaptureOrderAndFreeze(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(b.temporals) != 2 || b.temporals[0].offset >= b.temporals[1].offset {
-			t.Fatal("symmetric contextualization must retain sorted source captures", b.temporals)
+		if len(b.prepared.temporals) != 2 || b.prepared.temporals[0].offset >= b.prepared.temporals[1].offset {
+			t.Fatal("symmetric contextualization must retain sorted source captures", b.prepared.temporals)
 		}
-		description := StatementDescription{temporals: b.temporals}
+		description := StatementDescription{temporals: b.prepared.temporals}
 		later := sqltype.InputEnvironment{TransactionStart: first.TransactionStart.Add(25 * time.Hour)}
 		rebound := newTestExpressionBinder(t, ctx, e, later, &description)
 		bound, err = rebound.bind(raw, expressionPolicy{context: projectionContext})

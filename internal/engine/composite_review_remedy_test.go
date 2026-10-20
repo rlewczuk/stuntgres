@@ -28,7 +28,7 @@ func TestCompositeAlterFunctionalRetainedFields(t *testing.T) {
 		if !ok || !literal.value.IsNull() || node.ResultUsage() != original.CompositeMember(1).Usage {
 			t.Fatal("retired field retargeted", node)
 		}
-		capture = binder.composites[key]
+		capture = binder.prepared.composites[key]
 		if capture.base.Type != original || capture.attributes[0] != source.Attributes[1] {
 			t.Fatal("original capture overwritten")
 		}

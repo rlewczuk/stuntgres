@@ -106,7 +106,7 @@ func TestArraySearchViewCoercions(t *testing.T) {
 	}
 	syntax := &parser.Select{Targets: []parser.Expr{raw, rawText}}
 	project := &projectNode{querySchema: querySchema{{Name: "r", Usage: wideArray.Usage()}, {Name: "ps", Usage: array.Usage()}}, child: &singletonNode{}, expressions: []expr.Expr{outer, positions}, frame: b.frameID(), syntax: syntax}
-	original := &viewDefinition{query: &BoundQuery{Root: project}, syntax: syntax, literals: b.viewLiterals, castUsages: b.viewCastUsages, collations: b.viewCollations}
+	original := &viewDefinition{query: &BoundQuery{Root: project}, syntax: syntax, literals: b.capture.literals, castUsages: b.capture.castUsages, collations: b.capture.collations}
 	path := []ids.ObjectAddress{{ClassID: ids.NamespaceClassID, ObjectID: ids.PGCatalogNamespaceOID}, {ClassID: ids.NamespaceClassID, ObjectID: ids.PublicNamespaceOID}}
 	render := func(view catalog.Read, definition *viewDefinition, target int, expression parser.Expr, want string) {
 		r := viewRenderer{viewDefinition: definition, frame: b.frameID(), presentation: viewPresentation{deparse: true, pretty: true, path: path}}

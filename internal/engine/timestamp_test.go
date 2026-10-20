@@ -28,7 +28,7 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 		t.Fatal(err)
 	}
 	n, _ := v.Timestamp()
-	wantDesc := StatementDescription{temporals: b.temporals}
+	wantDesc := StatementDescription{temporals: b.prepared.temporals}
 	before := append([]temporalConstant(nil), wantDesc.temporals...)
 	old := v.Type()
 	if err = e.Reset(ctx); err != nil {
@@ -74,7 +74,7 @@ func TestTimestampCaptureRebindAndSizing(t *testing.T) {
 		t.Fatal(err)
 	}
 	info, err := b.finish()
-	if err != nil || info.Types[0].Type != current || info.Types[0].Typmod != -1 || len(b.temporals) != 0 {
+	if err != nil || info.Types[0].Type != current || info.Types[0].Typmod != -1 || len(b.prepared.temporals) != 0 {
 		t.Fatal(info, err)
 	}
 }
@@ -208,7 +208,7 @@ func TestTimestampRelativeConstantsFreezeAcrossDateline(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		description := StatementDescription{temporals: b.temporals}
+		description := StatementDescription{temporals: b.prepared.temporals}
 		b = newTestExpressionBinder(t, ctx, e, later, &description)
 		node, err = b.bind(raw, policy)
 		if err != nil {

@@ -514,10 +514,10 @@ func (b *expressionBinder) bindInList(raw parser.InListExpr) (expr.Expr, error) 
 		}
 	}
 	if capture {
-		if b.storedExpressionSyntax == nil {
-			b.storedExpressionSyntax = make(map[storedExpressionSyntaxKey]parser.Expr)
+		if b.stored.syntax == nil {
+			b.stored.syntax = make(map[storedExpressionSyntaxKey]parser.Expr)
 		}
-		b.storedExpressionSyntax[storedExpressionSyntaxKey{frame: b.frameID(), position: raw.Pos}] = syntax
+		b.stored.syntax[storedExpressionSyntaxKey{frame: b.frameID(), position: raw.Pos}] = syntax
 	}
 	return result, nil
 }

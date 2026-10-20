@@ -135,10 +135,10 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 		if star, ok := raw.(parser.StarExpr); ok {
 			if b.target.ruleNamespace != nil && len(star.Qualifier.Parts) == 1 && (star.Qualifier.Parts[0].Text == "old" || star.Qualifier.Parts[0].Text == "new") {
 				path := viewLiteralPath{query: b.frameID(), clause: viewTargetLiteral, target: target}
-				if b.viewStars == nil {
-					b.viewStars = make(map[viewLiteralPath][]viewColumn)
+				if b.capture.stars == nil {
+					b.capture.stars = make(map[viewLiteralPath][]viewColumn)
 				}
-				b.viewStars[path] = nil
+				b.capture.stars[path] = nil
 				for _, column := range b.target.ruleNamespace.relation.Columns {
 					name := star.Qualifier
 					name.Parts = []parser.Identifier{star.Qualifier.Parts[0], {Text: column.Name}}
@@ -150,7 +150,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 					projection = append(projection, expression)
 					targetNames = append(targetNames, column.Name)
 					literalTargets = append(literalTargets, -1)
-					b.viewStars[path] = append(b.viewStars[path], viewColumn{ruleRef: pseudo.origin, ruleSide: pseudo.frame})
+					b.capture.stars[path] = append(b.capture.stars[path], viewColumn{ruleRef: pseudo.origin, ruleSide: pseudo.frame})
 				}
 				continue
 			}
@@ -184,10 +184,10 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				columns = frozenColumns
 			}
 			if b.params.noParameters || b.consumer.materializedDefinition {
-				if b.viewStars == nil {
-					b.viewStars = make(map[viewLiteralPath][]viewColumn)
+				if b.capture.stars == nil {
+					b.capture.stars = make(map[viewLiteralPath][]viewColumn)
 				}
-				b.viewStars[starPath] = nil
+				b.capture.stars[starPath] = nil
 			}
 			for _, c := range columns {
 				if c.hideStar {
@@ -202,7 +202,7 @@ func (b *expressionBinder) bindSelectScoped(s *parser.Select, contextual, disall
 				projection = append(projection, expr)
 				targetNames = append(targetNames, c.descriptor.Name)
 				if b.params.noParameters || b.consumer.materializedDefinition {
-					b.viewStars[starPath] = append(b.viewStars[starPath], viewColumn{frame: frame, slot: c.slot})
+					b.capture.stars[starPath] = append(b.capture.stars[starPath], viewColumn{frame: frame, slot: c.slot})
 					literalTargets = append(literalTargets, -1)
 				}
 			}
@@ -687,7 +687,7 @@ func (b *expressionBinder) assignOutput(bound expr.Expr, target catalog.Column) 
 		return nil, d
 	}
 	if plan.RequiresCatalogOutput() {
-		b.regclassConcat = true
+		b.prepared.regclassConcat = true
 	}
 	info.Property = coercionProperties(input, plan)
 	bound = restoreDomainCastCollations(annotations, coercionExpression{info, input, plan, sqltype.Assignment, false})

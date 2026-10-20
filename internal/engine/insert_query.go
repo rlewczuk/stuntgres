@@ -185,8 +185,8 @@ func (b *expressionBinder) bindValues(source *parser.ValuesQuery, identityDiscar
 	defer func() {
 		b.queryNamespace, b.target.relation, b.aggregateClause, b.queryNonLateral = oldNamespace, oldRelation, oldClause, oldNonLateral
 	}()
-	occurrence := b.viewValuesCount
-	b.viewValuesCount++
+	occurrence := b.stored.valuesCount
+	b.stored.valuesCount++
 	width := -1
 	nodes := make([][]expr.Expr, len(source.Rows))
 	rawRows := make([][]parser.Expr, len(source.Rows))

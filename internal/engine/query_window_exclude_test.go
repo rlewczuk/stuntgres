@@ -340,10 +340,10 @@ func TestQueryWindowExcludeLiteralCapture(t *testing.T) {
 	if err := binder.captureViewLiterals(raw, project.expressions[0], viewTargetLiteral, 0); err != nil {
 		t.Fatal(err)
 	}
-	if len(binder.viewLiterals) != 1 || len(binder.viewColumns) != 1 {
-		t.Fatal("SUM argument children not captured", binder.viewLiterals, binder.viewColumns)
+	if len(binder.capture.literals) != 1 || len(binder.capture.columns) != 1 {
+		t.Fatal("SUM argument children not captured", binder.capture.literals, binder.capture.columns)
 	}
-	for _, literal := range binder.viewLiterals {
+	for _, literal := range binder.capture.literals {
 		value, err := literal.Eval(&EvalContext{evalStatement: evalStatement{Context: context.Background()}})
 		n, integerErr := value.Integer()
 		if err != nil || integerErr != nil || n != 1 {

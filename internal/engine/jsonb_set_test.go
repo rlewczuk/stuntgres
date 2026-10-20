@@ -131,7 +131,7 @@ func TestJSONBSetRetagRemapAndPresentation(t *testing.T) {
 	if err := b.captureViewLiterals(raw, e, viewTargetLiteral, 0); err != nil {
 		t.Fatal("written/formal literal association", err)
 	}
-	renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.viewLiterals, castUsages: b.viewCastUsages}, frame: b.frameID()}
+	renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.literals, castUsages: b.capture.castUsages}, frame: b.frameID()}
 	replaySQL, err := renderer.expressionSQL(ctx, view, raw, viewLiteralPath{clause: viewTargetLiteral})
 	if err != nil {
 		t.Fatal(err)
@@ -176,7 +176,7 @@ func TestJSONBSetViewReplayDeterminism(t *testing.T) {
 				if err := b.captureViewLiterals(raw, node, viewTargetLiteral, 0); err != nil {
 					t.Fatal(round, err)
 				}
-				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.viewLiterals, castUsages: b.viewCastUsages}, frame: b.frameID()}
+				renderer := viewRenderer{viewDefinition: &viewDefinition{literals: b.capture.literals, castUsages: b.capture.castUsages}, frame: b.frameID()}
 				emitted, err := renderer.expressionSQL(ctx, engine.CatalogRead(), raw, viewLiteralPath{clause: viewTargetLiteral})
 				if err != nil {
 					t.Fatal(round, err)

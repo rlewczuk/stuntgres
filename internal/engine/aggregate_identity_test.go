@@ -65,7 +65,7 @@ func TestPGAggregateIntaggOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	found := false
-	for _, operand := range b.regtypeConstants[0].operands {
+	for _, operand := range b.prepared.regtypeConstants[0].operands {
 		if operand.Ref.Address == proc.Address() && operand.Revision == proc.Revision() {
 			found = true
 		}

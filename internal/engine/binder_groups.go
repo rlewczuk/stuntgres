@@ -3,6 +3,7 @@ package engine
 import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
@@ -66,4 +67,20 @@ type consumerContext struct {
 	// Materialized definitions need frozen renderer metadata while retaining
 	// their distinct, post-analysis bound-parameter diagnostic.
 	materializedDefinition bool
+}
+
+// storedSyntaxState keeps stored SQL stable across reparsing: the literal
+// nodes of an internal TYPE CHECK reparse, the frozen syntax of analyzed
+// lowerings, and the occurrence counters of VALUES lists, joins and ROWS FROM
+// function lists that key their view literal paths.
+type storedSyntaxState struct {
+	// Only internal TYPE CHECK reparsing supplies these immutable literal nodes.
+	// Generated markers are not prepared parameters and never enter inference.
+	checkLiterals []literalExpression
+	// Frozen syntax retains analyzed lowering without changing prepared source.
+	// Analysis-only templates never enter executable nodes or prepared frames.
+	syntax        map[storedExpressionSyntaxKey]parser.Expr
+	valuesCount   int
+	joinCount     int
+	functionCount int
 }
