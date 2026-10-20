@@ -32,6 +32,13 @@ type TxRef struct {
 	diagnostic uint32
 }
 
+// CommandIdentity names one command of one transaction. Prepared domain
+// checks and partition routines record it as the phase they were admitted in.
+type CommandIdentity struct {
+	Transaction TxRef
+	Command     CommandID
+}
+
 func (r TxRef) Domain() *Domain       { return r.domain }
 func (r TxRef) Session() SessionToken { return r.session }
 func (r TxRef) ID() TxID              { return r.id }

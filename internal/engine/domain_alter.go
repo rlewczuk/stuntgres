@@ -216,7 +216,7 @@ func (e *Engine) executeAlterDomain(scope *StatementScope, raw *parser.AlterDoma
 		stage.domainAlterState().Validation = fence
 		for _, use := range fence.Uses {
 			writes, deletes := scope.columnProjectionRoots(use.Relation.Address())
-			if err := evaluation.validateSelectedDomainRows(auth.Catalog, &chosen, use, frontier, writes, deletes); err != nil {
+			if err := validateSelectedDomainRows(&evaluation, auth.Catalog, &chosen, use, frontier, writes, deletes); err != nil {
 				return Result{}, err
 			}
 		}
@@ -242,7 +242,7 @@ func (c *EvalContext) evaluateSelectedDomainCheck(view catalog.Read, selected *c
 	return c.evaluateOwnDomainChecks(view, selected, selected, value, violation)
 }
 
-func (c *EvalContext) validateSelectedDomainRows(view catalog.Read, selected *catalog.Type, use typedef.DomainValidationUse, frontier ids.CommitSeq, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) error {
+func validateSelectedDomainRows(c *EvalContext, view catalog.Read, selected *catalog.Type, use typedef.DomainValidationUse, frontier ids.CommitSeq, writes []storage.RowVersion, deletes *visibility.PrivateDeletes) error {
 	violations := make([]error, len(use.Columns))
 	for i, column := range use.Columns {
 		violations[i] = typedef.DomainHistoricalViolation(view, use.Relation, column)

@@ -27,7 +27,7 @@ func (c *EvalContext) EvalInstalledText(n plan.InstalledTextExpr) (sqltype.Value
 	if err := evaluationContext(c); err != nil {
 		return sqltype.Value{}, err
 	}
-	if !validInstalledText(n) {
+	if !preparation.ValidInstalledText(n) {
 		return sqltype.Value{}, fmt.Errorf("stuntgres: invalid installed function expression")
 	}
 	return n.InstalledText.Eval(c)

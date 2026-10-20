@@ -31,7 +31,7 @@ engine or `routine`. See
   `PairDomainReplay`; `domain_replay_codec.go`) and replay names
   (`domain_replay_names.go`); generation reownership (`ReownDomainTypes`,
   `ReownDomainDatum`; `domain_reown.go`); `TypeDefault`, `DefaultDomainACL`,
-  `DomainCheckIdentity`, captured input providers (`domain_input.go`) and
+  captured input providers (`domain_input.go`) and
   the restored-owner record (`domain_owner_restore.go`).
 - **Enums**: `EnumInsertionOrder` (`enum_order.go`) and `EnumSafety`.
 - **Composites and typed tables**: `CompositeOpenError`, `ContainsRowType`,

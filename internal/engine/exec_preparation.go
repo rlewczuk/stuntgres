@@ -5,6 +5,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
+	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/sqltype"
 )
 
@@ -19,6 +20,9 @@ type execPreparation interface {
 	// DomainCatalog is the catalog that c's domain checks read: its captured
 	// view, else the statement's domain input or resolution catalog.
 	DomainCatalog(c *EvalContext) catalog.Read
+	// ValidInstalledText reports whether an installed text call still names
+	// its captured extension provider.
+	ValidInstalledText(n plan.InstalledTextExpr) bool
 }
 
 // preparation is installed by the engine at package initialization; until
@@ -43,6 +47,10 @@ func (missingPreparation) DomainCatalog(*EvalContext) catalog.Read {
 	panic("exec: preparation not installed")
 }
 
+func (missingPreparation) ValidInstalledText(plan.InstalledTextExpr) bool {
+	panic("exec: preparation not installed")
+}
+
 func init() { installPreparation(enginePreparation{}) }
 
 type enginePreparation struct{}
@@ -53,4 +61,8 @@ func (enginePreparation) PreflightCoercions(c *EvalContext, e expr.Expr) (expr.E
 
 func (enginePreparation) DomainCatalog(c *EvalContext) catalog.Read {
 	return domainCatalog(c)
+}
+
+func (enginePreparation) ValidInstalledText(n plan.InstalledTextExpr) bool {
+	return validInstalledText(n)
 }

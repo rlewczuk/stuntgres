@@ -11,8 +11,10 @@ any engine subpackage may import it.
   `ObjectAddress`, `ObjectRef`, `NameKey`, `ObjectKind` and its constants, the
   catalog class IDs (`*ClassID`) and the builtin namespace OIDs.
 - **Runtime identity:** `SessionID`, `SessionToken`, `TxID`, `TxRef`,
-  `CommandID`, `CommitSeq`, `RowID`, `VersionID` and `TxCompletion` (a
-  transaction identity's completion state).
+  `CommandID`, `CommandIdentity` (a transaction's command: the phase that
+  prepared domain checks and partition routines record), `CommitSeq`,
+  `RowID`, `VersionID` and `TxCompletion` (a transaction identity's
+  completion state).
 - **Provenance:** `Domain`, plus the owner handles `TxOwner` and
   `SessionOwner`, and `ErrCatalogReplaced`, the one error value every
   subsystem returns for a fenced epoch or replaced catalog. The engine

@@ -4,7 +4,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
-	"stuntgres/internal/engine/typedef"
+	"stuntgres/internal/engine/ids"
 )
 
 // The existing domain map owns both prepared expressions and every actual phase
@@ -30,7 +30,7 @@ func programPhases(p domainCheckProgram) domainPhaseList {
 }
 
 type domainCheckPhase struct {
-	number    typedef.DomainCheckIdentity
+	number    ids.CommandIdentity
 	actor     authorization.PrincipalRef
 	ri        bool
 	admission routineAdmissionProgram
