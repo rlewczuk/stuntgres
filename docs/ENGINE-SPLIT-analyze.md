@@ -482,6 +482,75 @@ Re-measure the frontier, move every binder file with the group types and
 `analyzeHost` (as `analyze.Host`), leave aliases, and keep `newExpressionBinder`
 and `Engine.analysisHost` in the root.
 
+#### 12d.1 result
+
+Built at `062d21ac7`. Tools and scripts:
+`.cswd/tmp/PG18-ENGINE-SPLIT-ANALYZE-BINDING-TYPES/` (new `slotwrap`
+go/types tool; `fixpoint*.sh`; `c4.sh`; `movespec` with a `-qual` flag; the
+11c `frontier`, `expspec`, `poslit`, `meth2fn`, the 10c `movex`/`movedecl`
+and the 10d `keylit`).
+
+- **Slots** (`5173b29cd`): `binding.viewWrite`, `insertBinding.conflict` and
+  `ruleBinding.ctes` became `ViewWriteSlot`, `InsertConflictSlot` and
+  `RuleCTEsSlot` (the whole CTE command map is one slot, the engine type
+  `ruleCTECommands`). `slotwrap` rewrote every use by context: 198 reads to
+  `viewWriteOf`/`insertConflictOf`/`ruleCTEsOf`, 22 stores to the nil-safe
+  `...SlotOf`, and left 49 nil tests and the field-to-field copies alone;
+  four sites were fixed by hand (two nested store-of-read, one tuple
+  assignment, one read in a region that did not type-check during the pass).
+- **Functions** (`70d43f3e9`): `physicalBinding`, `bindingDefaultOrigin`,
+  `evalBindingDefault`, `applyDefaultOrigin`, `capturedDomainReplayCell`,
+  `mergeHasVirtualReads`, `selectMergeArm`, `validateCompositeOccurrence`
+  and `remapLikeExpression` (`meth2fn`; the pointer-receiver call sites of
+  `defaultOriginAt` by hand). Payload-only methods moved with their types:
+  `CaptureComposite`, `CaptureViewComposite`, `CaptureRoutineReference`,
+  `CTEMutationPayload` and the `LikeInput` helpers.
+- **Export in place** (`f630be9b9`): the moving declarations were gathered
+  into four `analyzemv_*.go` files plus `binding_groups.go`; the frontier of
+  that set is closed (no outbound engine reference). `expspec` exported 230
+  keys (fields, methods and the constants of `LikeMask`,
+  `CompositeOccurrenceKind` and `ViewLiteralClause`) with overrides `CTEs`,
+  `FTS` and `ACLItem`; 6,035 references, per-object census identical before
+  and after.
+- **Move** (`5ed818cdf`): `analyze` holds `binding.go`, `binding_groups.go`,
+  `payloads.go`, `create_table.go`, `captures.go` and `doc.go`. Type names:
+  `Binding`, `InsertBinding`, `DeleteBinding`, `CreateTableBinding`,
+  `UpdateBinding`, `AssignmentGroup`, `MergeBinding`, `MergeArm`,
+  `Returning`, `ColumnDeclaration`, `InheritanceInput`, `LikeInput`,
+  `LikeMask`, `UniqueConstraint`, `ViewCapture`, `PreparedCaptures`,
+  `ResolverInputs`, `RuleBinding`, `ParameterInfo`, `CompositeOccurrence`,
+  `CompositeOccurrenceKind`, `PreparedCompositeKey`, `DefaultOrigin`,
+  `RegtypeConstant`, `RegObjectReference`, `TemporalConstant`, `ViewColumn`,
+  `ViewNamespace`, `ViewNamespaceColumn`, `ViewNamespaceQualifier`,
+  `ViewLiteralPath`, `ViewLiteralClause` and the three slots (the plan's
+  `LiteralPath`/`LiteralClause` kept their `View` prefix to match the
+  `View*Literal` constants). 32 aliases in `analyze_aliases.go`; the 32
+  constants and `NewResolverInputs` are qualified in 61 engine files; two
+  positional literals keyed (`keylit`). The test local `analyze` in
+  `insert_conflict_update_test.go` became `analyzeConflict`, so `analyze`
+  always means the package. `analyze` imports `plan`, `exec`, `catalog`,
+  `storage`, `expr`, `functions`, `ids`, `sequence`, `parser`, `sqltype` and
+  the standard library.
+- **Tests.** New: `TestBindingSlotsKeepNilAbsent` (`binding_slots_test.go`:
+  nil values stay nil slots, stored pointers and empty maps come back). No
+  test moved or deleted; engine tests changed only mechanically (field
+  renames, slot helpers in literals and reads, the `analyzeConflict` local).
+- **Verification.** `make build`, `go vet` (identical to the base) and
+  targeted engine selections after every commit; `make quickcheck` passed on
+  `5ed818cdf` (inside a 48 GB memory cap). `REFERENCE=1` for the step 12
+  selection (INSERT, defaults, identity, UPDATE, DELETE, MERGE, inheritance,
+  LIKE, typed tables, rules, views, RLS, prepared statements, CTE DML,
+  windows, aggregates, grouping sets, Dump/Restore, composites, regtype and
+  regoperator) passed except the known `/postgres` oracle drift
+  (`TestReferenceDeleteReturningBoundaries`, the four MERGE repeatable-read
+  tests and `TestReferenceCompositeExpr(Correlated)Returning`), which fail
+  the same way on master. `make bench`, branch and master interleaved:
+  835–903 µs/op against 849–958 µs/op, 5,014 allocs/op on both (warm-up runs
+  near 1 ms on both). `make deps`: module paths only. No engine subpackage
+  imports `analyze`. `AGENTS.md`: 100 lines before and after (`analyze`
+  joined the shared subpackage bullet). racecheck/finalcheck skipped at user
+  request.
+
 ### 12e — Remove the aliases (broad)
 
 Use the alias tool; audit locals named `analyze`.
@@ -571,8 +640,11 @@ in §8.3 pass.
   per execution before and after.
 - [ ] 12d — `analyze` created and binding moved (sessions: 12d.1 binding
   types, 12d.2 seam cuts, 12d.3–12d.5 area preparation, 12d.6 binder move)
-  - [x] 12d refine (docs only; the commit that records this text)
-  - [ ] 12d.1 — binding types
+  - [x] 12d refine (docs only; `b8850fca9`)
+  - [x] 12d.1 — binding types (`5173b29cd`, `70d43f3e9`, `f630be9b9`,
+    `5ed818cdf`, then the docs commit; see the 12d.1 result). Selected
+    dual-mode proof and quickcheck passed; racecheck and finalcheck skipped
+    at user request.
   - [ ] 12d.2 — binder seam cuts
   - [ ] 12d.3 — expression core preparation
   - [ ] 12d.4 — query, FROM and CTE preparation
@@ -580,27 +652,39 @@ in §8.3 pass.
   - [ ] 12d.6 — binder moved
 - [ ] 12e — Aliases removed
 
-Outstanding aliases: none yet.
+Outstanding aliases: the 32 binding type aliases in
+`internal/engine/analyze_aliases.go` (12d.1), including `ParameterInfo`,
+which the driver names as `engine.ParameterInfo`.
 
 Notes for later steps:
 
 - 12c: the host seam replaces only `engine` and `op`; `ctx`, `expected`,
   `input` and `dependencies` stay as statement inputs and output. The
   groups need no host: no group type holds `*Engine` or `*Operation`.
-- 12d: host signatures still name engine types that `analyze` cannot import
-  as they are: `AuthorizationView` (nearly every method), `definitionReader`,
-  `namespaceSelection`, `lookupKind`, `capturedOperatorInput`,
-  `capturedRegtypeInput`. The first 12d session
-  settles the authority representation; the captured inputs can be returned
-  as their `sqltype` interfaces where the binder only stores them.
+- 12d.2: host signatures still name engine types that `analyze` cannot
+  import as they are: `AuthorizationView` (nearly every method),
+  `definitionReader`, `namespaceSelection`, `lookupKind`,
+  `capturedOperatorInput`, `capturedRegtypeInput`. The authority
+  representation is settled (refine decision 2); the captured inputs can be
+  returned as their `sqltype` interfaces where the binder only stores them.
+- 12d.5 (DML targets): split `boundInsertConflict` into the bound clause,
+  which moves to `analyze`, and its per-execution state (arbiters, catalog
+  checkpoints, `insertWriteOverlay`), which stays in the engine; then
+  `InsertConflictSlot` can shrink to the runtime half.
+- 12e: remove `analyze_aliases.go` with the `unalias` tool and settle §7
+  decision 11 for `ParameterInfo` (the driver's `value.go` names it).
+  Comments in engine files still name the old type names through the
+  aliases.
+- `slotwrap` (12d.1 tmp directory) turns a pointer field into an interface
+  slot by use context; reuse it for later slots.
 - 12d: `newHostedBinder` is the analyze-side constructor; the root keeps
   `newExpressionBinder` and `Engine.analysisHost`. `IndexExpressionBinder`
   returns an `*expressionBinder`, so the root must name the moved type.
 - 12d area 5: the statement-kind binders ported here sit in mixed files
   (`update*.go`, `merge.go`, `insert_*.go`, `typed_table.go`,
   `table_inheritance.go`); split their binder halves out first.
-- 12d: `binder_groups.go` and `binding_groups.go` move together in the first
-  session (binding types). The `binderfields` tool (12b) and `bindsplit`
+- 12d.6: `binder_groups.go` moves with the binder; `binding_groups.go`
+  moved in 12d.1. The `binderfields` tool (12b) and `bindsplit`
   (12a) rewrite selectors and literals by field object and are the model for
   export renames.
 

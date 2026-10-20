@@ -6,7 +6,7 @@ Status section of that file is the detailed record: commits, aliases,
 corrections and notes. This page shows what is done, what comes next, and
 the order of all open work (the "Linear plan" below).
 
-Last verified against `master` at `5aa8e344e`. The later-wave plans
+Last verified against `master` at `062d21ac7`. The later-wave plans
 (steps 8–17) were measured at `75fe0d710`.
 
 ## Next ready sub-steps
@@ -15,8 +15,10 @@ Every item below has all its prerequisites ticked. Numbers refer to the
 "Linear plan" section. Items marked **broad** must not run at the same time
 as another broad item (§8).
 
-- **Step 12 `analyze`** — 12d (item 40) **broad**, several sessions;
-  12a–12c are done.
+- **Step 12 `analyze`** — 12d.2 binder seam cuts (item 40c) **broad**;
+  12a–12c, the 12d refine and 12d.1 (binding types) are done. After 40c,
+  the area preparations 40d, 40e and 40f touch disjoint files and may run
+  in parallel.
 
 Steps 1, 2 and 4–11 and `access` are done. Step 13's in-place untangling (13a,
 13b) is done; 13c (item 43) waits for 12d (item 40). Step 16
@@ -279,6 +281,15 @@ A (17a, 17b) is done; 17c (item 52) waits for 13d (item 44).
     *(racecheck/finalcheck skipped at user request)*
   - [ ] 12d — `analyze` created and binding moved (several sessions)
     *(broad)*
+    - [x] 12d refine (docs only; `b8850fca9`): the binder moves last
+    - [x] 12d.1 — Binding types moved *(broad)* (`5173b29cd`, `70d43f3e9`,
+      `f630be9b9`, `5ed818cdf`, then the docs commit)
+      *(racecheck/finalcheck skipped at user request)*
+    - [ ] 12d.2 — Binder seam cuts in place *(broad)*
+    - [ ] 12d.3 — Expression core prepared in place
+    - [ ] 12d.4 — Query, FROM and CTE binding prepared in place
+    - [ ] 12d.5 — Aggregates, windows and DML targets prepared in place
+    - [ ] 12d.6 — Binder moved *(broad)*
   - [ ] 12e — Aliases removed *(broad)*
 - [ ] **Step 13 — `session`** ([prompt](ENGINE-SPLIT-session.md); 13a–13b
   need —; 13c needs 11c, 12d, 8b)
@@ -502,7 +513,19 @@ in the prompt file's Status section.
     dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
     user request
 40. [ ] Analyze 12d (several sessions) — [analyze](ENGINE-SPLIT-analyze.md)
-    12d · needs 39, 37 · **broad**
+    12d · needs 39, 37 · **broad** · done when 40a–40g are ticked
+    - 40a. [x] 12d refine (docs only; `b8850fca9`) · the binder moves in one
+      final session; the areas are prepared in place
+    - 40b. [x] 12d.1 binding types · needs 40a · **broad** (`5173b29cd`,
+      `70d43f3e9`, `f630be9b9`, `5ed818cdf`, then the docs commit) · selected
+      dual-mode proof and quickcheck passed; racecheck/finalcheck skipped at
+      user request
+    - 40c. [ ] 12d.2 binder seam cuts · needs 40b · **broad**
+    - 40d. [ ] 12d.3 expression core preparation · needs 40c
+    - 40e. [ ] 12d.4 query, FROM and CTE preparation · needs 40c
+    - 40f. [ ] 12d.5 aggregates, windows and DML targets preparation · needs
+      40c
+    - 40g. [ ] 12d.6 binder moved · needs 40d, 40e, 40f · **broad**
 41. [ ] Analyze 12e — [analyze](ENGINE-SPLIT-analyze.md) 12e · needs 40 ·
     **broad**
 42. [ ] Access B5: binding walkers —

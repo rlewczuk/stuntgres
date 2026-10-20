@@ -249,7 +249,7 @@ Paths/line ranges are ordinary current-source anchors, not frozen proof. Future 
 
 | Current seam | Replacement and retained authority |
 |---|---|
-| `internal/engine/engine.go:24–42` ParameterInfo/Result/binding | Type-owned parameter/description shape, catalog BoundPlan carrying BoundQuery; replace Result Snapshot/parser metadata with common RowResult. Remove migrated projection/predicate/order fields; nonquery target binding remains its owner until migrated |
+| `internal/engine/engine.go:24–42` ParameterInfo/Result/binding (`binding` and `ParameterInfo` now in [`analyze`](../../internal/engine/analyze/README.md)) | Type-owned parameter/description shape, catalog BoundPlan carrying BoundQuery; replace Result Snapshot/parser metadata with common RowResult. Remove migrated projection/predicate/order fields; nonquery target binding remains its owner until migrated |
 | `engine.go:130–138,197–340` Engine.Describe/describe; SELECT :290–329 | One statement analysis/private expressionBinder, catalog source schemas and typed layouts. Remove migrated local `column`/raw parameter inference paths; preserve shared lookup/storage identities/finalization. SESSION Operation signature remains authoritative |
 | `engine.go:482–634` Execute; SELECT :612–630 | Replace SELECT switch body with bound tree open/demand-sensitive internal execution/finite final materialization. Capture immutable rows/generation coherently, evaluate outside locks. Remove legacy branch, not keep two SELECT implementations |
 | `engine.go:579–611` INSERT staging | Preserve existing complete-row staging/atomicity until DML/TX owner migrates; RETURNING attaches only through real producer seam. UPDATE/DELETE/MERGE are future entrypoints, not present APIs |
