@@ -118,6 +118,29 @@ Step 9b moved `conversion_descriptions.go`, `builtinCollationVersion` and
   (`collationDisplayName`); `quoteOrigin`, `structuralNull` (the column
   default records). 15b moves only what clears this frontier.
 
+**After 15b** (measured at `75fd0ec29`): a fixed-point frontier pass left
+73 declarations, which moved (see Status). The clean set above was too
+generous in these places, which now stay in the engine:
+
+- shared records, not type code: `dumpDomain` (dump graph),
+  `domainDependency` (the general dependency record), `conversionDefault`
+  (a `StatementScope` presentation cache), `remapRegclassDatum` (reg*
+  persistence) and `collationDisplayName` (deparse; it needs `pgIdentifier`);
+- blocked by the frontier: `collationDumpStatements`,
+  `conversionDumpStatements` and `compositeDumpStatement` (`dumpDomain`);
+  `catalogTypeDeclaration*`, `catalogColumnDeclaration`, `catalogLiteral*`,
+  `catalogRegclassOutput` and `validateUsageCollation*` (definition reader,
+  reg* formatters); `validateStoredCollationDependency`
+  (`walkBoundExpression`); `reownCatalogScalarTypes` (reg* remaps);
+  `reownDomainIndexOutputs` (index helpers); `restoreDomainAlter`
+  (`restoreScalar`); `domainCheckPhase` and `domainCheckProgram`
+  (`routineAdmissionProgram`); `enumReownVersions`; `typeProvider` (dirty
+  `Validate`) and `validateTypeProviders`; `typedClosure`,
+  `typedInheritedActions`, `typedPropagationOrder`, `typedRelationMutation`
+  and `typedTransformAttributes` (inheritance and ALTER TABLE records); the
+  column-default records of `domain_default.go`; `captureDomainReplayNode`
+  and `domainReplayCapture` (`literalExpression`).
+
 ## Part A
 
 ### 15a — In place
@@ -265,11 +288,56 @@ Part B: the type DDL handlers live in `typedef`. The checks in §8.3 pass.
     Samples above 1 ms come from host contention (an unloaded run earlier
     measured 945 µs before and 930 µs after). Racecheck and finalcheck
     skipped at user request.
-- [ ] 15b — `typedef` created and clean set moved
+- [x] 15b — `typedef` created and clean set moved (`d4d99a162`,
+  `5d3f4af95`, `b67b62d22`, then the docs commit) *(racecheck/finalcheck
+  skipped at user request)*
+  - Re-measured at `75fd0ec29` with the 15a frontier tool, iterated to a
+    fixed point: a declaration stays if it uses any engine declaration
+    outside the set except `sqlError`/`insertError`. 73 declarations moved;
+    "After 15b" in the inventory lists what stays and why.
+  - `d4d99a162` (split): the moving declarations of 23 mixed files were
+    moved unchanged into whole files (for example `domain_replay_codec.go`,
+    `type_journal_slots.go`, `typed_inheritance_plan.go`), so the move takes
+    whole files.
+  - `5d3f4af95` (export in place): the `movex` member mode capitalized the
+    123 names, fields and methods that engine code uses, otherwise unchanged.
+  - `b67b62d22` (move): 30 files (about 2.1k lines) moved into
+    `internal/engine/typedef`; `movex` qualified the engine references in
+    117 files. `typedef` imports `authorization`, `catalog`, `expr`, `ids`,
+    `storage`, `parser`, `sqlstate`, `sqltype` and the standard library; no
+    `routine`. `sqlError` and `insertError` got private copies in
+    `errors.go`, as in `routine`. Beyond the 15a table: the pure row-type
+    helpers `ChooseAssociatedArrayName` and `CompositeMembers` moved (the
+    replay names and `ReownDomainTypes` need them). Cleanups while moving:
+    the seed record fields are `ID` (not `Id`), the seed record types are
+    exported because exported constructors return them, and the private
+    conversion table is read through the constant `BuiltinConversionCount`
+    (the engine only needed its length).
+  - Tests: moved `TestBuiltinConversionProcedures` and
+    `TestBuiltinDomainSeeds` (`typedef/builtin_seeds_test.go`),
+    `TestDomainDefaultReplayPairingInternal`
+    (`typedef/domain_replay_codec_test.go`) and `TestPGEnumSortInsertion`
+    (`typedef/enum_order_test.go`), unchanged except for qualification. The
+    other engine tests were only qualified mechanically; none deleted. No
+    new seam tests: the move adds no seam.
+  - Verification: build, vet (only the existing `composites`, `copylocks`
+    and `lostcancel` findings), 127 targeted engine and `typedef` unit tests
+    after every commit, the 625-test 15a reference selection in quick mode
+    and with `REFERENCE=1`, `make quickcheck` and `make deps` passed on the
+    base `75fd0ec29`. With `REFERENCE=1` only the known oracle-side drift
+    `TestReferenceCompositeExprReturning/postgres` and
+    `TestReferenceCompositeExprCorrelatedReturning/postgres` fail (as in
+    15a; every stuntgres subtest passes). Layering: `go list` shows no
+    engine subpackage importing the engine, and `typedef` does not import
+    `routine`. Startup bench, interleaved 8 runs each on a loaded host (load
+    18–23): median 980 µs/op before, 1,037 µs/op after, with samples on both
+    sides from 852 to 1,476 µs/op; 5,025 allocs/op and about 1.64 MB/op on
+    both. The move does not change allocations; the time difference is host
+    noise. Racecheck and finalcheck skipped at user request.
 - [ ] 15c — Host refined (docs only; after 13d)
 - [ ] 15d — DDL handlers moved
 
-Outstanding aliases: none yet.
+Outstanding aliases: none (15b qualified every reference; no type aliases).
 
 Notes for later steps:
 
@@ -277,11 +345,21 @@ Notes for later steps:
   `typeProvider.Validate`; keep that seam usable from `extension`.
 - Moving `typeProvider.Validate` itself needs a stored-SQL rendering seam
   (catalog prompt file, notes for later steps).
-- 15b: the slot structs (`domainAlterStage`, `typedStage`, `domainJournal`,
-  `enumJournal`) are clean and can move; their accessors on `CatalogStage`
-  and `catalogChanges` stay in the engine until 13d (or become typedef
-  functions taking the slot). `domainValidationFence` moves with
-  `domain_alter_discovery.go`.
+- The slot structs now live in `typedef` (`typedef.DomainAlterStage`,
+  `TypedStage`, `DomainJournal`, `EnumJournal`, with exported fields); their
+  accessors on `CatalogStage` and `catalogChanges` (`domainAlterState`,
+  `typedState`, `domainWritable`, `enumWritable`) stay in the engine until
+  13d, or become typedef functions taking the slot.
+- 15c/15d: the collation, conversion and composite dump statements,
+  `domainDumpStatement` and type-declaration rendering need a dump seam (a
+  dump record below the engine, and the definition reader and reg*
+  formatters behind an interface); `operator_dump.go` waits for the same
+  seam (routine prompt file). `typeProvider` waits for the stored-SQL
+  rendering seam.
+- 13a/13b: `conversionDefault` stayed in the engine as the
+  `StatementScope` presentation cache record; move it with that slot.
+- When the DDL handlers move, unexport the `typedef` names that nothing
+  outside the package uses any more.
 - 13b: the domain, typed-table and enum slots exist; skip them. The journal
   fence list of 13b item 2 must keep `domainJournal.validations` first in
   `catalogReadPreflightLocked`.
