@@ -93,7 +93,7 @@ func (s *StatementScope) acquireMaterializedRefresh(stmt *parser.RefreshMaterial
 		return err
 	}
 	if !stmt.NoData {
-		s.materializedRefresh = true
+		s.materialized().refresh = true
 		return s.acquireViewSources()
 	}
 	return nil
@@ -160,8 +160,8 @@ func (e *Engine) refreshMaterializedLocked(scope *StatementScope, caller Authori
 	}
 	stage := e.BeginCatalogStage(caller.Catalog)
 	stage.authorizeLocked(caller, scope.op.session)
-	stage.querySources = scope.materializedSources
-	stage.materializedSourceView = scope.materializedSourceView
+	stage.querySources = scope.materializedOrZero().sources
+	stage.materializedSourceView = scope.materializedOrZero().sourceView
 	stage.indexOutput = scope.output
 	defer e.DiscardCatalogStage(stage)
 	var rows [][]sqltype.Value
@@ -393,4 +393,28 @@ func (s *CatalogStage) materializedReplacementCurrent(snapshot *catalog.State, s
 		return catalog.Conflict{}
 	}
 	return nil
+}
+
+// materializedRefreshScope is the statement's REFRESH MATERIALIZED VIEW slot:
+// the refresh flag, the captured source descriptors and their visibility data.
+type materializedRefreshScope struct {
+	refresh    bool
+	sources    []catalog.Descriptor
+	sourceView *visibility.Data
+}
+
+// materialized returns the statement's materialized slot, allocating it on first use.
+func (s *StatementScope) materialized() *materializedRefreshScope {
+	if s.materializedSlot == nil {
+		s.materializedSlot = new(materializedRefreshScope)
+	}
+	return s.materializedSlot
+}
+
+// materializedOrZero reads the materialized slot; a nil slot reads as zero.
+func (s *StatementScope) materializedOrZero() materializedRefreshScope {
+	if s.materializedSlot == nil {
+		return materializedRefreshScope{}
+	}
+	return *s.materializedSlot
 }

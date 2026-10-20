@@ -111,10 +111,10 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	assertSourceWait()
 	// The pending-request mutex observation synchronizes with the prewait
 	// manifest capture. The holder keeps the worker blocked during inspection.
-	snapshot := scope.materializedSourceView
+	snapshot := scope.materializedOrZero().sourceView
 	assertManifest := func() {
 		t.Helper()
-		if scope.materializedSourceView != snapshot || snapshot == nil || snapshot.Frontier != frontier || len(snapshot.Committed) != 2 {
+		if scope.materializedOrZero().sourceView != snapshot || snapshot == nil || snapshot.Frontier != frontier || len(snapshot.Committed) != 2 {
 			t.Fatal("physical mixed producer manifest changed", snapshot)
 		}
 		for address, stored := range map[ids.ObjectAddress]*storage.Relation{inner.Address(): innerStorage, gate.Address(): gateStorage} {
@@ -166,7 +166,7 @@ func TestMaterializedRefreshConcurrentRetainedSourceCapture(t *testing.T) {
 	transactionEnd(t, holder, holderTx, false)
 	stage := e.BeginCatalogStage(e.CatalogRead())
 	defer e.DiscardCatalogStage(stage)
-	stage.querySources = scope.materializedSources
+	stage.querySources = scope.materializedOrZero().sources
 	stage.materializedSourceView = snapshot
 	provider := stage.Base.Get(ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(outer.RowType)})
 	if provider == nil {

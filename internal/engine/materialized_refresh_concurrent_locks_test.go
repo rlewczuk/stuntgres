@@ -106,7 +106,7 @@ func TestMaterializedRefreshConcurrentLocks(t *testing.T) {
 				}
 			} else if tc.noData {
 				materializedConcurrentUnitError(t, err, "42601", "CONCURRENTLY and WITH NO DATA options cannot be used together")
-				if len(scope.materializedSources) != 0 {
+				if len(scope.materializedOrZero().sources) != 0 {
 					t.Fatal("option conflict acquired sources")
 				}
 			} else {

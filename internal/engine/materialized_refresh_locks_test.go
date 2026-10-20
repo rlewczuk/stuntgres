@@ -85,10 +85,10 @@ func TestMaterializedRefreshLocks(t *testing.T) {
 			} else {
 				lockAwait(t, done, nil)
 				joined = true
-				if tc.noData && len(scope.materializedSources) != 0 {
+				if tc.noData && len(scope.materializedOrZero().sources) != 0 {
 					t.Fatal("NO DATA traversed sources")
 				}
-				if !tc.noData && len(scope.materializedSources) != 2 {
+				if !tc.noData && len(scope.materializedOrZero().sources) != 2 {
 					t.Fatal("DATA did not retain source fences")
 				}
 				if err := scope.Finish(nil); err != nil {

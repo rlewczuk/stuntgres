@@ -265,9 +265,9 @@ func (s *StatementScope) prepareViewCreation(view *parser.CreateView) error {
 	if err != nil {
 		return err
 	}
-	s.viewCreationNamespace, s.viewPersistence, s.viewBinding = ns, persistence, b
+	s.viewCreation().namespace, s.viewCreation().persistence, s.viewCreation().binding = ns, persistence, b
 	if persistence == "temporary" {
-		s.viewChanges = changes
+		s.viewCreation().changes = changes
 	}
 	return nil
 }
@@ -284,11 +284,11 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	ns := scope.viewCreationNamespace
-	if scope.viewChanges != nil {
-		auth.Catalog = e.privateCatalogLocked(scope.viewChanges)
+	ns := scope.viewCreationOrZero().namespace
+	if scope.viewCreationOrZero().changes != nil {
+		auth.Catalog = e.privateCatalogLocked(scope.viewCreationOrZero().changes)
 		auth.Recapture(auth.Catalog)
-		if table, ok := scope.viewChanges.descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
+		if table, ok := scope.viewCreationOrZero().changes.descriptors[ns.Address].(*catalog.Namespace); ok && !table.TemporaryToast && table.Temporary == op.session.token {
 			auth.stagedTemporary = table.Address()
 		}
 	}
@@ -334,7 +334,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.mu.Unlock()
 		return Result{}, ids.ErrCatalogReplaced
 	}
-	b := scope.viewBinding
+	b := scope.viewCreationOrZero().binding
 	if err := scope.validateQuerySources(b.querySources); err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -426,7 +426,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.mu.Unlock()
 		return Result{}, err
 	}
-	definition, err := e.freezeViewDefinitionLocked(auth, view.Query, b, barrier, invoker, rule, catalog.ViewRelation, scope.viewPersistence == "temporary")
+	definition, err := e.freezeViewDefinitionLocked(auth, view.Query, b, barrier, invoker, rule, catalog.ViewRelation, scope.viewCreationOrZero().persistence == "temporary")
 	if err != nil {
 		e.mu.Unlock()
 		return Result{}, err
@@ -446,7 +446,7 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 	if old == nil {
 		d.Security.ACL = stage.creationACL(d.Owner, d.Namespace(), authorization.DefaultTables)
 	}
-	if scope.viewPersistence == "temporary" {
+	if scope.viewCreationOrZero().persistence == "temporary" {
 		definition.consumer = d.Address()
 	}
 	attribute := d.ColumnMeta.HighWater
@@ -494,9 +494,9 @@ func (e *Engine) executeCreateView(scope *StatementScope, view *parser.CreateVie
 		e.DiscardCatalogStage(stage)
 		return Result{}, err
 	}
-	if scope.viewChanges != nil {
+	if scope.viewCreationOrZero().changes != nil {
 		scope.owner.accessedTemporary = true
-		if err := e.stageCatalogOverlay(scope, stage, scope.viewChanges); err != nil {
+		if err := e.stageCatalogOverlay(scope, stage, scope.viewCreationOrZero().changes); err != nil {
 			return Result{}, err
 		}
 		return Result{}, nil
@@ -673,4 +673,48 @@ func (v *viewDefinition) namespaceRoot(ns viewNamespace) LogicalNode {
 		}
 	}
 	return nil
+}
+
+// viewCreationScope is the statement's view slot: the CREATE VIEW target
+// namespace, persistence, binding and staged changes, plus the stack of views
+// being expanded (for recursion checks).
+type viewCreationScope struct {
+	namespace   ids.ObjectRef
+	persistence string
+	binding     binding
+	changes     *catalogChanges
+	active      []ids.ObjectAddress
+}
+
+// viewCreation returns the statement's viewCreation slot, allocating it on first use.
+func (s *StatementScope) viewCreation() *viewCreationScope {
+	if s.viewCreationSlot == nil {
+		s.viewCreationSlot = new(viewCreationScope)
+	}
+	return s.viewCreationSlot
+}
+
+// viewCreationOrZero reads the viewCreation slot; a nil slot reads as zero.
+func (s *StatementScope) viewCreationOrZero() viewCreationScope {
+	if s.viewCreationSlot == nil {
+		return viewCreationScope{}
+	}
+	return *s.viewCreationSlot
+}
+
+// endStatement clears the view-creation state when the statement finishes.
+// The active view stack is lexical expansion state and is left as it was.
+func (v *viewCreationScope) endStatement() {
+	if v == nil {
+		return
+	}
+	v.namespace, v.persistence, v.binding, v.changes = ids.ObjectRef{}, "", binding{}, nil
+}
+
+// setActiveViews installs a saved view-expansion stack; restoring an empty
+// stack never allocates the slot.
+func (s *StatementScope) setActiveViews(active []ids.ObjectAddress) {
+	if active != nil || s.viewCreationSlot != nil {
+		s.viewCreation().active = active
+	}
 }

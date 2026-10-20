@@ -284,10 +284,7 @@ func (s *StatementScope) Finish(err error) error {
 	s.inheritanceCatalog = catalog.Read{}
 	s.ticket = nil
 	s.indexMaintenance = nil
-	s.viewCreationNamespace = ids.ObjectRef{}
-	s.viewPersistence = ""
-	s.viewBinding = binding{}
-	s.viewChanges = nil
+	s.viewCreationSlot.endStatement()
 	s.querySources = nil
 	s.queryLockAdmission = queryLockAdmission{}
 	s.queryLocks = nil

@@ -356,14 +356,14 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 			// CREATE targets only its creation namespace, not a same-named
 			// relation later in the lookup path. Qualified creation needs
 			// CREATE, not USAGE; body lookup retains its independent authority.
-			ns := s.viewCreationNamespace
-			if s.viewChanges != nil {
-				auth.Catalog = e.privateCatalogLocked(s.viewChanges)
+			ns := s.viewCreationOrZero().namespace
+			if s.viewCreationOrZero().changes != nil {
+				auth.Catalog = e.privateCatalogLocked(s.viewCreationOrZero().changes)
 				auth.Recapture(auth.Catalog)
 			}
 			err = auth.CheckCreate(ns)
 			if err == nil {
-				s.viewCreationNamespace = ns
+				s.viewCreation().namespace = ns
 				address := auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text})
 				if address != (ids.ObjectAddress{}) {
 					ref = e.catalog.Domain.Ref(auth.Catalog.Epoch(), address)
@@ -612,9 +612,9 @@ func (s *StatementScope) acquireRelationTarget(stmt, authorityStmt parser.Statem
 		return err
 	}
 	if viewReplacement {
-		ns := s.viewCreationNamespace
-		if s.viewChanges != nil {
-			auth.Catalog = e.privateCatalogLocked(s.viewChanges)
+		ns := s.viewCreationOrZero().namespace
+		if s.viewCreationOrZero().changes != nil {
+			auth.Catalog = e.privateCatalogLocked(s.viewCreationOrZero().changes)
 			auth.Recapture(auth.Catalog)
 		}
 		if auth.Catalog.NameAddress(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name.Parts[len(name.Parts)-1].Text}) != ref.Address {

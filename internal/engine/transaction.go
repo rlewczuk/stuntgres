@@ -305,14 +305,7 @@ type StatementScope struct {
 	replacementRead         bool
 	ticket                  *lock.Ticket
 	multiEvents             []lock.MultiEvent
-	viewCreationNamespace   ids.ObjectRef
-	viewPersistence         string
-	viewBinding             binding
-	viewChanges             *catalogChanges
 	indexMaintenance        *indexMaintenanceGrant
-	materializedRefresh     bool
-	materializedSources     []catalog.Descriptor
-	materializedSourceView  *visibility.Data
 	querySources            []queryLeaf
 	foreignOwner            *foreignScanOwner
 	foreignStatements       []*foreignParticipant
@@ -321,7 +314,6 @@ type StatementScope struct {
 	foreignCursor           *sqlCursor
 	queryLockAdmission      queryLockAdmission
 	queryLocks              *queryLockContext
-	activeViews             []ids.ObjectAddress
 	txRef                   ids.TxRef
 	command                 ids.CommandID
 	ownWrites               map[ids.ObjectAddress][]storage.RowVersion
@@ -361,6 +353,8 @@ type StatementScope struct {
 	truncateSlot            *truncateScope
 	dropsSlot               *dropScope
 	foreignActionsSlot      *foreignActionScope
+	viewCreationSlot        *viewCreationScope
+	materializedSlot        *materializedRefreshScope
 }
 
 type WriteStage struct {

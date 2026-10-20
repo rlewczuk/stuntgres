@@ -36,14 +36,15 @@ func (e *Engine) openRelationSourceLocked(scope *StatementScope, ref ids.ObjectR
 		e.mu.Unlock()
 		return source, err
 	case catalog.ViewRelation:
-		for _, active := range scope.activeViews {
+		for _, active := range scope.viewCreationOrZero().active {
 			if active == d.Address() {
 				e.mu.Unlock()
 				return nil, sqlError("42P17", fmt.Sprintf(`infinite recursion detected in rules for relation "%s"`, d.Name()))
 			}
 		}
-		scope.activeViews = append(scope.activeViews, d.Address())
-		defer func() { scope.activeViews = scope.activeViews[:len(scope.activeViews)-1] }()
+		views := scope.viewCreation()
+		views.active = append(views.active, d.Address())
+		defer func() { views.active = views.active[:len(views.active)-1] }()
 		root, source, err := e.prepareStoredQueryLocked(scope, ref, viewOf(d), invoker, mark, locks, outputUses)
 		if err != nil {
 			return nil, err

@@ -65,7 +65,7 @@ func (e *Engine) prepareStoredQueryLocked(scope *StatementScope, ref ids.ObjectR
 			return nil, nil, err
 		}
 	}
-	if scope.materializedRefresh && ref == scope.lockedRef {
+	if scope.materializedOrZero().refresh && ref == scope.lockedRef {
 		if err := e.initializeQueryLocksLocked(scope, root, leaves); err != nil {
 			e.mu.Unlock()
 			return nil, nil, err
