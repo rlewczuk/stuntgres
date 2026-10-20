@@ -85,7 +85,8 @@ func TestStoreIndexRootsCurrent(t *testing.T) {
 	a := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 1}
 	b := ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 2}
 	root, other := &IndexRoot{}, &IndexRoot{}
-	s := Store{IndexRoots: map[ids.ObjectAddress]*IndexRoot{a: root}}
+	var s Store
+	s.ReplaceIndexRootsLocked(map[ids.ObjectAddress]*IndexRoot{a: root})
 	for _, tc := range []struct {
 		name     string
 		captured map[ids.ObjectAddress]*IndexRoot

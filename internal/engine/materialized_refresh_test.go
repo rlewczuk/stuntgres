@@ -140,7 +140,9 @@ func TestMaterializedRefreshPublicationFences(t *testing.T) {
 				store.Ends = &storage.DeletionRoot{}
 			case "store":
 				copy := *store
-				e.storage.Relations[d.Address()] = &copy
+				e.mu.Lock()
+				e.storage.InstallRelationLocked(d.Address(), &copy)
+				e.mu.Unlock()
 			case "descriptor":
 				copy := *d
 				copy.ObjectRevision++

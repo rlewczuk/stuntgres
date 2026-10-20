@@ -10,7 +10,10 @@ import (
 
 // The caller retains replacementMu throughout, but providers must never run
 // under the target catalog mutex. All effects belong to an isolated real session.
-func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, mapping map[ids.ObjectAddress]ids.ObjectAddress, op *Operation, indexes *indexSnapshot) (result error) {
+// A nonnil installedStage identifies the owner of the supplied map containers
+// after repair; later container writes must use that store's locked methods.
+// When no repair is needed, it returns nil and leaves the containers detached.
+func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *catalog.State, relations map[ids.ObjectAddress]*storage.Relation, sequences map[ids.ObjectAddress]*storage.SequenceGenerator, mapping map[ids.ObjectAddress]ids.ObjectAddress, op *Operation, indexes *indexSnapshot) (installedStage *Engine, result error) {
 	needed := indexes.needsOwnerRepair() || hasHashPartition(next)
 	for source, target := range mapping {
 		if source == target {
@@ -23,7 +26,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 		}
 	}
 	if !needed {
-		return ctx.Err()
+		return installedStage, ctx.Err()
 	}
 	catalogSnapshot, roles, frontier := e.catalog.state, e.roles.published, e.visibility.CommitSeq()
 	e.mu.Unlock()
@@ -51,28 +54,29 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	}
 	if err == nil {
 		stage.catalog.state = candidate
-		stage.storage.Relations = relations
-		stage.storage.Sequences = sequences
+		stage.storage.ReplaceRelationsLocked(relations)
+		stage.storage.ReplaceSequencesLocked(sequences)
+		installedStage = stage
 	}
 	stage.mu.Unlock()
 	if err != nil {
-		return err
+		return installedStage, err
 	}
 	if op == nil {
 		session, err := stage.StartSession(ctx, SessionStart{ID: 1, Authenticated: stage.roles.domain.Principal(10)})
 		if err != nil {
-			return err
+			return installedStage, err
 		}
 		defer func() { session.RequestEnd(CleanClose); _ = session.WaitEnd(context.Background()) }()
 		op, err = session.Acquire(ctx)
 		if err != nil {
-			return err
+			return installedStage, err
 		}
 		defer op.Done()
 	}
 	scope, err := stage.StartStatement(op)
 	if err != nil {
-		return err
+		return installedStage, err
 	}
 	stmt := &parser.Insert{}
 	err = scope.gate(stmt)
@@ -96,7 +100,7 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	}
 	var moved map[ids.ObjectAddress]bool
 	if err == nil {
-		moved, err = repairRemappedHashPartitions(ctx, &evaluation, relations, auth, indexes)
+		moved, err = stage.repairRemappedHashPartitions(ctx, &evaluation, auth, indexes)
 	}
 	if err == nil {
 		err = indexes.repair(ctx, &evaluation, relations, changed, moved, auth)
@@ -106,9 +110,9 @@ func (e *Engine) repairRemappedGenerationsLocked(ctx context.Context, next *cata
 	}
 	err = scope.Finish(err)
 	if err != nil {
-		return err
+		return installedStage, err
 	}
 	// Deferred reacquisition checks captured catalog, role incarnations and TEMP
 	// membership atomically with the caller's remaining installation work.
-	return ctx.Err()
+	return installedStage, ctx.Err()
 }

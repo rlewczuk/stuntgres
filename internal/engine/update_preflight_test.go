@@ -176,8 +176,8 @@ func TestUpdateCoreRecursivePreflightAuthorityIdentityContext(t *testing.T) {
 					address := scope.lockedRef.Address
 					original := e.storage.Relations[address]
 					replacement := *original
-					e.storage.Relations[address] = &replacement
-					restore = func() { e.storage.Relations[address] = original }
+					e.storage.InstallRelationLocked(address, &replacement)
+					restore = func() { e.storage.InstallRelationLocked(address, original) }
 				case "attribute", "type", "width", "comment", "acl":
 					address := scope.lockedRef.Address
 					original := e.catalog.state.Get(address)

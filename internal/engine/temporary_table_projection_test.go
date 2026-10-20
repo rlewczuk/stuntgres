@@ -82,7 +82,9 @@ func TestTemporaryTableTerminalShapePredecessors(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				e.storage.IndexRoots[index.Address()] = root
+				e.mu.Lock()
+				e.storage.InstallIndexRootLocked(index.Address(), root)
+				e.mu.Unlock()
 			case "UnrelatedRoot":
 				sessionSQL(t, owner, "CREATE TABLE public.shape_unrelated(v INT)")
 				sessionSQL(t, owner, "CREATE INDEX shape_unrelated_v ON public.shape_unrelated(v)")
@@ -156,11 +158,15 @@ func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 	e.catalog.state = catalog.CloneState(original)
 	e.catalog.state.SetDescriptor(survivor.Address(), &maximum)
 	e.catalog.state.SetDescriptor(index.Address(), &maximumIndex)
-	e.storage.Relations[survivor.Address()] = &maximumStore
+	e.mu.Lock()
+	e.storage.InstallRelationLocked(survivor.Address(), &maximumStore)
+	e.mu.Unlock()
 	t.Cleanup(func() {
 		if e.catalog.state.Get(provider.Address()) != nil {
 			e.catalog.state = original
-			e.storage.Relations[survivor.Address()] = originalStore
+			e.mu.Lock()
+			e.storage.InstallRelationLocked(survivor.Address(), originalStore)
+			e.mu.Unlock()
 		}
 	})
 	stage, indexes := temporaryProjectionStage(t, e, provider)
@@ -179,12 +185,16 @@ func TestTemporaryTableTerminalCombinedMaximum(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.storage.IndexRoots[index.Address()] = changedRoot
+	e.mu.Lock()
+	e.storage.InstallIndexRootLocked(index.Address(), changedRoot)
+	e.mu.Unlock()
 	installed, err := temporaryProjectionInstall(e, owner, provider, stage, indexes)
 	if err != nil || installed {
 		t.Fatal("maximum stale index attempt installed", installed, err)
 	}
-	e.storage.IndexRoots[index.Address()] = oldRoot
+	e.mu.Lock()
+	e.storage.InstallIndexRootLocked(index.Address(), oldRoot)
+	e.mu.Unlock()
 	installed, err = temporaryProjectionInstall(e, owner, provider, stage, indexes)
 	if err != nil || !installed {
 		t.Fatal("maximum full-stage install", installed, err)
@@ -263,7 +273,9 @@ func TestTemporaryTableOrdinaryShapeOverflow(t *testing.T) {
 				e.catalog.state.SetDescriptor(survivor.Address(), &maximum)
 			case "Storage":
 				maximumStore.Generation = ^uint64(0)
-				e.storage.Relations[survivor.Address()] = &maximumStore
+				e.mu.Lock()
+				e.storage.InstallRelationLocked(survivor.Address(), &maximumStore)
+				e.mu.Unlock()
 			case "Index":
 				maximumIndex.ObjectRevision = ids.DefinitionRevision(^uint64(0))
 				e.catalog.state.SetDescriptor(index.Address(), &maximumIndex)
@@ -272,7 +284,9 @@ func TestTemporaryTableOrdinaryShapeOverflow(t *testing.T) {
 			t.Cleanup(func() {
 				if e.catalog.state.Get(provider.Address()) != nil {
 					e.catalog.state = original
-					e.storage.Relations[survivor.Address()] = store
+					e.mu.Lock()
+					e.storage.InstallRelationLocked(survivor.Address(), store)
+					e.mu.Unlock()
 				}
 			})
 			stage := e.BeginCatalogStage(e.CatalogRead())
@@ -303,7 +317,9 @@ func TestTemporaryTableTerminalConcurrentIndexFlags(t *testing.T) {
 			e.catalog.state.SetDescriptor(index.Address(), &changed)
 			previous := e.storage.IndexRoots[index.Address()]
 			if !ready {
-				delete(e.storage.IndexRoots, index.Address())
+				e.mu.Lock()
+				e.storage.RemoveIndexRootLocked(index.Address())
+				e.mu.Unlock()
 			}
 			stage, indexes := temporaryProjectionStage(t, e, provider)
 			installed, err := temporaryProjectionInstall(e, owner, provider, stage, indexes)

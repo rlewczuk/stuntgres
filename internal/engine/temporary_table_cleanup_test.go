@@ -34,12 +34,21 @@ func TestTemporaryTableCleanupClosure(t *testing.T) {
 	rows := []storage.RowVersion{{Row: 1, Version: 1, Values: []sqltype.Value{sqltype.Null(table.Columns[0].Usage.Type)}}}
 	store := &storage.Relation{Versions: rows}
 	peerStore := &storage.Relation{}
-	e.storage.Relations[table.Address()], e.storage.Relations[peerTable.Address()] = store, peerStore
+	e.mu.Lock()
+	e.storage.InstallRelationLocked(table.Address(), store)
+	e.storage.InstallRelationLocked(peerTable.Address(), peerStore)
+	e.mu.Unlock()
 	generator := &storage.SequenceGenerator{Last: options.Start, Generation: 1}
-	e.storage.Sequences[sequence.Address()] = generator
+	e.mu.Lock()
+	e.storage.InstallSequenceLocked(sequence.Address(), generator)
+	e.mu.Unlock()
 	root := &storage.IndexRoot{}
-	e.storage.IndexRoots = map[ids.ObjectAddress]*storage.IndexRoot{}
-	e.storage.IndexRoots[index.Address()] = root
+	e.mu.Lock()
+	e.storage.ReplaceIndexRootsLocked(map[ids.ObjectAddress]*storage.IndexRoot{})
+	e.mu.Unlock()
+	e.mu.Lock()
+	e.storage.InstallIndexRootLocked(index.Address(), root)
+	e.mu.Unlock()
 	epoch := e.catalog.state.Epoch()
 	if err := e.endTemporarySession(op.session); err != nil {
 		t.Fatal(err)

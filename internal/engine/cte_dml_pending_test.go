@@ -103,7 +103,7 @@ func cteDMLPendingBoundary(t *testing.T, replacement bool) {
 		// is active/pending. The same SQL identity must not authorize a new root.
 		e.mu.Lock()
 		old := e.storage.Relations[audit.Address]
-		e.storage.Relations[audit.Address] = &storage.Relation{Versions: old.Versions, Ends: old.Ends, Generation: old.Generation}
+		e.storage.InstallRelationLocked(audit.Address, &storage.Relation{Versions: old.Versions, Ends: old.Ends, Generation: old.Generation})
 		e.mu.Unlock()
 		want = ids.ErrCatalogReplaced
 		transactionEnd(t, holder, tx, false)

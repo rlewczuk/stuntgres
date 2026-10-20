@@ -49,7 +49,9 @@ func TestSequenceDeleteCompositionPublicationFailure(t *testing.T) {
 			case "shape":
 				// Preserve every row and its width; only shape authority changes.
 				replacement := *e.storage.Relations[table.Address]
-				e.storage.Relations[table.Address] = &replacement
+				e.mu.Lock()
+				e.storage.InstallRelationLocked(table.Address, &replacement)
+				e.mu.Unlock()
 			}
 			assertSequenceDeletePrivateBatch(t, s, table.Address, sequence.Address, phase == "namespace")
 			before := captureSequenceDeletePublication(e, s, table.Address)

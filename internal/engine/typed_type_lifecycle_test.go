@@ -64,7 +64,7 @@ func TestTypedPublicationStorageGenerationConflict(t *testing.T) {
 	e.mu.Lock()
 	concurrent := *store
 	concurrent.Generation++
-	e.storage.Relations[table.Address()] = &concurrent
+	e.storage.InstallRelationLocked(table.Address(), &concurrent)
 	e.mu.Unlock()
 	before := e.CatalogRead()
 	changes, err := e.PublishCatalog(prepared, PublicationToken{Epoch: before.Epoch()})

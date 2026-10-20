@@ -149,7 +149,7 @@ func TestAlterAddColumnFinishFences(t *testing.T) {
 				case "storage":
 					injectedStorage = &storage.Relation{Generation: stored.Generation + 1, Versions: stored.Versions, Ends: stored.Ends}
 					e.mu.Lock()
-					e.storage.Relations[ref.Address] = injectedStorage
+					e.storage.InstallRelationLocked(ref.Address, injectedStorage)
 					e.mu.Unlock()
 				case "replacement":
 					if err = e.Restore(context.Background(), strings.NewReader("CREATE TABLE sentinel(v INT);INSERT INTO sentinel VALUES(91)")); err != nil {

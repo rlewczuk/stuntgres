@@ -175,7 +175,7 @@ func TestInfoYesOrNoLogicalDescriptions(t *testing.T) {
 	// Install a private storage fixture, not a public SQL/API witness. Result
 	// analysis must retain the domain even when the only physical datum is NULL.
 	e.mu.Lock()
-	e.storage.Relations[table.Address()] = &storage.Relation{Generation: 1, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{sqltype.Null(d)}}}}
+	e.storage.InstallRelationLocked(table.Address(), &storage.Relation{Generation: 1, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{sqltype.Null(d)}}}})
 	e.visibility.SetCommitSeqLocked(1)
 	e.mu.Unlock()
 	check("SELECT v FROM public.yes_or_no_description")

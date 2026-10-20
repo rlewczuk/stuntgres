@@ -1265,14 +1265,14 @@ func (e *Engine) publishCatalog(op *Operation, scope *StatementScope, p *Prepare
 				e.visibility.SerializableCommittedLocked(s.initialTx, e.visibility.CommitSeq())
 			}
 			e.catalog.state = next
-			e.storage.Relations = relations
+			e.storage.ReplaceRelationsLocked(relations)
 			preserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.storage.IndexRoots)
-			e.storage.IndexRoots = indexRoots
+			e.storage.ReplaceIndexRootsLocked(indexRoots)
 			for a := range s.Removals {
-				delete(e.storage.Sequences, a)
+				e.storage.RemoveSequenceLocked(a)
 			}
 			for a, generator := range s.generators {
-				e.storage.Sequences[a] = generator
+				e.storage.InstallSequenceLocked(a, generator)
 			}
 			e.catalog.nextRevision = nextRevision
 			if s.roleCandidate != nil {
@@ -1461,14 +1461,14 @@ func (e *Engine) replaceCatalog(ctx context.Context, source *Engine, replacement
 			return ChangeSet{}, err
 		}
 		e.storage.SetFrontierLocked(nextRow, nextVersion)
-		e.storage.IndexRoots = roots
+		e.storage.ReplaceIndexRootsLocked(roots)
 		e.visibility.AdvanceCommitSeqLocked()
 		next.SetEpoch(e.catalog.state.Epoch() + 1)
 		e.catalog.state = next
-		e.storage.Relations = relations
+		e.storage.ReplaceRelationsLocked(relations)
 		e.exclusionPending = nil
 		e.exclusionGeneration++
-		e.storage.Sequences = sequences
+		e.storage.ReplaceSequencesLocked(sequences)
 		e.clearPersistentSequenceMemoryLocked()
 		e.catalog.nextRevision = nextRevision
 		e.fenceSerializableLocked()
@@ -1569,14 +1569,14 @@ func (e *Engine) installForeignCatalogLocked(ctx context.Context, next *catalog.
 		return err
 	}
 	e.storage.SetFrontierLocked(prepared.nextRow, prepared.nextVersion)
-	e.storage.IndexRoots = prepared.roots
+	e.storage.ReplaceIndexRootsLocked(prepared.roots)
 	e.visibility.AdvanceCommitSeqLocked()
 	next.SetEpoch(e.catalog.state.Epoch() + 1)
 	e.catalog.state = next
-	e.storage.Relations = relations
+	e.storage.ReplaceRelationsLocked(relations)
 	e.exclusionPending = nil
 	e.exclusionGeneration++
-	e.storage.Sequences = sequences
+	e.storage.ReplaceSequencesLocked(sequences)
 	e.clearPersistentSequenceMemoryLocked()
 	e.catalog.nextRevision = nextRevision
 	e.fenceSerializableLocked()

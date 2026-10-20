@@ -42,7 +42,9 @@ func domainAlterPublicationFixture(t *testing.T) (*Engine, *Operation, func(), *
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.storage.Relations[table.Address()] = &storage.Relation{Generation: 1, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value}}}}
+	e.mu.Lock()
+	e.storage.InstallRelationLocked(table.Address(), &storage.Relation{Generation: 1, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value}}}})
+	e.mu.Unlock()
 	e.visibility.SetCommitSeqLocked(1)
 	stage := e.BeginCatalogStage(view)
 	next := *d
@@ -92,7 +94,9 @@ func TestDomainAlterConstraintPublication(t *testing.T) {
 				case "ends":
 					store.Ends = &storage.DeletionRoot{}
 				}
-				e.storage.Relations[table.Address()] = &store
+				e.mu.Lock()
+				e.storage.InstallRelationLocked(table.Address(), &store)
+				e.mu.Unlock()
 			case "replacement":
 				state := catalog.CloneState(e.catalog.state)
 				state.SetEpoch(state.Epoch() + 1)

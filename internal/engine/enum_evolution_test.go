@@ -63,7 +63,9 @@ func TestEnumGenerationPublicationAtomicity(t *testing.T) {
 	oldRelation := oldCatalog.MustRelation(ref.Address)
 	value, _ := mood.SQLType.Input(context.Background(), "q", -1)
 	oldStore := &storage.Relation{Versions: []storage.RowVersion{{Row: 7, Version: 11, Born: 3, KeyChangedAt: 2, Values: []sqltype.Value{value}}}, Generation: 4}
-	e.storage.Relations[ref.Address] = oldStore
+	e.mu.Lock()
+	e.storage.InstallRelationLocked(ref.Address, oldStore)
+	e.mu.Unlock()
 	otherStore := e.storage.Relations[other.Address]
 	members := mood.SQLType.EnumMembers()
 	members[1].Label = "end"

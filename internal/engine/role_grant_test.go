@@ -50,7 +50,9 @@ func TestObjectGrantSequencePublication(t *testing.T) {
 	original.RelationKind = catalog.SequenceRelation
 	original.SequencePlanStamp = 1
 	generator := &storage.SequenceGenerator{Last: 11}
-	e.storage.Sequences[address] = generator
+	e.mu.Lock()
+	e.storage.InstallSequenceLocked(address, generator)
+	e.mu.Unlock()
 	request := objectGrantUnitRequest()
 	request.Kind = "sequence"
 	request.Privileges = []parser.GrantPrivilege{{All: true}}

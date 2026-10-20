@@ -37,7 +37,9 @@ func typedControlsTemporary(e *Engine, tables ...*catalog.Relation) {
 func TestTypedTemporaryReplacementAdmission(t *testing.T) {
 	e, _, table := typedUnitCatalog(t, false)
 	typedControlsTemporary(e, table)
-	e.storage.Relations[table.Address()] = &storage.Relation{}
+	e.mu.Lock()
+	e.storage.InstallRelationLocked(table.Address(), &storage.Relation{})
+	e.mu.Unlock()
 	state, oid, revision, stored := e.catalog.state, e.catalog.nextOID, e.catalog.nextRevision, e.storage.Relations[table.Address()]
 	next := catalog.CloneState(New().catalog.state)
 	e.mu.Lock()
@@ -60,7 +62,9 @@ func TestTypedTemporaryReplacementAdmission(t *testing.T) {
 func TestTypedTemporaryProviderSourceIdentityRetention(t *testing.T) {
 	e, source, table := typedUnitCatalog(t, false)
 	typedControlsTemporary(e, source, table)
-	e.storage.Relations[table.Address()] = &storage.Relation{}
+	e.mu.Lock()
+	e.storage.InstallRelationLocked(table.Address(), &storage.Relation{})
+	e.mu.Unlock()
 	next := catalog.CloneState(New().catalog.state)
 	relations := map[ids.ObjectAddress]*storage.Relation{}
 	e.mu.Lock()

@@ -62,7 +62,9 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			f.e.storage.IndexRoots[f.index.Address()] = root
+			f.e.mu.Lock()
+			f.e.storage.InstallIndexRootLocked(f.index.Address(), root)
+			f.e.mu.Unlock()
 			want := map[ids.RowID]int{1: 0}
 			if !partial {
 				want[2] = 1
@@ -103,8 +105,12 @@ func TestInsertConflictIndexPositionHints(t *testing.T) {
 				if p.nextEnds == nil {
 					f.store.Ends = p.ends
 				}
-				f.e.storage.Relations[f.parent.Address()] = f.store
-				f.e.storage.IndexRoots[f.index.Address()] = root
+				f.e.mu.Lock()
+				f.e.storage.InstallRelationLocked(f.parent.Address(), f.store)
+				f.e.mu.Unlock()
+				f.e.mu.Lock()
+				f.e.storage.InstallIndexRootLocked(f.index.Address(), root)
+				f.e.mu.Unlock()
 				insertConflictWantHints(t, root, f.store, want)
 			}
 			want[4] = 3
@@ -178,7 +184,9 @@ func TestInsertConflictIndexPositionHintsConsumerFences(t *testing.T) {
 			root := *f.e.storage.IndexRoots[f.index.Address()]
 			root.Entries = slices.Clone(root.Entries)
 			root.Entries[0].Position = -1
-			f.e.storage.IndexRoots[f.index.Address()] = &root
+			f.e.mu.Lock()
+			f.e.storage.InstallIndexRootLocked(f.index.Address(), &root)
+			f.e.mu.Unlock()
 			admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 10)}, indexWriteBatch{}, nil)
 			if stableIsolation(isolation) {
 				if admitted || !errors.Is(err, ids.ErrCatalogReplaced) {

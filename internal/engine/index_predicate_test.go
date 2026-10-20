@@ -49,12 +49,16 @@ func newPartialIndexFixture(t testing.TB) partialIndexFixture {
 	}
 	e.catalog.state.SetDescriptor(parent.Address(), parent)
 	e.catalog.state.SetDescriptor(index.Address(), index)
-	e.storage.Relations[parent.Address()] = store
+	e.mu.Lock()
+	e.storage.InstallRelationLocked(parent.Address(), store)
+	e.mu.Unlock()
 	root, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, parent, index.SQLIndex, store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.storage.IndexRoots = map[ids.ObjectAddress]*storage.IndexRoot{index.Address(): root}
+	e.mu.Lock()
+	e.storage.ReplaceIndexRootsLocked(map[ids.ObjectAddress]*storage.IndexRoot{index.Address(): root})
+	e.mu.Unlock()
 	return partialIndexFixture{e, parent, index, column, store}
 }
 
@@ -404,7 +408,9 @@ func TestPartialIndexCandidateMask(t *testing.T) {
 	}
 	// A later generation/root change cannot mutate the retained selected mask.
 	f.store.Versions = append(f.store.Versions, storage.RowVersion{Row: 6, Version: 6})
-	f.e.storage.IndexRoots[f.index.Address()] = newLogicalIndexRoot(f.index.SQLIndex, nil)
+	f.e.mu.Lock()
+	f.e.storage.InstallIndexRootLocked(f.index.Address(), newLogicalIndexRoot(f.index.SQLIndex, nil))
+	f.e.mu.Unlock()
 	if !partialMaskContains(mask, source.committed[0]) || partialMaskContains(mask, storage.RowVersion{Row: 1, Version: 99}) {
 		t.Fatal("retained identity mask changed")
 	}
@@ -449,7 +455,9 @@ func TestPartialIndexCandidateFallback(t *testing.T) {
 			case "catalog snapshot":
 				data.Catalog = data.Catalog.WithState(catalog.CloneState(f.e.catalog.state))
 			case "missing root":
-				delete(f.e.storage.IndexRoots, f.index.Address())
+				f.e.mu.Lock()
+				f.e.storage.RemoveIndexRootLocked(f.index.Address())
+				f.e.mu.Unlock()
 			case "epoch":
 				leaf.ref.Epoch++
 			case "shape":

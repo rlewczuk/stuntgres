@@ -99,9 +99,9 @@ func materializedQueuedAuthority(t *testing.T, concurrent bool) {
 				nextState.BindName(ids.NameKey{ClassID: d.Address().ClassID, Namespace: d.Namespace(), Name: d.Name()}, next.Address())
 				storage := *oldStorage
 				expectedStorage = &storage
-				e.storage.Relations = maps.Clone(e.storage.Relations)
-				delete(e.storage.Relations, d.Address())
-				e.storage.Relations[next.Address()] = expectedStorage
+				e.storage.ReplaceRelationsLocked(maps.Clone(e.storage.Relations))
+				e.storage.RemoveRelationLocked(d.Address())
+				e.storage.InstallRelationLocked(next.Address(), expectedStorage)
 			case "epoch":
 				nextState.SetEpoch(nextState.Epoch() + 1)
 			}

@@ -145,7 +145,9 @@ func TestPGSequenceProjection(t *testing.T) {
 	state.SetDescriptor(a, d)
 	state.SetDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20001}, &catalog.Relation{RelationKind: catalog.TableRelation})
 	state.SetDescriptor(ids.ObjectAddress{ClassID: ids.RelationClassID, ObjectID: 20002}, &catalog.Relation{RelationKind: catalog.ViewRelation})
-	e.storage.Sequences[a] = &storage.SequenceGenerator{Last: 99, Called: true, Generation: 100}
+	e.mu.Lock()
+	e.storage.InstallSequenceLocked(a, &storage.SequenceGenerator{Last: 99, Called: true, Generation: 100})
+	e.mu.Unlock()
 	rows, err := capturePGSequence(context.Background(), &state, nil, ref, source)
 	if err != nil {
 		t.Fatal(err)

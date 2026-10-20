@@ -80,7 +80,7 @@ func TestPartialIndexMetadataPredicateCapture(t *testing.T) {
 	}
 	f.e.mu.Lock()
 	f.e.catalog.state = next
-	f.e.storage.IndexRoots = map[ids.ObjectAddress]*storage.IndexRoot{index.Address(): root}
+	f.e.storage.ReplaceIndexRootsLocked(map[ids.ObjectAddress]*storage.IndexRoot{index.Address(): root})
 	f.e.mu.Unlock()
 	current, _, err := projectIndexMetadata(ctx, f.e.CatalogRead(), ref)
 	if err != nil {

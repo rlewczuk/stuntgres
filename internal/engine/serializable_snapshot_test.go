@@ -134,7 +134,7 @@ func TestSerializableSafeSnapshotUnsafeRejectsRootsAndRecaptures(t *testing.T) {
 		t.Fatal("candidate did not capture old root")
 	}
 	next := &storage.Relation{Generation: old.Generation + 1}
-	e.storage.Relations[ref.Address] = next
+	e.storage.InstallRelationLocked(ref.Address, next)
 	e.visibility.AdvanceCommitSeqLocked()
 	e.visibility.SerializableCommittedLocked(writer.Ref, e.visibility.CommitSeq())
 	e.endSerializableLocked(writer.Ref, true)

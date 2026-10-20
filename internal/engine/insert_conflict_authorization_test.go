@@ -33,7 +33,9 @@ func insertConflictAuthorizationAfterWait(t *testing.T, revoke string) {
 	if buildErr != nil {
 		t.Fatal(buildErr)
 	}
-	f.e.storage.IndexRoots[f.index.Address()] = root
+	f.e.mu.Lock()
+	f.e.storage.InstallIndexRootLocked(f.index.Address(), root)
+	f.e.mu.Unlock()
 	admin, adminDone := roleOperation(t, f.e, "postgres")
 	defer adminDone()
 	if _, err := f.e.Execute(admin, &parser.CreateRole{Name: parser.Identifier{Text: "conflict_waiter"}, Options: parser.RoleOptions{Present: parser.RoleLogin, Login: true}}, 0, nil); err != nil {

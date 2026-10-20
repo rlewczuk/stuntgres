@@ -24,11 +24,13 @@ func inheritanceLifecycleTable(e *Engine, id ids.OID, name string, parents ...id
 	return table
 }
 func inheritanceLifecycleInstall(e *Engine, tables ...*catalog.Relation) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	e.catalog.state = catalog.CloneState(e.catalog.state)
 	for _, table := range tables {
 		e.catalog.state.SetDescriptor(table.Address(), table)
 		e.catalog.state.BindName(catalog.DescriptorNameKey(table), table.Address())
-		e.storage.Relations[table.Address()] = &storage.Relation{}
+		e.storage.InstallRelationLocked(table.Address(), &storage.Relation{})
 	}
 }
 

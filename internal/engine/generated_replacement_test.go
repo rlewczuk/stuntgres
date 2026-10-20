@@ -108,7 +108,9 @@ func newGeneratedRepairFixture(t *testing.T) *generatedRepairFixture {
 	e.catalog.state = catalog.CloneState(e.catalog.state)
 	e.catalog.state.SetDescriptor(tempNamespace, &catalog.Namespace{ObjectAddress: tempNamespace, ObjectName: "pg_temp_1", Owner: d.Owner, ObjectRevision: 1, Temporary: e.catalog.Domain.Session(99)})
 	e.catalog.state.SetDescriptor(tempAddress, &temp)
-	e.storage.Relations[tempAddress] = &storage.Relation{Versions: []storage.RowVersion{{Values: tempValues}}}
+	e.mu.Lock()
+	e.storage.InstallRelationLocked(tempAddress, &storage.Relation{Versions: []storage.RowVersion{{Values: tempValues}}})
+	e.mu.Unlock()
 	stage := e.restoreStage()
 	session, err := stage.StartSession(context.Background(), SessionStart{ID: 1})
 	if err != nil {
@@ -141,7 +143,7 @@ func (f *generatedRepairFixture) run(ctx context.Context) <-chan error {
 		defer f.target.replacementMu.Unlock()
 		f.target.mu.Lock()
 		defer f.target.mu.Unlock()
-		err := f.target.repairRemappedGenerationsLocked(ctx, f.next, f.storage, f.sequences, f.mapping, f.op, nil)
+		_, err := f.target.repairRemappedGenerationsLocked(ctx, f.next, f.storage, f.sequences, f.mapping, f.op, nil)
 		if err == nil {
 			var prepared remintedIndexStorage
 			prepared, err = f.target.prepareForeignIndexStorage(ctx, f.next, f.storage, &indexSnapshot{})
@@ -201,12 +203,12 @@ func TestGeneratedReplacementStaleAuthority(t *testing.T) {
 				copy.ObjectAddress.ObjectID++
 				copy.ObjectName = "concurrent_temp"
 				next.SetDescriptor(copy.Address(), &copy)
-				f.target.storage.Relations[copy.Address()] = &storage.Relation{Versions: []storage.RowVersion{{Values: append([]sqltype.Value(nil), f.tempValues...)}}}
+				f.target.storage.InstallRelationLocked(copy.Address(), &storage.Relation{Versions: []storage.RowVersion{{Values: append([]sqltype.Value(nil), f.tempValues...)}}})
 				next.SetEpoch(next.Epoch() + 1)
 				f.target.catalog.state = next
 			case "CommitFrontier":
 				f.target.visibility.AdvanceCommitSeqLocked()
-				f.target.storage.Relations[f.temp] = &storage.Relation{Versions: append(append([]storage.RowVersion(nil), f.target.storage.Relations[f.temp].Versions...), storage.RowVersion{Values: append([]sqltype.Value(nil), f.tempValues...)})}
+				f.target.storage.InstallRelationLocked(f.temp, &storage.Relation{Versions: append(append([]storage.RowVersion(nil), f.target.storage.Relations[f.temp].Versions...), storage.RowVersion{Values: append([]sqltype.Value(nil), f.tempValues...)})})
 			}
 			expectedState, expectedRoles, expectedFrontier := f.target.catalog.state, f.target.roles.published, f.target.visibility.CommitSeq()
 			expectedStorage := cloneGeneratedRepairStorage(f.target.storage.Relations)

@@ -260,7 +260,7 @@ func TestDeleteCoreStageShapeAuthority(t *testing.T) {
 	}
 	e.mu.Lock()
 	replacement := *b.storage
-	e.storage.Relations[b.ref.Address] = &replacement
+	e.storage.InstallRelationLocked(b.ref.Address, &replacement)
 	e.mu.Unlock()
 	if _, err := scope.Writes().Delete(candidate); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("changed shape admitted staged deletion", err)
@@ -303,7 +303,9 @@ func TestDeleteCoreCombinedPreflight(t *testing.T) {
 			case "replaced_shape":
 				// Preserve payload and width: only the exact shape generation changes.
 				replacement := *e.storage.Relations[target.Address]
-				e.storage.Relations[target.Address] = &replacement
+				e.mu.Lock()
+				e.storage.InstallRelationLocked(target.Address, &replacement)
+				e.mu.Unlock()
 			case "exhausted_frontier":
 				e.visibility.SetCommitSeqLocked(ids.CommitSeq(^uint64(0)))
 				frontier = e.visibility.CommitSeq()

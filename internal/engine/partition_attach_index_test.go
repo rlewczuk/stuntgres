@@ -65,12 +65,16 @@ func TestPartitionAttachIndexBuild(t *testing.T) {
 				{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{integer(0, 7), integer(1, 1), sqltype.String(f.leaf.Columns[2].Usage.Type, "first")}},
 				{Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{integer(0, 7), integer(1, second), sqltype.String(f.leaf.Columns[2].Usage.Type, "different included payload")}},
 			}}
-			f.e.storage.Relations[f.leaf.Address()] = store
+			f.e.mu.Lock()
+			f.e.storage.InstallRelationLocked(f.leaf.Address(), store)
+			f.e.mu.Unlock()
 			oldRoot, err := buildIndexRoot(&EvalContext{Context: context.Background(), Scope: 1, Frame: 1}, f.leaf, local.SQLIndex, store, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
-			f.e.storage.IndexRoots = map[ids.ObjectAddress]*storage.IndexRoot{local.Address(): oldRoot}
+			f.e.mu.Lock()
+			f.e.storage.ReplaceIndexRootsLocked(map[ids.ObjectAddress]*storage.IndexRoot{local.Address(): oldRoot})
+			f.e.mu.Unlock()
 			beforeStore := uniquePublicationStore(store)
 			beforeEntries := slices.Clone(oldRoot.Entries)
 			beforeCatalog, beforeRoots := f.e.catalog.state, maps.Clone(f.e.storage.IndexRoots)

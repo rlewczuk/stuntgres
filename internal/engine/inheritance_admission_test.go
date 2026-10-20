@@ -83,9 +83,7 @@ func TestInheritanceAdmissionDropLateGrowthAndCancel(t *testing.T) {
 				// Publish immutable metadata while the older SUE ticket owns the
 				// parent. The queued drop must see this child after receiving AX.
 				child := inheritanceLifecycleTable(e, 20002, "late", firstChild.Address())
-				e.mu.Lock()
 				inheritanceLifecycleInstall(e, child)
-				e.mu.Unlock()
 				if _, err = e.Rollback(holder, holderRef); err != nil {
 					t.Fatal(err)
 				}

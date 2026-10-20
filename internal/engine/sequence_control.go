@@ -534,7 +534,8 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 	if err := rebindImportedExclusions(next); err != nil {
 		return err
 	}
-	if err := e.repairRemappedGenerationsLocked(ctx, next, relations, sequences, mapping, restoreOp, indexes); err != nil {
+	installedStage, err := e.repairRemappedGenerationsLocked(ctx, next, relations, sequences, mapping, restoreOp, indexes)
+	if err != nil {
 		return err
 	}
 	operators := catalog.OperatorIndexEdit{Index: next.OperatorNames()}
@@ -544,11 +545,28 @@ func (e *Engine) preserveTemporaryLocked(ctx context.Context, next *catalog.Stat
 		procedures.Replace(next.Get(a), d)
 		next.SetDescriptor(a, d)
 		next.BindName(catalog.DescriptorNameKey(d), a)
+		// Repair may have published these candidate containers into its engine.
+		// The target mutex is already held. A distinct stage is isolated and
+		// has finished provider evaluation; no callback runs under both locks.
+		if installedStage != nil && installedStage != e {
+			installedStage.mu.Lock()
+		}
 		if rows := e.storage.Relations[a]; rows != nil {
-			relations[a] = rows
+			if installedStage == nil {
+				relations[a] = rows
+			} else {
+				installedStage.storage.InstallRelationLocked(a, rows)
+			}
 		}
 		if g := e.storage.Sequences[a]; g != nil {
-			sequences[a] = g
+			if installedStage == nil {
+				sequences[a] = g
+			} else {
+				installedStage.storage.InstallSequenceLocked(a, g)
+			}
+		}
+		if installedStage != nil && installedStage != e {
+			installedStage.mu.Unlock()
 		}
 	}
 	next.SetOperatorNames(operators.Index)

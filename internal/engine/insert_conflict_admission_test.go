@@ -31,7 +31,9 @@ func insertConflictUniqueFixture(t testing.TB) partialIndexFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.e.storage.IndexRoots[f.index.Address()] = root
+	f.e.mu.Lock()
+	f.e.storage.InstallIndexRootLocked(f.index.Address(), root)
+	f.e.mu.Unlock()
 	return f
 }
 func insertConflictUnitScope(t *testing.T, f partialIndexFixture) (*StatementScope, ids.ObjectRef) {
@@ -191,7 +193,9 @@ func TestInsertConflictSelectedFirstAndOrdinaryErrors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.e.storage.IndexRoots[second.Address()] = root
+	f.e.mu.Lock()
+	f.e.storage.InstallIndexRootLocked(second.Address(), root)
+	f.e.mu.Unlock()
 	scope.uniqueBinding = nil
 	scope.insertConflict.catalog = nil
 	admitted, err := scope.admitInsertRow(ref, &indexWriteCandidate{values: insertConflictUnitRow(t, f, 10)}, indexWriteBatch{}, nil)
@@ -250,7 +254,9 @@ func TestInsertConflictInferenceMixedExpressionsAndAllProviders(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		f.e.storage.IndexRoots[index.Address()] = root
+		f.e.mu.Lock()
+		f.e.storage.InstallIndexRootLocked(index.Address(), root)
+		f.e.mu.Unlock()
 	}
 	action := &boundInsertConflict{keys: []conflictKey{{attribute: 10}, {expression: expression}, {expression: expression}}, predicate: f.predicate}
 	ctx := EvalContext{Context: context.Background(), Scope: 1, Frame: 1}

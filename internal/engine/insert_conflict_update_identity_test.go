@@ -126,7 +126,7 @@ func TestInsertConflictUpdateTargetFence(t *testing.T) {
 				catalog, storage := e.catalog.state, e.storage.Relations[ref.Address]
 				defer func() {
 					e.catalog.state = catalog
-					e.storage.Relations[ref.Address] = storage
+					e.storage.InstallRelationLocked(ref.Address, storage)
 					e.mu.Unlock()
 				}()
 				mutate()
@@ -156,7 +156,7 @@ func TestInsertConflictUpdateTargetFence(t *testing.T) {
 			if mode.storage {
 				check("storage replacement", func() {
 					storage := *e.storage.Relations[ref.Address]
-					e.storage.Relations[ref.Address] = &storage
+					e.storage.InstallRelationLocked(ref.Address, &storage)
 				}, ids.ErrCatalogReplaced)
 			}
 			check("catalog epoch replacement", func() {

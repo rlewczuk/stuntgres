@@ -155,11 +155,16 @@ func NewWithSettings(definitions []SettingDefinition, database string, trackComm
 
 func newEngine(providers []catalog.Provider, definitions []SettingDefinition, database string, trackCommitTimestamp bool) (*Engine, error) {
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
-	e := &Engine{catalog: catalogStore{Owner: catalog.Owner{Domain: &ids.Domain{}, Providers: map[ids.OID]catalog.Provider{}}, nextOID: 16384, nextRevision: 2}, storage: storage.Store{Relations: map[ids.ObjectAddress]*storage.Relation{}}}
+	e := &Engine{catalog: catalogStore{Owner: catalog.Owner{Domain: &ids.Domain{}, Providers: map[ids.OID]catalog.Provider{}}, nextOID: 16384, nextRevision: 2}}
+	e.mu.Lock()
+	e.storage.ReplaceRelationsLocked(map[ids.ObjectAddress]*storage.Relation{})
+	e.mu.Unlock()
 	e.catalog.Principals, e.catalog.ACLAuthority = &e.roles.domain, &e.roles.aclAuthority
 	e.visibility = visibility.NewRegistry(trackCommitTimestamp)
 	e.locks = lock.New(e.catalog.Domain)
-	e.storage.Sequences = make(map[ids.ObjectAddress]*storage.SequenceGenerator)
+	e.mu.Lock()
+	e.storage.ReplaceSequencesLocked(make(map[ids.ObjectAddress]*storage.SequenceGenerator))
+	e.mu.Unlock()
 	e.roles.initialize()
 	e.settings = newSettingsRegistry(definitions, e.visibility.TracksCommitTimestamps())
 	for _, p := range providers {

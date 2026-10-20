@@ -330,8 +330,12 @@ func TestIndexClausesReplacement(t *testing.T) {
 	e := New()
 	e.storage.SetFrontierLocked(100, 200)
 	e.catalog.state = catalog
-	e.storage.Relations[parent.Address()] = source
-	e.storage.IndexRoots = map[ids.ObjectAddress]*storage.IndexRoot{index.Address(): original}
+	e.mu.Lock()
+	e.storage.InstallRelationLocked(parent.Address(), source)
+	e.mu.Unlock()
+	e.mu.Lock()
+	e.storage.ReplaceIndexRootsLocked(map[ids.ObjectAddress]*storage.IndexRoot{index.Address(): original})
+	e.mu.Unlock()
 	e.visibility.SetCommitSeqLocked(1)
 	snapshot, err := e.captureIndexSnapshot(ctx, e.catalog.read(catalog), map[ids.ObjectAddress]*storage.Relation{parent.Address(): source}, map[ids.ObjectAddress]*storage.IndexRoot{index.Address(): original}, 1)
 	if err != nil {

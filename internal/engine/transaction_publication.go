@@ -489,8 +489,8 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 					}
 				}
 			}
-			e.storage.Sequences = nextSequences
-			e.storage.Relations = nextStorage
+			e.storage.ReplaceSequencesLocked(nextSequences)
+			e.storage.ReplaceRelationsLocked(nextStorage)
 			e.catalog.state = nextCatalog
 			e.catalog.nextRevision = nextRevision
 			if c.roles != nil {
@@ -503,7 +503,7 @@ func (e *Engine) publishRowsPrepared(op *Operation, ref ids.TxRef, writes map[id
 			}
 		}
 		preserveUnchangedIndexRoots(indexRoots, indexPredecessors, e.storage.IndexRoots)
-		e.storage.IndexRoots = indexRoots
+		e.storage.ReplaceIndexRootsLocked(indexRoots)
 		e.visibility.AdvanceCommitSeqLocked()
 		e.visibility.RecordCommitTimestampLocked(ref)
 		e.visibility.SerializableCommittedLocked(ref, e.visibility.CommitSeq())

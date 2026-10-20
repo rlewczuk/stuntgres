@@ -284,7 +284,7 @@ func (e *Engine) importMaterializedSnapshots(ctx context.Context, op *Operation,
 		}
 		d.Populated = item.populated
 		next.SetDescriptor(d.Address(), &d)
-		e.storage.Relations[d.Address()] = &storage.Relation{Versions: versions}
+		e.storage.InstallRelationLocked(d.Address(), &storage.Relation{Versions: versions})
 	}
 	e.catalog.state = next
 	return nil

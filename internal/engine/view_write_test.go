@@ -53,7 +53,9 @@ func viewWriteMechanics(t *testing.T) viewWriteFixture {
 		}
 		return v
 	}
-	e.storage.Relations[base.Address()] = &storage.Relation{Generation: 1, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value(1), value(10), value(42)}}, {Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{value(2), value(20), value(42)}}}}
+	e.mu.Lock()
+	e.storage.InstallRelationLocked(base.Address(), &storage.Relation{Generation: 1, Versions: []storage.RowVersion{{Row: 1, Version: 1, Born: 1, Values: []sqltype.Value{value(1), value(10), value(42)}}, {Row: 2, Version: 2, Born: 1, Values: []sqltype.Value{value(2), value(20), value(42)}}}})
+	e.mu.Unlock()
 	e.visibility.SetCommitSeqLocked(1)
 	e.storage.SetFrontierLocked(2, 2)
 	return viewWriteFixture{e, base, view, baseRef, viewRef, integer, boolean}

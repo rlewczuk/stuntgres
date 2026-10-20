@@ -423,7 +423,9 @@ func TestMaterializedRefreshConcurrentCancellation(t *testing.T) {
 					old.Ends = &storage.DeletionRoot{}
 				case "storage":
 					copy := *old
-					e.storage.Relations[d.Address()] = &copy
+					e.mu.Lock()
+					e.storage.InstallRelationLocked(d.Address(), &copy)
+					e.mu.Unlock()
 				case "definition":
 					copy := *d
 					copy.Owner = authorization.PrincipalRef{}

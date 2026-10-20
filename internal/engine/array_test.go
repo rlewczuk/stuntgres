@@ -372,7 +372,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 	}
 	store := &storage.Relation{Generation: 3, Versions: []storage.RowVersion{{Row: 42, Version: 99, Born: 1, Values: []sqltype.Value{i, v}}}}
 	e.mu.Lock()
-	e.storage.Relations[table.Address()] = store
+	e.storage.InstallRelationLocked(table.Address(), store)
 	e.visibility.SetCommitSeqLocked(1)
 	e.mu.Unlock()
 	held := newFinalRows(table.Columns, 1)
@@ -396,7 +396,7 @@ func TestArrayRetainedTemporaryBuiltinClosureComponent(t *testing.T) {
 	}
 	sourceStore := &storage.Relation{Generation: 2, Versions: []storage.RowVersion{{Row: 4, Version: 7, Born: 1, Values: []sqltype.Value{sourceInt, sourceText}}}}
 	replacement.mu.Lock()
-	replacement.storage.Relations[importedSource.Address()] = sourceStore
+	replacement.storage.InstallRelationLocked(importedSource.Address(), sourceStore)
 	replacement.visibility.SetCommitSeqLocked(1)
 	replacement.mu.Unlock()
 	importedTypes := make(map[ids.ObjectAddress]*catalog.Type)
@@ -489,7 +489,7 @@ func TestArrayRetainedTemporaryDomainBoundaryComponent(t *testing.T) {
 	}
 	store := &storage.Relation{Generation: 3, Versions: []storage.RowVersion{{Row: 42, Version: 99, Born: 1, Values: []sqltype.Value{value}}}}
 	e.mu.Lock()
-	e.storage.Relations[table.Address()] = store
+	e.storage.InstallRelationLocked(table.Address(), store)
 	e.visibility.SetCommitSeqLocked(1)
 	e.mu.Unlock()
 	held := newFinalRows(table.Columns, 1)

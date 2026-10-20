@@ -161,7 +161,9 @@ func TestDriverBatchMaterializedPublicationGuards(t *testing.T) {
 				original.Ends = &storage.DeletionRoot{}
 			case "store":
 				copy := *original
-				e.storage.Relations[target.Address] = &copy
+				e.mu.Lock()
+				e.storage.InstallRelationLocked(target.Address, &copy)
+				e.mu.Unlock()
 			case "descriptor":
 				next := catalog.CloneState(e.catalog.state)
 				copy := *next.MustRelation(target.Address)

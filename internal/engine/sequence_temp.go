@@ -314,7 +314,10 @@ func (e *Engine) installTemporarySessionStageLocked(s *Session, stage *CatalogSt
 			}
 		}
 	}
-	e.catalog.state, e.storage.Sequences, e.storage.Relations, e.storage.IndexRoots = next, sequences, relations, roots
+	e.catalog.state = next
+	e.storage.ReplaceSequencesLocked(sequences)
+	e.storage.ReplaceRelationsLocked(relations)
+	e.storage.ReplaceIndexRootsLocked(roots)
 	stage.lifecycle = catalogPublished
 	e.catalog.nextRevision = nextRevision
 	s.sequences = nil

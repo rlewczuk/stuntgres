@@ -95,11 +95,15 @@ func TestDomainCheckIndexSnapshotRejectsMissingAndMalformedRoots(t *testing.T) {
 	malformed.Entries[0].Position = len(f.store.Versions)
 	roots := map[ids.ObjectAddress]*storage.IndexRoot{f.index.Address(): &malformed}
 	previous := f.e.storage.IndexRoots
-	f.e.storage.IndexRoots = roots
+	f.e.mu.Lock()
+	f.e.storage.ReplaceIndexRootsLocked(roots)
+	f.e.mu.Unlock()
 	if _, err := f.e.captureIndexSnapshot(ctx, f.e.CatalogRead(), f.e.storage.Relations, roots, f.e.visibility.CommitSeq()); !errors.Is(err, ids.ErrCatalogReplaced) {
 		t.Fatal("malformed source provenance accepted", err)
 	}
-	f.e.storage.IndexRoots = previous
+	f.e.mu.Lock()
+	f.e.storage.ReplaceIndexRootsLocked(previous)
+	f.e.mu.Unlock()
 	if original.Entries[0].Position == malformed.Entries[0].Position {
 		t.Fatal("rejection mutated source")
 	}

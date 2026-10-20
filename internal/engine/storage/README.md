@@ -19,6 +19,9 @@ and never the engine.
   its own diagnostic), and install both with `SetFrontierLocked` after
   Restore or foreign replacement reminted storage. `IndexRootsCurrent`
   compares captured roots with the published ones.
+  Map writes use `state_write.go`: `InstallRelationLocked`,
+  `RemoveRelationLocked`, `ReplaceRelationsLocked`, and the corresponding
+  sequence and index-root methods. Reads may use the exported maps directly.
 - **Relation storage** (`relation.go`): `Relation` (the version vector, the
   end root, the generation, the index-build origin and the lineage tokens),
   `RowVersion`, `RowEnd` and `DeletionRoot`. `IndexIdentity` names the
@@ -38,6 +41,14 @@ and never the engine.
 - **One lock authority.** The package has no mutex. `Engine.mu` guards every
   `Store` field and every lineage token. Mutating store methods carry the
   `Locked` suffix; the caller holds `Engine.mu`.
+  This includes bootstrap and isolated replacement engines; standalone storage
+  unit fixtures instead own their store exclusively.
+- **Minimal map writes.** Install retains the supplied pointer, remove is an
+  ordinary delete, and replace installs the supplied map container (including
+  nil) in one assignment. No method allocates, copies, validates, initializes
+  a nil map or acquires a lock. Installing into a nil map still panics.
+  The engine builds detached candidates directly and publishes through these
+  methods without changing preflight, allocator or catalog publication order.
 - **Immutable published roots.** Published `Relation` vectors, end roots and
   index roots are immutable and shared copy-on-write. Publication swaps the
   store's maps together with the catalog state under `Engine.mu`. Snapshots
@@ -62,17 +73,30 @@ compares index key semantics. The transaction-private deletion overlay and
 
 ## Testing
 
-Package seam tests (`store_test.go`):
+Package seams and selected storage-map publication witnesses:
 
 ```sh
-make check RUN='^Test(Store|Relation)'
+make check RUN='^Test(StoreAllocateRowVersionsInOrder|StoreAllocateRowVersionsExhaustion|StoreSingleAllocatorsAdvanceIndependently|StoreIndexRootsCurrent|RelationIndexIdentity|RelationSameTruncateLineage)$'
+make check RUN='^Test(MaterializedViewSnapshotImport|MaterializedViewPublication|GeneratedReplacementStaleAuthority|GeneratedReplacementLateCancellation|ControlTransactionsReplacementCancellationBoundary|CommitTimePublication)$'
+make check RUN='^Test(UniqueIndexPublicationStreaming|UniqueIndexPublicationCancellation|TruncateGeneration|TruncateIndexes|MaterializedRefreshPublicationFences|TemporaryTableCleanupPublication)$'
+make check RACE=1 RUN='^Test(ConcurrentIndexU1RootPhasesAndVersions|ConcurrentIndexU6ReadyCancellationReleasesSUE|UniqueIndexPublicationCancellation|GeneratedReplacementStaleAuthority|GeneratedReplacementLateCancellation|TemporaryTableCleanupPublication)$'
 ```
 
-Engine tests exercise the storage paths through publication, DML, index
-maintenance and Restore. `internal/engine/README.md` had no storage
-selectors to move; these are the selections used for the split:
+Public sequence and replacement witnesses retain independent expectations:
 
 ```sh
-make check RUN='^Test(Truncate|MaterializedRefresh|ConcurrentIndex|HashIndex|Sequence|UpdateCore|Exclusion|InsertConflict|CommitTime|Restore|UniqueIndexPublication)'
-make check RACE=1 RUN='^Test(ConcurrentIndex|UpdateCore|Exclusion|InsertConflict|Truncate|MaterializedRefresh|Sequence)'
+make check RUN='^TestReferenceSequence(DefaultsPrepared|SessionsSetvalRollback|TransactionalRestartDDL)$'
+make check REFERENCE=1 RUN='^TestReferenceSequence(DefaultsPrepared|SessionsSetvalRollback|TransactionalRestartDDL)$'
+make check RUN='^TestReference(ControlSnapshotSurvivesCatalogReplacement|ControlFailedRestorePreservesCatalog|SequenceTemporaryPreparedIdentitySurvivesPersistentControls)$'
+make check REFERENCE=1 RUN='^TestReference(ControlSnapshotSurvivesCatalogReplacement|ControlFailedRestorePreservesCatalog)$'
+make check RUN='^TestReferenceHashPartition(Controls|FinalRemap)$'
+make check REFERENCE=1 RUN='^TestReferenceHashPartition(Controls|FinalRemap)$'
+make check RACE=1 RUN='^TestReferenceHashPartition(Controls|FinalRemap)$'
 ```
+
+Held readers keep their old INT4 rows 1,2 across replacement; fresh native
+reads see TEXT 99. Failed Restore retains sentinel 77 and no replacement.
+The TEMP prepared-identity control witness is native-only, not PostgreSQL
+control-API coverage. See [TESTING.md](../../../docs/TESTING.md) for pinned
+PostgreSQL policy and the storage split's selected DML/index/TRUNCATE/materialized
+replay evidence in [ENGINE-SPLIT-storage.md](../../../docs/ENGINE-SPLIT-storage.md).

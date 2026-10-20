@@ -134,8 +134,12 @@ func TestLogicalGiSTRebuildPublicationNonadjacentOverlap(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			e.storage.Relations[parent.Address()] = store
-			e.storage.IndexRoots = map[ids.ObjectAddress]*storage.IndexRoot{index.Address(): root}
+			e.mu.Lock()
+			e.storage.InstallRelationLocked(parent.Address(), store)
+			e.mu.Unlock()
+			e.mu.Lock()
+			e.storage.ReplaceIndexRootsLocked(map[ids.ObjectAddress]*storage.IndexRoot{index.Address(): root})
+			e.mu.Unlock()
 			before := indexMaintenanceCapture(e)
 			storeBefore := uniquePublicationStore(store)
 			entriesBefore := append([]storage.IndexEntry(nil), root.Entries...)

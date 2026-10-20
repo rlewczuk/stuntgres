@@ -344,8 +344,9 @@ in the prompt file's Status section.
     Tier C · needs 7, 8, 9
 11. [ ] Catalog 5h (optional) — [catalog](ENGINE-SPLIT-catalog.md) 5h ·
     needs —
-12. [ ] Storage 6d (optional) — [storage](ENGINE-SPLIT-storage.md) 6d ·
-    needs —
+12. [x] Storage 6d — [storage](ENGINE-SPLIT-storage.md) 6d · needs — ·
+    selected dual-mode/race proof and quickcheck passed; full racecheck/finalcheck
+    explicitly waived by user
 
 ### Group B — independent leaves
 

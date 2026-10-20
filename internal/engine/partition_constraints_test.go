@@ -398,7 +398,9 @@ func TestPartitionConstraintsDumpCollisionProvenance(t *testing.T) {
 			t.Fatal("replacement mutated source provenance")
 		}
 		e.catalog.state = next
-		e.storage.Relations = relations
+		e.mu.Lock()
+		e.storage.ReplaceRelationsLocked(relations)
+		e.mu.Unlock()
 	}
 }
 

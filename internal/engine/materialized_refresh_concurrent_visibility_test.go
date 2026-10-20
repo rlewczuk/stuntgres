@@ -147,7 +147,9 @@ func TestMaterializedRefreshConcurrentSnapshots(t *testing.T) {
 			case "ordinary_incarnation":
 				copy := *e.storage.Relations[d.Address()]
 				copy.MaterializedLineage = nil
-				e.storage.Relations[d.Address()] = &copy
+				e.mu.Lock()
+				e.storage.InstallRelationLocked(d.Address(), &copy)
+				e.mu.Unlock()
 			default:
 				copy := *d
 				switch phase {

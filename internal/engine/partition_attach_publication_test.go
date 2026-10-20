@@ -122,7 +122,9 @@ func TestPartitionAttachPublicationFences(t *testing.T) {
 			switch change {
 			case "store":
 				copy := *store
-				e.storage.Relations[child.Address()] = &copy
+				e.mu.Lock()
+				e.storage.InstallRelationLocked(child.Address(), &copy)
+				e.mu.Unlock()
 			case "length":
 				store.Versions = append(store.Versions, storage.RowVersion{Row: 1, Version: 1})
 			case "ends":

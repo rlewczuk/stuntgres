@@ -56,7 +56,7 @@ func TestDomainCascadeStableAttributesAndRowGenerations(t *testing.T) {
 	}
 	source := &storage.Relation{Generation: 3, Versions: []storage.RowVersion{{Row: 42, Version: 99, Born: 3, Values: []sqltype.Value{keep, value, sqltype.Null(chain.SQLType), tail}}}}
 	e.mu.Lock()
-	e.storage.Relations[table.Address()] = source
+	e.storage.InstallRelationLocked(table.Address(), source)
 	e.visibility.SetCommitSeqLocked(3)
 	e.mu.Unlock()
 	retained := e.CatalogRead()

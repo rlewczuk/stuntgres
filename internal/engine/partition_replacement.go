@@ -42,12 +42,12 @@ func partitionReplacementRow(from, to *catalog.Relation, row []sqltype.Value) []
 
 // Run only inside the isolated admitted repair statement, after scalar/provider
 // remint and before index transport. Published target/TEMP roots are never touched.
-func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, relations map[ids.ObjectAddress]*storage.Relation, auth AuthorizationView, snapshot *indexSnapshot) (map[ids.ObjectAddress]bool, error) {
+func (stage *Engine) repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, auth AuthorizationView, snapshot *indexSnapshot) (map[ids.ObjectAddress]bool, error) {
 	view := evaluation.catalog
 	var removed map[ids.ObjectAddress]map[int]bool
 	var incoming map[ids.ObjectAddress][]storage.RowVersion
 	var dirty map[ids.ObjectAddress]bool
-	for address, store := range relations {
+	for address, store := range stage.storage.Relations {
 		source, ok := view.Relation(address)
 		if !ok || source.Membership == nil || source.Partition != nil {
 			continue
@@ -157,7 +157,7 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 		}
 	}
 	for address := range dirty {
-		original := relations[address]
+		original := stage.storage.Relations[address]
 		if original == nil {
 			return nil, ids.ErrCatalogReplaced
 		}
@@ -170,7 +170,9 @@ func repairRemappedHashPartitions(ctx context.Context, evaluation *EvalContext, 
 		}
 		next.Versions = append(next.Versions, incoming[address]...)
 		next.Generation++
-		relations[address] = &next
+		stage.mu.Lock()
+		stage.storage.InstallRelationLocked(address, &next)
+		stage.mu.Unlock()
 	}
 	return dirty, ctx.Err()
 }

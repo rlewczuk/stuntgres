@@ -63,12 +63,12 @@ another broad rewrite (§8).
 ### 6d — Optional: confine store map writes
 
 Added when the later waves were planned (measured at `75fe0d710`).
-`storage.Store` exposes `Relations`, `Sequences` and `IndexRoots` as exported
-maps, and the engine assigns to them directly at 17 sites (for example
-`e.storage.Relations[a] = ...` in publication, Restore, foreign replacement
-and TEMP installation). As 5b did for `catalog.State`, route the writes
-through a few `Locked` methods (install one, replace all, remove one) that
-document the caller-holds-`Engine.mu` contract. Reads can stay as they are.
+At that historical measurement, `storage.Store` exposed `Relations`,
+`Sequences` and `IndexRoots` as exported maps with 17 direct engine assignment
+sites. The 6d cutover routes live writes, including bootstrap and fixtures,
+through storage-owned methods; the historical count is not an acceptance census.
+These are minimal `Locked` methods (install one, replace all, remove one) that
+document the caller-holds-`Engine.mu` contract. Reads remain direct.
 Keep publication atomic: a whole-map swap stays one assignment under
 `Engine.mu`.
 
@@ -126,10 +126,47 @@ completes the step.
 - [x] 6c — Aliases removed (`518fd7141`, `4c9a2a229`, `33c1b6f43`,
   `a57f5648e`, then the commit that records this status) *(racecheck
   skipped at user request)*
-- [ ] 6d — Optional: store map writes confined to methods
+- [x] 6d — Store map writes confined to methods *(full racecheck and finalcheck
+  waived at user request; selected race checks and quickcheck passed)*
 
 Outstanding aliases: none. 6b kept 14 unexported type aliases in
 `internal/engine/storage_aliases.go`; 6c removed them all.
+
+6d implementation results:
+
+- **Write authority.** `storage/state_write.go` defines nine minimal caller-locked
+  install/remove/replace methods for relations, generators and index roots.
+  Install/delete/whole-map assignment retain ordinary Go semantics, supplied
+  pointers, exact map containers and nil shape, without allocation or copying.
+- **Callers.** Catalog and transaction publication, same-owner/foreign replacement,
+  generated repair, materialized import and TEMP publication use the methods at
+  their existing publication positions. Detached candidate maps remain engine-owned.
+  Bootstrap still allocates only the relation and sequence maps; index roots start
+  nil. Engine callers, including bootstrap and existing fixture injections, use
+  the existing `Engine.mu`; standalone storage unit fixtures have exclusive ownership.
+- **Published aliases.** Generated repair installs the supplied containers in a
+  real isolated stage. HASH redistribution therefore installs through that
+  stage's Store, not a supposedly detached map alias. Repair returns the installed
+  owner for subsequent TEMP merges; the no-install path keeps detached writes.
+  Distinct private-stage installs take its mutex without provider callbacks;
+  same-owner installs use the target mutex already held by the caller.
+- **Behavioral scope.** No SQL, assertion, test name or reference scenario is
+  changed and no forwarding test is added. Store remains by value; allocator,
+  preflight, root sharing, sequence memory and publication responsibilities stay
+  where they were.
+- **Verification.** Compiler-backed inventory covered 125 configured production/test
+  packages with no type/load errors; manual closure distinguishes detached
+  candidates and post-install aliases. Build, module-only dependencies, selected
+  native/real PostgreSQL 18.6 witnesses, selected race checks and public lifecycle
+  smoke passed. Quickcheck passed after an earlier unchanged timeout witness
+  failed with statement timeout instead of transaction timeout; no timeout
+  assertions or behavior were changed. Full racecheck expired at 900 seconds;
+  the user waived further full racecheck and finalcheck, relying on quickcheck.
+- **Startup.** Baseline five runs: 972,840–1,124,460 ns/op and 5,152–5,159 allocs/op.
+  Latest five runs: 842,507–899,102 ns/op and 5,152–5,158 allocs/op, all below
+  1 ms with the same steady 5,152 allocations. Earlier post-change samples
+  3,410,981–4,400,749 ns/op missed the target; variable runtime measurements
+  do not establish a refactor speedup.
 
 6a results:
 
@@ -286,5 +323,5 @@ Notes for later steps:
   function that names the package. New code that names the package inside
   their scope must rename the local first. The field `Engine.storage` is
   unaffected.
-- Later: the store maps are exported fields; confining their writes to
-  methods (as 5b did for `catalog.State`) is optional follow-up work.
+- Store maps remain exported for reads. 6d routes live mutations through
+  storage-owned methods; detached candidate construction stays in the engine.

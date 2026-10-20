@@ -52,7 +52,9 @@ func TestCatalogTemporaryStorageAbsence(t *testing.T) {
 	if mark.descriptors[table.Address()] != table || mark.storage[table.Address()].replacement != c.storage[table.Address()].replacement {
 		t.Fatal("savepoint descriptor/action/store rewritten")
 	}
-	e.storage.Relations[table.Address()] = &storage.Relation{}
+	e.mu.Lock()
+	e.storage.InstallRelationLocked(table.Address(), &storage.Relation{})
+	e.mu.Unlock()
 	if _, ok := e.catalogPreflightLocked(c).(catalog.Conflict); !ok {
 		t.Fatal("committed absence was not fenced")
 	}

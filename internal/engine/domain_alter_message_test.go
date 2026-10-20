@@ -98,7 +98,9 @@ func TestDomainAlterConstraintMessagePublication(t *testing.T) {
 				case "ends":
 					store.Ends = &storage.DeletionRoot{}
 				}
-				e.storage.Relations[table.Address] = &store
+				e.mu.Lock()
+				e.storage.InstallRelationLocked(table.Address, &store)
+				e.mu.Unlock()
 				fail = true
 			}
 			before, stores, roots, frontier := e.catalog.state, maps.Clone(e.storage.Relations), maps.Clone(e.storage.IndexRoots), e.visibility.CommitSeq()
