@@ -1,4 +1,4 @@
-package engine
+package typedef
 
 import (
 	"fmt"
@@ -12,12 +12,11 @@ import (
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/pgcatalog"
 	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
-func collationVersionWarning(h typedef.StageHost, d *catalog.Collation, view catalog.Read, actual *string) error {
+func collationVersionWarning(h StageHost, d *catalog.Collation, view catalog.Read, actual *string) error {
 	if d.Version == nil {
 		return nil
 	}
@@ -31,7 +30,7 @@ func collationVersionWarning(h typedef.StageHost, d *catalog.Collation, view cat
 	return nil
 }
 
-func stageCreateCollationLocked(h typedef.StageHost, auth typedef.Authority, s *parser.CreateCollation) error {
+func StageCreateCollationLocked(h StageHost, auth Authority, s *parser.CreateCollation) error {
 	ns, auth, err := h.CreationNamespace(auth, s.Name)
 	if err != nil {
 		return err
@@ -174,7 +173,7 @@ func stageCreateCollationLocked(h typedef.StageHost, auth typedef.Authority, s *
 			message = fmt.Sprintf(`collation "%s" for encoding "UTF8" already exists`, name)
 		}
 		if s.IfNotExists {
-			typedef.Notice(h, "42710", message+", skipping")
+			Notice(h, "42710", message+", skipping")
 			return nil
 		}
 		return sqlError("42710", message)
@@ -204,7 +203,7 @@ func stageCreateCollationLocked(h typedef.StageHost, auth typedef.Authority, s *
 	return h.Stage().Create(&d)
 }
 
-func stageAlterCollationLocked(h typedef.StageHost, auth typedef.Authority, s *parser.AlterCollation) error {
+func StageAlterCollationLocked(h StageHost, auth Authority, s *parser.AlterCollation) error {
 	d, err := findUtilityCollation(h, auth, s.Name)
 	if err != nil {
 		return err
@@ -220,8 +219,8 @@ func stageAlterCollationLocked(h typedef.StageHost, auth typedef.Authority, s *p
 			return nil
 		}
 	}
-	ref := typedef.ObjectRef(h, auth, d.Address())
-	if err = typedef.Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
+	ref := ObjectRef(h, auth, d.Address())
+	if err = Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		return err
 	}
 	if d.Provider == "d" && s.Action == "refresh" {
@@ -238,10 +237,10 @@ func stageAlterCollationLocked(h typedef.StageHost, auth typedef.Authority, s *p
 			return sqlError("XX000", "invalid collation version change")
 		}
 		if actual == nil || *actual == *d.Version {
-			typedef.Notice(h, "00000", "version has not changed")
+			Notice(h, "00000", "version has not changed")
 			return nil
 		}
-		typedef.Notice(h, "00000", fmt.Sprintf("changing version from %s to %s", *d.Version, *actual))
+		Notice(h, "00000", fmt.Sprintf("changing version from %s to %s", *d.Version, *actual))
 		next.Version = actual
 	case "rename":
 		if err = view.CheckCreate(auth, view.Owner.Domain.Ref(ref.Epoch, d.Namespace())); err != nil {
@@ -284,19 +283,19 @@ func stageAlterCollationLocked(h typedef.StageHost, auth typedef.Authority, s *p
 	return h.Stage().Replace(&next)
 }
 
-func stageDropCollationLocked(h typedef.StageHost, auth typedef.Authority, s *parser.DropCollation) error {
+func StageDropCollationLocked(h StageHost, auth Authority, s *parser.DropCollation) error {
 	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
 	for _, name := range s.Names {
 		d, err := findUtilityCollation(h, auth, name)
 		if err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); s.IfExists && ok && (diagnostic.Code == "42704" || diagnostic.Code == "3F000") {
-				typedef.Notice(h, "00000", fmt.Sprintf(`collation "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
+				Notice(h, "00000", fmt.Sprintf(`collation "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
 				continue
 			}
 			return err
 		}
-		ref := typedef.ObjectRef(h, auth, d.Address())
-		if err = typedef.Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
+		ref := ObjectRef(h, auth, d.Address())
+		if err = Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err
 		}
 		if d.Seeded() {
@@ -315,7 +314,7 @@ func stageDropCollationLocked(h typedef.StageHost, auth typedef.Authority, s *pa
 	return nil
 }
 
-func findUtilityCollation(h typedef.StageHost, auth typedef.Authority, name parser.ObjectName) (*catalog.Collation, error) {
+func findUtilityCollation(h StageHost, auth Authority, name parser.ObjectName) (*catalog.Collation, error) {
 	d, err := h.FindCollation(auth, name)
 	if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42704" {
 		copy := *diagnostic

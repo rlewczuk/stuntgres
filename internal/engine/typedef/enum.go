@@ -1,4 +1,4 @@
-package engine
+package typedef
 
 import (
 	"fmt"
@@ -6,13 +6,12 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func stageCreateEnumLocked(h typedef.StageHost, auth typedef.Authority, s *parser.CreateEnum) error {
+func StageCreateEnumLocked(h StageHost, auth Authority, s *parser.CreateEnum) error {
 	ns, err := h.ExistingCreationNamespace(auth, s.Name)
 	if err != nil {
 		return err
@@ -36,7 +35,7 @@ func stageCreateEnumLocked(h typedef.StageHost, auth typedef.Authority, s *parse
 	if err != nil {
 		return err
 	}
-	if !available || typedef.RelationTypeNameOccupied(view.Catalog, ns.Address, name) {
+	if !available || RelationTypeNameOccupied(view.Catalog, ns.Address, name) {
 		return sqlError("42710", fmt.Sprintf(`type "%s" already exists`, name))
 	}
 	oid, err := h.AllocateOID()

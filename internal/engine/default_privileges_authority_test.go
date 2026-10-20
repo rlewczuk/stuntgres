@@ -8,6 +8,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -22,7 +23,7 @@ func TestDefaultPrivilegesArrayAuthority(t *testing.T) {
 		f.e.mu.Lock()
 		auth, err := f.e.authorizationLocked(f.op)
 		if err == nil {
-			err = stageCreateEnumLocked(typedefHost{e: f.e, op: f.op, stage: stage}, auth, &parser.CreateEnum{
+			err = typedef.StageCreateEnumLocked(typedefHost{e: f.e, op: f.op, stage: stage}, auth, &parser.CreateEnum{
 				Name:   parser.ObjectName{Parts: []parser.Identifier{{Text: "default_schema"}, {Text: name}}},
 				Labels: []parser.EnumLabel{{Text: "a"}},
 			})

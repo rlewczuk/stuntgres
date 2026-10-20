@@ -1,4 +1,4 @@
-package engine
+package typedef
 
 import (
 	"fmt"
@@ -6,14 +6,13 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
 // Declaration members, relation identity and reciprocal codecs publish in the
 // same existing catalog stage. This relation never owns physical storage.
-func stageCreateCompositeLocked(h typedef.StageHost, auth typedef.Authority, s *parser.CreateComposite) error {
+func StageCreateCompositeLocked(h StageHost, auth Authority, s *parser.CreateComposite) error {
 	ns, err := h.ExistingCreationNamespace(auth, s.Name)
 	if err != nil {
 		return err
@@ -37,7 +36,7 @@ func stageCreateCompositeLocked(h typedef.StageHost, auth typedef.Authority, s *
 	if err != nil {
 		return err
 	}
-	if !available || typedef.RelationTypeNameOccupied(view.Catalog, ns.Address, name) {
+	if !available || RelationTypeNameOccupied(view.Catalog, ns.Address, name) {
 		return sqlError("42710", fmt.Sprintf(`type "%s" already exists`, name))
 	}
 	if h.Stage().LookupName(ids.NameKey{ClassID: ids.RelationClassID, Namespace: ns.Address, Name: name}) != (ids.ObjectAddress{}) {
@@ -78,7 +77,7 @@ func stageCreateCompositeLocked(h typedef.StageHost, auth typedef.Authority, s *
 		if err != nil {
 			return err
 		}
-		ref := typedef.ObjectRef(h, auth, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
+		ref := ObjectRef(h, auth, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(usage.Type.ID())})
 		if err := view.CanUse(auth, ref); err != nil {
 			return err
 		}

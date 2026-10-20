@@ -1,4 +1,4 @@
-package engine
+package typedef
 
 import (
 	"fmt"
@@ -8,14 +8,13 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
 // Domain declarations use the same private catalog publication as schema DDL.
-func stageCreateDomainLocked(h typedef.StageHost, auth typedef.Authority, s *parser.CreateDomain, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
+func StageCreateDomainLocked(h StageHost, auth Authority, s *parser.CreateDomain, input sqltype.InputEnvironment, output sqltype.OutputEnvironment) error {
 	ns, err := h.ExistingCreationNamespace(auth, s.Name)
 	if err != nil {
 		return err
@@ -39,7 +38,7 @@ func stageCreateDomainLocked(h typedef.StageHost, auth typedef.Authority, s *par
 	if err != nil {
 		return err
 	}
-	if !available || typedef.RelationTypeNameOccupied(view.Catalog, ns.Address, name) {
+	if !available || RelationTypeNameOccupied(view.Catalog, ns.Address, name) {
 		return sqlError("42710", fmt.Sprintf(`type "%s" already exists`, name))
 	}
 	var defaultRaw parser.Expr
@@ -84,7 +83,7 @@ func stageCreateDomainLocked(h typedef.StageHost, auth typedef.Authority, s *par
 	if err != nil {
 		return err
 	}
-	ref := typedef.ObjectRef(h, auth, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())})
+	ref := ObjectRef(h, auth, ids.ObjectAddress{ClassID: ids.TypeClassID, ObjectID: ids.OID(base.Type.ID())})
 	h.AddDomainBase(view.Catalog.Get(ref.Address))
 	if err = view.CanUse(auth, ref); err != nil {
 		return err
@@ -135,7 +134,7 @@ func stageCreateDomainLocked(h typedef.StageHost, auth typedef.Authority, s *par
 	return h.Stage().Create(&catalog.Type{SQLType: array, ObjectNamespace: ns.Address, ObjectRevision: revision, Owner: view.State.CurrentUser, ACL: authorization.DefaultBaseline(view.State.CurrentUser, authorization.DefaultTypes, false), ACLSyntheticDefault: true})
 }
 
-func stageDropDomainLocked(h typedef.StageHost, auth typedef.Authority, s *parser.DropDomain) error {
+func StageDropDomainLocked(h StageHost, auth Authority, s *parser.DropDomain) error {
 	view := h.AccessView(auth)
 	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
 	for _, name := range s.Names {
@@ -152,7 +151,7 @@ func stageDropDomainLocked(h typedef.StageHost, auth typedef.Authority, s *parse
 		}
 		if len(found) != 1 {
 			if s.IfExists {
-				typedef.Notice(h, "00000", fmt.Sprintf(`type "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
+				Notice(h, "00000", fmt.Sprintf(`type "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
 				continue
 			}
 			return sqlError("42704", fmt.Sprintf(`type "%s" does not exist`, catalog.ObjectNameText(name)))
@@ -161,8 +160,8 @@ func stageDropDomainLocked(h typedef.StageHost, auth typedef.Authority, s *parse
 		if !target.SQLType.IsDomain() {
 			return sqlError("42809", fmt.Sprintf(`"%s" is not a domain`, catalog.ObjectNameText(name)))
 		}
-		ref := typedef.ObjectRef(h, auth, target.Address())
-		if err = typedef.Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
+		ref := ObjectRef(h, auth, target.Address())
+		if err = Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 			return err
 		}
 		if seen[ref.Address] {

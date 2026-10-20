@@ -15,6 +15,7 @@ import (
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/functions"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -123,7 +124,7 @@ func TestConversionDefaultLookupExecuteACL(t *testing.T) {
 		stage = e.BeginCatalogStage(auth.Catalog)
 		before := auth.Catalog.State()
 		e.mu.Lock()
-		err = stageCreateConversionLocked(typedefHost{e: e, op: op, stage: stage}, auth, create)
+		err = typedef.StageCreateConversionLocked(typedefHost{e: e, op: op, stage: stage}, auth, create)
 		e.mu.Unlock()
 		var diagnostic *sqlstate.Error
 		if !errors.As(err, &diagnostic) || diagnostic.Code != "42501" || diagnostic.Message != "permission denied for function pg_catalog.utf8_to_iso8859_1" {

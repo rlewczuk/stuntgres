@@ -72,7 +72,7 @@ func TestArrayCatalogAssociationPublicationAndOrigin(t *testing.T) {
 	e.mu.Lock()
 	auth, err := e.authorizationLocked(op)
 	if err == nil {
-		err = stageCreateDomainLocked(typedefHost{e: e, op: op, stage: staged}, auth, statement(t, "CREATE DOMAIN public.staged AS INT").(*parser.CreateDomain), sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
+		err = typedef.StageCreateDomainLocked(typedefHost{e: e, op: op, stage: staged}, auth, statement(t, "CREATE DOMAIN public.staged AS INT").(*parser.CreateDomain), sqltype.InputEnvironment{}, sqltype.OutputEnvironment{})
 	}
 	e.mu.Unlock()
 	if err != nil {

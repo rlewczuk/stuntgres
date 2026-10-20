@@ -1,4 +1,4 @@
-package engine
+package typedef
 
 import (
 	"fmt"
@@ -7,14 +7,12 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
-	"stuntgres/internal/engine/session"
-	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
 
-func findUtilityConversion(h typedef.StageHost, auth typedef.Authority, name parser.ObjectName) (*catalog.Conversion, error) {
+func findUtilityConversion(h StageHost, auth Authority, name parser.ObjectName) (*catalog.Conversion, error) {
 	path, err := h.SearchNamespaces(auth, name, ids.ConversionClassID)
 	if err != nil {
 		return nil, err
@@ -30,25 +28,7 @@ func findUtilityConversion(h typedef.StageHost, auth typedef.Authority, name par
 	return nil, sqlError("42704", fmt.Sprintf(`conversion "%s" does not exist`, catalog.ObjectNameText(name)))
 }
 
-// Rebuilding captured owners is the existing trusted native Restore boundary,
-// not a general permission bypass for user DDL or arbitrary callers.
-func (e *Engine) conversionCheckCreate(op *session.Operation, auth AuthorizationView, namespace ids.ObjectRef) error {
-	err := auth.CheckCreate(namespace)
-	if err == nil {
-		return nil
-	}
-	denied, ok := err.(*sqlstate.Error)
-	if op == nil || !operationReplayOrZero(op).tableDestination || !ok || denied.Code != "42501" {
-		return err
-	}
-	actor, actorErr := auth.Roles.Descriptor(auth.State.Authenticated)
-	if actorErr != nil || !actor.Superuser || e.importTargets == nil {
-		return fmt.Errorf("stuntgres: invalid trusted restore conversion authority")
-	}
-	return nil
-}
-
-func stageCreateConversionLocked(h typedef.StageHost, auth typedef.Authority, s *parser.CreateConversion) error {
+func StageCreateConversionLocked(h StageHost, auth Authority, s *parser.CreateConversion) error {
 	namespace, auth, err := h.CreationNamespace(auth, s.Name)
 	if err != nil {
 		return err
@@ -78,7 +58,7 @@ func stageCreateConversionLocked(h typedef.StageHost, auth typedef.Authority, s 
 	if procedure.Result != 23 {
 		return sqlError("42P17", "encoding conversion function "+functionName+" must return type integer")
 	}
-	if err = typedef.Check(h, auth, access.Requirement{Object: typedef.ObjectRef(h, auth, procedure.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
+	if err = Check(h, auth, access.Requirement{Object: ObjectRef(h, auth, procedure.Address()), Privileges: authorization.ExecutePrivilege}); err != nil {
 		if d, ok := err.(*sqlstate.Error); ok && d.Code == "42501" {
 			return sqlError("42501", "permission denied for function "+functionName)
 		}
@@ -91,7 +71,7 @@ func stageCreateConversionLocked(h typedef.StageHost, auth typedef.Authority, s 
 	if err != nil {
 		return err
 	}
-	if err = typedef.ConversionProbeResult(functionName, consumed); err != nil {
+	if err = ConversionProbeResult(functionName, consumed); err != nil {
 		return err
 	}
 	object := s.Name.Parts[len(s.Name.Parts)-1].Text
@@ -117,7 +97,7 @@ func stageCreateConversionLocked(h typedef.StageHost, auth typedef.Authority, s 
 	return h.Stage().Create(&catalog.Conversion{OID: oid, ObjectName: object, ObjectNamespace: namespace.Address, ObjectRevision: revision, Owner: h.AccessView(auth).State.CurrentUser, Source: source, Destination: destination, Handler: procedure.Address(), DefaultConversion: s.Default})
 }
 
-func stageAlterConversionLocked(h typedef.StageHost, auth typedef.Authority, s *parser.AlterConversion) error {
+func StageAlterConversionLocked(h StageHost, auth Authority, s *parser.AlterConversion) error {
 	d, err := findUtilityConversion(h, auth, s.Name)
 	if err != nil {
 		return err
@@ -149,8 +129,8 @@ func stageAlterConversionLocked(h typedef.StageHost, auth typedef.Authority, s *
 			return sqlError("0A000", "cannot move objects into or out of temporary schemas")
 		}
 	}
-	ref := typedef.ObjectRef(h, auth, d.Address())
-	if err = typedef.Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
+	ref := ObjectRef(h, auth, d.Address())
+	if err = Check(h, auth, access.Requirement{Object: ref, OwnerOnly: true}); err != nil {
 		return err
 	}
 	next := *d
@@ -185,22 +165,22 @@ func stageAlterConversionLocked(h typedef.StageHost, auth typedef.Authority, s *
 	return h.Stage().Replace(&next)
 }
 
-func stageDropConversionLocked(h typedef.StageHost, auth typedef.Authority, s *parser.DropConversion) error {
+func StageDropConversionLocked(h StageHost, auth Authority, s *parser.DropConversion) error {
 	seen := make(map[ids.ObjectAddress]bool, len(s.Names))
 	for _, name := range s.Names {
 		d, err := findUtilityConversion(h, auth, name)
 		if err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); s.IfExists && ok && (diagnostic.Code == "42704" || diagnostic.Code == "3F000") {
 				if diagnostic.Code == "3F000" {
-					typedef.Notice(h, "00000", diagnostic.Message+", skipping")
+					Notice(h, "00000", diagnostic.Message+", skipping")
 				} else {
-					typedef.Notice(h, "00000", fmt.Sprintf(`conversion "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
+					Notice(h, "00000", fmt.Sprintf(`conversion "%s" does not exist, skipping`, catalog.ObjectNameText(name)))
 				}
 				continue
 			}
 			return err
 		}
-		if err = typedef.Check(h, auth, access.Requirement{Object: typedef.ObjectRef(h, auth, d.Address()), OwnerOnly: true}); err != nil {
+		if err = Check(h, auth, access.Requirement{Object: ObjectRef(h, auth, d.Address()), OwnerOnly: true}); err != nil {
 			if diagnostic, ok := err.(*sqlstate.Error); ok && diagnostic.Code == "42501" {
 				return sqlError("42501", "must be owner of conversion "+catalog.ObjectNameText(name))
 			}

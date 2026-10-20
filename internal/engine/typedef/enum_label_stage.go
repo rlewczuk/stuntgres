@@ -1,25 +1,24 @@
-package engine
+package typedef
 
 import (
 	"fmt"
 	"slices"
 
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 )
 
-// enumLabelEdit is the outcome of staging ALTER TYPE ... ADD or RENAME VALUE.
-type enumLabelEdit struct {
+// EnumLabelEdit is the outcome of staging ALTER TYPE ... ADD or RENAME VALUE.
+type EnumLabelEdit struct {
 	Skipped bool  // IF NOT EXISTS met an existing label; nothing was staged
 	Added   bool  // a member was added
 	Member  int64 // the added member's identity
 }
 
-// stageAlterEnumLabelLocked stages old with its labels edited. The caller owns
+// StageAlterEnumLabelLocked stages old with its labels edited. The caller owns
 // the enum journal.
-func stageAlterEnumLabelLocked(h typedef.StageHost, old *catalog.Type, alter *parser.AlterEnum) (enumLabelEdit, error) {
+func StageAlterEnumLabelLocked(h StageHost, old *catalog.Type, alter *parser.AlterEnum) (EnumLabelEdit, error) {
 	members := old.SQLType.EnumMembers()
 	oldIndex, newIndex := -1, -1
 	for i, m := range members {
@@ -31,16 +30,16 @@ func stageAlterEnumLabelLocked(h typedef.StageHost, old *catalog.Type, alter *pa
 		}
 	}
 	if alter.Rename && oldIndex < 0 {
-		return enumLabelEdit{}, sqlError("22023", fmt.Sprintf(`"%s" is not an existing enum label`, alter.Old.Text))
+		return EnumLabelEdit{}, sqlError("22023", fmt.Sprintf(`"%s" is not an existing enum label`, alter.Old.Text))
 	}
 	if newIndex >= 0 {
 		if !alter.Rename && alter.IfNotExists {
-			typedef.Notice(h, "42710", fmt.Sprintf(`enum label "%s" already exists, skipping`, alter.Label.Text))
-			return enumLabelEdit{Skipped: true}, nil
+			Notice(h, "42710", fmt.Sprintf(`enum label "%s" already exists, skipping`, alter.Label.Text))
+			return EnumLabelEdit{Skipped: true}, nil
 		}
-		return enumLabelEdit{}, sqlError("42710", fmt.Sprintf(`enum label "%s" already exists`, alter.Label.Text))
+		return EnumLabelEdit{}, sqlError("42710", fmt.Sprintf(`enum label "%s" already exists`, alter.Label.Text))
 	}
-	var edit enumLabelEdit
+	var edit EnumLabelEdit
 	if alter.Rename {
 		members[oldIndex].Label = alter.Label.Text
 	} else {
@@ -54,7 +53,7 @@ func stageAlterEnumLabelLocked(h typedef.StageHost, old *catalog.Type, alter *pa
 				}
 			}
 			if at < 0 {
-				return enumLabelEdit{}, sqlError("22023", fmt.Sprintf(`"%s" is not an existing enum label`, alter.Neighbor.Text))
+				return EnumLabelEdit{}, sqlError("22023", fmt.Sprintf(`"%s" is not an existing enum label`, alter.Neighbor.Text))
 			}
 			if !alter.Before {
 				at++
@@ -62,25 +61,25 @@ func stageAlterEnumLabelLocked(h typedef.StageHost, old *catalog.Type, alter *pa
 		}
 		member, err := h.AllocateEnumMember()
 		if err != nil {
-			return enumLabelEdit{}, err
+			return EnumLabelEdit{}, err
 		}
-		order := typedef.EnumInsertionOrder(members, at)
+		order := EnumInsertionOrder(members, at)
 		members = slices.Insert(members, at, sqltype.EnumMember{ID: member, Label: alter.Label.Text, SortOrder: order})
-		edit = enumLabelEdit{Added: true, Member: member}
+		edit = EnumLabelEdit{Added: true, Member: member}
 	}
 	typ, err := sqltype.EnumWithMembers(old.SQLType.ID(), old.Name(), old.SQLType.SQLName(), members)
 	if err != nil {
-		return enumLabelEdit{}, err
+		return EnumLabelEdit{}, err
 	}
 	revision, err := h.Revision()
 	if err != nil {
-		return enumLabelEdit{}, err
+		return EnumLabelEdit{}, err
 	}
 	next := *old
 	next.SQLType = typ
 	next.ObjectRevision = revision
 	if err := h.Stage().Replace(&next); err != nil {
-		return enumLabelEdit{}, err
+		return EnumLabelEdit{}, err
 	}
 	return edit, nil
 }

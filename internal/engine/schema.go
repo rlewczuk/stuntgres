@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/lock"
 	"stuntgres/internal/engine/routine"
 	"stuntgres/internal/engine/session"
+	"stuntgres/internal/engine/typedef"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -381,31 +382,31 @@ func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement,
 	types := typedefHost(host)
 	switch s := stmt.(type) {
 	case *parser.CreateComposite:
-		if err = stageCreateCompositeLocked(types, auth, s); err != nil {
+		if err = typedef.StageCreateCompositeLocked(types, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateCollation:
-		if err = stageCreateCollationLocked(types, auth, s); err != nil {
+		if err = typedef.StageCreateCollationLocked(types, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.AlterCollation:
-		if err = stageAlterCollationLocked(types, auth, s); err != nil {
+		if err = typedef.StageAlterCollationLocked(types, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.DropCollation:
-		if err = stageDropCollationLocked(types, auth, s); err != nil {
+		if err = typedef.StageDropCollationLocked(types, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateConversion:
-		if err = stageCreateConversionLocked(types, auth, s); err != nil {
+		if err = typedef.StageCreateConversionLocked(types, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.AlterConversion:
-		if err = stageAlterConversionLocked(types, auth, s); err != nil {
+		if err = typedef.StageAlterConversionLocked(types, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.DropConversion:
-		if err = stageDropConversionLocked(types, auth, s); err != nil {
+		if err = typedef.StageDropConversionLocked(types, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateFunction:
@@ -425,15 +426,15 @@ func (e *Engine) stageSchemaLocked(op *session.Operation, stmt parser.Statement,
 			return nil, err
 		}
 	case *parser.CreateDomain:
-		if err = stageCreateDomainLocked(types, auth, s, input, output); err != nil {
+		if err = typedef.StageCreateDomainLocked(types, auth, s, input, output); err != nil {
 			return nil, err
 		}
 	case *parser.DropDomain:
-		if err = stageDropDomainLocked(types, auth, s); err != nil {
+		if err = typedef.StageDropDomainLocked(types, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.DropComposite:
-		if err = stageDropCompositeLocked(types, auth, s); err != nil {
+		if err = typedef.StageDropCompositeLocked(types, auth, s); err != nil {
 			return nil, err
 		}
 	case *parser.CreateSchema:
