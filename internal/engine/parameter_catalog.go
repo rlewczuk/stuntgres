@@ -12,7 +12,7 @@ import (
 // parameterProvider validates parameter ACL identities against the engine's
 // immutable setting registry. The pointer borrows the Engine-owned value, which
 // is initialized before provider registration and never replaced or mutated.
-type parameterProvider struct{ settings *settingsRegistry }
+type parameterProvider struct{ settings *settings.Registry }
 
 func (parameterProvider) ClassID() ids.OID { return ids.ParameterClassID }
 func (p parameterProvider) Validate(v catalog.Read, descriptor catalog.Descriptor) error {
@@ -34,7 +34,7 @@ func (e *Engine) canonicalGrantParameter(name string) (string, error) {
 	return canonicalGrantParameter(e.settings, name)
 }
 
-func canonicalGrantParameter(registry settingsRegistry, name string) (string, error) {
+func canonicalGrantParameter(registry settings.Registry, name string) (string, error) {
 	key := settings.FoldName(name)
 	if _, ok := registry.Definitions()[key]; ok {
 		return key, nil

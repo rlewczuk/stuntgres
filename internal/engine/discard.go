@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"time"
 )
@@ -180,7 +181,7 @@ func (e *Engine) resetAllSettingsLocked(session *Session) {
 	owner := session.settings
 	timeoutChanged, transactionAssignment := false, false
 	for key := range owner.values {
-		if d, ok := e.settings.Definitions()[key]; ok && d.Access != SettingSession && d.Name != "lc_messages" {
+		if d, ok := e.settings.Definitions()[key]; ok && d.Access != settings.Session && d.Name != "lc_messages" {
 			continue
 		}
 		owner.touch(key, false)

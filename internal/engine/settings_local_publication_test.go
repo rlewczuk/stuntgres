@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -12,7 +13,7 @@ import (
 func TestSettingsLocalNormalizerPublication(t *testing.T) {
 	for _, mode := range []string{"cancel", "replace", "inspect"} {
 		t.Run(mode, func(t *testing.T) {
-			d, err := ValidateSetting(SettingDefinition{Name: "demo.normalizer", Type: SettingString, BootDefault: "b"})
+			d, err := settings.Validate(settings.Definition{Name: "demo.normalizer", Type: settings.String, BootDefault: "b"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -43,7 +44,7 @@ func TestSettingsLocalNormalizerPublication(t *testing.T) {
 				}
 				return input, nil, nil
 			}
-			e = NewWithSettings([]SettingDefinition{d}, "", false)
+			e = NewWithSettings([]settings.Definition{d}, "", false)
 			s = sessionStart(t, e, nil)
 			op, err := s.Acquire(ctx)
 			if err != nil {
@@ -79,11 +80,11 @@ func TestSettingsLocalNormalizerPublication(t *testing.T) {
 
 func TestSettingsLocalExactTypedUndo(t *testing.T) {
 	// Exact hexadecimal subnormals are accepted; rounded decimal ones are not.
-	d, err := ValidateSetting(SettingDefinition{Name: "demo.exact", Type: SettingFloating, BootDefault: "0x1p-1023", FloatMax: 10})
+	d, err := settings.Validate(settings.Definition{Name: "demo.exact", Type: settings.Floating, BootDefault: "0x1p-1023", FloatMax: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := NewWithSettings([]SettingDefinition{d}, "", false)
+	e := NewWithSettings([]settings.Definition{d}, "", false)
 	s := sessionStart(t, e, nil)
 	sessionSQL(t, s, "SET demo.exact='0x1p-1074'")
 	original := math.Float64bits(s.settings.typed["demo.exact"].Number)

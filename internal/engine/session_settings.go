@@ -22,7 +22,7 @@ type sessionSettings struct {
 	session          *Session
 	defaults, values map[string]string
 	// typed contains only overrides; captured defaults never require reparsing.
-	typed, defaultTyped        map[string]settingValue
+	typed, defaultTyped        map[string]settings.Value
 	placeholders               map[string]bool
 	ended                      bool
 	rowSecurityProviderDefault bool // Immutable native startup-default provenance.
@@ -56,7 +56,7 @@ func (s *Session) Setting(name string) (string, bool) {
 type settingOverride struct {
 	present bool
 	text    string
-	typed   settingValue
+	typed   settings.Value
 }
 type settingAction struct {
 	original  settingOverride
@@ -186,9 +186,9 @@ func (s *sessionSettings) finishTransaction(commit bool) {
 	s.roleAction = roleSettingAction{}
 }
 
-func (s *sessionSettings) initialize(ctx context.Context, definitions map[string]SettingDefinition, names []string, provider SessionDefaultProvider) error {
-	s.typed = make(map[string]settingValue)
-	s.defaultTyped = make(map[string]settingValue)
+func (s *sessionSettings) initialize(ctx context.Context, definitions map[string]settings.Definition, names []string, provider settings.SessionDefaultProvider) error {
+	s.typed = make(map[string]settings.Value)
+	s.defaultTyped = make(map[string]settings.Value)
 	s.placeholders = make(map[string]bool)
 	for _, name := range names {
 		d := definitions[name]
@@ -212,7 +212,7 @@ func (s *sessionSettings) initialize(ctx context.Context, definitions map[string
 				normalized = d.Format(v)
 			}
 		}
-		if (d.Access == settingStartupOnly || d.Name == "server_encoding" || d.Name == "log_statement_stats") && normalized != d.BootDefault {
+		if (d.Access == settings.StartupOnly || d.Name == "server_encoding" || d.Name == "log_statement_stats") && normalized != d.BootDefault {
 			return RegistrationError("default provider cannot change " + d.Name)
 		}
 		if err := ctx.Err(); err != nil {
@@ -257,13 +257,13 @@ func (s *sessionSettings) value(name string) string {
 	}
 	return s.defaults[name]
 }
-func (s *sessionSettings) typedValue(name string) settingValue {
+func (s *sessionSettings) typedValue(name string) settings.Value {
 	if v, ok := s.typed[name]; ok {
 		return v
 	}
 	return s.defaultTyped[name]
 }
-func (e *Engine) sessionSetting(s *sessionSettings, name string, create bool) (SettingDefinition, error) {
+func (e *Engine) sessionSetting(s *sessionSettings, name string, create bool) (settings.Definition, error) {
 	key := settings.FoldName(name)
 	if d, ok := e.settings.Definitions()[key]; ok {
 		return d, nil
@@ -273,18 +273,18 @@ func (e *Engine) sessionSetting(s *sessionSettings, name string, create bool) (S
 			return e.settings.Lookup(name)
 		}
 		if !settings.CustomName(name) {
-			return SettingDefinition{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42602", Message: fmt.Sprintf(`invalid configuration parameter name "%s"`, name), Detail: "Custom parameter names must be two or more simple identifiers separated by dots."}
+			return settings.Definition{}, &sqlstate.Error{Severity: "ERROR", SeverityUnlocalized: "ERROR", Code: "42602", Message: fmt.Sprintf(`invalid configuration parameter name "%s"`, name), Detail: "Custom parameter names must be two or more simple identifiers separated by dots."}
 		}
 	}
-	return SettingDefinition{Name: key, Type: SettingString}, nil
+	return settings.Definition{Name: key, Type: settings.String}, nil
 }
-func settingAccess(d SettingDefinition, op *Operation) error {
+func settingAccess(d settings.Definition, op *Operation) error {
 	switch d.Access {
-	case settingStartupOnly:
+	case settings.StartupOnly:
 		return sqlError("55P02", fmt.Sprintf(`parameter "%s" cannot be changed without restarting the server`, d.Name))
-	case SettingReadOnly:
+	case settings.ReadOnly:
 		return sqlError("55P02", fmt.Sprintf(`parameter "%s" cannot be changed`, d.Name))
-	case SettingPrivileged:
+	case settings.Privileged:
 		if d.Name == "lc_messages" {
 			allowed, err := parameterSetAllowed(op, d.Name)
 			if err != nil {
@@ -301,14 +301,14 @@ func settingAccess(d SettingDefinition, op *Operation) error {
 
 // applySetting stages callbacks without publication locks, then atomically
 // installs recognition, transaction action and effective typed/text override.
-func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d SettingDefinition, input *string, local bool) (string, error) {
+func (e *Engine) applySetting(op *Operation, owner *sessionSettings, d settings.Definition, input *string, local bool) (string, error) {
 	if d.Name == "transaction_isolation" || d.Name == "transaction_read_only" || d.Name == "transaction_deferrable" {
 		return e.applyCurrentCharacteristic(op, d, input)
 	}
 	if err := settingAccess(d, op); err != nil {
 		return "", err
 	}
-	var v settingValue
+	var v settings.Value
 	var notice *sqlstate.Error
 	if input != nil {
 		var err error

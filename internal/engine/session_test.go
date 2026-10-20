@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqltype"
 	"sync"
 	"testing"
@@ -24,13 +25,13 @@ type defaultProvider struct {
 	err   error
 }
 
-func (p *defaultProvider) SessionDefault(_ context.Context, d SettingDefinition) (string, bool, error) {
+func (p *defaultProvider) SessionDefault(_ context.Context, d settings.Definition) (string, bool, error) {
 	if d.Name != "application_name" {
 		return "", false, nil
 	}
 	return p.value, true, p.err
 }
-func sessionStart(t *testing.T, e *Engine, p SessionDefaultProvider) *Session {
+func sessionStart(t *testing.T, e *Engine, p settings.SessionDefaultProvider) *Session {
 	t.Helper()
 	s, err := e.StartSession(context.Background(), SessionStart{ID: ids.SessionID(testSessionID.Add(1)), Defaults: p})
 	if err != nil {

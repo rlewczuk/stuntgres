@@ -11,6 +11,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -442,7 +443,7 @@ func TestSessionTimeoutResidualBeforeStatement(t *testing.T) {
 		start := time.Now()
 		time.Sleep(300 * time.Millisecond)
 		s.settings.mu.Lock()
-		s.settings.typed["statement_timeout"] = settingValue{Number: 375}
+		s.settings.typed["statement_timeout"] = settings.Value{Number: 375}
 		s.settings.values["statement_timeout"] = "375ms"
 		s.settings.mu.Unlock()
 		op, _, err := s.AcquireCommand(context.Background())

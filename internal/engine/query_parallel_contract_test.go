@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqltype"
 )
 
@@ -74,7 +75,7 @@ func parallelAdmissionAndTemporary(t *testing.T) {
 	// The command consumes its immutable value, not live settings storage.
 	s.settings.mu.Lock()
 	s.settings.values["max_parallel_workers_per_gather"] = "2"
-	s.settings.typed["max_parallel_workers_per_gather"] = settingValue{Text: "2", Number: 2}
+	s.settings.typed["max_parallel_workers_per_gather"] = settings.Value{Text: "2", Number: 2}
 	s.settings.mu.Unlock()
 	if op.parallelWorkers != 7 {
 		op.Done()

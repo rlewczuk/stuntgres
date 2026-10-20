@@ -2,15 +2,16 @@ package engine
 
 import (
 	"math"
+	"stuntgres/internal/engine/settings"
 	"testing"
 )
 
 func TestSavepointsSettings(t *testing.T) {
-	d, err := ValidateSetting(SettingDefinition{Name: "demo.ratio", Type: SettingFloating, BootDefault: "0", FloatMin: -1, FloatMax: 1})
+	d, err := settings.Validate(settings.Definition{Name: "demo.ratio", Type: settings.Floating, BootDefault: "0", FloatMin: -1, FloatMax: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := NewWithSettings([]SettingDefinition{d}, "", false)
+	e := NewWithSettings([]settings.Definition{d}, "", false)
 	provider := &settingsDefaultProviderForTest{values: map[string]string{"demo.ratio": "0"}, calls: map[string]int{}}
 	a := sessionStart(t, e, provider)
 	sessionSQL(t, a, "SET demo.ratio='0.123456789'")

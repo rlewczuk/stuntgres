@@ -76,7 +76,7 @@ func validateIndexReloptions(options []parser.IndexOption, method catalog.IndexM
 			if o.Value.Kind == parser.IntegerValue {
 				valid = o.Value.Integer == 0 || o.Value.Integer == 1
 			} else if !valid {
-				_, err := (SettingDefinition{Name: name, Type: SettingBoolean}).Parse(o.Value.Text)
+				_, err := (settings.Definition{Name: name, Type: settings.Boolean}).Parse(o.Value.Text)
 				valid = err == nil
 			}
 			if !valid {

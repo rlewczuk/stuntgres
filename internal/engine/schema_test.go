@@ -11,6 +11,7 @@ import (
 
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -155,7 +156,7 @@ func TestSchemaIdentifierNormalization(t *testing.T) {
 
 type schemaDefaults struct{ path string }
 
-func (d *schemaDefaults) SessionDefault(_ context.Context, definition SettingDefinition) (string, bool, error) {
+func (d *schemaDefaults) SessionDefault(_ context.Context, definition settings.Definition) (string, bool, error) {
 	if definition.Name == "search_path" {
 		return d.path, true, nil
 	}

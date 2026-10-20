@@ -7,6 +7,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -14,10 +15,10 @@ import (
 type roleSwitchDefaultProvider struct {
 	value string
 	err   error
-	hook  func(context.Context, SettingDefinition)
+	hook  func(context.Context, settings.Definition)
 }
 
-func (p roleSwitchDefaultProvider) SessionDefault(ctx context.Context, d SettingDefinition) (string, bool, error) {
+func (p roleSwitchDefaultProvider) SessionDefault(ctx context.Context, d settings.Definition) (string, bool, error) {
 	if d.Name != "role" {
 		return "", false, nil
 	}
@@ -147,9 +148,9 @@ func TestRoleSwitchInitializationAndCachedReset(t *testing.T) {
 	e, _ := roleSwitchUnitSession(t)
 	login, _ := e.Roles().Lookup("switch_login")
 	count := 0
-	provider := roleSwitchDefaultProvider{value: "switch_a", hook: func(ctx context.Context, d SettingDefinition) {
+	provider := roleSwitchDefaultProvider{value: "switch_a", hook: func(ctx context.Context, d settings.Definition) {
 		count++
-		if d.Type != SettingString || d.BootDefault != "none" {
+		if d.Type != settings.String || d.BootDefault != "none" {
 			t.Fatal(d)
 		}
 		if !e.mu.TryLock() {
@@ -203,7 +204,7 @@ func TestRoleSwitchInitializationFailures(t *testing.T) {
 			before := len(e.sessions)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			provider := roleSwitchDefaultProvider{value: tc.value, err: tc.providerErr, hook: func(context.Context, SettingDefinition) {
+			provider := roleSwitchDefaultProvider{value: tc.value, err: tc.providerErr, hook: func(context.Context, settings.Definition) {
 				if tc.cancel {
 					cancel()
 				}

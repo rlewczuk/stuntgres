@@ -219,7 +219,7 @@ func TestObjectGrantParameterSettingAccess(t *testing.T) {
 	if err := settingAccess(e.settings.Definitions()["application_name"], readerOp); err != nil {
 		t.Fatal("USERSET unexpectedly depends on ACL", err)
 	}
-	for _, definition := range []SettingDefinition{e.settings.Definitions()["server_encoding"], {Name: "private.protected", Access: SettingPrivileged}} {
+	for _, definition := range []settings.Definition{e.settings.Definitions()["server_encoding"], {Name: "private.protected", Access: settings.Privileged}} {
 		if err := settingAccess(definition, readerOp); err == nil {
 			t.Fatal("read-only or deny-only custom setter admitted")
 		}

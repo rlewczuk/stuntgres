@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -86,7 +87,7 @@ func (t *transactionOwner) assignModes(modes []parser.TransactionMode) error {
 	t.syncCharacteristics()
 	return nil
 }
-func (e *Engine) applyCurrentCharacteristic(op *Operation, d SettingDefinition, input *string) (string, error) {
+func (e *Engine) applyCurrentCharacteristic(op *Operation, d settings.Definition, input *string) (string, error) {
 	if input == nil {
 		return "", sqlError("0A000", fmt.Sprintf(`parameter "%s" cannot be reset`, d.Name))
 	}

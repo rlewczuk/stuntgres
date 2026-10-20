@@ -8,6 +8,7 @@ import (
 
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
@@ -35,14 +36,14 @@ func timeoutMechanicsSettings(s *Session, transaction, idleTransaction, idleSess
 	s.settings.mu.Lock()
 	defer s.settings.mu.Unlock()
 	if s.settings.typed == nil {
-		s.settings.typed = make(map[string]settingValue)
+		s.settings.typed = make(map[string]settings.Value)
 	}
 	for name, duration := range map[string]time.Duration{
 		"transaction_timeout":                 transaction,
 		"idle_in_transaction_session_timeout": idleTransaction,
 		"idle_session_timeout":                idleSession,
 	} {
-		s.settings.typed[name] = settingValue{Number: float64(duration / time.Millisecond)}
+		s.settings.typed[name] = settings.Value{Number: float64(duration / time.Millisecond)}
 	}
 	s.mu.Lock()
 	s.publishTimeoutSettingsLocked(s.settings, assignment, now)

@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -16,7 +17,7 @@ type databaseAdmissionDefaults struct {
 	apply func()
 }
 
-func (p *databaseAdmissionDefaults) SessionDefault(_ context.Context, d SettingDefinition) (string, bool, error) {
+func (p *databaseAdmissionDefaults) SessionDefault(_ context.Context, d settings.Definition) (string, bool, error) {
 	if d.Name == "application_name" && p.apply != nil {
 		apply := p.apply
 		p.apply = nil

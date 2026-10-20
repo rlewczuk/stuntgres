@@ -8,6 +8,7 @@ import (
 	"strings"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"sync"
@@ -15,7 +16,7 @@ import (
 	"time"
 )
 
-func roleLimitStart(e *Engine, ref authorization.PrincipalRef, id ids.SessionID, p SessionDefaultProvider) (*Session, error) {
+func roleLimitStart(e *Engine, ref authorization.PrincipalRef, id ids.SessionID, p settings.SessionDefaultProvider) (*Session, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return e.StartSession(ctx, SessionStart{ID: id, Authenticated: ref, Defaults: p})
@@ -149,7 +150,7 @@ type roleLimitGate struct {
 	err              error
 }
 
-func (g *roleLimitGate) SessionDefault(ctx context.Context, d SettingDefinition) (string, bool, error) {
+func (g *roleLimitGate) SessionDefault(ctx context.Context, d settings.Definition) (string, bool, error) {
 	if d.Name != "application_name" {
 		return "", false, nil
 	}

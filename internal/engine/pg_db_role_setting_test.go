@@ -10,6 +10,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -128,11 +129,11 @@ func TestPGDBRoleSettingCapture(t *testing.T) {
 }
 
 func TestPGDBRoleSettingSessionDefaultsExcluded(t *testing.T) {
-	def, err := ValidateSetting(SettingDefinition{Name: "dbrole18.mode", Type: SettingString, BootDefault: "registered"})
+	def, err := settings.Validate(settings.Definition{Name: "dbrole18.mode", Type: settings.String, BootDefault: "registered"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := NewWithSettings([]SettingDefinition{def}, "", false)
+	e := NewWithSettings([]settings.Definition{def}, "", false)
 	provider := &settingsDefaultProviderForTest{values: map[string]string{"application_name": "captured_first", "dbrole18.mode": "first"}, calls: map[string]int{}}
 	a := sessionStart(t, e, provider)
 	provider.values["application_name"], provider.values["dbrole18.mode"] = "captured_second", "second"

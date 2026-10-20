@@ -9,17 +9,18 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 )
 
 // The role default is an internal physical-session hook, not a registered GUC
 // or a public connector option. Providers run without publication locks.
-func (e *Engine) initialRole(ctx context.Context, authenticated authorization.PrincipalRef, provider SessionDefaultProvider) (authorization.PrincipalRef, error) {
+func (e *Engine) initialRole(ctx context.Context, authenticated authorization.PrincipalRef, provider settings.SessionDefaultProvider) (authorization.PrincipalRef, error) {
 	if provider == nil {
 		return authorization.PrincipalRef{}, nil
 	}
-	name, present, err := provider.SessionDefault(ctx, SettingDefinition{Name: "role", BootDefault: "none", Type: SettingString})
+	name, present, err := provider.SessionDefault(ctx, settings.Definition{Name: "role", BootDefault: "none", Type: settings.String})
 	if err != nil {
 		return authorization.PrincipalRef{}, err
 	}

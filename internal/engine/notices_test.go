@@ -293,7 +293,7 @@ func TestNoticesErrorCarriage(t *testing.T) {
 
 type noticeDefaults struct{}
 
-func (noticeDefaults) SessionDefault(_ context.Context, d SettingDefinition) (string, bool, error) {
+func (noticeDefaults) SessionDefault(_ context.Context, d settings.Definition) (string, bool, error) {
 	if d.Name == "client_min_messages" {
 		return "WARNING", true, nil
 	}

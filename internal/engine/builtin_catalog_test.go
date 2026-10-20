@@ -10,22 +10,23 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 )
 
 // Production validates the built-in seed once per process; every engine
 // configuration must still seed a catalog that passes full validation.
 func TestBuiltinCatalogValidatesForEveryEngineConfiguration(t *testing.T) {
-	setting, err := ValidateSetting(SettingDefinition{Name: "seedcheck.mode", Type: SettingString, BootDefault: "on"})
+	setting, err := settings.Validate(settings.Definition{Name: "seedcheck.mode", Type: settings.String, BootDefault: "on"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, config := range []struct {
-		definitions []SettingDefinition
+		definitions []settings.Definition
 		database    string
 		commitTimes bool
 	}{
 		{nil, "", false},
-		{[]SettingDefinition{setting}, "seed_database", true},
+		{[]settings.Definition{setting}, "seed_database", true},
 		{nil, strings.Repeat("d", 80), false},
 	} {
 		e := NewWithSettings(config.definitions, config.database, config.commitTimes)

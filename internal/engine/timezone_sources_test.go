@@ -6,6 +6,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqltype"
 	"testing"
@@ -124,7 +125,7 @@ func TestTimezoneSourceScopeRetainsClockAndSettings(t *testing.T) {
 	defer scope.Finish(nil)
 	op.commandStart = op.commandStart.Add(time.Second)
 	session.settings.mu.Lock()
-	session.settings.typed["timezone_abbreviations"] = settingValue{Text: "India", TimezoneAbbreviations: sqltype.TimezoneAbbreviationsIndia}
+	session.settings.typed["timezone_abbreviations"] = settings.Value{Text: "India", TimezoneAbbreviations: sqltype.TimezoneAbbreviationsIndia}
 	session.settings.mu.Unlock()
 	for range 2 {
 		for _, tc := range []struct {

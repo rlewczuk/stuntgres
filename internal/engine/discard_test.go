@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"testing"
 )
@@ -485,7 +486,7 @@ func TestDiscardTemporaryOverlay(t *testing.T) {
 
 type discardDefaultProvider struct{ calls int }
 
-func (p *discardDefaultProvider) SessionDefault(_ context.Context, d SettingDefinition) (string, bool, error) {
+func (p *discardDefaultProvider) SessionDefault(_ context.Context, d settings.Definition) (string, bool, error) {
 	p.calls++
 	switch d.Name {
 	case "application_name":
@@ -505,10 +506,10 @@ func TestDiscardConfiguredReset(t *testing.T) {
 	reset, authenticated, counted := s.authorization.state.ResetRole, s.authorization.state.Authenticated, s.countedAuthenticated
 	// Alter genuine owner overrides without inventing connector options.
 	s.settings.values["application_name"] = "changed"
-	s.settings.typed["application_name"] = settingValue{Text: "changed"}
+	s.settings.typed["application_name"] = settings.Value{Text: "changed"}
 	s.settings.placeholders["discard.placeholder"] = true
 	s.settings.values["discard.placeholder"] = "changed"
-	s.settings.typed["discard.placeholder"] = settingValue{Text: "changed"}
+	s.settings.typed["discard.placeholder"] = settings.Value{Text: "changed"}
 	s.authorization.state.CurrentUser = authenticated
 	discardUnitApply(t, s, parser.DiscardAll)
 	if provider.calls != calls || s.settings.value("application_name") != "discard-configured" || !s.settings.placeholders["discard.placeholder"] || s.authorization.state.CurrentUser != reset || s.authorization.state.SessionUser != authenticated || s.countedAuthenticated != counted {

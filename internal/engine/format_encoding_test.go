@@ -65,12 +65,12 @@ func TestFormatEncodingCapturedDefaults(t *testing.T) {
 	}
 	messages, _ := e.settings.Lookup("lc_messages")
 	stats, _ := e.settings.Lookup("log_statement_stats")
-	if messages.Access != SettingPrivileged || stats.Access != SettingPrivileged {
+	if messages.Access != settings.Privileged || stats.Access != settings.Privileged {
 		t.Fatal("privileged classification changed")
 	}
 	for _, name := range []string{"client_encoding", "lc_monetary", "lc_numeric", "lc_time", "icu_validation_level", "extra_float_digits"} {
 		d, err := e.settings.Lookup(name)
-		if err != nil || d.Access != SettingSession {
+		if err != nil || d.Access != settings.Session {
 			t.Fatal(name, d, err)
 		}
 	}
@@ -93,7 +93,7 @@ func TestFormatEncodingCurrentRoleAndResetAll(t *testing.T) {
 	if err := settingAccess(messages, op); err != nil {
 		t.Fatal("real bootstrap superuser denied", err)
 	}
-	for _, definition := range []SettingDefinition{stats, {Name: "demo.privileged", Access: SettingPrivileged}} {
+	for _, definition := range []settings.Definition{stats, {Name: "demo.privileged", Access: settings.Privileged}} {
 		var d *sqlstate.Error
 		if err := settingAccess(definition, op); !errors.As(err, &d) || d.Code != "42501" {
 			t.Fatal("unrelated privileged setting relaxed", definition, err)

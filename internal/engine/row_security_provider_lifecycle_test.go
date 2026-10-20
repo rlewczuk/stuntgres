@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/access"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
 )
 
@@ -33,7 +34,7 @@ func TestRowSecurityProviderLifecycle(t *testing.T) {
 			if tc.supplied {
 				provider.values["row_security"] = tc.value
 			}
-			var defaults SessionDefaultProvider = provider
+			var defaults settings.SessionDefaultProvider = provider
 			if tc.noProvider {
 				defaults = nil
 			}

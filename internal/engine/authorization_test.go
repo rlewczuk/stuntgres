@@ -13,6 +13,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"testing"
@@ -350,7 +351,7 @@ type roleInitGate struct {
 	entered, release chan struct{}
 }
 
-func (g *roleInitGate) SessionDefault(ctx context.Context, d SettingDefinition) (string, bool, error) {
+func (g *roleInitGate) SessionDefault(ctx context.Context, d settings.Definition) (string, bool, error) {
 	if d.Name != "application_name" {
 		return "", false, nil
 	}

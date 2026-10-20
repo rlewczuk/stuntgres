@@ -9,6 +9,7 @@ import (
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/sqlstate"
 	"sync"
 	"time"
@@ -51,7 +52,7 @@ type SessionResource interface {
 }
 type SessionStart struct {
 	ID            ids.SessionID
-	Defaults      SessionDefaultProvider
+	Defaults      settings.SessionDefaultProvider
 	Authenticated authorization.PrincipalRef
 }
 type sessionState uint8

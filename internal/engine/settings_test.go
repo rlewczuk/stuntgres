@@ -10,6 +10,7 @@ import (
 
 	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
@@ -167,7 +168,7 @@ type settingsDefaultProviderForTest struct {
 	calls  map[string]int
 }
 
-func (p *settingsDefaultProviderForTest) SessionDefault(_ context.Context, d SettingDefinition) (string, bool, error) {
+func (p *settingsDefaultProviderForTest) SessionDefault(_ context.Context, d settings.Definition) (string, bool, error) {
 	p.calls[d.Name]++
 	if len(d.EnumValues) > 0 {
 		d.EnumValues[0] = "provider-mutated-copy"
@@ -176,10 +177,10 @@ func (p *settingsDefaultProviderForTest) SessionDefault(_ context.Context, d Set
 	return value, present, nil
 }
 func TestSettingProviderDefaultsAndDescriptorOwnership(t *testing.T) {
-	defs := []SettingDefinition{{Name: "demo.mode", Type: SettingEnum, BootDefault: "FAST", EnumValues: []string{"safe", "fast"}}, {Name: "demo.ratio", Type: SettingFloating, BootDefault: "1.23456789", FloatMax: 10}}
+	defs := []settings.Definition{{Name: "demo.mode", Type: settings.Enum, BootDefault: "FAST", EnumValues: []string{"safe", "fast"}}, {Name: "demo.ratio", Type: settings.Floating, BootDefault: "1.23456789", FloatMax: 10}}
 	for i := range defs {
 		var err error
-		defs[i], err = ValidateSetting(defs[i])
+		defs[i], err = settings.Validate(defs[i])
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -226,14 +227,14 @@ func TestSettingProviderDefaultsAndDescriptorOwnership(t *testing.T) {
 
 func TestSettingExactDecimalDefaultCapture(t *testing.T) {
 	exact := new(big.Int).Exp(big.NewInt(5), big.NewInt(1023), nil).String() + "e-1023"
-	def, err := ValidateSetting(SettingDefinition{Name: "demo.ratio", Type: SettingFloating, BootDefault: exact, FloatMin: -10, FloatMax: 10})
+	def, err := settings.Validate(settings.Definition{Name: "demo.ratio", Type: settings.Floating, BootDefault: exact, FloatMin: -10, FloatMax: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if def.BootValue().Number != 0x1p-1023 {
 		t.Fatal("registered default lost exactness", def.BootValue())
 	}
-	e := NewWithSettings([]SettingDefinition{def}, "", false)
+	e := NewWithSettings([]settings.Definition{def}, "", false)
 	p := &settingsDefaultProviderForTest{values: map[string]string{"demo.ratio": "-" + exact}, calls: map[string]int{}}
 	a := sessionStart(t, e, p)
 	if p.calls["demo.ratio"] != 1 || a.settings.defaultTyped["demo.ratio"].Number != -0x1p-1023 {

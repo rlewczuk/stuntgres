@@ -34,7 +34,7 @@ type Engine struct {
 	storage              storage.Store
 	sessionMu            sync.Mutex
 	sessions             map[ids.SessionToken]*Session
-	settings             settingsRegistry // Immutable, initialized once before publication.
+	settings             settings.Registry // Immutable, initialized once before publication.
 	visibility           visibility.Registry
 	indexBuildWaits      map[ids.ObjectAddress]indexBuildWait
 	exclusionPending     map[*lock.Ticket]*exclusionProjection
@@ -147,7 +147,7 @@ func NewWithCatalogProviders(providers ...catalog.Provider) (*Engine, error) {
 }
 
 // NewWithSettings consumes definitions validated before driver publication.
-func NewWithSettings(definitions []SettingDefinition, database string, trackCommitTimestamp bool) *Engine {
+func NewWithSettings(definitions []settings.Definition, database string, trackCommitTimestamp bool) *Engine {
 	e, err := newEngine(nil, definitions, database, trackCommitTimestamp)
 	if err != nil {
 		panic(err)
@@ -155,7 +155,7 @@ func NewWithSettings(definitions []SettingDefinition, database string, trackComm
 	return e
 }
 
-func newEngine(providers []catalog.Provider, definitions []SettingDefinition, database string, trackCommitTimestamp bool) (*Engine, error) {
+func newEngine(providers []catalog.Provider, definitions []settings.Definition, database string, trackCommitTimestamp bool) (*Engine, error) {
 	// Builtin descriptors use revision 1; allocations start beyond that frontier.
 	e := &Engine{catalog: catalogStore{Owner: catalog.Owner{Domain: &ids.Domain{}, Providers: map[ids.OID]catalog.Provider{}}, nextOID: 16384, nextRevision: 2}}
 	e.mu.Lock()

@@ -7,6 +7,7 @@ import (
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/ids"
 	"stuntgres/internal/engine/lock"
+	"stuntgres/internal/engine/settings"
 	"stuntgres/internal/engine/storage"
 	"stuntgres/internal/engine/visibility"
 	"stuntgres/internal/parser"
@@ -36,7 +37,7 @@ type savepointMark struct {
 
 type settingsMark struct {
 	values      map[string]string
-	typed       map[string]settingValue
+	typed       map[string]settings.Value
 	actions     map[string]settingAction
 	roleAction  roleSettingAction
 	currentRole authorization.PrincipalRef

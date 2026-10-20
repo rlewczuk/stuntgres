@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"stuntgres/internal/engine/ids"
+	"stuntgres/internal/engine/settings"
 )
 
 func TestSettingsLocalActions(t *testing.T) {
@@ -15,15 +16,15 @@ func TestSettingsLocalActions(t *testing.T) {
 		}{
 			{"S", "s"}, {"L", "b"}, {"SL", "s"}, {"LS", "s"}, {"SLSL", "s"}, {"SLD", "s"}, {"SLR", ""}, {"SDR", "s"},
 		} {
-			s := &sessionSettings{values: map[string]string{"x": "b"}, typed: map[string]settingValue{"x": {Number: math.SmallestNonzeroFloat64}}}
+			s := &sessionSettings{values: map[string]string{"x": "b"}, typed: map[string]settings.Value{"x": {Number: math.SmallestNonzeroFloat64}}}
 			for _, action := range tc.actions {
 				switch action {
 				case 'S':
 					s.touch("x", false)
-					s.restore("x", settingOverride{present: true, text: "s", typed: settingValue{Number: 2}})
+					s.restore("x", settingOverride{present: true, text: "s", typed: settings.Value{Number: 2}})
 				case 'L':
 					s.touch("x", true)
-					s.restore("x", settingOverride{present: true, text: "l", typed: settingValue{Number: 3}})
+					s.restore("x", settingOverride{present: true, text: "l", typed: settings.Value{Number: 3}})
 				case 'D':
 					s.touch("x", true)
 					s.restore("x", settingOverride{})
@@ -54,7 +55,7 @@ func TestSettingsLocalActions(t *testing.T) {
 }
 
 func TestSettingsLocalEndedCleanup(t *testing.T) {
-	s := &sessionSettings{values: map[string]string{"x": "b"}, typed: map[string]settingValue{}}
+	s := &sessionSettings{values: map[string]string{"x": "b"}, typed: map[string]settings.Value{}}
 	s.touch("x", true)
 	s.EndSession(ids.SessionToken{}, 0)
 	s.finishTransaction(false)
