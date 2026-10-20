@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strconv"
+
 	"stuntgres/internal/engine/analyze"
 	"stuntgres/internal/engine/authorization"
 	"stuntgres/internal/engine/expr"
@@ -190,22 +191,6 @@ func (e *Engine) lookupNamespacesSnapshot(auth AuthorizationView, name parser.Ob
 	return namespaceSelection{Qualified: a}, nil
 }
 
-func (b *expressionBinder) builtinVisible(name parser.ObjectName, kind analyze.LookupKind) (bool, error) {
-	auth, err := b.bindingAuthorization()
-	if err != nil {
-		return false, err
-	}
-	path, err := b.host.LookupNamespaces(auth, name, kind)
-	if err != nil {
-		return false, err
-	}
-	for i := range path.Count() {
-		if path.At(i).ObjectID == ids.PGCatalogNamespaceOID {
-			return true, nil
-		}
-	}
-	return false, nil
-}
 func (e *Engine) creationNamespace(auth AuthorizationView, name parser.ObjectName) (ids.ObjectRef, error) {
 	return e.creationNamespaceWithSystem(auth, name, false)
 }

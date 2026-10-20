@@ -1,12 +1,9 @@
 package engine
 
 import (
-	"context"
 	"fmt"
-	"strings"
 
 	"stuntgres/internal/engine/analyze"
-	"stuntgres/internal/engine/catalog"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
@@ -109,26 +106,6 @@ func (b *expressionBinder) bindArray(raw parser.ArrayExpr, target sqltype.Usage)
 	return plan.ArrayExpr{Info: info, Elements: elements, Multidimensional: multidimensional}, nil
 }
 
-func (r scalarRenderer) arraySQL(ctx context.Context, view catalog.Read, n plan.ArrayExpr) (string, error) {
-	parts := make([]string, len(n.Elements))
-	for i, child := range n.Elements {
-		text, err := r.sql(ctx, view, child)
-		if err != nil {
-			return "", err
-		}
-		parts[i] = text
-	}
-	text := "ARRAY[" + strings.Join(parts, ", ") + "]"
-	if len(parts) == 0 {
-		declaration, err := catalogTypeDeclarationAt(view, r.definition, n.Usage)
-		if err != nil {
-			return "", err
-		}
-		text += "::" + declaration
-	}
-	return text, nil
-}
-
 func (b *expressionBinder) bindArrayBounds(raw []parser.ArraySubscript) ([]plan.BoundArraySubscript, bool, error) {
 	var subs []plan.BoundArraySubscript
 	if len(raw) <= 6 {
@@ -205,36 +182,6 @@ func (b *expressionBinder) bindSubscript(raw parser.SubscriptExpr) (expr.Expr, e
 		return nil, err
 	}
 	return plan.SubscriptExpr{Info: info, Base: base, Subscripts: subs, Slice: slice}, nil
-}
-
-func (r scalarRenderer) subscriptSQL(ctx context.Context, view catalog.Read, n plan.SubscriptExpr) (string, error) {
-	text, err := r.sql(ctx, view, n.Base)
-	if err != nil {
-		return "", err
-	}
-	text = "(" + text + ")"
-	for _, s := range n.Subscripts {
-		text += "["
-		if s.Lower != nil {
-			part, err := r.sql(ctx, view, s.Lower)
-			if err != nil {
-				return "", err
-			}
-			text += part
-		}
-		if s.Slice {
-			text += ":"
-		}
-		if s.Upper != nil {
-			part, err := r.sql(ctx, view, s.Upper)
-			if err != nil {
-				return "", err
-			}
-			text += part
-		}
-		text += "]"
-	}
-	return text, nil
 }
 
 // Only actual changed child lists are copied; shared plans remain immutable.

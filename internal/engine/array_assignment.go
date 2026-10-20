@@ -5,22 +5,12 @@ import (
 	"strconv"
 
 	"stuntgres/internal/engine/catalog"
-	"stuntgres/internal/engine/exec"
 	"stuntgres/internal/engine/expr"
 	"stuntgres/internal/engine/plan"
 	"stuntgres/internal/parser"
 	"stuntgres/internal/sqlstate"
 	"stuntgres/internal/sqltype"
 )
-
-func assignmentTargetHasVirtualReads(target *plan.ArrayAssignmentTarget) bool {
-	for ; target != nil; target = target.Next {
-		if target.Attribute == 0 && exec.BoundHasVirtualReads(target.Node) {
-			return true
-		}
-	}
-	return false
-}
 
 func arrayTargetUsage(container sqltype.Usage, subs []parser.ArraySubscript) sqltype.Usage {
 	usage := container.BaseUsage()
@@ -76,53 +66,6 @@ func (b *expressionBinder) arrayAssignmentDiagnostic(t *plan.ArrayAssignmentTarg
 	copy.Hint = "You will need to rewrite or cast the expression."
 	copy.Position = strconv.Itoa(t.Pos.Character)
 	return &copy
-}
-
-func preflightArrayTargets(c *exec.Context, targets []*plan.ArrayAssignmentTarget) ([]*plan.ArrayAssignmentTarget, error) {
-	return preflightArrayTargetsWithPlanning(c, targets, false)
-}
-
-func preflightArrayTargetsWithPlanning(c *exec.Context, targets []*plan.ArrayAssignmentTarget, planConstants bool) ([]*plan.ArrayAssignmentTarget, error) {
-	var replacements []*plan.ArrayAssignmentTarget
-	for i, target := range targets {
-		if target == nil {
-			continue
-		}
-		next, err := preflightAssignmentTarget(c, target, planConstants)
-		if err != nil {
-			return nil, err
-		}
-		if next != target {
-			if replacements == nil {
-				replacements = append([]*plan.ArrayAssignmentTarget(nil), targets...)
-			}
-			replacements[i] = next
-		}
-	}
-	if replacements == nil {
-		return targets, nil
-	}
-	return replacements, nil
-}
-
-func preflightAssignmentTarget(c *exec.Context, target *plan.ArrayAssignmentTarget, planConstants bool) (*plan.ArrayAssignmentTarget, error) {
-	if target == nil {
-		return nil, nil
-	}
-	node, changed, err := mapSubscript(target.Node, func(old expr.Expr) (expr.Expr, bool, error) { return preflightUpdateExpression(c, old, planConstants) })
-	if err != nil {
-		return nil, err
-	}
-	next, err := preflightAssignmentTarget(c, target.Next, planConstants)
-	if err != nil {
-		return nil, err
-	}
-	if !changed && next == target.Next {
-		return target, nil
-	}
-	copy := *target
-	copy.Node, copy.Next = node, next
-	return &copy, nil
 }
 
 func targetUsage(container sqltype.Usage, steps []parser.TargetStep) sqltype.Usage {
